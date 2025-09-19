@@ -32,6 +32,7 @@ set(PROFILER_OPS
     profile_conv_tensor_rearrange.cpp
     profile_transpose.cpp
     profile_permute_scale.cpp
+    profile_gemm_quantization.cpp
 )
 
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx9")
@@ -112,6 +113,10 @@ if(DL_KERNELS)
   list(APPEND PROFILER_OPS profile_grouped_conv_bwd_weight.cpp)
 endif()
 
+if(CK_ENABLE_INT8)
+  list(APPEND PROFILER_OPS profile_gemm_quantization.cpp)
+endif()
+
 set(PROFILER_SOURCES profiler.cpp)
 foreach(SOURCE ${PROFILER_OPS})
   string(REGEX REPLACE "profile_(.+)\.cpp" "\\1" OP_NAME ${SOURCE})
@@ -153,7 +158,7 @@ list(APPEND DEVICE_INSTANCES device_column_to_image_instance)
 list(APPEND DEVICE_INSTANCES device_transpose_instance)
 list(APPEND DEVICE_INSTANCES device_permute_scale_instance)
 
-if(SUPPORTED_GPU_TARGETS MATCHES "gfx9")
+if(SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1[12]")
   if(DTYPES MATCHES "fp32" OR DTYPES MATCHES "fp64" OR NOT DEFINED DTYPES)
     list(APPEND DEVICE_INSTANCES device_contraction_bilinear_instance)
     list(APPEND DEVICE_INSTANCES device_contraction_scale_instance)
@@ -173,11 +178,13 @@ if(SUPPORTED_GPU_TARGETS MATCHES "gfx9")
     list(APPEND DEVICE_INSTANCES device_grouped_gemm_tile_loop_instance)
   endif()
   list(APPEND DEVICE_INSTANCES device_batched_gemm_reduce_instance)
-  if(SUPPORTED_GPU_TARGETS MATCHES "gfx9[45]")
+  if(SUPPORTED_GPU_TARGETS MATCHES "gfx9[45]" OR SUPPORTED_GPU_TARGETS MATCHES "gfx12")
     list(APPEND DEVICE_INSTANCES device_gemm_multiply_multiply_wp_instance)
+    list(APPEND DEVICE_INSTANCES device_gemm_universal_preshuffle_instance)
+  endif()
+    if(SUPPORTED_GPU_TARGETS MATCHES "gfx9[45]" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1[12]")
     list(APPEND DEVICE_INSTANCES device_gemm_ab_scale_instance)
     list(APPEND DEVICE_INSTANCES device_gemm_blockscale_wp_instance)
-    list(APPEND DEVICE_INSTANCES device_gemm_universal_preshuffle_instance)
   endif()
   if(SUPPORTED_GPU_TARGETS MATCHES "gfx95")
     list(APPEND DEVICE_INSTANCES device_gemm_mx_instance)
@@ -244,6 +251,10 @@ if(DL_KERNELS)
   list(APPEND DEVICE_INSTANCES device_grouped_conv1d_bwd_weight_instance)
   list(APPEND DEVICE_INSTANCES device_grouped_conv2d_bwd_weight_instance)
   list(APPEND DEVICE_INSTANCES device_grouped_conv3d_bwd_weight_instance)
+endif()
+
+if(CK_ENABLE_INT8)
+  list(APPEND DEVICE_INSTANCES device_quantization_instance)
 endif()
 
 set(PROFILER_LIBS utility getopt::getopt)

@@ -80,7 +80,8 @@
     "persistent": {
         "values": [
             false
-        ]
+       ]
     }
-  }
+  },
+  "k_block_per_cu": 8
 }

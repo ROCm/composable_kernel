@@ -213,8 +213,20 @@ list(APPEND EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS
   -Wno-undefined-func-template
   --save-temps
 )
-target_compile_options(${EXAMPLE_FMHA_FWD_V3} PRIVATE ${EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS})
+set(EXAMPLE_FMHA_FWD_V3_COMPILE_DEFINITIONS)
 
+check_cxx_compiler_flag("-mllvm --amdgpu-disable-packed-fp32=1" HAS_DISABLE_PACKED_FP32)
+if(HAS_DISABLE_PACKED_FP32)
+  list(APPEND EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS
+    -mllvm --amdgpu-disable-packed-fp32=1
+  )
+  list(APPEND EXAMPLE_FMHA_FWD_V3_COMPILE_DEFINITIONS
+    -DCK_TILE_DISABLE_PACKED_FP32=1
+  )
+endif()
+
+target_compile_options(${EXAMPLE_FMHA_FWD_V3} PRIVATE ${EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS})
+target_compile_definitions(${EXAMPLE_FMHA_FWD_V3} PRIVATE ${EXAMPLE_FMHA_FWD_V3_COMPILE_DEFINITIONS})
 # TODO: we have to turn off this global prop, otherwise the progress bar generated
 # by cmake will print too many files, execvp: /bin/sh: Argument list too long
 # however, this property may affect global
