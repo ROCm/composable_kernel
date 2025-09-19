@@ -151,10 +151,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         ck_tile::index_t hdim_q,
                         ck_tile::index_t hdim_v,
                         ck_tile::index_t seqlen_knew,
-                        std::vector<ck_tile::index_t> seqlen_qpads,
                         std::vector<ck_tile::index_t> seqlen_kpads,
-                        std::vector<ck_tile::index_t> q_eff_lens_per_batch,
-                        std::vector<ck_tile::index_t> kv_eff_lens_per_batch,
                         ck_tile::index_t rotary_dim,
                         bool i_perm,
                         bool o_perm,
@@ -365,44 +362,6 @@ fwd_result fmha_fwd_run(mode_enum mode,
     const auto seqstart_k_host              = to_seqstarts(seqlen_ks);
     const auto seqstart_k_with_padding_host = to_seqstarts(seqlen_kpads);
 
-    // Optional padded Q seqstarts (group-mode only)
-    std::vector<int32_t> seqstart_q_with_padding_host;
-    if(mode == mode_enum::group && !seqlen_qpads.empty() && seqlen_qpads[0] != -1)
-    {
-        if(seqlen_qpads.size() < static_cast<size_t>(batch))
-        {
-            seqlen_qpads.resize(batch, seqlen_qpads.back());
-        }
-        if(seqlen_qpads.size() == static_cast<size_t>(batch))
-        {
-            seqstart_q_with_padding_host = to_seqstarts(
-                ck_tile::span<const int32_t>(seqlen_qpads.data(), seqlen_qpads.size()));
-        }
-    }
-
-    // Optional batch-mode cumulative seqlen overrides
-    std::vector<ck_tile::index_t> cuq_cum, cukv_cum;
-    if(mode == mode_enum::batch)
-    {
-        auto calculate_cumulative = [&](std::vector<ck_tile::index_t>& per_batch_vec,
-                                        std::vector<ck_tile::index_t>& cum_vec) {
-            if(!per_batch_vec.empty() && per_batch_vec[0] != -1)
-            {
-                if(per_batch_vec.size() < static_cast<size_t>(batch))
-                {
-                    per_batch_vec.resize(batch, per_batch_vec.back());
-                }
-                cum_vec.resize(batch + 1);
-                cum_vec[0] = 0;
-                for(int i = 0; i < batch; ++i)
-                    cum_vec[i + 1] = cum_vec[i] + per_batch_vec[i];
-            }
-        };
-
-        calculate_cumulative(q_eff_lens_per_batch, cuq_cum);
-        calculate_cumulative(kv_eff_lens_per_batch, cukv_cum);
-    }
-
     using TypeConfig = FmhaFwdTypeConfig<DataTypeConfig>;
 
     using QDataType             = typename TypeConfig::QDataType;
@@ -486,15 +445,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
     // host memory for storing all the tensor elements
     const ck_tile::index_t shape_batch = (mode == mode_enum::batch ? batch : 1);
-    // logical(unpadded) total seqlen_q for group; batch uses fixed seqlen
-    const ck_tile::index_t shape_seqlen_q_lse =
-        (mode == mode_enum::batch ? seqlen_qs[0] : seqstart_q_host.back());
-    // physical(padded) total seqlen_q for group when s_qpad is provided; else use logical
     const ck_tile::index_t shape_seqlen_q =
-        (mode == mode_enum::batch
-             ? seqlen_qs[0]
-             : (seqstart_q_with_padding_host.empty() ? seqstart_q_host.back()
-                                                     : seqstart_q_with_padding_host.back()));
+        (mode == mode_enum::batch ? seqlen_qs[0] : seqstart_q_host.back());
     const ck_tile::index_t shape_seqlen_k =
         (mode == mode_enum::batch ? seqlen_ks[0]
                                   : (seqlen_kpads[0] < 0 ? seqstart_k_host.back()
@@ -552,7 +504,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
     // batch mode of lse data layout is [batch, nhead, seqlen_q]
     // group mode of lse data layout is [nhead, total_seqlen_q]
     ck_tile::HostTensor<LSEDataType> lse_host(
-        lse ? std::array<ck_tile::index_t, 3>{shape_batch, nhead, shape_seqlen_q_lse}
+        lse ? std::array<ck_tile::index_t, 3>{shape_batch, nhead, shape_seqlen_q}
             : std::array<ck_tile::index_t, 3>{1, 1, 1} /* dummy shape for simplifying code */);
 
     ck_tile::HostTensor<ODataType> o_host(
@@ -650,16 +602,6 @@ fwd_result fmha_fwd_run(mode_enum mode,
     ck_tile::DeviceMem o_buf(o_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
-    ck_tile::DeviceMem seqstart_q_padded_buf(seqstart_q_with_padding_host.empty()
-                                                 ? 0
-                                                 : seqstart_q_with_padding_host.size() *
-                                                       sizeof(int32_t));
-    ck_tile::DeviceMem seqstart_k_padded_buf(
-        seqlen_kpads[0] < 0 ? 0 : seqstart_k_with_padding_host.size() * sizeof(int32_t));
-    ck_tile::DeviceMem cu_seqlen_q_buf(cuq_cum.empty() ? 0
-                                                       : cuq_cum.size() * sizeof(ck_tile::index_t));
-    ck_tile::DeviceMem cu_seqlen_kv_buf(
-        cukv_cum.empty() ? 0 : cukv_cum.size() * sizeof(ck_tile::index_t));
     ck_tile::DeviceMem seqlen_k_buf((mode == mode_enum::batch && use_kvcache) ||
                                             0 <= seqlen_kpads[0]
                                         ? seqlen_ks.size() * sizeof(int32_t)
@@ -751,14 +693,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
     vnew_buf.ToDevice(vnew_host.data());
     bias_buf.ToDevice(bias_host.data());
     seqstart_q.ToDevice(seqstart_q_host.data());
-    // Keep logical starts in seqstart_k; pass padded K via separate pointer
-    seqstart_k.ToDevice(seqstart_k_host.data());
-    seqstart_q_padded_buf.ToDevice(
-        seqstart_q_with_padding_host.empty() ? nullptr : seqstart_q_with_padding_host.data());
-    seqstart_k_padded_buf.ToDevice(seqlen_kpads[0] < 0 ? nullptr
-                                                       : seqstart_k_with_padding_host.data());
-    cu_seqlen_q_buf.ToDevice(cuq_cum.empty() ? nullptr : cuq_cum.data());
-    cu_seqlen_kv_buf.ToDevice(cukv_cum.empty() ? nullptr : cukv_cum.data());
+    seqstart_k.ToDevice(seqlen_kpads[0] < 0 ? seqstart_k_host.data()
+                                            : seqstart_k_with_padding_host.data());
     seqlen_k_buf.ToDevice((mode == mode_enum::batch && use_kvcache) || 0 <= seqlen_kpads[0]
                               ? seqlen_ks.data()
                               : nullptr);
@@ -894,8 +830,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
         const ck_tile::index_t nhead_stride_bias =
             (i_perm ? 0 * shape_seqlen_q * max_seqlen_k : 0 * max_seqlen_k);
         const ck_tile::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
-        const ck_tile::index_t nhead_stride_lse     = shape_seqlen_q_lse;
-        const ck_tile::index_t nhead_stride_lse_acc = (num_splits * shape_seqlen_q_lse);
+        const ck_tile::index_t nhead_stride_lse     = shape_seqlen_q;
+        const ck_tile::index_t nhead_stride_lse_acc = (num_splits * shape_seqlen_q);
         const ck_tile::index_t nhead_stride_o_acc   = (num_splits * shape_seqlen_q * hdim_v);
         const ck_tile::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         // setup batch_stride_* arguments
@@ -910,8 +846,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
         const ck_tile::index_t batch_stride_vnew    = (nhead_k * hdim_v * seqlen_knew);
         const ck_tile::index_t batch_stride_bias    = (0 * nhead * shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
-        const ck_tile::index_t batch_stride_lse     = (nhead * shape_seqlen_q_lse);
-        const ck_tile::index_t batch_stride_lse_acc = (nhead * num_splits * shape_seqlen_q_lse);
+        const ck_tile::index_t batch_stride_lse     = (nhead * shape_seqlen_q);
+        const ck_tile::index_t batch_stride_lse_acc = (nhead * num_splits * shape_seqlen_q);
         const ck_tile::index_t batch_stride_o_acc = (nhead * num_splits * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_o     = (nhead * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_block_table = (max_num_page_blocks / batch);
@@ -1024,29 +960,6 @@ fwd_result fmha_fwd_run(mode_enum mode,
                 else
                 {
                     args.drop_seed_offset = std::make_pair(drop_seed, drop_offset);
-                }
-
-                // Group-mode: optional physical padded starts for Q/K
-                if(mode == mode_enum::group)
-                {
-                    args.seqstart_padded_q_ptr = (seqstart_q_with_padding_host.empty()
-                                                      ? nullptr
-                                                      : seqstart_q_padded_buf.GetDeviceBuffer());
-                    args.seqstart_padded_k_ptr =
-                        (seqlen_kpads[0] < 0 ? nullptr : seqstart_k_padded_buf.GetDeviceBuffer());
-                }
-
-                // Batch-mode: optional cumulative effective seqlen overrides
-                if(mode == mode_enum::batch)
-                {
-                    args.cu_seqlen_q_ptr  = cuq_cum.empty()
-                                                ? nullptr
-                                                : reinterpret_cast<const ck_tile::index_t*>(
-                                                     cu_seqlen_q_buf.GetDeviceBuffer());
-                    args.cu_seqlen_kv_ptr = cukv_cum.empty()
-                                                ? nullptr
-                                                : reinterpret_cast<const ck_tile::index_t*>(
-                                                      cu_seqlen_kv_buf.GetDeviceBuffer());
                 }
             }
             else if constexpr(std::is_same_v<fmha_fwd_splitkv_args, std::decay_t<decltype(args)>>)
@@ -1254,29 +1167,15 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
         for(ck_tile::index_t wb = 0; wb < batch; ++wb)
         {
-            ck_tile::index_t real_seqlen_q = seqstart_q_host[wb + 1] - seqstart_q_host[wb];
-            ck_tile::index_t real_seqlen_k = seqstart_k_host[wb + 1] - seqstart_k_host[wb];
-            if(mode == mode_enum::batch)
-            {
-                if(!cuq_cum.empty())
-                {
-                    real_seqlen_q = cuq_cum[wb + 1] - cuq_cum[wb];
-                }
-                if(!cukv_cum.empty())
-                {
-                    real_seqlen_k = cukv_cum[wb + 1] - cukv_cum[wb];
-                }
-            }
+            const ck_tile::index_t real_seqlen_q = seqstart_q_host[wb + 1] - seqstart_q_host[wb];
+            const ck_tile::index_t real_seqlen_k = seqstart_k_host[wb + 1] - seqstart_k_host[wb];
 
             // adjust matrix index according to the mode
             const ck_tile::index_t b_idx = (mode == mode_enum::batch ? wb : 0);
             const ck_tile::index_t cache_b_idx =
                 (use_cache_batch_idx ? cache_batch_idx_host(b_idx) : b_idx);
             const ck_tile::index_t query_offset =
-                (mode == mode_enum::batch
-                     ? 0
-                     : (seqstart_q_with_padding_host.empty() ? seqstart_q_host[wb]
-                                                             : seqstart_q_with_padding_host[wb]));
+                (mode == mode_enum::batch ? 0 : seqstart_q_host[wb]);
             const ck_tile::index_t key_offset =
                 (mode == mode_enum::batch
                      ? 0
@@ -1639,10 +1538,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
             if(lse)
             {
                 ck_tile::HostTensor<SMPLComputeDataType> lse_host_result({nhead, real_seqlen_q});
-                const ck_tile::index_t query_offset_lse =
-                    (mode == mode_enum::batch ? 0 : seqstart_q_host[wb]);
                 lse_host_result.ForEach([&](auto& self, auto idx) {
-                    self(idx) = lse_host(b_idx, idx[0], idx[1] + query_offset_lse);
+                    self(idx) = lse_host(b_idx, idx[0], idx[1] + query_offset);
                 });
 
                 cur_pass = ck_tile::check_err(lse_host_result,
