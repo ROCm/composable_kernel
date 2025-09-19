@@ -52,10 +52,10 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     using typename Base::ALayout;
     using typename Base::BDataType;
     using typename Base::BLayout;
-    using typename Base::QDataType;
     using typename Base::CDataType;
     using typename Base::CLayout;
     using typename Base::ComputeDataType;
+    using typename Base::QDataType;
 
     static constexpr auto QuantType          = Base::QuantType;
     static constexpr uint32_t QuantGroupSize = Base::QuantGroupSize;
@@ -72,8 +72,9 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         const ck_tile::index_t stride_C = M;
 
         // AQuant uses grouped quantization for A matrix
-        const ck_tile::index_t AQK       = ck_tile::integer_divide_ceil(K, QuantGroupSize);
-        const ck_tile::index_t stride_AQ = ck_tile::get_default_stride(M, AQK, 0, this->is_row_major(ALayout{}));
+        const ck_tile::index_t AQK = ck_tile::integer_divide_ceil(K, QuantGroupSize);
+        const ck_tile::index_t stride_AQ =
+            ck_tile::get_default_stride(M, AQK, 0, this->is_row_major(ALayout{}));
 
         // Generate test data
         ck_tile::HostTensor<ADataType> a_m_k(
@@ -280,10 +281,10 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     using typename Base::ALayout;
     using typename Base::BDataType;
     using typename Base::BLayout;
-    using typename Base::QDataType;
     using typename Base::CDataType;
     using typename Base::CLayout;
     using typename Base::ComputeDataType;
+    using typename Base::QDataType;
 
     static constexpr auto QuantType          = Base::QuantType;
     static constexpr uint32_t QuantGroupSize = Base::QuantGroupSize;
@@ -499,10 +500,10 @@ class TestCkTileGemmRowColQuant
     using typename Base::ALayout;
     using typename Base::BDataType;
     using typename Base::BLayout;
-    using typename Base::QDataType;
     using typename Base::CDataType;
     using typename Base::CLayout;
     using typename Base::ComputeDataType;
+    using typename Base::QDataType;
 
     static constexpr auto QuantType          = Base::QuantType;
     static constexpr uint32_t QuantGroupSize = Base::QuantGroupSize;
@@ -716,10 +717,10 @@ class TestCkTileGemmTensorQuant
     using typename Base::ALayout;
     using typename Base::BDataType;
     using typename Base::BLayout;
-    using typename Base::QDataType;
     using typename Base::CDataType;
     using typename Base::CLayout;
     using typename Base::ComputeDataType;
+    using typename Base::QDataType;
 
     static constexpr auto QuantType          = Base::QuantType;
     static constexpr uint32_t QuantGroupSize = Base::QuantGroupSize;
