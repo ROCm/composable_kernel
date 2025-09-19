@@ -72,12 +72,12 @@ struct FmhaFwdKernel
     static constexpr std::string_view kPipelineName = FmhaPipeline::name;
 
     // clang-format off
-    template <typename T1, typename T2> struct t2s;
-    template <> struct t2s<float, float> { static constexpr const char * name = "fp32"; };
-    template <> struct t2s<ck_tile::fp16_t, ck_tile::fp16_t> { static constexpr const char * name = "fp16"; };
-    template <> struct t2s<ck_tile::bf16_t, ck_tile::bf16_t> { static constexpr const char * name = "bf16"; };
-    template <> struct t2s<ck_tile::fp8_t, ck_tile::fp8_t> { static constexpr const char * name = "fp8"; };
-    template <> struct t2s<ck_tile::bf8_t, ck_tile::bf8_t> { static constexpr const char * name = "bf8"; };
+    template <typename T1, typename T2 = T1> struct t2s;
+    template <> struct t2s<float> { static constexpr const char * name = "fp32"; };
+    template <> struct t2s<ck_tile::fp16_t> { static constexpr const char * name = "fp16"; };
+    template <> struct t2s<ck_tile::bf16_t> { static constexpr const char * name = "bf16"; };
+    template <> struct t2s<ck_tile::fp8_t> { static constexpr const char * name = "fp8"; };
+    template <> struct t2s<ck_tile::bf8_t> { static constexpr const char * name = "bf8"; };
     template <> struct t2s<ck_tile::fp8_t, ck_tile::bf16_t> { static constexpr const char * name = "fp8bf16"; };
     template <> struct t2s<ck_tile::fp8_t, ck_tile::fp32_t> { static constexpr const char * name = "fp8fp32"; };
     // clang-format on
