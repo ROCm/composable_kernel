@@ -358,9 +358,9 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
 
                         if constexpr(Traits::PreshuffleQuant)
                         {
-                            static_assert(false,
-                                          "It is not supported yet to enable both Preshuffle and "
-                                          "TransposeC.");
+                            // static_assert(false,
+                            //               "It is not supported yet to enable both Preshuffle and
+                            //               " "TransposeC.");
                             if constexpr(Traits::TransposeC) // transposed C
                             {
                                 // TODO:

@@ -113,7 +113,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
         using GemmPipeline = std::conditional_t<
             QuantMode == ck_tile::QuantType::RowColQuant,
             ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>,
-             std::conditional_t<
+            std::conditional_t<
                 QuantMode == ck_tile::QuantType::AQuantGrouped,
                 ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
                 std::conditional_t<GemmConfig::PreshuffleB == false,
@@ -185,6 +185,14 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
 {
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+
+    if((QuantMode == ck_tile::QuantType::AQuantGrouped ||
+        QuantMode == ck_tile::QuantType::RowColQuant) &&
+       GemmConfig::PreshuffleB)
+    {
+        throw std::runtime_error(
+            "Preshuffling weight matrix is not supported for AQuant or RowColQuant");
+    }
 
     if constexpr(std::is_same_v<typename TypeConfig::ADataType, ck_tile::pk_int4_t> ||
                  std::is_same_v<typename TypeConfig::ADataType, ck_tile::fp8_t> ||
@@ -333,7 +341,7 @@ int run_gemm_example(int argc, char* argv[])
                 "Unsupported quantization mode for this datatype! Use 'aquant'.");
         }
     }
-    /*else if(data_type == "fp8i4")
+    else if(data_type == "fp8i4")
     {
         using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::fp8_t,
                                                         ck_tile::pk_int4_t,
@@ -374,7 +382,7 @@ int run_gemm_example(int argc, char* argv[])
             throw std::runtime_error(
                 "Unsupported quantization mode for this datatype! Use 'bquant'.");
         }
-    }*/
+    }
     else
     {
         throw std::runtime_error("Unsupported data type for this operation !!!");

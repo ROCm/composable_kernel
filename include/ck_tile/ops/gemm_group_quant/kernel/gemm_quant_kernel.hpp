@@ -920,9 +920,8 @@ struct QuantGemmKernel
                 static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
                 return make_tile_window(
                     bq_pad_view,
-                    make_tuple(
-                        number<TilePartitioner::NPerBlock>{},
-                        number<TilePartitioner::KPerBlock / GemmPipeline::kQuantGroupSize>{}),
+                    make_tuple(number<TilePartitioner::NPerBlock>{},
+                               number<TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSize>{}),
                     {i_n, 0});
             }
             else
@@ -1077,9 +1076,6 @@ struct QuantGemmKernel
             else
             {
                 return nullptr;
-                // throw std::runtime_error("DoubleSmemBuffer Not implemented for AQuantGrouped or
-                // RowColQuant"); static_assert(kQuantType == QuantType::BQuantGrouped,
-                // "DoubleSmemBuffer Not implemented");
             }
         }();
 
