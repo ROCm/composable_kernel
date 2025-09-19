@@ -12,8 +12,24 @@
 
 namespace ck_tile {
 
-template <typename ADataType_,
-          typename BDataType_,
+template <typename T>
+concept HasDataType = requires { typename T::DataType; };
+
+template <typename T>
+struct GetDataType
+{
+    using type = float;
+};
+
+template <typename T>
+    requires HasDataType<T>
+struct GetDataType<T>
+{
+    using type = typename T::DataType; // Use T::ScaleN::DataType
+};
+
+template <typename AsDataType_,
+          typename BsDataType_,
           typename DsDataType_,
           typename AccDataType_,
           typename ODataType_,
@@ -35,8 +51,8 @@ template <typename ADataType_,
           bool TiledMMAPermuteN_  = false>
 struct CShuffleEpilogueProblem
 {
-    using ADataType                                        = remove_cvref_t<ADataType_>;
-    using BDataType                                        = remove_cvref_t<BDataType_>;
+    using AsDataType                                       = remove_cvref_t<AsDataType_>;
+    using BsDataType                                       = remove_cvref_t<BsDataType_>;
     using AccDataType                                      = remove_cvref_t<AccDataType_>;
     using ODataType                                        = remove_cvref_t<ODataType_>;
     using DsDataType                                       = remove_cvref_t<DsDataType_>;
@@ -67,12 +83,27 @@ template <typename Problem_, typename Policy_ = void>
 struct CShuffleEpilogue
 {
     using Problem     = remove_cvref_t<Problem_>;
-    using ADataType   = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType   = remove_cvref_t<typename Problem::BDataType>;
+    using AsDataType  = remove_cvref_t<typename Problem::AsDataType>;
+    using BsDataType  = remove_cvref_t<typename Problem::BsDataType>;
     using AccDataType = remove_cvref_t<typename Problem::AccDataType>;
     using ODataType   = remove_cvref_t<typename Problem::ODataType>;
     using DsDataType  = remove_cvref_t<typename Problem::DsDataType>;
     using DsLayout    = remove_cvref_t<typename Problem::DsLayout>;
+
+    static constexpr bool ADataTypeIsTuple = is_detected<is_tuple, AsDataType>::value;
+    static constexpr bool BDataTypeIsTuple = is_detected<is_tuple, BsDataType>::value;
+
+    using AsDataTypeTuple = std::conditional_t<ADataTypeIsTuple,
+                                               remove_cvref_t<AsDataType>,
+                                               remove_cvref_t<tuple<AsDataType>>>;
+
+    using BsDataTypeTuple = std::conditional_t<BDataTypeIsTuple,
+                                               remove_cvref_t<BsDataType>,
+                                               remove_cvref_t<tuple<BsDataType>>>;
+
+    using ADataType = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataTypeTuple>>;
+    using BDataType = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataTypeTuple>>;
+
     using ATypeToUse =
         std::conditional_t<std::is_same_v<ADataType, pk_int4_t>, BDataType, ADataType>;
     // Used for weight-only quantization kernel, B would be dequantized to the same data type as A
@@ -423,10 +454,8 @@ struct CShuffleEpilogue
             !std::is_same<ScaleM, EmptyScale>::value && !std::is_same<ScaleN, EmptyScale>::value;
 
         // Tiles to hold row/col scales when present
-        using SMType =
-            std::conditional_t<has_scales, remove_cvref_t<typename ScaleM::DataType>, float>;
-        using SNType =
-            std::conditional_t<has_scales, remove_cvref_t<typename ScaleN::DataType>, float>;
+        using SMType = typename GetDataType<remove_cvref_t<ScaleM>>::type;
+        using SNType = typename GetDataType<remove_cvref_t<ScaleN>>::type;
 
         auto sm_tile = make_static_distributed_tensor<SMType>(dram_tile_distribution);
         auto sn_tile = make_static_distributed_tensor<SNType>(dram_tile_distribution);

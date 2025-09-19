@@ -1,4 +1,6 @@
 #!/bin/bash
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
 
 BIN=./bin/tile_example_gemm_weight_preshuffle
 PREC=fp8

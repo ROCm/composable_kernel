@@ -23,7 +23,6 @@ template <typename GemmConfig,
 float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s)
 {
     static_assert(std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::RowMajor>);
-    // B datatype is safe to use as compute type as it should be at least fp8
     using ComputeDataType = std::conditional_t<QuantMode == ck_tile::QuantType::AQuantGrouped ||
                                                    QuantMode == ck_tile::QuantType::RowColQuant,
                                                typename TypeConfig::BDataType,
@@ -64,10 +63,9 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
 
     const ck_tile::index_t K_split =
         (args.K + GemmConfig::K_Tile - 1) / GemmConfig::K_Tile * GemmConfig::K_Tile;
-    const ck_tile::index_t num_loop     = TilePartitioner::GetLoopNum(K_split);
-    const bool has_hot_loop             = BaseGemmPipeline::BlockHasHotloop(num_loop);
-    const ck_tile::TailNumber tail_num  = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
-    constexpr bool transposed_warp_gemm = false;
+    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
+    const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
+    const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
 
     const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
         constexpr bool has_hot_loop_v = has_hot_loop_.value;
@@ -115,7 +113,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
         using GemmPipeline = std::conditional_t<
             QuantMode == ck_tile::QuantType::RowColQuant,
             ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>,
-            std::conditional_t<
+             std::conditional_t<
                 QuantMode == ck_tile::QuantType::AQuantGrouped,
                 ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
                 std::conditional_t<GemmConfig::PreshuffleB == false,
@@ -138,7 +136,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                              GemmConfig::M_Warp_Tile,
                                              GemmConfig::N_Warp_Tile,
                                              GemmConfig::K_Warp_Tile,
-                                             transposed_warp_gemm,
+                                             transpose_c,
                                              ck_tile::memory_operation_enum::set>>;
         using Kernel =
             ck_tile::QuantGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue, QuantMode>;
@@ -258,7 +256,7 @@ int run_gemm_example(int argc, char* argv[])
                 "Unsupported quantization mode! Use 'aquant', 'bquant' or 'rowcol'");
         }
     }
-    /*else if(data_type == "bf8")
+    else if(data_type == "bf8")
     {
         using TypeConfig =
             decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t, float>{});
@@ -335,7 +333,7 @@ int run_gemm_example(int argc, char* argv[])
                 "Unsupported quantization mode for this datatype! Use 'aquant'.");
         }
     }
-    else if(data_type == "fp8i4")
+    /*else if(data_type == "fp8i4")
     {
         using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::fp8_t,
                                                         ck_tile::pk_int4_t,

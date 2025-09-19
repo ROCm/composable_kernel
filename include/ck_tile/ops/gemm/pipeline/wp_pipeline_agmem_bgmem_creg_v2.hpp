@@ -53,14 +53,23 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
 {
     using Base = BaseWeightPreshufflePipelineAGmemBGmemCRegV2<Problem>;
 
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
+    using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
+    using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
+    using CDataType  = remove_cvref_t<typename Problem::CDataType>;
+
+    using AElementWise   = remove_cvref_t<typename Problem::AElementWise>;
+    using BElementWise   = remove_cvref_t<typename Problem::BElementWise>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>; // TileFlatmmShape
 
-    using ALayout = remove_cvref_t<typename Problem::ALayout>;
-    using BLayout = remove_cvref_t<typename Problem::BLayout>;
-    using CLayout = remove_cvref_t<typename Problem::CLayout>;
+    using AsLayout = remove_cvref_t<typename Problem::AsLayoutTuple>;
+    using BsLayout = remove_cvref_t<typename Problem::BsLayoutTuple>;
+    using CLayout  = remove_cvref_t<typename Problem::CLayout>;
+
+    using ALayout = remove_cvref_t<std::tuple_element_t<0, AsLayout>>;
+    using BLayout = remove_cvref_t<std::tuple_element_t<0, BsLayout>>;
+
+    using ADataType = remove_cvref_t<std::tuple_element_t<0, AsDataType>>;
+    using BDataType = remove_cvref_t<std::tuple_element_t<0, BsDataType>>;
 
     using BlockWeightPreshuffle =
         remove_cvref_t<decltype(PipelinePolicy::template GetBlockWeightPreshuffle<Problem>())>;
@@ -502,7 +511,10 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
     template <TailNumber TailNum,
               typename ADramBlockWindowTmp,
               typename BFlatBlockWindowTmp,
-              typename AElementFunction>
+              typename AElementFunction,
+              typename std::enable_if_t<!is_detected<is_tuple, ADramBlockWindowTmp>::value &&
+                                            !is_detected<is_tuple, BFlatBlockWindowTmp>::value,
+                                        bool>* = nullptr>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const AElementFunction& a_element_func,
                                    const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
@@ -1001,8 +1013,37 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
         return c_block_tile;
     }
 
+    // called from universal gemm kernel
+    template <typename ADramBlockWindowTmp,
+              typename BFlatBlockWindowTmp,
+              typename AElementFunction,
+              typename BElementFunction,
+              typename std::enable_if_t<is_detected<is_tuple, ADramBlockWindowTmp>::value &&
+                                            is_detected<is_tuple, BFlatBlockWindowTmp>::value,
+                                        bool>* = nullptr>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   [[maybe_unused]] const AElementFunction& a_element_func,
+                                   const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                   [[maybe_unused]] const BElementFunction& b_element_func,
+                                   index_t num_loop,
+                                   void* p_smem_ping,
+                                   void* p_smem_pong) const
+    {
+        return operator()<TailNum>(
+            a_dram_block_window_tmp[number<0>{}],
+            [](const ADataType& a) { return a; },
+            b_flat_dram_block_window_tmp[number<0>{}],
+            num_loop,
+            p_smem_ping,
+            p_smem_pong);
+    }
+
     // called from general gemm kernel
-    template <typename ADramBlockWindowTmp, typename BFlatBlockWindowTmp>
+    template <typename ADramBlockWindowTmp,
+              typename BFlatBlockWindowTmp,
+              typename std::enable_if_t<!is_detected<is_tuple, ADramBlockWindowTmp>::value &&
+                                            !is_detected<is_tuple, BFlatBlockWindowTmp>::value,
+                                        bool>* = nullptr>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                    index_t num_loop,
@@ -1019,9 +1060,13 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
     }
 
     // called from grouped gemm kernel
-    template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp>
+    template <typename ADramBlockWindowTmp,
+              typename BFlatBlockWindowTmp,
+              typename std::enable_if_t<!is_detected<is_tuple, ADramBlockWindowTmp>::value &&
+                                            !is_detected<is_tuple, BFlatBlockWindowTmp>::value,
+                                        bool>* = nullptr>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
-                                   const BDramBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                   const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                    index_t num_loop,
                                    TailNumber tail_number,
                                    void* __restrict__ p_smem_0,
