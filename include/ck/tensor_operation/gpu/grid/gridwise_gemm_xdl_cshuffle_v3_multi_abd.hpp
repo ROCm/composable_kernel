@@ -388,6 +388,17 @@ struct GridwiseGemm_xdl_cshuffle_v3
             Number<NumATensor>{});
     }
 
+    __host__ __device__ static auto
+    MakeFakeAGridDescriptor_AK0_M_AK1(const index_t M,
+                                   const index_t MPad,
+                                   const index_t K,
+                                   const index_t KPad,
+                                   const std::array<index_t, NumATensor>& StrideAs,
+                                   const index_t AK0)
+    {
+        return MakeAGridDescriptor_AK0_M_AK1(M, MPad, K, KPad, StrideAs[0], AK0);
+    }
+
     __device__ static auto MakeBGridDescriptor_BK0_N_BK1(
         index_t K, index_t KPad, index_t N, index_t NPad, index_t StrideB, index_t BK0)
     {
@@ -1369,6 +1380,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
         //    problem.K, problem.KPadded, problem.N, problem.NPadded, problem.StrideB, problem.BK0);
         const auto as_grid_desc_ak0_m_ak1 = MakeAsGridDescriptor_AK0_M_AK1(
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideAs, problem.AK0);
+        [[maybe_unused]] const auto a_fake_grid_desc_ak0_m_ak1 = MakeFakeAGridDescriptor_AK0_M_AK1(
+            problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideAs, problem.AK0);
         const auto bs_grid_desc_bk0_n_bk1 = MakeBsGridDescriptor_BK0_N_BK1(
             problem.K, problem.KPadded, problem.N, problem.NPadded, problem.StrideBs, problem.BK0);
         const auto c_grid_desc_m_n = MakeCGridDescriptor_M_N(
@@ -1404,6 +1417,13 @@ struct GridwiseGemm_xdl_cshuffle_v3
             },
             Number<NumATensor>{});
 
+        [[maybe_unused]] const auto a_fake_grid_buf = generate_tuple(
+            [&]([[maybe_unused]] auto i) {
+                return make_dynamic_buffer<AddressSpaceEnum::Global>(
+                p_c_grid, c_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize() / 16);
+            },
+            Number<NumATensor>{});
+    
         const auto bs_grid_buf = generate_tuple(
             [&](auto i) {
                 return make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -1514,6 +1534,33 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                 tie(a_block_desc_ak0_m_ak1),
                                                 make_tuple(make_multi_index(0, 0, 0)),
                                                 a_element_op};
+
+
+        auto a_fake_blockwise_copy = ThreadGroupTensorSliceTransfer_v7r2<
+            ThisThreadBlock,
+            AsDataType,
+            Tuple<LDSTypeA>,
+            decltype(as_grid_desc_ak0_m_ak1),
+            decltype(tie(a_block_desc_ak0_m_ak1)),
+            AElementwiseOperation,
+            Sequence<static_cast<index_t>(InMemoryDataOperationEnum::Set)>,
+            Sequence<AK0Number, MPerBlock, AK1Number>,
+            ABlockTransferThreadClusterLengths_AK0_M_AK1,
+            ABlockTransferThreadClusterArrangeOrder,
+            ABlockTransferSrcAccessOrder,
+            Sequence<1, 0, 2>,
+            ABlockTransferSrcVectorDim,
+            2,
+            ABlockTransferSrcScalarPerVector,
+            ABlockTransferDstScalarPerVector_AK1,
+            uniform_sequence_gen_t<NumATensor, AThreadTransferSrcResetCoordinateAfterRun>,
+            Sequence<true>,
+            BlockwiseGemmPipe::GlobalBufferNum>{as_grid_desc_ak0_m_ak1,
+                                                idx_as_block_begin,
+                                                tie(a_block_desc_ak0_m_ak1),
+                                                make_tuple(make_multi_index(0, 0, 0)),
+                                                a_element_op};
+
 #endif
 
 #if 0
@@ -1593,6 +1640,7 @@ struct GridwiseGemm_xdl_cshuffle_v3
             b_block_desc_bk0_n_bk1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
+        [[maybe_unused]] constexpr auto a_fake_block_slice_copy_step = make_multi_index(KPerBlock / (AK1Number*2), 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(KPerBlock / BK1Number, 0, 0);
 
         // Blockwise GEMM pipeline
@@ -1610,6 +1658,10 @@ struct GridwiseGemm_xdl_cshuffle_v3
                                                                          as_grid_buf,
                                                                          a_block_buf,
                                                                          a_block_slice_copy_step,
+                                                                         a_fake_grid_desc_ak0_m_ak1,
+                                                                         a_fake_blockwise_copy,
+                                                                         a_fake_grid_buf,
+                                                                         a_fake_block_slice_copy_step,
                                                                          bs_grid_desc_bk0_n_bk1,
                                                                          b_block_desc_bk0_n_bk1,
                                                                          b_blockwise_copy,
