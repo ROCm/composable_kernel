@@ -55,23 +55,24 @@ template <typename ADataType_,
           bool TiledMMAPermuteN_  = false>
 struct CShuffleEpilogueProblem
 {
-    using ADataType                        = remove_cvref_t<ADataType_>;
-    using BDataType                        = remove_cvref_t<BDataType_>;
-    using AccDataType                      = remove_cvref_t<AccDataType_>;
-    using ODataType                        = remove_cvref_t<ODataType_>;
-    using DsDataType                       = remove_cvref_t<DsDataType_>;
-    using DsLayout                         = remove_cvref_t<DsLayout_>;
-    using ELayout                          = remove_cvref_t<ELayout_>;
-    using CDElementwise                    = remove_cvref_t<CDElementwise_>;
-    static constexpr index_t kBlockSize    = MWave_ * NWave_ * KWave_ * get_warp_size();
-    static constexpr index_t kMPerBlock    = kM_;
-    static constexpr index_t kNPerBlock    = kN_;
-    static constexpr index_t MWave         = MWave_;
-    static constexpr index_t NWave         = NWave_;
-    static constexpr index_t MPerXdl       = MPerXdl_;
-    static constexpr index_t NPerXdl       = NPerXdl_;
-    static constexpr index_t KPerXdl       = KPerXdl_;
-    static constexpr index_t isCTransposed = isCTransposed_;
+    using ADataType     = remove_cvref_t<ADataType_>;
+    using BDataType     = remove_cvref_t<BDataType_>;
+    using AccDataType   = remove_cvref_t<AccDataType_>;
+    using ODataType     = remove_cvref_t<ODataType_>;
+    using DsDataType    = remove_cvref_t<DsDataType_>;
+    using DsLayout      = remove_cvref_t<DsLayout_>;
+    using ELayout       = remove_cvref_t<ELayout_>;
+    using CDElementwise = remove_cvref_t<CDElementwise_>;
+    static constexpr index_t kBlockSize =
+        MWave_ * NWave_ * (kNumWaveGroups_ > 1 ? KWave_ : 1) * get_warp_size();
+    static constexpr index_t kMPerBlock                    = kM_;
+    static constexpr index_t kNPerBlock                    = kN_;
+    static constexpr index_t MWave                         = MWave_;
+    static constexpr index_t NWave                         = NWave_;
+    static constexpr index_t MPerXdl                       = MPerXdl_;
+    static constexpr index_t NPerXdl                       = NPerXdl_;
+    static constexpr index_t KPerXdl                       = KPerXdl_;
+    static constexpr index_t isCTransposed                 = isCTransposed_;
     static constexpr memory_operation_enum MemoryOperation = MemoryOperation_;
     static constexpr bool FixedVectorSize                  = FixedVectorSize_;
     static constexpr index_t VectorSizeC                   = VectorSizeC_;
