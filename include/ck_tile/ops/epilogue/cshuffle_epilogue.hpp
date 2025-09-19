@@ -278,18 +278,6 @@ struct CShuffleEpilogue
                                    void* p_smem)
     {
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
-
-        // We need to figure out if the current thread corresponds to one of the diagonal blocks.
-        // We execute the shuffle operation only for the diagonal blocks.
-        // const auto x_space_coord = LdsTileDistr.calculate_index();
-        // const index_t conv_group_m_block = x_space_coord[0] / NumGroupsToMerge;
-        // const index_t conv_group_n_block = x_space_coord[1] / NumGroupsToMerge;
-        // const bool is_diagonal_conv_group_block = (conv_group_m_block == conv_group_n_block);
-
-        // if (is_diagonal_conv_group_block)
-        // {}
-
-
         auto lds_tile = make_static_distributed_tensor<AccDataType>(LdsTileDistr);
 
         constexpr auto lds_block_desc = MakeLdsBlockDescriptor<Problem>();
@@ -318,9 +306,6 @@ struct CShuffleEpilogue
                           "MPerIterationShuffle should be equal to MPerGroupBlock");
             static_assert(NPerIterationShuffle == NPerGroupBlock,
                           "NPerIterationShuffle should be equal to NPerGroupBlock");
-
-            static_assert(MPerIterationShuffle > 0 && NPerIterationShuffle > 0,
-                          "MPerIterationShuffle and NPerIterationShuffle should be greater than 0");
         }
 
         auto in_lds_window = make_tile_window(

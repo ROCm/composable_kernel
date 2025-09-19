@@ -84,11 +84,12 @@ struct GroupedConvBwdWeightKernelArgs
         b_grid_desc_n_k = grid_descs.at(number<1>{});
         c_grid_desc_m_n = grid_descs.at(number<2>{});
 
-        constexpr index_t numGroupsPerBatch = GroupedConvTraitsType_::NumGroupsToMerge;
+        NumGroupsPerBatch = 
+            std::min(static_cast<index_t>(args.G_), GroupedConvTraitsType_::NumGroupsToMerge);
 
-        group_stride_a = args.K_ * numGroupsPerBatch;            // A: Out NWGK
-        group_stride_b = args.C_ * numGroupsPerBatch;            // B: In  NWGC
-        group_stride_c = args.K_ * args.C_ * numGroupsPerBatch   // C: Wei GKXC
+        group_stride_a = args.K_ * NumGroupsPerBatch;            // A: Out NWGK
+        group_stride_b = args.C_ * NumGroupsPerBatch;            // B: In  NWGC
+        group_stride_c = args.K_ * args.C_ * NumGroupsPerBatch   // C: Wei GKXC
                          * std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
@@ -97,12 +98,13 @@ struct GroupedConvBwdWeightKernelArgs
         GemmM     = a_grid_desc_m_k.get_length(number<0>{});
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
-        GemmBatch = std::max(static_cast<long>(1), args.G_ / numGroupsPerBatch);
+        GemmBatch = std::max(static_cast<long>(1), args.G_ / NumGroupsPerBatch);
 
         if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
         {
             std::cout << "GemmM: " << GemmM << ", GemmN: " << GemmN << ", GemmK: " << GemmK
-                      << ", GemmBatch: " << GemmBatch << std::endl;
+                      << ", GemmBatch: " << GemmBatch 
+                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch << std::endl;
         }
     }
 
@@ -168,11 +170,12 @@ struct GroupedConvBwdWeightKernelArgs
         b_grid_desc_n_k = grid_descs.at(number<1>{});
         c_grid_desc_m_n = grid_descs.at(number<2>{});
 
-        constexpr index_t numGroupsPerBatch = GroupedConvTraitsType_::NumGroupsToMerge;
+        NumGroupsPerBatch = 
+            std::min(static_cast<index_t>(args.G_), GroupedConvTraitsType_::NumGroupsToMerge);
 
-        group_stride_a = args.K_ * numGroupsPerBatch;            // A: Out NHWGK
-        group_stride_b = args.C_ * numGroupsPerBatch;            // B: In  NHWGC
-        group_stride_c = args.K_ * args.C_ * numGroupsPerBatch   // C: Wei GKYXC
+        group_stride_a = args.K_ * NumGroupsPerBatch;            // A: Out NHWGK
+        group_stride_b = args.C_ * NumGroupsPerBatch;            // B: In  NHWGC
+        group_stride_c = args.K_ * args.C_ * NumGroupsPerBatch   // C: Wei GKYXC
                          * std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
@@ -181,12 +184,13 @@ struct GroupedConvBwdWeightKernelArgs
         GemmM     = a_grid_desc_m_k.get_length(number<0>{});
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
-        GemmBatch = std::max(static_cast<long>(1), args.G_ / numGroupsPerBatch);
+        GemmBatch = std::max(static_cast<long>(1), args.G_ / NumGroupsPerBatch);
 
         if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
         {
             std::cout << "GemmM: " << GemmM << ", GemmN: " << GemmN << ", GemmK: " << GemmK
-                      << ", GemmBatch: " << GemmBatch << std::endl;
+                      << ", GemmBatch: " << GemmBatch 
+                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch << std::endl;
         }
     }
 
@@ -259,11 +263,12 @@ struct GroupedConvBwdWeightKernelArgs
         b_grid_desc_n_k = grid_descs.at(number<1>{});
         c_grid_desc_m_n = grid_descs.at(number<2>{});
 
-        constexpr index_t numGroupsPerBatch = GroupedConvTraitsType_::NumGroupsToMerge;
+        NumGroupsPerBatch = 
+            std::min(static_cast<index_t>(args.G_), GroupedConvTraitsType_::NumGroupsToMerge);
 
-        group_stride_a = args.K_ * numGroupsPerBatch;            // A: Out NDHWGK
-        group_stride_b = args.C_ * numGroupsPerBatch;            // B: In  NDHWGC
-        group_stride_c = args.K_ * args.C_ * numGroupsPerBatch   // C: wEI GKZYXC
+        group_stride_a = args.K_ * NumGroupsPerBatch;            // A: Out NDHWGK
+        group_stride_b = args.C_ * NumGroupsPerBatch;            // B: In  NDHWGC
+        group_stride_c = args.K_ * args.C_ * NumGroupsPerBatch   // C: wEI GKZYXC
                          * std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
@@ -272,12 +277,13 @@ struct GroupedConvBwdWeightKernelArgs
         GemmM     = a_grid_desc_m_k.get_length(number<0>{});
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
-        GemmBatch = std::max(static_cast<long>(1), args.G_ / numGroupsPerBatch);
+        GemmBatch = std::max(static_cast<long>(1), args.G_ / NumGroupsPerBatch);
 
         if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
         {
             std::cout << "GemmM: " << GemmM << ", GemmN: " << GemmN << ", GemmK: " << GemmK
-                      << ", GemmBatch: " << GemmBatch << std::endl;
+                      << ", GemmBatch: " << GemmBatch 
+                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch << std::endl;
         }
     }
 
@@ -303,6 +309,7 @@ struct GroupedConvBwdWeightKernelArgs
     index_t GemmN;
     index_t GemmK;
     index_t GemmBatch;
+    index_t NumGroupsPerBatch;
 
     const void* out_ptr;
     const void* in_ptr;
@@ -475,8 +482,7 @@ struct GroupedConvolutionBackwardWeightKernel
                 // When we merge more than one conv group into a single gemm batch, we need to
                 // account for that when we zero out the weight buffer, i.e., the GEMM shapes 
                 // contain the padded elements which are not needed for the final wei_ptr output.
-                constexpr index_t numGroupsPerBatch = GroupedConvTraitsType_::NumGroupsToMerge;
-                const auto wei_size = kargs.GemmBatch * kargs.GemmM * kargs.GemmN / numGroupsPerBatch;
+                const auto wei_size = kargs.GemmBatch * kargs.GemmM * kargs.GemmN * kargs.NumGroupsPerBatch;
                 hipGetErrorString(hipMemsetAsync(kargs.wei_ptr,
                                                  0,
                                                  wei_size * sizeof(WeiDataType),
@@ -714,6 +720,8 @@ struct GroupedConvolutionBackwardWeightKernel
         const auto& ds_pad_view = views.at(I2);
         const auto& c_pad_view  = views.at(I3);
 
+        constexpr index_t Gm = GroupedConvTraitsType_::NumGroupsToMerge;
+
         const auto& a_block_window = [&]() {
             return make_tile_window(a_pad_view,
                                     make_tuple(number<TilePartitioner::MPerBlock>{},
@@ -732,14 +740,15 @@ struct GroupedConvolutionBackwardWeightKernel
             [&](auto i) {
                 return make_tile_window(ds_pad_view[i],
                                         make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                   number<TilePartitioner::NPerBlock>{}),
+                                                   number<TilePartitioner::NPerBlock/Gm>{}),
                                         {i_m, i_n});
             },
             number<NumDTensor>{});
 
         auto c_block_window = make_tile_window(
             c_pad_view,
-            make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
+            make_tuple(number<TilePartitioner::MPerBlock>{}, 
+                       number<TilePartitioner::NPerBlock/Gm>{}),
             {i_m, i_n});
 
         return make_tuple(a_block_window, b_block_window, ds_block_window, c_block_window);
