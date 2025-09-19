@@ -1,11 +1,20 @@
-// Copyright © Advanced Micro Devices, Inc., or its affiliates.
-// SPDX-License-Identifier:  MIT
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
+#include <hip/hip_runtime.h>
+
+#include <cstring>
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <tuple>
+
+#include "ck_tile/host.hpp"
 #include "gemm_utils.hpp"
 #include "run_gemm_example.inc"
-#include "ck_tile/ops/common.hpp"
 
 template <typename GemmConfig,
+          ck_tile::StreamKReductionStrategy ReductionStrategy,
           typename ADataType,
           typename BDataType,
           typename DsDataType,
@@ -15,12 +24,14 @@ template <typename GemmConfig,
           typename BLayout,
           typename DsLayout,
           typename ELayout,
-          typename CDEElementWise,
-          ck_tile::StreamKReductionStrategy ReductionStrategy>
-std::tuple<float, ck_tile::index_t> gemm(const ck_tile::StreamKHostArgs& args,
-                                         const ck_tile::stream_config& s)
+          typename CDEElementWise>
+float gemm(const ck_tile::StreamKHostArgs& args,
+           const ck_tile::stream_config& s,
+           int /*num_cu*/,
+           int /*occupancy*/)
 
 {
+    // constexpr int kBlockPerCu = 1;
     using GemmShape = ck_tile::TileGemmShape<
         ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
         ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,
@@ -30,6 +41,14 @@ std::tuple<float, ck_tile::index_t> gemm(const ck_tile::StreamKHostArgs& args,
         GemmConfig::PermuteB>;
 
     using TilePartitioner = ck_tile::StreamKTilePartitioner<GemmShape, ReductionStrategy>;
+
+    /**using Traits = ck_tile::TileGemmTraits<GemmConfig::kPadM,
+                                           GemmConfig::kPadN,
+                                           GemmConfig::kPadK,
+                                           ALayout,
+                                           BLayout,
+                                           ELayout,
+                                           GemmConfig::NumWaveGroups>;**/
 
     using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
                                                                  GemmConfig::kPadN,
@@ -44,19 +63,21 @@ std::tuple<float, ck_tile::index_t> gemm(const ck_tile::StreamKHostArgs& args,
                                                                  GemmConfig::NumWaveGroups,
                                                                  GemmConfig::Preshuffle>;
 
-    const auto Run = [&](const auto memory_operation) -> std::tuple<float, ck_tile::index_t> {
-        // We create the GEMM pipeline without specifying has_hot_loop or tail_num.
-        // This is because num_loop can vary (a) per WG and (b) per iteration of the Stream-K
-        // while loop. Instead, has_hot_loop and tail_num are determined in the Stream-K
-        // Kernel's RunGemm function. This is a similar pattern used by grouped GEMM.
+    float ave_time{0};
+
+    const auto Run = [&](const auto memory_operation_) {
+        constexpr auto scheduler        = GemmConfig::Scheduler;
+        constexpr auto memory_operation = memory_operation_.value;
+
         using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
                                                                            BDataType,
                                                                            AccDataType,
                                                                            GemmShape,
                                                                            GemmUniversalTraits,
-                                                                           GemmConfig::Scheduler>;
+                                                                           scheduler>;
 
-        using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<UniversalGemmProblem>;
+        using GemmPipeline = typename PipelineTypeTraits<
+            GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
@@ -75,12 +96,11 @@ std::tuple<float, ck_tile::index_t> gemm(const ck_tile::StreamKHostArgs& args,
                                              GemmConfig::N_Warp_Tile,
                                              GemmConfig::K_Warp_Tile,
                                              UniversalGemmProblem::TransposeC,
-                                             memory_operation.value,
+                                             memory_operation,
                                              GemmConfig::NumWaveGroups>>;
 
         using Kernel = ck_tile::StreamKKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-
-        auto kargs = Kernel::MakeKernelArgs(args);
+        auto kargs   = Kernel::MakeKernelArgs(args);
 
         dim3 grids  = Kernel::GridSize(kargs.tile_partitioner);
         dim3 blocks = Kernel::BlockSize();
@@ -101,107 +121,105 @@ std::tuple<float, ck_tile::index_t> gemm(const ck_tile::StreamKHostArgs& args,
                       << std::endl;
         }
 
-        // Function to clear the output C tensor results after each repetition of the kernel
         auto clear_gemm_output = [&]() {
-            if(ReductionStrategy == ck_tile::StreamKReductionStrategy::Atomic)
-                hipGetErrorString(hipMemsetAsync(
-                    args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
+            hipGetErrorString(
+                hipMemsetAsync(args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
         };
 
         std::function<void()> preprocess = clear_gemm_output;
 
-        float ave_time = ck_tile::launch_kernel_time_mask(
+        ave_time = ck_tile::launch_kernel_time_mask(
             s,
             preprocess,
             ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
-
-        ck_tile::index_t num_wgs_per_tile = ck_tile::estimate_num_wgs_per_tile<ReductionStrategy>(
-            kargs.tile_partitioner.sk_num_blocks,
-            // k_iters_per_big_block could be 1, which indicates that all Stream-K workgroups are
-            // big and each does one iteration. Thus, we ensure the value passed in is at least 1 to
-            // avoid division by zero errors.
-            ck_tile::max(kargs.tile_partitioner.k_iters_per_big_block - 1, 1u),
-            kargs.tile_partitioner.k_iters_per_tile.get());
-
-        return std::tuple{ave_time, num_wgs_per_tile};
+        return ave_time;
     };
 
-    if constexpr(ck_tile::StreamKReductionStrategy::Atomic == ReductionStrategy)
-    {
-        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                              // Since we are doing stream K, in the case of
-                                              // atomics, multiple workgroups may write to the same
-                                              // output tile in the C tensor, so we must atomic add
-                                              // the results (not set)
-                                              ck_tile::memory_operation_enum::atomic_add>{});
-    }
-    else // We are using ck_tile::StreamKReductionStrategy::Reduction
-    {
-        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                              // In this case, there is only ever 1 WG writing final
-                                              // results to each macro tile in the C tensor, so we
-                                              // can do a set.
-                                              ck_tile::memory_operation_enum::set>{});
-    }
+    Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                   ck_tile::memory_operation_enum::atomic_add>{});
+    return ave_time;
 }
 
-template <typename GemmConfig, typename TypeConfig>
-int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
+template <typename GemmConfig,
+          typename APrecType,
+          typename BPrecType = APrecType,
+          typename CPrecType = APrecType>
+int run_gemm_example_prec_type(std::string a_layout,
+                               std::string b_layout,
+                               ck_tile::ArgParser& arg_parser)
 {
-    using Row = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+    using Row       = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col       = ck_tile::tensor_layout::gemm::ColumnMajor;
+    bool preshuffle = GemmConfig::Preshuffle;
 
-    if(a_layout == "R" && b_layout == "C")
+    if(preshuffle && a_layout != "R" && b_layout != "C")
     {
-        return run_gemm_example_with_layouts<GemmConfig, TypeConfig>(
-            argc, argv, Row{}, Col{}, Row{});
+        throw std::runtime_error(
+            "Preshuffle is supported only for A(Row major), B(column major) input matrices!");
     }
     else
     {
-        throw std::runtime_error("Unsupported layouts.");
+        if(a_layout == "R" && b_layout == "R")
+        {
+            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
+                arg_parser, Row{}, Row{}, Row{});
+        }
+        else if(a_layout == "R" && b_layout == "C")
+        {
+            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
+                arg_parser, Row{}, Col{}, Row{});
+        }
+        else if(a_layout == "C" && b_layout == "R")
+        {
+            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
+                arg_parser, Col{}, Row{}, Row{});
+        }
+        else if(a_layout == "C" && b_layout == "C")
+        {
+            return run_gemm_example_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
+                arg_parser, Col{}, Col{}, Row{});
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported memory layout for the input matrices!");
+        }
     }
-
-    return 0;
 }
 
 template <template <typename PreType> typename GemmConfig>
 int run_gemm_example(int argc, char* argv[])
 {
+
     auto [result, arg_parser] = create_args(argc, argv);
     if(!result)
         return -1;
-
     std::string data_type = arg_parser.get_str("prec");
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
 
-    if(data_type == "bf16")
+    if(data_type == "fp8")
     {
-        using TypeConfig = StreamKGemmTypeConfig<ck_tile::bf16_t>;
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::bf16_t>, TypeConfig>(
-            a_layout, b_layout, argc, argv);
-    }
-    else if(data_type == "fp16")
-    {
-        using TypeConfig = StreamKGemmTypeConfig<ck_tile::half_t>;
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, TypeConfig>(
-            a_layout, b_layout, argc, argv);
-    }
-    else if(data_type == "fp8")
-    {
-        using TypeConfig = StreamKGemmTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>;
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, TypeConfig>(
-            a_layout, b_layout, argc, argv);
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
+                                          ck_tile::fp8_t,
+                                          ck_tile::fp8_t,
+                                          ck_tile::half_t>(a_layout, b_layout, arg_parser);
     }
     else
     {
         throw std::runtime_error("Unsupported data type for this operation !!!");
     }
-
-    return false;
 }
 
 int main(int argc, char* argv[])
 {
-    return !run_gemm_example<GemmConfigMemoryInterwave>(argc, argv);
+    try
+    {
+        return !run_gemm_example<GemmConfigMemoryIntrawave>(argc, argv);
+    }
+    catch(const std::runtime_error& e)
+    {
+        std::cerr << "Caught runtime error: " << e.what() << '\n';
+        // Return a non-zero code to indicate failure
+        return EXIT_FAILURE;
+    }
 }

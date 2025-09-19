@@ -41,8 +41,6 @@ struct GemmConfigMemoryInterwave : public GemmConfigBase
     static constexpr ck_tile::index_t M_Warp_Tile = 32;
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = sizeof(PrecType) == 2 ? 8 : 16;
-
-    static constexpr auto Scheduler = ck_tile::GemmPipelineScheduler::Intrawave;
 };
 
 template <typename ADataType_, typename BDataType_ = ADataType_, typename CDataType_ = ADataType_>
@@ -73,6 +71,12 @@ template <>
 struct DataTypeTraits<ck_tile::bf16_t>
 {
     static constexpr const char* name = "bf16";
+};
+
+template <>
+struct DataTypeTraits<ck_tile::fp8_t>
+{
+    static constexpr const char* name = "fp8";
 };
 
 auto create_args(int argc, char* argv[])
