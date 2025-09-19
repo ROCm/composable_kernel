@@ -52,7 +52,16 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
                 "random seed used for initializing input tensors. 0 for "
                 "non-deterministic seed")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
-        .insert("repeat", "30", "number of iterations to benchmark the kernel");
+        .insert("repeat", "30", "number of iterations to benchmark the kernel")
+        // Optional effective seqlen override (exclude PAD) for batch mode
+        .insert("q_eff_lens",
+                "",
+                "Batch-mode only: per-batch effective seqlen for Q (exclude PAD).\n"
+                "Comma-separated list of length 'b'. If empty, no override.")
+        .insert("kv_eff_lens",
+                "",
+                "Batch-mode only: per-batch effective seqlen for KV (exclude PAD).\n"
+                "Comma-separated list of length 'b'. If empty, no override.");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_pair(result, arg_parser);
@@ -111,6 +120,8 @@ struct Problem
 
         input_layout  = args.get_int("iperm") == 1 ? TensorLayout::bhsd : TensorLayout::bshd;
         output_layout = args.get_int("operm") == 1 ? TensorLayout::bhsd : TensorLayout::bshd;
+        q_eff_lens    = args.get_int_vec("q_eff_lens");
+        kv_eff_lens   = args.get_int_vec("kv_eff_lens");
     }
 
     std::vector<ck_tile::index_t> get_query_shape() const
@@ -172,6 +183,8 @@ struct Problem
     mask_info mask;
     TensorLayout input_layout;
     TensorLayout output_layout;
+    std::vector<int> q_eff_lens;
+    std::vector<int> kv_eff_lens;
 };
 
 struct RunConfig
@@ -326,8 +339,10 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     q_buf.ToDevice(q.data());
     k_buf.ToDevice(k.data());
     v_buf.ToDevice(v.data());
+    // Ensure output buffer is zero-initialized so padded regions compare cleanly
+    o_buf.SetZero();
 
-    ck_tile::fmha_fwd_v3_args args;
+    ck_tile::fmha_fwd_v3_args args{};
 
     args.data_type     = problem.data_type;
     args.batch         = problem.batch;
@@ -379,6 +394,60 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
                               ? problem.hdim
                               : problem.seqlen_q * problem.hdim;
     args.batch_stride_o = problem.seqlen_q * problem.nhead_q * problem.hdim;
+
+    // Optional cumulative seqlen overrides (exclude PAD)
+    const bool has_varlen_q = !problem.q_eff_lens.empty() && problem.q_eff_lens[0] != -1;
+    const bool has_varlen_k = !problem.kv_eff_lens.empty() && problem.kv_eff_lens[0] != -1;
+
+    auto make_effective_vec = [&](const std::vector<int>& opt_vec, ck_tile::index_t fallback) {
+        std::vector<ck_tile::index_t> eff;
+        if(!opt_vec.empty() && opt_vec[0] != -1)
+        {
+            eff.assign(opt_vec.begin(), opt_vec.end());
+            if(eff.size() < static_cast<size_t>(problem.batch))
+            {
+                eff.resize(problem.batch, eff.back());
+            }
+        }
+        else
+        {
+            eff.assign(problem.batch, fallback);
+        }
+        return eff;
+    };
+
+    const auto eff_q_vec  = make_effective_vec(problem.q_eff_lens, problem.seqlen_q);
+    const auto eff_kv_vec = make_effective_vec(problem.kv_eff_lens, problem.seqlen_k);
+
+    // Calculate cumulative sums for kernel arguments if varlen is used
+    std::vector<ck_tile::index_t> cuq_cum, cukv_cum;
+    auto calculate_cumulative = [&](const std::vector<ck_tile::index_t>& per_batch_vec,
+                                    std::vector<ck_tile::index_t>& cum_vec) {
+        cum_vec.resize(per_batch_vec.size() + 1);
+        cum_vec[0] = 0;
+        for(std::size_t i = 0; i < per_batch_vec.size(); ++i)
+            cum_vec[i + 1] = cum_vec[i] + per_batch_vec[i];
+    };
+
+    if(has_varlen_q)
+    {
+        calculate_cumulative(eff_q_vec, cuq_cum);
+    }
+    if(has_varlen_k)
+    {
+        calculate_cumulative(eff_kv_vec, cukv_cum);
+    }
+
+    ck_tile::DeviceMem cuq_buf(!cuq_cum.empty() ? cuq_cum.size() * sizeof(ck_tile::index_t) : 0);
+    ck_tile::DeviceMem cukv_buf(!cukv_cum.empty() ? cukv_cum.size() * sizeof(ck_tile::index_t) : 0);
+    cuq_buf.ToDevice(!cuq_cum.empty() ? cuq_cum.data() : nullptr);
+    cukv_buf.ToDevice(!cukv_cum.empty() ? cukv_cum.data() : nullptr);
+    args.cu_seqlen_q_ptr =
+        !cuq_cum.empty() ? reinterpret_cast<const ck_tile::index_t*>(cuq_buf.GetDeviceBuffer())
+                         : nullptr;
+    args.cu_seqlen_kv_ptr =
+        !cukv_cum.empty() ? reinterpret_cast<const ck_tile::index_t*>(cukv_buf.GetDeviceBuffer())
+                          : nullptr;
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,
@@ -442,15 +511,72 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
         o_ref = o_ref.transpose({0, 2, 1, 3});
     }
 
-    host::fmha_fwd<float, DataType>(q,
-                                    k,
-                                    v,
-                                    problem.mask,
-                                    o_ref,
-                                    ck_tile::identity{},
-                                    ck_tile::identity{},
-                                    ck_tile::identity{},
-                                    ck_tile::scales{problem.softmax_scale});
+    // If variable lengths are provided, compute per-batch references
+    // with the effective lengths; else compute a single full reference.
+    if(has_varlen_q || has_varlen_k)
+    {
+        // Variable-length aware verification: zero-fill padded region and only compute valid part.
+        o_ref.SetZero();
+
+        for(int b = 0; b < problem.batch; ++b)
+        {
+            const ck_tile::index_t seqlen_q_eff  = eff_q_vec[b];
+            const ck_tile::index_t seqlen_kv_eff = eff_kv_vec[b];
+
+            if(seqlen_q_eff <= 0 || seqlen_kv_eff <= 0)
+                continue;
+
+            // Slice current batch from inputs (bshd) and build single-batch tensors
+            ck_tile::HostTensor<DataType> q_b({1, seqlen_q_eff, problem.nhead_q, problem.hdim});
+            ck_tile::HostTensor<DataType> k_b({1, seqlen_kv_eff, problem.nhead_kv, problem.hdim});
+            ck_tile::HostTensor<DataType> v_b({1, seqlen_kv_eff, problem.nhead_kv, problem.hdim});
+            ck_tile::HostTensor<DataType> o_b({1, seqlen_q_eff, problem.nhead_q, problem.hdim});
+
+            // Copy effective region
+            q_b.ForEach([&](auto& self, auto idx) {
+                // idx: [0, s, h, d]
+                self(idx) = q(b, idx[1], idx[2], idx[3]);
+            });
+            k_b.ForEach([&](auto& self, auto idx) { self(idx) = k(b, idx[1], idx[2], idx[3]); });
+            v_b.ForEach([&](auto& self, auto idx) { self(idx) = v(b, idx[1], idx[2], idx[3]); });
+
+            // Compute reference for this batch segment (host::fmha_fwd expects bshd tensors)
+            host::fmha_fwd<float, DataType>(q_b,
+                                            k_b,
+                                            v_b,
+                                            problem.mask,
+                                            o_b,
+                                            ck_tile::identity{},
+                                            ck_tile::identity{},
+                                            ck_tile::identity{},
+                                            ck_tile::scales{problem.softmax_scale});
+
+            // Scatter into o_ref's bshd descriptor memory
+            for(int s = 0; s < seqlen_q_eff; ++s)
+            {
+                for(int h = 0; h < problem.nhead_q; ++h)
+                {
+                    for(int d = 0; d < problem.hdim; ++d)
+                    {
+                        o_ref(b, s, h, d) = o_b(0, s, h, d);
+                    }
+                }
+            }
+        }
+    }
+    else
+    {
+        // No varlen override: compute the full reference once
+        host::fmha_fwd<float, DataType>(q,
+                                        k,
+                                        v,
+                                        problem.mask,
+                                        o_ref,
+                                        ck_tile::identity{},
+                                        ck_tile::identity{},
+                                        ck_tile::identity{},
+                                        ck_tile::scales{problem.softmax_scale});
+    }
 
     ck_tile::HostTensor<DataType> o(problem.get_output_shape());
     o_buf.FromDevice(o.data());
