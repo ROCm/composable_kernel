@@ -45,20 +45,27 @@ struct GroupedConvolutionBackwardWeightInvoker
                                    ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
                                    ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
 
-        constexpr auto ConvSpec     = ck_tile::ConvolutionSpecialization::Default;
-        using TilePartitioner       = ck_tile::GemmTile1DPartitioner<CodegenShape>;
-        using GroupedConvTraitsType = ck_tile::
-            GroupedConvTraits<NDimSpatial, ConvSpec, InLayout, WeiLayout, DsLayout, OutLayout>;
+        constexpr auto ConvSpec      = ck_tile::ConvolutionSpecialization::Default;
+        using TilePartitioner        = ck_tile::GemmTile1DPartitioner<CodegenShape>;
+        using GroupedConvTraitsType  = ck_tile::GroupedConvTraits<NDimSpatial,
+                                                                  ConvSpec,
+                                                                  InLayout,
+                                                                  WeiLayout,
+                                                                  DsLayout,
+                                                                  OutLayout,
+                                                                  VectorSizeA,
+                                                                  VectorSizeB,
+                                                                  VectorSizeC>;
         using CodegenPipelineProblem = ck_tile::GemmPipelineProblem<
             InDataType,
             WeiDataType,
             AccDataType,
             CodegenShape,
-            typename GroupedConvTraitsType::GroupedConvImplicitGemmTraits,
+            typename GroupedConvTraitsType::GroupedConvImplicitGemmTraitsBwdWeight,
             InDataType,
             true,
-            VectorSizeA,
-            VectorSizeB>;
+            GroupedConvTraitsType::VectorSizeA,
+            GroupedConvTraitsType::VectorSizeB>;
         using CodegenPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
 
         const auto Run = [&](const auto memory_operation_) {
@@ -84,7 +91,7 @@ struct GroupedConvolutionBackwardWeightInvoker
                 memory_operation,
                 1,
                 true,
-                VectorSizeC>>;
+                GroupedConvTraitsType::VectorSizeC>>;
 
             using Kernel = ck_tile::GroupedConvolutionBackwardWeightKernel<GroupedConvTraitsType,
                                                                            TilePartitioner,

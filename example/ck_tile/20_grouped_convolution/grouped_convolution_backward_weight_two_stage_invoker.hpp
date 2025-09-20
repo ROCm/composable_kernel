@@ -37,8 +37,8 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
         constexpr ck_tile::index_t N_Warp_Tile = GemmWarpConfig::N_Warp_Tile;
         constexpr ck_tile::index_t K_Warp_Tile = GemmWarpConfig::K_Warp_Tile;
 
-        constexpr ck_tile::index_t VectorSizeA = 1;
-        constexpr ck_tile::index_t VectorSizeB = 1;
+        constexpr ck_tile::index_t VectorSizeA = 8;
+        constexpr ck_tile::index_t VectorSizeB = 8;
         constexpr ck_tile::index_t VectorSizeC = 1;
 
         // Implicit GEMM Traits
@@ -47,20 +47,27 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                                    ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
                                    ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
 
-        constexpr auto ConvSpec     = ck_tile::ConvolutionSpecialization::Default;
-        using TilePartitioner       = ck_tile::GemmTile1DPartitioner<CodegenShape>;
-        using GroupedConvTraitsType = ck_tile::
-            GroupedConvTraits<NDimSpatial, ConvSpec, InLayout, WeiLayout, DsLayout, OutLayout>;
+        constexpr auto ConvSpec      = ck_tile::ConvolutionSpecialization::Default;
+        using TilePartitioner        = ck_tile::GemmTile1DPartitioner<CodegenShape>;
+        using GroupedConvTraitsType  = ck_tile::GroupedConvTraits<NDimSpatial,
+                                                                  ConvSpec,
+                                                                  InLayout,
+                                                                  WeiLayout,
+                                                                  DsLayout,
+                                                                  OutLayout,
+                                                                  VectorSizeA,
+                                                                  VectorSizeB,
+                                                                  VectorSizeC>;
         using CodegenPipelineProblem = ck_tile::GemmPipelineProblem<
             OutDataType, // A: Out
             InDataType,  // B: In
             AccDataType,
             CodegenShape,
-            typename GroupedConvTraitsType::GroupedConvImplicitGemmTraits,
+            typename GroupedConvTraitsType::GroupedConvImplicitGemmTraitsBwdWeight,
             InDataType,
             true,
-            VectorSizeA,
-            VectorSizeB>;
+            GroupedConvTraitsType::VectorSizeA,
+            GroupedConvTraitsType::VectorSizeB>;
         using CodegenPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
 
         const auto Run = [&](const auto memory_operation_) {
@@ -86,7 +93,7 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                 memory_operation,
                 1,
                 true,
-                VectorSizeC>>;
+                GroupedConvTraitsType::VectorSizeC>>;
 
             using Kernel = ck_tile::GroupedConvolutionBackwardWeightKernel<GroupedConvTraitsType,
                                                                            TilePartitioner,
@@ -170,7 +177,7 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
 
             auto preprocess = [&]() {
                 if(args.k_batch > 1)
-                    hipGetErrorString(
+                    ck_tile::hip_check_error(
                         hipMemsetAsync(ws_args.wei_ptr,
                                        0,
                                        shape[0] * shape[1] * sizeof(WorkspaceDataType),

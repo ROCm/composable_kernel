@@ -51,20 +51,27 @@ float grouped_conv_bwd_data(const ck_tile::GroupedConvBwdDataHostArgs& args,
                                ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
                                ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
 
-    constexpr auto ConvSpec = ck_tile::ConvolutionSpecialization::Default;
-    using TilePartitioner   = ck_tile::GemmTile1DPartitioner<CodegenShape>;
-    using GroupedConvTraitsType =
-        ck_tile::GroupedConvTraits<NDimSpatial, ConvSpec, InLayout, WeiLayout, DsLayout, OutLayout>;
-    using CodegenPipelineProblem =
-        ck_tile::GemmPipelineProblem<InDataType,
-                                     WeiDataType,
-                                     AccDataType,
-                                     CodegenShape,
-                                     typename GroupedConvTraitsType::GroupedConvImplicitGemmTraits,
-                                     InDataType,
-                                     true,
-                                     VectorSizeA,
-                                     VectorSizeB>;
+    constexpr auto ConvSpec      = ck_tile::ConvolutionSpecialization::Default;
+    using TilePartitioner        = ck_tile::GemmTile1DPartitioner<CodegenShape>;
+    using GroupedConvTraitsType  = ck_tile::GroupedConvTraits<NDimSpatial,
+                                                              ConvSpec,
+                                                              InLayout,
+                                                              WeiLayout,
+                                                              DsLayout,
+                                                              OutLayout,
+                                                              VectorSizeA,
+                                                              VectorSizeB,
+                                                              VectorSizeC>;
+    using CodegenPipelineProblem = ck_tile::GemmPipelineProblem<
+        InDataType,
+        WeiDataType,
+        AccDataType,
+        CodegenShape,
+        typename GroupedConvTraitsType::GroupedConvImplicitGemmTraitsBwdData,
+        InDataType,
+        true,
+        GroupedConvTraitsType::VectorSizeA,
+        GroupedConvTraitsType::VectorSizeB>;
     using CodegenPipeline = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem>;
 
     const auto Run = [&](const auto memory_operation_) {
@@ -90,7 +97,7 @@ float grouped_conv_bwd_data(const ck_tile::GroupedConvBwdDataHostArgs& args,
                                              memory_operation,
                                              1,
                                              true,
-                                             VectorSizeC>>;
+                                             GroupedConvTraitsType::VectorSizeC>>;
 
         using Kernel = ck_tile::GroupedConvolutionBackwardDataKernel<GroupedConvTraitsType,
                                                                      TilePartitioner,

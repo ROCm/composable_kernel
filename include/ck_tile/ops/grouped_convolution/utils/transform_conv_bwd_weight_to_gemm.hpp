@@ -10,6 +10,9 @@ namespace ck_tile {
 
 template <index_t NDimSpatial,
           ConvolutionSpecialization ConvolutionSpecialization,
+          index_t VectorSizeA,
+          index_t VectorSizeB,
+          index_t VectorSizeC,
           bool SplitN              = false,
           typename ADataType       = float,
           typename CDataType       = float,
@@ -419,8 +422,8 @@ struct TransformConvBwdWeightToGemm
 
         // TODO Add support for NumGroupsToMerge > 1
 
-        return make_naive_tensor_descriptor(make_tuple(K_, N_ * Wo_),
-                                            make_tuple(KStride, NDoHoWoStride));
+        return make_naive_tensor_descriptor(
+            make_tuple(K_, N_ * Wo_), make_tuple(KStride, NDoHoWoStride), number<1>{}, I1);
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 1, bool>::type = false>
@@ -432,8 +435,8 @@ struct TransformConvBwdWeightToGemm
         constexpr auto CStride = I1;
 
         // TODO Add support for NumGroupsToMerge > 1
-        return make_naive_tensor_descriptor(make_tuple(N_, Wi_, C_),
-                                            make_tuple(NStride, WiStride, CStride));
+        return make_naive_tensor_descriptor(
+            make_tuple(N_, Wi_, C_), make_tuple(NStride, WiStride, CStride), number<1>{}, I1);
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 1, bool>::type = false>
@@ -444,7 +447,8 @@ struct TransformConvBwdWeightToGemm
         constexpr auto CXStride = I1;
 
         // TODO Add support for NumGroupsToMerge > 1
-        return make_naive_tensor_descriptor(make_tuple(K_, X_ * C_), make_tuple(KStride, CXStride));
+        return make_naive_tensor_descriptor(
+            make_tuple(K_, X_ * C_), make_tuple(KStride, CXStride), number<VectorSizeC>{}, I1);
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 2, bool>::type = false>
@@ -456,8 +460,8 @@ struct TransformConvBwdWeightToGemm
 
         // TODO Add support for NumGroupsToMerge > 1
 
-        return make_naive_tensor_descriptor(make_tuple(K_, N_ * Ho_ * Wo_),
-                                            make_tuple(KStride, NDoHoWoStride));
+        return make_naive_tensor_descriptor(
+            make_tuple(K_, N_ * Ho_ * Wo_), make_tuple(KStride, NDoHoWoStride), number<1>{}, I1);
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 2, bool>::type = false>
@@ -471,7 +475,9 @@ struct TransformConvBwdWeightToGemm
 
         // TODO Add support for NumGroupsToMerge > 1
         return make_naive_tensor_descriptor(make_tuple(N_, Hi_, Wi_, C_),
-                                            make_tuple(NStride, HiStride, WiStride, CStride));
+                                            make_tuple(NStride, HiStride, WiStride, CStride),
+                                            number<1>{},
+                                            I1);
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 2, bool>::type = false>
@@ -482,8 +488,8 @@ struct TransformConvBwdWeightToGemm
         constexpr auto CStride = I1;
 
         // TODO Add support for NumGroupsToMerge > 1
-        return make_naive_tensor_descriptor(make_tuple(K_, Y_ * X_ * C_),
-                                            make_tuple(KStride, CStride));
+        return make_naive_tensor_descriptor(
+            make_tuple(K_, Y_ * X_ * C_), make_tuple(KStride, CStride), number<VectorSizeC>{}, I1);
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 3, bool>::type = false>
@@ -496,7 +502,9 @@ struct TransformConvBwdWeightToGemm
         // TODO Add support for NumGroupsToMerge > 1
 
         return make_naive_tensor_descriptor(make_tuple(K_, N_ * Do_ * Ho_ * Wo_),
-                                            make_tuple(KStride, NDoHoWoStride));
+                                            make_tuple(KStride, NDoHoWoStride),
+                                            number<1>{},
+                                            I1);
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 3, bool>::type = false>
@@ -511,7 +519,9 @@ struct TransformConvBwdWeightToGemm
         // TODO Add support for NumGroupsToMerge > 1
         return make_naive_tensor_descriptor(
             make_tuple(N_, Di_, Hi_, Wi_, C_),
-            make_tuple(NStride, DiStride, HiStride, WiStride, CStride));
+            make_tuple(NStride, DiStride, HiStride, WiStride, CStride),
+            number<1>{},
+            I1);
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 3, bool>::type = false>
@@ -523,7 +533,9 @@ struct TransformConvBwdWeightToGemm
 
         // TODO Add support for NumGroupsToMerge > 1
         return make_naive_tensor_descriptor(make_tuple(K_, Z_ * Y_ * X_ * C_),
-                                            make_tuple(KStride, CStride));
+                                            make_tuple(KStride, CStride),
+                                            number<VectorSizeC>{},
+                                            I1);
     }
 
     // TODO: implement ck_tile::tensor_layout::convolution that describe packed/strided dimemsion as
