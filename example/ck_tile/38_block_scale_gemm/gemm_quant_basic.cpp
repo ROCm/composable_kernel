@@ -66,19 +66,21 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
         constexpr auto tail_number_v  = tail_number_.value;
         constexpr bool transpose_c    = false;
 
+        // row-col and tensor quants use the regular pipeline, A/B quants use their own
         using PipelineProblem = std::conditional_t<
-            QuantMode == ck_tile::QuantType::RowColQuant,
-            ck_tile::GemmRowColQuantPipelineProblem<typename TypeConfig::ADataType,
-                                                    typename TypeConfig::BDataType,
-                                                    typename TypeConfig::AccDataType,
-                                                    typename TypeConfig::AccDataType,
-                                                    GemmShape,
-                                                    GemmTraits,
-                                                    transpose_c,
-                                                    ComputeDataType,
-                                                    GemmConfig::Scheduler,
-                                                    has_hot_loop_v,
-                                                    tail_number_v>,
+            QuantMode == ck_tile::QuantType::RowColQuant ||
+                QuantMode == ck_tile::QuantType::TensorQuant,
+            ck_tile::GemmRowColTensorQuantPipelineProblem<typename TypeConfig::ADataType,
+                                                          typename TypeConfig::BDataType,
+                                                          typename TypeConfig::AccDataType,
+                                                          typename TypeConfig::AccDataType,
+                                                          GemmShape,
+                                                          GemmTraits,
+                                                          transpose_c,
+                                                          ComputeDataType,
+                                                          GemmConfig::Scheduler,
+                                                          has_hot_loop_v,
+                                                          tail_number_v>,
             std::conditional_t<QuantMode == ck_tile::QuantType::AQuantGrouped,
                                ck_tile::GemmAQuantPipelineProblem<typename TypeConfig::ADataType,
                                                                   typename TypeConfig::QDataType,
@@ -105,7 +107,8 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                                                   tail_number_v>>>;
 
         using GemmPipeline = std::conditional_t<
-            QuantMode == ck_tile::QuantType::RowColQuant,
+            QuantMode == ck_tile::QuantType::RowColQuant ||
+                QuantMode == ck_tile::QuantType::TensorQuant,
             ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>,
             std::conditional_t<QuantMode == ck_tile::QuantType::AQuantGrouped,
                                ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
@@ -241,10 +244,18 @@ int run_gemm_example(int argc, char* argv[])
                                               ck_tile::QuantType::RowColQuant>(
                 a_layout, b_layout, argc, argv);
         }
+        else if(quant_mode == "tensor")
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
+                                              TypeConfig,
+                                              128,
+                                              ck_tile::QuantType::TensorQuant>(
+                a_layout, b_layout, argc, argv);
+        }
         else
         {
             throw std::runtime_error(
-                "Unsupported quantization mode! Use 'aquant', 'bquant' or 'rowcol'");
+                "Unsupported quantization mode! Use 'aquant', 'bquant', 'tensor' or 'rowcol'");
         }
     }
     else if(data_type == "bf8")
@@ -276,10 +287,18 @@ int run_gemm_example(int argc, char* argv[])
                                               ck_tile::QuantType::RowColQuant>(
                 a_layout, b_layout, argc, argv);
         }
+        else if(quant_mode == "tensor")
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
+                                              TypeConfig,
+                                              128,
+                                              ck_tile::QuantType::TensorQuant>(
+                a_layout, b_layout, argc, argv);
+        }
         else
         {
             throw std::runtime_error(
-                "Unsupported quantization mode! Use 'aquant', 'bquant' or 'rowcol'");
+                "Unsupported quantization mode! Use 'aquant', 'bquant', 'tensor' or 'rowcol'");
         }
     }
     else if(data_type == "i4fp8")

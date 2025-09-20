@@ -26,7 +26,8 @@ struct GroupedConvFwdKernelArgs
                                GroupedConvTraitsType_::ConvSpecialization,
                                GroupedConvTraitsType_::VectorSizeA,
                                GroupedConvTraitsType_::VectorSizeB,
-                               GroupedConvTraitsType_::VectorSizeC>;
+                               GroupedConvTraitsType_::VectorSizeC
+                               true>; // Split N enabled
     static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
 
     template <
@@ -59,7 +60,7 @@ struct GroupedConvFwdKernelArgs
 
         k_batch = args.k_batch;
 
-        GemmM     = args.N_ * args.output_spatial_lengths_[0];
+        // GemmM will be set after Split-N calculation
         GemmN     = args.K_;
         GemmK     = args.C_ * args.filter_spatial_lengths_[0];
         GemmBatch = args.G_;
@@ -97,6 +98,19 @@ struct GroupedConvFwdKernelArgs
                                          1,
                                          std::multiplies<index_t>());
         group_stride_c = args.K_;
+
+        // Initialize Split-N support fields for 1D convolution (NWGC layout)
+        // Get the actual split N from transformer
+        n_per_split = conv_to_gemm_transformer.GetN();
+        original_n  = conv_to_gemm_transformer.GetOriginalN();
+        n_splits    = ck_tile::integer_divide_ceil(original_n, n_per_split);
+
+        // Calculate batch strides for NWGC layout
+        input_batch_stride  = args.C_ * args.input_spatial_lengths_[0];
+        output_batch_stride = args.K_ * args.output_spatial_lengths_[0];
+
+        // Update GemmM to use split N (not original N)
+        GemmM = n_per_split * args.output_spatial_lengths_[0];
     }
 
     template <
@@ -136,7 +150,7 @@ struct GroupedConvFwdKernelArgs
 
         k_batch = args.k_batch;
 
-        GemmM     = args.N_ * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1];
+        // Note: GemmM will be set after Split-N calculation
         GemmN     = args.K_;
         GemmK     = args.C_ * args.filter_spatial_lengths_[0] * args.filter_spatial_lengths_[1];
         GemmBatch = args.G_;
@@ -174,6 +188,21 @@ struct GroupedConvFwdKernelArgs
                                          1,
                                          std::multiplies<index_t>());
         group_stride_c = args.K_;
+
+        // Initialize Split-N support fields for 2D convolution (NHWGC layout)
+        // Get the actual split N from transformer
+        n_per_split = conv_to_gemm_transformer.GetN();
+        original_n  = conv_to_gemm_transformer.GetOriginalN();
+        n_splits    = ck_tile::integer_divide_ceil(original_n, n_per_split);
+
+        // Calculate batch strides for NHWGC layout
+        input_batch_stride =
+            args.C_ * args.input_spatial_lengths_[0] * args.input_spatial_lengths_[1];
+        output_batch_stride =
+            args.K_ * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1];
+
+        // Update GemmM to use split N (not original N)
+        GemmM = n_per_split * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1];
     }
 
     template <
@@ -220,8 +249,7 @@ struct GroupedConvFwdKernelArgs
 
         k_batch = args.k_batch;
 
-        GemmM = args.N_ * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1] *
-                args.output_spatial_lengths_[2];
+        // Note: GemmM will be set after Split-N calculation
         GemmN = args.K_;
         GemmK = args.C_ * args.filter_spatial_lengths_[0] * args.filter_spatial_lengths_[1] *
                 args.filter_spatial_lengths_[2];
@@ -260,6 +288,22 @@ struct GroupedConvFwdKernelArgs
                                          1,
                                          std::multiplies<index_t>());
         group_stride_c = args.K_;
+
+        // Initialize Split-N support fields for 3D convolution (NDHWGC layout)
+        // Get the actual split N from transformer
+        n_per_split = conv_to_gemm_transformer.GetN();
+        original_n  = conv_to_gemm_transformer.GetOriginalN();
+        n_splits    = ck_tile::integer_divide_ceil(original_n, n_per_split);
+
+        // Calculate batch strides for NDHWGC layout
+        input_batch_stride = args.C_ * args.input_spatial_lengths_[0] *
+                             args.input_spatial_lengths_[1] * args.input_spatial_lengths_[2];
+        output_batch_stride = args.K_ * args.output_spatial_lengths_[0] *
+                              args.output_spatial_lengths_[1] * args.output_spatial_lengths_[2];
+
+        // Update GemmM to use split N (not original N)
+        GemmM = n_per_split * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1] *
+                args.output_spatial_lengths_[2];
     }
 
     using AGridDescMK = remove_cvref_t<
@@ -300,6 +344,13 @@ struct GroupedConvFwdKernelArgs
     long_index_t group_stride_a;
     long_index_t group_stride_b;
     long_index_t group_stride_c;
+
+    // Split-N support fields - initialize to safe defaults
+    index_t n_splits            = 1; // Number of batch splits (e.g., 2 for 128→64×2)
+    index_t n_per_split         = 1; // Batches per split (N_ from transformer)
+    index_t original_n          = 1; // Original batch size before splitting
+    index_t input_batch_stride  = 0; // Stride to next batch in input tensor
+    index_t output_batch_stride = 0; // Stride to next batch in output tensor
 };
 
 /// @brief The Grouped Convolution Forward kernel template.
@@ -395,10 +446,10 @@ struct GroupedConvolutionForwardKernel
         // clang-format on
     }
 
-    CK_TILE_HOST static constexpr auto GridSize(const GroupedConvFwdKernelArgsSpecialized& kargs)
+    CK_TILE_HOST static auto GridSize(const GroupedConvFwdKernelArgsSpecialized& kargs)
     {
         return dim3(
-            TilePartitioner::GridSize(kargs.GemmM, kargs.GemmN), kargs.GemmBatch, kargs.k_batch);
+            TilePartitioner::GridSize(kargs.GemmM, kargs.GemmN), kargs.GemmBatch, kargs.n_splits);
     }
 
     CK_TILE_HOST static auto BlockSize()
@@ -431,6 +482,17 @@ struct GroupedConvolutionForwardKernel
                 }
                 return false;
             }
+        }
+
+        // Check Split-K and Split-N conflict (both use blockIdx.z)
+        if(kargs.k_batch > 1 && kargs.n_splits > 1)
+        {
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR(
+                    "Cannot use both Split-K and Split-N simultaneously (both use blockIdx.z)!");
+            }
+            return false;
         }
 
         const index_t ConvK = kargs.wei_g_k_c_xs_lengths[number<1>{}];
@@ -771,10 +833,26 @@ struct GroupedConvolutionForwardKernel
         const auto group_offset_b = __builtin_amdgcn_readfirstlane(kargs.group_stride_b * blockIdY);
         const auto group_offset_c = __builtin_amdgcn_readfirstlane(kargs.group_stride_c * blockIdY);
 
-        // options
-        const InDataType* a_ptr  = static_cast<const InDataType*>(kargs.in_ptr) + group_offset_a;
-        const WeiDataType* b_ptr = static_cast<const WeiDataType*>(kargs.wei_ptr) + group_offset_b;
-        OutDataType* c_ptr       = static_cast<OutDataType*>(kargs.out_ptr) + group_offset_c;
+        // Split-N handling: Get which split this workgroup handles
+        const auto blockIdZ = __builtin_amdgcn_readfirstlane(blockIdx.z);
+
+        // Calculate batch offset for this split
+        const index_t batch_offset = __builtin_amdgcn_readfirstlane(blockIdZ * kargs.n_per_split);
+
+        // Calculate memory offsets for this split
+        const long_index_t input_batch_offset = static_cast<long_index_t>(batch_offset) *
+                                                static_cast<long_index_t>(kargs.input_batch_stride);
+        const long_index_t output_batch_offset =
+            static_cast<long_index_t>(batch_offset) *
+            static_cast<long_index_t>(kargs.output_batch_stride);
+
+        // Adjust pointers: combine group offset and batch offset
+        const InDataType* a_ptr =
+            static_cast<const InDataType*>(kargs.in_ptr) + group_offset_a + input_batch_offset;
+        const WeiDataType* b_ptr = static_cast<const WeiDataType*>(kargs.wei_ptr) +
+                                   group_offset_b; // No batch offset for weights!
+        OutDataType* c_ptr =
+            static_cast<OutDataType*>(kargs.out_ptr) + group_offset_c + output_batch_offset;
 
         // allocate LDS
         __shared__ char smem_ptr_0[GetSmemSize()];
