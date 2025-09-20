@@ -33,8 +33,34 @@
 
 namespace ck {
 
-using f8_fnuz_t  = _BitInt(8);
-using bf8_fnuz_t = unsigned _BitInt(8);
+struct f8_fnuz_t
+{
+    using data_type = unsigned char;
+    data_type m_data;
+    __host__ __device__ explicit constexpr f8_fnuz_t(data_type in_data) : m_data(in_data) {}
+    __host__ __device__ explicit constexpr f8_fnuz_t() = default;
+    __host__ __device__ bool constexpr operator==(f8_fnuz_t other) const
+    {
+        return m_data == other.m_data;
+    }
+    __host__ __device__ explicit constexpr operator data_type() const { return m_data; }
+};
+
+struct bf8_fnuz_t
+{
+    using data_type = unsigned char;
+    data_type m_data;
+    __host__ __device__ explicit constexpr bf8_fnuz_t(data_type in_data) : m_data(in_data) {}
+    __host__ __device__ explicit constexpr bf8_fnuz_t() = default;
+    __host__ __device__ bool constexpr operator==(bf8_fnuz_t other) const
+    {
+        return m_data == other.m_data;
+    }
+    __host__ __device__ explicit constexpr operator data_type() const { return m_data; }
+};
+
+static_assert(1 == sizeof(f8_fnuz_t));
+static_assert(1 == sizeof(bf8_fnuz_t));
 
 typedef unsigned char fp8_storage_t;
 
