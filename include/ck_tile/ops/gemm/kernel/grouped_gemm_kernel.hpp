@@ -165,14 +165,12 @@ struct GroupedGemmKernel
         // clang-format on
     }
 
-    
     CK_TILE_HOST static auto
     GetWorkSpaceSize(const std::vector<GroupedGemmHostArgs<NumDTensor_>>& gemm_descs) -> std::size_t
     {
         return gemm_descs.size() * sizeof(GemmTransKernelArg<1, 1, NumDTensor_>);
     }
 
-    
     CK_TILE_HOST static auto GetWorkSpaceSize(index_t group_count) -> std::size_t
     {
         return group_count * sizeof(GemmTransKernelArg<1, 1, NumDTensor_>);
@@ -207,7 +205,6 @@ struct GroupedGemmKernel
         return dim3(grid_size, 1, 1);
     }
 
-
     CK_TILE_HOST static auto
     GridSize(const std::vector<GroupedGemmHostArgs<NumDTensor_>>& gemm_descs)
     {
@@ -220,12 +217,11 @@ struct GroupedGemmKernel
         return dim3(grid_size, 1, 1);
     }
 
-    
     CK_TILE_HOST static auto
     MakeKargs(const std::vector<GroupedGemmHostArgs<NumDTensor_>>& gemm_descs)
         -> std::vector<GemmTransKernelArg<1, 1, NumDTensor_>>
     {
-        //static_assert(NumDTensor == 2, "NumDTensor must be 2");
+        // static_assert(NumDTensor == 2, "NumDTensor must be 2");
         std::vector<GemmTransKernelArg<1, 1, NumDTensor_>> gemm_kernel_args_;
         index_t group_count = ck_tile::type_convert<ck_tile::index_t>(gemm_descs.size());
         index_t grid_size   = 0;
@@ -274,7 +270,6 @@ struct GroupedGemmKernel
         return gemm_kernel_args_;
     }
 
-    
     CK_TILE_HOST static bool
     IsSupportedArgument(const std::vector<GemmTransKernelArg<1, 1, NumDTensor_>>& kargs)
     {
@@ -300,8 +295,8 @@ struct GroupedGemmKernel
 
         static_assert(GemmPipeline::DoubleSmemBuffer || !GemmPipeline::Preshuffle,
                       "SingleSmemBuffer and Preshuffle cannot both be enabled simultaneously!");
-        
-                      //static assert that if NumDTensor_2 then it must not be DoubleSmemBuffer
+
+        // static assert that if NumDTensor_2 then it must not be DoubleSmemBuffer
         static_assert(NumDTensor_ != 2 || GemmPipeline::DoubleSmemBuffer == false,
                       "If NumDTensor_ is 2, then DoubleSmemBuffer must be false");
 
@@ -327,10 +322,9 @@ struct GroupedGemmKernel
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
 
-           __shared__ char smem_ptr_1[GetSmemSize()];
-           RunGemmWithPipelineSelection2LDS(
-               a_ptr, b_ptr, c_ptr, smem_ptr_0, smem_ptr_1, kargs, splitk_batch_offset, i_m,
-               i_n);
+            __shared__ char smem_ptr_1[GetSmemSize()];
+            RunGemmWithPipelineSelection2LDS(
+                a_ptr, b_ptr, c_ptr, smem_ptr_0, smem_ptr_1, kargs, splitk_batch_offset, i_m, i_n);
         }
         else // SingleSmemBuffer
         {
@@ -373,7 +367,6 @@ struct GroupedGemmKernel
      *
      */
 
-    
     CK_TILE_DEVICE static void
     RunGemmWithPipelineSelection(const ADataType* a_ptr,
                                  const BDataType* b_ptr,
@@ -496,7 +489,6 @@ struct GroupedGemmKernel
             c_block_window, c_block_tile, d_block_window, smem_ptr_0);
     }
 
-    
     CK_TILE_DEVICE index_t FindGroupId(const GemmTransKernelArg<1, 1, NumDTensor_>* gemm_desc_ptr,
                                        index_t block_id,
                                        index_t group_count) const
