@@ -66,8 +66,6 @@ float invoke_gemm(int n_warmup,
     ck_tile::DeviceMem gemm_workspace;
     gemm_workspace.Realloc(get_workspace_size(args));
 
-    std::cout << "invoke_gemm_multi_d" << std::endl;
-
     float ave_time = 0;
     if constexpr(!GemmConfig::Persistent)
     {
@@ -109,7 +107,6 @@ int run_grouped_gemm_multi_d_example_with_layouts(int argc,
                                                   const D1Layout d1_layout = D1Layout{},
                                                   const ELayout e_layout   = ELayout{})
 {
-    std::cout << "started::run_grouped_gemm_multi_d_example_with_layouts" << std::endl;
     auto [result, arg_parser] = create_args(argc, argv);
 
     using CDElementWise = MultiplyMultiply;
@@ -224,10 +221,9 @@ int run_grouped_gemm_multi_d_example_with_layouts(int argc,
                   << std::endl;
 
         ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensors[i]);
-        ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_k_n_tensors[i]);
-        ck_tile::FillUniformDistribution<D0DataType>{1.f, 1.f}(d0_m_n_tensors[i]);
-        ck_tile::FillUniformDistribution<D1DataType>{1.f, 1.f}(d1_m_n_tensors[i]);
-        ck_tile::FillUniformDistribution<EDataType>{1.f, 1.f}(e_m_n_tensors[i]);
+        ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
+        ck_tile::FillUniformDistribution<D0DataType>{-1.f, 1.f}(d0_m_n_tensors[i]);
+        ck_tile::FillUniformDistribution<D1DataType>{-1.f, 1.f}(d1_m_n_tensors[i]);
 
         a_m_k_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(a_m_k_tensors[i]));
 
@@ -279,12 +275,16 @@ int run_grouped_gemm_multi_d_example_with_layouts(int argc,
     for(int j = 0; j < group_count; ++j)
     {
         flop += std::size_t(2) * gemm_descs[j].M * gemm_descs[j].N * gemm_descs[j].K;
+        ck_tile::static_for<0, DsDataType::size(), 1>{}([&](auto i) {
+            num_btype += sizeof(ck_tile::remove_cvref_t<std::tuple_element_t<i, DsDataType>>) *
+                         gemm_descs[j].M * gemm_descs[j].N;
+            flop += sizeof(ck_tile::remove_cvref_t<std::tuple_element_t<i, DsDataType>>) *
+                    gemm_descs[j].M * gemm_descs[j].N;
+        });
 
         num_btype += sizeof(ADataType) * gemm_descs[j].M * gemm_descs[j].K +
                      sizeof(BDataType) * gemm_descs[j].K * gemm_descs[j].N +
-                     sizeof(EDataType) * gemm_descs[j].M * gemm_descs[j].N +
-                     sizeof(D0DataType) * gemm_descs[j].M * gemm_descs[j].N +
-                     sizeof(D1DataType) * gemm_descs[j].M * gemm_descs[j].N;
+                     sizeof(EDataType) * gemm_descs[j].M * gemm_descs[j].N;
     }
 
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
@@ -337,65 +337,48 @@ int run_grouped_gemm_multi_d_example_with_layouts(int argc,
                       << std::endl;
             std::cout << "Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                       << std::endl;
-            std::cout << "The CPU veification result is: " << (pass ? "correct" : "fail")
+            std::cout << "The CPU verification result is: " << (pass ? "correct" : "fail")
                       << std::endl;
+        }
 
-            // print first 5 values of output tensors and reference tensors
+        if(arg_parser.get_int("json") == 1)
+        {
+            dump_grouped_gemm_json_results<ALayout, BLayout, ELayout>(
+                arg_parser.get_str("jsonfile"),
+                op_name,
+                group_count,
+                pass,
+                ave_time,
+                tflops,
+                gb_per_sec);
+        }
 
-            std::cout << "e_m_n_tensors[" << i
-                      << "]: " << static_cast<float>(e_m_n_tensors[i].mData[0]) << " "
-                      << static_cast<float>(e_m_n_tensors[i].mData[1]) << " "
-                      << static_cast<float>(e_m_n_tensors[i].mData[2]) << " "
-                      << static_cast<float>(e_m_n_tensors[i].mData[3]) << " "
-                      << static_cast<float>(e_m_n_tensors[i].mData[4]) << std::endl;
+        return pass;
+    }
 
-            std::cout << "e_m_n_host_refs[" << i
-                      << "]: " << static_cast<float>(e_m_n_host_refs[i].mData[0]) << " "
-                      << static_cast<float>(e_m_n_host_refs[i].mData[1]) << " "
-                      << static_cast<float>(e_m_n_host_refs[i].mData[2]) << " "
-                      << static_cast<float>(e_m_n_host_refs[i].mData[3]) << " "
-                      << static_cast<float>(e_m_n_host_refs[i].mData[4]) << std::endl;
+    template <typename GemmConfig>
+    int run_grouped_gemm_multi_d_example(int argc, char* argv[])
+    {
+        auto [result, arg_parser] = create_args(argc, argv);
+        if(!result)
+        {
+            return -1;
+        }
+        const std::string a_layout  = arg_parser.get_str("a_layout");
+        const std::string b_layout  = arg_parser.get_str("b_layout");
+        const std::string ds_layout = arg_parser.get_str("ds_layout");
+
+        using Row = ck_tile::tensor_layout::gemm::RowMajor;
+        using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+
+        if(a_layout == "R" && b_layout == "C" && ds_layout == "R")
+        {
+            std::cout << "layouts: a: R, b: C, ds: R" << std::endl;
+            return run_grouped_gemm_multi_d_example_with_layouts<GemmConfig>(
+                argc, argv, Row{}, Col{}, Row{}, Row{}, Row{});
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported data layout configuration for provided tensors!");
         }
     }
-
-    if(arg_parser.get_int("json") == 1)
-    {
-        dump_grouped_gemm_json_results<ALayout, BLayout, ELayout>(arg_parser.get_str("jsonfile"),
-                                                                  op_name,
-                                                                  group_count,
-                                                                  pass,
-                                                                  ave_time,
-                                                                  tflops,
-                                                                  gb_per_sec);
-    }
-
-    return pass;
-}
-
-template <typename GemmConfig>
-int run_grouped_gemm_multi_d_example(int argc, char* argv[])
-{
-    std::cout << "run_grouped_gemm_multi_d_example" << std::endl;
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-    {
-        return -1;
-    }
-    const std::string a_layout  = arg_parser.get_str("a_layout");
-    const std::string b_layout  = arg_parser.get_str("b_layout");
-    const std::string ds_layout = arg_parser.get_str("ds_layout");
-
-    using Row = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
-
-    if(a_layout == "R" && b_layout == "C" && ds_layout == "R")
-    {
-        std::cout << "layouts: a: R, b: C, ds: R" << std::endl;
-        return run_grouped_gemm_multi_d_example_with_layouts<GemmConfig>(
-            argc, argv, Row{}, Col{}, Row{}, Row{}, Row{});
-    }
-    else
-    {
-        throw std::runtime_error("Unsupported data layout configuration for provided tensors!");
-    }
-}

@@ -137,12 +137,6 @@ struct GroupedGemmKernel
                       !is_detected<is_tuple, CDataType>::value,
                   "C/ELayout and C/EDataType must be scalars.");
 
-    /// @brief  DsLayout and DsDataType are expected to be tuple, not a scalar.
-    // static_assert(is_detected<is_tuple, DsLayout>::value &&
-    //                   is_detected<is_tuple, DsDataType>::value &&
-    //                   DsLayout::size() == DsDataType::size() && DsLayout::size() > 0,
-    //               "DsLayout and DsDataType must be tuples and must have the same size.");
-
     static constexpr index_t NumDTensor_ = DsDataType::size();
 
     using OffsetTile1DPartitioner = OffsettedTile1DPartitioner<TilePartitioner>;
@@ -221,7 +215,6 @@ struct GroupedGemmKernel
     MakeKargs(const std::vector<GroupedGemmHostArgs<NumDTensor_>>& gemm_descs)
         -> std::vector<GemmTransKernelArg<1, 1, NumDTensor_>>
     {
-        // static_assert(NumDTensor == 2, "NumDTensor must be 2");
         std::vector<GemmTransKernelArg<1, 1, NumDTensor_>> gemm_kernel_args_;
         index_t group_count = ck_tile::type_convert<ck_tile::index_t>(gemm_descs.size());
         index_t grid_size   = 0;
@@ -297,7 +290,7 @@ struct GroupedGemmKernel
                       "SingleSmemBuffer and Preshuffle cannot both be enabled simultaneously!");
 
         // static assert that if NumDTensor_2 then it must not be DoubleSmemBuffer
-        static_assert(NumDTensor_ != 2 || GemmPipeline::DoubleSmemBuffer == false,
+        static_assert(NumDTensor_ != 2 && GemmPipeline::DoubleSmemBuffer == true,
                       "If NumDTensor_ is 2, then DoubleSmemBuffer must be false");
 
         const auto [iM, iN] = block_idx_2d;
@@ -315,7 +308,6 @@ struct GroupedGemmKernel
 
         // allocate LDS
         __shared__ char smem_ptr_0[GetSmemSize()];
-        (void)smem_ptr_0; // Suppress unused variable warning
 
         // TO DO:
         // Can we simplify this branching logic?
