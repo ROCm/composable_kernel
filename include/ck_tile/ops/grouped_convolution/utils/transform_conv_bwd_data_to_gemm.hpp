@@ -455,7 +455,7 @@ struct TransformConvBwdDataToGemm
     {
         // GKXC
         return make_naive_tensor_descriptor(
-            make_tuple(K_, X_, C_), make_tuple(X_ * C_, C_, I1), number<1>{}, I1);
+            make_tuple(K_, X_, C_), make_tuple(X_ * C_, C_, I1), number<VectorSizeB>{}, I1);
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 1, bool>::type = false>
@@ -502,7 +502,7 @@ struct TransformConvBwdDataToGemm
         // TODO Add support for NumGroupsToMerge > 1
         return make_naive_tensor_descriptor(make_tuple(N_, Hi_, Wi_, C_),
                                             make_tuple(NStride, HiStride, WiStride, CStride),
-                                            number<1>{},
+                                            number<VectorSizeB>{},
                                             I1);
     }
 
@@ -547,7 +547,7 @@ struct TransformConvBwdDataToGemm
         return make_naive_tensor_descriptor(
             make_tuple(N_, Di_, Hi_, Wi_, C_),
             make_tuple(NStride, DiStride, HiStride, WiStride, CStride),
-            number<1>{},
+            number<VectorSizeB>{},
             I1);
     }
 

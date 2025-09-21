@@ -422,8 +422,10 @@ struct TransformConvBwdWeightToGemm
 
         // TODO Add support for NumGroupsToMerge > 1
 
-        return make_naive_tensor_descriptor(
-            make_tuple(K_, N_ * Wo_), make_tuple(KStride, NDoHoWoStride), number<1>{}, I1);
+        return make_naive_tensor_descriptor(make_tuple(K_, N_ * Wo_),
+                                            make_tuple(KStride, NDoHoWoStride),
+                                            number<VectorSizeA>{},
+                                            I1);
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 1, bool>::type = false>
@@ -435,8 +437,10 @@ struct TransformConvBwdWeightToGemm
         constexpr auto CStride = I1;
 
         // TODO Add support for NumGroupsToMerge > 1
-        return make_naive_tensor_descriptor(
-            make_tuple(N_, Wi_, C_), make_tuple(NStride, WiStride, CStride), number<1>{}, I1);
+        return make_naive_tensor_descriptor(make_tuple(N_, Wi_, C_),
+                                            make_tuple(NStride, WiStride, CStride),
+                                            number<VectorSizeB>{},
+                                            I1);
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 1, bool>::type = false>
@@ -460,8 +464,10 @@ struct TransformConvBwdWeightToGemm
 
         // TODO Add support for NumGroupsToMerge > 1
 
-        return make_naive_tensor_descriptor(
-            make_tuple(K_, N_ * Ho_ * Wo_), make_tuple(KStride, NDoHoWoStride), number<1>{}, I1);
+        return make_naive_tensor_descriptor(make_tuple(K_, N_ * Ho_ * Wo_),
+                                            make_tuple(KStride, NDoHoWoStride),
+                                            number<VectorSizeA>{},
+                                            I1);
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 2, bool>::type = false>
@@ -476,7 +482,7 @@ struct TransformConvBwdWeightToGemm
         // TODO Add support for NumGroupsToMerge > 1
         return make_naive_tensor_descriptor(make_tuple(N_, Hi_, Wi_, C_),
                                             make_tuple(NStride, HiStride, WiStride, CStride),
-                                            number<1>{},
+                                            number<VectorSizeB>{},
                                             I1);
     }
 
@@ -503,7 +509,7 @@ struct TransformConvBwdWeightToGemm
 
         return make_naive_tensor_descriptor(make_tuple(K_, N_ * Do_ * Ho_ * Wo_),
                                             make_tuple(KStride, NDoHoWoStride),
-                                            number<1>{},
+                                            number<VectorSizeA>{},
                                             I1);
     }
 
@@ -520,7 +526,7 @@ struct TransformConvBwdWeightToGemm
         return make_naive_tensor_descriptor(
             make_tuple(N_, Di_, Hi_, Wi_, C_),
             make_tuple(NStride, DiStride, HiStride, WiStride, CStride),
-            number<1>{},
+            number<VectorSizeB>{},
             I1);
     }
 

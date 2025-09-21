@@ -26,7 +26,7 @@ struct GroupedConvFwdKernelArgs
                                GroupedConvTraitsType_::ConvSpecialization,
                                GroupedConvTraitsType_::VectorSizeA,
                                GroupedConvTraitsType_::VectorSizeB,
-                               GroupedConvTraitsType_::VectorSizeC
+                               GroupedConvTraitsType_::VectorSizeC,
                                true>; // Split N enabled
     static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
 

@@ -67,6 +67,8 @@ float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args, const ck_til
         AccDataType,
         CodegenShape,
         typename GroupedConvTraitsType::GroupedConvImplicitGemmTraitsFwd,
+        ck_tile::element_wise::PassThrough,
+        ck_tile::element_wise::PassThrough,
         InDataType,
         true,
         GroupedConvTraitsType::VectorSizeA,

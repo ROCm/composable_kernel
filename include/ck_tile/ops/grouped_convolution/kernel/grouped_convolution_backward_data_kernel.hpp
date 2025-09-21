@@ -471,6 +471,10 @@ template <typename GroupedConvTraitsType_,
           typename EpiloguePipeline_>
 struct GroupedConvolutionBackwardDataKernel
 {
+    // Todo: Enable Vector Size > 1
+    static_assert(GroupedConvTraitsType_::VectorSizeA == 1 &&
+                  GroupedConvTraitsType_::VectorSizeB == 1);
+
     static constexpr index_t NDimSpatial = GroupedConvTraitsType_::NDimSpatial_;
     static constexpr ConvolutionSpecialization ConvSpecialization =
         GroupedConvTraitsType_::ConvSpecialization;
@@ -512,10 +516,13 @@ struct GroupedConvolutionBackwardDataKernel
 
     static_assert(GemmPipeline::kPadM && GemmPipeline::kPadN && GemmPipeline::kPadK,
                   "Not supported!");
-    static_assert(std::is_same_v<GemmALayout, tensor_layout::gemm::RowMajor>,
-                  "Not supported A GEMM layout!");
-    static_assert(std::is_same_v<GemmBLayout, tensor_layout::gemm::RowMajor>,
-                  "Not supported B GEMM layout!");
+    static_assert(std::is_same_v<GemmALayout, tensor_layout::gemm::RowMajor>, "Not supported!");
+    static_assert(std::is_same_v<GemmBLayout, tensor_layout::gemm::ColumnMajor>, "Not supported!");
+    // TODO: Change to and enable vector load
+    // static_assert(std::is_same_v<GemmALayout, tensor_layout::gemm::RowMajor>,
+    //               "Not supported A GEMM layout!");
+    // static_assert(std::is_same_v<GemmBLayout, tensor_layout::gemm::RowMajor>,
+    //               "Not supported B GEMM layout!");
     static_assert(std::is_same_v<GemmCLayout, tensor_layout::gemm::RowMajor>,
                   "Not supported C GEMM layout!");
 
