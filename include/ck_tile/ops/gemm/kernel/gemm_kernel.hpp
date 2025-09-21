@@ -89,7 +89,7 @@ struct GemmKernel
     /// @brief Specify the layout configurations for A, B, E and D
     using ALayout = remove_cvref_t<typename GemmPipeline::ALayout>;
     using BLayout = remove_cvref_t<typename GemmPipeline::BLayout>;
-    using ELayout = remove_cvref_t<typename GemmPipeline::CLayout>;
+    using CLayout = remove_cvref_t<typename GemmPipeline::CLayout>;
 
     /// @brief  Specify the data type configurations for A, B, E and D
     using ADataType = remove_cvref_t<typename GemmPipeline::ADataType>;
@@ -106,10 +106,10 @@ struct GemmKernel
         !is_detected<is_tuple, BLayout>::value && !is_detected<is_tuple, BDataType>::value,
         "BLayout and BDataType must be scalars. Multiple parameters are not currently supported.");
 
-    /// @brief  C/ELayout and C/EDataType are expected to be scalars, not a tuple.
-    static_assert(!is_detected<is_tuple, ELayout>::value &&
+    /// @brief  C/CLayout and C/EDataType are expected to be scalars, not a tuple.
+    static_assert(!is_detected<is_tuple, CLayout>::value &&
                       !is_detected<is_tuple, EDataType>::value,
-                  "C/ELayout and C/EDataType must be scalars.");
+                  "C/CLayout and C/EDataType must be scalars.");
 
     static constexpr index_t NumATensor = 1;
     static constexpr index_t NumBTensor = 1;

@@ -132,10 +132,10 @@ struct GroupedGemmKernel
         !is_detected<is_tuple, BLayout>::value && !is_detected<is_tuple, BDataType>::value,
         "BLayout and BDataType must be scalars. Multiple parameters are not currently supported.");
 
-    /// @brief  C/ELayout and C/EDataType are expected to be scalars, not a tuple.
+    /// @brief  C/CLayout and C/EDataType are expected to be scalars, not a tuple.
     static_assert(!is_detected<is_tuple, CLayout>::value &&
                       !is_detected<is_tuple, CDataType>::value,
-                  "C/ELayout and C/EDataType must be scalars.");
+                  "C/CLayout and C/EDataType must be scalars.");
 
     static constexpr index_t NumDTensor_ = DsDataType::size();
 
@@ -289,8 +289,8 @@ struct GroupedGemmKernel
         static_assert(GemmPipeline::DoubleSmemBuffer || !GemmPipeline::Preshuffle,
                       "SingleSmemBuffer and Preshuffle cannot both be enabled simultaneously!");
 
-        // static assert that if NumDTensor_2 then it must not be DoubleSmemBuffer
-        static_assert(NumDTensor_ != 2 && GemmPipeline::DoubleSmemBuffer == true,
+        // static assert that if NumDTensor_ is 2 then it must not be DoubleSmemBuffer
+        static_assert(NumDTensor_ != 2 || GemmPipeline::DoubleSmemBuffer == false,
                       "If NumDTensor_ is 2, then DoubleSmemBuffer must be false");
 
         const auto [iM, iN] = block_idx_2d;
@@ -388,12 +388,8 @@ struct GroupedGemmKernel
         const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
 
         // Run GEMM pipeline
-        const auto& c_block_tile = GemmPipeline{}.template operator()(a_block_window[Base::I0],
-                                                                      b_block_window[Base::I0],
-                                                                      num_loop,
-                                                                      has_hot_loop,
-                                                                      tail_num,
-                                                                      smem_ptr_0);
+        const auto& c_block_tile = GemmPipeline{}.template operator()(
+            a_block_window, b_block_window, num_loop, has_hot_loop, tail_num, smem_ptr_0);
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(Base::I3);
         EpiloguePipeline{}.template

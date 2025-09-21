@@ -339,6 +339,7 @@ int run_grouped_gemm_multi_d_example_with_layouts(int argc,
                       << std::endl;
             std::cout << "The CPU verification result is: " << (pass ? "correct" : "fail")
                       << std::endl;
+            }
         }
 
         if(arg_parser.get_int("json") == 1)

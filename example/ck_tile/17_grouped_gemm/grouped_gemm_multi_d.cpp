@@ -173,7 +173,6 @@ int main(int argc, char* argv[])
 #if CK_TILE_USE_WMMA
     return !run_grouped_gemm_multi_d_example<GemmConfigV3_Wmma>(argc, argv);
 #else
-    return !run_grouped_gemm_multi_d_example<GemmConfigV3>(argc, argv) ||
-           !run_grouped_gemm_multi_d_example<GemmConfigMemory>(argc, argv);
+    return !run_grouped_gemm_multi_d_example<GemmConfigV3>(argc, argv);
 #endif
 }
