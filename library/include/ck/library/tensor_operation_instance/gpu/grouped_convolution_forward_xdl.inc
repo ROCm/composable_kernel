@@ -700,7 +700,7 @@ void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf8_instances(
                                                                 BF8>>>& instances);
 #endif
 
-#if (defined(CK_ENABLE_FP8) && defined(CK_ENABLE_BF8))
+#if(defined(CK_ENABLE_FP8) && defined(CK_ENABLE_BF8))
 void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f8_bf8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
@@ -718,7 +718,7 @@ void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f8_bf8_instances(
                                                                 BF8>>>& instances);
 #endif
 
-#if (defined(CK_ENABLE_FP8) && defined(CK_ENABLE_BF8))
+#if(defined(CK_ENABLE_FP8) && defined(CK_ENABLE_BF8))
 void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf8_f8_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
                                                                 NDHWGC,
