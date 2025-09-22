@@ -12,7 +12,7 @@ sh ../script/cmake-ck-dev.sh  ../ <arch>
 make tile_exampl_bf16_mxfp4_gemm_act -j
 
 ```
-This will result in an executable `build/bin/make tile_exampl_bf16_mxfp4_gemm_act -j
+This will result in an executable `/bin/make tile_exampl_bf16_mxfp4_gemm_act
 `
 
 ## example
