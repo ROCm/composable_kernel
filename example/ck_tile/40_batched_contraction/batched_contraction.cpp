@@ -78,6 +78,7 @@ float batched_contraction_impl(const ck_tile::BatchedContractionHostArgs<DsDataT
 
     using Problem = ck_tile::BatchedContractionProblem<ADataType,
                                                        BDataType,
+                                                       DsDataType,
                                                        EDataType,
                                                        NumDimG,           // NumDimG
                                                        NumDimM,           // NumDimM

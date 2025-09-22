@@ -123,10 +123,11 @@ template <typename Problem_,
           typename EpiloguePipeline_>
 struct BatchedContractionKernel
 {
-    using Problem   = ck_tile::remove_cvref_t<Problem_>;
-    using ADataType = ck_tile::remove_cvref_t<typename Problem::ADataType>;
-    using BDataType = ck_tile::remove_cvref_t<typename Problem::BDataType>;
-    using EDataType = ck_tile::remove_cvref_t<typename Problem::EDataType>;
+    using Problem    = ck_tile::remove_cvref_t<Problem_>;
+    using ADataType  = ck_tile::remove_cvref_t<typename Problem::ADataType>;
+    using BDataType  = ck_tile::remove_cvref_t<typename Problem::BDataType>;
+    using DsDataType = ck_tile::remove_cvref_t<typename Problem::DsDataType>;
+    using EDataType  = ck_tile::remove_cvref_t<typename Problem::EDataType>;
 
     static constexpr ck_tile::index_t NumDimG    = Problem::NumDimG;
     static constexpr ck_tile::index_t NumDimM    = Problem::NumDimM;
@@ -421,8 +422,11 @@ struct BatchedContractionKernel
         offsets.b = CalculateOffsetFromFlatIndex(flat_g_index, kargs.G_dims, kargs.G_strides_B);
         offsets.e = CalculateOffsetFromFlatIndex(flat_g_index, kargs.G_dims, kargs.G_strides_E);
         static_for<0, NumDTensor, 1>{}([&](auto i) {
-            offsets.ds[i] = CalculateOffsetFromFlatIndex(
-                flat_g_index, kargs.G_dims, kargs.G_strides_Ds[i].data());
+            using DType            = typename std::tuple_element<i.value, DsDataType>::type;
+            std::size_t dtype_size = sizeof(DType);
+            offsets.ds[i]          = CalculateOffsetFromFlatIndex(
+                                flat_g_index, kargs.G_dims, kargs.G_strides_Ds[i].data()) *
+                            dtype_size;
         });
         return offsets;
     }
@@ -470,7 +474,6 @@ struct BatchedContractionKernel
 
         const ADataType* a_ptr_final = a_ptr + splitk_batch_offset.as_k_split_offset[0];
         const BDataType* b_ptr_final = b_ptr + splitk_batch_offset.bs_k_split_offset[0];
-
         __shared__ char smem_ptr[GetSmemSize()];
 
         UniversalGemmKernel::RunGemm({a_ptr_final},

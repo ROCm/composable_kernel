@@ -8,6 +8,7 @@ namespace ck_tile {
 
 template <typename ADataType_,
           typename BDataType_,
+          typename DsDataType_,
           typename EDataType_,
           ck_tile::index_t NumDimG_,
           ck_tile::index_t NumDimM_,
@@ -16,9 +17,10 @@ template <typename ADataType_,
           ck_tile::index_t NumDTensor_>
 struct BatchedContractionProblem
 {
-    using ADataType = ck_tile::remove_cvref_t<ADataType_>;
-    using BDataType = ck_tile::remove_cvref_t<BDataType_>;
-    using EDataType = ck_tile::remove_cvref_t<EDataType_>;
+    using ADataType  = ck_tile::remove_cvref_t<ADataType_>;
+    using BDataType  = ck_tile::remove_cvref_t<BDataType_>;
+    using DsDataType = ck_tile::remove_cvref_t<DsDataType_>;
+    using EDataType  = ck_tile::remove_cvref_t<EDataType_>;
 
     static constexpr ck_tile::index_t NumDimG    = NumDimG_;
     static constexpr ck_tile::index_t NumDimM    = NumDimM_;
@@ -26,9 +28,5 @@ struct BatchedContractionProblem
     static constexpr ck_tile::index_t NumDimK    = NumDimK_;
     static constexpr ck_tile::index_t NumDTensor = NumDTensor_;
 };
-
-template <typename ADataType, typename BDataType, typename EDataType>
-using SimpleBatchedGemmProblem =
-    BatchedContractionProblem<ADataType, BDataType, EDataType, 1, 1, 1, 1, 0>;
 
 } // namespace ck_tile
