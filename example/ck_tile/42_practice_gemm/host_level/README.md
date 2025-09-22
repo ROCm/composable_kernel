@@ -79,7 +79,7 @@ struct PracticeGemmHostPolicy
 };
 ```
 
-**Block-to-tile mapping:** This maps 1D block IDs to 2D tile coordinates (M, N).
+**Block-to-tile mapping:** Unlike traditional grid, our grid only has blocks in X dimension. This maps 1D block IDs to 2D tile coordinates (M, N).
 ```cpp
 const auto unmerge = make_merge_transform(make_tuple(N0, M0));
 
@@ -92,7 +92,7 @@ return [unmerge](index_t block_id) {
 
 ### 4. **Pipeline Execution**
 
-The host-level pipeline coordinates execution and manages tile coordination:
+The pipeline coordinates execution and manages tile coordination:
 
 ```cpp
 template <typename Problem_, typename Policy_>
@@ -152,7 +152,8 @@ when no tile distribution is provided, it will be set to a default distribution.
 
 ### 6. **Result Storage**
 
-The block-level pipeline returns a resultant C block tile that is stored back into DRAM:
+The block-level pipeline returns a resultant C block tile that is stored back into DRAM.
+`block_gemm_pipeline` loads A and B block tiles from DRAM to LDS, performs block GEMM using smaller tiles (WarpTiles), and returns the resultant C block tile.
 
 ```cpp
 // Call block-level GEMM pipeline
@@ -164,3 +165,5 @@ auto c_window = make_tile_window(c_dram,
                                  {tile_origin_m, tile_origin_n});
 store_tile(c_window, c_block_tile); // store_tile(destination window, source tile)
 ```
+
+
