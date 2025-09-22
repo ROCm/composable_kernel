@@ -79,6 +79,12 @@ struct DataTypeTraits<ck_tile::fp8_t>
     static constexpr const char* name = "fp8";
 };
 
+template <>
+struct DataTypeTraits<ck_tile::bf8_t>
+{
+    static constexpr const char* name = "bf8";
+};
+
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;

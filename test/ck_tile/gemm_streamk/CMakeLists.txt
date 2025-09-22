@@ -3,6 +3,7 @@ if(GPU_TARGETS MATCHES "gfx9")
 
     include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
  
+    add_gtest_executable(test_ck_tile_streamk test_gemm_streamk_fp8_bf8.cpp)
     #TODO: support all arches
     #TODO: current c-shuffle only supports C layout as R
     add_gtest_executable(test_ck_tile_streamk_smoke 
