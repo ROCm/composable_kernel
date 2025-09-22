@@ -11,7 +11,7 @@ namespace ck_tile {
 // A is block window on shared memory
 // BQ (scale tensor) is block distributed tensor.
 // Consecutive kQuantGroupSize elements of B are quantized with a separate scale.
-// B is block window on shared memory
+// B is block window on block distributed tensor.
 // C is block distributed tensor
 template <typename Problem_, typename BlockPolicy_>
 struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
@@ -156,7 +156,6 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
         static_for<0, QScalesPerBlockRow, 1>{}([&](auto kQScale) {
             CWarpTensor c_warp_tensor;
             static_for<0, KIterPerQScale, 1>{}([&](auto kIterInQScale) {
-                
                 static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
                     static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                         constexpr auto kIter = kQScale * KIterPerQScale + kIterInQScale;

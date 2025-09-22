@@ -609,16 +609,12 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
             NIterPerWarp>
             b_flat_dram_windows;
 
-        statically_indexed_array<
-            statically_indexed_array<decltype(b_block_tile),
-                                     KIterPerWarp>,
-            NIterPerWarp>
+        statically_indexed_array<statically_indexed_array<decltype(b_block_tile), KIterPerWarp>,
+                                 NIterPerWarp>
             b_warp_tensor_ping;
 
-        statically_indexed_array<
-            statically_indexed_array<decltype(b_block_tile),
-                                     KIterPerWarp>,
-            NIterPerWarp>
+        statically_indexed_array<statically_indexed_array<decltype(b_block_tile), KIterPerWarp>,
+                                 NIterPerWarp>
             b_warp_tensor_pong;
 
         // BQ DRAM window for load
