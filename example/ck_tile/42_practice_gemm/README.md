@@ -1,6 +1,6 @@
 # CK Tile Practice GEMM Example
 
-This is a comprehensive practice implementation of a GEMM (General Matrix Multiplication) kernel using the CK Tile API. It demonstrates the fundamental concepts of GPU kernel development using CK Tile's hierarchical tile system.
+This is a practice implementation of a GEMM (General Matrix Multiplication) kernel using the CK Tile API. It demonstrates the fundamental concepts of GPU kernel development using CK Tile's hierarchical tile system.
 
 ## CK Tile API Structure
 
@@ -12,21 +12,21 @@ In the composable_kernel library's ck_tile API, **A Kernel is composed of a Prob
 
 ## Overview
 
-This example implements a complete GEMM kernel `C = A × B + C` using the CK Tile framework, showcasing:
+This example implements a complete GEMM kernel `C = A × B` using the CK Tile framework, showcasing:
 
 - **Problem Setup** - Setting up the problem (input/output shapes, data types, mathematical operations), composing a kernel (pipeline, policy, epilogue), kernel launch
 - **Block-level Pipelining** - creating tensor views, dispatching to block-level GEMM
 - **Block-level GEMM Computation** - Block tiles, tile window creation, loading/storing to DRAM and Register memory
-- **Warp-level GEMM Computation** - Warp tiles, register-based computation
+- **Warp-level GEMM Computation** - Warp tiles, MFMA level computation
 
 ## Problem Setup and Data Flow
 
 ### Problem Size Configuration
 We set the problem size using the M, N and K variables:
 ```cpp
-ck_tile::index_t M = 512;   // Number of rows in A and C
-ck_tile::index_t N = 2048;  // Number of columns in B and C
-ck_tile::index_t K = 2048;  // Number of columns in A, rows in B
+ck_tile::index_t M = 1024;   // Number of rows in A and C
+ck_tile::index_t N = 512;  // Number of columns in B and C
+ck_tile::index_t K = 256;  // Number of columns in A, rows in B
 ```
 
 ### Host Matrix Creation
@@ -48,19 +48,19 @@ a_device.ToDevice(a_host.data());
 
 ### PracticeGemmShape Configuration
 A PracticeGemmShape struct holds the dimension of each BlockTile and WaveTile:
+![Tile Hierarchy](./images/tile_hierarchy.png)
+
 ```cpp
 using BlockTile = ck_tile::sequence<256, 128, 32>;  // M, N, K per block
 using WaveTile  = ck_tile::sequence<16, 16, 16>;   // M, N, K per wave
 ```
+- A BlockTile of size MxK (256x32) on A matrix and NxK (128x32) on B matrix. A WaveTile of size MxN (16x16) on C matrix.
 
-### Tile Coverage and Iteration
-- **BlockTile over C**: The area of work done by one thread-block (256×128 elements)
-- **BlockTile(s) covering A and B**: Iterate in K dimension to fetch data required for computing region of C covered by C's block tile
-- **WaveTile over C inside a BlockTile**: The area of work done by one wave (16×16 elements)
-- **WaveTile(s) covering A and B**: Iterate in K dimension to fetch data required for computing region of C covered by C's wave tile
+![Tile Coverage](./images/gemm_loop.png)
 
-![Tile Hierarchy](./images/tile_hierarchy.png)
-
+- BlockTiles iterate in K dimension to fetch data required for computing region of C covered by C's block tile.
+- BlockTiles are further subdivided into WarpTiles.
+- WarpTiles over A and B similarly work together to calculate the WarpTile of C.
 
 ### Problem and Policy Composition
 ```cpp
@@ -76,7 +76,7 @@ using gemm_kernel = ck_tile::PracticeGemmKernel<PracticeGemmHostProblem, Practic
 ```
 
 ### Kernel Launch
-`ck_tile::launch()` is used to launch the kernel on device. It calls the `operator()` function of `PracticeGemmKernel{}`:
+`ck_tile::launch_kernel()` is used to launch the kernel on device. It calls the `operator()` function of `PracticeGemmKernel{}`:
 ```cpp
 float ave_time = ck_tile::launch_kernel(
     ck_tile::stream_config{nullptr, true, 0, 0, 1},
@@ -150,7 +150,4 @@ make tile_example_practice_gemm -j
 # Run with sample sizes
 ./bin/tile_example_practice_gemm
 ```
-
-
-
 This example serves as a foundation for understanding more complex GEMM implementations and optimization strategies in the CK Tile framework.
