@@ -1,6 +1,6 @@
 # GEMM Matrix Multiplication
 
-This folder contains example for GEMM using ck_tile tile-programming implementation. Currently, it only supports the basic feature of the CK Tile GEMM, but creates the placeholders for the future support on different GEMM pipeline and different GEMM modules. In the near future, we will gradually migrate all the GEMM features from old CK to CK Tile.
+This folder contains GEMM examples that use ck_tile tile-programming implementations. Currently, only the basic CK Tile GEMM features are supported, but placeholders for future support on different GEMM pipeline and different GEMM modules are included. In the near future, we will gradually migrate all the GEMM features from old CK to CK Tile.
 
 ## build
 ```
