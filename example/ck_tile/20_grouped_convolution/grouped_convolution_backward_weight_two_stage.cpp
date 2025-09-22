@@ -11,13 +11,13 @@
 
 #include "ck_tile/host.hpp"
 #include "grouped_convolution_utils.hpp"
-#include "grouped_convolution_backward_weight_invoker.hpp"
+#include "grouped_convolution_backward_weight_two_stage_invoker.hpp"
 #include "run_grouped_convolution_bwd_weight_example.inc"
 
 template <typename GemmWarpConfig>
 int run_grouped_conv_bwd_weight_example(ck_tile::ArgParser& arg_parser)
 {
-    using Invoker = GroupedConvolutionBackwardWeightInvoker;
+    using Invoker = GroupedConvolutionBackwardWeightTwoStageInvoker;
 
     std::string data_type  = arg_parser.get_str("prec");
     std::string in_layout  = arg_parser.get_str("in_layout");

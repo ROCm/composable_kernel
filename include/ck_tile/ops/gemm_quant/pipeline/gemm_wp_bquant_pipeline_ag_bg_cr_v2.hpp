@@ -597,7 +597,6 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
             static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
                           std::is_same_v<ComputeDataType, bf8_t>);
             block_weight_preshuffle.load_interleaved_pk_type(b_block_tile, b_flat_dram_window);
-            //__builtin_amdgcn_sched_barrier(0);
         }
         else
         {
@@ -611,13 +610,13 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
             b_flat_dram_windows;
 
         statically_indexed_array<
-            statically_indexed_array<decltype(b_block_tile /*load_tile(b_flat_dram_window)*/),
+            statically_indexed_array<decltype(b_block_tile),
                                      KIterPerWarp>,
             NIterPerWarp>
             b_warp_tensor_ping;
 
         statically_indexed_array<
-            statically_indexed_array<decltype(b_block_tile /*load_tile(b_flat_dram_window)*/),
+            statically_indexed_array<decltype(b_block_tile),
                                      KIterPerWarp>,
             NIterPerWarp>
             b_warp_tensor_pong;
@@ -646,13 +645,11 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
                 {
                     block_weight_preshuffle.load_interleaved_pk_type(
                         b_warp_tensor_ping(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
-                    //__builtin_amdgcn_sched_barrier(0);
                 }
                 else
                 {
                     b_warp_tensor_ping(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
                 }
-                // b_warp_tensor_ping(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
             });
         });
         // move B window to next flat K
@@ -713,15 +710,12 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
                     {
                         block_weight_preshuffle.load_interleaved_pk_type(
                             b_warp_tensor_pong(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
-                        //__builtin_amdgcn_sched_barrier(0);
                     }
                     else
                     {
                         b_warp_tensor_pong(nIter)(kIter) =
                             load_tile(b_flat_dram_windows(nIter)(kIter));
                     }
-                    // b_warp_tensor_pong(nIter)(kIter) =
-                    // load_tile(b_flat_dram_windows(nIter)(kIter));
                 });
             });
             move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
@@ -766,15 +760,12 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
                     {
                         block_weight_preshuffle.load_interleaved_pk_type(
                             b_warp_tensor_ping(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
-                        //__builtin_amdgcn_sched_barrier(0);
                     }
                     else
                     {
                         b_warp_tensor_ping(nIter)(kIter) =
                             load_tile(b_flat_dram_windows(nIter)(kIter));
                     }
-                    // b_warp_tensor_ping(nIter)(kIter) =
-                    // load_tile(b_flat_dram_windows(nIter)(kIter));
                 });
             });
             move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
@@ -812,7 +803,6 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
         // tail
         if constexpr(TailNum == TailNumber::Even)
         {
-            // __builtin_amdgcn_sched_barrier(0);
             // prefetch B(loopK)
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
@@ -824,15 +814,12 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
                     {
                         block_weight_preshuffle.load_interleaved_pk_type(
                             b_warp_tensor_pong(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
-                        //__builtin_amdgcn_sched_barrier(0);
                     }
                     else
                     {
                         b_warp_tensor_pong(nIter)(kIter) =
                             load_tile(b_flat_dram_windows(nIter)(kIter));
                     }
-                    // b_warp_tensor_pong(nIter)(kIter) =
-                    // load_tile(b_flat_dram_windows(nIter)(kIter));
                 });
             });
             bq_block_tile_2 = load_tile(bq_copy_dram_window);
