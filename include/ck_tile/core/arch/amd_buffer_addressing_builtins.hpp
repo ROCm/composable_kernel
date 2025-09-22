@@ -28,10 +28,20 @@ struct __attribute__((packed)) buffer_resource
     uint32_t config;
 };
 
-CK_TILE_DEVICE int32x4_t make_wave_buffer_resource(const void* ptr, uint32_t size = 0xffffffff)
+template <typename ForceSGPR = std::false_type>
+CK_TILE_DEVICE int32x4_t make_wave_buffer_resource(const void* ptr,
+                                                   uint32_t size = 0xffffffff,
+                                                   ForceSGPR     = {})
 {
     buffer_resource res{ptr, size, CK_TILE_BUFFER_RESOURCE_3RD_DWORD};
     int32x4_t r = __builtin_bit_cast(int32x4_t, res);
+    if constexpr(std::is_same_v<ForceSGPR, std::true_type>)
+    {
+        r.x = __builtin_amdgcn_readfirstlane(r.x);
+        r.y = __builtin_amdgcn_readfirstlane(r.y);
+        r.z = __builtin_amdgcn_readfirstlane(r.z);
+        r.w = __builtin_amdgcn_readfirstlane(r.w);
+    }
     return r;
 }
 
