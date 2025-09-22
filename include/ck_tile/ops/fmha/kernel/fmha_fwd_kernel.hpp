@@ -1840,27 +1840,34 @@ struct FmhaFwdKernel
                         k_dram_pad,
                         make_tuple(make_pass_through_transform(height),
                                    make_unmerge_transform(
-                                       make_tuple(number<kDramTileK / FmhaPipeline::kAlignmentK>{},
+                                       make_tuple(number<FmhaPipeline::kQKHeaddim / kDramTileK /
+                                                         FmhaPipeline::kAlignmentK>{},
+                                                  number<kDramTileK / FmhaPipeline::kAlignmentK>{},
                                                   number<FmhaPipeline::kAlignmentK>{}))),
                         make_tuple(sequence<0>{}, sequence<1>{}),
-                        make_tuple(sequence<0>{}, sequence<1, 2>{}));
+                        make_tuple(sequence<0>{}, sequence<1, 2, 3>{}));
 
                     const auto k_dram_permuted = transform_tensor_view(
                         k_dram_unmerged,
                         make_tuple(
                             make_xor_transform(make_tuple(
                                 height, number<kDramTileK / FmhaPipeline::kAlignmentK>{})),
+                            make_pass_through_transform(
+                                number<FmhaPipeline::kQKHeaddim / kDramTileK /
+                                       FmhaPipeline::kAlignmentK>{}),
                             make_pass_through_transform(number<FmhaPipeline::kAlignmentK>{})),
-                        make_tuple(sequence<0, 1>{}, sequence<2>{}),
-                        make_tuple(sequence<0, 1>{}, sequence<2>{}));
+                        make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}),
+                        make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}));
 
                     return transform_tensor_view(
                         k_dram_permuted,
                         make_tuple(make_pass_through_transform(height),
                                    make_merge_transform_v3_division_mod(
-                                       make_tuple(number<kDramTileK / FmhaPipeline::kAlignmentK>{},
+                                       make_tuple(number<FmhaPipeline::kQKHeaddim / kDramTileK /
+                                                         FmhaPipeline::kAlignmentK>{},
+                                                  number<kDramTileK / FmhaPipeline::kAlignmentK>{},
                                                   number<FmhaPipeline::kAlignmentK>{}))),
-                        make_tuple(sequence<0>{}, sequence<1, 2>{}),
+                        make_tuple(sequence<0>{}, sequence<1, 2, 3>{}),
                         make_tuple(sequence<0>{}, sequence<1>{}));
                 }
             };
