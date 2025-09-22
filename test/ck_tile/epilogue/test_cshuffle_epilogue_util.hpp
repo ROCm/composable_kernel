@@ -19,8 +19,15 @@
 
 namespace ck_tile {
 
+enum class ScaleType
+{
+    None,
+    RowCol,
+    Tensor
+};
+
 // Simple test kernel to invoke the CShuffleEpilogue
-template <typename Problem, index_t M, index_t N, bool UseScale>
+template <typename Problem, index_t M, index_t N, ScaleType Scale>
 __global__ void test_cshuffle_epilogue_kernel(typename Problem::ODataType* __restrict__ output_data,
                                               float* m_scale,
                                               float* n_scale)
@@ -61,7 +68,7 @@ __global__ void test_cshuffle_epilogue_kernel(typename Problem::ODataType* __res
     auto empty_ds = make_tuple();
 
     // Call the epilogue
-    if constexpr(UseScale)
+    if constexpr(Scale == ScaleType::RowCol)
     {
         const auto m_scale_window = make_tile_window(
             make_naive_tensor_view<address_space_enum::global>(
@@ -74,6 +81,10 @@ __global__ void test_cshuffle_epilogue_kernel(typename Problem::ODataType* __res
             make_tuple(number<Problem::kMPerBlock>{}, number<Problem::kNPerBlock>{}),
             {0, 0});
         Epilogue{}(output_tile_window, acc_tile, empty_ds, smem, m_scale_window, n_scale_window);
+    }
+    else if constexpr(Scale == ScaleType::Tensor)
+    {
+        Epilogue{}(output_tile_window, acc_tile, empty_ds, smem, *m_scale, *n_scale);
     }
     else
     {
@@ -113,7 +124,7 @@ using SimpleCShuffleEpilogueProblem =
                             memory_operation_enum::set>;
 
 template <typename Problem, index_t M, index_t N>
-bool run_cshuffle_epilogue_test(bool use_scale = false)
+auto run_cshuffle_epilogue_test(ScaleType scale = ScaleType::None)
 {
     using ODataType = typename Problem::ODataType;
 
@@ -142,7 +153,7 @@ bool run_cshuffle_epilogue_test(bool use_scale = false)
     dim3 gridSize(1, 1, 1);
     dim3 blockSize(kBlockSize, 1, 1);
 
-    if(use_scale)
+    if(scale == ScaleType::RowCol)
     {
         float* m_scale;
         float* n_scale;
@@ -155,12 +166,25 @@ bool run_cshuffle_epilogue_test(bool use_scale = false)
             hipMemcpy(m_scale, h_m_scale.data(), M * sizeof(float), hipMemcpyHostToDevice));
         HIP_CHECK_ERROR(
             hipMemcpy(n_scale, h_n_scale.data(), N * sizeof(float), hipMemcpyHostToDevice));
-        test_cshuffle_epilogue_kernel<Problem, M, N, true>
+        test_cshuffle_epilogue_kernel<Problem, M, N, ScaleType::RowCol>
+            <<<gridSize, blockSize>>>(device_output, m_scale, n_scale);
+    }
+    else if(scale == ScaleType::Tensor)
+    {
+        float* m_scale;
+        float* n_scale;
+        std::vector<float> h_m_scale(1, 2.0F);
+        std::vector<float> h_n_scale(1, 1.0F);
+        HIP_CHECK_ERROR(hipMalloc(&m_scale, sizeof(float)));
+        HIP_CHECK_ERROR(hipMalloc(&n_scale, sizeof(float)));
+        HIP_CHECK_ERROR(hipMemcpy(m_scale, h_m_scale.data(), sizeof(float), hipMemcpyHostToDevice));
+        HIP_CHECK_ERROR(hipMemcpy(n_scale, h_n_scale.data(), sizeof(float), hipMemcpyHostToDevice));
+        test_cshuffle_epilogue_kernel<Problem, M, N, ScaleType::Tensor>
             <<<gridSize, blockSize>>>(device_output, m_scale, n_scale);
     }
     else
     {
-        test_cshuffle_epilogue_kernel<Problem, M, N, false>
+        test_cshuffle_epilogue_kernel<Problem, M, N, ScaleType::None>
             <<<gridSize, blockSize>>>(device_output, nullptr, nullptr);
     }
 
@@ -172,20 +196,10 @@ bool run_cshuffle_epilogue_test(bool use_scale = false)
     HIP_CHECK_ERROR(hipMemcpy(
         host_output.data(), device_output, output_size * sizeof(ODataType), hipMemcpyDeviceToHost));
 
-    // Basic verification - just check that output has a 2, and 4 if using scaling
-    bool has_2 =
-        type_convert<float>(host_output[0]) > 1.9F && type_convert<float>(host_output[0]) < 2.1F;
-    bool scale_has_4 = true;
-    if(use_scale)
-    {
-        scale_has_4 = type_convert<float>(host_output[1]) > 3.9F &&
-                      type_convert<float>(host_output[1]) < 4.1F;
-    }
-
     // Cleanup
     HIP_CHECK_ERROR(hipFree(device_output));
 
-    return has_2 && scale_has_4;
+    return host_output;
 }
 
 } // namespace ck_tile
