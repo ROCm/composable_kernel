@@ -1060,6 +1060,18 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
             index_t K_split = (GemmK + KPerBlock - 1) / KPerBlock * KPerBlock;
             const bool has_main_k_block_loop =
                 GridwiseGemmCTranspose::CalculateHasMainKBlockLoop(K_split);
+            const TailNumber tail_num = GridwiseGemmCTranspose::CalculateKBlockLoopTailNum(K_split);
+
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                printf("\033[092mnum_loop %d, has_main_k_loop %d, tail_num %d, G chunks %d, N "
+                       "chunks %d\033[0m\n",
+                       K_split / KPerBlock,
+                       has_main_k_block_loop,
+                       static_cast<int>(tail_num),
+                       gdy,
+                       gdz);
+            }
 
             std::array<const void*, NumATensor> p_as_grid = arg.p_as_grid_;
             std::array<const void*, NumBTensor> p_bs_grid = arg.p_bs_grid_;
@@ -1294,104 +1306,87 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                 }
             };
 
-            if(has_main_k_block_loop)
-            {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            auto CreateAndRunKernel = [&](auto has_main_k_block_loop_, auto tail_number_) {
+                constexpr bool has_loop = decltype(has_main_k_block_loop_)::value;
+                constexpr TailNumber tn = tail_number_;
+
+                if constexpr(CTranspose)
                 {
-                    printf("\033[33mMAIN K BLOCK LOOP\033[0m\n");
-                }
-                // Tail number always full
-                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
-                             BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
-                {
-                    if constexpr(CTranspose)
-                    {
-                        const auto kernel = kernel_grouped_conv_fwd_wmma_cshuffle_v3<
-                            GridwiseGemmCTranspose,
-                            DeviceOp::BGridDesc_BK0_N_BK1,
-                            DeviceOp::AGridDesc_AK0_M_AK1,
-                            DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                            DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                            ComputePtrOffset,
-                            true, // HasMainKBlockLoop
-                            InMemoryDataOperationEnum::Set,
-                            minimum_occupancy>;
-                        // TailNumber TailNum = TailNumber::Full
-                        Run(kernel);
-                    }
-                    else
-                    {
-                        const auto kernel = kernel_grouped_conv_fwd_wmma_cshuffle_v3<
-                            GridwiseGemm,
-                            DeviceOp::AGridDesc_AK0_M_AK1,
-                            DeviceOp::BGridDesc_BK0_N_BK1,
-                            DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                            DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                            ComputePtrOffset,
-                            true, // HasMainKBlockLoop
-                            InMemoryDataOperationEnum::Set,
-                            minimum_occupancy>;
-                        // TailNumber TailNum = TailNumber::Full
-                        Run(kernel);
-                    }
+                    const auto kernel = kernel_grouped_conv_fwd_wmma_cshuffle_v3<
+                        GridwiseGemmCTranspose,
+                        DeviceOp::BGridDesc_BK0_N_BK1,
+                        DeviceOp::AGridDesc_AK0_M_AK1,
+                        DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                        DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                        ComputePtrOffset,
+                        has_loop, // HasMainKBlockLoop
+                        InMemoryDataOperationEnum::Set,
+                        minimum_occupancy,
+                        tn>; // TailNumber TailNum = TailNumber::Full
+                    Run(kernel);
                 }
                 else
                 {
-                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                    {
-                        printf("Unsupported pipeline version!\n");
-                    }
+                    const auto kernel = kernel_grouped_conv_fwd_wmma_cshuffle_v3<
+                        GridwiseGemm,
+                        DeviceOp::AGridDesc_AK0_M_AK1,
+                        DeviceOp::BGridDesc_BK0_N_BK1,
+                        DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                        DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+                        ComputePtrOffset,
+                        has_loop, // HasMainKBlockLoop
+                        InMemoryDataOperationEnum::Set,
+                        minimum_occupancy,
+                        tn>; // TailNumber TailNum = TailNumber::Full
+                    Run(kernel);
+                }
+            };
+
+            if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+            {
+                if(has_main_k_block_loop && tail_num == TailNumber::Full)
+                {
+                    CreateAndRunKernel(std::integral_constant<bool, true>{},
+                                       std::integral_constant<TailNumber, TailNumber::Full>{});
+                }
+                else if(!has_main_k_block_loop && tail_num == TailNumber::Full)
+                {
+                    CreateAndRunKernel(std::integral_constant<bool, false>{},
+                                       std::integral_constant<TailNumber, TailNumber::Full>{});
+                }
+                else
+                {
+                    printf("Invalid has_main_k_block_loop and tail_num combination for V1!\n");
+                    return 0.0f;
                 }
             }
-            // has_main_k_block_loop
-            else
+            else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
             {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                if(has_main_k_block_loop && tail_num == TailNumber::Full)
                 {
-                    printf("\033[33mNO MAINLOOP\033[0m\n");
+                    CreateAndRunKernel(std::integral_constant<bool, true>{},
+                                       std::integral_constant<TailNumber, TailNumber::Full>{});
                 }
-                // Tail number always 1
-                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+                else if(!has_main_k_block_loop && tail_num == TailNumber::Even)
                 {
-                    if constexpr(CTranspose)
-                    {
-                        const auto kernel = kernel_grouped_conv_fwd_wmma_cshuffle_v3<
-                            GridwiseGemmCTranspose,
-                            DeviceOp::BGridDesc_BK0_N_BK1,
-                            DeviceOp::AGridDesc_AK0_M_AK1,
-                            DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                            DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                            ComputePtrOffset,
-                            false, // HasMainKBlockLoop
-                            InMemoryDataOperationEnum::Set,
-                            minimum_occupancy>;
-                        // TailNumber TailNum = TailNumber::Full
-                        Run(kernel);
-                    }
-                    else
-                    {
-                        const auto kernel = kernel_grouped_conv_fwd_wmma_cshuffle_v3<
-                            GridwiseGemm,
-                            DeviceOp::AGridDesc_AK0_M_AK1,
-                            DeviceOp::BGridDesc_BK0_N_BK1,
-                            DeviceOp::DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                            DeviceOp::EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-                            ComputePtrOffset,
-                            false, // HasMainKBlockLoop
-                            InMemoryDataOperationEnum::Set,
-                            minimum_occupancy>;
-                        // TailNumber TailNum = TailNumber::Full
-                        Run(kernel);
-                    }
+                    CreateAndRunKernel(std::integral_constant<bool, false>{},
+                                       std::integral_constant<TailNumber, TailNumber::Even>{});
+                }
+                else if(!has_main_k_block_loop && tail_num == TailNumber::Odd)
+                {
+                    CreateAndRunKernel(std::integral_constant<bool, false>{},
+                                       std::integral_constant<TailNumber, TailNumber::Odd>{});
                 }
                 else
                 {
-                    // TODO: We should be able to make this compatible with the V3 pipeline.
-                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                    {
-                        printf("Unsupported pipeline version for no k main loop!\n");
-                    }
+                    printf("Invalid has_main_k_block_loop and tail_num combination for V3!\n");
+                    return 0.0f;
                 }
+            }
+            else
+            {
+                printf("Invalid pipeline version!\n");
+                return 0.0f;
             }
 
             return ave_time;
@@ -1541,13 +1536,15 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
         }
 
         // TODO: Pipeline V3 should work but this hasn't been tested yet.
-        if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
+        if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1 &&
+                     BlkGemmPipelineVer != BlockGemmPipelineVersion::v3)
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
                 std::cout << "Unsupported pipeline version!" << " In " << __FILE__ << ":"
                           << __LINE__ << ", in function: " << __func__ << std::endl;
             }
+            return false;
         }
 
         if(!(ck::is_gfx11_supported() || ck::is_gfx12_supported()))
