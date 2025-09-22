@@ -782,6 +782,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
               typename BGridDesc_BK0_N_K1,
               typename DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock,
               typename EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+              typename Block2CTileMapExt,
               typename ComputePtrOffsetOfBatch,
               typename ComputePtrOffsetOfN,
               bool HasMainKBlockLoop,
@@ -795,6 +796,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                    ds_grid_desc_mblock_mperblock_nblock_nperblock,
                                const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
                                    e_grid_desc_mblock_mperblock_nblock_nperblock,
+                               const Block2CTileMapExt& block_2_ctile_map,
                                const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
                                const ComputePtrOffsetOfN compute_ptr_offset_of_n,
                                const index_t num_k_per_block,
@@ -856,9 +858,6 @@ struct GridwiseGemm_wmma_cshuffle_v3
                 return b_grid_desc_bk0_n_bk1;
             },
             Number<NumBTensor>{});
-
-        // divide block work by [M, N]
-        const auto block_2_ctile_map = Block2CTileMap{karg.M, karg.N, 4};
 
         const auto block_work_idx =
             block_2_ctile_map.CalculateBottomIndex(make_multi_index(get_block_1d_id()));

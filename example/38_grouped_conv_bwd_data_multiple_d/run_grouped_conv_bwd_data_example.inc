@@ -88,7 +88,7 @@ bool run_conv_bwd_data(const ExecutionConfig& config,
                                       input_right_pads,
                                       out_element_op,
                                       wei_element_op,
-                                      in_element_op, 2);
+                                      in_element_op);
 
     if(!conv.IsSupportedArgument(argument))
     {
