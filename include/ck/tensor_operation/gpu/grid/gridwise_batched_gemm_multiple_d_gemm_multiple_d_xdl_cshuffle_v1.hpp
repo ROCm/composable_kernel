@@ -255,18 +255,63 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         return math::max(gemm0_bytes_end, gemm1_bytes_end, c1_block_bytes_end);
     }
 
+    template <
+        InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
+    __device__ static bool constexpr IsValidCompilationParameter()
+    {
+        return ck::tensor_operation::device::IsValidGemmCompilationParameter<
+                   BlockSize,
+                   Gemm0MPerBlock,
+                   Gemm0NPerBlock,
+                   Gemm0MPerXdl,
+                   Gemm0NPerXdl,
+                   Gemm0MXdlPerWave,
+                   Gemm0NXdlPerWave,
+                   E1DataType,
+                   CGlobalMemoryDataOperation_>() &&
+               ck::tensor_operation::device::IsValidGemmCompilationParameter<
+                   BlockSize,
+                   Gemm0MPerBlock,
+                   Gemm1NPerBlock,
+                   Gemm0MPerXdl,
+                   Gemm0NPerXdl,
+                   Gemm0MXdlPerWave,
+                   Gemm1NXdlPerWave,
+                   E1DataType,
+                   CGlobalMemoryDataOperation_>();
+    }
+
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Block2E1TileMap>
-    __host__ __device__ static constexpr bool
-    CheckValidity(const A0GridDesc_M_K& a0_grid_desc_m_k,
-                  const B0GridDesc_N_K& b0_grid_desc_n_k,
-                  const B1GridDesc_N_K& b1_grid_desc_n_k,
-                  const E1GridDesc_M_N& e1_grid_desc_m_n,
-                  const Block2E1TileMap& block_2_e1tile_map)
+    __host__ static constexpr bool CheckValidity(const A0GridDesc_M_K& a0_grid_desc_m_k,
+                                                 const B0GridDesc_N_K& b0_grid_desc_n_k,
+                                                 const B1GridDesc_N_K& b1_grid_desc_n_k,
+                                                 const E1GridDesc_M_N& e1_grid_desc_m_n,
+                                                 const Block2E1TileMap& block_2_e1tile_map)
     {
         static_assert((Gemm0MPerBlock % (Gemm0MPerXdl * Gemm0MXdlPerWave) == 0) &&
                           (Gemm0NPerBlock % (Gemm0NXdlPerWave * Gemm0NPerXdl)) == 0,
                       "Invalid tuning param!");
+        if constexpr((Gemm0MPerXdl * Gemm0MXdlPerWave) == 0 ||
+                     (Gemm0NXdlPerWave * Gemm0NPerXdl) == 0)
+        {
+            return false;
+        }
+        else
+        {
+            if constexpr((Gemm0MPerBlock % (Gemm0MPerXdl * Gemm0MXdlPerWave) != 0) ||
+                         (Gemm0NPerBlock % (Gemm0NXdlPerWave * Gemm0NPerXdl) != 0))
+            {
+                return false;
+            }
+            else
+            {
+                if(WaveSize != get_warp_size())
+                {
+                    return false;
+                }
+            }
+        }
 
         const auto M      = a0_grid_desc_m_k.GetLength(I0);
         const auto N      = b0_grid_desc_n_k.GetLength(I0);
@@ -527,8 +572,7 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
                                const CDE1ElementwiseOperation& cde1_element_op,
                                const A0GridDesc_AK0_M_AK1& a0_grid_desc_ak0_m_ak1,
                                const B0GridDesc_BK0_N_BK1& b0_grid_desc_bk0_n_bk1,
-                               const D0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5&
-                                   d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5,
+                               const D0sGridDesc_M_N& d0s_griddesc_m_n,
                                const B1GridDesc_BK0_N_BK1& b1_grid_desc_bk0_n_bk1,
                                const D1sGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock&
                                    d1s_grid_desc_mblock_mperblock_nblock_nperblock,
@@ -536,6 +580,8 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
                                    e1_grid_desc_mblock_mperblock_nblock_nperblock,
                                const Block2E1TileMap& block_2_e1tile_map)
     {
+        const auto d0s_griddesc_m0_n0_m1_n1_m2_n2_m3_n3_n4_n5 =
+            MakeD0sGridDescriptor_M0_N0_M1_N1_M2_N2_M3_N3_N4_N5(d0s_griddesc_m_n);
         const auto a0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a0_grid, a0_grid_desc_ak0_m_ak1.GetElementSpaceSize());
         const auto b0_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(

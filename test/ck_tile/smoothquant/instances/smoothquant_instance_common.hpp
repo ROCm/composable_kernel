@@ -49,7 +49,7 @@ float smoothquant_(const S& s, A a)
     using Kernel = ck_tile::Smoothquant<Pipeline>;
 
     const dim3 grids                       = Kernel::GridSize(a);
-    constexpr dim3 blocks                  = Kernel::BlockSize();
+    const dim3 blocks                      = Kernel::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = 1;
 
     auto kargs = Kernel::MakeKargs(a);

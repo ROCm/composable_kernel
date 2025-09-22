@@ -108,10 +108,8 @@ struct BlockwiseGemmXdlops_pipeline_v4
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
-    static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
-    static_assert(MWaves > 0);
-    static_assert(NWaves > 0);
+    static constexpr index_t MWaves   = MPerBlock / (MRepeat * MPerXDL);
+    static constexpr index_t NWaves   = NPerBlock / (NRepeat * NPerXDL);
     static constexpr index_t WaveSize = BlockSize / MWaves / NWaves;
 
     static constexpr index_t A_K0 = ATileDesc{}.GetLength(I0);

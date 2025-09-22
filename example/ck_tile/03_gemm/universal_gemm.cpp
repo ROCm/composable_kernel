@@ -5,11 +5,8 @@
 
 #include <cstring>
 #include <iostream>
-#include <sstream>
 #include <string>
-#include <tuple>
 
-#include "ck_tile/host.hpp"
 #include "gemm_utils.hpp"
 #include "run_gemm_example.inc"
 #include "run_gemm_example_common.hpp"
@@ -58,7 +55,7 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
                                           ck_tile::int8_t,
                                           ck_tile::int32_t>(a_layout, b_layout, arg_parser);
     }
-    else if(data_type == "pk_int4_t")
+    else if(data_type == "fp16i4")
     {
         // TODO: Add support for bhalf_t ADataType
         if constexpr(GemmConfig<ck_tile::half_t>::Pipeline == CK_TILE_PIPELINE_COMPUTE_V3)
@@ -66,6 +63,36 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
             return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>,
                                               Invoker,
                                               ck_tile::half_t,
+                                              ck_tile::pk_int4_t,
+                                              ck_tile::half_t>(a_layout, b_layout, arg_parser);
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported pipeline for this operation !!!");
+        }
+    }
+    else if(data_type == "fp8i4")
+    {
+        if constexpr(GemmConfig<ck_tile::fp8_t>::Pipeline == CK_TILE_PIPELINE_COMPUTE_V3)
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
+                                              Invoker,
+                                              ck_tile::fp8_t,
+                                              ck_tile::pk_int4_t,
+                                              ck_tile::half_t>(a_layout, b_layout, arg_parser);
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported pipeline for this operation !!!");
+        }
+    }
+    else if(data_type == "bf8i4")
+    {
+        if constexpr(GemmConfig<ck_tile::bf8_t>::Pipeline == CK_TILE_PIPELINE_COMPUTE_V3)
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
+                                              Invoker,
+                                              ck_tile::bf8_t,
                                               ck_tile::pk_int4_t,
                                               ck_tile::half_t>(a_layout, b_layout, arg_parser);
         }

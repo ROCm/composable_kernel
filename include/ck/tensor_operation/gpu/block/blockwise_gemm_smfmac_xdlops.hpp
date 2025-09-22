@@ -49,10 +49,8 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
-    static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
-    static_assert(MWaves > 0);
-    static_assert(NWaves > 0);
+    static constexpr index_t MWaves   = MPerBlock / (MRepeat * MPerXDL);
+    static constexpr index_t NWaves   = NPerBlock / (NRepeat * NPerXDL);
     static constexpr index_t WaveSize = BlockSize / MWaves / NWaves;
 
     static constexpr index_t MPerBlock = AK0MK1BlockDesc{}.GetLength(I1);

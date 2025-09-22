@@ -559,6 +559,8 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
         return c_shuffle_block_desc_mblock_mperblock_nblock_nperblock;
     }
 
+    IS_VALID_COMPILATION_PARAMETER_IMPL(CDataType)
+
     using BlockwiseGemmPipe =
         remove_cvref_t<decltype(BlockGemmPipeline_Selector<
                                 BlkGemmPipelineVer,
