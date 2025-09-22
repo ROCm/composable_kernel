@@ -2,7 +2,7 @@
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-
+#include <stdint.h>
 #include "ck/utility/amd_ck_fp8.hpp"
 #include "ck/utility/e8m0.hpp"
 #include "ck/utility/statically_indexed_array.hpp"
@@ -325,12 +325,14 @@ struct scalar_type<bf8_ocp_t>
     static constexpr index_t vector_size = 1;
 };
 
+#ifndef CK_CODE_GEN_RTC
 template <>
 struct scalar_type<e8m0_bexp_t>
 {
     using type                           = e8m0_bexp_t::type;
     static constexpr index_t vector_size = 1;
 };
+#endif
 
 template <>
 struct scalar_type<f4x2_pk_t>
@@ -483,8 +485,10 @@ inline const char* get_type_name()
         return "f8";
     else if constexpr(is_same_v<T, bf8_t>)
         return "bf8";
+#ifndef CK_CODE_GEN_RTC
     else if constexpr(is_same_v<T, e8m0_bexp_t>)
         return "e8m0";
+#endif
     else if constexpr(is_same_v<T, float>)
         return "fp32";
 #if defined(__HIPCC_RTC__) || defined(CK_CODE_GEN_RTC)
