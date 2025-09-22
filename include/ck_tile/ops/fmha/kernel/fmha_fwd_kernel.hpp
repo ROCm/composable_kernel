@@ -1446,29 +1446,35 @@ struct FmhaFwdKernel
             auto o_acc_tile = [&]() {
                 if constexpr(kDoFp8StaticQuant)
                 {
-                    return FmhaPipeline{}(
-                        q_dram_window,
-                        identity{}, // q_element_func
-                        k_dram_window,
-                        identity{}, // k_element_func
-                        v_dram_window,
-                        identity{}, // v_element_func
-                        bias_dram_window,
-                        identity{}, // bias_element_func
-                        randval_dram_window,
-                        lse_dram_window,
-                        identity{},            // lse_element_func
-                        identity{},            // s_acc_element_func
-                        scales{kargs.scale_p}, // p_compute_element_func
-                        composes(saturates<fp8_t>{}, scales{kargs.scale_o}), // o_acc_element_func
-                        mask,
-                        position_encoding,
-                        kargs.scale_s,
-                        variant,
-                        variant_params,
-                        block_indices,
-                        smem_ptr,
-                        dropout);
+                    auto o_acc_element_func = [&]() {
+                        if constexpr(std::is_same_v<ODataType, ck_tile::fp8_t>)
+                            return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
+                                                     ck_tile::scales{kargs.scale_o});
+                        else
+                            return ck_tile::scales{kargs.scale_o};
+                    }();
+                    return FmhaPipeline{}(q_dram_window,
+                                          identity{}, // q_element_func
+                                          k_dram_window,
+                                          identity{}, // k_element_func
+                                          v_dram_window,
+                                          identity{}, // v_element_func
+                                          bias_dram_window,
+                                          identity{}, // bias_element_func
+                                          randval_dram_window,
+                                          lse_dram_window,
+                                          identity{},            // lse_element_func
+                                          identity{},            // s_acc_element_func
+                                          scales{kargs.scale_p}, // p_compute_element_func
+                                          o_acc_element_func,    // o_acc_element_func
+                                          mask,
+                                          position_encoding,
+                                          kargs.scale_s,
+                                          variant,
+                                          variant_params,
+                                          block_indices,
+                                          smem_ptr,
+                                          dropout);
                 }
                 else
                 {
@@ -1868,7 +1874,7 @@ struct FmhaFwdKernel
                 const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                     data, // will update this pointer if using paged-kvcache
                     make_tuple(length, kargs.hdim_v),
-                    make_tuple(kargs.hdim_v, 1),
+                    make_tuple(kargs.stride_v, 1),
                     number<FmhaPipeline::kAlignmentV>{},
                     number<1>{});
 

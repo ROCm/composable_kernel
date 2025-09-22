@@ -3,6 +3,11 @@
 
 #pragma once
 
+#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
+#include <iostream>
+#include <ostream>
+#endif
+
 #include "ck/utility/env.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
@@ -1049,6 +1054,27 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         {
             if(num_k_loop <= BlockwiseGemmPipe::PrefetchStages)
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "Pipeline validation failed: num_k_loop (" << num_k_loop
+                              << ") <= PrefetchStages (" << BlockwiseGemmPipe::PrefetchStages
+                              << ") for pipeline version != v1." << __FILE__ << ":" << __LINE__
+                              << ", in function: " << __func__ << std::endl;
+                }
+                return false;
+            }
+        }
+
+        if constexpr(is_same<remove_cvref_t<EDataType>, int8_t>::value)
+        {
+            if(karg.KBatch > 1)
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "int8_t does not support KBatch > 1. KBatch: " << karg.KBatch
+                              << " " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
+                              << std::endl;
+                }
                 return false;
             }
         }
