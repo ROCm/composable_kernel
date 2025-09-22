@@ -28,21 +28,21 @@ float grouped_conv_bwd_data(const ck_tile::GroupedConvBwdDataHostArgs& args,
 {
     constexpr int kBlockPerCu = 1;
 
-    constexpr ck_tile::index_t M_Tile = 64;
-    constexpr ck_tile::index_t N_Tile = 64;
-    constexpr ck_tile::index_t K_Tile = 32;
+    constexpr ck_tile::index_t M_Tile = 8;
+    constexpr ck_tile::index_t N_Tile = 128;
+    constexpr ck_tile::index_t K_Tile = 64;
 
     constexpr ck_tile::index_t M_Warp = 2;
     constexpr ck_tile::index_t N_Warp = 2;
     constexpr ck_tile::index_t K_Warp = 1;
 
-    constexpr ck_tile::index_t M_Warp_Tile = 32;
-    constexpr ck_tile::index_t N_Warp_Tile = 32;
+    constexpr ck_tile::index_t M_Warp_Tile = 4;
+    constexpr ck_tile::index_t N_Warp_Tile = 64;
     constexpr ck_tile::index_t K_Warp_Tile = 16;
 
     constexpr ck_tile::index_t VectorSizeA = 8;
     constexpr ck_tile::index_t VectorSizeB = 8;
-    constexpr ck_tile::index_t VectorSizeC = 8;
+    constexpr ck_tile::index_t VectorSizeC = 1;
 
     // Implicit GEMM Traits
     using CodegenShape =
