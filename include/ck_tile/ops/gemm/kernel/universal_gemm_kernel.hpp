@@ -157,23 +157,23 @@ struct UniversalGemmKernel
     using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
 
     static constexpr bool ADataTypeIsTuple =
-        is_detected<is_tuple, typename GemmPipeline::ADataType>::value;
+        is_detected<is_tuple, typename GemmPipeline::AsDataType>::value;
     static constexpr bool BDataTypeIsTuple =
-        is_detected<is_tuple, typename GemmPipeline::BDataType>::value;
+        is_detected<is_tuple, typename GemmPipeline::BsDataType>::value;
     static constexpr bool DDataTypeIsTuple =
         is_detected<is_tuple, typename EpiloguePipeline::DsDataType>::value;
     static constexpr bool ALayoutIsTuple =
-        is_detected<is_tuple, typename GemmPipeline::ALayout>::value;
+        is_detected<is_tuple, typename GemmPipeline::AsLayout>::value;
     static constexpr bool BLayoutIsTuple =
-        is_detected<is_tuple, typename GemmPipeline::BLayout>::value;
+        is_detected<is_tuple, typename GemmPipeline::BsLayout>::value;
     static constexpr bool DLayoutIsTuple =
         is_detected<is_tuple, typename EpiloguePipeline::DsLayout>::value;
 
     using AsLayout = std::conditional_t<ALayoutIsTuple,
-                                        remove_cvref_t<typename GemmPipeline::ALayout>,
+                                        remove_cvref_t<typename GemmPipeline::AsLayout>,
                                         remove_cvref_t<tuple<typename GemmPipeline::ALayout>>>;
     using BsLayout = std::conditional_t<BLayoutIsTuple,
-                                        remove_cvref_t<typename GemmPipeline::BLayout>,
+                                        remove_cvref_t<typename GemmPipeline::BsLayout>,
                                         remove_cvref_t<tuple<typename GemmPipeline::BLayout>>>;
 
     using DsLayout = std::conditional_t<DLayoutIsTuple,
@@ -181,11 +181,11 @@ struct UniversalGemmKernel
                                         remove_cvref_t<tuple<typename EpiloguePipeline::DsLayout>>>;
 
     using AsDataType = std::conditional_t<ADataTypeIsTuple,
-                                          remove_cvref_t<typename GemmPipeline::ADataType>,
+                                          remove_cvref_t<typename GemmPipeline::AsDataType>,
                                           remove_cvref_t<tuple<typename GemmPipeline::ADataType>>>;
 
     using BsDataType = std::conditional_t<BDataTypeIsTuple,
-                                          remove_cvref_t<typename GemmPipeline::BDataType>,
+                                          remove_cvref_t<typename GemmPipeline::BsDataType>,
                                           remove_cvref_t<tuple<typename GemmPipeline::BDataType>>>;
 
     using DsDataType =
@@ -193,8 +193,11 @@ struct UniversalGemmKernel
                            remove_cvref_t<typename EpiloguePipeline::DsDataType>,
                            remove_cvref_t<tuple<typename EpiloguePipeline::DsDataType>>>;
 
-    using ELayout   = remove_cvref_t<typename GemmPipeline::CLayout>;
+    using CLayout   = remove_cvref_t<typename GemmPipeline::CLayout>;
     using EDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
+
+    using AElementWise = remove_cvref_t<typename GemmPipeline::AElementWise>;
+    using BElementWise = remove_cvref_t<typename GemmPipeline::BElementWise>;
 
     static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
 
@@ -483,7 +486,7 @@ struct UniversalGemmKernel
         bool DTesnorIsValid = {true};
         static_for<0, NumDTensor, 1>{}([&](auto index) {
             using DiLayout = remove_cvref_t<std::tuple_element_t<index.value, DsLayout>>;
-            if(std::is_same_v<DiLayout, ELayout> == false)
+            if(std::is_same_v<DiLayout, CLayout> == false)
             {
                 DTesnorIsValid = false;
             }
@@ -529,7 +532,7 @@ struct UniversalGemmKernel
             }
         });
 
-        if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
+        if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
         {
             if(kargs.N % TilePartitioner::NPerBlock != 0 && GemmPipeline::kPadN == false)
             {
@@ -724,7 +727,7 @@ struct UniversalGemmKernel
 
         // TODO: enable vector write for C in ColMajor
         const auto& e_tensor_view = [&]() {
-            if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
+            if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
             {
                 return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
                     e_ptr,
@@ -818,7 +821,7 @@ struct UniversalGemmKernel
         // TODO vector write in for C in ColMajor
         const auto& e_pad_view = [&]() {
             const auto& e_tensor_view = views.at(I3);
-            if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
+            if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
             {
                 return pad_tensor_view(e_tensor_view,
                                        make_tuple(number<TilePartitioner::MPerBlock>{},
@@ -975,8 +978,8 @@ struct UniversalGemmKernel
         const auto& bs_block_window = gemm_tile_windows.at(I1);
         const auto& ds_block_window = gemm_tile_windows.at(I2);
 
-        const auto& c_block_tile =
-            GemmPipeline{}(as_block_window[I0], bs_block_window[I0], num_loop, smem_ptr_0);
+        const auto& c_block_tile = GemmPipeline{}.template operator()(
+            as_block_window, AElementWise{}, bs_block_window, BElementWise{}, num_loop, smem_ptr_0);
 
         if(UseDefaultScheduler || (get_warp_id() == 0))
         {
@@ -1031,8 +1034,13 @@ struct UniversalGemmKernel
         const auto& bs_block_window = gemm_tile_windows.at(I1);
         const auto& ds_block_window = gemm_tile_windows.at(I2);
 
-        const auto& c_block_tile = GemmPipeline{}(
-            as_block_window[I0], bs_block_window[I0], num_loop, smem_ptr_0, smem_ptr_1);
+        const auto& c_block_tile = GemmPipeline{}.template operator()(as_block_window,
+                                                                      AElementWise{},
+                                                                      bs_block_window,
+                                                                      BElementWise{},
+                                                                      num_loop,
+                                                                      smem_ptr_0,
+                                                                      smem_ptr_1);
 
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I3);

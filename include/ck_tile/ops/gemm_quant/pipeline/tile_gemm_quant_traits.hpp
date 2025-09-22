@@ -12,8 +12,21 @@ enum struct QuantType : std::uint16_t
 {
     AQuantGrouped = 0,
     BQuantGrouped = 1,
-    RowColQuant   = 2
+    RowColQuant   = 2,
+    TensorQuant   = 3
 };
+
+std::string quant_type_to_string(QuantType quant_type)
+{
+    switch(quant_type)
+    {
+    case QuantType::AQuantGrouped: return "AQuantGrouped";
+    case QuantType::BQuantGrouped: return "BQuantGrouped";
+    case QuantType::RowColQuant: return "RowColQuant";
+    case QuantType::TensorQuant: return "TensorQuant";
+    default: return "Unknown";
+    }
+}
 
 template <bool kPadM_,
           bool kPadN_,
@@ -43,6 +56,10 @@ struct TileGemmQuantTraits
     using CLayout  = CLayout_;
     using AQLayout = AQLayout_;
     using BQLayout = BQLayout_;
+
+    // TODO: It should be replaced to single value
+    using AsLayout = ALayout_;
+    using BsLayout = BLayout_;
 
     static constexpr bool TransposeC            = false;
     static constexpr bool UseStructuredSparsity = false;
