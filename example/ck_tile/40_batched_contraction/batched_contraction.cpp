@@ -30,10 +30,9 @@ template <typename ADataType,
           ck_tile::index_t NumDimM,
           ck_tile::index_t NumDimN,
           ck_tile::index_t NumDimK,
-          ck_tile::index_t NumDTensor = 0,
-          typename CDEElementWise     = ck_tile::element_wise::PassThrough>
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
 
-float batched_contraction_impl(const ck_tile::BatchedContractionHostArgs<NumDTensor>& args,
+float batched_contraction_impl(const ck_tile::BatchedContractionHostArgs<DsDataType::size()>& args,
                                const ck_tile::stream_config& s)
 {
     constexpr ck_tile::index_t M_Tile = 256;
@@ -80,11 +79,11 @@ float batched_contraction_impl(const ck_tile::BatchedContractionHostArgs<NumDTen
     using Problem = ck_tile::BatchedContractionProblem<ADataType,
                                                        BDataType,
                                                        EDataType,
-                                                       NumDimG,   // NumDimG
-                                                       NumDimM,   // NumDimM
-                                                       NumDimN,   // NumDimN
-                                                       NumDimK,   // NumDimK
-                                                       NumDTensor // NumDTensor
+                                                       NumDimG,           // NumDimG
+                                                       NumDimM,           // NumDimM
+                                                       NumDimN,           // NumDimN
+                                                       NumDimK,           // NumDimK
+                                                       DsDataType::size() // NumDTensor
                                                        >;
 
     using GemmPipelineProblem =
@@ -186,7 +185,6 @@ float batched_contraction_impl(const ck_tile::BatchedContractionHostArgs<NumDTen
                                         M,                                       \
                                         N,                                       \
                                         K,                                       \
-                                        NumDTensor,                              \
                                         CDEElementWise>(args, s);                \
     }
 
@@ -199,9 +197,8 @@ template <typename ADataType,
           typename BLayout,
           typename DsLayout,
           typename ELayout,
-          typename CDEElementWise     = ck_tile::element_wise::PassThrough,
-          ck_tile::index_t NumDTensor = 0>
-float batched_contraction(const ck_tile::BatchedContractionHostArgs<NumDTensor>& args,
+          typename CDEElementWise = ck_tile::element_wise::PassThrough>
+float batched_contraction(const ck_tile::BatchedContractionHostArgs<DsDataType::size()>& args,
                           const ck_tile::stream_config& s,
                           ck_tile::index_t num_g_dims,
                           ck_tile::index_t num_m_dims,
@@ -209,7 +206,7 @@ float batched_contraction(const ck_tile::BatchedContractionHostArgs<NumDTensor>&
                           ck_tile::index_t num_k_dims)
 {
     std::cout << "Dimensions: G=" << num_g_dims << ", M=" << num_m_dims << ", N=" << num_n_dims
-              << ", K=" << num_k_dims << ", NumDTensor=" << NumDTensor << std::endl;
+              << ", K=" << num_k_dims << std::endl;
 
     HANDLE_CASE(1, 1, 1, 1);
     HANDLE_CASE(2, 1, 1, 1);

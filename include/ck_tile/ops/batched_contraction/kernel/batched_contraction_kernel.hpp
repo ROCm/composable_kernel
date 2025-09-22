@@ -150,14 +150,14 @@ struct BatchedContractionKernel
     {
         typename UniversalGemmKernel::KernelArgs gemm_kargs{{kargs.a_ptr},
                                                             {kargs.b_ptr},
-                                                            {kargs.ds_ptr},
+                                                            kargs.ds_ptr,
                                                             kargs.e_ptr,
                                                             kargs.M_total,
                                                             kargs.N_total,
                                                             kargs.K_total,
                                                             {kargs.stride_A},
                                                             {kargs.stride_B},
-                                                            {kargs.stride_Ds},
+                                                            kargs.stride_Ds,
                                                             kargs.stride_E,
                                                             kargs.k_batch};
 
@@ -454,14 +454,14 @@ struct BatchedContractionKernel
 
         typename UniversalGemmKernel::KernelArgs gemm_kargs{{a_ptr},
                                                             {b_ptr},
-                                                            {ds_batch_ptr},
+                                                            ds_batch_ptr,
                                                             e_ptr,
                                                             kargs.M_total,
                                                             kargs.N_total,
                                                             kargs.K_total,
                                                             {kargs.stride_A},
                                                             {kargs.stride_B},
-                                                            {kargs.stride_Ds},
+                                                            kargs.stride_Ds,
                                                             kargs.stride_E,
                                                             kargs.k_batch};
 
@@ -471,26 +471,11 @@ struct BatchedContractionKernel
         const ADataType* a_ptr_final = a_ptr + splitk_batch_offset.as_k_split_offset[0];
         const BDataType* b_ptr_final = b_ptr + splitk_batch_offset.bs_k_split_offset[0];
 
-        // if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0)
-        // {
-        //     printf("BatchedContractionKernel: NumDTensor=%ld\n", static_cast<long>(NumDTensor));
-        //     for (ck_tile::index_t d = 0; d < NumDTensor; ++d)
-        //     {
-        //         // printf("ds_batch_ptr[%ld]: %p\n", static_cast<long>(d), ds_batch_ptr[d]);
-        //         // Print first few values of each D tensor
-        //         const float* d_ptr = static_cast<const float*>(ds_batch_ptr[d]);
-        //         printf("ds[%ld][0]=%f ds[%ld][1]=%f ds[%ld][2]=%f\n",
-        //             static_cast<long>(d), d_ptr[0],
-        //             static_cast<long>(d), d_ptr[1],
-        //             static_cast<long>(d), d_ptr[2]);
-        //     }
-        // }
-
         __shared__ char smem_ptr[GetSmemSize()];
 
         UniversalGemmKernel::RunGemm({a_ptr_final},
                                      {b_ptr_final},
-                                     {ds_batch_ptr},
+                                     ds_batch_ptr,
                                      e_ptr,
                                      smem_ptr,
                                      gemm_kargs,
