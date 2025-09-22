@@ -18,14 +18,13 @@
 #define CK_USE_OCP_FP8 0
 #endif
 
-#if(defined(__gfx942__) || defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx950__)) && \
-    __HIP_DEVICE_COMPILE__
+#if(defined(__gfx942__) || defined(__gfx950__) || defined(__gfx12__)) && __HIP_DEVICE_COMPILE__
 #define CK_FP8_CVT_FAST_PATH 1
 #else
 #define CK_FP8_CVT_FAST_PATH 0
 #endif
 
-#if(defined(__gfx1200__) || defined(__gfx1201__) || defined(__gfx950__)) && __HIP_DEVICE_COMPILE__
+#if(defined(__gfx12__) || defined(__gfx950__)) && __HIP_DEVICE_COMPILE__
 #define CK_OCP_FP8_CVT_FAST_PATH 1
 #else
 #define CK_OCP_FP8_CVT_FAST_PATH 0
