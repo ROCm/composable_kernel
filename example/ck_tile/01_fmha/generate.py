@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+
 # generate kernel instances to speed up compilation
 
 import argparse
@@ -29,7 +30,7 @@ handlers = dict(
 )
 assert 0 < len(handlers)
 
-def write_blobs(arch : str, output_dir: Optional[str], api_list : List[str], filters_list : List[str], optdim_list : List[int], receipt, mask_impl) -> None:
+def write_blobs(targets: List[str], output_dir: Optional[str], api_list : List[str], filters_list : List[str], optdim_list : List[int], receipt, mask_impl) -> None:
     if output_dir is None:
         output_dir = Path(__file__).parent
     else:
@@ -39,10 +40,10 @@ def write_blobs(arch : str, output_dir: Optional[str], api_list : List[str], fil
 
     for api, kernel_filter in zip(api_list, filters_list):
         handler = handlers[api][HandlerId.WRITE_BLOBS]
-        handler(arch, output_dir, kernel_filter, receipt, optdim_list, mask_impl)
+        handler(targets, output_dir, kernel_filter, receipt, optdim_list, mask_impl)
 
 # list all the files that will be generated
-def list_blobs(arch : str, output_file : Optional[str], api_list : List[str], filters_list : List[str], optdim_list : List[int], receipt, mask_impl) -> None:
+def list_blobs(targets: List[str], output_file : Optional[str], api_list : List[str], filters_list : List[str], optdim_list : List[int], receipt, mask_impl) -> None:
     assert output_file is not None
     file_path = Path(output_file)
 
@@ -51,7 +52,7 @@ def list_blobs(arch : str, output_file : Optional[str], api_list : List[str], fi
 
     for api, kernel_filter in zip(api_list, filters_list):
         handler = handlers[api][HandlerId.LIST_BLOBS]
-        handler(arch, file_path, kernel_filter, receipt, optdim_list, mask_impl)
+        handler(targets, file_path, kernel_filter, receipt, optdim_list, mask_impl)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -59,10 +60,10 @@ if __name__ == "__main__":
         description="gen API for CK fmha kernel",
     )
     parser.add_argument(
-        "--arch",
-        default="gfx9",
+        "--targets",
+        default="gfx90a",
         required=False,
-        help="GPU architecture (e.g. gfx9, gfx12)"
+        help="list of GPU targets, separated by comma."
     )
     parser.add_argument(
         "-d",
@@ -127,12 +128,13 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+    targets = args.targets.split(',')
     api_list = args.direction.split(',')
     filter_list = args.filter.split(',')
     filter_list.extend([''] * (len(api_list) - len(filter_list)))
     optdim_list = [int(hdim) for hdim in args.optdim.split(',')]
 
     if args.list_blobs is not None:
-        list_blobs(args.arch, args.list_blobs, api_list, filter_list, optdim_list, int(args.receipt), mask_impl=args.mask)
+        list_blobs(targets, args.list_blobs, api_list, filter_list, optdim_list, int(args.receipt), mask_impl=args.mask)
     else:
-        write_blobs(args.arch, args.output_dir, api_list, filter_list, optdim_list, int(args.receipt), mask_impl=args.mask)
+        write_blobs(targets, args.output_dir, api_list, filter_list, optdim_list, int(args.receipt), mask_impl=args.mask)

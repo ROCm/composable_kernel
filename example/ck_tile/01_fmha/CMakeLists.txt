@@ -37,28 +37,19 @@ file(GLOB_RECURSE CODE_GEN_SCRIPTS CONFIGURE_DEPENDS
 # re-run execute_process `generate.py --list_blobs` if any of the codegen scripts change
 set_directory_properties(PROPERTIES CMAKE_CONFIGURE_DEPENDS "${CODE_GEN_SCRIPTS}")
 
-set(FMHA_ARCH)
-
-if(INST_TARGETS MATCHES "gfx12" AND NOT INST_TARGETS MATCHES "gfx9")
-  set(FMHA_ARCH "gfx12")
-elseif(NOT INST_TARGETS MATCHES "gfx12" AND INST_TARGETS MATCHES "gfx9")
-  set(FMHA_ARCH "gfx9")
-else()
-  message(WARNING "FMHA cannot be built for gfx9 and gfx12 at the same time, only gfx9 is forced to use")
-  set(FMHA_ARCH "gfx9")
-endif()
+list(JOIN INST_TARGETS , FMHA_TARGETS_ARG)
 
 string(REPLACE ";" "," FMHA_FWD_APIS "${FMHA_FWD_ENABLE_APIS}")
 set(FMHA_FWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --arch=${FMHA_ARCH}
+  --targets ${FMHA_TARGETS_ARG}
   --api ${FMHA_FWD_APIS}
   --optdim 32,64,128,256
   # --filter fmha_fwd...
 )
 set(FMHA_BWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
-  --arch=${FMHA_ARCH}
+  --targets ${FMHA_TARGETS_ARG}
   --api bwd
   --receipt 3
   --optdim 32,64,128,256
