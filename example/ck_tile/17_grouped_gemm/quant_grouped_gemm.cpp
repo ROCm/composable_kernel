@@ -13,7 +13,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "ck_tile/ops/gemm_group_quant.hpp"
+#include "ck_tile/ops/gemm_quant.hpp"
 #include "ck_tile/host.hpp"
 #include "quant_grouped_gemm.hpp"
 
@@ -65,15 +65,15 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
         constexpr auto memory_operation = memory_operation_.value;
         constexpr bool transpose_c      = false;
 
-        using QuantGemmProblem = ck_tile::GemmRowColQuantPipelineProblem<ADataType,
-                                                                         BDataType,
-                                                                         AccDataType,
-                                                                         AccDataType,
-                                                                         GemmShape,
-                                                                         GemmUniversalTraits,
-                                                                         transpose_c,
-                                                                         BDataType,
-                                                                         scheduler>;
+        using QuantGemmProblem = ck_tile::GemmRowColTensorQuantPipelineProblem<ADataType,
+                                                                               BDataType,
+                                                                               AccDataType,
+                                                                               AccDataType,
+                                                                               GemmShape,
+                                                                               GemmUniversalTraits,
+                                                                               transpose_c,
+                                                                               BDataType,
+                                                                               scheduler>;
 
         using GemmPipeline = typename PipelineTypeTraits<
             GemmConfig::Pipeline>::template GemmPipeline<QuantGemmProblem>;

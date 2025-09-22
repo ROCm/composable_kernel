@@ -201,7 +201,8 @@ int run_conv2d_fwd_bias_perlayer_quantization_example(const OutElementOp& out_el
                                                         1,             // k
                                                         0,             // ho
                                                         0              // wo
-                                                    });
+                                                    },
+                                                    BiasLayout{});
 
     const auto out_g_n_k_wos_desc =
         ck::utils::conv::make_output_host_tensor_descriptor_g_n_k_wos_packed<OutLayout>(conv_param);

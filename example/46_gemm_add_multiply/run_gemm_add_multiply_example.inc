@@ -1,22 +1,30 @@
 #pragma once
+#include <type_traits>
 
 bool run_gemm_add_multiply(const ProblemSize& problem_size, const ExecutionConfig& config)
 {
     using namespace ck::literals;
 
-    auto& [M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE] = problem_size;
+    ProblemSize ps =
+        problem_size; // make mutable copy because default stride values of 0 need to be updated
+    auto& [M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE] = ps;
 
-    auto f_host_tensor_descriptor =
-        [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
-            {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
-            }
-            else
-            {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
-            }
-        };
+    auto f_host_tensor_descriptor = [](std::size_t row, std::size_t col, int& stride, auto layout) {
+        if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
+        {
+            auto desc = HostTensorDescriptor({row, col}, {static_cast<std::size_t>(stride), 1_uz});
+            if(stride <= 0)
+                stride = desc.GetStrides()[0];
+            return desc;
+        }
+        else
+        {
+            auto desc = HostTensorDescriptor({row, col}, {1_uz, static_cast<std::size_t>(stride)});
+            if(stride <= 0)
+                stride = desc.GetStrides()[1];
+            return desc;
+        }
+    };
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
@@ -123,7 +131,16 @@ bool run_gemm_add_multiply(const ProblemSize& problem_size, const ExecutionConfi
 
         e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
-        return ck::utils::check_err(e_m_n_device_result, e_m_n_host_result);
+        if(std::is_same_v<ck::ranges::range_value_t<decltype(e_m_n_device_result)>, ck::half_t> &&
+           std::is_same_v<ck::ranges::range_value_t<decltype(e_m_n_host_result)>, ck::half_t>)
+        {
+            return ck::utils::check_err(
+                e_m_n_device_result, e_m_n_host_result, "Error: Incorrect results!", 5e-3, 1e-3);
+        }
+        else
+        {
+            return ck::utils::check_err(e_m_n_device_result, e_m_n_host_result);
+        }
     }
 
     return true;

@@ -2,6 +2,8 @@
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 
+#include "ck_tile/host/permute_pk_int4.hpp"
+
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
 {
@@ -86,61 +88,6 @@ void permute_tensor_b(Tensor& tensor)
             for(int jj = 0; jj < K1; jj++)
             {
                 tensor(j * N * K1 + i * K1 + jj) = tensor_copy(i * K + (j * K1 + jj));
-            }
-        }
-    }
-}
-
-template <typename Tensor>
-void permute_vectors_i4x4_b(Tensor& tensor)
-{
-    const ck_tile::index_t K = tensor.get_length(0);
-    const ck_tile::index_t N = tensor.get_length(1);
-    // vector pk_i4x4 permute
-    for(int i = 0; i < N; i++)
-    {
-        for(int j = 0; j < K; j += 8)
-        {
-            int8_t input[8];
-
-            for(int k = 0; k < 4; k++)
-            {
-                int8_t i4x2      = tensor(j + k * 2, i).data;
-                input[k * 2 + 0] = (i4x2 >> 4) & 0xf;
-                input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
-            }
-
-            // permute 01234567->20643175
-            {
-                int8_t hi   = input[2];
-                int8_t lo   = input[0];
-                int8_t i4x2 = (hi << 4) | lo;
-
-                tensor(j + 0, i) = i4x2;
-            }
-
-            {
-                int8_t hi   = input[6];
-                int8_t lo   = input[4];
-                int8_t i4x2 = (hi << 4) | lo;
-
-                tensor(j + 2, i) = i4x2;
-            }
-
-            {
-                int8_t hi   = input[3];
-                int8_t lo   = input[1];
-                int8_t i4x2 = (hi << 4) | lo;
-
-                tensor(j + 4, i) = i4x2;
-            }
-
-            {
-                int8_t hi   = input[7];
-                int8_t lo   = input[5];
-                int8_t i4x2 = (hi << 4) | lo;
-
-                tensor(j + 6, i) = i4x2;
             }
         }
     }

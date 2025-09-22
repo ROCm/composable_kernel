@@ -17,22 +17,21 @@ using DataTypeConfig = FmhaFwdFp8;
 // instances are added), however the corresponding tests are not disabled (they will be skipped)
 // in case such instances will be added in the future.
 
-const auto HDimValues = Values(std::tuple{64, -1}, std::tuple{128, -1}, std::tuple{256, -1});
+const auto HDimValues = Values(std::tuple{64, -1}, std::tuple{128, -1});
 
-const auto SplitKVHDimValues = Values(std::tuple{64, -1}, std::tuple{128, -1}, std::tuple{256, -1});
+const auto SplitKVHDimValues = Values(std::tuple{64, -1}, std::tuple{128, -1});
 
-const auto AppendKVHDimValues =
-    Values(std::tuple{64, -1}, std::tuple{128, -1}, std::tuple{256, -1});
+const auto AppendKVHDimValues = Values(std::tuple{64, -1}, std::tuple{128, -1});
 
 // There are no fp8 instances with seqlen padding (mode_enum::group requires it)
 const auto ModeValues = Values(mode_enum::batch);
 
 const auto IsVRowmajorValues = Values(false);
 
-const bool squant             = true;
-const std::string init_method = "ufq";
+const auto squant             = true;
+const std::string init_method = "uf";
 const bool def_lse            = false;
-const bool def_is_v_rowmajor  = false;
+const bool def_is_v_rowmajor  = true;
 
 int adjust_seqlen(int seqlen)
 {
