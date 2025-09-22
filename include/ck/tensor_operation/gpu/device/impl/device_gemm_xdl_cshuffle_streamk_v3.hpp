@@ -173,7 +173,7 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                     grid_dim      = arg.Grid_size;
                 }
                 else
-                    grid_dim = arg.Grid_size;
+                    grid_dim = arg.block_2_ctile_map_streamk.get_grid_dims();
 
                 if(stream_config.flush_cache)
                 {
@@ -521,7 +521,7 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
             hip_check_error(hipGetDevice(&dev));
             hip_check_error(hipGetDeviceProperties(&dev_prop, dev));
             num_cu    = dev_prop.multiProcessorCount;
-            Grid_size = num_cu * occupancy;
+            Grid_size = num_cu * 1;
         };
 
         if(has_main_k_block_loop)
