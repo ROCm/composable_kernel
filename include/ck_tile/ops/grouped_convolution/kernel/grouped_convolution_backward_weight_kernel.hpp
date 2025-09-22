@@ -338,7 +338,7 @@ template <typename GroupedConvTraitsType_,
           typename EpiloguePipeline_>
 struct GroupedConvolutionBackwardWeightKernel
 {
-    // Todo: Enable Vector Size > 1
+    // Todo: Enable Vector Load Size > 1
     static_assert(GroupedConvTraitsType_::VectorSizeA == 1 &&
                   GroupedConvTraitsType_::VectorSizeB == 1);
 
