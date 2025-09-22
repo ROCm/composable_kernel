@@ -17,9 +17,9 @@ int main()
     using AccDataType = float;
 
     // ArgParser
-    ck_tile::index_t M            = 2048;
-    ck_tile::index_t N            = 2048;
-    ck_tile::index_t K            = 2048;
+    ck_tile::index_t M            = 1024;
+    ck_tile::index_t N            = 512;
+    ck_tile::index_t K            = 256;
     ck_tile::index_t verification = 1;
 
     ck_tile::index_t stride_a = K;
@@ -81,9 +81,10 @@ int main()
 
     std::cout << "kGridSize: " << kGridSize << std::endl;
 
-    constexpr ck_tile::index_t kWarpPerCU    = 4; // two warps per CU
-    constexpr ck_tile::index_t kWarpPerBlock = kBlockSize / ck_tile::get_warp_size();
-    constexpr ck_tile::index_t kBlockPerCU   = kWarpPerCU / kWarpPerBlock;
+    constexpr ck_tile::index_t kWarpPerCU = 4; // 4 warps per CU
+    constexpr ck_tile::index_t kWarpPerBlock =
+        kBlockSize / ck_tile::get_warp_size();                           // 4 warps per block
+    constexpr ck_tile::index_t kBlockPerCU = kWarpPerCU / kWarpPerBlock; // 1 block per CU
 
     std::cout << "kBlockSize: " << kBlockSize << std::endl;
     std::cout << "kWarpPerBlock: " << kWarpPerBlock << std::endl;
