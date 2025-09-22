@@ -169,6 +169,7 @@ struct fmha_fwd_args
 
     ck_tile::index_t window_size_left;
     ck_tile::index_t window_size_right;
+    ck_tile::index_t sink_size;
     ck_tile::index_t mask_type;
     ck_tile::index_t min_seqlen_q;
 
@@ -345,6 +346,7 @@ struct fmha_fwd_splitkv_args
 
     ck_tile::index_t window_size_left;
     ck_tile::index_t window_size_right;
+    ck_tile::index_t sink_size;
     ck_tile::index_t mask_type;
 };
 
@@ -514,6 +516,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.nhead_stride_o,
                                              args.window_size_left,
                                              args.window_size_right,
+                                             args.sink_size,
                                              args.mask_type,
                                              args.min_seqlen_q,
                                              args.p_drop,
@@ -561,6 +564,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.batch_stride_o,
                                              args.window_size_left,
                                              args.window_size_right,
+                                             args.sink_size,
                                              args.mask_type,
                                              args.p_drop,
                                              args.s_randval,
@@ -737,6 +741,7 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_splitkv_args args)
                                      args.split_stride_o_acc,
                                      args.window_size_left,
                                      args.window_size_right,
+                                     args.sink_size,
                                      args.mask_type);
         }
         else
@@ -784,6 +789,7 @@ auto fmha_fwd_splitkv_create_kargs_and_grids(fmha_fwd_splitkv_args args)
                                      args.split_stride_o_acc,
                                      args.window_size_left,
                                      args.window_size_right,
+                                     args.sink_size,
                                      args.mask_type);
         }
     }();

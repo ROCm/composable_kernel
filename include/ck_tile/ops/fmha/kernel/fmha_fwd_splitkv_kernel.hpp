@@ -198,7 +198,7 @@ struct FmhaFwdSplitKVKernel
     struct MaskKargs
     {
         // ck_tile::index_t window_size_left, window_size_right;
-        ck_tile::index_t window_size_left, window_size_right;
+        ck_tile::index_t window_size_left, window_size_right, sink_size;
         ck_tile::GenericAttentionMaskEnum mask_type;
     };
 
@@ -325,6 +325,7 @@ struct FmhaFwdSplitKVKernel
               ck_tile::index_t split_stride_o_acc,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
+              ck_tile::index_t sink_size,
               ck_tile::index_t mask_type)
     {
         Kargs kargs{{q_ptr,
@@ -384,6 +385,7 @@ struct FmhaFwdSplitKVKernel
         {
             kargs.window_size_left  = window_size_left;
             kargs.window_size_right = window_size_right;
+            kargs.sink_size         = sink_size;
             kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
         }
         if constexpr(kDoFp8StaticQuant)
@@ -451,6 +453,7 @@ struct FmhaFwdSplitKVKernel
               ck_tile::index_t split_stride_o_acc,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
+              ck_tile::index_t sink_size,
               ck_tile::index_t mask_type)
     {
         Kargs kargs{{q_ptr,
@@ -508,6 +511,7 @@ struct FmhaFwdSplitKVKernel
         {
             kargs.window_size_left  = window_size_left;
             kargs.window_size_right = window_size_right;
+            kargs.sink_size         = sink_size;
             kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
         }
         if constexpr(kDoFp8StaticQuant)
@@ -984,6 +988,7 @@ struct FmhaFwdSplitKVKernel
                 return ck_tile::make_generic_attention_mask_from_lr_window<FmhaMask>(
                     kargs.window_size_left,
                     kargs.window_size_right,
+                    kargs.sink_size,
                     kargs.seqlen_q,
                     kargs.seqlen_k,
                     kargs.mask_type == GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT);
