@@ -89,8 +89,8 @@ struct GroupedConvBwdWeightKernelArgs
 
         group_stride_a = args.K_ * NumGroupsPerBatch;            // A: Out NWGK
         group_stride_b = args.C_ * NumGroupsPerBatch;            // B: In  NWGC
-        group_stride_c = args.K_ * args.C_ * NumGroupsPerBatch   // C: Wei GKXC
-                         * std::accumulate(args.filter_spatial_lengths_.begin(),
+        group_stride_c = args.K_ * args.C_ *                     // C: Wei GKXC
+                            std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
                                          std::multiplies<index_t>());
@@ -175,8 +175,8 @@ struct GroupedConvBwdWeightKernelArgs
 
         group_stride_a = args.K_ * NumGroupsPerBatch;            // A: Out NHWGK
         group_stride_b = args.C_ * NumGroupsPerBatch;            // B: In  NHWGC
-        group_stride_c = args.K_ * args.C_ * NumGroupsPerBatch   // C: Wei GKYXC
-                         * std::accumulate(args.filter_spatial_lengths_.begin(),
+        group_stride_c = args.K_ * args.C_ *                     // C: Wei GKYXC
+                            std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
                                          std::multiplies<index_t>());
@@ -268,8 +268,8 @@ struct GroupedConvBwdWeightKernelArgs
 
         group_stride_a = args.K_ * NumGroupsPerBatch;            // A: Out NDHWGK
         group_stride_b = args.C_ * NumGroupsPerBatch;            // B: In  NDHWGC
-        group_stride_c = args.K_ * args.C_ * NumGroupsPerBatch   // C: wEI GKZYXC
-                         * std::accumulate(args.filter_spatial_lengths_.begin(),
+        group_stride_c = args.K_ * args.C_ *                     // C: Wei GKZYXC
+                            std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
                                          std::multiplies<index_t>());
@@ -806,6 +806,46 @@ struct GroupedConvolutionBackwardWeightKernel
 
         EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
             c_block_window, c_block_tile, d_block_window, smem_ptr_0);
+
+        __syncthreads();
+        if (blockIdx.x == 0 && blockIdx.y == 0 && threadIdx.x == 0 && threadIdx.y == 0)
+        {
+            // Print out LDS contents.
+            // The LDS corresponds TilePartitioner_::MPerBlock * TilePartitioner_::NPerBlock matrix.
+            // Print LDS contents as matrix
+            printf("LDS Contents (%d x %d):\n", TilePartitioner::MPerBlock, TilePartitioner::NPerBlock);
+            OutDataType* lds_data = reinterpret_cast<OutDataType*>(smem_ptr_0);
+
+            // Print LDS as a grid with each row being 16 elements wide
+            constexpr int block_width = 16;
+            const int total_rows = TilePartitioner::MPerBlock;
+            const int cols_per_row = TilePartitioner::NPerBlock / block_width;
+            
+            for(int row = 0; row < total_rows; ++row) {
+                printf("Row %d: ", row);
+                for(int col_block = 0; col_block < cols_per_row; ++col_block) {
+                    printf("Block %d: ", col_block);
+                    for(int elem = 0; elem < block_width; ++elem) {
+                        int idx = (col_block * block_width + elem) * TilePartitioner::MPerBlock + row;
+                        printf("%.7f ", static_cast<float>(lds_data[idx]));
+                    }
+                    printf(" \n");
+                }
+                printf("\n\n");
+            }
+        
+            // Print out the c_block_window contents for debugging
+            printf("C Ptr Contents (%d x %d):\n", TilePartitioner::MPerBlock, TilePartitioner::NPerBlock / GroupedConvTraitsType_::NumGroupsToMerge);
+            for(int m = 0; m < TilePartitioner::MPerBlock; ++m) {
+                for(int n = 0; n < TilePartitioner::NPerBlock / GroupedConvTraitsType_::NumGroupsToMerge; ++n) {
+                    int idx = m * TilePartitioner::NPerBlock + n;
+                    printf("%.7f ", static_cast<float>(c_ptr[idx]));
+                    if((n + 1) % 16 == 0) printf("\n  "); // Line break every 16 elements for readability
+                }
+                printf("\n");
+            }
+        }
+        __syncthreads();
     }
 
     /**
@@ -884,6 +924,11 @@ struct GroupedConvolutionBackwardWeightKernel
         WeiDataType* c_ptr       = static_cast<WeiDataType*>(kargs.wei_ptr) + group_offset_c;
 
         // allocate LDS
+        if constexpr (GroupedConvTraitsType_::NumGroupsToMerge > 1)
+        {
+            static_assert(GetSmemSize() >= TilePartitioner_::MPerBlock * TilePartitioner_::NPerBlock * sizeof(OutDataType),
+                          "Not enough LDS for NumGroupsToMerge > 1!"); 
+        }
         __shared__ char smem_ptr_0[GetSmemSize()];
 
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
