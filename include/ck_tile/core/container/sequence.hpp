@@ -9,9 +9,12 @@
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/utility/to_sequence.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
-#include "ck_tile/core/utility/print.hpp"
+#include "ck_tile/core/utility/functional.hpp"
 
 namespace ck_tile {
+
+template <index_t, index_t, index_t>
+struct static_for;
 
 template <index_t...>
 struct sequence;
@@ -196,23 +199,14 @@ struct sequence
     {
         return sequence<f(Is)...>{};
     }
-};
 
-template <index_t... Is>
-CK_TILE_HOST_DEVICE static void print(const sequence<Is...>&)
-{
-    printf("sequence<");
-    if constexpr(sizeof...(Is) > 0)
+    CK_TILE_HOST_DEVICE static void print()
     {
-        bool first = true;
-        (([&first](index_t value) {
-             printf("%s%d", first ? "" : ", ", value);
-             first = false;
-         }(Is)),
-         ...);
+        printf("sequence{size: %d, data: [", size());
+        ((printf("%d ", Is)), ...);
+        printf("]}");
     }
-    printf(">");
-}
+};
 
 namespace impl {
 template <typename T, T... Ints>

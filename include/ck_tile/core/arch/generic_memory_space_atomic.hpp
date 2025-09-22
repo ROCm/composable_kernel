@@ -6,16 +6,20 @@
 #include "ck_tile/core/numeric/type_convert.hpp"
 #include "ck_tile/core/container/thread_buffer.hpp"
 
-#define HAS_GLOBAL_ATOMIC_PK_ADD_BUILTIN                        \
-    __has_builtin(__builtin_amdgcn_global_atomic_fadd_v2f16) && \
-        __has_builtin(__builtin_amdgcn_global_atomic_fadd_v2bf16)
-
 namespace ck_tile {
 
 template <typename T, typename ComputeType>
 CK_TILE_HOST_DEVICE T add(const T& a, const T& b)
 {
     return type_convert<T>(type_convert<ComputeType>(a) + type_convert<ComputeType>(b));
+}
+
+CK_TILE_HOST_DEVICE fp16x2_t add_fp16x2_t(const fp16x2_t& a, const fp16x2_t& b)
+{
+    fp16x2_t rtn;
+    rtn[0] = add<fp16_t, float>(a[0], b[0]);
+    rtn[1] = add<fp16_t, float>(a[1], b[1]);
+    return rtn;
 }
 
 CK_TILE_HOST_DEVICE bf16x2_t add_bf16x2_t(const bf16x2_t& a, const bf16x2_t& b)
@@ -33,14 +37,6 @@ CK_TILE_HOST_DEVICE bf16x4_t add_bf16x4_t(const bf16x4_t& a, const bf16x4_t& b)
     rtn[1] = add<bf16_t, float>(a[1], b[1]);
     rtn[2] = add<bf16_t, float>(a[2], b[2]);
     rtn[3] = add<bf16_t, float>(a[3], b[3]);
-    return rtn;
-}
-
-CK_TILE_HOST_DEVICE fp16x2_t add_f16x2_t(const fp16x2_t& a, const fp16x2_t& b)
-{
-    fp16x2_t rtn;
-    rtn[0] = add<fp16_t, float>(a[0], b[0]);
-    rtn[1] = add<fp16_t, float>(a[1], b[1]);
     return rtn;
 }
 
@@ -98,6 +94,37 @@ CK_TILE_HOST_DEVICE bf8x8_t add_bf8x8_t(const bf8x8_t& a, const bf8x8_t& b)
 // each datatype.
 template <typename X>
 CK_TILE_DEVICE void atomic_add(X* p_dst, const X& x);
+
+template <>
+CK_TILE_DEVICE void atomic_add<fp16x2_t>(fp16x2_t* p_dst, const fp16x2_t& x)
+{
+    union U32FP162_ADDR
+    {
+        uint32_t* u32_a;
+        fp16x2_t* fp162_a;
+    };
+
+    union U32FP162
+    {
+        uint32_t u32;
+        fp16x2_t fp162;
+    };
+
+    U32FP162_ADDR dword_addr;
+    U32FP162 cur_v;
+    U32FP162 new_;
+    uint32_t old_v, new_v;
+    dword_addr.fp162_a = p_dst;
+    cur_v.u32          = *dword_addr.u32_a;
+
+    do
+    {
+        old_v      = cur_v.u32;
+        new_.fp162 = add_fp16x2_t(cur_v.fp162, x);
+        new_v      = new_.u32;
+        cur_v.u32  = atomicCAS(dword_addr.u32_a, old_v, new_v);
+    } while(cur_v.u32 != old_v);
+}
 
 template <>
 CK_TILE_DEVICE void atomic_add<bf16x2_t>(bf16x2_t* p_dst, const bf16x2_t& x)
@@ -316,44 +343,6 @@ CK_TILE_DEVICE void atomic_add<bf8x8_t>(bf8x8_t* p_dst, bf8x8_t const& x)
     } while(cur_v.u64 != old_v);
 }
 
-//
-// Atomic add for fp16x2_t
-//
-template <>
-CK_TILE_DEVICE void atomic_add<fp16x2_t>(fp16x2_t* p_dst, fp16x2_t const& x)
-{
-#if HAS_GLOBAL_ATOMIC_PK_ADD_BUILTIN
-    __builtin_amdgcn_global_atomic_fadd_v2f16(c_style_pointer_cast<fp16x2_t*>(p_dst), x);
-#else
-    union U32F162_ADDR
-    {
-        uint32_t* u32_a;
-        fp16x2_t* f162_a;
-    };
-
-    union U32F162
-    {
-        uint32_t u32;
-        fp16x2_t f162;
-    };
-
-    U32F162_ADDR dword_addr;
-    U32F162 cur_v;
-    U32F162 new_;
-    uint32_t old_v, new_v;
-    dword_addr.f162_a = p_dst;
-    cur_v.u32         = *dword_addr.u32_a;
-
-    do
-    {
-        old_v     = cur_v.u32;
-        new_.f162 = add_f16x2_t(cur_v.f162, x);
-        new_v     = new_.u32;
-        cur_v.u32 = atomicCAS(dword_addr.u32_a, old_v, new_v);
-    } while(cur_v.u32 != old_v);
-#endif
-}
-
 template <typename T, index_t N>
 CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
 {
@@ -361,7 +350,6 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
                       (std::is_same<T, uint32_t>::value && (N == 1)) ||
                       (std::is_same<T, float>::value && (N == 1 || N == 2 || N == 4)) ||
                       (std::is_same<T, double>::value && (N == 1 || N == 2)) ||
-                      (std::is_same<T, fp16_t>::value && (N == 2 || N == 4 || N == 8)) ||
                       (std::is_same<T, bf16_t>::value && (N == 2 || N == 4 || N == 8)) ||
                       (std::is_same<T, fp8_t>::value && (N == 4 || N == 8 || N == 16)) ||
                       (std::is_same<T, bf8_t>::value && (N == 4 || N == 8 || N == 16)),
@@ -465,13 +453,6 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
             atomic_add(c_style_pointer_cast<bf8x8_t*>(p_dst), x.template get_as<bf8x8_t>()[I0]);
             atomic_add(c_style_pointer_cast<bf8x8_t*>(p_dst) + 1, x.template get_as<bf8x8_t>()[I1]);
         }
-    }
-    else if constexpr(std::is_same<T, fp16_t>::value)
-    {
-        static_for<0, N / 2, 1>{}([&](auto i) {
-            atomic_add(c_style_pointer_cast<fp16x2_t*>(p_dst) + i,
-                       x.template get_as<fp16x2_t>()[i]);
-        });
     }
 }
 

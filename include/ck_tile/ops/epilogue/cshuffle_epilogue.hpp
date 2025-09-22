@@ -48,7 +48,8 @@ template <typename ADataType_,
           index_t kNumWaveGroups_ = 1,
           bool FixedVectorSize_   = false,
           index_t VectorSizeC_    = 1,
-          bool TiledMMAPermuteN_  = false>
+          bool TiledMMAPermuteN_  = false,
+          index_t BlockedXDLN_PerWarp_ = 1> // The number of continuous xdl_output per warp
 struct CShuffleEpilogueProblem
 {
     using ADataType                                        = remove_cvref_t<ADataType_>;
@@ -71,6 +72,7 @@ struct CShuffleEpilogueProblem
     static constexpr memory_operation_enum MemoryOperation = MemoryOperation_;
     static constexpr bool FixedVectorSize                  = FixedVectorSize_;
     static constexpr index_t VectorSizeC                   = VectorSizeC_;
+    static constexpr index_t BlockedXDLN_PerWarp           = BlockedXDLN_PerWarp_;
     static constexpr bool TiledMMAPermuteN                 = TiledMMAPermuteN_;
     static constexpr index_t kNumWaveGroups                = kNumWaveGroups_;
     static constexpr index_t NumDTensor                    = DsDataType::size();
@@ -108,6 +110,7 @@ struct CShuffleEpilogue
     static constexpr index_t isCTransposed                 = Problem::isCTransposed;
     static constexpr bool FixedVectorSize                  = Problem::FixedVectorSize;
     static constexpr bool TiledMMAPermuteN                 = Problem::TiledMMAPermuteN;
+    static constexpr index_t BlockedXDLN_PerWarp           = Problem::BlockedXDLN_PerWarp;
     static constexpr index_t VectorSizeC                   = Problem::VectorSizeC;
     static constexpr index_t MPerIteration                 = MPerXdl * MWave;
     static constexpr index_t NPerIteration                 = NPerXdl * NWave;
@@ -213,7 +216,8 @@ struct CShuffleEpilogue
         }
     }();
     static constexpr index_t NumMXdlPerWavePerShuffle = std::get<0>(shuffle_tile_tuple);
-    static constexpr index_t NumNXdlPerWavePerShuffle = std::get<1>(shuffle_tile_tuple);
+    static constexpr index_t NumNXdlPerWavePerShuffle =
+        max(BlockedXDLN_PerWarp, std::get<1>(shuffle_tile_tuple));
 
     static constexpr auto MNPerIterationShuffle = [] {
         constexpr index_t m_val = MPerXdl * MWave * NumMXdlPerWavePerShuffle;
@@ -266,14 +270,31 @@ struct CShuffleEpilogue
 
     CK_TILE_DEVICE static constexpr auto MakeLdsDistributionEncode()
     {
-        constexpr auto block_outer_dstr_encoding =
-            tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
-                                             sequence<NumNXdlPerWavePerShuffle, NWave>>,
-                                       tuple<sequence<1, 2>>,
-                                       tuple<sequence<1, 1>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 0>>{};
+        constexpr auto block_outer_dstr_encoding = [] {
+            if constexpr(BlockedXDLN_PerWarp == 1)
+            {
+                return tile_distribution_encoding<sequence<>,
+                                                  tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
+                                                        sequence<NumNXdlPerWavePerShuffle, NWave>>,
+                                                  tuple<sequence<1, 2>>,
+                                                  tuple<sequence<1, 1>>,
+                                                  sequence<1, 2>,
+                                                  sequence<0, 0>>{};
+            }
+            else
+            {
+                constexpr int RakedXDLN_PerWarp = NumNXdlPerWavePerShuffle / BlockedXDLN_PerWarp;
+                // BlockedLayout
+                return tile_distribution_encoding<
+                    sequence<>,
+                    tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
+                          sequence<RakedXDLN_PerWarp, NWave, BlockedXDLN_PerWarp>>,
+                    tuple<sequence<1, 2>>,
+                    tuple<sequence<1, 1>>,
+                    sequence<1, 2, 2>,
+                    sequence<0, 0, 2>>{};
+            }
+        }();
         constexpr auto block_dstr_encoding = detail::make_embed_tile_distribution_encoding(
             block_outer_dstr_encoding, typename CWarpDstr::DstrEncode{});
 
