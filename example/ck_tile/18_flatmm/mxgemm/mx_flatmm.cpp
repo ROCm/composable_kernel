@@ -291,7 +291,9 @@ float invoke_mx_flatmm(ck_tile::DeviceMem& a_dev_buf,
 
     std::size_t flop     = std::size_t(2) * M * N * K + std::size_t(2) * M * N * K / 32;
     std::size_t num_byte = sizeof(ADataType) * M * K / APackedSize +
-                           sizeof(BDataType) * N * K / BPackedSize + sizeof(CDataType) * M * N;
+                           sizeof(BDataType) * N * K / BPackedSize + sizeof(CDataType) * M * N +
+                           sizeof(ck_tile::e8m0_t) * M * K / 32 +
+                           sizeof(ck_tile::e8m0_t) * N * K / 32;
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
