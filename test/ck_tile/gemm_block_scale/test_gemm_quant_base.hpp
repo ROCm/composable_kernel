@@ -65,7 +65,7 @@ class TestCkTileGemmQuantBase : public ::testing::Test
         constexpr bool kPadM       = false;
         constexpr bool kPadN       = false;
         constexpr bool kPadK       = false;
-        constexpr bool kPreshuffle = false;
+        constexpr bool kPreshuffle = GemmConfig::PreshuffleQuant;
 
         using CodegenGemmShape =
             ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
@@ -81,7 +81,10 @@ class TestCkTileGemmQuantBase : public ::testing::Test
                                                                ALayout,
                                                                BLayout,
                                                                CLayout,
-                                                               QuantType>;
+                                                               QuantType,
+                                                               ALayout,
+                                                               BLayout,
+                                                               GemmConfig::TransposeC>;
 
         // Let the derived class create the appropriate pipeline and epilogue
         static_cast<Derived*>(this)
