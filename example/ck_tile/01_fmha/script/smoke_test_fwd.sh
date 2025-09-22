@@ -2,11 +2,22 @@
 # TODO: run this script from CK root or build directory
 set -euo pipefail
 
-EXE="$(find . -name tile_example_fmha_fwd -type f | head -n 1)"
+SCRIPT_DIR=$(cd $(dirname "${BASH_SOURCE[0]}") && pwd)
+EXE_NAME=tile_example_fmha_fwd
+EXE="$(find . -name $EXE_NAME -type f | head -n 1)"
 KNAME=1
+GPU_arch=$GPU_arch
+if [ -z "$GPU_arch" ] ; then
+    GPU_arch=$(rocminfo | grep -E 'Name:\s+gfx' | head -n1 | awk '{print $2}')
+fi
 
 export CK_WARMUP=0
 export CK_REPEAT=1
+
+CURR_FAILS_FILE=${CURR_FAILS_FILE:-"fmha_fwd_fails_$GPU_arch.txt"}
+rm -f $CURR_FAILS_FILE
+touch $CURR_FAILS_FILE
+KNOWN_FAILS_FILE=${KNOWN_FAILS_FILE:-"$SCRIPT_DIR/fmha_fwd_known_fails_$GPU_arch.txt"}
 
 COMMON_ARGS='-v=1 -warmup=0 -repeat=1'
 # mode=0
@@ -30,6 +41,16 @@ while getopts ":sa" opt; do
     esac
 done
 
+run_exe() {
+    set +ex
+    $EXE $@
+    local ret=$?
+    if [ $ret -ne 0 ] ; then
+        echo "$EXE_NAME $*" >> $CURR_FAILS_FILE
+    fi
+    set -ex
+}
+
 run_fp16_bf16_tests() {
     local NUM_SPLITS="1"
     local PAGE_BLOCK_SIZE="0"
@@ -52,16 +73,16 @@ run_fp16_bf16_tests() {
     for page_block_size in $PAGE_BLOCK_SIZE ; do
     for cache_batch_idx in $CACHE_BATCH_IDX ; do
 
-    # $EXE -prec=$prec -mode=$mode -b=1 -h=1 -d=$hdim -s=1024 -bias=$bias -p_drop=$p_drop -lse=$lse -iperm=$perm -operm=$perm  -num_splits=$num_splits -page_block_size=$page_block_size -kname=$KNAME $COMMON_ARGS  
-    $EXE -prec=$prec -mode=$mode -b=2 -h=2 -h_k=1 -d=16    -d_v=$hdim -s=55   -s_k=256            -bias=$bias -p_drop=$p_drop -lse=$lse -iperm=$perm -operm=$perm                -num_splits=$num_splits -page_block_size=$page_block_size -cache_batch_idx=$cache_batch_idx -kname=$KNAME $COMMON_ARGS  
-    $EXE -prec=$prec -mode=$mode -b=1 -h=3        -d=$hdim            -s=100  -s_k=51             -bias=$bias -p_drop=$p_drop -lse=$lse -iperm=$perm -operm=$perm                -num_splits=$num_splits -page_block_size=$page_block_size -cache_batch_idx=$cache_batch_idx -kname=$KNAME $COMMON_ARGS  
-    $EXE -prec=$prec -mode=$mode -b=2 -h=1        -d=16    -d_v=$hdim -s=99   -s_k=256            -bias=$bias -p_drop=$p_drop -lse=$lse -iperm=$perm -operm=$perm -mask=1        -num_splits=$num_splits -page_block_size=$page_block_size -cache_batch_idx=$cache_batch_idx -kname=$KNAME $COMMON_ARGS  
-    $EXE -prec=$prec -mode=$mode -b=1 -h=2 -h_k=1 -d=$hdim            -s=1024 -s_k=256            -bias=$bias -p_drop=$p_drop -lse=$lse -iperm=$perm -operm=$perm -mask=2        -num_splits=$num_splits -page_block_size=$page_block_size -cache_batch_idx=$cache_batch_idx -kname=$KNAME $COMMON_ARGS  
-    $EXE -prec=$prec -mode=$mode -b=2 -h=1        -d=$hdim -d_v=24    -s=3    -s_k=99             -bias=$bias -p_drop=$p_drop -lse=$lse -iperm=$perm -operm=$perm -mask=2        -num_splits=$num_splits -page_block_size=$page_block_size -cache_batch_idx=$cache_batch_idx -kname=$KNAME $COMMON_ARGS  
-    $EXE -prec=$prec -mode=$mode -b=3 -h=2 -h_k=1 -d=$hdim            -s=200  -s_k=520            -bias=$bias -p_drop=$p_drop -lse=$lse -iperm=$perm -operm=$perm -mask=t:128,30 -num_splits=$num_splits -page_block_size=$page_block_size -cache_batch_idx=$cache_batch_idx -kname=$KNAME $COMMON_ARGS  
-    $EXE -prec=$prec -mode=$mode -b=2 -h=1        -d=$hdim            -s=99   -s_k=32             -bias=$bias -p_drop=$p_drop -lse=$lse -iperm=$perm -operm=$perm -mask=b:4,35   -num_splits=$num_splits -page_block_size=$page_block_size -cache_batch_idx=$cache_batch_idx -kname=$KNAME $COMMON_ARGS  
-    $EXE -prec=$prec -mode=$mode -b=1 -h=2 -h_k=1 -d=$hdim            -s=33   -s_k=0              -bias=$bias -p_drop=$p_drop -lse=$lse -iperm=$perm -operm=$perm -mask=2        -num_splits=$num_splits -page_block_size=$page_block_size -cache_batch_idx=$cache_batch_idx -kname=$KNAME $COMMON_ARGS  
-    $EXE -prec=$prec -mode=$mode -b=1 -h=2 -h_k=1 -d=$hdim            -s=1    -s_k=10  -s_kpad=32 -bias=$bias -p_drop=$p_drop -lse=$lse -iperm=$perm -operm=$perm -mask=2        -num_splits=$num_splits -page_block_size=$page_block_size -cache_batch_idx=$cache_batch_idx -kname=$KNAME $COMMON_ARGS  
+    # run_exe -prec=$prec -mode=$mode -b=1 -h=1 -d=$hdim -s=1024 -bias=$bias -p_drop=$p_drop -lse=$lse -iperm=$perm -operm=$perm  -num_splits=$num_splits -page_block_size=$page_block_size -kname=$KNAME $COMMON_ARGS  
+    run_exe -prec=$prec -mode=$mode -b=2 -h=2 -h_k=1 -d=16    -d_v=$hdim -s=55   -s_k=256            -bias=$bias -p_drop=$p_drop -lse=$lse -iperm=$perm -operm=$perm                -num_splits=$num_splits -page_block_size=$page_block_size -cache_batch_idx=$cache_batch_idx -kname=$KNAME $COMMON_ARGS  
+    run_exe -prec=$prec -mode=$mode -b=1 -h=3        -d=$hdim            -s=100  -s_k=51             -bias=$bias -p_drop=$p_drop -lse=$lse -iperm=$perm -operm=$perm                -num_splits=$num_splits -page_block_size=$page_block_size -cache_batch_idx=$cache_batch_idx -kname=$KNAME $COMMON_ARGS  
+    run_exe -prec=$prec -mode=$mode -b=2 -h=1        -d=16    -d_v=$hdim -s=99   -s_k=256            -bias=$bias -p_drop=$p_drop -lse=$lse -iperm=$perm -operm=$perm -mask=1        -num_splits=$num_splits -page_block_size=$page_block_size -cache_batch_idx=$cache_batch_idx -kname=$KNAME $COMMON_ARGS  
+    run_exe -prec=$prec -mode=$mode -b=1 -h=2 -h_k=1 -d=$hdim            -s=1024 -s_k=256            -bias=$bias -p_drop=$p_drop -lse=$lse -iperm=$perm -operm=$perm -mask=2        -num_splits=$num_splits -page_block_size=$page_block_size -cache_batch_idx=$cache_batch_idx -kname=$KNAME $COMMON_ARGS  
+    run_exe -prec=$prec -mode=$mode -b=2 -h=1        -d=$hdim -d_v=24    -s=3    -s_k=99             -bias=$bias -p_drop=$p_drop -lse=$lse -iperm=$perm -operm=$perm -mask=2        -num_splits=$num_splits -page_block_size=$page_block_size -cache_batch_idx=$cache_batch_idx -kname=$KNAME $COMMON_ARGS  
+    run_exe -prec=$prec -mode=$mode -b=3 -h=2 -h_k=1 -d=$hdim            -s=200  -s_k=520            -bias=$bias -p_drop=$p_drop -lse=$lse -iperm=$perm -operm=$perm -mask=t:128,30 -num_splits=$num_splits -page_block_size=$page_block_size -cache_batch_idx=$cache_batch_idx -kname=$KNAME $COMMON_ARGS  
+    run_exe -prec=$prec -mode=$mode -b=2 -h=1        -d=$hdim            -s=99   -s_k=32             -bias=$bias -p_drop=$p_drop -lse=$lse -iperm=$perm -operm=$perm -mask=b:4,35   -num_splits=$num_splits -page_block_size=$page_block_size -cache_batch_idx=$cache_batch_idx -kname=$KNAME $COMMON_ARGS  
+    run_exe -prec=$prec -mode=$mode -b=1 -h=2 -h_k=1 -d=$hdim            -s=33   -s_k=0              -bias=$bias -p_drop=$p_drop -lse=$lse -iperm=$perm -operm=$perm -mask=2        -num_splits=$num_splits -page_block_size=$page_block_size -cache_batch_idx=$cache_batch_idx -kname=$KNAME $COMMON_ARGS  
+    run_exe -prec=$prec -mode=$mode -b=1 -h=2 -h_k=1 -d=$hdim            -s=1    -s_k=10  -s_kpad=32 -bias=$bias -p_drop=$p_drop -lse=$lse -iperm=$perm -operm=$perm -mask=2        -num_splits=$num_splits -page_block_size=$page_block_size -cache_batch_idx=$cache_batch_idx -kname=$KNAME $COMMON_ARGS  
 
     done ; done ; done ; done ; done
     done ; done ; done ; done ; done
@@ -73,7 +94,29 @@ run_fp8_tests() {
     for b in 1 2 ; do
     for hdim in 64 128 256 ; do
     
-    $EXE -prec=fp8 -init=3 -b=$b -h=1 -d=128 -s=128 -bias=$bias -iperm=$perm -operm=$perm -vlayout=c -squant=1 -kname=$KNAME $COMMON_ARGS  
+    $EXE -prec=fp8 -init=0 -b=$b -h=1 -d=128 -s=128 -bias=$bias -iperm=$perm -operm=$perm -vlayout=r -squant=1 -kname=$KNAME $COMMON_ARGS
+
+    done ; done ; done ; done
+}
+
+run_fp8bf16_tests() {
+    for perm in 0 1 ; do
+    for bias in "n" "e" "a" ; do
+    for b in 1 2 ; do
+    for hdim in 64 128 256 ; do
+
+    $EXE -prec=fp8bf16 -init=0 -b=$b -h=1 -d=128 -s=128 -bias=$bias -iperm=$perm -operm=$perm -vlayout=r -squant=1 -kname=$KNAME $COMMON_ARGS
+
+    done ; done ; done ; done
+}
+
+run_fp8fp32_tests() {
+    for perm in 0 1 ; do
+    for bias in "n" "e" "a" ; do
+    for b in 1 2 ; do
+    for hdim in 64 128 256 ; do
+
+    $EXE -prec=fp8fp32 -init=0 -b=$b -h=1 -d=128 -s=128 -bias=$bias -iperm=$perm -operm=$perm -vlayout=r -squant=1 -kname=$KNAME $COMMON_ARGS
 
     done ; done ; done ; done
 }
@@ -88,7 +131,7 @@ run_fp16_appendkv_tests() {
     for page_block_size in 0 128 ; do
     for cache_batch_idx in 0 1 ; do
 
-    $EXE -prec=fp16 -b=3 -h=3 -d=$hdim -s=$s -s_k=$s_k -s_knew=$s_knew -rotary_dim=$rdim -rotary_interleaved=$ri -page_block_size=$page_block_size -cache_batch_idx=$cache_batch_idx -iperm=1 -operm=1 -kname=1 $COMMON_ARGS
+    run_exe -prec=fp16 -b=3 -h=3 -d=$hdim -s=$s -s_k=$s_k -s_knew=$s_knew -rotary_dim=$rdim -rotary_interleaved=$ri -page_block_size=$page_block_size -cache_batch_idx=$cache_batch_idx -iperm=1 -operm=1 -kname=1 $COMMON_ARGS
 
     done ; done ; done ; done ; done 
     done ; done ; done
@@ -98,9 +141,32 @@ set -x
 
 run_fp16_bf16_tests
 run_fp8_tests
+run_fp8bf16_tests
+run_fp8fp32_tests
 
 if [ $TEST_APPENDKV -eq 1 ] ; then
     run_fp16_appendkv_tests
 fi
 
 set +x
+
+new_fails_count=0
+known_fails_count=0
+if [ -f $KNOWN_FAILS_FILE ] ; then
+    echo "Comparing current fails ($CURR_FAILS_FILE) against known fails ($KNOWN_FAILS_FILE):"
+    while IFS= read -r line; do
+        if grep -Fxq "$line" $KNOWN_FAILS_FILE; then
+            echo "Known fail: $line"
+            known_fails_count=$(($known_fails_count + 1))
+        else
+            echo "New fail: $line"
+            new_fails_count=$(($new_fails_count + 1))
+        fi
+    done < $CURR_FAILS_FILE
+else
+    new_fails_count=$(wc -l < $CURR_FAILS_FILE)
+    echo "No known fails file, all fails ($new_fails_count) are new:"
+    cat $CURR_FAILS_FILE
+fi
+echo "New fails count: $new_fails_count; Known fails count: $known_fails_count"
+exit $(($new_fails_count != 0))

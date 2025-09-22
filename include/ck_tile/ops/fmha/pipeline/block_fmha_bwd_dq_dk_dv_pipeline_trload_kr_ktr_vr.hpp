@@ -698,6 +698,12 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadKRKTRVR
                 dst_reg_tensor.get_thread_buffer() = ds_gemm.get_thread_buffer();
                 gemm_3(dk_acc, dst_reg_tensor, qt_reg_tensor);
 
+                if constexpr(kHasBiasGrad)
+                {
+                    // SGrad and BiasGrad use the same address in LDS, finish loading dbias to reuse
+                    // LDS.
+                    block_sync_lds();
+                }
                 store_tile(ds_lds_window, ds_gemm);
             }
             s_waitcnt</*vmcnt=*/0>();
