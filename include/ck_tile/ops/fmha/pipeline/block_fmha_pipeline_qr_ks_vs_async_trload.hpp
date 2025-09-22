@@ -37,6 +37,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
     using VLayout                    = remove_cvref_t<typename BlockFmhaShape::VLayout>;
     static constexpr bool kQLoadOnce = true; // if q_tile load whole block length (hdim) at once
     static_assert(kQLoadOnce == Policy::QLoadOnce);
+    static constexpr bool kKLoadOnce = BlockFmhaShape::kM0 >= 64;
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
@@ -314,7 +315,6 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
 
         block_sync_lds_direct_load<0>();
         auto q_tile = load_tile(q_lds_read_window);
-        // CK_PRINTF<float>{}(q_tile);
 
         const index_t num_total_loop =
             integer_divide_ceil(physical_seqlen_k_end - aligned_physical_seqlen_k_start, kN0);
@@ -512,7 +512,6 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
             block_tile_reduce_sync(
                 rowsum_p, f_sum, bool_constant<false>{} /*, bool_constant<false>{}*/);
 
-            CK_PRINTF<float>{}(p_compute);
             auto p_tile = make_static_distributed_tensor<PDataType>(
                 Policy::template MakePRegTileDistribution<Problem>());
             p_tile.get_thread_buffer() = cast_tile<PDataType>(p_compute).get_thread_buffer();
