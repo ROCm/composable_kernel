@@ -1419,6 +1419,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         real_seqlen_k,
                         mask.type == mask_enum::mask_top_left));
         }
+        const ck_tile::HostTensor<SaccDataType> masked_s_host_ref = s_host_ref;
         if(lse)
         {
             ck_tile::reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(

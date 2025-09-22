@@ -258,6 +258,7 @@ struct fmha_fwd_pagedkv_args
     ck_tile::index_t window_size_right;
     ck_tile::index_t mask_type;
     ck_tile::index_t min_seqlen_q;
+    ck_tile::index_t sink_size;
 };
 
 struct fmha_fwd_splitkv_args
