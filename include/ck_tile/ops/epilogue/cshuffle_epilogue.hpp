@@ -257,7 +257,14 @@ struct CShuffleEpilogue
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
-        return MPerIterationShuffle * NPerIterationShuffle * sizeof(ODataType);
+        if constexpr(NumGroupsToMerge > 1)
+        {
+            return kMPerBlock * kNPerBlock * sizeof(ODataType);
+        }
+        else
+        {
+            return MPerIterationShuffle * NPerIterationShuffle * sizeof(ODataType);
+        }
     }
 
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows>
@@ -267,17 +274,17 @@ struct CShuffleEpilogue
                                    void* p_smem)
 
     {
-        if constexpr (NumGroupsToMerge > 1)
-        {
+        //if constexpr (NumGroupsToMerge > 1)
+        //{
             // When NumGroupsToMerge > 1, we want to write out only the diagonal blocks.
             // Hence, we configure the shuffle such that it iterates one merge group block at a time.
             return merged_op(out_dram_window, o_acc_tile, ds_dram_windows, p_smem);
-        }
-        else
-        {
+        //}
+        //else
+        //{
             // When NumGroupsToMerge == 1, we want to write out all the blocks.
-            return unmerged_op(out_dram_window, o_acc_tile, ds_dram_windows, p_smem);
-        }
+        //    return unmerged_op(out_dram_window, o_acc_tile, ds_dram_windows, p_smem);
+        //}
     }
 
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows>
@@ -289,7 +296,11 @@ struct CShuffleEpilogue
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
         auto lds_tile = make_static_distributed_tensor<AccDataType>(LdsTileDistr);
 
-        constexpr auto lds_block_desc = MakeLdsBlockDescriptor<Problem>();
+        //constexpr auto lds_block_desc = MakeLdsBlockDescriptor<Problem>();
+        constexpr auto lds_block_desc = make_naive_tensor_descriptor(
+            make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
+            make_tuple(number<kNPerBlock>{}, number<1>{}));  // Row-major layout
+
         auto o_lds_block              = make_tensor_view<address_space_enum::lds>(
             static_cast<ODataType*>(p_smem), lds_block_desc);
 
@@ -313,21 +324,6 @@ struct CShuffleEpilogue
 
         static_assert(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
                     "Currently, the CShuffle Epilogue only supports the Row Major Output layout");
-
-        using TileEncodingPattern = tile_distribution_encoding_pattern_2d<kBlockSize,
-                                                    MPerIterationShuffle,
-                                                    NPerIterationShuffle,
-                                                    GetVectorSizeC(),
-                                                    tile_distribution_pattern::sparse_row,
-                                                    Problem::kNumWaveGroups>;
-        constexpr auto dram_tile_distribution =
-            TileEncodingPattern::make_2d_static_tile_distribution();
-
-        auto d_dram_windows = generate_tuple(
-            [&](auto idx) {
-                return make_tile_window(ds_dram_windows[idx], dram_tile_distribution);
-            },
-            number<NumDTensor>{});
 
         constexpr auto c_warp_y_lengths =
             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
@@ -362,27 +358,46 @@ struct CShuffleEpilogue
         });
         block_sync_lds();
 
-        // Copy diagonal block from LDS to global memory.
+        // Set-up LDS to global memory copy.
+        // We copy only the diagonal blocks from LDS to global memory.
+        // Hence, we must configure the tile distrinbution and SFCs to work
+        // on the group size blocks.
         constexpr index_t MPerGroup = kMPerBlock / NumGroupsToMerge;
         constexpr index_t NPerGroup = kNPerBlock / NumGroupsToMerge;
-        auto out_lds_window = make_tile_window(
-            o_lds_block,
-            make_tuple(number<MPerGroup>{}, number<NPerGroup>{}),
-            {0, 0});
 
-        using SFC_lds = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
-                                            sequence<0, 1>,
-                                            sequence<MPerGroup, NPerGroup>>;
+        // TODO: Within the subtile, we have column-major data layout.
+        constexpr auto dram_tile_encoding = tile_distribution_encoding<sequence<>,
+                                       tuple<sequence<MPerGroup, 1>, sequence<NPerGroup,1>>,
+                                       tuple<sequence<1>, sequence<2>>,
+                                       tuple<sequence<0>, sequence<0>>, 
+                                       sequence<1, 2>,
+                                       sequence<1, 1>>{};
 
-        using SFC_dram = space_filling_curve<sequence<kMPerBlock, kNPerBlock / NumGroupsToMerge>,
-                                            sequence<0, 1>,
-                                            sequence<MPerGroup, NPerGroup>>;
+        constexpr auto dram_tile_distribution = make_static_tile_distribution(dram_tile_encoding);
+
+        auto d_dram_windows = generate_tuple(
+            [&](auto idx) {
+                return make_tile_window(ds_dram_windows[idx], dram_tile_distribution);
+            },
+            number<NumDTensor>{});
 
         static_for<0, NumGroupsToMerge, 1>{}
         (
             [&](auto group)
             {
-                auto c_out_tensor = load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
+                // Create LDS window at the correct diagonal position for this group
+                constexpr auto lds_start_m = group * number<MPerGroup>{};
+                constexpr auto lds_start_n = group * number<NPerGroup>{};
+                
+                auto current_lds_window = make_tile_window(
+                    o_lds_block,
+                    make_tuple(number<MPerGroup>{}, number<NPerGroup>{}),
+                    {lds_start_m, lds_start_n},
+                    dram_tile_distribution);
+
+                block_sync_lds();
+                auto c_out_tensor = load_tile(current_lds_window);
+                    //make_tile_window(current_lds_window, dram_tile_distribution));
 
                 const auto ds_tensor = generate_tuple(
                     [&](auto idx) { return load_tile(d_dram_windows[idx]); }, number<NumDTensor>{});
@@ -405,21 +420,13 @@ struct CShuffleEpilogue
 
                 if constexpr(group != NumGroupsToMerge - 1)
                 {
+                    constexpr auto step_m = number<MPerGroup>{};
+
                     // Move the global memory window
-                    constexpr auto step_dram = SFC_dram::get_forward_step(group);
-
-                    move_tile_window(out_dram_window, {step_dram.at(number<0>{}), step_dram.at(number<1>{})});
-
+                    move_tile_window(out_dram_window, {step_m, 0});
                     static_for<0, NumDTensor, 1>{}([&](auto idx) {
-                        move_tile_window(d_dram_windows[idx],
-                                        {step_dram.at(number<0>{}), step_dram.at(number<1>{})});
+                        move_tile_window(d_dram_windows[idx], {step_m, 0});
                     });
-
-                    // Move the LDS window
-                    constexpr auto iAccess = number<group * NumGroupsToMerge + group>{};
-                    constexpr auto next_iAccess = number<(group+1) * NumGroupsToMerge + (group+1)>{};
-                    constexpr auto step_lds = SFC_lds::get_step_between(iAccess, next_iAccess);
-                    move_tile_window(out_lds_window, {step_lds.at(number<0>{}), step_lds.at(number<1>{})});
                 }        
             }
         );
