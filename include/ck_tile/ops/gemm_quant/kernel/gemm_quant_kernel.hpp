@@ -12,7 +12,7 @@
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/host/concat.hpp"
-#include "ck_tile/ops/gemm_group_quant/pipeline/tile_gemm_quant_traits.hpp"
+#include "ck_tile/ops/gemm_quant/pipeline/tile_gemm_quant_traits.hpp"
 
 namespace ck_tile {
 
@@ -330,7 +330,6 @@ struct QuantGemmKernel
             }
         }
 
-        // NOTE: no kernel currently uses BQuant like this:
         if constexpr(kQuantType == QuantType::BQuantGrouped)
         {
             static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
@@ -890,6 +889,7 @@ struct QuantGemmKernel
      * @param a_ptr input A pointer
      * @param b_ptr input B pointer
      * @param aq_ptr input AQ pointer
+     * @param bq_ptr input BQ pointer
      * @param c_ptr output C pointer
      * @param smem_ptr_0 The start memory pointer of the shared memory block.
      * @param kargs GEMM kernel arguments
@@ -938,7 +938,8 @@ struct QuantGemmKernel
                 return GemmPipeline{}.template operator()(
                     a_block_window, b_block_window, bq_block_window, num_loop, smem_ptr_0);
             }
-            else if constexpr(kQuantType == QuantType::RowColQuant)
+            else if constexpr(kQuantType == QuantType::RowColQuant ||
+                              kQuantType == QuantType::TensorQuant)
             {
                 return GemmPipeline{}.template operator()(
                     a_block_window, b_block_window, num_loop, smem_ptr_0);
@@ -963,6 +964,18 @@ struct QuantGemmKernel
                                smem_ptr_0,
                                aq_block_window,
                                bq_block_window);
+        }
+        else if constexpr(kQuantType == QuantType::TensorQuant)
+        {
+            // TODO: why doesn't readfirstlane work here?
+            // const AccDataType aq_scale =
+            //     __builtin_amdgcn_readfirstlane(type_convert<AccDataType>(*aq_ptr));
+            // const AccDataType bq_scale =
+            //     __builtin_amdgcn_readfirstlane(type_convert<AccDataType>(*bq_ptr));
+            const AccDataType aq_scale = type_convert<AccDataType>(*aq_ptr);
+            const AccDataType bq_scale = type_convert<AccDataType>(*bq_ptr);
+            EpiloguePipeline{}(
+                c_block_window, c_block_tile, c_block_window, smem_ptr_0, aq_scale, bq_scale);
         }
     }
 
