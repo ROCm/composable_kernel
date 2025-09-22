@@ -7,6 +7,7 @@
 #include <sstream>
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/common/load_interleaved_pk_type.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm_quant/pipeline/gemm_bquant_pipeline_ag_bg_cr_base.hpp"
@@ -472,7 +473,8 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
               typename ADramBlockWindowTmp,
               typename BFlatBlockWindowTmp,
               typename BQDramBlockWindowTmp,
-              typename AElementFunction>
+              typename AElementFunction,
+              index_t UnaryOpSize_ = 8>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const AElementFunction& a_element_func,
                                    const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
@@ -588,20 +590,9 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
                 b_flat_dram_block_window_tmp.get_window_origin(),
                 b_flat_distribution);
 
-        using BBlockTile =
-            decltype(make_static_distributed_tensor<ComputeDataType>(b_flat_distribution));
-        BBlockTile b_block_tile;
-
-        if constexpr(std::is_same_v<BDataType, pk_int4_t>)
-        {
-            static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
-                          std::is_same_v<ComputeDataType, bf8_t>);
-            block_weight_preshuffle.load_interleaved_pk_type(b_block_tile, b_flat_dram_window);
-        }
-        else
-        {
-            b_block_tile = load_tile(b_flat_dram_window);
-        }
+        using BTypeToUse =
+            std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;
+        using BTileType = decltype(make_static_distributed_tensor<BTypeToUse>(b_flat_distribution));
 
         // pingpong buffer for B
         statically_indexed_array<
@@ -609,12 +600,10 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
             NIterPerWarp>
             b_flat_dram_windows;
 
-        statically_indexed_array<statically_indexed_array<decltype(b_block_tile), KIterPerWarp>,
-                                 NIterPerWarp>
+        statically_indexed_array<statically_indexed_array<BTileType, KIterPerWarp>, NIterPerWarp>
             b_warp_tensor_ping;
 
-        statically_indexed_array<statically_indexed_array<decltype(b_block_tile), KIterPerWarp>,
-                                 NIterPerWarp>
+        statically_indexed_array<statically_indexed_array<BTileType, KIterPerWarp>, NIterPerWarp>
             b_warp_tensor_pong;
 
         // BQ DRAM window for load
@@ -637,15 +626,8 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
                 move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                  {nIter * flatNPerWarp, kIter * flatKPerWarp});
 
-                if constexpr(std::is_same_v<BDataType, pk_int4_t>)
-                {
-                    block_weight_preshuffle.load_interleaved_pk_type(
-                        b_warp_tensor_ping(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
-                }
-                else
-                {
-                    b_warp_tensor_ping(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
-                }
+                load_int4_tile<BDataType, ADataType, UnaryOpSize_>(
+                    b_warp_tensor_ping(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
             });
         });
         // move B window to next flat K
@@ -702,16 +684,8 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
 
                     move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                      {nIter * flatNPerWarp, kIter * flatKPerWarp});
-                    if constexpr(std::is_same_v<BDataType, pk_int4_t>)
-                    {
-                        block_weight_preshuffle.load_interleaved_pk_type(
-                            b_warp_tensor_pong(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
-                    }
-                    else
-                    {
-                        b_warp_tensor_pong(nIter)(kIter) =
-                            load_tile(b_flat_dram_windows(nIter)(kIter));
-                    }
+                    load_int4_tile<BDataType, ADataType, UnaryOpSize_>(
+                        b_warp_tensor_pong(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
                 });
             });
             move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
@@ -752,16 +726,8 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
 
                     move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                      {nIter * flatNPerWarp, kIter * flatKPerWarp});
-                    if constexpr(std::is_same_v<BDataType, pk_int4_t>)
-                    {
-                        block_weight_preshuffle.load_interleaved_pk_type(
-                            b_warp_tensor_ping(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
-                    }
-                    else
-                    {
-                        b_warp_tensor_ping(nIter)(kIter) =
-                            load_tile(b_flat_dram_windows(nIter)(kIter));
-                    }
+                    load_int4_tile<BDataType, ADataType, UnaryOpSize_>(
+                        b_warp_tensor_ping(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
                 });
             });
             move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
@@ -806,16 +772,9 @@ struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
 
                     move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                      {nIter * flatNPerWarp, kIter * flatKPerWarp});
-                    if constexpr(std::is_same_v<BDataType, pk_int4_t>)
-                    {
-                        block_weight_preshuffle.load_interleaved_pk_type(
-                            b_warp_tensor_pong(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
-                    }
-                    else
-                    {
-                        b_warp_tensor_pong(nIter)(kIter) =
-                            load_tile(b_flat_dram_windows(nIter)(kIter));
-                    }
+
+                    load_int4_tile<BDataType, ADataType, UnaryOpSize_>(
+                        b_warp_tensor_pong(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
                 });
             });
             bq_block_tile_2 = load_tile(bq_copy_dram_window);
