@@ -75,9 +75,9 @@ struct FmhaBwdDQDKDVKernel
     static constexpr index_t kMaxSeqLenQ   = FmhaPipeline::BlockFmhaShape::kMaxSeqLenQ;
     static_assert(kUseQrQtrDorPipeline == (kMaxSeqLenQ != 0));
 #if defined(__gfx950__)
-    static constexpr bool kIsAvialable = true;
+    static constexpr bool kIsAvailable = true;
 #else
-    static constexpr bool kIsAvialable = !kUseTrLoad;
+    static constexpr bool kIsAvailable = !kUseTrLoad;
 #endif
 
     // clang-format off
@@ -113,7 +113,9 @@ struct FmhaBwdDQDKDVKernel
             "r" + _TS_(gbr4::at(ck_tile::number<0>{})) + "x" + _TS_(gbr4::at(ck_tile::number<1>{})) + "x" + _TS_(gbr4::at(ck_tile::number<2>{})) + "_" +
             "w" + _TS_(gwt0::at(ck_tile::number<0>{})) + "x" + _TS_(gwt0::at(ck_tile::number<1>{})) + "x" + _TS_(gwt0::at(ck_tile::number<2>{})) + "_" +
             "w" + _TS_(gwt1::at(ck_tile::number<0>{})) + "x" + _TS_(gwt1::at(ck_tile::number<1>{})) + "x" + _TS_(gwt1::at(ck_tile::number<2>{})) + "_" +
-            ("o" + _TS_(kBlockPerCu)) + (pn.empty() ? "_npad" : "_" + pn) +
+            ("o" + _TS_(kBlockPerCu)) + "_" +
+            ("maxq" + _TS_(kMaxSeqLenQ)) +
+            (pn.empty() ? "_npad" : "_" + pn) +
             (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("_nbias") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
             (kHasBiasGrad ? "_dbias" : "_ndbias") + (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kHasDropout ? "_dropout" : "_ndropout" ) +
             (kIsStoreRandval ? "_storerandval" : "" ) + (kIsDeterministic ? "_deterministic" : "_ndeterministic" ) + (kUseTrLoad ? "_trload" : "_ntrload");
@@ -676,7 +678,7 @@ struct FmhaBwdDQDKDVKernel
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
-        if constexpr(kIsAvialable)
+        if constexpr(kIsAvailable)
             run_(std::move(kargs));
     }
 

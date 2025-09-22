@@ -3,6 +3,7 @@
 #pragma once
 
 template <ck_tile::index_t NDimSpatial,
+          typename GemmWarpConfig,
           typename InDataType,
           typename WeiDataType,
           typename AccDataType,
@@ -15,6 +16,7 @@ float invoke_grouped_conv_bwd_weight(ck_tile::GroupedConvBwdWeightHostArgs& args
                                      int n_repeat)
 {
     float ave_time = grouped_conv_bwd_weight<NDimSpatial,
+                                             GemmWarpConfig,
                                              InDataType,
                                              WeiDataType,
                                              AccDataType,
@@ -36,6 +38,7 @@ float invoke_grouped_conv_bwd_weight(ck_tile::GroupedConvBwdWeightHostArgs& args
 }
 
 template <ck_tile::index_t NDimSpatial,
+          typename GemmWarpConfig,
           typename InDataType,
           typename WeiDataType = InDataType,
           typename OutDataType = InDataType,
@@ -130,12 +133,13 @@ int run_grouped_conv_bwd_weight_example_with_layouts(
                                                output_dev_buf.GetDeviceBuffer(),
                                                kbatch);
 
-    std::cout << "Run Grouped Conv Fwd kernel" << std::endl;
+    std::cout << "Run Grouped Conv Bwd Weight kernel" << std::endl;
     std::cout << "input: " << input.mDesc << std::endl;
     std::cout << "weight: " << weight.mDesc << std::endl;
     std::cout << "output: " << output.mDesc << std::endl;
 
     invoke_grouped_conv_bwd_weight<NDimSpatial,
+                                   GemmWarpConfig,
                                    InDataType,
                                    WeiDataType,
                                    AccDataType,

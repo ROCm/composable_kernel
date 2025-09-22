@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
 
 """
 Converts .ninja_log files into Chrome's about:tracing format.

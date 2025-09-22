@@ -220,7 +220,7 @@ rocm_check_target_ids(SUPPORTED_GPU_TARGETS
 
 message(STATUS "Building CK for the following targets: ${SUPPORTED_GPU_TARGETS}")
 
-if (SUPPORTED_GPU_TARGETS MATCHES "gfx9")
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
     message(STATUS "Enabling XDL instances")
     add_definitions(-DCK_USE_XDL)
     set(CK_USE_XDL "ON")
@@ -233,6 +233,10 @@ endif()
 
 # new macro CK_TILE_USE_WMMA in order to separately compile examples for MFMA/WMMA
 set(CK_TILE_USE_WMMA 0)
+
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx10")
+    add_definitions(-DCK_GFX1030_SUPPORT)
+endif()
 
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx11" OR SUPPORTED_GPU_TARGETS MATCHES "gfx12")
     message(STATUS "Enabling WMMA instances")

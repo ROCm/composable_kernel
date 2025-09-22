@@ -107,7 +107,7 @@ bool profile_gemm_blockscale_weighpreshuffle_impl(int do_verification,
 
     ck::utils::validate_gemm_stride<ALayout>(M, K, StrideA, "StrideA");
     ck::utils::validate_gemm_stride<BLayout>(K, N, StrideB, "StrideB");
-    ck::utils::validate_gemm_stride<BLayout>(M, N, StrideE, "StrideE");
+    ck::utils::validate_gemm_stride<ELayout>(M, N, StrideE, "StrideE");
 
     Tensor<A0DataType> a0_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<A1DataType> a1_m_k(f_host_tensor_descriptor((M + ScaleBlockM - 1) / ScaleBlockM,

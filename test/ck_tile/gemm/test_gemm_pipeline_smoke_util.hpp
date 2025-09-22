@@ -220,6 +220,27 @@ struct GemmConfigComputeV5 : public GemmConfigBase
     static constexpr ck_tile::index_t NumWaNumWaveGroups = 2;
 };
 
+template <typename PrecType>
+struct GemmConfigComputeV3_WMMA : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 64 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 4;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    static constexpr bool DoubleSmemBuffer     = false;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
+
+    static constexpr int kBlockPerCu = 2;
+};
+
 template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>
 struct GemmTypeConfig;
 

@@ -120,10 +120,10 @@ struct GroupedGemmKernel
         !is_detected<is_tuple, BLayout>::value && !is_detected<is_tuple, BDataType>::value,
         "BLayout and BDataType must be scalars. Multiple parameters are not currently supported.");
 
-    /// @brief  C/ELayout and C/EDataType are expected to be scalars, not a tuple.
+    /// @brief  C/CLayout and C/EDataType are expected to be scalars, not a tuple.
     static_assert(!is_detected<is_tuple, CLayout>::value &&
                       !is_detected<is_tuple, CDataType>::value,
-                  "C/ELayout and C/EDataType must be scalars.");
+                  "C/CLayout and C/EDataType must be scalars.");
 
     using OffsetTile1DPartitioner = OffsettedTile1DPartitioner<TilePartitioner>;
     using Kernel = GroupedGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline>;
@@ -266,6 +266,10 @@ struct GroupedGemmKernel
                             const tuple<index_t, index_t>& block_idx_2d,
                             const index_t block_idx_z) const
     {
+
+        static_assert(GemmPipeline::DoubleSmemBuffer || !GemmPipeline::Preshuffle,
+                      "SingleSmemBuffer and Preshuffle cannot both be enabled simultaneously!");
+
         const auto [iM, iN] = block_idx_2d;
 
         const index_t i_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
@@ -282,43 +286,23 @@ struct GroupedGemmKernel
         // allocate LDS
         __shared__ char smem_ptr_0[GetSmemSize()];
 
+        // TO DO:
+        // Can we simplify this branching logic?
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
+
             __shared__ char smem_ptr_1[GetSmemSize()];
-            if constexpr(UsePersistentKernel)
-            {
-                RunGemmWithPipelineSelection2LDS(a_ptr,
-                                                 b_ptr,
-                                                 c_ptr,
-                                                 smem_ptr_0,
-                                                 smem_ptr_1,
-                                                 kargs,
-                                                 splitk_batch_offset,
-                                                 i_m,
-                                                 i_n);
-            }
-            else
-            {
-                Base::RunGemm2LDS({a_ptr},
-                                  {b_ptr},
-                                  {/*ds_ptr*/},
-                                  c_ptr,
-                                  smem_ptr_0,
-                                  smem_ptr_1,
-                                  kargs,
-                                  splitk_batch_offset,
-                                  i_m,
-                                  i_n);
-            }
+            RunGemmWithPipelineSelection2LDS(
+                a_ptr, b_ptr, c_ptr, smem_ptr_0, smem_ptr_1, kargs, splitk_batch_offset, i_m, i_n);
         }
-        else
+        else // SingleSmemBuffer
         {
             if constexpr(UsePersistentKernel)
             {
                 RunGemmWithPipelineSelection(
                     a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
             }
-            else
+            else // Non-persistent kernel
             {
                 Base::RunGemm({a_ptr},
                               {b_ptr},
@@ -364,7 +348,7 @@ struct GroupedGemmKernel
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
             Base::template MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                {a_ptr}, {b_ptr}, {/*ds_ptr*/}, c_ptr, kargs, splitk_batch_offset);
+                {a_ptr}, {b_ptr}, {/*ds_ptr*/}, c_ptr, kargs, splitk_batch_offset.splitted_k);
 
         const auto& gemm_pad_views = Base::MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows =
@@ -380,12 +364,8 @@ struct GroupedGemmKernel
         const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
 
         // Run GEMM pipeline
-        const auto& c_block_tile = GemmPipeline{}.template operator()(a_block_window[Base::I0],
-                                                                      b_block_window[Base::I0],
-                                                                      num_loop,
-                                                                      has_hot_loop,
-                                                                      tail_num,
-                                                                      smem_ptr_0);
+        const auto& c_block_tile = GemmPipeline{}.template operator()(
+            a_block_window, b_block_window, num_loop, has_hot_loop, tail_num, smem_ptr_0);
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(Base::I3);
         EpiloguePipeline{}.template
@@ -426,7 +406,7 @@ struct GroupedGemmKernel
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
             Base::template MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                {a_ptr}, {b_ptr}, {/*ds_ptr*/}, c_ptr, kargs, splitk_batch_offset);
+                {a_ptr}, {b_ptr}, {/*ds_ptr*/}, c_ptr, kargs, splitk_batch_offset.splitted_k);
 
         const auto& gemm_pad_views = Base::MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows =
@@ -438,17 +418,34 @@ struct GroupedGemmKernel
         // Get hot-loop and tail configuration
         const index_t num_loop = __builtin_amdgcn_readfirstlane(
             TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
-        const bool has_hot_loop   = GemmPipeline::BlockHasHotloop(num_loop);
         const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
 
-        // Run GEMM pipeline
-        const auto& c_block_tile = GemmPipeline{}.template operator()(a_block_window[Base::I0],
-                                                                      b_block_window[Base::I0],
-                                                                      num_loop,
-                                                                      has_hot_loop,
-                                                                      tail_num,
-                                                                      smem_ptr_0,
-                                                                      smem_ptr_1);
+        // Run GEMM pipeline with compile-time branching
+        const auto& c_block_tile = [&]() {
+            if constexpr(GemmPipeline::Preshuffle)
+            {
+                // Preshuffle version - without has_hot_loop parameter
+                return GemmPipeline{}.template operator()(a_block_window[Base::I0],
+                                                          b_block_window[Base::I0],
+                                                          num_loop,
+                                                          tail_num,
+                                                          smem_ptr_0,
+                                                          smem_ptr_1);
+            }
+            else
+            {
+                // Regular version - with has_hot_loop parameter
+                const bool has_hot_loop = GemmPipeline::BlockHasHotloop(num_loop);
+                return GemmPipeline{}.template operator()(a_block_window[Base::I0],
+                                                          b_block_window[Base::I0],
+                                                          num_loop,
+                                                          has_hot_loop,
+                                                          tail_num,
+                                                          smem_ptr_0,
+                                                          smem_ptr_1);
+            }
+        }();
+
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(Base::I3);
         EpiloguePipeline{}.template
@@ -491,8 +488,9 @@ struct GroupedGemmKernel
         const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg*>(
             cast_pointer_to_generic_address_space(gemm_descs_const));
 
-        const index_t group_id  = FindGroupId(gemm_desc_ptr, block_id, group_count);
-        const auto& kargs       = gemm_desc_ptr[group_id];
+        const index_t group_id = FindGroupId(gemm_desc_ptr, block_id, group_count);
+        const auto& kargs      = gemm_desc_ptr[group_id];
+
         const auto grid_size_2d = TilePartitioner::GridSize(kargs.group_karg.M, kargs.group_karg.N);
         const auto block_idx_2d = OffsetTile1DPartitioner::GetOffsetedTileIndex(
             0,
