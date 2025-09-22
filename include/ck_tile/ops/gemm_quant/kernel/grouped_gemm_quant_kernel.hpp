@@ -9,7 +9,7 @@
 #include "ck_tile/host/stream_utils.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_comp_v3.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
-#include "ck_tile/ops/gemm_group_quant/kernel/gemm_quant_kernel.hpp"
+#include "ck_tile/ops/gemm_quant/kernel/gemm_quant_kernel.hpp"
 #include "ck_tile/host.hpp"
 
 #include <hip/hip_runtime.h>
