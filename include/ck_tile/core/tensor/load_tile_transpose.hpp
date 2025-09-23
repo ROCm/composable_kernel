@@ -393,6 +393,7 @@ template <
     typename BottomTensorView_,
     typename WindowLengths_,
     typename TileDistribution_,
+    typename PartitoinIndex_,
     index_t NumCoord,
     typename Policy = DefaultTranspose<typename BottomTensorView_::DataType>,
     typename        = std::enable_if_t<TransposeTileDistrChecker<TileDistribution_,
@@ -403,14 +404,16 @@ CK_TILE_DEVICE auto
 load_tile_transpose(const tile_window_with_static_distribution<BottomTensorView_,
                                                                WindowLengths_,
                                                                TileDistribution_,
-                                                               NumCoord>& tile_window)
+                                                               PartitoinIndex_,
+                                                               NumCoord>& __restrict__ tile_window,
+                    index_t offset = 0)
 {
     using OutTileDstrEncode = typename OutputTileDistributionTraits<
         typename TileDistribution_::DstrEncode,
         typename BottomTensorView_::DataType>::TransposedDstrEncode;
     auto out_tensor = make_static_distributed_tensor<typename BottomTensorView_::DataType>(
         make_static_tile_distribution(OutTileDstrEncode{}));
-    auto trans_tensor           = tile_window.template load_transpose<Policy>();
+    auto trans_tensor           = tile_window.template load_transpose<Policy>(offset);
     constexpr auto input_distr  = TileDistribution_{};
     constexpr auto output_distr = make_static_tile_distribution(OutTileDstrEncode{});
 
