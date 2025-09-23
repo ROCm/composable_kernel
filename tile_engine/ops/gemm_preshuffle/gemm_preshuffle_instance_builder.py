@@ -762,7 +762,7 @@ def main():
     parser.add_argument(
         "--layout",
         required=True,
-        choices=["rcr", "rrr", "ccr", "crr"],
+        choices=["rcr"],
         help="Matrix layout",
     )
     parser.add_argument("--config_json", required=True, help="Configuration JSON file")
@@ -800,7 +800,7 @@ def main():
     assert len(layout_parts) == 3, (
         f"Invalid layout string: {args.layout} (must be 3 characters like 'rcr' where r stands for row major and c stands for column major)"
     )
-    assert layout_parts[0] in ["r", "c"] and layout_parts[1] in ["r", "c"], (
+    assert layout_parts[0] in ["r"] and layout_parts[1] in ["c"], (
         f"Invalid matrix_a layout : {layout_parts[0]} or matrix_b layout: {layout_parts[1]} (matrix_a must be 'r' for row major and matrix_b must be 'c' for column major as it is the only supported layout for preshuffle)"
     )
     assert layout_parts[2] == "r", (
