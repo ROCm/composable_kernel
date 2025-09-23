@@ -66,6 +66,7 @@ class TestCkTileGemmQuantBase : public ::testing::Test
         constexpr bool kPadN       = false;
         constexpr bool kPadK       = false;
         constexpr bool kPreshuffle = false;
+        constexpr bool PreshuffleB = false;
 
         using CodegenGemmShape =
             ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
@@ -78,6 +79,7 @@ class TestCkTileGemmQuantBase : public ::testing::Test
                                                                kPadN,
                                                                kPadK,
                                                                kPreshuffle,
+                                                               PreshuffleB,
                                                                ALayout,
                                                                BLayout,
                                                                CLayout,
