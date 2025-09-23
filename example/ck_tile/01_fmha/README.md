@@ -131,4 +131,4 @@ TBD
 ## FP8 experimental support
 As described in [this blog](https://blog.hippoml.com/8bit-hippoattention-up-to-3x-faster-compared-to-flashattentionv2-8f9def90b482), we have an experimental support for fp8 fmha kernels, you can evaluate the performance by setting the arg `-prec=fp8` to the `tile_example_fmha_fwd`, on a gfx942 machine and ROCm 6.0+.
 
-Currently we only support `-vlayout=c`( `hdim*seqlen` for V matrix) and `-squant=1`(static quantization) with `hdim=128` for fp8 now. Full feature support will come later.
+Currently we only support `-vlayout=r`( `seqlen*hdim` for V matrix)  for fp8 and fp8bf16 now. Full feature support will come later.

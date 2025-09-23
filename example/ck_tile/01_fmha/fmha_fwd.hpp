@@ -41,6 +41,10 @@ struct FmhaFwdFp8Bf16
 {
 };
 
+struct FmhaFwdFp8Fp32
+{
+};
+
 template <typename DataType>
 struct FmhaFwdTypeConfig;
 
@@ -106,6 +110,38 @@ struct FmhaFwdTypeConfig<FmhaFwdBf8>
     using PDataType             = ck_tile::bf8_t; // data type for A matrix of second gemm
     using OaccDataType          = float;          // data type for second gemm accumulation
     using ODataType             = ck_tile::bf8_t;
+};
+
+template <>
+struct FmhaFwdTypeConfig<FmhaFwdFp8Bf16>
+{
+    using QDataType             = ck_tile::fp8_t;
+    using KDataType             = ck_tile::fp8_t;
+    using VDataType             = ck_tile::fp8_t;
+    using BiasDataType          = float;
+    using RandValOutputDataType = uint8_t;
+    using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
+    using SaccDataType          = float; // data type for first gemm accumulation
+    using SMPLComputeDataType   = float; // data type for reduction, softmax
+    using PDataType             = ck_tile::fp8_t; // data type for A matrix of second gemm
+    using OaccDataType          = float;          // data type for second gemm accumulation
+    using ODataType             = ck_tile::bf16_t;
+};
+
+template <>
+struct FmhaFwdTypeConfig<FmhaFwdFp8Fp32>
+{
+    using QDataType             = ck_tile::fp8_t;
+    using KDataType             = ck_tile::fp8_t;
+    using VDataType             = ck_tile::fp8_t;
+    using BiasDataType          = float;
+    using RandValOutputDataType = uint8_t;
+    using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
+    using SaccDataType          = float; // data type for first gemm accumulation
+    using SMPLComputeDataType   = float; // data type for reduction, softmax
+    using PDataType             = ck_tile::fp8_t; // data type for A matrix of second gemm
+    using OaccDataType          = float;          // data type for second gemm accumulation
+    using ODataType             = float;
 };
 
 struct FmhaMasks

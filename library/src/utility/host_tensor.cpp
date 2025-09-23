@@ -41,7 +41,7 @@ std::ostream& operator<<(std::ostream& os, const HostTensorDescriptor& desc)
 
     os << "strides {";
     LogRange(os, desc.GetStrides(), ", ");
-    os << "}";
+    os << "} ";
 
     return os;
 }
