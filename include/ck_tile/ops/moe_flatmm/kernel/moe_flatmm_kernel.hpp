@@ -753,6 +753,7 @@ struct MoeFlatmmKernel
     template <class MoeFlatmmKernelArgs>
     CK_TILE_DEVICE void operator()(MoeFlatmmKernelArgs kargs) const
     {
+#if defined(__gfx950__)
         int partition_idx       = blockIdx.x;
         int total_work_tile_cnt = TilePartitioner::GridSize(kargs.M, kargs.N);
         do
@@ -763,6 +764,7 @@ struct MoeFlatmmKernel
             this->operator()(kargs, block_offset_m, block_offset_n);
             partition_idx += gridDim.x;
         } while(UsePersistentKernel && partition_idx < total_work_tile_cnt);
+#endif
     }
 
     template <class MoeFlatmmKernelArgs>
