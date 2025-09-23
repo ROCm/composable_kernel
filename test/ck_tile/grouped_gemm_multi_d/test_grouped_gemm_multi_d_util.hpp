@@ -60,7 +60,6 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
     static const ck_tile::index_t K_Warp_Tile = Config::K_Warp_Tile_;
 
     static constexpr bool DoubleSmemBuffer = Config::DoubleSmemBuffer_;
-    static constexpr auto Scheduler        = Config::Scheduler_;
     static constexpr PipelineType Pipeline = Config::Pipeline_;
     static constexpr bool TransposeC       = false; // transpose c is not supported
     static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
