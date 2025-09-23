@@ -129,18 +129,10 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
         {
 #ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
-                         is_same_v<OutDataType, float>)
+                         is_same_v<OutDataType, float> && is_same_v<AComputeType, float> &&
+                         is_same_v<BComputeType, float>)
             {
-                static_assert(is_same_v<AComputeType, BComputeType>,
-                              "Error: AComputeType and BComputeType should be the same");
-                if constexpr(is_same_v<AComputeType, TF32>)
-                {
-                    add_device_grouped_conv1d_fwd_xdl_gnwc_gkxc_gnwk_f32_tf32_instances(op_ptrs);
-                }
-                else
-                {
-                    add_device_grouped_conv1d_fwd_xdl_gnwc_gkxc_gnwk_f32_instances(op_ptrs);
-                }
+                add_device_grouped_conv1d_fwd_xdl_gnwc_gkxc_gnwk_f32_instances(op_ptrs);
             }
 #endif
 #ifdef CK_ENABLE_FP16
