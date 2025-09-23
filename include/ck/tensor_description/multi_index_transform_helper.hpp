@@ -94,6 +94,34 @@ __host__ __device__ constexpr auto make_unmerge_transform(
     return UnMerge<UpLengths, Use24BitIntegerCalculation>{up_lengths};
 }
 
+__host__ __device__ constexpr auto make_conv_bwd_data_out_transform(    index_t N, index_t Ho, index_t Wo, index_t K,
+    [[maybe_unused]] index_t YDot, index_t XDot,
+    index_t HTilde, index_t WTilde,
+    index_t ConvDilationH, index_t ConvDilationW,
+    index_t HTildeSlice, index_t WTildeSlice,
+    index_t YDotSlice, index_t XDotSlice,
+    index_t IHTildeSliceBegin, index_t IWTildeSliceBegin,
+    index_t GcdStrideDilationH, index_t GcdStrideDilationW,
+    index_t K0, index_t K1, index_t MPerBlock, index_t GemmKPerBlock)
+{
+    // Calculate padding
+    const auto MRaw = N * HTildeSlice * WTildeSlice;
+    const auto MPadded = math::integer_divide_ceil(MRaw, MPerBlock) * MPerBlock;
+    const auto MPad = MPadded - MRaw;
+    
+    const auto KRaw = YDotSlice * XDotSlice * K;
+    const auto KPadded = math::integer_divide_ceil(KRaw, GemmKPerBlock) * GemmKPerBlock;
+    const auto KPad = KPadded - KRaw;
+
+    return ConvBwdDataImplicitGemmOutTransform{     N,  Ho,  Wo,  K,
+    XDot,
+     HTilde,  WTilde, WTildeSlice,  HTildeSlice * WTildeSlice,
+     IHTildeSliceBegin,  IWTildeSliceBegin,
+     -ConvDilationH / GcdStrideDilationH, -ConvDilationW / GcdStrideDilationW,
+     XDotSlice * K,
+     K0,  MPadded,  K1, MPad, KPad};
+}
+
 template <typename LowerIndex>
 __host__ __device__ constexpr auto make_freeze_transform(const LowerIndex& low_idx)
 {

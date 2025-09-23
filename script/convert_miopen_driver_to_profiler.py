@@ -147,7 +147,7 @@ def run_ck_grouped_conv_bwd_weight(args):
     parse_data_type(args)
     parse_layouts(args)
     # Test all split K value from the list {1, 2, 4, 8, 32, 64, 128}
-    args.split_k_value = -1
+    args.split_k_value = "all"
 
     cmd = [str(args.ck_profiler_cmd), str(args.ck_profier_op)]
     cmd += [str(args.data_type), str(args.layout)]
