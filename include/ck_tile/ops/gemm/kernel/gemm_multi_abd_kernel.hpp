@@ -132,6 +132,10 @@ struct GemmKernelMultiABD
     static constexpr index_t NumBTensor = BsDataType::size();
     static constexpr index_t NumDTensor = DsDataType::size();
 
+    using ADataType = remove_cvref_t<std::tuple_element_t<0, AsDataType>>;
+    using BDataType = remove_cvref_t<std::tuple_element_t<0, BsDataType>>;
+    using DDataType = remove_cvref_t<std::tuple_element_t<0, DsDataType>>;
+
     CK_TILE_HOST static auto GetName() -> const std::string
     {
         return UniversalGemmKernel::GetName();
@@ -178,6 +182,14 @@ struct GemmKernelMultiABD
     {
         // Currently MultiABD kernel doesn't support k_batch > 1
         if(kargs.k_batch > 1)
+        {
+            return false;
+        }
+        // Currently MultiABD kernel doesn't support F8 data type
+        if(ck_tile::get_device_name() == "gfx950" &&
+           (std::is_same<ck_tile::fp8_t, ADataType>::value ||
+            std::is_same<ck_tile::fp8_t, BDataType>::value ||
+            std::is_same<ck_tile::fp8_t, DDataType>::value))
         {
             return false;
         }
