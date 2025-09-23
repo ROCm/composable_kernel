@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <ck_tile/builder/conv_builder.hpp>
+#include "testing_utils.hpp"
 
 namespace {
 
@@ -51,11 +52,15 @@ TEST(ConvBuilderGrpBwd2d, TestFirstExample)
         //     .thread_cluster_dims_b = {.k0 = 4, .n = 8, .k1 = 1}}
     };
     using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
-    EXPECT_EQ(Builder::Instance::TypeString(),
-              "DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1<64, 16, 64, 32, 8, 8, Default, "
-              "16, 16, 1, 4, 8, 8, 1, 1, "
-              "TransposeTransferInScalarPerVectorAligned: 1, "
-              "TransposeTransferOutScalarPerVectorAligned: 1>");
+
+    const std::string expected =
+        "DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1<64, 16, 64, 32, 8, 8, Default, "
+        "16, 16, 1, 4, 8, 8, 1, 1, "
+        "TransposeTransferInScalarPerVectorAligned: 1, "
+        "TransposeTransferOutScalarPerVectorAligned: 1>";
+
+    EXPECT_EQ(Builder::Instance::TypeString(), expected)
+       << ck_tile::test::formatInlineDiff(Builder::Instance::TypeString(), expected);
 }
 
 } // namespace

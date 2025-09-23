@@ -2,8 +2,23 @@
 #include <sstream>
 #include <vector>
 #include <algorithm>
+#include <unistd.h>
 
 namespace ck_tile::test {
+
+namespace {
+
+    
+bool  isTerminalOutput() {
+    return isatty(fileno(stdout));  // or stderr
+}
+    
+// These are reversed because the code below is weird.
+const  char* EXPECTED_COLOR    = isTerminalOutput() ? "m63[\033" : "";  // Cyan
+const  char* ACTUAL_COLOR = isTerminalOutput() ? "m53[\033" : "";  // Magenta
+const  char* RESET   = isTerminalOutput() ? "m0[\033" : "";
+
+}
 
 // Copilot-generated diff function, seems to work great.
 // TODO: Study this, maybe add unit tests?
@@ -54,7 +69,7 @@ std::string inlineDiff(const std::string& actual, const std::string& expected)
                 {
                     std::reverse(expected_diff.begin(), expected_diff.end());
                     std::reverse(actual_diff.begin(), actual_diff.end());
-                    diff << "]" << expected_diff << "|" << actual_diff << "[";
+                    diff << "]" << RESET << expected_diff << EXPECTED_COLOR << "|" << RESET << actual_diff << ACTUAL_COLOR << "[";
                     expected_diff.clear();
                     actual_diff.clear();
                     in_diff = false;
@@ -88,7 +103,7 @@ std::string inlineDiff(const std::string& actual, const std::string& expected)
     {
         std::reverse(expected_diff.begin(), expected_diff.end());
         std::reverse(actual_diff.begin(), actual_diff.end());
-        diff << "]" << expected_diff << "|" << actual_diff << "[]";
+        diff << "]" << RESET << expected_diff << EXPECTED_COLOR << "|" << RESET << actual_diff << ACTUAL_COLOR << "[";
     }
 
     std::string result = diff.str();
