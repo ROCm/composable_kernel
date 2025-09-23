@@ -402,7 +402,7 @@ struct tile_window_with_static_distribution
         const index_t m0_init_value =
             size_per_buf + size_per_wave * get_warp_id(/*ReturnSgpr=*/bool_constant<false>{});
         m0_set_with_memory(
-            __builtin_amdgcn_readfirstlane(m0_init_value)); // This should be wave independent
+            amd_wave_read_first_lane(m0_init_value)); // This should be wave independent
 
         using Traits = typename Base::Traits;
 

@@ -756,7 +756,7 @@ struct MoeSortingKernel
                                    void* smem) const
     {
         const index_t tid            = static_cast<index_t>(threadIdx.x);
-        const index_t wid            = __builtin_amdgcn_readfirstlane(tid / get_warp_size());
+        const index_t wid            = amd_wave_read_first_lane(tid / get_warp_size());
         const index_t lid            = __lane_id();
         constexpr index_t block_size = 256;           // blockDim.x;
         const index_t sub_tokens     = smem_rows - 2; // sub_tokens_mdiv.divisor;
