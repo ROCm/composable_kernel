@@ -136,19 +136,27 @@ bool profile_gemm_add_relu_add_layernorm_impl(int do_verification,
         return HostTensorDescriptor({len}, {stride});
     };
 
-    auto is_auto_stride = [](int s) { return s <= 0; };
+    auto f_host_tensor_descriptor2d = [](std::size_t row,
+                                         std::size_t col,
+                                         int& stride,
+                                         auto layout) {
+        using namespace ck::literals;
 
-    auto f_host_tensor_descriptor2d =
-        [is_auto_stride](std::size_t row, std::size_t col, int stride, auto layout) {
-            using namespace ck::literals;
-
-            auto strides = is_auto_stride(stride) ? std::vector<std::size_t>{}
-                           : is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value
-                               ? std::vector<std::size_t>({static_cast<std::size_t>(stride), 1_uz})
-                               : std::vector<std::size_t>({1_uz, static_cast<std::size_t>(stride)});
-
-            return HostTensorDescriptor({row, col}, strides, layout);
-        };
+        if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
+        {
+            auto desc = HostTensorDescriptor({row, col}, {static_cast<std::size_t>(stride), 1_uz});
+            if(stride <= 0)
+                stride = desc.GetStrides()[0];
+            return desc;
+        }
+        else
+        {
+            auto desc = HostTensorDescriptor({row, col}, {1_uz, static_cast<std::size_t>(stride)});
+            if(stride <= 0)
+                stride = desc.GetStrides()[1];
+            return desc;
+        }
+    };
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor2d(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor2d(K, N, StrideB, BLayout{}));
@@ -158,30 +166,6 @@ bool profile_gemm_add_relu_add_layernorm_impl(int do_verification,
     Tensor<BetaDataType> beta_n(f_host_tensor_descriptor1d(N, 1));
     Tensor<HDataType> h_m_n(f_host_tensor_descriptor2d(M, N, StrideH, HLayout{}));
     Tensor<HDataType> h_m_n_host(f_host_tensor_descriptor2d(M, N, StrideH, HLayout{}));
-
-    // If any user-provided leading stride <= 0, replace it with the one determined by the
-    // created tensor descriptor. For RowMajor the leading stride is index 0, for ColMajor index 1.
-    auto fetch_leading_stride = [](const auto& tensor, auto layout_tag) -> int {
-        if constexpr(std::is_same_v<decltype(layout_tag), ck::tensor_layout::gemm::RowMajor>)
-        {
-            return static_cast<int>(tensor.GetStrides()[0]);
-        }
-        else
-        {
-            return static_cast<int>(tensor.GetStrides()[1]);
-        }
-    };
-
-    if(StrideA <= 0)
-        StrideA = fetch_leading_stride(a_m_k, ALayout{});
-    if(StrideB <= 0)
-        StrideB = fetch_leading_stride(b_k_n, BLayout{});
-    if(StrideD0 <= 0)
-        StrideD0 = fetch_leading_stride(d0_m_n, D0Layout{});
-    if(StrideD1 <= 0)
-        StrideD1 = fetch_leading_stride(d1_m_n, D1Layout{});
-    if(StrideH <= 0)
-        StrideH = fetch_leading_stride(h_m_n_host, HLayout{});
 
     switch(init_method)
     {
