@@ -8,8 +8,8 @@
 #include "ck_tile/ops/elementwise.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
-#include "ck_tile/ops/epilogue/epilogue_chainer.hpp"
-#include "ck_tile/ops/epilogue/cshuffle_chained_epilogues.hpp"
+#include "ck_tile/ops/epilogue/chainer/epilogue_chainer.hpp"
+#include "ck_tile/ops/epilogue/chainer/cshuffle_chained_epilogues.hpp"
 
 #include <iostream>
 #include <memory>
@@ -44,7 +44,9 @@ __global__ void test_epilogue_chainer_kernel(typename Problem::ODataType* __rest
                                                             StoreToDramEpilogue<Problem>,
                                                             MoveWindowsEpilogue<Problem>>>;
 
-    using Epilogue = EpilogueChainer<InitEpilogue, MainEpilogues>;
+    using EpiloguePolicy_ = EpiloguePolicy<execution_mode_enum::in_loop,
+                                      sync_policy_enum::none>;                                                          
+    using Epilogue = EpilogueChainer<InitEpilogue, MainEpilogues, EpiloguePolicy_>;
 
     static_assert(Problem::kMPerBlock <= M && Problem::kNPerBlock <= N,
                   "Block size must fit in tensor dimensions");
@@ -103,20 +105,17 @@ __global__ void test_epilogue_chainer_kernel(typename Problem::ODataType* __rest
                        make_tuple(),                               // StoreToDramEpilogue args
                        make_tuple()                                // MoveWindowsEpilogue args
             );
-        auto final_args = make_tuple();
 
         Epilogue{}(output_tile_window,
                    acc_tile,
                    empty_ds,
                    smem,
                    init_args,
-                   main_args,
-                   final_args,
-                   std::true_type{});
+                   main_args);
     }
     else
     {
-        Epilogue{}(output_tile_window, acc_tile, empty_ds, smem, std::true_type{});
+        Epilogue{}(output_tile_window, acc_tile, empty_ds, smem);
     }
 }
 
