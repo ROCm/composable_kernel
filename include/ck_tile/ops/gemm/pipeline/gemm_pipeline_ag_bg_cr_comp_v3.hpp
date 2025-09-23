@@ -542,7 +542,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                 {
                     block_sync_lds();
 
-                    if constexpr(is_a_col_major)
+                    if constexpr(is_a_col_major && !is_a_load_tr_v())
                     {
                         auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                             Policy::template MakeShuffledARegTileDistribution<Problem>());
@@ -553,7 +553,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                     {
                         Base::LocalPrefill(a_copy_lds_window, elementwise_As_res);
                     }
-                    if constexpr(is_b_row_major)
+                    if constexpr(is_b_row_major && !is_b_load_tr_v())
                     {
                         auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
                             Policy::template MakeShuffledBRegTileDistribution<Problem>());
@@ -577,7 +577,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
                     block_sync_lds();
 
-                    block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+                    block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window, is_a_load_tr_v, is_b_load_tr_v);
                     HotLoopScheduler();
                     __builtin_amdgcn_sched_barrier(0);
 
