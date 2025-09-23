@@ -18,8 +18,10 @@
 
 namespace ck_tile {
 
-template <typename TileWindow_, index_t i_access = -1, bool oob_conditional_check = true>
-    requires std::is_class_v<TileWindow_>
+template <typename TileWindow_,
+          index_t i_access           = -1,
+          bool oob_conditional_check = true,
+          typename                   = std::enable_if_t<std::is_class_v<TileWindow_>>>
 CK_TILE_DEVICE auto load_tile(const TileWindow_& tile_window,
                               index_t offset,
                               number<i_access>                     = {},
@@ -28,8 +30,10 @@ CK_TILE_DEVICE auto load_tile(const TileWindow_& tile_window,
     return tile_window.load(offset, number<i_access>{}, bool_constant<oob_conditional_check>{});
 }
 
-template <typename TileWindow_, index_t i_access = -1, bool oob_conditional_check = true>
-    requires std::is_class_v<TileWindow_>
+template <typename TileWindow_,
+          index_t i_access           = -1,
+          bool oob_conditional_check = true,
+          typename                   = std::enable_if_t<std::is_class_v<TileWindow_>>>
 CK_TILE_DEVICE auto load_tile(const TileWindow_& tile_window,
                               number<i_access>                     = {},
                               bool_constant<oob_conditional_check> = {})
@@ -63,8 +67,9 @@ CK_TILE_DEVICE auto load_tile_with_elementwise(const TileWindow_& tile_window,
 template <typename DistributedTensor_,
           typename TileWindow_,
           index_t i_access           = -1,
-          bool oob_conditional_check = true>
-    requires std::is_class_v<DistributedTensor_> && std::is_class_v<TileWindow_>
+          bool oob_conditional_check = true,
+          typename =
+              std::enable_if_t<std::is_class_v<DistributedTensor_> && std::is_class_v<TileWindow_>>>
 CK_TILE_DEVICE auto load_tile(DistributedTensor_& dst_tile,
                               const TileWindow_& tile_window,
                               index_t offset,
@@ -78,8 +83,9 @@ CK_TILE_DEVICE auto load_tile(DistributedTensor_& dst_tile,
 template <typename DistributedTensor_,
           typename TileWindow_,
           index_t i_access           = -1,
-          bool oob_conditional_check = true>
-    requires std::is_class_v<DistributedTensor_> && std::is_class_v<TileWindow_>
+          bool oob_conditional_check = true,
+          typename =
+              std::enable_if_t<std::is_class_v<DistributedTensor_> && std::is_class_v<TileWindow_>>>
 CK_TILE_DEVICE auto load_tile(DistributedTensor_& dst_tile,
                               const TileWindow_& tile_window,
                               number<i_access>                     = {},
