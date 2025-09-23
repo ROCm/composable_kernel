@@ -305,8 +305,8 @@ struct QuantGroupedGemmKernel
     {
         const auto [iM, iN] = block_idx_2d;
 
-        const index_t i_m = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
-        const index_t i_n = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
+        const index_t i_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
+        const index_t i_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
 
         const typename Base::SplitKBatchOffset splitk_batch_offset(kargs, block_idx_z);
 

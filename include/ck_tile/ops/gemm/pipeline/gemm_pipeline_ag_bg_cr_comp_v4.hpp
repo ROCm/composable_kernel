@@ -487,7 +487,7 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
             if(HasHotLoop)
             {
                 // minus 2 because we have ping-pong double buffer.
-                index_t iCounter = amd_wave_read_first_lane(num_loop - 2);
+                index_t iCounter = __builtin_amdgcn_readfirstlane(num_loop - 2);
                 do
                 {
                     // ping
