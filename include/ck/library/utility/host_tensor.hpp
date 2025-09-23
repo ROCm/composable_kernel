@@ -123,6 +123,9 @@ auto construct_f_unpack_args(F, T args)
  * negative values) in the last two dimensions can be auto-calculated while preserving higher
  * dimension strides.
  *
+ * 4. **Bypass**: When using `BypassLayoutVerification` layout, no stride calculation or validation
+ * is performed. That allows to pass in any arbitrary strides including 0.
+ *
  * For more details see `CalculateStrides` method.
  *
  * @section layout_support Layout Support
@@ -277,6 +280,8 @@ struct HostTensorDescriptor
     template <typename Layout>
     void CalculateStrides(const Layout& layout)
     {
+        if constexpr(std::is_same_v<Layout, ck::tensor_layout::BypassLayoutVerification>)
+            return;
         // This is a workaround if the original stride value is -1 (which means "unknown") has been
         // passed in and casted to size_t (unsigned).
         auto strides_int = AsInt(mStrides);
