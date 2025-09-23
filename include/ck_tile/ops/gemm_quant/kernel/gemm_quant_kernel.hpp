@@ -270,34 +270,34 @@ struct QuantGemmKernel
                                      const std::size_t k_id = blockIdx.z)
         {
             constexpr auto K1   = TilePartitioner::BlockGemmShape::WarpTile::at(I2);
-            const index_t K_t   = __builtin_amdgcn_readfirstlane(kargs.k_batch * K1);
-            const index_t KRead = __builtin_amdgcn_readfirstlane((kargs.K + K_t - 1) / K_t * K1);
+            const index_t K_t   = amd_wave_read_first_lane(kargs.k_batch * K1);
+            const index_t KRead = amd_wave_read_first_lane((kargs.K + K_t - 1) / K_t * K1);
 
             if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, ALayout>)
             {
-                a_k_split_offset = __builtin_amdgcn_readfirstlane(k_id * KRead);
+                a_k_split_offset = amd_wave_read_first_lane(k_id * KRead);
             }
             else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, ALayout>)
             {
-                a_k_split_offset = __builtin_amdgcn_readfirstlane(k_id * KRead * kargs.stride_A);
+                a_k_split_offset = amd_wave_read_first_lane(k_id * KRead * kargs.stride_A);
             }
 
             if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
             {
-                b_k_split_offset = __builtin_amdgcn_readfirstlane(k_id * KRead * kargs.stride_B);
+                b_k_split_offset = amd_wave_read_first_lane(k_id * KRead * kargs.stride_B);
             }
             else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
             {
-                b_k_split_offset = __builtin_amdgcn_readfirstlane(k_id * KRead);
+                b_k_split_offset = amd_wave_read_first_lane(k_id * KRead);
             }
 
             if(k_id < static_cast<uint32_t>(kargs.k_batch - 1))
             {
-                splitted_k = __builtin_amdgcn_readfirstlane(KRead);
+                splitted_k = amd_wave_read_first_lane(KRead);
             }
             else
             {
-                splitted_k = __builtin_amdgcn_readfirstlane(kargs.K - KRead * (kargs.k_batch - 1));
+                splitted_k = amd_wave_read_first_lane(kargs.K - KRead * (kargs.k_batch - 1));
             }
         }
 
@@ -918,8 +918,8 @@ struct QuantGemmKernel
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
 
-        const index_t num_loop = __builtin_amdgcn_readfirstlane(
-            TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
+        const index_t num_loop =
+            amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
 
         // Run GEMM cooperatively by whole workgroup.
         const auto& a_block_window = gemm_tile_windows.at(I0);
@@ -981,10 +981,10 @@ struct QuantGemmKernel
 
     CK_TILE_DEVICE void operator()(QuantGemmKernelArgs kargs) const
     {
-        const auto blockId  = __builtin_amdgcn_readfirstlane(blockIdx.x);
+        const auto blockId  = amd_wave_read_first_lane(blockIdx.x);
         const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockId);
-        const index_t i_m   = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
-        const index_t i_n   = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
+        const index_t i_m   = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
+        const index_t i_n   = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
 
         const SplitKBatchOffset splitk_batch_offset(kargs);
         // options
