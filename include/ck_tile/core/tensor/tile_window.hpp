@@ -1020,20 +1020,24 @@ CK_TILE_DEVICE void move_tile_window(
 template <typename TensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
+          typename PartitionIndex_,
           index_t NumCoord>
 CK_TILE_DEVICE void move_tile_window(
     tuple<tile_window_with_static_distribution<TensorView_,
                                                WindowLengths_,
                                                StaticTileDistribution_,
+                                               PartitionIndex_,
                                                NumCoord>>& window,
     const typename tile_window_with_static_distribution<TensorView_,
                                                         WindowLengths_,
                                                         StaticTileDistribution_,
+                                                        PartitionIndex_,
                                                         NumCoord>::BottomTensorIndex& step)
 {
     using T = tuple<tile_window_with_static_distribution<TensorView_,
                                                          WindowLengths_,
                                                          StaticTileDistribution_,
+                                                         PartitionIndex_,
                                                          NumCoord>>;
 
     static constexpr auto N = T::size();
