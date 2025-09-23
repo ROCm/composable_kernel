@@ -155,7 +155,7 @@ struct GroupedGemmKernel
                       concat('x', P_::GetVectorSizeA(), P_::GetVectorSizeB(), P_::GetVectorSizeC()),
                       concat('x', P_::kPadM, P_::kPadN, P_::kPadK),
                       (UsePersistentKernel ? "Persistent" : "NonPersistent"),
-                      (NumDTensor_ == 2 ? "MultiD" : "SingleD"));
+                      (NumDTensor_ == 2 ? "MultiD" : "NoMultiD"));
         // clang-format on
     }
 

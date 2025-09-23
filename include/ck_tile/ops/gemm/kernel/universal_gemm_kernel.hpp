@@ -320,9 +320,6 @@ struct UniversalGemmKernel
     {
         return max(GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
     }
-
-    // using KernelArgs = UniversalGemmKernelArgs<AsLayout::size(), BsLayout::size(),
-    // DsLayout::size()>;
     struct SplitKBatchOffset
     {
         __device__ SplitKBatchOffset(const KernelArgs& kargs, const std::size_t k_id = blockIdx.z)
