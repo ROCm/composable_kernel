@@ -16,6 +16,7 @@ namespace instance {
 // aliasing, for commonly used data type
 using F64  = double;
 using F32  = float;
+using TF32 = ck::tf32_t;
 using F16  = ck::half_t;
 using BF16 = ck::bhalf_t;
 using I8   = int8_t;
@@ -54,6 +55,7 @@ using MFMA = ck::tensor_layout::gemm::MFMA;
 
 using Row_Tuple     = ck::Tuple<Row>;
 using Row_Row_Tuple = ck::Tuple<Row, Row>;
+using Row_Col_Tuple = ck::Tuple<Row, Col>;
 
 // Conv layout
 //

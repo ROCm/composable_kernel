@@ -2,7 +2,7 @@
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 #include <type_traits>
-#include "json_dump.hpp"
+#include "ck_tile/utility/json_dump.hpp"
 template <typename T>
 constexpr const char* DataTypeToString()
 {
@@ -43,15 +43,40 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t)
     int n_ = t.get_lengths()[1];
     int k_ = t.get_lengths()[0];
 
-    int divisor = ck_tile::is_wave32() ? (FlatmmConfig::N_Warp_Tile == 32 ? 1 : 2)
-                                       : (FlatmmConfig::N_Warp_Tile == 32 ? 2 : 4);
-    ck_tile::HostTensor<T> t_view({n_ / FlatmmConfig::N_Warp_Tile,
-                                   FlatmmConfig::N_Warp_Tile,
-                                   k_ / FlatmmConfig::K_Warp_Tile,
-                                   divisor,
-                                   FlatmmConfig::K_Warp_Tile / divisor});
-    std::copy(t.begin(), t.end(), t_view.begin());
-    return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
+    if(ck_tile::is_gfx12_supported())
+    {
+        constexpr int divisor      = 2;
+        constexpr int kABK1PerLane = 8;
+        constexpr int kABK0PerLane = FlatmmConfig::K_Warp_Tile / divisor / kABK1PerLane;
+        ck_tile::HostTensor<T> t_view({n_ / FlatmmConfig::N_Warp_Tile,
+                                       FlatmmConfig::N_Warp_Tile,
+                                       k_ / FlatmmConfig::K_Warp_Tile,
+                                       kABK0PerLane,
+                                       divisor,
+                                       kABK1PerLane});
+        std::copy(t.begin(), t.end(), t_view.begin());
+        return ck_tile::reference_permute(t_view, {0, 2, 4, 1, 3, 5});
+    }
+    else
+    {
+        int divisor = 1;
+        if(ck_tile::is_gfx11_supported())
+        {
+            divisor = 1;
+        }
+        else
+        {
+            assert(is_wave32() == false);
+            divisor = FlatmmConfig::N_Warp_Tile == 32 ? 2 : 4;
+        }
+        ck_tile::HostTensor<T> t_view({n_ / FlatmmConfig::N_Warp_Tile,
+                                       FlatmmConfig::N_Warp_Tile,
+                                       k_ / FlatmmConfig::K_Warp_Tile,
+                                       divisor,
+                                       FlatmmConfig::K_Warp_Tile / divisor});
+        std::copy(t.begin(), t.end(), t_view.begin());
+        return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
+    }
 }
 
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>

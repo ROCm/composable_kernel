@@ -12,7 +12,7 @@
 
 #include "batched_transpose_example.hpp"
 
-#include "json_dump.hpp"
+#include "ck_tile/utility/json_dump.hpp"
 #if 0
 template <typename T>
 void dump_host_tensor_4d(const ck_tile::HostTensor<T>& x)

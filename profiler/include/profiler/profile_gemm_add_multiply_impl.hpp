@@ -35,7 +35,7 @@ template <typename ADataType,
           typename ELayout>
 bool profile_gemm_add_multiply_impl(int do_verification,
                                     int init_method,
-                                    bool /*do_log*/,
+                                    bool do_log,
                                     bool time_kernel,
                                     int M,
                                     int N,
@@ -222,6 +222,17 @@ bool profile_gemm_add_multiply_impl(int do_verification,
             if(do_verification)
             {
                 e_device_buf.FromDevice(e_m_n_device_result.mData.data());
+
+                if(do_log)
+                {
+                    LogRangeAsType<float>(
+                        std::cout << "e_m_n_device_result: ", e_m_n_device_result.mData, ",")
+                        << std::endl;
+
+                    LogRangeAsType<float>(
+                        std::cout << "e_m_n_host_result: ", e_m_n_host_result.mData, ",")
+                        << std::endl;
+                }
 
                 pass = pass && ck::utils::check_err(e_m_n_device_result, e_m_n_host_result);
             }

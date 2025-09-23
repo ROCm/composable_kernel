@@ -1,3 +1,6 @@
+// Copyright © Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
 #include <algorithm>
 #include <cstring>
 #include <unordered_set>
@@ -5,7 +8,7 @@
 #include <set>
 
 #include "ck_tile/host.hpp"
-#include "json_dump.hpp"
+#include "ck_tile/utility/json_dump.hpp"
 #include "fused_moe.hpp"
 
 // different threshold for different dtype

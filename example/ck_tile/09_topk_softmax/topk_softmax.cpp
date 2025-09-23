@@ -13,7 +13,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/reduce.hpp"
 #include "topk_softmax_api.hpp"
-#include "json_dump.hpp"
+#include "ck_tile/utility/json_dump.hpp"
 
 #if 0
 template <typename T>

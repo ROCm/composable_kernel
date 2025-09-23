@@ -1,6 +1,6 @@
 #include "ck_tile/host.hpp"
 #include "smoothquant.hpp"
-#include "json_dump.hpp"
+#include "ck_tile/utility/json_dump.hpp"
 #include <cstring>
 
 // different threshold for different dtype
