@@ -137,8 +137,8 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
 
-            float avg_time =
-                invoker_ptr->Run(argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+            float avg_time = invoker_ptr->Run(argument_ptr.get(),
+                                              StreamConfig{nullptr, time_kernel, 0, 500, 100});
 
             std::size_t flop      = conv_param.GetFlops();
             std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
@@ -185,11 +185,17 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
                 // Use higher threshold
                 rtol = std::max(rtol, rtol_split_k);
                 atol = std::max(atol, atol_split_k);
-
-                pass &= ck::utils::check_err(
-                    in_device, in_host, "Error: Incorrect results!", rtol, atol);
-                std::cout << "Relative error threshold: " << rtol
-                          << " Absolute error threshold: " << atol << std::endl;
+                if(split_k_for_run > 1)
+                {
+                    pass &= ck::utils::check_err(
+                        in_device, in_host, "Error: Incorrect results!", rtol, atol);
+                    std::cout << "Relative error threshold: " << rtol
+                              << " Absolute error threshold: " << atol << std::endl;
+                }
+                else
+                {
+                    pass &= ck::utils::check_err(in_device, in_host, "Error: Incorrect results!");
+                }
 
                 if(do_log)
                 {
