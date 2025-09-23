@@ -28,7 +28,11 @@ The Composable Kernel repository is located at `https://github.com/ROCm/composab
 
   .. grid-item-card:: Tutorials
 
+    * :doc:`Composable Kernel basics <./tutorial/Basics-examples>`
+    * :doc:`Composable Kernel GEMM examples <./tutorial/GEMM-examples>`
+    * :doc:`Composable Kernel MOE examples <./tutorial/MOE-examples>`
     * :doc:`Composable Kernel examples and tests <./tutorial/Composable-Kernel-examples>`
+
 
   .. grid-item-card:: Reference
 
