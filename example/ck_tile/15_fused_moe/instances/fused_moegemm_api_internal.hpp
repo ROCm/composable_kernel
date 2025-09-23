@@ -52,7 +52,7 @@ float fused_moegemm_(const ck_tile::stream_config& s, fused_moegemm_args a)
     using f_partitioner = ck_tile::FusedMoeGemmTilePartitioner_Linear<f_shape>;
     using f_kernel      = ck_tile::FusedMoeGemmKernel<f_partitioner, f_pipeline, void>;
 
-    const dim3 grids                       = f_kernel::GridSize(a);
+    const dim3 grids                       = dim3(1, 1, 1); //f_kernel::GridSize(a);
     const dim3 blocks                      = f_kernel::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = 1;
 
