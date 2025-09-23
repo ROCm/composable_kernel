@@ -276,10 +276,18 @@ struct BlockFmhaPipelineQRKSVSAsync
 
         __builtin_amdgcn_sched_barrier(0);
         const auto q_origin = q_dram_window.get_window_origin();
-        const auto [seqlen_k_start, seqlen_k_end] =
-            mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
+        // const auto [seqlen_k_start, seqlen_k_end] =
+        //     mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
 
-        const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
+        // const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
+        const auto sink_seq_start = 0;
+        const auto [sink_seq_end, seqlen_k_start, seqlen_k_end] =
+            mask.GetSinkTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
+
+        const auto kv_load_start = (sink_seq_end == 0 && seqlen_k_start > 0) ? seqlen_k_start : 0;
+        const auto num_sink_loop = integer_divide_ceil(sink_seq_end - sink_seq_start, kN0);
+        const auto num_total_loop =
+            integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0) + num_sink_loop;
 
         // check early exit if no work to do
         if constexpr(FmhaMask::IsMasking || kPadSeqLenK)
@@ -307,7 +315,7 @@ struct BlockFmhaPipelineQRKSVSAsync
         auto k_dram_block_window =
             make_tile_window(k_dram_block_window_tmp.get_bottom_tensor_view(),
                              k_dram_block_window_tmp.get_window_lengths(),
-                             {seqlen_k_start, 0});
+                             {kv_load_start, 0});
 
         auto k_dram_window = make_tile_window(
             k_dram_block_window.get_bottom_tensor_view(),
@@ -330,16 +338,16 @@ struct BlockFmhaPipelineQRKSVSAsync
         auto bias_dram_window =
             make_tile_window(bias_dram_block_window_tmp.get_bottom_tensor_view(),
                              bias_dram_block_window_tmp.get_window_lengths(),
-                             {bias_origin.at(number<0>{}), seqlen_k_start}, // M/N
+                             {bias_origin.at(number<0>{}), kv_load_start}, // M/N
                              Policy::template MakeBiasDramTileDistribution<decltype(gemm_0)>());
 
         auto randval_dram_window = dropout.template MakeRandvalDramWindow<decltype(gemm_0)>(
-            randval_dram_block_window_tmp, seqlen_k_start);
+            randval_dram_block_window_tmp, kv_load_start);
 
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp.get_bottom_tensor_view(),
                              v_dram_block_window_tmp.get_window_lengths(),
-                             {0, seqlen_k_start}, // TODO: hdim split?
+                             {0, kv_load_start}, // TODO: hdim split?
                              Policy::template MakeVDramTileDistribution<Problem>());
 
         // prefetch K tile
@@ -476,7 +484,10 @@ struct BlockFmhaPipelineQRKSVSAsync
 #endif
                 }
             }
-            move_tile_window(bias_dram_window, {0, kN0});
+            // move_tile_window(bias_dram_window, {0, kN0});
+            const bool is_sink = ((num_sink_loop - 1) == i_total_loops);
+            move_tile_window(bias_dram_window,
+                             {0, is_sink ? seqlen_k_start - sink_seq_end + kN0 : kN0});
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
                 const auto k_origin      = k_dram_block_window.get_window_origin();
@@ -643,13 +654,41 @@ struct BlockFmhaPipelineQRKSVSAsync
 
             if constexpr(kHasDropout)
             {
-                auto randval_ptr =
-                    reinterpret_cast<char*>(smem_ptr) + Policy::template GetSmemSizeKV<Problem>();
-                dropout.template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
-                    randval_ptr,
-                    seqlen_k_start + i_total_loops * kN0,
-                    p_compute,
-                    randval_dram_window);
+                // auto randval_ptr =
+                //     reinterpret_cast<char*>(smem_ptr) + Policy::template
+                //     GetSmemSizeKV<Problem>();
+                // dropout.template Run<decltype(gemm_0), SMPLComputeDataType,
+                // RandValOutputDataType>(
+                //     randval_ptr,
+                //     seqlen_k_start + i_total_loops * kN0,
+                //     p_compute,
+                //     randval_dram_window);
+                if(num_sink_loop > i_total_loops) // sink
+                {
+                    auto randval_ptr = reinterpret_cast<char*>(smem_ptr) +
+                                       Policy::template GetSmemSizeKV<Problem>();
+                    dropout
+                        .template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
+                            randval_ptr,
+                            kv_load_start + i_total_loops * kN0,
+                            p_compute,
+                            randval_dram_window);
+                }
+                else
+                {
+                    const bool is_randval_move =
+                        (num_sink_loop != 0 && i_total_loops == num_sink_loop);
+                    if(is_randval_move)
+                        move_tile_window(randval_dram_window, {0, seqlen_k_start - sink_seq_end});
+                    auto randval_ptr = reinterpret_cast<char*>(smem_ptr) +
+                                       Policy::template GetSmemSizeKV<Problem>();
+                    dropout
+                        .template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
+                            randval_ptr,
+                            seqlen_k_start + (i_total_loops - num_sink_loop) * kN0,
+                            p_compute,
+                            randval_dram_window);
+                }
             }
 
             const auto p = [&]() {
@@ -716,7 +755,10 @@ struct BlockFmhaPipelineQRKSVSAsync
             if(i_total_loops < num_total_loop)
             {
                 // move K tile windows
-                move_tile_window(k_dram_block_window, {kN0, 0});
+                // move_tile_window(k_dram_block_window, {kN0, 0});
+                move_tile_window(k_dram_block_window,
+                                 {is_sink ? seqlen_k_start - sink_seq_end + kN0 : kN0, 0});
+                move_tile_window(v_dram_window, {0, is_sink ? seqlen_k_start - sink_seq_end : 0});
                 k_dram_window.set_window_origin(k_dram_block_window.get_window_origin());
 
                 if constexpr(k1_loops >= 2 &&

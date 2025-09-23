@@ -1422,54 +1422,56 @@ fwd_result fmha_fwd_run(mode_enum mode,
                     s_host_ref, alibi_bias_host_ref, s_host_ref);
             }
 
-        if(mask.type == mask_enum::no_mask)
-        {
-            ck_tile::reference_batched_masking<SaccDataType>(
-                s_host_ref, FmhaMasks::NoMask{real_seqlen_q, real_seqlen_k});
-        }
-        else if(mask.type == mask_enum::window_generic)
-        {
-            ck_tile::reference_batched_masking<SaccDataType>(
-                s_host_ref,
-                ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
-                    mask.left, mask.right, mask.sink, real_seqlen_q, real_seqlen_k));
-        }
-        else
-        {
-            // if left window size is negative, means causal
-            // else means generic (for current batch)
-            if(mask.left < 0)
+            if(mask.type == mask_enum::no_mask)
+            {
                 ck_tile::reference_batched_masking<SaccDataType>(
-                    s_host_ref,
-                    ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::CausalMask>(
-                        mask.left,
-                        mask.right,
-                        mask.sink,
-                        real_seqlen_q,
-                        real_seqlen_k,
-                        mask.type == mask_enum::mask_top_left));
-            else
+                    s_host_ref, FmhaMasks::NoMask{real_seqlen_q, real_seqlen_k});
+            }
+            else if(mask.type == mask_enum::window_generic)
+            {
                 ck_tile::reference_batched_masking<SaccDataType>(
                     s_host_ref,
                     ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
-                        mask.left,
-                        mask.right,
-                        mask.sink,
-                        real_seqlen_q,
-                        real_seqlen_k,
-                        mask.type == mask_enum::mask_top_left));
-        }
-        const ck_tile::HostTensor<SaccDataType> masked_s_host_ref = s_host_ref;
-        if(lse)
-        {
-            ck_tile::reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(
-                s_host_ref, p_host_ref, p_compute_element_func, lse_host_ref);
-        }
-        else
-        {
-            ck_tile::reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(
-                s_host_ref, p_host_ref, p_compute_element_func);
-        }
+                        mask.left, mask.right, mask.sink, real_seqlen_q, real_seqlen_k));
+            }
+            else
+            {
+                // if left window size is negative, means causal
+                // else means generic (for current batch)
+                if(mask.left < 0)
+                    ck_tile::reference_batched_masking<SaccDataType>(
+                        s_host_ref,
+                        ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::CausalMask>(
+                            mask.left,
+                            mask.right,
+                            mask.sink,
+                            real_seqlen_q,
+                            real_seqlen_k,
+                            mask.type == mask_enum::mask_top_left));
+                else
+                    ck_tile::reference_batched_masking<SaccDataType>(
+                        s_host_ref,
+                        ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
+                            mask.left,
+                            mask.right,
+                            mask.sink,
+                            real_seqlen_q,
+                            real_seqlen_k,
+                            mask.type == mask_enum::mask_top_left));
+            }
+            const ck_tile::HostTensor<SaccDataType> masked_s_host_ref = s_host_ref;
+            if(lse)
+            {
+                ck_tile::
+                    reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(
+                        s_host_ref, p_host_ref, p_compute_element_func, lse_host_ref);
+            }
+            else
+            {
+                ck_tile::
+                    reference_batched_softmax<SMPLComputeDataType, SMPLComputeDataType, PDataType>(
+                        s_host_ref, p_host_ref, p_compute_element_func);
+            }
 
             if(p_drop > 0)
             {
