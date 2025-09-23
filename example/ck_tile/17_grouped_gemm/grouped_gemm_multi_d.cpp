@@ -174,6 +174,7 @@ int main(int argc, char* argv[])
     return !run_grouped_gemm_multi_d_example<GemmConfigV3_Wmma>(argc, argv);
 #else
     return !run_grouped_gemm_multi_d_example<GemmConfigV3>(argc, argv) ||
-           !run_grouped_gemm_multi_d_example<GemmConfigMemory>(argc, argv);
+           !run_grouped_gemm_multi_d_example<GemmConfigMemory>(argc, argv) ||
+           !run_grouped_gemm_multi_d_example<GemmConfigV4>(argc, argv);
 #endif
 }

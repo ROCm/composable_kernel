@@ -155,7 +155,8 @@ struct GroupedGemmKernel
                       concat('x', P_::GetVectorSizeA(), P_::GetVectorSizeB(), P_::GetVectorSizeC()),
                       concat('x', P_::kPadM, P_::kPadN, P_::kPadK),
                       (UsePersistentKernel ? "Persistent" : "NonPersistent"),
-                      (NumDTensor_ == 2 ? "MultiD" : "NoMultiD"));
+                      (NumDTensor_ == 2 ? "MultiD" : "NoMultiD"),
+                      (GemmPipeline::DoubleSmemBuffer ? "DoubleSmemBuffer" : "SingleSmemBuffer"));
         // clang-format on
     }
 
@@ -289,10 +290,6 @@ struct GroupedGemmKernel
         static_assert(GemmPipeline::DoubleSmemBuffer || !GemmPipeline::Preshuffle,
                       "SingleSmemBuffer and Preshuffle cannot both be enabled simultaneously!");
 
-        // static assert that if NumDTensor_ is 2 then it must not be DoubleSmemBuffer
-        static_assert(NumDTensor_ != 2 || GemmPipeline::DoubleSmemBuffer == false,
-                      "If NumDTensor_ is 2, then DoubleSmemBuffer must be false");
-
         const auto [iM, iN] = block_idx_2d;
 
         const index_t i_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
@@ -315,8 +312,17 @@ struct GroupedGemmKernel
         {
 
             __shared__ char smem_ptr_1[GetSmemSize()];
-            RunGemmWithPipelineSelection2LDS(
-                a_ptr, b_ptr, c_ptr, smem_ptr_0, smem_ptr_1, kargs, splitk_batch_offset, i_m, i_n);
+
+            RunGemmWithPipelineSelection2LDS(a_ptr,
+                                             b_ptr,
+                                             c_ptr,
+                                             kargs.ds_ptr,
+                                             smem_ptr_0,
+                                             smem_ptr_1,
+                                             kargs,
+                                             splitk_batch_offset,
+                                             i_m,
+                                             i_n);
         }
         else // SingleSmemBuffer
         {
@@ -420,9 +426,10 @@ struct GroupedGemmKernel
     RunGemmWithPipelineSelection2LDS(const ADataType* a_ptr,
                                      const BDataType* b_ptr,
                                      CDataType* c_ptr,
+                                     const std::array<const void*, NumDTensor_>& ds_ptr,
                                      void* __restrict__ smem_ptr_0,
                                      void* __restrict__ smem_ptr_1,
-                                     const UniversalGemmKernelArgs<>& kargs,
+                                     const UniversalGemmKernelArgs<1, 1, NumDTensor_>& kargs,
                                      const typename Base::SplitKBatchOffset& splitk_batch_offset,
                                      const index_t block_idx_m,
                                      const index_t block_idx_n)
@@ -430,7 +437,7 @@ struct GroupedGemmKernel
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
             Base::template MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                {a_ptr}, {b_ptr}, {/*ds_ptr*/}, c_ptr, kargs, splitk_batch_offset.splitted_k);
+                {a_ptr}, {b_ptr}, ds_ptr, c_ptr, kargs, splitk_batch_offset.splitted_k);
 
         const auto& gemm_pad_views = Base::MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows =
