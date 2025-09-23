@@ -289,13 +289,17 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
     {
         using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
-        using WarpGemm   = WarpGemmDispatcher<typename Problem::ADataType,
-                                              typename Problem::BDataType,
-                                              typename Problem::CDataType,
-                                              WarpTile::at(I0),
-                                              WarpTile::at(I1),
-                                              WarpTile::at(I2),
-                                              Problem::TransposeC>;
+        using BTypeToUse =
+            std::conditional_t<std::is_same_v<typename Problem::BDataType, ck_tile::pk_int4_t>,
+                               typename Problem::ADataType,
+                               typename Problem::BDataType>;
+        using WarpGemm = WarpGemmDispatcher<typename Problem::ADataType,
+                                            BTypeToUse,
+                                            typename Problem::CDataType,
+                                            WarpTile::at(I0),
+                                            WarpTile::at(I1),
+                                            WarpTile::at(I2),
+                                            Problem::TransposeC>;
 
         using BlockWeightPreshufflePolicy =
             BlockWeightPreshuffleASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,

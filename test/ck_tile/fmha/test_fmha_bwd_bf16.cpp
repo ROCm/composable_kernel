@@ -16,6 +16,6 @@ const auto HDimValues =
 
 const auto ModeValues = Values(mode_enum::batch, mode_enum::group);
 
-constexpr std::string init_method = "uf";
+constexpr auto init_method = "uf";
 
 #include "test_fmha_bwd.inc"
