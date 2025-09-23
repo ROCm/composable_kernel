@@ -484,7 +484,7 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
             elementwise_Bs_res = load_tile_with_elementwise(b_tile_windows, b_element_func);
             move_tile_window(b_tile_windows, b_dram_tile_window_step);
 
-            if(HasHotLoop)
+            if constexpr(HasHotLoop)
             {
                 // minus 2 because we have ping-pong double buffer.
                 index_t iCounter = amd_wave_read_first_lane(num_loop - 2);
