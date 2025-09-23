@@ -215,10 +215,10 @@ int run(const std::string& in_layout,
     // {
     //     return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 4>(in_layout, wei_layout, out_layout, argc, argv);
     // }
-    // else if (num_groups_to_merge == 8)
-    // {
-    //     return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8>(in_layout, wei_layout, out_layout, argc, argv);
-    // }
+    else if (num_groups_to_merge == 8)
+    {
+        return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8>(in_layout, wei_layout, out_layout, argc, argv);
+    }
     // else if (num_groups_to_merge == 16)
     // {
     //     return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 16>(in_layout, wei_layout, out_layout, argc, argv);
@@ -231,11 +231,6 @@ int run(const std::string& in_layout,
     // {
     //     return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 64>(in_layout, wei_layout, out_layout, argc, argv);
     // }
-
-    else if (num_groups_to_merge == 8)
-    {
-        return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8>(in_layout, wei_layout, out_layout, argc, argv);
-    }
     else
     {
         throw std::runtime_error("Unsupported number of groups to merge! The number of groups should be a power of two and at most 64.");

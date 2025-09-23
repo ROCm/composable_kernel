@@ -274,23 +274,48 @@ struct CShuffleEpilogue
                                    void* p_smem)
 
     {
-        //if constexpr (NumGroupsToMerge > 1)
-        //{
+        if constexpr (NumGroupsToMerge > 1)
+        {
             // When NumGroupsToMerge > 1, we want to write out only the diagonal blocks.
             // Hence, we configure the shuffle such that it iterates one merge group block at a time.
             return merged_op(out_dram_window, o_acc_tile, ds_dram_windows, p_smem);
-        //}
-        //else
-        //{
+        }
+        else
+        {
             // When NumGroupsToMerge == 1, we want to write out all the blocks.
-        //    return unmerged_op(out_dram_window, o_acc_tile, ds_dram_windows, p_smem);
-        //}
+            return unmerged_op(out_dram_window, o_acc_tile, ds_dram_windows, p_smem);
+        }
+    }
+
+    template <typename DataType, typename StaticTileDistribution>
+    CK_TILE_DEVICE void print_tensor_matrix_format(
+        const static_distributed_tensor<DataType, StaticTileDistribution>& tensor,
+        const char* name = "tensor_matrix")
+    {
+        const auto spans = tensor.get_distributed_spans();
+        //static_assert(spans.size() == 2, "This function is for 2D tensors only");
+        
+        const auto dim0_span = spans[number<0>{}];
+        const auto dim1_span = spans[number<1>{}];
+        
+        printf("%s matrix format:\n", name);
+        
+        sweep_tile_span(dim0_span, [&](auto row) {
+            printf("  ");
+            sweep_tile_span(dim1_span, [&](auto col) {
+                constexpr auto distributed_indices = make_tuple(row, col);
+                const auto value = tensor[distributed_indices];
+                printf("%.7f ", static_cast<float>(value));
+            });
+            printf("\n");
+        });
+        printf("\n");
     }
 
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows>
-    CK_TILE_DEVICE auto merged_op(ODramWindow& out_dram_window,
+    CK_TILE_DEVICE auto merged_op(ODramWindow&, //out_dram_window,
                                    const OAccTile& o_acc_tile,
-                                   const DsDramWindows& ds_dram_windows,
+                                   const DsDramWindows&, //ds_dram_windows,
                                    void* p_smem)
     {
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
@@ -358,20 +383,43 @@ struct CShuffleEpilogue
         });
         block_sync_lds();
 
+#if 0
         // Set-up LDS to global memory copy.
         // We copy only the diagonal blocks from LDS to global memory.
-        // Hence, we must configure the tile distrinbution and SFCs to work
+        // Hence, we must configure the tile distrinbution
         // on the group size blocks.
         constexpr index_t MPerGroup = kMPerBlock / NumGroupsToMerge;
         constexpr index_t NPerGroup = kNPerBlock / NumGroupsToMerge;
+        //constexpr index_t NumThreads = get_total_number_of_threads(LdsTileDistr.get_static_tile_distribution_encoding());
+
+        // TODO: Remove this debug assert
+        //static_assert(NumThreads == 256, "NumThreads must be 256.");
 
         // TODO: Within the subtile, we have column-major data layout.
-        constexpr auto dram_tile_encoding = tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<MPerGroup, 1>, sequence<NPerGroup,1>>,
-                                       tuple<sequence<1>, sequence<2>>,
-                                       tuple<sequence<0>, sequence<0>>, 
-                                       sequence<1, 2>,
-                                       sequence<1, 1>>{};
+
+        // TODO: This is hard-coded for a specific MPerBlock, NPerBlock, NumGroupsToMerge case.
+        // P0 <-> (M_warps, N_warps), P1 <-> (M_threads, N_threads)
+        // Y-dim which axis to iterater over
+        // constexpr dram_tile_encoding = tile_distribution_encoding<
+        //     sequence<>,
+        //     tuple<sequence<1, 8, 1, 1>,      		// H0 <-> M-dim: break into 8 warps, one warp per row.
+        //           sequence<1, 1, 32, 4>>,    		// H1 <-> N-dim: 32 threads per warp, 4 elements per thread
+        //     tuple<sequence<1,2>, sequence<1,2>>,    // P0 -> (H0(1)=8, H2(1) = 1) and P1 -> (H0(2)=1, H1(2)=32)
+        //     tuple<sequence<1,1>, sequence<2,2>>,    
+        //     sequence<1, 1, 2, 2>,                   // Y0 -> H0(0) = 1, Y1 -> H0(3) = 1, Y2 -> H1(0) = 1, Y3 -> H1(3) = 4 
+        //     sequence<0, 3, 0, 3>>{};
+
+        // constexpr index_t NumThreadsDram = get_total_number_of_threads(dram_tile_encoding);
+        // static_assert(NumThreadsDram == NumThreads, "NumThreadsDram must be equal to NumThreads.");
+    
+        constexpr auto dram_tile_encoding = tile_distribution_encoding<
+            sequence<>,
+            tuple<sequence<1, 1, 8, 1>, 
+                sequence<1, 1, 8, 16>>,
+            tuple<sequence<1,2>, sequence<1,2>>,
+            tuple<sequence<1,1>, sequence<2,2>>, 
+            sequence<1, 1, 2, 2>, 
+            sequence<0, 3, 0, 3>>{};
 
         constexpr auto dram_tile_distribution = make_static_tile_distribution(dram_tile_encoding);
 
@@ -381,55 +429,61 @@ struct CShuffleEpilogue
             },
             number<NumDTensor>{});
 
-        static_for<0, NumGroupsToMerge, 1>{}
-        (
-            [&](auto group)
+        auto current_lds_window = make_tile_window(
+            o_lds_block,
+            make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
+            {0, 0},
+            dram_tile_distribution);
+
+        block_sync_lds();
+
+        // Calculate which block in the Gm x Gm space we are located at.
+        auto get_block_number = [&]() -> ck_tile::tuple<index_t, index_t>
+        {
+            const auto x_space_coord = dram_tile_distribution.calculate_index();
+            const index_t m_block = x_space_coord[0] / MPerGroup;
+            const index_t n_block = x_space_coord[1] / NPerGroup;
+            return make_tuple(m_block, n_block);      
+        };
+
+        auto mask = [&]() -> bool 
+        {
+            // Return true only for the diagonal blocks.
+            const auto blockId = get_block_number();
+            return blockId[number<0>{}] == blockId[number<1>{}];
+        };
+
+        if (mask())
+        {
+            // Load static_distributed_tensor from LDS.
+            auto c_out_tensor = load_tile(current_lds_window);
+
+            if (threadIdx.x == 0 && blockIdx.x == 0)
             {
-                // Create LDS window at the correct diagonal position for this group
-                constexpr auto lds_start_m = group * number<MPerGroup>{};
-                constexpr auto lds_start_n = group * number<NPerGroup>{};
-                
-                auto current_lds_window = make_tile_window(
-                    o_lds_block,
-                    make_tuple(number<MPerGroup>{}, number<NPerGroup>{}),
-                    {lds_start_m, lds_start_n},
-                    dram_tile_distribution);
-
-                block_sync_lds();
-                auto c_out_tensor = load_tile(current_lds_window);
-                    //make_tile_window(current_lds_window, dram_tile_distribution));
-
-                const auto ds_tensor = generate_tuple(
-                    [&](auto idx) { return load_tile(d_dram_windows[idx]); }, number<NumDTensor>{});
-
-                const auto c_ds_tiles = concat_tuple_of_reference(
-                    tie(c_out_tensor, c_out_tensor),
-                    generate_tie([&](auto idx) -> const auto& { return ds_tensor[idx]; },
-                                number<NumDTensor>{}));
-
-                tile_elementwise_inout_unpack(typename Problem::CDElementwise{}, c_ds_tiles);
-
-                if constexpr(MemoryOperation == memory_operation_enum::set)
-                {
-                    store_tile(out_dram_window, c_out_tensor);
-                }
-                else
-                {
-                    update_tile(out_dram_window, c_out_tensor);
-                }
-
-                if constexpr(group != NumGroupsToMerge - 1)
-                {
-                    constexpr auto step_m = number<MPerGroup>{};
-
-                    // Move the global memory window
-                    move_tile_window(out_dram_window, {step_m, 0});
-                    static_for<0, NumDTensor, 1>{}([&](auto idx) {
-                        move_tile_window(d_dram_windows[idx], {step_m, 0});
-                    });
-                }        
+                // Print out the c_out_tensor contents for debugging
+                print_tensor_matrix_format(c_out_tensor, "c_out_tensor");
             }
-        );
+
+            const auto ds_tensor = generate_tuple(
+                [&](auto idx) { return load_tile(d_dram_windows[idx]); }, number<NumDTensor>{});
+
+            const auto c_ds_tiles = concat_tuple_of_reference(
+                tie(c_out_tensor, c_out_tensor),
+                generate_tie([&](auto idx) -> const auto& { return ds_tensor[idx]; },
+                            number<NumDTensor>{}));
+
+            tile_elementwise_inout_unpack(typename Problem::CDElementwise{}, c_ds_tiles);
+
+            if constexpr(MemoryOperation == memory_operation_enum::set)
+            {
+                store_tile(out_dram_window, c_out_tensor);
+            }
+            else
+            {
+                update_tile(out_dram_window, c_out_tensor);
+            }
+        }
+#endif
     }
 
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows>
