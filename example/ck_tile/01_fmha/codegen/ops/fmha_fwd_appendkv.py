@@ -3,25 +3,31 @@
 # generate kernel instances to speed up compilation
 
 import copy
-from dataclasses import dataclass
+import dataclasses
 import fnmatch
 import itertools
+from collections import OrderedDict
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Tuple
 
 from codegen.cmake_config import *
 from codegen.cpp_symbol_map import *
+from codegen.utils import update_file, indent, if_, group_kernels_by_filename
 
 from codegen.ops.fmha_fwd import (
-    FmhaFwdApiTrait,
-    DTYPE_BITS,
     FMHA_FWD_KERNEL_HEADER,
+    FMHA_FWD_API_PER_ARCH,
     FMHA_FWD_API_PER_DTYPE,
     FMHA_FWD_API_PER_HDIM_CASE,
 )
 
 
 FMHA_FWD_APPENDKV_KERNEL_BODY="""
+#include <iostream>
+
+#if !defined(__HIP_DEVICE_COMPILE__) || {F_check_archs}
+
 using fmha_dtype_{F_idx} = {F_dtype};
 
 using fmha_trait_{F_idx} = ck_tile::TileFmhaFwdAppendKVTraits<{F_spad},
@@ -51,8 +57,6 @@ using fmha_kernel_{F_idx} = ck_tile::FmhaFwdAppendKVKernel<fmha_pipeline_{F_idx}
 using trait_{F_idx} = fmha_fwd_appendkv_traits_<{F_hdim}, {F_dtype}, {F_bs}, {F_bsk}, {F_bd}, {F_bdv}, {F_vlayout},
                         {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_rope}, {F_pagedkv}>;
 
-#include <iostream>
-
 template<>
 float fmha_fwd_appendkv_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fwd_appendkv_args a)
 {{
@@ -64,27 +68,33 @@ float fmha_fwd_appendkv_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fw
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
     return ck_tile::launch_kernel(s, ck_tile::make_kernel<kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs));
 }}
+
+#endif // !defined(__HIP_DEVICE_COMPILE__) || {F_check_archs}
 """
 
 FMHA_FWD_APPENDKV_API_FILENAME="fmha_fwd_appendkv_api.cpp"
 FMHA_FWD_APPENDKV_API="""
-float fmha_fwd_appendkv(fmha_fwd_appendkv_traits t, fmha_fwd_appendkv_args a, const ck_tile::stream_config& s){{
+float fmha_fwd_appendkv(fmha_fwd_appendkv_traits t, fmha_fwd_appendkv_args a, const ck_tile::stream_config& s) {{
     float r = -1;
+
+    [[maybe_unused]] const std::string device_name = ck_tile::get_device_name();
+
 {F_dispatch}
     return r;
 }}
 """
 
-FMHA_FWD_APPENDKV_API_INNER_DISPATCH="""            {F_if}((t.is_v_rowmajor == {F_vlayout}) &&
-                        ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && (t.rope_type == {F_rope_check}) &&
-                        ((a.block_table_ptr != nullptr) == {F_pagedkv})) {{
-                using trait_ = fmha_fwd_appendkv_traits_<{F_hdim}, {F_dtype}, {F_bs}, {F_bsk}, {F_bd}, {F_bdv}, {F_vlayout}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_rope}, {F_pagedkv}>;
-                return fmha_fwd_appendkv_<trait_>(s, a);
-            }}
+FMHA_FWD_APPENDKV_API_INNER_DISPATCH="""{F_if}((t.is_v_rowmajor == {F_vlayout}) &&
+        ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && (t.rope_type == {F_rope_check}) &&
+        ((a.block_table_ptr != nullptr) == {F_pagedkv})) {{
+    using trait_ = fmha_fwd_appendkv_traits_<{F_hdim}, {F_dtype}, {F_bs}, {F_bsk}, {F_bd}, {F_bdv}, {F_vlayout}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_rope}, {F_pagedkv}>;
+    return fmha_fwd_appendkv_<trait_>(s, a);
+}}
 """
 
 @dataclass
 class FmhaFwdAppendKVApiTrait:
+    arch      : str
     # sync with fmha_fwd_appendkv_traits, to generate fallback calls
     hdim      : str
     dtype     : str  # data type
@@ -154,37 +164,54 @@ class FmhaFwdAppendKVPipeline:
 
 class FmhaFwdAppendKVApiPool:
     def __init__(self, mask_impl):
-        self.pool = dict()
+        self.pool = OrderedDict()
         self.mask_impl = mask_impl
 
-    def register_traits(self, trait : FmhaFwdApiTrait) -> None:
-        # TODO: do we need to check duplication?
-        if trait.dtype not in self.pool.keys():
-            self.pool[trait.dtype] = dict()
-        if trait.hdim not in self.pool[trait.dtype].keys():
-            self.pool[trait.dtype][trait.hdim] = list()
-
-        self.pool[trait.dtype][trait.hdim].append(copy.copy(trait))
+    def register_traits(self, trait : FmhaFwdAppendKVApiTrait) -> None:
+        hdim = trait.hdim
+        ts = self.pool.setdefault(trait.arch, OrderedDict()).setdefault(trait.dtype, OrderedDict()).setdefault(hdim, [])
+        fields = [f.name for f in dataclasses.fields(FmhaFwdAppendKVApiTrait)]
+        pad_fields = [f for f in fields if f.endswith('pad')]
+        non_pad_fields = [f for f in fields if not f.endswith('pad')]
+        for prev_trait in ts:
+            if any(getattr(trait, f) != getattr(prev_trait, f) for f in non_pad_fields):
+                continue
+            if all(getattr(trait, f) == getattr(prev_trait, f) for f in pad_fields):
+                raise Exception(f'Duplicate found {trait}')
+            # Check if the previous kernel can be incorrectly used before the current one
+            # for example, f, _t_, f, t cannot be before f, _f_, f, t
+            is_prev_more_restrictive = False
+            is_curr_more_restrictive = False
+            for f in pad_fields:
+                if getattr(prev_trait, f) == 't' and getattr(trait, f) == 'f':
+                    is_prev_more_restrictive = True
+                elif getattr(prev_trait, f) == 'f' and getattr(trait, f) == 't':
+                    is_curr_more_restrictive = True
+            if is_prev_more_restrictive and not is_curr_more_restrictive:
+                raise Exception(f'Kernel will never be used because paddings are not ordered correctly: {prev_trait} superseeds {trait}')
+        ts.append(copy.copy(trait))
 
     @property
     def api(self) -> str:
-        per_dtypes=str()
-        for i, dtype in enumerate(self.pool.keys()):
-            per_hdim_case=str()
-            for j, hdim in enumerate(self.pool[dtype].keys()):
-                traits=self.pool[dtype][hdim]
-                inners=str()
-                for k, trait in enumerate(traits):
-                    if_k = 'if' if k == 0 else 'else if'
-                    inners = inners + FMHA_FWD_APPENDKV_API_INNER_DISPATCH.format(F_if=if_k, F_vlayout=LAYOUT_MAP[trait.vlayout],
+        per_arch = str()
+        for i_arch, (arch, pool_by_arch) in enumerate(self.pool.items()):
+            per_dtypes = str()
+            for i_dtype, (dtype, pool_by_dtype) in enumerate(pool_by_arch.items()):
+                per_hdim_case = str()
+                for i_hdim, (hdim, pool_by_hdim) in enumerate(pool_by_dtype.items()):
+                    inners = str()
+                    for i_trait, trait in enumerate(pool_by_hdim):
+                        inners += FMHA_FWD_APPENDKV_API_INNER_DISPATCH.format(F_if=if_(i_trait), F_vlayout=LAYOUT_MAP[trait.vlayout],
                                    F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_rope_check=ROPE_CHECK_MAP[trait.rope],
                                    F_pagedkv=BOOL_MAP[trait.pagedkv], F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
                                    F_rope=ROPE_MAP[trait.rope], F_bs=trait.bs, F_bsk=trait.bsk, F_bd=trait.bd, F_bdv=trait.bdv, F_hdim=hdim, F_dtype=FWD_DTYPE_MAP[dtype])
-                if_j = 'if' if j == 0 else 'else if'
-                per_hdim_case = per_hdim_case + FMHA_FWD_API_PER_HDIM_CASE.format(F_if=if_j, F_hdim=hdim, F_hdim_v=hdim, F_inner_dispatch=inners)
-            if_i = 'if' if i == 0 else 'else if'
-            per_dtypes = per_dtypes + FMHA_FWD_API_PER_DTYPE.format(F_if=if_i, F_dtype=dtype, F_hdim_case=per_hdim_case)
-        return FMHA_FWD_KERNEL_HEADER + FMHA_FWD_APPENDKV_API.format(F_dispatch = per_dtypes)
+                    per_hdim_case += FMHA_FWD_API_PER_HDIM_CASE.format(F_if=if_(i_hdim), F_hdim=hdim, F_hdim_v=hdim, F_inner_dispatch=indent(inners))
+                per_dtypes += FMHA_FWD_API_PER_DTYPE.format(F_if=if_(i_dtype), F_dtype=dtype, F_hdim_case=indent(per_hdim_case))
+            per_arch += FMHA_FWD_API_PER_ARCH.format(F_if=if_(i_arch), F_len_arch=len(arch), F_arch=arch, F_dtype_case=indent(per_dtypes))
+        if not per_arch:
+            # empty string we add some ignore to suppress warning in api
+            per_arch += '(void)t ; (void)s ; (void)a;'
+        return FMHA_FWD_KERNEL_HEADER + FMHA_FWD_APPENDKV_API.format(F_dispatch=indent(per_arch))
 
 @dataclass
 class FmhaFwdAppendKVTileSize:
@@ -200,6 +227,7 @@ class FmhaFwdAppendKVTileSize:
 
 @dataclass
 class FmhaFwdAppendKVKernel:
+    F_archs         : List[str]
     F_idx           : int  # this is not a tunable, but a counter to differentiate symbol
     F_hdim          : int  # hdim
     F_dtype         : str  # data type
@@ -209,10 +237,11 @@ class FmhaFwdAppendKVKernel:
 
     @property
     def template(self) -> str:
-        kernel_body = str()
+        check_archs = ' || '.join(f'defined(__{a}__)' for a in self.F_archs)
         return FMHA_FWD_KERNEL_HEADER + \
             FMHA_FWD_APPENDKV_KERNEL_BODY.format(
                 F_idx           = self.F_idx,
+                F_check_archs   = check_archs,
                 F_hdim          = self.F_hdim,
                 F_dtype         = FWD_DTYPE_MAP[self.F_dtype],
                 F_bs            = self.F_tile.F_bs,
@@ -240,6 +269,7 @@ class FmhaFwdAppendKVKernel:
 
     def api_trait(self) -> FmhaFwdAppendKVApiTrait:
         return FmhaFwdAppendKVApiTrait(
+                arch=self.F_archs[0],
                 hdim=str(self.F_hdim),
                 dtype=self.F_dtype,
                 bs=self.F_tile.F_bs,
@@ -254,28 +284,26 @@ class FmhaFwdAppendKVKernel:
                 rope=self.F_pipeline.F_rope,
                 pagedkv=self.F_pipeline.F_pagedkv)
 
-# TODO: design a more practical way to do it
-# this is current supported tile size per hdim
-def get_fmha_fwd_appendkv_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
-    if dtype == 'fp16' or dtype == 'bf16':
-        return {
-            '32'  : FmhaFwdAppendKVTileSize(64, 64,  32,  32, -1),
-            '64'  : FmhaFwdAppendKVTileSize(64, 64,  64,  64, -1),
-            '128' : FmhaFwdAppendKVTileSize(64, 64, 128, 128, -1),
-            '256' : FmhaFwdAppendKVTileSize(64, 64, 256, 256, -1),
-        }
-    elif dtype == 'fp8' or dtype == 'bf8':
-        return {
-            '64'  : FmhaFwdAppendKVTileSize(64, 64,  64,  64, -1),
-            '128' : FmhaFwdAppendKVTileSize(64, 64, 128, 128, -1),
-            '256' : FmhaFwdAppendKVTileSize(64, 64, 256, 256, -1)
-        }
-    else:
-        return None
+class KernelComponentFactoryBase:
+    @staticmethod
+    def get_hdim_tile_size_dict(dtype: str) -> Optional[dict]:
+        if dtype in ['fp16', 'bf16']:
+            return {
+                '32'  : FmhaFwdAppendKVTileSize(64, 64,  32,  32, -1),
+                '64'  : FmhaFwdAppendKVTileSize(64, 64,  64,  64, -1),
+                '128' : FmhaFwdAppendKVTileSize(64, 64, 128, 128, -1),
+                '256' : FmhaFwdAppendKVTileSize(64, 64, 256, 256, -1),
+            }
+        elif dtype in ['fp8', 'bf8']:
+            return {
+                '64'  : FmhaFwdAppendKVTileSize(64, 64,  64,  64, -1),
+                '128' : FmhaFwdAppendKVTileSize(64, 64, 128, 128, -1),
+                '256' : FmhaFwdAppendKVTileSize(64, 64, 256, 256, -1)
+            }
+        else:
+            return None
 
-def get_fwd_appendkv_blobs(arch : str, kernel_filter : Optional[str], receipt, mask_impl, optdim_list) -> Tuple[FmhaFwdAppendKVApiPool, List[FmhaFwdAppendKVKernel]]:
-    # TODO: we don't support tuning yet, so pick up one value for vlayout/pipeline/pad
-    #       support this in future
+    @staticmethod
     def get_pipelines(dtype, hdim) -> List[FmhaFwdAppendKVPipeline]:
         # this function will populate a list possible pipelines
         # TODO: the order of List matters! the later in this list will be also be checked later
@@ -286,16 +314,15 @@ def get_fwd_appendkv_blobs(arch : str, kernel_filter : Optional[str], receipt, m
         if dtype in ['fp16', 'bf16']:
             # NOTICE: it will be very complicated if we consider all the hdim_q padding cases while
             #         applying rotary embedding, so I just use 't' in inter/half pipelines
-            for vlayout in ['row', 'col']:
-                for pagedkv in ["t", "f"]:
-                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, 'f', 't', 'f', 'f', 'no', pagedkv))
-                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, 't', 't', 't', 't', 'no', pagedkv))
+            for vlayout, pagedkv in  itertools.product(['row', 'col'], ['t', 'f']):
+                pipelines.append(FmhaFwdAppendKVPipeline(vlayout, 'f', 't', 'f', 'f', 'no', pagedkv))
+                pipelines.append(FmhaFwdAppendKVPipeline(vlayout, 't', 't', 't', 't', 'no', pagedkv))
 
-                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, 'f', 't', 't', 'f', 'inter', pagedkv))
-                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, 't', 't', 't', 't', 'inter', pagedkv))
+                pipelines.append(FmhaFwdAppendKVPipeline(vlayout, 'f', 't', 't', 'f', 'inter', pagedkv))
+                pipelines.append(FmhaFwdAppendKVPipeline(vlayout, 't', 't', 't', 't', 'inter', pagedkv))
 
-                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, 'f', 't', 't', 'f', 'half', pagedkv))
-                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, 't', 't', 't', 't', 'half', pagedkv))
+                pipelines.append(FmhaFwdAppendKVPipeline(vlayout, 'f', 't', 't', 'f', 'half', pagedkv))
+                pipelines.append(FmhaFwdAppendKVPipeline(vlayout, 't', 't', 't', 't', 'half', pagedkv))
         elif dtype in ['fp8', 'bf8']:
             # rope/paged-kv is not supported
             pipelines.append(FmhaFwdAppendKVPipeline('col', 't', 't', 't', 't', 'no', 'f'))
@@ -306,18 +333,46 @@ def get_fwd_appendkv_blobs(arch : str, kernel_filter : Optional[str], receipt, m
             assert False
         return pipelines
 
+class KernelComponentFactoryGfx9(KernelComponentFactoryBase):
+    arch = 'gfx9'
+
+class KernelComponentFactoryGfx12(KernelComponentFactoryBase):
+    arch = 'gfx12'
+
+def get_factory(target: str):
+    # Place more specific architectures first
+
+    if target.startswith('gfx9'):
+        return KernelComponentFactoryGfx9
+
+    if target.startswith('gfx12'):
+        return KernelComponentFactoryGfx12
+
+    raise Exception(f'Unsupported device target {target}')
+
+def get_fwd_appendkv_blobs(targets: List[str], kernel_filter : Optional[str], receipt, mask_impl, optdim_list) -> Tuple[FmhaFwdAppendKVApiPool, List[FmhaFwdAppendKVKernel]]:
     gen = list()
     api_pool = FmhaFwdAppendKVApiPool(mask_impl)
 
-    for dtype in FWD_DTYPE_MAP.keys():
-        d = get_fmha_fwd_appendkv_tile_dict_from_dtype(dtype)
-        if d == None:
+    factories = dict()
+    for target in targets:
+        factory = get_factory(target)
+        factories[factory.arch] = factory
+    # Place more specific architectures first
+    factories = sorted(list(factories.values()), key=lambda f: len(f.arch), reverse=True)
+
+    for (factory, dtype) in itertools.product(factories, FWD_DTYPE_MAP.keys()):
+        arch = factory.arch
+        d = factory.get_hdim_tile_size_dict(dtype)
+        if d is None:
             continue
         for hdim_str in d.keys():
             tile = d[hdim_str]
             hdim = int(hdim_str)
-            for pipeline in get_pipelines(dtype, hdim):
-                k = FmhaFwdAppendKVKernel(F_idx=0,
+            for pipeline in factory.get_pipelines(dtype, hdim):
+                k = FmhaFwdAppendKVKernel(
+                                  F_archs=[arch],
+                                  F_idx=0,
                                   F_hdim=hdim,
                                   F_dtype=dtype,
                                   F_tile=tile,
@@ -344,23 +399,23 @@ def get_fwd_appendkv_blobs(arch : str, kernel_filter : Optional[str], receipt, m
                 api_pool.register_traits(k.api_trait())
                 gen.append(k)
 
-    return (api_pool, gen)
+    return (api_pool, group_kernels_by_filename(gen))
 
 def write_single_kernel(kernel: FmhaFwdAppendKVKernel, autogen_dir: Path) -> None:
-    (autogen_dir / kernel.filename).write_text(kernel.template)
+    update_file(autogen_dir / kernel.filename, kernel.template)
 
 def write_fwd_appendkv_api(api_pool : FmhaFwdAppendKVApiPool, autogen_dir: Path) -> None:
-    (autogen_dir / FMHA_FWD_APPENDKV_API_FILENAME).write_text(api_pool.api)
+    update_file(autogen_dir / FMHA_FWD_APPENDKV_API_FILENAME, api_pool.api)
 
-def write_blobs(arch : str, output_dir : Path, kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> None:
-    api_pool, kernels = get_fwd_appendkv_blobs(arch, kernel_filter, receipt, mask_impl, optdim_list)
+def write_blobs(targets: List[str], output_dir : Path, kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> None:
+    api_pool, kernels = get_fwd_appendkv_blobs(targets, kernel_filter, receipt, mask_impl, optdim_list)
     for kernel in kernels:
         write_single_kernel(kernel, output_dir)
     write_fwd_appendkv_api(api_pool, output_dir)
 
-def list_blobs(arch : str, file_path : Path, kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> None:
+def list_blobs(targets: List[str], file_path : Path, kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> None:
     with file_path.open('a') as f:
-        _, kernels = get_fwd_appendkv_blobs(arch, kernel_filter, receipt, mask_impl, optdim_list)
+        _, kernels = get_fwd_appendkv_blobs(targets, kernel_filter, receipt, mask_impl, optdim_list)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
         f.write(str(file_path.parent / GEN_DIR / FMHA_FWD_APPENDKV_API_FILENAME) + "\n")

@@ -3,40 +3,28 @@
 # generate kernel instances to speed up compilation
 
 import copy
-from dataclasses import dataclass
+import dataclasses
 import fnmatch
 import itertools
+from collections import OrderedDict
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
 from codegen.cmake_config import *
 from codegen.cpp_symbol_map import *
+from codegen.utils import update_file, indent, if_, group_kernels_by_filename
 
 from codegen.ops.fmha_fwd import (
     FmhaFwdTileSize,
-    FmhaFwdApiTrait,
+    DTYPE_BITS,
+    K0_MAX_SUBMAX_MAP,
     FMHA_FWD_KERNEL_HEADER,
+    FMHA_FWD_API_PER_ARCH,
     FMHA_FWD_API_PER_DTYPE,
     FMHA_FWD_API_PER_HDIM_CASE,
 )
 
-
-DTYPE_BITS = {
-    "fp32": 32,
-    "fp16": 16,
-    "bf16": 16,
-    "fp8" : 8,
-    "bf8" : 8
-}
-
-K0_MAX_SUBMAX_MAP = {
-    32 : 32,
-    64 : 64,
-    96 : 128,
-    128: 128,
-    # 160: 160,
-    256: 256
-}
 
 FMHA_FWD_SPLITKV_PIPELINE_MAP = {
     "qr" : "ck_tile::BlockFmhaFwdSplitKVPipelineQRKSVS",
@@ -44,6 +32,10 @@ FMHA_FWD_SPLITKV_PIPELINE_MAP = {
 }
 
 FMHA_FWD_SPLITKV_KERNEL_BODY="""
+#include <iostream>
+
+#if !defined(__HIP_DEVICE_COMPILE__) || {F_check_archs}
+
 using fmha_dtype_{F_idx} = {F_dtype};
 using fmha_variant_{F_idx} = ck_tile::ComposedAttention<{F_logits} * ck_tile::LOGITS_SOFT_CAP, CK_TILE_FMHA_FWD_FAST_EXP2>;
 using fmha_mask_{F_idx} = {F_mask};
@@ -112,14 +104,12 @@ static void run(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
     ck_tile::make_kernel<kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs)(ck_tile::stream_config{{s.stream_id_}});
 }}
-}};
-}}
+}}; // struct instance
+}} // anonymous namespace
 
 using trait_{F_idx} = fmha_fwd_splitkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
                         {F_pipeline_enum}, {F_logits}, fmha_mask_{F_idx}, {F_bias}, {F_lse}, {F_squant}, {F_pagedkv}, {F_spad}, {F_skpad}, {F_dpad},
                         {F_dvpad}>;
-
-#include <iostream>
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wtautological-compare"
@@ -167,9 +157,15 @@ std::string fmha_fwd_splitkv_get_name_<trait_{F_idx}>()
     using k_ = instance<true>::fmha_kernel; /// FIXME: choose real kernel type
     return k_::GetName();
 }}
+
+#endif // !defined(__HIP_DEVICE_COMPILE__) || {F_check_archs}
 """
 
 FMHA_FWD_SPLITKV_COMBINE_KERNEL_BODY="""
+#include <iostream>
+
+#if !defined(__HIP_DEVICE_COMPILE__) || {F_check_archs}
+
 using fmha_dtype_{F_idx} = {F_dtype};
 
 namespace {{
@@ -212,13 +208,11 @@ static void run(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
     ck_tile::make_kernel<kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs)(ck_tile::stream_config{{s.stream_id_}});
 }}
-}};
-}}
+}}; // struct instance
+}} // anonymous namespace
 
 using trait_{F_idx} = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bn1},
                         {F_lse}, {F_squant}, {F_spad}, {F_dvpad}>;
-
-#include <iostream>
 
 template<>
 void fmha_fwd_splitkv_combine_oneshot_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
@@ -242,6 +236,8 @@ std::string fmha_fwd_splitkv_combine_get_name_<trait_{F_idx}>()
     using k_ = instance<6>::fmha_kernel; /// FIXME: choose real kernel type
     return k_::GetName();
 }}
+
+#endif // !defined(__HIP_DEVICE_COMPILE__) || {F_check_archs}
 """
 
 FMHA_FWD_SPLITKV_API_FILENAME="fmha_fwd_splitkv_api.cpp"
@@ -252,10 +248,10 @@ template<typename fmha_fwd_splitkv_traits_, typename fmha_fwd_splitkv_combine_tr
 float fmha_fwd_splitkv_(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
 {{
     if(s.log_level_ > 0)
-    std::cout
-    << ", " << fmha_fwd_splitkv_get_name_<fmha_fwd_splitkv_traits_>()
-    << ", " << fmha_fwd_splitkv_combine_get_name_<fmha_fwd_splitkv_combine_traits_>()
-    << std::flush;
+        std::cout
+            << ", " << fmha_fwd_splitkv_get_name_<fmha_fwd_splitkv_traits_>()
+            << ", " << fmha_fwd_splitkv_combine_get_name_<fmha_fwd_splitkv_combine_traits_>()
+            << std::flush;
 
     return ck_tile::launch_kernel(s,
         [=](const ck_tile::stream_config& s_){{ fmha_fwd_splitkv_oneshot_<fmha_fwd_splitkv_traits_>(s_, a); }},
@@ -263,43 +259,47 @@ float fmha_fwd_splitkv_(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a
     );
 }}
 
-float fmha_fwd_splitkv(fmha_fwd_splitkv_traits t, fmha_fwd_splitkv_args a, const ck_tile::stream_config& s){{
+float fmha_fwd_splitkv(fmha_fwd_splitkv_traits t, fmha_fwd_splitkv_args a, const ck_tile::stream_config& s) {{
     float r = -1;
+
+    [[maybe_unused]] const std::string device_name = ck_tile::get_device_name();
+
 {F_dispatch}
     return r;
 }}
 """
 
-FMHA_FWD_SPLITKV_API_INNER_DISPATCH="""            {F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && (t.has_logits_soft_cap == {F_logits}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.do_fp8_static_quant == {F_squant}) &&
-                        ((a.block_table_ptr != nullptr) == {F_pagedkv}) && ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
-                using traits_ = fmha_fwd_splitkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, true, {F_squant}, {F_pagedkv}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
+FMHA_FWD_SPLITKV_API_INNER_DISPATCH="""{F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && (t.has_logits_soft_cap == {F_logits}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.do_fp8_static_quant == {F_squant}) &&
+        ((a.block_table_ptr != nullptr) == {F_pagedkv}) && ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
+    using traits_ = fmha_fwd_splitkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, true, {F_squant}, {F_pagedkv}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}>;
 
-                // get combine kernel tile sizes
-                using OaccDataType = typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType;
-                constexpr ck_tile::index_t kM0 = ck_tile::BlockFmhaSplitKVCombinePipelineTileSizes<OaccDataType, {F_bn1comb}>::kM0;
+    // get combine kernel tile sizes
+    using OaccDataType = typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType;
+    constexpr ck_tile::index_t kM0 = ck_tile::BlockFmhaSplitKVCombinePipelineTileSizes<OaccDataType, {F_bn1comb}>::kM0;
 
-                // make sure we can reuse the padding flags in combine kernels
-                static_assert({F_bm0} % kM0 == 0);
-                static_assert({F_bn1} % {F_bn1comb} == 0);
+    // make sure we can reuse the padding flags in combine kernels
+    static_assert({F_bm0} % kM0 == 0);
+    static_assert({F_bn1} % {F_bn1comb} == 0);
 
-                if (t.has_lse) {{
-                    if constexpr (std::is_same_v<{F_dtype}, FmhaFwdFp8>) {{
-                        return -1;
-                    }} else {{
-                        using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bn1comb}, true, {F_squant}, {F_spad}, {F_dvpad}>;
+    if (t.has_lse) {{
+        if constexpr (std::is_same_v<{F_dtype}, FmhaFwdFp8>) {{
+            return -1;
+        }} else {{
+            using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bn1comb}, true, {F_squant}, {F_spad}, {F_dvpad}>;
 
-                        return fmha_fwd_splitkv_<traits_, traits2_>(s, a);
-                    }}
-                }} else {{
-                    using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bn1comb}, false, {F_squant}, {F_spad}, {F_dvpad}>;
+            return fmha_fwd_splitkv_<traits_, traits2_>(s, a);
+        }}
+    }} else {{
+        using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bn1comb}, false, {F_squant}, {F_spad}, {F_dvpad}>;
 
-                    return fmha_fwd_splitkv_<traits_, traits2_>(s, a);
-                }}
-            }}
+        return fmha_fwd_splitkv_<traits_, traits2_>(s, a);
+    }}
+}}
 """
 
 @dataclass
 class FmhaFwdSplitKVApiTrait:
+    arch         : str
     pipeline_tag : str
     # sync with fmha_fwd_traits<>, to generate fallback calls
     hdim      : int
@@ -461,29 +461,44 @@ class FmhaFwdSplitKVCombinePipeline:
 
 class FmhaFwdSplitKVApiPool:
     def __init__(self, mask_impl):
-        self.pool = dict()
+        self.pool = OrderedDict()
         self.mask_impl = mask_impl
 
     def register_traits(self, trait : FmhaFwdSplitKVApiTrait) -> None:
-        # TODO: do we need to check duplication?
-        if trait.dtype not in self.pool.keys():
-            self.pool[trait.dtype] = dict()
-        if trait.hdim not in self.pool[trait.dtype].keys():
-            self.pool[trait.dtype][trait.hdim] = list()
-
-        self.pool[trait.dtype][trait.hdim].append(copy.copy(trait))
+        hdim = trait.hdim
+        ts = self.pool.setdefault(trait.arch, OrderedDict()).setdefault(trait.dtype, OrderedDict()).setdefault(hdim, [])
+        fields = [f.name for f in dataclasses.fields(FmhaFwdSplitKVApiTrait)]
+        pad_fields = [f for f in fields if f.endswith('pad')]
+        non_pad_fields = [f for f in fields if not f.endswith('pad')]
+        for prev_trait in ts:
+            if any(getattr(trait, f) != getattr(prev_trait, f) for f in non_pad_fields):
+                continue
+            if all(getattr(trait, f) == getattr(prev_trait, f) for f in pad_fields):
+                raise Exception(f'Duplicate found {trait}')
+            # Check if the previous kernel can be incorrectly used before the current one
+            # for example, f, _t_, f, t cannot be before f, _f_, f, t
+            is_prev_more_restrictive = False
+            is_curr_more_restrictive = False
+            for f in pad_fields:
+                if getattr(prev_trait, f) == 't' and getattr(trait, f) == 'f':
+                    is_prev_more_restrictive = True
+                elif getattr(prev_trait, f) == 'f' and getattr(trait, f) == 't':
+                    is_curr_more_restrictive = True
+            if is_prev_more_restrictive and not is_curr_more_restrictive:
+                raise Exception(f'Kernel will never be used because paddings are not ordered correctly: {prev_trait} supersedes {trait}')
+        ts.append(copy.copy(trait))
 
     @property
     def api(self) -> str:
-        per_dtypes=str()
-        for i, dtype in enumerate(self.pool.keys()):
-            per_hdim_case=str()
-            for j, hdim in enumerate(self.pool[dtype].keys()):
-                traits=self.pool[dtype][hdim]
-                inners=str()
-                for k, trait in enumerate(traits):
-                    if_k = 'if' if k == 0 else 'else if'
-                    inners = inners + FMHA_FWD_SPLITKV_API_INNER_DISPATCH.format(F_if=if_k, F_mode=MODE_MAP[trait.mode], F_vlayout=LAYOUT_MAP[trait.vlayout],
+        per_arch = str()
+        for i_arch, (arch, pool_by_arch) in enumerate(self.pool.items()):
+            per_dtypes = str()
+            for i_dtype, (dtype, pool_by_dtype) in enumerate(pool_by_arch.items()):
+                per_hdim_case = str()
+                for i_hdim, (hdim, pool_by_hdim) in enumerate(pool_by_dtype.items()):
+                    inners = str()
+                    for i_trait, trait in enumerate(pool_by_hdim):
+                        inners += FMHA_FWD_SPLITKV_API_INNER_DISPATCH.format(F_if=if_(i_trait), F_mode=MODE_MAP[trait.mode], F_vlayout=LAYOUT_MAP[trait.vlayout],
                                    F_pipeline_enum=PIPELINE_ENUM_MAP[trait.pipeline_tag], F_logits=BOOL_MAP[trait.logits], F_mask=get_mask_map(self.mask_impl)[trait.mask],
                                    F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_bias_check=BIAS_CHECK_MAP[trait.bias], F_bias=BIAS_MAP[trait.bias],
                                    F_lse=BOOL_MAP[trait.lse], F_squant=BOOL_MAP[trait.squant], F_pagedkv=BOOL_MAP[trait.pagedkv],
@@ -491,14 +506,13 @@ class FmhaFwdSplitKVApiPool:
                                    F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
                                    F_bm0=trait.bm0, F_bn0=trait.bn0, F_bk0=trait.bk0, F_bn1=trait.bn1, F_bk1=trait.bk1, F_bk0max=trait.bk0max,
                                    F_hdim=hdim, F_dtype=FWD_DTYPE_MAP[dtype], F_bn1comb=trait.bn1comb)
-                if_j = 'if' if j == 0 else 'else if'
-                per_hdim_case = per_hdim_case + FMHA_FWD_API_PER_HDIM_CASE.format(F_if=if_j, F_hdim=hdim, F_hdim_v=hdim, F_inner_dispatch=inners)
-            if_i = 'if' if i == 0 else 'else if'
-            per_dtypes = per_dtypes + FMHA_FWD_API_PER_DTYPE.format(F_if=if_i, F_dtype=dtype, F_hdim_case=per_hdim_case)
-        if not per_dtypes:
+                    per_hdim_case += FMHA_FWD_API_PER_HDIM_CASE.format(F_if=if_(i_hdim), F_hdim=hdim, F_hdim_v=hdim, F_inner_dispatch=indent(inners))
+                per_dtypes += FMHA_FWD_API_PER_DTYPE.format(F_if=if_(i_dtype), F_dtype=dtype, F_hdim_case=indent(per_hdim_case))
+            per_arch += FMHA_FWD_API_PER_ARCH.format(F_if=if_(i_arch), F_len_arch=len(arch), F_arch=arch, F_dtype_case=indent(per_dtypes))
+        if not per_arch:
             # empty string we add some ignore to suppress warning in api
-            per_dtypes += '    (void)t ; (void)s ; (void)a;'
-        return FMHA_FWD_KERNEL_HEADER + FMHA_FWD_SPLITKV_API.format(F_dispatch = per_dtypes)
+            per_dtypes += '(void)t ; (void)s ; (void)a;'
+        return FMHA_FWD_KERNEL_HEADER + FMHA_FWD_SPLITKV_API.format(F_dispatch=indent(per_arch))
 
 @dataclass
 class FmhaFwdSplitKVCombineTileSize:
@@ -511,6 +525,7 @@ class FmhaFwdSplitKVCombineTileSize:
 
 @dataclass
 class FmhaFwdSplitKVKernel:
+    F_archs         : List[str]
     F_idx           : int  # this is not a tunable, but a counter to differentiate symbol
     F_hdim          : int  # hdim
     F_dtype         : str  # data type
@@ -522,10 +537,11 @@ class FmhaFwdSplitKVKernel:
     @property
     def template(self) -> str:
         assert self.F_pipeline.F_lse == 't'
-        kernel_body = str()
+        check_archs = ' || '.join(f'defined(__{a}__)' for a in self.F_archs)
         return FMHA_FWD_KERNEL_HEADER + \
             FMHA_FWD_SPLITKV_KERNEL_BODY.format(
                 F_idx           = self.F_idx,
+                F_check_archs   = check_archs,
                 F_hdim          = self.F_hdim,
                 F_dtype         = FWD_DTYPE_MAP[self.F_dtype],
                 F_bm0           = self.F_tile.F_bm0,
@@ -574,6 +590,7 @@ class FmhaFwdSplitKVKernel:
 
 @dataclass
 class FmhaFwdSplitKVCombineKernel:
+    F_archs         : List[str]
     F_idx           : int  # this is not a tunable, but a counter to differentiate symbol
     F_hdim          : int  # hdim
     F_dtype         : str  # data type
@@ -583,10 +600,11 @@ class FmhaFwdSplitKVCombineKernel:
 
     @property
     def template(self) -> str:
-        kernel_body = str()
+        check_archs = ' || '.join(f'defined(__{a}__)' for a in self.F_archs)
         return FMHA_FWD_KERNEL_HEADER + \
             FMHA_FWD_SPLITKV_COMBINE_KERNEL_BODY.format(
                 F_idx           = self.F_idx,
+                F_check_archs   = check_archs,
                 F_hdim          = self.F_hdim,
                 F_dtype         = FWD_DTYPE_MAP[self.F_dtype],
                 F_bn1           = self.F_tile.F_bn1,
@@ -607,76 +625,14 @@ class FmhaFwdSplitKVCombineKernel:
     def filename(self) -> str:
         return self.name + ".cpp"
 
-# TODO: design a more practical way to do it
-# this is current supported tile size per hdim
-def get_fmha_fwd_tile_dict_from_dtype_gfx9(dtype : str) -> Optional[dict]:
-    if dtype == 'fp16' or dtype == 'bf16':
-        return {
-            '32'  : FmhaFwdTileSize(32, 64,  16, 32,  32,  32,   2, 1, 1,  2, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
-            '64'  : FmhaFwdTileSize(64, 64,  32, 64,  32,  64,   4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
-            '96'  : FmhaFwdTileSize(64, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
-            '128' : FmhaFwdTileSize(64, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
-            # '160' : FmhaFwdTileSize(64, 128, 32, 160, 32,  160,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
-            '256' : FmhaFwdTileSize(64, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
-        }
-    elif dtype == 'fp8' or dtype == 'bf8':
-        return {
-            '64'  : FmhaFwdTileSize(128, 64,  32, 64,  32,  64,   2, 1, 1,  2, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
-            '128' : FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
-        }
-    else:
-        return None
-
-def get_fmha_fwd_tile_dict_from_dtype_gfx12(dtype : str) -> Optional[dict]:
-    if dtype == 'fp16' or dtype == 'bf16':
-        return {
-            #                       bm0, bn0, bk0, bn1, bk1,
-            '32'  : FmhaFwdTileSize( 64,  64,  16,  32,  32,   32,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
-            '64'  : FmhaFwdTileSize( 64,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
-            '128' : FmhaFwdTileSize( 64,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
-            '256' : FmhaFwdTileSize( 64,  64,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
-        }
-    elif dtype == 'fp8' or dtype == 'bf8':
-        return {
-            #                       bm0, bn0, bk0, bn1, bk1,
-            '64'  : FmhaFwdTileSize(128,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
-            '128' : FmhaFwdTileSize( 64,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
-            '256' : FmhaFwdTileSize( 64,  32,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
-        }
-    else:
-        return None
-
-def get_fmha_fwd_splitkv_combine_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
-    # Possible values of F_bn1: 8, 16, 32
-    if dtype == 'fp16' or dtype == 'bf16':
-        return {
-            '32'  : FmhaFwdSplitKVCombineTileSize(32,  -1),
-            '64'  : FmhaFwdSplitKVCombineTileSize(32,  -1),
-            '96'  : FmhaFwdSplitKVCombineTileSize(32,  -1),
-            '128' : FmhaFwdSplitKVCombineTileSize(32,  -1),
-            # '160' : FmhaFwdSplitKVCombineTileSize(32,  -1),
-            '256' : FmhaFwdSplitKVCombineTileSize(32,  -1),
-    }
-    elif dtype == 'fp8' or dtype == 'bf8':
-        return {
-            '64'  : FmhaFwdSplitKVCombineTileSize(32,  -1),
-            '128' : FmhaFwdSplitKVCombineTileSize(32,  -1),
-            '256' : FmhaFwdSplitKVCombineTileSize(32,  -1),
-        }
-    else:
-        return None
-
-def get_fwd_splitkv_blobs(arch : str, kernel_filter : Optional[str], receipt, mask_impl, optdim_list) -> List[FmhaFwdSplitKVKernel]:
-    Pipeline = FmhaFwdSplitKVPipeline
-    Kernel = FmhaFwdSplitKVKernel
-
-    # TODO: we don't support tuning yet, so pick up one value for vlayout/pipeline/pad
-    #       support this in future
-    def get_pipelines_gfx9(dtype, hdim) -> List[FmhaFwdSplitKVPipeline]:
+class KernelComponentFactoryBase:
+    @staticmethod
+    def get_pipelines(dtype, hdim, mask_impl) -> List[FmhaFwdSplitKVPipeline]:
         # this function will populate a list possible pipelines
         # TODO: the order of List matters! the later in this list will be also be checked later
         # TODO: currently for qr pipeline, let 't' padding to appear later!!
         # TODO: how to design this more generic?
+        Pipeline = FmhaFwdSplitKVPipeline
         squant = 't' if dtype == 'fp8' else 'f'
         pipelines = []
         if dtype in ['fp16', 'bf16']:
@@ -702,43 +658,119 @@ def get_fwd_splitkv_blobs(arch : str, kernel_filter : Optional[str], receipt, ma
             assert False
         return pipelines
 
-    def get_pipelines_gfx12(dtype, hdim) -> List[FmhaFwdSplitKVPipeline]:
+    @staticmethod
+    def get_combine_pipelines(dtype, hdim) -> List[FmhaFwdSplitKVCombinePipeline]:
+        Pipeline = FmhaFwdSplitKVCombinePipeline
         squant = 't' if dtype == 'fp8' else 'f'
         pipelines = []
         if dtype in ['fp16', 'bf16']:
-            for logits, mask, bias, pagedkv in itertools.product(['t', 'f'], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ['t', 'f']):
-                pipelines.append(Pipeline('qr', 'row', 'f', 't', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
-                pipelines.append(Pipeline('qr', 'col', 'f', 't', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
-
-                pipelines.append(Pipeline('qr', 'row', 't', 'f', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
-                pipelines.append(Pipeline('qr', 'col', 't', 'f', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
-
-                pipelines.append(Pipeline('qr', 'row', 't', 't', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
-                pipelines.append(Pipeline('qr', 'col', 't', 't', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
-
-                pipelines.append(Pipeline('qr', 'row', 't', 't', 't', 't', logits, bias, 't', squant, pagedkv, mask))
-                pipelines.append(Pipeline('qr', 'col', 't', 't', 't', 't', logits, bias, 't', squant, pagedkv, mask))
+            for spad, dvpad, lse in itertools.product(["t", "f"], ["t", "f"], ["t", "f"]):
+                pipelines.append(Pipeline('unused', spad, dvpad, lse, squant))
         elif dtype in ['fp8', 'bf8']:
-            for logits, mask, bias in itertools.product(['t', 'f'], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()):
-                pipelines.append(Pipeline('qr', 'col', 'f', 'f', 'f', 'f', logits, bias, 't', squant, 'f', mask))
+            # no need lse kernels
+            pipelines.append(Pipeline('unused', 'f', 'f', 'f', squant))
         else:
             assert False
         return pipelines
 
+    @staticmethod
+    def get_combine_hdim_tile_size_dict(dtype : str) -> Optional[dict]:
+        # Possible values of F_bn1: 8, 16, 32
+        if dtype in ['fp16', 'bf16']:
+            return {
+                '32'  : FmhaFwdSplitKVCombineTileSize(32, -1),
+                '64'  : FmhaFwdSplitKVCombineTileSize(32, -1),
+                '96'  : FmhaFwdSplitKVCombineTileSize(32, -1),
+                '128' : FmhaFwdSplitKVCombineTileSize(32, -1),
+              # '160' : FmhaFwdSplitKVCombineTileSize(32, -1),
+                '256' : FmhaFwdSplitKVCombineTileSize(32, -1),
+        }
+        elif dtype in ['fp8', 'bf8']:
+            return {
+                '64'  : FmhaFwdSplitKVCombineTileSize(32, -1),
+                '128' : FmhaFwdSplitKVCombineTileSize(32, -1),
+                '256' : FmhaFwdSplitKVCombineTileSize(32, -1),
+            }
+        else:
+            return None
+
+class KernelComponentFactoryGfx9(KernelComponentFactoryBase):
+    arch = 'gfx9'
+
+    @staticmethod
+    def get_hdim_tile_size_dict(dtype: str) -> Optional[dict]:
+        if dtype in ['fp16', 'bf16']:
+            return {
+                '32'  : FmhaFwdTileSize(32, 64,  16, 32,  32,  32,   2, 1, 1,  2, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+                '64'  : FmhaFwdTileSize(64, 64,  32, 64,  32,  64,   4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+                '96'  : FmhaFwdTileSize(64, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+                '128' : FmhaFwdTileSize(64, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+              # '160' : FmhaFwdTileSize(64, 128, 32, 160, 32,  160,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+                '256' : FmhaFwdTileSize(64, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            }
+        elif dtype in ['fp8', 'bf8']:
+            return {
+                '64'  : FmhaFwdTileSize(128, 64,  32, 64,  32,  64,   2, 1, 1,  2, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
+                '128' : FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
+            }
+        else:
+            return None
+
+class KernelComponentFactoryGfx12(KernelComponentFactoryBase):
+    arch = 'gfx12'
+
+    @staticmethod
+    def get_hdim_tile_size_dict(dtype: str) -> Optional[dict]:
+        if dtype in ['fp16', 'bf16']:
+            return {
+                #                       bm0, bn0, bk0, bn1, bk1,
+                '32'  : FmhaFwdTileSize( 64,  64,  16,  32,  32,   32,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+                '64'  : FmhaFwdTileSize( 64,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+                '128' : FmhaFwdTileSize( 64,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+                '256' : FmhaFwdTileSize( 64,  64,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            }
+        elif dtype in ['fp8', 'bf8']:
+            return {
+                #                       bm0, bn0, bk0, bn1, bk1,
+                '64'  : FmhaFwdTileSize(128,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+                '128' : FmhaFwdTileSize( 64,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            }
+        else:
+            return None
+
+def get_factory(target: str):
+    # Place more specific architectures first
+
+    if target.startswith('gfx9'):
+        return KernelComponentFactoryGfx9
+
+    if target.startswith('gfx12'):
+        return KernelComponentFactoryGfx12
+
+    raise Exception(f'Unsupported device target {target}')
+
+def get_fwd_splitkv_blobs(targets: List[str], kernel_filter : Optional[str], receipt, mask_impl, optdim_list) -> List[FmhaFwdSplitKVKernel]:
+    Kernel = FmhaFwdSplitKVKernel
+
     gen = list()
 
-    get_fmha_fwd_tile_dict_from_dtype = get_fmha_fwd_tile_dict_from_dtype_gfx12 if arch.startswith('gfx12') else get_fmha_fwd_tile_dict_from_dtype_gfx9
-    get_pipelines = get_pipelines_gfx12 if arch.startswith('gfx12') else get_pipelines_gfx9
+    factories = dict()
+    for target in targets:
+        factory = get_factory(target)
+        factories[factory.arch] = factory
+    # Place more specific architectures first
+    factories = sorted(list(factories.values()), key=lambda f: len(f.arch), reverse=True)
 
-    for dtype in FWD_DTYPE_MAP.keys():
-        d = get_fmha_fwd_tile_dict_from_dtype(dtype)
-        if d == None:
+    for (factory, dtype) in itertools.product(factories, FWD_DTYPE_MAP.keys()):
+        arch = factory.arch
+        d = factory.get_hdim_tile_size_dict(dtype)
+        if d is None:
             continue
         #for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
         for hdim_str, mode in itertools.product(d.keys(), MODE_MAP.keys()):
             tile = d[hdim_str]
             hdim = int(hdim_str)
-            for pipeline in get_pipelines(dtype, hdim):
+            for pipeline in factory.get_pipelines(dtype, hdim, mask_impl):
                 if mode == "group":
                     if pipeline.F_spad != 't' or pipeline.F_skpad != 't':
                         # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
@@ -746,7 +778,8 @@ def get_fwd_splitkv_blobs(arch : str, kernel_filter : Optional[str], receipt, ma
                 # logits_soft_cap is only allowed if no bias
                 if not ((pipeline.F_logits == 't' and pipeline.F_bias == 'no') or pipeline.F_logits == 'f'):
                     continue
-                k = Kernel(F_idx=0,
+                k = Kernel(F_archs=[arch],
+                           F_idx=0,
                            F_hdim=hdim,
                            F_dtype=dtype,
                            F_mode=mode,
@@ -793,47 +826,35 @@ def get_fwd_splitkv_blobs(arch : str, kernel_filter : Optional[str], receipt, ma
                         continue
                 gen.append(k)
 
-    return gen
+    return group_kernels_by_filename(gen)
 
-def get_fwd_splitkv_combine_blobs(arch : str, kernel_filter : Optional[str], receipt, optdim_list) -> List[FmhaFwdSplitKVCombineKernel]:
-    Pipeline = FmhaFwdSplitKVCombinePipeline
+def get_fwd_splitkv_combine_blobs(targets: List[str], kernel_filter : Optional[str], receipt, optdim_list) -> List[FmhaFwdSplitKVCombineKernel]:
     Kernel = FmhaFwdSplitKVCombineKernel
-
-    # TODO: we don't support tuning yet, so pick up one value for vlayout/pipeline/pad
-    #       support this in future
-    def get_pipelines(dtype, hdim) -> List[FmhaFwdSplitKVCombinePipeline]:
-        # this function will populate a list possible pipelines
-        # TODO: the order of List matters! the later in this list will be also be checked later
-        # TODO: currently for qr pipeline, let 't' padding to appear later!!
-        # TODO: how to design this more generic?
-        squant = 't' if dtype == 'fp8' else 'f'
-        pipelines = []
-        if dtype in ['fp16', 'bf16']:
-            for spad, dvpad, lse in itertools.product(["t", "f"], ["t", "f"], ["t", "f"]):
-                pipelines.append(Pipeline('unused', spad, dvpad, lse, squant))
-        elif dtype in ['fp8', 'bf8']:
-            # no need lse kernels
-            pipelines.append(Pipeline('unused', 'f', 'f', 'f', squant))
-        else:
-            assert False
-        return pipelines
 
     gen = list()
 
-    for dtype in FWD_DTYPE_MAP.keys():
-        d = get_fmha_fwd_splitkv_combine_tile_dict_from_dtype(dtype)
-        if d == None:
+    factories = dict()
+    for target in targets:
+        factory = get_factory(target)
+        factories[factory.arch] = factory
+    # Place more specific architectures first
+    factories = sorted(list(factories.values()), key=lambda f: len(f.arch), reverse=True)
+
+    for (factory, dtype) in itertools.product(factories, FWD_DTYPE_MAP.keys()):
+        arch = factory.arch
+        d = factory.get_combine_hdim_tile_size_dict(dtype)
+        if d is None:
             continue
-        #for hdim_str, mode, mask, bias, lse in itertools.product(d.keys(), MODE_MAP.keys(), MASK_MAP.keys(), ["t", "f"], ["t", "f"]):
         for hdim_str, mode in itertools.product(d.keys(), MODE_MAP.keys()):
             tile = d[hdim_str]
             hdim = int(hdim_str)
-            for pipeline in get_pipelines(dtype, hdim):
+            for pipeline in factory.get_combine_pipelines(dtype, hdim):
                 if mode == "group":
                     if pipeline.F_spad != 't':
                         # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
                         continue
-                k = Kernel(F_idx=0,
+                k = Kernel(F_archs=[arch],
+                           F_idx=0,
                            F_hdim=hdim,
                            F_dtype=dtype,
                            F_mode=mode,
@@ -858,74 +879,76 @@ def get_fwd_splitkv_combine_blobs(arch : str, kernel_filter : Optional[str], rec
                         continue
                 gen.append(k)
 
-    return gen
+    return group_kernels_by_filename(gen)
 
 def write_single_kernel(kernel: Union[FmhaFwdSplitKVKernel, FmhaFwdSplitKVCombineKernel], autogen_dir: Path) -> None:
-    (autogen_dir / kernel.filename).write_text(kernel.template)
+    update_file(autogen_dir / kernel.filename, kernel.template)
 
 def write_fwd_splitkv_api(api_pool : FmhaFwdSplitKVApiPool, autogen_dir: Path) -> None:
-    file_path = autogen_dir / FMHA_FWD_SPLITKV_API_FILENAME
-    file_path.write_text(api_pool.api)
+    update_file(autogen_dir / FMHA_FWD_SPLITKV_API_FILENAME, api_pool.api)
 
-def write_blobs(arch : str, output_dir : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
+def write_blobs(targets: List[str], output_dir : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
     filter_list = filter_list.split('@')
     filter_list.extend([''] * (2 - len(filter_list)))
 
-    combine_kernels = get_fwd_splitkv_combine_blobs(arch, filter_list[0], receipt, optdim_list)
+    combine_kernels = get_fwd_splitkv_combine_blobs(targets, filter_list[0], receipt, optdim_list)
     for kernel in combine_kernels:
         write_single_kernel(kernel, output_dir)
-    kernels = get_fwd_splitkv_blobs(arch, filter_list[1], receipt, mask_impl, optdim_list)
+    kernels = get_fwd_splitkv_blobs(targets, filter_list[1], receipt, mask_impl, optdim_list)
     for kernel in kernels:
         write_single_kernel(kernel, output_dir)
 
     api_pool = FmhaFwdSplitKVApiPool(mask_impl)
     for kernel in kernels:
-        combine_kernel = next(
-            (k for k in combine_kernels if
-                k.F_hdim == kernel.F_hdim and
-                k.F_dtype == kernel.F_dtype and
-                k.F_mode == kernel.F_mode and
-                k.F_pipeline.F_spad == kernel.F_pipeline.F_spad and
-                k.F_pipeline.F_dvpad == kernel.F_pipeline.F_dvpad and
-                k.F_pipeline.F_squant == kernel.F_pipeline.F_squant
-            ), None
-        )
-        assert combine_kernel, f'No matching FmhaFwdSplitKVCombineKernel for {kernel}'
-        api_pool.register_traits(FmhaFwdSplitKVApiTrait(
-            pipeline_tag=kernel.F_pipeline.tag,
-            hdim=kernel.F_hdim,
-            dtype=kernel.F_dtype,
-            mode=kernel.F_mode,
-            bm0=kernel.F_tile.F_bm0,
-            bn0=kernel.F_tile.F_bn0,
-            bk0=kernel.F_tile.F_bk0,
-            bn1=kernel.F_tile.F_bn1,
-            bk1=kernel.F_tile.F_bk1,
-            bk0max=kernel.F_tile.F_bk0max,
-            vlayout=kernel.F_pipeline.F_vlayout,
-            logits=kernel.F_pipeline.F_logits,
-            mask=kernel.F_pipeline.F_mask,
-            bias=kernel.F_pipeline.F_bias,
-            lse=kernel.F_pipeline.F_lse,
-            squant=kernel.F_pipeline.F_squant,
-            pagedkv=kernel.F_pipeline.F_pagedkv,
-            spad=kernel.F_pipeline.F_spad,
-            skpad=kernel.F_pipeline.F_skpad,
-            dpad=kernel.F_pipeline.F_dpad,
-            dvpad=kernel.F_pipeline.F_dvpad,
-            bn1comb=combine_kernel.F_tile.F_bn1)
-        )
+        combine_ks = [k for k in combine_kernels if
+            all(arch in k.F_archs for arch in kernel.F_archs) and
+            k.F_hdim == kernel.F_hdim and
+            k.F_dtype == kernel.F_dtype and
+            k.F_mode == kernel.F_mode and
+            k.F_pipeline.F_spad == kernel.F_pipeline.F_spad and
+            k.F_pipeline.F_dvpad == kernel.F_pipeline.F_dvpad and
+            k.F_pipeline.F_lse == 'f' and
+            k.F_pipeline.F_squant == kernel.F_pipeline.F_squant
+        ]
+        assert len(combine_ks) == 1, f'{len(combine_ks)} matching FmhaFwdSplitKVCombineKernel for {kernel}'
+        combine_kernel = combine_ks[0]
+        for arch in kernel.F_archs:
+            api_pool.register_traits(FmhaFwdSplitKVApiTrait(
+                arch=arch,
+                pipeline_tag=kernel.F_pipeline.tag,
+                hdim=kernel.F_hdim,
+                dtype=kernel.F_dtype,
+                mode=kernel.F_mode,
+                bm0=kernel.F_tile.F_bm0,
+                bn0=kernel.F_tile.F_bn0,
+                bk0=kernel.F_tile.F_bk0,
+                bn1=kernel.F_tile.F_bn1,
+                bk1=kernel.F_tile.F_bk1,
+                bk0max=kernel.F_tile.F_bk0max,
+                vlayout=kernel.F_pipeline.F_vlayout,
+                logits=kernel.F_pipeline.F_logits,
+                mask=kernel.F_pipeline.F_mask,
+                bias=kernel.F_pipeline.F_bias,
+                lse=kernel.F_pipeline.F_lse,
+                squant=kernel.F_pipeline.F_squant,
+                pagedkv=kernel.F_pipeline.F_pagedkv,
+                spad=kernel.F_pipeline.F_spad,
+                skpad=kernel.F_pipeline.F_skpad,
+                dpad=kernel.F_pipeline.F_dpad,
+                dvpad=kernel.F_pipeline.F_dvpad,
+                bn1comb=combine_kernel.F_tile.F_bn1)
+            )
     write_fwd_splitkv_api(api_pool, output_dir)
 
-def list_blobs(arch : str, file_path : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
+def list_blobs(targets: List[str], file_path : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
     filter_list = filter_list.split('@')
     filter_list.extend([''] * (2 - len(filter_list)))
 
     with file_path.open('a') as f:
-        kernels = get_fwd_splitkv_combine_blobs(arch, filter_list[0], receipt, optdim_list)
+        kernels = get_fwd_splitkv_combine_blobs(targets, filter_list[0], receipt, optdim_list)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
-        kernels = get_fwd_splitkv_blobs(arch, filter_list[1], receipt, mask_impl, optdim_list)
+        kernels = get_fwd_splitkv_blobs(targets, filter_list[1], receipt, mask_impl, optdim_list)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
         f.write(str(file_path.parent / GEN_DIR / FMHA_FWD_SPLITKV_API_FILENAME) + "\n")

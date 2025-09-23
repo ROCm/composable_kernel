@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 # generate kernel instances to speed up compilation
 
 import copy
@@ -11,6 +11,7 @@ from typing import List, Optional, Tuple
 
 from codegen.cmake_config import *
 from codegen.cpp_symbol_map import *
+from codegen.utils import update_file
 
 
 DTYPE_BITS = {
@@ -607,18 +608,18 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
     return (api_pool, gen)
 
 def write_single_fwd_kernel(kernel: FmhaFwdKernel, autogen_dir: Path) -> None:
-    (autogen_dir / kernel.filename).write_text(kernel.template)
+    update_file(autogen_dir / kernel.filename, kernel.template)
 
 def write_fwd_api(api_pool : FmhaFwdApiPool, autogen_dir: Path) -> None:
-    (autogen_dir / FMHA_FWD_API_FILENAME).write_text(api_pool.api)
+    update_file(autogen_dir / FMHA_FWD_API_FILENAME, api_pool.api)
 
-def write_blobs(arch : str, output_dir : Path, kernel_filter : str, receipt, optdim_list, mask_impl) -> None:
+def write_blobs(targets: List[str], output_dir : Path, kernel_filter : str, receipt, optdim_list, mask_impl) -> None:
     api_pool, kernels = get_fwd_blobs(kernel_filter, receipt, optdim_list, mask_impl)
     for kernel in kernels:
         write_single_fwd_kernel(kernel, output_dir)
     write_fwd_api(api_pool, output_dir)
 
-def list_blobs(arch : str, file_path : Path, kernel_filter : str, receipt, optdim_list, mask_impl) -> None:
+def list_blobs(targets: List[str], file_path : Path, kernel_filter : str, receipt, optdim_list, mask_impl) -> None:
     with file_path.open('a') as f:
         _, kernels = get_fwd_blobs(kernel_filter, receipt, optdim_list, mask_impl)
         for kernel in kernels:

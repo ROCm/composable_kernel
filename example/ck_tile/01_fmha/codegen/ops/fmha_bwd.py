@@ -788,7 +788,7 @@ class FmhaBwdApiPool:
         result = FMHA_BWD_KERNEL_HEADER + FMHA_BWD_API.format(F_dispatch = per_tr_load)
         return result.replace('\n\n', '\n')
 
-def get_bwd_blobs(arch: str, filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[FmhaBwdApiPool, List[FmhaBwdOGradDotOKernel], List[FmhaBwdDQDKDVKernel], List[FmhaBwdConvertQGradKernel]]:
+def get_bwd_blobs(targets: List[str], filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[FmhaBwdApiPool, List[FmhaBwdOGradDotOKernel], List[FmhaBwdDQDKDVKernel], List[FmhaBwdConvertQGradKernel]]:
     if filter_list == '':
         filter_list = '*@*@*'
     filters = filter_list.split('@')
@@ -797,7 +797,7 @@ def get_bwd_blobs(arch: str, filter_list: str, receipt, mask_impl, optdim_list) 
     filter_convert_dq = filters[1]
     filter_dq_dk_dv = filters[2]
 
-    get_dq_dk_dv_tiles = get_dq_dk_dv_tiles_gfx12 if arch.startswith('gfx12') else get_dq_dk_dv_tiles_gfx9
+    get_dq_dk_dv_tiles = get_dq_dk_dv_tiles_gfx12 if targets[0].startswith('gfx12') else get_dq_dk_dv_tiles_gfx9
 
     # use dict as ordered set
     gen_dot_do_o: Dict[FmhaBwdOGradDotOKernel, Literal[True]] = {}
@@ -883,9 +883,9 @@ def get_bwd_blobs(arch: str, filter_list: str, receipt, mask_impl, optdim_list) 
 
     return api_pool, list(gen_dot_do_o.keys()), list(gen_dq_dk_dv.keys()), list(gen_convert_dq.keys())
 
-def write_blobs(arch : str, output_dir : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
+def write_blobs(targets: List[str], output_dir : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
     api_pool, kernels_dot_do_o, kernels_dq_dk_dv, kernels_convert_dq = get_bwd_blobs(
-        arch, filter_list, receipt, mask_impl, optdim_list
+        targets, filter_list, receipt, mask_impl, optdim_list
     )
     update_file(output_dir / FMHA_BWD_API_FILENAME, api_pool.api)
     for k in kernels_dot_do_o:
@@ -896,9 +896,9 @@ def write_blobs(arch : str, output_dir : Path, filter_list : str, receipt, optdi
         update_file(output_dir / k.filename, k.template)
 
 
-def list_blobs(arch : str, file_path: Path, filter_list: str, receipt, optdim_list, mask_impl) -> None:
+def list_blobs(targets: List[str], file_path: Path, filter_list: str, receipt, optdim_list, mask_impl) -> None:
     _, kernels_dot_do_o, kernels_dq_dk_dv, kernels_convert_dq = get_bwd_blobs(
-        arch, filter_list, receipt, mask_impl, optdim_list
+        targets, filter_list, receipt, mask_impl, optdim_list
     )
     with file_path.open("a") as f:
         for k in kernels_dot_do_o:
