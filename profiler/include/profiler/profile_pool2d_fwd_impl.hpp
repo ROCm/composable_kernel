@@ -35,7 +35,8 @@ bool profile_pool2d_fwd_impl(int do_verification,
                              std::vector<index_t> window_strides,
                              std::vector<index_t> window_dilations,
                              std::vector<index_t> input_left_pads,
-                             std::vector<index_t> input_right_pads)
+                             std::vector<index_t> input_right_pads,
+                             index_t instance_index = -1)
 {
     constexpr index_t InOutRank  = 4;
     constexpr index_t WindowRank = 2;
@@ -171,6 +172,11 @@ bool profile_pool2d_fwd_impl(int do_verification,
         if(inst_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             ++num_kernel;
+            if((instance_index != -1) && (instance_index + 1 != num_kernel))
+            {
+                // skip test if instance_index is specified
+                continue;
+            }
         }
         else
         {
@@ -268,7 +274,11 @@ bool profile_pool2d_fwd_impl(int do_verification,
         std::cout << "Error: No kernel is applicable" << std::endl;
         return false;
     }
-
+    if(instance_index != -1)
+    {
+        std::cout << "max_pool2d_fwd_instance (" << instance_index << "/" << num_kernel
+                  << "): Passed" << std::endl;
+    }
     return true;
 }
 
