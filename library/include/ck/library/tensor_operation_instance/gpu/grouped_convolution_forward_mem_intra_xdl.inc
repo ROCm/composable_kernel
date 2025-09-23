@@ -149,24 +149,24 @@ void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f32_tf32_mem_intra_inst
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 TF32,
-                                                                TF32>>>& instances)
+                                                                TF32>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_BF16
-    // grouped conv3d forward, NDHWGC/GKZYXC/NDHWGK
-    void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_mem_intra_instances(
-        std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
-                                                                    NDHWGC,
-                                                                    GKZYXC,
-                                                                    Empty_Tuple,
-                                                                    NDHWGK,
-                                                                    BF16,
-                                                                    BF16,
-                                                                    Empty_Tuple,
-                                                                    BF16,
-                                                                    PassThrough,
-                                                                    PassThrough,
-                                                                    PassThrough>>>& instances);
+// grouped conv3d forward, NDHWGC/GKZYXC/NDHWGK
+void add_device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_mem_intra_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                Empty_Tuple,
+                                                                NDHWGK,
+                                                                BF16,
+                                                                BF16,
+                                                                Empty_Tuple,
+                                                                BF16,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                PassThrough>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_FP16

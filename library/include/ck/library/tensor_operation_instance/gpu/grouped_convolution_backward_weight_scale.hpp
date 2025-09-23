@@ -154,8 +154,7 @@ struct DeviceOperationInstanceFactory<
             {
 #ifdef CK_ENABLE_FP32
                 if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
-                             is_same_v<OutDataType, float> && is_same_v<ComputeTypeA, float> &&
-                             is_same_v<ComputeTypeB, float>)
+                             is_same_v<OutDataType, float>)
                 {
                     if constexpr(is_same_v<ComputeTypeA, ComputeTypeB> &&
                                  is_same_v<ComputeTypeA, TF32>)

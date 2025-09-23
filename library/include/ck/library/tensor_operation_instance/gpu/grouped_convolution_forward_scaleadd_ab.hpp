@@ -150,7 +150,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 #ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataType, ck::Tuple<float, float>> &&
                          is_same_v<WeiDataType, ck::Tuple<float, float>> &&
-                         is_same_v<OutDataType, float> && is_same_v<ComputeType, float>)
+                         is_same_v<OutDataType, float>)
             {
                 if constexpr(is_same_v<ComputeType, TF32>)
                 {

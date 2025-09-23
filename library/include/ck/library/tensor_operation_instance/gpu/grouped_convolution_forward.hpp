@@ -131,7 +131,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float>)
             {
-                if constexpr(is_same_v<AComputeType, BComputeType> && is_same_v<AComputeType, TF32>)
+                static_assert(is_same_v<AComputeType, BComputeType>,
+                              "Error: AComputeType and BComputeType should be the same");
+                if constexpr(is_same_v<AComputeType, TF32>)
                 {
                     add_device_grouped_conv1d_fwd_xdl_gnwc_gkxc_gnwk_f32_tf32_instances(op_ptrs);
                 }
@@ -177,7 +179,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float>)
             {
-                if constexpr(is_same_v<AComputeType, BComputeType> && is_same_v<AComputeType, TF32>)
+                static_assert(is_same_v<AComputeType, BComputeType>,
+                              "Error: AComputeType and BComputeType should be the same");
+                if constexpr(is_same_v<AComputeType, TF32>)
                 {
 
                     add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_f32_tf32_instances(op_ptrs);
@@ -216,7 +220,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float>)
             {
-                if constexpr(is_same_v<AComputeType, BComputeType> && is_same_v<AComputeType, TF32>)
+                static_assert(is_same_v<AComputeType, BComputeType>,
+                              "Error: AComputeType and BComputeType should be the same");
+                if constexpr(is_same_v<AComputeType, TF32>)
                 {
                     add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_f32_tf32_instances(op_ptrs);
                     add_device_grouped_conv2d_fwd_xdl_merged_groups_nhwgc_gkyxc_nhwgk_f32_tf32_instances(
@@ -318,7 +324,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float>)
             {
-                if constexpr(is_same_v<AComputeType, BComputeType> && is_same_v<AComputeType, TF32>)
+                static_assert(is_same_v<AComputeType, BComputeType>,
+                              "Error: AComputeType and BComputeType should be the same");
+                if constexpr(is_same_v<AComputeType, TF32>)
                 {
                     add_device_grouped_conv2d_fwd_xdl_merged_groups_ngchw_gkcyx_ngkhw_f32_tf32_instances(
                         op_ptrs);
@@ -395,7 +403,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float>)
             {
-                if constexpr(is_same_v<AComputeType, BComputeType> && is_same_v<AComputeType, TF32>)
+                static_assert(is_same_v<AComputeType, BComputeType>,
+                              "Error: AComputeType and BComputeType should be the same");
+                if constexpr(is_same_v<AComputeType, TF32>)
                 {
                     add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f32_tf32_instances(op_ptrs);
                 }
@@ -614,7 +624,9 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
                          is_same_v<OutDataType, float>)
             {
-                if constexpr(is_same_v<AComputeType, BComputeType> && is_same_v<AComputeType, TF32>)
+                static_assert(is_same_v<AComputeType, BComputeType>,
+                              "Error: AComputeType and BComputeType should be the same");
+                if constexpr(is_same_v<AComputeType, TF32>)
                 {
                     add_device_grouped_conv3d_fwd_xdl_merged_groups_ngcdhw_gkczyx_ngkdhw_f32_tf32_instances(
                         op_ptrs);

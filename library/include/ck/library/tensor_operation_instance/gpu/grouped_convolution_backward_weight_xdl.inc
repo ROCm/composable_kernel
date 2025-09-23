@@ -1437,7 +1437,7 @@ void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f32_tf32_pad0
                                                            PassThrough,
                                                            PassThrough,
                                                            TF32,
-                                                           TF32>>>& instances)
+                                                           TF32>>>& instances);
 #endif
 #if defined CK_ENABLE_FP16 && defined CK_ENABLE_FP8 && defined CK_ENABLE_BF8
     void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_bf8_f8_instances(

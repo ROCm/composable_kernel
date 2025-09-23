@@ -732,21 +732,21 @@ void add_device_grouped_conv3d_fwd_bias_clamp_xdl_large_tensor_ndhwgc_gkzyxc_ndh
                                                                 PassThrough,
                                                                 AddClamp,
                                                                 TF32,
-                                                                TF32>>>& instances)
+                                                                TF32>>>& instances);
 
-    void add_device_grouped_conv3d_fwd_bias_clamp_xdl_merged_groups_ndhwgc_gkzyxc_ndhwgk_f32_instances(
-        std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
-                                                                    NDHWGC,
-                                                                    GKZYXC,
-                                                                    Tuple<NDHWGK>,
-                                                                    NDHWGK,
-                                                                    F32,
-                                                                    F32,
-                                                                    Tuple<F32>,
-                                                                    F32,
-                                                                    PassThrough,
-                                                                    PassThrough,
-                                                                    AddClamp>>>& instances);
+void add_device_grouped_conv3d_fwd_bias_clamp_xdl_merged_groups_ndhwgc_gkzyxc_ndhwgk_f32_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,
+                                                                NDHWGC,
+                                                                GKZYXC,
+                                                                Tuple<NDHWGK>,
+                                                                NDHWGK,
+                                                                F32,
+                                                                F32,
+                                                                Tuple<F32>,
+                                                                F32,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                AddClamp>>>& instances);
 
 void add_device_grouped_conv3d_fwd_bias_clamp_xdl_merged_groups_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<3,

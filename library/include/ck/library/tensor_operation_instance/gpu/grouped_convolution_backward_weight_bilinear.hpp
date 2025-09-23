@@ -153,10 +153,11 @@ struct DeviceOperationInstanceFactory<
             {
 #ifdef CK_ENABLE_FP32
                 if constexpr(is_same_v<InDataType, float> && is_same_v<WeiDataType, float> &&
-                             is_same_v<OutDataType, float> && is_same_v<ComputeTypeA, float> &&
-                             is_same_v<ComputeTypeB, float>)
+                             is_same_v<OutDataType, float>)
                 {
-                    if(is_same_v<ComputeTypeA, ComputeTypeB> && is_same_v<ComputeTypeA, TF32>)
+                    static_assert(is_same_v<ComputeTypeA, ComputeTypeB>,
+                                  "Error: this operator requires the same compute type");
+                    if constexpr(is_same_v<ComputeTypeA, TF32>)
                     {
                         add_device_grouped_conv3d_bwd_weight_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instances(
                             op_ptrs);
