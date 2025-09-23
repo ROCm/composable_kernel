@@ -1322,18 +1322,18 @@ CK_TILE_DEVICE void moe_sorting_wave_cumsum(data_t& thread_data)
     }
 }
 
-template <index_t BLOCK_SIZE = 256>
+template <index_t kBlockSize = 256>
 CK_TILE_DEVICE void moe_buf_set_zero_kernel(uint8x16_t* buf, long_index_t buf_bytes, index_t gid)
 {
-    // const index_t offset = (blockIdx.x - 1) * BLOCK_SIZE + threadIdx.x;
-    long_index_t offset = static_cast<long_index_t>(gid) * BLOCK_SIZE + threadIdx.x;
+    // const index_t offset = (blockIdx.x - 1) * kBlockSize + threadIdx.x;
+    long_index_t offset = static_cast<long_index_t>(gid) * kBlockSize + threadIdx.x;
     if(offset < buf_bytes / 16)
     {
         buf[offset] = uint8x16_t{0};
     }
 }
 
-template <index_t BLOCK_SIZE = 256>
+template <index_t kBlockSize = 256>
 CK_TILE_DEVICE void moe_buf_set_zero_kernel_2d(
     void* buf, index_t row, index_t col, index_t elem_bytes, index_t gid, index_t blocks)
 {
@@ -1345,7 +1345,7 @@ CK_TILE_DEVICE void moe_buf_set_zero_kernel_2d(
     vector_type* p_buf = reinterpret_cast<vector_type*>(buf);
     auto zero_         = vector_type{0};
 
-    for(long_index_t i = gid * BLOCK_SIZE + threadIdx.x; i < total_elems; i += blocks * BLOCK_SIZE)
+    for(long_index_t i = gid * kBlockSize + threadIdx.x; i < total_elems; i += blocks * kBlockSize)
     {
         p_buf[i] = zero_;
     }
@@ -1560,7 +1560,7 @@ struct MoeSortingMultiPhaseKernel_P0_v1
     using WeightType = typename Problem::WeightType;
     using MeshType   = typename Problem::MeshType;
 
-    static constexpr index_t BLOCK_SIZE = 256;
+    static constexpr index_t kBlockSize = 256;
     static constexpr index_t OCCUPANCY  = 2; // hard coded
 
     typedef MoeSortingHostArgs MoeSortingKargs;
@@ -1604,7 +1604,7 @@ struct MoeSortingMultiPhaseKernel_P0_v1
 
     CK_TILE_HOST static constexpr auto GridSize(const Hargs&) { return get_num_cu() * OCCUPANCY; }
 
-    CK_TILE_HOST static constexpr auto BlockSize(const Hargs&) { return dim3(BLOCK_SIZE); }
+    CK_TILE_HOST static constexpr auto BlockSize(const Hargs&) { return dim3(kBlockSize); }
 
     // in byte
     CK_TILE_HOST static constexpr auto GetSmemSize() { return 0; }
@@ -1647,8 +1647,8 @@ struct MoeSortingMultiPhaseKernel_P0_v1
         index_t total_elem = rounded_tokens * kargs.topk_mdiv.divisor / Problem::SubTokenTile;
 
 #pragma unroll Problem::SubTokenTile
-        for(index_t i = blockIdx.x * BLOCK_SIZE + threadIdx.x; i < total_elem;
-            i += gridDim.x * BLOCK_SIZE)
+        for(index_t i = blockIdx.x * kBlockSize + threadIdx.x; i < total_elem;
+            i += gridDim.x * kBlockSize)
         {
             auto x = p_topk_ids[i];
             static_for<0, Problem::SubTokenTile, 1>{}([&](auto j) {
@@ -1676,7 +1676,7 @@ struct MoeSortingMultiPhaseKernel_P0_v2
     using WeightType = typename Problem::WeightType;
     using MeshType   = typename Problem::MeshType;
 
-    static constexpr index_t BLOCK_SIZE = 256;
+    static constexpr index_t kBlockSize = 512;
 
     typedef MoeSortingHostArgs MoeSortingKargs;
 
@@ -1734,7 +1734,7 @@ struct MoeSortingMultiPhaseKernel_P0_v2
     // CK_TILE_HOST static constexpr auto GetSmemSize() { return 0; }
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemSize()
     {
-        return BLOCK_SIZE / get_warp_size() * sizeof(IndexType);
+        return kBlockSize / get_warp_size() * sizeof(IndexType);
     }
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
@@ -1785,7 +1785,7 @@ struct MoeSortingMultiPhaseKernel_P0_v2
             mask = p_local_expert_mask[eid];
         }
         MeshType* p_expert_mesh     = reinterpret_cast<MeshType*>(kargs.p_expert_mesh) + eid * mesh_stride;
-        for(index_t i = threadIdx.x; i < mesh_stride; i += BLOCK_SIZE)
+        for(index_t i = threadIdx.x; i < mesh_stride; i += kBlockSize)
         {
             p_expert_mesh[i] = 0;
         }
@@ -1794,7 +1794,7 @@ struct MoeSortingMultiPhaseKernel_P0_v2
         index_t total_elem = rounded_tokens * kargs.topk_mdiv.divisor / index_pack;
 
         #pragma unroll index_pack
-        for(index_t i = threadIdx.x; i < total_elem; i += BLOCK_SIZE)
+        for(index_t i = threadIdx.x; i < total_elem; i += kBlockSize)
         {
             auto x = p_topk_ids[i];
             static_for<0, index_pack, 1>{}([&](auto j) {
@@ -1821,14 +1821,14 @@ struct MoeSortingMultiPhaseKernel_P0_v2
             auto f_sum = [](auto x_, auto y_) { return x_ + y_; };
             const r_t* p_expert_mesh_r = reinterpret_cast<r_t*>(p_expert_mesh);
 
-            int loops = (mesh_stride / index_pack + BLOCK_SIZE - 1) / BLOCK_SIZE;
+            int loops = (mesh_stride / index_pack + kBlockSize - 1) / kBlockSize;
 
             if(Problem::LocalToken && mask == 0)
                 return; // skip
             index_t cnt = 0; // per-wave cnt
             for(int i = 0; i < loops; i++)
             {
-                int position = i * BLOCK_SIZE + threadIdx.x;
+                int position = i * kBlockSize + threadIdx.x;
                 r_t v{0};
                 if(position < (mesh_stride / index_pack))
                     v = p_expert_mesh_r[position];
@@ -1850,7 +1850,7 @@ struct MoeSortingMultiPhaseKernel_P0_v2
             if(threadIdx.x == 0)
             {
                 index_t c = 0;
-                for(auto i = 0; i < (BLOCK_SIZE / get_warp_size()); i++)
+                for(auto i = 0; i < (kBlockSize / get_warp_size()); i++)
                 {
                     c += s[i];
                 }

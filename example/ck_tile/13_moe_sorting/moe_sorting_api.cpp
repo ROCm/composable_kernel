@@ -209,7 +209,7 @@ float moe_sorting(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_confi
         auto kargs                            = kernel::MakeKargs(a);                               \
         const dim3 grids                      = kernel::GridSize(a);                                \
         const dim3 blocks                     = kernel::BlockSize(a);                               \
-        return ck_tile::make_kernel<kernel::BLOCK_SIZE>(kernel{}, grids, blocks, 0, kargs);         \
+        return ck_tile::make_kernel<kernel::kBlockSize>(kernel{}, grids, blocks, 0, kargs);         \
     }()
 
 #define MOE_SORTING_MP_0_V2(mesh_type_, unroll_num_, expert_masking_, local_token_)                    \

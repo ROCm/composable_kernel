@@ -213,7 +213,7 @@ float fused_moesorting(fused_moesorting_trait t, fused_moesorting_args a, ck_til
         auto kargs                            = kernel::MakeKargs(a);                               \
         const dim3 grids                      = kernel::GridSize(a);                                \
         const dim3 blocks                     = kernel::BlockSize(a);                               \
-        return ck_tile::make_kernel<kernel::BLOCK_SIZE>(kernel{}, grids, blocks, 0, kargs);         \
+        return ck_tile::make_kernel<kernel::kBlockSize>(kernel{}, grids, blocks, 0, kargs);         \
     }()
 
 #define MOE_SORTING_MP_0_V2(mesh_type_, unroll_num_, expert_masking_, local_token_)                    \
@@ -427,7 +427,6 @@ float fused_moesorting_mp(fused_moesorting_trait t,
                 if(t.local_expert_masking)
                 {
                     float ave_time = ck_tile::launch_kernel(s,
-                                                            maybe_clear_workspace,
                                                             MOE_SORTING_MP_0_V2(ms_index_t, 1, true),
                                                             MOE_SORTING_MP_2(ms_index_t, 1, true),
                                                             MOE_SORTING_MP_3(ms_index_t, 1, true));
@@ -436,7 +435,6 @@ float fused_moesorting_mp(fused_moesorting_trait t,
                 else
                 {
                     float ave_time = ck_tile::launch_kernel(s,
-                                                            maybe_clear_workspace,
                                                             MOE_SORTING_MP_0_V2(ms_index_t, 1, false),
                                                             MOE_SORTING_MP_2(ms_index_t, 1, false),
                                                             MOE_SORTING_MP_3(ms_index_t, 1, false));
