@@ -232,7 +232,7 @@ int run_grouped_conv_fwd_example_prec_type(
                                                          OutPrecType>(
             argc, argv, NHWGC{}, GKYXC{}, NHWGK{});
     }
-    else if(in_layout == "NDHWGC" && wei_layout == "GKZYXC" && out_layout == "GKZYXC")
+    else if(in_layout == "NDHWGC" && wei_layout == "GKZYXC" && out_layout == "NDHWGK")
     {
         return run_grouped_conv_fwd_example_with_layouts<ck_tile::number<3>{},
                                                          GemmWarpConfig,
