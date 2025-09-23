@@ -96,9 +96,9 @@ struct TopkSoftmaxKernel
         if(block_row_id > kargs.num_rows)
             return;
 
-        index_t block_os_inp = __builtin_amdgcn_readfirstlane(block_row_id * kargs.stride_input);
-        index_t block_os_out = __builtin_amdgcn_readfirstlane(block_row_id * kargs.stride_output);
-        index_t num_rows_rem = __builtin_amdgcn_readfirstlane(kargs.num_rows - block_row_id);
+        index_t block_os_inp = amd_wave_read_first_lane(block_row_id * kargs.stride_input);
+        index_t block_os_out = amd_wave_read_first_lane(block_row_id * kargs.stride_output);
+        index_t num_rows_rem = amd_wave_read_first_lane(kargs.num_rows - block_row_id);
 
         const auto input_window = [&]() {
             const InputType* p_input =
