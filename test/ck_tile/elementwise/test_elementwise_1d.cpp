@@ -53,7 +53,7 @@ class TestCkTileElementwise : public ::testing::Test
     using BlockTile_        = std::tuple_element_t<5, Tuple>;
     using WarpTile_         = std::tuple_element_t<6, Tuple>;
     using TestElementWiseShape =
-        ck_tile::ElementWiseShape<BlockWarps_, BlockTile_, WarpTile_, ComputeDataType>;
+        ck_tile::ElementWiseShape<BlockWarps_, BlockTile_, WarpTile_, XDataType>;
     static constexpr int NumInputs = elementwise_op_traits<ElementwiseOpType>::num_inputs;
 
     void RunTest(ck_tile::index_t total_m_elements)
@@ -106,7 +106,7 @@ class TestCkTileElementwise : public ::testing::Test
         ck_tile::index_t grid_size =
             (total_m_elements + TestElementWiseShape::kBlockM - 1) / TestElementWiseShape::kBlockM;
         dim3 grid(grid_size, 1, 1);
-        dim3 block(TestElementWiseShape::kBlockSize, 1, 1);
+        dim3 block                             = dim3(ew_kernel.BlockSize());
         constexpr ck_tile::index_t kBlockPerCu = 1;
 
         ck_tile::stream_config s{nullptr, false, 0}; // Default stream, no timing, no log
@@ -118,19 +118,17 @@ class TestCkTileElementwise : public ::testing::Test
                 "The kernel configuration is not supported for the given input size.");
         }
 
-        ck_tile::launch_kernel(
-            s,
-            ck_tile::make_kernel<TestElementWiseShape::kBlockSize, // MaxThreadPerBlock
-                                 kBlockPerCu>                      // MinBlockPerCu
-            (ew_kernel,
-             grid,
-             block,
-             0, // actual shared memory
-             lens,
-             strides, // input strides
-             strides, // output strides
-             d_x_ptrs_tuple,
-             p_y_device));
+        ck_tile::launch_kernel(s,
+                               ck_tile::make_kernel<kBlockPerCu> // MinBlockPerCu
+                               (ew_kernel,
+                                grid,
+                                block,
+                                0, // actual shared memory
+                                lens,
+                                strides, // input strides
+                                strides, // output strides
+                                d_x_ptrs_tuple,
+                                p_y_device));
 
         d_y_mem.FromDevice(h_y.data());
 
@@ -195,8 +193,7 @@ TYPED_TEST(TestCkTileElementwise, RunElementwise_1024) { this->RunTest(1024); }
 
 TYPED_TEST(TestCkTileElementwise, RunElementwise_513)
 {
-    EXPECT_THROW((this->RunTest(513)),
-                 std::runtime_error); // Test with an input size that's not a multiple of kVectorM
+    this->RunTest(513); // Test with an input size that's not a multiple of kVectorM
 }
 
 TYPED_TEST(TestCkTileElementwise, RunElementwise_516)

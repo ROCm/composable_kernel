@@ -74,8 +74,8 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
 
     auto kargs = kernel::MakeKargs(a);
 
-    const dim3 grids      = kernel::GridSize(a);
-    constexpr dim3 blocks = kernel::BlockSize();
+    const dim3 grids  = kernel::GridSize(a);
+    const dim3 blocks = kernel::BlockSize();
 
     printf("Pipeline: %d\n", Config::kPipelineId);
     printf("Grid: x=%u y=%u z=%u\n", grids.x, grids.y, grids.z);
@@ -96,8 +96,8 @@ float batched_transpose_dispatch(batched_transpose_kargs& a, ck_tile::stream_con
 
     printf("Launching Kernel...\n");
 
-    float ave_time = ck_tile::launch_kernel(
-        s, ck_tile::make_kernel<blocks.x, 1>(kernel{}, grids, blocks, 0, kargs));
+    float ave_time =
+        ck_tile::launch_kernel(s, ck_tile::make_kernel<1>(kernel{}, grids, blocks, 0, kargs));
 
     printf("Kernel finished...\n");
 

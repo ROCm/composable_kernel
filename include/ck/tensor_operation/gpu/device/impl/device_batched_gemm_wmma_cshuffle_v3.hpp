@@ -64,16 +64,34 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
         auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
-        static_for<0, GridwiseGemm::NumATensor, 1>{}(
-            [&](auto i) { splitk_batch_offset.a_k_split_offset[i] += a_batch_offset; });
+        // shift A matrices pointer for splitk
+        typename GridwiseGemm::AsGridPointer p_as_grid_shift;
+        static_for<0, GridwiseGemm::NumATensor, 1>{}([&](auto i) {
+            using ADataType_ =
+                remove_cvref_t<tuple_element_t<i.value, typename GridwiseGemm::AsDataType_>>;
+            p_as_grid_shift(i) = static_cast<const ADataType_*>(karg.p_as_grid[i]) +
+                                 splitk_batch_offset.a_k_split_offset[i] + a_batch_offset;
+        });
 
-        static_for<0, GridwiseGemm::NumBTensor, 1>{}(
-            [&](auto i) { splitk_batch_offset.b_k_split_offset[i] += b_batch_offset; });
-
-        splitk_batch_offset.c_reduce_offset += c_batch_offset;
+        // shift B matrices pointer for splitk
+        typename GridwiseGemm::BsGridPointer p_bs_grid_shift;
+        static_for<0, GridwiseGemm::NumBTensor, 1>{}([&](auto i) {
+            using BDataType_ =
+                remove_cvref_t<tuple_element_t<i.value, typename GridwiseGemm::BsDataType_>>;
+            p_bs_grid_shift(i) = static_cast<const BDataType_*>(karg.p_bs_grid[i]) +
+                                 splitk_batch_offset.b_k_split_offset[i] + b_batch_offset;
+        });
 
         GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-            p_shared, splitk_batch_offset, karg);
+            p_as_grid_shift,
+            p_bs_grid_shift,
+            karg.p_ds_grid,
+            karg.p_e_grid + splitk_batch_offset.c_reduce_offset + c_batch_offset,
+            p_shared,
+            karg,
+            karg.a_element_op,
+            karg.b_element_op,
+            karg.cde_element_op);
 #if defined(__gfx11__)
     }
 #endif
@@ -430,21 +448,17 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
 
                     // Packed sizes are 1 for all implemented data types but we include it anyway
                     // for future compatibility.
-                    std::array<std::size_t, 1> size_as_buffers;
-                    size_as_buffers[0] = arg_.Batch *
-                                         a_grid_desc_ak0_m_ak1[Number<0>{}].GetElementSpaceSize() *
-                                         sizeof(ADataType) / GridwiseGemm::APackedSize;
-
-                    std::array<std::size_t, 1> size_bs_buffers;
-                    size_bs_buffers[0] = arg_.Batch *
-                                         b_grid_desc_bk0_n_bk1[Number<0>{}].GetElementSpaceSize() *
-                                         sizeof(BDataType) / GridwiseGemm::BPackedSize;
-
-                    std::array<std::size_t, GridwiseGemm::NumDTensor> size_ds_buffers;
-
                     // Note: the grid descriptors and size_a / size_b do *not* take batching into
                     // account, so we have to manually multiply overall buffer sizes for rotating
                     // memory by batch.
+                    std::array<std::size_t, 1> size_as_buffers;
+                    size_as_buffers[0] = a_grid_desc_ak0_m_ak1[Number<0>{}].GetElementSpaceSize() *
+                                         sizeof(ADataType) / GridwiseGemm::APackedSize * arg_.Batch;
+
+                    std::array<std::size_t, 1> size_bs_buffers;
+                    size_bs_buffers[0] = b_grid_desc_bk0_n_bk1[Number<0>{}].GetElementSpaceSize() *
+                                         sizeof(BDataType) / GridwiseGemm::BPackedSize * arg_.Batch;
+
                     ck::utility::RotatingMemWrapperMultiABD<Argument,
                                                             Tuple<ADataType>,
                                                             Tuple<BDataType>,
@@ -453,7 +467,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3 : public DeviceBatchedGemm<ALayout,
                                      stream_config.rotating_count,
                                      size_as_buffers,
                                      size_bs_buffers,
-                                     size_ds_buffers);
+                                     std::array<std::size_t, 0>{});
                     rotating_mem.Print();
 
                     auto run_flush_cache = [&]() {

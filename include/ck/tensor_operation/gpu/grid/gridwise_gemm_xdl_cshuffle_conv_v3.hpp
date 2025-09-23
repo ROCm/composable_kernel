@@ -4,7 +4,6 @@
 #pragma once
 
 #include "ck/utility/common_header.hpp"
-#include "ck/utility/env.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
@@ -270,6 +269,9 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
 
     __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
     {
+        constexpr index_t MWave    = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t NWave    = NPerBlock / (NXdlPerWave * NPerXdl);
+        constexpr index_t WaveSize = BlockSize / (MWave * NWave);
         // A matrix in LDS memory, dst of blockwise copy
         if constexpr(ABlockLdsExtraM)
         {
@@ -326,7 +328,7 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
 
             constexpr auto KThreadWrite     = ABlockTransferThreadClusterLengths_AK0_M_AK1{}.At(I0);
             constexpr auto K0PerThreadWrite = AK0Number / KThreadWrite;
-            constexpr auto KThreadRead      = 64 / MPerXdl;
+            constexpr auto KThreadRead      = WaveSize / MPerXdl;
             constexpr auto K0PerThreadRead  = AK0Number / KThreadRead;
 
             constexpr auto kfold = (AK1Number * M0 * sizeof(ADataType) > 128)
@@ -407,6 +409,9 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
 
     __device__ static constexpr auto GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1()
     {
+        constexpr index_t MWave    = MPerBlock / (MXdlPerWave * MPerXdl);
+        constexpr index_t NWave    = NPerBlock / (NXdlPerWave * NPerXdl);
+        constexpr index_t WaveSize = BlockSize / (MWave * NWave);
         // B matrix in LDS memory, dst of blockwise copy
         if constexpr(BBlockLdsExtraN)
         {
@@ -460,7 +465,7 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
 
             constexpr auto KThreadWrite     = BBlockTransferThreadClusterLengths_BK0_N_BK1{}.At(I0);
             constexpr auto K0PerThreadWrite = BK0Number / KThreadWrite;
-            constexpr auto KThreadRead      = 64 / NPerXdl;
+            constexpr auto KThreadRead      = WaveSize / NPerXdl;
             constexpr auto K0PerThreadRead  = BK0Number / KThreadRead;
 
             constexpr auto kfold = (BK1Number * N0 * sizeof(BDataType) > 128)
@@ -554,6 +559,8 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
         return c_shuffle_block_desc_mblock_mperblock_nblock_nperblock;
     }
 
+    IS_VALID_COMPILATION_PARAMETER_IMPL(CDataType)
+
     using BlockwiseGemmPipe =
         remove_cvref_t<decltype(BlockGemmPipeline_Selector<
                                 BlkGemmPipelineVer,
@@ -605,203 +612,6 @@ struct GridwiseGemm_xdl_cshuffle_conv_v3
         return math::max((a_block_space_size_aligned * sizeof(ADataType) +
                           b_block_space_size_aligned * sizeof(BDataType)),
                          c_block_size * sizeof(CShuffleDataType));
-    }
-
-    // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
-    __host__ static constexpr bool CheckValidity(const Argument& karg)
-    {
-        static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
-                          (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
-                      "Invalid tuning param!");
-
-        if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding) &&
-                     !(is_same<tensor_layout::gemm::RowMajor, ALayout>::value))
-        {
-            if(!(karg.M % MPerBlock == 0))
-            {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "Arg M value is not a multiple of MPerBlock! M: " << karg.M << " "
-                              << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
-                              << std::endl;
-                }
-                return false;
-            }
-        }
-
-        if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::NPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding) &&
-                     (is_same<tensor_layout::gemm::RowMajor, BLayout>::value))
-        {
-            if(!(karg.N % NPerBlock == 0))
-            {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "Arg N value is not a multiple of NPerBlock! N: " << karg.N << " "
-                              << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
-                              << std::endl;
-                }
-                return false;
-            }
-        }
-
-        if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::KPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::NKPadding ||
-                       GemmSpec == tensor_operation::device::GemmSpecialization::MNKPadding))
-        {
-
-            auto K_t = karg.KBatch * KPerBlock;
-            if(!(karg.K % K_t == 0))
-            {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "Arg K value is not a multiple of K_Batch * K0PerBlock * K1! K: "
-                              << karg.K << " " << __FILE__ << ":" << __LINE__
-                              << ", in function: " << __func__ << std::endl;
-                }
-                return false;
-            }
-        }
-        else
-        {
-            constexpr auto KReadVec = math::lcm(AK1Number, BK1Number);
-            auto K_t                = karg.KBatch * KReadVec;
-            auto KReadPadSplited    = math::integer_divide_ceil(karg.K, K_t) * KReadVec;
-            if((KReadPadSplited * (karg.KBatch - 1)) >= karg.K)
-            {
-                return false;
-            }
-        }
-
-        if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
-        {
-            if(karg.K % ABlockTransferSrcScalarPerVector != 0)
-            {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "Arg K (" << karg.K
-                              << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
-                              << ABlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
-                              << __LINE__ << ", in function: " << __func__ << std::endl;
-                }
-                return false;
-            }
-        }
-        else
-        {
-            if(karg.M % ABlockTransferSrcScalarPerVector != 0)
-            {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "Arg M (" << karg.M
-                              << ") value is not a multiple of ABlockTransferSrcScalarPerVector ("
-                              << ABlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
-                              << __LINE__ << ", in function: " << __func__ << std::endl;
-                }
-                return false;
-            }
-        }
-
-        if constexpr(is_same<tensor_layout::gemm::RowMajor, BLayout>::value)
-        {
-            if(karg.N % BBlockTransferSrcScalarPerVector != 0)
-            {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "Arg N (" << karg.N
-                              << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
-                              << BBlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
-                              << __LINE__ << ", in function: " << __func__ << std::endl;
-                }
-                return false;
-            }
-        }
-        else
-        {
-            if(karg.K % BBlockTransferSrcScalarPerVector != 0)
-            {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "Arg K (" << karg.K
-                              << ") value is not a multiple of BBlockTransferSrcScalarPerVector ("
-                              << BBlockTransferSrcScalarPerVector << " )! " << __FILE__ << ":"
-                              << __LINE__ << ", in function: " << __func__ << std::endl;
-                }
-                return false;
-            }
-        }
-
-        if constexpr(is_same<tensor_layout::gemm::RowMajor, CLayout>::value)
-        {
-            if(karg.N % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
-            {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "Arg N (" << karg.N
-                              << ") value is not a multiple of "
-                                 "CShuffleBlockTransferScalarPerVector_NPerBlock ("
-                              << CShuffleBlockTransferScalarPerVector_NPerBlock << " )! "
-                              << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
-                              << std::endl;
-                }
-                return false;
-            }
-        }
-        else
-        {
-            if(karg.M % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
-            {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "Arg M (" << karg.M
-                              << ") value is not a multiple of "
-                                 "CShuffleBlockTransferScalarPerVector_NPerBlock ("
-                              << CShuffleBlockTransferScalarPerVector_NPerBlock << " )! "
-                              << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
-                              << std::endl;
-                }
-                return false;
-            }
-        }
-
-        if constexpr(!(is_same<remove_cvref_t<CDataType>, half_t>::value ||
-                       is_same<remove_cvref_t<CDataType>, float>::value ||
-                       is_same<remove_cvref_t<CDataType>, bhalf_t>::value ||
-                       is_same<remove_cvref_t<CDataType>, int32_t>::value))
-        {
-            if(!karg.IsReduceAdd())
-            {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << " KBatch: " << karg.KBatch << " > 1 is not support yet" << __FILE__
-                              << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
-                }
-                if(karg.KBatch > 1)
-                {
-                    return false;
-                }
-            }
-        }
-
-        // check gridwise gemm pipeline
-        const auto num_k_loop = karg.AK0 / (KPerBlock / AK1Value);
-
-        if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1)
-        {
-            if(num_k_loop <= BlockwiseGemmPipe::PrefetchStages)
-            {
-                return false;
-            }
-        }
-
-        // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
-        return true;
     }
 
     __host__ static constexpr bool CalculateHasMainKBlockLoop(index_t K)

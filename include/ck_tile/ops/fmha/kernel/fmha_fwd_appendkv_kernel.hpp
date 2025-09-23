@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -16,6 +16,7 @@ struct FmhaFwdAppendKVKernel
     using FmhaPipeline                            = ck_tile::remove_cvref_t<FmhaPipeline_>;
     static constexpr ck_tile::index_t kBlockSize  = FmhaPipeline::kBlockSize;
     static constexpr ck_tile::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
+
     static_assert(kBlockPerCu > 0);
     static constexpr ck_tile::index_t kBlockPerCuInput = FmhaPipeline::Problem::kBlockPerCu;
 
@@ -647,44 +648,29 @@ struct FmhaFwdAppendKVKernel
                              make_tuple(number<FmhaPipeline::kN1>{}, number<FmhaPipeline::kN0>{}),
                              {0, i_n0});
 
-        if constexpr(kApplyRoPE)
-        {
-            FmhaPipeline{}(q_dram_window,
-                           k_dram_window,
-                           i_page_block_k,
-                           k_page_block_navigator,
-                           knew_dram_window,
-                           v_dram_window,
-                           i_page_block_v,
-                           v_page_block_navigator,
-                           vnew_dram_window,
-                           q_rotary_cos_dram_window,
-                           q_rotary_sin_dram_window,
-                           knew_rotary_cos_dram_window,
-                           knew_rotary_sin_dram_window,
-                           kargs.rotary_dim,
-                           kargs.seqlen_q <= i_m0,
-                           skip_append_kv);
-        }
-        else
-        {
-            FmhaPipeline{}(q_dram_window,
-                           k_dram_window,
-                           i_page_block_k,
-                           k_page_block_navigator,
-                           knew_dram_window,
-                           v_dram_window,
-                           i_page_block_v,
-                           v_page_block_navigator,
-                           vnew_dram_window,
-                           q_rotary_cos_dram_window,
-                           q_rotary_sin_dram_window,
-                           knew_rotary_cos_dram_window,
-                           knew_rotary_sin_dram_window,
-                           0, // rotary_dim not used
-                           kargs.seqlen_q <= i_m0,
-                           skip_append_kv);
-        }
+        // If kApplyRoPe is false, we set the rotary_dim to 0
+        auto rotary_dim = [&]() {
+            if constexpr(kApplyRoPE)
+                return kargs.rotary_dim;
+            else
+                return 0;
+        }();
+        FmhaPipeline{}(q_dram_window,
+                       k_dram_window,
+                       i_page_block_k,
+                       k_page_block_navigator,
+                       knew_dram_window,
+                       v_dram_window,
+                       i_page_block_v,
+                       v_page_block_navigator,
+                       vnew_dram_window,
+                       q_rotary_cos_dram_window,
+                       q_rotary_sin_dram_window,
+                       knew_rotary_cos_dram_window,
+                       knew_rotary_sin_dram_window,
+                       rotary_dim,
+                       kargs.seqlen_q <= i_m0,
+                       skip_append_kv);
     }
 };
 

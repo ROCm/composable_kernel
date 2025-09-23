@@ -75,7 +75,7 @@ void add_device_gemm_multiply_add_xdl_c_shuffle_f16_f8_f32_f32_f16_mk_nk_mn_mn_m
 #endif // CK_ENABLE_FP8
 #endif // CK_USE_XDL
 
-#ifdef CK_USE_WMMA
+#if defined(CK_USE_WMMA)
 void add_device_gemm_multiply_add_wmma_c_shuffle_f16_f16_f16_f16_f16_mk_kn_mn_mn_mn_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
                                                           Row,

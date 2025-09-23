@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/fmha.hpp"
@@ -37,6 +38,10 @@ struct FmhaFwdFp8Fp16
 };
 
 struct FmhaFwdFp8Bf16
+{
+};
+
+struct FmhaFwdFp8Fp32
 {
 };
 
@@ -105,6 +110,38 @@ struct FmhaFwdTypeConfig<FmhaFwdBf8>
     using PDataType             = ck_tile::bf8_t; // data type for A matrix of second gemm
     using OaccDataType          = float;          // data type for second gemm accumulation
     using ODataType             = ck_tile::bf8_t;
+};
+
+template <>
+struct FmhaFwdTypeConfig<FmhaFwdFp8Bf16>
+{
+    using QDataType             = ck_tile::fp8_t;
+    using KDataType             = ck_tile::fp8_t;
+    using VDataType             = ck_tile::fp8_t;
+    using BiasDataType          = float;
+    using RandValOutputDataType = uint8_t;
+    using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
+    using SaccDataType          = float; // data type for first gemm accumulation
+    using SMPLComputeDataType   = float; // data type for reduction, softmax
+    using PDataType             = ck_tile::fp8_t; // data type for A matrix of second gemm
+    using OaccDataType          = float;          // data type for second gemm accumulation
+    using ODataType             = ck_tile::bf16_t;
+};
+
+template <>
+struct FmhaFwdTypeConfig<FmhaFwdFp8Fp32>
+{
+    using QDataType             = ck_tile::fp8_t;
+    using KDataType             = ck_tile::fp8_t;
+    using VDataType             = ck_tile::fp8_t;
+    using BiasDataType          = float;
+    using RandValOutputDataType = uint8_t;
+    using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
+    using SaccDataType          = float; // data type for first gemm accumulation
+    using SMPLComputeDataType   = float; // data type for reduction, softmax
+    using PDataType             = ck_tile::fp8_t; // data type for A matrix of second gemm
+    using OaccDataType          = float;          // data type for second gemm accumulation
+    using ODataType             = float;
 };
 
 struct FmhaMasks
@@ -1028,6 +1065,7 @@ template <ck_tile::index_t HDim_,
           bool kPadSK_,
           bool kPadD_,
           bool kPadDv_,
+          bool kUseTrLoad_,
           bool kSkipMinSeqlenQ_ = false>
 struct fmha_fwd_traits_
 {
@@ -1052,6 +1090,7 @@ struct fmha_fwd_traits_
     static constexpr bool kPadSK                     = kPadSK_;
     static constexpr bool kPadD                      = kPadD_;
     static constexpr bool kPadDv                     = kPadDv_;
+    static constexpr bool kUseTrLoad                 = kUseTrLoad_;
     static constexpr bool kSkipMinSeqlenQ            = kSkipMinSeqlenQ_;
 };
 

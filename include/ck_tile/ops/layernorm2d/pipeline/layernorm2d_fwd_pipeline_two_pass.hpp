@@ -255,7 +255,7 @@ struct Layernorm2dFwdPipelineTwoPass
             });
 
             static_assert(kFusedQuant != Layernorm2dFusedQuantEnum::DYNAMIC_QUANT);
-            Epilogue{}(y_window, ln);
+            Epilogue{}(y_window, ln, nullptr);
 
             move_tile_window(gamma_window, {-Block_N});
             move_tile_window(beta_window, {-Block_N});

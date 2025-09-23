@@ -6,7 +6,7 @@ This folder contains example for batched Transpose using ck_tile tile-programmin
 # in the root of ck_tile
 mkdir build && cd build
 # you can replace <arch> with the appropriate architecture (for example gfx90a or gfx942) or leave it blank
-sh ../script/cmake-ck-dev.sh  ../ <arch>
+../script/cmake-ck-dev.sh  ../ <arch>
 # Make the transpose executable
 make tile_example_batched_transpose -j
 ```

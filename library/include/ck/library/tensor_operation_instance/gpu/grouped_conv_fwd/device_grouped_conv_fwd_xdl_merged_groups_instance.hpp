@@ -24,9 +24,10 @@ using Empty_Tuple = ck::Tuple<>;
 
 using namespace ck::tensor_layout::convolution;
 
-using PassThrough = ck::tensor_operation::element_wise::PassThrough;
-using AddClamp    = ck::tensor_operation::element_wise::AddClamp;
-using Clamp       = ck::tensor_operation::element_wise::Clamp;
+using PassThrough               = ck::tensor_operation::element_wise::PassThrough;
+using BiasNormalizeInInferClamp = ck::tensor_operation::element_wise::BiasNormalizeInInferClamp;
+using AddClamp                  = ck::tensor_operation::element_wise::AddClamp;
+using Clamp                     = ck::tensor_operation::element_wise::Clamp;
 
 static constexpr auto ConvFwdDefault =
     ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;

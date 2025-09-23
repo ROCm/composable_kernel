@@ -85,11 +85,11 @@ struct MulABScaleExpertWeight
     }
 };
 
-using CDEElementOp = MulABScaleExpertWeight;
+using CDEElementOp         = MulABScaleExpertWeight;
+static constexpr int KPack = 32 / sizeof(B0DataType);
 
 void preShuffleBuffer(const I4* src, I4* dst, int N, int K, int NXdl)
 {
-    int KPack = 32;
     int NLane = NXdl;
     int KLane = 64 / NLane;
 
@@ -135,7 +135,7 @@ static constexpr ck::index_t KPerBlock     = 128 / sizeof(A0DataType);
 static constexpr ck::index_t CShuffleNLane = 32;
 static constexpr ck::index_t CShuffleMLane = BLOCKSIZE / CShuffleNLane;
 static constexpr ck::index_t AK1           = 16 / sizeof(A0DataType);
-static constexpr ck::index_t BK1           = 32 / sizeof(B0DataType);
+static constexpr ck::index_t BK1           = KPack;
 static constexpr ck::index_t EVec          = 2;
 static constexpr ck::index_t D0Vec         = 1;
 static constexpr ck::index_t D1Vec         = 1;
@@ -414,9 +414,10 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    if(!(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950"))
+    if(!(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950" ||
+         ck::is_gfx11_supported() || ck::is_gfx12_supported()))
     {
-        std::cout << "This kernel support gfx942 and gfx950 only" << std::endl;
+        std::cout << "This kernel support gfx942, gfx950, gfx11 and gfx12 only" << std::endl;
     }
 
     if(time_kernel)

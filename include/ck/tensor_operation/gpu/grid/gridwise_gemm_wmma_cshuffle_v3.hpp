@@ -327,6 +327,8 @@ struct GridwiseGemm_wmma_cshuffle_v3
     using typename Base::AsGridPointer;
     using typename Base::BsGridPointer;
     using typename Base::DsGridPointer;
+    using AsDataType_ = AsDataType;
+    using BsDataType_ = BsDataType;
 
     struct Problem
     {

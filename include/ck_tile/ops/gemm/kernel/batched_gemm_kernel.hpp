@@ -64,6 +64,7 @@ struct BatchedGemmKernel
     /// functions.
     using UniversalGemmKernel =
         UniversalGemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
+    static constexpr index_t kBlockSize = UniversalGemmKernel::kBlockSize;
 
     using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
     using GemmPipeline     = remove_cvref_t<GemmPipeline_>;
@@ -89,10 +90,10 @@ struct BatchedGemmKernel
         !is_detected<is_tuple, BLayout>::value && !is_detected<is_tuple, BDataType>::value,
         "BLayout and BDataType must be scalars. Multiple parameters are not currently supported.");
 
-    /// @brief  C/ELayout and C/EDataType are expected to be scalars, not a tuple.
+    /// @brief  C/CLayout and C/EDataType are expected to be scalars, not a tuple.
     static_assert(!is_detected<is_tuple, CLayout>::value &&
                       !is_detected<is_tuple, CDataType>::value,
-                  "C/ELayout and C/EDataType must be scalars.");
+                  "C/CLayout and C/EDataType must be scalars.");
 
     struct BatchedGemmKernelArgs : ck_tile::UniversalGemmKernelArgs<>
     {
@@ -121,9 +122,16 @@ struct BatchedGemmKernel
         return dim3(TilePartitioner::GridSize(M, N), batch_count, KBatch);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() -> dim3
+    CK_TILE_HOST static auto BlockSize() -> dim3
     {
-        return dim3(UniversalGemmKernel::KernelBlockSize);
+        if(ck_tile::is_wave32())
+        {
+            return dim3(UniversalGemmKernel::kBlockSize / 2);
+        }
+        else
+        {
+            return dim3(UniversalGemmKernel::kBlockSize);
+        }
     }
 
     CK_TILE_HOST static constexpr BatchedGemmKernelArgs
