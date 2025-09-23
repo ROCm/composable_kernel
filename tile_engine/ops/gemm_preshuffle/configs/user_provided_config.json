@@ -32,12 +32,12 @@
     },
     "warp_tile_m": {
       "values": [
-        16
+        16,32
       ]
     },
     "warp_tile_n": {
       "values": [
-        16
+        16,32
       ]
     },
     "warp_tile_k": {
@@ -84,5 +84,5 @@
     }
   },
   "k_block_per_cu": 1,
-  "permute_n": true
+  "permute_n": false
 }

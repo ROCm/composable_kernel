@@ -289,6 +289,13 @@ class GemmPreshuffleKernelBuilder:
 
             return True
         else:
+
+            # Validate preshuffle specific constraints
+            if(self.config.get("permute_n")):
+                valid = (tile_n/warp_tile_n/warp_n) % 2 == 0
+                if not valid:
+                    return False
+
             # Full validation for generation
             # Determine data types for validation
             a_datatype = self.datatype
