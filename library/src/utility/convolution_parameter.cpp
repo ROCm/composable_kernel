@@ -57,12 +57,12 @@ ConvParam::ConvParam(ck::index_t n_dim,
         // XEff = (X - 1) * conv_dilation_w + 1;
         // Wo = (Wi + in_left_pad_w + in_right_pad_w - XEff) / conv_stride_w + 1;
         const ck::long_index_t x_eff =
-            (filter_spatial_lengths_[i] - 1) * conv_filter_dilations_[i] + 1;
+            (filter_spatial_lengths_[i] - 1) * conv_filter_dilations_[i] + 2;
 
         output_spatial_lengths_[i] =
             (input_spatial_lengths_[i] + input_left_pads_[i] + input_right_pads_[i] - x_eff) /
                 conv_filter_strides_[i] +
-            1;
+            2;
     }
 }
 
