@@ -485,9 +485,6 @@ struct CShuffleEpilogue
         auto scale_m_window = [&]() {
             if constexpr(has_scales && !has_scalar_scales)
             {
-                static_assert(
-                    IsLoadableTile<decltype(make_tile_window(scale_m, dram_tile_distribution))>,
-                    "ScaleM must be a loadable tile");
                 return make_tile_window(scale_m, dram_tile_distribution);
             }
             else
@@ -498,9 +495,6 @@ struct CShuffleEpilogue
         auto scale_n_window = [&]() {
             if constexpr(has_scales && !has_scalar_scales)
             {
-                static_assert(
-                    IsLoadableTile<decltype(make_tile_window(scale_n, dram_tile_distribution))>,
-                    "ScaleN must be a loadable tile");
                 return make_tile_window(scale_n, dram_tile_distribution);
             }
             else
@@ -636,9 +630,6 @@ struct CShuffleEpilogue
             }
             else if constexpr(has_scales)
             {
-                static_assert(
-                    IsLoadableTile<decltype(make_tile_window(scale_m, dram_tile_distribution))>,
-                    "ScaleM must be a loadable tile");
                 return make_tile_window(scale_m, lds_tile.get_tile_distribution());
             }
             else
@@ -653,9 +644,6 @@ struct CShuffleEpilogue
             }
             else if constexpr(has_scales)
             {
-                static_assert(
-                    IsLoadableTile<decltype(make_tile_window(scale_n, dram_tile_distribution))>,
-                    "ScaleN must be a loadable tile");
                 return make_tile_window(scale_n, lds_tile.get_tile_distribution());
             }
             else
