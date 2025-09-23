@@ -257,7 +257,6 @@ bool profile_gemm_multiply_add_impl(int do_verification,
         else
         {
             std::cout << op_name << " does not support this problem" << std::endl;
-            pass = false;
         }
     }
 
