@@ -481,7 +481,7 @@ struct CShuffleEpilogue
         auto sm_tile = make_static_distributed_tensor<SMType>(dram_tile_distribution);
         auto sn_tile = make_static_distributed_tensor<SNType>(dram_tile_distribution);
 
-        // Build windows only if scales are provided
+        // Build windows only if non-scalar scales are provided
         auto scale_m_window = [&]() {
             if constexpr(has_scales && !has_scalar_scales)
             {
@@ -515,8 +515,8 @@ struct CShuffleEpilogue
                 merge_sequences(sequence<mIter, 0>{}, c_warp_y_index_zeros),
                 merge_sequences(sequence<1, NRepeat>{}, c_warp_y_lengths));
 
-            // If scales provided, load them with identical distribution
-            if constexpr(has_scales && IsLoadableTile<ScaleM> && IsLoadableTile<ScaleN>)
+            // If non-scalar scales provided, load them with identical distribution
+            if constexpr(has_scales && !has_scalar_scales)
             {
                 sm_tile = load_tile(scale_m_window); // row scales in permuted layout
                 sn_tile = load_tile(scale_n_window); // col scales in permuted layout
@@ -535,7 +535,7 @@ struct CShuffleEpilogue
                     {
                         v = static_cast<AccDataType>(v * scale_m * scale_n);
                     }
-                    else if constexpr(has_scales)
+                    else if constexpr(has_scales && !has_scalar_scales)
                     {
                         // same linear index mapping on the permuted distribution
                         const auto s_m = static_cast<float>(sm_tile.get_thread_buffer()[out_idx]);
