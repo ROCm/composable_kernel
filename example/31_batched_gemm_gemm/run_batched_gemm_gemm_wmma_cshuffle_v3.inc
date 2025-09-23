@@ -62,10 +62,10 @@ int run(int argc, char* argv[])
     std::vector<ck::index_t> b1_g_o_n_lengths{G, O, N};
 #ifdef CK_MHA_USE_RCCR_LAYOUT
     std::vector<ck::index_t> b1_g_o_n_strides{N * O, N, 1}; // B1 layout [G, O, N]
-    b1_layout = Row{};
+    auto b1_layout = Row{};
 #else
     std::vector<ck::index_t> b1_g_o_n_strides{N * O, 1, O}; // B1 layout [G, N, O]
-    b1_layout = Col{};
+    auto b1_layout = Col{};
 #endif
     std::vector<ck::index_t> c_g_m_o_lengths{G, M, O};
     std::vector<ck::index_t> c_g_m_o_strides{M * O, O, 1}; // C layout [G, M, O]
