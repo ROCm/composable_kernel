@@ -64,8 +64,17 @@ int profile_contraction_impl(ck::index_t do_verification,
                                        auto layout) {
         std::vector<std::size_t> dims_szt(dims01.begin(), dims01.end());
         dims_szt.insert(dims_szt.end(), dims23.begin(), dims23.end());
-        std::vector<std::size_t> strides_szt(strides.begin(), strides.end());
 
+        // For ColumnMajor with more than 2 dimensions, the strides are custom-defined, so skip
+        // verification.
+        if constexpr(ck::is_same_v<decltype(layout), ck::tensor_layout::gemm::ColumnMajor>)
+        {
+            if(strides.size() > 2)
+            {
+                return HostTensorDescriptor(
+                    dims_szt, strides, ck::tensor_layout::BypassLayoutVerification{});
+            }
+        }
         return HostTensorDescriptor(dims_szt, strides, layout);
     };
 
