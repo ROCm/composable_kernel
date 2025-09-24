@@ -10,9 +10,7 @@ bool run_gemm_add_multiply(const ProblemSize& problem_size, const ExecutionConfi
     auto& [M, N, K, StrideA, StrideB, StrideD0, StrideD1, StrideE] = ps;
 
     auto f_host_tensor_descriptor = [](std::size_t row, std::size_t col, int& stride, auto layout) {
-        using namespace ck::literals;
-
-        if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
+        if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
         {
             auto desc = HostTensorDescriptor({row, col}, {static_cast<std::size_t>(stride), 1_uz});
             if(stride <= 0)
