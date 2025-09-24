@@ -12,6 +12,7 @@
 #include "ck_tile/core/arch/amd_buffer_addressing_builtins.hpp"
 #include "ck_tile/core/arch/amd_buffer_addressing.hpp"
 #include "ck_tile/core/utility/ignore.hpp"
+#include "ck_tile/core/arch/arch_enums.hpp"
 
 #define CK_TILE_S_CNT_MAX 0b1100'1111'0111'1111
 #define CK_TILE_VMCNT(cnt)                                              \
@@ -41,16 +42,6 @@ struct safe_underlying_type<T, false>
 
 template <typename T>
 using safe_underlying_type_t = typename safe_underlying_type<T, std::is_enum<T>::value>::type;
-
-enum struct address_space_enum : std::uint16_t
-{
-    generic = 0,
-    global,
-    lds,
-    sgpr,
-    constant,
-    vgpr
-};
 
 enum struct memory_operation_enum : std::uint16_t
 {

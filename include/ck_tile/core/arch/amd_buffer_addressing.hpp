@@ -14,6 +14,8 @@
 #include "ck_tile/core/utility/bit_cast.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/ignore.hpp"
+#include "ck_tile/core/arch/arch_enums.hpp"
+
 
 // This attribute gives a hint to the compiler that a branch is likely to be taken.
 // Then, the compiler should remove if possible the associated s_cbranch_execz branch that would
@@ -2786,6 +2788,48 @@ CK_TILE_DEVICE void amd_buffer_atomic_max(const thread_buffer<T, N>& src_thread_
     }
 #endif
 }
+
+#if defined(__gfx950__)
+template <typename T, index_t N, address_space_enum BufferAddressSpace>
+__device__ auto amd_transpose_load_to_vgpr(const T* __restrict__ in_ptr)
+{
+#define __LDS_ADDR __attribute__((address_space(3)))
+
+    static_assert(__has_builtin(__builtin_amdgcn_raw_buffer_load_b32),
+                  "We need to have the compatible compiler version to build this instruction");
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wold-style-cast"
+    // Use C-style cast to change address space without dropping llvm noalias attribute
+    const auto in_ptr_ = (__LDS_ADDR T*)(const_cast<T*>(in_ptr));
+#pragma clang diagnostic pop
+    if constexpr(std::is_same_v<remove_cvref_t<T>, ck_tile::half_t>)
+    {
+        typedef __attribute__((__vector_size__(4 * sizeof(__fp16)))) __fp16 llvm_fp16x4_t;
+        auto lds_ptr = reinterpret_cast<__LDS_ADDR llvm_fp16x4_t*>(in_ptr_);
+        return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_read_tr16_b64_v4f16(lds_ptr));
+    }
+    else if constexpr(std::is_same_v<remove_cvref_t<T>, ck_tile::bf16_t>)
+    {
+        typedef __attribute__((__vector_size__(4 * sizeof(__bf16)))) __bf16 llvm_bf16x4_t;
+        auto lds_ptr = reinterpret_cast<__LDS_ADDR llvm_bf16x4_t*>(in_ptr_);
+        return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_read_tr16_b64_v4bf16(lds_ptr));
+    }
+    else if constexpr(std::is_same_v<remove_cvref_t<T>, ck_tile::fp8_t> ||
+                      std::is_same_v<remove_cvref_t<T>, ck_tile::bf8_t> ||
+                      std::is_same_v<remove_cvref_t<T>, ck_tile::int8_t>)
+    {
+        typedef __attribute__((__vector_size__(2 * sizeof(index_t)))) index_t llvm_i32x2_t;
+        auto lds_ptr = reinterpret_cast<__LDS_ADDR llvm_i32x2_t*>(in_ptr_);
+        return bit_cast<thread_buffer<T, N>>(__builtin_amdgcn_ds_read_tr8_b64_v2i32(lds_ptr));
+    }
+    else
+    {
+        static_assert(false, "not implemented");
+    }
+#undef __LDS_ADDR
+}
+#endif
 
 // amd_wave_read_first_lane is the SGPR function from AMD GPU device to load 1 or a series of the
 // memory to the SGPR registers.

@@ -14,6 +14,7 @@
 #include "ck_tile/core/utility/bit_cast.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/ignore.hpp"
+#include "ck_tile/core/arch/arch_enums.hpp"
 
 using as3_uint32_ptr = uint32_t __attribute__((address_space(3)))*;
 
