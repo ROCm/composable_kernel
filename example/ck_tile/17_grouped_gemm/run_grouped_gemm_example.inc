@@ -172,7 +172,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
         std::cout << "Default values: Ms (256, 512, 768, 1024..), Ns (256, 768, 1280..), Ks (512, "
                      "896, 1280..)"
                   << std::endl;
-        
+
         // Clear existing (invalid) data before adding defaults
         Ms.clear();
         Ns.clear();
@@ -180,7 +180,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
         stride_As.clear();
         stride_Bs.clear();
         stride_Cs.clear();
-        
+
         for(int i = 0; i < group_count; i++)
         {
             Ms.push_back(256 + 256 * i);
