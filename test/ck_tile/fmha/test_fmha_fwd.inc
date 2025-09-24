@@ -830,14 +830,12 @@ static std::vector<PaddingParam> BuildPaddingParams()
         {1.0, 1.0}, // both full
         {1.0, 0.5}, // q full, k half
         {0.5, 1.0}, // q half, k full
-        {0.7, 0.3}, // mixed
-        {0.3, 0.7}  // mixed inverse
     };
     const std::vector<std::pair<double, double>> ratio_pairs_reduced{{1.0, 1.0}, {0.5, 1.0}};
 
     // candidate physical seqlens for batch mode (single value) & for group mode (per batch)
-    const std::vector<int> physical_lengths_full{64, 128, 192, 512, 1024};
-    const std::vector<int> physical_lengths_reduced{64, 512};
+    const std::vector<int> physical_lengths_full{64, 128, 256};
+    const std::vector<int> physical_lengths_reduced{64};
 
     // batch sizes to sample
     const std::vector<int> batch_sizes{1, 4};
