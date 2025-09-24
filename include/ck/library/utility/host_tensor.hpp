@@ -237,7 +237,7 @@ struct HostTensorDescriptor
                 return ChosenLayout::RowMajor;
             }
 
-            const std::size_t rank = mLens.size();
+            const auto rank = mLens.size();
 
             if(rank > 2)
             {
@@ -247,6 +247,7 @@ struct HostTensorDescriptor
 
             if(rank == 0)
             {
+                // Keep as-is - validation will warn/throw later
                 return ChosenLayout::Original;
             }
 
@@ -325,12 +326,12 @@ struct HostTensorDescriptor
         else if constexpr(std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout> ||
                           std::is_same_v<ck::tensor_layout::gemm::ColumnMajor, Layout>)
         {
-            auto n_dims = mStrides.size();
-            const auto inner_idx =
-                std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout> ? n_dims - 1 : n_dims - 2;
-            const auto outer_idx = inner_idx == n_dims - 1 ? n_dims - 2 : n_dims - 1;
-            if(mLens.size() >= 2 && n_dims >= 2)
+            auto rank = mStrides.size();
+            if(mLens.size() >= 2 && rank >= 2)
             {
+                const auto inner_idx =
+                    std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout> ? rank - 1 : rank - 2;
+                const auto outer_idx = inner_idx == rank - 1 ? rank - 2 : rank - 1;
                 if(mStrides[inner_idx] <= 0)
                 {
                     mStrides[inner_idx] = 1;
@@ -351,31 +352,39 @@ struct HostTensorDescriptor
             return;
         }
 
-        assert(!mLens.empty());
+        if(mLens.empty())
+        {
+            throw std::runtime_error(
+                "HostTensorDescriptor::ValidateStrides: empty tensor dimensions is not allowed.");
+        }
 
-        const auto n_dims = mLens.size();
-        if(n_dims == 1) // skip any 1D tensors
+        const int rank = mLens.size();
+        if(rank == 1) // skip any 1D tensors
         {
             return;
         }
 
         if constexpr(std::is_same_v<ck::tensor_layout::BaseTensorLayout, Layout>)
         {
-            // Currently, any legacy code that doesn't pass layout to HostTensorDescriptor ctor will
-            // hit this case (unless it is a special case - see `HandleDefaultLayout`). Initialy can
-            // do warning, run all tests to identify where HostTensorDescriptor ctor is called
-            // without layout. Once all places are fixed, can change to throw error.
+            // Any legacy code that doesn't pass layout to HostTensorDescriptor ctor will
+            // hit this case (unless it is a special case - see `HandleDefaultLayout`).
             throw std::runtime_error("HostTensorDescriptor::ValidateStrides: Abstract tensor "
                                      "layout BaseTensorLayout can't be verified. Pls "
                                      "pass specific tensor layout to HostTensorDescriptor (or "
                                      "ck::tensor_layout::BypassLayoutVerification)");
-            return;
         }
 
         // GEMM cases
         if constexpr(std::is_base_of_v<ck::tensor_layout::gemm::BaseGemmLayout, Layout>)
         {
-            assert(mLens.size() == mStrides.size());
+            if(mLens.size() != mStrides.size())
+            {
+                std::ostringstream oss;
+                oss << "HostTensorDescriptor::ValidateStrides: mismatch between tensor rank and "
+                       "size of strides: "
+                    << *this;
+                throw std::runtime_error(oss.str());
+            }
 
             // in GEMM, strides must be all positive or all zeros (auto-derived from tensor
             // dimensions)
@@ -395,12 +404,10 @@ struct HostTensorDescriptor
                          std::is_same_v<ck::tensor_layout::gemm::ColumnMajor, Layout>)
             {
                 // The logic here assumes the GEMM with tensor of more than 2 dims, will always have
-                // HW dimesnsions as the inner ones e.g. batched GEMM is either BHW or BWH, so we
-                // check only the two inner dimensions.
-                const auto inner_idx = std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout>
-                                           ? n_dims - 1
-                                           : n_dims - 2;
-                const auto outer_idx = inner_idx == n_dims - 1 ? n_dims - 2 : n_dims - 1;
+                // HW dimesnsions as the inner ones e.g. batched GEMM is either BHW or BWH
+                const auto inner_idx =
+                    std::is_same_v<ck::tensor_layout::gemm::RowMajor, Layout> ? rank - 1 : rank - 2;
+                const auto outer_idx = inner_idx == rank - 1 ? rank - 2 : rank - 1;
 
                 if(mStrides[outer_idx] < mLens[inner_idx] * mStrides[inner_idx])
                 {
@@ -409,18 +416,15 @@ struct HostTensorDescriptor
                     throw std::runtime_error(oss.str());
                 }
 
-                if(n_dims > 2)
+                // For higher dimensions, validate strides assuming RowMajor
+                for(int i = 1; i < rank - 2; ++i)
                 {
-                    // For higher dimensions, validate strides assuming RowMajor
-                    for(std::size_t i = 1; i < n_dims - 2; ++i)
+                    if(mStrides[i - 1] < mStrides[i] * mLens[i])
                     {
-                        if(mStrides[i - 1] < mStrides[i] * mLens[i])
-                        {
-                            std::ostringstream oss;
-                            oss << "Invalid strides for higher dimensions in " << layout << ": "
-                                << *this;
-                            throw std::runtime_error(oss.str());
-                        }
+                        std::ostringstream oss;
+                        oss << "Invalid strides for higher dimensions in " << layout << ": "
+                            << *this;
+                        throw std::runtime_error(oss.str());
                     }
                 }
             }
@@ -572,7 +576,7 @@ struct HostTensorDescriptor
     private:
     std::vector<std::size_t> mLens;
     std::vector<std::size_t> mStrides;
-    static constexpr bool dbg = true;
+    static constexpr bool dbg = false;
 
     /**
      * @brief Converts a vector of size_t values to a vector of int values.
