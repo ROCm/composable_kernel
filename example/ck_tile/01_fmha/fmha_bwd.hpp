@@ -144,6 +144,7 @@ struct fmha_bwd_args
     ck_tile::index_t split_stride_dq_acc;
     ck_tile::index_t window_size_left;
     ck_tile::index_t window_size_right;
+    ck_tile::index_t sink_size;
     ck_tile::index_t mask_type;
     float p_drop;
     float p_undrop;
@@ -209,6 +210,7 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                       args.split_stride_dq_acc,
                                                       args.window_size_left,
                                                       args.window_size_right,
+                                                      args.sink_size,
                                                       args.mask_type,
                                                       args.p_drop,
                                                       args.drop_seed_offset);
@@ -269,6 +271,7 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                       args.split_stride_dq_acc,
                                                       args.window_size_left,
                                                       args.window_size_right,
+                                                      args.sink_size,
                                                       args.mask_type,
                                                       args.p_drop,
                                                       args.drop_seed_offset);
