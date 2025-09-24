@@ -690,7 +690,7 @@ struct FmhaBwdDQDKDVKernel
         // divide problem
         const auto [i_tile_n, i_nhead, i_batch] = GetTileIndex();
 
-        const index_t i_n0 = amd_wave_read_first_lane(i_tile_n * FmhaPipeline::kN0);
+        const index_t i_n0 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN0);
 
         long_index_t batch_offset_q       = 0;
         long_index_t batch_offset_k       = 0;
@@ -1338,7 +1338,7 @@ struct FmhaBwdOGradDotOKernel
         // divide problem
         const auto [i_tile_m, i_nhead, i_batch] = GetTileIndex();
 
-        const index_t i_m0 = amd_wave_read_first_lane(i_tile_m * kM0);
+        const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * kM0);
 
         long_index_t batch_offset_o  = 0;
         long_index_t batch_offset_do = 0;
@@ -1618,7 +1618,7 @@ struct FmhaBwdConvertQGradKernel
         // divide problem
         const auto [i_tile_m, i_nhead, i_batch] = GetTileIndex();
 
-        const index_t i_m0 = amd_wave_read_first_lane(i_tile_m * kM0);
+        const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * kM0);
 
         long_index_t batch_offset_dq     = 0;
         long_index_t batch_offset_dq_acc = 0;

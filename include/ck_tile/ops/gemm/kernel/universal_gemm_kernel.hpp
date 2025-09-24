@@ -326,19 +326,19 @@ struct UniversalGemmKernel
         __device__ SplitKBatchOffset(const KernelArgs& kargs, const std::size_t k_id = blockIdx.z)
         {
             constexpr auto K1   = TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{});
-            const index_t K_t   = amd_wave_read_first_lane(kargs.k_batch * K1);
-            const index_t KRead = amd_wave_read_first_lane((kargs.K + K_t - 1) / K_t * K1);
+            const index_t K_t   = __builtin_amdgcn_readfirstlane(kargs.k_batch * K1);
+            const index_t KRead = __builtin_amdgcn_readfirstlane((kargs.K + K_t - 1) / K_t * K1);
 
             static_for<0, NumATensor, 1>{}([&](auto index) {
                 using AiLayout = remove_cvref_t<std::tuple_element_t<index.value, AsLayout>>;
                 if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, AiLayout>)
                 {
-                    as_k_split_offset[index] = amd_wave_read_first_lane(k_id * KRead);
+                    as_k_split_offset[index] = __builtin_amdgcn_readfirstlane(k_id * KRead);
                 }
                 else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, AiLayout>)
                 {
                     as_k_split_offset[index] =
-                        amd_wave_read_first_lane(k_id * KRead * kargs.stride_As[index]);
+                        __builtin_amdgcn_readfirstlane(k_id * KRead * kargs.stride_As[index]);
                 }
             });
 
@@ -347,21 +347,21 @@ struct UniversalGemmKernel
                 if constexpr(std::is_same_v<tensor_layout::gemm::RowMajor, BiLayout>)
                 {
                     bs_k_split_offset[index] =
-                        amd_wave_read_first_lane(k_id * KRead * kargs.stride_Bs[index]);
+                        __builtin_amdgcn_readfirstlane(k_id * KRead * kargs.stride_Bs[index]);
                 }
                 else if constexpr(std::is_same_v<tensor_layout::gemm::ColumnMajor, BiLayout>)
                 {
-                    bs_k_split_offset[index] = amd_wave_read_first_lane(k_id * KRead);
+                    bs_k_split_offset[index] = __builtin_amdgcn_readfirstlane(k_id * KRead);
                 }
             });
 
             if(k_id < static_cast<uint32_t>(kargs.k_batch - 1))
             {
-                splitted_k = amd_wave_read_first_lane(KRead);
+                splitted_k = __builtin_amdgcn_readfirstlane(KRead);
             }
             else
             {
-                splitted_k = amd_wave_read_first_lane(kargs.K - KRead * (kargs.k_batch - 1));
+                splitted_k = __builtin_amdgcn_readfirstlane(kargs.K - KRead * (kargs.k_batch - 1));
             }
         }
 
@@ -970,8 +970,8 @@ struct UniversalGemmKernel
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
 
-        const index_t num_loop =
-            amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
+        const index_t num_loop = __builtin_amdgcn_readfirstlane(
+            TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
 
         // Run GEMM cooperatively by whole workgroup.
         const auto& as_block_window = gemm_tile_windows.at(I0);
@@ -1026,8 +1026,8 @@ struct UniversalGemmKernel
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
 
-        const index_t num_loop =
-            amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
+        const index_t num_loop = __builtin_amdgcn_readfirstlane(
+            TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
 
         // Run GEMM cooperatively by whole workgroup.
         const auto& as_block_window = gemm_tile_windows.at(I0);
@@ -1052,10 +1052,10 @@ struct UniversalGemmKernel
     template <bool U = !PersistentKernel, typename = std::enable_if_t<U>>
     CK_TILE_DEVICE void operator()(KernelArgs kargs) const
     {
-        const auto blockId  = amd_wave_read_first_lane(blockIdx.x);
+        const auto blockId  = __builtin_amdgcn_readfirstlane(blockIdx.x);
         const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockId);
-        const index_t i_m   = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
-        const index_t i_n   = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
+        const index_t i_m   = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
+        const index_t i_n   = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
 
         const SplitKBatchOffset splitk_batch_offset(kargs);
 
@@ -1126,22 +1126,22 @@ struct UniversalGemmKernel
     template <bool U = PersistentKernel, typename = std::enable_if_t<U>, typename = void>
     CK_TILE_DEVICE void operator()(KernelArgs kargs) const
     {
-        const auto grid_size = amd_wave_read_first_lane(get_grid_size());
+        const auto grid_size = __builtin_amdgcn_readfirstlane(get_grid_size());
         const auto num_tiles =
-            amd_wave_read_first_lane(TilePartitioner::GridSize(kargs.M, kargs.N));
-        const auto num_work = amd_wave_read_first_lane(num_tiles * kargs.k_batch);
-        auto block_id       = amd_wave_read_first_lane(get_block_id());
+            __builtin_amdgcn_readfirstlane(TilePartitioner::GridSize(kargs.M, kargs.N));
+        const auto num_work = __builtin_amdgcn_readfirstlane(num_tiles * kargs.k_batch);
+        auto block_id       = __builtin_amdgcn_readfirstlane(get_block_id());
 
         while(block_id < num_work)
         {
             // Get the tile index for this block
-            const auto tile_idx = amd_wave_read_first_lane(block_id % num_tiles);
+            const auto tile_idx = __builtin_amdgcn_readfirstlane(block_id % num_tiles);
             const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(tile_idx);
-            const index_t i_m   = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
-            const index_t i_n   = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
+            const index_t i_m   = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
+            const index_t i_n   = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
 
             // Get the SplitK offset for this block
-            const auto k_batch = amd_wave_read_first_lane(block_id / num_tiles);
+            const auto k_batch = __builtin_amdgcn_readfirstlane(block_id / num_tiles);
             const SplitKBatchOffset splitk_batch_offset(kargs, k_batch);
 
             std::array<const ADataType*, NumATensor> as_ptr;

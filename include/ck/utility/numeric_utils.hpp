@@ -10,6 +10,7 @@ struct NumericUtils
 {
 };
 
+#ifndef CK_CODE_GEN_RTC
 template <>
 struct NumericUtils<e8m0_bexp_t>
 {
@@ -24,6 +25,7 @@ struct NumericUtils<e8m0_bexp_t>
 
     using bitwise_type = uint8_t;
 };
+#endif
 
 template <>
 struct NumericUtils<float>
