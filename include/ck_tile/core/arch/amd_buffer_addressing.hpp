@@ -16,7 +16,6 @@
 #include "ck_tile/core/utility/ignore.hpp"
 #include "ck_tile/core/arch/arch_enums.hpp"
 
-
 // This attribute gives a hint to the compiler that a branch is likely to be taken.
 // Then, the compiler should remove if possible the associated s_cbranch_execz branch that would
 // have been generated.
