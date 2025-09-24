@@ -16,10 +16,7 @@ template <typename GemmConfig,
           typename ELayout,
           typename CDEElementWise,
           ck_tile::StreamKReductionStrategy ReductionStrategy>
-std::tuple<float, int> gemm(const ck_tile::StreamKHostArgs& args,
-                            const ck_tile::stream_config& s,
-                            int num_cu,
-                            int occupancy)
+std::tuple<float, int> gemm(const ck_tile::StreamKHostArgs& args, const ck_tile::stream_config& s)
 
 {
     using GemmShape = ck_tile::TileGemmShape<
@@ -45,10 +42,7 @@ std::tuple<float, int> gemm(const ck_tile::StreamKHostArgs& args,
                                                                  GemmConfig::NumWaveGroups,
                                                                  GemmConfig::Preshuffle>;
 
-    const auto Run = [&](const auto memory_operation_) -> std::tuple<float, int> {
-        constexpr auto memory_operation = memory_operation_.value;
-        constexpr auto scheduler        = GemmConfig::Scheduler;
-
+    const auto Run = [&](const auto memory_operation) -> std::tuple<float, int> {
         // We create the GEMM pipeline without specifying has_hot_loop or tail_num.
         // This is because num_loop can vary (a) per WG and (b) per iteration of the Stream-K
         // while loop. Instead, has_hot_loop and tail_num are determined in the Stream-K
@@ -58,10 +52,9 @@ std::tuple<float, int> gemm(const ck_tile::StreamKHostArgs& args,
                                                                            AccDataType,
                                                                            GemmShape,
                                                                            GemmUniversalTraits,
-                                                                           scheduler>;
+                                                                           GemmConfig::Scheduler>;
 
-        using GemmPipeline = typename PipelineTypeTraits<
-            GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
+        using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<UniversalGemmProblem>;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
@@ -80,14 +73,12 @@ std::tuple<float, int> gemm(const ck_tile::StreamKHostArgs& args,
                                              GemmConfig::N_Warp_Tile,
                                              GemmConfig::K_Warp_Tile,
                                              UniversalGemmProblem::TransposeC,
-                                             memory_operation,
+                                             memory_operation.value,
                                              GemmConfig::NumWaveGroups>>;
 
         using Kernel = ck_tile::StreamKKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 
-        auto kargs = (num_cu == -1 && occupancy == -1)
-                         ? Kernel::MakeKernelArgs(args)
-                         : Kernel::MakeKernelArgs(args, num_cu, occupancy);
+        auto kargs = Kernel::MakeKernelArgs(args);
 
         dim3 grids  = Kernel::GridSize(kargs.tile_partitioner);
         dim3 blocks = Kernel::BlockSize();
