@@ -361,14 +361,17 @@ struct CShuffleEpilogue
             buffer_store_fence();
             if constexpr(iAccess != num_access - 1)
             {
-                constexpr auto step = SFC::get_forward_step(iAccess);
+                if (execute_epilogue)
+                {
+                    constexpr auto step = SFC::get_forward_step(iAccess);
 
-                move_tile_window(out_dram_window, {step.at(number<0>{}), step.at(number<1>{})});
+                    move_tile_window(out_dram_window, {step.at(number<0>{}), step.at(number<1>{})});
 
-                static_for<0, NumDTensor, 1>{}([&](auto idx) {
-                    move_tile_window(d_dram_windows[idx],
-                                     {step.at(number<0>{}), step.at(number<1>{})});
-                });
+                    static_for<0, NumDTensor, 1>{}([&](auto idx) {
+                        move_tile_window(d_dram_windows[idx],
+                                        {step.at(number<0>{}), step.at(number<1>{})});
+                    });
+                }
             }
         });
     }

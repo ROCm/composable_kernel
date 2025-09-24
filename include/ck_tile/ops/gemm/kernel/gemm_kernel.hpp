@@ -135,6 +135,11 @@ struct GemmKernel
         return dim3(TilePartitioner::PingPongGridSize(N, K), 1, KBatch);
     }    
 
+    CK_TILE_HOST static auto PingPongGridSizeNParallel(index_t M, index_t, index_t K, index_t KBatch) -> dim3
+    {
+        return dim3(TilePartitioner::PingPongGridSizeNParallel(M, K), 1, KBatch);
+    }    
+
     CK_TILE_HOST static constexpr auto BlockSize() -> dim3
     {
         return UniversalGemmKernel::BlockSize();

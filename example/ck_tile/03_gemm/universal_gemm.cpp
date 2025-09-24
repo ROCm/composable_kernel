@@ -180,7 +180,7 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                 else
                 {
                     std::cout << "Ping pong....ON " << std::endl;
-                    grids = Kernel::PingPongGridSize(args.M, args.N, args.K, args.k_batch);
+                    grids = Kernel::PingPongGridSizeNParallel(args.M, args.N, args.K, args.k_batch);
                     std::cout << "Arguments: { " << args.M << ", " << args.N << ", " << args.K << ", " << args.k_batch << " }" << std::endl;
                     std::cout << "Grid size : {" << grids.x << ", " << grids.y << ", " << grids.z
                               << "}" << std::endl;
