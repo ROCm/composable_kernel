@@ -608,8 +608,10 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
     }
 
     template <typename DsGridDesc>
-    __device__ static constexpr auto MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-        const DsGridDesc& ds_grid_desc_m_n, index_t MBlock, index_t NBlock)
+    __device__ __host__ static constexpr auto
+    MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const DsGridDesc& ds_grid_desc_m_n,
+                                                           index_t MBlock,
+                                                           index_t NBlock)
     {
         return generate_tuple(
             [&](auto i) {
@@ -932,8 +934,10 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                  KPack>())>;
 
     template <typename DEGridDesc>
-    __device__ static constexpr auto MakeDEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-        const DEGridDesc& de_grid_desc_m_n, index_t MBlock, index_t NBlock)
+    __host__ __device__ static constexpr auto
+    MakeDEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(const DEGridDesc& de_grid_desc_m_n,
+                                                           index_t MBlock,
+                                                           index_t NBlock)
     {
         const auto de_grid_desc_mblock_mperblock_nblock_nperblock = transform_tensor_descriptor(
             de_grid_desc_m_n,
