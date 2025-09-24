@@ -183,12 +183,24 @@ int run_grouped_gemm_example_with_layouts(int argc,
     if(!valid_input_data(group_count, Ms, Ns, Ks, stride_As, stride_Bs, stride_Cs))
     {
         std::cout << "Please check the input data. Default values will be used." << std::endl;
+        
+        // Clear existing (invalid) data before adding defaults
+        Ms.clear();
+        Ns.clear();
+        Ks.clear();
+        stride_As.clear();
+        stride_Bs.clear();
+        stride_Cs.clear();
+        stride_AQs.clear();
+        stride_BQs.clear();
+        
         for(int i = 0; i < group_count; i++)
         {
             Ms.push_back(256 + 256 * i);
             Ns.push_back(256 + 512 * i);
             Ks.push_back(512 + 128 * i);
 
+            // Let get_default_stride calculate based on layout
             stride_As.push_back(0);
             stride_Bs.push_back(0);
             stride_Cs.push_back(0);
