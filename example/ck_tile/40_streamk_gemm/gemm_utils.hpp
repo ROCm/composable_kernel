@@ -2,15 +2,10 @@
 // SPDX-License-Identifier:  MIT
 
 #pragma once
-
-#include <string>
-
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
-
-#define CK_TILE_PIPELINE_MEMORY 1
 
 struct GemmConfigBase
 {
@@ -27,7 +22,6 @@ struct GemmConfigBase
 
     static constexpr int kBlockPerCu                = 1;
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
-    static constexpr ck_tile::index_t Pipeline      = CK_TILE_PIPELINE_MEMORY;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
     static constexpr bool Preshuffle                = false;
     static constexpr bool DoubleSmemBuffer          = false;
@@ -48,20 +42,7 @@ struct GemmConfigMemoryInterwave : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = sizeof(PrecType) == 2 ? 8 : 16;
 
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_MEMORY;
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
-};
-
-template <ck_tile::index_t PipelineId>
-struct PipelineTypeTraits;
-
-template <>
-struct PipelineTypeTraits<CK_TILE_PIPELINE_MEMORY>
-{
-    template <typename PipelineProblem>
-    using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<PipelineProblem>;
-    template <typename PipelineProblem>
-    using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrMem<PipelineProblem>;
+    static constexpr auto Scheduler = ck_tile::GemmPipelineScheduler::Intrawave;
 };
 
 template <typename ADataType_, typename BDataType_ = ADataType_, typename CDataType_ = ADataType_>
@@ -109,13 +90,6 @@ auto create_args(int argc, char* argv[])
         .insert("reduction_strategy",
                 "atomic",
                 "strategy for storing results in C tensor - atomic/reduction")
-        .insert(
-            "occupancy",
-            "-1",
-            "maximum number of workgroups per CU - value of -1 queries occupancy from the device")
-        .insert("num_cu",
-                "-1",
-                "number of compute units (CUs) - value of -1 uses number of CUs on the device")
         .insert("stride_a", "0", "Tensor A stride")
         .insert("stride_b", "0", "Tensor B stride")
         .insert("stride_c", "0", "Tensor C stride")
