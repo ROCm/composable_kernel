@@ -111,9 +111,12 @@ struct GroupedGemmKernel
     using CLayout = remove_cvref_t<typename GemmPipeline::CLayout>;
 
     /// @brief Specify the data type configurations for A, B, C/E
-    using ADataType = remove_cvref_t<typename GemmPipeline::ADataType>;
-    using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
-    using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
+    using ADataType  = remove_cvref_t<typename GemmPipeline::ADataType>;
+    using BDataType  = remove_cvref_t<typename GemmPipeline::BDataType>;
+    using CDataType  = remove_cvref_t<typename EpiloguePipeline::ODataType>;
+    using DsDataType = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
+
+    static constexpr index_t NumDTensor_ = DsDataType::size();
 
     /// @brief ALayout and ADataType are expected to be scalars, not a tuple.
     static_assert(
@@ -152,12 +155,12 @@ struct GroupedGemmKernel
     CK_TILE_HOST static auto
     GetWorkSpaceSize(const std::vector<GroupedGemmHostArgs<>>& gemm_descs) -> std::size_t
     {
-        return gemm_descs.size() * sizeof(GemmTransKernelArg<>);
+        return gemm_descs.size() * sizeof(GemmTransKernelArg<NumDTensor_>);
     }
 
     CK_TILE_HOST static auto GetWorkSpaceSize(index_t group_count) -> std::size_t
     {
-        return group_count * sizeof(GemmTransKernelArg<>);
+        return group_count * sizeof(GemmTransKernelArg<NumDTensor_>);
     }
 
     CK_TILE_HOST static auto BlockSize() -> dim3
@@ -189,7 +192,8 @@ struct GroupedGemmKernel
         return dim3(grid_size, 1, 1);
     }
 
-    CK_TILE_HOST static auto GridSize(const std::vector<GroupedGemmHostArgs<>>& gemm_descs)
+    CK_TILE_HOST static auto
+    GridSize(const std::vector<GroupedGemmHostArgs<NumDTensor_>>& gemm_descs)
     {
         index_t grid_size = 0;
         for(const auto& it_desc : gemm_descs)
@@ -200,10 +204,11 @@ struct GroupedGemmKernel
         return dim3(grid_size, 1, 1);
     }
 
-    CK_TILE_HOST static auto MakeKargs(const std::vector<GroupedGemmHostArgs<>>& gemm_descs)
-        -> std::vector<GemmTransKernelArg<>>
+    CK_TILE_HOST static auto
+    MakeKargs(const std::vector<GroupedGemmHostArgs<NumDTensor_>>& gemm_descs)
+        -> std::vector<GemmTransKernelArg<NumDTensor_>>
     {
-        std::vector<GemmTransKernelArg<>> gemm_kernel_args_;
+        std::vector<GemmTransKernelArg<NumDTensor_>> gemm_kernel_args_;
         index_t group_count = ck_tile::type_convert<ck_tile::index_t>(gemm_descs.size());
         index_t grid_size   = 0;
         gemm_kernel_args_.reserve(group_count);
@@ -230,7 +235,7 @@ struct GroupedGemmKernel
 
             grid_size += grid_size_grp;
 
-            auto karg = UniversalGemmKernelArgs<1, 1, 0>{
+            auto karg = UniversalGemmKernelArgs<1, 1, NumDTensor_>{
                 {type_convert<const ADataType*>(gemm_descs[i].a_ptr)},
                 {type_convert<const BDataType*>(gemm_descs[i].b_ptr)},
                 {/*ds_ptr*/},
@@ -250,7 +255,8 @@ struct GroupedGemmKernel
         return gemm_kernel_args_;
     }
 
-    CK_TILE_HOST static bool IsSupportedArgument(const std::vector<GemmTransKernelArg<>>& kargs)
+    CK_TILE_HOST static bool
+    IsSupportedArgument(const std::vector<GemmTransKernelArg<NumDTensor_>>& kargs)
     {
         for(const auto& karg : kargs)
         {
@@ -267,7 +273,7 @@ struct GroupedGemmKernel
         return max(GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
     }
 
-    CK_TILE_DEVICE void Run(const UniversalGemmKernelArgs<1, 1, 0>& kargs,
+    CK_TILE_DEVICE void Run(const UniversalGemmKernelArgs<1, 1, NumDTensor_>& kargs,
                             const tuple<index_t, index_t>& block_idx_2d,
                             const index_t block_idx_z) const
     {
@@ -345,7 +351,7 @@ struct GroupedGemmKernel
                                  const BDataType* b_ptr,
                                  CDataType* c_ptr,
                                  void* smem_ptr_0,
-                                 const UniversalGemmKernelArgs<1, 1, 0>& kargs,
+                                 const UniversalGemmKernelArgs<1, 1, NumDTensor_>& kargs,
                                  const typename Base::SplitKBatchOffset& splitk_batch_offset,
                                  const index_t block_idx_m,
                                  const index_t block_idx_n)
@@ -403,7 +409,7 @@ struct GroupedGemmKernel
                                      CDataType* c_ptr,
                                      void* __restrict__ smem_ptr_0,
                                      void* __restrict__ smem_ptr_1,
-                                     const UniversalGemmKernelArgs<1, 1, 0>& kargs,
+                                     const UniversalGemmKernelArgs<1, 1, NumDTensor_>& kargs,
                                      const typename Base::SplitKBatchOffset& splitk_batch_offset,
                                      const index_t block_idx_m,
                                      const index_t block_idx_n)
@@ -458,7 +464,7 @@ struct GroupedGemmKernel
             c_block_window, c_block_tile, d_block_window, smem_ptr_0);
     }
 
-    CK_TILE_DEVICE index_t FindGroupId(const GemmTransKernelArg<>* gemm_desc_ptr,
+    CK_TILE_DEVICE index_t FindGroupId(const GemmTransKernelArg<NumDTensor_>* gemm_desc_ptr,
                                        index_t block_id,
                                        index_t group_count) const
     {
@@ -490,7 +496,7 @@ struct GroupedGemmKernel
                                    index_t group_count) const
     {
         const index_t block_id   = ck_tile::get_block_1d_id();
-        const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg<>*>(
+        const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg<NumDTensor_>*>(
             cast_pointer_to_generic_address_space(gemm_descs_const));
 
         const index_t group_id = FindGroupId(gemm_desc_ptr, block_id, group_count);
@@ -513,7 +519,7 @@ struct GroupedGemmKernel
                                    const index_t group_count) const
     {
         const index_t grid_size  = ck_tile::get_grid_size();
-        const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg<>*>(
+        const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg<NumDTensor_>*>(
             cast_pointer_to_generic_address_space(gemm_descs_const));
         index_t block_id      = ck_tile::get_block_1d_id(); // initial block_id
         index_t cum_grid_size = 0;
