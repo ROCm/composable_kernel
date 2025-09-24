@@ -29,6 +29,7 @@ struct GroupedGemmHostArgs
 {
     CK_TILE_HOST GroupedGemmHostArgs(const void* a_ptr_,
                                      const void* b_ptr_,
+                                     const std::array<const void*, NumDTensor>& ds_ptr_,
                                      void* e_ptr_,
                                      index_t k_batch_,
                                      index_t M_,
@@ -36,15 +37,18 @@ struct GroupedGemmHostArgs
                                      index_t K_,
                                      index_t stride_A_,
                                      index_t stride_B_,
+                                     const std::array<index_t, NumDTensor>& stride_Ds_,
                                      index_t stride_E_)
         : a_ptr(a_ptr_),
           b_ptr(b_ptr_),
+          ds_ptr(ds_ptr_),
           e_ptr(e_ptr_),
           M(M_),
           N(N_),
           K(K_),
           stride_A(stride_A_),
           stride_B(stride_B_),
+          stride_Ds(stride_Ds_),
           stride_E(stride_E_),
           k_batch(k_batch_)
     {
@@ -52,6 +56,7 @@ struct GroupedGemmHostArgs
 
     const void* a_ptr;
     const void* b_ptr;
+    const std::array<const void*, NumDTensor> ds_ptr;
     union
     {
         void* e_ptr;
@@ -63,7 +68,7 @@ struct GroupedGemmHostArgs
     index_t K;
     index_t stride_A;
     index_t stride_B;
-
+    const std::array<index_t, NumDTensor> stride_Ds;
     union
     {
         index_t stride_E;

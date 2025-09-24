@@ -14,7 +14,7 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/host.hpp"
-#include "grouped_gemm_multi_d.hpp"
+#include "grouped_gemm.hpp"
 
 template <typename GemmConfig,
           typename ADataType,
@@ -108,9 +108,8 @@ float grouped_gemm_multi_d(const std::vector<grouped_gemm_multi_d_kargs>& gemm_d
                                              UniversalGemmProblem::TransposeC,
                                              memory_operation>>;
 
-        using Kernel =
-            ck_tile::GroupedGemmMultiDKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-        auto kargs = Kernel::MakeKargs(gemm_descs);
+        using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        auto kargs   = Kernel::MakeKargs(gemm_descs);
         if(!Kernel::IsSupportedArgument(kargs))
         {
             throw std::runtime_error("Kernel arguments not supported!");
