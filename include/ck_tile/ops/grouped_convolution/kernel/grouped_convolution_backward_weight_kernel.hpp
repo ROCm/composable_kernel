@@ -754,11 +754,11 @@ struct GroupedConvolutionBackwardWeightKernel
         return make_tuple(a_block_window, b_block_window, ds_block_window, c_block_window);
     }
 
-    // template <typename OutDataType, typename TilePartitioner, typename GroupedConvTraitsType>
-    // CK_TILE_DEVICE void transfer_lds_to_global_simple(OutDataType* c_ptr, void* smem_ptr_0)
+    // template <typename OutDataType>
+    // CK_TILE_DEVICE static void transfer_lds_to_global(OutDataType* c_ptr, void* smem_ptr_0)
     // {
-    //     constexpr index_t MBlockWidth = TilePartitioner::MPerBlock / GroupedConvTraitsType::NumGroupsToMerge;
-    //     constexpr index_t NBlockWidth = TilePartitioner::NPerBlock / GroupedConvTraitsType::NumGroupsToMerge;
+    //     constexpr index_t MBlockWidth = TilePartitioner::MPerBlock / GroupedConvTraitsType_::NumGroupsToMerge;
+    //     constexpr index_t NBlockWidth = TilePartitioner::NPerBlock / GroupedConvTraitsType_::NumGroupsToMerge;
         
     //     // Create a single-thread tile distribution for sequential access
     //     constexpr auto sequential_encoding = tile_distribution_encoding<
@@ -772,18 +772,18 @@ struct GroupedConvolutionBackwardWeightKernel
 
     //     constexpr auto sequential_distribution = make_static_tile_distribution(sequential_encoding);
 
-    //     if (blockIdx.x == 0 && threadIdx.x < GroupedConvTraitsType::NumGroupsToMerge) {
+    //     if (blockIdx.x == 0 && threadIdx.x < GroupedConvTraitsType_::NumGroupsToMerge) {
     //         const auto group_index = threadIdx.x;
             
-    //         // LDS tensor view
+    //         // LDS tensor view, column-major ordering
     //         constexpr auto lds_desc = make_naive_tensor_descriptor(
     //             make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
-    //             make_tuple(number<TilePartitioner::NPerBlock>{}, number<1>{}));
+    //             make_tuple(number<1>{}, number<TilePartitioner::NPerBlock>{}));
             
     //         auto lds_view = make_tensor_view<address_space_enum::lds>(
     //             static_cast<OutDataType*>(smem_ptr_0), lds_desc);
 
-    //         // Global memory tensor view
+    //         // Global memory tensor view, row-major ordering
     //         constexpr auto global_desc = make_naive_tensor_descriptor(
     //             make_tuple(number<MBlockWidth>{}, number<NBlockWidth>{}),
     //             make_tuple(number<NBlockWidth>{}, number<1>{}));
@@ -864,59 +864,61 @@ struct GroupedConvolutionBackwardWeightKernel
         EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
             c_block_window, c_block_tile, d_block_window, smem_ptr_0);
 
+        //constexpr index_t MBlockWidth = TilePartitioner::MPerBlock / GroupedConvTraitsType_::NumGroupsToMerge;
+        //constexpr index_t NBlockWidth = TilePartitioner::NPerBlock / GroupedConvTraitsType_::NumGroupsToMerge;
+
         //Run LDS to global memory manually, one thread per convolution group.
-        constexpr index_t MBlockWidth = TilePartitioner::MPerBlock / GroupedConvTraitsType_::NumGroupsToMerge;
-        constexpr index_t NBlockWidth = TilePartitioner::NPerBlock / GroupedConvTraitsType_::NumGroupsToMerge;
-        if (blockIdx.x == 0 && threadIdx.x < GroupedConvTraitsType_::NumGroupsToMerge)
-        {
-            const auto group_index = threadIdx.x;
-            const index_t c_ptr_offset = group_index * MBlockWidth * NBlockWidth;
-            OutDataType* lds_data = reinterpret_cast<OutDataType*>(smem_ptr_0);
-            for (auto i_loc = 0; i_loc < NBlockWidth; ++i_loc)
-            {
-                const auto lds_index = (group_index * NBlockWidth + i_loc) * TilePartitioner::MPerBlock + group_index;
-                c_ptr[c_ptr_offset + i_loc] = lds_data[lds_index];
-            }
-        }
-
-        // __syncthreads();
-        // if (blockIdx.x == 0 && blockIdx.y == 0 && threadIdx.x == 0 && threadIdx.y == 0)
+        // if (blockIdx.x == 0 && threadIdx.x < GroupedConvTraitsType_::NumGroupsToMerge)
         // {
-        //     // Print out LDS contents.
-        //     // The LDS corresponds TilePartitioner_::MPerBlock * TilePartitioner_::NPerBlock matrix.
-        //     // Print LDS contents as matrix
-        //     printf("LDS Contents (%d x %d):\n", TilePartitioner::MPerBlock, TilePartitioner::NPerBlock);
+        //     const auto group_index = threadIdx.x;
+        //     const index_t c_ptr_offset = group_index * MBlockWidth * NBlockWidth;
         //     OutDataType* lds_data = reinterpret_cast<OutDataType*>(smem_ptr_0);
-
-        //     // Print LDS as a grid with each row being 16 elements wide
-        //     const int total_rows = TilePartitioner::MPerBlock / MBlockWidth;
-        //     const int cols_per_row = TilePartitioner::NPerBlock / NBlockWidth;
-            
-        //     for(int row = 0; row < total_rows; ++row) {
-        //         printf("Block %d:\n", row);
-        //         for(int col_block = 0; col_block < cols_per_row; ++col_block) {
-        //             printf("Row %d: ", col_block);
-        //             for(int elem = 0; elem < NBlockWidth; ++elem) {
-        //                 int idx = (col_block * NBlockWidth + elem) * TilePartitioner::MPerBlock + row * MBlockWidth;
-        //                 printf("%.7f ", static_cast<float>(lds_data[idx]));
-        //             }
-        //             printf(" \n");
-        //         }
-        //         printf("\n\n");
-        //     }
-
-        //     // Print out the c_block_window contents for debugging
-        //     printf("C Ptr Contents (%d x %d):\n", TilePartitioner::MPerBlock, NBlockWidth);
-        //     for(int m = 0; m < TilePartitioner::MPerBlock; ++m) {
-        //         for(int n = 0; n < NBlockWidth; ++n) {
-        //             int idx = m * NBlockWidth + n;
-        //             printf("%.7f ", static_cast<float>(c_ptr[idx]));
-        //             if((n + 1) % NBlockWidth == 0) printf("\n  "); // Line break every NBlockWidth elements for readability
-        //         }
-        //         printf("\n");
+        //     for (auto i_loc = 0; i_loc < NBlockWidth; ++i_loc)
+        //     {
+        //         const auto lds_index = (group_index * NBlockWidth + i_loc) * TilePartitioner::MPerBlock + group_index;
+        //         c_ptr[c_ptr_offset + i_loc] = lds_data[lds_index];
         //     }
         // }
-        // __syncthreads();
+        //transfer_lds_to_global(c_ptr, smem_ptr_0);
+
+        __syncthreads();
+        if (blockIdx.x == 0 && blockIdx.y == 0 && threadIdx.x == 0 && threadIdx.y == 0)
+        {
+            constexpr index_t Gs = GroupedConvTraitsType_::NumGroupsToMerge;
+            constexpr index_t NBlockWidth = TilePartitioner::NPerBlock / Gs;
+
+            // Print out LDS contents.
+            // The LDS corresponds TilePartitioner_::MPerBlock * TilePartitioner_::NPerBlock matrix.
+            // Print LDS contents as matrix
+            printf("LDS Contents (%d x %d):\n", TilePartitioner::MPerBlock, TilePartitioner::NPerBlock);
+            OutDataType* lds_data = reinterpret_cast<OutDataType*>(smem_ptr_0);
+            
+            for(int c = 0; c < Gs; ++c) {
+                printf("Block %d:\n", c);
+                for(int r = 0; r < Gs; ++r) {
+                    printf("Row %d: ", r);
+                    for(int n = 0; n < NBlockWidth; ++n) 
+                    {
+                        int idx =  (r * NBlockWidth + n) * TilePartitioner::MPerBlock + c;
+                        printf("%.7f ", static_cast<float>(lds_data[idx]));
+                    }
+                    printf(" \n");
+                }
+                printf("\n\n");
+            }
+
+            // Print out the c_block_window contents for debugging
+            printf("C Ptr Contents (%d x %d):\n", TilePartitioner::MPerBlock, NBlockWidth);
+            for(int m = 0; m < TilePartitioner::MPerBlock; ++m) {
+                for(int n = 0; n < NBlockWidth; ++n) {
+                    int idx = m * NBlockWidth + n;
+                    printf("%.7f ", static_cast<float>(c_ptr[idx]));
+                    if((n + 1) % NBlockWidth == 0) printf("\n  "); // Line break every NBlockWidth elements for readability
+                }
+                printf("\n");
+            }
+        }
+        __syncthreads();
     }
 
     /**
