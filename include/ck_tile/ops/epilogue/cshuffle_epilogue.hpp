@@ -12,8 +12,8 @@
 #include <type_traits>
 
 namespace ck_tile {
-template <typename ADataType_,
-          typename BDataType_,
+template <typename AsDataType_,
+          typename BsDataType_,
           typename DsDataType_,
           typename AccDataType_,
           typename ODataType_,
@@ -35,8 +35,8 @@ template <typename ADataType_,
           bool TiledMMAPermuteN_  = false>
 struct CShuffleEpilogueProblem
 {
-    using AsDataType                                       = remove_cvref_t<ADataType_>;
-    using BsDataType                                       = remove_cvref_t<BDataType_>;
+    using AsDataType                                       = remove_cvref_t<AsDataType_>;
+    using BsDataType                                       = remove_cvref_t<BsDataType_>;
     using AccDataType                                      = remove_cvref_t<AccDataType_>;
     using ODataType                                        = remove_cvref_t<ODataType_>;
     using DsDataType                                       = remove_cvref_t<DsDataType_>;
