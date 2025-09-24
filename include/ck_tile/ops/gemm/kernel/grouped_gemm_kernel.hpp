@@ -23,10 +23,12 @@ namespace ck_tile {
 ///      arguments object. It contain all necessary information required to build proper kernel
 ///      argument and launch kernel on GPU. This structure defines the GEMM problem configuration by
 ///      stating all required information like M,N,K sizes and respective strides.
+template <index_t NumDTensor = 0>
 struct GroupedGemmHostArgs
 {
     CK_TILE_HOST GroupedGemmHostArgs(const void* a_ptr_,
                                      const void* b_ptr_,
+                                     const std::array<const void*, NumDTensor>& ds_ptr_,
                                      void* e_ptr_,
                                      index_t k_batch_,
                                      index_t M_,
@@ -34,15 +36,18 @@ struct GroupedGemmHostArgs
                                      index_t K_,
                                      index_t stride_A_,
                                      index_t stride_B_,
+                                     const std::array<index_t, NumDTensor>& stride_Ds_,
                                      index_t stride_E_)
         : a_ptr(a_ptr_),
           b_ptr(b_ptr_),
+          ds_ptr(ds_ptr_),
           e_ptr(e_ptr_),
           M(M_),
           N(N_),
           K(K_),
           stride_A(stride_A_),
           stride_B(stride_B_),
+          stride_Ds(stride_Ds_),
           stride_E(stride_E_),
           k_batch(k_batch_)
     {
@@ -50,6 +55,7 @@ struct GroupedGemmHostArgs
 
     const void* a_ptr;
     const void* b_ptr;
+    const std::array<const void*, NumDTensor> ds_ptr;
     union
     {
         void* e_ptr;
@@ -61,6 +67,7 @@ struct GroupedGemmHostArgs
     index_t K;
     index_t stride_A;
     index_t stride_B;
+    const std::array<index_t, NumDTensor> stride_Ds;
 
     union
     {
@@ -71,20 +78,23 @@ struct GroupedGemmHostArgs
     index_t k_batch;
 };
 
+template <index_t NumATensor = 1, index_t NumBTensor = 1, index_t NumDTensor = 0>
 struct GemmTransKernelArg
 {
-    UniversalGemmKernelArgs<> group_karg;
+    UniversalGemmKernelArgs<NumATensor, NumBTensor, NumDTensor> group_karg;
     ck_tile::index_t block_start;
     ck_tile::index_t block_end;
 
     GemmTransKernelArg() = delete;
-    GemmTransKernelArg(UniversalGemmKernelArgs<>&& karg, index_t bl_start, index_t bl_end)
-        : group_karg{karg}, block_start{bl_start}, block_end{bl_end}
+    GemmTransKernelArg(UniversalGemmKernelArgs<NumATensor, NumBTensor, NumDTensor>&& karg,
+                       index_t bl_start,
+                       index_t bl_end)
+        : group_karg{std::move(karg)}, block_start{bl_start}, block_end{bl_end}
     {
     }
 
-    GemmTransKernelArg(UniversalGemmKernelArgs<>&& karg)
-        : group_karg{karg}, block_start{0}, block_end{0}
+    GemmTransKernelArg(UniversalGemmKernelArgs<NumATensor, NumBTensor, NumDTensor>&& karg)
+        : group_karg{std::move(karg)}, block_start{0}, block_end{0}
     {
     }
 };
@@ -101,14 +111,16 @@ struct GroupedGemmKernel
     using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
 
     //// @brief Specify the layout configurations for A, B, C/E
-    using ALayout = remove_cvref_t<typename GemmPipeline::ALayout>;
-    using BLayout = remove_cvref_t<typename GemmPipeline::BLayout>;
-    using CLayout = remove_cvref_t<typename GemmPipeline::CLayout>;
+    using ALayout  = remove_cvref_t<typename GemmPipeline::ALayout>;
+    using BLayout  = remove_cvref_t<typename GemmPipeline::BLayout>;
+    using CLayout  = remove_cvref_t<typename GemmPipeline::CLayout>;
+    using DsLayout = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
 
     /// @brief Specify the data type configurations for A, B, C/E
-    using ADataType = remove_cvref_t<typename GemmPipeline::ADataType>;
-    using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
-    using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
+    using ADataType  = remove_cvref_t<typename GemmPipeline::ADataType>;
+    using BDataType  = remove_cvref_t<typename GemmPipeline::BDataType>;
+    using CDataType  = remove_cvref_t<typename EpiloguePipeline::ODataType>;
+    using DsDataType = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
 
     /// @brief ALayout and ADataType are expected to be scalars, not a tuple.
     static_assert(
@@ -125,6 +137,8 @@ struct GroupedGemmKernel
                       !is_detected<is_tuple, CDataType>::value,
                   "C/CLayout and C/EDataType must be scalars.");
 
+    static constexpr index_t NumDTensor_ = DsDataType::size();
+
     using OffsetTile1DPartitioner = OffsettedTile1DPartitioner<TilePartitioner>;
     using Kernel = GroupedGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline>;
 
@@ -140,19 +154,21 @@ struct GroupedGemmKernel
                       concat('x', P_::MPerBlock, P_::NPerBlock, P_::KPerBlock),
                       concat('x', P_::GetVectorSizeA(), P_::GetVectorSizeB(), P_::GetVectorSizeC()),
                       concat('x', P_::kPadM, P_::kPadN, P_::kPadK),
-                      (UsePersistentKernel ? "Persistent" : "NonPersistent"));
+                      (UsePersistentKernel ? "Persistent" : "NonPersistent"),
+                      (NumDTensor_ == 2 ? "MultiD" : "NoMultiD"),
+                      (GemmPipeline::DoubleSmemBuffer ? "DoubleSmemBuffer" : "SingleSmemBuffer"));
         // clang-format on
     }
 
     CK_TILE_HOST static auto
-    GetWorkSpaceSize(const std::vector<GroupedGemmHostArgs>& gemm_descs) -> std::size_t
+    GetWorkSpaceSize(const std::vector<GroupedGemmHostArgs<NumDTensor_>>& gemm_descs) -> std::size_t
     {
-        return gemm_descs.size() * sizeof(GemmTransKernelArg);
+        return gemm_descs.size() * sizeof(GemmTransKernelArg<1, 1, NumDTensor_>);
     }
 
     CK_TILE_HOST static auto GetWorkSpaceSize(index_t group_count) -> std::size_t
     {
-        return group_count * sizeof(GemmTransKernelArg);
+        return group_count * sizeof(GemmTransKernelArg<1, 1, NumDTensor_>);
     }
 
     CK_TILE_HOST static auto BlockSize() -> dim3
@@ -184,7 +200,8 @@ struct GroupedGemmKernel
         return dim3(grid_size, 1, 1);
     }
 
-    CK_TILE_HOST static auto GridSize(const std::vector<GroupedGemmHostArgs>& gemm_descs)
+    CK_TILE_HOST static auto
+    GridSize(const std::vector<GroupedGemmHostArgs<NumDTensor_>>& gemm_descs)
     {
         index_t grid_size = 0;
         for(const auto& it_desc : gemm_descs)
@@ -196,9 +213,10 @@ struct GroupedGemmKernel
     }
 
     CK_TILE_HOST static auto
-    MakeKargs(const std::vector<GroupedGemmHostArgs>& gemm_descs) -> std::vector<GemmTransKernelArg>
+    MakeKargs(const std::vector<GroupedGemmHostArgs<NumDTensor_>>& gemm_descs)
+        -> std::vector<GemmTransKernelArg<1, 1, NumDTensor_>>
     {
-        std::vector<GemmTransKernelArg> gemm_kernel_args_;
+        std::vector<GemmTransKernelArg<1, 1, NumDTensor_>> gemm_kernel_args_;
         index_t group_count = ck_tile::type_convert<ck_tile::index_t>(gemm_descs.size());
         index_t grid_size   = 0;
         gemm_kernel_args_.reserve(group_count);
@@ -217,6 +235,7 @@ struct GroupedGemmKernel
             const index_t stride_a = gemm_descs[i].stride_A;
             const index_t stride_b = gemm_descs[i].stride_B;
             const index_t stride_e = gemm_descs[i].stride_E;
+            auto stride_ds         = gemm_descs[i].stride_Ds;
 
             const index_t grid_size_grp = TilePartitioner::GridSize(M, N) * gemm_descs[i].k_batch;
 
@@ -225,19 +244,19 @@ struct GroupedGemmKernel
 
             grid_size += grid_size_grp;
 
-            auto karg =
-                UniversalGemmKernelArgs<>{{type_convert<const ADataType*>(gemm_descs[i].a_ptr)},
-                                          {type_convert<const BDataType*>(gemm_descs[i].b_ptr)},
-                                          {/*ds_ptr*/},
-                                          type_convert<CDataType*>(gemm_descs[i].e_ptr),
-                                          M,
-                                          N,
-                                          K,
-                                          {stride_a},
-                                          {stride_b},
-                                          {/*stride_ds*/},
-                                          stride_e,
-                                          gemm_descs[i].k_batch};
+            auto karg = UniversalGemmKernelArgs<1, 1, NumDTensor_>{
+                {type_convert<const ADataType*>(gemm_descs[i].a_ptr)},
+                {type_convert<const BDataType*>(gemm_descs[i].b_ptr)},
+                gemm_descs[i].ds_ptr,
+                type_convert<CDataType*>(gemm_descs[i].e_ptr),
+                M,
+                N,
+                K,
+                {stride_a},
+                {stride_b},
+                stride_ds,
+                stride_e,
+                gemm_descs[i].k_batch};
 
             gemm_kernel_args_.emplace_back(std::move(karg), block_start, block_end);
         }
@@ -245,7 +264,8 @@ struct GroupedGemmKernel
         return gemm_kernel_args_;
     }
 
-    CK_TILE_HOST static bool IsSupportedArgument(const std::vector<GemmTransKernelArg>& kargs)
+    CK_TILE_HOST static bool
+    IsSupportedArgument(const std::vector<GemmTransKernelArg<1, 1, NumDTensor_>>& kargs)
     {
         for(const auto& karg : kargs)
         {
@@ -262,7 +282,7 @@ struct GroupedGemmKernel
         return max(GemmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
     }
 
-    CK_TILE_DEVICE void Run(const UniversalGemmKernelArgs<>& kargs,
+    CK_TILE_DEVICE void Run(const UniversalGemmKernelArgs<1, 1, NumDTensor_>& kargs,
                             const tuple<index_t, index_t>& block_idx_2d,
                             const index_t block_idx_z) const
     {
@@ -292,8 +312,17 @@ struct GroupedGemmKernel
         {
 
             __shared__ char smem_ptr_1[GetSmemSize()];
-            RunGemmWithPipelineSelection2LDS(
-                a_ptr, b_ptr, c_ptr, smem_ptr_0, smem_ptr_1, kargs, splitk_batch_offset, i_m, i_n);
+
+            RunGemmWithPipelineSelection2LDS(a_ptr,
+                                             b_ptr,
+                                             c_ptr,
+                                             kargs.ds_ptr,
+                                             smem_ptr_0,
+                                             smem_ptr_1,
+                                             kargs,
+                                             splitk_batch_offset,
+                                             i_m,
+                                             i_n);
         }
         else // SingleSmemBuffer
         {
@@ -306,7 +335,7 @@ struct GroupedGemmKernel
             {
                 Base::RunGemm({a_ptr},
                               {b_ptr},
-                              {/*ds_ptr*/},
+                              kargs.ds_ptr,
                               c_ptr,
                               smem_ptr_0,
                               kargs,
@@ -335,12 +364,13 @@ struct GroupedGemmKernel
      * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
      *
      */
+
     CK_TILE_DEVICE static void
     RunGemmWithPipelineSelection(const ADataType* a_ptr,
                                  const BDataType* b_ptr,
                                  CDataType* c_ptr,
                                  void* smem_ptr_0,
-                                 const UniversalGemmKernelArgs<>& kargs,
+                                 const UniversalGemmKernelArgs<1, 1, NumDTensor_>& kargs,
                                  const typename Base::SplitKBatchOffset& splitk_batch_offset,
                                  const index_t block_idx_m,
                                  const index_t block_idx_n)
@@ -396,9 +426,10 @@ struct GroupedGemmKernel
     RunGemmWithPipelineSelection2LDS(const ADataType* a_ptr,
                                      const BDataType* b_ptr,
                                      CDataType* c_ptr,
+                                     const std::array<const void*, NumDTensor_>& ds_ptr,
                                      void* __restrict__ smem_ptr_0,
                                      void* __restrict__ smem_ptr_1,
-                                     const UniversalGemmKernelArgs<>& kargs,
+                                     const UniversalGemmKernelArgs<1, 1, NumDTensor_>& kargs,
                                      const typename Base::SplitKBatchOffset& splitk_batch_offset,
                                      const index_t block_idx_m,
                                      const index_t block_idx_n)
@@ -406,7 +437,7 @@ struct GroupedGemmKernel
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
             Base::template MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                {a_ptr}, {b_ptr}, {/*ds_ptr*/}, c_ptr, kargs, splitk_batch_offset.splitted_k);
+                {a_ptr}, {b_ptr}, ds_ptr, c_ptr, kargs, splitk_batch_offset.splitted_k);
 
         const auto& gemm_pad_views = Base::MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows =
@@ -453,7 +484,7 @@ struct GroupedGemmKernel
             c_block_window, c_block_tile, d_block_window, smem_ptr_0);
     }
 
-    CK_TILE_DEVICE index_t FindGroupId(const GemmTransKernelArg* gemm_desc_ptr,
+    CK_TILE_DEVICE index_t FindGroupId(const GemmTransKernelArg<1, 1, NumDTensor_>* gemm_desc_ptr,
                                        index_t block_id,
                                        index_t group_count) const
     {
@@ -485,7 +516,7 @@ struct GroupedGemmKernel
                                    index_t group_count) const
     {
         const index_t block_id   = ck_tile::get_block_1d_id();
-        const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg*>(
+        const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg<1, 1, NumDTensor_>*>(
             cast_pointer_to_generic_address_space(gemm_descs_const));
 
         const index_t group_id = FindGroupId(gemm_desc_ptr, block_id, group_count);
@@ -497,6 +528,7 @@ struct GroupedGemmKernel
             kargs.group_karg.M,
             kargs.group_karg.N,
             (block_id - kargs.block_start) % grid_size_2d);
+
         Run(kargs.group_karg, block_idx_2d, (block_id - kargs.block_start) / grid_size_2d);
     }
 
@@ -508,7 +540,7 @@ struct GroupedGemmKernel
                                    const index_t group_count) const
     {
         const index_t grid_size  = ck_tile::get_grid_size();
-        const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg*>(
+        const auto gemm_desc_ptr = reinterpret_cast<const GemmTransKernelArg<1, 1, NumDTensor_>*>(
             cast_pointer_to_generic_address_space(gemm_descs_const));
         index_t block_id      = ck_tile::get_block_1d_id(); // initial block_id
         index_t cum_grid_size = 0;
