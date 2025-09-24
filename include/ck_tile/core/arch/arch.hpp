@@ -9,8 +9,6 @@
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
-#include "ck_tile/core/arch/amd_buffer_addressing_builtins.hpp"
-#include "ck_tile/core/arch/amd_buffer_addressing.hpp"
 #include "ck_tile/core/utility/ignore.hpp"
 
 #define CK_TILE_S_CNT_MAX 0b1100'1111'0111'1111
@@ -106,7 +104,7 @@ CK_TILE_DEVICE index_t get_warp_id(bool_constant<ReturnSgpr> = {})
     const index_t warp_id = threadIdx.x / get_warp_size();
     if constexpr(ReturnSgpr)
     {
-        return amd_wave_read_first_lane(warp_id);
+        return __builtin_amdgcn_readfirstlane(warp_id);
     }
     else
     {
