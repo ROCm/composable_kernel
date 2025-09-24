@@ -36,7 +36,7 @@ namespace ck {
 struct f8_fnuz_t
 {
     using data_type = unsigned char;
-    data_type m_data;
+    data_type m_data = data_type{};
     __host__ __device__ explicit constexpr f8_fnuz_t(data_type in_data) : m_data(in_data) {}
     __host__ __device__ explicit constexpr f8_fnuz_t() = default;
     __host__ __device__ bool constexpr operator==(f8_fnuz_t other) const
@@ -49,7 +49,7 @@ struct f8_fnuz_t
 struct bf8_fnuz_t
 {
     using data_type = unsigned char;
-    data_type m_data;
+    data_type m_data = data_type{};
     __host__ __device__ explicit constexpr bf8_fnuz_t(data_type in_data) : m_data(in_data) {}
     __host__ __device__ explicit constexpr bf8_fnuz_t() = default;
     __host__ __device__ bool constexpr operator==(bf8_fnuz_t other) const
