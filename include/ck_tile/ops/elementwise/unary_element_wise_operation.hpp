@@ -168,7 +168,7 @@ CK_TILE_DEVICE bf16x4_t i4_to_bhalf4(int q)
 #else
     // Lookup table for bf16_t values corresponding to int4 values -8 to 7
     constexpr auto bf16_lookup_table =
-        make_lookup_table<bf16_t, 16>([](int i) { return float_to_bf16(i - 8); });
+        make_lookup_table<bf16_t, 16>([](int i) { return float_to_bf16_rtn_raw(i - 8); });
 
     return bf16x4_t{bf16_lookup_table[(q >> 0) & 0xf],
                     bf16_lookup_table[(q >> 16) & 0xf],
