@@ -16,7 +16,7 @@ enum struct QuantType : std::uint16_t
     TensorQuant   = 3
 };
 
-std::string quant_type_to_string(QuantType quant_type)
+inline std::string quant_type_to_string(QuantType quant_type)
 {
     switch(quant_type)
     {
