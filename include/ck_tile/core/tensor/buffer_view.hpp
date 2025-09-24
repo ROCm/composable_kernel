@@ -96,7 +96,7 @@ struct buffer_view<address_space_enum::generic,
                   std::is_same<typename vector_traits<remove_cvref_t<X>>::scalar_type,
                                typename vector_traits<remove_cvref_t<T>>::scalar_type>::value,
                   bool>::type = false>
-    CK_TILE_DEVICE constexpr auto get(index_t i,
+    CK_TILE_HOST_DEVICE constexpr auto get(index_t i,
                                       index_t linear_offset,
                                       bool is_valid_element,
                                       bool_constant<oob_conditional_check> = {}) const
