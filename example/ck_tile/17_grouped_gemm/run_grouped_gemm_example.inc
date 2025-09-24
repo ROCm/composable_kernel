@@ -88,7 +88,7 @@ float invoke_gemm(int n_warmup,
         // The contents of the memory pointed to by `kargs_ptr` pointer could be
         // written by e.g. another kernel from earlier stage.
 
-        std::vector<ck_tile::GemmTransKernelArg> kargs;
+        std::vector<ck_tile::GemmTransKernelArg<>> kargs;
         void* kargs_ptr   = gemm_workspace.GetDeviceBuffer();
         const bool splitk = args[0].k_batch > 1;
         for(const auto& arg : args)
@@ -109,7 +109,7 @@ float invoke_gemm(int n_warmup,
         const auto stream = ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat};
         HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
                                             kargs.data(),
-                                            kargs.size() * sizeof(ck_tile::GemmTransKernelArg),
+                                            kargs.size() * sizeof(ck_tile::GemmTransKernelArg<>),
                                             hipMemcpyHostToDevice,
                                             stream.stream_id_));
         ave_time = grouped_gemm_tileloop<GemmConfig,
