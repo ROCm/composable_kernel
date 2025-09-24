@@ -182,9 +182,9 @@ int run_grouped_gemm_multi_d_example_with_layouts(int argc,
                   << std::endl;
         for(int i = 0; i < group_count; i++)
         {
-            Ms.push_back(256 /* + 256 * i */);
-            Ns.push_back(256 /* + 512 * i */);
-            Ks.push_back(64 /* + 384 * i */);
+            Ms.push_back(256 + 256 * i);
+            Ns.push_back(256 + 512 * i);
+            Ks.push_back(512 + 384 * i);
 
             stride_As.push_back(Ks[i]);
             stride_Bs.push_back(Ks[i]);
@@ -256,8 +256,8 @@ int run_grouped_gemm_multi_d_example_with_layouts(int argc,
 
         ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensors[i]);
         ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
-        ck_tile::FillUniformDistribution<D0DataType>{2.f, -2.f}(d0_m_n_tensors[i]);
-        ck_tile::FillUniformDistribution<D1DataType>{2.f, -2.f}(d1_m_n_tensors[i]);
+        ck_tile::FillUniformDistribution<D0DataType>{-1.f, 1.f}(d0_m_n_tensors[i]);
+        ck_tile::FillUniformDistribution<D1DataType>{-1.f, 1.f}(d1_m_n_tensors[i]);
 
         a_m_k_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(a_m_k_tensors[i]));
 
