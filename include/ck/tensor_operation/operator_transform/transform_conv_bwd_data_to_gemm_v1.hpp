@@ -13,6 +13,12 @@
 namespace ck {
 namespace tensor_operation {
 
+/**
+ * @brief Enable custom tensor transform for convolution backward data output.
+ *
+ * When set to 1, this macro enables a custom transformation of the output tensor
+ * in convolution backward data operations.
+ */
 #define CK_USE_CUSTOM_TENSOR_TRANSFORM_FOR_BWD_DATA_OUT 1
 
 template <

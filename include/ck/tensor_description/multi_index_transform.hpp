@@ -1553,6 +1553,14 @@ struct UnMerge
     }
 };
 
+/**
+ * @brief Transformation struct for convolution backward data output indices to GEMM indices.
+ *
+ * This struct is responsible for mapping the output tensor indices (N, Ho, Wo, K) from the
+ * convolution backward data operation to the corresponding indices (K0, M, K1) used in the
+ * implicit GEMM computation. It encapsulates the necessary parameters and transformation logic
+ * required to efficiently perform the index conversion.
+ */
 struct ConvBwdDataImplicitGemmOutTransform
 {
     static constexpr auto I0 = Number<0>{};
