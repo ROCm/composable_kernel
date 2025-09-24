@@ -25,7 +25,7 @@ void add_device_grouped_conv3d_bwd_data_wmma_v3_ngkdhw_gkczyx_ngcdhw_bf16_16_16_
 {
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_data_wmma_bf16_16_16_v3_instances<3,
+        device_grouped_conv_bwd_data_wmma_v3_bf16_16_16_instances<3,
                                                                   NGKDHW,
                                                                   GKCZYX,
                                                                   Empty_Tuple,

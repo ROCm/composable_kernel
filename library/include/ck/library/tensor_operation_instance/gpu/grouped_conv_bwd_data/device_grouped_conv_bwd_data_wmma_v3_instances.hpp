@@ -41,7 +41,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionBackwardDataSpecialization ConvSpec>
-using device_grouped_conv_bwd_data_wmma_f16_v3_genric_instances = std::tuple<
+using device_grouped_conv_bwd_data_wmma_v3_f16_generic_instances = std::tuple<
     // clang-format off
         // ##############################################|       NDim| ALayout| BLayout|    DsLayout| ELayout| AData| BData| AccData| CShuffle|      DsData| EData| AElementwise| BElementwise| CDEElementwise| ConvolutionBackward| DoPad| DoPad| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MRepeat| NRepeat|    ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|    BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|   CShuffle|   CShuffle|   CDEBlockTransfer| CDEBlockTransfer|
         // ##############################################|    Spatial|        |        |            |        |  Type|  Type|    Type| DataType|        Type|  Type|    Operation|    Operation|      Operation|  DataSpecialization| GemmM| GemmN|  Size| Block| Block| Block|    |    | Wmma| Wmma|        |        |     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN|    MRepeat|    NRepeat|  _MBlock_MPerBlock|  ScalarPerVector|
@@ -58,7 +58,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionBackwardDataSpecialization ConvSpec>
-using device_grouped_conv_bwd_data_wmma_f16_16_16_v3_instances = std::tuple<
+using device_grouped_conv_bwd_data_wmma_v3_f16_16_16_instances = std::tuple<
     // clang-format off
         // ##############################################|       NDim| ALayout| BLayout|    DsLayout| ELayout| AData| BData| AccData| CShuffle|      DsData| EData| AElementwise| BElementwise| CDEElementwise| ConvolutionBackward| DoPad| DoPad|      Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MRepeat| NRepeat|    ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|    BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle |    CShuffle |   CDEBlockTransfer| CDEBlockTransfer|
         // ##############################################|    Spatial|        |        |            |        |  Type|  Type|    Type| DataType|        Type|  Type|    Operation|    Operation|      Operation|  DataSpecialization| GemmM| GemmN|       Size| Block| Block| Block|    |    |  Wmma| Wmma|       |        |     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN|      MRepeat|    NRepeat  |  _MBlock_MPerBlock|  ScalarPerVector|
@@ -79,7 +79,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionBackwardDataSpecialization ConvSpec>
-using device_grouped_conv_bwd_data_wmma_f16_v3_instances = std::tuple<
+using device_grouped_conv_bwd_data_wmma_v3_f16_instances = std::tuple<
     // clang-format off
         // ##############################################|       NDim| ALayout| BLayout|    DsLayout| ELayout| AData| BData| AccData| CShuffle|      DsData| EData| AElementwise| BElementwise| CDEElementwise| ConvolutionBackward| DoPad| DoPad|      Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MRepeat| NRepeat|    ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|    BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle |    CShuffle |   CDEBlockTransfer| CDEBlockTransfer|
         // ##############################################|    Spatial|        |        |            |        |  Type|  Type|    Type| DataType|        Type|  Type|    Operation|    Operation|      Operation|  DataSpecialization| GemmM| GemmN|       Size| Block| Block| Block|    |    | Wmma| Wmma|        |        |     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN|      MRepeat|    NRepeat  |  _MBlock_MPerBlock|  ScalarPerVector|
@@ -105,7 +105,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionBackwardDataSpecialization ConvSpec>
-using device_grouped_conv_bwd_data_wmma_bf16_v3_genric_instances = std::tuple<
+using device_grouped_conv_bwd_data_wmma_v3_bf16_generic_instances = std::tuple<
     // clang-format off
         // ##############################################|       NDim| ALayout| BLayout|    DsLayout| ELayout| AData| BData| AccData| CShuffle|      DsData| EData| AElementwise| BElementwise| CDEElementwise| ConvolutionBackward| DoPad| DoPad| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MRepeat| NRepeat|    ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|    BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|   CShuffle|   CShuffle|   CDEBlockTransfer| CDEBlockTransfer|
         // ##############################################|    Spatial|        |        |            |        |  Type|  Type|    Type| DataType|        Type|  Type|    Operation|    Operation|      Operation|  DataSpecialization| GemmM| GemmN|  Size| Block| Block| Block|    |    | Wmma| Wmma|        |        |     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN|    MRepeat|    NRepeat|  _MBlock_MPerBlock|  ScalarPerVector|
@@ -122,7 +122,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionBackwardDataSpecialization ConvSpec>
-using device_grouped_conv_bwd_data_wmma_bf16_16_16_v3_instances = std::tuple<
+using device_grouped_conv_bwd_data_wmma_v3_bf16_16_16_instances = std::tuple<
     // clang-format off
         // ##############################################|       NDim| ALayout| BLayout|    DsLayout| ELayout| AData| BData| AccData| CShuffle|      DsData| EData| AElementwise| BElementwise| CDEElementwise| ConvolutionBackward| DoPad| DoPad|      Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MRepeat| NRepeat|    ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|    BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle |    CShuffle |   CDEBlockTransfer| CDEBlockTransfer|
         // ##############################################|    Spatial|        |        |            |        |  Type|  Type|    Type| DataType|        Type|  Type|    Operation|    Operation|      Operation|  DataSpecialization| GemmM| GemmN|       Size| Block| Block| Block|    |    |  Wmma| Wmma|       |        |     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN|      MRepeat|    NRepeat  |  _MBlock_MPerBlock|  ScalarPerVector|
@@ -143,7 +143,7 @@ template <index_t NDimSpatial,
           typename DsLayout,
           typename ELayout,
           ConvolutionBackwardDataSpecialization ConvSpec>
-using device_grouped_conv_bwd_data_wmma_bf16_v3_instances = std::tuple<
+using device_grouped_conv_bwd_data_wmma_v3_bf16_instances = std::tuple<
     // clang-format off
         // ##############################################|       NDim| ALayout| BLayout|    DsLayout| ELayout| AData| BData| AccData| CShuffle|      DsData| EData| AElementwise| BElementwise| CDEElementwise| ConvolutionBackward| DoPad| DoPad|      Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MRepeat| NRepeat|    ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|    BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle |    CShuffle |   CDEBlockTransfer| CDEBlockTransfer|
         // ##############################################|    Spatial|        |        |            |        |  Type|  Type|    Type| DataType|        Type|  Type|    Operation|    Operation|      Operation|  DataSpecialization| GemmM| GemmN|       Size| Block| Block| Block|    |    | Wmma| Wmma|        |        |     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN|      MRepeat|    NRepeat  |  _MBlock_MPerBlock|  ScalarPerVector|

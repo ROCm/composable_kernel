@@ -26,7 +26,7 @@ void add_device_grouped_conv2d_bwd_data_wmma_v3_ngkhw_gkcyx_ngchw_f16_16_16_inst
     // 1. Default
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_data_wmma_f16_v3_instances<2,
+        device_grouped_conv_bwd_data_wmma_v3_f16_instances<2,
                                                            NGKHW,
                                                            GKCYX,
                                                            Empty_Tuple,

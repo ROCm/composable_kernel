@@ -26,7 +26,7 @@ void add_device_grouped_conv2d_bwd_data_wmma_v3_nhwgk_gkyxc_nhwgc_f16_instances(
     // 1. Default
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_data_wmma_f16_v3_instances<2,
+        device_grouped_conv_bwd_data_wmma_v3_f16_instances<2,
                                                            NHWGK,
                                                            GKYXC,
                                                            Empty_Tuple,
@@ -35,7 +35,7 @@ void add_device_grouped_conv2d_bwd_data_wmma_v3_nhwgk_gkyxc_nhwgc_f16_instances(
     // 2. Filter1x1Stride1Pad0
     add_device_operation_instances(
         instances,
-        device_grouped_conv_bwd_data_wmma_f16_v3_instances<2,
+        device_grouped_conv_bwd_data_wmma_v3_f16_instances<2,
                                                            NHWGK,
                                                            GKYXC,
                                                            Empty_Tuple,
