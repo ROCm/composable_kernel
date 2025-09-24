@@ -593,8 +593,7 @@ struct BlockFmhaPipelineQRKSVS
                    p_compute, randval_dram_window);*/
                 if(num_sink_loop > i_total_loops) // sink
                 {
-                    auto randval_ptr = reinterpret_cast<char*>(smem_ptr) +
-                                       Policy::template GetSmemSizeKV<Problem>();
+                    auto randval_ptr = reinterpret_cast<char*>(smem_ptr);
                     dropout
                         .template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
                             randval_ptr,
@@ -608,8 +607,7 @@ struct BlockFmhaPipelineQRKSVS
                         (num_sink_loop != 0 && i_total_loops == num_sink_loop);
                     if(is_randval_move)
                         move_tile_window(randval_dram_window, {0, seqlen_k_start - sink_seq_end});
-                    auto randval_ptr = reinterpret_cast<char*>(smem_ptr) +
-                                       Policy::template GetSmemSizeKV<Problem>();
+                    auto randval_ptr = reinterpret_cast<char*>(smem_ptr);
                     dropout
                         .template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
                             randval_ptr,
