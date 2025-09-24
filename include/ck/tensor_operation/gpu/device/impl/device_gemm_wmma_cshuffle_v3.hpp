@@ -182,8 +182,8 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
         BLayout,
         Tuple<>, // DsLayout
         CLayout,
-        ADataType,
-        BDataType,
+        Tuple<ADataType>,
+        Tuple<BDataType>,
         AccDataType,
         CShuffleDataType,
         Tuple<>, // DsDataType
@@ -233,8 +233,8 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
 
     using DeviceGemmCommon =
         DeviceGemm_Wmma_CShuffleV3_Common<GridwiseGemm,
-                                          ADataType,
-                                          BDataType,
+                                          Tuple<ADataType>,
+                                          Tuple<BDataType>,
                                           Tuple<>,
                                           CDataType,
                                           MPerBlock,
@@ -283,15 +283,15 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation cde_element_op)
     {
-        return Argument{p_a,
-                        p_b,
+        return Argument{std::array<const void*, 1>{p_a},
+                        std::array<const void*, 1>{p_b},
                         std::array<const void*, 0>{}, // p_ds_grid_
                         p_c,
                         M,
                         N,
                         K,
-                        StrideA,
-                        StrideB,
+                        std::array<index_t, 1>{StrideA},
+                        std::array<index_t, 1>{StrideB},
                         std::array<index_t, 0>{}, // StrideDs_
                         StrideC,
                         KBatch,
@@ -317,15 +317,15 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
                                                       BElementwiseOperation b_element_op,
                                                       CElementwiseOperation c_element_op) override
     {
-        return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
-                                          static_cast<const BDataType*>(p_b),
+        return std::make_unique<Argument>(std::array<const void*, 1>{p_a},
+                                          std::array<const void*, 1>{p_b},
                                           std::array<const void*, 0>{}, // p_ds_grid_
                                           static_cast<CDataType*>(p_c),
                                           M,
                                           N,
                                           K,
-                                          StrideA,
-                                          StrideB,
+                                          std::array<index_t, 1>{StrideA},
+                                          std::array<index_t, 1>{StrideB},
                                           std::array<index_t, 0>{}, // StrideDs_
                                           StrideC,
                                           KBatch,
