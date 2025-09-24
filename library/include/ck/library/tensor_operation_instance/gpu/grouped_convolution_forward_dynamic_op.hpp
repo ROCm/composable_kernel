@@ -132,6 +132,7 @@ void add_device_grouped_conv3d_fwd_xdl_dynamic_op_ndhwgc_gkzyxc_ndhwgk_f32_insta
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 DynamicUnaryOp>>>& instances);
+
 #endif
 
 #ifdef CK_ENABLE_INT8
@@ -159,7 +160,8 @@ template <ck::index_t NumDimSpatial,
           typename WeiDataType,
           typename DDataTypes,
           typename OutDataType,
-          typename ComputeType>
+          typename AComputeType,
+          typename BComputeType = AComputeType>
 struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<
     NumDimSpatial,
     InLayout,
@@ -173,7 +175,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::PassThrough,
     ck::tensor_operation::element_wise::DynamicUnaryOp,
-    ComputeType>>
+    AComputeType,
+    BComputeType>>
 {
     using DeviceOp =
         DeviceGroupedConvFwdMultipleABD<NumDimSpatial,
@@ -188,7 +191,8 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
                                         ck::tensor_operation::element_wise::PassThrough,
                                         ck::tensor_operation::element_wise::PassThrough,
                                         ck::tensor_operation::element_wise::DynamicUnaryOp,
-                                        ComputeType>;
+                                        AComputeType,
+                                        BComputeType>;
 
     static auto GetInstances()
     {
@@ -207,7 +211,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 #endif
 #ifdef CK_ENABLE_FP16
             if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                         is_same_v<OutDataType, half_t> && is_same_v<ComputeType, half_t>)
+                         is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t>)
             {
                 add_device_grouped_conv3d_fwd_xdl_dynamic_op_ndhwgc_gkzyxc_ndhwgk_f16_instances(
                     op_ptrs);
@@ -244,7 +248,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 #endif
 #ifdef CK_ENABLE_FP16
             if constexpr(is_same_v<InDataType, half_t> && is_same_v<WeiDataType, half_t> &&
-                         is_same_v<OutDataType, half_t> && is_same_v<ComputeType, half_t>)
+                         is_same_v<OutDataType, half_t> && is_same_v<AComputeType, half_t>)
             {
                 add_device_grouped_conv2d_fwd_xdl_dynamic_op_nhwgc_gkyxc_nhwgk_f16_instances(
                     op_ptrs);

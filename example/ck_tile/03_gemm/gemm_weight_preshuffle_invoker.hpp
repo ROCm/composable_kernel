@@ -106,7 +106,10 @@ struct WeightPreshuffleInvoker
                                                  GemmConfig::K_Warp_Tile,
                                                  UniversalGemmProblem::TransposeC,
                                                  memory_operation,
-                                                 GemmConfig::NumWaveGroups>>;
+                                                 GemmConfig::NumWaveGroups,
+                                                 false,
+                                                 1,
+                                                 true>>;
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 

@@ -47,7 +47,7 @@ set(FMHA_BWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --api bwd
   --receipt 3
-  --optdim 32,64,128,256
+  --optdim 32,64,96,128,256
   # --filter fmha_bwd_dot...@fmha_bwd_convert...@fmha_bwd...
 )
 
@@ -169,6 +169,10 @@ if(CK_USE_OCP_FP8)
   list(APPEND FMHA_FWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
 endif()
 
+# use RTN_ASM on float to bfloat16 conversion by default, align with FA upstream
+list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_FLOAT_TO_BFLOAT16_DEFAULT=3)
+list(APPEND FMHA_BWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_FLOAT_TO_BFLOAT16_DEFAULT=3)
+
 target_compile_options(${FMHA_FWD_INSTANCES}
   PRIVATE ${FMHA_FWD_PRIVATE_COMPILE_OPTIONS}
   INTERFACE ${FMHA_FWD_INTERFACE_COMPILE_OPTIONS})
@@ -213,8 +217,20 @@ list(APPEND EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS
   -Wno-undefined-func-template
   --save-temps
 )
-target_compile_options(${EXAMPLE_FMHA_FWD_V3} PRIVATE ${EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS})
+set(EXAMPLE_FMHA_FWD_V3_COMPILE_DEFINITIONS)
 
+check_cxx_compiler_flag("-mllvm --amdgpu-disable-packed-fp32=1" HAS_DISABLE_PACKED_FP32)
+if(HAS_DISABLE_PACKED_FP32)
+  list(APPEND EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS
+    -mllvm --amdgpu-disable-packed-fp32=1
+  )
+  list(APPEND EXAMPLE_FMHA_FWD_V3_COMPILE_DEFINITIONS
+    -DCK_TILE_DISABLE_PACKED_FP32=1
+  )
+endif()
+
+target_compile_options(${EXAMPLE_FMHA_FWD_V3} PRIVATE ${EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS})
+target_compile_definitions(${EXAMPLE_FMHA_FWD_V3} PRIVATE ${EXAMPLE_FMHA_FWD_V3_COMPILE_DEFINITIONS})
 # TODO: we have to turn off this global prop, otherwise the progress bar generated
 # by cmake will print too many files, execvp: /bin/sh: Argument list too long
 # however, this property may affect global

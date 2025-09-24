@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <iostream>
 #include <sstream>
 
@@ -22,8 +23,8 @@ namespace tensor_operation {
 namespace device {
 
 template <typename GridwiseGemm,
-          typename ADataType,
-          typename BDataType,
+          typename AsDataType,
+          typename BsDataType,
           typename DsDataType,
           typename EDataType,
           index_t MPerBlock,
@@ -87,15 +88,24 @@ struct DeviceGemm_Wmma_CShuffleV3_Common
                 {
                     Argument arg_ = arg;
 
-                    const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(
-                        arg_.M, arg_.MPadded, arg_.K, arg_.KPadded, arg_.StrideA, arg_.AK0);
-                    const auto b_grid_desc_bk0_n_bk1 = GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(
-                        arg_.K, arg_.KPadded, arg_.N, arg_.NPadded, arg_.StrideB, arg_.BK0);
+                    const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAsGridDescriptor_AK0_M_AK1(
+                        arg_.M, arg_.MPadded, arg_.K, arg_.KPadded, arg_.StrideAs, arg_.AK0);
+                    const auto b_grid_desc_bk0_n_bk1 = GridwiseGemm::MakeBsGridDescriptor_BK0_N_BK1(
+                        arg_.K, arg_.KPadded, arg_.N, arg_.NPadded, arg_.StrideBs, arg_.BK0);
 
-                    auto size_a_buffer = a_grid_desc_ak0_m_ak1.GetElementSpaceSize() *
-                                         sizeof(ADataType) / GridwiseGemm::APackedSize;
-                    auto size_b_buffer = b_grid_desc_bk0_n_bk1.GetElementSpaceSize() *
-                                         sizeof(BDataType) / GridwiseGemm::BPackedSize;
+                    std::array<std::size_t, GridwiseGemm::NumATensor> size_as_buffers;
+                    static_for<0, GridwiseGemm::NumATensor, 1>{}([&](auto i) {
+                        using ADataType    = remove_cvref_t<tuple_element_t<i.value, AsDataType>>;
+                        size_as_buffers[i] = a_grid_desc_ak0_m_ak1[i].GetElementSpaceSize() *
+                                             sizeof(ADataType) / GridwiseGemm::APackedSize;
+                    });
+
+                    std::array<std::size_t, GridwiseGemm::NumBTensor> size_bs_buffers;
+                    static_for<0, GridwiseGemm::NumBTensor, 1>{}([&](auto i) {
+                        using BDataType    = remove_cvref_t<tuple_element_t<i.value, BsDataType>>;
+                        size_bs_buffers[i] = b_grid_desc_bk0_n_bk1[i].GetElementSpaceSize() *
+                                             sizeof(BDataType) / GridwiseGemm::BPackedSize;
+                    });
 
                     const auto ds_grid_desc_m_n = GridwiseGemm::MakeDsGridDescriptor_M_N(
                         arg_.M, arg_.MPadded, arg_.N, arg_.NPadded, arg_.StrideDs);
@@ -107,12 +117,13 @@ struct DeviceGemm_Wmma_CShuffleV3_Common
                             ds_grid_desc_m_n[i].GetElementSpaceSize() * sizeof(DDataType);
                     });
 
-                    ck::utility::RotatingMemWrapperMultiD<Argument, DsDataType> rotating_mem(
-                        arg_,
-                        stream_config.rotating_count,
-                        size_a_buffer,
-                        size_b_buffer,
-                        size_ds_buffers);
+                    ck::utility::
+                        RotatingMemWrapperMultiABD<Argument, AsDataType, BsDataType, DsDataType>
+                            rotating_mem(arg_,
+                                         stream_config.rotating_count,
+                                         size_as_buffers,
+                                         size_bs_buffers,
+                                         size_ds_buffers);
                     rotating_mem.Print();
 
                     auto run_flush_cache = [&]() {
@@ -171,8 +182,8 @@ struct DeviceGemm_Wmma_CShuffleV3_Common
             // other hand, Split K for 16-bit outputs uses packed atomics so ScalarPerVectors cannot
             // be odd.
             constexpr bool AtomicsImplementationExists =
-                !(std::is_same_v<EDataType, ck::half_t> ||
-                  std::is_same_v<EDataType, ck::bhalf_t>) ||
+                !(std::is_same_v<EDataType, ck::half_t> || std::is_same_v<EDataType, ck::bhalf_t> ||
+                  std::is_same_v<EDataType, int8_t>) ||
                 (CDEShuffleBlockTransferScalarPerVectors{}[0] % 2 == 0);
 
             if(has_main_k_block_loop)
