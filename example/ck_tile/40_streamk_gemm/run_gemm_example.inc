@@ -26,10 +26,10 @@ int estimate_num_wgs_per_tile(const TilePartitioner& tile_partitioner)
 }
 
 template <typename Layout>
-static constexpr inline auto is_row_major(Layout layout_)
+static constexpr inline auto is_row_major(Layout)
 {
-    return ck_tile::bool_constant<std::is_same_v<ck_tile::remove_cvref_t<decltype(layout_)>,
-                                                 ck_tile::tensor_layout::gemm::RowMajor>>{};
+    return ck_tile::bool_constant<
+        std::is_same_v<ck_tile::remove_cvref_t<Layout>, ck_tile::tensor_layout::gemm::RowMajor>>{};
 }
 
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
@@ -65,10 +65,7 @@ template <typename GemmConfig,
           typename CLayout,
           typename CDEElementWise = ck_tile::element_wise::PassThrough,
           ck_tile::StreamKReductionStrategy ReductionStrategy>
-std::tuple<float, int> gemm(const ck_tile::StreamKHostArgs& args,
-                            const ck_tile::stream_config& s,
-                            int num_cu,
-                            int occupancy);
+std::tuple<float, int> gemm(const ck_tile::StreamKHostArgs& args, const ck_tile::stream_config& s);
 
 template <typename GemmConfig,
           typename ADataType,
@@ -94,9 +91,7 @@ std::tuple<float, int> invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                    int n_repeat,
                                    bool flush_cache,
                                    ck_tile::StreamKReductionStrategy reduction_strategy,
-                                   uint32_t num_sk_blocks,
-                                   int num_cu,
-                                   int occupancy)
+                                   uint32_t num_sk_blocks)
 {
     ck_tile::StreamKHostArgs args{a_m_k_dev_buf.GetDeviceBuffer(),
                                   b_k_n_dev_buf.GetDeviceBuffer(),
@@ -126,10 +121,7 @@ std::tuple<float, int> invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                   CLayout,
                                   CDEElementWise,
                                   ck_tile::StreamKReductionStrategy::Atomic>(
-            args,
-            ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, flush_cache},
-            num_cu,
-            occupancy);
+            args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, flush_cache});
     }
     else /*Reduction*/
     {
@@ -145,10 +137,7 @@ std::tuple<float, int> invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                   CLayout,
                                   CDEElementWise,
                                   ck_tile::StreamKReductionStrategy::Reduction>(
-            args,
-            ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, flush_cache},
-            num_cu,
-            occupancy);
+            args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, flush_cache});
     }
 
     return ave_time_and_batch;
@@ -186,15 +175,6 @@ ck_tile::StreamKReductionStrategy get_reduction_strategy_value(const std::string
     else
     {
         throw std::runtime_error("Unsupported Stream-K reduction strategy !!!");
-    }
-}
-
-void validate_num_cu_and_occupancy(int num_cu, int occupancy)
-{
-    if((num_cu == -1) != (occupancy == -1))
-    {
-        throw std::runtime_error("Arguments num_cu and occupancy must both use either (a) "
-                                 "default values (-1) or (b) non-default values.");
     }
 }
 
@@ -239,10 +219,6 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::StreamKReductionStrategy reduction_strategy =
         get_reduction_strategy_value(arg_parser.get_str("reduction_strategy"));
     uint32_t num_sk_blocks = static_cast<uint32_t>(arg_parser.get_int("num_sk_blocks"));
-    int num_cu             = arg_parser.get_int("num_cu");
-    int occupancy          = arg_parser.get_int("occupancy");
-
-    validate_num_cu_and_occupancy(num_cu, occupancy);
 
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
     stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
@@ -307,9 +283,7 @@ int run_gemm_example_with_layouts(int argc,
                                                              n_repeat,
                                                              flush_cache,
                                                              reduction_strategy,
-                                                             num_sk_blocks,
-                                                             num_cu,
-                                                             occupancy);
+                                                             num_sk_blocks);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
 
