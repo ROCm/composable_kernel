@@ -158,7 +158,4 @@ CK_TILE_DEVICE auto load_tile_raw(T& /*null_tile*/, const null_tile_window<Windo
 {
 }
 
-template <typename Tile>
-concept IsLoadableTile = requires { load_tile(std::declval<Tile>()); };
-
 } // namespace ck_tile
