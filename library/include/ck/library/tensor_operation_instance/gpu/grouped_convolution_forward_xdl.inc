@@ -120,21 +120,6 @@ void add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_f32_instances(
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 PassThrough>>>& instances);
-void add_device_grouped_conv2d_fwd_xdl_gnhwc_gkyxc_gnhwk_f32_tf32_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-                                                                GNHWC,
-                                                                GKYXC,
-                                                                Empty_Tuple,
-                                                                GNHWK,
-                                                                F32,
-                                                                F32,
-                                                                Empty_Tuple,
-                                                                F32,
-                                                                PassThrough,
-                                                                PassThrough,
-                                                                PassThrough,
-                                                                TF32,
-                                                                TF32>>>& instances);
 #endif
 
 // grouped conv2d forward, NHWGC/GKYXC/NHWGK
@@ -307,21 +292,6 @@ void add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f32_instances(
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 PassThrough>>>& instances);
-void add_device_grouped_conv2d_fwd_xdl_ngchw_gkyxc_ngkhw_f32_tf32_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-                                                                NGCHW,
-                                                                GKYXC,
-                                                                Empty_Tuple,
-                                                                NGKHW,
-                                                                F32,
-                                                                F32,
-                                                                Empty_Tuple,
-                                                                F32,
-                                                                PassThrough,
-                                                                PassThrough,
-                                                                PassThrough,
-                                                                TF32,
-                                                                TF32>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_INT8
@@ -429,22 +399,6 @@ void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f32_16x16_instances(
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 PassThrough>>>& instances);
-
-void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f32_tf32_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-                                                                NGCHW,
-                                                                GKCYX,
-                                                                Empty_Tuple,
-                                                                NGKHW,
-                                                                F32,
-                                                                F32,
-                                                                Empty_Tuple,
-                                                                F32,
-                                                                PassThrough,
-                                                                PassThrough,
-                                                                PassThrough,
-                                                                TF32,
-                                                                TF32>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_BF16
