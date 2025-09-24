@@ -40,6 +40,8 @@ set(REGRESSION_TESTS
     test_batchnorm_fwd_rank_4
     test_batchnorm_bwd_rank_4
     test_grouped_convnd_bwd_data_xdl
+    test_grouped_convnd_bwd_data_wmma
+    test_grouped_convnd_bwd_data_wmma_large_cases
     test_conv_tensor_rearrange
     test_gemm_mx
     test_ck_tile_batched_transpose
