@@ -361,33 +361,23 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
 
         // Copy to device
         a_m_k_dev_buf.ToDevice(a_m_k.data());
+        ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
         if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
         {
             if constexpr(PreshuffleB)
             {
-                ck_tile::HostTensor<BDataType> b_k_n_dev = this->shuffle_b(b_k_n);
-                ck_tile::permute_vectors_i4x4_b(b_k_n_dev);
-                b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
+                b_k_n_dev = this->shuffle_b(b_k_n);
             }
-            else
-            {
-                // Permute vector pk_i4x4 data for device implementation
-                ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
-                ck_tile::permute_vectors_i4x4_b(b_k_n_dev);
-                b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
-            }
+            ck_tile::permute_vectors_i4x4_b(b_k_n_dev);
+            b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
         }
         else
         {
             if constexpr(PreshuffleB)
             {
-                ck_tile::HostTensor<BDataType> b_k_n_dev = this->shuffle_b(b_k_n);
-                b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
+                b_k_n_dev = this->shuffle_b(b_k_n);
             }
-            else
-            {
-                b_k_n_dev_buf.ToDevice(b_k_n.data());
-            }
+            b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
         }
         bq_bqk_n_dev_buf.ToDevice(bq_bqk_n.data());
 

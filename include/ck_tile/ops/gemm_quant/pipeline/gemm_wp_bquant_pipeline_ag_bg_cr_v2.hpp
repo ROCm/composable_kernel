@@ -15,16 +15,10 @@
 
 namespace ck_tile {
 
-template <typename Problem>
-struct BaseWPQuantBPipelineAgBgCrV2 : public BaseWeightPreshufflePipelineAGmemBGmemCRegV2<Problem>
-{
-    // Added Just to maintain same structure in host code while preparing pipeline
-};
-
 template <typename Problem, typename PipelinePolicy = GemmWPQuantPipelineAgBgCrPolicy>
-struct WPQuantBPipelineAgBgCrV2 : public BaseWPQuantBPipelineAgBgCrV2<Problem>
+struct WPQuantBPipelineAgBgCrV2 : public BaseWeightPreshufflePipelineAGmemBGmemCRegV2<Problem>
 {
-    using Base            = BaseWPQuantBPipelineAgBgCrV2<Problem>;
+    using Base            = BaseWeightPreshufflePipelineAGmemBGmemCRegV2<Problem>;
     using ADataType       = remove_cvref_t<typename Problem::ADataType>;
     using BDataType       = remove_cvref_t<typename Problem::BDataType>;
     using BQDataType      = remove_cvref_t<typename Problem::BQDataType>;

@@ -57,9 +57,9 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                                                  ComputeDataType>;
 
     using BaseGemmPipeline = std::conditional_t<
-        GemmConfig::PreshuffleB == false,
-        ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
-        ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>>;
+        GemmConfig::PreshuffleB == true,
+        ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>,
+        ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>;
 
     const ck_tile::index_t K_split =
         (args.K + GemmConfig::K_Tile - 1) / GemmConfig::K_Tile * GemmConfig::K_Tile;
@@ -119,9 +119,9 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
             std::conditional_t<
                 QuantMode == ck_tile::QuantType::AQuantGrouped,
                 ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
-                std::conditional_t<GemmConfig::PreshuffleB == false,
-                                   ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
-                                   ck_tile::WPQuantBPipelineAgBgCrV2<PipelineProblem>>>>;
+                std::conditional_t<GemmConfig::PreshuffleB == true,
+                                   ck_tile::WPQuantBPipelineAgBgCrV2<PipelineProblem>,
+                                   ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>>;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<typename TypeConfig::ADataType,
@@ -410,5 +410,5 @@ int run_gemm_example(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
-    return !run_gemm_example<GemmConfigPreshuffleB_Bquant>(argc, argv);
+    return !run_gemm_example<GemmConfigPreshuffleB_Bquant_decode>(argc, argv);
 }

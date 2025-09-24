@@ -44,9 +44,6 @@ struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
     static constexpr index_t MWarp = config.template at<1>();
     static constexpr index_t NWarp = config.template at<2>();
 
-    static constexpr uint8_t kA_cvt_scale = std::is_same_v<ADataType, pk_int4_t> ? 16 : 1;
-    static constexpr uint8_t kB_cvt_scale = std::is_same_v<BDataType, pk_int4_t> ? 16 : 1;
-
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
