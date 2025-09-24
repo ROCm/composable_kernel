@@ -135,21 +135,6 @@ void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f32_mem_intra_instances
                                                                 PassThrough,
                                                                 PassThrough,
                                                                 PassThrough>>>& instances);
-void add_device_grouped_conv2d_fwd_xdl_ngchw_gkcyx_ngkhw_f32_tf32_mem_intra_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvFwdMultipleABD<2,
-                                                                NGCHW,
-                                                                GKCYX,
-                                                                Empty_Tuple,
-                                                                NGKHW,
-                                                                F32,
-                                                                F32,
-                                                                Empty_Tuple,
-                                                                F32,
-                                                                PassThrough,
-                                                                PassThrough,
-                                                                PassThrough,
-                                                                TF32,
-                                                                TF32>>>& instances);
 #endif
 
 #ifdef CK_ENABLE_BF16
