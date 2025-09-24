@@ -6,7 +6,6 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/batched_contraction/pipeline/batched_contraction_problem.hpp"
 #include "ck_tile/ops/gemm/kernel/universal_gemm_kernel.hpp"
-#include "ck_tile/ops/batched_contraction/kernel/batched_conratction_utils.hpp"
 
 namespace ck_tile {
 

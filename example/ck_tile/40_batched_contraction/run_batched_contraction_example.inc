@@ -118,15 +118,43 @@ void calculate_reference_multi_dimensional(
                 e_idx.insert(e_idx.end(), n_idx.begin(), n_idx.end());
 
                 ::EDataType result = static_cast<::EDataType>(sum);
-                std::vector<::DDataType> d_vals;
-                for(const auto& d_tensor : ds_full_dims_host)
+                if(ds_full_dims_host.size() == 0)
                 {
-                    d_vals.push_back(ck_tile::type_convert<float>(d_tensor(e_idx)));
+                    ;
                 }
-                if(d_vals.size() == 2)
+                else if(ds_full_dims_host.size() == 1)
                 {
-                    cde_elementwise(
-                        result, ck_tile::type_convert<float>(sum), d_vals[0], d_vals[1]);
+                    cde_elementwise(result,
+                                    ck_tile::type_convert<float>(sum),
+                                    ck_tile::type_convert<float>(ds_full_dims_host[0](e_idx)));
+                }
+                else if(ds_full_dims_host.size() == 2)
+                {
+                    cde_elementwise(result,
+                                    ck_tile::type_convert<float>(sum),
+                                    ck_tile::type_convert<float>(ds_full_dims_host[0](e_idx)),
+                                    ck_tile::type_convert<float>(ds_full_dims_host[1](e_idx)));
+                }
+                else if(ds_full_dims_host.size() == 3)
+                {
+                    cde_elementwise(result,
+                                    ck_tile::type_convert<float>(sum),
+                                    ck_tile::type_convert<float>(ds_full_dims_host[0](e_idx)),
+                                    ck_tile::type_convert<float>(ds_full_dims_host[1](e_idx)),
+                                    ck_tile::type_convert<float>(ds_full_dims_host[2](e_idx)));
+                }
+                else if(ds_full_dims_host.size() == 4)
+                {
+                    cde_elementwise(result,
+                                    ck_tile::type_convert<float>(sum),
+                                    ck_tile::type_convert<float>(ds_full_dims_host[0](e_idx)),
+                                    ck_tile::type_convert<float>(ds_full_dims_host[1](e_idx)),
+                                    ck_tile::type_convert<float>(ds_full_dims_host[2](e_idx)),
+                                    ck_tile::type_convert<float>(ds_full_dims_host[3](e_idx)));
+                }
+                else
+                {
+                    throw std::runtime_error("Unsupported NumDTensor for reference calculation");
                 }
 
                 e_full_dims_host_ref(e_idx) = static_cast<::EDataType>(result);
@@ -165,18 +193,69 @@ void calculate_reference_flat_indexing(
                     sum += static_cast<::AccDataType>(a_val) * static_cast<::AccDataType>(b_val);
                 }
 
-                std::vector<::DDataType> d_vals;
-                for(const auto& d_tensor : ds_full_dims_host)
-                {
-                    d_vals.push_back(ck_tile::type_convert<float>(
-                        d_tensor.mData[g_flat * M_total * N_total + m_flat * N_total + n_flat]));
-                }
                 ::EDataType result = static_cast<::EDataType>(sum);
-                if(d_vals.size() == 2)
+                if(ds_full_dims_host.size() == 0)
+                {
+                    ;
+                }
+                else if(ds_full_dims_host.size() == 1)
+                {
+                    cde_elementwise(result,
+                                    ck_tile::type_convert<float>(sum),
+                                    ck_tile::type_convert<float>(
+                                        ds_full_dims_host[0].mData[g_flat * M_total * N_total +
+                                                                   m_flat * N_total + n_flat]));
+                }
+                else if(ds_full_dims_host.size() == 2)
                 {
                     cde_elementwise(
-                        result, ck_tile::type_convert<float>(sum), d_vals[0], d_vals[1]);
+                        result,
+                        ck_tile::type_convert<float>(sum),
+                        ck_tile::type_convert<float>(
+                            ds_full_dims_host[0]
+                                .mData[g_flat * M_total * N_total + m_flat * N_total + n_flat]),
+                        ck_tile::type_convert<float>(
+                            ds_full_dims_host[1]
+                                .mData[g_flat * M_total * N_total + m_flat * N_total + n_flat]));
                 }
+                else if(ds_full_dims_host.size() == 3)
+                {
+                    cde_elementwise(
+                        result,
+                        ck_tile::type_convert<float>(sum),
+                        ck_tile::type_convert<float>(
+                            ds_full_dims_host[0]
+                                .mData[g_flat * M_total * N_total + m_flat * N_total + n_flat]),
+                        ck_tile::type_convert<float>(
+                            ds_full_dims_host[1]
+                                .mData[g_flat * M_total * N_total + m_flat * N_total + n_flat]),
+                        ck_tile::type_convert<float>(
+                            ds_full_dims_host[2]
+                                .mData[g_flat * M_total * N_total + m_flat * N_total + n_flat]));
+                }
+                else if(ds_full_dims_host.size() == 4)
+                {
+                    cde_elementwise(
+                        result,
+                        ck_tile::type_convert<float>(sum),
+                        ck_tile::type_convert<float>(
+                            ds_full_dims_host[0]
+                                .mData[g_flat * M_total * N_total + m_flat * N_total + n_flat]),
+                        ck_tile::type_convert<float>(
+                            ds_full_dims_host[1]
+                                .mData[g_flat * M_total * N_total + m_flat * N_total + n_flat]),
+                        ck_tile::type_convert<float>(
+                            ds_full_dims_host[2]
+                                .mData[g_flat * M_total * N_total + m_flat * N_total + n_flat]),
+                        ck_tile::type_convert<float>(
+                            ds_full_dims_host[3]
+                                .mData[g_flat * M_total * N_total + m_flat * N_total + n_flat]));
+                }
+                else
+                {
+                    throw std::runtime_error("Unsupported NumDTensor for reference calculation");
+                }
+
                 e_full_dims_host_ref.mData[g_flat * M_total * N_total + m_flat * N_total + n_flat] =
                     static_cast<::EDataType>(result);
             }
@@ -368,25 +447,34 @@ int run_batched_contraction_example_with_layouts(
             ck_tile::HostTensorDescriptor(Ds_dims[d], Ds_strides[d])));
     }
 
-    ck_tile::FillUniformDistribution<::DDataType>{-2.f, 2.f, std::nullopt}(ds_full_dims_host[0]);
-    ck_tile::FillUniformDistribution<::DDataType>{-2.f, 2.f, std::nullopt}(ds_full_dims_host[1]);
+    for(int d = 0; d < NumDTensor; ++d)
+    {
+        ck_tile::FillUniformDistribution<::DDataType>{-2.f, 2.f, std::nullopt}(
+            ds_full_dims_host[d]);
+    }
 
-    ck_tile::DeviceMem d0_full_dims_dev_buf(ds_full_dims_host[0].get_element_space_size_in_bytes());
-    ck_tile::DeviceMem d1_full_dims_dev_buf(ds_full_dims_host[1].get_element_space_size_in_bytes());
-    d0_full_dims_dev_buf.ToDevice(ds_full_dims_host[0].data());
-    d1_full_dims_dev_buf.ToDevice(ds_full_dims_host[1].data());
-
-    std::array<const void*, NumDTensor> ds_ptr_buf = {d0_full_dims_dev_buf.GetDeviceBuffer(),
-                                                      d1_full_dims_dev_buf.GetDeviceBuffer()};
+    std::vector<std::unique_ptr<ck_tile::DeviceMem>> ds_full_dims_dev_buf;
+    for(int d = 0; d < NumDTensor; ++d)
+    {
+        ds_full_dims_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
+            ds_full_dims_host[d].get_element_space_size_in_bytes()));
+        ds_full_dims_dev_buf[d]->ToDevice(ds_full_dims_host[d].data());
+    }
+    std::array<const void*, NumDTensor> ds_ptr_buf;
+    for(int d = 0; d < NumDTensor; ++d)
+    {
+        ds_ptr_buf[d] = ds_full_dims_dev_buf[d]->GetDeviceBuffer();
+    }
 
     e_full_dims_dev_buf.SetZero();
     e_full_dims_host.SetZero();
 
     std::cout << "\n=== Running GPU Kernel ===" << std::endl;
 
-    using DsDataType     = ck_tile::tuple_array<::DDataType, NumDTensor>;
-    using DsLayout       = ck_tile::tuple_array<DLayout, NumDTensor>;
-    using CDEElementWise = AddDs;
+    using DsDataType = ck_tile::tuple_array<::DDataType, NumDTensor>;
+    using DsLayout   = ck_tile::tuple_array<DLayout, NumDTensor>;
+    using CDEElementWise =
+        std::conditional_t<NumDTensor == 0, ck_tile::element_wise::PassThrough, AddDs>;
 
     float ave_time =
         invoke_batched_contraction_kernel<::ADataType,
@@ -427,11 +515,13 @@ int run_batched_contraction_example_with_layouts(
         "D, M: " + std::to_string(M_dims.size()) + "D, N: " + std::to_string(N_dims.size()) +
         "D, K: " + std::to_string(K_dims.size()) + "D"};
 
-    std::size_t flop =
-        std::size_t(2) * G_total * M_total * N_total * K_total; // Number of operations
-    std::size_t num_byte = sizeof(::ADataType) * G_total * M_total * K_total + // A tensor size
-                           sizeof(::BDataType) * G_total * N_total * K_total + // B tensor size
-                           sizeof(::EDataType) * G_total * M_total * N_total;  // E tensor size
+    std::size_t flop = std::size_t(2) * G_total * M_total * N_total * K_total +
+                       NumDTensor * K_total * M_total * N_total; // Number of operations
+    std::size_t num_byte =
+        sizeof(::ADataType) * G_total * M_total * K_total +              // A tensor size
+        sizeof(::BDataType) * G_total * N_total * K_total +              // B tensor size
+        sizeof(::DDataType) * NumDTensor * G_total * M_total * N_total + // D tensors
+        sizeof(::EDataType) * G_total * M_total * N_total;               // E tensor size
 
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time; // TFlops calculation
     float gb_per_sec = num_byte / 1.E6 / ave_time;                 //  GB/s calculation
@@ -442,23 +532,6 @@ int run_batched_contraction_example_with_layouts(
 
     std::cout << "  Performance: " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec
               << " GB/s" << std::endl;
-
-    // DETAILED: Tensor information
-    std::cout << "\nDetailed Tensor Info:" << std::endl;
-    std::cout << "  A tensor: " << G_total << " x " << M_total << " x " << K_total << " = "
-              << G_total * M_total * K_total << " elements ("
-              << (sizeof(::ADataType) * G_total * M_total * K_total) / 1024 / 1024 << " MB)"
-              << std::endl;
-    std::cout << "  B tensor: " << G_total << " x " << N_total << " x " << K_total << " = "
-              << G_total * N_total * K_total << " elements ("
-              << (sizeof(::BDataType) * G_total * N_total * K_total) / 1024 / 1024 << " MB)"
-              << std::endl;
-    std::cout << "  E tensor: " << G_total << " x " << M_total << " x " << N_total << " = "
-              << G_total * M_total * N_total << " elements ("
-              << (sizeof(::EDataType) * G_total * M_total * N_total) / 1024 / 1024 << " MB)"
-              << std::endl;
-    std::cout << "  Total memory: " << num_byte / 1024 / 1024 << " MB" << std::endl;
-    std::cout << "  Total FLOPs: " << flop / 1000000 << " million" << std::endl;
 
     std::cout << "===============================================" << std::endl;
 
