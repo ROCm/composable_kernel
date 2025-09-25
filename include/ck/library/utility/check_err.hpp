@@ -157,10 +157,13 @@ double get_absolute_threshold(const double max_possible_num, const int number_of
     return std::max(acc_error, midway_error);
 }
 
-template <typename Range, typename RefRange>
+template <typename Range,
+          typename RefRange,
+          typename ComputeDataType = ranges::range_value_t<Range>>
 typename std::enable_if<
     std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
-        std::is_same_v<ranges::range_value_t<Range>, float>,
+        std::is_same_v<ranges::range_value_t<Range>, float> &&
+        std::is_same_v<ComputeDataType, ck::tf32_t>,
     bool>::type
 check_err(const Range& out,
           const RefRange& ref,
@@ -207,12 +210,14 @@ check_err(const Range& out,
     return res;
 }
 
-template <typename Range, typename RefRange>
+template <typename Range,
+          typename RefRange,
+          typename ComputeDataType = ranges::range_value_t<Range>>
 typename std::enable_if<
     std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
         std::is_floating_point_v<ranges::range_value_t<Range>> &&
         !std::is_same_v<ranges::range_value_t<Range>, half_t> &&
-        !std::is_same_v<ranges::range_value_t<Range>, float>,
+        !std::is_same_v<ComputeDataType, ck::tf32_t>,
     bool>::type
 check_err(const Range& out,
           const RefRange& ref,
@@ -259,7 +264,9 @@ check_err(const Range& out,
     return res;
 }
 
-template <typename Range, typename RefRange>
+template <typename Range,
+          typename RefRange,
+          typename ComputeDataType = ranges::range_value_t<Range>>
 typename std::enable_if<
     std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
         std::is_same_v<ranges::range_value_t<Range>, bhalf_t>,
@@ -310,7 +317,9 @@ check_err(const Range& out,
     return res;
 }
 
-template <typename Range, typename RefRange>
+template <typename Range,
+          typename RefRange,
+          typename ComputeDataType = ranges::range_value_t<Range>>
 typename std::enable_if<
     std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
         std::is_same_v<ranges::range_value_t<Range>, half_t>,
@@ -360,7 +369,9 @@ check_err(const Range& out,
     return res;
 }
 
-template <typename Range, typename RefRange>
+template <typename Range,
+          typename RefRange,
+          typename ComputeDataType = ranges::range_value_t<Range>>
 std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
                   std::is_integral_v<ranges::range_value_t<Range>> &&
                   !std::is_same_v<ranges::range_value_t<Range>, bhalf_t> &&
@@ -417,7 +428,9 @@ check_err(const Range& out,
     return res;
 }
 
-template <typename Range, typename RefRange>
+template <typename Range,
+          typename RefRange,
+          typename ComputeDataType = ranges::range_value_t<Range>>
 std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
                   std::is_same_v<ranges::range_value_t<Range>, f8_t>),
                  bool>
@@ -466,7 +479,9 @@ check_err(const Range& out,
     return res;
 }
 
-template <typename Range, typename RefRange>
+template <typename Range,
+          typename RefRange,
+          typename ComputeDataType = ranges::range_value_t<Range>>
 std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
                   std::is_same_v<ranges::range_value_t<Range>, bf8_t>),
                  bool>
@@ -511,7 +526,9 @@ check_err(const Range& out,
     return res;
 }
 
-template <typename Range, typename RefRange>
+template <typename Range,
+          typename RefRange,
+          typename ComputeDataType = ranges::range_value_t<Range>>
 std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
                   std::is_same_v<ranges::range_value_t<Range>, f4_t>),
                  bool>

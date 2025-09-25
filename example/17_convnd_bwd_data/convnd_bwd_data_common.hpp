@@ -174,7 +174,10 @@ int run_conv_bwd_data(bool do_verification,
 
         in_device_buf.FromDevice(in_device.mData.data());
 
-        return ck::utils::check_err(in_device, in_host) ? 0 : 1;
+        return ck::utils::check_err<Tensor<InDataType>, Tensor<InDataType>, ComputeDataType>(
+                   in_device, in_host)
+                   ? 0
+                   : 1;
     }
 
     return 0;
