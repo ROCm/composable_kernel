@@ -9,6 +9,8 @@
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/epilogue/chainer/epilogue_chainer.hpp"
+#include "ck_tile/ops/epilogue/chainer/epilogue_graph.hpp"
+#include "ck_tile/ops/epilogue/chainer/epilogue_schedule.hpp"
 #include "ck_tile/ops/epilogue/chainer/cshuffle_chained_epilogues.hpp"
 
 #include <iostream>
@@ -20,45 +22,25 @@
 
 namespace ck_tile {
 
-// Simple test kernel to invoke the EpilogueChainer
 template <typename Problem, index_t M, index_t N, bool UseScale>
 __global__ void test_epilogue_chainer_kernel(typename Problem::ODataType* __restrict__ output_data,
                                              float* m_scale,
                                              float* n_scale)
 {
-    // Define epilogue stages for chainer
     using InitEpilogue = CShuffleEpilogueStageBase<Problem>;
-
-    using MainEpilogues = std::conditional_t<UseScale,
-                                             ck_tile::tuple<SliceEpilogue<Problem>,
-                                                            ScaleEpilogue<Problem>,
-                                                            CastLdsEpilogue<Problem>,
-                                                            PrepCTensorEpilogue<Problem>,
-                                                            ApplyDEpilogue<Problem>,
-                                                            StoreToDramEpilogue<Problem>,
-                                                            MoveWindowsEpilogue<Problem>>,
-                                             ck_tile::tuple<SliceEpilogue<Problem>,
-                                                            CastLdsEpilogue<Problem>,
-                                                            PrepCTensorEpilogue<Problem>,
-                                                            ApplyDEpilogue<Problem>,
-                                                            StoreToDramEpilogue<Problem>,
-                                                            MoveWindowsEpilogue<Problem>>>;
-
-    using EpiloguePolicy_ = EpiloguePolicy<execution_mode_enum::in_loop,
-                                      sync_policy_enum::none>;                                                          
-    using Epilogue = EpilogueChainer<InitEpilogue, MainEpilogues, EpiloguePolicy_>;
+    using Scheduler = CshuffleEpilogueSchedule<Problem>;
 
     static_assert(Problem::kMPerBlock <= M && Problem::kNPerBlock <= N,
                   "Block size must fit in tensor dimensions");
 
     // Allocate shared memory for epilogue
-    __shared__ char smem[Epilogue::GetSmemSize()];
+    __shared__ char smem[InitEpilogue::GetSmemSize()];
 
     // Create accumulator tile
     constexpr auto lds_distribution_encode =
-        make_static_tile_distribution(Epilogue::MakeLdsDistributionEncode());
+        make_static_tile_distribution(InitEpilogue::MakeLdsDistributionEncode());
     auto acc_tile =
-        make_static_distributed_tensor<typename Epilogue::AccDataType>(lds_distribution_encode);
+        make_static_distributed_tensor<typename InitEpilogue::AccDataType>(lds_distribution_encode);
 
     // Fill acc_tile with a simple pattern
     auto& acc_buffer = acc_tile.get_thread_buffer();
@@ -69,7 +51,7 @@ __global__ void test_epilogue_chainer_kernel(typename Problem::ODataType* __rest
         make_naive_tensor_view<address_space_enum::global>(output_data,
                                                            make_tuple(M, N),
                                                            make_tuple(N, 1),
-                                                           number<Epilogue::GetVectorSizeC()>{},
+                                                           number<InitEpilogue::GetVectorSizeC()>{},
                                                            number<1>{});
 
     // Create output tile window
@@ -81,7 +63,7 @@ __global__ void test_epilogue_chainer_kernel(typename Problem::ODataType* __rest
     // Create empty D tensors tuple
     auto empty_ds = make_tuple();
 
-    // Call the epilogue chainer
+    // Create and execute epilogue sequence
     if constexpr(UseScale)
     {
         const auto m_scale_window = make_tile_window(
@@ -95,31 +77,23 @@ __global__ void test_epilogue_chainer_kernel(typename Problem::ODataType* __rest
             make_tuple(number<Problem::kMPerBlock>{}, number<Problem::kNPerBlock>{}),
             {0, 0});
 
-        auto init_args = make_tuple();
-        auto main_args =
-            make_tuple(make_tuple(),                               // SliceEpilogue args
-                       make_tuple(m_scale_window, n_scale_window), // ScaleEpilogue args
-                       make_tuple(),                               // CastLdsEpilogue args
-                       make_tuple(),                               // PrepCTensorEpilogue args
-                       make_tuple(),                               // ApplyDEpilogue args
-                       make_tuple(),                               // StoreToDramEpilogue args
-                       make_tuple()                                // MoveWindowsEpilogue args
-            );
+        auto schedule = Scheduler::make_scale_schedule(m_scale_window, n_scale_window);
 
-        Epilogue{}(output_tile_window,
-                   acc_tile,
-                   empty_ds,
-                   smem,
-                   init_args,
-                   main_args);
+        // Execute
+        EpilogueChainer<InitEpilogue, decltype(schedule)>{}(
+            output_tile_window, acc_tile, empty_ds, smem, schedule);
     }
     else
     {
-        Epilogue{}(output_tile_window, acc_tile, empty_ds, smem);
+        auto schedule = Scheduler::make_base_schedule();
+
+        // Execute
+        EpilogueChainer<InitEpilogue, decltype(schedule)>{}(
+            output_tile_window, acc_tile, empty_ds, smem, schedule);
     }
 }
 
-// Test configuration helper - reuse the same problem type
+// Test configuration helper
 template <typename ADataType,
           typename BDataType,
           typename AccDataType,
@@ -134,12 +108,12 @@ template <typename ADataType,
 using SimpleEpilogueChainerProblem =
     CShuffleEpilogueStageProblem<ADataType,
                                  BDataType,
-                                 ck_tile::tuple<>, // Empty Ds datatype tuple
+                                 ck_tile::tuple<>,
                                  AccDataType,
                                  ODataType,
-                                 ck_tile::tuple<>,                   // Empty Ds layout
-                                 tensor_layout::gemm::RowMajor,      // ELayout
-                                 ck_tile::element_wise::PassThrough, // CDElementwise
+                                 ck_tile::tuple<>,
+                                 tensor_layout::gemm::RowMajor,
+                                 ck_tile::element_wise::PassThrough,
                                  kM,
                                  kN,
                                  MWave,
@@ -147,7 +121,7 @@ using SimpleEpilogueChainerProblem =
                                  MPerXdl,
                                  NPerXdl,
                                  KPerXdl,
-                                 false, // isCTransposed,
+                                 false,
                                  memory_operation_enum::set>;
 
 template <typename Problem, index_t M, index_t N>
@@ -211,7 +185,7 @@ bool run_epilogue_chainer_test(bool use_scale = false)
     HIP_CHECK_ERROR(hipMemcpy(
         host_output.data(), device_output, output_size * sizeof(ODataType), hipMemcpyDeviceToHost));
 
-    // Basic verification - just check that output has a 2, and 4 if using scaling
+    // Basic verification
     bool has_2 =
         type_convert<float>(host_output[0]) > 1.9F && type_convert<float>(host_output[0]) < 2.1F;
     bool scale_has_4 = true;
