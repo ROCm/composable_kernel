@@ -1658,13 +1658,13 @@ pipeline {
                         cleanWs()
                     }
                 }
-                stage("Build CK and run Tests on gfx1101")
+                stage("Build CK and run Tests on gfx11")
                 {
                     when {
                         beforeAgent true
                         expression { params.BUILD_GFX11.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
-                    agent{ label rocmnode("gfx1101") }
+                    agent{ label 'miopen && (gfx1101 || gfx1100)' }
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx11-generic" -DUSE_OPT_GFX11=ON -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
