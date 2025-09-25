@@ -107,9 +107,9 @@ int profile_grouped_conv_bwd_data(int argc, char* argv[])
         using WeiLayout = decltype(wei_layout);
         using InLayout  = decltype(in_layout);
 
-        using OutDataType = decltype(out_type);
-        using WeiDataType = decltype(wei_type);
-        using InDataType  = decltype(in_type);
+        using OutDataType     = decltype(out_type);
+        using WeiDataType     = decltype(wei_type);
+        using InDataType      = decltype(in_type);
         using ComputeDataType = decltype(compute_type);
 
         bool pass = ck::profiler::profile_grouped_conv_bwd_data_impl<NDimSpatial,
