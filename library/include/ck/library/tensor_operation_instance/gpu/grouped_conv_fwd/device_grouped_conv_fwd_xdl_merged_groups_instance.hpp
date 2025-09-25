@@ -16,6 +16,7 @@ namespace instance {
 using BF16 = ck::bhalf_t;
 using F16  = ck::half_t;
 using F32  = float;
+using TF32 = ck::tf32_t;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
@@ -139,6 +140,27 @@ using device_grouped_conv_fwd_xdl_merged_groups_f32_instances = std::tuple<
         DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,    F32,     F32,     F32,     F32, DsDataTypes,   F32,  PassThrough, PassThrough, OutElementOp,                  ConvSpec, GemmMNKPadding,  1,  64,    64,    16,     16,   4, 4,  16,   16,    4,    1,  S< 4, 16,  1>, S<0, 2, 1>,     S<0, 2, 1>,                   1,              4,              4,      1,  S< 4, 16,  1>,   S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              4,      1,           1,           1,   S<1, 16, 1, 4>,                  1, F32, F32, LoopScheduler::Default, 8>,
         DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,    F32,     F32,     F32,     F32, DsDataTypes,   F32,  PassThrough, PassThrough, OutElementOp,                  ConvSpec, GemmMNKPadding,  1,  64,    64,    16,     16,   4, 4,  16,   16,    4,    1,  S< 4, 16,  1>, S<0, 2, 1>,     S<0, 2, 1>,                   1,              4,              4,      1,  S< 4, 16,  1>,   S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              4,      1,           1,           1,   S<1, 16, 1, 4>,                  1, F32, F32, LoopScheduler::Default, 16>,
         DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,    F32,     F32,     F32,     F32, DsDataTypes,   F32,  PassThrough, PassThrough, OutElementOp,                  ConvSpec, GemmMNKPadding,  1,  64,    64,    16,     16,   4, 4,  16,   16,    4,    1,  S< 4, 16,  1>, S<0, 2, 1>,     S<0, 2, 1>,                   1,              4,              4,      1,  S< 4, 16,  1>,   S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              4,      1,           1,           1,   S<1, 16, 1, 4>,                  1, F32, F32, LoopScheduler::Default, 32>
+    // clang-format on
+    >;
+
+template <index_t NDimSpatial,
+          typename ALayout,
+          typename BLayout,
+          typename DsLayout,
+          typename ELayout,
+          ConvolutionForwardSpecialization ConvSpec,
+          typename DsDataTypes  = Tuple<>,
+          typename OutElementOp = PassThrough>
+using device_grouped_conv_fwd_xdl_merged_groups_f32_tf32_instances = std::tuple<
+    // clang-format off
+        //########################################|     NumDim|      A|      B|          Ds|      E| AData| BData| AccData| CShuffle|          Ds| EData|           A|           B|         CDE|    ConvForward|           GEMM| NumGemmK| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
+        //########################################|    Spatial| Layout| Layout|      Layout| Layout|  Type|  Type|    Type| DataType|    DataType|  Type| Elementwise| Elementwise| Elementwise| Specialization| Specialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|         _MBlock_MWaveMPerXdl| ScalarPerVector|
+        //########################################|           |       |       |            |       |      |      |        |         |            |      |   Operation|   Operation|   Operation|               |               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
+        //########################################|           |       |       |            |       |      |      |        |         |            |      |            |            |            |               |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
+        // Instances with NumGroupsPerBatch > 1
+        DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,    F32,     F32,     F32,     F32, DsDataTypes,   F32,  PassThrough, PassThrough, OutElementOp,                  ConvSpec, GemmMNKPadding,  1,  64,    64,    16,     16,   4, 4,  16,   16,    4,    1,  S< 4, 16,  1>, S<0, 2, 1>,     S<0, 2, 1>,                   1,              4,              4,      1,  S< 4, 16,  1>,   S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              4,      1,           1,           1,   S<1, 16, 1, 4>,                  1, TF32, TF32, LoopScheduler::Default, 8>,
+        DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,    F32,     F32,     F32,     F32, DsDataTypes,   F32,  PassThrough, PassThrough, OutElementOp,                  ConvSpec, GemmMNKPadding,  1,  64,    64,    16,     16,   4, 4,  16,   16,    4,    1,  S< 4, 16,  1>, S<0, 2, 1>,     S<0, 2, 1>,                   1,              4,              4,      1,  S< 4, 16,  1>,   S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              4,      1,           1,           1,   S<1, 16, 1, 4>,                  1, TF32, TF32, LoopScheduler::Default, 16>,
+        DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,    F32,     F32,     F32,     F32, DsDataTypes,   F32,  PassThrough, PassThrough, OutElementOp,                  ConvSpec, GemmMNKPadding,  1,  64,    64,    16,     16,   4, 4,  16,   16,    4,    1,  S< 4, 16,  1>, S<0, 2, 1>,     S<0, 2, 1>,                   1,              4,              4,      1,  S< 4, 16,  1>,   S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              4,      1,           1,           1,   S<1, 16, 1, 4>,                  1, TF32, TF32, LoopScheduler::Default, 32>
     // clang-format on
     >;
 
