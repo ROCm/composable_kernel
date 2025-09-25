@@ -38,6 +38,14 @@ jobs:
   test_components:
     name: 'Test ${{ matrix.components.job_name }}'
     runs-on: ${{ inputs.test_runs_on }}
+    container:
+      image: ghcr.io/rocm/no_rocm_image_ubuntu24_04@sha256:405945a40deaff9db90b9839c0f41d4cba4a383c1a7459b28627047bf6302a26
+      options: --ipc host
+        --group-add video
+        --device /dev/kfd
+        --device /dev/dri
+        --group-add 992
+        --env-file /etc/podinfo/gha-gpu-isolation-settings
     needs: configure_test_matrix
     # skip tests if no test matrix to run
     if: ${{ needs.configure_test_matrix.outputs.components != '[]' }}
