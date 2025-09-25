@@ -54,6 +54,7 @@ jobs:
 
       - name: Patch rocm-libraries
         run: |
+          git config --global --add safe.directory ./composable_kernel
           git -c user.name="therockbot" -c "user.email=therockbot@amd.com" am --whitespace=nowarn ./TheRock/patches/amd-mainline/rocm-libraries/*.patch
 
       - name: Install python deps
