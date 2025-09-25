@@ -155,7 +155,9 @@ struct FmhaFwdV3Kernel
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
               ck_tile::index_t mask_type,
-              ck_tile::index_t remap_opt)
+              ck_tile::index_t remap_opt,
+              const ck_tile::index_t* cu_seqlen_q_ptr  = nullptr,
+              const ck_tile::index_t* cu_seqlen_kv_ptr = nullptr)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -197,76 +199,6 @@ struct FmhaFwdV3Kernel
             kargs.batch_stride_lse = batch_stride_lse;
         }
 
-        return kargs;
-    }
-
-    // Overload: Batch mode with optional cu_seqlen pointers
-    template <bool Cond = !kIsGroupMode>
-    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
-    MakeKargs(const void* q_ptr,
-              const void* k_ptr,
-              const void* v_ptr,
-              void* lse_ptr,
-              void* o_ptr,
-              ck_tile::index_t seqlen_q,
-              ck_tile::index_t seqlen_k,
-              ck_tile::index_t hdim_q,
-              ck_tile::index_t hdim_v,
-              ck_tile::index_t num_head_q,
-              ck_tile::index_t nhead_ratio_qk,
-              float scale_s,
-              ck_tile::index_t stride_q,
-              ck_tile::index_t stride_k,
-              ck_tile::index_t stride_v,
-              ck_tile::index_t stride_o,
-              ck_tile::index_t nhead_stride_q,
-              ck_tile::index_t nhead_stride_k,
-              ck_tile::index_t nhead_stride_v,
-              ck_tile::index_t nhead_stride_lse,
-              ck_tile::index_t nhead_stride_o,
-              ck_tile::index_t batch_stride_q,
-              ck_tile::index_t batch_stride_k,
-              ck_tile::index_t batch_stride_v,
-              ck_tile::index_t batch_stride_lse,
-              ck_tile::index_t batch_stride_o,
-              ck_tile::index_t window_size_left,
-              ck_tile::index_t window_size_right,
-              ck_tile::index_t mask_type,
-              ck_tile::index_t remap_opt,
-              const ck_tile::index_t* cu_seqlen_q_ptr,
-              const ck_tile::index_t* cu_seqlen_kv_ptr)
-    {
-        auto kargs = MakeKargs(q_ptr,
-                               k_ptr,
-                               v_ptr,
-                               lse_ptr,
-                               o_ptr,
-                               seqlen_q,
-                               seqlen_k,
-                               hdim_q,
-                               hdim_v,
-                               num_head_q,
-                               nhead_ratio_qk,
-                               scale_s,
-                               stride_q,
-                               stride_k,
-                               stride_v,
-                               stride_o,
-                               nhead_stride_q,
-                               nhead_stride_k,
-                               nhead_stride_v,
-                               nhead_stride_lse,
-                               nhead_stride_o,
-                               batch_stride_q,
-                               batch_stride_k,
-                               batch_stride_v,
-                               batch_stride_lse,
-                               batch_stride_o,
-                               window_size_left,
-                               window_size_right,
-                               mask_type,
-                               remap_opt);
-
         kargs.cu_seqlen_q_ptr  = cu_seqlen_q_ptr;
         kargs.cu_seqlen_kv_ptr = cu_seqlen_kv_ptr;
         return kargs;
@@ -299,7 +231,9 @@ struct FmhaFwdV3Kernel
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
               ck_tile::index_t mask_type,
-              ck_tile::index_t remap_opt)
+              ck_tile::index_t remap_opt,
+              const void* seqstart_padded_q_ptr = nullptr,
+              const void* seqstart_padded_k_ptr = nullptr)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -338,68 +272,6 @@ struct FmhaFwdV3Kernel
             kargs.lse_ptr          = lse_ptr;
             kargs.nhead_stride_lse = nhead_stride_lse;
         }
-
-        return kargs;
-    }
-
-    // Overload: Group mode with optional padded seqstarts for memory offsets
-    template <bool Cond = kIsGroupMode>
-    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
-    MakeKargs(const void* q_ptr,
-              const void* k_ptr,
-              const void* v_ptr,
-              void* lse_ptr,
-              void* o_ptr,
-              const void* seqstart_q_ptr,
-              const void* seqstart_k_ptr,
-              const void* seqlen_k_ptr,
-              ck_tile::index_t hdim_q,
-              ck_tile::index_t hdim_v,
-              ck_tile::index_t num_head_q,
-              ck_tile::index_t nhead_ratio_qk,
-              float scale_s,
-              ck_tile::index_t stride_q,
-              ck_tile::index_t stride_k,
-              ck_tile::index_t stride_v,
-              ck_tile::index_t stride_o,
-              ck_tile::index_t nhead_stride_q,
-              ck_tile::index_t nhead_stride_k,
-              ck_tile::index_t nhead_stride_v,
-              ck_tile::index_t nhead_stride_lse,
-              ck_tile::index_t nhead_stride_o,
-              ck_tile::index_t window_size_left,
-              ck_tile::index_t window_size_right,
-              ck_tile::index_t mask_type,
-              ck_tile::index_t remap_opt,
-              const void* seqstart_padded_q_ptr,
-              const void* seqstart_padded_k_ptr)
-    {
-        auto kargs = MakeKargs(q_ptr,
-                               k_ptr,
-                               v_ptr,
-                               lse_ptr,
-                               o_ptr,
-                               seqstart_q_ptr,
-                               seqstart_k_ptr,
-                               seqlen_k_ptr,
-                               hdim_q,
-                               hdim_v,
-                               num_head_q,
-                               nhead_ratio_qk,
-                               scale_s,
-                               stride_q,
-                               stride_k,
-                               stride_v,
-                               stride_o,
-                               nhead_stride_q,
-                               nhead_stride_k,
-                               nhead_stride_v,
-                               nhead_stride_lse,
-                               nhead_stride_o,
-                               window_size_left,
-                               window_size_right,
-                               mask_type,
-                               remap_opt);
 
         kargs.seqstart_padded_q_ptr = reinterpret_cast<const int32_t*>(seqstart_padded_q_ptr);
         kargs.seqstart_padded_k_ptr = reinterpret_cast<const int32_t*>(seqstart_padded_k_ptr);
