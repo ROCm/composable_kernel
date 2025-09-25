@@ -53,6 +53,7 @@ jobs:
 
       - name: Patch rocm-libraries
         run: |
+          git config --global --add safe.directory '*'
           git \
             -c user.name="therockbot" \
             -c "user.email=therockbot@amd.com" \
