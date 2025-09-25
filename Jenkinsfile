@@ -855,8 +855,10 @@ def run_aiter_tests(Map conf=[:]){
         timeout(time: 2, unit: 'HOURS'){
             try{
                 sh """
-		rocminfo
+		        rocminfo
                 python3 --version
+                set -x 
+                set +e
                 python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8.py
                 python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py
                 python3 /home/jenkins/workspace/aiter/op_tests/test_mha.py
@@ -868,6 +870,7 @@ def run_aiter_tests(Map conf=[:]){
                 python3 /home/jenkins/workspace/aiter/op_tests/test_moe_sorting.py
                 python3 /home/jenkins/workspace/aiter/op_tests/test_moe_sorting_mxfp4.py
                 python3 /home/jenkins/workspace/aiter/op_tests/test_moe_tkw1.py
+                set -e
                 """
             }
             catch(e){
