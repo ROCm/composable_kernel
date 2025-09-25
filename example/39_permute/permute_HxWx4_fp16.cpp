@@ -19,4 +19,23 @@ using DevicePermuteInstance = ck::tensor_operation::device::DevicePermuteImpl
 
 #include "run_permute_bundle_example.inc"
 
-int main() { return !run_permute_bundle_example({1, 80, 32000}, {0, 2, 1}); }
+int main(int argc, char* argv[])
+{
+    bool time_kernel = false;
+
+    if(argc == 1)
+    {
+        // use default
+    }
+    else if(argc == 2)
+    {
+        time_kernel = std::stoi(argv[1]);
+    }
+    else
+    {
+        printf("arg1: time kernel (0=no, 1=yes, default=0)\n");
+        exit(0);
+    }
+
+    return !run_permute_bundle_example({1, 80, 32000}, {0, 2, 1}, time_kernel);
+}

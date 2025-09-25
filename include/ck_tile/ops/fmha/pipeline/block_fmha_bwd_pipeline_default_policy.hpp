@@ -422,8 +422,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                        sequence<1, 2>,
                                        sequence<2, 1>>{});
 
-        if constexpr(container_reduce(dstr.get_lengths(), std::multiplies<index_t>{}, 1) ==
-                     kNPerBlock * kKPerBlock)
+        if constexpr((kKPerBlock & (kKPerBlock - 1)) == 0) // kKPerBlock is power of 2
         {
             return dstr;
         }
@@ -471,8 +470,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                        tuple<sequence<1>, sequence<2, 0>>,
                                        sequence<1, 2>, // N0 K1
                                        sequence<0, 1>>{});
-        if constexpr(container_reduce(dstr.get_lengths(), std::multiplies<index_t>{}, 1) ==
-                     kNPerBlock * kKPerBlock)
+        if constexpr((kKPerBlock & (kKPerBlock - 1)) == 0) // kKPerBlock is power of 2
         {
             return dstr;
         }
@@ -521,8 +519,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                        sequence<1, 2>,
                                        sequence<2, 1>>{});
 
-        if constexpr(container_reduce(dstr.get_lengths(), std::multiplies<index_t>{}, 1) ==
-                     kMPerBlock * kKPerBlock)
+        if constexpr((kKPerBlock & (kKPerBlock - 1)) == 0) // kKPerBlock is power of 2
         {
             return dstr;
         }
@@ -572,8 +569,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
                                        sequence<1, 2>,
                                        sequence<2, 1>>{});
 
-        if constexpr(container_reduce(dstr.get_lengths(), std::multiplies<index_t>{}, 1) ==
-                     kMPerBlock * kKPerBlock)
+        if constexpr((kKPerBlock & (kKPerBlock - 1)) == 0) // kKPerBlock is power of 2
         {
             return dstr;
         }
@@ -1983,7 +1979,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
 
         constexpr index_t smem_size_stage0_0 = smem_size_k + smem_size_kt;
         constexpr index_t smem_size_stage0_1 = smem_size_v;
-        constexpr index_t smem_size_stage1   = smem_size_qt + smem_size_q + +smem_size_dot +
+        constexpr index_t smem_size_stage1   = smem_size_qt + smem_size_q + smem_size_dot +
                                              smem_size_do + smem_size_lse + smem_size_d +
                                              max(smem_size_bias, smem_size_ds);
 

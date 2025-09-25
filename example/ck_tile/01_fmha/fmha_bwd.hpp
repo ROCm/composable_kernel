@@ -15,6 +15,10 @@
 #include <utility>
 #include <variant>
 
+struct FmhaBwdFp32
+{
+};
+
 struct FmhaBwdFp16
 {
 };
@@ -25,6 +29,26 @@ struct FmhaBwdBf16
 
 template <typename DataType>
 struct FmhaBwdTypeConfig;
+
+template <>
+struct FmhaBwdTypeConfig<FmhaBwdFp32>
+{
+    using QDataType             = float;
+    using KDataType             = float;
+    using VDataType             = float;
+    using GemmDataType          = float;
+    using BiasDataType          = float;
+    using LSEDataType           = float;
+    using AccDataType           = float; // data type for gemm accumulation
+    using DDataType             = float;
+    using RandValOutputDataType = uint8_t;
+    using ODataType             = float;
+    using OGradDataType         = float;
+    using QGradDataType         = float;
+    using KGradDataType         = float;
+    using VGradDataType         = float;
+    using BiasGradDataType      = float;
+};
 
 template <>
 struct FmhaBwdTypeConfig<FmhaBwdFp16>

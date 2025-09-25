@@ -94,7 +94,9 @@ TYPED_TEST(ConvertTest, ToFp8)
     EXPECT_EQ(c(+ck_tile::numeric<SrcT>::denorm_min()), 0b0'0000'000);
     EXPECT_EQ(c(-ck_tile::numeric<SrcT>::denorm_min()), 0b1'0000'000);
 
-    // All values smaller than min f8 subnormal must be converted to f8 zero
+    // All values <= min f8 subnormal/2 must be converted to f8 zero
+    EXPECT_EQ(c(+0.001953125f * 0.6f), 0b0'0000'001);
+    EXPECT_EQ(c(-0.001953125f * 0.6f), 0b1'0000'001);
     constexpr int src_min_subnorm_exp =
         -(ck_tile::numeric_traits<SrcT>::bias + ck_tile::numeric_traits<SrcT>::mant - 1);
     constexpr int dst_min_subnorm_exp =
@@ -176,7 +178,9 @@ TYPED_TEST(ConvertTest, ToFp8)
     EXPECT_EQ(c(+ck_tile::numeric<SrcT>::denorm_min()), 0b0'0000'000);
     EXPECT_EQ(c(-ck_tile::numeric<SrcT>::denorm_min()), 0b0'0000'000);
 
-    // All values smaller than min f8 subnormal must be converted to f8 zero
+    // All values <= min f8 subnormal/2 must be converted to f8 zero
+    EXPECT_EQ(c(+0.0009765625f * 0.6f), 0b0'0000'001);
+    EXPECT_EQ(c(-0.0009765625f * 0.6f), 0b1'0000'001);
     constexpr int src_min_subnorm_exp =
         -(ck_tile::numeric_traits<SrcT>::bias + ck_tile::numeric_traits<SrcT>::mant - 1);
     constexpr int dst_min_subnorm_exp =
@@ -282,7 +286,9 @@ TYPED_TEST(ConvertTest, ToBf8)
     EXPECT_EQ(c(+ck_tile::numeric<SrcT>::denorm_min()), 0b0'00000'00);
     EXPECT_EQ(c(-ck_tile::numeric<SrcT>::denorm_min()), 0b1'00000'00);
 
-    // All values smaller than min f8 subnormal must be converted to f8 zero
+    // All values <= min f8 subnormal/2 must be converted to f8 zero
+    EXPECT_EQ(c(+1.52587890625e-05f * 0.6f), 0b0'0000'001);
+    EXPECT_EQ(c(-1.52587890625e-05f * 0.6f), 0b1'0000'001);
     constexpr int src_min_subnorm_exp =
         -(ck_tile::numeric_traits<SrcT>::bias + ck_tile::numeric_traits<SrcT>::mant - 1);
     constexpr int dst_min_subnorm_exp =
@@ -373,7 +379,9 @@ TYPED_TEST(ConvertTest, ToBf8)
     EXPECT_EQ(c(+ck_tile::numeric<SrcT>::denorm_min()), 0b0'00000'00);
     EXPECT_EQ(c(-ck_tile::numeric<SrcT>::denorm_min()), 0b0'00000'00);
 
-    // All values smaller than min f8 subnormal must be converted to f8 zero
+    // All values <= min f8 subnormal/2 must be converted to f8 zero
+    EXPECT_EQ(c(+7.62939453125e-06f * 0.6f), 0b0'0000'001);
+    EXPECT_EQ(c(-7.62939453125e-06f * 0.6f), 0b1'0000'001);
     constexpr int src_min_subnorm_exp =
         -(ck_tile::numeric_traits<SrcT>::bias + ck_tile::numeric_traits<SrcT>::mant - 1);
     constexpr int dst_min_subnorm_exp =

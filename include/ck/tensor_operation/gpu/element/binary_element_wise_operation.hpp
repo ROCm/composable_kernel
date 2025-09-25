@@ -47,7 +47,7 @@ struct Add
     __host__ __device__ constexpr void
     operator()<half_t>(half_t& y, const float& x0, const half_t& x1) const
     {
-        y = type_convert<half_t>(x0) + x1;
+        y = x0 + type_convert<float>(x1);
     };
 
     template <>
