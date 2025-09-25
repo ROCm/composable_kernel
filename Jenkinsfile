@@ -854,24 +854,19 @@ def run_aiter_tests(Map conf=[:]){
     withDockerContainer(image: image, args: dockerOpts) {
         timeout(time: 2, unit: 'HOURS'){
             try{
-                sh """
-		        rocminfo
-                python3 --version
-                set -x 
-                set +e
-                python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8.py
-                python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py
-                python3 /home/jenkins/workspace/aiter/op_tests/test_mha.py
-                python3 /home/jenkins/workspace/aiter/op_tests/test_mha_varlen.py
-                python3 /home/jenkins/workspace/aiter/op_tests/test_moe.py
-                python3 /home/jenkins/workspace/aiter/op_tests/test_moe_2stage.py
-                python3 /home/jenkins/workspace/aiter/op_tests/test_moe_blockscale.py
-                python3 /home/jenkins/workspace/aiter/op_tests/test_moe_ep.py
-                python3 /home/jenkins/workspace/aiter/op_tests/test_moe_sorting.py
-                python3 /home/jenkins/workspace/aiter/op_tests/test_moe_sorting_mxfp4.py
-                python3 /home/jenkins/workspace/aiter/op_tests/test_moe_tkw1.py
-                set -e
-                """
+                sh "rocminfo"
+                sh "python3 --version"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha_varlen.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_2stage.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_blockscale.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_ep.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_sorting.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_sorting_mxfp4.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_tkw1.py"
             }
             catch(e){
                 echo "Throwing error exception while running AITER tests"
