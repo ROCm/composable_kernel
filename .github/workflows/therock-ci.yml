@@ -61,9 +61,9 @@ jobs:
         -DTHEROCK_ENABLE_MIOPEN=ON 
         -DTHEROCK_ENABLE_ALL=OFF 
         -DTHEROCK_USE_EXTERNAL_COMPOSABLE_KERNEL=ON 
-        -DTHEROCK_COMPOSABLE_KERNEL_SOURCE_DIR=../
+        -DTHEROCK_COMPOSABLE_KERNEL_SOURCE_DIR=../composable_kernel
         -DTHEROCK_USE_EXTERNAL_ROCM_LIBRARIES=ON
-        -DTHEROCK_ROCM_LIBRARIES_SOURCE_DIR=../rocm-libraries
+        -DTHEROCK_ROCM_LIBRARIES_SOURCE_DIR=../
       amdgpu_families: "gfx94X-dcgpu"
       test_runs_on: "linux-mi325-1gpu-ossci-rocm"
 
