@@ -694,10 +694,10 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl, opt
 
                 pipelines.append(Pipeline('qr', 'row', 't', 't', 't', 't', logits, bias, 't', squant, pagedkv, mask))
                 pipelines.append(Pipeline('qr', 'col', 't', 't', 't', 't', logits, bias, 't', squant, pagedkv, mask))
-        elif dtype in ['fp8', 'bf8']:
+        elif dtype in ['fp8', 'bf8', 'fp8bf16']:
             for logits, mask, bias in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()):
-                pipelines.append(Pipeline('qr', 'col', 'f', 'f', 'f', 'f', logits, bias, 't', squant, 'f', mask))
-        elif dtype in ['fp8fp16', 'fp8bf16']:
+                pipelines.append(Pipeline('qr', 'row', 't', 't', 'f', 'f', logits, bias, 't', squant, 'f', mask))
+        elif dtype in ['fp8fp16']:
             # TODO
             None
         else:
@@ -784,14 +784,14 @@ def get_fwd_splitkv_combine_blobs(kernel_filter : Optional[str], receipt, optdim
         # TODO: the order of List matters! the later in this list will be also be checked later
         # TODO: currently for qr pipeline, let 't' padding to appear later!!
         # TODO: how to design this more generic?
-        squant = 't' if dtype == 'fp8' else 'f'
+        squant = 't' if dtype in ['fp8', 'fp8bf16'] else 'f'
         pipelines = []
         if dtype in ['fp16', 'bf16']:
             for spad, dvpad, lse in itertools.product(["t", "f"], ["t", "f"], ["t", "f"]):
                 pipelines.append(Pipeline('unused', spad, dvpad, lse, squant))
-        elif dtype in ['fp8', 'bf8']:
+        elif dtype in ['fp8', 'bf8', 'fp8bf16']:
             # no need lse kernels
-            pipelines.append(Pipeline('unused', 'f', 'f', 'f', squant))
+            pipelines.append(Pipeline('unused', 't', 'f', 'f', squant))
         else:
             assert False
         return pipelines
