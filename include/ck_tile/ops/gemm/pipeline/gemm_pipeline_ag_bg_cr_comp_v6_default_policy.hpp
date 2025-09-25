@@ -35,7 +35,7 @@ struct GemmPipelineAgBgCrCompV6DefaultPolicy
                                                                     BlockWarps,
                                                                     WarpGemm>;
 
-        return BlockGemmARegBRegCRegV2<Problem, BlockGemmPolicy>{};
+        return BlockGemmARegBRegCRegV1<Problem, BlockGemmPolicy>{};
     }
 };
 } // namespace ck_tile

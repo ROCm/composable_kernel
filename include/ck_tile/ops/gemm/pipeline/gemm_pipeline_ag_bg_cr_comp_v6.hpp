@@ -526,10 +526,6 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
             // Local prefetch 1
             BasePImpl::LocalPrefetch(a_lds_tile, a_lds_gemm_window);
             BasePImpl::LocalPrefetch(b_lds_tile, b_lds_gemm_window);
-            // if(threadIdx.x == 0)
-            //{
-            //     printf("[DEBUG] KRepeat: %d\n", KRepeat);
-            // }
 
             if(HasHotLoop)
             {
@@ -648,13 +644,6 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
             };
 
             auto ReadCompFunc = [&]() {
-                // if(threadIdx.x == 0)
-                //{
-                //     printf("[DEBUG] ReadCompFunc before blockgemm 1... Values: %f, %f, %f\n",
-                //            c_block_tile.get_thread_buffer()[0],
-                //            c_block_tile.get_thread_buffer()[1],
-                //            c_block_tile.get_thread_buffer()[2]);
-                // }
                 static_for<0, KRepeat - 1, 1>{}([&]() {
                     if(threadIdx.x == 0)
                     {
@@ -670,23 +659,7 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
                     __syncthreads();
                 });
 
-                // if(threadIdx.x == 0)
-                //{
-                //     printf("[DEBUG] ReadCompFunc after block_gemm 1... Values: %f, %f, %f\n",
-                //            c_block_tile.get_thread_buffer()[0],
-                //            c_block_tile.get_thread_buffer()[1],
-                //            c_block_tile.get_thread_buffer()[2]);
-                // }
                 block_gemm(c_block_tile, a_lds_tile, b_lds_tile);
-                // block_gemm.TailOp(c_block_tile, a_lds_tile, b_lds_tile);
-
-                // if(threadIdx.x == 0)
-                //{
-                //     printf("[DEBUG] ReadCompFunc after block_gemm 2... Values: %f, %f, %f\n",
-                //            c_block_tile.get_thread_buffer()[0],
-                //            c_block_tile.get_thread_buffer()[1],
-                //            c_block_tile.get_thread_buffer()[2]);
-                // }
 
                 HotLoopScheduler();
             };
