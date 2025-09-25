@@ -389,24 +389,12 @@ struct CShuffleEpilogue
             sequence<0, 3, 0, 3>>{};
         constexpr auto dram_tile_distribution = make_static_tile_distribution(dram_tile_encoding);
 
-        // Tensor descriptor for a single group (diagonal block in LDS)
-        // 4D tensor view (r,c,m,n) where (r,c) is the group index that is fixed.
-        // Hence, the corresponding dimensions have length 1.
-        // constexpr auto lds_block_desc_4d = make_naive_tensor_descriptor(
-        //     make_tuple(number<1>{}, number<1>{}, number<MPerGroup>{}, number<NPerGroup>{}),
-        //     make_tuple(number<MPerGroup * NPerGroup>{}, number<1>{}, number<1>{}, number<MPerGroup>{}));
-
-        // Merge the fixed group dimensions to make a 2D tensor descriptor
-        // We must merge (r,m) and (c,n) dimensions together to make a 2D tensor descriptor.
-        // constexpr auto lds_block_desc_2d = transform_tensor_descriptor(
-        //     lds_block_desc_4d, 
-        //     make_tuple(
-        //         make_merge_transform(make_tuple(1, MPerGroup)),
-        //         make_merge_transform(make_tuple(1, NPerGroup))
-        //     ),
-        //     make_tuple(sequence<0, 2>{}, sequence<1, 3>{}), 
-        //     make_tuple(sequence<0>{}, sequence<1>{})
-        // );
+        // The LDS data has the following 4D layout
+        // linear_index = c + Gs * m + Gs * MPerGroup * n + Gs * MPerGroup * NPerGroup * r
+        // for 4D coordinates (r,c,m,n) where (r,c) is the group index and (m,n) is the index within the group.
+        // We pick-up only the diagonal blocks where r == c.
+        // For each block, the tile distribution and the tensor descriptors are the same.
+        // The only thing that changes is the p_smem offset.
         constexpr auto lds_block_desc_2d = make_naive_tensor_descriptor(
             make_tuple(number<MPerGroup>{}, number<NPerGroup>{}),
             make_tuple(number<Gs>{}, number<Gs * MPerGroup>{}));
@@ -415,7 +403,7 @@ struct CShuffleEpilogue
         static_for<0, Gs, 1>{}([&](auto g) {
             block_sync_lds();
 
-            const index_t group_offset = g * (1 + Gs* MPerGroup * NPerGroup);
+            constexpr index_t group_offset = g * (1 + Gs* MPerGroup * NPerGroup);
             auto lds_view = make_tensor_view<address_space_enum::lds>(
                          static_cast<ODataType*>(p_smem) + group_offset, lds_block_desc_2d);
 
@@ -435,8 +423,8 @@ struct CShuffleEpilogue
             auto c_out_tensor = load_tile(lds_window);
 
             // DEBUG: Print out the c_out_tensor contents for debugging
-            print_tensor_matrix_format(c_out_tensor, "c_out_tensor");
-            __syncthreads();
+            // print_tensor_matrix_format(c_out_tensor, "c_out_tensor");
+            // __syncthreads();
 
             const auto ds_tensor = generate_tuple(
                 [&](auto idx) { return load_tile(d_dram_windows[idx]); }, number<NumDTensor>{});
