@@ -14,7 +14,6 @@
 #include "ck_tile/core/utility/bit_cast.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/ignore.hpp"
-#include "ck_tile/core/arch/arch_enums.hpp"
 
 // This attribute gives a hint to the compiler that a branch is likely to be taken.
 // Then, the compiler should remove if possible the associated s_cbranch_execz branch that would
@@ -2789,7 +2788,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_max(const thread_buffer<T, N>& src_thread_
 }
 
 #if defined(__gfx950__)
-template <typename T, index_t N, address_space_enum BufferAddressSpace>
+template <typename T, index_t N>
 __device__ auto amd_transpose_load_to_vgpr(const T* __restrict__ in_ptr)
 {
 #define __LDS_ADDR __attribute__((address_space(3)))

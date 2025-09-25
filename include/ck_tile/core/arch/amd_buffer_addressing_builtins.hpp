@@ -14,7 +14,6 @@
 #include "ck_tile/core/utility/bit_cast.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/ignore.hpp"
-#include "ck_tile/core/arch/arch_enums.hpp"
 
 using as3_uint32_ptr = uint32_t __attribute__((address_space(3)))*;
 
@@ -2673,7 +2672,7 @@ CK_TILE_DEVICE void amd_direct_load_global_to_lds(const T* global_base_ptr,
 }
 
 #if defined(__gfx950__)
-template <typename T, index_t N, address_space_enum BufferAddressSpace>
+template <typename T, index_t N>
 __device__ auto amd_transpose_load_to_vgpr(const T* __restrict__ in_ptr)
 {
 #define __LDS_ADDR __attribute__((address_space(3)))
