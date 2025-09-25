@@ -1,0 +1,46 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
+
+#include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data/device_grouped_conv_bwd_data_wmma_i8_instance.hpp"
+#include "ck/utility/filter_tuple.hpp"
+
+namespace ck {
+namespace tensor_operation {
+namespace device {
+namespace instance {
+using  device_grouped_conv2d_bwd_data_wmma_gnhwc_gkyxc_gnhwk_i8_instances = std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
+                                                                  GNHWK,
+                                                                  GKYXC,
+                                                                  Empty_Tuple,
+                                                                  GNHWC,
+                                                                  int8_t,
+                                                                  int8_t,
+                                                                  Empty_Tuple,
+                                                                  int8_t,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>;
+
+template <int Shards, int ShardIndex>
+void add_device_grouped_conv2d_bwd_data_wmma_gnhwc_gkyxc_gnhwk_i8_instances_shard(
+    device_grouped_conv2d_bwd_data_wmma_gnhwc_gkyxc_gnhwk_i8_instances& instances)
+{
+    add_device_operation_instances(
+        instances, ck::util::filter_tuple_by_modulo_t<
+        device_grouped_conv_bwd_data_wmma_i8_instances<2,
+                                                       GNHWK,
+                                                       GKYXC,
+                                                       Empty_Tuple,
+                                                       GNHWC,
+                                                       Empty_Tuple,
+                                                       PassThrough,
+                                                       ConvBwdDataDefault>,
+                                    Shards,
+                                    ShardIndex>{});
+}
+
+} // namespace instance
+} // namespace device
+} // namespace tensor_operation
+} // namespace ck

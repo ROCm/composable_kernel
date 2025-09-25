@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -16,7 +16,7 @@ namespace device {
 namespace instance {
 
 #ifdef CK_ENABLE_FP16
-void add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgk_gkzyxc_ndhwgc_f16_instances(
+void add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
                                                                   NDHWGK,
                                                                   GKZYXC,
@@ -31,7 +31,7 @@ void add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgk_gkzyxc_ndhwgc_f16_in
                                                                   Bilinear>>>& instances);
 #endif
 #ifdef CK_ENABLE_FP32
-void add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgk_gkzyxc_ndhwgc_f32_instances(
+void add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_f32_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
                                                                   NDHWGK,
                                                                   GKZYXC,
@@ -46,7 +46,7 @@ void add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgk_gkzyxc_ndhwgc_f32_in
                                                                   Bilinear>>>& instances);
 #endif
 #ifdef CK_ENABLE_BF16
-void add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgk_gkzyxc_ndhwgc_bf16_instances(
+void add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
                                                                   NDHWGK,
                                                                   GKZYXC,
@@ -115,7 +115,7 @@ struct DeviceOperationInstanceFactory<
                              is_same_v<OutDataType, F16> && is_same_v<ComputeTypeA, F16> &&
                              is_same_v<ComputeTypeB, F16>)
                 {
-                    add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgk_gkzyxc_ndhwgc_f16_instances(
+                    add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_f16_instances(
                         op_ptrs);
                 }
 #endif
@@ -124,7 +124,7 @@ struct DeviceOperationInstanceFactory<
                                   is_same_v<OutDataType, F32> && is_same_v<ComputeTypeA, F32> &&
                                   is_same_v<ComputeTypeB, F32>)
                 {
-                    add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgk_gkzyxc_ndhwgc_f32_instances(
+                    add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_f32_instances(
                         op_ptrs);
                 }
 #endif
@@ -133,7 +133,7 @@ struct DeviceOperationInstanceFactory<
                                   is_same_v<OutDataType, BF16> && is_same_v<ComputeTypeA, BF16> &&
                                   is_same_v<ComputeTypeB, BF16>)
                 {
-                    add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgk_gkzyxc_ndhwgc_bf16_instances(
+                    add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_bf16_instances(
                         op_ptrs);
                 }
 #endif
