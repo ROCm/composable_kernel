@@ -102,13 +102,16 @@ struct UniversalInvoker
                                                  TilePartitioner::NPerBlock,
                                                  GemmConfig::M_Warp,
                                                  GemmConfig::N_Warp,
-                                                 GemmConfig::K_Warp,
                                                  GemmConfig::M_Warp_Tile,
                                                  GemmConfig::N_Warp_Tile,
                                                  GemmConfig::K_Warp_Tile,
                                                  UniversalGemmProblem::TransposeC,
                                                  memory_operation,
-                                                 GemmConfig::NumWaveGroups>>;
+                                                 GemmConfig::NumWaveGroups,
+                                                 false,
+                                                 1,
+                                                 false,
+                                                 GemmConfig::K_Warp>>;
 
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);

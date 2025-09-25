@@ -43,7 +43,6 @@ template <typename AsDataType_,
           index_t kN_,
           index_t MWave_,
           index_t NWave_,
-          index_t KWave_,
           index_t MPerXdl_,
           index_t NPerXdl_,
           index_t KPerXdl_,
@@ -52,19 +51,19 @@ template <typename AsDataType_,
           index_t kNumWaveGroups_ = 1,
           bool FixedVectorSize_   = false,
           index_t VectorSizeC_    = 1,
-          bool TiledMMAPermuteN_  = false>
+          bool TiledMMAPermuteN_  = false,
+          index_t KWave_          = 1>
 struct CShuffleEpilogueProblem
 {
-    using AsDataType                                       = remove_cvref_t<AsDataType_>;
-    using BsDataType                                       = remove_cvref_t<BsDataType_>;
-    using AccDataType                                      = remove_cvref_t<AccDataType_>;
-    using ODataType                                        = remove_cvref_t<ODataType_>;
-    using DsDataType                                       = remove_cvref_t<DsDataType_>;
-    using DsLayout                                         = remove_cvref_t<DsLayout_>;
-    using ELayout                                          = remove_cvref_t<ELayout_>;
-    using CDElementwise                                    = remove_cvref_t<CDElementwise_>;
-    static constexpr index_t kBlockSize =
-        MWave_ * NWave_ * (kNumWaveGroups_ > 1 ? KWave_ : 1) * get_warp_size();
+    using AsDataType                    = remove_cvref_t<AsDataType_>;
+    using BsDataType                    = remove_cvref_t<BsDataType_>;
+    using AccDataType                   = remove_cvref_t<AccDataType_>;
+    using ODataType                     = remove_cvref_t<ODataType_>;
+    using DsDataType                    = remove_cvref_t<DsDataType_>;
+    using DsLayout                      = remove_cvref_t<DsLayout_>;
+    using ELayout                       = remove_cvref_t<ELayout_>;
+    using CDElementwise                 = remove_cvref_t<CDElementwise_>;
+    static constexpr index_t kBlockSize = MWave_ * NWave_ * KWave_ * get_warp_size();
 
     static constexpr index_t kMPerBlock                    = kM_;
     static constexpr index_t kNPerBlock                    = kN_;
