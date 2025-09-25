@@ -423,22 +423,20 @@ struct GroupedConvolutionBackwardWeightKernel
         __device__ SplitKBatchOffset(const GroupedConvBwdWeightKernelArgsSpecialized& kargs,
                                      const std::size_t k_id = blockIdx.z)
         {
-            constexpr auto K1 = TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{});
-            const index_t K_t = __builtin_amdgcn_readfirstlane(kargs.k_batch * K1);
-            const index_t KRead =
-                __builtin_amdgcn_readfirstlane((kargs.GemmK + K_t - 1) / K_t * K1);
+            constexpr auto K1   = TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{});
+            const index_t K_t   = amd_wave_read_first_lane(kargs.k_batch * K1);
+            const index_t KRead = amd_wave_read_first_lane((kargs.GemmK + K_t - 1) / K_t * K1);
 
-            a_k_split_offset = __builtin_amdgcn_readfirstlane(k_id * KRead);
-            b_k_split_offset = __builtin_amdgcn_readfirstlane(k_id * KRead);
+            a_k_split_offset = amd_wave_read_first_lane(k_id * KRead);
+            b_k_split_offset = amd_wave_read_first_lane(k_id * KRead);
 
             if(k_id < static_cast<uint32_t>(kargs.k_batch - 1))
             {
-                splitted_k = __builtin_amdgcn_readfirstlane(KRead);
+                splitted_k = amd_wave_read_first_lane(KRead);
             }
             else
             {
-                splitted_k =
-                    __builtin_amdgcn_readfirstlane(kargs.GemmK - KRead * (kargs.k_batch - 1));
+                splitted_k = amd_wave_read_first_lane(kargs.GemmK - KRead * (kargs.k_batch - 1));
             }
         }
 
@@ -805,22 +803,22 @@ struct GroupedConvolutionBackwardWeightKernel
 
     CK_TILE_DEVICE void operator()(GroupedConvBwdWeightKernelArgsSpecialized kargs) const
     {
-        const auto blockIdX = __builtin_amdgcn_readfirstlane(blockIdx.x);
+        const auto blockIdX = amd_wave_read_first_lane(blockIdx.x);
         const auto [iM, iN] =
             TilePartitioner{kargs.GemmM, kargs.GemmN}.GetOutputTileIndex(blockIdX);
-        const index_t i_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
-        const index_t i_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
+        const index_t i_m = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
+        const index_t i_n = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
 
-        const auto blockIdZ    = __builtin_amdgcn_readfirstlane(blockIdx.z);
-        const index_t num_loop = __builtin_amdgcn_readfirstlane(
+        const auto blockIdZ    = amd_wave_read_first_lane(blockIdx.z);
+        const index_t num_loop = amd_wave_read_first_lane(
             ck_tile::integer_divide_ceil(kargs.GemmK, kargs.k_batch * TilePartitioner::KPerBlock));
         const index_t i_k =
-            __builtin_amdgcn_readfirstlane(blockIdZ * num_loop * TilePartitioner::KPerBlock);
+            amd_wave_read_first_lane(blockIdZ * num_loop * TilePartitioner::KPerBlock);
 
-        const auto blockIdY       = __builtin_amdgcn_readfirstlane(blockIdx.y);
-        const auto group_offset_a = __builtin_amdgcn_readfirstlane(kargs.group_stride_a * blockIdY);
-        const auto group_offset_b = __builtin_amdgcn_readfirstlane(kargs.group_stride_b * blockIdY);
-        const auto group_offset_c = __builtin_amdgcn_readfirstlane(kargs.group_stride_c * blockIdY);
+        const auto blockIdY       = amd_wave_read_first_lane(blockIdx.y);
+        const auto group_offset_a = amd_wave_read_first_lane(kargs.group_stride_a * blockIdY);
+        const auto group_offset_b = amd_wave_read_first_lane(kargs.group_stride_b * blockIdY);
+        const auto group_offset_c = amd_wave_read_first_lane(kargs.group_stride_c * blockIdY);
 
         // options
         // conv_bwd_weight = Out * In = Weight
