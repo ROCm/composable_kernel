@@ -14,7 +14,7 @@ namespace ck_tile {
 // B is block window on block distributed tensor.
 // C is block distributed tensor
 template <typename Problem_, typename BlockPolicy_>
-struct BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1
+struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
 {
     using Problem         = remove_cvref_t<Problem_>;
     using BlockPolicy     = remove_cvref_t<BlockPolicy_>;

@@ -166,26 +166,6 @@ struct GemmConfigPreshuffleB_Bquant_decode : public GemmConfigBase
     static constexpr bool DoubleSmemBuffer = true;
 };
 
-template <typename PrecType>
-struct GemmConfigPreshuffleB_Bquant_prefill : public GemmConfigBase
-{
-    static constexpr ck_tile::index_t M_Tile = 128;
-    static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
-
-    static constexpr ck_tile::index_t M_Warp = 1;
-    static constexpr ck_tile::index_t N_Warp = 4;
-    static constexpr ck_tile::index_t K_Warp = 1;
-
-    static constexpr ck_tile::index_t M_Warp_Tile = 16;
-    static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile =
-        get_k_from_preshuffled_warp_tile<PrecType, M_Warp_Tile>();
-
-    static constexpr bool PreshuffleB      = true;
-    static constexpr bool DoubleSmemBuffer = true;
-};
-
 template <typename ADataType_,
           typename BDataType_ = ADataType_,
           typename CDataType_ = ADataType_,

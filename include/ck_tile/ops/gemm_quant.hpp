@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ck_tile/ops/gemm_quant/block/block_universal_gemm_as_aquant_bs_cr.hpp"
-#include "ck_tile/ops/gemm_quant/block/block_universal_gemm_as_br_bquant_cr.hpp"
+#include "ck_tile/ops/gemm_quant/block/block_universal_gemm_ar_flatbr_bquant_cr.hpp"
 #include "ck_tile/ops/gemm_quant/block/block_universal_gemm_as_bs_bquant_cr.hpp"
 #include "ck_tile/ops/gemm_quant/kernel/gemm_quant_kernel.hpp"
 #include "ck_tile/ops/gemm_quant/kernel/grouped_gemm_quant_kernel.hpp"

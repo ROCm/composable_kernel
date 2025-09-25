@@ -53,7 +53,7 @@ struct GemmWPQuantPipelineAgBgCrPolicy : public UniversalWeightPreshufflePipelin
                                                               typename Problem::CDataType,
                                                               BlockWarps,
                                                               WarpGemm>;
-        return BlockGemmWeightPreshuffleBQuantASmemBRegCRegV1<Problem, BlockGemmPolicy>{};
+        return BlockGemmWeightPreshuffleBQuantARegBRegCReg<Problem, BlockGemmPolicy>{};
     }
 };
 

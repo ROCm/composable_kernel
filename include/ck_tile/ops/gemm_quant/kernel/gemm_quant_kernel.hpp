@@ -761,7 +761,7 @@ struct QuantGemmKernel
         // no padding
         const auto& aq_pad_view = [&]() { return views.at(I1); }();
 
-        const auto& b_flat_pad_view = views.at(I2);
+        const auto& b_flat_view = views.at(I2); // not applying any padding to flat B view
 
         const auto& b_pad_view = [&]() {
             const auto& b_tensor_view = views.at(I2);
@@ -804,7 +804,7 @@ struct QuantGemmKernel
         }();
         if constexpr(PreshuffleB)
         {
-            return make_tuple(a_pad_view, aq_pad_view, b_flat_pad_view, bq_pad_view, c_pad_view);
+            return make_tuple(a_pad_view, aq_pad_view, b_flat_view, bq_pad_view, c_pad_view);
         }
         else
         {
