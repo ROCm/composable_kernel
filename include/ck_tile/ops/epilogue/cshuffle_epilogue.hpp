@@ -290,7 +290,7 @@ struct CShuffleEpilogue
     template <typename DataType, typename StaticTileDistribution>
     CK_TILE_DEVICE void print_tensor_matrix_format(
         const static_distributed_tensor<DataType, StaticTileDistribution>& tensor,
-        const char* name = "tensor_matrix")
+        const char* /*name = "tensor_matrix"*/)
     {
         const auto spans = tensor.get_distributed_spans();
         //static_assert(spans.size() == 2, "This function is for 2D tensors only");
@@ -298,18 +298,18 @@ struct CShuffleEpilogue
         const auto dim0_span = spans[number<0>{}];
         const auto dim1_span = spans[number<1>{}];
         
-        printf("%s matrix format:\n", name);
+        //printf("%s matrix format (tid %u):\n", name, threadIdx.x);
         
         sweep_tile_span(dim0_span, [&](auto row) {
             printf("  ");
             sweep_tile_span(dim1_span, [&](auto col) {
                 constexpr auto distributed_indices = make_tuple(row, col);
                 const auto value = tensor[distributed_indices];
-                printf("%.7f ", static_cast<float>(value));
+                printf("tid %u: %.7f\n", threadIdx.x, static_cast<float>(value));
             });
-            printf("\n");
+            //printf("\n");
         });
-        printf("\n");
+        //printf("\n");
     }
 
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows>
@@ -321,19 +321,10 @@ struct CShuffleEpilogue
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
         auto lds_tile = make_static_distributed_tensor<AccDataType>(LdsTileDistr);
 
-        //constexpr auto lds_block_desc = MakeLdsBlockDescriptor<Problem>();
-        constexpr auto lds_block_desc = make_naive_tensor_descriptor(
-            make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
-            make_tuple(number<kNPerBlock>{}, number<1>{}));  // Row-major layout
+        constexpr auto lds_block_desc = MakeLdsBlockDescriptor<Problem>();
 
         auto o_lds_block              = make_tensor_view<address_space_enum::lds>(
             static_cast<ODataType*>(p_smem), lds_block_desc);
-
-        // TODO: Remove these debug asserts that are specific to a given case.
-        static_assert(kMPerBlock == 8, "kMPerBlock must be 8");
-        static_assert(kNPerBlock == 128, "kNPerBlock must be 128");
-        static_assert(NumMXdlPerWavePerShuffle == 1, "NumMXdlPerWavePerShuffle must be 1");
-        static_assert(NumNXdlPerWavePerShuffle == 1, "NumNXdlPerWavePerShuffle must be 1");
 
         auto in_lds_window = make_tile_window(
             o_lds_block,
@@ -383,118 +374,69 @@ struct CShuffleEpilogue
         });
         block_sync_lds();
 
-        // Set-up LDS to global memory copy.
-        // We copy only the diagonal blocks from LDS to global memory.
-        // Hence, we must configure the tile distrinbution
-        // on the group size blocks.
-        // constexpr index_t MPerGroup = kMPerBlock / NumGroupsToMerge;
-        // constexpr index_t NPerGroup = kNPerBlock / NumGroupsToMerge;
-        //constexpr index_t NumThreads = get_total_number_of_threads(LdsTileDistr.get_static_tile_distribution_encoding());
-
-        // TODO: Remove this debug assert
-        //static_assert(NumThreads == 256, "NumThreads must be 256.");
-
-        // TODO: Within the subtile, we have column-major data layout.
-
-        // TODO: This is hard-coded for a specific MPerBlock, NPerBlock, NumGroupsToMerge case.
-        // P0 <-> (M_warps, N_warps), P1 <-> (M_threads, N_threads)
-        // Y-dim which axis to iterater over
-        // constexpr dram_tile_encoding = tile_distribution_encoding<
-        //     sequence<>,
-        //     tuple<sequence<1, 8, 1, 1>,      		// H0 <-> M-dim: break into 8 warps, one warp per row.
-        //           sequence<1, 1, 32, 4>>,    		// H1 <-> N-dim: 32 threads per warp, 4 elements per thread
-        //     tuple<sequence<1,2>, sequence<1,2>>,    // P0 -> (H0(1)=8, H2(1) = 1) and P1 -> (H0(2)=1, H1(2)=32)
-        //     tuple<sequence<1,1>, sequence<2,2>>,    
-        //     sequence<1, 1, 2, 2>,                   // Y0 -> H0(0) = 1, Y1 -> H0(3) = 1, Y2 -> H1(0) = 1, Y3 -> H1(3) = 4 
-        //     sequence<0, 3, 0, 3>>{};
-
-        // constexpr index_t NumThreadsDram = get_total_number_of_threads(dram_tile_encoding);
-        // static_assert(NumThreadsDram == NumThreads, "NumThreadsDram must be equal to NumThreads.");
-    
-        // auto lds_window = make_tile_window(
-        //     lds_view,
-        //     make_tuple(number<MBlockWidth>{}, number<NBlockWidth>{}),
-        //     make_tuple(number<0>{}, group_index * NBlockWidth),
-        //     sequential_distribution);
-
-        // 4D tensor view of LDS memory
-        // with (g_i, g_j, i, j) where (g_i, g_j) is the group index
-        // and (i, j) is the index within the group.
         constexpr index_t Gs = NumGroupsToMerge;
         constexpr index_t MPerGroup = kMPerBlock / Gs;
         constexpr index_t NPerGroup = kNPerBlock / Gs;
-        constexpr auto lds_desc_4d = make_naive_tensor_descriptor(
-            make_tuple(number<Gs>{}, number<Gs>{}, number<MPerGroup>{}, number<NPerGroup>{}),
-            make_tuple(number<Gs * MPerGroup * NPerGroup>{}, number<1>{}, number<Gs>{}, number<Gs * MPerGroup>{}));
 
-        // We must merge (r,m) and (c,n) dimensions together to make a 2D tensor descriptor.
-        constexpr auto lds_desc = transform_tensor_descriptor(
-            lds_desc_4d, 
-            make_tuple(
-                make_merge_transform(make_tuple(Gs, MPerGroup)),
-                make_merge_transform(make_tuple(Gs, NPerGroup))
-            ),
-            make_tuple(sequence<0, 2>{}, sequence<1, 3>{}), 
-            make_tuple(sequence<0>{}, sequence<1>{})
-        );
-
-        auto lds_view = make_tensor_view<address_space_enum::lds>(
-                         static_cast<ODataType*>(p_smem), lds_desc);
-
-        // This is hard-coded for a specific MPerBlock, NPerBlock, NumGroupsToMerge case.               
-        // constexpr auto dram_tile_encoding = tile_distribution_encoding<
-        //     sequence<>,
-        //     tuple<sequence<1, 1, 8, 1>, 
-        //         sequence<1, 1, 8, 16>>,
-        //     tuple<sequence<1,2>, sequence<1,2>>,
-        //     tuple<sequence<1,1>, sequence<2,2>>, 
-        //     sequence<1, 1, 2, 2>, 
-        //     sequence<0, 3, 0, 3>>{};
+        // Tile enconding for a single group (diagonal block in LDS)
         constexpr auto dram_tile_encoding = tile_distribution_encoding<
             sequence<>,
-            tuple<sequence<1, Gs, MPerGroup, 1>, 
-                sequence<1, Gs, NPerGroup, 1>>,
+            tuple<sequence<1, 1, MPerGroup, 1>, 
+                sequence<1, 1, NPerGroup, 1>>,
             tuple<sequence<1,2>, sequence<1,2>>,
             tuple<sequence<1,1>, sequence<2,2>>, 
             sequence<1, 1, 2, 2>, 
             sequence<0, 3, 0, 3>>{};
-
         constexpr auto dram_tile_distribution = make_static_tile_distribution(dram_tile_encoding);
 
-        auto d_dram_windows = generate_tuple(
-            [&](auto idx) {
-                return make_tile_window(ds_dram_windows[idx], dram_tile_distribution);
-            },
-            number<NumDTensor>{});
+        // Tensor descriptor for a single group (diagonal block in LDS)
+        // 4D tensor view (r,c,m,n) where (r,c) is the group index that is fixed.
+        // Hence, the corresponding dimensions have length 1.
+        // constexpr auto lds_block_desc_4d = make_naive_tensor_descriptor(
+        //     make_tuple(number<1>{}, number<1>{}, number<MPerGroup>{}, number<NPerGroup>{}),
+        //     make_tuple(number<MPerGroup * NPerGroup>{}, number<1>{}, number<1>{}, number<MPerGroup>{}));
 
-        // Calculate which block in the Gs x Gs space we are located at.
-        const auto x_space_coord = dram_tile_distribution.calculate_index();
-        const index_t m_block = x_space_coord[0] / MPerGroup;
-        const index_t n_block = x_space_coord[1] / NPerGroup;
+        // Merge the fixed group dimensions to make a 2D tensor descriptor
+        // We must merge (r,m) and (c,n) dimensions together to make a 2D tensor descriptor.
+        // constexpr auto lds_block_desc_2d = transform_tensor_descriptor(
+        //     lds_block_desc_4d, 
+        //     make_tuple(
+        //         make_merge_transform(make_tuple(1, MPerGroup)),
+        //         make_merge_transform(make_tuple(1, NPerGroup))
+        //     ),
+        //     make_tuple(sequence<0, 2>{}, sequence<1, 3>{}), 
+        //     make_tuple(sequence<0>{}, sequence<1>{})
+        // );
+        constexpr auto lds_block_desc_2d = make_naive_tensor_descriptor(
+            make_tuple(number<MPerGroup>{}, number<NPerGroup>{}),
+            make_tuple(number<Gs>{}, number<Gs * MPerGroup>{}));
 
-        auto current_lds_window = make_tile_window(
+        // Loop over the groups (diagonal blocks in LDS)
+        static_for<0, Gs, 1>{}([&](auto g) {
+            block_sync_lds();
+
+            const index_t group_offset = g * (1 + Gs* MPerGroup * NPerGroup);
+            auto lds_view = make_tensor_view<address_space_enum::lds>(
+                         static_cast<ODataType*>(p_smem) + group_offset, lds_block_desc_2d);
+
+            auto d_dram_windows = generate_tuple(
+                [&](auto idx) {
+                    return make_tile_window(ds_dram_windows[idx], dram_tile_distribution);
+                },
+                number<NumDTensor>{});
+
+            const auto lds_window = make_tile_window(
                 lds_view,
-                make_tuple(number<Gs>{}, number<Gs>{}, number<MPerGroup>{}, number<NPerGroup>{}),
-                {0, 0, 0, 0},
+                make_tuple(number<MPerGroup>{}, number<NPerGroup>{}),
+                {0, 0},
                 dram_tile_distribution);
 
-        // Copy only the diagonal blocks.
-        if (m_block == n_block)
-        {
             // Load static_distributed_tensor from LDS.
-            auto c_out_tensor = load_tile(current_lds_window);
+            auto c_out_tensor = load_tile(lds_window);
 
-            // Debug: Print out the c_out_tensor contents for debugging
+            // DEBUG: Print out the c_out_tensor contents for debugging
+            print_tensor_matrix_format(c_out_tensor, "c_out_tensor");
             __syncthreads();
-            if (threadIdx.x == 0 && blockIdx.x == 0)
-            {
-                // Print out the c_out_tensor contents for debugging
-                print_tensor_matrix_format(c_out_tensor, "c_out_tensor");
-            }
-            __syncthreads();
-            // End debug
-
-            // TODO: We must move the d_dram_windows and the out_dram_windows to the correct group position.
 
             const auto ds_tensor = generate_tuple(
                 [&](auto idx) { return load_tile(d_dram_windows[idx]); }, number<NumDTensor>{});
@@ -514,7 +456,106 @@ struct CShuffleEpilogue
             {
                 update_tile(out_dram_window, c_out_tensor);
             }
-        }
+
+            // Move the output window to the next group position.
+            if constexpr(g != Gs - 1)
+            {
+                move_tile_window(out_dram_window, {number<MPerGroup>{}, 0});
+
+                static_for<0, NumDTensor, 1>{}([&](auto idx) {
+                    move_tile_window(d_dram_windows[idx], {number<MPerGroup>{}, 0});
+                });
+            }
+        });
+
+
+        //---------------------------------------------------------------------
+
+
+        // // 4D tensor view of LDS memory
+        // // with (g_i, g_j, i, j) where (g_i, g_j) is the group index
+        // // and (i, j) is the index within the group.
+        // constexpr auto lds_desc_4d = make_naive_tensor_descriptor(
+        //     make_tuple(number<Gs>{}, number<Gs>{}, number<MPerGroup>{}, number<NPerGroup>{}),
+        //     make_tuple(number<Gs * MPerGroup * NPerGroup>{}, number<1>{}, number<Gs>{}, number<Gs * MPerGroup>{}));
+
+        // // We must merge (r,m) and (c,n) dimensions together to make a 2D tensor descriptor.
+        // constexpr auto lds_desc = transform_tensor_descriptor(
+        //     lds_desc_4d, 
+        //     make_tuple(
+        //         make_merge_transform(make_tuple(Gs, MPerGroup)),
+        //         make_merge_transform(make_tuple(Gs, NPerGroup))
+        //     ),
+        //     make_tuple(sequence<0, 2>{}, sequence<1, 3>{}), 
+        //     make_tuple(sequence<0>{}, sequence<1>{})
+        // );
+
+        // auto lds_view = make_tensor_view<address_space_enum::lds>(
+        //                  static_cast<ODataType*>(p_smem), lds_desc);
+
+        // constexpr auto dram_tile_encoding = tile_distribution_encoding<
+        //     sequence<>,
+        //     tuple<sequence<1, Gs, MPerGroup, 1>, 
+        //         sequence<1, Gs, NPerGroup, 1>>,
+        //     tuple<sequence<1,2>, sequence<1,2>>,
+        //     tuple<sequence<1,1>, sequence<2,2>>, 
+        //     sequence<1, 1, 2, 2>, 
+        //     sequence<0, 3, 0, 3>>{};
+
+        // constexpr auto dram_tile_distribution = make_static_tile_distribution(dram_tile_encoding);
+
+        // auto d_dram_windows = generate_tuple(
+        //     [&](auto idx) {
+        //         return make_tile_window(ds_dram_windows[idx], dram_tile_distribution);
+        //     },
+        //     number<NumDTensor>{});
+
+        // // Calculate which block in the Gs x Gs space we are located at.
+        // const auto x_space_coord = dram_tile_distribution.calculate_index();
+        // const index_t m_block = x_space_coord[0] / MPerGroup;
+        // const index_t n_block = x_space_coord[1] / NPerGroup;
+
+        // const auto current_lds_window = make_tile_window(
+        //         lds_view,
+        //         make_tuple(number<Gs * MPerGroup>{}, number<Gs * NPerGroup>{}),
+        //         {0, 0},
+        //         dram_tile_distribution);
+
+        // // Copy only the diagonal blocks.
+        // if (m_block == n_block)
+        // {
+        //     // Load static_distributed_tensor from LDS.
+        //     auto c_out_tensor = load_tile(current_lds_window);
+
+        //     // DEBUG: Print out the c_out_tensor contents for debugging
+        //     print_tensor_matrix_format(c_out_tensor, "c_out_tensor");
+        //     __syncthreads();
+
+        //     // TODO: We must move the d_dram_windows to the correct group position.
+        //     const auto ds_tensor = generate_tuple(
+        //         [&](auto idx) { return load_tile(d_dram_windows[idx]); }, number<NumDTensor>{});
+
+        //     const auto c_ds_tiles = concat_tuple_of_reference(
+        //         tie(c_out_tensor, c_out_tensor),
+        //         generate_tie([&](auto idx) -> const auto& { return ds_tensor[idx]; },
+        //                     number<NumDTensor>{}));
+
+        //     tile_elementwise_inout_unpack(typename Problem::CDElementwise{}, c_ds_tiles);
+
+        //     // Move the output window to the correct position.
+        //     //printf("m_block: %d, n_block: %d \n", m_block, n_block);
+        //     //auto out_window = make_tile_window(out_dram_window, dram_tile_distribution);
+        //     //move_tile_window(out_window, {m_block * MPerGroup, 0});
+
+        //     if constexpr(MemoryOperation == memory_operation_enum::set)
+        //     {
+        //         store_tile(out_window, c_out_tensor);
+        //     }
+        //     else
+        //     {
+        //         update_tile(out_window, c_out_tensor);
+        //     }
+        // }
     }
 
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows>

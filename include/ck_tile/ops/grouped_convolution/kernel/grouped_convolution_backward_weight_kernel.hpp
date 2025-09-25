@@ -754,63 +754,6 @@ struct GroupedConvolutionBackwardWeightKernel
         return make_tuple(a_block_window, b_block_window, ds_block_window, c_block_window);
     }
 
-    // template <typename OutDataType>
-    // CK_TILE_DEVICE static void transfer_lds_to_global(OutDataType* c_ptr, void* smem_ptr_0)
-    // {
-    //     constexpr index_t MBlockWidth = TilePartitioner::MPerBlock / GroupedConvTraitsType_::NumGroupsToMerge;
-    //     constexpr index_t NBlockWidth = TilePartitioner::NPerBlock / GroupedConvTraitsType_::NumGroupsToMerge;
-        
-    //     // Create a single-thread tile distribution for sequential access
-    //     constexpr auto sequential_encoding = tile_distribution_encoding<
-    //         sequence<>,
-    //         tuple<sequence<MBlockWidth>, sequence<NBlockWidth>>,
-    //         tuple<>,  // No P dimensions (single thread)
-    //         tuple<>,
-    //         sequence<1, 2>,  // Y dimensions map to H dimensions
-    //         sequence<0, 0>
-    //     >{};
-
-    //     constexpr auto sequential_distribution = make_static_tile_distribution(sequential_encoding);
-
-    //     if (blockIdx.x == 0 && threadIdx.x < GroupedConvTraitsType_::NumGroupsToMerge) {
-    //         const auto group_index = threadIdx.x;
-            
-    //         // LDS tensor view, column-major ordering
-    //         constexpr auto lds_desc = make_naive_tensor_descriptor(
-    //             make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
-    //             make_tuple(number<1>{}, number<TilePartitioner::NPerBlock>{}));
-            
-    //         auto lds_view = make_tensor_view<address_space_enum::lds>(
-    //             static_cast<OutDataType*>(smem_ptr_0), lds_desc);
-
-    //         // Global memory tensor view, row-major ordering
-    //         constexpr auto global_desc = make_naive_tensor_descriptor(
-    //             make_tuple(number<MBlockWidth>{}, number<NBlockWidth>{}),
-    //             make_tuple(number<NBlockWidth>{}, number<1>{}));
-                
-    //         const index_t c_ptr_offset = group_index * MBlockWidth * NBlockWidth;
-    //         auto global_view = make_tensor_view<address_space_enum::global>(
-    //             c_ptr + c_ptr_offset, global_desc);
-
-    //         // Create tile windows
-    //         auto lds_window = make_tile_window(
-    //             lds_view,
-    //             make_tuple(number<MBlockWidth>{}, number<NBlockWidth>{}),
-    //             make_tuple(number<0>{}, group_index * NBlockWidth),
-    //             sequential_distribution);
-
-    //         auto global_window = make_tile_window(
-    //             global_view,
-    //             make_tuple(number<MBlockWidth>{}, number<NBlockWidth>{}),
-    //             make_tuple(number<0>{}, number<0>{}),
-    //             sequential_distribution);
-
-    //         // Transfer data
-    //         auto data = load_tile(lds_window);
-    //         store_tile(global_window, data);
-    //     }
-    // }
-
     /**
      * @brief Runs single GEMM problem cooperatively by whole workgroup.
      *
@@ -879,7 +822,6 @@ struct GroupedConvolutionBackwardWeightKernel
         //         c_ptr[c_ptr_offset + i_loc] = lds_data[lds_index];
         //     }
         // }
-        //transfer_lds_to_global(c_ptr, smem_ptr_0);
 
         __syncthreads();
         if (blockIdx.x == 0 && blockIdx.y == 0 && threadIdx.x == 0 && threadIdx.y == 0)
