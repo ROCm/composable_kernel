@@ -29,7 +29,7 @@ struct EpilogueNode
     }
 
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename Context, index_t I>
-    CK_TILE_DEVICE void execute_with_iteration(ODramWindow& out_dram_window,
+    CK_TILE_DEVICE void execute(ODramWindow& out_dram_window,
                                               const OAccTile& o_acc_tile,
                                               const DsDramWindows& ds_dram_windows,
                                               void* p_smem,
@@ -63,7 +63,7 @@ struct EpilogueNode<EpilogueType>
     }
     
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename Context, index_t I>
-    CK_TILE_DEVICE void execute_with_iteration(ODramWindow& out_dram_window,
+    CK_TILE_DEVICE void execute(ODramWindow& out_dram_window,
                                               const OAccTile& o_acc_tile,
                                               const DsDramWindows& ds_dram_windows,
                                               void* p_smem,
@@ -92,7 +92,7 @@ struct EpilogueLoop
     {
         static_for<0, Count, 1>{}([&](auto iAccess) {
             static_for<0, sizeof...(EpilogueTypes), 1>{}([&](auto I) {
-                epilogues.template get<I.value>().execute_with_iteration(
+                epilogues.template get<I.value>().execute(
                     out_dram_window, o_acc_tile, ds_dram_windows, p_smem, context, iAccess);
             });
         });
