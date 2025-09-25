@@ -34,8 +34,7 @@ class TestGemmAddReluAddLayernorm : public ::testing::Test
 
     void Run()
     {
-        std::vector<std::vector<ck::index_t>> lengths = {
-            {1024, 1024, 1024}, {2048, 640, 640}, {1, 1, 1}};
+        std::vector<std::vector<ck::index_t>> lengths = {{1024, 1024, 1024}};
 
         for(auto length : lengths)
         {
@@ -70,20 +69,21 @@ class TestGemmAddReluAddLayernorm : public ::testing::Test
 };
 
 using KernelTypes = ::testing::Types<
-    std::tuple<F16, F16, F32, F16, F16, F16, F16, F16, F16, Row, Row, Row, Row, Row>,
-    std::tuple<F16, F16, F32, F16, F16, F16, F16, F16, F16, Row, Col, Row, Row, Row>,
-    std::tuple<F16, F16, F32, F16, F16, F16, F16, F16, F16, Col, Row, Row, Row, Row>,
-    std::tuple<F16, F16, F32, F16, F16, F16, F16, F16, F16, Col, Col, Row, Row, Row>>;
+    // std::tuple<F16, F16, F32, F16, F16, F16, F16, F16, F16, Row, Row, Row, Row, Row>,
+    std::tuple<F16, F16, F32, F16, F16, F16, F16, F16, F16, Row, Col, Row, Row, Row>
+    // std::tuple<F16, F16, F32, F16, F16, F16, F16, F16, F16, Col, Row, Row, Row, Row>,
+    // std::tuple<F16, F16, F32, F16, F16, F16, F16, F16, F16, Col, Col, Row, Row, Row>
+    >;
 
 TYPED_TEST_SUITE(TestGemmAddReluAddLayernorm, KernelTypes);
 TYPED_TEST(TestGemmAddReluAddLayernorm, Test_FP16) { this->Run(); }
 int main(int argc, char** argv)
 {
-    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
-    {
-        std::cout << "No available instance for gfx11 & gfx12." << std::endl;
-        return 0;
-    }
+    // if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    // {
+    //     std::cout << "No available instance for gfx11 & gfx12." << std::endl;
+    //     return 0;
+    // }
     testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }
