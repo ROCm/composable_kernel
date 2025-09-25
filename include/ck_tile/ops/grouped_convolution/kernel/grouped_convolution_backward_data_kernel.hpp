@@ -840,7 +840,7 @@ struct GroupedConvolutionBackwardDataKernel
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
 
-        const index_t num_loop = __builtin_amdgcn_readfirstlane(TilePartitioner::GetLoopNum(
+        const index_t num_loop = amd_wave_read_first_lane(TilePartitioner::GetLoopNum(
             gemm_pad_views.at(I0).get_tensor_descriptor().get_length(I1)));
 
         // Run GEMM cooperatively by whole workgroup.
@@ -891,7 +891,7 @@ struct GroupedConvolutionBackwardDataKernel
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
 
-        const index_t num_loop = __builtin_amdgcn_readfirstlane(
+        const index_t num_loop = amd_wave_read_first_lane(
             TilePartitioner::GetLoopNum(gemm_tile_windows.at(I0).get_length(I1)));
 
         // Run GEMM cooperatively by whole workgroup.
@@ -936,7 +936,7 @@ struct GroupedConvolutionBackwardDataKernel
 
     CK_TILE_DEVICE void operator()(GroupedConvBwdDataKernelArgsSpecialized kargs) const
     {
-        const auto blockIdX    = __builtin_amdgcn_readfirstlane(blockIdx.x);
+        const auto blockIdX    = amd_wave_read_first_lane(blockIdx.x);
         const index_t group_id = FindGroupId(kargs, blockIdX);
 
         const auto [iM, iN] = OffsettedTile1DPartitioner<TilePartitioner>::GetOffsetedTileIndex(
@@ -944,13 +944,13 @@ struct GroupedConvolutionBackwardDataKernel
             kargs.c_grid_descs_m_n[group_id].get_length(I0),
             kargs.c_grid_descs_m_n[group_id].get_length(I1));
 
-        const index_t i_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
-        const index_t i_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
+        const index_t i_m = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
+        const index_t i_n = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
 
-        const auto blockIdY       = __builtin_amdgcn_readfirstlane(blockIdx.y);
-        const auto group_offset_a = __builtin_amdgcn_readfirstlane(kargs.group_stride_a * blockIdY);
-        const auto group_offset_b = __builtin_amdgcn_readfirstlane(kargs.group_stride_b * blockIdY);
-        const auto group_offset_c = __builtin_amdgcn_readfirstlane(kargs.group_stride_c * blockIdY);
+        const auto blockIdY       = amd_wave_read_first_lane(blockIdx.y);
+        const auto group_offset_a = amd_wave_read_first_lane(kargs.group_stride_a * blockIdY);
+        const auto group_offset_b = amd_wave_read_first_lane(kargs.group_stride_b * blockIdY);
+        const auto group_offset_c = amd_wave_read_first_lane(kargs.group_stride_c * blockIdY);
 
         // options
         // conv_bwd_data = Out * Weight = In
