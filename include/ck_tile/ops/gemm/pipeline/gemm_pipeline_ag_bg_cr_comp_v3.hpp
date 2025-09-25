@@ -479,17 +479,20 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             // initialize C
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
-            // Load tile — during value loading, an elementwise function is executed for each A0,
-            // A1, … AN. The values A0, A1, … AN are read by the same thread.
-            auto elementwise_As_res =
-                load_tile_with_elementwise(a_copy_dram_window, a_element_func);
+            if(0 == get_thread_id())
+            {
+                printf("num loop = %d\n", num_loop);
+            }
+
+            // A0 read DRAM->LDS
+            async_load_tile(a_copy_lds_window, a_copy_dram_window[number<0>{}]);
+            ignore = a_element_func;
 
             // Move each A — the enhanced function move_tile_window is executed, which takes a tuple
             // as input.
             move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
 
-            // Load tile — during value loading, an elementwise function is executed for each B0,
-            // B1, … BN. The values B0, B1, … BN are read by the same thread.
+            // B0 read DRAM->reg_pipeline
             auto elementwise_Bs_res =
                 load_tile_with_elementwise(b_copy_dram_window, b_element_func);
 
@@ -497,18 +500,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             // as input.
             move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
 
-            // LDS write 0
-            if constexpr(is_a_col_major && !is_a_load_tr_v())
-            {
-                auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-                    Policy::template MakeShuffledARegTileDistribution<Problem>());
-                transpose_tile2d(a_shuffle_tmp, elementwise_As_res);
-                Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp);
-            }
-            else
-            {
-                Base::LocalPrefill(a_copy_lds_window, elementwise_As_res);
-            }
+            // B0 move reg_pipeline->LDS
             if constexpr(is_b_row_major && !is_b_load_tr_v())
             {
                 auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
@@ -523,13 +515,12 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
             // global read 1
 
-            elementwise_As_res = load_tile_with_elementwise(a_copy_dram_window, a_element_func);
-            move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
-
+            // B1 read DRAM->reg_pipeline
             elementwise_Bs_res = load_tile_with_elementwise(b_copy_dram_window, b_element_func);
             move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
 
             block_sync_lds();
+            // A0, B0 read LDS->reg_gemm
             block_gemm.LocalPrefetch(
                 a_lds_gemm_window, b_lds_gemm_window, is_a_load_tr_v, is_b_load_tr_v);
 
@@ -541,19 +532,12 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                 index_t i = 0;
                 do
                 {
+                    // A{i+1} read DRAM->LDS
+                    async_load_tile(a_copy_lds_window, a_copy_dram_window[number<0>{}]);
+                    move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
                     block_sync_lds();
 
-                    if constexpr(is_a_col_major && !is_a_load_tr_v())
-                    {
-                        auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-                            Policy::template MakeShuffledARegTileDistribution<Problem>());
-                        transpose_tile2d(a_shuffle_tmp, elementwise_As_res);
-                        Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp);
-                    }
-                    else
-                    {
-                        Base::LocalPrefill(a_copy_lds_window, elementwise_As_res);
-                    }
+                    // B{i+1} move reg_pipeline->LDS
                     if constexpr(is_b_row_major && !is_b_load_tr_v())
                     {
                         auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
@@ -566,18 +550,17 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                         Base::LocalPrefill(b_copy_lds_window, elementwise_Bs_res);
                     }
 
-                    elementwise_As_res =
-                        load_tile_with_elementwise(a_copy_dram_window, a_element_func);
-                    move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
-
+                    // B{i+2} read DRAM->reg_pipeline
                     elementwise_Bs_res =
                         load_tile_with_elementwise(b_copy_dram_window, b_element_func);
                     move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
 
+                    // C{i} = A{i} @ B{i}
                     block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
 
                     block_sync_lds();
 
+                    // A{i+1}, B{i+1} move LDS->reg_gemm
                     block_gemm.LocalPrefetch(
                         a_lds_gemm_window, b_lds_gemm_window, is_a_load_tr_v, is_b_load_tr_v);
                     HotLoopScheduler();
@@ -585,30 +568,40 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 
                     i += 1;
                 } while(i < (num_loop - 1));
+                if (0 == get_thread_id())
+                {
+                    printf("Last i: %d\n", i - 1);
+                }
             }
             // tail
             if constexpr((TailNum == TailNumber::Full) || (TailNum == TailNumber::Odd))
             {
+                if (0 == get_thread_id())
+                {
+                    printf("Leak last MFMA\n");
+                }
                 // Leak last MFMA block to epilogue region, cover the potential lds-shuffle
                 // latency
+                // NB counter is 0-based
+                // C{num_loop - 1} = A{num_loop - 1} @ B{num_loop - 1}
                 block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
+                // load A{num_loop} DRAM->LDS
+                async_load_tile(a_copy_lds_window, a_copy_dram_window[number<0>{}]);
+                move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
+                block_sync_lds();
             }
             else
             {
+                if (0 == get_thread_id())
+                {
+                    printf("Inline last MFMA\n");
+                }
+                // C{num_loop - 1} = A{num_loop - 1} @ B{num_loop - 1}
                 block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
-                block_sync_lds();
-
-                if constexpr(is_a_col_major && !is_a_load_tr_v())
-                {
-                    auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-                        Policy::template MakeShuffledARegTileDistribution<Problem>());
-                    transpose_tile2d(a_shuffle_tmp, elementwise_As_res);
-                    Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp);
-                }
-                else
-                {
-                    Base::LocalPrefill(a_copy_lds_window, elementwise_As_res);
-                }
+                // load A{num_loop} DRAM->LDS
+                async_load_tile(a_copy_lds_window, a_copy_dram_window[number<0>{}]);
+                move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
+                // load B{num_loop} reg_pipeline->LDS
                 if constexpr(is_b_row_major && !is_b_load_tr_v())
                 {
                     auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
@@ -621,8 +614,10 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                     Base::LocalPrefill(b_copy_lds_window, elementwise_Bs_res);
                 }
                 block_sync_lds();
+                // move A{num_loop}, B{num_loop} LDS->reg_gemm
                 block_gemm.LocalPrefetch(
                     a_lds_gemm_window, b_lds_gemm_window, is_a_load_tr_v, is_b_load_tr_v);
+                // C{num_loop} = A{num_loop} @ B{num_loop}
                 block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
             }
             // __builtin_amdgcn_sched_barrier(0);
