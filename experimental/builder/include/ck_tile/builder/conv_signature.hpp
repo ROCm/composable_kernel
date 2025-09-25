@@ -1,3 +1,17 @@
+// This file defines the compile-time "signature" for grouped convolution operations.
+// A signature is a collection of properties that fully describe a convolution kernel's
+// mathematical characteristics. It uses C++20 concepts and enums to specify these
+// properties, enabling compile-time validation and specialization.
+//
+// The core components of a signature are:
+//   - Spatial dimensionality (1D, 2D, 3D)
+//   - Operational direction (Forward, Backward Data, Backward Weight)
+//   - Tensor memory layout (Channels First/Last)
+//   - Data type (FP32, FP16, BF16)
+//   - Fused element-wise operation (e.g., Bias, Clamp)
+//
+// The file also provides predicate concepts to query the properties of a given
+// signature at compile time.
 #pragma once
 
 #include <concepts>
@@ -7,20 +21,18 @@
 
 namespace ck_tile::builder {
 
-// Layouts for grouped convolutions.
+// Memory layouts for convolution tensors, following PyTorch conventions.
 enum class GroupConvLayout
 {
-    CHANNELS_LAST, // Channels-last NHWGC_GKYXC_NHWGK
-    CHANNELS_FIRST // Channels-first NGCHW_GKCYX_NGKHW
+    CHANNELS_LAST, // e.g., NHWGC
+    CHANNELS_FIRST // e.g., NGCHW
 };
 
-// Spatial dimensionalities of grouped convolutions.
-// N represents the number of spatial dimensions (e.g., 1 for 1D, 2 for 2D, 3 for 3D).
+// Constrains convolution to 1D, 2D, or 3D spatial dimensions.
 template <auto N>
 concept ConvSpatialDim = std::is_integral_v<decltype(N)> && (N == 1 || N == 2 || N == 3);
 
-// Allowed datatypes for grouped convolutions.
-// Currently limited to floating-point types commonly accelerated on GPUs.
+// Constrains convolution data types to common floating-point types.
 template <DataType T>
 concept ConvDataType = (T == DataType::FP32) || (T == DataType::FP16) || (T == DataType::BF16);
 
@@ -32,7 +44,7 @@ enum class ConvDirection
     BACKWARD_WEIGHT
 };
 
-// Elementwise operation to fuse to convolution.
+// Fused element-wise operations.
 enum class ElementwiseOperation
 {
     BIAS,
@@ -43,7 +55,7 @@ enum class ElementwiseOperation
     PASS_THROUGH
 };
 
-// Operational signature of a convolution.
+// Concept for a type that defines a convolution's operational signature.
 template <typename T>
 concept ConvSignatureDescriptor = requires(T t) {
     { t.spatial_dim } -> std::convertible_to<int>;
@@ -52,19 +64,22 @@ concept ConvSignatureDescriptor = requires(T t) {
     { t.data_type } -> std::convertible_to<DataType>;
 };
 
-// Valid values for a convolution signature.
+// Concept to validate a convolution signature's values.
 template <auto Sig>
 concept ValidConvSignature = requires {
     requires ConvSpatialDim<Sig.spatial_dim>;
     requires ConvDataType<Sig.data_type>;
 };
 
+// Predicate for forward convolution.
 template <auto Sig>
 concept ConvDirectionIsForward = (Sig.direction == ConvDirection::FORWARD);
 
+// Predicate for backward data convolution.
 template <auto Sig>
 concept ConvDirectionIsBackwardData = (Sig.direction == ConvDirection::BACKWARD_DATA);
 
+// Predicate for backward weight convolution.
 template <auto Sig>
 concept ConvDirectionIsBackwardWeight = (Sig.direction == ConvDirection::BACKWARD_WEIGHT);
 
