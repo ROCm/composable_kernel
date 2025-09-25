@@ -86,9 +86,42 @@ float invoke_gemm(int n_warmup,
     }
     else
     {
-        (void)group_count;
-        // not supported yet
-        throw std::runtime_error("Persistent grouped gemm multiple-d is not supported yet");
+        std::vector<ck_tile::GemmTransKernelArg<2>> kargs;
+        void* kargs_ptr   = gemm_workspace.GetDeviceBuffer();
+        const bool splitk = args[0].k_batch > 1;
+        for(const auto& arg : args)
+        {
+            kargs.emplace_back(ck_tile::UniversalGemmKernelArgs<1, 1, 2>{{arg.a_ptr},
+                                                                   {arg.b_ptr},
+                                                                   arg.ds_ptr,
+                                                                   arg.e_ptr,
+                                                                   arg.M,
+                                                                   arg.N,
+                                                                   arg.K,
+                                                                   {arg.stride_A},
+                                                                   {arg.stride_B},
+                                                                   arg.stride_Ds,
+                                                                   arg.stride_E,
+                                                                   arg.k_batch});
+        }
+        const auto stream = ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat};
+        HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
+                                            kargs.data(),
+                                            kargs.size() * sizeof(ck_tile::GemmTransKernelArg<2>),
+                                            hipMemcpyHostToDevice,
+                                            stream.stream_id_));
+        ave_time =
+            grouped_gemm_multi_d_tileloop<GemmConfig,
+                                          ADataType,
+                                          BDataType,
+                                          DsDataType,
+                                          AccDataType,
+                                          EDataType,
+                                          ALayout,
+                                          BLayout,
+                                          DsLayout,
+                                          ELayout,
+                                          CDEElementWise>(stream, group_count, kargs_ptr, splitk);
     }
     return ave_time;
 }
