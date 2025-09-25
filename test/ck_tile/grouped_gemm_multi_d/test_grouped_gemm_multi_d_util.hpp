@@ -21,6 +21,18 @@ enum class PipelineType
 using Row = ck_tile::tensor_layout::gemm::RowMajor;
 using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
+struct MultiplyMultiply
+{
+    template <typename E, typename C, typename D0, typename D1>
+    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const D0& d0, const D1& d1) const -> void
+    {
+        const float x0_f = ck_tile::type_convert<float>(c) * ck_tile::type_convert<float>(d0) *
+                           ck_tile::type_convert<float>(d1);
+
+        e = ck_tile::type_convert<E>(x0_f);
+    }
+};
+
 template <typename Config>
 class TestCkTileGroupedGemmMultiD : public ::testing::Test
 {
@@ -37,58 +49,39 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
     using DsDataType  = typename Config::DsDataType;
     using D0DataType  = std::tuple_element_t<0, DsDataType>;
     using D1DataType  = std::tuple_element_t<1, DsDataType>;
+    using D0Layout    = std::tuple_element_t<0, DsLayout>;
+    using D1Layout    = std::tuple_element_t<1, DsLayout>;
 
     static const bool kPadM = false;
     static const bool kPadN = false;
     static const bool kPadK = false;
 
-    static const int kBlockPerCu = Config::BlockPerCu_;
-
-    // Tile dimensions from tuple
-    static const ck_tile::index_t M_Tile = Config::M_Tile_;
-    static const ck_tile::index_t N_Tile = Config::N_Tile_;
-    static const ck_tile::index_t K_Tile = Config::K_Tile_;
-
-    static const ck_tile::index_t M_Warp = Config::M_Warp_;
-    static const ck_tile::index_t N_Warp = Config::N_Warp_;
-    static const ck_tile::index_t K_Warp = Config::K_Warp_;
-
-    static constexpr auto Scheduler = Config::Scheduler_;
-
-    static const ck_tile::index_t M_Warp_Tile = Config::M_Warp_Tile_;
-    static const ck_tile::index_t N_Warp_Tile = Config::N_Warp_Tile_;
-    static const ck_tile::index_t K_Warp_Tile = Config::K_Warp_Tile_;
-
-    static constexpr bool DoubleSmemBuffer = Config::DoubleSmemBuffer_;
-    static constexpr PipelineType Pipeline = Config::Pipeline_;
-    static constexpr bool TransposeC       = false; // transpose c is not supported
+    static constexpr bool TransposeC = false; // transpose c is not supported
     static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
     static constexpr ck_tile::index_t TileParitionerM01      = 4;
 
-    template <typename ADataType_, typename BDataType_, typename AccDataType_, typename EDataType_>
     auto calculate_rtol_atol(const ck_tile::index_t K,
                              const ck_tile::index_t kbatch,
                              const float max_accumulated_value)
     {
         using ComputeTypeAB =
-            std::conditional_t<sizeof(ADataType_) < sizeof(BDataType_), ADataType_, BDataType_>;
+            std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
 
         using ComputeType = std::
-            conditional_t<sizeof(ComputeTypeAB) < sizeof(EDataType_), ComputeTypeAB, EDataType_>;
+            conditional_t<sizeof(ComputeTypeAB) < sizeof(D0DataType), ComputeTypeAB, D0DataType>;
         // Calculate thresholds
-        const auto rtol = ck_tile::get_relative_threshold<ComputeType, EDataType_, AccDataType_>(
+        const auto rtol = ck_tile::get_relative_threshold<ComputeType, EDataType, AccDataType>(
             ck_tile::integer_divide_ceil(K, kbatch));
 
-        const auto atol = ck_tile::get_absolute_threshold<ComputeType, EDataType_, AccDataType_>(
+        const auto atol = ck_tile::get_absolute_threshold<ComputeType, EDataType, AccDataType>(
             max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
 
         // Calculate error due to split_k accumulation
         const auto rtol_split_k =
-            ck_tile::get_relative_threshold<EDataType_, EDataType_, EDataType_>(kbatch);
+            ck_tile::get_relative_threshold<EDataType, EDataType, EDataType>(kbatch);
 
-        const auto atol_split_k =
-            ck_tile::get_absolute_threshold<EDataType_, EDataType_, EDataType_>(
-                max_accumulated_value, kbatch);
+        const auto atol_split_k = ck_tile::get_absolute_threshold<EDataType, EDataType, EDataType>(
+            max_accumulated_value, kbatch);
 
         // Use higher threshold
         return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
@@ -106,10 +99,10 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
                              void* kargs_ptr)
     {
 
-        using GemmShape =
-            ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
-                                   ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
-                                   ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
+        using GemmShape = ck_tile::TileGemmShape<
+            ck_tile::sequence<Config::M_Tile_, Config::N_Tile_, Config::K_Tile_>,
+            ck_tile::sequence<Config::M_Warp_, Config::N_Warp_, Config::K_Warp_>,
+            ck_tile::sequence<Config::M_Warp_Tile_, Config::N_Warp_Tile_, Config::K_Warp_Tile_>>;
         using TilePartitioner = ck_tile::
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
@@ -121,7 +114,7 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
             ck_tile::TileGemmUniversalTraits<kPadM,
                                              kPadN,
                                              kPadK,
-                                             DoubleSmemBuffer,
+                                             Config::DoubleSmemBuffer_,
                                              ALayout,
                                              BLayout,
                                              ELayout,
@@ -135,8 +128,9 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
 
         using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
 
-        const ck_tile::index_t k_grain = gemm_descs[0].k_batch * K_Tile;
-        const ck_tile::index_t K_split = (gemm_descs[0].K + k_grain - 1) / k_grain * K_Tile;
+        const ck_tile::index_t k_grain = gemm_descs[0].k_batch * Config::K_Tile_;
+        const ck_tile::index_t K_split =
+            (gemm_descs[0].K + k_grain - 1) / k_grain * Config::K_Tile_;
         const ck_tile::index_t num_loop =
             ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
                                                        TileParitionerGroupNum,
@@ -157,14 +151,14 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
                                                                                     AccDataType,
                                                                                     GemmShape,
                                                                                     GemmUniversalTraits,
-                                                                                    Scheduler,
+                                                                                    Config::Scheduler_,
                                                                                     has_hot_loop_v,
                                                                                     tail_number_v>;
 
             using GemmPipeline = std::conditional_t<
-                Pipeline == (PipelineType::Memory),
+                Config::Pipeline_ == (PipelineType::Memory),
                 ck_tile::GemmPipelineAgBgCrMem<UniversalGemmProblem>,
-                std::conditional_t<Pipeline == (PipelineType::CompV3),
+                std::conditional_t<Config::Pipeline_ == (PipelineType::CompV3),
                                    ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>,
                                    ck_tile::GemmPipelineAgBgCrCompV4<UniversalGemmProblem>>>;
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
@@ -175,14 +169,14 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
                                                  EDataType,
                                                  DsLayout,
                                                  ELayout,
-                                                 ck_tile::element_wise::PassThrough,
+                                                 MultiplyMultiply,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
-                                                 M_Warp,
-                                                 N_Warp,
-                                                 M_Warp_Tile,
-                                                 N_Warp_Tile,
-                                                 K_Warp_Tile,
+                                                 Config::M_Warp_,
+                                                 Config::N_Warp_,
+                                                 Config::M_Warp_Tile_,
+                                                 Config::N_Warp_Tile_,
+                                                 Config::K_Warp_Tile_,
                                                  UniversalGemmProblem::TransposeC,
                                                  memory_operation>>;
             using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
@@ -207,7 +201,7 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
 
             ave_time = ck_tile::launch_kernel(
                 s,
-                ck_tile::make_kernel<kBlockPerCu>(
+                ck_tile::make_kernel<Config::BlockPerCu_>(
                     Kernel{},
                     grids,
                     blocks,
@@ -317,8 +311,8 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
             stride_As[i] = f_get_default_stride(M, K, stride_As[i], ALayout{});
             stride_Bs[i] = f_get_default_stride(K, N, stride_Bs[i], BLayout{});
             stride_Es[i] = f_get_default_stride(M, N, stride_Es[i], ELayout{});
-            stride_D0[i] = f_get_default_stride(M, N, stride_D0[i], DsLayout{});
-            stride_D1[i] = f_get_default_stride(M, N, stride_D1[i], DsLayout{});
+            stride_D0[i] = f_get_default_stride(M, N, stride_D0[i], D0Layout{});
+            stride_D1[i] = f_get_default_stride(M, N, stride_D1[i], D1Layout{});
 
             a_m_k_tensors.push_back(ck_tile::HostTensor<ADataType>(
                 f_host_tensor_descriptor(M, K, stride_As[i], ALayout{})));
@@ -327,9 +321,9 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
             e_m_n_tensors.push_back(ck_tile::HostTensor<EDataType>(
                 f_host_tensor_descriptor(M, N, stride_Es[i], ELayout{})));
             d0_m_n_tensors.push_back(ck_tile::HostTensor<D0DataType>(
-                f_host_tensor_descriptor(M, N, stride_D0[i], DsLayout{})));
+                f_host_tensor_descriptor(M, N, stride_D0[i], D0Layout{})));
             d1_m_n_tensors.push_back(ck_tile::HostTensor<D1DataType>(
-                f_host_tensor_descriptor(M, N, stride_D1[i], DsLayout{})));
+                f_host_tensor_descriptor(M, N, stride_D1[i], D1Layout{})));
 
             std::cout << "gemm[" << i << "]" << " a_m_k: " << a_m_k_tensors[i].mDesc
                       << " b_k_n: " << b_k_n_tensors[i].mDesc
@@ -339,7 +333,7 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
 
             ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensors[i]);
             ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
-            ck_tile::FillUniformDistribution<D0DataType>{-1.f, 1.f}(d0_m_n_tensors[i]);
+            ck_tile::FillUniformDistribution<D0DataType>{-2.f, 2.f}(d0_m_n_tensors[i]);
             ck_tile::FillUniformDistribution<D1DataType>{-1.f, 1.f}(d1_m_n_tensors[i]);
 
             a_m_k_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
@@ -395,24 +389,42 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
             e_m_n_dev_buf[i]->FromDevice(e_m_n_tensors[i].data());
         }
 
+        std::vector<ck_tile::HostTensor<EDataType>> e_m_n_host_refs;
+        e_m_n_host_refs.reserve(group_count);
+
         bool pass{true};
         for(int i = 0; i < group_count; ++i)
         {
-            ck_tile::HostTensor<EDataType> e_m_n_host_ref(
-                f_host_tensor_descriptor(Ms[i], Ns[i], stride_Es[i], ELayout{}));
-            e_m_n_host_ref.SetZero();
-            ck_tile::reference_gemm<ADataType, BDataType, AccDataType, EDataType>(
-                a_m_k_tensors[i], b_k_n_tensors[i], e_m_n_host_ref);
+            e_m_n_host_refs.push_back(ck_tile::HostTensor<EDataType>(
+                f_host_tensor_descriptor(Ms[i], Ns[i], stride_Es[i], ELayout{})));
+
+            e_m_n_host_refs[i].SetZero();
+
+            ck_tile::reference_gemm_multiple_d<ADataType,
+                                               BDataType,
+                                               DsDataType,
+                                               AccDataType,
+                                               EDataType,
+                                               MultiplyMultiply>(
+                a_m_k_tensors[i],
+                b_k_n_tensors[i],
+                {d0_m_n_tensors[i], d1_m_n_tensors[i]},
+                e_m_n_host_refs[i]);
             const float max_accumulated_value =
-                *std::max_element(e_m_n_host_ref.mData.begin(), e_m_n_host_ref.mData.end());
-            const auto rtol_atol =
-                calculate_rtol_atol<ADataType, BDataType, AccDataType, EDataType>(
-                    Ks[i], kbatch, max_accumulated_value);
-            pass &= ck_tile::check_err(e_m_n_tensors[i],
-                                       e_m_n_host_ref,
-                                       "Error: Incorrect results!",
-                                       rtol_atol.at(ck_tile::number<0>{}),
-                                       rtol_atol.at(ck_tile::number<1>{}));
+                *std::max_element(e_m_n_host_refs[i].mData.begin(), e_m_n_host_refs[i].mData.end());
+
+            const auto rtol_atol = calculate_rtol_atol(Ks[i], 1, max_accumulated_value);
+
+            pass &=
+                ck_tile::check_err(e_m_n_tensors[i],
+                                   e_m_n_host_refs[i],
+                                   "Error: Incorrect results! in group [" + std::to_string(i) + "]",
+                                   rtol_atol.at(ck_tile::number<0>{}),
+                                   rtol_atol.at(ck_tile::number<1>{}));
+
+            std::cout << "Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
+                      << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
+                      << std::endl;
         }
         EXPECT_TRUE(pass);
     }

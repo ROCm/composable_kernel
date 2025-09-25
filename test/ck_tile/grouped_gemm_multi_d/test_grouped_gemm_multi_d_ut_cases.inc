@@ -2,7 +2,7 @@
 
 TYPED_TEST(TestCkTileGroupedGemmMultiD, K256)
 {
-    const int group_count = 4;
+    const int group_count = 7;
     const int kbatch      = 1;
     std::vector<int> Ms;
     std::vector<int> Ns;
@@ -75,18 +75,9 @@ TYPED_TEST(TestCkTileGroupedGemmMultiD, LargeMNK_8Groups)
 
     for(int i = 0; i < group_count; i++)
     {
-        Ms.push_back(
-            512 +
-            256 *
-                i); // Start at 512, increment by 256: 512, 768, 1024, 1280, 1536, 1792, 2048, 2304
-        Ns.push_back(
-            512 +
-            256 *
-                i); // Start at 512, increment by 256: 512, 768, 1024, 1280, 1536, 1792, 2048, 2304
-        Ks.push_back(
-            768 +
-            256 *
-                i); // Start at 768, increment by 256: 768, 1024, 1280, 1536, 1792, 2048, 2304, 2560
+        Ms.push_back(512 + 256 * i);
+        Ns.push_back(512 + 256 * i);
+        Ks.push_back(768 + 256 * i);
 
         stride_As.push_back(Ks[i]);
         stride_Bs.push_back(Ks[i]);
