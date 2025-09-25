@@ -11,7 +11,7 @@ from typing import List, Optional, Tuple
 
 from codegen.cmake_config import *
 from codegen.cpp_symbol_map import *
-from codegen.utils import update_file
+from codegen.utils import *
 
 
 DTYPE_BITS = {

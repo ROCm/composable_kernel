@@ -3,17 +3,16 @@
 # generate kernel instances to speed up compilation
 
 import copy
-import dataclasses
 import fnmatch
 import itertools
 from collections import OrderedDict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
 from codegen.cmake_config import *
 from codegen.cpp_symbol_map import *
-from codegen.utils import update_file, indent, if_, group_kernels_by_filename
+from codegen.utils import *
 
 from codegen.ops.fmha_fwd import (
     FmhaFwdTileSize,
@@ -467,25 +466,7 @@ class FmhaFwdSplitKVApiPool:
     def register_traits(self, trait : FmhaFwdSplitKVApiTrait) -> None:
         hdim = trait.hdim
         ts = self.pool.setdefault(trait.arch, OrderedDict()).setdefault(trait.dtype, OrderedDict()).setdefault(hdim, [])
-        fields = [f.name for f in dataclasses.fields(FmhaFwdSplitKVApiTrait)]
-        pad_fields = [f for f in fields if f.endswith('pad')]
-        non_pad_fields = [f for f in fields if not f.endswith('pad')]
-        for prev_trait in ts:
-            if any(getattr(trait, f) != getattr(prev_trait, f) for f in non_pad_fields):
-                continue
-            if all(getattr(trait, f) == getattr(prev_trait, f) for f in pad_fields):
-                raise Exception(f'Duplicate found {trait}')
-            # Check if the previous kernel can be incorrectly used before the current one
-            # for example, f, _t_, f, t cannot be before f, _f_, f, t
-            is_prev_more_restrictive = False
-            is_curr_more_restrictive = False
-            for f in pad_fields:
-                if getattr(prev_trait, f) == 't' and getattr(trait, f) == 'f':
-                    is_prev_more_restrictive = True
-                elif getattr(prev_trait, f) == 'f' and getattr(trait, f) == 't':
-                    is_curr_more_restrictive = True
-            if is_prev_more_restrictive and not is_curr_more_restrictive:
-                raise Exception(f'Kernel will never be used because paddings are not ordered correctly: {prev_trait} supersedes {trait}')
+        check_duplicates_and_paddings(ts, trait)
         ts.append(copy.copy(trait))
 
     @property

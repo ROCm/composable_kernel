@@ -3,18 +3,18 @@
 # generate kernel instances to speed up compilation
 
 import copy
-import dataclasses
 import fnmatch
 import itertools
 import os
 from collections import OrderedDict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Tuple, Dict, Literal, Any
 
 from codegen.cmake_config import *
 from codegen.cpp_symbol_map import *
-from codegen.utils import update_file, indent, if_, group_kernels_by_filename
+from codegen.utils import *
+
 
 FMHA_BWD_KERNEL_HEADER = """// SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.\n
@@ -782,25 +782,7 @@ class FmhaBwdApiPool:
     def register_dq_dk_dv_traits(self, trait: FmhaBwdApiTrait) -> None:
         hdim = trait.hdim
         ts = self.dq_dk_dv_pool.setdefault(trait.arch, OrderedDict()).setdefault(trait.dtype, OrderedDict()).setdefault(hdim, [])
-        fields = [f.name for f in dataclasses.fields(FmhaBwdApiTrait)]
-        pad_fields = [f for f in fields if 'pad' in f]
-        non_pad_fields = [f for f in fields if 'pad' not in f]
-        for prev_trait in ts:
-            if any(getattr(trait, f) != getattr(prev_trait, f) for f in non_pad_fields):
-                continue
-            if all(getattr(trait, f) == getattr(prev_trait, f) for f in pad_fields):
-                raise Exception(f'Duplicate found {trait}')
-            # Check if the previous kernel can be incorrectly used before the current one
-            # for example, f, _t_, f, t cannot be before f, _f_, f, t
-            is_prev_more_restrictive = False
-            is_curr_more_restrictive = False
-            for f in pad_fields:
-                if getattr(prev_trait, f) == 't' and getattr(trait, f) == 'f':
-                    is_prev_more_restrictive = True
-                elif getattr(prev_trait, f) == 'f' and getattr(trait, f) == 't':
-                    is_curr_more_restrictive = True
-            if is_prev_more_restrictive and not is_curr_more_restrictive:
-                raise Exception(f'Kernel will never be used because paddings are not ordered correctly: {prev_trait} supersedes {trait}')
+        check_duplicates_and_paddings(ts, trait)
         ts.append(copy.copy(trait))
 
     def _api_inners(self, traits: List[FmhaBwdApiTrait]) -> str:
