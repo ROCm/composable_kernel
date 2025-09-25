@@ -78,21 +78,16 @@ struct is_quantpreshuffle_enabled<T, decltype(T::PreshuffleQuant)>
     static constexpr bool value = T::PreshuffleQuant;
 };
 
-template <typename T>
-concept HasStaticPreshuffleB = requires {
-    { T::PreshuffleB } -> std::convertible_to<decltype(T::PreshuffleB)>;
-};
-
-template <typename T>
-struct is_preshuffle_enabled
+template <typename, typename = void>
+struct is_preshuffleB_enabled
 {
     static constexpr bool value = false;
 };
 
-template <HasStaticPreshuffleB T>
-struct is_preshuffle_enabled<T>
+template <typename T>
+struct is_preshuffleB_enabled<T, std::void_t<decltype(T::PreshuffleB)>>
 {
-    static constexpr auto value = T::PreshuffleB;
+    static constexpr bool value = T::PreshuffleB;
 };
 } // namespace detail
 
@@ -213,7 +208,7 @@ struct QuantGemmKernel
     static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
     static constexpr bool PreshuffleQuant =
         detail::is_quantpreshuffle_enabled<GemmPipeline_>::value;
-    static constexpr bool PreshuffleB = detail::is_preshuffle_enabled<GemmPipeline_>::value;
+    static constexpr bool PreshuffleB = detail::is_preshuffleB_enabled<GemmPipeline_>::value;
 
     using ADataType   = remove_cvref_t<typename GemmPipeline::ADataType>;
     using BDataType   = remove_cvref_t<typename GemmPipeline::BDataType>;
