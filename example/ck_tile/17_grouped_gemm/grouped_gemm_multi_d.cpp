@@ -14,7 +14,7 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/host.hpp"
-#include "grouped_gemm.hpp"
+#include "grouped_gemm_multi_d.hpp"
 
 template <typename GemmConfig,
           typename ADataType,
