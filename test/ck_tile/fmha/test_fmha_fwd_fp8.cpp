@@ -26,7 +26,7 @@ const auto AppendKVHDimValues = Values(std::tuple{64, -1}, std::tuple{128, -1});
 // There are no fp8 instances with seqlen padding (mode_enum::group requires it)
 const auto ModeValues = Values(mode_enum::batch);
 
-const auto IsVRowmajorValues = Values(false);
+const auto IsVRowmajorValues = Values(true);
 
 const auto squant             = true;
 const std::string init_method = "uf";
