@@ -529,7 +529,6 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                         // gemm
                         block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
                         HotLoopScheduler();
-                        __builtin_amdgcn_sched_barrier(0);
                     }
                     // pong
                     {
@@ -572,7 +571,6 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                         // gemm
                         block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
                         HotLoopScheduler();
-                        __builtin_amdgcn_sched_barrier(0);
                     }
                     iCounter -= 2;
                 } while(iCounter > 1);
