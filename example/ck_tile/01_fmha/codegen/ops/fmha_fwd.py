@@ -632,10 +632,6 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
                     if pipeline.F_spad != 't' or pipeline.F_skpad != 't':
                         # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
                         continue
-                if (hdim, hdim_v) == (192, 128):
-                    # NOTE: this is used to speedup deepseek prefill case, we don't gen training
-                    if pipeline.F_bias != 'no' or pipeline.F_dropout == 't':
-                        continue
                 if pipeline.tag != 'qr_async_trload' and (((hdim, hdim_v) == (128, 128) and tile.F_bn0 != 128) or ((hdim, hdim_v) != (128, 128) and tile.F_bm0 != 128)):
                     # non qr_async_trload only support km0=128 tile size when hdim is not 128
                     # non qr_async only support kn0=128 tile size when hdim is 128
