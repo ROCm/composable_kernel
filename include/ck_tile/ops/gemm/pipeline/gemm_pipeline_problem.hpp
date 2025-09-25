@@ -100,7 +100,7 @@ struct GemmPipelineProblemBase
     {
         constexpr index_t PackedSize =
             ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
-        if constexpr(std::is_same_v<AsLayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
+        if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
         {
             constexpr index_t pixels_per_thread =
                 BlockGemmShape::kM * BlockGemmShape::kK / kBlockSize;
@@ -118,7 +118,7 @@ struct GemmPipelineProblemBase
     {
         constexpr index_t PackedSize =
             ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
-        if constexpr(std::is_same_v<BsLayout, ck_tile::tensor_layout::gemm::RowMajor>)
+        if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
             constexpr index_t pixels_per_thread =
                 BlockGemmShape::kN * BlockGemmShape::kK / kBlockSize;
