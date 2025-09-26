@@ -31,7 +31,8 @@ template <BlockGemmPipelineScheduler BlkGemmPipelineVer,
           index_t NPerWmma,
           index_t MRepeat,
           index_t NRepeat,
-          index_t KPack>
+          index_t KPack,
+          bool TransposeC = false>
 struct BlockwiseGemmWmmaops_pipeline_v1
 {
 };
@@ -53,7 +54,8 @@ template <index_t BlockSize,
           index_t NPerWmma,
           index_t MRepeat,
           index_t NRepeat,
-          index_t KPack>
+          index_t KPack,
+          bool TransposeC>
 struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                         BlockSize,
                                         ADataType,
@@ -72,7 +74,8 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                         NPerWmma,
                                         MRepeat,
                                         NRepeat,
-                                        KPack>
+                                        KPack,
+                                        TransposeC>
     : BlockwiseGemmWmmaops_pipeline_base<BlockSize,
                                          ADataType,
                                          BDataType,
@@ -90,8 +93,8 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                          NPerWmma,
                                          MRepeat,
                                          NRepeat,
-                                         KPack>
-
+                                         KPack,
+                                         TransposeC>
 {
     using Base = BlockwiseGemmWmmaops_pipeline_base<BlockSize,
                                                     ADataType,
@@ -110,7 +113,8 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
                                                     NPerWmma,
                                                     MRepeat,
                                                     NRepeat,
-                                                    KPack>;
+                                                    KPack,
+                                                    TransposeC>;
     using Base::I0;
 
     using Base::A_K1;
@@ -329,7 +333,8 @@ template <index_t BlockSize,
           index_t NPerWmma,
           index_t MRepeat,
           index_t NRepeat,
-          index_t KPack>
+          index_t KPack,
+          bool TransposeC>
 struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                         BlockSize,
                                         ADataType,
@@ -348,7 +353,8 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                         NPerWmma,
                                         MRepeat,
                                         NRepeat,
-                                        KPack>
+                                        KPack,
+                                        TransposeC>
     : BlockwiseGemmWmmaops_pipeline_base<BlockSize,
                                          ADataType,
                                          BDataType,
@@ -366,8 +372,8 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                          NPerWmma,
                                          MRepeat,
                                          NRepeat,
-                                         KPack>
-
+                                         KPack,
+                                         TransposeC>
 {
     using Base = BlockwiseGemmWmmaops_pipeline_base<BlockSize,
                                                     ADataType,
@@ -386,7 +392,8 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                                                     NPerWmma,
                                                     MRepeat,
                                                     NRepeat,
-                                                    KPack>;
+                                                    KPack,
+                                                    TransposeC>;
     using Base::I0;
     using Base::I1;
 

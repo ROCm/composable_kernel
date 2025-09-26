@@ -11,6 +11,7 @@ import subprocess
 import re
 from functools import lru_cache
 import logging
+from typing import Tuple, List
 
 # Element size mapping for different data types
 ELEMENT_SIZE_MAP = {
@@ -102,6 +103,36 @@ WARP_TILE_SUPPORTED_COMBINATIONS = {
             [32, 32, 64],
         ],
     },
+    "gfx1201": {
+        "fp16_fp16_fp16": [
+            [16, 16, 16],
+        ],
+    },    
+}
+
+# Supported warp tile combinations for different GPU architectures and data types
+WARP_SUPPORTED_COMBINATIONS = {
+    "gfx90a": [
+        [1, 4, 1], 
+        [2, 2, 1], 
+        [4, 1, 1],
+    ],
+    "gfx942": [
+        [1, 4, 1], 
+        [2, 2, 1], 
+        [4, 1, 1],
+    ],
+    "gfx950": [
+        [1, 4, 1], 
+        [2, 2, 1], 
+        [4, 1, 1],
+    ],
+    "gfx1201": [
+        [2, 4, 1], 
+        [1, 8, 1], 
+        [8, 1, 1], 
+        [4, 2, 1],
+    ],    
 }
 
 # Unsupported trait combinations
@@ -154,9 +185,32 @@ def is_trait_combination_valid(pipeline: str, epilogue: str, scheduler: str) -> 
     return (pipeline, epilogue, scheduler) not in TRAIT_UNSUPPORTED_COMBINATIONS
 
 
-def validate_warp_configuration(warp_m: int, warp_n: int, warp_k: int) -> bool:
+def validate_warp_configuration(
+    warp_m: int, 
+    warp_n: int, 
+    warp_k: int,
+    gpu_name: str = None,
+) -> bool:
     """Validate warp configuration."""
-    return (warp_m, warp_n, warp_k) in [(1, 4, 1), (2, 2, 1), (4, 1, 1)]
+    if gpu_name is None:
+        gpu_name = get_gpu_name_by_id(0)    
+
+    current_combination = [warp_m, warp_n, warp_k]
+
+    allowed_combinations = WARP_SUPPORTED_COMBINATIONS.get(gpu_name, {})
+    if not allowed_combinations:
+        # If GPU not recognized, try to be permissive but log warning
+        logging.warning(f"No warp_[m/n/k] combinations found for GPU: {gpu_name}")
+        return True
+
+    # Check if current combination is in the allowed list
+    if current_combination not in allowed_combinations:
+        error_msg = (
+            f"Invalid warp tile combination: {current_combination} not in allowed list. "
+        )
+        return False
+                
+    return True
 
 
 def validate_dimension_alignment(
@@ -169,7 +223,7 @@ def validate_dimension_alignment(
     warp_tile_m: int,
     warp_tile_n: int,
     warp_tile_k: int,
-) -> tuple[bool, list[str]]:
+) -> Tuple[bool, List[str]]:
     """Check if tile dimensions are properly aligned with warp dimensions."""
     alignment_issues = []
 
@@ -196,7 +250,7 @@ def validate_lds_capacity(
     a_datatype: str,
     b_datatype: str,
     pipeline: str,
-) -> tuple[bool, str]:
+) -> Tuple[bool, str]:
     """Validate LDS capacity requirements."""
     matrix_a_size = (tile_m * tile_k) * element_size(a_datatype)
     matrix_b_size = (tile_n * tile_k) * element_size(b_datatype)
@@ -224,7 +278,7 @@ def validate_warp_tile_combination(
     b_datatype: str,
     c_datatype: str,
     gpu_name: str = None,
-) -> tuple[bool, str]:
+) -> Tuple[bool, str]:
     """Validate warp tile combination against GPU-specific supported combinations."""
     if gpu_name is None:
         gpu_name = get_gpu_name_by_id(0)

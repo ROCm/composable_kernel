@@ -301,18 +301,22 @@ int main(int argc, char* argv[])
     }
     Tensor<A0DataType> a0_t_k(HostTensorDescriptor({tokens, K}, {K, 1}));
     Tensor<A1DataType> a1_t_k(HostTensorDescriptor(
-        {tokens, (K + Scale_Block_K - 1) / Scale_Block_K}, {Scale_Stride_AM, 1}));
-    Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
+        {tokens, (K + Scale_Block_K - 1) / Scale_Block_K}, {Scale_Stride_AM, 1}, Row{}));
+    Tensor<B0DataType> b0_e_n_k(
+        HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}, Col{}));
     Tensor<B1DataType> b1_e_n_k(
         HostTensorDescriptor({experts,
                               (K + Scale_Block_K - 1) / Scale_Block_K,
                               (N + Scale_Block_N - 1) / Scale_Block_N * 2},
-                             {(Scale_Stride_B * Scale_Stride_BN), 1, Scale_Stride_BN}));
-    Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
+                             {(Scale_Stride_B * Scale_Stride_BN), 1, Scale_Stride_BN},
+                             Col{}));
+    Tensor<B0DataType> b0_preshuffled(
+        HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}, Col{}));
     Tensor<D2DataType> d2_e_n(HostTensorDescriptor({sorted_size, N}, {1, 0}));
-    Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}));
+    Tensor<EDataType> e_t_n_host_result(
+        HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}, Row{}));
     Tensor<EDataType> e_t_n_device_result(
-        HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}));
+        HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}, Row{}));
     e_t_n_device_result.SetZero();
     std::cout << "a0_t_k: " << a0_t_k.mDesc << std::endl;
     std::cout << "a1_t_k: " << a1_t_k.mDesc << std::endl;
@@ -463,7 +467,7 @@ int main(int argc, char* argv[])
         Tensor<float> b_e_n_k({experts, K, N * 2});
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
 
-        Tensor<float> c_t_k_n({tokens, topk, N}, {topk * N, N, 1});
+        Tensor<float> c_t_k_n({tokens, topk, N}, {topk * N, N, 1}, Row{});
 
         // handle scale before ref.
         for(int t = 0; t < tokens; ++t)

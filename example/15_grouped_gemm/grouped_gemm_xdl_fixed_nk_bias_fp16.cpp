@@ -323,6 +323,31 @@ int main(int argc, char* argv[])
 
     problem_size.Ms = {0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0};
 
+    if(argc == 5)
+    {
+        config.do_verification = std::stoi(argv[1]);
+        config.init_method     = std::stoi(argv[2]);
+        config.time_kernel     = std::stoi(argv[3]);
+        config.k_batch         = std::stoi(argv[4]);
+    }
+    else if(argc == 6)
+    {
+        config.do_verification   = std::stoi(argv[1]);
+        config.init_method       = std::stoi(argv[2]);
+        config.time_kernel       = std::stoi(argv[3]);
+        config.k_batch           = std::stoi(argv[4]);
+        problem_size.group_count = std::stoi(argv[5]);
+    }
+    else
+    {
+        printf("arg1: verification (0=no, 1=yes)\n");
+        printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
+        printf("arg3: time kernel (0=n0, 1=yes)\n");
+        printf("arg4: k_batch (>0)\n");
+        printf("arg5: group count (default=16)");
+        exit(0);
+    }
+
     for(int i = 0; i < problem_size.group_count; i++)
     {
         problem_size.Ns.push_back(768);
@@ -331,22 +356,6 @@ int main(int argc, char* argv[])
         problem_size.stride_As.push_back(problem_size.Ks[i]);
         problem_size.stride_Bs.push_back(problem_size.Ns[i]);
         problem_size.stride_Cs.push_back(problem_size.Ns[i]);
-    }
-
-    if(argc == 5)
-    {
-        config.do_verification = std::stoi(argv[1]);
-        config.init_method     = std::stoi(argv[2]);
-        config.time_kernel     = std::stoi(argv[3]);
-        config.k_batch         = std::stoi(argv[4]);
-    }
-    else
-    {
-        printf("arg1: verification (0=no, 1=yes)\n");
-        printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
-        printf("arg3: time kernel (0=n0, 1=yes)\n");
-        printf("arg4: k_batch (>0)\n");
-        exit(0);
     }
 
     return !run_grouped_gemm(problem_size, config);

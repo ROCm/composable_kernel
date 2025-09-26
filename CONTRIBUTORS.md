@@ -22,6 +22,9 @@ Xiaoyan Zhou, 2020
 [Jianfeng Yan](https://github.com/j4yan), 2021-2022
 [Jun Liu](https://github.com/junliume), 2021-2024
 
+[John Shumway](https://github.com/shumway), [Vidyasagar Ananthan](https://github.com/vidyasagar-amd), [Christopher Millette](https://github.com/cgmillette), [Maksim Podkorytov](https://github.com/tenpercent), [Thomas Ning](https://github.com/ThomasNing),[Andriy Roshchenko](https://github.com/andriy-ca), [Aviral Goel](https://github.com/AviralGoelAMD), [Cong Ma](https://github.com/CongMa13),[Thrupti Raj Lakshmana Gowda](https://github.com/ThruptiRajLakshmanaGowda), [Emily Martins](https://github.com/ecamartins), [Khushbu Agarwal](https://github.com/amd-khushbu), [Sudhir Kylasa](https://github.com/kylasa), [Jia Luo](https://github.com/JiaLuo-CAN),  2025-
+
+
 ## Product Manager
 [John Afaganis](https://github.com/afagaj)
 
