@@ -13,7 +13,7 @@
 namespace ck_tile {
 
 #define MOE_SORTING_MOCK_ID(token_id_, topk_id_) \
-    static_cast<uint32_t>(((token_id_)&0x00ffffff) | (((topk_id_)&0xff) << 24))
+    static_cast<uint32_t>(((token_id_) & 0x00ffffff) | (((topk_id_) & 0xff) << 24))
 
 #ifndef MOE_SORTING_USE_EX_KERNEL
 #define MOE_SORTING_USE_EX_KERNEL 1
