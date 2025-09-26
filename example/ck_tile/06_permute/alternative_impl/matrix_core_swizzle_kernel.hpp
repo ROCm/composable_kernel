@@ -88,10 +88,9 @@ struct matrix_core_swizzle_kernel
     using karg = matrix_core_swizzle_host_args;
     using harg = matrix_core_swizzle_host_args;
 
-    static constexpr int BLOCK_SIZE      = BLOCK_SIZE_;
-    static constexpr int WavesPerBlock_N = 4;
-    static constexpr int WavesPerBlock_K = 1;
-    static_assert(WavesPerBlock_N * WavesPerBlock_K * 64 == BLOCK_SIZE);
+    static constexpr int BLOCK_SIZE                   = BLOCK_SIZE_;
+    static constexpr int WavesPerBlock_N              = BLOCK_SIZE / ck_tile::get_warp_size();
+    static constexpr int WavesPerBlock_K              = 1;
     static constexpr int NPerBlock                    = NPerBlock_;
     static constexpr int KPerBlock                    = KPerBlock_;
     static constexpr matrix_core_permute_style pstyle = pstyle_;

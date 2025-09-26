@@ -62,12 +62,12 @@ struct buffer_view<address_space_enum::generic,
     {
     }
 
-    CK_TILE_HOST_DEVICE constexpr buffer_view(T* p_data, BufferSizeType buffer_size)
+    CK_TILE_HOST_DEVICE constexpr buffer_view(T* __restrict__ p_data, BufferSizeType buffer_size)
         : p_data_{p_data}, buffer_size_{buffer_size}, invalid_element_value_{0}
     {
     }
 
-    CK_TILE_HOST_DEVICE constexpr buffer_view(T* p_data,
+    CK_TILE_HOST_DEVICE constexpr buffer_view(T* __restrict__ p_data,
                                               BufferSizeType buffer_size,
                                               T invalid_element_value)
         : p_data_{p_data}, buffer_size_{buffer_size}, invalid_element_value_{invalid_element_value}
@@ -243,7 +243,7 @@ struct buffer_view<address_space_enum::global,
     {
     }
 
-    CK_TILE_HOST_DEVICE constexpr buffer_view(T* p_data, BufferSizeType buffer_size)
+    CK_TILE_HOST_DEVICE constexpr buffer_view(T* __restrict__ p_data, BufferSizeType buffer_size)
         : p_data_{p_data},
           buffer_size_{buffer_size / PackedSize},
           cached_buf_res_{0},
@@ -251,7 +251,7 @@ struct buffer_view<address_space_enum::global,
     {
     }
 
-    CK_TILE_HOST_DEVICE constexpr buffer_view(T* p_data,
+    CK_TILE_HOST_DEVICE constexpr buffer_view(T* __restrict__ p_data,
                                               BufferSizeType buffer_size,
                                               T invalid_element_value)
         : p_data_{p_data},
@@ -762,12 +762,12 @@ struct buffer_view<address_space_enum::lds,
     {
     }
 
-    CK_TILE_HOST_DEVICE constexpr buffer_view(T* p_data, BufferSizeType buffer_size)
+    CK_TILE_HOST_DEVICE constexpr buffer_view(T* __restrict__ p_data, BufferSizeType buffer_size)
         : p_data_{p_data}, buffer_size_{buffer_size}, invalid_element_value_{0}
     {
     }
 
-    CK_TILE_HOST_DEVICE constexpr buffer_view(T* p_data,
+    CK_TILE_HOST_DEVICE constexpr buffer_view(T* __restrict__ p_data,
                                               BufferSizeType buffer_size,
                                               T invalid_element_value)
         : p_data_{p_data}, buffer_size_{buffer_size}, invalid_element_value_{invalid_element_value}
@@ -1121,12 +1121,12 @@ struct buffer_view<address_space_enum::vgpr,
     {
     }
 
-    CK_TILE_HOST_DEVICE constexpr buffer_view(T* p_data, BufferSizeType buffer_size)
+    CK_TILE_HOST_DEVICE constexpr buffer_view(T* __restrict__ p_data, BufferSizeType buffer_size)
         : p_data_{p_data}, buffer_size_{buffer_size}, invalid_element_value_{0}
     {
     }
 
-    CK_TILE_HOST_DEVICE constexpr buffer_view(T* p_data,
+    CK_TILE_HOST_DEVICE constexpr buffer_view(T* __restrict__ p_data,
                                               BufferSizeType buffer_size,
                                               T invalid_element_value)
         : p_data_{p_data}, buffer_size_{buffer_size}, invalid_element_value_{invalid_element_value}
@@ -1253,7 +1253,7 @@ template <address_space_enum BufferAddressSpace,
           amd_buffer_coherence_enum Coherence = amd_buffer_coherence_enum::coherence_default,
           typename T,
           typename BufferSizeType>
-CK_TILE_HOST_DEVICE constexpr auto make_buffer_view(T* p, BufferSizeType buffer_size)
+CK_TILE_HOST_DEVICE constexpr auto make_buffer_view(T* __restrict__ p, BufferSizeType buffer_size)
 {
     return buffer_view<BufferAddressSpace, T, BufferSizeType, true, Coherence>{p, buffer_size};
 }
@@ -1266,7 +1266,7 @@ template <address_space_enum BufferAddressSpace,
           typename std::enable_if<std::is_same<remove_cvref_t<T>, remove_cvref_t<X>>::value,
                                   bool>::type = false>
 CK_TILE_HOST_DEVICE constexpr auto
-make_buffer_view(T* p, BufferSizeType buffer_size, X invalid_element_value)
+make_buffer_view(T* __restrict__ p, BufferSizeType buffer_size, X invalid_element_value)
 {
     return buffer_view<BufferAddressSpace, T, BufferSizeType, false, Coherence>{
         p, buffer_size, invalid_element_value};

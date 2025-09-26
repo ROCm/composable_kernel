@@ -364,7 +364,13 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         using KDataType = remove_cvref_t<typename Problem::KDataType>;
         if constexpr(AsyncCopy)
         {
-            return 4 / sizeof(KDataType);
+#if defined(__gfx950__)
+            constexpr index_t MaxLoadSizeInBytes = 4 * 4; // dwordx4
+#else
+            constexpr index_t MaxLoadSizeInBytes = 4; // dword
+#endif
+
+            return MaxLoadSizeInBytes / sizeof(KDataType);
         }
         else
         {
@@ -807,7 +813,8 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
                 constexpr index_t N1_m = kNPack / N2;
                 constexpr index_t N0_m = kNPerBlock / kNPack;
                 constexpr index_t K1   = get_warp_size() / N1_m;
-                constexpr index_t K2_m = kKPerBlock / K1;
+                constexpr index_t K2_m = kKPerBlock / K1 / K0;
+
                 return make_static_tile_distribution(
                     tile_distribution_encoding<
                         sequence<1>,
@@ -897,7 +904,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             constexpr index_t N1_m = kNPack / N2;
             constexpr index_t N0_m = kNPerBlock / kNPack;
             constexpr index_t K1   = get_warp_size() / N1_m;
-            constexpr index_t K2_m = kKPerBlock / K1;
+            constexpr index_t K2_m = kKPerBlock / K1 / K0;
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<1>,
                                            tuple<sequence<N0_m, N1_m, N2>, sequence<K0, K1, K2_m>>,

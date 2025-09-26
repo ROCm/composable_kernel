@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 # generate kernel instances to speed up compilation
 
 import copy
@@ -189,8 +189,8 @@ class FmhaFwdApiTrait:
             if self.skpad == 't' : return f'a.seqlen_k == 0 || a.seqlen_k % {self.bn0} != 0'
             else :                 return f'a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0'
         elif self.pipeline_tag in ['qr_pagedkv', 'qs']:
-            if self.skpad == 't' : return f'true /*a.seqlen_k % {self.bn0} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
-            else :                return f'a.seqlen_k % {self.bn0} == 0'
+            if self.skpad == 't' : return f'true /*a.seqlen_k_ptr != nullptr || a.seqlen_k % {self.bn0} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
+            else :                return f'a.seqlen_k_ptr == nullptr && a.seqlen_k % {self.bn0} == 0'
         else: assert False
 
     @property
@@ -465,14 +465,14 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
         squant = 't' if dtype == 'fp8' else 'f'
         pipelines = []
         if dtype in ['fp16', 'bf16']:
-            for logits, mask, bias,  pagedkv, skip in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(),  ["t", "f"], ["t", "f"]):
-                pipelines.append(FmhaFwdPipeline('qr_pagedkv', 'col', 't', 'f', 'f', 'f', logits, bias, 'f',  pagedkv, squant, mask, skip))
-                pipelines.append(FmhaFwdPipeline('qr_pagedkv', 'col', 't', 't', 'f', 'f', logits, bias, 'f',  pagedkv, squant, mask, skip))
+            for logits, mask, bias,  pagedkv, skip in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(),  ["t"], ["f"]):
                 pipelines.append(FmhaFwdPipeline('qr_pagedkv', 'row', 't', 'f', 'f', 'f', logits, bias, 'f',  pagedkv, squant, mask, skip))
                 pipelines.append(FmhaFwdPipeline('qr_pagedkv', 'row', 't', 't', 'f', 'f', logits, bias, 'f',  pagedkv, squant, mask, skip))
         elif dtype in ['fp8', 'bf8']:
-            # TODO
-            None
+            # no need lse/dropout kernels
+            for logits, mask, bias in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()):
+                pipelines.append(FmhaFwdPipeline('qr_pagedkv', 'row', 'f', 'f', 'f', 'f', logits, bias, 'f', 't', squant, mask, 'f'))
+                pipelines.append(FmhaFwdPipeline('qr_pagedkv', 'row', 't', 't', 'f', 'f', logits, bias, 'f', 't', squant, mask, 'f'))
         elif dtype in ['fp8fp16', 'fp8bf16']:
             # TODO
             None

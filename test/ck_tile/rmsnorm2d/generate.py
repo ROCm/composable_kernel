@@ -74,54 +74,17 @@ struct rmsnorm2d_fwd_traits_
     using YScaleDataType      = ck_tile::remove_cvref_t<YScaleDataType_>;
     using UnquantYDataType    = ck_tile::remove_cvref_t<UnquantYDataType_>;
 
-    static constexpr bool is_warp_per_row = ThreadPerBlock_N_ <= ck_tile::get_warp_size();
-    static_assert((ThreadPerBlock_M_ * ThreadPerBlock_N_) % ck_tile::get_warp_size() == 0);
-    static constexpr ck_tile::index_t total_warps =
-        (ThreadPerBlock_M_ * ThreadPerBlock_N_) / ck_tile::get_warp_size();
-
-    // num of warps along m
-    static constexpr ck_tile::index_t BlockWarps_M = []() {
-        if constexpr(is_warp_per_row)
-        {
-            static_assert(ck_tile::get_warp_size() % ThreadPerBlock_N_ == 0);
-            return total_warps * (ck_tile::get_warp_size() / ThreadPerBlock_N_);
-        }
-        else
-        {
-            // static_assert(ck_tile::get_warp_size() % ThreadPerBlock_M_ == 0);
-            return total_warps / (ThreadPerBlock_N_ / ck_tile::get_warp_size());
-        }
-    }();
-
-    // num of warps along n
-    static constexpr ck_tile::index_t BlockWarps_N = []() {
-        if constexpr(is_warp_per_row)
-        {
-            static_assert(ck_tile::get_warp_size() % ThreadPerBlock_N_ == 0);
-            return 1;
-        }
-        else
-        {
-            static_assert(ThreadPerBlock_N_ % ck_tile::get_warp_size() == 0);
-            return ThreadPerBlock_N_ / ck_tile::get_warp_size();
-        }
-    }();
-
     static constexpr ck_tile::index_t Repeat_M = Repeat_M_;
     static constexpr ck_tile::index_t Repeat_N = Repeat_N_;
 
     static constexpr ck_tile::index_t Block_M = Repeat_M_ * ThreadPerBlock_M_;
     static constexpr ck_tile::index_t Block_N = Repeat_N_ * ThreadPerBlock_N_ * Vector_N_;
 
-    static constexpr ck_tile::index_t Warp_M = ThreadPerBlock_M_ / BlockWarps_M;
-    static constexpr ck_tile::index_t Warp_N = ThreadPerBlock_N_ / BlockWarps_N * Vector_N_;
-
     using BlockTile  = ck_tile::sequence<Block_M, Block_N>;
-    using BlockWarps = ck_tile::sequence<BlockWarps_M, BlockWarps_N>;
-    using WarpTile   = ck_tile::sequence<Warp_M, Warp_N>;
     using Vector     = ck_tile::sequence<1, Vector_N_>;
-
-    using Shape = ck_tile::Generic2dBlockShape<BlockTile, BlockWarps, WarpTile, Vector>;
+    using ThreadPerBlock = ck_tile::sequence<ThreadPerBlock_M_, ThreadPerBlock_N_>;
+    
+    using Shape = ck_tile::Generic2dBlockShape<BlockTile, ThreadPerBlock, Vector>;
 
     static constexpr bool kPadN        = kPadN_;
     static constexpr bool kSaveInvRms  = kSaveInvRms_;
@@ -238,7 +201,7 @@ float rmsnorm2d_fwd_(const S& s, A a)
     using Kernel = ck_tile::Rmsnorm2dFwd<Pipeline, Epilogue>;
 
     const dim3 grids                       = Kernel::GridSize(a);
-    constexpr dim3 blocks                  = Kernel::BlockSize();
+    const dim3 blocks                      = Kernel::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = 1;
 
     auto kargs = Kernel::MakeKargs(a);

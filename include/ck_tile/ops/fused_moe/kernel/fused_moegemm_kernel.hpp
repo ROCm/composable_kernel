@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -130,7 +130,7 @@ struct FusedMoeGemmKernel
     // static_assert(kBlockPerCu > 0);
 
     using BlockShape = typename Pipeline::BlockShape; // this is FusedMoeGemmShape
-    static constexpr index_t BlockSize_ = BlockShape::BlockSize;
+    static constexpr index_t kBlockSize = BlockShape::BlockSize;
 
     using ADataType            = typename Pipeline::Problem::ADataType;
     using GDataType            = typename Pipeline::Problem::GDataType;
@@ -231,7 +231,7 @@ struct FusedMoeGemmKernel
         return Partitioner::GridSize(max_num_tokens_padded, hargs.intermediate_size);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(BlockSize_); }
+    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return Pipeline::GetSmemSize(); }
 

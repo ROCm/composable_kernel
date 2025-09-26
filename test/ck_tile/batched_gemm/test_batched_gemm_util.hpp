@@ -27,21 +27,41 @@ class TestCkTileBatchedGemm : public ::testing::Test
     using DsLayout    = ck_tile::tuple<>;
     using DsDataType  = ck_tile::tuple<>;
 
-    template <typename ALayout, typename BLayout, typename CLayout>
+    struct GemmWarpConfig_Mfma
+    {
+        static constexpr ck_tile::index_t M_Tile      = 256;
+        static constexpr ck_tile::index_t N_Tile      = 256;
+        static constexpr ck_tile::index_t K_Tile      = 64;
+        static constexpr ck_tile::index_t M_Warp_Tile = 32;
+        static constexpr ck_tile::index_t N_Warp_Tile = 32;
+        static constexpr ck_tile::index_t K_Warp_Tile = 16;
+    };
+
+    struct GemmWarpConfig_Wmma
+    {
+        static constexpr ck_tile::index_t M_Tile      = 128;
+        static constexpr ck_tile::index_t N_Tile      = 128;
+        static constexpr ck_tile::index_t K_Tile      = 64;
+        static constexpr ck_tile::index_t M_Warp_Tile = 16;
+        static constexpr ck_tile::index_t N_Warp_Tile = 16;
+        static constexpr ck_tile::index_t K_Warp_Tile = 16;
+    };
+
+    template <typename GemmWarpConfig, typename ALayout, typename BLayout, typename CLayout>
     void invoke_batched_gemm(const ck_tile::BatchedGemmHostArgs& args,
                              const ck_tile::stream_config& s)
     {
-        constexpr ck_tile::index_t M_Tile = 256;
-        constexpr ck_tile::index_t N_Tile = 256;
-        constexpr ck_tile::index_t K_Tile = 64;
+        constexpr ck_tile::index_t M_Tile = GemmWarpConfig::M_Tile;
+        constexpr ck_tile::index_t N_Tile = GemmWarpConfig::N_Tile;
+        constexpr ck_tile::index_t K_Tile = GemmWarpConfig::K_Tile;
 
         constexpr ck_tile::index_t M_Warp = 2;
         constexpr ck_tile::index_t N_Warp = 2;
         constexpr ck_tile::index_t K_Warp = 1;
 
-        constexpr ck_tile::index_t M_Warp_Tile = 32;
-        constexpr ck_tile::index_t N_Warp_Tile = 32;
-        constexpr ck_tile::index_t K_Warp_Tile = 16;
+        constexpr ck_tile::index_t M_Warp_Tile = GemmWarpConfig::M_Warp_Tile;
+        constexpr ck_tile::index_t N_Warp_Tile = GemmWarpConfig::N_Warp_Tile;
+        constexpr ck_tile::index_t K_Warp_Tile = GemmWarpConfig::K_Warp_Tile;
 
         constexpr bool DoubleSmemBuffer = false;
 
@@ -255,9 +275,13 @@ class TestCkTileBatchedGemm : public ::testing::Test
                                           BatchStrideB,
                                           BatchStrideC,
                                           BatchCount};
-
-        invoke_batched_gemm<ALayout, BLayout, CLayout>(args,
-                                                       ck_tile::stream_config{nullptr, false});
+#if CK_TILE_USE_WMMA
+        invoke_batched_gemm<GemmWarpConfig_Wmma, ALayout, BLayout, CLayout>(
+            args, ck_tile::stream_config{nullptr, false});
+#else
+        invoke_batched_gemm<GemmWarpConfig_Mfma, ALayout, BLayout, CLayout>(
+            args, ck_tile::stream_config{nullptr, false});
+#endif
 
         std::cout << "Run kernel with M =" << M << " N =" << N << " K =" << K
                   << " StrideA =" << StrideA << " StrideB =" << StrideB << " StrideC =" << StrideC

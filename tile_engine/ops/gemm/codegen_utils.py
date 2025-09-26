@@ -31,9 +31,14 @@ DEFAULT_EPILOGUE = """
             using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
                                 ck_tile::DefaultGemm2DEpilogueProblem<ADataType,
                                                                       BDataType,
+                                                                      ck_tile::tuple<>,
                                                                       AccDataType,
                                                                       CDataType,
+                                                                      ck_tile::tuple<>,
                                                                       CLayout,
+                                                                      ck_tile::element_wise::PassThrough,
+                                                                      TilePartitioner::MPerBlock,
+                                                                      TilePartitioner::NPerBlock,
                                                                       kPadM,
                                                                       kPadN,
                                                                       WarpTileM,
@@ -164,6 +169,19 @@ warp_tile_supported_combinations = {
             [16, 16, 32],
             [16, 16, 128],
             [32, 32, 64],
+        ],
+        "fp8_bf8_fp16":  [
+            [16, 16, 128],
+            [32, 32, 64],
+        ],
+        "bf8_fp8_fp16":  [
+            [16, 16, 128],
+            [32, 32, 64],
+        ],
+    },
+    "gfx1201": {
+        "fp16_fp16_fp16": [
+            [16, 16, 16],
         ],
     },
 }
