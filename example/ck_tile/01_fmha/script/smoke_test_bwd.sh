@@ -61,7 +61,7 @@ done
 done
 
 # additional cases
-for hdim in 72 96 ; do
+for hdim in 40 48 72 96 ; do
 test_h_s_mask -prec=fp16 -d=$hdim -bias=a -dbias=0 -p_drop=0.2 -iperm=0 -operm=0 -deterministic=0 -v=1 -mode=1 -kname=$KNAME $COMMON_ARGS
 test_h_s_mask -prec=bf16 -d=$hdim -bias=n -dbias=0 -p_drop=0   -iperm=1 -operm=1 -deterministic=0 -v=1 -mode=1 -kname=$KNAME $COMMON_ARGS
 test_h_s_mask -prec=bf16 -d=$hdim -bias=a -dbias=0 -p_drop=0.2 -iperm=1 -operm=1 -deterministic=0 -v=1 -mode=1 -kname=$KNAME $COMMON_ARGS
