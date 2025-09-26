@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/config.h"
+#include <stdint.h>
 
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 #ifndef CK_DONT_USE_HIP_RUNTIME_HEADERS
