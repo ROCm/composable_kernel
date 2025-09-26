@@ -95,10 +95,23 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
     using Base             = BaseGemmPipelineAgBgCrCompAsync<Problem>;
     using PipelineImplBase = GemmPipelineAgBgCrImplBase<Problem, Policy>;
 
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
+    using AsDataType     = remove_cvref_t<typename Problem::AsDataTypeTuple>;
+    using BsDataType     = remove_cvref_t<typename Problem::BsDataTypeTuple>;
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
+
+    using AsLayout = remove_cvref_t<typename Problem::AsLayoutTuple>;
+    using BsLayout = remove_cvref_t<typename Problem::BsLayoutTuple>;
+    using CLayout  = remove_cvref_t<typename Problem::CLayout>;
+
+    using AElementWise = remove_cvref_t<typename Problem::AElementWise>;
+    using BElementWise = remove_cvref_t<typename Problem::BElementWise>;
+
+    using ALayout = remove_cvref_t<std::tuple_element_t<0, AsLayout>>;
+    using BLayout = remove_cvref_t<std::tuple_element_t<0, BsLayout>>;
+
+    using ADataType = remove_cvref_t<std::tuple_element_t<0, AsDataType>>;
+    using BDataType = remove_cvref_t<std::tuple_element_t<0, BsDataType>>;
 
     static_assert(!std::is_same_v<BDataType, pk_int4_t>, "Not implemented");
 
@@ -106,10 +119,6 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
         ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
     static constexpr index_t BPackedSize =
         ck_tile::numeric_traits<remove_cvref_t<BDataType>>::PackedSize;
-
-    using ALayout = remove_cvref_t<typename Problem::ALayout>;
-    using BLayout = remove_cvref_t<typename Problem::BLayout>;
-    using CLayout = remove_cvref_t<typename Problem::CLayout>;
 
     using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
     using I0        = number<0>;
@@ -230,18 +239,25 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
 
         template <bool HasHotLoop,
                   TailNumber TailNum,
-                  typename ADramBlockWindowTmp,
-                  typename BDramBlockWindowTmp,
+                  typename AsDramBlockWindowTmp,
+                  typename BsDramBlockWindowTmp,
                   typename AElementFunction,
-                  typename BElementFunction>
-        CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                  typename BElementFunction,
+                  typename std::enable_if_t<is_detected<is_tuple, AsDramBlockWindowTmp>::value &&
+                                                is_detected<is_tuple, BsDramBlockWindowTmp>::value,
+                                            bool>* = nullptr>
+        CK_TILE_DEVICE auto operator()(const AsDramBlockWindowTmp& a_dram_block_window_tmp,
                                        const AElementFunction& a_element_func,
-                                       const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                       const BsDramBlockWindowTmp& b_dram_block_window_tmp,
                                        const BElementFunction& b_element_func,
                                        index_t num_loop,
                                        void* __restrict__ p_smem_0,
                                        void* __restrict__ p_smem_1) const
         {
+            using ADramBlockWindowTmp =
+                remove_cvref_t<std::tuple_element_t<number<0>{}, AsDramBlockWindowTmp>>;
+            using BDramBlockWindowTmp =
+                remove_cvref_t<std::tuple_element_t<number<0>{}, BsDramBlockWindowTmp>>;
             ignore = a_element_func;
             ignore = b_element_func;
             static_assert(
@@ -274,18 +290,25 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
 
             ////////////// global window & register /////////////////
             // A DRAM tile window for load
-            auto a_copy_dram_window =
-                make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
-                                 make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
-                                 a_dram_block_window_tmp.get_window_origin(),
-                                 Policy::template MakeADramTileDistribution<Problem>());
-
-            // B DRAM tile window for load
-            auto b_copy_dram_window =
-                make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
-                                 make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
-                                 b_dram_block_window_tmp.get_window_origin(),
-                                 Policy::template MakeBDramTileDistribution<Problem>());
+            auto a_tile_windows = generate_tuple(
+                [&](auto idx) {
+                    return make_tile_window(
+                        a_dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view(),
+                        make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
+                        a_dram_block_window_tmp[number<idx>{}].get_window_origin(),
+                        Policy::template MakeADramTileDistribution<Problem>());
+                },
+                number<AsLayout::size()>{});
+            
+            auto b_tile_windows = generate_tuple(
+                [&](auto idx) {
+                    return make_tile_window(
+                        b_dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view(),
+                        make_tuple(number<NPerBlock>{}, number<KPerBlock>{}),
+                        b_dram_block_window_tmp[number<idx>{}].get_window_origin(),
+                        Policy::template MakeBDramTileDistribution<Problem>());
+                },
+                number<AsLayout::size()>{});
 
             auto&& [a_lds_block0, b_lds_block0] = Base::GetABLdsTensorViews(p_smem_0);
             auto&& [a_lds_block1, b_lds_block1] = Base::GetABLdsTensorViews(p_smem_1);
@@ -311,16 +334,16 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                 is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
 
             // the below is used for async cnt calculation
-            using ACopyDramWindow             = remove_cvref_t<decltype(a_copy_dram_window)>;
-            using BCopyDramWindow             = remove_cvref_t<decltype(b_copy_dram_window)>;
+            using ACopyDramWindow             = remove_cvref_t<decltype(a_tile_windows[number<0>{}])>;
+            using BCopyDramWindow             = remove_cvref_t<decltype(b_tile_windows[number<0>{}])>;
             constexpr auto a_number_of_access = ACopyDramWindow{}.get_num_of_access();
             constexpr auto b_number_of_access = BCopyDramWindow{}.get_num_of_access();
             // global prefetch 0
             // global read 0
             Base::GlobalPrefetchAsync(
-                a_copy_lds_window0, a_copy_dram_window, a_dram_tile_window_step);
+                a_copy_lds_window0, a_tile_windows[number<0>{}], a_dram_tile_window_step);
             Base::GlobalPrefetchAsync(
-                b_copy_lds_window0, b_copy_dram_window, b_dram_tile_window_step);
+                b_copy_lds_window0, b_tile_windows[number<0>{}], b_dram_tile_window_step);
             ////////////// LDS desc, window & register /////////////////
 
             // Block GEMM
@@ -332,9 +355,9 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
 
             // global read 1
             Base::GlobalPrefetchAsync(
-                a_copy_lds_window1, a_copy_dram_window, a_dram_tile_window_step);
+                a_copy_lds_window1, a_tile_windows[number<0>{}], a_dram_tile_window_step);
             Base::GlobalPrefetchAsync(
-                b_copy_lds_window1, b_copy_dram_window, b_dram_tile_window_step);
+                b_copy_lds_window1, b_tile_windows[number<0>{}], b_dram_tile_window_step);
 
             constexpr auto ALdsTileDistr = decltype(make_static_tile_distribution(
                 BlockGemm::MakeABlockDistributionEncode())){};
@@ -384,9 +407,9 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
 
             block_sync_lds();
             Base::GlobalPrefetchAsync(
-                a_copy_lds_window0, a_copy_dram_window, a_dram_tile_window_step);
+                a_copy_lds_window0, a_tile_windows[number<0>{}], a_dram_tile_window_step);
             Base::GlobalPrefetchAsync(
-                b_copy_lds_window0, b_copy_dram_window, b_dram_tile_window_step);
+                b_copy_lds_window0, b_tile_windows[number<0>{}], b_dram_tile_window_step);
 
             if(HasHotLoop)
             {
@@ -401,9 +424,9 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                         Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1);
                         block_sync_lds();
                         Base::GlobalPrefetchAsync(
-                            a_copy_lds_window1, a_copy_dram_window, a_dram_tile_window_step);
+                            a_copy_lds_window1, a_tile_windows[number<0>{}], a_dram_tile_window_step);
                         Base::GlobalPrefetchAsync(
-                            b_copy_lds_window1, b_copy_dram_window, b_dram_tile_window_step);
+                            b_copy_lds_window1, b_tile_windows[number<0>{}], b_dram_tile_window_step);
                         // gemm
                         block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
                         HotLoopScheduler();
@@ -416,9 +439,9 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                         Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0);
                         block_sync_lds();
                         Base::GlobalPrefetchAsync(
-                            a_copy_lds_window0, a_copy_dram_window, a_dram_tile_window_step);
+                            a_copy_lds_window0, a_tile_windows[number<0>{}], a_dram_tile_window_step);
                         Base::GlobalPrefetchAsync(
-                            b_copy_lds_window0, b_copy_dram_window, b_dram_tile_window_step);
+                            b_copy_lds_window0, b_tile_windows[number<0>{}], b_dram_tile_window_step);
                         // gemm
                         block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
                         HotLoopScheduler();
