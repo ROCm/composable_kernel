@@ -9,28 +9,9 @@
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 #include <optional>
+#include <type_traits>
 
 namespace ck_tile {
-
-template <typename T>
-concept HasDataType = requires
-{
-    typename T::DataType;
-};
-
-template <typename T>
-struct GetDataType
-{
-    using type = float;
-};
-
-template <typename T>
-requires HasDataType<T>
-struct GetDataType<T>
-{
-    using type = typename T::DataType; // Use T::ScaleN::DataType
-};
-
 template <typename AsDataType_,
           typename BsDataType_,
           typename DsDataType_,
@@ -305,7 +286,7 @@ struct CShuffleEpilogue
         return MPerIterationShuffle * NPerIterationShuffle * sizeof(ODataType);
     }
 
-    template <auto iAccess, typename LdsTile, typename ScaleM, typename ScaleN>
+    template <index_t iAccess, typename LdsTile, typename ScaleM, typename ScaleN>
     CK_TILE_DEVICE void
     scale_tile(LdsTile& lds_tile, ScaleM& scale_m_window, ScaleN& scale_n_window)
     {
@@ -339,7 +320,7 @@ struct CShuffleEpilogue
             constexpr index_t num_access = SFC::get_num_of_access();
             if constexpr(iAccess != num_access - 1)
             {
-                constexpr auto step = SFC::get_forward_step(iAccess);
+                constexpr auto step = SFC::get_forward_step(number<iAccess>{});
 
                 move_tile_window(scale_m_window, {step.at(number<0>{}), step.at(number<1>{})});
                 move_tile_window(scale_n_window, {step.at(number<0>{}), step.at(number<1>{})});
@@ -347,10 +328,10 @@ struct CShuffleEpilogue
         }
     }
 
-    template <auto iAccess, typename OAccTile, typename LdsTile>
+    template <index_t iAccess, typename OAccTile, typename LdsTile>
     CK_TILE_DEVICE void slice_acc_tile(const OAccTile& o_acc_tile, LdsTile& lds_tile)
     {
-        constexpr auto idx_y_start = SFC::get_index(iAccess);
+        constexpr auto idx_y_start = SFC::get_index(number<iAccess>{});
 
         constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (MPerIterationShuffle)>{};
         constexpr auto nIter = number<idx_y_start.at(number<1>{}) / (NPerIterationShuffle)>{};
@@ -405,13 +386,13 @@ struct CShuffleEpilogue
     /**
      * @brief Move both the output and D tensors windows for the next access.
      */
-    template <auto iAccess, typename OutDramWindow, typename DDramWindows>
+    template <index_t iAccess, typename OutDramWindow, typename DDramWindows>
     CK_TILE_DEVICE void move_windows(OutDramWindow& out_dram_window, DDramWindows& d_dram_windows)
     {
         constexpr index_t num_access = SFC::get_num_of_access();
         if constexpr(iAccess != num_access - 1)
         {
-            constexpr auto step = SFC::get_forward_step(iAccess);
+            constexpr auto step = SFC::get_forward_step(number<iAccess>{});
 
             // move the output dram window
             move_tile_window(out_dram_window, {step.at(number<0>{}), step.at(number<1>{})});
@@ -426,6 +407,18 @@ struct CShuffleEpilogue
     // TODO: Check if there would be nicer ways to overload rather than with EmptyScale or nullptr_t
     struct EmptyScale
     {
+    };
+
+    template <typename, typename = void>
+    struct ScaleDataType
+    {
+        using DataType = float;
+    };
+
+    template <typename T>
+    struct ScaleDataType<T, std::void_t<typename T::DataType>>
+    {
+        using DataType = typename T::DataType;
     };
 
     template <typename ODramWindow,
@@ -480,19 +473,16 @@ struct CShuffleEpilogue
             std::is_same_v<ScaleM, AccDataType> && std::is_same_v<ScaleN, AccDataType>;
 
         // Tiles to hold row/col scales when present
-        using SMType = typename GetDataType<remove_cvref_t<ScaleM>>::type;
-        using SNType = typename GetDataType<remove_cvref_t<ScaleN>>::type;
+        using SMType = typename ScaleDataType<ScaleM>::DataType;
+        using SNType = typename ScaleDataType<ScaleN>::DataType;
 
         auto sm_tile = make_static_distributed_tensor<SMType>(dram_tile_distribution);
         auto sn_tile = make_static_distributed_tensor<SNType>(dram_tile_distribution);
 
-        // Build windows only if scales are provided
+        // Build windows only if non-scalar scales are provided
         auto scale_m_window = [&]() {
             if constexpr(has_scales && !has_scalar_scales)
             {
-                static_assert(
-                    IsLoadableTile<decltype(make_tile_window(scale_m, dram_tile_distribution))>,
-                    "ScaleM must be a loadable tile");
                 return make_tile_window(scale_m, dram_tile_distribution);
             }
             else
@@ -503,9 +493,6 @@ struct CShuffleEpilogue
         auto scale_n_window = [&]() {
             if constexpr(has_scales && !has_scalar_scales)
             {
-                static_assert(
-                    IsLoadableTile<decltype(make_tile_window(scale_n, dram_tile_distribution))>,
-                    "ScaleN must be a loadable tile");
                 return make_tile_window(scale_n, dram_tile_distribution);
             }
             else
@@ -520,8 +507,8 @@ struct CShuffleEpilogue
                 merge_sequences(sequence<mIter, 0>{}, c_warp_y_index_zeros),
                 merge_sequences(sequence<1, NRepeat>{}, c_warp_y_lengths));
 
-            // If scales provided, load them with identical distribution
-            if constexpr(has_scales && IsLoadableTile<ScaleM> && IsLoadableTile<ScaleN>)
+            // If non-scalar scales provided, load them with identical distribution
+            if constexpr(has_scales && !has_scalar_scales)
             {
                 sm_tile = load_tile(scale_m_window); // row scales in permuted layout
                 sn_tile = load_tile(scale_n_window); // col scales in permuted layout
@@ -540,7 +527,7 @@ struct CShuffleEpilogue
                     {
                         v = static_cast<AccDataType>(v * scale_m * scale_n);
                     }
-                    else if constexpr(has_scales)
+                    else if constexpr(has_scales && !has_scalar_scales)
                     {
                         // same linear index mapping on the permuted distribution
                         const auto s_m = static_cast<float>(sm_tile.get_thread_buffer()[out_idx]);
@@ -641,9 +628,6 @@ struct CShuffleEpilogue
             }
             else if constexpr(has_scales)
             {
-                static_assert(
-                    IsLoadableTile<decltype(make_tile_window(scale_m, dram_tile_distribution))>,
-                    "ScaleM must be a loadable tile");
                 return make_tile_window(scale_m, lds_tile.get_tile_distribution());
             }
             else
@@ -658,9 +642,6 @@ struct CShuffleEpilogue
             }
             else if constexpr(has_scales)
             {
-                static_assert(
-                    IsLoadableTile<decltype(make_tile_window(scale_n, dram_tile_distribution))>,
-                    "ScaleN must be a loadable tile");
                 return make_tile_window(scale_n, lds_tile.get_tile_distribution());
             }
             else
