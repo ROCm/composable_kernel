@@ -261,6 +261,10 @@ using ReferenceGemm1Instance = ck::tensor_operation::host::ReferenceBatchedGemm<
                                                                                 B1ElementOp,
                                                                                 CElementOp>;
 
+using Row    = ck::tensor_layout::gemm::RowMajor;
+using Col    = ck::tensor_layout::gemm::ColumnMajor;
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
+
 #include "run_batched_gemm_gemm_wmma_cshuffle_v3.inc"
 
 int main(int argc, char* argv[])
