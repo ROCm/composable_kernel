@@ -235,7 +235,7 @@ float grouped_gemm_multi_d_tileloop(const ck_tile::stream_config& s,
                                              GemmConfig::K_Warp_Tile,
                                              UniversalGemmProblem::TransposeC,
                                              memory_operation>>;
-        using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+        using Kernel      = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
         const dim3 blocks = Kernel::BlockSize();
         const dim3 grids  = Kernel::MaxOccupancyGridSize(s);
 
@@ -269,8 +269,7 @@ float grouped_gemm_multi_d_tileloop(const ck_tile::stream_config& s,
                                        ck_tile::memory_operation_enum::atomic_add>{});
     }
 
-    std::cout << "!!!!!!!!!!!!!!grouped_gemm_multi_d_tileloop!!!!!!!!" << std::endl;
-    return 0;
+    return ave_time;
 }
 
 #include "run_grouped_gemm_multi_d_example.inc"
@@ -280,8 +279,8 @@ int main(int argc, char* argv[])
 #if CK_TILE_USE_WMMA
     return !run_grouped_gemm_multi_d_example<GemmConfigV3_Wmma>(argc, argv);
 #else
-    return !run_grouped_gemm_multi_d_example<GemmConfigV3>(argc, argv)
-        /* || !run_grouped_gemm_multi_d_example<GemmConfigMemory>(argc, argv) || */
-        /* !run_grouped_gemm_multi_d_example<GemmConfigV4>(argc, argv) */;
+    return !run_grouped_gemm_multi_d_example<GemmConfigV3>(argc, argv) ||
+           !run_grouped_gemm_multi_d_example<GemmConfigMemory>(argc, argv) ||
+           !run_grouped_gemm_multi_d_example<GemmConfigV4>(argc, argv);
 #endif
 }
