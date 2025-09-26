@@ -47,11 +47,12 @@ function(create_individual_gemm_test_target datatype layout trait tile_config co
         GEMM_SINGLE_INSTANCE_HPP="${test_header}"
     )
 
-    target_include_directories(${target_name} PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}
-        ${TILE_ENGINE_GEMM_DIR}
-        ${working_path}
-    )
+        target_include_directories(${target_name} PRIVATE
+            ${PROJECT_SOURCE_DIR}/include
+            ${PROJECT_BINARY_DIR}/include
+            ${PROJECT_SOURCE_DIR}  # Add root directory to find tile_engine
+            ${GTEST_INCLUDE_DIRS}
+        )
 
     # Compile options (following tile_engine's EXACT pattern with -include)
     target_compile_options(${target_name} PRIVATE
@@ -136,7 +137,7 @@ function(build_gemm_test_targets datatype layout)
     endif()
 endfunction()
 
-# Main execution - Create tests for fp16 with rcr layout (minimal start, following tile_engine patterns exactly)
+# Main execution - Create tests for fp16 and bf16 with rcr layout (following tile_engine patterns exactly)
 message(STATUS "=== Starting GEMM Tile Engine Test Configuration ===")
 
 # Check if config file exists before proceeding
@@ -144,7 +145,11 @@ set(CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/configs/smoke_test_config.json")
 if(EXISTS ${CONFIG_FILE})
     # Build test targets for fp16 rcr combination
     build_gemm_test_targets("fp16" "rcr")
-    message(STATUS "GEMM tile engine tests configured")
+    
+    # Build test targets for bf16 rcr combination
+    build_gemm_test_targets("bf16" "rcr")
+    
+    message(STATUS "GEMM tile engine tests configured for fp16 and bf16")
 else()
     message(WARNING "Config file not found: ${CONFIG_FILE}")
 endif()

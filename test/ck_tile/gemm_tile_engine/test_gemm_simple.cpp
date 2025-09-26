@@ -8,45 +8,40 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 
+// Include gemm_common.hpp for DataTypeTraits and other utilities
+#include "tile_engine/ops/gemm/gemm_common.hpp"
+
 // The kernel header is included via the compile command line with -include flag
 // It defines SelectedKernel struct, KERNEL_NAME, and data types
 // Following tile_engine's exact pattern
 
-class GemmTileEngineTest : public ::testing::Test
+class GemmTileEngineTest : public ::testing::Test 
 {
-    protected:
-    void SetUp() override
+protected:
+    void SetUp() override 
     {
-        // Simple test dimensions
-        m_ = 128;
-        n_ = 128;
-        k_ = 64;
-
+        // Use exact tile dimensions to ensure proper grid calculation
+        // The kernel tiles are 128x128x64, so use exact multiples
+        m_ = 128;   // Exactly tile_m
+        n_ = 128;   // Exactly tile_n 
+        k_ = 64;    // Exactly tile_k
+        
         // Calculate strides (following tile_engine pattern)
-        if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
-        {
+        if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>) {
             stride_a_ = k_;
-        }
-        else
-        {
+        } else {
             stride_a_ = m_;
         }
-
-        if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-        {
+        
+        if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>) {
             stride_b_ = n_;
-        }
-        else
-        {
+        } else {
             stride_b_ = k_;
         }
-
-        if constexpr(std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::RowMajor>)
-        {
+        
+        if constexpr(std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::RowMajor>) {
             stride_c_ = n_;
-        }
-        else
-        {
+        } else {
             stride_c_ = m_;
         }
     }
@@ -59,145 +54,174 @@ class GemmTileEngineTest : public ::testing::Test
 TEST_F(GemmTileEngineTest, BasicFunctionality)
 {
     std::cout << "=== DEBUG: Starting BasicFunctionality test ===" << std::endl;
-    std::cout << "DEBUG: Problem dimensions - M=" << m_ << ", N=" << n_ << ", K=" << k_
-              << std::endl;
-    std::cout << "DEBUG: Strides - A=" << stride_a_ << ", B=" << stride_b_ << ", C=" << stride_c_
-              << std::endl;
-
-    // Create GEMM arguments (following tile_engine's GemmHostArgs pattern)
-    ck_tile::GemmHostArgs args;
-    args.M        = m_;
-    args.N        = n_;
-    args.K        = k_;
-    args.stride_A = stride_a_;
-    args.stride_B = stride_b_;
-    args.stride_C = stride_c_;
-    args.k_batch  = 1; // Single batch for basic test
-
-    std::cout << "DEBUG: GemmHostArgs initialized successfully" << std::endl;
-
-    // Allocate host memory
-    std::cout << "DEBUG: Allocating host memory..." << std::endl;
-    std::vector<ADataType> a_host(m_ * k_);
-    std::vector<BDataType> b_host(k_ * n_);
-    std::vector<CDataType> c_host(m_ * n_);
-    std::vector<CDataType> c_ref(m_ * n_);
-
-    std::cout << "DEBUG: Host memory allocated - A size=" << a_host.size()
-              << ", B size=" << b_host.size() << ", C size=" << c_host.size() << std::endl;
-
-    // Initialize with simple values for verification
-    std::cout << "DEBUG: Initializing host data..." << std::endl;
-    for(int i = 0; i < m_ * k_; ++i)
-    {
-        a_host[i] = static_cast<ADataType>(1.0f);
+    std::cout << "DEBUG: Problem dimensions - M=" << m_ << ", N=" << n_ << ", K=" << k_ << std::endl;
+    std::cout << "DEBUG: Strides - A=" << stride_a_ << ", B=" << stride_b_ << ", C=" << stride_c_ << std::endl;
+    
+    // Following tile_engine's EXACT pattern from gemm_profiler.hpp
+    const ALayout layout_a = ALayout{};
+    const BLayout layout_b = BLayout{};
+    const CLayout layout_c = CLayout{};
+    
+    // Calculate proper strides using tile_engine's method
+    int split_k = 1;
+    int stride_a_calc = ck_tile::get_default_stride(m_, k_, 0, is_row_major(layout_a));
+    int stride_b_calc = ck_tile::get_default_stride(k_, n_, 0, is_row_major(layout_b));
+    int stride_c_calc = ck_tile::get_default_stride(m_, n_, 0, is_row_major(layout_c));
+    
+    std::cout << "DEBUG: Layout info - A: ";
+    if constexpr(is_row_major(layout_a)) {
+        std::cout << "RowMajor";
+    } else {
+        std::cout << "ColMajor";
     }
-    for(int i = 0; i < k_ * n_; ++i)
-    {
-        b_host[i] = static_cast<BDataType>(1.0f);
+    std::cout << ", B: ";
+    if constexpr(is_row_major(layout_b)) {
+        std::cout << "RowMajor";
+    } else {
+        std::cout << "ColMajor";
     }
-    for(int i = 0; i < m_ * n_; ++i)
-    {
-        c_host[i] = static_cast<CDataType>(0.0f);
-        c_ref[i]  = static_cast<CDataType>(k_); // Expected result: 1*1*k for each element
+    std::cout << ", C: ";
+    if constexpr(is_row_major(layout_c)) {
+        std::cout << "RowMajor";
+    } else {
+        std::cout << "ColMajor";
     }
-    std::cout << "DEBUG: Host data initialized - Expected result per element: " << k_ << std::endl;
+    std::cout << std::endl;
+    
+    std::cout << "DEBUG: Calculated strides - A=" << stride_a_calc 
+              << ", B=" << stride_b_calc << ", C=" << stride_c_calc << std::endl;
 
-    // Allocate device memory
+    // Create HostTensors with proper descriptors (following tile_engine pattern)
+    std::cout << "DEBUG: Creating HostTensors..." << std::endl;
+    ck_tile::HostTensor<ADataType> a_m_k(ck_tile::host_tensor_descriptor(
+        m_, k_, stride_a_calc, is_row_major(layout_a)));
+    ck_tile::HostTensor<BDataType> b_k_n(ck_tile::host_tensor_descriptor(
+        k_, n_, stride_b_calc, is_row_major(layout_b)));
+    ck_tile::HostTensor<CDataType> c_m_n_dev_result(ck_tile::host_tensor_descriptor(
+        m_, n_, stride_c_calc, is_row_major(layout_c)));
+    ck_tile::HostTensor<CDataType> c_m_n_host_result(ck_tile::host_tensor_descriptor(
+        m_, n_, stride_c_calc, is_row_major(layout_c)));
+    
+    std::cout << "DEBUG: HostTensors created successfully" << std::endl;
+
+    // Initialize tensors using tile_engine's FillConstant method for verification
+    std::cout << "DEBUG: Initializing tensors with tile_engine's fill functions..." << std::endl;
+    ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_m_k);
+    ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_k_n);
+    
+    // Calculate reference result: 1*1*k for each element
+    ck_tile::FillConstant<CDataType>{static_cast<CDataType>(k_)}(c_m_n_host_result);
+    
+    std::cout << "DEBUG: Tensors initialized - Expected result per element: " << k_ << std::endl;
+
+    // Allocate device memory using tile_engine's pattern
     std::cout << "DEBUG: Allocating device memory..." << std::endl;
-    try
-    {
-        ck_tile::DeviceMem a_dev(sizeof(ADataType) * a_host.size());
-        std::cout << "DEBUG: Device memory A allocated successfully" << std::endl;
+    try {
+        ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
+        
+        std::cout << "DEBUG: Device memory allocated successfully" << std::endl;
 
-        ck_tile::DeviceMem b_dev(sizeof(BDataType) * b_host.size());
-        std::cout << "DEBUG: Device memory B allocated successfully" << std::endl;
-
-        ck_tile::DeviceMem c_dev(sizeof(CDataType) * c_host.size());
-        std::cout << "DEBUG: Device memory C allocated successfully" << std::endl;
-
-        // Copy to device
+        // Copy to device using tile_engine's pattern
         std::cout << "DEBUG: Copying data to device..." << std::endl;
-        a_dev.ToDevice(a_host.data());
-        std::cout << "DEBUG: Matrix A copied to device" << std::endl;
+        a_m_k_dev_buf.ToDevice(a_m_k.data());
+        b_k_n_dev_buf.ToDevice(b_k_n.data());
+        c_m_n_dev_buf.SetZero();
+        c_m_n_dev_result.SetZero();
+        
+        std::cout << "DEBUG: Data copied to device successfully" << std::endl;
 
-        b_dev.ToDevice(b_host.data());
-        std::cout << "DEBUG: Matrix B copied to device" << std::endl;
+        // Create GEMM arguments using constructor (fixes potential aggregate initialization bug)
+        // Constructor order: a_ptr, b_ptr, e_ptr, k_batch, M, N, K, stride_A, stride_B, stride_E
+        ck_tile::GemmHostArgs gemm_args(
+            a_m_k_dev_buf.GetDeviceBuffer(),
+            b_k_n_dev_buf.GetDeviceBuffer(),
+            c_m_n_dev_buf.GetDeviceBuffer(),
+            split_k,  // k_batch comes FIRST in constructor
+            m_,
+            n_,
+            k_,
+            stride_a_calc,
+            stride_b_calc,
+            stride_c_calc
+        );
+        
+        std::cout << "DEBUG: GemmHostArgs created with pointers - A=" << gemm_args.a_ptr 
+                  << ", B=" << gemm_args.b_ptr << ", C=" << gemm_args.c_ptr << std::endl;
 
-        c_dev.ToDevice(c_host.data());
-        std::cout << "DEBUG: Matrix C copied to device" << std::endl;
+        // Create stream_config exactly like tile_engine with proper timing parameters
+        std::cout << "DEBUG: Creating stream config..." << std::endl;
+        ck_tile::stream_config stream_config{nullptr,    // stream
+                                             true,       // time_kernel
+                                             1,          // log_level (enable logging)
+                                             2,          // n_warmup 
+                                             5,          // n_repeat
+                                             true,       // is_gpu_timer
+                                             false,      // flush_cache
+                                             100};       // rotating_count
+        
+        // Launch kernel exactly like tile_engine
+        std::cout << "DEBUG: Launching kernel with proper stream config..." << std::endl;
+        float kernel_time = 0.0f;
+        bool launch_successful = false;
+        
+        try {
+            kernel_time = SelectedKernel::launch(gemm_args, stream_config);
+            launch_successful = true;
+            std::cout << "DEBUG: Kernel launch SUCCESS - execution time: " << kernel_time << " ms" << std::endl;
+        } catch(const std::runtime_error& e) {
+            std::cout << "DEBUG: Kernel launch FAILED - " << e.what() << std::endl;
+            FAIL() << "Kernel arguments not supported: " << e.what();
+        } catch(const std::exception& e) {
+            std::cout << "DEBUG: Kernel launch FAILED - " << e.what() << std::endl;
+            FAIL() << "Kernel launch exception: " << e.what();
+        }
+        
+        ASSERT_TRUE(launch_successful) << "Kernel launch failed";
+        EXPECT_GT(kernel_time, 0.0f) << "Kernel execution time should be positive, got: " << kernel_time;
 
-        // Set device pointers (using correct member names from tile_engine)
-        args.a_ptr = a_dev.GetDeviceBuffer();
-        args.b_ptr = b_dev.GetDeviceBuffer();
-        args.c_ptr = c_dev.GetDeviceBuffer();
-
-        std::cout << "DEBUG: Device pointers set - A=" << args.a_ptr << ", B=" << args.b_ptr
-                  << ", C=" << args.c_ptr << std::endl;
-
-        // Launch kernel (following tile_engine's exact pattern)
-        std::cout << "DEBUG: Preparing to launch kernel..." << std::endl;
-        ck_tile::stream_config stream_config{};
-        std::cout << "DEBUG: Stream config created, launching kernel..." << std::endl;
-
-        bool success = SelectedKernel::launch(args, stream_config);
-        std::cout << "DEBUG: Kernel launch returned: " << (success ? "SUCCESS" : "FAILURE")
-                  << std::endl;
-
-        ASSERT_TRUE(success) << "Kernel launch failed";
-
-        // Copy result back
+        // Copy result back using tile_engine's pattern
         std::cout << "DEBUG: Copying result back from device..." << std::endl;
-        c_dev.FromDevice(c_host.data());
+        c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
         std::cout << "DEBUG: Result copied back successfully" << std::endl;
 
         // Print first few results for debugging
         std::cout << "DEBUG: First 10 result values: ";
-        for(int i = 0; i < std::min(10, static_cast<int>(c_host.size())); ++i)
-        {
-            std::cout << static_cast<float>(c_host[i]) << " ";
+        for(int i = 0; i < std::min(10, static_cast<int>(c_m_n_dev_result.get_element_space_size())); ++i) {
+            std::cout << static_cast<float>(c_m_n_dev_result.data()[i]) << " ";
         }
         std::cout << std::endl;
 
-        // Verify results with tolerance
+        // Verify results using tile_engine's comparison approach
         std::cout << "DEBUG: Verifying results..." << std::endl;
         const float tolerance = 1e-3f;
-        int mismatches        = 0;
-        for(int i = 0; i < m_ * n_; ++i)
-        {
-            float expected = static_cast<float>(c_ref[i]);
-            float actual   = static_cast<float>(c_host[i]);
-            if(std::abs(actual - expected) > tolerance)
-            {
+        int mismatches = 0;
+        int total_elements = m_ * n_;
+        
+        for(int i = 0; i < total_elements; ++i) {
+            float expected = static_cast<float>(c_m_n_host_result.data()[i]);
+            float actual = static_cast<float>(c_m_n_dev_result.data()[i]);
+            if(std::abs(actual - expected) > tolerance) {
                 mismatches++;
-                if(mismatches <= 5)
-                { // Only print first 5 mismatches
-                    std::cout << "DEBUG: Mismatch at index " << i << " expected " << expected
+                if(mismatches <= 5) { // Only print first 5 mismatches
+                    std::cout << "DEBUG: Mismatch at index " << i 
+                              << " expected " << expected 
                               << " got " << actual << std::endl;
                 }
             }
         }
-
-        std::cout << "DEBUG: Total mismatches: " << mismatches << " out of " << (m_ * n_)
-                  << std::endl;
-
-        for(int i = 0; i < m_ * n_; ++i)
-        {
-            float expected = static_cast<float>(c_ref[i]);
-            float actual   = static_cast<float>(c_host[i]);
-            EXPECT_NEAR(actual, expected, tolerance)
-                << "Mismatch at index " << i << " expected " << expected << " got " << actual;
-        }
-
-        std::cout << "DEBUG: BasicFunctionality test completed" << std::endl;
-    }
-    catch(const std::exception& e)
-    {
+        
+        std::cout << "DEBUG: Total mismatches: " << mismatches << " out of " << total_elements << std::endl;
+        
+        EXPECT_EQ(mismatches, 0) << "Found " << mismatches << " mismatches in GEMM results";
+        
+        std::cout << "DEBUG: BasicFunctionality test completed successfully!" << std::endl;
+        
+    } catch(const std::exception& e) {
         std::cout << "DEBUG: Exception caught: " << e.what() << std::endl;
         FAIL() << "Exception during test: " << e.what();
-    }
-    catch(...)
-    {
+    } catch(...) {
         std::cout << "DEBUG: Unknown exception caught" << std::endl;
         FAIL() << "Unknown exception during test";
     }
@@ -207,7 +231,7 @@ TEST_F(GemmTileEngineTest, KernelInfo)
 {
     // Simple test to verify kernel information is available
     EXPECT_TRUE(strlen(KERNEL_NAME) > 0) << "Kernel name should not be empty";
-
+    
     std::cout << "Testing kernel: " << KERNEL_NAME << std::endl;
     std::cout << "Problem size: " << m_ << "x" << n_ << "x" << k_ << std::endl;
 }
