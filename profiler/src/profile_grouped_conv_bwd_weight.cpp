@@ -160,7 +160,7 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
             // fp32 atomic add is used for weight tensor in bf16 kernel
             return profile(I1, GNWC{}, GKXC{}, GNWK{}, BF16{}, F32{}, BF16{}, BF16{}, BF16{});
         }
-        if(data_type == ConvDataType::F32_F32_F32_TF32)
+        else if(data_type == ConvDataType::F32_F32_F32_TF32)
         {
 #if defined(__gfx942__)
             return profile(I1, GNWC{}, GKXC{}, GNWK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
@@ -182,7 +182,7 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
             // fp32 atomic add is used for weight tensor in bf16 kernel
             return profile(I2, GNHWC{}, GKYXC{}, GNHWK{}, BF16{}, F32{}, BF16{}, BF16{}, BF16{});
         }
-        if(data_type == ConvDataType::F32_F32_F32_TF32)
+        else if(data_type == ConvDataType::F32_F32_F32_TF32)
         {
 #if defined(__gfx942__)
             return profile(I2, GNHWC{}, GKYXC{}, GNHWK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
@@ -208,7 +208,7 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
         {
             return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
         }
-        if(data_type == ConvDataType::F32_F32_F32_TF32)
+        else if(data_type == ConvDataType::F32_F32_F32_TF32)
         {
 #if defined(__gfx942__)
             return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
@@ -241,7 +241,7 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
         {
             return profile(I2, NGCHW{}, GKCYX{}, NGKHW{}, F32{}, F32{}, F32{}, F32{}, F32{});
         }
-        if(data_type == ConvDataType::F32_F32_F32_TF32)
+        else if(data_type == ConvDataType::F32_F32_F32_TF32)
         {
 #if defined(__gfx942__)
             return profile(I2, NGCHW{}, GKCYX{}, NGKHW{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
@@ -304,7 +304,7 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
             return profile(
                 I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, int8_t{}, int8_t{}, int8_t{}, int8_t{}, int8_t{});
         }
-        if(data_type == ConvDataType::F32_F32_F32_TF32)
+        else if(data_type == ConvDataType::F32_F32_F32_TF32)
         {
 #if defined(__gfx942__)
             return profile(I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
@@ -338,7 +338,7 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
         {
             return profile(I3, NGCDHW{}, GKCZYX{}, NGKDHW{}, F32{}, F32{}, F32{}, F32{}, F32{});
         }
-        if(data_type == ConvDataType::F32_F32_F32_TF32)
+        else if(data_type == ConvDataType::F32_F32_F32_TF32)
         {
 #if defined(__gfx942__)
             return profile(I3, NGCDHW{}, GKCZYX{}, NGKDHW{}, F32{}, F32{}, F32{}, TF32{}, TF32{});

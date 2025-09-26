@@ -198,7 +198,7 @@ int grouped_conv_fwd_clamp(int argc, char* argv[])
         else if(data_type == ConvDataType::F32_F32_F32_TF32)
         {
 #if defined(__gfx942__)
-            return profile(I3, NDHWGC{}, NDHWGC{}, NDHWGC{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
+            return profile(I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
 #endif
         }
     }
