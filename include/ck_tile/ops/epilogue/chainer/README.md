@@ -2,21 +2,21 @@
 
 ## Overview
 
-The Epilogue Chainer provides composability for building epilogue sequences for GEMM operations. It allows to chain multiple epilogue stages to be executed sequentially.
+The Epilogue Chainer provides composability for building epilogue sequences for GEMM operations. It provides a means to chain multiple epilogue stages so they can be run sequentially.
 
 ## Components
 
 ### EpilogueChainer
-EpilogueChainer class, orchestrator that executes epilogue sequences. Takes an initialization epilogue and a sequence of operations to perform.
+The `EpilogueChainer` class is an orchestrator that runs epilogue sequences. It takes an initialization epilogue and a sequence of operations.
 
 ### EpilogueNode
-Wrapper for individual epilogue operations with embedded arguments. Supports both parameterized and parameter-free epilogues.
+The `EpilogueNode`class is a wrapper for individual epilogue operations, it Supports both parameterized and parameter-free epilogues.
 
 ### EpilogueLoop
-Executes a sequence of epilogue nodes across multiple iterations (e.g., for tiled processing).
+The `EpilogueLoop` class provides means to specify sequence of epilogue nodes that need to be looped together. It provides the `execute` method that runs the provided sequence.
 
 ### Scheduler
-Pre-built epilogue sequences for common patterns:
+`epilogue_schedule.hpp` provides pre-built epilogue sequences for common patterns:
 - `CshuffleEpilogueSchedule::make_base_schedule()` - Basic epilogue without scaling
 - `CshuffleEpilogueSchedule::make_scale_schedule(m_scale, n_scale)` - Epilogue with row/column scaling
 
@@ -24,7 +24,7 @@ Pre-built epilogue sequences for common patterns:
 
 **Work in Progress** - The API is functional but evolving:
 - Current implementation supports basic epilogue chaining
-- Chaining demonstrated by breaking down the cshuffle epilogue into modular components and chaining them together. This will also be consequently modified and improved. 
+- Chaining is demonstrated by breaking down the cshuffle epilogue into modular components and chaining them together. This will also be consequently modified and improved. 
 
 ## Usage Pattern
 
@@ -45,4 +45,4 @@ EpilogueChainer<InitEpilogue, decltype(schedule)>{}(
 - `epilogue_chainer.hpp` - Main chainer orchestrator
 - `epilogue_graph.hpp` - Node and loop constructs
 - `epilogue_schedule.hpp` - Pre-built schedules
-- `cshuffle_chained_epilogues.hpp` - Individual epilogue implementations (To be modified and trimmed down) 
+- `cshuffle_chained_epilogues.hpp` - Individual epilogue implementations 

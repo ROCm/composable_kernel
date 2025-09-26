@@ -98,7 +98,8 @@ struct EpilogueNode<EpilogueType>
     }
 };
 
-/// @brief Executes sequence of epilogue nodes across multiple iterations
+/// @brief Class providing means to specify sequence of epilogue nodes that need to be looped
+/// together
 /// @tparam Count Number of iterations
 template <index_t Count, typename... EpilogueTypes>
 struct EpilogueLoop
