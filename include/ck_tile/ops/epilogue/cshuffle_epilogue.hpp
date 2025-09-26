@@ -219,6 +219,13 @@ struct CShuffleEpilogue
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDescriptor()
     {
+        if constexpr(NumGroupsToMerge > 1)
+        {
+            // We haven't yet tested the ColumnMajor case.
+            static_assert(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
+                        "Currently, the CShuffle Epilogue with NumGroupsToMerge > 1 only supports the Row Major layout");
+        }
+
         // N is contiguous dimension
         if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
@@ -366,7 +373,7 @@ struct CShuffleEpilogue
             sequence<0, 3, 0, 3>>{};
         constexpr auto dram_tile_distribution = make_static_tile_distribution(dram_tile_encoding);
 
-        // The LDS data has the following 4D layout
+        // The LDS data has the following 4D layout in the row-major case.
         // linear_index = c + Gs * m + Gs * MPerGroup * n + Gs * MPerGroup * NPerGroup * r
         // for 4D coordinates (r,c,m,n) where (r,c) is the group index and (m,n) is the index within the group.
         // We pick-up only the diagonal blocks where r == c.
