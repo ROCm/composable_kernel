@@ -1442,10 +1442,25 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
             return false;
         }
 
-        if(!is_bf16_atomic_supported() && std::is_same_v<EDataType, ck::bhalf_t> &&
-           arg.k_batch_ > 1)
+        if(arg.k_batch_ > 1)
         {
-            return false;
+            if(is_gfx11_supported())
+            {
+                return false;
+            }
+
+            if(!is_bf16_atomic_supported() && std::is_same_v<EDataType, ck::bhalf_t>)
+            {
+                return false;
+            }
+        }
+
+        if(is_gfx11_supported() || is_gfx12_supported())
+        {
+            if(MPerXDL != 16 || NPerXDL != 16)
+            {
+                return false;
+            }
         }
 
         if constexpr(!IsSplitKSupported)
