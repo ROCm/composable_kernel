@@ -9,6 +9,7 @@
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_xdl_fpAintB_b_scale.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_batched_gemm_wmma_cshuffle_v3_b_scale.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
@@ -166,7 +167,6 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
         DeviceOp>::GetInstances();
 
     std::cout << "found " << op_ptrs.size() << " instances" << std::endl;
-
     // Run reference GEMM
     if(do_verification)
     {
