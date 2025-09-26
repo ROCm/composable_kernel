@@ -72,6 +72,7 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t Pipeline      = CK_TILE_PIPELINE_COMPUTE_V3;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
     static constexpr bool Preshuffle                = false;
+    static constexpr bool TiledMMAPermuteN          = false;
 };
 
 template <typename PrecType>
