@@ -104,15 +104,12 @@ TEST_F(GemmTileEngineTest, BasicFunctionality)
     
     std::cout << "DEBUG: HostTensors created successfully" << std::endl;
 
-    // Initialize tensors using tile_engine's FillConstant method for verification
+    // Initialize tensors using tile_engine's fill functions
     std::cout << "DEBUG: Initializing tensors with tile_engine's fill functions..." << std::endl;
-    ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_m_k);
-    ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_k_n);
+    ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k);
+    ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n);
     
-    // Calculate reference result: 1*1*k for each element
-    ck_tile::FillConstant<CDataType>{static_cast<CDataType>(k_)}(c_m_n_host_result);
-    
-    std::cout << "DEBUG: Tensors initialized - Expected result per element: " << k_ << std::endl;
+    std::cout << "DEBUG: Input tensors initialized with uniform distribution [-1.0, 1.0]" << std::endl;
 
     // Allocate device memory using tile_engine's pattern
     std::cout << "DEBUG: Allocating device memory..." << std::endl;
@@ -131,6 +128,19 @@ TEST_F(GemmTileEngineTest, BasicFunctionality)
         c_m_n_dev_result.SetZero();
         
         std::cout << "DEBUG: Data copied to device successfully" << std::endl;
+
+        // Calculate host reference using tile_engine's gemm_host_reference function
+        std::cout << "DEBUG: Calculating host reference..." << std::endl;
+        ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
+            a_m_k, b_k_n, c_m_n_host_result);
+        std::cout << "DEBUG: Host reference calculation completed" << std::endl;
+        
+        // Print first few expected values for debugging
+        std::cout << "DEBUG: First 10 expected values: ";
+        for(int i = 0; i < std::min(10, static_cast<int>(c_m_n_host_result.get_element_space_size())); ++i) {
+            std::cout << static_cast<float>(c_m_n_host_result.data()[i]) << " ";
+        }
+        std::cout << std::endl;
 
         // Create GEMM arguments using constructor (fixes potential aggregate initialization bug)
         // Constructor order: a_ptr, b_ptr, e_ptr, k_batch, M, N, K, stride_A, stride_B, stride_E
