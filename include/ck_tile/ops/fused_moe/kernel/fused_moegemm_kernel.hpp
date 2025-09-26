@@ -382,6 +382,7 @@ struct FusedMoeGemmKernel
                 return d_window_;
             }();
 
+            static_assert(false && "This code path should be hit");
             auto o_window = [&]() {
                 ODataType* o_ptr = reinterpret_cast<ODataType*>(kargs.o_ptr);
                 auto o_view_     = make_naive_tensor_view<address_space_enum::global,
