@@ -629,8 +629,7 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                     Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1, is_a_load_tr_v);
                     Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1, is_b_load_tr_v);
                     block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
-                    static_for<0, 8, 1>{}([&](auto i) {
-                        ignore = i;
+                    static_for<0, 8, 1>{}([&](auto) {
                         __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
                         __builtin_amdgcn_sched_group_barrier(0x008, 8, 0); // MFMA
                     });
