@@ -536,7 +536,7 @@ int run_gemm_example_with_layouts(int argc,
                       << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                       << std::endl;
         }
-        std::cout << "CPU verification " << (pass ? "Passed!" : "Failed ...") << std::endl;
+        std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
     }
     else if(arg_parser.get_int("v") == 2)
     {

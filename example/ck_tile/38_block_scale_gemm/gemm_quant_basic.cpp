@@ -169,9 +169,49 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                       << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
                       << std::endl;
         }
+        float ave_time = 0;
+        if(s.flush_cache_)
+        {
+            std::cout << "Flushing cache..." << std::endl;
 
-        float ave_time = ck_tile::launch_kernel(
-            s, ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+            ck_tile::HostTensor<typename TypeConfig::ADataType> a_m(ck_tile::host_tensor_descriptor(
+                args.M, args.K, args.stride_A, is_row_major(ALayout{})));
+            ck_tile::HostTensor<typename TypeConfig::BDataType> b_n(ck_tile::host_tensor_descriptor(
+                args.K, args.N, args.stride_B, is_row_major(BLayout{})));
+
+            auto size_a_buffer = a_m.get_element_space_size_in_bytes();
+            auto size_b_buffer = b_n.get_element_space_size_in_bytes();
+
+            ck_tile::RotatingMemWrapper<typename TypeConfig::ADataType,
+                                        typename TypeConfig::BDataType>
+                rotating_mem(
+                    kargs.a_ptr, kargs.b_ptr, s.rotating_count_, size_a_buffer, size_b_buffer);
+            rotating_mem.Print();
+
+            auto run_flush_cache = [&]() {
+                // flush icache
+                ck_tile::flush_icache();
+                // rotating mem
+                rotating_mem.Next();
+                // clear c mem
+                if(args.k_batch > 1)
+                    hipGetErrorString(
+                        hipMemsetAsync(args.c_ptr,
+                                       0,
+                                       args.M * args.N * sizeof(typename TypeConfig::CDataType),
+                                       s.stream_id_));
+            };
+            ave_time = ck_tile::launch_kernel_time_mask(
+                s,
+                run_flush_cache,
+                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+        }
+        else
+        {
+            ave_time = ck_tile::launch_kernel(
+                s,
+                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+        }
 
         return ave_time;
     };
