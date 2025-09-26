@@ -54,6 +54,8 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
     static constexpr auto BiasEnum         = Problem::BiasEnum;
     static constexpr bool kHasBiasGrad     = Problem::kHasBiasGrad;
     static constexpr bool kIsDeterministic = Problem::kIsDeterministic;
+    static constexpr bool kUseTrLoad       = Problem::kUseTrLoad;
+    static_assert(!kUseTrLoad, "This pipeline does not use trload!");
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
@@ -91,7 +93,8 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
               typename BiasGradDramBlockWindowTmp,
               typename PositionEncoding>
     CK_TILE_HOST_DEVICE auto
-    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,
+    operator()(void* smem_ptr,
+               const QDramBlockWindowTmp& q_dram_block_window_tmp,
                const KDramBlockWindowTmp& k_dram_block_window_tmp,
                const VDramBlockWindowTmp& v_dram_block_window_tmp,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp,
@@ -107,7 +110,6 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                float scale,
                float rp_undrop,
                float scale_rp_undrop,
-               void* smem_ptr,
                FmhaDropout& dropout) const
     {
         static_assert(
@@ -557,6 +559,9 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                 auto shuffled_bias_tile = make_static_distributed_tensor<BiasDataType>(
                     Policy::template MakeShuffledBiasTileDistribution<Problem>());
                 shuffle_tile(shuffled_bias_tile, bias_tile);
+                // SGrad and Bias use the same address in LDS, finish loading ds on the previous
+                // iteration to reuse LDS.
+                block_sync_lds();
                 store_tile(bias_lds_write_window, shuffled_bias_tile);
                 block_sync_lds();
                 auto bias_s_tile = load_tile(bias_s_lds_read_window);
@@ -654,9 +659,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             }();
 
             // STAGE 3, P^T@OGrad^T Gemm1
-            Policy::template PTFromGemm0CToGemm1A<Problem,
-                                                  decltype(pt_reg_tensor),
-                                                  decltype(p_gemm)>(pt_reg_tensor, p_gemm);
+            Policy::template PTFromGemm0CToGemm1A<Problem>(pt_reg_tensor, p_gemm);
             gemm_1(dv_acc, pt_reg_tensor, dot_reg_tensor);
 
             auto qt_reg_tensor = load_tile(qt_lds_read_window);
@@ -728,9 +731,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             // STAGE 6, SGrad^T@Q^T Gemm3
             const auto ds_gemm = cast_tile<GemmDataType>(ds);
 
-            Policy::template SGradTFromGemm2CToGemm3A<Problem,
-                                                      decltype(dst_reg_tensor),
-                                                      decltype(ds_gemm)>(dst_reg_tensor, ds_gemm);
+            Policy::template SGradTFromGemm2CToGemm3A<Problem>(dst_reg_tensor, ds_gemm);
 
             gemm_3(dk_acc, dst_reg_tensor, qt_reg_tensor);
 
@@ -816,6 +817,9 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             auto shuffled_bias_tile = make_static_distributed_tensor<BiasDataType>(
                 Policy::template MakeShuffledBiasTileDistribution<Problem>());
             shuffle_tile(shuffled_bias_tile, bias_tile);
+            // SGrad and Bias use the same address in LDS, finish loading ds in the hot loop to
+            // reuse LDS.
+            block_sync_lds();
             store_tile(bias_lds_write_window, shuffled_bias_tile);
             block_sync_lds();
             auto bias_s_tile = load_tile(bias_s_lds_read_window);
@@ -958,6 +962,8 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                     return cast_tile<BiasGradDataType>(ds);
                 }
             }();
+            // Finish loading bias_s to reuse LDS.
+            block_sync_lds();
             store_tile(bias_lds_write_window, dbias);
             block_sync_lds();
             auto shuffled_dbias_tile = load_tile(dbias_lds_read_window);
@@ -977,11 +983,9 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
 
         gemm_3(dk_acc, dst_reg_tensor, qt_reg_tensor);
 
-        if constexpr(kHasBiasGrad)
-        {
-            // SGrad and BiasGrad use the same address in LDS.
-            block_sync_lds();
-        }
+        // SGrad and Bias/BiasGrad use the same address in LDS, finish loading bias/dbias or, when
+        // bias is not used, loading ds in the hot loop to reuse LDS.
+        block_sync_lds();
         store_tile(ds_lds_window, ds_gemm);
 
         block_sync_lds();

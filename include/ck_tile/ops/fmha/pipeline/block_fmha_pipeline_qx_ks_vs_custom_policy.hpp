@@ -364,7 +364,13 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         using KDataType = remove_cvref_t<typename Problem::KDataType>;
         if constexpr(AsyncCopy)
         {
-            return 4 / sizeof(KDataType);
+#if defined(__gfx950__)
+            constexpr index_t MaxLoadSizeInBytes = 4 * 4; // dwordx4
+#else
+            constexpr index_t MaxLoadSizeInBytes = 4; // dword
+#endif
+
+            return MaxLoadSizeInBytes / sizeof(KDataType);
         }
         else
         {
@@ -383,23 +389,31 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     CK_TILE_HOST_DEVICE static constexpr auto GetSmemKPackV()
     {
         // TODO: this is for 3d layout
-        using VDataType = remove_cvref_t<typename Problem::VDataType>;
-        return 16 / sizeof(VDataType);
+        using VDataType                = remove_cvref_t<typename Problem::VDataType>;
+        constexpr index_t kBlockSize   = Problem::kBlockSize;
+        constexpr index_t kNPerBlock   = Problem::BlockFmhaShape::kN1;
+        constexpr index_t kKPerBlock   = Problem::BlockFmhaShape::kK1;
+        constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
+        constexpr index_t kMaxVecLoad =
+            min(total_pixels, static_cast<index_t>(16 / sizeof(VDataType)));
+
+        return kMaxVecLoad;
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentV()
     {
-        using VLayout   = remove_cvref_t<typename Problem::BlockFmhaShape::VLayout>;
-        using VDataType = remove_cvref_t<typename Problem::VDataType>;
+        using VLayout                  = remove_cvref_t<typename Problem::BlockFmhaShape::VLayout>;
+        using VDataType                = remove_cvref_t<typename Problem::VDataType>;
+        constexpr index_t kBlockSize   = Problem::kBlockSize;
+        constexpr index_t kNPerBlock   = Problem::BlockFmhaShape::kN1;
+        constexpr index_t kKPerBlock   = Problem::BlockFmhaShape::kK1;
+        constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
+        constexpr index_t kMaxVecLoad =
+            min(total_pixels, static_cast<index_t>(16 / sizeof(VDataType)));
+
         if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
-            constexpr index_t kBlockSize   = Problem::kBlockSize;
-            constexpr index_t kNPerBlock   = Problem::BlockFmhaShape::kN1;
-            constexpr index_t kKPerBlock   = Problem::BlockFmhaShape::kK1;
-            constexpr index_t total_pixels = kNPerBlock * kKPerBlock / kBlockSize;
-            constexpr index_t kMaxVecLoad =
-                min(total_pixels, static_cast<index_t>(16 / sizeof(VDataType)));
             constexpr index_t kMinVecLoad = 4 / sizeof(VDataType);
 
             constexpr index_t kVecLoad = ((total_pixels / kMaxVecLoad) >= kMinVecLoad)
@@ -410,7 +424,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         }
         else
         {
-            return 16 / sizeof(VDataType);
+            return kMaxVecLoad;
         }
     }
 
@@ -799,7 +813,8 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
                 constexpr index_t N1_m = kNPack / N2;
                 constexpr index_t N0_m = kNPerBlock / kNPack;
                 constexpr index_t K1   = get_warp_size() / N1_m;
-                constexpr index_t K2_m = kKPerBlock / K1;
+                constexpr index_t K2_m = kKPerBlock / K1 / K0;
+
                 return make_static_tile_distribution(
                     tile_distribution_encoding<
                         sequence<1>,
@@ -889,7 +904,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             constexpr index_t N1_m = kNPack / N2;
             constexpr index_t N0_m = kNPerBlock / kNPack;
             constexpr index_t K1   = get_warp_size() / N1_m;
-            constexpr index_t K2_m = kKPerBlock / K1;
+            constexpr index_t K2_m = kKPerBlock / K1 / K0;
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<1>,
                                            tuple<sequence<N0_m, N1_m, N2>, sequence<K0, K1, K2_m>>,
@@ -948,20 +963,19 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             {
                 return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<>{};
                 // return
-                // WarpGemmImpl<WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB<
+                // WarpGemmImpl<WarpGemmAttributeMfmaTransposedCDistribution_SwizzleB<
                 //         WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename
                 //         Problem::PDataType, typename Problem::VDataType>>>{};
             }
             else
             {
-                return WarpGemmMfmaDispatcher<
-                    typename Problem::PDataType,
-                    typename Problem::VDataType,
-                    typename Problem::OaccDataType,
-                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
-                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
-                    Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
-                    true>{};
+                return WarpGemmDispatcher<typename Problem::PDataType,
+                                          typename Problem::VDataType,
+                                          typename Problem::OaccDataType,
+                                          Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
+                                          Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
+                                          Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
+                                          true>{};
             }
         }();
 

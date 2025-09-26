@@ -91,13 +91,13 @@ struct FlatmmKernel
     using FlatmmPipeline  = remove_cvref_t<FlatmmPipeline_>;
     using BlockGemmShape =
         remove_cvref_t<typename FlatmmPipeline::BlockGemmShape>; // TileFlatmmShape
-    using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
-    using ALayout          = remove_cvref_t<typename FlatmmPipeline::ALayout>;
-    using BLayout          = remove_cvref_t<typename FlatmmPipeline::BLayout>;
-    using ELayout          = remove_cvref_t<typename FlatmmPipeline::CLayout>;
-    using DsLayout         = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
-    using DsDataType       = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
-    static constexpr index_t KernelBlockSize = FlatmmPipeline::BlockSize;
+    using EpiloguePipeline              = remove_cvref_t<EpiloguePipeline_>;
+    using ALayout                       = remove_cvref_t<typename FlatmmPipeline::ALayout>;
+    using BLayout                       = remove_cvref_t<typename FlatmmPipeline::BLayout>;
+    using ELayout                       = remove_cvref_t<typename FlatmmPipeline::CLayout>;
+    using DsLayout                      = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
+    using DsDataType                    = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
+    static constexpr index_t kBlockSize = FlatmmPipeline::BlockSize;
 
     using ADataType = remove_cvref_t<typename FlatmmPipeline::ADataType>;
     using BDataType = remove_cvref_t<typename FlatmmPipeline::BDataType>;
@@ -127,7 +127,10 @@ struct FlatmmKernel
         return dim3(TilePartitioner::GridSize(M, N), 1, KBatch);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
+    CK_TILE_HOST static constexpr auto BlockSize()
+    {
+        return is_wave32() ? dim3(kBlockSize / 2) : dim3(kBlockSize);
+    }
 
     CK_TILE_HOST static constexpr KernelArgs
     MakeKernelArgs(const FlatmmHostArgs<NumDTensor>& hostArgs)

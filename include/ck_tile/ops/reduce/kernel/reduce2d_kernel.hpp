@@ -25,6 +25,12 @@ struct Reduce
     using ComputeDataType = ck_tile::remove_cvref_t<typename Problem::ComputeDataType>;
     using YDataType       = ck_tile::remove_cvref_t<typename Problem::YDataType>;
 
+    static constexpr index_t kBlockSize = Problem::BlockShape::BlockSize;
+    CK_TILE_HOST static constexpr auto BlockSize()
+    {
+        return is_wave32() ? kBlockSize / 2 : kBlockSize;
+    }
+
     private:
     // Helper function to calculate optimal vector size for input tensor
     template <typename InputShape, typename ReduceDims>
@@ -189,7 +195,9 @@ struct Reduce
     /// @note Requirements:
     ///       - y_continous_dim % ThreadTile_N == 0 (for proper thread distribution)
     ///       - input_strides[-1] == 1 (for contiguous memory access)
-    CK_TILE_HOST static bool IsSupportedArgument(index_t y_continous_dim, auto input_strides)
+    template <typename InputStrides>
+    CK_TILE_HOST static bool IsSupportedArgument(index_t y_continous_dim,
+                                                 InputStrides input_strides)
     {
         using S = typename Problem::BlockShape;
 

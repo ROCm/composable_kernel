@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdlib>
 #include <iostream>
@@ -48,11 +48,11 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
         //##########|     Dim|         |          |          |   Type|    Type|    Type|    Type| Elementwise| Elementwise| Elementwise|                            Weight|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|    ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|   ClusterLengths| ScalarPerVector|
         //##########| Spatial|         |          |          |       |        |        |        |   Operation|   Operation|   Operation|                    Specialization|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|     ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| MBlock_MPerBlock|    NWaveNPerXdl|
         //##########|        |         |          |          |       |        |        |        |            |            |            |                                  |      |      |      |      |   |     |     |     |     |                |                 |               |               |               |               |          |                |               |               |              |               |               |          |            |            | NBlock_NPerBlock|                |
-        <         NDimSpatial,  InLayout, WeiLayout,OutLayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,   128,    32,   128,     4,  8,   32,   32,    1,    2,  S<1, 4, 4,  8>,  S<0, 3, 1, 2>,  S<0, 2, 1, 3>,              2,              8,              1,      true,  S<1, 4, 16, 2>,  S<0, 3, 1, 2>,  S<0, 2, 1, 3>,             2,              8,              4,      true,           1,           1,   S<1, 32, 1, 4>,               8>;
+        <         NDimSpatial,  InLayout, WeiLayout,OutLayout,    F16,     F16,     F16,     F32, PassThrough, PassThrough, PassThrough,                  ConvSpec,   128,    32,   128,     4,  8,   16,   16,    2,    4,  S<1, 4, 4,  8>,  S<0, 3, 1, 2>,  S<0, 2, 1, 3>,              2,              8,              1,      true,  S<1, 4, 16, 2>,  S<0, 3, 1, 2>,  S<0, 2, 1, 3>,             2,              8,              4,      true,           1,           1,   S<1, 16, 1, 8>,               4>;
     // clang-format on
 
     ck::utils::conv::ConvParam conv_param;
-    std::vector<ck::index_t> split_ks{-1, 2};
+    ck::index_t split_k_ = 2;
 
     template <ck::index_t NDimSpatial>
     bool Run()
@@ -96,30 +96,24 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
 
         auto conv = GroupedConvBwdWeightDeviceInstance{};
 
-        bool is_supported = true;
-
-        for(const auto split_k : split_ks)
-        {
-            auto argument = conv.MakeArgument(nullptr,
-                                              nullptr,
-                                              nullptr,
-                                              input_lengths,
-                                              input_strides,
-                                              filter_lengths,
-                                              weights_strides,
-                                              output_lengths,
-                                              output_strides,
-                                              conv_filter_strides,
-                                              conv_filter_dilations,
-                                              input_left_pads,
-                                              input_right_pads,
-                                              PassThrough{},
-                                              PassThrough{},
-                                              PassThrough{},
-                                              split_k);
-            is_supported &= conv.IsSupportedArgument(argument);
-        }
-        return is_supported;
+        auto argument = conv.MakeArgument(nullptr,
+                                          nullptr,
+                                          nullptr,
+                                          input_lengths,
+                                          input_strides,
+                                          filter_lengths,
+                                          weights_strides,
+                                          output_lengths,
+                                          output_strides,
+                                          conv_filter_strides,
+                                          conv_filter_dilations,
+                                          input_left_pads,
+                                          input_right_pads,
+                                          PassThrough{},
+                                          PassThrough{},
+                                          PassThrough{},
+                                          split_k_);
+        return conv.IsSupportedArgument(argument);
     }
 };
 
@@ -181,5 +175,14 @@ TYPED_TEST(TestGroupedConvndBwdWeightDefault, VectorLoadCheck)
     // vector load for B, E, Ds
     this->conv_param = {2, 2, 128, 128, 257, {1, 1}, {7, 7}, {2, 2}, {1, 1}, {0, 0}, {0, 0}};
     is_supported     = this->template Run<2>();
+    EXPECT_FALSE(is_supported);
+}
+
+TYPED_TEST(TestGroupedConvndBwdWeightDefault, SingleStageAutoDeduce)
+{
+    // Supported version but with auto deduce and single stage
+    this->conv_param  = {2, 2, 128, 128, 256, {1, 1}, {3, 3}, {1, 1}, {1, 1}, {0, 0}, {0, 0}};
+    this->split_k_    = -1;
+    bool is_supported = this->template Run<2>();
     EXPECT_FALSE(is_supported);
 }

@@ -131,12 +131,12 @@ using fp16x64_t = _Float16 __attribute__((ext_vector_type(64)));
 
 // bf16
 // using bf16_t = ...
-using bf16x2_t  = bf16_raw_t __attribute__((ext_vector_type(2)));
-using bf16x4_t  = bf16_raw_t __attribute__((ext_vector_type(4)));
-using bf16x8_t  = bf16_raw_t __attribute__((ext_vector_type(8)));
-using bf16x16_t = bf16_raw_t __attribute__((ext_vector_type(16)));
-using bf16x32_t = bf16_raw_t __attribute__((ext_vector_type(32)));
-using bf16x64_t = bf16_raw_t __attribute__((ext_vector_type(64)));
+using bf16x2_t  = bfloat16_t __attribute__((ext_vector_type(2)));
+using bf16x4_t  = bfloat16_t __attribute__((ext_vector_type(4)));
+using bf16x8_t  = bfloat16_t __attribute__((ext_vector_type(8)));
+using bf16x16_t = bfloat16_t __attribute__((ext_vector_type(16)));
+using bf16x32_t = bfloat16_t __attribute__((ext_vector_type(32)));
+using bf16x64_t = bfloat16_t __attribute__((ext_vector_type(64)));
 
 // i32
 // using int32_t = ...
@@ -176,65 +176,65 @@ using uint16x64_t = uint16_t __attribute__((ext_vector_type(64)));
 
 // i8
 // using int8_t
-using int8x2_t  = int8_t __attribute((ext_vector_type(2)));
-using int8x4_t  = int8_t __attribute((ext_vector_type(4)));
-using int8x8_t  = int8_t __attribute((ext_vector_type(8)));
-using int8x16_t = int8_t __attribute((ext_vector_type(16)));
-using int8x32_t = int8_t __attribute((ext_vector_type(32)));
-using int8x64_t = int8_t __attribute((ext_vector_type(64)));
+using int8x2_t  = int8_t __attribute__((ext_vector_type(2)));
+using int8x4_t  = int8_t __attribute__((ext_vector_type(4)));
+using int8x8_t  = int8_t __attribute__((ext_vector_type(8)));
+using int8x16_t = int8_t __attribute__((ext_vector_type(16)));
+using int8x32_t = int8_t __attribute__((ext_vector_type(32)));
+using int8x64_t = int8_t __attribute__((ext_vector_type(64)));
 
 // ui8
 // using uint8_t
-using uint8x2_t  = uint8_t __attribute((ext_vector_type(2)));
-using uint8x4_t  = uint8_t __attribute((ext_vector_type(4)));
-using uint8x8_t  = uint8_t __attribute((ext_vector_type(8)));
-using uint8x16_t = uint8_t __attribute((ext_vector_type(16)));
-using uint8x32_t = uint8_t __attribute((ext_vector_type(32)));
-using uint8x64_t = uint8_t __attribute((ext_vector_type(64)));
+using uint8x2_t  = uint8_t __attribute__((ext_vector_type(2)));
+using uint8x4_t  = uint8_t __attribute__((ext_vector_type(4)));
+using uint8x8_t  = uint8_t __attribute__((ext_vector_type(8)));
+using uint8x16_t = uint8_t __attribute__((ext_vector_type(16)));
+using uint8x32_t = uint8_t __attribute__((ext_vector_type(32)));
+using uint8x64_t = uint8_t __attribute__((ext_vector_type(64)));
 
 #if CK_TILE_USE_CUSTOM_DATA_TYPE
 // f8
 // using fp8_t
-using fp8x2_t  = fp8_raw_t __attribute((ext_vector_type(2)));
-using fp8x4_t  = fp8_raw_t __attribute((ext_vector_type(4)));
-using fp8x8_t  = fp8_raw_t __attribute((ext_vector_type(8)));
-using fp8x16_t = fp8_raw_t __attribute((ext_vector_type(16)));
-using fp8x32_t = fp8_raw_t __attribute((ext_vector_type(32)));
-using fp8x64_t = fp8_raw_t __attribute((ext_vector_type(64)));
+using fp8x2_t  = fp8_raw_t __attribute__((ext_vector_type(2)));
+using fp8x4_t  = fp8_raw_t __attribute__((ext_vector_type(4)));
+using fp8x8_t  = fp8_raw_t __attribute__((ext_vector_type(8)));
+using fp8x16_t = fp8_raw_t __attribute__((ext_vector_type(16)));
+using fp8x32_t = fp8_raw_t __attribute__((ext_vector_type(32)));
+using fp8x64_t = fp8_raw_t __attribute__((ext_vector_type(64)));
 
 // bf8
 // using bf8_t
-using bf8x2_t  = bf8_raw_t __attribute((ext_vector_type(2)));
-using bf8x4_t  = bf8_raw_t __attribute((ext_vector_type(4)));
-using bf8x8_t  = bf8_raw_t __attribute((ext_vector_type(8)));
-using bf8x16_t = bf8_raw_t __attribute((ext_vector_type(16)));
-using bf8x32_t = bf8_raw_t __attribute((ext_vector_type(32)));
-using bf8x64_t = bf8_raw_t __attribute((ext_vector_type(64)));
+using bf8x2_t  = bf8_raw_t __attribute__((ext_vector_type(2)));
+using bf8x4_t  = bf8_raw_t __attribute__((ext_vector_type(4)));
+using bf8x8_t  = bf8_raw_t __attribute__((ext_vector_type(8)));
+using bf8x16_t = bf8_raw_t __attribute__((ext_vector_type(16)));
+using bf8x32_t = bf8_raw_t __attribute__((ext_vector_type(32)));
+using bf8x64_t = bf8_raw_t __attribute__((ext_vector_type(64)));
 #else
 // f8
 // using fp8_t
-using fp8x2_t  = fp8_t __attribute((ext_vector_type(2)));
-using fp8x4_t  = fp8_t __attribute((ext_vector_type(4)));
-using fp8x8_t  = fp8_t __attribute((ext_vector_type(8)));
-using fp8x16_t = fp8_t __attribute((ext_vector_type(16)));
-using fp8x32_t = fp8_t __attribute((ext_vector_type(32)));
-using fp8x64_t = fp8_t __attribute((ext_vector_type(64)));
+using fp8x2_t  = fp8_t __attribute__((ext_vector_type(2)));
+using fp8x4_t  = fp8_t __attribute__((ext_vector_type(4)));
+using fp8x8_t  = fp8_t __attribute__((ext_vector_type(8)));
+using fp8x16_t = fp8_t __attribute__((ext_vector_type(16)));
+using fp8x32_t = fp8_t __attribute__((ext_vector_type(32)));
+using fp8x64_t = fp8_t __attribute__((ext_vector_type(64)));
 
 // bf8
 // using bf8_t
-using bf8x2_t  = bf8_t __attribute((ext_vector_type(2)));
-using bf8x4_t  = bf8_t __attribute((ext_vector_type(4)));
-using bf8x8_t  = bf8_t __attribute((ext_vector_type(8)));
-using bf8x16_t = bf8_t __attribute((ext_vector_type(16)));
-using bf8x32_t = bf8_t __attribute((ext_vector_type(32)));
-using bf8x64_t = bf8_t __attribute((ext_vector_type(64)));
+using bf8x2_t  = bf8_t __attribute__((ext_vector_type(2)));
+using bf8x4_t  = bf8_t __attribute__((ext_vector_type(4)));
+using bf8x8_t  = bf8_t __attribute__((ext_vector_type(8)));
+using bf8x16_t = bf8_t __attribute__((ext_vector_type(16)));
+using bf8x32_t = bf8_t __attribute__((ext_vector_type(32)));
+using bf8x64_t = bf8_t __attribute__((ext_vector_type(64)));
 #endif
 
 // pk_int4_t
 // using pk_int4_t
-using pk_int4x2_t  = int8_t __attribute((ext_vector_type(2)));
-using pk_int4x4_t  = int8_t __attribute((ext_vector_type(4)));
-using pk_int4x8_t  = int8_t __attribute((ext_vector_type(8)));
-using pk_int4x16_t = int8_t __attribute((ext_vector_type(16)));
-using pk_int4x32_t = int8_t __attribute((ext_vector_type(32)));
+using pk_int4x2_t  = int8_t __attribute__((ext_vector_type(2)));
+using pk_int4x4_t  = int8_t __attribute__((ext_vector_type(4)));
+using pk_int4x8_t  = int8_t __attribute__((ext_vector_type(8)));
+using pk_int4x16_t = int8_t __attribute__((ext_vector_type(16)));
+using pk_int4x32_t = int8_t __attribute__((ext_vector_type(32)));
 } // namespace ck_tile

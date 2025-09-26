@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -31,6 +31,7 @@ struct ImageToColumn
 
     static constexpr index_t kMPerBlock = Problem::BlockShape::kMPerBlock;
     static constexpr index_t kKPerBlock = Problem::BlockShape::kKPerBlock;
+    static constexpr index_t kBlockSize = Problem::BlockShape::kBlockSize;
 
     struct Kargs
     {

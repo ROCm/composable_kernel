@@ -15,9 +15,9 @@
 
 namespace ck_tile {
 
-template <int MaxThreadPerBlock, int MinBlockPerCu, typename Kernel, typename... Args>
+template <int MinBlockPerCu, typename Kernel, typename... Args>
 #if CK_TILE_USE_LAUNCH_BOUNDS
-__launch_bounds__(MaxThreadPerBlock, MinBlockPerCu)
+__launch_bounds__(Kernel::kBlockSize, MinBlockPerCu)
 #endif
     __global__ void kentry(Args... args)
 {
@@ -35,15 +35,11 @@ __launch_bounds__(MaxThreadPerBlock, MinBlockPerCu)
 //
 // the "static __device__ operator()(some_arg)" is the entry point of KernelImpl
 //
-template <int MaxThreadPerBlock = CK_TILE_MAX_THREAD_PER_BLOCK,
-          int MinBlockPerCu     = CK_TILE_MIN_BLOCK_PER_CU,
-          typename KernelImpl,
-          typename... Args>
+template <int MinBlockPerCu = CK_TILE_MIN_BLOCK_PER_CU, typename KernelImpl, typename... Args>
 CK_TILE_HOST auto
 make_kernel(KernelImpl /*f*/, dim3 grid_dim, dim3 block_dim, std::size_t lds_byte, Args... args)
 {
-    const auto kernel = kentry<MaxThreadPerBlock, MinBlockPerCu, KernelImpl, Args...>;
-
+    const auto kernel = kentry<MinBlockPerCu, KernelImpl, Args...>;
     return [=](const stream_config& s) {
         kernel<<<grid_dim, block_dim, lds_byte, s.stream_id_>>>(args...);
     };
