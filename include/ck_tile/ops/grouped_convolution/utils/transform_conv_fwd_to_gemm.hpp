@@ -28,6 +28,11 @@ struct TransformConvFwdToGemm
     static constexpr auto I4 = number<4>{};
     static constexpr auto I5 = number<5>{};
 
+    // Unified 2GB limit constant for both Split-N and Split-Image
+    // static constexpr long_index_t TwoGB = (long_index_t{1} << 31);
+    // static constexpr long_index_t TwoGB = 100L * 1024L * 1024L;  // 100MB for testing
+    static constexpr long_index_t TwoGB = 10L * 1024L * 1024L;  // 10MB for testing
+
     template <typename ConvDimsType>
     static long_index_t calculate_element_space_size_impl(const ConvDimsType& lengths,
                                                           const ConvDimsType& strides,
@@ -47,6 +52,8 @@ struct TransformConvFwdToGemm
     static IndexType GetSplitedNSize(const ConvDimsType& a_g_n_c_wis_lengths,
                                      const ConvDimsType& c_g_n_k_wos_lengths)
     {
+        // Removed verbose debug prints for cleaner output
+
         // Calculate strides internally assuming contiguous memory layout
         ConvDimsType a_g_n_c_wis_strides, c_g_n_k_wos_strides;
         const index_t num_dims = a_g_n_c_wis_lengths.size();
@@ -71,14 +78,30 @@ struct TransformConvFwdToGemm
             calculate_element_space_size_impl(c_g_n_k_wos_lengths, c_g_n_k_wos_strides, I1);
         const long_index_t element_space_size = ck_tile::max(
             a_element_space_size * sizeof(ADataType), c_element_space_size * sizeof(CDataType));
-        constexpr long_index_t TwoGB = (long_index_t{1} << 31); // 2GB
 
         const IndexType N = a_g_n_c_wis_lengths[I1];
+
+        // Debug: Show actual sizes being compared
+        if(N > 1) {
+            printf("[DEBUG Split-N Check] N=%ld, element_space_size=%ldMB, threshold=%ldMB\n",
+                   static_cast<long>(N),
+                   static_cast<long>(element_space_size / (1024 * 1024)),
+                   static_cast<long>(TwoGB / (1024 * 1024)));
+        }
 
         if(element_space_size > TwoGB)
         {
             // Minimum divisor of N to not exceed 2GB
             const auto divisor = ck_tile::integer_divide_ceil(element_space_size, TwoGB);
+
+            // Only show debug for actual Split-N cases (N > 1)
+            if(N > 1) {
+                printf("[DEBUG Split-N] N=%ld needs splitting (tensor exceeds %.0fMB limit)\n",
+                       static_cast<long>(N),
+                       static_cast<double>(TwoGB) / (1024.0 * 1024.0));
+                printf("[DEBUG Split-N] Searching for divisor >= %ld\n",
+                       static_cast<long>(divisor));
+            }
 
             if(divisor <= static_cast<double>(N))
             {
@@ -90,6 +113,10 @@ struct TransformConvFwdToGemm
                     if(N % least_divisor == 0)
                     {
                         IndexType result = N / least_divisor;
+                        if(N > 1) {
+                            printf("[DEBUG Split-N] Found divisor: %ld, n_per_split: %ld\n",
+                                   static_cast<long>(least_divisor), static_cast<long>(result));
+                        }
                         return result;
                     }
                 }
@@ -192,6 +219,10 @@ struct TransformConvFwdToGemm
                       std::is_same_v<ConvSpatialDimsType, ck_tile::array<IndexType, NDimSpatial>>);
         static_assert(std::is_same_v<ConvDimsType, std::array<IndexType, NDimSpatial + I3>> ||
                       std::is_same_v<ConvDimsType, ck_tile::array<IndexType, NDimSpatial + I3>>);
+
+        // Store original N (this was missing in 1D constructor - bug fix)
+        original_N_ = c_g_n_k_wos_lengths[I1];
+
         if constexpr(SplitN)
         {
             N_ = GetSplitedNSize(a_g_n_c_wis_lengths, c_g_n_k_wos_lengths);
@@ -199,6 +230,7 @@ struct TransformConvFwdToGemm
         else
         {
             N_ = c_g_n_k_wos_lengths[I1];
+            original_N_ = N_;
         }
     }
 
@@ -313,123 +345,196 @@ struct TransformConvFwdToGemm
         }
     }
 
-#if 0 // TODO: Enable these functionalities
-    __host__ bool AreDescriptorsSmallerThan2GB() const
+    // NEW: Unified split analysis structure
+    struct SplitDecision {
+        // Decision flags
+        bool needs_split = false;          // Do tensors exceed threshold?
+        bool can_split = false;            // Is split physically possible?
+        IndexType split_dimension = -1;    // 0=D, 1=H, 2=W, -1=none
+
+        // Pre-calculated dimension information
+        struct DimensionInfo {
+            IndexType right_start_idx = 0;        // Where right split starts in input
+            bool is_splittable = false;           // Can this dimension be split?
+        } dim_info[3];  // [0]=D, [1]=H, [2]=W
+
+        // Split parameters (valid when can_split=true)
+        IndexType left_output_size = 0;   // e.g., Ho/2 for H-split
+        IndexType right_output_size = 0;  // e.g., Ho - Ho/2
+    };
+
+    // NEW: Analyze split requirements (combines AreDescriptorsSmallerThan2GB + CanSplitImage)
+    __host__ SplitDecision AnalyzeSplitRequirements() const
     {
-        constexpr long_index_t TwoGB = (long_index_t{1} << 31);
+        SplitDecision decision;
 
-        const long_index_t in_desc_space_size =
-            I1 + (N_ - I1) * NStrideTensorA_ + (Di_ - I1) * DiStride_ + (Hi_ - I1) * HiStride_ +
-            (Wi_ - I1) * WiStride_ + (C_ - I1) * CStrideTensorA_;
-        const long_index_t out_desc_space_size =
-            I1 + (N_ - I1) * NStrideTensorC_ + (Do_ - I1) * DoStride_ + (Ho_ - I1) * HoStride_ +
-            (Wo_ - I1) * WoStride_ + (K_ - I1) * KStrideTensorC_;
+        // STEP 1: Check if split needed (replaces AreDescriptorsSmallerThan2GB logic)
+        const long_index_t input_tensor_size =
+            static_cast<long_index_t>(N_) *
+            static_cast<long_index_t>(Di_) *
+            static_cast<long_index_t>(Hi_) *
+            static_cast<long_index_t>(Wi_) *
+            static_cast<long_index_t>(C_);
 
-        bool is_a_descriptor_smaller_than_2GB = (in_desc_space_size * sizeof(ADataType)) <= TwoGB;
-        bool is_c_descriptor_smaller_than_2GB = (out_desc_space_size * sizeof(CDataType)) <= TwoGB;
+        const long_index_t output_tensor_size =
+            static_cast<long_index_t>(N_) *
+            static_cast<long_index_t>(Do_) *
+            static_cast<long_index_t>(Ho_) *
+            static_cast<long_index_t>(Wo_) *
+            static_cast<long_index_t>(K_);
 
-        return is_a_descriptor_smaller_than_2GB && is_c_descriptor_smaller_than_2GB;
-    }
+        const long_index_t input_bytes = input_tensor_size * sizeof(ADataType);
+        const long_index_t output_bytes = output_tensor_size * sizeof(CDataType);
 
-    __host__ auto SplitConvProblem(const ADataType* a_grid_ptr_base,
-                                   CDataType* c_grid_ptr_base) const
-    {
-        // Create copies
-        auto conv_to_gemm_transformer_left  = *this;
-        auto conv_to_gemm_transformer_right = *this;
-        IndexType a_right_offset            = 0;
-        IndexType c_right_offset            = 0;
-        // Calculate real filter size
-        const IndexType z_eff = (Z_ - 1) * ConvDilationD_ + 1;
-        const IndexType y_eff = (Y_ - 1) * ConvDilationH_ + 1;
+        decision.needs_split = (input_bytes > TwoGB) || (output_bytes > TwoGB);
+
+        // Debug output
+        std::cerr << "[DEBUG Split-Image] Input=" << (input_bytes / 1024 / 1024) << "MB\n";
+        std::cerr << "[DEBUG Split-Image] Output=" << (output_bytes / 1024 / 1024) << "MB\n";
+
+        if (!decision.needs_split) {
+            return decision;  // Early exit - no split needed
+        }
+
+        std::cerr << "[DEBUG Split-Image] Exceeds " << (TwoGB / 1024 / 1024) << "MB threshold:\n";
+
+        // STEP 2: Pre-calculate all dimension info ONCE (eliminates duplication)
+
+        // D dimension (for 3D)
+        if constexpr(NDimSpatial == 3) {
+            const IndexType z_eff = (Z_ - 1) * ConvDilationD_ + 1;
+            decision.dim_info[0].right_start_idx = (Do_ / 2) * ConvStrideD_;
+            const IndexType left_end_idx = (Do_ / 2 - 1) * ConvStrideD_ + z_eff;
+            decision.dim_info[0].is_splittable =
+                (Do_ > 1) &&
+                (decision.dim_info[0].right_start_idx > InLeftPadD_) &&
+                (left_end_idx <= (InLeftPadD_ + Di_));
+        }
+
+        // H dimension (for 2D and 3D)
+        if constexpr(NDimSpatial >= 2) {
+            const IndexType y_eff = (Y_ - 1) * ConvDilationH_ + 1;
+            decision.dim_info[1].right_start_idx = (Ho_ / 2) * ConvStrideH_;
+            const IndexType left_end_idx = (Ho_ / 2 - 1) * ConvStrideH_ + y_eff;
+            decision.dim_info[1].is_splittable =
+                (Ho_ > 1) &&
+                (decision.dim_info[1].right_start_idx > InLeftPadH_) &&
+                (left_end_idx <= (InLeftPadH_ + Hi_));
+        }
+
+        // W dimension (for 1D, 2D, and 3D)
         const IndexType x_eff = (X_ - 1) * ConvDilationW_ + 1;
-        // Calculate start position in input for right tensor
-        const IndexType di_right_transformer_start_idx = (Do_ / 2) * ConvStrideD_;
-        const IndexType hi_right_transformer_start_idx = (Ho_ / 2) * ConvStrideH_;
-        const IndexType wi_right_transformer_start_idx = (Wo_ / 2) * ConvStrideW_;
-        // Calculate last position in input for left tensor
-        const IndexType di_left_transformer_end_idx = (Do_ / 2 - 1) * ConvStrideD_ + z_eff;
-        const IndexType hi_left_transformer_end_idx = (Ho_ / 2 - 1) * ConvStrideH_ + y_eff;
-        const IndexType wi_left_transformer_end_idx = (Wo_ / 2 - 1) * ConvStrideW_ + x_eff;
-        // Allow to split if whole left padding will be in left tensor and right padding in right
-        // tensor
-        const bool is_possible_to_split_d = Do_ != 1 &&
-                                            di_right_transformer_start_idx > InLeftPadD_ &&
-                                            di_left_transformer_end_idx <= (InLeftPadD_ + Di_);
-        const bool is_possible_to_split_h = Ho_ != 1 &&
-                                            hi_right_transformer_start_idx > InLeftPadH_ &&
-                                            hi_left_transformer_end_idx <= (InLeftPadH_ + Hi_);
-        const bool is_possible_to_split_w = Wo_ != 1 &&
-                                            wi_right_transformer_start_idx > InLeftPadW_ &&
-                                            wi_left_transformer_end_idx <= (InLeftPadW_ + Wi_);
+        decision.dim_info[2].right_start_idx = (Wo_ / 2) * ConvStrideW_;
+        const IndexType w_left_end_idx = (Wo_ / 2 - 1) * ConvStrideW_ + x_eff;
+        decision.dim_info[2].is_splittable =
+            (Wo_ > 1) &&
+            (decision.dim_info[2].right_start_idx > InLeftPadW_) &&
+            (w_left_end_idx <= (InLeftPadW_ + Wi_));
 
-        if(is_possible_to_split_d)
-        {
-            // Apply new sizes
-            // Split output on half
-            conv_to_gemm_transformer_left.Do_  = Do_ / 2;
-            conv_to_gemm_transformer_right.Do_ = Do_ - Do_ / 2;
-            // Assign left padding to left convolution
-            conv_to_gemm_transformer_left.InLeftPadD_  = InLeftPadD_;
-            conv_to_gemm_transformer_right.InLeftPadD_ = 0;
-            // Assign right padding to right convolution
-            conv_to_gemm_transformer_left.InRightPadD_  = 0;
-            conv_to_gemm_transformer_right.InRightPadD_ = InRightPadD_;
-            // Calculate new input size
-            conv_to_gemm_transformer_left.Di_ = di_left_transformer_end_idx - InLeftPadD_;
-            conv_to_gemm_transformer_right.Di_ =
-                math::min(Di_ - (di_right_transformer_start_idx - InLeftPadD_),
-                          (conv_to_gemm_transformer_right.Do_ - 1) * ConvStrideD_ + z_eff);
-            ;
-            // Calcualte offsets
-            a_right_offset = ((Do_ / 2) * ConvStrideD_ - InLeftPadD_) * DiStride_;
-            c_right_offset = (Do_ / 2) * DoStride_;
+        // STEP 3: Decide which dimension to split based on NDimSpatial
+        if constexpr(NDimSpatial == 3) {
+            // 3D: ONLY check D dimension (no H/W to maintain memory contiguity)
+            if (decision.dim_info[0].is_splittable) {
+                decision.can_split = true;
+                decision.split_dimension = 0;
+                decision.left_output_size = Do_ / 2;
+                decision.right_output_size = Do_ - Do_ / 2;
+                std::cerr << "[DEBUG Split-Image] 3D Conv can split on D dimension\n";
+            } else {
+                std::cerr << "[DEBUG Split-Image] 3D Conv CANNOT split (D not splittable)\n";
+            }
         }
-        else if(is_possible_to_split_h)
-        {
-            conv_to_gemm_transformer_left.Ho_  = Ho_ / 2;
-            conv_to_gemm_transformer_right.Ho_ = Ho_ - Ho_ / 2;
-
-            conv_to_gemm_transformer_left.InLeftPadH_  = InLeftPadH_;
-            conv_to_gemm_transformer_right.InLeftPadH_ = 0;
-
-            conv_to_gemm_transformer_left.InRightPadH_  = 0;
-            conv_to_gemm_transformer_right.InRightPadH_ = InRightPadH_;
-
-            conv_to_gemm_transformer_left.Hi_ = hi_left_transformer_end_idx - InLeftPadH_;
-            conv_to_gemm_transformer_right.Hi_ =
-                math::min(Hi_ - (hi_right_transformer_start_idx - InLeftPadH_),
-                          (conv_to_gemm_transformer_right.Ho_ - 1) * ConvStrideH_ + y_eff);
-            a_right_offset = ((Ho_ / 2) * ConvStrideH_ - InLeftPadH_) * HiStride_;
-            c_right_offset = (Ho_ / 2) * HoStride_;
+        else if constexpr(NDimSpatial == 2) {
+            // 2D: Try H first (preferred), then W as fallback
+            if (decision.dim_info[1].is_splittable) {
+                decision.can_split = true;
+                decision.split_dimension = 1;
+                decision.left_output_size = Ho_ / 2;
+                decision.right_output_size = Ho_ - Ho_ / 2;
+                std::cerr << "[DEBUG Split-Image] 2D Conv can split on H dimension\n";
+            } else if (decision.dim_info[2].is_splittable) {
+                decision.can_split = true;
+                decision.split_dimension = 2;
+                decision.left_output_size = Wo_ / 2;
+                decision.right_output_size = Wo_ - Wo_ / 2;
+                std::cerr << "[DEBUG Split-Image] 2D Conv can split on W dimension (fallback)\n";
+            } else {
+                std::cerr << "[DEBUG Split-Image] 2D Conv CANNOT split (neither H nor W splittable)\n";
+            }
         }
-        else if(is_possible_to_split_w)
-        {
-            conv_to_gemm_transformer_left.Wo_  = Wo_ / 2;
-            conv_to_gemm_transformer_right.Wo_ = Wo_ - Wo_ / 2;
-
-            conv_to_gemm_transformer_left.InLeftPadW_  = InLeftPadW_;
-            conv_to_gemm_transformer_right.InLeftPadW_ = 0;
-
-            conv_to_gemm_transformer_left.InRightPadW_  = 0;
-            conv_to_gemm_transformer_right.InRightPadW_ = InRightPadW_;
-
-            conv_to_gemm_transformer_left.Wi_ = wi_left_transformer_end_idx - InLeftPadW_;
-            conv_to_gemm_transformer_right.Wi_ =
-                math::min(Wi_ - (wi_right_transformer_start_idx - InLeftPadW_),
-                          (conv_to_gemm_transformer_right.Wo_ - 1) * ConvStrideW_ + x_eff);
-
-            a_right_offset = ((Wo_ / 2) * ConvStrideW_ - InLeftPadW_) * WiStride_;
-            c_right_offset = (Wo_ / 2) * WoStride_;
+        else { // NDimSpatial == 1
+            // 1D: Only W dimension exists
+            if (decision.dim_info[2].is_splittable) {
+                decision.can_split = true;
+                decision.split_dimension = 2;
+                decision.left_output_size = Wo_ / 2;
+                decision.right_output_size = Wo_ - Wo_ / 2;
+                std::cerr << "[DEBUG Split-Image] 1D Conv can split on W dimension\n";
+            } else {
+                std::cerr << "[DEBUG Split-Image] 1D Conv CANNOT split (W not splittable)\n";
+            }
         }
-        // Return left transform, right transformer, right offset to Input and right offset to
-        // Output
-        return ck_tile::make_tuple(conv_to_gemm_transformer_left,
-                              conv_to_gemm_transformer_right,
-                              a_grid_ptr_base + a_right_offset,
-                              c_grid_ptr_base + c_right_offset);
+
+        return decision;
     }
-#endif
+
+    // REFACTORED: Now accepts SplitDecision to avoid recalculation
+    __host__ auto SplitConvProblem(const SplitDecision& decision) const
+    {
+        // Guard clause - return zeros if split not possible
+        if (!decision.can_split) {
+            return ck_tile::make_tuple(IndexType{0}, IndexType{0},
+                                      long_index_t{0}, long_index_t{0});
+        }
+
+        // Use pre-calculated values from decision
+        const auto& split_info = decision.dim_info[decision.split_dimension];
+        const IndexType right_start_idx = split_info.right_start_idx;
+
+        // Calculate offsets and GemmM dimensions based on split dimension
+        IndexType left_gemm_m, right_gemm_m;
+        long_index_t a_right_offset, c_right_offset;
+
+        if (decision.split_dimension == 0) {
+            // D-split (3D only)
+            a_right_offset = (right_start_idx - InLeftPadD_) * Hi_ * Wi_;
+            c_right_offset = decision.left_output_size * Ho_ * Wo_;
+
+            left_gemm_m  = N_ * decision.left_output_size * Ho_ * Wo_;
+            right_gemm_m = N_ * decision.right_output_size * Ho_ * Wo_;
+        }
+        else if (decision.split_dimension == 1) {
+            // H-split (2D only - 3D uses D-split)
+            a_right_offset = (right_start_idx - InLeftPadH_) * Wi_;
+            c_right_offset = decision.left_output_size * Wo_;
+
+            left_gemm_m  = N_ * decision.left_output_size * Wo_;
+            right_gemm_m = N_ * decision.right_output_size * Wo_;
+        }
+        else { // decision.split_dimension == 2
+            // W-split (1D, 2D, 3D)
+            a_right_offset = right_start_idx - InLeftPadW_;
+            c_right_offset = decision.left_output_size;
+
+            if constexpr (NDimSpatial == 1) { // 1D
+                left_gemm_m  = N_ * decision.left_output_size;
+                right_gemm_m = N_ * decision.right_output_size;
+            } else if constexpr (NDimSpatial == 2) { // 2D
+                left_gemm_m  = N_ * Ho_ * decision.left_output_size;
+                right_gemm_m = N_ * Ho_ * decision.right_output_size;
+            } else { // 3D
+                left_gemm_m  = N_ * Do_ * Ho_ * decision.left_output_size;
+                right_gemm_m = N_ * Do_ * Ho_ * decision.right_output_size;
+            }
+        }
+
+        return ck_tile::make_tuple(IndexType(left_gemm_m),
+                                  IndexType(right_gemm_m),
+                                  long_index_t(a_right_offset),
+                                  long_index_t(c_right_offset));
+    }
+
+
     // TODO: implement ck_tile::tensor_layout::convolution that describe packed/strided dimemsion as
     // properties
     template <typename ALayout,

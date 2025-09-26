@@ -13,7 +13,6 @@
 #include "grouped_convolution_utils.hpp"
 #include "grouped_convolution_forward_invoker.hpp"
 #include "run_grouped_convolution_fwd_example.inc"
-
 template <typename GemmWarpConfig>
 int run_grouped_conv_fwd_example(int argc, char* argv[])
 {

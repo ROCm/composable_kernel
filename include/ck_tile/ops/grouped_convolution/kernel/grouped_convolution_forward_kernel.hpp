@@ -111,6 +111,9 @@ struct GroupedConvFwdKernelArgs
 
         // Update GemmM to use split N (not original N)
         GemmM = n_per_split * args.output_spatial_lengths_[0];
+
+        // Process split-image if needed
+        ProcessSplitImage(conv_to_gemm_transformer);
     }
 
     template <
@@ -203,6 +206,9 @@ struct GroupedConvFwdKernelArgs
 
         // Update GemmM to use split N (not original N)
         GemmM = n_per_split * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1];
+
+        // Process split-image if needed
+        ProcessSplitImage(conv_to_gemm_transformer);
     }
 
     template <
@@ -304,6 +310,9 @@ struct GroupedConvFwdKernelArgs
         // Update GemmM to use split N (not original N)
         GemmM = n_per_split * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1] *
                 args.output_spatial_lengths_[2];
+
+        // Process split-image if needed
+        ProcessSplitImage(conv_to_gemm_transformer);
     }
 
     using AGridDescMK = remove_cvref_t<
@@ -351,6 +360,55 @@ struct GroupedConvFwdKernelArgs
     index_t original_n          = 1; // Original batch size before splitting
     index_t input_batch_stride  = 0; // Stride to next batch in input tensor
     index_t output_batch_stride = 0; // Stride to next batch in output tensor
+
+    // Split-Image support fields - initialize to safe defaults
+    index_t num_spatial_splits = 1;  // Number of spatial splits (e.g., 2 for H split)
+    index_t blocks_per_split = 0;    // Number of blocks assigned to each split
+    static constexpr index_t MaxSplits = 8;  // Maximum number of splits supported
+    std::array<index_t, MaxSplits> split_gemm_m = {};  // GemmM for each split
+    std::array<long_index_t, MaxSplits> split_spatial_offset_a = {};  // Input offsets
+    std::array<long_index_t, MaxSplits> split_spatial_offset_c = {};  // Output offsets
+    std::array<index_t, MaxSplits> split_block_starts = {};  // Starting block for each split
+
+    // SIMPLIFIED SPLIT-IMAGE FIELDS FOR SINGLE KERNEL APPROACH
+    // These fields enable single kernel execution instead of multiple kernel launches.
+    // When has_split_image=true, the kernel uses blockIdx.x to determine split processing.
+    bool has_split_image = false;           // Flag: whether split-image is enabled
+    index_t blocks_for_left = 0;            // Number of blocks assigned to left split
+    index_t left_gemm_m = 0;                // GemmM dimension for left spatial split
+    index_t right_gemm_m = 0;               // GemmM dimension for right spatial split
+    long_index_t a_right_offset = 0;        // Memory offset for right split input data
+    long_index_t c_right_offset = 0;        // Memory offset for right split output data
+
+    // Tile sizes for split-image block calculation (set by kernel's MakeKernelArgs)
+    index_t tile_m_per_block = 64;          // M dimension tile size (default 64)
+    index_t tile_n_per_block = 64;          // N dimension tile size (default 64)
+
+    // Helper method to process split-image (common for all constructors)
+    template<typename TransformerType>
+    void ProcessSplitImage(const TransformerType& conv_to_gemm_transformer)
+    {
+        auto split_decision = conv_to_gemm_transformer.AnalyzeSplitRequirements();
+
+        if (!split_decision.needs_split || !split_decision.can_split) {
+            return;  // No split needed or possible
+        }
+
+        // Perform the split and get results
+        auto split_result = conv_to_gemm_transformer.SplitConvProblem(split_decision);
+
+        // Store split info
+        has_split_image = true;
+        this->left_gemm_m = split_result.template at<0>();
+        this->right_gemm_m = split_result.template at<1>();
+        this->a_right_offset = split_result.template at<2>();
+        this->c_right_offset = split_result.template at<3>();
+
+        // Calculate block assignment
+        index_t left_m_tiles = (this->left_gemm_m + tile_m_per_block - 1) / tile_m_per_block;
+        index_t n_tiles = (GemmN + tile_n_per_block - 1) / tile_n_per_block;
+        blocks_for_left = left_m_tiles * n_tiles;
+    }
 };
 
 /// @brief The Grouped Convolution Forward kernel template.
@@ -460,7 +518,11 @@ struct GroupedConvolutionForwardKernel
     CK_TILE_HOST static constexpr GroupedConvFwdKernelArgsSpecialized
     MakeKernelArgs(const GroupedConvFwdHostArgs& hostArgs)
     {
-        return GroupedConvFwdKernelArgsSpecialized(hostArgs);
+        auto kargs = GroupedConvFwdKernelArgsSpecialized(hostArgs);
+        // Set tile sizes from TilePartitioner for split-image block calculation
+        kargs.tile_m_per_block = TilePartitioner::MPerBlock;
+        kargs.tile_n_per_block = TilePartitioner::NPerBlock;
+        return kargs;
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
@@ -821,10 +883,6 @@ struct GroupedConvolutionForwardKernel
     CK_TILE_DEVICE void operator()(GroupedConvFwdKernelArgsSpecialized kargs) const
     {
         const auto blockIdX = amd_wave_read_first_lane(blockIdx.x);
-        const auto [iM, iN] =
-            TilePartitioner{kargs.GemmM, kargs.GemmN}.GetOutputTileIndex(blockIdX);
-        const index_t i_m = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
-        const index_t i_n = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
 
         const auto blockIdY       = amd_wave_read_first_lane(blockIdx.y);
         const auto group_offset_a = amd_wave_read_first_lane(kargs.group_stride_a * blockIdY);
@@ -845,12 +903,39 @@ struct GroupedConvolutionForwardKernel
             static_cast<long_index_t>(kargs.output_batch_stride);
 
         // Adjust pointers: combine group offset and batch offset
-        const InDataType* a_ptr =
+        const InDataType* base_a_ptr =
             static_cast<const InDataType*>(kargs.in_ptr) + group_offset_a + input_batch_offset;
         const WeiDataType* b_ptr = static_cast<const WeiDataType*>(kargs.wei_ptr) +
                                    group_offset_b; // No batch offset for weights!
-        OutDataType* c_ptr =
+        OutDataType* base_c_ptr =
             static_cast<OutDataType*>(kargs.out_ptr) + group_offset_c + output_batch_offset;
+
+        // SINGLE KERNEL SPLIT-IMAGE PROCESSING
+        const InDataType* a_ptr = base_a_ptr;
+        OutDataType* c_ptr = base_c_ptr;
+        index_t local_gemm_m = kargs.GemmM;           // Default: use full problem size
+        index_t local_block_id = blockIdX;           // Default: use global block ID
+
+        if (kargs.has_split_image) {
+            // Determine which spatial split this block handles
+            if (blockIdX < kargs.blocks_for_left) {
+                // LEFT SPLIT: Process first spatial region (e.g., H[0:32] in 2D H-split)
+                local_gemm_m = kargs.left_gemm_m;
+                // local_block_id already equals blockIdX (no change needed)
+            } else {
+                // RIGHT SPLIT: Process second spatial region (e.g., H[32:64] in 2D H-split)
+                a_ptr = base_a_ptr + kargs.a_right_offset;  // Point to right split input data
+                c_ptr = base_c_ptr + kargs.c_right_offset;  // Point to right split output data
+                local_gemm_m = kargs.right_gemm_m;
+                local_block_id = blockIdX - kargs.blocks_for_left;  // Local block ID [0, blocks_for_right)
+            }
+        }
+
+        // Tile partitioning using local dimensions and block ID
+        const auto [iM, iN] =
+            TilePartitioner{local_gemm_m, kargs.GemmN}.GetOutputTileIndex(local_block_id);
+        const index_t i_m = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
+        const index_t i_n = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
 
         // allocate LDS
         __shared__ char smem_ptr_0[GetSmemSize()];
