@@ -52,10 +52,13 @@ CK_TILE_DEVICE auto load_tile(const TileWindow_& tile_window,
  *       and an elementwise function. For each A = A0, A1… AN, the elementwise function
  *       is additionally applied during a single read.
  */
-template <typename TileWindow_,
-          typename ElementWise_,
-          index_t i_access           = -1,
-          bool oob_conditional_check = true>
+template <
+    typename TileWindow_,
+    typename ElementWise_,
+    index_t i_access           = -1,
+    bool oob_conditional_check = true,
+    typename = std::enable_if_t<std::is_class_v<TileWindow_> && std::is_class_v<ElementWise_> &&
+                                !is_constant_v<ElementWise_>>>
 CK_TILE_DEVICE auto load_tile_with_elementwise(const TileWindow_& tile_window,
                                                ElementWise_ elementwise,
                                                number<i_access>                     = {},
@@ -90,8 +93,8 @@ template <typename DistributedTensor_,
           typename TileWindow_,
           index_t i_access           = -1,
           bool oob_conditional_check = true,
-          typename =
-              std::enable_if_t<std::is_class_v<DistributedTensor_> && std::is_class_v<TileWindow_>>>
+          typename                   = std::enable_if_t<std::is_class_v<DistributedTensor_> &&
+                                                        std::is_class_v<TileWindow_> && !is_constant_v<TileWindow_>>>
 CK_TILE_DEVICE auto load_tile(DistributedTensor_& dst_tile,
                               const TileWindow_& tile_window,
                               number<i_access>                     = {},
