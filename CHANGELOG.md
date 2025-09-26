@@ -9,6 +9,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added the new api to load different memory sizes to SGPR.
 * Added support for B Tensor Preshuffle in CK TILE Grouped GEMM.
 * Added a basic copy kernel example and supporting documentation for new CK Tile developers.
+* Added support for grouped_gemm kernels to perform multi_d elementwise operation.
 * Added support for bf16, f32, and f16 for 2D and 3D NGCHW grouped convolution backward data
 * Added a fully asynchronous HOST (CPU) arguments copy flow for CK grouped GEMM kernels.
 * Added support GKCYX layout for grouped convolution forward (NGCHW/GKCYX/NGKHW, number of instances in instance factory for NGCHW/GKYXC/NGKHW has been reduced).
