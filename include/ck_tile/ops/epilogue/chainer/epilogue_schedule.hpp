@@ -8,43 +8,37 @@
 
 namespace ck_tile {
 
-    template <typename Problem>
-    struct CshuffleEpilogueSchedule
+template <typename Problem>
+struct CshuffleEpilogueSchedule
+{
+    using Init                         = CShuffleEpilogueStageBase<Problem>;
+    static constexpr index_t NumAccess = Init::SFC::get_num_of_access();
+
+    // Base schedule (no scale)
+    CK_TILE_DEVICE static auto make_base_schedule()
     {
-        using Init = CShuffleEpilogueStageBase<Problem>;
-        static constexpr index_t NumAccess = Init::SFC::get_num_of_access();
+        return make_loop<NumAccess>(make_node<SliceEpilogue<Problem>>(),
+                                    make_node<CastLdsEpilogue<Problem>>(),
+                                    make_node<PrepCTensorEpilogue<Problem>>(),
+                                    make_node<ApplyDEpilogue<Problem>>(),
+                                    make_node<StoreToDramEpilogue<Problem>>(),
+                                    make_node<MoveWindowsEpilogue<Problem>>());
+    }
 
-        // Base schedule (no scale)
-        CK_TILE_DEVICE static auto make_base_schedule()
-        {
-            return make_loop<NumAccess>(
-                make_node<SliceEpilogue<Problem>>(),
-                make_node<CastLdsEpilogue<Problem>>(),
-                make_node<PrepCTensorEpilogue<Problem>>(),
-                make_node<ApplyDEpilogue<Problem>>(),
-                make_node<StoreToDramEpilogue<Problem>>(),
-                make_node<MoveWindowsEpilogue<Problem>>()
-            );
-        }
-
-        // Scale schedule (provides arguments to ScaleEpilogue)
-        template <typename ScaleMWindow, typename ScaleNWindow>
-        CK_TILE_DEVICE static auto make_scale_schedule(const ScaleMWindow& scale_m_window,
-                                                       const ScaleNWindow& scale_n_window)
-        {
-            return make_loop<NumAccess>(
-                make_node<SliceEpilogue<Problem>>(),
-                make_node<ScaleEpilogue<Problem>>(scale_m_window, scale_n_window),
-                make_node<CastLdsEpilogue<Problem>>(),
-                make_node<PrepCTensorEpilogue<Problem>>(),
-                make_node<ApplyDEpilogue<Problem>>(),
-                make_node<StoreToDramEpilogue<Problem>>(),
-                make_node<MoveWindowsEpilogue<Problem>>()
-            );
-        }
-    };
-
+    // Scale schedule (provides arguments to ScaleEpilogue)
+    template <typename ScaleMWindow, typename ScaleNWindow>
+    CK_TILE_DEVICE static auto make_scale_schedule(const ScaleMWindow& scale_m_window,
+                                                   const ScaleNWindow& scale_n_window)
+    {
+        return make_loop<NumAccess>(
+            make_node<SliceEpilogue<Problem>>(),
+            make_node<ScaleEpilogue<Problem>>(scale_m_window, scale_n_window),
+            make_node<CastLdsEpilogue<Problem>>(),
+            make_node<PrepCTensorEpilogue<Problem>>(),
+            make_node<ApplyDEpilogue<Problem>>(),
+            make_node<StoreToDramEpilogue<Problem>>(),
+            make_node<MoveWindowsEpilogue<Problem>>());
+    }
+};
 
 } // namespace ck_tile
-
-

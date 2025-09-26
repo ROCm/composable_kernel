@@ -17,58 +17,78 @@ struct EpilogueNode
 
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename Context>
     CK_TILE_DEVICE void execute(ODramWindow& out_dram_window,
-                               const OAccTile& o_acc_tile,
-                               const DsDramWindows& ds_dram_windows,
-                               void* p_smem,
-                               Context& context) const
+                                const OAccTile& o_acc_tile,
+                                const DsDramWindows& ds_dram_windows,
+                                void* p_smem,
+                                Context& context) const
     {
-        ck_tile::apply([&](auto&&... epilogue_args) {
-            EpilogueType{}(out_dram_window, o_acc_tile, ds_dram_windows, p_smem, context,
-                          std::forward<decltype(epilogue_args)>(epilogue_args)...);
-        }, args);
+        ck_tile::apply(
+            [&](auto&&... epilogue_args) {
+                EpilogueType{}(out_dram_window,
+                               o_acc_tile,
+                               ds_dram_windows,
+                               p_smem,
+                               context,
+                               std::forward<decltype(epilogue_args)>(epilogue_args)...);
+            },
+            args);
     }
 
-    template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename Context, index_t I>
+    template <typename ODramWindow,
+              typename OAccTile,
+              typename DsDramWindows,
+              typename Context,
+              index_t I>
     CK_TILE_DEVICE void execute(ODramWindow& out_dram_window,
-                                              const OAccTile& o_acc_tile,
-                                              const DsDramWindows& ds_dram_windows,
-                                              void* p_smem,
-                                              Context& context,
-                                              number<I> iAccess) const
+                                const OAccTile& o_acc_tile,
+                                const DsDramWindows& ds_dram_windows,
+                                void* p_smem,
+                                Context& context,
+                                number<I> iAccess) const
     {
-        ck_tile::apply([&](auto&&... epilogue_args) {
-            EpilogueType{}(out_dram_window, o_acc_tile, ds_dram_windows, p_smem, iAccess, context,
-                          std::forward<decltype(epilogue_args)>(epilogue_args)...);
-        }, args);
+        ck_tile::apply(
+            [&](auto&&... epilogue_args) {
+                EpilogueType{}(out_dram_window,
+                               o_acc_tile,
+                               ds_dram_windows,
+                               p_smem,
+                               iAccess,
+                               context,
+                               std::forward<decltype(epilogue_args)>(epilogue_args)...);
+            },
+            args);
     }
 };
-
 
 template <typename EpilogueType>
 struct EpilogueNode<EpilogueType>
 {
     using Epilogue = EpilogueType;
     ck_tile::tuple<> args;
-    
+
     constexpr EpilogueNode() = default;
-    
+
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename Context>
     CK_TILE_DEVICE void execute(ODramWindow& out_dram_window,
-                               const OAccTile& o_acc_tile,
-                               const DsDramWindows& ds_dram_windows,
-                               void* p_smem,
-                               Context& context) const
+                                const OAccTile& o_acc_tile,
+                                const DsDramWindows& ds_dram_windows,
+                                void* p_smem,
+                                Context& context) const
     {
         EpilogueType{}(out_dram_window, o_acc_tile, ds_dram_windows, p_smem, context);
     }
-    
-    template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename Context, index_t I>
+
+    template <typename ODramWindow,
+              typename OAccTile,
+              typename DsDramWindows,
+              typename Context,
+              index_t I>
     CK_TILE_DEVICE void execute(ODramWindow& out_dram_window,
-                                              const OAccTile& o_acc_tile,
-                                              const DsDramWindows& ds_dram_windows,
-                                              void* p_smem,
-                                              Context& context,
-                                              number<I> iAccess) const
+                                const OAccTile& o_acc_tile,
+                                const DsDramWindows& ds_dram_windows,
+                                void* p_smem,
+                                Context& context,
+                                number<I> iAccess) const
     {
         EpilogueType{}(out_dram_window, o_acc_tile, ds_dram_windows, p_smem, iAccess, context);
     }
@@ -79,16 +99,16 @@ template <index_t Count, typename... EpilogueTypes>
 struct EpilogueLoop
 {
     ck_tile::tuple<EpilogueTypes...> epilogues;
-    
+
     constexpr EpilogueLoop() = default;
     constexpr EpilogueLoop(EpilogueTypes... eps) : epilogues(eps...) {}
-    
+
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename Context>
     CK_TILE_DEVICE void execute(ODramWindow& out_dram_window,
-                               const OAccTile& o_acc_tile,
-                               const DsDramWindows& ds_dram_windows,
-                               void* p_smem,
-                               Context& context) const
+                                const OAccTile& o_acc_tile,
+                                const DsDramWindows& ds_dram_windows,
+                                void* p_smem,
+                                Context& context) const
     {
         static_for<0, Count, 1>{}([&](auto iAccess) {
             static_for<0, sizeof...(EpilogueTypes), 1>{}([&](auto I) {
@@ -113,5 +133,3 @@ constexpr auto make_loop(EpilogueTypes... epilogues)
 }
 
 } // namespace ck_tile
-
-

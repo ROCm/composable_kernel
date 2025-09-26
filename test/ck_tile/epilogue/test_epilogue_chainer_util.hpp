@@ -28,7 +28,7 @@ __global__ void test_epilogue_chainer_kernel(typename Problem::ODataType* __rest
                                              float* n_scale)
 {
     using InitEpilogue = CShuffleEpilogueStageBase<Problem>;
-    using Scheduler = CshuffleEpilogueSchedule<Problem>;
+    using Scheduler    = CshuffleEpilogueSchedule<Problem>;
 
     static_assert(Problem::kMPerBlock <= M && Problem::kNPerBlock <= N,
                   "Block size must fit in tensor dimensions");

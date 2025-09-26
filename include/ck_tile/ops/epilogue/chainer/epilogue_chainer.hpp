@@ -11,34 +11,34 @@ namespace ck_tile {
 template <typename InitEpilogue, typename MainSequence>
 class EpilogueChainer
 {
-public:
-    using SelectEpilogue = InitEpilogue;
-    using Problem = typename InitEpilogue::Problem;
-    using ODataType = typename InitEpilogue::ODataType;
-    using DsDataType = typename InitEpilogue::DsDataType;
-    using DsLayout = typename InitEpilogue::DsLayout;
-    using AccDataType = typename InitEpilogue::AccDataType;
+    public:
+    using SelectEpilogue                  = InitEpilogue;
+    using Problem                         = typename InitEpilogue::Problem;
+    using ODataType                       = typename InitEpilogue::ODataType;
+    using DsDataType                      = typename InitEpilogue::DsDataType;
+    using DsLayout                        = typename InitEpilogue::DsLayout;
+    using AccDataType                     = typename InitEpilogue::AccDataType;
     static constexpr auto MemoryOperation = InitEpilogue::MemoryOperation;
 
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() 
-    { 
-        return InitEpilogue::GetSmemSize(); 
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
+    {
+        return InitEpilogue::GetSmemSize();
     }
-    
-    CK_TILE_HOST_DEVICE static constexpr index_t GetVectorSizeC() 
-    { 
-        return InitEpilogue::GetVectorSizeC(); 
+
+    CK_TILE_HOST_DEVICE static constexpr index_t GetVectorSizeC()
+    {
+        return InitEpilogue::GetVectorSizeC();
     }
-    
+
     template <index_t I>
     CK_TILE_HOST_DEVICE static constexpr index_t GetVectorSizeD(number<I> idx)
-    { 
-        return InitEpilogue::GetVectorSizeD(idx); 
+    {
+        return InitEpilogue::GetVectorSizeD(idx);
     }
-    
+
     CK_TILE_DEVICE static constexpr auto MakeLdsDistributionEncode()
-    { 
-        return InitEpilogue::MakeLdsDistributionEncode(); 
+    {
+        return InitEpilogue::MakeLdsDistributionEncode();
     }
 
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows>
@@ -50,7 +50,7 @@ public:
     {
         // Initialize context
         auto context = InitEpilogue{}(out_dram_window, o_acc_tile, ds_dram_windows, p_smem);
-        
+
         // Execute the sequence
         sequence.execute(out_dram_window, o_acc_tile, ds_dram_windows, p_smem, context);
     }
