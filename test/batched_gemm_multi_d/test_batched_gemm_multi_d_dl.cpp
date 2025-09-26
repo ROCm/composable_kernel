@@ -56,7 +56,21 @@ class TestBatchedGemmMultiD : public ::testing::Test
                                                                             PassThrough,
                                                                             PassThrough,
                                                                             PassThrough>>(
-                true, 1, false, 1, M, N, K, K, N, N, M * K, K * N, M * N, BatchCount);
+                true,  // do_verification
+                1,     // init_method
+                false, // do_log
+                1,     // time_kernel,
+                M,
+                N,
+                K,
+                std::is_same_v<ALayout, Row> ? K : M, // strideA
+                std::is_same_v<BLayout, Row> ? N : K, // strideB
+                std::is_same_v<CLayout, Row> ? N : M, // strideC
+                // BatchStrideA BatchStrideB, BatchStrideC
+                M * K,
+                K * N,
+                M * N,
+                BatchCount);
         EXPECT_TRUE(pass);
     }
 };
