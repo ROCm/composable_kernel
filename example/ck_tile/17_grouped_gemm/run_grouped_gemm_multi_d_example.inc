@@ -86,7 +86,7 @@ float invoke_gemm(int n_warmup,
     }
     else
     {
-        std::vector<ck_tile::GemmTransKernelArg<2>> kargs;
+        std::vector<ck_tile::GemmTransKernelArg<DsDataType::size()>> kargs;
         void* kargs_ptr   = gemm_workspace.GetDeviceBuffer();
         const bool splitk = args[0].k_batch > 1;
         for(const auto& arg : args)
@@ -105,11 +105,12 @@ float invoke_gemm(int n_warmup,
                                                                          arg.k_batch});
         }
         const auto stream = ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat};
-        HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
-                                            kargs.data(),
-                                            kargs.size() * sizeof(ck_tile::GemmTransKernelArg<2>),
-                                            hipMemcpyHostToDevice,
-                                            stream.stream_id_));
+        HIP_CHECK_ERROR(hipMemcpyWithStream(
+            kargs_ptr,
+            kargs.data(),
+            kargs.size() * sizeof(ck_tile::GemmTransKernelArg<DsDataType::size()>),
+            hipMemcpyHostToDevice,
+            stream.stream_id_));
         ave_time =
             grouped_gemm_multi_d_tileloop<GemmConfig,
                                           ADataType,
@@ -355,12 +356,6 @@ int run_grouped_gemm_multi_d_example_with_layouts(int argc,
                 b_k_n_tensors[i],
                 {d0_m_n_tensors[i], d1_m_n_tensors[i]},
                 e_m_n_host_refs[i]);
-            std::cout << "e_m_n_host_refs[i]: " << std::endl;
-            e_m_n_host_refs[i].print_first_n(std::cout, 10);
-            std::cout << std::endl;
-            std::cout << "e_m_n_tensors[i]: " << std::endl;
-            e_m_n_tensors[i].print_first_n(std::cout, 10);
-            std::cout << std::endl;
 
             const float max_accumulated_value =
                 *std::max_element(e_m_n_host_refs[i].mData.begin(), e_m_n_host_refs[i].mData.end());

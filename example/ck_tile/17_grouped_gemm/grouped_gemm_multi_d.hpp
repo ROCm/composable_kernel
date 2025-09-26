@@ -171,7 +171,7 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V4>
     using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV4<PipelineProblem>;
 };
 
-using grouped_gemm_multi_d_kargs = ck_tile::GroupedGemmHostArgs<2>;
+using grouped_gemm_multi_d_kargs = ck_tile::GroupedGemmHostArgs<DsDataType::size()>;
 
 std::pair<bool, ck_tile::ArgParser> create_args(int argc, char* argv[])
 {
@@ -202,7 +202,7 @@ std::pair<bool, ck_tile::ArgParser> create_args(int argc, char* argv[])
 
 inline std::size_t get_workspace_size(const std::vector<grouped_gemm_multi_d_kargs>& gemm_descs)
 {
-    return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg<2>);
+    return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg<DsDataType::size()>);
 }
 
 template <typename GemmConfig,
