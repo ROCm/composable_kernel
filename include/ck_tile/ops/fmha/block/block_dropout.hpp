@@ -59,9 +59,9 @@ struct BlockDropout
                                      float rp_undrop_,
                                      uint8_t p_undrop_in_uint8_t_,
                                      bool is_store_randval_)
-        : ph_seed(warp_uniform(seed)),
-          ph_head_offset(
-              warp_uniform(offset + (i_batch * nheads + i_head) * detail::philox_per_tile)),
+        : ph_seed(amd_wave_read_first_lane(seed)),
+          ph_head_offset(amd_wave_read_first_lane(offset + (i_batch * nheads + i_head) *
+                                                               detail::philox_per_tile)),
           rp_undrop(rp_undrop_),
           p_undrop_in_uint8_t(p_undrop_in_uint8_t_),
           is_store_randval(is_store_randval_)
@@ -415,9 +415,9 @@ struct BlockDropoutBwd<true, IsWG32_, IsStoreRandval_>
                                         unsigned long long offset,
                                         float rp_undrop_,
                                         uint8_t p_undrop_in_uint8_t_)
-        : ph_seed(warp_uniform(seed)),
-          ph_head_offset(
-              warp_uniform(offset + (i_batch * nheads + i_head) * detail::philox_per_tile)),
+        : ph_seed(amd_wave_read_first_lane(seed)),
+          ph_head_offset(amd_wave_read_first_lane(offset + (i_batch * nheads + i_head) *
+                                                               detail::philox_per_tile)),
           rp_undrop(rp_undrop_),
           p_undrop_in_uint8_t(p_undrop_in_uint8_t_)
     {

@@ -319,7 +319,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     static constexpr bool AsyncCopy = AsyncCopy_;
 
     static constexpr index_t NumPrefetchK = NumPrefetchK_;
-    static constexpr index_t NumPrefetchV = NumPrefetchV_;
+    static constexpr index_t NumPrefetchV = NumPrefetchK_;
 
     static constexpr index_t NumKVLdsBuffers = max(NumPrefetchK, NumPrefetchV);
 
