@@ -42,7 +42,7 @@ static void print_helper_msg()
               << "                 2: Input bf16, Weight fp32, Output bf16\n"
               << "                 3: Input fp16, Weight fp16, Output fp16, Gemm bf8@fp8\n"
               << "                 4: Input int8, Weight int8, Output int8\n"
-              << "                 5: Input bf16, Weight bf16, Output bf16)\n"
+              << "                 5: Input bf16, Weight bf16, Output bf16\n"
               << "                 6: Input fp32, Weight fp32, Output fp32, Compute tf32)\n"
               << "arg3: tensor layout (0: Input[G, N, C, Hi, Wi], Weight[G, K, C, Y, X], Output[G, "
                  "N, K, Ho, Wo]\n"

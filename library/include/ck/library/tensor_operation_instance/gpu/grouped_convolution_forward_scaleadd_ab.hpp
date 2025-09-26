@@ -135,7 +135,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 #ifdef CK_ENABLE_FP32
             if constexpr(is_same_v<InDataType, ck::Tuple<float, float>> &&
                          is_same_v<WeiDataType, ck::Tuple<float, float>> &&
-                         is_same_v<OutDataType, float>)
+                         is_same_v<OutDataType, float> && is_same_v<ComputeType, float>)
             {
                 add_device_grouped_conv3d_fwd_xdl_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_f32_instances(
                     op_ptrs);
