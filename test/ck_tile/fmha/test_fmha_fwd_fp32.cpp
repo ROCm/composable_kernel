@@ -16,7 +16,9 @@ using DataTypeConfig = FmhaFwdFp32;
 const auto HDimValues = Values(std::tuple{32, -1},
                                std::tuple{48, -1},
                                std::tuple{64, -1},
+                               std::tuple{96, 128},
                                std::tuple{128, -1},
+                               std::tuple{192, -1},
                                std::tuple{256, -1});
 
 const auto SplitKVHDimValues = Values();
@@ -25,7 +27,7 @@ const auto AppendKVHDimValues = Values();
 
 const auto ModeValues = Values(mode_enum::batch, mode_enum::group);
 
-const auto IsVRowmajorValues = Values(false, true);
+const auto IsVRowmajorValues = Values(true);
 
 const bool squant             = false;
 const std::string init_method = "uf";
