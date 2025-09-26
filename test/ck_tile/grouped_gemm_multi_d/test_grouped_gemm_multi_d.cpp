@@ -31,7 +31,8 @@ template <typename ALayout_,
           int K_Warp_Tile_val_,
           bool DoubleSmemBuffer_val_,
           ck_tile::GemmPipelineScheduler Scheduler_val_,
-          PipelineType Pipeline_val_>
+          PipelineType Pipeline_val_,
+          bool Persistent_val_>
 struct KernelConfig
 {
     using ALayoutType  = ALayout_;
@@ -56,15 +57,19 @@ struct KernelConfig
     static constexpr bool DoubleSmemBuffer_ = DoubleSmemBuffer_val_;
     static constexpr auto Scheduler_        = Scheduler_val_;
     static constexpr PipelineType Pipeline_ = Pipeline_val_;
+    static constexpr bool Persistent_       = Persistent_val_;
     static constexpr int BlockPerCu_        = 1;
 };
 
 // clang-format off
 using KernelTypes = ::testing::Types<
-    //             ALayout, BLayout, ELayout, ADataType, BDataType, AccDataType, EDataType, M_N_KTiles,    M_N_K_Warps,     M_N_K_Warp_Tile, DoubleSmemBuffer, Scheduler, Pipeline
-    KernelConfig<    Row,     Col,     Row,         F16,       F16,         F32,       F16,  128, 32, 64,    4, 1, 1,       32, 32, 8,        false,           ck_tile::GemmPipelineScheduler::Interwave, PipelineType::Memory>, // memory
-    KernelConfig<    Row,     Col,     Row,         F16,       F16,         F32,       F16,  256, 256, 64,   2, 2, 1,       32, 32, 16,       false,           ck_tile::GemmPipelineScheduler::Intrawave, PipelineType::CompV3>, // v3
-    KernelConfig<    Row,     Col,     Row,         F16,       F16,         F32,       F16,  256, 256, 32,   2, 2, 1,       32, 32, 16,       true,            ck_tile::GemmPipelineScheduler::Intrawave, PipelineType::CompV4> // v4
+    //             ALayout, BLayout, ELayout, ADataType, BDataType, AccDataType, EDataType, M_N_KTiles,    M_N_K_Warps,     M_N_K_Warp_Tile, DoubleSmemBuffer, Scheduler, Pipeline, Persistent
+    KernelConfig<    Row,     Col,     Row,         F16,       F16,         F32,       F16,  128, 32, 64,    4, 1, 1,       32, 32, 8,        false,           ck_tile::GemmPipelineScheduler::Interwave, PipelineType::Memory, false>, // memory
+    KernelConfig<    Row,     Col,     Row,         F16,       F16,         F32,       F16,  128, 32, 64,    4, 1, 1,       32, 32, 8,        false,           ck_tile::GemmPipelineScheduler::Interwave, PipelineType::Memory, true>, // memory
+    KernelConfig<    Row,     Col,     Row,         F16,       F16,         F32,       F16,  256, 256, 64,   2, 2, 1,       32, 32, 16,       false,           ck_tile::GemmPipelineScheduler::Intrawave, PipelineType::CompV3, false>, // v3
+    KernelConfig<    Row,     Col,     Row,         F16,       F16,         F32,       F16,  256, 256, 64,   2, 2, 1,       32, 32, 16,       false,           ck_tile::GemmPipelineScheduler::Intrawave, PipelineType::CompV3, true>, // v3
+    KernelConfig<    Row,     Col,     Row,         F16,       F16,         F32,       F16,  256, 256, 32,   2, 2, 1,       32, 32, 16,       true,            ck_tile::GemmPipelineScheduler::Intrawave, PipelineType::CompV4, false>, // v4
+    KernelConfig<    Row,     Col,     Row,         F16,       F16,         F32,       F16,  256, 256, 32,   2, 2, 1,       32, 32, 16,       true,            ck_tile::GemmPipelineScheduler::Intrawave, PipelineType::CompV4, true> // v4
     >;
 // clang-format on
 
