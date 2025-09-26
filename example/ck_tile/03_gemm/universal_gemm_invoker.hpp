@@ -89,29 +89,29 @@ struct UniversalInvoker
             using GemmPipeline = typename PipelineTypeTraits<
                 GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
 
-            using GemmEpilogue = ck_tile::CShuffleEpilogue<
-                ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                 BDataType,
-                                                 DsDataType,
-                                                 AccDataType,
-                                                 CDataType,
-                                                 DsLayout,
-                                                 ELayout,
-                                                 CDEElementWise,
-                                                 TilePartitioner::MPerBlock,
-                                                 TilePartitioner::NPerBlock,
-                                                 GemmConfig::M_Warp,
-                                                 GemmConfig::N_Warp,
-                                                 GemmConfig::M_Warp_Tile,
-                                                 GemmConfig::N_Warp_Tile,
-                                                 GemmConfig::K_Warp_Tile,
-                                                 UniversalGemmProblem::TransposeC,
-                                                 memory_operation,
-                                                 GemmConfig::NumWaveGroups,
-                                                 false,
-                                                 1,
-                                                 false,
-                                                 GemmConfig::K_Warp>>;
+            using GemmEpilogue = ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
+                ADataType,
+                BDataType,
+                DsDataType,
+                AccDataType,
+                CDataType,
+                DsLayout,
+                ELayout,
+                CDEElementWise,
+                TilePartitioner::MPerBlock,
+                TilePartitioner::NPerBlock,
+                GemmConfig::M_Warp,
+                GemmConfig::N_Warp,
+                GemmConfig::M_Warp_Tile,
+                GemmConfig::N_Warp_Tile,
+                GemmConfig::K_Warp_Tile,
+                UniversalGemmProblem::TransposeC,
+                memory_operation,
+                GemmConfig::NumWaveGroups,
+                false,
+                1,
+                false,
+                (GemmConfig::NumWaveGroups > 1) ? GemmConfig::K_Warp : 1>>;
 
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
