@@ -178,7 +178,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
 
             index_t warp_id = get_warp_id();
             index_t operation_id =
-                __builtin_amdgcn_readfirstlane(get_warp_id()); // 0 - Memory read, 1 - block-gemm
+                amd_wave_read_first_lane(get_warp_id()); // 0 - Memory read, 1 - block-gemm
 
             auto a_offset = (warp_id == 0) ? make_array(0, 0) : make_array(0, KPerBlock);
             auto b_offset = (warp_id == 0) ? make_array(0, 0) : make_array(0, KPerBlock);
@@ -336,7 +336,7 @@ struct GemmPipelineAgBgCrCompV5 : public BaseGemmPipelineAgBgCrCompV5<Problem>
                 MemoryOpsStep(warp_id);
             }
 
-            index_t num_compute_steps = __builtin_amdgcn_readfirstlane(num_loop);
+            index_t num_compute_steps = amd_wave_read_first_lane(num_loop);
             while(num_compute_steps > 1)
             {
                 block_sync_lds();

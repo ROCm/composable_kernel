@@ -73,8 +73,8 @@ struct GemmTile2DPartitioner
     CK_TILE_DEVICE static auto
     GetOutputTileIndex(index_t blockIdx, index_t blockIdy) noexcept -> const tuple<index_t, index_t>
     {
-        const index_t iM = __builtin_amdgcn_readfirstlane(blockIdx);
-        const index_t iN = __builtin_amdgcn_readfirstlane(blockIdy);
+        const index_t iM = amd_wave_read_first_lane(blockIdx);
+        const index_t iN = amd_wave_read_first_lane(blockIdy);
         return make_tuple(iM, iN);
     }
 };
@@ -143,8 +143,8 @@ struct GemmTile1DPartitioner
     {
         const index_t NBlocks = integer_divide_ceil(N_, NPerBlock);
 
-        const index_t iM = __builtin_amdgcn_readfirstlane(blockIdx / NBlocks);
-        const index_t iN = __builtin_amdgcn_readfirstlane(blockIdx - iM * NBlocks);
+        const index_t iM = amd_wave_read_first_lane(blockIdx / NBlocks);
+        const index_t iN = amd_wave_read_first_lane(blockIdx - iM * NBlocks);
         return make_tuple(iM, iN);
     }
 
