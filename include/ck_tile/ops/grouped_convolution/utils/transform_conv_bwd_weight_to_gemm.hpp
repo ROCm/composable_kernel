@@ -449,7 +449,7 @@ struct TransformConvBwdWeightToGemm
             constexpr auto GStride = I1;
             return make_naive_tensor_descriptor(
                 make_tuple(N_, Wi_, C_, NumGroupsToMerge),
-                make_tuple(NStride, WiStride, GStride, CStride));
+                make_tuple(NStride, WiStride, CStride, GStride));
         }
         else
         {
@@ -464,7 +464,7 @@ struct TransformConvBwdWeightToGemm
     CK_TILE_HOST auto make_wei_grid_desc() const
     {
         // GKXC
-        const index_t KStride   = X_ * C_;
+        const index_t KStride  = X_ * C_;
         constexpr auto CStride = I1;
 
         if constexpr (NumGroupsToMerge > 1)
