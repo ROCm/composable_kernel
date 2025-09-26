@@ -93,7 +93,8 @@ bool profile_avg_pool3d_bwd_impl(int do_verification,
             using namespace ck::literals;
 
             return HostTensorDescriptor({N_, C_, D, H, W},
-                                        {D * C_ * H * W, 1_uz, C_ * H * W, W * C_, C_});
+                                        {D * C_ * H * W, 1_uz, C_ * H * W, W * C_, C_},
+                                        ck::tensor_layout::convolution::NDHWC{});
         };
 
     Tensor<DOutDataType> dout_n_c_do_ho_wo(f_host_tensor_descriptor(N, C, Do, Ho, Wo));
