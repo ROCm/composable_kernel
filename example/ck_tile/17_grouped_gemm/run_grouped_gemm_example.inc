@@ -172,15 +172,25 @@ int run_grouped_gemm_example_with_layouts(int argc,
         std::cout << "Default values: Ms (256, 512, 768, 1024..), Ns (256, 768, 1280..), Ks (512, "
                      "896, 1280..)"
                   << std::endl;
+
+        // Clear existing (invalid) data before adding defaults
+        Ms.clear();
+        Ns.clear();
+        Ks.clear();
+        stride_As.clear();
+        stride_Bs.clear();
+        stride_Cs.clear();
+
         for(int i = 0; i < group_count; i++)
         {
             Ms.push_back(256 + 256 * i);
             Ns.push_back(256 + 512 * i);
             Ks.push_back(512 + 384 * i);
 
-            stride_As.push_back(Ks[i]);
-            stride_Bs.push_back(Ks[i]);
-            stride_Cs.push_back(Ns[i]);
+            // Set default strides based on layout later using get_default_stride
+            stride_As.push_back(0);
+            stride_Bs.push_back(0);
+            stride_Cs.push_back(0);
         }
     }
 
