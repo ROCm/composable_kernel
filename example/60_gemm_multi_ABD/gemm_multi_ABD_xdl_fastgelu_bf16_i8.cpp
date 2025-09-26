@@ -81,10 +81,11 @@ int main(int argc, char* argv[])
     ck::index_t N = 768;
     ck::index_t K = 6144;
 
-    ck::index_t StrideA = K;
-    ck::index_t StrideB = N;
-    ck::index_t StrideD = 0;
-    ck::index_t StrideE = N;
+    ck::index_t StrideA  = K;
+    ck::index_t StrideB  = N;
+    ck::index_t StrideB1 = 0;
+    ck::index_t StrideD  = 0;
+    ck::index_t StrideE  = N;
 
     if(argc == 1)
     {
@@ -120,23 +121,31 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
-    auto f_host_tensor_descriptor =
-        [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            using namespace ck::literals;
+    auto f_host_tensor_descriptor = [](std::size_t row,
+                                       std::size_t col,
+                                       ck::index_t& stride,
+                                       auto layout) {
+        using namespace ck::literals;
 
-            if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
-            {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
-            }
-            else
-            {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
-            }
-        };
+        if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
+        {
+            auto desc = HostTensorDescriptor({row, col}, {static_cast<std::size_t>(stride), 1_uz});
+            if(stride <= 0)
+                stride = desc.GetStrides()[0];
+            return desc;
+        }
+        else
+        {
+            auto desc = HostTensorDescriptor({row, col}, {1_uz, static_cast<std::size_t>(stride)});
+            if(stride <= 0)
+                stride = desc.GetStrides()[1];
+            return desc;
+        }
+    };
 
     Tensor<A0DataType> a0_m_k(f_host_tensor_descriptor(M, K, StrideA, A0Layout{}));
     Tensor<B0DataType> b0_k_n(f_host_tensor_descriptor(K, N, StrideB, B0Layout{}));
-    Tensor<B1DataType> b1_k_n(f_host_tensor_descriptor(K, N, 0, B1Layout{}));
+    Tensor<B1DataType> b1_k_n(f_host_tensor_descriptor(K, N, StrideB1, B1Layout{}));
     Tensor<D0DataType> d_m_n(f_host_tensor_descriptor(M, N, StrideD, D0Layout{}));
     Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
     Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
@@ -196,7 +205,7 @@ int main(int argc, char* argv[])
                                N,
                                K,
                                std::array<ck::index_t, NumATensor>{StrideA},
-                               std::array<ck::index_t, NumBTensor>{StrideB, 0},
+                               std::array<ck::index_t, NumBTensor>{StrideB, StrideB1},
                                std::array<ck::index_t, NumDTensor>{},
                                StrideE,
                                a_element_op,

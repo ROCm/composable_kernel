@@ -292,17 +292,19 @@ int main(int argc, char* argv[])
         }
     }
 
-    Tensor<A0DataType> a0_t_k_k(HostTensorDescriptor({tokens, topk, K}, {topk * K, K, 1}));
+    Tensor<A0DataType> a0_t_k_k(HostTensorDescriptor({tokens, topk, K}, {topk * K, K, 1}, Row{}));
     Tensor<A1DataType> a1_t_k_k(
         HostTensorDescriptor({tokens, topk, (K + Scale_Block_K - 1) / Scale_Block_K},
-                             {(topk * Scale_Stride_AM), Scale_Stride_AM, 1}));
+                             {(topk * Scale_Stride_AM), Scale_Stride_AM, 1},
+                             Row{}));
 
-    Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}));
+    Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}, Col{}));
     Tensor<B1DataType> b1_e_n_k(HostTensorDescriptor(
         {experts, (K + Scale_Block_K - 1) / Scale_Block_K, (N + Scale_Block_N - 1) / Scale_Block_N},
-        {(Scale_Stride_B * Scale_Stride_BN), 1, Scale_Stride_BN}));
+        {(Scale_Stride_B * Scale_Stride_BN), 1, Scale_Stride_BN},
+        Col{}));
 
-    Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}));
+    Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}, Col{}));
     Tensor<D2DataType> d2_e_n(HostTensorDescriptor({sorted_size, N}, {1, 0}));
     Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({tokens, N}, {N, 1}));
     Tensor<EDataType> e_t_n_device_result(HostTensorDescriptor({tokens, N}, {N, 1}));
