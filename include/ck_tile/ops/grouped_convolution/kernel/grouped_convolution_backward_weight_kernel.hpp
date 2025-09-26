@@ -89,8 +89,8 @@ struct GroupedConvBwdWeightKernelArgs
 
         group_stride_a = args.K_ * NumGroupsPerBatch;            // A: Out NWGK
         group_stride_b = args.C_ * NumGroupsPerBatch;            // B: In  NWGC
-        group_stride_c = args.K_ * args.C_ *                     // C: Wei GKXC
-                            std::accumulate(args.filter_spatial_lengths_.begin(),
+        group_stride_c = args.K_ * args.C_ * NumGroupsPerBatch   // C: Wei GKXC
+                           * std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
                                          std::multiplies<index_t>());
@@ -98,7 +98,7 @@ struct GroupedConvBwdWeightKernelArgs
         GemmM     = a_grid_desc_m_k.get_length(number<0>{});
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
-        GemmBatch = std::max(static_cast<long>(1), args.G_ / NumGroupsPerBatch);
+        GemmBatch = integer_divide_ceil(args.G_, NumGroupsPerBatch);
 
         if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
         {
@@ -175,8 +175,8 @@ struct GroupedConvBwdWeightKernelArgs
 
         group_stride_a = args.K_ * NumGroupsPerBatch;            // A: Out NHWGK
         group_stride_b = args.C_ * NumGroupsPerBatch;            // B: In  NHWGC
-        group_stride_c = args.K_ * args.C_ *                     // C: Wei GKYXC
-                            std::accumulate(args.filter_spatial_lengths_.begin(),
+        group_stride_c = args.K_ * args.C_ * NumGroupsPerBatch   // C: Wei GKYXC
+                           * std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
                                          std::multiplies<index_t>());
@@ -184,7 +184,7 @@ struct GroupedConvBwdWeightKernelArgs
         GemmM     = a_grid_desc_m_k.get_length(number<0>{});
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
-        GemmBatch = std::max(static_cast<long>(1), args.G_ / NumGroupsPerBatch);
+        GemmBatch = integer_divide_ceil(args.G_, NumGroupsPerBatch);
 
         if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
         {
@@ -268,8 +268,8 @@ struct GroupedConvBwdWeightKernelArgs
 
         group_stride_a = args.K_ * NumGroupsPerBatch;            // A: Out NDHWGK
         group_stride_b = args.C_ * NumGroupsPerBatch;            // B: In  NDHWGC
-        group_stride_c = args.K_ * args.C_ *                     // C: Wei GKZYXC
-                            std::accumulate(args.filter_spatial_lengths_.begin(),
+        group_stride_c = args.K_ * args.C_ * NumGroupsPerBatch   // C: Wei GKZYXC
+                           * std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
                                          std::multiplies<index_t>());
@@ -277,7 +277,7 @@ struct GroupedConvBwdWeightKernelArgs
         GemmM     = a_grid_desc_m_k.get_length(number<0>{});
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
-        GemmBatch = std::max(static_cast<long>(1), args.G_ / NumGroupsPerBatch);
+        GemmBatch = integer_divide_ceil(args.G_, NumGroupsPerBatch);
 
         if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
         {
