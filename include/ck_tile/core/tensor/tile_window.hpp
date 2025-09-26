@@ -479,7 +479,8 @@ struct tile_window_with_static_distribution
     template <typename LdsTileWindow_,
               index_t i_access_unsupport_ = -1,
               bool oob_conditional_check  = true>
-    CK_TILE_DEVICE auto async_load(LdsTileWindow_&& lds_tile,
+    CK_TILE_DEVICE auto async_load(index_t offset,
+                                   LdsTileWindow_&& lds_tile,
                                    number<i_access_unsupport_>          = {},
                                    bool_constant<oob_conditional_check> = {}) const
     {
@@ -518,7 +519,7 @@ struct tile_window_with_static_distribution
                 this->get_bottom_tensor_view().template async_get_vectorized_elements<vector_t>(
                     smem,
                     bottom_tensor_thread_coord,
-                    number<0>{},
+                    offset,
                     bool_constant<oob_conditional_check>{});
 
                 // Move thread coordinate if not last access

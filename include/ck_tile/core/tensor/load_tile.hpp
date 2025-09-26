@@ -158,15 +158,19 @@ CK_TILE_DEVICE auto load_tile_raw(T& tile,
 
 template <typename LdsTileWindow_,
           typename TileWindow_,
+          typename Offset,
           index_t i_access           = -1,
-          bool oob_conditional_check = true>
+          bool oob_conditional_check = true,
+          typename = std::enable_if_t<std::is_class_v<remove_cvref_t<LdsTileWindow_>> &&
+                                      std::is_class_v<TileWindow_> && std::is_integral_v<Offset>>>
 CK_TILE_DEVICE auto async_load_tile(LdsTileWindow_&& lds_tile,
                                     const TileWindow_& tile_window,
+                                    Offset offset                        = 0,
                                     number<i_access>                     = {},
                                     bool_constant<oob_conditional_check> = {})
 {
     return tile_window.async_load(
-        lds_tile, number<i_access>{}, bool_constant<oob_conditional_check>{});
+        offset, lds_tile, number<i_access>{}, bool_constant<oob_conditional_check>{});
 }
 
 template <typename LdsTileWindow_,
