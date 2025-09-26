@@ -8,6 +8,9 @@
 #include "ck_tile/ops/epilogue/chainer/epilogue_graph.hpp"
 
 namespace ck_tile {
+
+/// @brief Orchestrates execution of epilogue sequences
+/// Combines initialization stage with a sequence of chained operations
 template <typename InitEpilogue, typename MainSequence>
 class EpilogueChainer
 {
@@ -41,6 +44,8 @@ class EpilogueChainer
         return InitEpilogue::MakeLdsDistributionEncode();
     }
 
+    /// @brief Execute the complete epilogue chain
+    /// @param sequence Pre-built sequence containing embedded arguments
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows>
     CK_TILE_DEVICE void operator()(ODramWindow& out_dram_window,
                                    const OAccTile& o_acc_tile,
@@ -48,10 +53,10 @@ class EpilogueChainer
                                    void* p_smem,
                                    const MainSequence& sequence) const
     {
-        // Initialize context
+        // Initialize shared context between stages
         auto context = InitEpilogue{}(out_dram_window, o_acc_tile, ds_dram_windows, p_smem);
 
-        // Execute the sequence
+        // Execute sequence with shared context
         sequence.execute(out_dram_window, o_acc_tile, ds_dram_windows, p_smem, context);
     }
 };

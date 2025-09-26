@@ -8,13 +8,16 @@
 
 namespace ck_tile {
 
+/// @brief Pre-built CShuffle epilogue sequences
+/// Provides common epilogue patterns
 template <typename Problem>
 struct CshuffleEpilogueSchedule
 {
     using Init                         = CShuffleEpilogueStageBase<Problem>;
     static constexpr index_t NumAccess = Init::SFC::get_num_of_access();
 
-    // Base schedule (no scale)
+    /// @brief Standard epilogue without scaling
+    /// Sequence: Slice -> Cast -> PrepC -> ApplyD -> Store -> MoveWindows
     CK_TILE_DEVICE static auto make_base_schedule()
     {
         return make_loop<NumAccess>(make_node<SliceEpilogue<Problem>>(),
@@ -25,7 +28,10 @@ struct CshuffleEpilogueSchedule
                                     make_node<MoveWindowsEpilogue<Problem>>());
     }
 
-    // Scale schedule (provides arguments to ScaleEpilogue)
+    /// @brief Epilogue with row/column scaling
+    /// Sequence: Slice -> Scale -> Cast -> PrepC -> ApplyD -> Store -> MoveWindows
+    /// @param scale_m_window M scaling window
+    /// @param scale_n_window N scaling window
     template <typename ScaleMWindow, typename ScaleNWindow>
     CK_TILE_DEVICE static auto make_scale_schedule(const ScaleMWindow& scale_m_window,
                                                    const ScaleNWindow& scale_n_window)

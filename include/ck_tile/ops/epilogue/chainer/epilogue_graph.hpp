@@ -7,6 +7,7 @@
 
 namespace ck_tile {
 
+/// @brief Epilogue operation wrapper with arguments
 template <typename EpilogueType, typename... Args>
 struct EpilogueNode
 {
@@ -15,6 +16,7 @@ struct EpilogueNode
 
     constexpr EpilogueNode(Args... a) : args(a...) {}
 
+    /// @brief Execute epilogue without iteration index
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename Context>
     CK_TILE_DEVICE void execute(ODramWindow& out_dram_window,
                                 const OAccTile& o_acc_tile,
@@ -34,6 +36,7 @@ struct EpilogueNode
             args);
     }
 
+    /// @brief Execute epilogue with iteration index
     template <typename ODramWindow,
               typename OAccTile,
               typename DsDramWindows,
@@ -60,6 +63,7 @@ struct EpilogueNode
     }
 };
 
+/// @brief Specialization for epilogues with no arguments
 template <typename EpilogueType>
 struct EpilogueNode<EpilogueType>
 {
@@ -94,7 +98,8 @@ struct EpilogueNode<EpilogueType>
     }
 };
 
-// Loop construct for executing epilogue sequences
+/// @brief Executes sequence of epilogue nodes across multiple iterations
+/// @tparam Count Number of iterations
 template <index_t Count, typename... EpilogueTypes>
 struct EpilogueLoop
 {
@@ -103,6 +108,7 @@ struct EpilogueLoop
     constexpr EpilogueLoop() = default;
     constexpr EpilogueLoop(EpilogueTypes... eps) : epilogues(eps...) {}
 
+    /// @brief Execute all epilogues for each iteration in sequence
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows, typename Context>
     CK_TILE_DEVICE void execute(ODramWindow& out_dram_window,
                                 const OAccTile& o_acc_tile,
@@ -110,6 +116,7 @@ struct EpilogueLoop
                                 void* p_smem,
                                 Context& context) const
     {
+        // For each iteration, execute all epilogues in order
         static_for<0, Count, 1>{}([&](auto iAccess) {
             static_for<0, sizeof...(EpilogueTypes), 1>{}([&](auto I) {
                 epilogues.template get<I.value>().execute(
@@ -119,13 +126,14 @@ struct EpilogueLoop
     }
 };
 
-// Convenience functions
+/// @brief Create epilogue node with arguments
 template <typename EpilogueType, typename... Args>
 constexpr auto make_node(Args... args)
 {
     return EpilogueNode<EpilogueType, Args...>{args...};
 }
 
+/// @brief Create epilogue loop with specified iteration count
 template <index_t Count, typename... EpilogueTypes>
 constexpr auto make_loop(EpilogueTypes... epilogues)
 {

@@ -33,6 +33,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added block scaling support in CK_TILE GEMM, allowing flexible use of quantization matrices from either A or B operands.
 * Added the row-wise column-wise quantization for CK_TILE GEMM & CK_TILE Grouped GEMM.
 * Added tensor-wise quantization for CK_TILE GEMM
+* Added CK Tile Epilogue Chainer framework for composable epilogue sequences in GEMM operations
 
 ### Optimized
 
