@@ -420,7 +420,6 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                     // ping
                     {
                         block_sync_lds();
-                        // buffer_load_fence(0);
 
                         Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1);
                         Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1);
@@ -460,7 +459,6 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                 // 3
                 {
                     block_sync_lds();
-                    // buffer_load_fence(0);
 
                     Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1);
                     Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1);
@@ -485,7 +483,6 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                 // 2
                 {
                     block_sync_lds();
-                    // buffer_load_fence(0);
 
                     Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1);
                     Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1);
