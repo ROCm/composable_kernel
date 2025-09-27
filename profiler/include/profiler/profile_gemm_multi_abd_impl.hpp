@@ -224,7 +224,7 @@ bool profile_gemm_multi_abd_impl(int do_verification,
         auto get_b_matrix = [&]() -> auto {
             // in case of pass through we avoid allocating a new
             // tensor and copying values
-            if constexpr(is_same_v<AElementOp, PassThrough>)
+            if constexpr(is_same_v<BElementOp, PassThrough>)
             {
                 return bs_k_n(Number<0>{});
             }
