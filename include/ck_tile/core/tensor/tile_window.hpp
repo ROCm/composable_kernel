@@ -80,6 +80,12 @@ struct tile_window_with_static_distribution
         this->tile_dstr_          = tile_distribution;
 
         pre_computed_coords_ = prepare_coords(bottom_tensor_view, window_origin, tile_distribution);
+        if constexpr(Base::BottomTensorView::buffer_view::get_address_space() ==
+                     address_space_enum::global)
+        {
+            pre_computed_warp_coords_ = prepare_coords(
+                bottom_tensor_view, window_origin, tile_distribution, sequence<-1, 0>{});
+        }
     }
 
     template <typename NewPartitionIndex = PartitionIndex>
@@ -95,7 +101,8 @@ struct tile_window_with_static_distribution
         const auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
             tile_distribution.get_ps_ys_to_xs_adaptor(),
             container_concat(
-                // use NewPartitionIndex if all the indices are non-negative
+                // Override partition_index with the corresponding non-negative elements (if
+                // any) from NewPartitionIndex
                 [&] {
                     auto partition_index = detail::get_partition_index(tile_distribution);
                     static_for<0,
@@ -516,12 +523,15 @@ struct tile_window_with_static_distribution
             auto window_adaptor_thread_coord = pre_computed_coords_[iCoord][I0];
             auto bottom_tensor_thread_coord  = pre_computed_coords_[iCoord][I1];
 
+            auto window_adaptor_warp_coord = pre_computed_warp_coords_[iCoord][I0];
+            auto bottom_tensor_warp_coord  = pre_computed_warp_coords_[iCoord][I1];
+
             static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
                 constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
 
                 // Use precomputed window origin
                 auto lds_bottom_tensor_thread_idx =
-                    window_origin + window_adaptor_thread_coord.get_bottom_index();
+                    window_origin + window_adaptor_warp_coord.get_bottom_index();
 
                 // Use precomputed tensor descriptor
                 const auto lds_coord =
@@ -547,6 +557,9 @@ struct tile_window_with_static_distribution
 
                     Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
                         window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
+
+                    Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
+                        window_adaptor_warp_coord, bottom_tensor_warp_coord, idx_diff_ps_ys);
                 }
             });
         });
@@ -965,6 +978,12 @@ struct tile_window_with_static_distribution
     //   per-thread coordinate for bottom tensor
     array<tuple<typename Base::WindowAdaptorCoord, typename Base::BottomTensorCoord>, NumCoord>
         pre_computed_coords_;
+    // pre_computed_warp_coords_ exists only in the global memory tile_window
+    std::conditional_t<
+        Base::BottomTensorView::buffer_view::get_address_space() == address_space_enum::global,
+        array<tuple<typename Base::WindowAdaptorCoord, typename Base::BottomTensorCoord>, NumCoord>,
+        std::byte>
+        pre_computed_warp_coords_;
 };
 
 // TODO: use strategy
