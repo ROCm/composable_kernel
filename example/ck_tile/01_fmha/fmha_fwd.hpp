@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -16,6 +16,10 @@
 #include <type_traits>
 #include <utility>
 #include <variant>
+
+struct FmhaFwdFp32
+{
+};
 
 struct FmhaFwdFp16
 {
@@ -47,6 +51,22 @@ struct FmhaFwdFp8Fp32
 
 template <typename DataType>
 struct FmhaFwdTypeConfig;
+
+template <>
+struct FmhaFwdTypeConfig<FmhaFwdFp32>
+{
+    using QDataType             = float;
+    using KDataType             = float;
+    using VDataType             = float;
+    using BiasDataType          = float;
+    using RandValOutputDataType = uint8_t;
+    using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
+    using SaccDataType          = float; // data type for first gemm accumulation
+    using SMPLComputeDataType   = float; // data type for reduction, softmax
+    using PDataType             = float; // data type for A matrix of second gemm
+    using OaccDataType          = float; // data type for second gemm accumulation
+    using ODataType             = float;
+};
 
 template <>
 struct FmhaFwdTypeConfig<FmhaFwdFp16>

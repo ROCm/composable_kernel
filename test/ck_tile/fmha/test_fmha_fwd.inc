@@ -515,6 +515,8 @@ class PagedKV : public TestWithParam<std::tuple<std::tuple<int, int>,
 {
 };
 
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(PagedKV);
+
 INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
                          PagedKV,
                          Combine(SplitKVHDimValues,
@@ -579,6 +581,8 @@ class SplitKV : public TestWithParam<std::tuple<std::tuple<int, int>,
                                                 std::tuple<int, int, int, int, int, std::string>>>
 {
 };
+
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(SplitKV);
 
 INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
                          SplitKV,
@@ -661,6 +665,8 @@ INSTANTIATE_TEST_SUITE_P(
                    std::tuple{3, 2, 2, 256, 256, "0"},
                    std::tuple{2, 3, 1, 264, 265, "1"},
                    std::tuple{4, 4, 2, 71, 64, "1"})));
+
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(AppendKV);
 
 TEST_P(AppendKV, Test)
 {
