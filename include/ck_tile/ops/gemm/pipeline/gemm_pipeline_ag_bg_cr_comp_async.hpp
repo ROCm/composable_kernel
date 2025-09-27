@@ -399,7 +399,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                               !(is_tile_window_linear_v<decltype(b_lds_ld_window0)>) &&
                               !(is_tile_window_linear_v<decltype(b_lds_ld_window1)>),
                           "LDS windows must not be linear");
-            buffer_load_fence(0);
+            buffer_load_fence();
             block_sync_lds();
 
             Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
@@ -411,11 +411,6 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             Base::GlobalPrefetchAsync(
                 b_copy_lds_window0, b_tile_windows[number<0>{}], b_dram_tile_window_step);
 
-            // if (0 == get_thread_id())
-            // {
-            //     printf("tail num: %d\n", static_cast<int32_t>(TailNum));
-            // }
-
             if(HasHotLoop)
             {
                 // minus 2 because we have ping-pong double buffer.
@@ -425,7 +420,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                     // ping
                     {
                         block_sync_lds();
-                        buffer_load_fence(0);
+                        // buffer_load_fence(0);
 
                         Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1);
                         Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1);
@@ -442,7 +437,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                     // pong
                     {
                         block_sync_lds();
-                        buffer_load_fence(0);
+                        buffer_load_fence();
 
                         Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
                         Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0);
@@ -466,7 +461,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                 // 3
                 {
                     block_sync_lds();
-                    buffer_load_fence(0);
+                    // buffer_load_fence(0);
 
                     Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1);
                     Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1);
@@ -491,7 +486,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                 // 2
                 {
                     block_sync_lds();
-                    buffer_load_fence(0);
+                    // buffer_load_fence(0);
 
                     Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1);
                     Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1);
