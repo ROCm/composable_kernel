@@ -42,6 +42,14 @@ auto get_elimit(std::string /*init_method*/)
 }
 
 template <>
+auto get_elimit<FmhaFwdFp32>(std::string /*init_method*/)
+{
+    double rtol = 1e-5;
+    double atol = 1e-5;
+    return ck_tile::make_tuple(rtol, atol);
+}
+
+template <>
 auto get_elimit<FmhaFwdBf16>(std::string /*init_method*/)
 {
     double rtol = 1e-2;
@@ -180,7 +188,9 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         std::optional<std::string> json = std::nullopt)
 {
     const std::string data_type = []() {
-        if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp16>)
+        if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp32>)
+            return "fp32";
+        else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp16>)
             return "fp16";
         else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdBf16>)
             return "bf16";
