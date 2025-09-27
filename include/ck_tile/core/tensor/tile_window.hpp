@@ -74,25 +74,39 @@ struct tile_window_with_static_distribution
         : pre_computed_coords_{}
     {
 
-        this->window_origin_                       = window_origin;
-        this->window_lengths_                      = window_lengths;
-        this->bottom_tensor_view_                  = bottom_tensor_view;
-        this->tile_dstr_                           = tile_distribution;
+        this->window_origin_      = window_origin;
+        this->window_lengths_     = window_lengths;
+        this->bottom_tensor_view_ = bottom_tensor_view;
+        this->tile_dstr_          = tile_distribution;
+
+        pre_computed_coords_ = prepare_coords(bottom_tensor_view, window_origin, tile_distribution);
+    }
+
+    template <typename NewPartitionIndex = PartitionIndex>
+    CK_TILE_DEVICE constexpr auto
+    prepare_coords(const typename Base::BottomTensorView& bottom_tensor_view,
+                   const typename Base::BottomTensorIndex& window_origin,
+                   const typename Base::TileDstr& tile_distribution,
+                   NewPartitionIndex = {}) const
+    {
+        array<tuple<typename Base::WindowAdaptorCoord, typename Base::BottomTensorCoord>, NumCoord>
+            coords;
+
         const auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
             tile_distribution.get_ps_ys_to_xs_adaptor(),
             container_concat(
-                // use PartitionIndex if all the indices are non-negative
+                // use NewPartitionIndex if all the indices are non-negative
                 [&] {
-                    if constexpr(0 <= PartitionIndex{}[number<0>{}] &&
-                                 0 <= PartitionIndex{}[number<1>{}])
-                    {
-                        return array<index_t, 2>{PartitionIndex{}[number<0>{}],
-                                                 PartitionIndex{}[number<1>{}]};
-                    }
-                    else
-                    {
-                        return detail::get_partition_index(tile_distribution);
-                    }
+                    auto partition_index = detail::get_partition_index(tile_distribution);
+                    static_for<0,
+                               ck_tile::min(partition_index.size(), NewPartitionIndex::size()),
+                               1>{}([&](auto idx) {
+                        if constexpr(0 <= NewPartitionIndex{}[idx])
+                        {
+                            partition_index[idx] = NewPartitionIndex{}[idx];
+                        }
+                    });
+                    return partition_index;
                 }(),
                 array<index_t, Base::NDimY>{0}));
 
@@ -121,9 +135,10 @@ struct tile_window_with_static_distribution
             Base::move_window_adaptor_and_bottom_tensor_thread_coordinate(
                 window_adaptor_thread_coord, bottom_tensor_thread_coord, idx_diff_ps_ys);
 
-            pre_computed_coords_(iCoord) =
-                make_tuple(window_adaptor_thread_coord, bottom_tensor_thread_coord);
+            coords(iCoord) = make_tuple(window_adaptor_thread_coord, bottom_tensor_thread_coord);
         });
+
+        return coords;
     }
 
     template <index_t i_access_unsupport_ = -1, bool oob_conditional_check = true>
