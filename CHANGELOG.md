@@ -32,7 +32,8 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added benchmarking support for tile engine GEMM Multi D.
 * Added block scaling support in CK_TILE GEMM, allowing flexible use of quantization matrices from either A or B operands.
 * Added the row-wise column-wise quantization for CK_TILE GEMM & CK_TILE Grouped GEMM.
-* Added tensor-wise quantization for CK_TILE GEMM
+* Added support for f32 to FMHA (fwd/bwd).
+* Added tensor-wise quantization for CK_TILE GEMM.
 
 ### Optimized
 
