@@ -396,9 +396,9 @@ struct HstuAttentionFwdKernel
             const index_t i_nhead = blockIdx.y;
             const index_t i_block = blockIdx.z;
 #else
-            const index_t i_block           = blockIdx.x;
-            const index_t i_nhead           = blockIdx.y;
-            const index_t i_batch           = blockIdx.z;
+            const index_t i_block = blockIdx.x;
+            const index_t i_nhead = blockIdx.y;
+            const index_t i_batch = blockIdx.z;
 #endif
 
             const auto f = [](index_t dividend, index_t divisor) {
@@ -423,16 +423,16 @@ struct HstuAttentionFwdKernel
             const index_t i_nhead = blockIdx.y;
             const index_t i_block = blockIdx.z;
 #else
-            const index_t i_block           = blockIdx.x;
-            const index_t i_nhead           = blockIdx.y;
-            const index_t i_batch           = blockIdx.z;
+            const index_t i_block = blockIdx.x;
+            const index_t i_nhead = blockIdx.y;
+            const index_t i_batch = blockIdx.z;
 #endif
 
 #if HSTU_SCHED_BATCH_AS_FIRST_GRID_DIM
             index_t i_tile_m = i_block;
             i_tile_m         = gridDim.z - 1 - i_tile_m;
 #else
-            const index_t i_tile_m          = i_block;
+            const index_t i_tile_m = i_block;
 #endif
             const index_t i_tile_n = 0;
 

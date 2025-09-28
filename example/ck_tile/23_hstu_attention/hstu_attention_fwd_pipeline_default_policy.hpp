@@ -584,8 +584,8 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
 
         auto warp_gemm = [&]() {
             if constexpr((std::is_same_v<typename Problem::QKVDataType, half_t> ||
-                          std::is_same_v<typename Problem::QKVDataType, bf16_t>)&&std::
-                             is_same_v<typename Problem::GemmAccDataType, float>)
+                          std::is_same_v<typename Problem::QKVDataType, bf16_t>) &&
+                         std::is_same_v<typename Problem::GemmAccDataType, float>)
             {
                 constexpr index_t WarpGemmM =
                     Problem::HstuAttentionTileSetting::Gemm0WarpTile::at(number<0>{});
@@ -665,8 +665,8 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
 
         auto warp_gemm = [&]() {
             if constexpr((std::is_same_v<typename Problem::QKVDataType, half_t> ||
-                          std::is_same_v<typename Problem::QKVDataType, bf16_t>)&&std::
-                             is_same_v<typename Problem::GemmAccDataType, float>)
+                          std::is_same_v<typename Problem::QKVDataType, bf16_t>) &&
+                         std::is_same_v<typename Problem::GemmAccDataType, float>)
             {
                 constexpr index_t WarpGemmM =
                     Problem::HstuAttentionTileSetting::Gemm1WarpTile::at(number<0>{});
