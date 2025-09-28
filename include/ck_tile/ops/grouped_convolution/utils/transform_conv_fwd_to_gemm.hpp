@@ -516,6 +516,25 @@ struct TransformConvFwdToGemm
             a_right_offset = right_start_idx - InLeftPadW_;
             c_right_offset = decision.left_output_size;
 
+            // DEBUG: Print padding calculations
+            printf("[DEBUG PADDING] W-split calculations:\n");
+            printf("  Input: Wi_=%d, padding: left=%d, right=%d\n",
+                   static_cast<int>(Wi_), static_cast<int>(InLeftPadW_), static_cast<int>(InRightPadW_));
+            printf("  Kernel: X_=%d, stride=%d, dilation=%d\n",
+                   static_cast<int>(X_), static_cast<int>(ConvStrideW_), static_cast<int>(ConvDilationW_));
+            printf("  Output: Wo_=%d (expected: (%d + %d + %d - %d)/1 + 1 = %d)\n",
+                   static_cast<int>(Wo_),
+                   static_cast<int>(Wi_), static_cast<int>(InLeftPadW_), static_cast<int>(InRightPadW_),
+                   static_cast<int>(X_),
+                   static_cast<int>((Wi_ + InLeftPadW_ + InRightPadW_ - X_) / ConvStrideW_ + 1));
+            printf("  Split point: right_start_idx=%d (in input space)\n", static_cast<int>(right_start_idx));
+            printf("  Offset: a_right_offset=%ld (= %d - %d)\n",
+                   a_right_offset, static_cast<int>(right_start_idx), static_cast<int>(InLeftPadW_));
+            printf("  Output split: left=%d, right=%d (total=%d)\n",
+                   static_cast<int>(decision.left_output_size),
+                   static_cast<int>(decision.right_output_size),
+                   static_cast<int>(decision.left_output_size + decision.right_output_size));
+
             if constexpr (NDimSpatial == 1) { // 1D
                 left_gemm_m  = N_ * decision.left_output_size;
                 right_gemm_m = N_ * decision.right_output_size;
