@@ -178,7 +178,7 @@ template <typename LdsTileWindow_,
           index_t i_access           = -1,
           bool oob_conditional_check = true,
           typename = std::enable_if_t<std::is_class_v<remove_cvref_t<LdsTileWindow_>> &&
-                                      std::is_class_v<TileWindow_>>>
+                                      std::is_class_v<TileWindow_> && !is_constant_v<TileWindow_>>>
 CK_TILE_DEVICE auto async_load_tile(LdsTileWindow_&& lds_tile,
                                     const TileWindow_& tile_window,
                                     number<i_access>                     = {},
