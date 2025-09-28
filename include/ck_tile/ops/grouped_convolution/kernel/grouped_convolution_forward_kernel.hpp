@@ -106,8 +106,9 @@ struct GroupedConvFwdKernelArgs
         n_splits    = ck_tile::integer_divide_ceil(original_n, n_per_split);
 
         // Calculate batch strides for NWGC layout
-        input_batch_stride  = args.C_ * args.input_spatial_lengths_[0];
-        output_batch_stride = args.K_ * args.output_spatial_lengths_[0];
+        // Need to account for G dimension when moving between batches
+        input_batch_stride  = args.G_ * args.C_ * args.input_spatial_lengths_[0];
+        output_batch_stride = args.G_ * args.K_ * args.output_spatial_lengths_[0];
 
         // Update GemmM to use split N (not original N)
         GemmM = n_per_split * args.output_spatial_lengths_[0];
@@ -199,10 +200,11 @@ struct GroupedConvFwdKernelArgs
         n_splits    = ck_tile::integer_divide_ceil(original_n, n_per_split);
 
         // Calculate batch strides for NHWGC layout
+        // Need to account for G dimension when moving between batches
         input_batch_stride =
-            args.C_ * args.input_spatial_lengths_[0] * args.input_spatial_lengths_[1];
+            args.G_ * args.C_ * args.input_spatial_lengths_[0] * args.input_spatial_lengths_[1];
         output_batch_stride =
-            args.K_ * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1];
+            args.G_ * args.K_ * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1];
 
         // Update GemmM to use split N (not original N)
         GemmM = n_per_split * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1];
@@ -302,9 +304,10 @@ struct GroupedConvFwdKernelArgs
         n_splits    = ck_tile::integer_divide_ceil(original_n, n_per_split);
 
         // Calculate batch strides for NDHWGC layout
-        input_batch_stride = args.C_ * args.input_spatial_lengths_[0] *
+        // Need to account for G dimension when moving between batches
+        input_batch_stride = args.G_ * args.C_ * args.input_spatial_lengths_[0] *
                              args.input_spatial_lengths_[1] * args.input_spatial_lengths_[2];
-        output_batch_stride = args.K_ * args.output_spatial_lengths_[0] *
+        output_batch_stride = args.G_ * args.K_ * args.output_spatial_lengths_[0] *
                               args.output_spatial_lengths_[1] * args.output_spatial_lengths_[2];
 
         // Update GemmM to use split N (not original N)
@@ -361,17 +364,7 @@ struct GroupedConvFwdKernelArgs
     index_t input_batch_stride  = 0; // Stride to next batch in input tensor
     index_t output_batch_stride = 0; // Stride to next batch in output tensor
 
-    // Split-Image support fields - initialize to safe defaults
-    index_t num_spatial_splits = 1;  // Number of spatial splits (e.g., 2 for H split)
-    index_t blocks_per_split = 0;    // Number of blocks assigned to each split
-    static constexpr index_t MaxSplits = 8;  // Maximum number of splits supported
-    std::array<index_t, MaxSplits> split_gemm_m = {};  // GemmM for each split
-    std::array<long_index_t, MaxSplits> split_spatial_offset_a = {};  // Input offsets
-    std::array<long_index_t, MaxSplits> split_spatial_offset_c = {};  // Output offsets
-    std::array<index_t, MaxSplits> split_block_starts = {};  // Starting block for each split
-
-    // SIMPLIFIED SPLIT-IMAGE FIELDS FOR SINGLE KERNEL APPROACH
-    // These fields enable single kernel execution instead of multiple kernel launches.
+    // Split-Image support fields (supports 2-way split only)
     // When has_split_image=true, the kernel uses blockIdx.x to determine split processing.
     bool has_split_image = false;           // Flag: whether split-image is enabled
     index_t blocks_for_left = 0;            // Number of blocks assigned to left split
