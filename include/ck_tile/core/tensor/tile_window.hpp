@@ -155,8 +155,13 @@ struct tile_window_with_static_distribution
         return load(0, number<i_access_unsupport_>{}, bool_constant<oob_conditional_check>{});
     }
 
-    template <index_t i_access_unsupport_ = -1, bool oob_conditional_check = true>
-    CK_TILE_DEVICE auto load(index_t offset,
+    // Use SFINAE by declaring offset as integral<Offset> rather than index_t, in order to avoid
+    // overload ambiguity caused by the implicit number<> to index_t conversion
+    template <typename Offset,
+              index_t i_access_unsupport_ = -1,
+              bool oob_conditional_check  = true,
+              typename                    = std::enable_if_t<std::is_integral_v<Offset>>>
+    CK_TILE_DEVICE auto load(Offset offset,
                              number<i_access_unsupport_>          = {},
                              bool_constant<oob_conditional_check> = {}) const
     {
@@ -179,10 +184,13 @@ struct tile_window_with_static_distribution
      *       The same thread, during vectorized reading, accesses the same set of
      *       data from A0, A1, A2, … AN.
      */
-    template <typename TileWindow_,
-              typename ElementWise_,
-              index_t i_access_unsupport_ = -1,
-              bool oob_conditional_check  = true>
+    template <
+        typename TileWindow_,
+        typename ElementWise_,
+        index_t i_access_unsupport_ = -1,
+        bool oob_conditional_check  = true,
+        typename = std::enable_if_t<std::is_class_v<TileWindow_> && std::is_class_v<ElementWise_> &&
+                                    !is_constant_v<ElementWise_>>>
     CK_TILE_DEVICE auto load(const TileWindow_& tile_window,
                              ElementWise_ elementwise,
                              number<i_access_unsupport_>          = {},
@@ -198,11 +206,15 @@ struct tile_window_with_static_distribution
         return dst_tensor;
     }
 
-    template <typename DistributedTensor,
-              typename TileWindow_,
-              typename ElementWise_,
-              index_t i_access_unsupport_ = -1,
-              bool oob_conditional_check  = true>
+    template <
+        typename DistributedTensor,
+        typename TileWindow_,
+        typename ElementWise_,
+        index_t i_access_unsupport_ = -1,
+        bool oob_conditional_check  = true,
+        typename = std::enable_if_t<std::is_class_v<std::remove_cv_t<DistributedTensor>> &&
+                                    std::is_class_v<TileWindow_> && std::is_class_v<ElementWise_> &&
+                                    !is_constant_v<ElementWise_>>>
     CK_TILE_DEVICE auto load(DistributedTensor& dst_tensor,
                              const TileWindow_& tile_window,
                              ElementWise_ elementwise,
@@ -279,10 +291,14 @@ struct tile_window_with_static_distribution
         });
     }
 
-    template <typename DistributedTensor,
+    template <typename Offset,
+              typename DistributedTensor,
               index_t i_access_unsupport_ = -1,
-              bool oob_conditional_check  = true>
-    CK_TILE_DEVICE auto load(index_t offset,
+              bool oob_conditional_check  = true,
+              typename                    = std::enable_if_t<std::is_integral_v<Offset> &&
+                                                             std::is_class_v<std::remove_cv_t<DistributedTensor>> &&
+                                                             !is_constant_v<std::remove_cv_t<DistributedTensor>>>>
+    CK_TILE_DEVICE auto load(Offset offset,
                              DistributedTensor& dst_tensor,
                              number<i_access_unsupport_>          = {},
                              bool_constant<oob_conditional_check> = {}) const
