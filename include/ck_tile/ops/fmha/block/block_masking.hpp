@@ -405,16 +405,19 @@ struct SimplifiedGenericAttentionMask
     }
 
     template <index_t TileHeight, index_t TileWidth>
-    CK_TILE_HOST_DEVICE constexpr auto
-    GetSinkTileRangeAlongX(index_t i_y, number<TileHeight> height,number<TileWidth> width, index_t num_splits, index_t i_split) const
+    CK_TILE_HOST_DEVICE constexpr auto GetSinkTileRangeAlongX(index_t i_y,
+                                                              number<TileHeight> height,
+                                                              number<TileWidth> width,
+                                                              index_t num_splits,
+                                                              index_t i_split) const
     {
         auto [sink_seq_end, origin_start, origin_end] = GetSinkTileRangeAlongX(i_y, height, width);
         const index_t x_per_split = ck_tile::max(1, integer_divide_ceil(x_total, num_splits));
         const index_t split_start = x_per_split * i_split;
         const index_t split_end   = ck_tile::min(x_total, split_start + x_per_split);
 
-        return ck_tile::make_tuple( sink_seq_end,
-                                    ck_tile::max(origin_start, split_start),
+        return ck_tile::make_tuple(sink_seq_end,
+                                   ck_tile::max(origin_start, split_start),
                                    ck_tile::min(origin_end, split_end));
     }
 
@@ -747,6 +750,6 @@ make_generic_attention_mask_from_lr_window(index_t left_size,
 {
     auto r = make_generic_attention_mask_coordinates_from_lr_window(
         left_size, right_size, 0, y_total, x_total, is_top_left);
-    return MaskType{r.at(number<0>{}), r.at(number<1>{}),0, y_total, x_total};
+    return MaskType{r.at(number<0>{}), r.at(number<1>{}), 0, y_total, x_total};
 }
 } // namespace ck_tile

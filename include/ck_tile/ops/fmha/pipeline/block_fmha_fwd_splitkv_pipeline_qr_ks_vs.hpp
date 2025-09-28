@@ -229,11 +229,13 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         set_tile(m, -numeric<SMPLComputeDataType>::infinity());
         clear_tile(l);
 
-        const auto q_origin = q_dram_window.get_window_origin();
+        const auto q_origin       = q_dram_window.get_window_origin();
         const auto sink_seq_start = 0;
-        const auto [sink_seq_end, logical_seqlen_k_start, logical_seqlen_k_end] = mask.GetSinkTileRangeAlongX(
-            q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{}, num_splits, i_split);
-        const auto kv_load_start = (sink_seq_end == 0 && logical_seqlen_k_start > 0) ? logical_seqlen_k_start : 0;
+        const auto [sink_seq_end, logical_seqlen_k_start, logical_seqlen_k_end] =
+            mask.GetSinkTileRangeAlongX(
+                q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{}, num_splits, i_split);
+        const auto kv_load_start =
+            (sink_seq_end == 0 && logical_seqlen_k_start > 0) ? logical_seqlen_k_start : 0;
         const auto num_sink_loop = integer_divide_ceil(sink_seq_end - sink_seq_start, kN0);
 
         // check early exit if no work to do
@@ -278,19 +280,19 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                 }
             }();
         const index_t num_total_loop =
-            integer_divide_ceil(physical_seqlen_k_end - aligned_physical_seqlen_k_start, kN0)+ num_sink_loop;
+            integer_divide_ceil(physical_seqlen_k_end - aligned_physical_seqlen_k_start, kN0) +
+            num_sink_loop;
 
         auto [i_page_block_k, k_dram_block_window] = k_page_block_navigator.make_tile_window(
             k_dram_block_window_lengths, {aligned_physical_seqlen_k_start, 0});
 
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
-        auto bias_dram_window =
-            make_tile_window(bias_dram_block_window_tmp.get_bottom_tensor_view(),
-                             bias_dram_block_window_tmp.get_window_lengths(),
-                             {bias_origin.at(number<0>{}),
-                              kv_load_start - (physical_seqlen_k_start -
-                                                        aligned_physical_seqlen_k_start)}, // M/N
-                             Policy::template MakeBiasDramTileDistribution<decltype(gemm_0)>());
+        auto bias_dram_window  = make_tile_window(
+            bias_dram_block_window_tmp.get_bottom_tensor_view(),
+            bias_dram_block_window_tmp.get_window_lengths(),
+            {bias_origin.at(number<0>{}),
+              kv_load_start - (physical_seqlen_k_start - aligned_physical_seqlen_k_start)}, // M/N
+            Policy::template MakeBiasDramTileDistribution<decltype(gemm_0)>());
 
         auto [i_page_block_v, v_dram_window] = v_page_block_navigator.make_tile_window(
             v_dram_block_window_lengths,

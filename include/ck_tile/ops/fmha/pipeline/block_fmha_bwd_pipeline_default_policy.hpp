@@ -25,7 +25,7 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <index_t ndim>
     static constexpr auto swap_last2 = generate_sequence_v2(
         [](auto i) {
-            return number < i == ndim - 2 ? ndim - 1 : i == ndim - 1 ? ndim - 2 : i > {};
+            return number<i == ndim - 2 ? ndim - 1 : i == ndim - 1 ? ndim - 2 : i>{};
         },
         number<ndim>{});
 

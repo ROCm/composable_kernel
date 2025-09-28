@@ -268,8 +268,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
         return fwd_result::invalid_args;
     }
 
-#if(!(CK_TILE_FMHA_FWD_APPENDKV_API || CK_TILE_FMHA_FWD_SPLITKV_API || \
-      CK_TILE_FMHA_FWD_PAGEDKV_API))
+#if (!(CK_TILE_FMHA_FWD_APPENDKV_API || CK_TILE_FMHA_FWD_SPLITKV_API || \
+       CK_TILE_FMHA_FWD_PAGEDKV_API))
     if(0 < page_block_size)
     {
         std::cerr << "paged-kvcache is not supported. ignoring the 'page_block_size' option"
@@ -1388,7 +1388,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
             // permute
             if(i_perm) q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b_idx, i[0], i[1] + query_offset, i[2]); });
             else       q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b_idx, i[1] + query_offset, i[0], i[2]); });
-                // clang-format on
+            // clang-format on
 
 #if CK_TILE_FMHA_FWD_APPENDKV_API
             // optionally apply RoPE to the q_host_ref
