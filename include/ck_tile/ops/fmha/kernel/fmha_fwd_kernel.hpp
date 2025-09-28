@@ -293,6 +293,11 @@ struct FmhaFwdKernel
         ck_tile::index_t batch_stride_k;
         ck_tile::index_t batch_stride_v;
         ck_tile::index_t batch_stride_o;
+
+        // Optional cumulative sequence length pointers for batch mode
+        // If provided, they override seqlen_q / seqlen_k per-batch to skip tail padding.
+        const ck_tile::index_t* cu_seqlen_q_ptr  = nullptr; // cumulative, length without PAD
+        const ck_tile::index_t* cu_seqlen_kv_ptr = nullptr; // cumulative, length without PAD
     };
 
     struct FmhaFwdGroupModeKargs
@@ -312,6 +317,11 @@ struct FmhaFwdKernel
         const int32_t* seqstart_q_ptr;
         const int32_t* seqstart_k_ptr;
         const int32_t* seqlen_k_ptr;
+
+        // Optional cumulative padded sequence starts (including PAD tokens)
+        // Used solely to compute memory offsets when sequences are physically padded.
+        const int32_t* seqstart_padded_q_ptr = nullptr;
+        const int32_t* seqstart_padded_k_ptr = nullptr;
     };
 
     using Kargs = std::conditional_t<kIsGroupMode, FmhaFwdGroupModeKargs, FmhaFwdBatchModeKargs>;
@@ -369,7 +379,9 @@ struct FmhaFwdKernel
                   float p_drop,
                   bool s_randval,
                   std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
-                      drop_seed_offset)
+                      drop_seed_offset,
+                  const ck_tile::index_t* cu_seqlen_q_ptr  = nullptr,
+                  const ck_tile::index_t* cu_seqlen_kv_ptr = nullptr)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -461,6 +473,8 @@ struct FmhaFwdKernel
             kargs.init_logits_soft_cap(logits_soft_cap);
         }
 
+        kargs.cu_seqlen_q_ptr  = cu_seqlen_q_ptr;
+        kargs.cu_seqlen_kv_ptr = cu_seqlen_kv_ptr;
         return kargs;
     }
 
@@ -510,7 +524,9 @@ struct FmhaFwdKernel
               ck_tile::index_t mask_type,
               float p_drop,
               bool s_randval,
-              const std::tuple<uint64_t, uint64_t>& drop_seed_offset)
+              const std::tuple<uint64_t, uint64_t>& drop_seed_offset,
+              const ck_tile::index_t* cu_seqlen_q_ptr  = nullptr,
+              const ck_tile::index_t* cu_seqlen_kv_ptr = nullptr)
     {
         return MakeKargsImpl(
             q_ptr,
@@ -556,7 +572,9 @@ struct FmhaFwdKernel
             mask_type,
             p_drop,
             s_randval,
-            std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
+            std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)),
+            cu_seqlen_q_ptr,
+            cu_seqlen_kv_ptr);
     }
 
     // std::variant<> can't take in a list initializer, overload for backward compatibility
@@ -605,7 +623,9 @@ struct FmhaFwdKernel
               ck_tile::index_t mask_type,
               float p_drop,
               bool s_randval,
-              const std::tuple<const void*, const void*>& drop_seed_offset)
+              const std::tuple<const void*, const void*>& drop_seed_offset,
+              const ck_tile::index_t* cu_seqlen_q_ptr  = nullptr,
+              const ck_tile::index_t* cu_seqlen_kv_ptr = nullptr)
     {
         return MakeKargsImpl(
             q_ptr,
@@ -651,7 +671,9 @@ struct FmhaFwdKernel
             mask_type,
             p_drop,
             s_randval,
-            std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
+            std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)),
+            cu_seqlen_q_ptr,
+            cu_seqlen_kv_ptr);
     }
 
     template <bool Cond = kIsGroupMode>
@@ -695,7 +717,9 @@ struct FmhaFwdKernel
                   float p_drop,
                   bool s_randval,
                   std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
-                      drop_seed_offset)
+                      drop_seed_offset,
+                  const void* seqstart_padded_q_ptr = nullptr,
+                  const void* seqstart_padded_k_ptr = nullptr)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -788,6 +812,8 @@ struct FmhaFwdKernel
             kargs.min_seqlen_q = min_seqlen_q;
         }
 
+        kargs.seqstart_padded_q_ptr = reinterpret_cast<const int32_t*>(seqstart_padded_q_ptr);
+        kargs.seqstart_padded_k_ptr = reinterpret_cast<const int32_t*>(seqstart_padded_k_ptr);
         return kargs;
     }
 
@@ -832,7 +858,9 @@ struct FmhaFwdKernel
               ck_tile::index_t min_seqlen_q,
               float p_drop,
               bool s_randval,
-              const std::tuple<uint64_t, uint64_t>& drop_seed_offset)
+              const std::tuple<uint64_t, uint64_t>& drop_seed_offset,
+              const void* seqstart_padded_q_ptr = nullptr,
+              const void* seqstart_padded_k_ptr = nullptr)
     {
         return MakeKargsImpl(
             q_ptr,
@@ -873,7 +901,9 @@ struct FmhaFwdKernel
             min_seqlen_q,
             p_drop,
             s_randval,
-            std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
+            std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)),
+            seqstart_padded_q_ptr,
+            seqstart_padded_k_ptr);
     }
 
     // std::variant<> can't take in a list initializer, overload for backward compatibility
@@ -917,7 +947,9 @@ struct FmhaFwdKernel
               ck_tile::index_t min_seqlen_q,
               float p_drop,
               bool s_randval,
-              const std::tuple<const void*, const void*>& drop_seed_offset)
+              const std::tuple<const void*, const void*>& drop_seed_offset,
+              const void* seqstart_padded_q_ptr = nullptr,
+              const void* seqstart_padded_k_ptr = nullptr)
     {
         return MakeKargsImpl(
             q_ptr,
@@ -958,7 +990,9 @@ struct FmhaFwdKernel
             min_seqlen_q,
             p_drop,
             s_randval,
-            std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)));
+            std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)),
+            seqstart_padded_q_ptr,
+            seqstart_padded_k_ptr);
     }
 
     CK_TILE_HOST static constexpr auto GridSize(ck_tile::index_t batch_size_,
@@ -1087,35 +1121,44 @@ struct FmhaFwdKernel
 
             if constexpr(kIsGroupMode)
             {
-                // get starting offset for each batch
-                const long_index_t query_start = kargs.seqstart_q_ptr[i_batch];
-                const long_index_t key_start   = kargs.seqstart_k_ptr[i_batch];
+                // logical and physical (padded) starts
+                const long_index_t query_start_unpadded = kargs.seqstart_q_ptr[i_batch];
+                const long_index_t key_start_unpadded   = kargs.seqstart_k_ptr[i_batch];
 
-                batch_offset_q = query_start * kargs.stride_q;
-                batch_offset_k = key_start * kargs.stride_k;
+                const long_index_t query_start_padded = kargs.seqstart_padded_q_ptr
+                                                            ? kargs.seqstart_padded_q_ptr[i_batch]
+                                                            : query_start_unpadded;
+                const long_index_t key_start_padded   = kargs.seqstart_padded_k_ptr
+                                                            ? kargs.seqstart_padded_k_ptr[i_batch]
+                                                            : key_start_unpadded;
+
+                // DRAM base offsets use physical padded starts
+                batch_offset_q = query_start_padded * kargs.stride_q;
+                batch_offset_k = key_start_padded * kargs.stride_k;
                 if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
                 {
-                    batch_offset_v = key_start * kargs.stride_v;
+                    batch_offset_v = key_start_padded * kargs.stride_v;
                 }
                 else
                 {
-                    batch_offset_v = key_start;
+                    batch_offset_v = key_start_padded;
                 }
                 if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
                 {
-                    batch_offset_bias = query_start * kargs.stride_bias;
+                    batch_offset_bias = query_start_padded * kargs.stride_bias;
                 }
                 if constexpr(kStoreLSE)
                 {
-                    batch_offset_lse = query_start;
+                    // LSE stays indexed by unpadded starts
+                    batch_offset_lse = query_start_unpadded;
                 }
                 if constexpr(kHasDropout)
                 {
-                    batch_offset_randval = query_start * kargs.stride_randval;
+                    batch_offset_randval = query_start_padded * kargs.stride_randval;
                 }
-                batch_offset_o = query_start * kargs.stride_o;
+                batch_offset_o = query_start_padded * kargs.stride_o;
 
-                // get real # queries & # keys under group mode
+                // real logical lengths (exclude PAD)
                 const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
                 kargs.seqlen_q = adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
 
@@ -1127,8 +1170,7 @@ struct FmhaFwdKernel
                     }
                 }
 
-                // # of required blocks is different in each groups, terminate unnecessary blocks
-                // earlier
+                // terminate unnecessary blocks earlier
                 if(kargs.seqlen_q <= i_m0)
                 {
                     return;
@@ -1164,6 +1206,18 @@ struct FmhaFwdKernel
                         static_cast<long_index_t>(i_batch) * kargs.batch_stride_randval;
                 }
                 batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
+
+                // If cumulative seqlen pointers are provided, override per-batch effective lengths
+                if(kargs.cu_seqlen_q_ptr != nullptr)
+                {
+                    kargs.seqlen_q =
+                        kargs.cu_seqlen_q_ptr[i_batch + 1] - kargs.cu_seqlen_q_ptr[i_batch];
+                }
+                if(kargs.cu_seqlen_kv_ptr != nullptr)
+                {
+                    kargs.seqlen_k =
+                        kargs.cu_seqlen_kv_ptr[i_batch + 1] - kargs.cu_seqlen_kv_ptr[i_batch];
+                }
             }
 
             // for simplicity, batch stride we just modify the pointer
@@ -1563,26 +1617,35 @@ struct FmhaFwdKernel
             if constexpr(kIsGroupMode)
             {
                 // get starting offset for each batch
-                const long_index_t query_start = kargs.seqstart_q_ptr[i_batch];
-                const long_index_t key_start   = kargs.seqstart_k_ptr[i_batch];
+                const long_index_t query_start_unpadded = kargs.seqstart_q_ptr[i_batch];
+                const long_index_t key_start_unpadded   = kargs.seqstart_k_ptr[i_batch];
 
-                batch_offset_q = query_start * kargs.stride_q;
-                batch_offset_k = key_start * kargs.stride_k;
+                const long_index_t query_start_padded = kargs.seqstart_padded_q_ptr
+                                                            ? kargs.seqstart_padded_q_ptr[i_batch]
+                                                            : query_start_unpadded;
+                const long_index_t key_start_padded   = kargs.seqstart_padded_k_ptr
+                                                            ? kargs.seqstart_padded_k_ptr[i_batch]
+                                                            : key_start_unpadded;
+
+                batch_offset_q = query_start_padded * kargs.stride_q;
+                batch_offset_k = key_start_padded * kargs.stride_k;
                 if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
                 {
-                    batch_offset_v = key_start * kargs.stride_v;
+                    batch_offset_v = key_start_padded * kargs.stride_v;
                 }
                 else
                 {
-                    batch_offset_v = key_start;
+                    // col-major V: offset along seqlen dimension is scalar index
+                    batch_offset_v = key_start_padded;
                 }
                 if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
                 {
-                    batch_offset_bias = query_start * kargs.stride_bias;
+                    batch_offset_bias = query_start_padded * kargs.stride_bias;
                 }
 
-                batch_offset_lse = query_start;
-                batch_offset_o   = query_start * kargs.stride_o;
+                // LSE layout is [nhead, total_seqlen], index by unpadded start
+                batch_offset_lse = query_start_unpadded;
+                batch_offset_o   = query_start_padded * kargs.stride_o;
 
                 // get real # queries & # keys under group mode
                 kargs.seqlen_q = kargs.seqstart_q_ptr[i_batch + 1] - kargs.seqstart_q_ptr[i_batch];
@@ -1619,6 +1682,18 @@ struct FmhaFwdKernel
                 {
                     batch_offset_bias =
                         static_cast<long_index_t>(i_batch) * kargs.batch_stride_bias;
+                }
+
+                // If cumulative seqlen pointers are provided, override per-batch effective lengths
+                if(kargs.cu_seqlen_q_ptr != nullptr)
+                {
+                    kargs.seqlen_q =
+                        kargs.cu_seqlen_q_ptr[i_batch + 1] - kargs.cu_seqlen_q_ptr[i_batch];
+                }
+                if(kargs.cu_seqlen_kv_ptr != nullptr)
+                {
+                    kargs.seqlen_k =
+                        kargs.cu_seqlen_kv_ptr[i_batch + 1] - kargs.cu_seqlen_kv_ptr[i_batch];
                 }
             }
 

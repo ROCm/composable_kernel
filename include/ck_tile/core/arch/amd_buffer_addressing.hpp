@@ -470,7 +470,7 @@ struct buffer_store<16>
                                    index_t /*flag*/ = 1)
     {
         static_assert(sizeof(T) == 16);
-        using mbuf_t = fp32x4_t;
+        using mbuf_t = uint32x4_t;
 #if HAS_RAW_BUFFER_BUILTINS
         index_t s_offset = i_offset;
         __builtin_amdgcn_raw_buffer_store_b128(
@@ -496,7 +496,7 @@ struct buffer_store<8>
                                    index_t /*flag*/ = 1)
     {
         static_assert(sizeof(T) == 8);
-        using mbuf_t = fp32x2_t;
+        using mbuf_t = uint32x2_t;
 #if HAS_RAW_BUFFER_BUILTINS
         index_t s_offset = i_offset;
         __builtin_amdgcn_raw_buffer_store_b64(
@@ -522,7 +522,7 @@ struct buffer_store<4>
                                    index_t /*flag*/ = 1)
     {
         static_assert(sizeof(T) == 4);
-        using mbuf_t = float;
+        using mbuf_t = uint32_t;
 #if HAS_RAW_BUFFER_BUILTINS
         index_t s_offset = i_offset;
         __builtin_amdgcn_raw_buffer_store_b32(
@@ -548,7 +548,7 @@ struct buffer_store<2>
                                    index_t /*flag*/ = 1)
     {
         static_assert(sizeof(T) == 2);
-        using mbuf_t = short;
+        using mbuf_t = uint16_t;
 #if HAS_RAW_BUFFER_BUILTINS
         index_t s_offset = i_offset;
         __builtin_amdgcn_raw_buffer_store_b16(
@@ -573,8 +573,8 @@ struct buffer_store<1>
                                    index_t i_offset /*max 0xFFF*/,
                                    index_t /*flag*/ = 1)
     {
-        static_assert(sizeof(T) == 4);
-        using mbuf_t = float;
+        static_assert(sizeof(T) == 1);
+        using mbuf_t = uint8_t;
 #if HAS_RAW_BUFFER_BUILTINS
         index_t s_offset = i_offset;
         __builtin_amdgcn_raw_buffer_store_b8(
