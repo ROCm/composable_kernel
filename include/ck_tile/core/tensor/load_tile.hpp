@@ -77,8 +77,8 @@ template <typename DistributedTensor_,
           typename Offset,
           index_t i_access           = -1,
           bool oob_conditional_check = true,
-          typename                   = std::enable_if_t<std::is_class_v<DistributedTensor_> &&
-                                                        std::is_class_v<TileWindow_> && std::is_integral_v<Offset>>>
+          typename = std::enable_if_t<std::is_class_v<std::remove_cv_t<DistributedTensor_>> &&
+                                      std::is_class_v<TileWindow_> && std::is_integral_v<Offset>>>
 CK_TILE_DEVICE auto load_tile(DistributedTensor_& dst_tile,
                               const TileWindow_& tile_window,
                               Offset offset,
@@ -93,8 +93,8 @@ template <typename DistributedTensor_,
           typename TileWindow_,
           index_t i_access           = -1,
           bool oob_conditional_check = true,
-          typename                   = std::enable_if_t<std::is_class_v<DistributedTensor_> &&
-                                                        std::is_class_v<TileWindow_> && !is_constant_v<TileWindow_>>>
+          typename = std::enable_if_t<std::is_class_v<std::remove_cv_t<DistributedTensor_>> &&
+                                      std::is_class_v<TileWindow_> && !is_constant_v<TileWindow_>>>
 CK_TILE_DEVICE auto load_tile(DistributedTensor_& dst_tile,
                               const TileWindow_& tile_window,
                               number<i_access>                     = {},
