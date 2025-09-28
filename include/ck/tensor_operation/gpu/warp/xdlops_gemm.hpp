@@ -971,8 +971,9 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_16x16x128f8f6f4>
  * }
  */
 template <>
-struct mfma_type<MfmaInstr::mfma_f32_16x16x8xf32>
+struct mfma_type<MfmaInstr::mfma_f32_16x16x8xf32> : public mfma_type<MfmaInstr::mfma_f32_16x16x4f32>
 {
+#if defined(__gfx942__)
     static constexpr index_t wave_size           = 64;        // fixed
     static constexpr index_t m_per_blk           = 16;        // from the instruction
     static constexpr index_t n_per_blk           = 16;        // from the instruction
@@ -991,6 +992,9 @@ struct mfma_type<MfmaInstr::mfma_f32_16x16x8xf32>
     {
         intrin_mfma_f32_16x16x8xf32<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
     }
+#else
+    // keep same as mfma_f32_16x16x4f32
+#endif
 };
 
 template <>
