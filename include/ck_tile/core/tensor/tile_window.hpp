@@ -291,6 +291,18 @@ struct tile_window_with_static_distribution
         });
     }
 
+    template <typename DistributedTensor,
+              index_t i_access_unsupport_ = -1,
+              bool oob_conditional_check  = true,
+              typename = std::enable_if_t<std::is_class_v<std::remove_cv_t<DistributedTensor>> &&
+                                          !is_constant_v<std::remove_cv_t<DistributedTensor>>>>
+    CK_TILE_DEVICE auto load(DistributedTensor& dst_tensor,
+                             number<i_access_unsupport_>          = {},
+                             bool_constant<oob_conditional_check> = {}) const
+    {
+        load(0, dst_tensor, number<i_access_unsupport_>{}, bool_constant<oob_conditional_check>{});
+    }
+
     template <typename Offset,
               typename DistributedTensor,
               index_t i_access_unsupport_ = -1,
