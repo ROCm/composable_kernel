@@ -914,11 +914,11 @@ struct GroupedConvolutionForwardKernel
         const InDataType* a_ptr = base_a_ptr;
         OutDataType* c_ptr = base_c_ptr;
         index_t local_gemm_m = kargs.GemmM;           // Default: use full problem size
-        index_t local_block_id = blockIdX;           // Default: use global block ID
+        index_t local_block_id = static_cast<index_t>(blockIdX);           // Default: use global block ID
 
         if (kargs.has_split_image) {
             // Determine which spatial split this block handles
-            if (blockIdX < kargs.blocks_for_left) {
+            if (static_cast<index_t>(blockIdX) < kargs.blocks_for_left) {
                 // LEFT SPLIT: Process first spatial region (e.g., H[0:32] in 2D H-split)
                 local_gemm_m = kargs.left_gemm_m;
                 // local_block_id already equals blockIdX (no change needed)
@@ -927,7 +927,7 @@ struct GroupedConvolutionForwardKernel
                 a_ptr = base_a_ptr + kargs.a_right_offset;  // Point to right split input data
                 c_ptr = base_c_ptr + kargs.c_right_offset;  // Point to right split output data
                 local_gemm_m = kargs.right_gemm_m;
-                local_block_id = blockIdX - kargs.blocks_for_left;  // Local block ID [0, blocks_for_right)
+                local_block_id = static_cast<index_t>(blockIdX) - kargs.blocks_for_left;  // Local block ID [0, blocks_for_right)
             }
         }
 
