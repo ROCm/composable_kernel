@@ -36,7 +36,7 @@ CK_TILE_DEVICE auto load_tile(const TileWindow_& tile_window,
 template <typename TileWindow_,
           index_t i_access           = -1,
           bool oob_conditional_check = true,
-          typename                   = std::enable_if_t<std::is_class_v<TileWindow_>>>
+          typename = std::enable_if_t<std::is_class_v<TileWindow_> && !is_constant_v<TileWindow_>>>
 CK_TILE_DEVICE auto load_tile(const TileWindow_& tile_window,
                               number<i_access>                     = {},
                               bool_constant<oob_conditional_check> = {})
