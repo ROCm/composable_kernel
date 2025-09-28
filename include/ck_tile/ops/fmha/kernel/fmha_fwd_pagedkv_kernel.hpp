@@ -189,7 +189,7 @@ struct FmhaFwdPagedKVKernel
     struct FmhaFwdMaskKargs
     {
         // ck_tile::index_t window_size_left, window_size_right;
-        ck_tile::index_t window_size_left, window_size_right;
+        ck_tile::index_t window_size_left, window_size_right, sink_size;
         ck_tile::GenericAttentionMaskEnum mask_type;
     };
 
@@ -326,6 +326,7 @@ struct FmhaFwdPagedKVKernel
                   ck_tile::index_t batch_stride_o,
                   ck_tile::index_t window_size_left,
                   ck_tile::index_t window_size_right,
+                  ck_tile::index_t sink_size,
                   ck_tile::index_t mask_type)
     {
         Kargs kargs{{q_ptr,
@@ -379,6 +380,7 @@ struct FmhaFwdPagedKVKernel
         {
             kargs.window_size_left  = window_size_left;
             kargs.window_size_right = window_size_right;
+            kargs.sink_size         = sink_size;
             kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
         }
         if constexpr(kStoreLSE)
@@ -453,6 +455,7 @@ struct FmhaFwdPagedKVKernel
               ck_tile::index_t batch_stride_o,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
+              ck_tile::index_t sink_size,
               ck_tile::index_t mask_type)
     {
         return MakeKargsImpl(q_ptr,
@@ -495,6 +498,7 @@ struct FmhaFwdPagedKVKernel
                              batch_stride_o,
                              window_size_left,
                              window_size_right,
+                             sink_size,
                              mask_type);
     }
 
@@ -536,6 +540,7 @@ struct FmhaFwdPagedKVKernel
                   ck_tile::index_t batch_stride_v, // only used for paged-kvcache
                   ck_tile::index_t window_size_left,
                   ck_tile::index_t window_size_right,
+                  ck_tile::index_t sink_size,
                   ck_tile::index_t mask_type,
                   ck_tile::index_t min_seqlen_q)
     {
@@ -590,6 +595,7 @@ struct FmhaFwdPagedKVKernel
         {
             kargs.window_size_left  = window_size_left;
             kargs.window_size_right = window_size_right;
+            kargs.sink_size         = sink_size;
             kargs.mask_type         = static_cast<ck_tile::GenericAttentionMaskEnum>(mask_type);
         }
         if constexpr(kStoreLSE)
@@ -660,6 +666,7 @@ struct FmhaFwdPagedKVKernel
               ck_tile::index_t batch_stride_v, // only used for paged-kvcache
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
+              ck_tile::index_t sink_size,
               ck_tile::index_t mask_type,
               ck_tile::index_t min_seqlen_q)
     {
@@ -699,6 +706,7 @@ struct FmhaFwdPagedKVKernel
                              batch_stride_v,
                              window_size_left,
                              window_size_right,
+                             sink_size,
                              mask_type,
                              min_seqlen_q);
     }
@@ -1247,6 +1255,7 @@ struct FmhaFwdPagedKVKernel
                 return ck_tile::make_generic_attention_mask_from_lr_window<FmhaMask>(
                     kargs.window_size_left,
                     kargs.window_size_right,
+                    kargs.sink_size,
                     kargs.seqlen_q,
                     kargs.seqlen_k,
                     kargs.mask_type == GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT);

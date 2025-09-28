@@ -500,7 +500,6 @@ bwd_result fmha_bwd_run(mode_enum mode,
                              split_stride_dq_acc,
                              mask.left,
                              mask.right,
-                             mask.sink,
                              static_cast<ck_tile::index_t>(mask.type),
                              p_drop,
                              p_undrop,
@@ -671,7 +670,7 @@ bwd_result fmha_bwd_run(mode_enum mode,
                 ck_tile::reference_batched_masking<AccDataType>(
                     s_host_ref,
                     ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
-                        mask.left, mask.right, mask.sink, real_seqlen_q, real_seqlen_k));
+                        mask.left, mask.right, real_seqlen_q, real_seqlen_k));
             }
             else
             {
@@ -683,7 +682,6 @@ bwd_result fmha_bwd_run(mode_enum mode,
                         ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::CausalMask>(
                             mask.left,
                             mask.right,
-                            mask.sink,
                             real_seqlen_q,
                             real_seqlen_k,
                             mask.type == mask_enum::mask_top_left));

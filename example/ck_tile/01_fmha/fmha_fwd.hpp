@@ -667,6 +667,7 @@ auto fmha_fwd_pagedkv_create_kargs_and_grids(fmha_fwd_pagedkv_args args)
                                          args.batch_stride_v,
                                          args.window_size_left,
                                          args.window_size_right,
+                                         args.sink_size,
                                          args.mask_type,
                                          args.min_seqlen_q);
         }
@@ -712,6 +713,7 @@ auto fmha_fwd_pagedkv_create_kargs_and_grids(fmha_fwd_pagedkv_args args)
                                          args.batch_stride_o,
                                          args.window_size_left,
                                          args.window_size_right,
+                                         args.sink_size,
                                          args.mask_type);
         }
     }();
