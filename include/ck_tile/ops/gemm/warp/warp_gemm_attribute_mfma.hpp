@@ -125,6 +125,7 @@ struct WarpGemmAttributeMfmaIterateK
     static constexpr index_t kN          = Impl::kN;
     static constexpr index_t kK          = Impl::kK * kKIter;
     static constexpr index_t kKPerThread = Impl::kABKPerLane * kKIter;
+    static constexpr index_t kCMLane     = Impl::kCMLane;
 
     CK_TILE_HOST_DEVICE static constexpr auto get_num_of_access() { return kKIter; }
 
