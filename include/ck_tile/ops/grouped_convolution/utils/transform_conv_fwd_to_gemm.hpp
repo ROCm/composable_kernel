@@ -5,6 +5,9 @@
 #pragma once
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/convolution_specialization.hpp"
+#include <vector>
+#include <queue>
+#include <iostream>
 
 namespace ck_tile {
 
@@ -220,17 +223,12 @@ struct TransformConvFwdToGemm
         static_assert(std::is_same_v<ConvDimsType, std::array<IndexType, NDimSpatial + I3>> ||
                       std::is_same_v<ConvDimsType, ck_tile::array<IndexType, NDimSpatial + I3>>);
 
-        // Store original N (this was missing in 1D constructor - bug fix)
-        original_N_ = c_g_n_k_wos_lengths[I1];
+        // Store original N and initialize N_
+        original_N_ = N_ = c_g_n_k_wos_lengths[I1];
 
         if constexpr(SplitN)
         {
             N_ = GetSplitedNSize(a_g_n_c_wis_lengths, c_g_n_k_wos_lengths);
-        }
-        else
-        {
-            N_ = c_g_n_k_wos_lengths[I1];
-            original_N_ = N_;
         }
     }
 
@@ -276,17 +274,12 @@ struct TransformConvFwdToGemm
         static_assert(std::is_same_v<ConvDimsType, std::array<IndexType, NDimSpatial + I3>> ||
                       std::is_same_v<ConvDimsType, ck_tile::array<IndexType, NDimSpatial + I3>>);
 
-        // Store original N
-        original_N_ = c_g_n_k_wos_lengths[I1];
+        // Store original N and initialize N_
+        original_N_ = N_ = c_g_n_k_wos_lengths[I1];
 
         if constexpr(SplitN)
         {
             N_ = GetSplitedNSize(a_g_n_c_wis_lengths, c_g_n_k_wos_lengths);
-        }
-        else
-        {
-            N_          = c_g_n_k_wos_lengths[I1];
-            original_N_ = N_;
         }
     }
 
@@ -332,225 +325,340 @@ struct TransformConvFwdToGemm
         static_assert(std::is_same_v<ConvDimsType, std::array<IndexType, NDimSpatial + I3>> ||
                       std::is_same_v<ConvDimsType, ck_tile::array<IndexType, NDimSpatial + I3>>);
 
-        // Store original N before potential splitting
-        original_N_ = c_g_n_k_wos_lengths[I1];
+        // Store original N and initialize N_
+        original_N_ = N_ = c_g_n_k_wos_lengths[I1];
 
         if constexpr(SplitN)
         {
             N_ = GetSplitedNSize(a_g_n_c_wis_lengths, c_g_n_k_wos_lengths);
         }
-        else
-        {
-            N_ = original_N_;
-        }
     }
 
-    // NEW: Unified split analysis structure
-    struct SplitDecision {
-        // Decision flags
-        bool needs_split = false;          // Do tensors exceed threshold?
-        bool can_split = false;            // Is split physically possible?
-        IndexType split_dimension = -1;    // 0=D, 1=H, 2=W, -1=none
+    // Simple check if descriptors fit within memory threshold
+    CK_TILE_HOST bool AreDescriptorsSmallerThan2GB() const {
+        const long_index_t input_size =
+            static_cast<long_index_t>(N_) * Di_ * Hi_ * Wi_ * C_;
+        const long_index_t output_size =
+            static_cast<long_index_t>(N_) * Do_ * Ho_ * Wo_ * K_;
 
-        // Pre-calculated dimension information
-        struct DimensionInfo {
-            IndexType right_start_idx = 0;        // Where right split starts in input
-            bool is_splittable = false;           // Can this dimension be split?
-        } dim_info[3];  // [0]=D, [1]=H, [2]=W
-
-        // Split parameters (valid when can_split=true)
-        IndexType left_output_size = 0;   // e.g., Ho/2 for H-split
-        IndexType right_output_size = 0;  // e.g., Ho - Ho/2
-    };
-
-    // NEW: Analyze split requirements (combines AreDescriptorsSmallerThan2GB + CanSplitImage)
-    __host__ SplitDecision AnalyzeSplitRequirements() const
-    {
-        SplitDecision decision;
-
-        // STEP 1: Check if split needed (replaces AreDescriptorsSmallerThan2GB logic)
-        const long_index_t input_tensor_size =
-            static_cast<long_index_t>(N_) *
-            static_cast<long_index_t>(Di_) *
-            static_cast<long_index_t>(Hi_) *
-            static_cast<long_index_t>(Wi_) *
-            static_cast<long_index_t>(C_);
-
-        const long_index_t output_tensor_size =
-            static_cast<long_index_t>(N_) *
-            static_cast<long_index_t>(Do_) *
-            static_cast<long_index_t>(Ho_) *
-            static_cast<long_index_t>(Wo_) *
-            static_cast<long_index_t>(K_);
-
-        const long_index_t input_bytes = input_tensor_size * sizeof(ADataType);
-        const long_index_t output_bytes = output_tensor_size * sizeof(CDataType);
-
-        decision.needs_split = (input_bytes > TwoGB) || (output_bytes > TwoGB);
-
-        // Debug output
-        std::cerr << "[DEBUG Split-Image] Input=" << (input_bytes / 1024 / 1024) << "MB\n";
-        std::cerr << "[DEBUG Split-Image] Output=" << (output_bytes / 1024 / 1024) << "MB\n";
-
-        if (!decision.needs_split) {
-            return decision;  // Early exit - no split needed
-        }
-
-        std::cerr << "[DEBUG Split-Image] Exceeds " << (TwoGB / 1024 / 1024) << "MB threshold:\n";
-
-        // STEP 2: Pre-calculate all dimension info ONCE (eliminates duplication)
-
-        // D dimension (for 3D)
-        if constexpr(NDimSpatial == 3) {
-            const IndexType z_eff = (Z_ - 1) * ConvDilationD_ + 1;
-            decision.dim_info[0].right_start_idx = (Do_ / 2) * ConvStrideD_;
-            const IndexType left_end_idx = (Do_ / 2 - 1) * ConvStrideD_ + z_eff;
-            decision.dim_info[0].is_splittable =
-                (Do_ > 1) &&
-                (decision.dim_info[0].right_start_idx > InLeftPadD_) &&
-                (left_end_idx <= (InLeftPadD_ + Di_));
-        }
-
-        // H dimension (for 2D and 3D)
-        if constexpr(NDimSpatial >= 2) {
-            const IndexType y_eff = (Y_ - 1) * ConvDilationH_ + 1;
-            decision.dim_info[1].right_start_idx = (Ho_ / 2) * ConvStrideH_;
-            const IndexType left_end_idx = (Ho_ / 2 - 1) * ConvStrideH_ + y_eff;
-            decision.dim_info[1].is_splittable =
-                (Ho_ > 1) &&
-                (decision.dim_info[1].right_start_idx > InLeftPadH_) &&
-                (left_end_idx <= (InLeftPadH_ + Hi_));
-        }
-
-        // W dimension (for 1D, 2D, and 3D)
-        const IndexType x_eff = (X_ - 1) * ConvDilationW_ + 1;
-        decision.dim_info[2].right_start_idx = (Wo_ / 2) * ConvStrideW_;
-        const IndexType w_left_end_idx = (Wo_ / 2 - 1) * ConvStrideW_ + x_eff;
-        decision.dim_info[2].is_splittable =
-            (Wo_ > 1) &&
-            (decision.dim_info[2].right_start_idx > InLeftPadW_) &&
-            (w_left_end_idx <= (InLeftPadW_ + Wi_));
-
-        // STEP 3: Decide which dimension to split based on NDimSpatial
-        if constexpr(NDimSpatial == 3) {
-            // 3D: ONLY check D dimension (no H/W to maintain memory contiguity)
-            if (decision.dim_info[0].is_splittable) {
-                decision.can_split = true;
-                decision.split_dimension = 0;
-                decision.left_output_size = Do_ / 2;
-                decision.right_output_size = Do_ - Do_ / 2;
-                std::cerr << "[DEBUG Split-Image] 3D Conv can split on D dimension\n";
-            } else {
-                std::cerr << "[DEBUG Split-Image] 3D Conv CANNOT split (D not splittable)\n";
-            }
-        }
-        else if constexpr(NDimSpatial == 2) {
-            // 2D: Try H first (preferred), then W as fallback
-            if (decision.dim_info[1].is_splittable) {
-                decision.can_split = true;
-                decision.split_dimension = 1;
-                decision.left_output_size = Ho_ / 2;
-                decision.right_output_size = Ho_ - Ho_ / 2;
-                std::cerr << "[DEBUG Split-Image] 2D Conv can split on H dimension\n";
-            } else if (decision.dim_info[2].is_splittable) {
-                decision.can_split = true;
-                decision.split_dimension = 2;
-                decision.left_output_size = Wo_ / 2;
-                decision.right_output_size = Wo_ - Wo_ / 2;
-                std::cerr << "[DEBUG Split-Image] 2D Conv can split on W dimension (fallback)\n";
-            } else {
-                std::cerr << "[DEBUG Split-Image] 2D Conv CANNOT split (neither H nor W splittable)\n";
-            }
-        }
-        else { // NDimSpatial == 1
-            // 1D: Only W dimension exists
-            if (decision.dim_info[2].is_splittable) {
-                decision.can_split = true;
-                decision.split_dimension = 2;
-                decision.left_output_size = Wo_ / 2;
-                decision.right_output_size = Wo_ - Wo_ / 2;
-                std::cerr << "[DEBUG Split-Image] 1D Conv can split on W dimension\n";
-            } else {
-                std::cerr << "[DEBUG Split-Image] 1D Conv CANNOT split (W not splittable)\n";
-            }
-        }
-
-        return decision;
+        const long_index_t threshold = TwoGB / sizeof(ADataType);
+        return (input_size < threshold) && (output_size < threshold);
     }
 
-    // REFACTORED: Now accepts SplitDecision to avoid recalculation
-    __host__ auto SplitConvProblem(const SplitDecision& decision) const
-    {
-        // Guard clause - return zeros if split not possible
-        if (!decision.can_split) {
-            return ck_tile::make_tuple(IndexType{0}, IndexType{0},
-                                      long_index_t{0}, long_index_t{0});
-        }
+    // Binary split for recursive queue approach (old CK way)
+    // Returns tuple of (left_transformer, right_transformer, input_offset, output_offset)
+    CK_TILE_HOST auto SplitConvProblem() const {
+        auto left_transformer = *this;
+        auto right_transformer = *this;
+        long_index_t input_offset = 0;
+        long_index_t output_offset = 0;
 
-        // Use pre-calculated values from decision
-        const auto& split_info = decision.dim_info[decision.split_dimension];
-        const IndexType right_start_idx = split_info.right_start_idx;
+        // Determine split dimension and do binary split
+        // Prefer larger dimensions for split
+        if constexpr (NDimSpatial == 3) {
+            if (Do_ > 1) {  // D-split
+                IndexType left_do = Do_ / 2;
+                IndexType right_do = Do_ - left_do;  // Handles odd numbers
 
-        // Calculate offsets and GemmM dimensions based on split dimension
-        IndexType left_gemm_m, right_gemm_m;
-        long_index_t a_right_offset, c_right_offset;
+                left_transformer.Do_ = left_do;
+                right_transformer.Do_ = right_do;
 
-        if (decision.split_dimension == 0) {
-            // D-split (3D only)
-            a_right_offset = (right_start_idx - InLeftPadD_) * Hi_ * Wi_;
-            c_right_offset = decision.left_output_size * Ho_ * Wo_;
+                // Calculate input split point
+                IndexType input_d_split = (left_do * ConvStrideD_) - InLeftPadD_ +
+                                         (Z_ - 1) * ConvDilationD_;
+                right_transformer.Di_ = Di_ - input_d_split;
+                right_transformer.InLeftPadD_ = 0;
 
-            left_gemm_m  = N_ * decision.left_output_size * Ho_ * Wo_;
-            right_gemm_m = N_ * decision.right_output_size * Ho_ * Wo_;
-        }
-        else if (decision.split_dimension == 1) {
-            // H-split (2D only - 3D uses D-split)
-            a_right_offset = (right_start_idx - InLeftPadH_) * Wi_;
-            c_right_offset = decision.left_output_size * Wo_;
+                // Calculate offsets
+                input_offset = input_d_split * Hi_ * Wi_ * G_ * C_;
+                output_offset = left_do * Ho_ * Wo_ * G_ * K_;
+            } else if (Ho_ > 1) {  // H-split fallback
+                IndexType left_ho = Ho_ / 2;
+                IndexType right_ho = Ho_ - left_ho;
 
-            left_gemm_m  = N_ * decision.left_output_size * Wo_;
-            right_gemm_m = N_ * decision.right_output_size * Wo_;
-        }
-        else { // decision.split_dimension == 2
-            // W-split (1D, 2D, 3D)
-            a_right_offset = right_start_idx - InLeftPadW_;
-            c_right_offset = decision.left_output_size;
+                left_transformer.Ho_ = left_ho;
+                right_transformer.Ho_ = right_ho;
 
-            // DEBUG: Print padding calculations
-            printf("[DEBUG PADDING] W-split calculations:\n");
-            printf("  Input: Wi_=%d, padding: left=%d, right=%d\n",
-                   static_cast<int>(Wi_), static_cast<int>(InLeftPadW_), static_cast<int>(InRightPadW_));
-            printf("  Kernel: X_=%d, stride=%d, dilation=%d\n",
-                   static_cast<int>(X_), static_cast<int>(ConvStrideW_), static_cast<int>(ConvDilationW_));
-            printf("  Output: Wo_=%d (expected: (%d + %d + %d - %d)/1 + 1 = %d)\n",
-                   static_cast<int>(Wo_),
-                   static_cast<int>(Wi_), static_cast<int>(InLeftPadW_), static_cast<int>(InRightPadW_),
-                   static_cast<int>(X_),
-                   static_cast<int>((Wi_ + InLeftPadW_ + InRightPadW_ - X_) / ConvStrideW_ + 1));
-            printf("  Split point: right_start_idx=%d (in input space)\n", static_cast<int>(right_start_idx));
-            printf("  Offset: a_right_offset=%ld (= %d - %d)\n",
-                   a_right_offset, static_cast<int>(right_start_idx), static_cast<int>(InLeftPadW_));
-            printf("  Output split: left=%d, right=%d (total=%d)\n",
-                   static_cast<int>(decision.left_output_size),
-                   static_cast<int>(decision.right_output_size),
-                   static_cast<int>(decision.left_output_size + decision.right_output_size));
+                IndexType input_h_split = (left_ho * ConvStrideH_) - InLeftPadH_ +
+                                         (Y_ - 1) * ConvDilationH_;
+                right_transformer.Hi_ = Hi_ - input_h_split;
+                right_transformer.InLeftPadH_ = 0;
 
-            if constexpr (NDimSpatial == 1) { // 1D
-                left_gemm_m  = N_ * decision.left_output_size;
-                right_gemm_m = N_ * decision.right_output_size;
-            } else if constexpr (NDimSpatial == 2) { // 2D
-                left_gemm_m  = N_ * Ho_ * decision.left_output_size;
-                right_gemm_m = N_ * Ho_ * decision.right_output_size;
-            } else { // 3D
-                left_gemm_m  = N_ * Do_ * Ho_ * decision.left_output_size;
-                right_gemm_m = N_ * Do_ * Ho_ * decision.right_output_size;
+                input_offset = input_h_split * Wi_ * G_ * C_;
+                output_offset = left_ho * Wo_ * G_ * K_;
+            } else if (Wo_ > 1) {  // W-split fallback
+                IndexType left_wo = Wo_ / 2;
+                IndexType right_wo = Wo_ - left_wo;
+
+                left_transformer.Wo_ = left_wo;
+                right_transformer.Wo_ = right_wo;
+
+                IndexType input_w_split = (left_wo * ConvStrideW_) - InLeftPadW_ +
+                                         (X_ - 1) * ConvDilationW_;
+                right_transformer.Wi_ = Wi_ - input_w_split;
+                right_transformer.InLeftPadW_ = 0;
+
+                input_offset = input_w_split * G_ * C_;
+                output_offset = left_wo * G_ * K_;
+            }
+        } else if constexpr (NDimSpatial == 2) {
+            if (Ho_ > 1) {  // H-split
+                IndexType left_ho = Ho_ / 2;
+                IndexType right_ho = Ho_ - left_ho;  // Handles odd numbers
+
+                left_transformer.Ho_ = left_ho;
+                right_transformer.Ho_ = right_ho;
+
+                // Calculate input split point
+                IndexType input_h_split = (left_ho * ConvStrideH_) - InLeftPadH_ +
+                                         (Y_ - 1) * ConvDilationH_;
+                right_transformer.Hi_ = Hi_ - input_h_split;
+                right_transformer.InLeftPadH_ = 0;
+
+                // Calculate offsets
+                input_offset = input_h_split * Wi_ * G_ * C_;
+                output_offset = left_ho * Wo_ * G_ * K_;
+            } else if (Wo_ > 1) {  // W-split fallback
+                IndexType left_wo = Wo_ / 2;
+                IndexType right_wo = Wo_ - left_wo;
+
+                left_transformer.Wo_ = left_wo;
+                right_transformer.Wo_ = right_wo;
+
+                IndexType input_w_split = (left_wo * ConvStrideW_) - InLeftPadW_ +
+                                         (X_ - 1) * ConvDilationW_;
+                right_transformer.Wi_ = Wi_ - input_w_split;
+                right_transformer.InLeftPadW_ = 0;
+
+                input_offset = input_w_split * G_ * C_;
+                output_offset = left_wo * G_ * K_;
+            }
+        } else {  // NDimSpatial == 1
+            if (Wo_ > 1) {  // W-split
+                IndexType left_wo = Wo_ / 2;
+                IndexType right_wo = Wo_ - left_wo;  // Handles odd numbers
+
+                left_transformer.Wo_ = left_wo;
+                right_transformer.Wo_ = right_wo;
+
+                // Calculate input split point
+                IndexType input_w_split = (left_wo * ConvStrideW_) - InLeftPadW_ +
+                                         (X_ - 1) * ConvDilationW_;
+                right_transformer.Wi_ = Wi_ - input_w_split;
+                right_transformer.InLeftPadW_ = 0;
+
+                // Calculate offsets
+                input_offset = input_w_split * G_ * C_;
+                output_offset = left_wo * G_ * K_;
             }
         }
 
-        return ck_tile::make_tuple(IndexType(left_gemm_m),
-                                  IndexType(right_gemm_m),
-                                  long_index_t(a_right_offset),
-                                  long_index_t(c_right_offset));
+        return make_tuple(left_transformer, right_transformer, input_offset, output_offset);
+    }
+
+    // Static helper to launch kernel with split-image if needed (recursive queue approach)
+    // This implements old CK's binary splitting: 10GB → 5GB+5GB → 2.5GB+2.5GB → ...
+    template<typename Kernel, index_t kBlockPerCu = 1>
+    CK_TILE_HOST static float LaunchKernelWithSplitIfNeeded(
+        const GroupedConvFwdHostArgs& args,
+        const stream_config& s)
+    {
+
+        // Structure to hold a split problem in the queue
+        struct SplitProblem {
+            TransformConvFwdToGemm transformer;
+            long_index_t input_offset;
+            long_index_t output_offset;
+            int depth;  // For debugging
+        };
+
+        // Extract the transformer from kernel args creation
+        // We need to recreate it from args
+        std::array<IndexType, NDimSpatial + 3> in_lengths;
+        std::array<IndexType, NDimSpatial + 3> wei_lengths;
+        std::array<IndexType, NDimSpatial + 3> out_lengths;
+
+        in_lengths[0] = args.G_;
+        in_lengths[1] = args.N_;
+        in_lengths[2] = args.C_;
+
+        wei_lengths[0] = args.G_;
+        wei_lengths[1] = args.K_;
+        wei_lengths[2] = args.C_;
+
+        out_lengths[0] = args.G_;
+        out_lengths[1] = args.N_;
+        out_lengths[2] = args.K_;
+
+        // Add spatial dimensions
+        for(index_t i = 0; i < NDimSpatial; i++) {
+            in_lengths[3 + i] = static_cast<IndexType>(args.input_spatial_lengths_[i]);
+            wei_lengths[3 + i] = static_cast<IndexType>(args.filter_spatial_lengths_[i]);
+            out_lengths[3 + i] = static_cast<IndexType>(args.output_spatial_lengths_[i]);
+        }
+
+        // Create arrays for spatial parameters
+        std::array<IndexType, NDimSpatial> conv_strides;
+        std::array<IndexType, NDimSpatial> conv_dilations;
+        std::array<IndexType, NDimSpatial> input_left_pads;
+        std::array<IndexType, NDimSpatial> input_right_pads;
+
+        for(index_t i = 0; i < NDimSpatial; i++) {
+            conv_strides[i] = static_cast<IndexType>(args.conv_filter_strides_[i]);
+            conv_dilations[i] = static_cast<IndexType>(args.conv_filter_dilations_[i]);
+            input_left_pads[i] = static_cast<IndexType>(args.input_left_pads_[i]);
+            input_right_pads[i] = static_cast<IndexType>(args.input_right_pads_[i]);
+        }
+
+        // Create base transformer
+        TransformConvFwdToGemm base_transformer(
+            in_lengths,
+            wei_lengths,
+            out_lengths,
+            conv_strides,
+            conv_dilations,
+            input_left_pads,
+            input_right_pads);
+
+
+        // Check if split is needed
+        if(base_transformer.AreDescriptorsSmallerThan2GB()) {
+            if(s.log_level_ > 0) {
+                std::cout << "[SPLIT-IMAGE] No split needed - tensors fit in memory threshold\n";
+            }
+
+            // Create kernel args only if no split is needed
+            auto kargs = Kernel::MakeKernelArgs(args);
+
+            // No split needed - launch original kernel with validation and logging
+            const dim3 grids = Kernel::GridSize(kargs);
+            const dim3 blocks = Kernel::BlockSize();
+
+            if(!Kernel::IsSupportedArgument(kargs)) {
+                throw std::runtime_error("Wrong! Arguments not supported! Skipping conv!\n");
+            }
+
+            if(s.log_level_ > 0) {
+                std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
+                          << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+                          << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
+                          << "}" << std::endl;
+            }
+
+            return ck_tile::launch_kernel(
+                s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+        }
+
+        // Queue-based recursive splitting needed
+        if(s.log_level_ > 0) {
+            std::cout << "[SPLIT-IMAGE] Split needed - using recursive queue splitting\n";
+        }
+
+        std::queue<SplitProblem> split_queue;
+        std::vector<SplitProblem> ready_list;
+
+        // Start with the original problem
+        split_queue.push({base_transformer, 0, 0, 0});
+
+        // Process queue: keep splitting until all pieces fit
+        while(!split_queue.empty() && ready_list.size() < 64) { // Limit to 64 splits max
+            auto current = split_queue.front();
+            split_queue.pop();
+
+            if(current.transformer.AreDescriptorsSmallerThan2GB()) {
+                // This piece fits - add to ready list
+                ready_list.push_back(current);
+            } else {
+                // Need to split further
+                auto [left, right, in_off, out_off] = current.transformer.SplitConvProblem();
+
+                // Add left piece to queue
+                split_queue.push({
+                    left,
+                    current.input_offset,
+                    current.output_offset,
+                    current.depth + 1
+                });
+
+                // Add right piece to queue
+                split_queue.push({
+                    right,
+                    current.input_offset + in_off,
+                    current.output_offset + out_off,
+                    current.depth + 1
+                });
+            }
+        }
+
+        if(s.log_level_ > 0) {
+            std::cout << "[SPLIT-IMAGE] Total pieces after splitting: " << ready_list.size() << "\n";
+        }
+
+        // Launch kernel for each split piece
+        float total_time = 0.0f;
+
+        for(size_t i = 0; i < ready_list.size(); i++) {
+            const auto& piece = ready_list[i];
+
+            // Create modified args for this piece
+            auto piece_args = args;  // Copy original args
+
+            // Update the input and output spatial dimensions for this piece
+            if constexpr(NDimSpatial >= 1) {
+                piece_args.input_spatial_lengths_[NDimSpatial - 1] = piece.transformer.Wi_;
+                piece_args.output_spatial_lengths_[NDimSpatial - 1] = piece.transformer.Wo_;
+            }
+            if constexpr(NDimSpatial >= 2) {
+                piece_args.input_spatial_lengths_[NDimSpatial - 2] = piece.transformer.Hi_;
+                piece_args.output_spatial_lengths_[NDimSpatial - 2] = piece.transformer.Ho_;
+            }
+            if constexpr(NDimSpatial >= 3) {
+                piece_args.input_spatial_lengths_[NDimSpatial - 3] = piece.transformer.Di_;
+                piece_args.output_spatial_lengths_[NDimSpatial - 3] = piece.transformer.Do_;
+            }
+
+            // Update padding for this piece
+            if constexpr(NDimSpatial >= 1) {
+                piece_args.input_left_pads_[NDimSpatial - 1] = piece.transformer.InLeftPadW_;
+                piece_args.input_right_pads_[NDimSpatial - 1] = piece.transformer.InRightPadW_;
+            }
+            if constexpr(NDimSpatial >= 2) {
+                piece_args.input_left_pads_[NDimSpatial - 2] = piece.transformer.InLeftPadH_;
+                piece_args.input_right_pads_[NDimSpatial - 2] = piece.transformer.InRightPadH_;
+            }
+            if constexpr(NDimSpatial >= 3) {
+                piece_args.input_left_pads_[NDimSpatial - 3] = piece.transformer.InLeftPadD_;
+                piece_args.input_right_pads_[NDimSpatial - 3] = piece.transformer.InRightPadD_;
+            }
+
+            // Adjust pointers to the correct offset
+            piece_args.in_ptr = static_cast<const void*>(
+                static_cast<const ADataType*>(args.in_ptr) + piece.input_offset);
+            piece_args.out_ptr = static_cast<void*>(
+                static_cast<CDataType*>(args.out_ptr) + piece.output_offset);
+
+            // Create kernel args for this piece
+            auto piece_kargs = Kernel::MakeKernelArgs(piece_args);
+
+            // Get grid and block sizes for this piece
+            const dim3 grids = Kernel::GridSize(piece_kargs);
+            const dim3 blocks = Kernel::BlockSize();
+
+            if(s.log_level_ > 0) {
+                std::cout << "[SPLIT-IMAGE] Launching piece " << (i+1) << "/" << ready_list.size()
+                          << " with offsets: in=" << piece.input_offset
+                          << ", out=" << piece.output_offset << "\n";
+            }
+
+            // Launch kernel for this piece
+            float piece_time = ck_tile::launch_kernel(
+                s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, piece_kargs));
+
+            total_time += piece_time;
+        }
+
+        // Return average time per kernel launch
+        return total_time / ready_list.size();
     }
 
 

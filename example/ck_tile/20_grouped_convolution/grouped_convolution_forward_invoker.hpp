@@ -99,32 +99,18 @@ struct GroupedConvolutionForwardInvoker
                                                                     TilePartitioner,
                                                                     CodegenPipeline,
                                                                     ConvEpilogue>;
-            auto kargs   = Kernel::MakeKernelArgs(args);
 
-            const dim3 grids  = Kernel::GridSize(kargs);
-            const dim3 blocks = Kernel::BlockSize();
+            // Use split-image helper which handles splitting if needed
+            using TransformerType = ck_tile::TransformConvFwdToGemm<
+                GroupedConvTraitsType::NDimSpatial,
+                GroupedConvTraitsType::ConvSpecialization,
+                GroupedConvTraitsType::VectorSizeA,
+                GroupedConvTraitsType::VectorSizeB,
+                GroupedConvTraitsType::VectorSizeC,
+                true>; // Split N enabled
 
-            if(!Kernel::IsSupportedArgument(kargs))
-            {
-                throw std::runtime_error("Wrong! Arguments not supported! Skipping conv!\n");
-            }
-
-            if(s.log_level_ > 0)
-            {
-                std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
-                          << "shape: " << CodegenShape::GetName() << '\n'
-                          << "problem: " << CodegenPipelineProblem::GetName() << '\n'
-                          << "pipeline: " << CodegenPipeline::GetName() << '\n'
-                          << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                          << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
-                          << "}" << '\n'
-                          << "Vector size A: " << CodegenPipeline::GetVectorSizeA()
-                          << ", Vector size B: " << CodegenPipeline::GetVectorSizeB()
-                          << ", Vector size C: " << ConvEpilogue::GetVectorSizeC() << std::endl;
-            }
-
-            float ave_time = ck_tile::launch_kernel(
-                s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+            // This helper will check if splitting is needed and handle everything
+            float ave_time = TransformerType::template LaunchKernelWithSplitIfNeeded<Kernel, kBlockPerCu>(args, s);
 
             return ave_time;
         };
