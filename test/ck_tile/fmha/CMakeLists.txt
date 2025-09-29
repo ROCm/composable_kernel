@@ -34,7 +34,6 @@ function(add_gtest_bwd test_group)
     set(CPP_TYPE_bf16 "FmhaBwdBf16")
     set(CPP_TYPE_fp32 "FmhaBwdFp32")
 
-
     set(all_tests)
     foreach(type ${V_TYPES})
         set(name "${test_group}_${type}")

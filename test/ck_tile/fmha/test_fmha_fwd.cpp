@@ -7,7 +7,7 @@
 #include "gtest/gtest.h"
 
 #ifndef DataTypeConfig
-#define DataTypeConfig FmhaFwdFp16 // or FmhaFwdBf16 / FmhaFwdFp8
+#define DataTypeConfig FmhaFwdFp16 // or FmhaFwdBf16 / FmhaFwdFp8 / FmhaFwdFp32
 #endif
 
 using ::testing::Bool;
