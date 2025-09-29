@@ -66,9 +66,19 @@ def check_duplicates_and_paddings(traits, trait):
         is_prev_more_restrictive = False
         is_curr_more_restrictive = False
         for f in pad_fields:
-            if getattr(prev_trait, f) == 't' and getattr(trait, f) == 'f':
+            prev_pad = getattr(prev_trait, f)
+            pad = getattr(trait, f)
+            if isinstance(prev_pad, str):
+                prev_pad = 1000000 if prev_pad == 'f' else 1
+                pad = 1000000 if pad == 'f' else 1
+            elif isinstance(prev_pad, int):
+                prev_pad = 1000000 if prev_pad == 0 else prev_pad
+                pad = 1000000 if pad == 0 else pad
+            else:
+                assert False
+            if prev_pad < pad:
                 is_prev_more_restrictive = True
-            elif getattr(prev_trait, f) == 'f' and getattr(trait, f) == 't':
+            elif prev_pad > pad:
                 is_curr_more_restrictive = True
         if is_prev_more_restrictive and not is_curr_more_restrictive:
-            raise Exception(f'Kernel will never be used because paddings are not ordered correctly: {prev_trait} supersedes {trait}')
+            raise Exception(f'Kernel will never be used because paddings are not ordered correctly:\n{prev_trait} supersedes\n{trait}')

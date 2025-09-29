@@ -859,10 +859,11 @@ def get_bwd_blobs(targets: List[str], filter_list: str, receipt, mask_impl, optd
     for factory, dtype, tr_load in itertools.product(factories, BWD_DTYPE_MAP.keys(), ["t", "f"]):
         arch = factory.arch
         tiles: Any = factory.get_dq_dk_dv_tiles(dtype, tr_load)
+        spad1d_options = ["f", "t"]
         dpad_options = itertools.product(*([[0, 8, 1]] * 2))
         tf = ["t", "f"]
         for tile, mode, mask, bias, dbias, dropout, spad1d, (dpad, dvpad), deterministic in itertools.product(
-                tiles, MODE_MAP.keys(), get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), tf, DROPOUT_MAP.keys(), tf, dpad_options, tf):
+                tiles, MODE_MAP.keys(), get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), tf, DROPOUT_MAP.keys(), spad1d_options, dpad_options, tf):
             assert isinstance(tile, FmhaBwdDQDKDVTileSize), "tile must be FmhaBwdDQDKDVTileSize"
             hdim = tile.F_bhdq
             if (mode == "group") and (spad1d == "f"):
