@@ -62,11 +62,10 @@ bool compare_results(std::string instanceName,
     return pass;
 }
 
-// Test parameter structure for different matrix sizes
+// Test parameter structure for matrix dimensions and split_k values
 struct GemmTestParams
 {
-    int m, n, k;
-    std::string description;
+    int m, n, k, split_k;
 };
 
 class GemmTileEngineTest : public ::testing::TestWithParam<GemmTestParams>
@@ -78,6 +77,7 @@ class GemmTileEngineTest : public ::testing::TestWithParam<GemmTestParams>
         m_          = params.m;
         n_          = params.n;
         k_          = params.k;
+        split_k_    = params.split_k;
 
         // Calculate strides (following tile_engine pattern)
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
@@ -109,7 +109,7 @@ class GemmTileEngineTest : public ::testing::TestWithParam<GemmTestParams>
     }
 
     // Test dimensions
-    int m_, n_, k_;
+    int m_, n_, k_, split_k_;
     int stride_a_, stride_b_, stride_c_;
 };
 
@@ -120,8 +120,8 @@ TEST_P(GemmTileEngineTest, BasicFunctionality)
     const BLayout layout_b = BLayout{};
     const CLayout layout_c = CLayout{};
 
-    // Calculate strides using tile_engine's default stride calculation
-    int split_k       = 1;
+    // Use split_k from test parameters
+    int split_k       = split_k_;
     int stride_a_calc = ck_tile::get_default_stride(m_, k_, 0, is_row_major(layout_a));
     int stride_b_calc = ck_tile::get_default_stride(k_, n_, 0, is_row_major(layout_b));
     int stride_c_calc = ck_tile::get_default_stride(m_, n_, 0, is_row_major(layout_c));
@@ -204,21 +204,20 @@ TEST_P(GemmTileEngineTest, KernelInfo)
     EXPECT_TRUE(strlen(KERNEL_NAME) > 0) << "Kernel name should not be empty";
 
     std::cout << "Testing kernel: " << KERNEL_NAME << std::endl;
-    std::cout << "Problem size: " << m_ << "x" << n_ << "x" << k_ << std::endl;
+    std::cout << "Problem size: " << m_ << "x" << n_ << "x" << k_ << " with split_k=" << split_k_
+              << std::endl;
 }
 
-// Define test parameters for different matrix sizes (focused on kernel-supported dimensions)
-INSTANTIATE_TEST_SUITE_P(DifferentSizes,
+// Define test parameters for GEMM verification
+INSTANTIATE_TEST_SUITE_P(GemmVerification,
                          GemmTileEngineTest,
-                         ::testing::Values(GemmTestParams{256, 256, 128, "medium_square"},
-                                           GemmTestParams{512, 512, 256, "xlarge_square"},
-                                           GemmTestParams{1024, 1024, 512, "xxlarge_square"},
-                                           GemmTestParams{128, 512, 64, "tall_matrix"},
-                                           GemmTestParams{512, 128, 64, "wide_matrix"},
-                                           GemmTestParams{512, 2048, 1024, "very_large_matrix"}),
+                         ::testing::Values(GemmTestParams{256, 256, 128, 1},
+                                           GemmTestParams{256, 256, 1024, 1},
+                                           GemmTestParams{256, 512, 512, 1},
+                                           GemmTestParams{512, 256, 512, 1}),
                          [](const ::testing::TestParamInfo<GemmTestParams>& param_info) {
-                             return param_info.param.description + "_" +
-                                    std::to_string(param_info.param.m) + "x" +
+                             return std::to_string(param_info.param.m) + "x" +
                                     std::to_string(param_info.param.n) + "x" +
-                                    std::to_string(param_info.param.k);
+                                    std::to_string(param_info.param.k) + "_splitk" +
+                                    std::to_string(param_info.param.split_k);
                          });

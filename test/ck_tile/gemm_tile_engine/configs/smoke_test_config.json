@@ -51,7 +51,8 @@
   "trait_config": {
     "pipeline": {
       "values": [
-        "mem"
+        "compv3",
+        "compv4"
       ]
     },
     "scheduler": {
