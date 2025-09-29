@@ -158,11 +158,11 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
         {
             constexpr index_t K1 = Problem::VectorLoadSize / sizeof(ADataType);
             constexpr index_t K0 = KPerBlock / K1;
-            constexpr index_t M2 = get_warp_size() / K0;
             // coalesce reading for each blocks
-            if constexpr(get_warp_size() % (M2 * K0) == 0)
+            if constexpr(get_warp_size() % K0 == 0)
             {
                 constexpr index_t M1 = BlockSize / get_warp_size();
+                constexpr index_t M2 = get_warp_size() / K0;
                 static_assert(M2 != 0, "M2 is zero, which will lead to a division by zero error.");
                 static_assert(M1 != 0, "M1 is zero, which will lead to a division by zero error.");
                 constexpr index_t M0 = MPerBlock / (M2 * M1);
@@ -180,18 +180,18 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
             }
             else
             {
-                constexpr index_t M0 = BlockSize / get_warp_size();
-                constexpr index_t M1 = MPerBlock / (M2 * M0);
-                static_assert(M0 * M1 * M2 == MPerBlock,
-                              "Incorrect M0, M1, M2 configuration! "
-                              "M0, M1, M2 must cover whole MPerBlock!");
+                constexpr index_t KWave = K0 / get_warp_size();
+                constexpr index_t M0    = BlockSize / get_warp_size() / KWave;
+                constexpr index_t M1    = MPerBlock / M0;
+
                 return make_static_tile_distribution(
-                    tile_distribution_encoding<sequence<1>,
-                                               tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
-                                               tuple<sequence<1>, sequence<1, 2>>,
-                                               tuple<sequence<0>, sequence<2, 0>>,
-                                               sequence<1, 2>,
-                                               sequence<1, 1>>{});
+                    tile_distribution_encoding<
+                        sequence<1>,
+                        tuple<sequence<M0, M1>, sequence<KWave, get_warp_size(), K1>>,
+                        tuple<sequence<1, 2>, sequence<2>>,
+                        tuple<sequence<0, 0>, sequence<1>>,
+                        sequence<1, 2>,
+                        sequence<1, 2>>{});
             }
         }
     }
@@ -211,10 +211,15 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
 #else
         constexpr index_t KRepeatInWave = 1;
 #endif
-        constexpr index_t KThdPerWave = WaveSize / KRepeatInWave; // threads cnt in K dim
-        constexpr index_t KWavePerBlk = 1;
-        constexpr index_t KRepeat     = 1;
+        constexpr index_t KThdPerWave   = WaveSize / KRepeatInWave; // threads cnt in K dim
+        constexpr index_t KWavePerBlk   = 1;
+        constexpr index_t MaxVecSize    = 16 / sizeof(typename Problem::BDataType);
+        constexpr index_t KItemsPerLoad = min(KBPerLoad, MaxVecSize);
+        constexpr index_t KFragment     = KBPerLoad / KItemsPerLoad;
+        static_assert(KFragment * KItemsPerLoad == KBPerLoad);
+
         static_assert(TileShape::flatKPerWarp == KThdPerWave * KBPerLoad, "wrong");
+        static_assert(TileShape::BlockWarps::at(number<2>{}) == 1, "Requires K_Warp == 1");
 
         constexpr index_t NBPerLoad   = 1;
         constexpr index_t NThdPerWave = 1;
@@ -224,9 +229,10 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
         constexpr index_t WaveRepeat = WaveNum / TileShape::flatNPerWarp;
         return make_static_tile_distribution(
             tile_distribution_encoding<
-                sequence<WaveRepeat, KRepeatInWave>,                           // ?
-                tuple<sequence<NRepeat, NWavePerBlk, NThdPerWave, NBPerLoad>,  // second direction
-                      sequence<KRepeat, KWavePerBlk, KThdPerWave, KBPerLoad>>, // first  direction
+                sequence<WaveRepeat, KRepeatInWave>,                          // ?
+                tuple<sequence<NRepeat, NWavePerBlk, NThdPerWave, NBPerLoad>, // second direction
+                      sequence<KFragment, KWavePerBlk, KThdPerWave, KItemsPerLoad>>, // first
+                                                                                     // direction
                 // wave in blk,     // thd in wave
                 // <M, K>           // <M, K>
                 tuple<sequence<0, 1, 2>, sequence<0, 1, 2>>, // which direction
@@ -282,6 +288,37 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
                                            sequence<1, 2>,
                                            sequence<1, 3>>{});
         }
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeALDS_WarpTileDistribution()
+    {
+        using TileShape = typename Problem::BlockGemmShape;
+        using ADataType = remove_cvref_t<typename Problem::ADataType>;
+        using ALayout   = remove_cvref_t<typename Problem::ALayout>;
+
+        static_assert(TileShape::BlockWarps::at(I0) == 1, "requires Wave_M == 1");
+
+        constexpr index_t MPerXdl = Problem::BlockGemmShape::WarpTile::at(I0);
+        constexpr index_t KPerXdl = Problem::BlockGemmShape::WarpTile::at(I2);
+
+        constexpr int Repeat = TileShape::BlockWarps::at(number<1>{});
+
+        constexpr int KLane      = get_warp_size() / MPerXdl;
+        constexpr int KPerThread = KPerXdl / KLane;
+
+        constexpr int MaxVecSize    = 16 / sizeof(ADataType);
+        constexpr int KItemsPerLoad = min(MaxVecSize, KPerThread);
+        constexpr int KFragment     = KPerThread / KItemsPerLoad;
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<
+                sequence<Repeat>,
+                tuple<sequence<MPerXdl>, sequence<KFragment, KLane, KItemsPerLoad>>,
+                tuple<sequence<0>, sequence<2, 1>>,
+                tuple<sequence<0>, sequence<1, 0>>,
+                sequence<2, 2>,
+                sequence<0, 2>>{});
     }
 
     template <typename Problem>
