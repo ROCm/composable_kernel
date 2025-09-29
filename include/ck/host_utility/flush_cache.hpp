@@ -533,12 +533,11 @@ float launch_and_time_kernel_with_preprocess_tb(const StreamConfig& stream_confi
                    hot_iterations, iter_times.size());
             printf("  Average time per iteration: %.3f ms\n", avg_time);
             
-            if(ck::EnvIsEnabled(CK_ENV(CK_VERBOSE_LOGGING)))
-            {
-                printf("gemm_args.p_a_grid: %p, gemm_args.p_b_grid:%p\n",
+           
+            printf("gemm_args.p_a_grid: %p, gemm_args.p_b_grid:%p\n",
                        static_cast<const void*>(gemm_args.p_a_grid),
                        static_cast<const void*>(gemm_args.p_b_grid));
-            }
+            
         }
         
         // Clean up events
