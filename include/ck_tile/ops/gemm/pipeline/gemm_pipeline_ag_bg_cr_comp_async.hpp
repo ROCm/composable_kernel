@@ -299,7 +299,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                         Policy::template MakeADramTileDistribution<Problem>());
                 },
                 number<AsLayout::size()>{});
-            
+
             auto b_tile_windows = generate_tuple(
                 [&](auto idx) {
                     return make_tile_window(
@@ -333,13 +333,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             constexpr BDramTileWindowStep b_dram_tile_window_step =
                 is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
 
-            // the below is used for async cnt calculation
-            // using ACopyDramWindow             = remove_cvref_t<decltype(a_tile_windows[number<0>{}])>;
-            // using BCopyDramWindow             = remove_cvref_t<decltype(b_tile_windows[number<0>{}])>;
-            // constexpr auto a_number_of_access = ACopyDramWindow{}.get_num_of_access();
-            // constexpr auto b_number_of_access = BCopyDramWindow{}.get_num_of_access();
-            // global prefetch 0
-            // global read 0
+            // read 0
             Base::GlobalPrefetchAsync(
                 a_copy_lds_window0, a_tile_windows[number<0>{}], a_dram_tile_window_step);
             Base::GlobalPrefetchAsync(
@@ -399,7 +393,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                               !(is_tile_window_linear_v<decltype(b_lds_ld_window0)>) &&
                               !(is_tile_window_linear_v<decltype(b_lds_ld_window1)>),
                           "LDS windows must not be linear");
-            
+
             block_sync_lds_direct_load();
 
             Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
@@ -424,10 +418,12 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                         Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1);
                         Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1);
                         block_sync_lds();
-                        Base::GlobalPrefetchAsync(
-                            a_copy_lds_window1, a_tile_windows[number<0>{}], a_dram_tile_window_step);
-                        Base::GlobalPrefetchAsync(
-                            b_copy_lds_window1, b_tile_windows[number<0>{}], b_dram_tile_window_step);
+                        Base::GlobalPrefetchAsync(a_copy_lds_window1,
+                                                  a_tile_windows[number<0>{}],
+                                                  a_dram_tile_window_step);
+                        Base::GlobalPrefetchAsync(b_copy_lds_window1,
+                                                  b_tile_windows[number<0>{}],
+                                                  b_dram_tile_window_step);
                         // gemm
                         block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
                         HotLoopScheduler();
@@ -440,10 +436,12 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                         Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
                         Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0);
                         block_sync_lds();
-                        Base::GlobalPrefetchAsync(
-                            a_copy_lds_window0, a_tile_windows[number<0>{}], a_dram_tile_window_step);
-                        Base::GlobalPrefetchAsync(
-                            b_copy_lds_window0, b_tile_windows[number<0>{}], b_dram_tile_window_step);
+                        Base::GlobalPrefetchAsync(a_copy_lds_window0,
+                                                  a_tile_windows[number<0>{}],
+                                                  a_dram_tile_window_step);
+                        Base::GlobalPrefetchAsync(b_copy_lds_window0,
+                                                  b_tile_windows[number<0>{}],
+                                                  b_dram_tile_window_step);
                         // gemm
                         block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
                         HotLoopScheduler();

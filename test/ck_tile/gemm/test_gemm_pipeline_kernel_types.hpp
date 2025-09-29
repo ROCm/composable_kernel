@@ -26,9 +26,9 @@ using Intrawave = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
 using Interwave = ck_tile::integral_constant<ck_tile::GemmPipelineScheduler,
                                              ck_tile::GemmPipelineScheduler::Interwave>;
 
-using Mem    = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::Mem>;
-using CompV3 = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV3>;
-using CompV4 = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV4>;
+using Mem       = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::Mem>;
+using CompV3    = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV3>;
+using CompV4    = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompV4>;
 using CompAsync = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::CompAsync>;
 
 using Persistent    = std::true_type;

@@ -205,11 +205,12 @@ struct UniversalGemmBasePolicy
         {
             constexpr index_t BlockSize   = Problem::kBlockSize;
             constexpr index_t VecLoadSize = GetVectorSizeB<Problem>();
-            using TileEncodingPattern     = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                                  KPerBlock,
-                                                                                  NPerBlock,
-                                                                                  VecLoadSize,
-                                                                                  getBTileAccessPattern()>;
+            using TileEncodingPattern =
+                tile_distribution_encoding_pattern_2d<BlockSize,
+                                                      KPerBlock,
+                                                      NPerBlock,
+                                                      VecLoadSize,
+                                                      getBTileAccessPattern()>;
 
             constexpr auto BK0 = number<TileEncodingPattern::X1>{};
             constexpr auto BK1 = number<TileEncodingPattern::Y0>{};
@@ -537,23 +538,25 @@ struct UniversalGemmBasePolicy
         // Tile: MPerBlock X KPerBlock
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
-            using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                              MPerBlock,
-                                                                              KPerBlock,
-                                                                              VecLoadSize,
-                                                                              getATileAccessPattern(),
-                                                                              NumWaveGroups>;
+            using TileEncodingPattern =
+                tile_distribution_encoding_pattern_2d<BlockSize,
+                                                      MPerBlock,
+                                                      KPerBlock,
+                                                      VecLoadSize,
+                                                      getATileAccessPattern(),
+                                                      NumWaveGroups>;
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }
         // Tile: KPerBlock X MPerBlock
         else
         {
-            using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                              KPerBlock,
-                                                                              MPerBlock,
-                                                                              VecLoadSize,
-                                                                              getATileAccessPattern(),
-                                                                              NumWaveGroups>;
+            using TileEncodingPattern =
+                tile_distribution_encoding_pattern_2d<BlockSize,
+                                                      KPerBlock,
+                                                      MPerBlock,
+                                                      VecLoadSize,
+                                                      getATileAccessPattern(),
+                                                      NumWaveGroups>;
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }
     }
@@ -573,23 +576,25 @@ struct UniversalGemmBasePolicy
         // Tile: KPerBlock X NPerBlock
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
-            using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                              KPerBlock,
-                                                                              NPerBlock,
-                                                                              VecLoadSize,
-                                                                              getBTileAccessPattern(),
-                                                                              NumWaveGroups>;
+            using TileEncodingPattern =
+                tile_distribution_encoding_pattern_2d<BlockSize,
+                                                      KPerBlock,
+                                                      NPerBlock,
+                                                      VecLoadSize,
+                                                      getBTileAccessPattern(),
+                                                      NumWaveGroups>;
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }
         // Tile: NPerBlock X KPerBlock
         else
         {
-            using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                              NPerBlock,
-                                                                              KPerBlock,
-                                                                              VecLoadSize,
-                                                                              getBTileAccessPattern(),
-                                                                              NumWaveGroups>;
+            using TileEncodingPattern =
+                tile_distribution_encoding_pattern_2d<BlockSize,
+                                                      NPerBlock,
+                                                      KPerBlock,
+                                                      VecLoadSize,
+                                                      getBTileAccessPattern(),
+                                                      NumWaveGroups>;
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }
     }
