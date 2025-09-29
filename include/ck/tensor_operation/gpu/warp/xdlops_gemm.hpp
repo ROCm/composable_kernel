@@ -971,9 +971,8 @@ struct mfma_type<MfmaInstr::mfma_scale_f32_16x16x128f8f6f4>
  * }
  */
 template <>
-struct mfma_type<MfmaInstr::mfma_f32_16x16x8xf32> : public mfma_type<MfmaInstr::mfma_f32_16x16x4f32>
+struct mfma_type<MfmaInstr::mfma_f32_16x16x8xf32>
 {
-#if defined(__gfx942__)
     static constexpr index_t wave_size           = 64;        // fixed
     static constexpr index_t m_per_blk           = 16;        // from the instruction
     static constexpr index_t n_per_blk           = 16;        // from the instruction
@@ -992,9 +991,6 @@ struct mfma_type<MfmaInstr::mfma_f32_16x16x8xf32> : public mfma_type<MfmaInstr::
     {
         intrin_mfma_f32_16x16x8xf32<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
     }
-#else
-    // keep same as mfma_f32_16x16x4f32
-#endif
 };
 
 template <>
@@ -1281,13 +1277,29 @@ struct MfmaSelector
     template <>
     constexpr auto GetMfma<tf32_t, 32, 32>()
     {
+#if defined(__gfx12__)
+        return MfmaInstr::wmma_unsupport_16x16_gfx12;
+#elif defined(__gfx11__)
+        return MfmaInstr::wmma_unsupport_16x16_gfx11;
+#elif defined(__gfx942__)
         return MfmaInstr::mfma_f32_32x32x4xf32;
+#else
+        return MfmaInstr::mfma_f32_32x32x2f32;
+#endif
     }
 
     template <>
     constexpr auto GetMfma<tf32_t, 16, 16>()
     {
+#if defined(__gfx12__)
+        return MfmaInstr::wmma_unsupport_16x16_gfx12;
+#elif defined(__gfx11__)
+        return MfmaInstr::wmma_unsupport_16x16_gfx11;
+#elif defined(__gfx942__)
         return MfmaInstr::mfma_f32_16x16x8xf32;
+#else
+        return MfmaInstr::mfma_f32_16x16x4f32;
+#endif
     }
 
     template <>
