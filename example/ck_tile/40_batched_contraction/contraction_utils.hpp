@@ -99,41 +99,32 @@ ck_tile::index_t calculate_total_elements(const std::vector<ck_tile::index_t>& d
     return total;
 }
 
-// Helper function to Build tensor dimensions vector from dimensions for example
-// [G0,G1,..,M0,M1,..,K0,K1,..] >> [s0,s1,..]
+/**
+ * @brief Flattens a list of tensor dimension components into a single dimension vector.
+ *
+ * This function takes a list of dimension vectors (e.g., representing different components
+ * such as G, M, N, or K dimensions) and concatenates them into a single vector.
+ *
+ * Example:
+ * Input: {{G0, G1}, {M0, M1}, {K0}}
+ * Output: {G0, G1, M0, M1, K0}
+ *
+ * @param dim_components A vector of vectors, where each inner vector represents a set of tensor
+ * dimensions.
+ * @return A single vector containing all dimensions concatenated in order.
+ */
 std::vector<ck_tile::index_t>
-get_tensor_dims(const std::vector<std::vector<ck_tile::index_t>>& dim_components)
+concatenate_dim_components(const std::vector<std::vector<ck_tile::index_t>>& dim_components)
 {
     std::vector<ck_tile::index_t> result;
 
-    // Concatenate all dimension components: [G_dims] + ([M_dims] or [N_dims]) + ([K_dims] or
-    // [N_dims])
+    // Concatenate all dimension components into a single vector
     for(const auto& component : dim_components)
     {
         result.insert(result.end(), component.begin(), component.end());
     }
 
     return result;
-}
-
-// Helper function to Calculate tensor strides from all dimensions
-std::vector<ck_tile::index_t> get_tensor_strides(const std::vector<ck_tile::index_t>& dims)
-{
-    std::vector<ck_tile::index_t> strides(dims.size());
-
-    if(dims.empty())
-        return strides;
-
-    // Row-major strides: rightmost dimension has stride 1
-    strides.back() = 1;
-
-    // Calculate strides from right to left
-    for(int i = static_cast<int>(dims.size()) - 2; i >= 0; --i)
-    {
-        strides[i] = strides[i + 1] * dims[i + 1];
-    }
-
-    return strides;
 }
 
 // Helper function for printing dimensions

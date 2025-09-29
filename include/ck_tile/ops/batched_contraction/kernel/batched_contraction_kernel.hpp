@@ -421,11 +421,8 @@ struct BatchedContractionKernel
         offsets.b = CalculateOffsetFromFlatIndex(flat_g_index, kargs.G_dims, kargs.G_strides_B);
         offsets.e = CalculateOffsetFromFlatIndex(flat_g_index, kargs.G_dims, kargs.G_strides_E);
         static_for<0, NumDTensor, 1>{}([&](auto i) {
-            using DType            = typename std::tuple_element<i.value, DsDataType>::type;
-            std::size_t dtype_size = sizeof(DType);
-            offsets.ds[i]          = CalculateOffsetFromFlatIndex(
-                                flat_g_index, kargs.G_dims, kargs.G_strides_Ds[i].data()) *
-                            dtype_size;
+            offsets.ds[i] = CalculateOffsetFromFlatIndex(
+                flat_g_index, kargs.G_dims, kargs.G_strides_Ds[i].data());
         });
         return offsets;
     }
@@ -451,8 +448,8 @@ struct BatchedContractionKernel
 
         std::array<const void*, NumDTensor> ds_batch_ptr;
         static_for<0, NumDTensor, 1>{}([&](auto i) {
-            ds_batch_ptr[i] =
-                static_cast<const void*>(static_cast<const char*>(kargs.ds_ptr[i]) + offsets.ds[i]);
+            using DDataType = typename std::tuple_element<i.value, DsDataType>::type;
+            ds_batch_ptr[i] = static_cast<const DDataType*>(kargs.ds_ptr[i]) + offsets.ds[i];
         });
 
         typename UniversalGemmKernel::KernelArgs gemm_kargs{{a_ptr},

@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cmath>
 #include "contraction_utils.hpp"
+#include "ck_tile/host/reference/reference_batched_contraction.hpp"
 
 template <typename ADataType, typename BDataType, typename EDataType, typename AccDataType>
 auto calculate_rtol_atol(const ck_tile::index_t K,
@@ -27,240 +28,6 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
         max_accumulated_value, kbatch);
 
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
-}
-
-template <typename CDEElementWise>
-void calculate_reference_multi_dimensional(
-    const ck_tile::HostTensor<::ADataType>& a_full_dims,
-    const ck_tile::HostTensor<::BDataType>& b_full_dims,
-    const std::vector<ck_tile::HostTensor<::DDataType>>& ds_full_dims_host,
-    ck_tile::HostTensor<::EDataType>& e_full_dims_host_ref,
-    const std::vector<ck_tile::index_t>& G_dims,
-    const std::vector<ck_tile::index_t>& M_dims,
-    const std::vector<ck_tile::index_t>& N_dims,
-    const std::vector<ck_tile::index_t>& K_dims,
-    const std::vector<ck_tile::index_t>& A_dims,
-    const std::vector<ck_tile::index_t>& B_dims,
-    const std::vector<ck_tile::index_t>& E_dims,
-    const CDEElementWise& cde_elementwise)
-{
-    std::cout << "Calculating reference using multi-dimensional indexing..." << std::endl;
-
-    std::vector<std::size_t> g_idx(G_dims.size());
-    std::vector<std::size_t> m_idx(M_dims.size());
-    std::vector<std::size_t> n_idx(N_dims.size());
-    std::vector<std::size_t> k_idx(K_dims.size());
-    std::vector<std::size_t> a_idx, b_idx, e_idx;
-
-    a_idx.reserve(A_dims.size());
-    b_idx.reserve(B_dims.size());
-    e_idx.reserve(E_dims.size());
-
-    for(ck_tile::index_t g_flat = 0; g_flat < calculate_total_elements(G_dims); ++g_flat)
-    {
-        ck_tile::index_t temp = g_flat;
-        for(int i = G_dims.size() - 1; i >= 0; --i)
-        {
-            g_idx[i] = temp % G_dims[i];
-            temp /= G_dims[i];
-        }
-
-        for(ck_tile::index_t m_flat = 0; m_flat < calculate_total_elements(M_dims); ++m_flat)
-        {
-            temp = m_flat;
-            for(int i = M_dims.size() - 1; i >= 0; --i)
-            {
-                m_idx[i] = temp % M_dims[i];
-                temp /= M_dims[i];
-            }
-
-            for(ck_tile::index_t n_flat = 0; n_flat < calculate_total_elements(N_dims); ++n_flat)
-            {
-                temp = n_flat;
-                for(int i = N_dims.size() - 1; i >= 0; --i)
-                {
-                    n_idx[i] = temp % N_dims[i];
-                    temp /= N_dims[i];
-                }
-
-                ::AccDataType sum = 0;
-
-                for(ck_tile::index_t k_flat = 0; k_flat < calculate_total_elements(K_dims);
-                    ++k_flat)
-                {
-                    temp = k_flat;
-                    for(int i = K_dims.size() - 1; i >= 0; --i)
-                    {
-                        k_idx[i] = temp % K_dims[i];
-                        temp /= K_dims[i];
-                    }
-
-                    a_idx.clear();
-                    b_idx.clear();
-
-                    a_idx.insert(a_idx.end(), g_idx.begin(), g_idx.end());
-                    a_idx.insert(a_idx.end(), m_idx.begin(), m_idx.end());
-                    a_idx.insert(a_idx.end(), k_idx.begin(), k_idx.end());
-
-                    b_idx.insert(b_idx.end(), g_idx.begin(), g_idx.end());
-                    b_idx.insert(b_idx.end(), n_idx.begin(), n_idx.end());
-                    b_idx.insert(b_idx.end(), k_idx.begin(), k_idx.end());
-
-                    auto a_val = a_full_dims(a_idx);
-                    auto b_val = b_full_dims(b_idx);
-
-                    sum += static_cast<::AccDataType>(a_val) * static_cast<::AccDataType>(b_val);
-                }
-
-                e_idx.clear();
-                e_idx.insert(e_idx.end(), g_idx.begin(), g_idx.end());
-                e_idx.insert(e_idx.end(), m_idx.begin(), m_idx.end());
-                e_idx.insert(e_idx.end(), n_idx.begin(), n_idx.end());
-
-                ::EDataType result = static_cast<::EDataType>(sum);
-                if(ds_full_dims_host.size() == 0)
-                {
-                    ;
-                }
-                else if(ds_full_dims_host.size() == 1)
-                {
-                    cde_elementwise(result,
-                                    ck_tile::type_convert<float>(sum),
-                                    ck_tile::type_convert<float>(ds_full_dims_host[0](e_idx)));
-                }
-                else if(ds_full_dims_host.size() == 2)
-                {
-                    cde_elementwise(result,
-                                    ck_tile::type_convert<float>(sum),
-                                    ck_tile::type_convert<float>(ds_full_dims_host[0](e_idx)),
-                                    ck_tile::type_convert<float>(ds_full_dims_host[1](e_idx)));
-                }
-                else if(ds_full_dims_host.size() == 3)
-                {
-                    cde_elementwise(result,
-                                    ck_tile::type_convert<float>(sum),
-                                    ck_tile::type_convert<float>(ds_full_dims_host[0](e_idx)),
-                                    ck_tile::type_convert<float>(ds_full_dims_host[1](e_idx)),
-                                    ck_tile::type_convert<float>(ds_full_dims_host[2](e_idx)));
-                }
-                else if(ds_full_dims_host.size() == 4)
-                {
-                    cde_elementwise(result,
-                                    ck_tile::type_convert<float>(sum),
-                                    ck_tile::type_convert<float>(ds_full_dims_host[0](e_idx)),
-                                    ck_tile::type_convert<float>(ds_full_dims_host[1](e_idx)),
-                                    ck_tile::type_convert<float>(ds_full_dims_host[2](e_idx)),
-                                    ck_tile::type_convert<float>(ds_full_dims_host[3](e_idx)));
-                }
-                else
-                {
-                    throw std::runtime_error("Unsupported NumDTensor for reference calculation");
-                }
-
-                e_full_dims_host_ref(e_idx) = static_cast<::EDataType>(result);
-            }
-        }
-    }
-}
-
-template <typename CDEElementWise>
-void calculate_reference_flat_indexing(
-    const ck_tile::HostTensor<::ADataType>& a_full_dims,
-    const ck_tile::HostTensor<::BDataType>& b_full_dims,
-    const std::vector<ck_tile::HostTensor<::DDataType>>& ds_full_dims_host,
-    ck_tile::HostTensor<::EDataType>& e_full_dims_host_ref,
-    ck_tile::index_t G_total,
-    ck_tile::index_t M_total,
-    ck_tile::index_t N_total,
-    ck_tile::index_t K_total,
-    const CDEElementWise& cde_elementwise)
-{
-    std::cout << "Calculating reference using flat indexing..." << std::endl;
-
-    for(ck_tile::index_t g_flat = 0; g_flat < G_total; ++g_flat)
-    {
-        for(ck_tile::index_t m_flat = 0; m_flat < M_total; ++m_flat)
-        {
-            for(ck_tile::index_t n_flat = 0; n_flat < N_total; ++n_flat)
-            {
-                ::AccDataType sum = 0;
-                for(ck_tile::index_t k_flat = 0; k_flat < K_total; ++k_flat)
-                {
-                    auto a_val =
-                        a_full_dims.mData[g_flat * M_total * K_total + m_flat * K_total + k_flat];
-                    auto b_val =
-                        b_full_dims.mData[g_flat * N_total * K_total + n_flat * K_total + k_flat];
-                    sum += static_cast<::AccDataType>(a_val) * static_cast<::AccDataType>(b_val);
-                }
-
-                ::EDataType result = static_cast<::EDataType>(sum);
-                if(ds_full_dims_host.size() == 0)
-                {
-                    ;
-                }
-                else if(ds_full_dims_host.size() == 1)
-                {
-                    cde_elementwise(result,
-                                    ck_tile::type_convert<float>(sum),
-                                    ck_tile::type_convert<float>(
-                                        ds_full_dims_host[0].mData[g_flat * M_total * N_total +
-                                                                   m_flat * N_total + n_flat]));
-                }
-                else if(ds_full_dims_host.size() == 2)
-                {
-                    cde_elementwise(
-                        result,
-                        ck_tile::type_convert<float>(sum),
-                        ck_tile::type_convert<float>(
-                            ds_full_dims_host[0]
-                                .mData[g_flat * M_total * N_total + m_flat * N_total + n_flat]),
-                        ck_tile::type_convert<float>(
-                            ds_full_dims_host[1]
-                                .mData[g_flat * M_total * N_total + m_flat * N_total + n_flat]));
-                }
-                else if(ds_full_dims_host.size() == 3)
-                {
-                    cde_elementwise(
-                        result,
-                        ck_tile::type_convert<float>(sum),
-                        ck_tile::type_convert<float>(
-                            ds_full_dims_host[0]
-                                .mData[g_flat * M_total * N_total + m_flat * N_total + n_flat]),
-                        ck_tile::type_convert<float>(
-                            ds_full_dims_host[1]
-                                .mData[g_flat * M_total * N_total + m_flat * N_total + n_flat]),
-                        ck_tile::type_convert<float>(
-                            ds_full_dims_host[2]
-                                .mData[g_flat * M_total * N_total + m_flat * N_total + n_flat]));
-                }
-                else if(ds_full_dims_host.size() == 4)
-                {
-                    cde_elementwise(
-                        result,
-                        ck_tile::type_convert<float>(sum),
-                        ck_tile::type_convert<float>(
-                            ds_full_dims_host[0]
-                                .mData[g_flat * M_total * N_total + m_flat * N_total + n_flat]),
-                        ck_tile::type_convert<float>(
-                            ds_full_dims_host[1]
-                                .mData[g_flat * M_total * N_total + m_flat * N_total + n_flat]),
-                        ck_tile::type_convert<float>(
-                            ds_full_dims_host[2]
-                                .mData[g_flat * M_total * N_total + m_flat * N_total + n_flat]),
-                        ck_tile::type_convert<float>(
-                            ds_full_dims_host[3]
-                                .mData[g_flat * M_total * N_total + m_flat * N_total + n_flat]));
-                }
-                else
-                {
-                    throw std::runtime_error("Unsupported NumDTensor for reference calculation");
-                }
-
-                e_full_dims_host_ref.mData[g_flat * M_total * N_total + m_flat * N_total + n_flat] =
-                    static_cast<::EDataType>(result);
-            }
-        }
-    }
 }
 
 template <typename ADataType,
@@ -371,11 +138,11 @@ int run_batched_contraction_example_with_layouts(
     ck_tile::index_t K_total = calculate_total_elements(K_dims);
 
     std::vector<ck_tile::index_t> A_dims =
-        get_tensor_dims({G_dims, M_dims, K_dims}); // [G0,G1,..,M0,M1,..,K0,K1,..]
+        concatenate_dim_components({G_dims, M_dims, K_dims}); // [G0,G1,..,M0,M1,..,K0,K1,..]
     std::vector<ck_tile::index_t> B_dims =
-        get_tensor_dims({G_dims, N_dims, K_dims}); // [G0,G1,..,N0,N1,..,K0,K1,..]
+        concatenate_dim_components({G_dims, N_dims, K_dims}); // [G0,G1,..,N0,N1,..,K0,K1,..]
     std::vector<ck_tile::index_t> E_dims =
-        get_tensor_dims({G_dims, M_dims, N_dims}); // [G0,G1,..,M0,M1,..,N0,N1,..]
+        concatenate_dim_components({G_dims, M_dims, N_dims}); // [G0,G1,..,M0,M1,..,N0,N1,..]
 
     std::array<std::vector<ck_tile::index_t>, NumDTensor> Ds_dims;
     for(ck_tile::index_t d = 0; d < NumDTensor; ++d)
@@ -383,14 +150,29 @@ int run_batched_contraction_example_with_layouts(
         Ds_dims[d] = E_dims;
     }
 
-    std::vector<ck_tile::index_t> A_strides = get_tensor_strides(A_dims);
-    std::vector<ck_tile::index_t> B_strides = get_tensor_strides(B_dims);
-    std::vector<ck_tile::index_t> E_strides = get_tensor_strides(E_dims);
+    auto convert_strides = [](const std::vector<std::size_t>& strides) {
+        std::vector<ck_tile::index_t> converted(strides.size());
+        std::copy(strides.begin(), strides.end(), converted.begin());
+        return converted;
+    };
+
+    ck_tile::HostTensorDescriptor a_desc(A_dims);
+    ck_tile::HostTensorDescriptor b_desc(B_dims);
+    ck_tile::HostTensorDescriptor e_desc(E_dims);
+    std::array<ck_tile::HostTensorDescriptor, NumDTensor> ds_descs;
+    for(ck_tile::index_t d = 0; d < NumDTensor; ++d)
+    {
+        ds_descs[d] = ck_tile::HostTensorDescriptor(Ds_dims[d], e_desc.get_strides());
+    }
+
+    std::vector<ck_tile::index_t> A_strides = convert_strides(a_desc.get_strides());
+    std::vector<ck_tile::index_t> B_strides = convert_strides(b_desc.get_strides());
+    std::vector<ck_tile::index_t> E_strides = convert_strides(e_desc.get_strides());
 
     std::array<std::vector<ck_tile::index_t>, NumDTensor> Ds_strides;
     for(ck_tile::index_t d = 0; d < NumDTensor; ++d)
     {
-        Ds_strides[d] = E_strides;
+        Ds_strides[d] = convert_strides(ds_descs[d].get_strides());
     }
 
     ck_tile::index_t kbatch = arg_parser.get_int("split_k");
@@ -423,12 +205,15 @@ int run_batched_contraction_example_with_layouts(
 
     std::cout << "===============================================\n" << std::endl;
 
-    ck_tile::HostTensor<::ADataType> a_full_dims_host(
-        ck_tile::HostTensorDescriptor(A_dims, A_strides));
-    ck_tile::HostTensor<::BDataType> b_full_dims_host(
-        ck_tile::HostTensorDescriptor(B_dims, B_strides));
-    ck_tile::HostTensor<::EDataType> e_full_dims_host(
-        ck_tile::HostTensorDescriptor(E_dims, E_strides));
+    ck_tile::HostTensor<::ADataType> a_full_dims_host(a_desc);
+    ck_tile::HostTensor<::BDataType> b_full_dims_host(b_desc);
+    ck_tile::HostTensor<::EDataType> e_full_dims_host(e_desc);
+
+    std::vector<ck_tile::HostTensor<::DDataType>> ds_full_dims_host;
+    for(int d = 0; d < NumDTensor; ++d)
+    {
+        ds_full_dims_host.emplace_back(ck_tile::HostTensor<::DDataType>(ds_descs[d]));
+    }
 
     ck_tile::FillUniformDistribution<::ADataType>{-5.f, 5.f, std::nullopt}(a_full_dims_host);
     ck_tile::FillUniformDistribution<::BDataType>{-5.f, 5.f, std::nullopt}(b_full_dims_host);
@@ -439,13 +224,6 @@ int run_batched_contraction_example_with_layouts(
 
     a_full_dims_dev_buf.ToDevice(a_full_dims_host.data());
     b_full_dims_dev_buf.ToDevice(b_full_dims_host.data());
-
-    std::vector<ck_tile::HostTensor<::DDataType>> ds_full_dims_host;
-    for(int d = 0; d < NumDTensor; ++d)
-    {
-        ds_full_dims_host.emplace_back(ck_tile::HostTensor<::DDataType>(
-            ck_tile::HostTensorDescriptor(Ds_dims[d], Ds_strides[d])));
-    }
 
     for(int d = 0; d < NumDTensor; ++d)
     {
@@ -550,7 +328,12 @@ int run_batched_contraction_example_with_layouts(
 
         auto start_time = std::chrono::high_resolution_clock::now();
 
-        calculate_reference_flat_indexing<CDEElementWise>(a_full_dims_host,
+        calculate_reference_flat_indexing<ADataType,
+                                          BDataType,
+                                          DDataType,
+                                          EDataType,
+                                          AccDataType,
+                                          CDEElementWise>(a_full_dims_host,
                                                           b_full_dims_host,
                                                           ds_full_dims_host,
                                                           e_full_dims_host_ref,

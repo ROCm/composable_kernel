@@ -5,6 +5,5 @@
 
 #include "ck_tile/ops/batched_contraction/kernel/batched_contraction_kernel.hpp"
 #include "ck_tile/ops/batched_contraction/pipeline/batched_contraction_problem.hpp"
-#include "ck_tile/ops/common/generic_2d_block_shape.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/common/utils.hpp"
