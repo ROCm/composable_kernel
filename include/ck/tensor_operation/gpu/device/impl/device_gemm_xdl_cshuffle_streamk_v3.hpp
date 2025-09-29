@@ -196,32 +196,83 @@ struct DeviceGemm_Xdl_CShuffle_Streamk_V3 : public DeviceGemm_Streamk_V2<ALayout
                 }
                 else
                 {
-
-                    if(arg.reduction_strategy == StreamKReductionStrategy::Atomic)
+                            // Check if time-based benchmarking is requested
+                    if(stream_config.use_time_based_benchmark_)
                     {
-                        ave_time = launch_and_time_kernel(
-                            stream_config, kernel, grid_dim, dim3(BlockSize), 0, arg);
-                    }
-                    else if(arg.reduction_strategy == StreamKReductionStrategy::Reduction)
-                    {
-                        char* workspace_semaphore =
-                            reinterpret_cast<char*>(arg.p_workspace_) +
-                            arg.block_2_ctile_map_streamk.get_workspace_size_for_acc(
-                                sizeof(GemmAccDataType));
-                        auto preprocess = [&]() {
-                            hipError_t status = hipMemsetAsync(
-                                workspace_semaphore,
+                        if(arg.reduction_strategy == StreamKReductionStrategy::Atomic)
+                        {
+                            // ave_time = launch_and_time_kernel(
+                            //     stream_config, kernel, grid_dim, dim3(BlockSize), 0, arg);
+                            ave_time = launch_and_time_kernel_tb(
+                                stream_config, 
+                                kernel, 
+                                grid_dim, 
+                                dim3(BlockSize), 
                                 0,
-                                // sizeof(uint32_t),
-                                arg.block_2_ctile_map_streamk.get_workspace_size_for_semaphore(),
-                                stream_config.stream_id_);
+                                stream_config.cold_bench_time_secs_,
+                                stream_config.hot_bench_time_secs_,
+                                arg);
+                        }
+                        else if(arg.reduction_strategy == StreamKReductionStrategy::Reduction)
+                        {
+                            char* workspace_semaphore =
+                                reinterpret_cast<char*>(arg.p_workspace_) +
+                                arg.block_2_ctile_map_streamk.get_workspace_size_for_acc(
+                                    sizeof(GemmAccDataType));
+                            auto preprocess = [&]() {
+                                hipError_t status = hipMemsetAsync(
+                                    workspace_semaphore,
+                                    0,
+                                    // sizeof(uint32_t),
+                                    arg.block_2_ctile_map_streamk.get_workspace_size_for_semaphore(),
+                                    stream_config.stream_id_);
 
-                            // Check the status
-                            hip_check_error(status);
-                        };
+                                // Check the status
+                                hip_check_error(status);
+                            };
 
-                        ave_time = launch_and_time_kernel_with_preprocess(
-                            stream_config, preprocess, kernel, grid_dim, dim3(BlockSize), 0, arg);
+                            // ave_time = launch_and_time_kernel_with_preprocess(
+                            //     stream_config, preprocess, kernel, grid_dim, dim3(BlockSize), 0, arg);
+                            ave_time = launch_and_time_kernel_with_preprocess_tb(
+                                        stream_config, 
+                                        preprocess, 
+                                        kernel, 
+                                        grid_dim, 
+                                        dim3(BlockSize), 
+                                        0,
+                                        stream_config.cold_bench_time_secs_,
+                                        stream_config.hot_bench_time_secs_,
+                                        arg);
+                        }
+                    }
+                    else
+                    {
+                        if(arg.reduction_strategy == StreamKReductionStrategy::Atomic)
+                        {
+                            ave_time = launch_and_time_kernel(
+                                stream_config, kernel, grid_dim, dim3(BlockSize), 0, arg);
+                        }
+                        else if(arg.reduction_strategy == StreamKReductionStrategy::Reduction)
+                        {
+                            char* workspace_semaphore =
+                                reinterpret_cast<char*>(arg.p_workspace_) +
+                                arg.block_2_ctile_map_streamk.get_workspace_size_for_acc(
+                                    sizeof(GemmAccDataType));
+                            auto preprocess = [&]() {
+                                hipError_t status = hipMemsetAsync(
+                                    workspace_semaphore,
+                                    0,
+                                    // sizeof(uint32_t),
+                                    arg.block_2_ctile_map_streamk.get_workspace_size_for_semaphore(),
+                                    stream_config.stream_id_);
+
+                                // Check the status
+                                hip_check_error(status);
+                            };
+
+                            ave_time = launch_and_time_kernel_with_preprocess(
+                                stream_config, preprocess, kernel, grid_dim, dim3(BlockSize), 0, arg);
+                        }
                     }
                 }
             };

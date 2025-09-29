@@ -16,4 +16,8 @@ struct StreamConfig
 
     bool flush_cache   = false;
     int rotating_count = 1;
+
+    bool use_time_based_benchmark_ = false;
+    float cold_bench_time_secs_ = 1.0f;  // Default 1 second for warm-up
+    float hot_bench_time_secs_ = 2.0f;   // Default 2 seconds for measurement
 };
