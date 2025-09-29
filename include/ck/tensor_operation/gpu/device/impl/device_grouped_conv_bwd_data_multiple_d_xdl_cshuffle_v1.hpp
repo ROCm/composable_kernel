@@ -1670,7 +1670,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         valid = false;
                     }
                 }
-                else
+            }
+            else
+            {
+                if constexpr(NXdlPerWave32 > 0)
                 {
                     if(!GridwiseGemmCTranspose32::CheckValidity(
                            arg.a_grid_desc_m_k_container_[i],
@@ -1685,10 +1688,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         valid = false;
                     }
                 }
-                if(!valid)
-                {
-                    return false;
-                }
+            }
+            if(!valid)
+            {
+                return false;
             }
         }
 
