@@ -258,6 +258,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                 remove_cvref_t<std::tuple_element_t<number<0>{}, AsDramBlockWindowTmp>>;
             using BDramBlockWindowTmp =
                 remove_cvref_t<std::tuple_element_t<number<0>{}, BsDramBlockWindowTmp>>;
+            // TODO currently fused elementwise are not supported
             ignore = a_element_func;
             ignore = b_element_func;
             static_assert(
@@ -310,9 +311,11 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                 },
                 number<AsLayout::size()>{});
 
+            // this pipeline has a pair of LDS buffers per logical tile
             auto&& [a_lds_block0, b_lds_block0] = Base::GetABLdsTensorViews(p_smem_0);
             auto&& [a_lds_block1, b_lds_block1] = Base::GetABLdsTensorViews(p_smem_1);
 
+            // LDS tile windows for storing, one per LDS buffer
             auto a_copy_lds_window0 = make_tile_window(
                 a_lds_block0, make_tuple(number<MPerBlock>{}, number<KPerBlock>{}), {0, 0});
 
@@ -325,6 +328,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             auto b_copy_lds_window1 = make_tile_window(
                 b_lds_block1, make_tuple(number<NPerBlock>{}, number<KPerBlock>{}), {0, 0});
 
+            // initialize DRAM window steps, used to advance the DRAM windows
             using ADramTileWindowStep = typename ADramBlockWindowTmp::BottomTensorIndex;
             using BDramTileWindowStep = typename BDramBlockWindowTmp::BottomTensorIndex;
 
@@ -334,18 +338,21 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                 is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
 
             // read A(0), B(0) from DRAM to LDS window(0)
+            // and advance the DRAM windows
             Base::GlobalPrefetchAsync(
                 a_copy_lds_window0, a_tile_windows[number<0>{}], a_dram_tile_window_step);
             Base::GlobalPrefetchAsync(
                 b_copy_lds_window0, b_tile_windows[number<0>{}], b_dram_tile_window_step);
 
+            // initialize block gemm
             auto block_gemm   = BlockGemm();
-            auto c_block_tile = block_gemm.MakeCBlockTile();
 
-            // initialize C
+            // initialize C block tile
+            auto c_block_tile = block_gemm.MakeCBlockTile();
             clear_tile(c_block_tile);
 
             // read A(1), B(1) from DRAM to LDS window(1)
+            // and advance the DRAM windows
             Base::GlobalPrefetchAsync(
                 a_copy_lds_window1, a_tile_windows[number<0>{}], a_dram_tile_window_step);
             Base::GlobalPrefetchAsync(
@@ -359,12 +366,16 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             using ALdsTile = decltype(make_static_distributed_tensor<ADataType>(ALdsTileDistr));
             using BLdsTile = decltype(make_static_distributed_tensor<BDataType>(BLdsTileDistr));
 
+            // register tiles; double buffering -> a register tile corresponds to a LDS tile window
             ALdsTile a_block_tile0;
             ALdsTile a_block_tile1;
 
             BLdsTile b_block_tile0;
             BLdsTile b_block_tile1;
 
+            // LDS tile windows for reading;
+            // they share the data pointer with the LDS windows for storing
+            // but also associate with a distribution to produce a register tile when reading
             auto a_lds_ld_window0 =
                 make_tile_window(a_lds_block0,
                                  make_tuple(number<MPerBlock>{}, number<KPerBlock>{}),
@@ -392,6 +403,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                               !(is_tile_window_linear_v<decltype(b_lds_ld_window1)>),
                           "LDS windows must not be linear");
 
+            // write to LDS window(0) must complete before the local prefetch
             block_sync_lds_direct_load();
             // read A(0), B(0) from LDS window(0) to pipeline registers(0)
             Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
@@ -399,6 +411,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             // LDS window(0) contents are overwritten below by global prefetch, need to sync
             block_sync_lds();
             // read A(2), B(2) from DRAM to LDS window(0)
+            // and advance the DRAM windows
             Base::GlobalPrefetchAsync(
                 a_copy_lds_window0, a_tile_windows[number<0>{}], a_dram_tile_window_step);
             Base::GlobalPrefetchAsync(
@@ -412,14 +425,13 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                 {
                     // ping
                     {
-                        block_sync_lds();
                         // read A(i-1), B(i-1) from LDS window(1) to pipeline registers(1)
                         Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1);
                         Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1);
-                        // LDS window(1) contents are overwritten below by global prefetch, need to
-                        // sync
+                        // LDS window(1) contents are overwritten by global prefetch, need to sync
                         block_sync_lds();
                         // read A(i), B(i) from DRAM to LDS window(1)
+                        // and advance the DRAM windows
                         Base::GlobalPrefetchAsync(a_copy_lds_window1,
                                                   a_tile_windows[number<0>{}],
                                                   a_dram_tile_window_step);
@@ -432,13 +444,15 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                     }
                     // pong
                     {
+                        // write to LDS window(0) must complete before the local prefetch
                         block_sync_lds_direct_load();
                         // read A(i), B(i) from LDS window(0) to pipeline registers(0)
                         Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
                         Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0);
-                        // LDS window 0 contents are overwritten by global prefetch -> need to sync
+                        // LDS window(0) contents are overwritten by global prefetch, need to sync
                         block_sync_lds();
                         // read A(i+1), B(i+1) from DRAM to LDS window(0)
+                        // and advance the DRAM windows
                         Base::GlobalPrefetchAsync(a_copy_lds_window0,
                                                   a_tile_windows[number<0>{}],
                                                   a_dram_tile_window_step);
@@ -457,7 +471,6 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             if constexpr(TailNum == TailNumber::Three)
             {
                 {
-                    block_sync_lds();
                     // read A(num_loop-1), B(num_loop-1) from LDS window(1) to pipeline registers(1)
                     Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1);
                     Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1);
@@ -465,7 +478,6 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                     block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
                 }
                 {
-                    block_sync_lds();
                     // read A(num_loop), B(num_loop) from LDS window(0) to pipeline registers(0)
                     Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
                     Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0);
@@ -473,7 +485,6 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                     block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
                 }
                 {
-                    block_sync_lds();
                     // C(num_loop) = A(num_loop) @ B(num_loop)
                     block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
                 }
@@ -482,7 +493,6 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             // 2 block gemms remaining
             {
                 {
-                    block_sync_lds();
                     // read A(num_loop), B(num_loop) from LDS window(1) to pipeline registers(1)
                     Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1);
                     Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1);
@@ -490,7 +500,6 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                     block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
                 }
                 {
-                    block_sync_lds();
                     // C(num_loop) = A(num_loop) @ B(num_loop)
                     block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
                 }
