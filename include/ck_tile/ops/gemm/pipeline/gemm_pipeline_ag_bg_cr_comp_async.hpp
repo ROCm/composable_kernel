@@ -345,7 +345,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                 b_copy_lds_window0, b_tile_windows[number<0>{}], b_dram_tile_window_step);
 
             // initialize block gemm
-            auto block_gemm   = BlockGemm();
+            auto block_gemm = BlockGemm();
 
             // initialize C block tile
             auto c_block_tile = block_gemm.MakeCBlockTile();
