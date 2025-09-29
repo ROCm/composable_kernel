@@ -9,27 +9,11 @@
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 #include <optional>
+#include <type_traits>
 
 namespace ck_tile {
-
-template <typename T>
-concept HasDataType = requires { typename T::DataType; };
-
-template <typename T>
-struct GetDataType
-{
-    using type = float;
-};
-
-template <typename T>
-    requires HasDataType<T>
-struct GetDataType<T>
-{
-    using type = typename T::DataType; // Use T::ScaleN::DataType
-};
-
-template <typename ADataType_,
-          typename BDataType_,
+template <typename AsDataType_,
+          typename BsDataType_,
           typename DsDataType_,
           typename AccDataType_,
           typename ODataType_,
@@ -51,8 +35,8 @@ template <typename ADataType_,
           bool TiledMMAPermuteN_  = false>
 struct CShuffleEpilogueProblem
 {
-    using ADataType                                        = remove_cvref_t<ADataType_>;
-    using BDataType                                        = remove_cvref_t<BDataType_>;
+    using AsDataType                                       = remove_cvref_t<AsDataType_>;
+    using BsDataType                                       = remove_cvref_t<BsDataType_>;
     using AccDataType                                      = remove_cvref_t<AccDataType_>;
     using ODataType                                        = remove_cvref_t<ODataType_>;
     using DsDataType                                       = remove_cvref_t<DsDataType_>;
@@ -83,12 +67,27 @@ template <typename Problem_, typename Policy_ = void>
 struct CShuffleEpilogue
 {
     using Problem     = remove_cvref_t<Problem_>;
-    using ADataType   = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType   = remove_cvref_t<typename Problem::BDataType>;
+    using AsDataType  = remove_cvref_t<typename Problem::AsDataType>;
+    using BsDataType  = remove_cvref_t<typename Problem::BsDataType>;
     using AccDataType = remove_cvref_t<typename Problem::AccDataType>;
     using ODataType   = remove_cvref_t<typename Problem::ODataType>;
     using DsDataType  = remove_cvref_t<typename Problem::DsDataType>;
     using DsLayout    = remove_cvref_t<typename Problem::DsLayout>;
+
+    static constexpr bool ADataTypeIsTuple = is_detected<is_tuple, AsDataType>::value;
+    static constexpr bool BDataTypeIsTuple = is_detected<is_tuple, BsDataType>::value;
+
+    using AsDataTypeTuple = std::conditional_t<ADataTypeIsTuple,
+                                               remove_cvref_t<AsDataType>,
+                                               remove_cvref_t<tuple<AsDataType>>>;
+
+    using BsDataTypeTuple = std::conditional_t<BDataTypeIsTuple,
+                                               remove_cvref_t<BsDataType>,
+                                               remove_cvref_t<tuple<BsDataType>>>;
+
+    using ADataType = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataTypeTuple>>;
+    using BDataType = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataTypeTuple>>;
+
     using ATypeToUse =
         std::conditional_t<std::is_same_v<ADataType, pk_int4_t>, BDataType, ADataType>;
     // Used for weight-only quantization kernel, B would be dequantized to the same data type as A
@@ -285,33 +284,52 @@ struct CShuffleEpilogue
         return MPerIterationShuffle * NPerIterationShuffle * sizeof(ODataType);
     }
 
-    template <auto iAccess, typename LdsTile, typename ScaleM, typename ScaleN>
+    template <index_t iAccess, typename LdsTile, typename ScaleM, typename ScaleN>
     CK_TILE_DEVICE void
     scale_tile(LdsTile& lds_tile, ScaleM& scale_m_window, ScaleN& scale_n_window)
     {
-        // Load tiles
-        const auto scale_m_tile = load_tile(scale_m_window);
-        const auto scale_n_tile = load_tile(scale_n_window);
-
-        // Compute element-wise product in-place i.e. lds_tile = lds_tile * scale_m * scale_n
-        tile_elementwise_inout(
-            element_wise::MultiDMultiply{}, lds_tile, lds_tile, scale_m_tile, scale_n_tile);
-
-        // Move scale windows
-        constexpr index_t num_access = SFC::get_num_of_access();
-        if constexpr(iAccess != num_access - 1)
+        // Check if scales are EmptyScale first (no scaling needed)
+        if constexpr(std::is_same_v<ScaleM, EmptyScale> && std::is_same_v<ScaleN, EmptyScale>)
         {
-            constexpr auto step = SFC::get_forward_step(iAccess);
+            // No scaling needed - this is a no-op
+        }
+        // Check if scales are scalar AccDataType
+        else if constexpr(std::is_same_v<ScaleM, AccDataType> &&
+                          std::is_same_v<ScaleN, AccDataType>)
+        {
+            // Handle scalar scales
+            const AccDataType scale_m = scale_m_window;
+            const AccDataType scale_n = scale_n_window;
+            tile_elementwise_inout([&](auto& element) { element = element * scale_m * scale_n; },
+                                   lds_tile);
+        }
+        // Otherwise, assume they are tile windows that can be loaded
+        else
+        {
+            // Load tiles
+            const auto scale_m_tile = load_tile(scale_m_window);
+            const auto scale_n_tile = load_tile(scale_n_window);
 
-            move_tile_window(scale_m_window, {step.at(number<0>{}), step.at(number<1>{})});
-            move_tile_window(scale_n_window, {step.at(number<0>{}), step.at(number<1>{})});
+            // Compute element-wise product in-place i.e. lds_tile = lds_tile * scale_m * scale_n
+            tile_elementwise_inout(
+                element_wise::MultiDMultiply{}, lds_tile, lds_tile, scale_m_tile, scale_n_tile);
+
+            // Move scale windows
+            constexpr index_t num_access = SFC::get_num_of_access();
+            if constexpr(iAccess != num_access - 1)
+            {
+                constexpr auto step = SFC::get_forward_step(number<iAccess>{});
+
+                move_tile_window(scale_m_window, {step.at(number<0>{}), step.at(number<1>{})});
+                move_tile_window(scale_n_window, {step.at(number<0>{}), step.at(number<1>{})});
+            }
         }
     }
 
-    template <auto iAccess, typename OAccTile, typename LdsTile>
+    template <index_t iAccess, typename OAccTile, typename LdsTile>
     CK_TILE_DEVICE void slice_acc_tile(const OAccTile& o_acc_tile, LdsTile& lds_tile)
     {
-        constexpr auto idx_y_start = SFC::get_index(iAccess);
+        constexpr auto idx_y_start = SFC::get_index(number<iAccess>{});
 
         constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (MPerIterationShuffle)>{};
         constexpr auto nIter = number<idx_y_start.at(number<1>{}) / (NPerIterationShuffle)>{};
@@ -366,13 +384,13 @@ struct CShuffleEpilogue
     /**
      * @brief Move both the output and D tensors windows for the next access.
      */
-    template <auto iAccess, typename OutDramWindow, typename DDramWindows>
+    template <index_t iAccess, typename OutDramWindow, typename DDramWindows>
     CK_TILE_DEVICE void move_windows(OutDramWindow& out_dram_window, DDramWindows& d_dram_windows)
     {
         constexpr index_t num_access = SFC::get_num_of_access();
         if constexpr(iAccess != num_access - 1)
         {
-            constexpr auto step = SFC::get_forward_step(iAccess);
+            constexpr auto step = SFC::get_forward_step(number<iAccess>{});
 
             // move the output dram window
             move_tile_window(out_dram_window, {step.at(number<0>{}), step.at(number<1>{})});
@@ -387,6 +405,18 @@ struct CShuffleEpilogue
     // TODO: Check if there would be nicer ways to overload rather than with EmptyScale or nullptr_t
     struct EmptyScale
     {
+    };
+
+    template <typename, typename = void>
+    struct ScaleDataType
+    {
+        using DataType = float;
+    };
+
+    template <typename T>
+    struct ScaleDataType<T, std::void_t<typename T::DataType>>
+    {
+        using DataType = typename T::DataType;
     };
 
     template <typename ODramWindow,
@@ -437,17 +467,19 @@ struct CShuffleEpilogue
         // Optional scales (must share the same distribution to match per-thread indexing)
         constexpr bool has_scales =
             !std::is_same<ScaleM, EmptyScale>::value && !std::is_same<ScaleN, EmptyScale>::value;
+        constexpr bool has_scalar_scales =
+            std::is_same_v<ScaleM, AccDataType> && std::is_same_v<ScaleN, AccDataType>;
 
         // Tiles to hold row/col scales when present
-        using SMType = typename GetDataType<remove_cvref_t<ScaleM>>::type;
-        using SNType = typename GetDataType<remove_cvref_t<ScaleN>>::type;
+        using SMType = typename ScaleDataType<ScaleM>::DataType;
+        using SNType = typename ScaleDataType<ScaleN>::DataType;
 
         auto sm_tile = make_static_distributed_tensor<SMType>(dram_tile_distribution);
         auto sn_tile = make_static_distributed_tensor<SNType>(dram_tile_distribution);
 
-        // Build windows only if scales are provided
+        // Build windows only if non-scalar scales are provided
         auto scale_m_window = [&]() {
-            if constexpr(has_scales)
+            if constexpr(has_scales && !has_scalar_scales)
             {
                 return make_tile_window(scale_m, dram_tile_distribution);
             }
@@ -457,7 +489,7 @@ struct CShuffleEpilogue
             }
         }();
         auto scale_n_window = [&]() {
-            if constexpr(has_scales)
+            if constexpr(has_scales && !has_scalar_scales)
             {
                 return make_tile_window(scale_n, dram_tile_distribution);
             }
@@ -473,8 +505,8 @@ struct CShuffleEpilogue
                 merge_sequences(sequence<mIter, 0>{}, c_warp_y_index_zeros),
                 merge_sequences(sequence<1, NRepeat>{}, c_warp_y_lengths));
 
-            // If scales provided, load them with identical distribution
-            if constexpr(has_scales)
+            // If non-scalar scales provided, load them with identical distribution
+            if constexpr(has_scales && !has_scalar_scales)
             {
                 sm_tile = load_tile(scale_m_window); // row scales in permuted layout
                 sn_tile = load_tile(scale_n_window); // col scales in permuted layout
@@ -489,7 +521,11 @@ struct CShuffleEpilogue
                 auto emit = [&](index_t out_idx, index_t src_row) {
                     AccDataType v = shuffle_acc.get_thread_buffer()[base + src_row];
 
-                    if constexpr(has_scales)
+                    if constexpr(has_scalar_scales)
+                    {
+                        v = static_cast<AccDataType>(v * scale_m * scale_n);
+                    }
+                    else if constexpr(has_scales && !has_scalar_scales)
                     {
                         // same linear index mapping on the permuted distribution
                         const auto s_m = static_cast<float>(sm_tile.get_thread_buffer()[out_idx]);
@@ -580,9 +616,15 @@ struct CShuffleEpilogue
             number<NumDTensor>{});
 
         constexpr bool has_scales =
-            !std::is_same<ScaleM, EmptyScale>::value && !std::is_same<ScaleN, EmptyScale>::value;
+            !std::is_same_v<ScaleM, EmptyScale> && !std::is_same_v<ScaleN, EmptyScale>;
+        constexpr bool has_scalar_scales =
+            std::is_same_v<ScaleM, AccDataType> && std::is_same_v<ScaleN, AccDataType>;
         auto scale_m_window = [&]() {
-            if constexpr(has_scales)
+            if constexpr(has_scalar_scales)
+            {
+                return scale_m;
+            }
+            else if constexpr(has_scales)
             {
                 return make_tile_window(scale_m, lds_tile.get_tile_distribution());
             }
@@ -592,7 +634,11 @@ struct CShuffleEpilogue
             }
         }();
         auto scale_n_window = [&]() {
-            if constexpr(has_scales)
+            if constexpr(has_scalar_scales)
+            {
+                return scale_n;
+            }
+            else if constexpr(has_scales)
             {
                 return make_tile_window(scale_n, lds_tile.get_tile_distribution());
             }

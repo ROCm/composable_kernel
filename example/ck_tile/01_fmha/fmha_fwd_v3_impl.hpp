@@ -129,70 +129,38 @@ float fmha_fwd_v3_kernel_launch(const fmha_fwd_v3_args& args, const stream_confi
         }
     }
 
-    auto kargs = [&] {
-        if constexpr(Kernel::kIsGroupMode)
-        {
-            return Kernel::MakeKargs(args.q_ptr,
-                                     args.k_ptr,
-                                     args.v_ptr,
-                                     nullptr, // lse_ptr
-                                     args.o_ptr,
-                                     args.seqstart_q_ptr,
-                                     args.seqstart_k_ptr,
-                                     args.seqlen_k_ptr,
-                                     args.hdim_qk,
-                                     args.hdim_v,
-                                     args.nhead_q,
-                                     args.nhead_q / args.nhead_kv,
-                                     args.softmax_scale,
-                                     args.stride_q,
-                                     args.stride_k,
-                                     args.stride_v,
-                                     args.stride_o,
-                                     args.nhead_stride_q,
-                                     args.nhead_stride_k,
-                                     args.nhead_stride_v,
-                                     0, // nhead_stride_lse
-                                     args.nhead_stride_o,
-                                     args.window_size_left,
-                                     args.window_size_right,
-                                     args.mask_type,
-                                     remap_opt);
-        }
-        else
-        {
-            return Kernel::MakeKargs(args.q_ptr,
-                                     args.k_ptr,
-                                     args.v_ptr,
-                                     nullptr, // lse_ptr
-                                     args.o_ptr,
-                                     args.seqlen_q,
-                                     args.seqlen_k,
-                                     args.hdim_qk,
-                                     args.hdim_v,
-                                     args.nhead_q,
-                                     args.nhead_q / args.nhead_kv,
-                                     args.softmax_scale,
-                                     args.stride_q,
-                                     args.stride_k,
-                                     args.stride_v,
-                                     args.stride_o,
-                                     args.nhead_stride_q,
-                                     args.nhead_stride_k,
-                                     args.nhead_stride_v,
-                                     0, // nhead_stride_lse
-                                     args.nhead_stride_o,
-                                     args.batch_stride_q,
-                                     args.batch_stride_k,
-                                     args.batch_stride_v,
-                                     0, // batch_stride_lse
-                                     args.batch_stride_o,
-                                     args.window_size_left,
-                                     args.window_size_right,
-                                     args.mask_type,
-                                     remap_opt);
-        }
-    }();
+    auto kargs = Kernel::MakeKargs(args.q_ptr,
+                                   args.k_ptr,
+                                   args.v_ptr,
+                                   nullptr, // lse_ptr
+                                   args.o_ptr,
+                                   args.seqlen_q,
+                                   args.seqlen_k,
+                                   args.hdim_qk,
+                                   args.hdim_v,
+                                   args.nhead_q,
+                                   args.nhead_q / args.nhead_kv,
+                                   args.softmax_scale,
+                                   args.stride_q,
+                                   args.stride_k,
+                                   args.stride_v,
+                                   args.stride_o,
+                                   args.nhead_stride_q,
+                                   args.nhead_stride_k,
+                                   args.nhead_stride_v,
+                                   0, // nhead_stride_lse
+                                   args.nhead_stride_o,
+                                   args.batch_stride_q,
+                                   args.batch_stride_k,
+                                   args.batch_stride_v,
+                                   0, // batch_stride_lse
+                                   args.batch_stride_o,
+                                   args.window_size_left,
+                                   args.window_size_right,
+                                   args.mask_type,
+                                   remap_opt,
+                                   args.cu_seqlen_q_ptr,
+                                   args.cu_seqlen_kv_ptr);
 
     dim3 grids = Kernel::GridSize(args.batch, args.nhead_q, args.max_seqlen_q, args.hdim_v);
     constexpr dim3 blocks         = Kernel::BlockSize();

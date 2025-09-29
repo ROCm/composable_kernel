@@ -10,10 +10,6 @@
 #include "type.hpp"
 #include "tuple.hpp"
 
-#ifdef CK_CODE_GEN_RTC
-#define INT32_MAX 2147483647
-#endif
-
 namespace ck {
 
 // magic number division
