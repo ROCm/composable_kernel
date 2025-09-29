@@ -221,18 +221,29 @@ CK_TILE_DEVICE float mul_impl_vv(float lhs, float rhs)
 CK_TILE_DEVICE fp16x2_t cvt_pk_fp16_f32(float a, float b)
 {
     fp16x2_t result;
+#if defined(__gfx950__)
     asm volatile("v_cvt_pk_f16_f32 %[result], %[a], %[b]"
                  : [result] "=v"(result)
                  : [a] "v"(a), [b] "v"(b));
+#else
+    asm volatile("v_cvt_pkrtz_f16_f32 %[result], %[a], %[b]"
+                 : [result] "=v"(result)
+                 : [a] "v"(a), [b] "v"(b));
+#endif
     return result;
 }
 
 CK_TILE_DEVICE bf16x2_t cvt_pk_bf16_f32(float a, float b)
 {
     bf16x2_t result;
+#if defined(__gfx950__)
     asm volatile("v_cvt_pk_bf16_f32 %[result], %[a], %[b]"
                  : [result] "=v"(result)
                  : [a] "v"(a), [b] "v"(b));
+#else
+    result.x = type_convert<bfloat16_t>(a);
+    result.y = type_convert<bfloat16_t>(b);
+#endif
     return result;
 }
 
