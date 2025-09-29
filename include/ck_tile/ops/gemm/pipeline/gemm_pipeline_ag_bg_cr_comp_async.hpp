@@ -421,6 +421,8 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             {
                 // we have had 3 global prefetches so far, indexed (0, 1, 2).
                 index_t i_global_read = amd_wave_read_first_lane(3);
+                // alternate ping: (read to register tile(1), use register tile(0) as gemm input)
+                //           pong: (read to register tile(0), use register tile(1) as gemm input)
                 do
                 {
                     // ping
