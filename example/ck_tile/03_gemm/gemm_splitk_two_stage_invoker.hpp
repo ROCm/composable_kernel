@@ -231,7 +231,7 @@ struct SplitKTwoStageInvoker
                 preprocess = clear_gemm_output;
             }
 
-            return ck_tile::launch_kernel_time_mask(
+            ave_time = ck_tile::launch_kernel_time_mask(
                 s,
                 preprocess,
                 ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
@@ -245,6 +245,8 @@ struct SplitKTwoStageInvoker
                                                   ck_tile::make_tuple(args.N, 1), // Output Stride
                                                   input_tensors,
                                                   static_cast<CDataType*>(c_ptr)));
+
+            return ave_time;
         };
 
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
