@@ -289,7 +289,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                           "B block window has incorrect lengths for defined BLayout!");
 
             ////////////// global window & register /////////////////
-            // A DRAM tile window for load
+            // A DRAM tile window(s) for load
             auto a_tile_windows = generate_tuple(
                 [&](auto idx) {
                     return make_tile_window(
@@ -299,7 +299,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                         Policy::template MakeADramTileDistribution<Problem>());
                 },
                 number<AsLayout::size()>{});
-
+            // B DRAM window(s) for load
             auto b_tile_windows = generate_tuple(
                 [&](auto idx) {
                     return make_tile_window(
@@ -333,21 +333,19 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             constexpr BDramTileWindowStep b_dram_tile_window_step =
                 is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
 
-            // read 0
+            // read A(0), B(0) from DRAM to LDS window(0)
             Base::GlobalPrefetchAsync(
                 a_copy_lds_window0, a_tile_windows[number<0>{}], a_dram_tile_window_step);
             Base::GlobalPrefetchAsync(
                 b_copy_lds_window0, b_tile_windows[number<0>{}], b_dram_tile_window_step);
-            ////////////// LDS desc, window & register /////////////////
 
-            // Block GEMM
             auto block_gemm   = BlockGemm();
             auto c_block_tile = block_gemm.MakeCBlockTile();
 
             // initialize C
-            tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
+            clear_tile(c_block_tile);
 
-            // global read 1
+            // read A(1), B(1) from DRAM to LDS window(1)
             Base::GlobalPrefetchAsync(
                 a_copy_lds_window1, a_tile_windows[number<0>{}], a_dram_tile_window_step);
             Base::GlobalPrefetchAsync(
@@ -395,11 +393,12 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                           "LDS windows must not be linear");
 
             block_sync_lds_direct_load();
-
+            // read A(0), B(0) from LDS window(0) to pipeline registers(0)
             Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
             Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0);
-
+            // LDS window(0) contents are overwritten below by global prefetch, need to sync
             block_sync_lds();
+            // read A(2), B(2) from DRAM to LDS window(0)
             Base::GlobalPrefetchAsync(
                 a_copy_lds_window0, a_tile_windows[number<0>{}], a_dram_tile_window_step);
             Base::GlobalPrefetchAsync(
@@ -407,96 +406,93 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
 
             if(HasHotLoop)
             {
-                // minus 2 because we have ping-pong double buffer.
-                index_t iCounter = __builtin_amdgcn_readfirstlane(num_loop - 2);
+                // we have had 3 global prefetches so far, indexed (0, 1, 2).
+                index_t i_global_read = amd_wave_read_first_lane(3);
                 do
                 {
                     // ping
                     {
                         block_sync_lds();
-
+                        // read A(i-1), B(i-1) from LDS window(1) to pipeline registers(1)
                         Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1);
                         Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1);
+                        // LDS window(1) contents are overwritten below by global prefetch, need to
+                        // sync
                         block_sync_lds();
+                        // read A(i), B(i) from DRAM to LDS window(1)
                         Base::GlobalPrefetchAsync(a_copy_lds_window1,
                                                   a_tile_windows[number<0>{}],
                                                   a_dram_tile_window_step);
                         Base::GlobalPrefetchAsync(b_copy_lds_window1,
                                                   b_tile_windows[number<0>{}],
                                                   b_dram_tile_window_step);
-                        // gemm
+                        // C(i-3) = A(i-3) @ B(i-3)
                         block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
                         HotLoopScheduler();
-                        __builtin_amdgcn_sched_barrier(0);
                     }
                     // pong
                     {
                         block_sync_lds_direct_load();
-
+                        // read A(i), B(i) from LDS window(0) to pipeline registers(0)
                         Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
                         Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0);
+                        // LDS window 0 contents are overwritten by global prefetch -> need to sync
                         block_sync_lds();
+                        // read A(i+1), B(i+1) from DRAM to LDS window(0)
                         Base::GlobalPrefetchAsync(a_copy_lds_window0,
                                                   a_tile_windows[number<0>{}],
                                                   a_dram_tile_window_step);
                         Base::GlobalPrefetchAsync(b_copy_lds_window0,
                                                   b_tile_windows[number<0>{}],
                                                   b_dram_tile_window_step);
-                        // gemm
+                        // C(i-2) = A(i-2) @ B(i-2)
                         block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
                         HotLoopScheduler();
-                        __builtin_amdgcn_sched_barrier(0);
                     }
-                    iCounter -= 2;
-                } while(iCounter > 1);
+                    i_global_read += 2;
+                } while(i_global_read < num_loop);
             }
 
-            // tail 3
+            // 3 block gemms remaining
             if constexpr(TailNum == TailNumber::Three)
             {
-                // 3
                 {
                     block_sync_lds();
-
+                    // read A(num_loop-1), B(num_loop-1) from LDS window(1) to pipeline registers(1)
                     Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1);
                     Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1);
+                    // C(num_loop-2) = A(num_loop-2) @ B(num_loop-2)
                     block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
                 }
-                // 2
                 {
                     block_sync_lds();
+                    // read A(num_loop), B(num_loop) from LDS window(0) to pipeline registers(0)
                     Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0);
                     Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0);
+                    // C(num_loop-1) = A(num_loop-1) @ B(num_loop-1)
                     block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
                 }
-                // 1
                 {
                     block_sync_lds();
+                    // C(num_loop) = A(num_loop) @ B(num_loop)
                     block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
-                    __builtin_amdgcn_sched_barrier(0);
                 }
             }
             else
+            // 2 block gemms remaining
             {
-                // 2
                 {
                     block_sync_lds();
-
+                    // read A(num_loop), B(num_loop) from LDS window(1) to pipeline registers(1)
                     Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1);
                     Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1);
+                    // C(num_loop-1) = A(num_loop-1) @ B(num_loop-1)
                     block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
-                    static_for<0, 8, 1>{}([&](auto i) {
-                        ignore = i;
-                        __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
-                        __builtin_amdgcn_sched_group_barrier(0x008, 8, 0); // MFMA
-                    });
-                    __builtin_amdgcn_sched_barrier(0);
                 }
-                // 1
                 {
                     block_sync_lds();
+                    // C(num_loop) = A(num_loop) @ B(num_loop)
                     block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
-                    __builtin_amdgcn_sched_barrier(0);
                 }
             }
             return c_block_tile;
