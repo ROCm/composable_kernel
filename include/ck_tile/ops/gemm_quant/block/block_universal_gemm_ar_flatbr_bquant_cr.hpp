@@ -141,6 +141,38 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
 
                         constexpr auto AwarpIter = (kIter * MIterPerWarp + mIter) % m_preload;
 
+                        if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0){
+
+                            // auto thread_buffer_a = a_warp_tensor(number<AwarpIter>{}).get_thread_buffer();
+                            // printf("before WG, c_warp_tensor thread buffer size is: %d\n", thread_buffer_a.size());
+                            // for(index_t i = 0; i < thread_buffer_a.size(); ++i)
+                            // {
+                            //     auto value = thread_buffer_a.get(i);
+                            //     // Convert fp8_t to float
+                            //     auto float_value = type_convert<float>(value);
+                            //     printf("  [%d] = %f\n", i, float_value);
+                            // }
+
+                            // auto thread_buffer_b = b_warp_tensor(nIter)(number<kIter>{}).get_thread_buffer();
+                            // printf("before WG, c_warp_tensor thread buffer size is: %d\n", thread_buffer_b.size());
+                            // for(index_t i = 0; i < thread_buffer_b.size(); ++i)
+                            // {
+                            //     auto value = thread_buffer_b.get(i);
+                            //     // Convert fp8_t to float
+                            //     auto float_value = type_convert<float>(value);
+                            //     printf("  [%d] = %f\n", i, float_value);
+                            // }
+
+                            auto thread_buffer_c = c_warp_tensor.get_thread_buffer();
+                            printf("before WG, c_warp_tensor thread buffer size is: %d\n", thread_buffer_c.size());
+                            for(index_t i = 0; i < thread_buffer_c.size(); ++i)
+                            {
+                                auto value = thread_buffer_c.get(i);
+                                // Convert fp8_t to float
+                                auto float_value = type_convert<float>(value);
+                                printf("  [%d] = %f\n", i, float_value);
+                            }
+                        }
                         // warp GEMM
                         if constexpr(kIterInQScale == 0)
                             c_warp_tensor = WG{}(a_warp_tensor(number<AwarpIter>{}),
@@ -149,7 +181,18 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
                             WG{}(c_warp_tensor,
                                  a_warp_tensor(number<AwarpIter>{}),
                                  b_warp_tensor(nIter)(number<kIter>{}));
-
+                        
+                        if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0){
+                            //auto thread_buffer = c_warp_tensor.get_thread_buffer();
+                            printf("after WG, c_warp_tensor thread buffer size is:\n"); //, thread_buffer.size());
+                            // for(index_t i = 0; i < thread_buffer.size(); ++i)
+                            // {
+                            //     auto value = thread_buffer.get(i);
+                            //     // Convert fp8_t to float
+                            //     auto float_value = type_convert<float>(value);
+                            //     printf("  [%d] = %f\n", i, float_value);
+                            // }
+                        }
                         __builtin_amdgcn_sched_barrier(0x7F6);
                         // preload next A from lds
                         if constexpr((kIter * MIterPerWarp + mIter) <
@@ -179,8 +222,9 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
 
             auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
             float scale_reg_f = cvt_scale_to_fp32(scale_reg);
-
+            scale_reg_f = 1.0f;
             static_for<0, WG::kM * WG::kN / warp_size, 1>{}([&](auto c_row) {
+                
                 c_block_tensor.get_thread_buffer()[tbuf_offset + c_row] +=
                     (c_warp_tensor.get_thread_buffer()[c_row] * scale_reg_f);
             });

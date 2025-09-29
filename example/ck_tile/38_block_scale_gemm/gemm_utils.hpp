@@ -166,6 +166,26 @@ struct GemmConfigPreshuffleB_Bquant_decode : public GemmConfigBase
     static constexpr bool DoubleSmemBuffer = true;
 };
 
+template <typename PrecType>
+struct GemmConfigPreshuffleB_Bquant_prefill : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        get_k_from_preshuffled_warp_tile<PrecType, M_Warp_Tile>();
+
+    static constexpr bool PreshuffleB      = true;
+    static constexpr bool DoubleSmemBuffer = true;
+};
+
 template <typename ADataType_,
           typename BDataType_ = ADataType_,
           typename CDataType_ = ADataType_,
@@ -239,9 +259,9 @@ struct DataTypeTraits<ck_tile::int8_t>
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("m", "3840", "m dimension")
-        .insert("n", "4096", "n dimension")
-        .insert("k", "2048", "k dimension")
+    arg_parser.insert("m", "128", "m dimension")
+        .insert("n", "128", "n dimension")
+        .insert("k", "128", "k dimension")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
         .insert("b_layout", "C", "B tensor data layout - Column by default")
         .insert("bq_layout", "C", "Bq tensor data layout - Column by default")

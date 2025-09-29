@@ -237,9 +237,10 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
             "Preshuffling weight matrix is not supported for AQuant or RowColQuant");
     }
 
-    if constexpr(std::is_same_v<typename TypeConfig::ADataType, ck_tile::pk_int4_t> ||
-                 std::is_same_v<typename TypeConfig::ADataType, ck_tile::fp8_t> ||
-                 std::is_same_v<typename TypeConfig::ADataType, ck_tile::bf8_t>)
+    // if constexpr(std::is_same_v<typename TypeConfig::ADataType, ck_tile::pk_int4_t> ||
+    //              std::is_same_v<typename TypeConfig::ADataType, ck_tile::fp8_t> ||
+    //              std::is_same_v<typename TypeConfig::ADataType, ck_tile::bf8_t>)
+    if constexpr(std::is_same_v<typename TypeConfig::ADataType, ck_tile::fp8_t>)
     {
         if(a_layout == "R" && b_layout == "C")
         {
@@ -314,7 +315,7 @@ int run_gemm_example(int argc, char* argv[])
             throw std::runtime_error(
                 "Unsupported quantization mode! Use 'aquant', 'bquant', 'tensor' or 'rowcol'");
         }
-    }
+    }/*
     else if(data_type == "bf8")
     {
         using TypeConfig =
@@ -441,7 +442,7 @@ int run_gemm_example(int argc, char* argv[])
             throw std::runtime_error(
                 "Unsupported quantization mode for this datatype! Use 'bquant'.");
         }
-    }
+    }*/
     else
     {
         throw std::runtime_error("Unsupported data type for this operation !!!");
@@ -450,5 +451,5 @@ int run_gemm_example(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
-    return !run_gemm_example<GemmConfigPreshuffleB_Bquant_decode>(argc, argv);
+    return !run_gemm_example<GemmConfigPreshuffleB_Bquant_prefill>(argc, argv);
 }
