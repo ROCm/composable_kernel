@@ -1388,7 +1388,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
             // permute
             if(i_perm) q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b_idx, i[0], i[1] + query_offset, i[2]); });
             else       q_host_ref.ForEach([&](auto& self, auto i) { self(i) = q_host(b_idx, i[1] + query_offset, i[0], i[2]); });
-            // clang-format on
+          // clang-format on
 
 #if CK_TILE_FMHA_FWD_APPENDKV_API
             // optionally apply RoPE to the q_host_ref
