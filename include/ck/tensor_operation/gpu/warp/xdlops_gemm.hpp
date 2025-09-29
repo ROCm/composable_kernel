@@ -20,6 +20,7 @@ static constexpr bool is_scale_mfma_data_type()
            is_same_v<U, bf6_t> || is_same_v<U, f4_t>;
 }
 
+#ifndef CK_CODE_GEN_RTC
 /**
  * @brief Define scale data types that have hardware support for MX GEMMs
  */
@@ -28,6 +29,7 @@ static constexpr bool is_scale_mfma_scale_type()
 {
     return is_same_v<T, e8m0_bexp_t>;
 }
+#endif
 
 /**
  * @brief Combination of data types that have hardware support for MX GEMMs

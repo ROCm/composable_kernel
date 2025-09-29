@@ -48,6 +48,9 @@ using BF16_Tuple    = ck::Tuple<BF16>;
 
 using F32_F32_Tuple = ck::Tuple<F32, F32>;
 
+// Generic layouts
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
+
 // GEMM layout
 using Row  = ck::tensor_layout::gemm::RowMajor;
 using Col  = ck::tensor_layout::gemm::ColumnMajor;
