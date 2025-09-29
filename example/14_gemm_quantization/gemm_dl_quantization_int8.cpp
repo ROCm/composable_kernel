@@ -115,12 +115,14 @@ int main()
             if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
             {
                 return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({stride, 1_uz}));
+                                            std::vector<std::size_t>({stride, 1_uz}),
+                                            layout);
             }
             else
             {
                 return HostTensorDescriptor(std::vector<std::size_t>({row, col}),
-                                            std::vector<std::size_t>({1_uz, stride}));
+                                            std::vector<std::size_t>({1_uz, stride}),
+                                            layout);
             }
         };
 
