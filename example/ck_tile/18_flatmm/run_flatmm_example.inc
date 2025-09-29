@@ -110,9 +110,9 @@ int run_flatmm_example_with_layouts(int argc,
     b_shuffle_dev_buf.ToDevice(b_shuffle_host.data());
 
     auto per_token_scale_dev_ptr = ck_tile::FlatmmScalePointer<ScaleGranularityM>{
-        static_cast<float*>(per_token_scale_dev_buf.GetDeviceBuffer())};
+        static_cast<float*>(per_token_scale_dev_buf.GetDeviceBuffer()),M /ScaleGranularityM};
     auto per_channel_scale_dev_ptr = ck_tile::FlatmmScalePointer<ScaleGranularityN>{
-        static_cast<float*>(per_channel_scale_dev_buf.GetDeviceBuffer())};
+        static_cast<float*>(per_channel_scale_dev_buf.GetDeviceBuffer()),N /ScaleGranularityN};
 
     invoke_flatmm<FlatmmConfig,
                   ADataType,
