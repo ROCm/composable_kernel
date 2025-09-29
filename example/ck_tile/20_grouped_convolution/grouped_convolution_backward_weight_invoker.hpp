@@ -35,8 +35,8 @@ struct GroupedConvolutionBackwardWeightInvoker
         constexpr ck_tile::index_t N_Warp_Tile = GemmWarpConfig::N_Warp_Tile;
         constexpr ck_tile::index_t K_Warp_Tile = GemmWarpConfig::K_Warp_Tile;
 
-        constexpr ck_tile::index_t VectorSizeA = 1;
-        constexpr ck_tile::index_t VectorSizeB = 1;
+        constexpr ck_tile::index_t VectorSizeA = 8;
+        constexpr ck_tile::index_t VectorSizeB = 8;
         constexpr ck_tile::index_t VectorSizeC = 8;
 
         // Implicit GEMM Traits

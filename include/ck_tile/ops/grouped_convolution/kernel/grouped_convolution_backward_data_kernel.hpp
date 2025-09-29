@@ -109,7 +109,7 @@ struct GroupedConvBwdDataKernelArgs
                     GroupedConvTraitsType_::NDimSpatial>(1);
 
             a_grid_descs_m_k[gemm_count] = grid_descs.at(number<0>{});
-            b_grid_descs_n_k[gemm_count] = grid_descs.at(number<1>{});
+            b_grid_descs_k_n[gemm_count] = grid_descs.at(number<1>{});
             c_grid_descs_m_n[gemm_count] = grid_descs.at(number<2>{});
 
             const index_t grid_size_grp =
@@ -225,7 +225,7 @@ struct GroupedConvBwdDataKernelArgs
                                           GroupedConvTraitsType_::NDimSpatial>(1);
 
                 a_grid_descs_m_k[gemm_count] = grid_descs.at(number<0>{});
-                b_grid_descs_n_k[gemm_count] = grid_descs.at(number<1>{});
+                b_grid_descs_k_n[gemm_count] = grid_descs.at(number<1>{});
                 c_grid_descs_m_n[gemm_count] = grid_descs.at(number<2>{});
 
                 const index_t grid_size_grp =
@@ -357,7 +357,7 @@ struct GroupedConvBwdDataKernelArgs
                                               GroupedConvTraitsType_::NDimSpatial>(1);
 
                     a_grid_descs_m_k[gemm_count] = grid_descs.at(number<0>{});
-                    b_grid_descs_n_k[gemm_count] = grid_descs.at(number<1>{});
+                    b_grid_descs_k_n[gemm_count] = grid_descs.at(number<1>{});
                     c_grid_descs_m_n[gemm_count] = grid_descs.at(number<2>{});
 
                     const index_t grid_size_grp =
@@ -416,7 +416,7 @@ struct GroupedConvBwdDataKernelArgs
     const void* wei_ptr;
 
     array<AGridDescMK, MaxGroupedGemmGroupsNum> a_grid_descs_m_k;
-    array<BGridDescNK, MaxGroupedGemmGroupsNum> b_grid_descs_n_k;
+    array<BGridDescNK, MaxGroupedGemmGroupsNum> b_grid_descs_k_n;
     array<CGridDescMN, MaxGroupedGemmGroupsNum> c_grid_descs_m_n;
 
     array<index_t, MaxGroupedGemmGroupsNum> block_starts;
@@ -471,10 +471,6 @@ template <typename GroupedConvTraitsType_,
           typename EpiloguePipeline_>
 struct GroupedConvolutionBackwardDataKernel
 {
-    // Todo: Enable Vector Load Size > 1
-    static_assert(GroupedConvTraitsType_::VectorSizeA == 1 &&
-                  GroupedConvTraitsType_::VectorSizeB == 1);
-
     static constexpr index_t NDimSpatial = GroupedConvTraitsType_::NDimSpatial_;
     static constexpr ConvolutionSpecialization ConvSpecialization =
         GroupedConvTraitsType_::ConvSpecialization;
@@ -516,13 +512,10 @@ struct GroupedConvolutionBackwardDataKernel
 
     static_assert(GemmPipeline::kPadM && GemmPipeline::kPadN && GemmPipeline::kPadK,
                   "Not supported!");
-    static_assert(std::is_same_v<GemmALayout, tensor_layout::gemm::RowMajor>, "Not supported!");
-    static_assert(std::is_same_v<GemmBLayout, tensor_layout::gemm::ColumnMajor>, "Not supported!");
-    // TODO: Change to and enable vector load
-    // static_assert(std::is_same_v<GemmALayout, tensor_layout::gemm::RowMajor>,
-    //               "Not supported A GEMM layout!");
-    // static_assert(std::is_same_v<GemmBLayout, tensor_layout::gemm::RowMajor>,
-    //               "Not supported B GEMM layout!");
+    static_assert(std::is_same_v<GemmALayout, tensor_layout::gemm::RowMajor>,
+                  "Not supported A GEMM layout!");
+    static_assert(std::is_same_v<GemmBLayout, tensor_layout::gemm::RowMajor>,
+                  "Not supported B GEMM layout!");
     static_assert(std::is_same_v<GemmCLayout, tensor_layout::gemm::RowMajor>,
                   "Not supported C GEMM layout!");
 
@@ -703,7 +696,7 @@ struct GroupedConvolutionBackwardDataKernel
         const auto& b_tensor_view = [&]() {
             return make_tensor_view<address_space_enum::global>(
                 b_ptr,
-                kargs.b_grid_descs_n_k[group_id]); // B: weight
+                kargs.b_grid_descs_k_n[group_id]); // B: weight
         }();
 
         const auto& c_tensor_view = [&]() {
@@ -742,8 +735,10 @@ struct GroupedConvolutionBackwardDataKernel
         const auto& b_pad_view = [&]() {
             const auto& b_tensor_view = views.at(I1);
             return pad_tensor_view(b_tensor_view,
-                                   make_tuple(number<TilePartitioner::NPerBlock>{},
-                                              number<TilePartitioner::KPerBlock>{}),
+                                   make_tuple(
+                                       number<TilePartitioner::KPerBlock>{},
+                                       number<TilePartitioner::NPerBlock>{}
+                                            ),
                                    sequence<true, true>{});
         }();
 
@@ -788,9 +783,11 @@ struct GroupedConvolutionBackwardDataKernel
 
         const auto& b_block_window = [&]() {
             return make_tile_window(b_pad_view,
-                                    make_tuple(number<TilePartitioner::NPerBlock>{},
-                                               number<TilePartitioner::KPerBlock>{}),
-                                    {i_n, i_k});
+                                    make_tuple(
+                                        number<TilePartitioner::KPerBlock>{},
+                                        number<TilePartitioner::NPerBlock>{}
+                                            ),
+                                    {i_k, i_n});
         }();
 
         const auto ds_block_window = generate_tuple(

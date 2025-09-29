@@ -502,7 +502,7 @@ struct TransformConvBwdDataToGemm
         // TODO Add support for NumGroupsToMerge > 1
         return make_naive_tensor_descriptor(make_tuple(N_, Hi_, Wi_, C_),
                                             make_tuple(NStride, HiStride, WiStride, CStride),
-                                            number<VectorSizeB>{},
+                                            number<VectorSizeC>{},
                                             I1);
     }
 
@@ -512,7 +512,7 @@ struct TransformConvBwdDataToGemm
         // GKYXC
         return make_naive_tensor_descriptor(make_tuple(K_, Y_, X_, C_),
                                             make_tuple(C_ * X_ * Y_, C_ * X_, C_, I1),
-                                            number<VectorSizeC>{},
+                                            number<VectorSizeB>{},
                                             I1);
     }
 
@@ -547,7 +547,7 @@ struct TransformConvBwdDataToGemm
         return make_naive_tensor_descriptor(
             make_tuple(N_, Di_, Hi_, Wi_, C_),
             make_tuple(NStride, DiStride, HiStride, WiStride, CStride),
-            number<VectorSizeB>{},
+            number<VectorSizeC>{},
             I1);
     }
 
@@ -558,7 +558,7 @@ struct TransformConvBwdDataToGemm
         return make_naive_tensor_descriptor(
             make_tuple(K_, Z_, Y_, X_, C_),
             make_tuple(C_ * X_ * Y_ * Z_, C_ * X_ * Y_, C_ * X_, C_, I1),
-            number<VectorSizeC>{},
+            number<VectorSizeB>{},
             I1);
     }
     // TODO: implement ck_tile::tensor_layout::convolution that describe packed/strided dimemsion as
@@ -637,12 +637,12 @@ struct TransformConvBwdDataToGemm
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<>{}, sequence<2>{}));
 
-        const auto wei_gemmn_gemmkraw_grid_desc =
+        const auto wei_gemmkraw_gemmn_grid_desc =
             transform_tensor_descriptor(wei_k_xdotslice_c_grid_desc,
                                         make_tuple(make_merge_transform(make_tuple(XDotSlice, K_)),
                                                    make_pass_through_transform(C_)),
                                         make_tuple(sequence<1, 0>{}, sequence<2>{}),
-                                        make_tuple(sequence<1>{}, sequence<0>{}));
+                                        make_tuple(sequence<0>{}, sequence<1>{}));
 
         // c: input
         const auto in_n_wip_c_grid_desc = transform_tensor_descriptor(
@@ -679,7 +679,7 @@ struct TransformConvBwdDataToGemm
             make_tuple(sequence<0>{}, sequence<1>{}));
 
         return make_tuple(out_gemmm_gemmkraw_grid_desc,
-                          wei_gemmn_gemmkraw_grid_desc,
+                          wei_gemmkraw_gemmn_grid_desc,
                           in_gemmmraw_gemmnraw_grid_desc);
     }
 
@@ -792,12 +792,12 @@ struct TransformConvBwdDataToGemm
                                                    sequence<>{},
                                                    sequence<3>{}));
 
-        const auto wei_gemmn_gemmkraw_grid_desc = transform_tensor_descriptor(
+        const auto wei_gemmkraw_gemmn_grid_desc = transform_tensor_descriptor(
             wei_k_ydotslice_xdotslice_c_grid_desc,
             make_tuple(make_merge_transform(make_tuple(YDotSlice, XDotSlice, K_)),
                        make_pass_through_transform(C_)),
             make_tuple(sequence<1, 2, 0>{}, sequence<3>{}),
-            make_tuple(sequence<1>{}, sequence<0>{}));
+            make_tuple(sequence<0>{}, sequence<1>{}));
 
         // c: input
         const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
@@ -849,7 +849,7 @@ struct TransformConvBwdDataToGemm
             make_tuple(sequence<0>{}, sequence<1>{}));
 
         return make_tuple(out_gemmm_gemmkraw_grid_desc,
-                          wei_gemmn_gemmkraw_grid_desc,
+                          wei_gemmkraw_gemmn_grid_desc,
                           in_gemmmraw_gemmnraw_grid_desc);
     }
 
@@ -994,12 +994,12 @@ struct TransformConvBwdDataToGemm
                                                    sequence<>{},
                                                    sequence<4>{}));
 
-        const auto wei_gemmn_gemmkraw_grid_desc = transform_tensor_descriptor(
+        const auto wei_gemmkraw_gemmn_grid_desc = transform_tensor_descriptor(
             wei_k_ydotslice_xdotslice_c_grid_desc,
             make_tuple(make_merge_transform(make_tuple(ZDotSlice, YDotSlice, XDotSlice, K_)),
                        make_pass_through_transform(C_)),
             make_tuple(sequence<1, 2, 3, 0>{}, sequence<4>{}),
-            make_tuple(sequence<1>{}, sequence<0>{}));
+            make_tuple(sequence<0>{}, sequence<1>{}));
 
         // c: input
         const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
@@ -1064,7 +1064,7 @@ struct TransformConvBwdDataToGemm
             make_tuple(sequence<0>{}, sequence<1>{}));
 
         return make_tuple(out_gemmm_gemmkraw_grid_desc,
-                          wei_gemmn_gemmkraw_grid_desc,
+                          wei_gemmkraw_gemmn_grid_desc,
                           in_gemmmraw_gemmnraw_grid_desc);
     }
 
