@@ -195,23 +195,32 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t)
     }
     else
     {
-        int divisor = 1;
         if(ck_tile::is_gfx11_supported())
         {
-            divisor = 1;
+            int divisor = 1;
+            ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
+                                           GemmConfig::N_Warp_Tile,
+                                           k_ / ItemsPerAccess,
+                                           divisor,
+                                           ItemsPerAccess});
+            std::copy(t.begin(), t.end(), t_view.begin());
+            return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
         }
         else
         {
             assert(is_wave32() == false);
-            divisor = GemmConfig::N_Warp_Tile == 32 ? 2 : 4;
+            constexpr int MaxVecSize     = 16 / sizeof(T);
+            constexpr int KLane          = ck_tile::get_warp_size() / GemmConfig::N_Warp_Tile;
+            constexpr int ItemsPerAccess = std::min(MaxVecSize, GemmConfig::K_Warp_Tile / KLane);
+
+            ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
+                                           GemmConfig::N_Warp_Tile,
+                                           k_ / ItemsPerAccess,
+                                           1,
+                                           ItemsPerAccess});
+            std::copy(t.begin(), t.end(), t_view.begin());
+            return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
         }
-        ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
-                                       GemmConfig::N_Warp_Tile,
-                                       k_ / GemmConfig::K_Warp_Tile,
-                                       divisor,
-                                       GemmConfig::K_Warp_Tile / divisor});
-        std::copy(t.begin(), t.end(), t_view.begin());
-        return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
     }
 }
 
@@ -220,19 +229,21 @@ auto shuffle_b_permuteN(const ck_tile::HostTensor<T>& t)
 {
     assert(t.get_lengths().size() == 2);
 
-    int n_                = t.get_lengths()[1];
-    int k_                = t.get_lengths()[0];
-    constexpr int divisor = GemmConfig::N_Warp_Tile == 32 ? 2 : 4;
+    int n_ = t.get_lengths()[1];
+    int k_ = t.get_lengths()[0];
+
+    constexpr int MaxVecSize     = 16 / sizeof(T);
+    constexpr int KLane          = ck_tile::get_warp_size() / GemmConfig::N_Warp_Tile;
+    constexpr int ItemsPerAccess = std::min(MaxVecSize, GemmConfig::K_Warp_Tile / KLane);
     constexpr int NRepeat = GemmConfig::N_Tile / GemmConfig::N_Warp_Tile / GemmConfig::N_Warp;
     ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Tile,
                                    GemmConfig::N_Warp,
                                    GemmConfig::N_Warp_Tile,
                                    NRepeat,
-                                   k_ / GemmConfig::K_Warp_Tile,
-                                   divisor,
-                                   GemmConfig::K_Warp_Tile / divisor});
+                                   k_ / ItemsPerAccess,
+                                   ItemsPerAccess});
     std::copy(t.begin(), t.end(), t_view.begin());
-    return ck_tile::reference_permute(t_view, {0, 3, 1, 4, 5, 2, 6});
+    return ck_tile::reference_permute(t_view, {0, 3, 1, 4, 2, 5});
 }
 
 template <typename CDataType>
