@@ -499,7 +499,7 @@ struct BlockFmhaBatchPrefillPipelineQRKSVSAsync
 #else
                     for(index_t i = 0; i < s_acc.thread_buf_.size(); ++i)
                     {
-#if (defined(__gfx90a__) || defined(__gfx94__)) &&                                              \
+#if(defined(__gfx90a__) || defined(__gfx94__)) &&                                               \
     (CK_TILE_ATTENTION_LOGITS_SOFT_CAP_DEFAULT == CK_TILE_ATTENTION_LOGITS_SOFT_CAP_SOFTSIGN && \
      CK_TILE_ATTENTION_USE_SOFTSIGN_ASM)
                         // Avoid data hazard if v_mfma is followed by inline asm consumer
