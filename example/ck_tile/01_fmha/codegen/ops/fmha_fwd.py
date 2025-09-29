@@ -26,6 +26,7 @@ DTYPE_BITS = {
 
 K0_MAX_SUBMAX_MAP = {
     32 : 32,
+    48 : 48,
     64 : 64,
     96 : 128,
     128: 128,
@@ -237,7 +238,7 @@ class FmhaFwdApiTrait:
     dpad       : str
     dvpad      : str
     skip       : str
-    trload     : str
+    tr_load    : str
     constraint : CppConstraint
 
     @property
@@ -265,11 +266,11 @@ class FmhaFwdApiTrait:
     def skcheck(self) -> str:
         if self.mode == 'group': return 'true/*group mode skpad always true*/'                  # group mode only generate spad/skpad == true
         if self.pipeline_tag == 'qr_async':
-            if self.skpad == 't' : return f'a.seqlen_k == 0 || a.seqlen_k % {self.bn0} != 0'
-            else :                 return f'a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0'
+            if self.skpad == 't' : return f'(a.cu_seqlen_kv_ptr != nullptr) || (a.seqlen_k == 0 || a.seqlen_k % {self.bn0} != 0)'
+            else :                 return f'(a.cu_seqlen_kv_ptr == nullptr) && (a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0)'
         elif self.pipeline_tag in ['qr', 'qs']:
             if self.skpad == 't' : return f'true /*a.seqlen_k % {self.bn0} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
-            else :                return f'a.seqlen_k % {self.bn0} == 0'
+            else :                 return f'(a.cu_seqlen_kv_ptr == nullptr) && (a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0)'
         elif self.pipeline_tag == 'qr_async_trload':
             if self.skpad == 't' : return 'true'
             else:                  return 'true'
@@ -388,7 +389,7 @@ class FmhaFwdApiPool:
                         inners += FMHA_FWD_API_INNER_DISPATCH.format(F_if=if_(i_trait), F_mode=MODE_MAP[trait.mode], F_vlayout=LAYOUT_MAP[trait.vlayout],
                                        F_pipeline_enum=PIPELINE_ENUM_MAP[trait.pipeline_tag], F_logits=BOOL_MAP[trait.logits], F_mask=get_mask_map(self.mask_impl)[trait.mask],
                                        F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_bias_check=BIAS_CHECK_MAP[trait.bias], F_bias=BIAS_MAP[trait.bias],
-                                       F_lse=BOOL_MAP[trait.lse], F_dropout=BOOL_MAP[trait.dropout], F_skip=BOOL_MAP[trait.skip], F_trload=BOOL_MAP[trait.trload],
+                                       F_lse=BOOL_MAP[trait.lse], F_dropout=BOOL_MAP[trait.dropout], F_skip=BOOL_MAP[trait.skip], F_trload=BOOL_MAP[trait.tr_load],
                                        F_squant=BOOL_MAP[trait.squant], F_scheck=trait.scheck, F_seqtune=trait.seqtune(max_bm0), F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck,
                                        F_constraint=trait.constraint,
                                        F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
@@ -523,7 +524,7 @@ class FmhaFwdKernel:
                 dpad=self.F_pipeline.F_dpad,
                 dvpad=self.F_pipeline.F_dvpad,
                 skip=self.F_pipeline.F_skip,
-                trload=self.F_pipeline.F_trload,
+                tr_load=self.F_pipeline.F_trload,
                 constraint=self.F_tile.F_constraint & self.F_pipeline.F_constraint)
 
 class KernelComponentFactoryGfx9:
@@ -533,7 +534,20 @@ class KernelComponentFactoryGfx9:
     # this is current supported tile size per hdim
     @staticmethod
     def get_hdim_tile_size_dict(dtype : str) -> Optional[dict]:
-        if dtype == 'fp16' or dtype == 'bf16':
+        if dtype == 'fp32':
+            return {
+                #                             bm0, bn0, bk0, bn1, bk1,
+                ( 32,  32) : [FmhaFwdTileSize( 64,  64,  16,  32,  32,   32,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+                ( 48,  48) : [FmhaFwdTileSize( 32, 128,  16,  48,  16,   48,  2, 1, 1,  2, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+                              FmhaFwdTileSize(128,  64,  16,  48,  32,   48,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+                ( 64,  64) : [FmhaFwdTileSize( 64,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+                ( 96, 128) : [FmhaFwdTileSize(128,  64,  32, 128,  32,   96,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+                (128, 128) : [FmhaFwdTileSize( 32, 128,  32, 128,  16,  128,  2, 1, 1,  2, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+                              FmhaFwdTileSize(128,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+                (192, 192) : [FmhaFwdTileSize( 64,  64,  32, 192,  32,  192,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+                (256, 256) : [FmhaFwdTileSize( 64,  64,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+            }
+        elif dtype == 'fp16' or dtype == 'bf16':
             return {
                 (32, 32)  : [FmhaFwdTileSize(128, 64,  16, 32,  32,  32,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 (64, 64)  : [FmhaFwdTileSize(16, 32,  64, 64,  32,  64,   1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
@@ -571,7 +585,13 @@ class KernelComponentFactoryGfx9:
         # TODO: currently for qr pipeline, let 't' padding to appear later!!
         # TODO: how to design this more generic?
         pipelines = []
-        if dtype in ['fp16', 'bf16']:
+        if dtype in ['fp32']:
+            squant = 'f'
+            for logits, mask, bias, lse, dropout, skip in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], ["t", "f"], ["t", "f"]):
+                pipelines.append(FmhaFwdPipeline('qr', 'row', 'f', 'f', 'f', 'f', logits, bias, lse, dropout, squant, mask, skip, 'f'))
+                pipelines.append(FmhaFwdPipeline('qr', 'row', 'f', 't', 'f', 'f', logits, bias, lse, dropout, squant, mask, skip, 'f'))
+                pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask, skip, 'f'))
+        elif dtype in ['fp16', 'bf16']:
             squant = 'f'
             for logits, mask, bias, lse, dropout, skip in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], ["t", "f"], ["t", "f"]):
                 if hdim == 256 and hdim_v == 256:
@@ -713,7 +733,7 @@ def get_fwd_blobs(targets: List[str], kernel_filter : Optional[str], receipt, op
                     # NOTE: this is used to speedup deepseek prefill case, we don't gen training
                     if pipeline.F_bias != 'no' or pipeline.F_dropout == 't':
                         continue
-                if arch.startswith('gfx9'):
+                if arch.startswith('gfx9') and dtype != 'fp32':
                     # TODO: update if >=gfx11 archs get qr_async and qr_async_trload support
                     if pipeline.tag != 'qr_async_trload' and (((hdim, hdim_v) == (128, 128) and tile.F_bn0 != 128) or ((hdim, hdim_v) != (128, 128) and tile.F_bm0 != 128)):
                         # non qr_async_trload only support km0=128 tile size when hdim is not 128
@@ -789,6 +809,31 @@ def get_fwd_blobs(targets: List[str], kernel_filter : Optional[str], receipt, op
                     cond &= pipeline.F_vlayout == 'row'
                     cond &= hdim == 128
                     if not cond:
+                        continue
+
+                # fp32 only, all variations
+                if receipt == 800:
+                    cond = dtype == 'fp32'
+                    cond &= pipeline.F_skip == 'f'
+                    cond &= pipeline.F_logits == 'f'
+                    if not cond:
+                        continue
+                # fp32 only, minimal set of parameters
+                elif receipt == 801:
+                    cond = dtype == 'fp32'
+                    cond &= hdim in [48, 128]
+                    cond &= mode == 'batch'
+                    cond &= pipeline.F_bias == 'no'
+                    cond &= pipeline.F_lse == 'f'
+                    cond &= pipeline.F_dropout == 'f'
+                    cond &= pipeline.F_skip == 'f'
+                    cond &= pipeline.F_logits == 'f'
+                    cond &= pipeline.F_mask == 's_no'
+                    if not cond:
+                        continue
+                else:
+                    # Don't build fp32 by default
+                    if dtype == 'fp32':
                         continue
 
                 api_pool.register_traits(k.api_trait())

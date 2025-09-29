@@ -805,6 +805,13 @@ def get_fwd_splitkv_blobs(targets: List[str], kernel_filter : Optional[str], rec
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
+
+                # fp32 only
+                if receipt == 800 or receipt == 801:
+                    cond = dtype == 'fp32'
+                    if not cond:
+                        continue
+
                 gen.append(k)
 
     return group_kernels_by_filename(gen)
@@ -858,6 +865,13 @@ def get_fwd_splitkv_combine_blobs(targets: List[str], kernel_filter : Optional[s
                     cond = dtype in ['fp16', 'bf16']
                     if not cond:
                         continue
+
+                # fp32 only
+                if receipt == 800 or receipt == 801:
+                    cond = dtype == 'fp32'
+                    if not cond:
+                        continue
+
                 gen.append(k)
 
     return group_kernels_by_filename(gen)

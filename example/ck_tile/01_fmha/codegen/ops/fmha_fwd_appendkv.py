@@ -377,6 +377,13 @@ def get_fwd_appendkv_blobs(targets: List[str], kernel_filter : Optional[str], re
                     cond &= pipeline.F_vlayout == 'row'
                     if not cond:
                         continue
+
+                # fp32 only
+                if receipt == 800 or receipt == 801:
+                    cond = dtype == 'fp32'
+                    if not cond:
+                        continue
+
                 api_pool.register_traits(k.api_trait())
                 gen.append(k)
 

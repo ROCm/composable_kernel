@@ -321,12 +321,6 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
 
             float ave_time = 0;
 
-            auto c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2 =
-                GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(arg.c_grid_desc_m_n_);
-
-            auto b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3 =
-                GridwiseGemm::MakeBGridDescriptor_K0_K1_K2_N0_N1_N2_N3_K3(arg.b_grid_desc_k0_n_k1_);
-
             if(has_main_k0_block_loop)
             {
                 const auto kernel = kernel_gemm_xdlops_skip_b_lds_v1<
@@ -335,8 +329,7 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
                     CDataType,
                     remove_reference_t<DeviceGemmXdlSkipBLds::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceGemmXdlSkipBLds::BGridDesc_K0_N_K1>,
-                    remove_reference_t<typename GridwiseGemm::BGridDesc_K0_K1_K2_N0_N1_N2_N3_K3>,
-                    remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<DeviceGemmXdlSkipBLds::CGridDesc_M_N>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
@@ -352,8 +345,8 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
-                                                  b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
-                                                  c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                                  arg.b_grid_desc_k0_n_k1_,
+                                                  arg.c_grid_desc_m_n_,
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
                                                   arg.c_element_op_,
@@ -367,8 +360,7 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
                     CDataType,
                     remove_reference_t<DeviceGemmXdlSkipBLds::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceGemmXdlSkipBLds::BGridDesc_K0_N_K1>,
-                    remove_reference_t<typename GridwiseGemm::BGridDesc_K0_K1_K2_N0_N1_N2_N3_K3>,
-                    remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<DeviceGemmXdlSkipBLds::CGridDesc_M_N>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
@@ -384,8 +376,8 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
-                                                  b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3,
-                                                  c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2,
+                                                  arg.b_grid_desc_k0_n_k1_,
+                                                  arg.c_grid_desc_m_n_,
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
                                                   arg.c_element_op_,

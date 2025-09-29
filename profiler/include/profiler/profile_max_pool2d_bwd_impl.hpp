@@ -82,7 +82,9 @@ bool profile_max_pool2d_bwd_impl(int do_verification,
         [](std::size_t N_, std::size_t C_, std::size_t H, std::size_t W) {
             using namespace ck::literals;
 
-            return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, 1_uz, W * C_, C_});
+            return HostTensorDescriptor({N_, C_, H, W},
+                                        {C_ * H * W, 1_uz, W * C_, C_},
+                                        ck::tensor_layout::convolution::NCHW{});
         };
 
     Tensor<InDataType> in_n_c_hi_wi(f_host_tensor_descriptor(N, C, Hi, Wi));

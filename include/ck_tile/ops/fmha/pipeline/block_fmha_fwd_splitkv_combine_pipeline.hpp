@@ -223,6 +223,8 @@ struct BlockFmhaFwdSplitKVCombinePipeline
             });
         }
 
+        // sync before rewriting lse_acc_lds
+        block_sync_lds();
         // store the lse scales in shared memory.
         {
             constexpr auto spans = decltype(lse_accum)::get_distributed_spans();

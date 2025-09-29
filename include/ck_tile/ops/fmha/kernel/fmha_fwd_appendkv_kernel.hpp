@@ -262,8 +262,8 @@ struct FmhaFwdAppendKVKernel
         // divide problem
         const auto [i_tile, i_nhead, i_batch] = GetTileIndex(kargs);
 
-        const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile * FmhaPipeline::kM0);
-        const index_t i_n0 = __builtin_amdgcn_readfirstlane(i_tile * FmhaPipeline::kN0);
+        const index_t i_m0 = amd_wave_read_first_lane(i_tile * FmhaPipeline::kM0);
+        const index_t i_n0 = amd_wave_read_first_lane(i_tile * FmhaPipeline::kN0);
 
         const index_t i_cache_batch = [&, i_batch_ = i_batch] {
             if constexpr(kIsPagedKV)
