@@ -42,7 +42,11 @@ struct thread_buffer {
 
     // TODO: this ctor can't ignore
     CK_TILE_HOST_DEVICE constexpr thread_buffer() : data{} {}
-    CK_TILE_HOST_DEVICE constexpr thread_buffer(const value_type & o) : data{o} {}
+    CK_TILE_HOST_DEVICE constexpr thread_buffer(const value_type & o) : data{} {
+        static_for<0, N, 1>{}(
+            [&](auto i) { data[i] = o; }
+        );
+    }
 
     CK_TILE_HOST_DEVICE static constexpr auto size() { return N; }
     CK_TILE_HOST_DEVICE auto & get() {return data; }

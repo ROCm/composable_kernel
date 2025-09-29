@@ -6,6 +6,10 @@
 #include "ck_tile/core/numeric/type_convert.hpp"
 #include "ck_tile/core/container/thread_buffer.hpp"
 
+#define HAS_GLOBAL_ATOMIC_PK_ADD_BUILTIN                        \
+    __has_builtin(__builtin_amdgcn_global_atomic_fadd_v2f16) && \
+        __has_builtin(__builtin_amdgcn_global_atomic_fadd_v2bf16)
+
 namespace ck_tile {
 
 template <typename T, typename ComputeType>
@@ -29,6 +33,14 @@ CK_TILE_HOST_DEVICE bf16x4_t add_bf16x4_t(const bf16x4_t& a, const bf16x4_t& b)
     rtn[1] = add<bf16_t, float>(a[1], b[1]);
     rtn[2] = add<bf16_t, float>(a[2], b[2]);
     rtn[3] = add<bf16_t, float>(a[3], b[3]);
+    return rtn;
+}
+
+CK_TILE_HOST_DEVICE fp16x2_t add_f16x2_t(const fp16x2_t& a, const fp16x2_t& b)
+{
+    fp16x2_t rtn;
+    rtn[0] = add<fp16_t, float>(a[0], b[0]);
+    rtn[1] = add<fp16_t, float>(a[1], b[1]);
     return rtn;
 }
 
@@ -304,13 +316,52 @@ CK_TILE_DEVICE void atomic_add<bf8x8_t>(bf8x8_t* p_dst, bf8x8_t const& x)
     } while(cur_v.u64 != old_v);
 }
 
+//
+// Atomic add for fp16x2_t
+//
+template <>
+CK_TILE_DEVICE void atomic_add<fp16x2_t>(fp16x2_t* p_dst, fp16x2_t const& x)
+{
+#if HAS_GLOBAL_ATOMIC_PK_ADD_BUILTIN
+    __builtin_amdgcn_global_atomic_fadd_v2f16(c_style_pointer_cast<fp16x2_t*>(p_dst), x);
+#else
+    union U32F162_ADDR
+    {
+        uint32_t* u32_a;
+        fp16x2_t* f162_a;
+    };
+
+    union U32F162
+    {
+        uint32_t u32;
+        fp16x2_t f162;
+    };
+
+    U32F162_ADDR dword_addr;
+    U32F162 cur_v;
+    U32F162 new_;
+    uint32_t old_v, new_v;
+    dword_addr.f162_a = p_dst;
+    cur_v.u32         = *dword_addr.u32_a;
+
+    do
+    {
+        old_v     = cur_v.u32;
+        new_.f162 = add_f16x2_t(cur_v.f162, x);
+        new_v     = new_.u32;
+        cur_v.u32 = atomicCAS(dword_addr.u32_a, old_v, new_v);
+    } while(cur_v.u32 != old_v);
+#endif
+}
+
 template <typename T, index_t N>
 CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
 {
     static_assert((std::is_same<T, int32_t>::value && (N == 1)) ||
                       (std::is_same<T, uint32_t>::value && (N == 1)) ||
-                      (std::is_same<T, float>::value && (N == 1 || N == 2)) ||
+                      (std::is_same<T, float>::value && (N == 1 || N == 2 || N == 4)) ||
                       (std::is_same<T, double>::value && (N == 1 || N == 2)) ||
+                      (std::is_same<T, fp16_t>::value && (N == 2 || N == 4 || N == 8)) ||
                       (std::is_same<T, bf16_t>::value && (N == 2 || N == 4 || N == 8)) ||
                       (std::is_same<T, fp8_t>::value && (N == 4 || N == 8 || N == 16)) ||
                       (std::is_same<T, bf8_t>::value && (N == 4 || N == 8 || N == 16)),
@@ -318,6 +369,8 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
 
     constexpr auto I0 = number<0>{};
     constexpr auto I1 = number<1>{};
+    constexpr auto I2 = number<2>{};
+    constexpr auto I3 = number<3>{};
 
     if constexpr(std::is_same<T, float>::value)
     {
@@ -329,6 +382,13 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
         {
             atomicAdd(c_style_pointer_cast<float*>(p_dst), x.template get_as<float>()[I0]);
             atomicAdd(c_style_pointer_cast<float*>(p_dst) + 1, x.template get_as<float>()[I1]);
+        }
+        else if constexpr(N == 4)
+        {
+            atomicAdd(c_style_pointer_cast<float*>(p_dst), x.template get_as<float>()[I0]);
+            atomicAdd(c_style_pointer_cast<float*>(p_dst) + 1, x.template get_as<float>()[I1]);
+            atomicAdd(c_style_pointer_cast<float*>(p_dst) + 2, x.template get_as<float>()[I2]);
+            atomicAdd(c_style_pointer_cast<float*>(p_dst) + 3, x.template get_as<float>()[I3]);
         }
     }
     else if constexpr(std::is_same<T, double>::value)
@@ -405,6 +465,13 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
             atomic_add(c_style_pointer_cast<bf8x8_t*>(p_dst), x.template get_as<bf8x8_t>()[I0]);
             atomic_add(c_style_pointer_cast<bf8x8_t*>(p_dst) + 1, x.template get_as<bf8x8_t>()[I1]);
         }
+    }
+    else if constexpr(std::is_same<T, fp16_t>::value)
+    {
+        static_for<0, N / 2, 1>{}([&](auto i) {
+            atomic_add(c_style_pointer_cast<fp16x2_t*>(p_dst) + i,
+                       x.template get_as<fp16x2_t>()[i]);
+        });
     }
 }
 

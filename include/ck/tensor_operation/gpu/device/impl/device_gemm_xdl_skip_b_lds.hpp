@@ -63,6 +63,10 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
                                                  BElementwiseOperation,
                                                  CElementwiseOperation>
 {
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
+
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
@@ -188,7 +192,8 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
     using CGridDesc_M_N     = decltype(MakeCGridDescriptor_M_N(1, 1, 1));
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_skip_b_lds_v1<
         BlockSize,
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
@@ -207,7 +212,7 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
         NPerXDL,
         K1,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_K0_M_K1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -222,6 +227,8 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
         Sequence<0, 2, 4, 5, 6, 1, 3, 7>, // CThreadTransferSrcDstAccessOrder,
         CThreadTransferSrcDstVectorDim,
         CThreadTransferDstScalarPerVector>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -246,8 +253,6 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
               a_grid_desc_k0_m_k1_{},
               b_grid_desc_k0_n_k1_{},
               c_grid_desc_m_n_{},
-              c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_{},
-              block_2_ctile_map_{},
               M01_{M01},
               N01_{N01},
               a_element_op_{a_element_op},
@@ -259,19 +264,6 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
             b_grid_desc_k0_n_k1_ =
                 DeviceGemmXdlSkipBLds::MakeBGridDescriptor_K0_N_K1(K, N, StrideB);
             c_grid_desc_m_n_ = DeviceGemmXdlSkipBLds::MakeCGridDescriptor_M_N(M, N, StrideC);
-
-            if(GridwiseGemm::CheckValidity(
-                   a_grid_desc_k0_m_k1_, b_grid_desc_k0_n_k1_, c_grid_desc_m_n_, M01_, N01_))
-            {
-                c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_ =
-                    GridwiseGemm::MakeCGridDescriptor_M0_N0_M1_N1_M2_M3_M4_N2(c_grid_desc_m_n_);
-
-                block_2_ctile_map_ =
-                    GridwiseGemm::MakeDefaultBlock2CTileMap(c_grid_desc_m_n_, M01, N01);
-
-                b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3_ =
-                    GridwiseGemm::MakeBGridDescriptor_K0_K1_K2_N0_N1_N2_N3_K3(b_grid_desc_k0_n_k1_);
-            }
         }
 
         //  private:
@@ -281,11 +273,6 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
         AGridDesc_K0_M_K1 a_grid_desc_k0_m_k1_;
         BGridDesc_K0_N_K1 b_grid_desc_k0_n_k1_;
         CGridDesc_M_N c_grid_desc_m_n_;
-        typename GridwiseGemm::BGridDesc_K0_K1_K2_N0_N1_N2_N3_K3
-            b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3_;
-        typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2
-            c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_;
-        typename GridwiseGemm::DefaultBlock2CTileMap block_2_ctile_map_;
         index_t M01_;
         index_t N01_;
         AElementwiseOperation a_element_op_;
@@ -298,7 +285,8 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
     {
         using Argument = DeviceGemmXdlSkipBLds::Argument;
 
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
             {
@@ -323,7 +311,8 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
                 throw std::runtime_error(
                     "wrong! GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3 has invalid setting");
             }
-
+            auto block_2_ctile_map =
+                GridwiseGemm::MakeDefaultBlock2CTileMap(arg.c_grid_desc_m_n_, arg.M01_, arg.N01_);
             const index_t grid_size = GridwiseGemm::CalculateGridSize(arg.c_grid_desc_m_n_);
 
             const auto K0 = arg.a_grid_desc_k0_m_k1_.GetLength(I0);
@@ -340,8 +329,7 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
                     CDataType,
                     remove_reference_t<DeviceGemmXdlSkipBLds::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceGemmXdlSkipBLds::BGridDesc_K0_N_K1>,
-                    remove_reference_t<typename GridwiseGemm::BGridDesc_K0_K1_K2_N0_N1_N2_N3_K3>,
-                    remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<DeviceGemmXdlSkipBLds::CGridDesc_M_N>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
@@ -357,12 +345,12 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
-                                                  arg.b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3_,
-                                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                                  arg.b_grid_desc_k0_n_k1_,
+                                                  arg.c_grid_desc_m_n_,
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
                                                   arg.c_element_op_,
-                                                  arg.block_2_ctile_map_);
+                                                  block_2_ctile_map);
             }
             else
             {
@@ -372,8 +360,7 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
                     CDataType,
                     remove_reference_t<DeviceGemmXdlSkipBLds::AGridDesc_K0_M_K1>,
                     remove_reference_t<DeviceGemmXdlSkipBLds::BGridDesc_K0_N_K1>,
-                    remove_reference_t<typename GridwiseGemm::BGridDesc_K0_K1_K2_N0_N1_N2_N3_K3>,
-                    remove_reference_t<typename GridwiseGemm::CGridDesc_M0_N0_M1_N1_M2_M3_M4_N2>,
+                    remove_reference_t<DeviceGemmXdlSkipBLds::CGridDesc_M_N>,
                     AElementwiseOperation,
                     BElementwiseOperation,
                     CElementwiseOperation,
@@ -389,16 +376,18 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
                                                   arg.p_b_grid_,
                                                   arg.p_c_grid_,
                                                   arg.a_grid_desc_k0_m_k1_,
-                                                  arg.b_grid_desc_k0_k1_k2_n0_n1_n2_n3_k3_,
-                                                  arg.c_grid_desc_m0_n0_m1_n1_m2_m3_m4_n2_,
+                                                  arg.b_grid_desc_k0_n_k1_,
+                                                  arg.c_grid_desc_m_n_,
                                                   arg.a_element_op_,
                                                   arg.b_element_op_,
                                                   arg.c_element_op_,
-                                                  arg.block_2_ctile_map_);
+                                                  block_2_ctile_map);
             }
 
             return ave_time;
         }
+
+        INVOKER_RUN_IMPL
 
         // polymorphic
         float Run(const BaseArgument* p_arg,
@@ -416,16 +405,33 @@ struct DeviceGemmXdlSkipBLds : public DeviceGemm<ALayout,
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_xdl_supported())
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
         {
             return false;
         }
-
-        return GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_,
-                                           arg.b_grid_desc_k0_n_k1_,
-                                           arg.c_grid_desc_m_n_,
-                                           arg.M01_,
-                                           arg.N01_);
+        if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                return GridwiseGemm64::CheckValidity(arg.a_grid_desc_k0_m_k1_,
+                                                     arg.b_grid_desc_k0_n_k1_,
+                                                     arg.c_grid_desc_m_n_,
+                                                     arg.M01_,
+                                                     arg.N01_);
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                return GridwiseGemm32::CheckValidity(arg.a_grid_desc_k0_m_k1_,
+                                                     arg.b_grid_desc_k0_n_k1_,
+                                                     arg.c_grid_desc_m_n_,
+                                                     arg.M01_,
+                                                     arg.N01_);
+            }
+        }
+        return false;
     }
 
     // polymorphic

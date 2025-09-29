@@ -13,6 +13,8 @@
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_utils.hpp"
 #include "ck/tensor_operation/gpu/grid/gridwise_elementwise_2d.hpp"
 #include <ck/tensor_operation/gpu/grid/block_to_ctile_map.hpp>
+#include "ck/tensor_operation/gpu/device/impl/split_k_utils.hpp"
+#include "ck/tensor_operation/gpu/device/impl/split_k_arg.hpp"
 
 namespace ck {
 namespace tensor_operation {
@@ -77,21 +79,21 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
     using CElementwiseGridDesc     = remove_cvref_t<decltype(GetElementwiseCGridDesc(I1))>;
     using Block2TileMapElementwise = BlockToCTileMap_M00_N0_M01Adapt<1, ElemsPerBlock>;
     using GridwiseElementwiseCast  = GridwiseElementwise<Tuple<CElementwiseGridDesc>,
-                                                        Tuple<CElementwiseGridDesc>,
-                                                        Tuple<const float*>,
-                                                        Tuple<WeiDataType*>,
-                                                        Block2TileMapElementwise,
-                                                        WeiElementwiseOperation,
-                                                        ElementwiseBlockSize,
-                                                        I1,
-                                                        ElemsPerBlock,
-                                                        I1,
-                                                        ElemsPerBlock / ElementwiseBlockSize,
-                                                        Sequence<0, 1>,
-                                                        Sequence<1>,
-                                                        Sequence<1>,
-                                                        I1,
-                                                        I1>;
+                                                         Tuple<CElementwiseGridDesc>,
+                                                         Tuple<const float*>,
+                                                         Tuple<WeiDataType*>,
+                                                         Block2TileMapElementwise,
+                                                         WeiElementwiseOperation,
+                                                         ElementwiseBlockSize,
+                                                         I1,
+                                                         ElemsPerBlock,
+                                                         I1,
+                                                         ElemsPerBlock / ElementwiseBlockSize,
+                                                         Sequence<0, 1>,
+                                                         Sequence<1>,
+                                                         Sequence<1>,
+                                                         I1,
+                                                         I1>;
 
     struct Argument : public BaseArgument
     {
@@ -144,6 +146,41 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
 
             if constexpr(IsTwoStageNeeded)
             {
+                if(split_k < 0)
+                {
+                    const auto max_occupancy = DeviceGemmV3Op::GetMaxOccupancy();
+                    index_t gdx, gdy, gdz;
+                    std::tie(gdx, gdy, gdz) =
+                        DeviceGemmV3Op::GridwiseGemm::CalculateGridSize(M, N, BatchSize);
+                    const index_t grid_size = gdx * gdy * gdz;
+                    split_k_ = get_best_occupancy_k_batch_value(max_occupancy, grid_size);
+                }
+                else
+                {
+                    split_k_ = split_k;
+                }
+            }
+            else
+            {
+#if !DISABLE_SPLIT_K_AUTODEDUCE_FOR_ONE_STAGE_KERNELS
+                if(split_k < 0)
+                {
+                    const auto max_occupancy = DeviceGemmV3Op::GetMaxOccupancy();
+                    index_t gdx, gdy, gdz;
+                    std::tie(gdx, gdy, gdz) =
+                        DeviceGemmV3Op::GridwiseGemm::CalculateGridSize(M, N, BatchSize);
+                    const index_t grid_size = gdx * gdy * gdz;
+                    split_k_ = get_best_occupancy_k_batch_value(max_occupancy, grid_size);
+                }
+                else
+#endif
+                {
+                    split_k_ = split_k;
+                }
+            }
+
+            if constexpr(IsTwoStageNeeded)
+            {
                 const index_t merged_filter_dims = std::accumulate(begin(e_g_k_c_xs_lengths),
                                                                    end(e_g_k_c_xs_lengths),
                                                                    index_t{1},
@@ -176,7 +213,7 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
                                                   out_element_op,
                                                   in_element_op,
                                                   wei_element_op,
-                                                  split_k};
+                                                  split_k_};
             }
             else
             {
@@ -199,7 +236,7 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
                                                   out_element_op,
                                                   in_element_op,
                                                   wei_element_op,
-                                                  split_k};
+                                                  split_k_};
             }
         }
 
@@ -236,6 +273,7 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
         bool is_filter_data_packed;
         CElementwiseGridDesc elementwise_desc_;
         Block2TileMapElementwise elementwise_block_2_ctile_map_;
+        ck::index_t split_k_;
     };
 
     // Invoker
@@ -301,6 +339,16 @@ struct DeviceGroupedConvBwdWeight_Explicit_Xdl
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+#if DISABLE_SPLIT_K_AUTODEDUCE_FOR_ONE_STAGE_KERNELS
+        if constexpr(!IsTwoStageNeeded)
+        {
+            if(arg.split_k_ < 0)
+            {
+                return false;
+            }
+        }
+#endif
+
         if constexpr(NDimSpatial == 2)
         {
             if constexpr(!is_NHWGC_GKYXC_NHWGK<InLayout, WeiLayout, OutLayout>())

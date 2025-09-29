@@ -169,7 +169,8 @@ struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
     }
 
     template <typename CGridDesc_M_N>
-    __host__ constexpr bool CheckValidity(const CGridDesc_M_N& /* c_grid_desc_m_n */) const
+    __host__ __device__ constexpr bool
+    CheckValidity(const CGridDesc_M_N& /* c_grid_desc_m_n */) const
     {
         return true;
     }
@@ -271,6 +272,7 @@ struct BlockToCTileMap_Grouped_M00_N0_M01Adapt
     static constexpr auto I0 = Number<0>{};
     static constexpr auto I1 = Number<1>{};
 
+    __host__ __device__ BlockToCTileMap_Grouped_M00_N0_M01Adapt() = default;
     __host__ __device__ BlockToCTileMap_Grouped_M00_N0_M01Adapt(index_t M,
                                                                 index_t N,
                                                                 index_t M01 = 8)
@@ -870,6 +872,7 @@ struct OffsettedBlockToCTileMap
 {
     using underlying_type = UnderlyingBlockToCTileMap;
 
+    __host__ __device__ OffsettedBlockToCTileMap() = default;
     __host__ __device__ OffsettedBlockToCTileMap(UnderlyingBlockToCTileMap block_to_ctile_map,
                                                  index_t block_start)
     {

@@ -5,8 +5,6 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/batched_transpose/pipeline/batched_transpose_policy.hpp"
-#include <string>
-#include <type_traits>
 
 namespace ck_tile {
 
@@ -14,15 +12,8 @@ template <typename Problem_, typename Policy_ = BatchedTransposePolicy>
 struct BatchedTransposePipeline
 {
     // TODO: this kernel only support warp per row
-    using Problem   = remove_cvref_t<Problem_>;
-    using Policy    = remove_cvref_t<Policy_>;
-    using InputType = ck_tile::remove_cvref_t<typename Problem::InputType>;
-    static constexpr ck_tile::index_t kMPerBlock = Problem::kMPerBlock;
-    static constexpr ck_tile::index_t kNPerBlock = Problem::kNPerBlock;
-    static constexpr index_t AlignmentM          = Problem::AlignmentM;
-    static constexpr index_t AlignmentN          = Problem::AlignmentN;
-    static constexpr bool kPadM                  = Problem::kPadM;
-    static constexpr bool kPadN                  = Problem::kPadN;
+    using Problem = ck_tile::remove_cvref_t<Problem_>;
+    using Policy  = ck_tile::remove_cvref_t<Policy_>;
 
     template <typename InputWindow, typename OutputWindow>
     CK_TILE_DEVICE auto operator()(const InputWindow& input_window, OutputWindow& out_window)
@@ -32,7 +23,7 @@ struct BatchedTransposePipeline
 
         auto input_tile = load_tile(inp_win);
 
-        auto output_tile = make_static_distributed_tensor<InputType>(
+        auto output_tile = make_static_distributed_tensor<typename Problem::DataType>(
             Policy::template MakeOutputDistribution<Problem>());
 
         transpose_tile2d(output_tile, input_tile);

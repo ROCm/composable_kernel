@@ -90,8 +90,12 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
                                                            BElementwiseOperation,
                                                            CElementwiseOperation>
 {
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
     static constexpr index_t NumDTensor = DsDataType::Size();
-    using GridwiseGemm =
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase =
         GridwiseMoeGemmMX<ALayout,
                           BLayout,
                           DsLayout,
@@ -118,7 +122,7 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
                           MPerXDL,
                           NPerXDL,
                           MXdlPerWave,
-                          NXdlPerWave,
+                          NXdlPerWave_,
                           ABlockTransferThreadClusterLengths_AK0_M_AK1,
                           ABlockTransferThreadClusterArrangeOrder,
                           ABlockTransferSrcAccessOrder,
@@ -148,9 +152,10 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
                           IndexType,
                           ComputeTypeA,
                           ComputeTypeB>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
-    using Argument = typename GridwiseGemm::Argument;
-
+    using Argument                       = typename GridwiseGemm64::Argument;
     static constexpr index_t APackedSize = packed_size_v<ADataType>;
     static constexpr index_t BPackedSize = packed_size_v<BDataType>;
 
@@ -159,7 +164,9 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
             {
@@ -187,17 +194,17 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
 
                     std::array<std::size_t, NumDTensor> DsSize;
 
-                    Argument arg_ = arg;
+                    auto arg_ = arg;
 
                     const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(
                         arg_.M, arg_.MPadded, arg_.K, arg_.KPadded, arg_.StrideA, arg_.AK0);
                     const auto b_grid_desc_bk0_n_bk1 = GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(
                         arg_.K, arg_.KPadded, arg_.N, arg_.NPadded, arg_.StrideB, arg_.BK0);
 
-                    auto size_a_buffer = a_grid_desc_ak0_m_ak1.GetElementSpaceSize() *
-                                         sizeof(ADataType) / APackedSize;
-                    auto size_b_buffer = b_grid_desc_bk0_n_bk1.GetElementSpaceSize() *
-                                         sizeof(BDataType) / BPackedSize;
+                    auto size_a_buffer =
+                        a_grid_desc_ak0_m_ak1.GetElementSpaceSize() * sizeof(ADataType);
+                    auto size_b_buffer =
+                        b_grid_desc_bk0_n_bk1.GetElementSpaceSize() * sizeof(BDataType);
 
                     const auto ds_grid_desc_m_n = GridwiseGemm::MakeDsGridDescriptor_M_N(
                         arg_.M, arg_.MPadded, arg_.N, arg_.NPadded, arg_.StrideDs);
@@ -206,8 +213,13 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
                         using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
                         DsSize[i] = ds_grid_desc_m_n[i].GetElementSpaceSize() * sizeof(DDataType);
                     });
-                    ck::utility::RotatingMemWrapperMultiD<Argument, DsDataType> rotating_mem(
-                        arg_, stream_config.rotating_count, size_a_buffer, size_b_buffer, DsSize);
+                    ck::utility::RotatingMemWrapperMultiD<typename GridwiseGemm::Argument,
+                                                          DsDataType>
+                        rotating_mem(arg_,
+                                     stream_config.rotating_count,
+                                     size_a_buffer,
+                                     size_b_buffer,
+                                     DsSize);
                     rotating_mem.Print();
 
                     auto run_flush_cache = [&]() {
@@ -245,49 +257,31 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
                 }
             };
 
-            constexpr auto estimated_reg_a = MPerBlock * KPerBlock * sizeof(ADataType) /
-                                             APackedSize / BlockSize / 4 *
-                                             (1 + GridwiseGemm::NWave);
-            constexpr auto estimated_reg_b = NPerBlock * KPerBlock * sizeof(BDataType) /
-                                             BPackedSize / BlockSize / 4 * (2) *
-                                             (IsInputGemm ? 2 : 1);
-            constexpr auto estimated_reg_c = MPerBlock * NPerBlock * sizeof(GemmAccDataType) /
-                                             BlockSize / 4 * (IsInputGemm ? 2 : 1);
-            constexpr auto estimated_reg_total =
-                estimated_reg_a + estimated_reg_b + estimated_reg_c;
-
-            constexpr index_t minimum_occupancy = (estimated_reg_total >= 256) ? 1 : 2;
+            // TODO: Check if this is the right algorithm for minimum_occupancy
+            constexpr index_t minimum_occupancy =
+                BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave
+                    ? (BlkGemmPipelineVer == BlockGemmPipelineVersion::v3 &&
+                       MPerBlock * NPerBlock * KPerBlock * sizeof(ADataType) <= 128 * 128 * 64 * 2)
+                          ? 2
+                          : 1
+                    : 2;
 
             constexpr auto MemoryDataOp =
                 IsInputGemm ? InMemoryDataOperationEnum::Set : InMemoryDataOperationEnum::AtomicAdd;
+
             if(has_main_k_block_loop)
             {
                 // Tail number always full
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
-                    {
-                        if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
-                        {
-                            const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
-                                                                  true,
-                                                                  MemoryDataOp,
-                                                                  minimum_occupancy,
-                                                                  TailNumber::Odd>;
-                            RunKernel(kernel);
-                        }
-                        else
-                        {
-                            const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
-                                                                  true,
-                                                                  MemoryDataOp,
-                                                                  minimum_occupancy,
-                                                                  TailNumber::Even>;
-                            RunKernel(kernel);
-                        }
-                    }
+                    const auto kernel = kernel_moe_mxgemm_2lds<GridwiseGemm,
+                                                               true,
+                                                               MemoryDataOp,
+                                                               minimum_occupancy,
+                                                               TailNumber::Full>;
+                    RunKernel(kernel);
                 }
-                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2 ||
-                                  BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
                     if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
                     {
@@ -315,26 +309,15 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
             }
             else
             {
+                // Tail number always full
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
-                    if(GridwiseGemm::CalculateKBlockLoopTailNum(K_split) == TailNumber::Odd)
-                    {
-                        const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
-                                                              false,
-                                                              MemoryDataOp,
-                                                              minimum_occupancy,
-                                                              TailNumber::Odd>;
-                        RunKernel(kernel);
-                    }
-                    else
-                    {
-                        const auto kernel = kernel_moe_mxgemm<GridwiseGemm,
-                                                              false,
-                                                              MemoryDataOp,
-                                                              minimum_occupancy,
-                                                              TailNumber::Even>;
-                        RunKernel(kernel);
-                    }
+                    const auto kernel = kernel_moe_mxgemm_2lds<GridwiseGemm,
+                                                               false,
+                                                               MemoryDataOp,
+                                                               minimum_occupancy,
+                                                               TailNumber::Full>;
+                    RunKernel(kernel);
                 }
                 else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
@@ -362,6 +345,8 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
             return ave_time;
         }
 
+        INVOKER_RUN3_IMPL
+
         // polymorphic
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override
@@ -383,11 +368,10 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
         {
             return false;
         }
-        if(!ck::is_xdl_supported())
+        if(!ck::is_xdl_wmma_supported<ComputeTypeA, ComputeTypeB, MPerXDL, NPerXDL>())
         {
             return false;
         }
-
         if(!is_bf16_atomic_supported() && std::is_same_v<CDataType, ck::bhalf_t> && arg.KBatch > 1)
         {
             return false;
@@ -405,7 +389,22 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
             return false;
         }
 
-        return GridwiseGemm::CheckValidity(arg);
+        if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                return GridwiseGemm64::CheckValidity(arg);
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                return GridwiseGemm32::CheckValidity(
+                    reinterpret_cast<const typename GridwiseGemm32::Argument&>(arg));
+            }
+        }
+        return false;
     }
 
     // polymorphic
@@ -559,7 +558,7 @@ struct DeviceMoeGemmMX : public DeviceMoEGemmMXBPreShuffle<ALayout,
             << "BlkGemmPipelineVersion: "
             << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
             << "BlkGemmPipelinePrefetchStages: "
-            << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages;
+            << GridwiseGemm64::BlockwiseGemmPipe::PrefetchStages;
         // clang-format on
 
         return str.str();

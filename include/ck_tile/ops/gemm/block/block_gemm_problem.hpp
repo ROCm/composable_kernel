@@ -12,7 +12,8 @@ template <typename ADataType_,
           typename BDataType_,
           typename CDataType_,
           index_t kBlockSize_,
-          typename BlockGemmShape_>
+          typename BlockGemmShape_,
+          index_t NumWaveGroups_ = 1>
 struct BlockGemmProblem
 {
     using ADataType      = remove_cvref_t<ADataType_>;
@@ -20,7 +21,8 @@ struct BlockGemmProblem
     using CDataType      = remove_cvref_t<CDataType_>;
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
-    static constexpr index_t kBlockSize = kBlockSize_;
+    static constexpr index_t kBlockSize    = kBlockSize_;
+    static constexpr index_t NumWaveGroups = NumWaveGroups_;
 };
 
 } // namespace ck_tile

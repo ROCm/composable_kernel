@@ -2,7 +2,7 @@
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-
+#include <stdint.h>
 #include "ck/utility/amd_ck_fp8.hpp"
 #include "ck/utility/e8m0.hpp"
 #include "ck/utility/statically_indexed_array.hpp"
@@ -26,6 +26,7 @@ using byte = unsigned char;
 using std::byte;
 #endif
 
+using tf32_t  = _BitInt(19); // 1 sign bit, 8 exponent bits, 10 mantissa bits
 using bhalf_t = ushort;
 using half_t  = _Float16;
 using int4_t  = _BitInt(4);
@@ -50,7 +51,7 @@ struct f4x2_pk_t
     __host__ __device__ inline type unpack(Number<I>) const
     {
         static_assert(I < 2, "Index is out of range.");
-        if constexpr(I == 0)
+        if constexpr(I == 1)
             return (data >> 4);
         else
             return data & 0b00001111;
@@ -58,7 +59,18 @@ struct f4x2_pk_t
 
     __host__ __device__ inline type pack(const type x0, const type x1)
     {
-        return (x0 << 4) | (x1 & 0b00001111);
+        return (x1 << 4) | (x0 & 0b00001111);
+    }
+
+    // Compare operator
+    __host__ __device__ friend bool operator==(const f4x2_pk_t& lhs, const f4x2_pk_t& rhs)
+    {
+        return lhs.data == rhs.data;
+    }
+
+    __host__ __device__ friend bool operator!=(const f4x2_pk_t& lhs, const f4x2_pk_t& rhs)
+    {
+        return !(lhs == rhs);
     }
 };
 
@@ -67,25 +79,40 @@ struct f6_pk_t
 {
     using element_type = uint32_t; // element storage fundamental type
 
-    static constexpr index_t packed_size       = pk_size;
-    static constexpr index_t num_bits_elem     = 6;
-    static constexpr index_t num_bits_vec_elem = sizeof(element_type) * CHAR_BIT;
+    static constexpr index_t packed_size   = pk_size; // 16 or 32 for now
+    static constexpr index_t num_bits_elem = 6;       // specialized for 6-bit data
+    // XXX: CHAR_BIT is not defined in HIPRTC, so we must use 8
+    static constexpr index_t num_bits_vec_elem =
+        sizeof(element_type) * 8; // 32-bit uint for storage
     static_assert((packed_size * num_bits_elem) % num_bits_vec_elem == 0,
                   "Packed elements must fit exactly into the element storage.");
-    static constexpr index_t vector_size = (packed_size * num_bits_elem) / num_bits_vec_elem;
+    static constexpr index_t vector_size =
+        (packed_size * num_bits_elem) / num_bits_vec_elem; // 3 or 6 element_type units
 
-    using storage_type = StaticallyIndexedArray_v2<element_type, vector_size>;
-    storage_type data; // packed data
+    using storage_type = element_type __attribute__((ext_vector_type(vector_size)));
+    storage_type data_{storage_type(0)}; // packed data
 
     using type = f6_pk_t<BitType, packed_size>;
 
-    __host__ __device__ constexpr f6_pk_t() : data{} {}
-    __host__ __device__ constexpr f6_pk_t(storage_type init) : data{init} {}
+    __host__ __device__ constexpr f6_pk_t() {}
+    __host__ __device__ constexpr f6_pk_t(const storage_type& init) : data_{init}
+    {
+        // TODO: consider removing initialization similar to vector_type<T, 256>
+    }
+
+    // Initialize from a vector type with the same size as packed_size
     template <typename T, typename = enable_if_t<scalar_type<T>::vector_size == packed_size>>
-    __host__ __device__ f6_pk_t(const T& v) : data{}
+    __host__ __device__ f6_pk_t(const T& v)
     {
         static_for<0, packed_size, 1>{}(
             [&](auto i) { pack(v[static_cast<index_t>(i)], static_cast<index_t>(i)); });
+    }
+
+    // Broadcast single initialization value to all packed elements
+    __host__ __device__ f6_pk_t(const int8_t v)
+        : f6_pk_t(static_cast<int8_t __attribute__((ext_vector_type(packed_size)))>(v))
+    {
+        // TODO: consider removing initialization similar to vector_type<T, 256>
     }
 
     template <typename T>
@@ -99,18 +126,18 @@ struct f6_pk_t
         const int arr_index  = bit_pos / num_bits_vec_elem;
         const int bit_offset = bit_pos % num_bits_vec_elem;
         const int overhang   = bit_offset + num_bits_elem - num_bits_vec_elem;
-        uint32_t old_value   = data.data_[arr_index];
+        uint32_t old_value   = data_[arr_index];
 
         // insert bits into the current 32-bit block
         old_value |= (bits << bit_offset);
-        data.data_[arr_index] = old_value;
+        data_[arr_index] = old_value;
 
         // if it crosses into the next block, shift the remainder
         if(overhang > 0 && (arr_index + 1) < vector_size)
         {
-            uint32_t next_value = data.data_[arr_index + 1];
+            uint32_t next_value = data_[arr_index + 1];
             next_value |= (bits >> (num_bits_elem - overhang));
-            data.data_[arr_index + 1] = next_value;
+            data_[arr_index + 1] = next_value;
         }
     }
 
@@ -121,17 +148,33 @@ struct f6_pk_t
         const int bit_offset = bit_pos % num_bits_vec_elem;
         const int overhang   = bit_offset + num_bits_elem - num_bits_vec_elem;
 
-        uint32_t bits = pk.data.data_[arr_idx] >> bit_offset;
+        uint32_t bits = pk.data_[arr_idx] >> bit_offset;
         if(overhang > 0 && (arr_idx + 1) < vector_size)
         {
-            bits |= (pk.data.data_[arr_idx + 1] & ((1u << overhang) - 1))
-                    << (num_bits_elem - overhang);
+            bits |= (pk.data_[arr_idx + 1] & ((1u << overhang) - 1)) << (num_bits_elem - overhang);
         }
 
         return static_cast<BitType>(bits & 0x3F);
     }
 
     __host__ __device__ inline BitType unpack(const index_t i) const { return unpack(*this, i); }
+
+    // Compare operator
+    __host__ __device__ friend bool operator==(const f6_pk_t& lhs, const f6_pk_t& rhs)
+    {
+#pragma unroll
+        for(index_t i = 0; i < vector_size; ++i)
+        {
+            if(lhs.data_[i] != rhs.data_[i])
+                return false;
+        }
+        return true;
+    }
+
+    __host__ __device__ friend bool operator!=(const f6_pk_t& lhs, const f6_pk_t& rhs)
+    {
+        return !(lhs == rhs);
+    }
 };
 
 using f6x16_pk_t  = f6_pk_t<f6_t, 16>;
@@ -162,7 +205,7 @@ inline constexpr bool is_native_type()
     return is_same<T, double>::value || is_same<T, float>::value || is_same<T, half_t>::value ||
            is_same<T, bhalf_t>::value || is_same<T, int32_t>::value ||
            is_same<T, uint32_t>::value || is_same<T, int8_t>::value || is_same<T, uint8_t>::value ||
-           is_same<T, f8_fnuz_t>::value || is_same<T, bf8_fnuz_t>::value || is_same<T, bool>::value;
+           is_same_v<T, _BitInt(8)> || is_same_v<T, unsigned _BitInt(8)> || is_same<T, bool>::value;
 }
 
 // scalar_type
@@ -257,14 +300,14 @@ struct scalar_type<pk_i4_t>
 template <>
 struct scalar_type<f8_fnuz_t>
 {
-    using type                           = f8_fnuz_t;
+    using type                           = f8_fnuz_t::data_type;
     static constexpr index_t vector_size = 1;
 };
 
 template <>
 struct scalar_type<bf8_fnuz_t>
 {
-    using type                           = bf8_fnuz_t;
+    using type                           = bf8_fnuz_t::data_type;
     static constexpr index_t vector_size = 1;
 };
 
@@ -282,17 +325,47 @@ struct scalar_type<bf8_ocp_t>
     static constexpr index_t vector_size = 1;
 };
 
+#ifndef CK_CODE_GEN_RTC
 template <>
 struct scalar_type<e8m0_bexp_t>
 {
     using type                           = e8m0_bexp_t::type;
     static constexpr index_t vector_size = 1;
 };
+#endif
 
 template <>
 struct scalar_type<f4x2_pk_t>
 {
     using type                           = f4x2_pk_t::type;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<f6x32_pk_t>
+{
+    using type                           = f6x32_pk_t::storage_type;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<bf6x32_pk_t>
+{
+    using type                           = bf6x32_pk_t::storage_type;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<f6x16_pk_t>
+{
+    using type                           = f6x16_pk_t::storage_type;
+    static constexpr index_t vector_size = 1;
+};
+
+template <>
+struct scalar_type<bf6x16_pk_t>
+{
+    using type                           = bf6x16_pk_t::storage_type;
     static constexpr index_t vector_size = 1;
 };
 
@@ -390,5 +463,41 @@ using int64_t = long long;
 #else
 using int64_t = long;
 #endif
+
+template <typename T>
+inline const char* get_type_name()
+{
+    if constexpr(is_same_v<T, half_t>)
+        return "fp16";
+    else if constexpr(is_same_v<T, bhalf_t>)
+        return "bf16";
+    else if constexpr(is_same_v<T, tf32_t>)
+        return "tf32";
+    else if constexpr(is_same_v<T, int4_t>)
+        return "int4";
+    else if constexpr(is_same_v<T, f4_t>)
+        return "f4";
+    else if constexpr(is_same_v<T, f6_t>)
+        return "f6";
+    else if constexpr(is_same_v<T, bf6_t>)
+        return "bf6";
+    else if constexpr(is_same_v<T, f8_t>)
+        return "f8";
+    else if constexpr(is_same_v<T, bf8_t>)
+        return "bf8";
+#ifndef CK_CODE_GEN_RTC
+    else if constexpr(is_same_v<T, e8m0_bexp_t>)
+        return "e8m0";
+#endif
+    else if constexpr(is_same_v<T, float>)
+        return "fp32";
+#if defined(__HIPCC_RTC__) || defined(CK_CODE_GEN_RTC)
+    else
+        return "unknown";
+#else
+    else
+        return typeid(T).name();
+#endif
+}
 
 } // namespace ck

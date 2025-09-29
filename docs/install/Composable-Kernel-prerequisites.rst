@@ -29,4 +29,4 @@ The following prerequisites are required to build and install Composable Kernel:
 * zlib1g-dev  
 * libzstd-dev  
 * openssh-server  
-* clang-format-12  
+* clang-format-18

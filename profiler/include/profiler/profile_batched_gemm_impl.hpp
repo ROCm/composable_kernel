@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -41,12 +41,12 @@ bool profile_batched_gemm_impl(int do_verification,
                                int M,
                                int N,
                                int K,
-                               int BatchStrideA,
-                               int BatchStrideB,
-                               int BatchStrideC,
                                int StrideA,
                                int StrideB,
                                int StrideC,
+                               int BatchStrideA,
+                               int BatchStrideB,
+                               int BatchStrideC,
                                int BatchCount)
 {
     bool pass = true;
@@ -61,11 +61,13 @@ bool profile_batched_gemm_impl(int do_verification,
 
         if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
         {
-            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, stride, 1_uz});
+            return HostTensorDescriptor(
+                {batch_count, row, col}, {batch_stride, stride, 1_uz}, layout);
         }
         else
         {
-            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, 1_uz, stride});
+            return HostTensorDescriptor(
+                {batch_count, row, col}, {batch_stride, 1_uz, stride}, layout);
         }
     };
 

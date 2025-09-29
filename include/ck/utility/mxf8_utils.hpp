@@ -197,8 +197,9 @@ __host__ __device__ static inline fp8_storage_t cvt_float_to_fp8_scaled(const fl
     uint32_t rng = 0;
     if constexpr(stochastic_rounding)
     {
-        constexpr int seed = 1254739;
-        rng                = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&f), f);
+        // use HW clock for stochastic input multiply by incremented thread id
+        rng = __builtin_amdgcn_prng_b32(__builtin_amdgcn_s_memrealtime() *
+                                        (get_thread_global_1d_id() + 1));
     }
     return cast_to_f8_from_f32_scaled<interp, stochastic_rounding>(f, rng, scale);
 }
@@ -221,8 +222,9 @@ __host__ __device__ static inline fp8x2_storage_t cvt_float_to_fp8_scaled(const 
     uint32_t rng = 0;
     if constexpr(stochastic_rounding)
     {
-        constexpr int seed = 1254739;
-        rng                = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&f), f[0]);
+        // use HW clock for stochastic input multiply by incremented thread id
+        rng = __builtin_amdgcn_prng_b32(__builtin_amdgcn_s_memrealtime() *
+                                        (get_thread_global_1d_id() + 1));
     }
     return cast_to_f8_from_f32_scaled<interp, stochastic_rounding>(f, rng, scale);
 }

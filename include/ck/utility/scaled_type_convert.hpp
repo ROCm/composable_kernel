@@ -377,10 +377,7 @@ inline __host__ __device__ float2_t scaled_type_convert<float2_t, f4x2_t>(e8m0_b
         f4x2_t f4x2_array[4];
     } value{};
     value.f4x2_array[0] = x;
-    float2_t tmp =
-        __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.bitwise, type_convert<float>(scale), 0);
-    // permute high bits and low bits to match the order of the original vector
-    return float2_t{tmp[1], tmp[0]};
+    return __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.bitwise, type_convert<float>(scale), 0);
 #else
     float2_t ret{utils::to_float<f4_t>(
                      scale, x.template AsType<f4x2_pk_t>()[Number<0>{}].unpack<>(Number<0>{})),
@@ -406,10 +403,9 @@ inline __host__ __device__ float32_t scaled_type_convert<float32_t, f4x32_t>(e8m
     float f_scale = type_convert<float>(scale);
 
     ck::static_for<0, 32 / 2, 1>{}([&](auto idx) {
-        op = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[idx], f_scale, 0);
-        // permute high bits and low bits to match the order of the original vector
-        ret[2 * idx]     = op[1];
-        ret[2 * idx + 1] = op[0];
+        op               = __builtin_amdgcn_cvt_scalef32_pk_f32_fp4(value.fp4x2[idx], f_scale, 0);
+        ret[2 * idx]     = op[0];
+        ret[2 * idx + 1] = op[1];
     });
 
     return ret;
@@ -501,8 +497,8 @@ inline __host__ __device__ float scaled_type_convert<float, f6_t>(e8m0_bexp_t sc
         float float_array[32];
     } out{};
 
-    out.float_vector =
-        __builtin_amdgcn_cvt_scalef32_pk32_f32_fp6(in.f6_vector, type_convert<float>(scale));
+    out.float_vector = __builtin_amdgcn_cvt_scalef32_pk32_f32_fp6(
+        in.f6_vector.template AsType<f6x32_t::data_t>()[Number<0>{}], type_convert<float>(scale));
     return out.float_array[0];
 #else
     return utils::to_float<f6_t>(scale, x);
@@ -522,7 +518,8 @@ inline __host__ __device__ float32_t scaled_type_convert<float32_t, f6x32_t>(e8m
                                                                              f6x32_t x)
 {
 #if defined(__gfx950__)
-    return __builtin_amdgcn_cvt_scalef32_pk32_f32_fp6(x, type_convert<float>(scale));
+    return __builtin_amdgcn_cvt_scalef32_pk32_f32_fp6(
+        x.template AsType<f6x32_t::data_t>()[Number<0>{}], type_convert<float>(scale));
 #else
     union
     {
@@ -567,8 +564,8 @@ inline __host__ __device__ float scaled_type_convert<float, bf6_t>(e8m0_bexp_t s
         float float_array[32];
     } out{};
 
-    out.float_vector =
-        __builtin_amdgcn_cvt_scalef32_pk32_f32_bf6(in.bf6_vector, type_convert<float>(scale));
+    out.float_vector = __builtin_amdgcn_cvt_scalef32_pk32_f32_bf6(
+        in.bf6_vector.template AsType<bf6x32_t::data_t>()[Number<0>{}], type_convert<float>(scale));
     return out.float_array[0];
 #else
     return utils::to_float<bf6_t>(scale, x);
@@ -588,7 +585,8 @@ inline __host__ __device__ float32_t scaled_type_convert<float32_t, bf6x32_t>(e8
                                                                               bf6x32_t x)
 {
 #if defined(__gfx950__)
-    return __builtin_amdgcn_cvt_scalef32_pk32_f32_bf6(x, type_convert<float>(scale));
+    return __builtin_amdgcn_cvt_scalef32_pk32_f32_bf6(
+        x.template AsType<bf6x32_t::data_t>()[Number<0>{}], type_convert<float>(scale));
 #else
     union
     {

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -36,50 +36,52 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_layernorm_xdl_cshuffle_v1(
-            const FloatAB* __restrict__ p_a_grid,
-            const FloatAB* __restrict__ p_b_grid,
-            FloatC* __restrict__ p_c_grid,               // MxN
-            const FloatC0* __restrict__ p_c0_bias_grid,  // 1xN
-            const FloatC0* __restrict__ p_c0_add_grid,   // MxN
-            const FloatC0* __restrict__ p_c0_gamma_grid, // 1xN
-            const FloatC0* __restrict__ p_c0_beta_grid,  // 1xN
-            const AElementwiseOperation a_element_op,
-            const BElementwiseOperation b_element_op,
-            const AccElementwiseOperation acc_element_op,
-            const CElementwiseOperation c_element_op,
-            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-            const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                c_grid_desc_mblock_mperblock_nblock_nperblock,
-            const C0GridDescriptor_NBlock_NPerBlock c0_grid_desc_nblock_nperblock,
-            const Block2CTileMap block_2_ctile_map)
+    kernel_gemm_layernorm_xdl_cshuffle_v1(
+        const FloatAB* __restrict__ p_a_grid,
+        const FloatAB* __restrict__ p_b_grid,
+        FloatC* __restrict__ p_c_grid,               // MxN
+        const FloatC0* __restrict__ p_c0_bias_grid,  // 1xN
+        const FloatC0* __restrict__ p_c0_add_grid,   // MxN
+        const FloatC0* __restrict__ p_c0_gamma_grid, // 1xN
+        const FloatC0* __restrict__ p_c0_beta_grid,  // 1xN
+        const AElementwiseOperation a_element_op,
+        const BElementwiseOperation b_element_op,
+        const AccElementwiseOperation acc_element_op,
+        const CElementwiseOperation c_element_op,
+        const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
+        const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+        const CGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+            c_grid_desc_mblock_mperblock_nblock_nperblock,
+        const C0GridDescriptor_NBlock_NPerBlock c0_grid_desc_nblock_nperblock,
+        const Block2CTileMap block_2_ctile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx908__) || defined(__gfx90a__) || \
-    defined(__gfx94__))
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx11__) || \
+    defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
+    {
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    // TODO ANT: separate into MMA + Epilogue
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
-                                                  p_b_grid,
-                                                  p_c_grid,
-                                                  p_c0_bias_grid,
-                                                  p_c0_add_grid,
-                                                  p_c0_gamma_grid,
-                                                  p_c0_beta_grid,
-                                                  p_shared,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  acc_element_op,
-                                                  c_element_op,
-                                                  a_grid_desc_ak0_m_ak1,
-                                                  b_grid_desc_bk0_n_bk1,
-                                                  c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  c0_grid_desc_nblock_nperblock,
-                                                  block_2_ctile_map);
-
+        // TODO ANT: separate into MMA + Epilogue
+        GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
+                                                      p_b_grid,
+                                                      p_c_grid,
+                                                      p_c0_bias_grid,
+                                                      p_c0_add_grid,
+                                                      p_c0_gamma_grid,
+                                                      p_c0_beta_grid,
+                                                      p_shared,
+                                                      a_element_op,
+                                                      b_element_op,
+                                                      acc_element_op,
+                                                      c_element_op,
+                                                      a_grid_desc_ak0_m_ak1,
+                                                      b_grid_desc_bk0_n_bk1,
+                                                      c_grid_desc_mblock_mperblock_nblock_nperblock,
+                                                      c0_grid_desc_nblock_nperblock,
+                                                      block_2_ctile_map);
+    }
     // TODO ANT: Run layernorm epilogue here
 #else
     ignore = p_a_grid;
@@ -242,6 +244,22 @@ struct GridwiseGemmLayernorm_k0mk1_k0nk1_mn_xdl_cshuffle_v1
                              sizeof(FloatAB),
                          c_block_size_aligned * sizeof(FloatCShuffle) +
                              c_lds_workspace_size * sizeof(FloatReduceAcc));
+    }
+
+    template <
+        InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
+    __device__ static bool constexpr IsValidCompilationParameter()
+    {
+        return ck::tensor_operation::device::IsValidGemmCompilationParameter<
+            BlockSize,
+            MPerBlock,
+            NPerBlock,
+            MPerXdl,
+            NPerXdl,
+            MXdlPerWave,
+            NXdlPerWave,
+            FloatC,
+            CGlobalMemoryDataOperation>();
     }
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}

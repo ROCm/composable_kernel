@@ -246,22 +246,22 @@ struct ThreadwiseTensorSliceTransfer_v3r1
             using dst_elem_op_vec_t = typename vector_type<DstData, elem_op_vec_len>::type;
 
             using VectorSizeLookupTable    = Tuple<Sequence<>,
-                                                Sequence<I1>,
-                                                Sequence<I2>,
-                                                Sequence<I2, I1>,
-                                                Sequence<I4>,
-                                                Sequence<I4, I1>,
-                                                Sequence<I4, I2>,
-                                                Sequence<I4, I2, I1>,
-                                                Sequence<I8>,
-                                                Sequence<I8, I1>,
-                                                Sequence<I8, I2>,
-                                                Sequence<I8, I2, I1>,
-                                                Sequence<I8, I4>,
-                                                Sequence<I8, I4, I1>,
-                                                Sequence<I8, I4, I2>,
-                                                Sequence<I8, I4, I2, I1>,
-                                                Sequence<I16>>;
+                                                   Sequence<I1>,
+                                                   Sequence<I2>,
+                                                   Sequence<I2, I1>,
+                                                   Sequence<I4>,
+                                                   Sequence<I4, I1>,
+                                                   Sequence<I4, I2>,
+                                                   Sequence<I4, I2, I1>,
+                                                   Sequence<I8>,
+                                                   Sequence<I8, I1>,
+                                                   Sequence<I8, I2>,
+                                                   Sequence<I8, I2, I1>,
+                                                   Sequence<I8, I4>,
+                                                   Sequence<I8, I4, I1>,
+                                                   Sequence<I8, I4, I2>,
+                                                   Sequence<I8, I4, I2, I1>,
+                                                   Sequence<I16>>;
             using VectorOffsetsLookupTable = Tuple<Sequence<>,
                                                    Sequence<I0>,
                                                    Sequence<I0>,
@@ -308,8 +308,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 .template SetAsType<dst_vector_t>(src_data_idx_seq,
                                                   op_r_v.template AsType<dst_vector_t>()[I0]);
 
-            constexpr auto move_on_dim = [&]() constexpr
-            {
+            constexpr auto move_on_dim = [&]() constexpr {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
                 static_for<0, nDim, 1>{}([&](auto i) {
@@ -322,8 +321,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 });
 
                 return move_on_dim_;
-            }
-            ();
+            }();
 
             // move src coord
             static_for<0, nDim, 1>{}([&](auto i) {
@@ -636,8 +634,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 is_dst_valid,
                 dst_vector_container.template AsType<dst_vector_t>()[I0]);
 
-            constexpr auto move_on_dim = [&]() constexpr
-            {
+            constexpr auto move_on_dim = [&]() constexpr {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
                 static_for<0, nDim, 1>{}([&](auto i) {
@@ -650,8 +647,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                 });
 
                 return move_on_dim_;
-            }
-            ();
+            }();
 
             // move dst coord
             static_for<0, nDim, 1>{}([&](auto i) {

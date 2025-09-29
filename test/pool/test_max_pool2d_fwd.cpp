@@ -57,9 +57,9 @@ using true_t  = std::integral_constant<bool, true>;
 using false_t = std::integral_constant<bool, false>;
 
 using MaxPool2D_F32_Types  = ::testing::Types<std::tuple<F32, F32, F32, I32, true_t>,
-                                             std::tuple<F32, F32, F32, I32, false_t>>;
+                                              std::tuple<F32, F32, F32, I32, false_t>>;
 using MaxPool2D_F16_Types  = ::testing::Types<std::tuple<F16, F16, F32, I32, true_t>,
-                                             std::tuple<F16, F16, F32, I32, false_t>>;
+                                              std::tuple<F16, F16, F32, I32, false_t>>;
 using MaxPool2D_BF16_Types = ::testing::Types<std::tuple<I8, I8, F32, I32, true_t>,
                                               std::tuple<BF16, BF16, F32, I32, false_t>>;
 using MaxPool2D_I8_Types =

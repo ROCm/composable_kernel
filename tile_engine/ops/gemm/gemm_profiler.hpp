@@ -20,6 +20,25 @@ class GemmProfiler
         return instance;
     }
 
+    // Overload for single kernel benchmarking
+    void benchmark(GemmProblem& gemm_problem,
+                   std::function<float(const ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>
+                       kernel_func)
+    {
+        // Create a vector with a single callable that returns both name and time
+        std::vector<std::function<std::tuple<std::string, float>(ck_tile::GemmHostArgs&,
+                                                                 const ck_tile::stream_config&)>>
+            callables;
+
+        callables.push_back(
+            [kernel_func](ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {
+                float time = kernel_func(args, stream);
+                return std::make_tuple(std::string(KERNEL_NAME), time);
+            });
+
+        benchmark(gemm_problem, callables);
+    }
+
     void benchmark(GemmProblem& gemm_problem,
                    std::vector<std::function<std::tuple<std::string, float>(
                        ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>& callables)
@@ -89,17 +108,18 @@ class GemmProfiler
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 
-        ck_tile::GemmHostArgs gemm_args;
-        gemm_args.a_ptr    = a_m_k_dev_buf.GetDeviceBuffer();
-        gemm_args.b_ptr    = b_k_n_dev_buf.GetDeviceBuffer();
-        gemm_args.c_ptr    = c_m_n_dev_buf.GetDeviceBuffer();
-        gemm_args.k_batch  = gemm_problem.split_k_;
-        gemm_args.M        = gemm_problem.m_;
-        gemm_args.N        = gemm_problem.n_;
-        gemm_args.K        = gemm_problem.k_;
-        gemm_args.stride_A = gemm_problem.stride_a_;
-        gemm_args.stride_B = gemm_problem.stride_b_;
-        gemm_args.stride_C = gemm_problem.stride_c_;
+        ck_tile::GemmHostArgs gemm_args = {
+            a_m_k_dev_buf.GetDeviceBuffer(),
+            b_k_n_dev_buf.GetDeviceBuffer(),
+            c_m_n_dev_buf.GetDeviceBuffer(),
+            gemm_problem.split_k_,
+            gemm_problem.m_,
+            gemm_problem.n_,
+            gemm_problem.k_,
+            gemm_problem.stride_a_,
+            gemm_problem.stride_b_,
+            gemm_problem.stride_c_,
+        };
 
         ck_tile::HostTensor<CDataType> c_m_n_host_result(ck_tile::host_tensor_descriptor(
             gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_c_, is_row_major(layout_c)));
@@ -160,7 +180,7 @@ class GemmProfiler
         kernel_instance.perf_result_.tflops_    = static_cast<float>(flop) / 1.E9 / avg_time;
         kernel_instance.perf_result_.bandwidth_ = num_byte / 1.E6 / avg_time;
 
-        if(setting_.log_ > 0)
+        if(setting_.log_ > 0 && !setting_.json_output_)
         {
             std::cout << kernel_instance << std::endl;
         }
@@ -169,7 +189,8 @@ class GemmProfiler
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
         bool verified_correct =
             !setting_.verify_ ||
-            compare(gemm_problem.k_, gemm_problem.split_k_, c_m_n_dev_result, c_m_n_host_result);
+            compare(
+                name, gemm_problem.k_, gemm_problem.split_k_, c_m_n_dev_result, c_m_n_host_result);
 
         if(verified_correct)
         {
@@ -197,10 +218,18 @@ class GemmProfiler
                                                          b.perf_result_, a.perf_result_, metric);
                                                  });
 
-        std::cout << "**********************************" << std::endl;
-        std::cout << "According to given metrics: " << get_metric_name(metric) << "\n"
-                  << "The best kernel instance is: " << kernel_instance << std::endl;
-        std::cout << "**********************************" << std::endl;
+        if(setting_.json_output_)
+        {
+            // Output clean JSON only
+            std::cout << kernel_instance << std::endl;
+        }
+        else
+        {
+            std::cout << "**********************************" << std::endl;
+            std::cout << "According to given metrics: " << get_metric_name(metric) << "\n"
+                      << "Current kernel performance is: " << kernel_instance << std::endl;
+            std::cout << "**********************************" << std::endl;
+        }
 
         if(!setting_.csv_filename_.empty())
         {
@@ -216,10 +245,8 @@ class GemmProfiler
                 {
                     file << "rocm_version,device_name,"
                          << "split_k,m,n,k,stride_a,stride_b,stride_c,"
-                         << "dtype_a,dtype_b,dtype_acc,dtype_c,"
-                         << "layout_a,layout_b,layout_c,"
-                         << "structured_sparsity,"
-                         << "name,"
+                         << "dtype_a,dtype_b,dtype_acc,dtype_c," << "layout_a,layout_b,layout_c,"
+                         << "structured_sparsity," << "name,"
                          << "latency(ms),tflops(TFlops),bandwidth(GB/s),metric\n";
                 }
 
@@ -249,7 +276,7 @@ class GemmProfiler
         return kernel_instance;
     }
 
-    GemmProfiler(const GemmProfiler&) = delete;
+    GemmProfiler(const GemmProfiler&)            = delete;
     GemmProfiler& operator=(const GemmProfiler&) = delete;
 
     private:

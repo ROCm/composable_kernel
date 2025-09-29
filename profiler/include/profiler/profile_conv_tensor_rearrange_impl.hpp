@@ -100,12 +100,12 @@ static auto create_gemm_desc(const ck::index_t G, const ck::index_t NDoHoWo, con
     if constexpr(std::is_same_v<InputLayout, GNWC> || std::is_same_v<InputLayout, GNHWC> ||
                  std::is_same_v<InputLayout, GNDHWC>)
     {
-        return HostTensorDescriptor({G, NDoHoWo, CZYX});
+        return HostTensorDescriptor({G, NDoHoWo, CZYX}, InputLayout{});
     }
     else if constexpr(std::is_same_v<InputLayout, NWGC> || std::is_same_v<InputLayout, NHWGC> ||
                       std::is_same_v<InputLayout, NDHWGC>)
     {
-        return HostTensorDescriptor({G, NDoHoWo, CZYX}, {CZYX, CZYX * G, 1});
+        return HostTensorDescriptor({G, NDoHoWo, CZYX}, {CZYX, CZYX * G, 1}, InputLayout{});
     }
     else
     {
@@ -288,9 +288,8 @@ bool profile_conv_tensor_rearrange_impl(int do_verification,
         }
     }
 
-    std::cout << "Best configuration parameters:"
-              << "\nname: " << best_op_name << "\navg_time: " << best_avg_time
-              << "\nGB/s: " << best_gb_per_sec << std::endl;
+    std::cout << "Best configuration parameters:" << "\nname: " << best_op_name
+              << "\navg_time: " << best_avg_time << "\nGB/s: " << best_gb_per_sec << std::endl;
 
     return is_supporting_instance && pass;
 }

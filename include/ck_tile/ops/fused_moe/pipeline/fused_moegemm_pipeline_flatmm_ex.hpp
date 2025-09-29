@@ -267,8 +267,7 @@ struct FusedMoeGemmPipeline_FlatmmEx
         statically_indexed_array<a_thread_type, 2> as;
 
         auto gld_a = [&]<typename PreNop = bool_constant<false>>(
-            auto& a_store_, auto i_access, PreNop = {})
-        {
+                         auto& a_store_, auto i_access, PreNop = {}) {
             async_load_tile_raw(a_store_, a_win, i_access, PreNop{});
         };
         auto move_a = [&]() {
@@ -278,43 +277,40 @@ struct FusedMoeGemmPipeline_FlatmmEx
             load_tile_raw(a_, win_, i_access);
         };
 
-        auto gld_g = [&]<typename PreNop = bool_constant<false>>(
-            auto& g_, auto i_access, PreNop = {})
-        {
-            if constexpr(IsGateOnly)
-            {
-                // TODO: hack!
-                if constexpr(i_access.value == 0)
+        auto gld_g =
+            [&]<typename PreNop = bool_constant<false>>(auto& g_, auto i_access, PreNop = {}) {
+                if constexpr(IsGateOnly)
                 {
-                    g_win.bottom_tensor_view_ = g_view;
+                    // TODO: hack!
+                    if constexpr(i_access.value == 0)
+                    {
+                        g_win.bottom_tensor_view_ = g_view;
+                    }
+                    else if constexpr(i_access.value == issues_g / 2)
+                    {
+                        g_win.bottom_tensor_view_ = u_view;
+                    }
                 }
-                else if constexpr(i_access.value == issues_g / 2)
-                {
-                    g_win.bottom_tensor_view_ = u_view;
-                }
-            }
-            load_tile_raw(g_, g_win, i_access, FALSE, PreNop{});
-        };
+                load_tile_raw(g_, g_win, i_access, FALSE, PreNop{});
+            };
         auto move_g = [&]() {
             move_tile_window(g_win, {number<0>{}, number<BlockShape::Block_Kr0>{}, number<0>{}});
         };
         statically_indexed_array<d_thread_type, 2> ds;
 
-        auto gld_d = [&]<typename PreNop = bool_constant<false>>(
-            auto& d_, auto i_access, PreNop = {})
-        {
-            load_tile_raw(d_, d_win, i_access, FALSE, PreNop{});
-        };
+        auto gld_d =
+            [&]<typename PreNop = bool_constant<false>>(auto& d_, auto i_access, PreNop = {}) {
+                load_tile_raw(d_, d_win, i_access, FALSE, PreNop{});
+            };
         auto move_d = [&]() {
             // d move along gemm-n
             move_tile_window(d_win, {number<BlockShape::Block_N1>{}, number<0>{}});
         };
 
-        auto atomic_add_o = [&]<typename PreNop = bool_constant<false>>(
-            auto& o_, auto i_access, PreNop = {})
-        {
-            update_tile_raw(o_win, o_, i_access, TRUE, PreNop{});
-        };
+        auto atomic_add_o =
+            [&]<typename PreNop = bool_constant<false>>(auto& o_, auto i_access, PreNop = {}) {
+                update_tile_raw(o_win, o_, i_access, TRUE, PreNop{});
+            };
 
         auto acc_0  = Policy::template MakeCBlockTile_Gemm0<Problem>();
         auto acc_1s = generate_tuple(

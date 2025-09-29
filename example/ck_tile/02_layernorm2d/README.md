@@ -42,7 +42,7 @@ return hidden_states, per_token_scale
 ```
 # in the root of ck_tile
 mkdir build && cd build
-sh ../script/cmake-ck-dev.sh  ../ <arch>  # you can replace this <arch> to gfx90a, gfx942...
+../script/cmake-ck-dev.sh  ../ <arch>  # you can replace this <arch> to gfx90a, gfx942...
 make tile_example_layernorm2d_fwd -j
 ```
 This will result in an executable `build/bin/tile_example_layernorm2d_fwd`
@@ -65,6 +65,8 @@ args:
      -fquant    fused-quant, 0:no, 1:smooth-dynamic-quant, 2:dynamic-quant (default:0)
      -warmup    cold iter (default:5)
      -repeat    hot iter (default:20)
+       -json    0: No Json, 1: Dump Results in Json format (default:0)
+   -jsonfile    json file name to dump results (default:layernorm2d_fwd.json)
 
 ```
 

@@ -74,7 +74,7 @@ class TestGemmMX : public testing::Test
                    const int StrideB,
                    const int StrideC,
                    int kbatch   = 1,
-                   int n_warmup = 1,
+                   int n_warmup = 10,
                    int n_iter   = 10)
     {
         bool pass = ck::profiler::profile_gemm_mx_impl<ADataType,

@@ -59,7 +59,7 @@ int main()
     SimpleDeviceMem y_dev_buf(sizeof(YDataType) * mn_size);
 
     std::array<const void*, 2> ab_input               = {a_dev_buf.GetDeviceBuffer(),
-                                           b_dev_buf.GetDeviceBuffer()};
+                                                         b_dev_buf.GetDeviceBuffer()};
     std::vector<ck::index_t> abStride                 = {Stride, 1};
     std::array<std::vector<ck::index_t>, 2> abStrides = {abStride, abStride};
 

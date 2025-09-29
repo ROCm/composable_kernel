@@ -202,7 +202,7 @@ struct GridwiseMultiblockBatchNormForward
         const index_t block_local_id  = block_global_id % blkgroup_size;
 
         if(block_local_id == 0)
-            gms_init(BlockSize / warpSize * blkgroup_size, &p_control[blkgroup_id * 2]);
+            gms_init(BlockSize / WarpSize * blkgroup_size, &p_control[blkgroup_id * 2]);
 
         const auto thread_cluster_idx =
             thread_cluster_desc.CalculateBottomIndex(make_multi_index(thread_local_id));

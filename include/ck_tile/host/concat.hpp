@@ -33,13 +33,14 @@ struct IsCharArray<const char (&)[N]> : std::true_type
 };
 
 template <typename... Ts>
-inline constexpr bool AllConvertibleToStringView = ((std::is_convertible_v<Ts, std::string_view> ||
-                                                     IsCharArray<Ts>::value ||
-                                                     std::is_same_v<Ts, char>)&&...);
+inline constexpr bool AllConvertibleToStringView =
+    ((std::is_convertible_v<Ts, std::string_view> || IsCharArray<Ts>::value ||
+      std::is_same_v<Ts, char>) &&
+     ...);
 
 template <typename... Ts>
-[[nodiscard]] auto concat(const Ts&... xs)
-    -> std::enable_if_t<!AllConvertibleToStringView<Ts...>, std::string>
+[[nodiscard]] auto
+concat(const Ts&... xs) -> std::enable_if_t<!AllConvertibleToStringView<Ts...>, std::string>
 {
     using ::operator<<;
     thread_local std::ostringstream oss;
@@ -78,8 +79,8 @@ template <std::size_t N>
 }
 
 template <typename... Ts>
-auto concatInto(std::string& result, const Ts&... xs)
-    -> std::enable_if_t<AllConvertibleToStringView<Ts...>, void>
+auto concatInto(std::string& result,
+                const Ts&... xs) -> std::enable_if_t<AllConvertibleToStringView<Ts...>, void>
 {
     const std::size_t space = (1 + ... + getSize(xs));
     result.reserve(result.size() + space);
@@ -87,8 +88,8 @@ auto concatInto(std::string& result, const Ts&... xs)
 }
 
 template <typename... Ts>
-[[nodiscard]] auto concat(const Ts&... xs)
-    -> std::enable_if_t<AllConvertibleToStringView<Ts...>, std::string>
+[[nodiscard]] auto
+concat(const Ts&... xs) -> std::enable_if_t<AllConvertibleToStringView<Ts...>, std::string>
 {
     std::string result;
     concatInto(result, xs...);
