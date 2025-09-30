@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <gmock/gmock.h>
 #include <string>
 #include <sstream>
 
@@ -11,4 +12,23 @@ std::string inlineDiff(const std::string& actual, const std::string& expected);
 // A convenience alias for inlineDiff to improve readability in test assertions.
 std::string formatInlineDiff(const std::string& actual, const std::string& expected);
 
-} // namespace ck_tile::testing
+// Gmock matcher for string equality with inline diff output on failure
+class StringEqWithDiffMatcher : public ::testing::MatcherInterface<std::string>
+{
+    public:
+    explicit StringEqWithDiffMatcher(const std::string& expected);
+
+    bool MatchAndExplain(std::string actual,
+                         ::testing::MatchResultListener* listener) const override;
+
+    void DescribeTo(std::ostream* os) const override;
+    void DescribeNegationTo(std::ostream* os) const override;
+
+    private:
+    std::string expected_;
+};
+
+// Factory function for the StringEqWithDiff matcher
+::testing::Matcher<std::string> StringEqWithDiff(const std::string& expected);
+
+} // namespace ck_tile::test
