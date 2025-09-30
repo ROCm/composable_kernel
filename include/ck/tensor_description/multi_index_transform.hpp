@@ -1586,8 +1586,6 @@ struct ConvBwdDataImplicitGemmOutTransform
     Tuple<index_t, index_t, index_t, index_t>
         low_lengths_magic_divisor_shift_; // XDotSlice_K_, K_, TildeSlice_, WTildeSlice_
 
-    __host__ __device__ constexpr ConvBwdDataImplicitGemmOutTransform() = default;
-
     __host__ __device__ constexpr ConvBwdDataImplicitGemmOutTransform(index_t N,
                                                                       index_t Ho,
                                                                       index_t Wo,
