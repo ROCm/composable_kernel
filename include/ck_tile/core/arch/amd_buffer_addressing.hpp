@@ -28,7 +28,6 @@ using as3_uint32_ptr = uint32_t __attribute__((address_space(3)))*;
 
 namespace ck_tile {
 
-
 // amd_wave_read_first_lane is the SGPR function from AMD GPU device to load 1 or a series of the
 // memory to the SGPR registers.
 __device__ inline uint32_t amd_wave_read_first_lane(uint16_t v)
@@ -82,7 +81,6 @@ __device__ inline auto amd_wave_read_first_lane(const Object& obj)
     __builtin_memcpy(&out, dst, ObjectSize);
     return out;
 }
-
 
 // 128 bit SGPRs to supply buffer resource in buffer instructions
 // https://rocm-documentation.readthedocs.io/en/latest/GCN_ISA_Manuals/testdocbook.html#vector-memory-buffer-instructions
