@@ -200,14 +200,15 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             constexpr auto num_issue            = num_buffer_load_inst;
 
             static_for<0, num_buffer_load_inst, 1>{}([&](auto i) {
+                // TODO: this will likely need to be redesigned after (1) changes to reading from LDS and (2) re-profiling
                 ignore = i;
-                __builtin_amdgcn_sched_group_barrier(SchedGroupMask::MFMA, 1, 0);    // MFMA : 1
-                __builtin_amdgcn_sched_group_barrier(SchedGroupMask::DS_READ, 1, 0); // DS read : 1
-                __builtin_amdgcn_sched_group_barrier(SchedGroupMask::MFMA, 1, 0);    // MFMA: 1
+                __builtin_amdgcn_sched_group_barrier(LLVMSchedGroupMask::MFMA, 1, 0);    // MFMA : 1
+                __builtin_amdgcn_sched_group_barrier(LLVMSchedGroupMask::DS_READ, 1, 0); // DS read : 1
+                __builtin_amdgcn_sched_group_barrier(LLVMSchedGroupMask::MFMA, 1, 0);    // MFMA: 1
                 __builtin_amdgcn_sched_group_barrier(
-                    SchedGroupMask::VMEM_READ, 1, 0); // VMEM read :1
+                    LLVMSchedGroupMask::VMEM_READ, 1, 0); // VMEM read :1
                 __builtin_amdgcn_sched_group_barrier(
-                    SchedGroupMask::MFMA, C_MFMA_Inst_Num / num_issue - 2, 0); // MFMA : 6
+                    LLVMSchedGroupMask::MFMA, C_MFMA_Inst_Num / num_issue - 2, 0); // MFMA : 6
             });
             __builtin_amdgcn_sched_barrier(0);
         }

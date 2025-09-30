@@ -276,7 +276,7 @@ CK_TILE_DEVICE static constexpr auto get_device_arch()
 #endif
 }
 
-enum SchedGroupMask : int32_t
+enum LLVMSchedGroupMask : int32_t
 {
     NONE       = 0,
     ALU        = 1 << 0,
