@@ -79,7 +79,7 @@ struct BaseGemmPipelineAgBgCrCompAsync
 /**
  * @brief Compute optimized pipeline version async; which is based on V4.
  *
- * This pipeline introduces asynchronous load from global memory to LDS, 
+ * This pipeline introduces asynchronous load from global memory to LDS,
  * skipping the intermediate loading into pipeline registers.
  */
 template <typename Problem, typename Policy = GemmPipelineAgBgCrCompAsyncDefaultPolicy>
