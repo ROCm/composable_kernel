@@ -109,7 +109,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     ignore = a_grid_desc_ak0_m_ak1;
     ignore = b_grid_desc_bk0_n_bk1;
     ignore = ds_grid_desc_mblock_mperblock_nblock_nperblock;
-    ignore = e_grid_desc_mblock_mperblock_nblock_nperblock_;
+    ignore = e_grid_desc_mblock_mperblock_nblock_nperblock;
     ignore = compute_ptr_offset_of_batch;
     ignore = compute_ptr_offset_of_n;
     ignore = num_k_per_block;
@@ -216,7 +216,7 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
     static constexpr bool isMultiAB = isMultiA || isMultiB;
     static constexpr bool isMultiD  = DsDataType::Size() > 0;
 
-    // TODO: This will never be true pretty much.
+    // Note: I don't think this case ever occurs.
     static constexpr bool isMultiABD = isMultiA && isMultiB && isMultiD;
 
     // NGCHW is not supported for multiAB.
@@ -1261,8 +1261,13 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                             // rotating mem
                             rotating_mem.Next();
                             // clear c mem
-                            // TODO: this E clearing does not look correct. Fix when implementing
-                            // splitK. if(arg_.KBatch > 1)
+
+                            // TODO: The calculation of the E buffer size may not be correct in all
+                            // cases, for example if the memory is not contiguous due to padding or
+                            // unusual strides. Investigate when implementing splitK. It may be
+                            // safer to use GetElementSpaceSize().
+
+                            // if(arg_.KBatch > 1)
                             //     HIP_CHECK_ERROR(hipMemsetAsync(arg_.p_e_grid,
                             //                                    0,
                             //                                    arg_.M * arg_.N *
@@ -1535,7 +1540,6 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
             return false;
         }
 
-        // TODO: Pipeline V3 should work but this hasn't been tested yet.
         if constexpr(BlkGemmPipelineVer != BlockGemmPipelineVersion::v1 &&
                      BlkGemmPipelineVer != BlockGemmPipelineVersion::v3)
         {
