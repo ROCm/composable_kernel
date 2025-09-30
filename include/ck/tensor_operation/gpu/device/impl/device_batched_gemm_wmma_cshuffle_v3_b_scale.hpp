@@ -64,15 +64,37 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         const long_index_t b_scale_batch_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetScaleBPtrOffset(g_idx));
 
-    auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
+        auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
-    GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        karg.p_a_grid + a_batch_offset + splitk_batch_offset.a_k_split_offset,
-        karg.p_b_grid + b_batch_offset + splitk_batch_offset.b_k_split_offset,
-        karg.p_c_grid + c_batch_offset + splitk_batch_offset.c_reduce_offset,
-        karg.p_b_scale_grid + b_scale_batch_offset + splitk_batch_offset.scale_k_split_offset,
-        p_shared,
-        karg);
+        // shift A matrices pointer for splitk
+        typename GridwiseGemm::AsGridPointer p_as_grid_shift;
+        static_for<0, GridwiseGemm::NumATensor, 1>{}([&](auto i) {
+            using ADataType_ =
+                remove_cvref_t<tuple_element_t<i.value, typename GridwiseGemm::AsDataType_>>;
+            p_as_grid_shift(i) = static_cast<const ADataType_*>(karg.p_as_grid[i]) +
+                                 splitk_batch_offset.a_k_split_offset[i] + a_batch_offset;
+        });
+
+        // shift B matrices pointer for splitk
+        typename GridwiseGemm::BsGridPointer p_bs_grid_shift;
+        static_for<0, GridwiseGemm::NumBTensor, 1>{}([&](auto i) {
+            using BDataType_ =
+                remove_cvref_t<tuple_element_t<i.value, typename GridwiseGemm::BsDataType_>>;
+            p_bs_grid_shift(i) = static_cast<const BDataType_*>(karg.p_bs_grid[i]) +
+                                 splitk_batch_offset.b_k_split_offset[i] + b_batch_offset;
+        });
+
+        GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+            p_as_grid_shift,
+            p_bs_grid_shift,
+            karg.p_ds_grid,
+            karg.p_e_grid + splitk_batch_offset.c_reduce_offset + c_batch_offset,
+            karg.p_b_scale_grid + b_scale_batch_offset + splitk_batch_offset.scale_k_split_offset,
+            p_shared,
+            karg,
+            karg.a_element_op,
+            karg.b_element_op,
+            karg.cde_element_op);
 #if defined(__gfx11__)
     }
 #endif
@@ -289,11 +311,14 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale : public DeviceBatchedGemmV2BSca
     using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3_b_scale<
         ALayout,
         BLayout,
+        Tuple<>, // DsLayout
         CLayout,
-        ADataType,
-        BDataType,
+        Tuple<ADataType>,
+        Tuple<BDataType>,
+        BScaleDataType,
         AccDataType,
         CShuffleDataType,
+        Tuple<>, // DsDataType
         CDataType,
         AElementwiseOperation,
         BElementwiseOperation,
@@ -330,7 +355,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale : public DeviceBatchedGemmV2BSca
         CShuffleMRepeatPerShuffle,
         CShuffleNRepeatPerShuffle,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        CShuffleBlockTransferScalarPerVector_NPerBlock,
+        Sequence<CShuffleBlockTransferScalarPerVector_NPerBlock>,
         BlkGemmPipeSched,
         BlkGemmPipelineVer,
         ComputeTypeA,
@@ -362,14 +387,16 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale : public DeviceBatchedGemmV2BSca
                           BElementwiseOperation b_element_op_,
                           CElementwiseOperation c_element_op_,
                           bool is_reduce_ = false)
-            : GridwiseGemm::Argument(p_a_grid_,
-                                     p_b_grid_,
+            : GridwiseGemm::Argument(std::array<const void*, 1>{p_a_grid_},
+                                     std::array<const void*, 1>{p_b_grid_},
+                                     std::array<const void*, 0>{}, // p_ds_grid_
                                      p_c_grid_,
                                      M_,
                                      N_,
                                      K_,
-                                     StrideA_,
-                                     StrideB_,
+                                     std::array<index_t, 1>{StrideA_},
+                                     std::array<index_t, 1>{StrideB_},
+                                     std::array<index_t, 0>{}, // StrideDs_
                                      StrideC_,
                                      StrideScaleB_,
                                      p_b_scale_grid_,
@@ -439,26 +466,33 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale : public DeviceBatchedGemmV2BSca
                 {
                     Argument arg_ = arg;
 
-                    const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(
-                        arg_.M, arg_.MPadded, arg_.K, arg_.KPadded, arg_.StrideA, arg_.AK0);
-                    const auto b_grid_desc_bk0_n_bk1 = GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(
-                        arg_.K, arg_.KPadded, arg_.N, arg_.NPadded, arg_.StrideB, arg_.BK0);
+                    const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAsGridDescriptor_AK0_M_AK1(
+                        arg_.M, arg_.MPadded, arg_.K, arg_.KPadded, arg_.StrideAs, arg_.AK0);
+                    const auto b_grid_desc_bk0_n_bk1 = GridwiseGemm::MakeBsGridDescriptor_BK0_N_BK1(
+                        arg_.K, arg_.KPadded, arg_.N, arg_.NPadded, arg_.StrideBs, arg_.BK0);
 
                     // Packed sizes are 1 for all implemented data types but we include it anyway
                     // for future compatibility.
-                    auto size_a_buffer = a_grid_desc_ak0_m_ak1.GetElementSpaceSize() *
-                                         sizeof(ADataType) / GridwiseGemm::APackedSize;
-                    auto size_b_buffer = b_grid_desc_bk0_n_bk1.GetElementSpaceSize() *
-                                         sizeof(BDataType) / GridwiseGemm::BPackedSize;
-
                     // Note: the grid descriptors and size_a / size_b do *not* take batching into
                     // account, so we have to manually multiply overall buffer sizes for rotating
                     // memory by batch.
-                    ck::utility::RotatingMemWrapper<Argument> rotating_mem(
-                        arg_,
-                        stream_config.rotating_count,
-                        arg_.Batch * size_a_buffer,
-                        arg_.Batch * size_b_buffer);
+                    std::array<std::size_t, 1> size_as_buffers;
+                    size_as_buffers[0] = a_grid_desc_ak0_m_ak1[Number<0>{}].GetElementSpaceSize() *
+                                         sizeof(ADataType) / GridwiseGemm::APackedSize * arg_.Batch;
+
+                    std::array<std::size_t, 1> size_bs_buffers;
+                    size_bs_buffers[0] = b_grid_desc_bk0_n_bk1[Number<0>{}].GetElementSpaceSize() *
+                                         sizeof(BDataType) / GridwiseGemm::BPackedSize * arg_.Batch;
+
+                    ck::utility::RotatingMemWrapperMultiABD<Argument,
+                                                            Tuple<ADataType>,
+                                                            Tuple<BDataType>,
+                                                            Tuple<>>
+                        rotating_mem(arg_,
+                                     stream_config.rotating_count,
+                                     size_as_buffers,
+                                     size_bs_buffers,
+                                     std::array<std::size_t, 0>{});
                     rotating_mem.Print();
 
                     auto run_flush_cache = [&]() {
@@ -471,7 +505,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale : public DeviceBatchedGemmV2BSca
                             // Note: This seems incorrect for non-contiguous memory layouts for C
                             // (padding, gaps).
                             HIP_CHECK_ERROR(
-                                hipMemsetAsync(arg_.p_c_grid,
+                                hipMemsetAsync(arg_.p_e_grid,
                                                0,
                                                arg_.Batch * arg_.M * arg_.N * sizeof(CDataType),
                                                stream_config.stream_id_));
@@ -497,7 +531,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale : public DeviceBatchedGemmV2BSca
                             // Note: This seems incorrect for non-contiguous memory layouts for C
                             // (padding, gaps).
                             HIP_CHECK_ERROR(
-                                hipMemsetAsync(arg.p_c_grid,
+                                hipMemsetAsync(arg.p_e_grid,
                                                0,
                                                arg.Batch * arg.M * arg.N * sizeof(CDataType),
                                                stream_config.stream_id_));
