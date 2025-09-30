@@ -174,6 +174,9 @@ int main(int argc, char* argv[])
     Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
     Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
 
+    const auto StrideD = std::is_same<decltype(ELayout{}), ck::tensor_layout::gemm::RowMajor>::value
+                             ? d_m_n.mDesc.GetStrides()[0]
+                             : d_m_n.mDesc.GetStrides()[1];
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_k_n: " << b_k_n.mDesc << std::endl;
     std::cout << "d_m_n: " << d_m_n.mDesc << std::endl;
@@ -221,7 +224,7 @@ int main(int argc, char* argv[])
                                K,
                                StrideA,
                                StrideB,
-                               std::array<ck::index_t, 1>{0},
+                               std::array<ck::index_t, 1>{static_cast<int>(StrideD)},
                                StrideE,
                                a_element_op,
                                b_element_op,
