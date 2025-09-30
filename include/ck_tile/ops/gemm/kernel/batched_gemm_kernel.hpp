@@ -167,7 +167,7 @@ struct BatchedGemmKernel
         {
             if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
             {
-                CK_TILE_ERROR("Conditions not met for batch_count >= 1 !");
+                CK_TILE_ERROR("Conditions not met: batch_count must be at least 1 !");
             }
             return false;
         }
@@ -176,7 +176,7 @@ struct BatchedGemmKernel
             if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
             {
                 CK_TILE_ERROR(
-                    "Conditions not met for batch_stride_A >= M * K AND batch_stride_A < 0!");
+                    "Conditions not met: batch_stride_A must be non-negative and at least K * M!");
             }
             return false;
         }
@@ -185,7 +185,7 @@ struct BatchedGemmKernel
             if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
             {
                 CK_TILE_ERROR(
-                    "Conditions not met for batch_stride_B >= K * N AND batch_stride_B < 0!");
+                    "Conditions not met: batch_stride_B must be non-negative and at least K * N!");
             }
             return false;
         }
@@ -194,7 +194,7 @@ struct BatchedGemmKernel
             if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
             {
                 CK_TILE_ERROR(
-                    "Conditions not met for batch_stride_E >= M * N AND batch_stride_E < 0!");
+                    "Conditions not met: batch_stride_E must be non-negative and at least M * N!");
             }
             return false;
         }
