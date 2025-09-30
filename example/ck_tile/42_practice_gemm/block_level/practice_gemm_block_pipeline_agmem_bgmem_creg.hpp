@@ -144,15 +144,15 @@ struct PracticeGemmBlockPipelineAGmemBGmemCreg
 
         while(iCounter > 0)
         {
-            a_block_tile = load_tile(a_copy_dram_window);
-            b_block_tile = load_tile(b_copy_dram_window);
+            a_block_tile = load_tile(a_copy_dram_window); // from DRAM to registers
+            b_block_tile = load_tile(b_copy_dram_window); // from DRAM to registers
             move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
             move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
-            store_tile(a_copy_lds_window, a_block_tile);
-            store_tile(b_copy_lds_window, b_block_tile);
+            store_tile(a_copy_lds_window, a_block_tile); // from registers to LDS
+            store_tile(b_copy_lds_window, b_block_tile); // from registers to LDS
 
             block_sync_lds();
-            block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
+            block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window); // from LDS to registers
             block_sync_lds();
 
             iCounter--;
