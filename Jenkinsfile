@@ -61,29 +61,14 @@ def getRequiredBranchChecks() {
 }
 
 def shouldRunCICheck() {
-    // Define patterns for files that should trigger CI
-    def relevantFilePatterns = [
-        /.*\.(cpp|hpp|h|c|cc|cxx|cu|hip)$/, // Source files
-        /.*CMakeLists\.txt$/, // CMake files
-        /.*\.cmake$/, // CMake files
-        /.*\.py$/, // Python files
-        /.*\.sh$/, // Shell scripts
-        /.*\.yml$/, // YAML files
-        /.*\.yaml$/, // YAML files
-        /.*\.json$/, // JSON files
-        /^Dockerfile.*/, // Dockerfiles
-        /^CMakeLists\.txt$/, // Root CMakeLists
-        /.*\.in$/ // Template files
-    ]
-    
     // Define patterns for files that should NOT trigger CI
     def skipFilePatterns = [
         /^Jenkinsfile$/, // This Jenkinsfile
-        /^\.github\/.*/, // GitHub workflow files (includes CODEOWNERS)
+        /^\.github\/.*/, // GitHub workflow files
         /^docs\/.*/, // Documentation files
         /^LICENSE$/, // License file
         /^.*\.gitignore$/, // Git ignore files
-        /.*\.md$/ // Markdown files (documentation changes might affect examples)
+        /.*\.md$/ // Markdown files
     ]
     
     try {
@@ -108,36 +93,20 @@ def shouldRunCICheck() {
         
         echo "Changed files: ${changedFiles.join(', ')}"
         
-        // Check if any changed files should skip CI
-        def hasSkipFiles = changedFiles.any { file ->
-            skipFilePatterns.any { pattern ->
+        // Check if any changed files are NOT in the skip patterns.
+        def hasFilesRequiringCI = changedFiles.any { file ->
+            !skipFilePatterns.any { pattern ->
                 file ==~ pattern
             }
         }
         
-        // Check if any changed files should trigger CI
-        def hasRelevantFiles = changedFiles.any { file ->
-            relevantFilePatterns.any { pattern ->
-                file ==~ pattern
-            }
-        }
-        
-        // If we have both skip and relevant files, relevant files take precedence
-        if (hasRelevantFiles) {
-            echo "Found relevant files that require CI"
+        if (hasFilesRequiringCI) {
+            echo "Found files that require CI"
             return true
-        }
-        
-        // If we only have skip files, skip CI
-        if (hasSkipFiles && !hasRelevantFiles) {
+        } else {
             echo "Only non-relevant files changed, skipping CI"
             return false
-        }
-        
-        // Default to running CI if patterns don't match
-        echo "File patterns don't match defined rules, running CI by default"
-        return true
-        
+        } 
     } catch (Exception e) {
         echo "Error checking changed files: ${e.getMessage()}, running CI by default"
         return true
