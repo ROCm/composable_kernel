@@ -230,6 +230,23 @@ struct tile_distribution
     }
 };
 
+template <typename T>
+struct is_tile_distribution : std::false_type
+{
+};
+template <typename PsYs2XsAdaptor,
+          typename Ys2DDescriptor,
+          typename StaticTileDistributionEncoding,
+          typename TileDistributionDetail>
+struct is_tile_distribution<tile_distribution<PsYs2XsAdaptor,
+                                              Ys2DDescriptor,
+                                              StaticTileDistributionEncoding,
+                                              TileDistributionDetail>> : std::true_type
+{
+};
+template <typename T>
+inline constexpr bool is_tile_distribution_v = is_tile_distribution<T>::value;
+
 namespace detail {
 
 template <index_t NDimMax>
