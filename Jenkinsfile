@@ -78,7 +78,7 @@ def shouldRunCICheck() {
     
     // Define patterns for files that should NOT trigger CI
     def skipFilePatterns = [
-        /^Jenkinsfile$/, // This Jenkinsfile TODO: MOVE BACK TO RELEVANT. THIS IS HERE FOR TESTING.
+        /^Jenkinsfile$/, // This Jenkinsfile
         /^\.github\/.*/, // GitHub workflow files (includes CODEOWNERS)
         /^docs\/.*/, // Documentation files
         /^LICENSE$/, // License file
@@ -142,18 +142,6 @@ def shouldRunCICheck() {
         echo "Error checking changed files: ${e.getMessage()}, running CI by default"
         return true
     }
-}
-
-def shouldSkipStage(stageName) {
-    if (env.SHOULD_RUN_CI == 'false') {
-        echo "Skipping ${stageName} - only non-relevant files changed"
-        echo "Stage will be marked as successful for GitHub status checks"
-        
-        // Ensure this stage is marked as successful for GitHub
-        // The gitStatusWrapper will see this stage as having run successfully
-        return true
-    }
-    return false
 }
 
 def getBaseDockerImageName(){
@@ -1221,6 +1209,10 @@ pipeline {
         SHOULD_RUN_CI = expression { params.FORCE_CI.toBoolean() || shouldRunCICheck()}
     }
     stages{
+        stage("Check for changes") {
+            agent{ label rocmnode("nogpu") }
+            echo "SHOULD_RUN_CI: ${SHOULD_RUN_CI}"
+        }
         stage("Build Docker"){
             when {
                 beforeAgent true
@@ -1880,14 +1872,14 @@ pipeline {
                 }
             }
         }
-        post {
-            always {
-                if (!env.SHOULD_RUN_CI.toBoolean()) {
-                    // If CI was skipped, notify each of the branch protected checks that they are successful.
-                    def requiredChecks = getRequiredBranchChecks()
-                    requiredChecks.each { checkName ->
-                        echo "pass skipped check: ${checkName}"
-                    }
+    }
+    post {
+        always {
+            if (!env.SHOULD_RUN_CI.toBoolean()) {
+                // If CI was skipped, notify each of the branch protected checks that they are successful.
+                def requiredChecks = getRequiredBranchChecks()
+                requiredChecks.each { checkName ->
+                    echo "pass skipped check: ${checkName}"
                 }
             }
         }
