@@ -67,11 +67,12 @@ struct UniversalGemmBasePolicy
                 // offset for compiler.
                 constexpr index_t BlockSize   = Problem::kBlockSize;
                 constexpr index_t VecLoadSize = GetVectorSizeA<Problem>();
-                using TileEncodingPattern     = TileDistributionEncodingPattern2D<BlockSize,
-                                                                                  KPerBlock,
-                                                                                  MPerBlock,
-                                                                                  VecLoadSize,
-                                                                                  ATileAccessPattern>;
+                using TileEncodingPattern =
+                    tile_distribution_encoding_pattern_2d<BlockSize,
+                                                          KPerBlock,
+                                                          MPerBlock,
+                                                          VecLoadSize,
+                                                          ATileAccessPattern>;
                 // AK1
                 constexpr auto AK1 = number<VecLoadSize>{};
                 constexpr auto AK0 = number<KPerBlock / AK1>{};
