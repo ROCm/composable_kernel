@@ -139,10 +139,10 @@ using KernelTypesCompV6 = ::testing::Types<
     std::tuple<    Row,     Col,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV6>,
     std::tuple<    Col,     Row,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV6>,
     std::tuple<    Col,     Col,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV6>, 
-    std::tuple<    Row,     Row,     Row,       INT8,      INT8,        I32,       I32,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV6>,
-    std::tuple<    Row,     Col,     Row,       INT8,      INT8,        I32,       I32,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV6>,
-    std::tuple<    Col,     Row,     Row,       INT8,      INT8,        I32,       I32,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV6>,
-    std::tuple<    Col,     Col,     Row,       INT8,      INT8,        I32,       I32,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV6> 
+    std::tuple<    Row,     Row,     Row,       INT8,      INT8,        INT32,     INT32,      I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV6>,
+    std::tuple<    Row,     Col,     Row,       INT8,      INT8,        INT32,     INT32,      I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV6>,
+    std::tuple<    Col,     Row,     Row,       INT8,      INT8,        INT32,     INT32,      I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV6>,
+    std::tuple<    Col,     Col,     Row,       INT8,      INT8,        INT32,     INT32,      I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV6> 
 >;
 
 using KernelTypesCompV4Wmma = ::testing::Types<
