@@ -711,6 +711,8 @@ struct GridwiseGemm_wmma_cshuffle_v3
         const long_index_t e_n_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_n.GetEPtrOffset(n_idx));
 
+        const auto ds_n_offset = compute_ptr_offset_of_n.GetDsPtrOffset(n_idx);
+
         AsGridPointer p_as_grid_;
         static_for<0, NumATensor, 1>{}([&](auto i) {
             using ADataType_ = remove_cvref_t<tuple_element_t<i.value, AsDataType>>;
@@ -726,8 +728,11 @@ struct GridwiseGemm_wmma_cshuffle_v3
         });
 
         DsGridPointer p_ds_grid_grp;
-        static_for<0, NumDTensor, 1>{}(
-            [&](auto i) { p_ds_grid_grp(i) = karg.p_ds_grid[i] + ds_batch_offset[i]; });
+        static_for<0, NumDTensor, 1>{}([&](auto i) {
+            using DDataType_ = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+            p_ds_grid_grp(i) = static_cast<const DDataType_*>(karg.p_ds_grid[i]) +
+                               ds_batch_offset[i] + ds_n_offset[i];
+        });
 
         // Currently supporting one A and one B
         const auto as_grid_desc_ak0_m_ak1 = generate_tuple(
