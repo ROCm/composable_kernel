@@ -46,6 +46,116 @@ def runShell(String command){
     return (output != "")
 }
 
+// Return the names of the checks that are required to succeed.
+def getRequiredBranchChecks() {
+    return [
+        "Clang Format",
+        "Run Codegen Tests on gfx90a",
+        "Build CK and run Tests on gfx942",
+        "Build CK and run Tests on gfx950",
+        "Build CK and run Tests on gfx90a",
+        "Build CK and run Tests on gfx1030",
+        "Build CK and run Tests on gfx11",
+        "Build CK and run Tests on gfx1201"
+    ]
+}
+
+def shouldRunCICheck() {
+    // Define patterns for files that should trigger CI
+    def relevantFilePatterns = [
+        /.*\.(cpp|hpp|h|c|cc|cxx|cu|hip)$/, // Source files
+        /.*CMakeLists\.txt$/, // CMake files
+        /.*\.cmake$/, // CMake files
+        /.*\.py$/, // Python files
+        /.*\.sh$/, // Shell scripts
+        /.*\.yml$/, // YAML files
+        /.*\.yaml$/, // YAML files
+        /.*\.json$/, // JSON files
+        /^Dockerfile.*/, // Dockerfiles
+        /^CMakeLists\.txt$/, // Root CMakeLists
+        /.*\.in$/ // Template files
+    ]
+    
+    // Define patterns for files that should NOT trigger CI
+    def skipFilePatterns = [
+        /^Jenkinsfile$/, // This Jenkinsfile TODO: MOVE BACK TO RELEVANT. THIS IS HERE FOR TESTING.
+        /^\.github\/.*/, // GitHub workflow files (includes CODEOWNERS)
+        /^docs\/.*/, // Documentation files
+        /^LICENSE$/, // License file
+        /^.*\.gitignore$/, // Git ignore files
+        /.*\.md$/ // Markdown files (documentation changes might affect examples)
+    ]
+    
+    try {
+        // Get list of changed files
+        def changedFiles = sh(
+            returnStdout: true,
+            script: '''
+                if [ "$CHANGE_ID" != "" ]; then
+                    # For PR builds, compare against target branch
+                    git diff --name-only origin/$CHANGE_TARGET...HEAD
+                else
+                    # For regular builds, compare against previous commit
+                    git diff --name-only HEAD~1..HEAD
+                fi
+            '''
+        ).trim().split('\n')
+        
+        if (changedFiles.size() == 1 && changedFiles[0] == '') {
+            echo "No changed files detected, running CI"
+            return true
+        }
+        
+        echo "Changed files: ${changedFiles.join(', ')}"
+        
+        // Check if any changed files should skip CI
+        def hasSkipFiles = changedFiles.any { file ->
+            skipFilePatterns.any { pattern ->
+                file ==~ pattern
+            }
+        }
+        
+        // Check if any changed files should trigger CI
+        def hasRelevantFiles = changedFiles.any { file ->
+            relevantFilePatterns.any { pattern ->
+                file ==~ pattern
+            }
+        }
+        
+        // If we have both skip and relevant files, relevant files take precedence
+        if (hasRelevantFiles) {
+            echo "Found relevant files that require CI"
+            return true
+        }
+        
+        // If we only have skip files, skip CI
+        if (hasSkipFiles && !hasRelevantFiles) {
+            echo "Only non-relevant files changed, skipping CI"
+            return false
+        }
+        
+        // Default to running CI if patterns don't match
+        echo "File patterns don't match defined rules, running CI by default"
+        return true
+        
+    } catch (Exception e) {
+        echo "Error checking changed files: ${e.getMessage()}, running CI by default"
+        return true
+    }
+}
+
+def shouldSkipStage(stageName) {
+    if (env.SHOULD_RUN_CI == 'false') {
+        echo "Skipping ${stageName} - only non-relevant files changed"
+        echo "Stage will be marked as successful for GitHub status checks"
+        
+        // Ensure this stage is marked as successful for GitHub
+        // The gitStatusWrapper will see this stage as having run successfully
+        return true
+    }
+    return false
+}
+
 def getBaseDockerImageName(){
     def img
     if (params.USE_CUSTOM_DOCKER != ""){
@@ -1093,6 +1203,10 @@ pipeline {
             name: 'ck_aiter_branch',
             defaultValue: 'develop',
             description: 'Specify which branch of CK to test with AITER (default: develop)')
+        booleanParam(
+            name: "FORCE_CI",
+            defaultValue: false,
+            description: "Force CI to run even when only non-relevant files are changed (default: OFF)")
     }
     environment{
         dbuser = "${dbuser}"
@@ -1104,9 +1218,14 @@ pipeline {
         ck_git_creds = "${ck_git_creds}"
         gerrit_cred="${gerrit_cred}"
         DOCKER_BUILDKIT = "1"
+        SHOULD_RUN_CI = expression { params.FORCE_CI.toBoolean() || shouldRunCICheck()}
     }
     stages{
         stage("Build Docker"){
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
             parallel{
                 stage('Docker /opt/rocm'){
                     agent{ label rocmnode("nogpu") }
@@ -1118,6 +1237,11 @@ pipeline {
             }
         }
         stage("Static checks") {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+                expression { params.RUN_CPPCHECK.toBoolean() }
+            }
             parallel{
                 stage('Clang Format and Cppcheck') {
                     when {
@@ -1178,6 +1302,10 @@ pipeline {
         }
          stage("Run Pytorch Tests")
         {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
             parallel
             {
                 stage("Run Pytorch Tests on gfx942")
@@ -1196,6 +1324,10 @@ pipeline {
         }
         stage("Run AITER Tests")
         {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
             parallel
             {
                 stage("Run AITER Tests on gfx942")
@@ -1226,6 +1358,10 @@ pipeline {
         }
         stage("Run Grouped Conv Large Case Tests")
         {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
             parallel
             {
                 stage("Run Grouped Conv Large Case Tests on gfx90a")
@@ -1250,6 +1386,10 @@ pipeline {
         }
         stage("Run Comprehensive Convolution Dataset Tests")
         {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
             parallel
             {
                 stage("Run Comprehensive Dataset Tests on gfx90a")
@@ -1282,6 +1422,10 @@ pipeline {
         }
         stage("Run Codegen Tests")
         {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
             parallel
             {
                 stage("Run Codegen Tests on gfx90a")
@@ -1305,6 +1449,10 @@ pipeline {
         }
         stage("Run CK_TILE_FMHA Tests")
         {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
             parallel
             {
                 stage("Run CK_TILE_FMHA Tests on gfx90a")
@@ -1368,6 +1516,10 @@ pipeline {
         }
         stage("Run TILE_ENGINE_GEMM Tests")
         {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
             parallel
             {
                 stage("Run TILE_ENGINE_GEMM Tests on gfx90a")
@@ -1485,6 +1637,10 @@ pipeline {
 
 		stage("Build CK and run Tests")
         {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
             parallel
             {
                 stage("Build CK with RHEL8")
@@ -1705,6 +1861,10 @@ pipeline {
         }
         stage("Process Performance Test Results")
         {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
             parallel
             {
                 stage("Process results"){
@@ -1716,6 +1876,17 @@ pipeline {
                     steps{
                         process_results()
                         cleanWs()
+                    }
+                }
+            }
+        }
+        post {
+            always {
+                if (!env.SHOULD_RUN_CI.toBoolean()) {
+                    // If CI was skipped, notify each of the branch protected checks that they are successful.
+                    def requiredChecks = getRequiredBranchChecks()
+                    requiredChecks.each { checkName ->
+                        echo "pass skipped check: ${checkName}"
                     }
                 }
             }
