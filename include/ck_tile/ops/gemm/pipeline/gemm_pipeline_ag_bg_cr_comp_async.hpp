@@ -186,36 +186,16 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             constexpr index_t KPerXDL = BlockGemmShape::WarpTile::at(I2{});
 
             constexpr index_t WaveSize = get_warp_size();
-            // constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0{});
-            // constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
-
-            // constexpr index_t A_LDS_Read_Width = KPerXDL;
-            // constexpr index_t B_LDS_Read_Width = KPerXDL;
 
             constexpr index_t A_Buffer_Load_Inst_Num =
                 MPerBlock * KPerBlock / (BlockSize * GetVectorSizeA());
             constexpr index_t B_Buffer_Load_Inst_Num =
                 NPerBlock * KPerBlock / (BlockSize * GetVectorSizeB());
 
-            // constexpr index_t A_LDS_Read_Inst_Num =
-            //     WaveNumN * MPerBlock * KPerBlock / (BlockSize * KPerXDL);
-            // constexpr index_t B_LDS_Read_Inst_Num =
-            //     WaveNumM * NPerBlock * KPerBlock / (BlockSize * KPerXDL);
-
             constexpr index_t C_MFMA_Inst_Num = MPerBlock * NPerBlock * KPerBlock /
                                                 (BlockSize / WaveSize) /
                                                 (MPerXDL * NPerXDL * KPerXDL);
 
-            // constexpr auto num_ds_read_inst_a =
-            //     A_LDS_Read_Width * sizeof(ADataType) / APackedSize == 16 ? A_LDS_Read_Inst_Num
-            //                                                              : A_LDS_Read_Inst_Num /
-            //                                                              2;
-            // constexpr auto num_ds_read_inst_b =
-            //     B_LDS_Read_Width * sizeof(BDataType) / BPackedSize == 16 ? B_LDS_Read_Inst_Num
-            //                                                              : B_LDS_Read_Inst_Num /
-            //                                                              2;
-
-            // constexpr auto num_ds_read_inst     = num_ds_read_inst_a + num_ds_read_inst_b;
             constexpr auto num_buffer_load_inst = A_Buffer_Load_Inst_Num + B_Buffer_Load_Inst_Num;
             constexpr auto num_issue            = num_buffer_load_inst;
 
