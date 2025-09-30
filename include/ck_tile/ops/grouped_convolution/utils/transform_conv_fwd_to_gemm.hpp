@@ -510,19 +510,33 @@ struct TransformConvFwdToGemm
             input_right_pads[i] = static_cast<IndexType>(args.input_right_pads_[i]);
         }
 
-        // Create base transformer
-        TransformConvFwdToGemm base_transformer(
-            in_lengths,
-            wei_lengths,
-            out_lengths,
-            conv_strides,
-            conv_dilations,
-            input_left_pads,
-            input_right_pads);
+        // Quick check before creating transformer - avoid crash for huge tensors
+        const long_index_t input_size_estimate =
+            static_cast<long_index_t>(args.N_) *
+            static_cast<long_index_t>(args.C_) *
+            static_cast<long_index_t>(args.input_spatial_lengths_[0]) *
+            (args.input_spatial_lengths_.size() > 1 ? args.input_spatial_lengths_[1] : 1) *
+            (args.input_spatial_lengths_.size() > 2 ? args.input_spatial_lengths_[2] : 1);
 
+        const long_index_t output_size_estimate =
+            static_cast<long_index_t>(args.N_) *
+            static_cast<long_index_t>(args.K_) *
+            static_cast<long_index_t>(args.output_spatial_lengths_[0]) *
+            (args.output_spatial_lengths_.size() > 1 ? args.output_spatial_lengths_[1] : 1) *
+            (args.output_spatial_lengths_.size() > 2 ? args.output_spatial_lengths_[2] : 1);
 
-        // Check if split is needed
-        if(base_transformer.AreDescriptorsSmallerThan2GB()) {
+        const long_index_t threshold = TwoGB / sizeof(ADataType);
+        const bool needs_split = (input_size_estimate >= threshold) || (output_size_estimate >= threshold);
+
+        if(s.log_level_ > 0) {
+            std::cout << "[SPLIT-IMAGE] Size check: input=" << input_size_estimate
+                      << " output=" << output_size_estimate
+                      << " threshold=" << threshold
+                      << " needs_split=" << needs_split << "\n";
+        }
+
+        // Check if split is needed BEFORE creating transformer
+        if(!needs_split) {
             if(s.log_level_ > 0) {
                 std::cout << "[SPLIT-IMAGE] No split needed - tensors fit in memory threshold\n";
             }
@@ -551,44 +565,148 @@ struct TransformConvFwdToGemm
 
         // Queue-based recursive splitting needed
         if(s.log_level_ > 0) {
-            std::cout << "[SPLIT-IMAGE] Split needed - using recursive queue splitting\n";
+            std::cout << "[SPLIT-IMAGE] Split needed - will create smaller transformers\n";
         }
 
-        std::queue<SplitProblem> split_queue;
+        // Don't create the full transformer - it causes memory issues
+        // Instead, directly split and create smaller transformers
         std::vector<SplitProblem> ready_list;
 
-        // Start with the original problem
-        split_queue.push({base_transformer, 0, 0, 0});
+        // For 1D: simple binary split approach
+        if constexpr(NDimSpatial == 1) {
+            // Calculate number of splits needed
+            int num_splits = 2;  // Start with 2, increase if needed
 
-        // Process queue: keep splitting until all pieces fit
-        while(!split_queue.empty() && ready_list.size() < 64) { // Limit to 64 splits max
-            auto current = split_queue.front();
-            split_queue.pop();
+            while(num_splits <= 64) {
+                // Check if splitting by num_splits makes pieces small enough
+                long_index_t piece_w_out = out_lengths[3] / num_splits;
+                long_index_t piece_w_in = in_lengths[3] / num_splits + wei_lengths[3];  // Conservative estimate
 
-            if(current.transformer.AreDescriptorsSmallerThan2GB()) {
-                // This piece fits - add to ready list
-                ready_list.push_back(current);
-            } else {
-                // Need to split further
-                auto [left, right, in_off, out_off] = current.transformer.SplitConvProblem();
+                long_index_t piece_input_size = static_cast<long_index_t>(args.N_) * args.C_ * piece_w_in;
+                long_index_t piece_output_size = static_cast<long_index_t>(args.N_) * args.K_ * piece_w_out;
 
-                // Add left piece to queue
-                split_queue.push({
-                    left,
-                    current.input_offset,
-                    current.output_offset,
-                    current.depth + 1
-                });
-
-                // Add right piece to queue
-                split_queue.push({
-                    right,
-                    current.input_offset + in_off,
-                    current.output_offset + out_off,
-                    current.depth + 1
-                });
+                if(piece_input_size < threshold && piece_output_size < threshold) {
+                    break;
+                }
+                num_splits *= 2;
             }
+
+            if(s.log_level_ > 0) {
+                std::cout << "[SPLIT-IMAGE] Creating " << num_splits << " pieces for 1D convolution\n";
+            }
+
+            // Create the split pieces
+            for(int i = 0; i < num_splits; i++) {
+                // For simplicity, equal splits (can be improved later)
+                auto piece_in_lengths = in_lengths;
+                auto piece_out_lengths = out_lengths;
+
+                piece_out_lengths[3] = out_lengths[3] / num_splits;
+                if(i == num_splits - 1) {
+                    // Last piece gets remainder
+                    piece_out_lengths[3] = out_lengths[3] - (out_lengths[3] / num_splits) * (num_splits - 1);
+                }
+
+                // Calculate input dimension for this output piece
+                // This is simplified - proper calculation would consider stride/dilation
+                piece_in_lengths[3] = piece_out_lengths[3] * conv_strides[0] + (wei_lengths[3] - 1) * conv_dilations[0];
+
+                // Calculate offsets (simplified)
+                long_index_t input_offset = i * (in_lengths[3] / num_splits) * args.C_ * args.G_;
+                long_index_t output_offset = i * (out_lengths[3] / num_splits) * args.K_ * args.G_;
+
+                // Adjust padding for non-edge pieces
+                auto piece_left_pads = input_left_pads;
+                auto piece_right_pads = input_right_pads;
+                if(i > 0) piece_left_pads[0] = 0;
+                if(i < num_splits - 1) piece_right_pads[0] = 0;
+
+                TransformConvFwdToGemm piece_transformer(
+                    piece_in_lengths,
+                    wei_lengths,
+                    piece_out_lengths,
+                    conv_strides,
+                    conv_dilations,
+                    piece_left_pads,
+                    piece_right_pads);
+
+                ready_list.push_back({piece_transformer, input_offset, output_offset, 0});
+            }
+        } else if constexpr(NDimSpatial == 2) {
+            // For 2D: split H dimension first (simpler than splitting both)
+            if(s.log_level_ > 0) {
+                std::cout << "[SPLIT-IMAGE] 2D conv: H=" << in_lengths[3] << " W=" << in_lengths[4] << "\n";
+                std::cout << "[SPLIT-IMAGE] Output: H=" << out_lengths[3] << " W=" << out_lengths[4] << "\n";
+            }
+
+            int num_splits = 2;
+
+            while(num_splits <= 64) {
+                // Check if splitting H by num_splits makes pieces small enough
+                long_index_t piece_h_out = out_lengths[3] / num_splits;  // H is at index 3 for 2D
+                long_index_t piece_h_in = in_lengths[3] / num_splits + wei_lengths[3];
+
+                long_index_t piece_input_size = static_cast<long_index_t>(args.N_) * args.C_ *
+                                                piece_h_in * in_lengths[4];  // W is at index 4
+                long_index_t piece_output_size = static_cast<long_index_t>(args.N_) * args.K_ *
+                                                 piece_h_out * out_lengths[4];
+
+                if(piece_input_size < threshold && piece_output_size < threshold) {
+                    break;
+                }
+                num_splits *= 2;
+            }
+
+            if(s.log_level_ > 0) {
+                std::cout << "[SPLIT-IMAGE] Creating " << num_splits << " pieces for 2D convolution\n";
+            }
+
+            // Create the split pieces
+            for(int i = 0; i < num_splits; i++) {
+                auto piece_in_lengths = in_lengths;
+                auto piece_out_lengths = out_lengths;
+
+                // Split H dimension
+                piece_out_lengths[3] = out_lengths[3] / num_splits;
+                if(i == num_splits - 1) {
+                    piece_out_lengths[3] = out_lengths[3] - (out_lengths[3] / num_splits) * (num_splits - 1);
+                }
+
+                // Calculate input H for this output piece
+                piece_in_lengths[3] = piece_out_lengths[3] * conv_strides[0] +
+                                     (wei_lengths[3] - 1) * conv_dilations[0];
+
+                // Calculate offsets
+                long_index_t h_offset_out = i * (out_lengths[3] / num_splits);
+                long_index_t h_offset_in = h_offset_out * conv_strides[0] - input_left_pads[0];
+                if(h_offset_in < 0) h_offset_in = 0;
+
+                long_index_t input_offset = h_offset_in * in_lengths[4] * args.C_ * args.G_;
+                long_index_t output_offset = h_offset_out * out_lengths[4] * args.K_ * args.G_;
+
+                // Adjust padding
+                auto piece_left_pads = input_left_pads;
+                auto piece_right_pads = input_right_pads;
+                if(i > 0) piece_left_pads[0] = 0;  // No top padding for non-first pieces
+                if(i < num_splits - 1) piece_right_pads[0] = 0;  // No bottom padding for non-last pieces
+
+                TransformConvFwdToGemm piece_transformer(
+                    piece_in_lengths,
+                    wei_lengths,
+                    piece_out_lengths,
+                    conv_strides,
+                    conv_dilations,
+                    piece_left_pads,
+                    piece_right_pads);
+
+                ready_list.push_back({piece_transformer, input_offset, output_offset, 0});
+            }
+        } else {
+            // For 3D, would need similar approach
+            throw std::runtime_error("Split-Image: 3D not yet implemented in this approach");
         }
+
+        // Queue processing removed - we create pieces directly
 
         if(s.log_level_ > 0) {
             std::cout << "[SPLIT-IMAGE] Total pieces after splitting: " << ready_list.size() << "\n";
@@ -604,17 +722,58 @@ struct TransformConvFwdToGemm
             auto piece_args = args;  // Copy original args
 
             // Update the input and output spatial dimensions for this piece
+            // For 1D: index 0, for 2D: indices 0,1, for 3D: indices 0,1,2
             if constexpr(NDimSpatial >= 1) {
-                piece_args.input_spatial_lengths_[NDimSpatial - 1] = piece.transformer.Wi_;
-                piece_args.output_spatial_lengths_[NDimSpatial - 1] = piece.transformer.Wo_;
+                // For 1D convolution, spatial dimension is at index 0
+                piece_args.input_spatial_lengths_[0] = piece.transformer.Wi_;
+                piece_args.output_spatial_lengths_[0] = piece.transformer.Wo_;
+                if(i == 0) {  // Only print for first piece
+                    std::cout << "[DEBUG] Piece 1: Setting input_spatial[0]=" << piece.transformer.Wi_
+                              << " output_spatial[0]=" << piece.transformer.Wo_ << "\n";
+                }
             }
             if constexpr(NDimSpatial >= 2) {
-                piece_args.input_spatial_lengths_[NDimSpatial - 2] = piece.transformer.Hi_;
-                piece_args.output_spatial_lengths_[NDimSpatial - 2] = piece.transformer.Ho_;
+                // For 2D: H at index 0, W at index 1
+                piece_args.input_spatial_lengths_[0] = piece.transformer.Hi_;
+                piece_args.output_spatial_lengths_[0] = piece.transformer.Ho_;
+                piece_args.input_spatial_lengths_[1] = piece.transformer.Wi_;
+                piece_args.output_spatial_lengths_[1] = piece.transformer.Wo_;
             }
             if constexpr(NDimSpatial >= 3) {
-                piece_args.input_spatial_lengths_[NDimSpatial - 3] = piece.transformer.Di_;
-                piece_args.output_spatial_lengths_[NDimSpatial - 3] = piece.transformer.Do_;
+                // For 3D: D at index 0, H at index 1, W at index 2
+                piece_args.input_spatial_lengths_[0] = piece.transformer.Di_;
+                piece_args.output_spatial_lengths_[0] = piece.transformer.Do_;
+                piece_args.input_spatial_lengths_[1] = piece.transformer.Hi_;
+                piece_args.output_spatial_lengths_[1] = piece.transformer.Ho_;
+                piece_args.input_spatial_lengths_[2] = piece.transformer.Wi_;
+                piece_args.output_spatial_lengths_[2] = piece.transformer.Wo_;
+            }
+
+            // Debug: Print what we're passing to kernel
+            if(s.log_level_ > 1) {
+                std::cout << "[SPLIT-IMAGE] Piece " << (i+1) << "/" << ready_list.size() << ":\n";
+                std::cout << "  Transformer dims: Wi=" << piece.transformer.Wi_
+                          << " Wo=" << piece.transformer.Wo_;
+                if constexpr(NDimSpatial >= 2) {
+                    std::cout << " Hi=" << piece.transformer.Hi_
+                              << " Ho=" << piece.transformer.Ho_;
+                }
+                if constexpr(NDimSpatial >= 3) {
+                    std::cout << " Di=" << piece.transformer.Di_
+                              << " Do=" << piece.transformer.Do_;
+                }
+                std::cout << "\n  Args spatial: ";
+                for(size_t j = 0; j < piece_args.input_spatial_lengths_.size(); j++) {
+                    if(j > 0) std::cout << "x";
+                    std::cout << piece_args.input_spatial_lengths_[j];
+                }
+                std::cout << " -> ";
+                for(size_t j = 0; j < piece_args.output_spatial_lengths_.size(); j++) {
+                    if(j > 0) std::cout << "x";
+                    std::cout << piece_args.output_spatial_lengths_[j];
+                }
+                std::cout << "\n  Offsets: in=" << piece.input_offset
+                          << ", out=" << piece.output_offset << "\n";
             }
 
             // Update padding for this piece
