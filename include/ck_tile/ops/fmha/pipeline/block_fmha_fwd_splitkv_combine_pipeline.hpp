@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -223,6 +223,8 @@ struct BlockFmhaFwdSplitKVCombinePipeline
             });
         }
 
+        // sync before rewriting lse_acc_lds
+        block_sync_lds();
         // store the lse scales in shared memory.
         {
             constexpr auto spans = decltype(lse_accum)::get_distributed_spans();

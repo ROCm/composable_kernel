@@ -20,6 +20,25 @@ class GemmProfiler
         return instance;
     }
 
+    // Overload for single kernel benchmarking
+    void benchmark(GemmProblem& gemm_problem,
+                   std::function<float(const ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>
+                       kernel_func)
+    {
+        // Create a vector with a single callable that returns both name and time
+        std::vector<std::function<std::tuple<std::string, float>(ck_tile::GemmHostArgs&,
+                                                                 const ck_tile::stream_config&)>>
+            callables;
+
+        callables.push_back(
+            [kernel_func](ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {
+                float time = kernel_func(args, stream);
+                return std::make_tuple(std::string(KERNEL_NAME), time);
+            });
+
+        benchmark(gemm_problem, callables);
+    }
+
     void benchmark(GemmProblem& gemm_problem,
                    std::vector<std::function<std::tuple<std::string, float>(
                        ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>& callables)
@@ -161,7 +180,7 @@ class GemmProfiler
         kernel_instance.perf_result_.tflops_    = static_cast<float>(flop) / 1.E9 / avg_time;
         kernel_instance.perf_result_.bandwidth_ = num_byte / 1.E6 / avg_time;
 
-        if(setting_.log_ > 0)
+        if(setting_.log_ > 0 && !setting_.json_output_)
         {
             std::cout << kernel_instance << std::endl;
         }
@@ -199,10 +218,18 @@ class GemmProfiler
                                                          b.perf_result_, a.perf_result_, metric);
                                                  });
 
-        std::cout << "**********************************" << std::endl;
-        std::cout << "According to given metrics: " << get_metric_name(metric) << "\n"
-                  << "The best kernel instance is: " << kernel_instance << std::endl;
-        std::cout << "**********************************" << std::endl;
+        if(setting_.json_output_)
+        {
+            // Output clean JSON only
+            std::cout << kernel_instance << std::endl;
+        }
+        else
+        {
+            std::cout << "**********************************" << std::endl;
+            std::cout << "According to given metrics: " << get_metric_name(metric) << "\n"
+                      << "Current kernel performance is: " << kernel_instance << std::endl;
+            std::cout << "**********************************" << std::endl;
+        }
 
         if(!setting_.csv_filename_.empty())
         {

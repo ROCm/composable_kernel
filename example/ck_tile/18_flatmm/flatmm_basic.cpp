@@ -101,7 +101,6 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
                                              DsLayout,
                                              ELayout,
                                              CDEElementWise,
-                                             CodegenPipelineProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
                                              FlatmmConfig::M_Warp,
@@ -119,8 +118,8 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
 
         auto kargs = Kernel::MakeKernelArgs(args);
 
-        const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
-        constexpr dim3 blocks = Kernel::BlockSize();
+        const dim3 grids  = Kernel::GridSize(args.M, args.N, args.k_batch);
+        const dim3 blocks = Kernel::BlockSize();
 
         if(!Kernel::IsSupportedArgument(kargs))
         {
@@ -171,15 +170,13 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
             ave_time = ck_tile::launch_kernel_time_mask(
                 s,
                 run_flush_cache,
-                ck_tile::make_kernel<blocks.x, FlatmmConfig::kBlockPerCu>(
-                    Kernel{}, grids, blocks, 0, kargs));
+                ck_tile::make_kernel<FlatmmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
         else
         {
-            ave_time =
-                ck_tile::launch_kernel(s,
-                                       ck_tile::make_kernel<blocks.x, FlatmmConfig::kBlockPerCu>(
-                                           Kernel{}, grids, blocks, 0, kargs));
+            ave_time = ck_tile::launch_kernel(
+                s,
+                ck_tile::make_kernel<FlatmmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
         return ave_time;
     };
@@ -271,6 +268,9 @@ int main(int argc, char* argv[])
 
     try
     {
+#if defined(CK_TILE_USE_WMMA)
+        return !run_flatmm_example<FlatmmConfig16_Wmma>(argc, argv);
+#else
         int warp_tile = arg_parser.get_int("warp_tile");
         if(warp_tile == 0)
         {
@@ -288,6 +288,7 @@ int main(int argc, char* argv[])
         {
             return !run_flatmm_example<FlatmmConfig32_950>(argc, argv);
         }
+#endif
     }
     catch(const std::runtime_error& e)
     {
