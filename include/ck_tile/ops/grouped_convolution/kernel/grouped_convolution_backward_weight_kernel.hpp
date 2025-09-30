@@ -620,6 +620,39 @@ struct GroupedConvolutionBackwardWeightKernel
             return false;
         }
 
+        if (GroupedConvTraitsType_::NumGroupsToMerge > 1)
+        {
+            const index_t ZYX = kargs.ZYX;
+            const index_t MPerGroup = ConvK;
+            const index_t NPerGroup = ZYX * ConvC;
+
+            // TODO: Fix this check
+            if (GroupedConvTraitsType_::MPerGroup != MPerGroup)
+            {
+                CK_TILE_ERROR("MPerGroup must be equal to Conv K!");
+                return false;
+            }
+
+            // TODO: Fix this check
+            if (GroupedConvTraitsType_::NPerGroup != NPerGroup)
+            {
+                CK_TILE_ERROR("NPerGroup must be equal to Conv C * ZYX!");
+                return false;
+            }
+
+            if (kargs.NumGroupsPerBatch * ConvC * ZYX > TilePartitioner_::NPerBlock)
+            {
+                CK_TILE_ERROR("NumGroupsPerBatch * Conv C * ZYX must be less or equal to NPerBlock!");
+                return false;
+            }
+
+            if (kargs.NumGroupsPerBatch * ConvK > TilePartitioner_::MPerBlock)
+            {
+                CK_TILE_ERROR("NumGroupsToMerge * Conv K must be less or equal to MPerBlock!");
+                return false;
+            }      
+        }
+
         return true;
     }
 
@@ -804,53 +837,12 @@ struct GroupedConvolutionBackwardWeightKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I3);
 
-        const index_t ConvK = kargs.wei_g_k_c_xs_lengths[number<1>{}];
-        const index_t ConvC = kargs.wei_g_k_c_xs_lengths[number<2>{}];
-        const index_t ZYX = kargs.ZYX;
-        const index_t MPerGroup = ConvK;
-        const index_t NPerGroup = ZYX * ConvC;
-
-        // Check that MPerGroup and NPerGroup map to the existing options
-        if (MPerGroup == 1 && NPerGroup == 16)
-        {
-            EpiloguePipeline{}.template operator()<1, 16, decltype(c_block_window), decltype(c_block_tile)>(
+        EpiloguePipeline{}.template operator()<
+            GroupedConvTraitsType_::MPerGroup, 
+            GroupedConvTraitsType_::NPerGroup, 
+            decltype(c_block_window), 
+            decltype(c_block_tile)>(
                 c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-        }
-        else if (MPerGroup == 2 && NPerGroup == 16)
-        {
-            EpiloguePipeline{}.template operator()<2, 16, decltype(c_block_window), decltype(c_block_tile)>(
-                c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-        }
-        else if (MPerGroup == 1 && NPerGroup == 32)
-        {
-            EpiloguePipeline{}.template operator()<1, 32, decltype(c_block_window), decltype(c_block_tile)>(
-                c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-        }
-        else if (MPerGroup == 2 && NPerGroup == 32)
-        {
-            EpiloguePipeline{}.template operator()<2, 32, decltype(c_block_window), decltype(c_block_tile)>(
-                c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-        }
-        else if (MPerGroup == 1 && NPerGroup == 4)
-        {
-            EpiloguePipeline{}.template operator()<1, 4, decltype(c_block_window), decltype(c_block_tile)>(
-                c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-        }
-        else if (MPerGroup == 1 && NPerGroup == 8)
-        {
-            EpiloguePipeline{}.template operator()<1, 8, decltype(c_block_window), decltype(c_block_tile)>(
-                c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-        }
-        else if (MPerGroup == 2 && NPerGroup == 4)
-        {
-            EpiloguePipeline{}.template operator()<2, 4, decltype(c_block_window), decltype(c_block_tile)>(
-                c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-        }
-        else if (MPerGroup == 2 && NPerGroup == 8)
-        {
-            EpiloguePipeline{}.template operator()<2, 8, decltype(c_block_window), decltype(c_block_tile)>(
-                c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-        }
     }
 
     /**

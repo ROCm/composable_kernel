@@ -10,7 +10,9 @@ template <ck_tile::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout,
-          ck_tile::index_t NumGroupsToMerge>
+          ck_tile::index_t NumGroupsToMerge = 1,
+          ck_tile::index_t MPerGroup = 0,
+          ck_tile::index_t NPerGroup = 0>
 float invoke_grouped_conv_bwd_weight(ck_tile::GroupedConvBwdWeightHostArgs& args,
                                      int n_warmup,
                                      int n_repeat)
@@ -23,7 +25,9 @@ float invoke_grouped_conv_bwd_weight(ck_tile::GroupedConvBwdWeightHostArgs& args
                                              InLayout,
                                              WeiLayout,
                                              OutLayout,
-                                             NumGroupsToMerge>(
+                                             NumGroupsToMerge,
+                                             MPerGroup,
+                                             NPerGroup>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::size_t flop     = args.GetFlops();
@@ -42,6 +46,8 @@ template <ck_tile::index_t NDimSpatial,
           typename WeiDataType = InDataType,
           typename OutDataType = InDataType,
           ck_tile::index_t NumGroupsToMerge,
+          ck_tile::index_t MPerGroup,
+          ck_tile::index_t NPerGroup,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout>
@@ -147,7 +153,9 @@ int run_grouped_conv_bwd_weight_example_with_layouts(
                                    InLayout,
                                    WeiLayout,
                                    OutLayout,
-                                   NumGroupsToMerge>(args, n_warmup, n_repeat);
+                                   NumGroupsToMerge,
+                                   MPerGroup,
+                                   NPerGroup>(args, n_warmup, n_repeat);
 
     weight_dev_buf.FromDevice(weight.data());
     bool pass = true;

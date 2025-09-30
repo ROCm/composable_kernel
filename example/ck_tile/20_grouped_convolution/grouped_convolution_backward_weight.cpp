@@ -20,7 +20,9 @@ template <ck_tile::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout,
-          ck_tile::index_t  NumGroupsToMerge,
+          ck_tile::index_t NumGroupsToMerge = 1,
+          ck_tile::index_t MPerGroup = 0,
+          ck_tile::index_t NPerGroup = 0,
           typename DsDataType     = ck_tile::tuple<>,
           typename DsLayout       = ck_tile::tuple<>,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
@@ -32,7 +34,7 @@ float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
     // Block tile: <MPerBlock, NPerBlock, KPerBlock>
     // Note that we must satisfy 
     // - MIterPerWarp * MWarp * WarpGemm::kM == MPerBlock
-    constexpr ck_tile::index_t M_Tile = 8; //64
+    constexpr ck_tile::index_t M_Tile = 8;
     constexpr ck_tile::index_t N_Tile = 128;
     constexpr ck_tile::index_t K_Tile = 64;
 
@@ -40,8 +42,8 @@ float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
     constexpr ck_tile::index_t N_Warp = 2;
     constexpr ck_tile::index_t K_Warp = 1;
 
-    constexpr ck_tile::index_t M_Warp_Tile = 4; // 32
-    constexpr ck_tile::index_t N_Warp_Tile = 64; // 32
+    constexpr ck_tile::index_t M_Warp_Tile = 4; 
+    constexpr ck_tile::index_t N_Warp_Tile = 64;
     constexpr ck_tile::index_t K_Warp_Tile = 16;
 
     constexpr ck_tile::index_t VectorSizeA = 8;
@@ -57,7 +59,16 @@ float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
     constexpr auto ConvSpec = ck_tile::ConvolutionSpecialization::Default;
     using TilePartitioner   = ck_tile::GemmTile1DPartitioner<CodegenShape>;
     using GroupedConvTraitsType =
-        ck_tile::GroupedConvTraits<NDimSpatial, ConvSpec, InLayout, WeiLayout, DsLayout, OutLayout, NumGroupsToMerge>;
+        ck_tile::GroupedConvTraits<
+            NDimSpatial, 
+            ConvSpec, 
+            InLayout, 
+            WeiLayout, 
+            DsLayout, 
+            OutLayout, 
+            NumGroupsToMerge,
+            MPerGroup,
+            NPerGroup>;
     using CodegenPipelineProblem =
         ck_tile::GemmPipelineProblem<InDataType,
                                      WeiDataType,
@@ -146,7 +157,13 @@ float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
 
 #include "run_grouped_convolution_bwd_weight_example.inc"
 
-template <typename InPrecType, ck_tile::index_t NumGroupsToMerge = 1, typename WeiPrecType = InPrecType, typename OutPrecType = InPrecType>
+template <
+    typename InPrecType, 
+    ck_tile::index_t NumGroupsToMerge = 1,
+    ck_tile::index_t MPerGroup = 0,
+    ck_tile::index_t NPerGroup = 0, 
+    typename WeiPrecType = InPrecType, 
+    typename OutPrecType = InPrecType>
 int run_grouped_conv_bwd_weight_example_prec_type(
     std::string in_layout, std::string wei_layout, std::string out_layout, int argc, char* argv[])
 {
@@ -168,7 +185,9 @@ int run_grouped_conv_bwd_weight_example_prec_type(
                                                                 InPrecType,
                                                                 WeiPrecType,
                                                                 OutPrecType,
-                                                                NumGroupsToMerge>(
+                                                                NumGroupsToMerge,
+                                                                MPerGroup,
+                                                                NPerGroup>(
             argc, argv, NWGC{}, GKXC{}, NWGK{});
     }
     else if(in_layout == "NHWGC" && wei_layout == "GKYXC" && out_layout == "NHWGK")
@@ -177,7 +196,9 @@ int run_grouped_conv_bwd_weight_example_prec_type(
                                                                 InPrecType,
                                                                 WeiPrecType,
                                                                 OutPrecType,
-                                                                NumGroupsToMerge>(
+                                                                NumGroupsToMerge,
+                                                                MPerGroup,
+                                                                NPerGroup>(
             argc, argv, NHWGC{}, GKYXC{}, NHWGK{});
     }
     else if(in_layout == "NDHWGC" && wei_layout == "GKZYXC" && out_layout == "NDHWGK")
@@ -186,7 +207,9 @@ int run_grouped_conv_bwd_weight_example_prec_type(
                                                                 InPrecType,
                                                                 WeiPrecType,
                                                                 OutPrecType,
-                                                                NumGroupsToMerge>(
+                                                                NumGroupsToMerge,
+                                                                MPerGroup,
+                                                                NPerGroup>(
             argc, argv, NDHWGC{}, GKZYXC{}, NDHWGK{});
     }
     else
@@ -200,37 +223,59 @@ int run(const std::string& in_layout,
         const std::string& wei_layout,
         const std::string& out_layout,
         int num_groups_to_merge,
+        int m_per_group,
+        int n_per_group,
         int argc,
         char* argv[])
 {
     if (num_groups_to_merge == 1)
     {
-        return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 1>(in_layout, wei_layout, out_layout, argc, argv);
+        return run_grouped_conv_bwd_weight_example_prec_type<InPrecType>(in_layout, wei_layout, out_layout, argc, argv);
     }
-    // else if (num_groups_to_merge == 2)
-    // {
-    //     return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 2>(in_layout, wei_layout, out_layout, argc, argv);
-    // }
-    // else if (num_groups_to_merge == 4)
-    // {
-    //     return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 4>(in_layout, wei_layout, out_layout, argc, argv);
-    // }
     else if (num_groups_to_merge == 8)
     {
-        return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8>(in_layout, wei_layout, out_layout, argc, argv);
+        if (m_per_group == 1 && n_per_group == 16)
+        {
+            return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8, 1, 16>(in_layout, wei_layout, out_layout, argc, argv);
+        }
+        else if (m_per_group == 2 && n_per_group == 16)
+        {
+            return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8, 2, 16>(in_layout, wei_layout, out_layout, argc, argv);
+        }
+        else if (m_per_group == 4 && n_per_group == 16)
+        {
+            return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8, 4, 16>(in_layout, wei_layout, out_layout, argc, argv);
+        }
+        else if (m_per_group == 1 && n_per_group == 4)
+        {
+            return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8, 1, 4>(in_layout, wei_layout, out_layout, argc, argv);
+        }
+        else if (m_per_group == 2 && n_per_group == 4)
+        {
+            return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8, 2, 4>(in_layout, wei_layout, out_layout, argc, argv);
+        }
+        else if (m_per_group == 4 && n_per_group == 4)
+        {
+            return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8, 4, 4>(in_layout, wei_layout, out_layout, argc, argv);
+        }
+        else if (m_per_group == 1 && n_per_group == 8)
+        {
+            return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8, 1, 8>(in_layout, wei_layout, out_layout, argc, argv);
+        }
+        else if (m_per_group == 2 && n_per_group == 8)
+        {
+            return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8, 2, 8>(in_layout, wei_layout, out_layout, argc, argv);
+        }
+        else if (m_per_group == 4 && n_per_group == 8)
+        {
+            return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8, 4, 8>(in_layout, wei_layout, out_layout, argc, argv);
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported MPerGroup and NPerGroup combination for NumGroupsToMerge=8! Supported combinations are (1,16), (2,8), (4,4), (8,2), (16,1).");
+        }
+
     }
-    // else if (num_groups_to_merge == 16)
-    // {
-    //     return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 16>(in_layout, wei_layout, out_layout, argc, argv);
-    // }
-    // else if (num_groups_to_merge == 32)
-    // {
-    //     return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 32>(in_layout, wei_layout, out_layout, argc, argv);
-    // }
-    // else if (num_groups_to_merge == 64)
-    // {
-    //     return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 64>(in_layout, wei_layout, out_layout, argc, argv);
-    // }
     else
     {
         throw std::runtime_error("Unsupported number of groups to merge! The number of groups should be a power of two and at most 64.");
@@ -248,14 +293,18 @@ int run_grouped_conv_bwd_weight_example(int argc, char* argv[])
     std::string wei_layout = arg_parser.get_str("wei_layout");
     std::string out_layout = arg_parser.get_str("out_layout");
     ck_tile::index_t num_groups_to_merge = arg_parser.get_int("num_groups_to_merge");
+    ck_tile::index_t m_per_group = arg_parser.get_int("m_per_group");
+    ck_tile::index_t n_per_group = arg_parser.get_int("n_per_group");
 
     if(data_type == "fp16")
     {
-        return run<ck_tile::half_t>(in_layout, wei_layout, out_layout, num_groups_to_merge, argc, argv);
+        return run<ck_tile::half_t>(
+            in_layout, wei_layout, out_layout, num_groups_to_merge, m_per_group, n_per_group, argc, argv);
     }
     else if(data_type == "bf16")
     {
-        return run<ck_tile::bf16_t>(in_layout, wei_layout, out_layout, num_groups_to_merge, argc, argv);
+        return run<ck_tile::bf16_t>(
+            in_layout, wei_layout, out_layout, num_groups_to_merge, m_per_group, n_per_group, argc, argv);
     }
     else
     {
