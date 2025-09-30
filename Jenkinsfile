@@ -1186,20 +1186,6 @@ pipeline {
                 }
             }
         }
-        stage("Test stage") {
-            agent{ label rocmnode("nogpu") }
-            steps {
-                script {
-                    echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
-                    if (env.SHOULD_RUN_CI.toBoolean()) {
-                        echo "confirmed"
-                    } else {
-                        echo "negative"
-                    }
-                    error "this should error"
-                }
-            }
-        }
         stage("Build Docker"){
             when {
                 beforeAgent true
