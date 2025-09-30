@@ -200,11 +200,13 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             constexpr auto num_issue            = num_buffer_load_inst;
 
             static_for<0, num_buffer_load_inst, 1>{}([&](auto i) {
-                // TODO: this will likely need to be redesigned after (1) changes to reading from LDS and (2) re-profiling
+                // TODO: this will likely need to be redesigned after (1) changes to reading from
+                // LDS and (2) re-profiling
                 ignore = i;
-                __builtin_amdgcn_sched_group_barrier(LLVMSchedGroupMask::MFMA, 1, 0);    // MFMA : 1
-                __builtin_amdgcn_sched_group_barrier(LLVMSchedGroupMask::DS_READ, 1, 0); // DS read : 1
-                __builtin_amdgcn_sched_group_barrier(LLVMSchedGroupMask::MFMA, 1, 0);    // MFMA: 1
+                __builtin_amdgcn_sched_group_barrier(LLVMSchedGroupMask::MFMA, 1, 0); // MFMA : 1
+                __builtin_amdgcn_sched_group_barrier(
+                    LLVMSchedGroupMask::DS_READ, 1, 0);                               // DS read : 1
+                __builtin_amdgcn_sched_group_barrier(LLVMSchedGroupMask::MFMA, 1, 0); // MFMA: 1
                 __builtin_amdgcn_sched_group_barrier(
                     LLVMSchedGroupMask::VMEM_READ, 1, 0); // VMEM read :1
                 __builtin_amdgcn_sched_group_barrier(
