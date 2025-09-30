@@ -534,7 +534,7 @@ class KernelComponentFactoryGfx9:
     # this is current supported tile size per hdim
     @staticmethod
     def get_hdim_tile_size_dict(dtype : str) -> Optional[dict]:
-        if dtype == 'fp32':
+        if dtype in ['fp32']:
             return {
                 #                             bm0, bn0, bk0, bn1, bk1,
                 ( 32,  32) : [FmhaFwdTileSize( 64,  64,  16,  32,  32,   32,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
@@ -547,7 +547,7 @@ class KernelComponentFactoryGfx9:
                 (192, 192) : [FmhaFwdTileSize( 64,  64,  32, 192,  32,  192,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
                 (256, 256) : [FmhaFwdTileSize( 64,  64,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
             }
-        elif dtype == 'fp16' or dtype == 'bf16':
+        elif dtype in ['fp16', 'bf16']:
             return {
                 (32, 32)  : [FmhaFwdTileSize(128, 64,  16, 32,  32,  32,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 (64, 64)  : [FmhaFwdTileSize(16, 32,  64, 64,  32,  64,   1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
@@ -563,13 +563,13 @@ class KernelComponentFactoryGfx9:
                 (192,192) : [FmhaFwdTileSize(128, 128, 32, 192, 32,  192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,   1)],
                 (256,256) : [FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
             }
-        elif dtype == 'fp8' or dtype == 'fp8bf16':
+        elif dtype in ['fp8', 'fp8bf16']:
             return {
                 (64,64 )  : [FmhaFwdTileSize(128, 64,  32, 64,  32,  64,   2, 1, 1,  2, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
                 (128,128) : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
                 (256,256) : [FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
             }
-        elif dtype == 'fp8fp32':
+        elif dtype in ['fp8fp32']:
             return {
                 (128,128) : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
             }
@@ -640,7 +640,7 @@ class KernelComponentFactoryGfx12:
 
     @staticmethod
     def get_hdim_tile_size_dict(dtype : str) -> Optional[dict]:
-        if dtype == 'fp16' or dtype == 'bf16':
+        if dtype in ['fp16', 'bf16']:
             return {
                 #                             bm0, bn0, bk0, bn1, bk1,
                 ( 32,  32) : [FmhaFwdTileSize( 64,  64,  16,  32,  32,   32,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
@@ -649,32 +649,34 @@ class KernelComponentFactoryGfx12:
                 (192, 128) : [FmhaFwdTileSize( 64,  64,  32, 128,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
                 (256, 256) : [FmhaFwdTileSize( 64,  64,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
             }
-        elif dtype == 'fp8' or dtype == 'bf8':
+        elif dtype in ['fp8', 'fp8bf16']:
             return {
                 #                             bm0, bn0, bk0, bn1, bk1,
                 ( 64,  64) : [FmhaFwdTileSize(128,  64,  32,  64,  32,   64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
                 (128, 128) : [FmhaFwdTileSize( 64,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
                 (256, 256) : [FmhaFwdTileSize( 64,  32,  32, 256,  32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
             }
+        elif dtype in ['fp8fp32']:
+            return {
+                #                             bm0, bn0, bk0, bn1, bk1,
+                (128, 128) : [FmhaFwdTileSize( 64,  64,  32, 128,  32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+            }
         else:
             return None
 
     @staticmethod
     def get_pipelines(dtype, hdim, hdim_v, receipt, mask_impl) -> List[FmhaFwdPipeline]:
-        squant = 't' if dtype == 'fp8' else 'f'
         pipelines = []
         if dtype in ['fp16', 'bf16']:
+            squant = 'f'
             for logits, mask, bias, lse, dropout, skip in itertools.product(['t', 'f'], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ['t', 'f'], ['t', 'f'], ['t', 'f']):
                 pipelines.append(FmhaFwdPipeline('qr', 'row', 'f', 'f', 'f', 'f', logits, bias, lse, dropout, squant, mask, skip, 'f'))
                 pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask, skip, 'f'))
-                pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', logits, bias, lse, dropout, squant, mask, skip, 'f'))
-                pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask, skip, 'f'))
-        elif dtype in ['fp8', 'bf8']:
+        elif dtype in ['fp8', 'fp8bf16', 'fp8fp32']:
             # no need lse/dropout kernels
-            for logits, mask, bias in itertools.product(['t', 'f'], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()):
-                pipelines.append(FmhaFwdPipeline('qr', 'col', 'f', 'f', 'f', 'f', logits, bias, 'f', 'f', squant, mask, 'f', 'f'))
-                # TODO: this cannot be compiled, investigate why
-                # pipelines.append(FmhaFwdPipeline('qr', 'col', 't', 't', 't', 't', logits, bias, 'f', 'f', squant, mask, 'f', 'f'))
+            for logits, squant, mask, bias in itertools.product(["f"], ["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()):
+                pipelines.append(FmhaFwdPipeline('qr', 'row', 'f', 'f', 'f', 'f', logits, bias, 'f', 'f', squant, mask, 'f', 'f'))
+                pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 'f', 'f', logits, bias, 'f', 'f', squant, mask, 'f', 'f'))
         else:
             assert False
         return pipelines
