@@ -177,15 +177,16 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
                                                         BElementwiseOperation,
                                                         CElementwiseOperation>
 {
-    // GridwiseGemm
     using GridwiseGemm = GridwiseGemm_wmma_cshuffle_v3<
         ALayout,
         BLayout,
+        Tuple<>, // DsLayout
         CLayout,
-        ADataType,
-        BDataType,
+        Tuple<ADataType>,
+        Tuple<BDataType>,
         AccDataType,
         CShuffleDataType,
+        Tuple<>, // DsDataType
         CDataType,
         AElementwiseOperation,
         BElementwiseOperation,
@@ -220,7 +221,7 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
         CShuffleMRepeatPerShuffle,
         CShuffleNRepeatPerShuffle,
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-        CShuffleBlockTransferScalarPerVector_NPerBlock,
+        Sequence<CShuffleBlockTransferScalarPerVector_NPerBlock>,
         BlkGemmPipeSched,
         BlkGemmPipelineVer,
         ComputeTypeA,
@@ -230,21 +231,24 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
 
     using Argument = typename GridwiseGemm::Argument;
 
-    using DeviceGemmCommon = DeviceGemm_Wmma_CShuffleV3_Common<GridwiseGemm,
-                                                               ADataType,
-                                                               BDataType,
-                                                               CDataType,
-                                                               MPerBlock,
-                                                               NPerBlock,
-                                                               KPerBlock,
-                                                               BlockSize,
-                                                               AK1,
-                                                               BK1,
-                                                               GemmSpec,
-                                                               BlkGemmPipeSched,
-                                                               BlkGemmPipelineVer,
-                                                               ComputeTypeA,
-                                                               ComputeTypeB>;
+    using DeviceGemmCommon =
+        DeviceGemm_Wmma_CShuffleV3_Common<GridwiseGemm,
+                                          Tuple<ADataType>,
+                                          Tuple<BDataType>,
+                                          Tuple<>,
+                                          CDataType,
+                                          MPerBlock,
+                                          NPerBlock,
+                                          KPerBlock,
+                                          BlockSize,
+                                          AK1,
+                                          BK1,
+                                          GemmSpec,
+                                          Sequence<CShuffleBlockTransferScalarPerVector_NPerBlock>,
+                                          BlkGemmPipeSched,
+                                          BlkGemmPipelineVer,
+                                          ComputeTypeA,
+                                          ComputeTypeB>;
 
     // Invoker
     using Invoker = typename DeviceGemmCommon::Invoker;
@@ -275,11 +279,25 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
                              index_t StrideB,
                              index_t StrideC,
                              index_t KBatch,
-                             AElementwiseOperation,
-                             BElementwiseOperation,
-                             CElementwiseOperation)
+                             AElementwiseOperation a_element_op,
+                             BElementwiseOperation b_element_op,
+                             CElementwiseOperation cde_element_op)
     {
-        return Argument{p_a, p_b, p_c, M, N, K, StrideA, StrideB, StrideC, KBatch};
+        return Argument{std::array<const void*, 1>{p_a},
+                        std::array<const void*, 1>{p_b},
+                        std::array<const void*, 0>{}, // p_ds_grid_
+                        p_c,
+                        M,
+                        N,
+                        K,
+                        std::array<index_t, 1>{StrideA},
+                        std::array<index_t, 1>{StrideB},
+                        std::array<index_t, 0>{}, // StrideDs_
+                        StrideC,
+                        KBatch,
+                        a_element_op,
+                        b_element_op,
+                        cde_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
@@ -295,20 +313,25 @@ struct DeviceGemm_Wmma_CShuffleV3 : public DeviceGemmV2<ALayout,
                                                       index_t StrideB,
                                                       index_t StrideC,
                                                       index_t KBatch,
-                                                      AElementwiseOperation,
-                                                      BElementwiseOperation,
-                                                      CElementwiseOperation) override
+                                                      AElementwiseOperation a_element_op,
+                                                      BElementwiseOperation b_element_op,
+                                                      CElementwiseOperation c_element_op) override
     {
-        return std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
-                                          static_cast<const BDataType*>(p_b),
+        return std::make_unique<Argument>(std::array<const void*, 1>{p_a},
+                                          std::array<const void*, 1>{p_b},
+                                          std::array<const void*, 0>{}, // p_ds_grid_
                                           static_cast<CDataType*>(p_c),
                                           M,
                                           N,
                                           K,
-                                          StrideA,
-                                          StrideB,
+                                          std::array<index_t, 1>{StrideA},
+                                          std::array<index_t, 1>{StrideB},
+                                          std::array<index_t, 0>{}, // StrideDs_
                                           StrideC,
-                                          KBatch);
+                                          KBatch,
+                                          a_element_op,
+                                          b_element_op,
+                                          c_element_op);
     }
 
     // polymorphic

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "convnd_fwd_common.hpp"
 
@@ -51,10 +51,10 @@ using DeviceGroupedConvNDFwdInstance =
         64,          // KPerBlock
         16,          // AK1
         16,          // BK1
-        32,          // MPerXdl
-        32,          // NPerXdl
-        2,           // MXdlPerWave
-        4,           // NXdlPerWave
+        16,          // MPerXdl
+        16,          // NPerXdl
+        4,           // MXdlPerWave
+        8,           // NXdlPerWave
         S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
         S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
@@ -71,8 +71,8 @@ using DeviceGroupedConvNDFwdInstance =
         1,           // BBlockLdsExtraN
         1,
         1,
-        S<1, 64, 1, 4>,
-        16>;
+        S<1, 32, 1, 8>,
+        4>;
 
 #include "run_convnd_fwd_example.inc"
 

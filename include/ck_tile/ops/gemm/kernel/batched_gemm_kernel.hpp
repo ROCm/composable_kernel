@@ -90,10 +90,10 @@ struct BatchedGemmKernel
         !is_detected<is_tuple, BLayout>::value && !is_detected<is_tuple, BDataType>::value,
         "BLayout and BDataType must be scalars. Multiple parameters are not currently supported.");
 
-    /// @brief  C/ELayout and C/EDataType are expected to be scalars, not a tuple.
+    /// @brief  C/CLayout and C/EDataType are expected to be scalars, not a tuple.
     static_assert(!is_detected<is_tuple, CLayout>::value &&
                       !is_detected<is_tuple, CDataType>::value,
-                  "C/ELayout and C/EDataType must be scalars.");
+                  "C/CLayout and C/EDataType must be scalars.");
 
     struct BatchedGemmKernelArgs : ck_tile::UniversalGemmKernelArgs<>
     {
@@ -169,27 +169,27 @@ struct BatchedGemmKernel
     CK_TILE_DEVICE void operator()(BatchedGemmKernelArgs kargs) const
     {
         const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockIdx.x);
-        const index_t i_m   = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
-        const index_t i_n   = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
+        const index_t i_m   = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
+        const index_t i_n   = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
 
-        const auto i_batch  = __builtin_amdgcn_readfirstlane(blockIdx.y);
-        const auto i_splitk = __builtin_amdgcn_readfirstlane(blockIdx.z);
+        const auto i_batch  = amd_wave_read_first_lane(blockIdx.y);
+        const auto i_splitk = amd_wave_read_first_lane(blockIdx.z);
 
         const typename UniversalGemmKernel::SplitKBatchOffset splitk_batch_offset(kargs, i_splitk);
 
         //  options
-        const auto batch_stride_A = __builtin_amdgcn_readfirstlane(kargs.batch_stride_A);
-        const auto batch_offset_A = __builtin_amdgcn_readfirstlane(i_batch * batch_stride_A);
+        const auto batch_stride_A = amd_wave_read_first_lane(kargs.batch_stride_A);
+        const auto batch_offset_A = amd_wave_read_first_lane(i_batch * batch_stride_A);
         const ADataType* a_ptr = static_cast<const ADataType*>(kargs.as_ptr[0]) + batch_offset_A +
                                  splitk_batch_offset.as_k_split_offset[0];
 
-        const auto batch_stride_B = __builtin_amdgcn_readfirstlane(kargs.batch_stride_B);
-        const auto batch_offset_B = __builtin_amdgcn_readfirstlane(i_batch * batch_stride_B);
+        const auto batch_stride_B = amd_wave_read_first_lane(kargs.batch_stride_B);
+        const auto batch_offset_B = amd_wave_read_first_lane(i_batch * batch_stride_B);
         const BDataType* b_ptr = static_cast<const BDataType*>(kargs.bs_ptr[0]) + batch_offset_B +
                                  splitk_batch_offset.bs_k_split_offset[0];
 
-        const auto batch_stride_E = __builtin_amdgcn_readfirstlane(kargs.batch_stride_E);
-        const auto batch_offset_C = __builtin_amdgcn_readfirstlane(i_batch * batch_stride_E);
+        const auto batch_stride_E = amd_wave_read_first_lane(kargs.batch_stride_E);
+        const auto batch_offset_C = amd_wave_read_first_lane(i_batch * batch_stride_E);
         CDataType* c_ptr          = static_cast<CDataType*>(kargs.e_ptr) + batch_offset_C;
 
         // allocate LDS

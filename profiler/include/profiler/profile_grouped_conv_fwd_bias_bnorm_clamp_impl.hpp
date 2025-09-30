@@ -32,6 +32,7 @@ using OutElementOp = ck::tensor_operation::element_wise::BiasNormalizeInInferCla
 using Clamp        = ck::tensor_operation::element_wise::Clamp;
 using Add          = ck::tensor_operation::element_wise::Add;
 
+using BaseConv = ck::tensor_layout::convolution::BaseConvolutionLayout;
 // NOTE: Usage of NHWGK layout for GK bias is a workaround. This test is to
 // just keep such implementation valid.
 // TODO: Add possiblity to pass GK layout and GK lengths for bias and reuse
@@ -42,15 +43,15 @@ auto get_elementwise_desc(ck::index_t G, ck::index_t K)
 {
     if constexpr(NDimSpatial == 1)
     {
-        return HostTensorDescriptor({G, 1, K, 1}, {K, 0, 1, 0});
+        return HostTensorDescriptor({G, 1, K, 1}, {K, 0, 1, 0}, BaseConv{});
     }
     else if constexpr(NDimSpatial == 2)
     {
-        return HostTensorDescriptor({G, 1, K, 1, 1}, {K, 0, 1, 0, 0});
+        return HostTensorDescriptor({G, 1, K, 1, 1}, {K, 0, 1, 0, 0}, BaseConv{});
     }
     else
     {
-        return HostTensorDescriptor({G, 1, K, 1, 1, 1}, {K, 0, 1, 0, 0, 0});
+        return HostTensorDescriptor({G, 1, K, 1, 1, 1}, {K, 0, 1, 0, 0, 0}, BaseConv{});
     }
 }
 

@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "permute.hpp"
 #include "ck_tile/host.hpp"
+#include "ck_tile/utility/json_dump.hpp"
 
 #include <array>
 #include <cstring>
@@ -127,7 +128,9 @@ auto create_args(int argc, char* argv[])
                 "random seed used for initializing input tensors. 0 for "
                 "non-deterministic seed")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
-        .insert("repeat", "20", "number of iterations to benchmark the kernel");
+        .insert("repeat", "20", "number of iterations to benchmark the kernel")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "permute.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -256,6 +259,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         return permute(t, a, stream_config);
     };
+#if !CK_TILE_USE_WMMA
 #ifdef PERMUTE_USE_ALTERNATIVE_IMPL
     // batch* n0*n1*n2*k0*k1*k2 -> batch* n0*k0*n1*k1*n2*k2
     if((arg_parser.get_str("perm") == std::string("0,1,4,2,5,3,6") ||
@@ -345,6 +349,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
     else
 #endif
+#endif
     {
         ave_time = run_permute();
     }
@@ -380,6 +385,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 return i_d == i_h;
             });
         std::cout << ", valid:" << (pass ? "y" : "n") << std::flush;
+    }
+
+    if(arg_parser.get_int("json") == 1)
+    {
+        dump_permute_json_results(arg_parser.get_str("jsonfile"), data_type, pass, ave_time, 0, 0);
     }
 
     std::cout << std::endl;

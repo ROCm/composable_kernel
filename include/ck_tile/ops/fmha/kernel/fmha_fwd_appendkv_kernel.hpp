@@ -262,8 +262,8 @@ struct FmhaFwdAppendKVKernel
         // divide problem
         const auto [i_tile, i_nhead, i_batch] = GetTileIndex(kargs);
 
-        const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile * FmhaPipeline::kM0);
-        const index_t i_n0 = __builtin_amdgcn_readfirstlane(i_tile * FmhaPipeline::kN0);
+        const index_t i_m0 = amd_wave_read_first_lane(i_tile * FmhaPipeline::kM0);
+        const index_t i_n0 = amd_wave_read_first_lane(i_tile * FmhaPipeline::kN0);
 
         const index_t i_cache_batch = [&, i_batch_ = i_batch] {
             if constexpr(kIsPagedKV)
@@ -649,8 +649,12 @@ struct FmhaFwdAppendKVKernel
                              {0, i_n0});
 
         // If kApplyRoPe is false, we set the rotary_dim to 0
-        auto rotary_dim = kApplyRoPE ? kargs.rotary_dim : 0;
-
+        auto rotary_dim = [&]() {
+            if constexpr(kApplyRoPE)
+                return kargs.rotary_dim;
+            else
+                return 0;
+        }();
         FmhaPipeline{}(q_dram_window,
                        k_dram_window,
                        i_page_block_k,

@@ -51,8 +51,8 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
     static constexpr index_t kVHeaddim  = BlockFmhaShape::kVHeaddim;
 
     static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
-    static constexpr bool kPadHeadDimQ     = Problem::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV     = Problem::kPadHeadDimV;
+    static constexpr index_t kPadHeadDimQ  = Problem::kPadHeadDimQ;
+    static constexpr index_t kPadHeadDimV  = Problem::kPadHeadDimV;
     static constexpr auto BiasEnum         = Problem::BiasEnum;
     static constexpr bool kHasBiasGrad     = Problem::kHasBiasGrad;
     static constexpr bool kIsDeterministic = Problem::kIsDeterministic;
@@ -62,18 +62,18 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
     static constexpr index_t kAlignmentQ =
-        kPadHeadDimQ ? 1 : Policy::template GetAlignmentQ<Problem>();
+        kPadHeadDimQ ? kPadHeadDimQ : Policy::template GetAlignmentQ<Problem>();
     static constexpr index_t kAlignmentK =
-        kPadHeadDimQ ? 1 : Policy::template GetAlignmentK<Problem>();
+        kPadHeadDimQ ? kPadHeadDimQ : Policy::template GetAlignmentK<Problem>();
     static constexpr index_t kAlignmentV =
-        kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
+        kPadHeadDimV ? kPadHeadDimV : Policy::template GetAlignmentV<Problem>();
     static constexpr index_t kAlignmentOGrad =
-        kPadHeadDimV ? 1 : Policy::template GetAlignmentOGrad<Problem>();
+        kPadHeadDimV ? kPadHeadDimV : Policy::template GetAlignmentOGrad<Problem>();
     static constexpr index_t kAlignmentQGrad = 1;
     static constexpr index_t kAlignmentKGrad =
-        kPadHeadDimQ ? 1 : Policy::template GetAlignmentKGrad<Problem>();
+        kPadHeadDimQ ? kPadHeadDimQ : Policy::template GetAlignmentKGrad<Problem>();
     static constexpr index_t kAlignmentVGrad =
-        kPadHeadDimV ? 1 : Policy::template GetAlignmentVGrad<Problem>();
+        kPadHeadDimV ? kPadHeadDimV : Policy::template GetAlignmentVGrad<Problem>();
     static constexpr index_t kAlignmentBias = 1;
 
     static constexpr const char* name = "trload_kr_ktr_vr";
@@ -93,6 +93,42 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
             return raw_lse;
     };
 
+    template <typename... Ts>
+    CK_TILE_DEVICE auto operator()(void* smem_ptr, Ts&&... args) const
+    {
+        // LDS allocation
+        const auto smem_ptr_ =
+            reinterpret_cast<char*>(smem_ptr); // cast to char* to do pointer arithmetic
+
+        const auto k_lds_ptr = reinterpret_cast<KDataType* __restrict__>(smem_ptr_);
+        const auto v_lds_ptr = reinterpret_cast<VDataType* __restrict__>(
+            smem_ptr_ + Policy::template GetSmemSizeK<Problem>());
+
+        const auto do_lds_ptr  = reinterpret_cast<OGradDataType*>(smem_ptr_);
+        const auto q_lds_ptr   = reinterpret_cast<QDataType*>( //
+            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>());
+        const auto lse_lds_ptr = reinterpret_cast<LSEDataType*>( //
+            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>() +
+            Policy::template GetSmemSizeQ<Problem>());
+        const auto d_lds_ptr   = reinterpret_cast<DDataType*>(
+            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>() +
+            Policy::template GetSmemSizeQ<Problem>() + Policy::template GetSmemSizeLSE<Problem>());
+
+        const auto ds_lds_ptr =
+            reinterpret_cast<GemmDataType*>(smem_ptr_ + Policy::template GetSmemSizeK<Problem>() +
+                                            Policy::template GetSmemSizeV<Problem>());
+        const auto bias_lds_ptr = reinterpret_cast<BiasDataType*>(ds_lds_ptr);
+        return run(k_lds_ptr,
+                   v_lds_ptr,
+                   do_lds_ptr,
+                   q_lds_ptr,
+                   lse_lds_ptr,
+                   d_lds_ptr,
+                   ds_lds_ptr,
+                   bias_lds_ptr,
+                   std::forward<Ts>(args)...);
+    }
+
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
@@ -109,7 +145,15 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
               typename KGradEpilogue,
               typename VGradEpilogue,
               typename PositionEncoding>
-    CK_TILE_DEVICE auto operator()( //
+    CK_TILE_DEVICE auto run( //
+        KDataType* __restrict__ k_lds_ptr,
+        VDataType* __restrict__ v_lds_ptr,
+        OGradDataType* __restrict__ do_lds_ptr,
+        QDataType* __restrict__ q_lds_ptr,
+        LSEDataType* __restrict__ lse_lds_ptr,
+        DDataType* __restrict__ d_lds_ptr,
+        GemmDataType* __restrict__ ds_lds_ptr,
+        BiasDataType* __restrict__ bias_lds_ptr,
         const QDramBlockWindowTmp& q_dram_block_window_tmp,
         const KDramBlockWindowTmp& k_dram_block_window_tmp,
         const VDramBlockWindowTmp& v_dram_block_window_tmp,
@@ -131,7 +175,6 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
         float scale,
         float rp_undrop,
         float scale_rp_undrop,
-        void* smem_ptr,
         FmhaDropout& dropout) const
     {
         static_assert(
@@ -180,29 +223,6 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
                              k_dram_block_window_tmp.get_window_lengths(),
                              {seqlen_kv_start, 0},
                              Policy::template MakeKDramTileDistribution<Problem>());
-
-        // LDS allocation
-        const auto smem_ptr_ =
-            reinterpret_cast<char*>(smem_ptr); // cast to char* to do pointer arithmetic
-
-        const auto k_lds_ptr = reinterpret_cast<KDataType* __restrict__>(smem_ptr_);
-        const auto v_lds_ptr = reinterpret_cast<VDataType* __restrict__>(
-            smem_ptr_ + Policy::template GetSmemSizeK<Problem>());
-
-        const auto do_lds_ptr  = reinterpret_cast<OGradDataType*>(smem_ptr_);
-        const auto q_lds_ptr   = reinterpret_cast<QDataType*>( //
-            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>());
-        const auto lse_lds_ptr = reinterpret_cast<LSEDataType*>( //
-            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>() +
-            Policy::template GetSmemSizeQ<Problem>());
-        const auto d_lds_ptr   = reinterpret_cast<DDataType*>(
-            smem_ptr_ + Policy::template GetSmemSizeOGrad<Problem>() +
-            Policy::template GetSmemSizeQ<Problem>() + Policy::template GetSmemSizeLSE<Problem>());
-
-        const auto ds_lds_ptr =
-            reinterpret_cast<GemmDataType*>(smem_ptr_ + Policy::template GetSmemSizeK<Problem>() +
-                                            Policy::template GetSmemSizeV<Problem>());
-        const auto bias_lds_ptr = reinterpret_cast<BiasDataType*>(ds_lds_ptr);
 
         auto k_lds = make_tensor_view<address_space_enum::lds>(
             k_lds_ptr, Policy::template MakeKLdsWriteBlockDescriptor<Problem>());
@@ -323,22 +343,19 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
         const auto bias_origin = bias_dram_block_window_tmp.get_window_origin();
 
         auto bias_dram_window =
-            make_tile_window(Policy::template TransformXDramTensorView<QDataType>(
-                                 bias_dram_block_window_tmp.get_bottom_tensor_view()),
+            make_tile_window(bias_dram_block_window_tmp.get_bottom_tensor_view(),
                              bias_dram_block_window_tmp.get_window_lengths(),
                              {bias_origin.at(number<0>{}), seqlen_kv_start},
                              Policy::template MakeBiasTileDistribution<Problem>());
 
         auto bias_lds = make_tensor_view<address_space_enum::lds>(
-            bias_lds_ptr, Policy::template MakeBiasLdsWriteBlockDescriptor<Problem>());
+            bias_lds_ptr, Policy::template MakeBiasLdsBlockDescriptor<Problem>());
         auto bias_lds_write_window =
             make_tile_window(bias_lds, make_tuple(number<kM0>{}, number<kN0>{}), {0, 0});
 
-        auto bias_lds_read = make_tensor_view<address_space_enum::lds>(
-            bias_lds_ptr, Policy::template MakeBiasLdsReadBlockDescriptor<Problem>());
         auto bias_s_lds_read_window =
-            make_tile_window(bias_lds_read,
-                             make_tuple(number<kM0>{}, number<kN0>{}),
+            make_tile_window(bias_lds_write_window.get_bottom_tensor_view(),
+                             bias_lds_write_window.get_window_lengths(),
                              bias_lds_write_window.get_window_origin(),
                              Policy::template MakeBiasSTileDistribution<decltype(gemm_0)>());
 
@@ -346,38 +363,38 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
                       "BiasDataType and BiasGradDataType should be the same!");
 
         // LSE: HBM -> LDS ->Reg
-        auto lse_dram_window = make_tile_window(
-            lse_dram_block_window_tmp.get_bottom_tensor_view(),
-            lse_dram_block_window_tmp.get_window_lengths(),
-            {0},
-            Policy::template MakeLSEDDramTileDistribution<Problem, decltype(gemm_0)>());
+        auto lse_dram_window =
+            make_tile_window(lse_dram_block_window_tmp.get_bottom_tensor_view(),
+                             lse_dram_block_window_tmp.get_window_lengths(),
+                             {0},
+                             Policy::template MakeLSEDDramTileDistribution<Problem>());
 
         auto lse_lds = make_tensor_view<address_space_enum::lds>(
             lse_lds_ptr, Policy::template MakeLSEDLdsWriteBlockDescriptor<Problem>());
 
         auto lse_lds_write_window = make_tile_window(lse_lds, make_tuple(number<kM0>{}), {0});
 
-        auto lse_lds_read_window = make_tile_window(
-            lse_lds,
-            make_tuple(number<kM0>{}),
-            {0},
-            Policy::template MakeLSEDLdsReadBlockDescriptor<Problem, decltype(gemm_0)>());
+        auto lse_lds_read_window =
+            make_tile_window(lse_lds,
+                             make_tuple(number<kM0>{}),
+                             {0},
+                             Policy::template MakeLSEDLdsReadBlockDescriptor<Problem>());
 
         // D: HBM ->Reg
-        auto d_dram_window = make_tile_window(
-            d_dram_block_window_tmp.get_bottom_tensor_view(),
-            d_dram_block_window_tmp.get_window_lengths(),
-            {0},
-            Policy::template MakeLSEDDramTileDistribution<Problem, decltype(gemm_0)>());
+        auto d_dram_window =
+            make_tile_window(d_dram_block_window_tmp.get_bottom_tensor_view(),
+                             d_dram_block_window_tmp.get_window_lengths(),
+                             {0},
+                             Policy::template MakeLSEDDramTileDistribution<Problem>());
 
         auto d_lds = make_tensor_view<address_space_enum::lds>(
             d_lds_ptr, Policy::template MakeLSEDLdsWriteBlockDescriptor<Problem>());
         auto d_lds_write_window = make_tile_window(d_lds, make_tuple(number<kM0>{}), {0});
-        auto d_lds_read_window  = make_tile_window(
-            d_lds,
-            make_tuple(number<kM0>{}),
-            {0},
-            Policy::template MakeLSEDLdsReadBlockDescriptor<Problem, decltype(gemm_0)>());
+        auto d_lds_read_window =
+            make_tile_window(d_lds,
+                             make_tuple(number<kM0>{}),
+                             {0},
+                             Policy::template MakeLSEDLdsReadBlockDescriptor<Problem>());
 
         // RandVal: HBM ->Reg
         auto randval_dram_window = dropout.template MakeRandvalDramWindow<decltype(gemm_0), true>(
@@ -472,7 +489,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
                 move_tile_window(k_dram_window, {kN0, 0});
                 async_load_tile(v_lds_write_window, v_dram_window);
                 move_tile_window(v_dram_window, {kN0, 0});
-                // __builtin_amdgcn_s_waitcnt(0);
+                s_waitcnt</*vmcnt=*/0>();
                 k_reg_tensor  = load_tile(k_lds_read_window);
                 v_reg_tensor  = load_tile(v_lds_read_window);
                 kt_reg_tensor = load_tile_transpose(kt_lds_read_window);
@@ -490,8 +507,11 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
                 // STAGE 2, Scale, Add bias, Mask, Softmax, Dropout
                 if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
                 {
-                    async_load_tile(bias_lds_write_window, bias_dram_window);
-                    __builtin_amdgcn_s_waitcnt(3952);
+                    const auto bias_tile    = load_tile(bias_dram_window);
+                    auto shuffled_bias_tile = make_static_distributed_tensor<BiasDataType>(
+                        Policy::template MakeShuffledBiasTileDistribution<Problem>());
+                    shuffle_tile(shuffled_bias_tile, bias_tile);
+                    store_tile(bias_lds_write_window, shuffled_bias_tile);
                     block_sync_lds();
                     auto bias_s_tile = load_tile(bias_s_lds_read_window);
                     tile_elementwise_inout(
@@ -616,7 +636,7 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
                         }
                     }();
                     store_tile(bias_lds_write_window, dbias);
-                    __builtin_amdgcn_s_waitcnt(3952);
+                    s_waitcnt</*vmcnt=*/0>();
                     block_sync_lds();
                     auto shuffled_dbias_tile = load_tile(dbias_lds_read_window);
                     auto dbias_tile          = make_static_distributed_tensor<BiasGradDataType>(
@@ -636,9 +656,15 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
                 dst_reg_tensor.get_thread_buffer() = ds_gemm.get_thread_buffer();
                 dk_acc                             = gemm_3(dst_reg_tensor, qt_reg_tensor);
 
+                if constexpr(kHasBiasGrad)
+                {
+                    // SGrad and BiasGrad use the same address in LDS, finish loading dbias to reuse
+                    // LDS.
+                    block_sync_lds();
+                }
                 store_tile(ds_lds_window, ds_gemm);
             }
-            __builtin_amdgcn_s_waitcnt(3952);
+            s_waitcnt</*vmcnt=*/0>();
             block_sync_lds();
             if constexpr(is_epilogue)
             {
@@ -687,18 +713,18 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
                     tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, dk_acc);
                 }
 
-                dk_epilogue(dk_dram_window, dk_acc);
+                dk_epilogue(dk_dram_window, dk_acc, nullptr);
                 move_tile_window(dk_dram_window, {kN0, 0});
-                dv_epilogue(dv_dram_window, dv_acc);
+                dv_epilogue(dv_dram_window, dv_acc, nullptr);
                 move_tile_window(dv_dram_window, {kN0, 0});
             }
         };
 
         for(index_t i = 0; i < seqlen_kv_start; i += kN0)
         {
-            dk_epilogue(dk_dram_window, decltype(gemm_3.MakeCBlockTile()){0});
+            dk_epilogue(dk_dram_window, decltype(gemm_3.MakeCBlockTile()){0}, nullptr);
             move_tile_window(dk_dram_window, {kN0, 0});
-            dv_epilogue(dv_dram_window, decltype(gemm_1.MakeCBlockTile()){0});
+            dv_epilogue(dv_dram_window, decltype(gemm_1.MakeCBlockTile()){0}, nullptr);
             move_tile_window(dv_dram_window, {kN0, 0});
         }
 
@@ -720,9 +746,9 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
         const auto seqlen_kv_length = k_length.at(number<0>{});
         for(; seqlen_kv_step < seqlen_kv_length; seqlen_kv_step += kN0)
         {
-            dk_epilogue(dk_dram_window, decltype(gemm_3.MakeCBlockTile()){0});
+            dk_epilogue(dk_dram_window, decltype(gemm_3.MakeCBlockTile()){0}, nullptr);
             move_tile_window(dk_dram_window, {kN0, 0});
-            dv_epilogue(dv_dram_window, decltype(gemm_1.MakeCBlockTile()){0});
+            dv_epilogue(dv_dram_window, decltype(gemm_1.MakeCBlockTile()){0}, nullptr);
             move_tile_window(dv_dram_window, {kN0, 0});
         }
 
@@ -732,12 +758,29 @@ struct BlockFmhaBwdDQDKDVPipelineTrLoadQRQTRDOR
                                    dq_acc);
         else
             tile_elementwise_inout([&raw_scale](auto& x) { x = x * raw_scale; }, dq_acc);
-        // static_assert(kIsDeterministic);
-        dq_epilogue(dq_dram_window, dq_acc);
+        dq_epilogue(dq_dram_window, dq_acc, nullptr);
         return;
     }
 };
 
-template <class T>
-concept fmha_bwd_qr_qtr_dor_pipeline_c = T::is_qr_qtr_dor_pipeline;
+// We don't support C++20 concepts yet, so we use SFINAE check the existence and truthiness
+// of is_qr_qtr_dor_pipeline static member instead of using concepts directly.
+//
+// The template struct's value field is equivalent to the following commented concept definition.
+//
+// template <class T>
+// concept fmha_bwd_qr_qtr_dor_pipeline_c = T::is_qr_qtr_dor_pipeline;
+
+// SFINAE test for existence and truthiness of static member is_qr_qtr_dor_pipeline.
+template <typename, typename = void>
+struct fmha_bwd_qr_qtr_dor_pipeline : std::false_type
+{
+};
+
+template <typename T>
+struct fmha_bwd_qr_qtr_dor_pipeline<T, std::void_t<decltype(T::is_qr_qtr_dor_pipeline)>>
+    : std::bool_constant<T::is_qr_qtr_dor_pipeline>
+{
+};
+
 } // namespace ck_tile

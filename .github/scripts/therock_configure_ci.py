@@ -42,6 +42,24 @@ def get_modified_paths(base_ref: str) -> Optional[Iterable[str]]:
             file=sys.stderr,
         )
         return None
+    
+GITHUB_WORKFLOWS_CI_PATTERNS = [
+    "therock*",
+]
+
+def is_path_workflow_file_related_to_ci(path: str) -> bool:
+    return any(
+        fnmatch.fnmatch(path, ".github/workflows/" + pattern)
+        for pattern in GITHUB_WORKFLOWS_CI_PATTERNS
+    ) or any(
+        fnmatch.fnmatch(path, ".github/scripts/" + pattern)
+        for pattern in GITHUB_WORKFLOWS_CI_PATTERNS
+    )
+
+def check_for_workflow_file_related_to_ci(paths: Optional[Iterable[str]]) -> bool:
+    if paths is None:
+        return False
+    return any(is_path_workflow_file_related_to_ci(p) for p in paths)
 
 # Paths matching any of these patterns are considered to have no influence over
 # build or test workflows so any related jobs can be skipped if all paths
@@ -82,12 +100,16 @@ def should_ci_run_given_modified_paths(paths: Optional[Iterable[str]]) -> bool:
     )
     other_paths = paths_set - github_workflows_paths
 
+    related_to_ci = check_for_workflow_file_related_to_ci(github_workflows_paths)
     contains_other_non_skippable_files = check_for_non_skippable_path(other_paths)
 
     print("should_ci_run_given_modified_paths findings:")
     print(f"  contains_other_non_skippable_files: {contains_other_non_skippable_files}")
 
-    if contains_other_non_skippable_files:
+    if related_to_ci:
+        print("Enabling build jobs since a related workflow file was modified")
+        return True
+    elif contains_other_non_skippable_files:
         print("Enabling TheRock CI jobs since a non-skippable path was modified")
         return True
     else:
