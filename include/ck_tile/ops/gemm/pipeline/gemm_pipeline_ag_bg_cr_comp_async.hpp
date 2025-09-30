@@ -77,17 +77,10 @@ struct BaseGemmPipelineAgBgCrCompAsync
 };
 
 /**
- * @brief Compute optimized pipeline version async; which is changed from V4.
+ * @brief Compute optimized pipeline version async; which is based on V4.
  *
- * This version introduces a dual LDS window mechanism using a ping-pong buffer approach
- * for more efficient data handling from global memory. Unlike compute version 3, this method
- * allows one LDS to fetch data from global memory while the other LDS executes warps for MFMA
- * matrix multiplication. This dual operation helps in keeping the Warp unit continuously busy,
- * thereby significantly reducing memory load times and enhancing overall performance.
- *
- * @note This version shows improved performance over Compute Version 3 with the same block tile.
- * It is particularly more efficient for large matrices where M, N, and K are greater than 8K,
- * even when Compute Version 3's block size is twice that of Compute Version 4.
+ * This pipeline introduces asynchronous load from global memory to LDS, 
+ * skipping the intermediate loading into pipeline registers.
  */
 template <typename Problem, typename Policy = GemmPipelineAgBgCrCompAsyncDefaultPolicy>
 struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Problem>
