@@ -61,9 +61,8 @@ def getRequiredBranchChecks() {
 }
 
 def shouldRunCICheck() {
-    // Define patterns for files that should NOT trigger CI
+    // Define patterns for files that should not trigger CI
     def skipFilePatterns = [
-        /^Jenkinsfile$/, // This Jenkinsfile
         /^\.github\/.*/, // GitHub workflow files
         /^docs\/.*/, // Documentation files
         /^LICENSE$/, // License file
