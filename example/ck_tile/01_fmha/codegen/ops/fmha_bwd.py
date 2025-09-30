@@ -462,7 +462,7 @@ using fmha_bwd_dot_do_o_pipeline_problem_{F_idx} = ck_tile::BlockFmhaBwdOGradDot
     typename FmhaBwdTypeConfig<fmha_dtype_{F_idx}>::ODataType,
     typename FmhaBwdTypeConfig<fmha_dtype_{F_idx}>::OGradDataType,
     typename FmhaBwdTypeConfig<fmha_dtype_{F_idx}>::DDataType,
-    /* BlockSize = M0 = */ 64,
+    /* BlockSize = M0 = */ {F_bm0},
     {F_hdim},
     {F_mode},
     fmha_bwd_dot_do_o_trait_{F_idx}>;
@@ -516,6 +516,7 @@ class FmhaBwdOGradDotOKernel:
     F_idx       : int  # this is not a tunable, but a counter to differentiate symbol
     F_hdim      : int  # hdim
     F_dtype     : str  # data type
+    F_bm0       : int  # tile size along q seqlen (block size)
     F_spad      : str  # true/false
     F_dvpad     : str  #
     F_mode      : str  # value from MODE_MAP
@@ -530,6 +531,7 @@ class FmhaBwdOGradDotOKernel:
                 F_check_archs = check_archs,
                 F_hdim        = self.F_hdim,
                 F_dtype       = BWD_DTYPE_MAP[self.F_dtype],
+                F_bm0         = self.F_bm0,
                 F_spad        = BOOL_MAP[self.F_spad],
                 F_dvpad       = BOOL_MAP[self.F_dvpad],
                 F_mode        = MODE_MAP[self.F_mode],
@@ -544,7 +546,7 @@ class FmhaBwdOGradDotOKernel:
             if n != '' : n = 'p' + n
             return n
         pn = pad_name()
-        n = f"fmha_bwd_dot_do_o_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_o{self.F_occupancy}"
+        n = f"fmha_bwd_dot_do_o_d{self.F_hdim}_{self.F_dtype}_b{self.F_bm0}_{self.F_mode}_o{self.F_occupancy}"
         if pn != '' : n += f'_{pn}'
         else: n += '_npad'
         return n
@@ -754,8 +756,9 @@ class FmhaBwdApiTrait:
             return 2
 
         F_dvpad = 't' if self.dvpad else 'f'
-        return FmhaBwdOGradDotOKernel(F_archs=[self.arch], F_idx=self.idx, F_hdim=self.hdim, F_dtype=self.dtype, F_spad=self.spad1d,
-            F_dvpad=F_dvpad, F_mode=self.mode, F_occupancy=get_occupancy(self.dtype, self.hdim))
+        return FmhaBwdOGradDotOKernel(F_archs=[self.arch], F_idx=self.idx, F_hdim=self.hdim, F_dtype=self.dtype,
+            F_bm0=M0_1D, F_spad=self.spad1d, F_dvpad=F_dvpad,
+            F_mode=self.mode, F_occupancy=get_occupancy(self.dtype, self.hdim))
 
     @property
     def dq_dk_dv_kernel(self) -> FmhaBwdDQDKDVKernel:
