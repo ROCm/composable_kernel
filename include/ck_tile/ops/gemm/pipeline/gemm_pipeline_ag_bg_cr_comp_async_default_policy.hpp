@@ -9,9 +9,9 @@
 #include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
 
 namespace ck_tile {
-// Default policy for GemmPipelineAgBgCrCompAsync, mostly copied from
-// GemmPipelineAgBgCrCompV4DefaultPolicy
-// Customized methods: MakeALdsBlockDescriptor, MakeBLdsBlockDescriptor, GetBlockGemm.
+// Default policy for GemmPipelineAgBgCrCompAsync
+// Customized methods: MakeALdsBlockDescriptor, MakeBLdsBlockDescriptor
+// GetBlockGemm implementation is copied from GemmPipelineAgBgCrCompV4DefaultPolicy
 struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
     : public UniversalGemmBasePolicy<GemmPipelineAgBgCrCompAsyncDefaultPolicy>
 {
