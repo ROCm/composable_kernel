@@ -640,6 +640,13 @@ struct GroupedConvolutionBackwardWeightKernel
                 return false;
             }
 
+            // TODO: Remove this check when ConvC > 1 is implemented.
+            if (ConvC > 1)
+            {
+                CK_TILE_ERROR("Only Conv C == 1 is supported!");
+                return false;
+            }
+
             if (kargs.NumGroupsPerBatch * ConvC * ZYX > TilePartitioner_::NPerBlock)
             {
                 CK_TILE_ERROR("NumGroupsPerBatch * Conv C * ZYX must be less or equal to NPerBlock!");
