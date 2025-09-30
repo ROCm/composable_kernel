@@ -228,24 +228,6 @@ struct tile_distribution
     {
         return PsYs2XsAdaptor::is_static() && Ys2DDescriptor::is_static();
     }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("tile_distribution{");
-        //
-        printf("tile_distribution_encoding: ");
-        print(DstrEncode{});
-        printf(", ");
-        //
-        printf("ps_ys_to_xs_: ");
-        print(ps_ys_to_xs_);
-        printf(", ");
-        //
-        printf("ys_to_d_: ");
-        print(ys_to_d_);
-        //
-        printf("}");
-    }
 };
 
 namespace detail {
@@ -710,4 +692,27 @@ CK_TILE_HOST_DEVICE constexpr auto slice_distribution_from_x(
 }
 
 } // namespace detail
+
+// Free print function for tile_distribution
+template <typename PsYs2XsAdaptor_,
+          typename Ys2DDescriptor_,
+          typename StaticTileDistributionEncoding_,
+          typename TileDistributionDetail_>
+CK_TILE_HOST_DEVICE void print(const tile_distribution<PsYs2XsAdaptor_,
+                                                       Ys2DDescriptor_,
+                                                       StaticTileDistributionEncoding_,
+                                                       TileDistributionDetail_>& distribution)
+{
+    printf("tile_distribution{");
+    printf("tile_distribution_encoding: ");
+    print(StaticTileDistributionEncoding_{});
+    printf(", ");
+    printf("ps_ys_to_xs_: ");
+    print(distribution.ps_ys_to_xs_);
+    printf(", ");
+    printf("ys_to_d_: ");
+    print(distribution.ys_to_d_);
+    printf("}\n");
+}
+
 } // namespace ck_tile

@@ -16,6 +16,7 @@ namespace instance {
 using BF16 = ck::bhalf_t;
 using F16  = ck::half_t;
 using F32  = float;
+using TF32 = ck::tf32_t;
 
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "topk_softmax_api.hpp"
 
@@ -13,11 +13,11 @@
                                                                                                 \
     auto kargs = kernel::MakeKargs(a);                                                          \
                                                                                                 \
-    const dim3 grids      = kernel::GridSize(a);                                                \
-    constexpr dim3 blocks = kernel::BlockSize();                                                \
+    const dim3 grids  = kernel::GridSize(a);                                                    \
+    const dim3 blocks = kernel::BlockSize();                                                    \
                                                                                                 \
-    float ave_time = ck_tile::launch_kernel(                                                    \
-        s, ck_tile::make_kernel<blocks.x, 1>(kernel{}, grids, blocks, 0, kargs));               \
+    float ave_time =                                                                            \
+        ck_tile::launch_kernel(s, ck_tile::make_kernel<1>(kernel{}, grids, blocks, 0, kargs));  \
                                                                                                 \
     return ave_time;
 

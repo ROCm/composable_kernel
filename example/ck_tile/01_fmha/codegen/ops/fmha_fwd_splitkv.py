@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 # generate kernel instances to speed up compilation
 
 import copy
@@ -41,7 +41,6 @@ K0_MAX_SUBMAX_MAP = {
 FMHA_FWD_SPLITKV_PIPELINE_MAP = {
     "qr" : "ck_tile::BlockFmhaFwdSplitKVPipelineQRKSVS",
     "qr_nwarp_sshuffle" : "ck_tile::BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS",
-    "qr_async" : "ck_tile::BlockFmhaFwdSplitKVPipelineQRKSVSAsync",
 }
 
 FMHA_FWD_SPLITKV_KERNEL_BODY="""
@@ -109,9 +108,9 @@ static void run(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
 {{
     using k_ = fmha_kernel;
     auto [kargs, grids] = fmha_fwd_splitkv_create_kargs_and_grids<k_>(a);
-    constexpr dim3 blocks             = k_::BlockSize();
+    const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
-    ck_tile::make_kernel<blocks.x, kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs)(ck_tile::stream_config{{s.stream_id_}});
+    ck_tile::make_kernel<kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs)(ck_tile::stream_config{{s.stream_id_}});
 }}
 }};
 }}
@@ -209,9 +208,9 @@ static void run(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
 {{
     using k_ = fmha_kernel;
     auto [kargs, grids] = fmha_fwd_splitkv_combine_create_kargs_and_grids<k_>(a);
-    constexpr dim3 blocks             = k_::BlockSize();
+    const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
-    ck_tile::make_kernel<blocks.x, kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs)(ck_tile::stream_config{{s.stream_id_}});
+    ck_tile::make_kernel<kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs)(ck_tile::stream_config{{s.stream_id_}});
 }}
 }};
 }}
@@ -348,8 +347,8 @@ class FmhaFwdSplitKVApiTrait:
             if self.skpad == 't' : return f'a.seqlen_k == 0 || a.seqlen_k % {self.bn0} != 0'
             else :                 return f'a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0'
         elif self.pipeline_tag in ['qr', 'qr_nwarp_sshuffle']:
-            if self.skpad == 't' : return f'true /*a.seqlen_k % {self.bn0} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
-            else :                return f'a.seqlen_k % {self.bn0} == 0'
+            if self.skpad == 't' : return f'true /*a.seqlen_k_ptr != nullptr || a.seqlen_k % {self.bn0} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
+            else :                return f'a.seqlen_k_ptr == nullptr && a.seqlen_k % {self.bn0} == 0'
         else: assert False
 
     @property
@@ -639,14 +638,13 @@ def get_fmha_fwd_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
             '64'  : FmhaFwdTileSize(64, 64,  32, 64,  32,  64,   4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
             '96'  : FmhaFwdTileSize(64, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
             '128' : FmhaFwdTileSize(64, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
-            '160' : FmhaFwdTileSize(64, 128, 32, 160, 32,  160,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+            # '160' : FmhaFwdTileSize(64, 128, 32, 160, 32,  160,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
             '256' : FmhaFwdTileSize(64, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
         }
     elif dtype == 'fp8' or dtype == 'bf8':
         return {
             '64'  : FmhaFwdTileSize(128, 64,  32, 64,  32,  64,   2, 1, 1,  2, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
             '128' : FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
-            '256' : FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
         }
     else:
         return None
@@ -658,7 +656,7 @@ def get_fmha_fwd_splitkv_combine_tile_dict_from_dtype(dtype : str) -> Optional[d
             '64'  : FmhaFwdSplitKVCombineTileSize(32,  -1),
             '96'  : FmhaFwdSplitKVCombineTileSize(32,  -1),
             '128' : FmhaFwdSplitKVCombineTileSize(32,  -1),
-            '160' : FmhaFwdSplitKVCombineTileSize(32,  -1),
+            # '160' : FmhaFwdSplitKVCombineTileSize(32,  -1),
             '256' : FmhaFwdSplitKVCombineTileSize(32,  -1),
     }
     elif dtype == 'fp8' or dtype == 'bf8':
@@ -685,28 +683,17 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl, opt
         pipelines = []
         if dtype in ['fp16', 'bf16']:
             for logits, mask, bias, pagedkv in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"]):
-                # TODO: use async pipeline when compiler is more stable
-                if hdim == 256 or hdim in [32, 64, 128]:         ### [32, 64, 96, 128, 160]:
-                # if True:
-                    pipelines.append(Pipeline('qr', 'row', 'f', 't', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
-                    pipelines.append(Pipeline('qr', 'col', 'f', 't', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
+                pipelines.append(Pipeline('qr', 'row', 'f', 't', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
+                pipelines.append(Pipeline('qr', 'col', 'f', 't', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
 
-                    pipelines.append(Pipeline('qr', 'row', 't', 'f', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
-                    pipelines.append(Pipeline('qr', 'col', 't', 'f', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
+                pipelines.append(Pipeline('qr', 'row', 't', 'f', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
+                pipelines.append(Pipeline('qr', 'col', 't', 'f', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
 
-                    pipelines.append(Pipeline('qr', 'row', 't', 't', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
-                    pipelines.append(Pipeline('qr', 'col', 't', 't', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
+                pipelines.append(Pipeline('qr', 'row', 't', 't', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
+                pipelines.append(Pipeline('qr', 'col', 't', 't', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
 
-                    pipelines.append(Pipeline('qr', 'row', 't', 't', 't', 't', logits, bias, 't', squant, pagedkv, mask))
-                    pipelines.append(Pipeline('qr', 'col', 't', 't', 't', 't', logits, bias, 't', squant, pagedkv, mask))
-                else:
-                    pipelines.append(Pipeline('qr_async', 'row', 't', 'f', 't', 't', logits, bias, 't', squant, pagedkv, mask))
-                    pipelines.append(Pipeline('qr_async', 'row', 't', 't', 't', 't', logits, bias, 't', squant, pagedkv, mask))
-                    pipelines.append(Pipeline('qr_async', 'col', 't', 'f', 't', 't', logits, bias, 't', squant, pagedkv, mask))
-                    pipelines.append(Pipeline('qr_async', 'col', 't', 't', 't', 't', logits, bias, 't', squant, pagedkv, mask))
-                    if receipt == 1:
-                        pipelines.append(Pipeline('qr', 'row', 't', 't', 't', 't', logits, bias, 't', squant, pagedkv, mask)) # TODO: cover arbitraty hdim
-                        pipelines.append(Pipeline('qr', 'col', 't', 'f', 't', 't', logits, bias, 't', squant, pagedkv, mask)) # TODO: cover arbitraty hdim
+                pipelines.append(Pipeline('qr', 'row', 't', 't', 't', 't', logits, bias, 't', squant, pagedkv, mask))
+                pipelines.append(Pipeline('qr', 'col', 't', 't', 't', 't', logits, bias, 't', squant, pagedkv, mask))
         elif dtype in ['fp8', 'bf8']:
             for logits, mask, bias in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()):
                 pipelines.append(Pipeline('qr', 'col', 'f', 'f', 'f', 'f', logits, bias, 't', squant, 'f', mask))
@@ -781,6 +768,13 @@ def get_fwd_splitkv_blobs(kernel_filter : Optional[str], receipt, mask_impl, opt
                     cond &= pipeline.F_squant == 'f'
                     if not cond:
                         continue
+
+                # fp32 only
+                if receipt == 800 or receipt == 801:
+                    cond = dtype == 'fp32'
+                    if not cond:
+                        continue
+
                 api_pool.register_traits(k.api_trait())
                 gen.append(k)
 
@@ -847,6 +841,13 @@ def get_fwd_splitkv_combine_blobs(kernel_filter : Optional[str], receipt, optdim
                     cond = dtype in ['fp16', 'bf16']
                     if not cond:
                         continue
+
+                # fp32 only
+                if receipt == 800 or receipt == 801:
+                    cond = dtype == 'fp32'
+                    if not cond:
+                        continue
+
                 gen.append(k)
 
     return gen

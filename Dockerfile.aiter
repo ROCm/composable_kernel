@@ -1,0 +1,19 @@
+ARG BASE_DOCKER="rocm/composable_kernel-private:ck_aiter_base"
+FROM $BASE_DOCKER
+ARG AITER_BRANCH="main"
+ARG CK_AITER_BRANCH="develop"
+RUN groupadd irc && \
+    pip install pandas zmq einops && \
+    pip install numpy==1.26.2 && \
+    sudo mkdir /home/jenkins && \
+    sudo mkdir /home/jenkins/workspace && \
+    cd /home/jenkins/workspace && \
+    rm -rf aiter && \
+    git clone -b "$AITER_BRANCH" --recursive https://github.com/ROCm/aiter.git && \
+    cd aiter && \
+    rm -rf 3rdparty/composable_kernel/ && \
+    git clone -b "$CK_AITER_BRANCH" https://github.com/ROCm/composable_kernel.git 3rdparty/composable_kernel/ && \
+    python3 setup.py develop && \
+    chown -R jenkins:jenkins /home/jenkins/workspace && \
+    chmod -R a+rwx /home/jenkins/workspace && \
+    sudo usermod -aG irc jenkins

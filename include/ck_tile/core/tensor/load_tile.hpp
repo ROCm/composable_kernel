@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -24,6 +24,29 @@ CK_TILE_DEVICE auto load_tile(const TileWindow_& tile_window,
                               bool_constant<oob_conditional_check> = {})
 {
     return tile_window.load(number<i_access>{}, bool_constant<oob_conditional_check>{});
+}
+
+/**
+ * @brief Load tile with elementwise function
+ *
+ * @note This function is a modification of the existing load function.
+ *       It has been extended with two additional parameters: it takes a tuple as input
+ *       and an elementwise function. For each A = A0, A1… AN, the elementwise function
+ *       is additionally applied during a single read.
+ */
+template <typename TileWindow_,
+          typename ElementWise_,
+          index_t i_access           = -1,
+          bool oob_conditional_check = true>
+CK_TILE_DEVICE auto load_tile_with_elementwise(const TileWindow_& tile_window,
+                                               ElementWise_ elementwise,
+                                               number<i_access>                     = {},
+                                               bool_constant<oob_conditional_check> = {})
+{
+    // TODO: Tile windows should works with unknow number of params
+    // Load element_wise API works only when the input typle is a tuple-tyupe
+    return tile_window[number<0>{}].load(
+        tile_window, elementwise, number<i_access>{}, bool_constant<oob_conditional_check>{});
 }
 
 template <typename DistributedTensor_,
