@@ -62,17 +62,19 @@ int run(int argc, char* argv[])
     std::vector<ck::index_t> b1_g_o_n_lengths{G, O, N};
 #ifdef CK_MHA_USE_RCCR_LAYOUT
     std::vector<ck::index_t> b1_g_o_n_strides{N * O, N, 1}; // B1 layout [G, O, N]
+    auto b1_layout = Row{};
 #else
     std::vector<ck::index_t> b1_g_o_n_strides{N * O, 1, O}; // B1 layout [G, N, O]
+    auto b1_layout = Col{};
 #endif
     std::vector<ck::index_t> c_g_m_o_lengths{G, M, O};
     std::vector<ck::index_t> c_g_m_o_strides{M * O, O, 1}; // C layout [G, M, O]
 
-    Tensor<ADataType> a_g_m_k(a_g_m_k_lengths, a_g_m_k_strides);
-    Tensor<B0DataType> b0_g_n_k(b0_g_n_k_lengths, b0_g_n_k_strides);
-    Tensor<B1DataType> b1_g_o_n(b1_g_o_n_lengths, b1_g_o_n_strides);
-    Tensor<CDataType> c_g_m_o_host_result(c_g_m_o_lengths, c_g_m_o_strides);
-    Tensor<CDataType> c_g_m_o_device_result(c_g_m_o_lengths, c_g_m_o_strides);
+    Tensor<ADataType> a_g_m_k(a_g_m_k_lengths, a_g_m_k_strides, Row{});
+    Tensor<B0DataType> b0_g_n_k(b0_g_n_k_lengths, b0_g_n_k_strides, Row{});
+    Tensor<B1DataType> b1_g_o_n(b1_g_o_n_lengths, b1_g_o_n_strides, b1_layout);
+    Tensor<CDataType> c_g_m_o_host_result(c_g_m_o_lengths, c_g_m_o_strides, Row{});
+    Tensor<CDataType> c_g_m_o_device_result(c_g_m_o_lengths, c_g_m_o_strides, Row{});
 
     std::cout << "a_g_m_k: " << a_g_m_k.mDesc << std::endl;
     std::cout << "b0_g_n_k: " << b0_g_n_k.mDesc << std::endl;

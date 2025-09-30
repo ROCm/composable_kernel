@@ -9,7 +9,6 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 #include "ck_tile/utility/json_dump.hpp"
 
 #define CK_TILE_PIPELINE_COMPUTE_V3 1
@@ -91,7 +90,7 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t Pipeline      = CK_TILE_PIPELINE_COMPUTE_V3;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
     static constexpr bool Preshuffle                = false;
-    static constexpr bool Persistent                = false;
+    static constexpr bool Persistent                = true;
     static constexpr bool DoubleSmemBuffer          = false;
 };
 
@@ -131,6 +130,29 @@ struct GemmConfigComputeV4 : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 32;
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
+
+    static constexpr bool DoubleSmemBuffer     = true;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V4;
+
+    static constexpr int kBlockPerCu = 2;
+};
+
+template <typename PrecType>
+struct GemmConfigComputeV4_V2 : public GemmConfigBase
+{
+    // Compute V4 only support Intrawave scheduler
+    // Using the ping pong reader in the lds level
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
 
     static constexpr bool DoubleSmemBuffer     = true;
@@ -273,7 +295,7 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_PRESHUFFLE_V2>
         ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<PipelineProblem>;
 };
 
-using grouped_gemm_kargs = ck_tile::GroupedGemmHostArgs;
+using grouped_gemm_kargs = ck_tile::GroupedGemmHostArgs<>;
 
 std::pair<bool, ck_tile::ArgParser> create_args(int argc, char* argv[])
 {
@@ -302,7 +324,7 @@ std::pair<bool, ck_tile::ArgParser> create_args(int argc, char* argv[])
 
 inline std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gemm_descs)
 {
-    return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg);
+    return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg<>);
 }
 
 template <typename GemmConfig, typename T>

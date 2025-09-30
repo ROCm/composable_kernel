@@ -5,6 +5,7 @@ This folder contains examples of quant GEMMs using the ck_tile tile-programming 
 - AQuant kernel with blocks of A matrix sharing scales: custom GEMM pipeline
 - BQuant kernel with blocks of B matrix sharing scales: custom GEMM pipeline
 - Row and Column-wise scaled: scaling implemented in Epilogue
+- Tensor-wise scaled: scaling implemented in Epilogue
 
 ## build
 ```
@@ -14,7 +15,6 @@ mkdir build && cd build
 ../script/cmake-ck-dev.sh  ../ <arch>
 # Compile the quant kernels
 make tile_example_gemm_quant_basic -j
-make tile_example_gemm_bquant_basic -j
 ```
 This will result in an executable `build/bin/tile_example_gemm_quant_basic`
 
@@ -37,7 +37,7 @@ args:
      -warmup    number of iterations before benchmark the kernel (default:10)
      -repeat    number of iterations to benchmark the kernel (default:100)
       -timer    gpu:gpu timer, cpu:cpu timer (default:gpu)
- -quant_mode    Which quant method to use (aquant, rowcol)
+ -quant_mode    Which quant method to use (aquant, bquant, tensor, rowcol)
 ```
 
 User need to select correct mapping of config for each quant mode:
@@ -47,5 +47,6 @@ User need to select correct mapping of config for each quant mode:
 | For selecting AQuant  | aquant  | GemmConfigQuant    |
 | For selecting Aquant with Preshuffle   | aquant  | GemmConfigPreshuffleQuant    |
 | For selecting BQuant  | bquant  | GemmConfigQuant    |
+| For selecting PreShuffle Weight matrix with Bquant | bquant | GemmConfigPreshuffleB_Bquant_decode (or) GemmConfigPreshuffleB_Bquant_prefill
 | For selecting RowCol quant  | rowcolquant  | GemmConfigRowColQuant    |
 

@@ -32,6 +32,7 @@ set(PROFILER_OPS
     profile_conv_tensor_rearrange.cpp
     profile_transpose.cpp
     profile_permute_scale.cpp
+    profile_gemm_quantization.cpp
 )
 
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx9")
@@ -95,6 +96,7 @@ if(SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1[1
   list(APPEND PROFILER_OPS profile_grouped_conv_fwd_clamp.cpp)
   list(APPEND PROFILER_OPS profile_grouped_conv_bwd_data.cpp)
   list(APPEND PROFILER_OPS profile_grouped_conv_bwd_weight.cpp)
+  list(APPEND PROFILER_OPS profile_gemm_multi_abd.cpp)
   if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
     list(APPEND PROFILER_OPS profile_gemm_add_multiply.cpp)
     list(APPEND PROFILER_OPS profile_gemm_multiply_add.cpp)
@@ -110,6 +112,10 @@ endif()
 if(DL_KERNELS)
   list(APPEND PROFILER_OPS profile_batched_gemm_multi_d.cpp)
   list(APPEND PROFILER_OPS profile_grouped_conv_bwd_weight.cpp)
+endif()
+
+if(CK_ENABLE_INT8)
+  list(APPEND PROFILER_OPS profile_gemm_quantization.cpp)
 endif()
 
 set(PROFILER_SOURCES profiler.cpp)
@@ -229,6 +235,7 @@ if(SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1[1
   list(APPEND DEVICE_INSTANCES device_grouped_conv2d_fwd_instance)
   list(APPEND DEVICE_INSTANCES device_grouped_conv3d_bwd_weight_instance)
   list(APPEND DEVICE_INSTANCES device_gemm_add_relu_instance)
+  list(APPEND DEVICE_INSTANCES device_gemm_multi_abd_instance)
   if(DTYPES MATCHES "fp16" OR NOT DEFINED DTYPES)
     list(APPEND DEVICE_INSTANCES device_gemm_add_multiply_instance)
     list(APPEND DEVICE_INSTANCES device_gemm_multiply_add_instance)
@@ -246,6 +253,10 @@ if(DL_KERNELS)
   list(APPEND DEVICE_INSTANCES device_grouped_conv1d_bwd_weight_instance)
   list(APPEND DEVICE_INSTANCES device_grouped_conv2d_bwd_weight_instance)
   list(APPEND DEVICE_INSTANCES device_grouped_conv3d_bwd_weight_instance)
+endif()
+
+if(CK_ENABLE_INT8)
+  list(APPEND DEVICE_INSTANCES device_quantization_instance)
 endif()
 
 set(PROFILER_LIBS utility getopt::getopt)

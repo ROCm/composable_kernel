@@ -36,6 +36,14 @@ auto get_elimit(ck_tile::index_t /*hdim_q*/, ck_tile::index_t /*hdim_v*/)
 }
 
 template <>
+auto get_elimit<FmhaBwdFp32>(ck_tile::index_t /*hdim_q*/, ck_tile::index_t /*hdim_v*/)
+{
+    double rtol = 1e-4;
+    double atol = 1e-4;
+    return ck_tile::make_tuple(rtol, atol);
+}
+
+template <>
 auto get_elimit<FmhaBwdBf16>(ck_tile::index_t hdim_q, ck_tile::index_t hdim_v)
 {
     double rtol = 1e-2;
@@ -77,7 +85,9 @@ bwd_result fmha_bwd_run(mode_enum mode,
                         std::optional<std::string> json = std::nullopt)
 {
     const std::string data_type = []() {
-        if constexpr(std::is_same_v<DataTypeConfig, FmhaBwdFp16>)
+        if constexpr(std::is_same_v<DataTypeConfig, FmhaBwdFp32>)
+            return "fp32";
+        else if constexpr(std::is_same_v<DataTypeConfig, FmhaBwdFp16>)
             return "fp16";
         else if constexpr(std::is_same_v<DataTypeConfig, FmhaBwdBf16>)
             return "bf16";
@@ -763,15 +773,21 @@ bwd_result fmha_bwd_run(mode_enum mode,
         ck_tile::FillConstant<QGradDataType>{ck_tile::numeric<QGradDataType>::infinity()}(dq_host);
         ck_tile::FillConstant<KGradDataType>{ck_tile::numeric<KGradDataType>::infinity()}(dk_host);
         ck_tile::FillConstant<VGradDataType>{ck_tile::numeric<VGradDataType>::infinity()}(dv_host);
+        ck_tile::FillConstant<AccDataType>{ck_tile::numeric<AccDataType>::infinity()}(dq_acc_host);
         dq_buf.ToDevice(dq_host.data());
         dk_buf.ToDevice(dk_host.data());
         dv_buf.ToDevice(dv_host.data());
+        dq_acc_buf.ToDevice(dq_acc_host.data());
 
         o_buf.ToDevice(o_host.data());
         lse_buf.ToDevice(lse_host.data());
-        dq_buf.SetZero();
         dbias_buf.SetZero();
-        dq_acc_buf.SetZero();
+
+        // non-deterministic kernels use atomic add to write dq
+        // Some block may be skipped with causal mask and dq are not set to zeros
+        // In these cases thus we need to zero out it first
+        if(!deterministic || mask.type != mask_enum::no_mask)
+            dq_acc_buf.SetZero();
 
         ck_tile::stream_config stream_config_v{nullptr, true, 0, 0, 1};
         fmha_bwd(fmha_traits, fmha_args, stream_config_v);
