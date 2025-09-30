@@ -42,6 +42,14 @@ using BQuantTypes = ::testing::Types<
 // clang-format on
 
 // clang-format off
+using BPreshuffleBQuantTypes = ::testing::Types<
+    std::tuple<RowMajor, ColumnMajor, RowMajor, FP8, FP8, float, Half, BQuantGrouped, GemmConfigPreshuffleB, GroupSize>,
+    std::tuple<RowMajor, ColumnMajor, RowMajor, BF8, BF8, float, Half, BQuantGrouped, GemmConfigPreshuffleB, GroupSize>,
+    std::tuple<RowMajor, ColumnMajor, RowMajor, FP8, PkInt4, FP8, Half, BQuantGrouped, GemmConfigPreshuffleB, GroupSize>,
+    std::tuple<RowMajor, ColumnMajor, RowMajor, BF8, PkInt4, BF8, Half, BQuantGrouped, GemmConfigPreshuffleB, GroupSize>
+>;
+
+// clang-format off
 using RowColQuantTypes = ::testing::Types<
     std::tuple<RowMajor, ColumnMajor, RowMajor, FP8, FP8, float, Half, RowColQuant, GemmConfigBase, GroupSize>,
     std::tuple<RowMajor, ColumnMajor, RowMajor, BF8, BF8, float, Half, RowColQuant, GemmConfigBase, GroupSize>
@@ -58,6 +66,7 @@ using TensorQuantTypes = ::testing::Types<
 // Test suites for each quantization type
 TYPED_TEST_SUITE(TestCkTileGemmAQuant, AQuantTypes);
 TYPED_TEST_SUITE(TestCkTileGemmBQuant, BQuantTypes);
+TYPED_TEST_SUITE(TestCkTileGemmPreshuffleBBQuant, BPreshuffleBQuantTypes);
 TYPED_TEST_SUITE(TestCkTileGemmRowColQuant, RowColQuantTypes);
 TYPED_TEST_SUITE(TestCkTileGemmTensorQuant, TensorQuantTypes);
 
