@@ -356,10 +356,7 @@ int run_grouped_gemm_multi_d_example_with_layouts(int argc,
                 b_k_n_tensors[i],
                 {d0_m_n_tensors[i], d1_m_n_tensors[i]},
                 e_m_n_host_refs[i]);
-<<<<<<< HEAD
-=======
 
->>>>>>> 2573601d2 (fix: parameterize NumDTensor in GroupedGemmHostArgs and remove lint)
             const float max_accumulated_value =
                 *std::max_element(e_m_n_host_refs[i].mData.begin(), e_m_n_host_refs[i].mData.end());
 
