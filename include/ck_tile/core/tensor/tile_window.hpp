@@ -71,7 +71,8 @@ struct tile_window_with_static_distribution
         const typename Base::BottomTensorView& bottom_tensor_view,
         const typename Base::WindowLengths& window_lengths,
         const typename Base::BottomTensorIndex& window_origin,
-        const typename Base::TileDstr& tile_distribution)
+        const typename Base::TileDstr& tile_distribution,
+        multi_index<2> partition_index)
         : pre_computed_coords_{}
     {
 
@@ -80,13 +81,30 @@ struct tile_window_with_static_distribution
         this->bottom_tensor_view_ = bottom_tensor_view;
         this->tile_dstr_          = tile_distribution;
 
-        pre_computed_coords_ = prepare_coords(bottom_tensor_view, window_origin, tile_distribution);
+        pre_computed_coords_ =
+            prepare_coords(bottom_tensor_view, window_origin, tile_distribution, partition_index);
         if constexpr(Base::BottomTensorView::buffer_view::get_address_space() ==
                      address_space_enum::global)
         {
-            pre_computed_warp_coords_ = prepare_coords(
-                bottom_tensor_view, window_origin, tile_distribution, sequence<-1, 0>{});
+            pre_computed_warp_coords_ = prepare_coords(bottom_tensor_view,
+                                                       window_origin,
+                                                       tile_distribution,
+                                                       partition_index,
+                                                       sequence<-1, 0>{});
         }
+    }
+
+    CK_TILE_DEVICE constexpr tile_window_with_static_distribution(
+        const typename Base::BottomTensorView& bottom_tensor_view,
+        const typename Base::WindowLengths& window_lengths,
+        const typename Base::BottomTensorIndex& window_origin,
+        const typename Base::TileDstr& tile_distribution)
+        : tile_window_with_static_distribution(bottom_tensor_view,
+                                               window_lengths,
+                                               window_origin,
+                                               tile_distribution,
+                                               multi_index<2>{get_warp_id(), get_lane_id()})
+    {
     }
 
     template <typename NewReplacementPartitionIndex = ReplacementPartitionIndex>
@@ -94,6 +112,7 @@ struct tile_window_with_static_distribution
     prepare_coords(const typename Base::BottomTensorView& bottom_tensor_view,
                    const typename Base::BottomTensorIndex& window_origin,
                    const typename Base::TileDstr& tile_distribution,
+                   multi_index<2> partition_index,
                    NewReplacementPartitionIndex = {}) const
     {
         array<tuple<typename Base::WindowAdaptorCoord, typename Base::BottomTensorCoord>, NumCoord>
@@ -105,7 +124,6 @@ struct tile_window_with_static_distribution
                 // Override partition_index with the corresponding non-negative elements (if
                 // any) from NewReplacementPartitionIndex
                 [&] {
-                    auto partition_index = detail::get_partition_index(tile_distribution);
                     static_for<0,
                                ck_tile::min(partition_index.size(),
                                             NewReplacementPartitionIndex::size()),
@@ -117,7 +135,7 @@ struct tile_window_with_static_distribution
                     });
                     return partition_index;
                 }(),
-                array<index_t, Base::NDimY>{0}));
+                multi_index<Base::NDimY>{0}));
 
         typename Base::BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
             window_origin + window_adaptor_thread_coord_tmp.get_bottom_index();
