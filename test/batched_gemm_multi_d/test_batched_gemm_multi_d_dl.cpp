@@ -37,27 +37,27 @@ class TestBatchedGemmMultiD : public ::testing::Test
     {
         using namespace ck::tensor_operation::device;
 
-        const bool pass = ck::profiler::profile_batched_gemm_impl<
-            DataType,
-            DataType,
-            DataType,
-            ALayout,
-            BLayout,
-            CLayout,
-            PassThrough,
-            PassThrough,
-            PassThrough,
-            DeviceBatchedGemmMultiD<ALayout,
-                                    BLayout,
-                                    Empty_Tuple,
-                                    CLayout,
-                                    DataType,
-                                    DataType,
-                                    Empty_Tuple,
-                                    DataType,
-                                    PassThrough,
-                                    PassThrough,
-                                    PassThrough>>(
+        const bool pass =
+            ck::profiler::profile_batched_gemm_impl<DataType,
+                                                    DataType,
+                                                    DataType,
+                                                    ALayout,
+                                                    BLayout,
+                                                    CLayout,
+                                                    PassThrough,
+                                                    PassThrough,
+                                                    PassThrough,
+                                                    DeviceBatchedGemmMultiD<ALayout,
+                                                                            BLayout,
+                                                                            Empty_Tuple,
+                                                                            CLayout,
+                                                                            DataType,
+                                                                            DataType,
+                                                                            Empty_Tuple,
+                                                                            DataType,
+                                                                            PassThrough,
+                                                                            PassThrough,
+                                                                            PassThrough>>(
                 true,  // do_verification
                 1,     // init_method
                 false, // do_log
