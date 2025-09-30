@@ -1206,13 +1206,25 @@ pipeline {
         ck_git_creds = "${ck_git_creds}"
         gerrit_cred="${gerrit_cred}"
         DOCKER_BUILDKIT = "1"
-        SHOULD_RUN_CI = expression { params.FORCE_CI.toBoolean() || shouldRunCICheck()}
     }
     stages{
         stage("Check for changes") {
             agent{ label rocmnode("nogpu") }
             steps {
-                echo "SHOULD_RUN_CI: ${SHOULD_RUN_CI}"
+                env.SHOULD_RUN_CI = params.FORCE_CI.toBoolean() || shouldRunCICheck()
+                echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
+            }
+        }
+        stage("Test stage") {
+            agent{ label rocmnode("nogpu") }
+            steps {
+                echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
+                if (env.SHOULD_RUN_CI.toBoolean()) {
+                    echo "confirmed"
+                } else {
+                    echo "negative"
+                }
+                error "this should error"
             }
         }
         stage("Build Docker"){
