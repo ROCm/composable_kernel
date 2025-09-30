@@ -2,47 +2,42 @@
 
 ## Overview
 
-The Epilogue Chainer provides composability for building epilogue sequences for GEMM operations. It provides a means to chain multiple epilogue stages so they can be run sequentially.
+The Epilogue Chainer provides a modular epilogue processing framework for GEMM operations through scheduler-defined operation graphs.
 
-## Components
+## Architecture
+
+### Core Design Principle
+The chainer follows a **Scheduler-Graph-Node** architecture with shared context:
+- **Scheduler**: Defines operation graphs and creates a shared context
+- **Graph**: Composes multiple operations into sequential processing units
+- **Node**: Wraps individual epilogue operations with their arguments
 
 ### EpilogueChainer
-The `EpilogueChainer` class is an orchestrator that runs epilogue sequences. It takes an initialization epilogue and a sequence of operations.
+The `EpilogueChainer` struct serves as the modular epilogue processing facilitator. It delegates to schedulers for context creation and schedule generation, then processes the resulting operation graphs.
 
 ### EpilogueNode
-The `EpilogueNode`class is a wrapper for individual epilogue operations, it Supports both parameterized and parameter-free epilogues.
+Individual epilogue operations are wrapped in `EpilogueNode` structures that capture required arguments at construction time and automatically forward them during processing. Supports both parameterized and parameter-free operations.
 
-### EpilogueLoop
-The `EpilogueLoop` class provides means to specify sequence of epilogue nodes that need to be looped together. It provides the `execute` method that runs the provided sequence.
+### EpilogueGraph  
+The `EpilogueGraph` composes multiple nodes into sequential processing units that iterate over multiple accesses if needed, running all operations in order for each iteration.
 
-### Scheduler
-`epilogue_schedule.hpp` provides pre-built epilogue sequences for common patterns:
-- `CshuffleEpilogueSchedule::make_base_schedule()` - Basic epilogue without scaling
-- `CshuffleEpilogueSchedule::make_scale_schedule(m_scale, n_scale)` - Epilogue with row/column scaling
+### Scheduler System
+`CshuffleEpilogueSchedule` provides tagged schedule selection using schedule tags:
 
-## Current Status
+**Schedule Tags:**
+- `DefaultScheduleTag` - Standard epilogue: Slice → Cast → PrepC → ApplyD → Store → Move
+- `ScaleScheduleTag` - Scaling epilogue: Slice → Scale → Cast → PrepC → ApplyD → Store → Move
 
-**Work in Progress** - The API is functional but evolving:
-- Current implementation supports basic epilogue chaining
-- Chaining is demonstrated by breaking down the cshuffle epilogue into modular components and chaining them together. This will also be consequently modified and improved. 
-
-## Usage Pattern
-
+**Tag-Based Selection:**
 ```cpp
-// Create schedule with embedded arguments
-auto schedule = CshuffleEpilogueSchedule<Problem>::make_scale_schedule(
-    m_scale_window, n_scale_window);
+using Scheduler = CshuffleEpilogueSchedule<Problem, DefaultScheduleTag>;
 
-// Execute epilogue chain
-EpilogueChainer<InitEpilogue, decltype(schedule)>{}(
-    output_window, acc_tile, d_tensors, smem, schedule);
+using Scheduler = CshuffleEpilogueSchedule<Problem, ScaleScheduleTag>;
 ```
-
-- Concrete use case based example(s) to be added. 
 
 ## Files
 
-- `epilogue_chainer.hpp` - Main chainer orchestrator
-- `epilogue_graph.hpp` - Node and loop constructs
-- `epilogue_schedule.hpp` - Pre-built schedules
-- `cshuffle_chained_epilogues.hpp` - Individual epilogue implementations 
+- `epilogue_chainer.hpp` - Core chainer processing facilitator and graph composition utilities
+- `cshuffle_epilogue_schedule.hpp` - Tagged scheduler providing pre-built operation graphs
+- `common_epilogue_ops.hpp` - Reusable epilogue operations for graph composition
+- `cshuffle_epilogue_chainer_ops.hpp` - CShuffle-specific problem configuration and base operations 

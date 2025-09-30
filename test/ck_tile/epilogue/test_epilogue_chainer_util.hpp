@@ -9,9 +9,8 @@
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/epilogue/chainer/epilogue_chainer.hpp"
-#include "ck_tile/ops/epilogue/chainer/epilogue_graph.hpp"
-#include "ck_tile/ops/epilogue/chainer/epilogue_schedule.hpp"
-#include "ck_tile/ops/epilogue/chainer/cshuffle_chained_epilogues.hpp"
+#include "ck_tile/ops/epilogue/chainer/cshuffle_epilogue_schedule.hpp"
+#include "ck_tile/ops/epilogue/chainer/common_epilogue_ops.hpp"
 
 #include <iostream>
 #include <memory>
@@ -27,20 +26,24 @@ __global__ void test_epilogue_chainer_kernel(typename Problem::ODataType* __rest
                                              float* m_scale,
                                              float* n_scale)
 {
-    using InitEpilogue = CShuffleEpilogueStageBase<Problem>;
-    using Scheduler    = CshuffleEpilogueSchedule<Problem>;
+    // Select scheduler based on whether we need scaling
+    using Scheduler = std::conditional_t<UseScale,
+                                         CshuffleEpilogueSchedule<Problem, ScaleScheduleTag>,
+                                         CshuffleEpilogueSchedule<Problem, DefaultScheduleTag>>;
 
     static_assert(Problem::kMPerBlock <= M && Problem::kNPerBlock <= N,
                   "Block size must fit in tensor dimensions");
 
+    using Chainer = EpilogueChainer<Scheduler>;
+
     // Allocate shared memory for epilogue
-    __shared__ char smem[InitEpilogue::GetSmemSize()];
+    __shared__ char smem[Chainer::GetSmemSize()];
 
     // Create accumulator tile
     constexpr auto lds_distribution_encode =
-        make_static_tile_distribution(InitEpilogue::MakeLdsDistributionEncode());
+        make_static_tile_distribution(Chainer::MakeLdsDistributionEncode());
     auto acc_tile =
-        make_static_distributed_tensor<typename InitEpilogue::AccDataType>(lds_distribution_encode);
+        make_static_distributed_tensor<typename Chainer::AccDataType>(lds_distribution_encode);
 
     // Fill acc_tile with a simple pattern
     auto& acc_buffer = acc_tile.get_thread_buffer();
@@ -51,7 +54,7 @@ __global__ void test_epilogue_chainer_kernel(typename Problem::ODataType* __rest
         make_naive_tensor_view<address_space_enum::global>(output_data,
                                                            make_tuple(M, N),
                                                            make_tuple(N, 1),
-                                                           number<InitEpilogue::GetVectorSizeC()>{},
+                                                           number<Chainer::GetVectorSizeC()>{},
                                                            number<1>{});
 
     // Create output tile window
@@ -77,19 +80,13 @@ __global__ void test_epilogue_chainer_kernel(typename Problem::ODataType* __rest
             make_tuple(number<Problem::kMPerBlock>{}, number<Problem::kNPerBlock>{}),
             {0, 0});
 
-        auto schedule = Scheduler::make_scale_schedule(m_scale_window, n_scale_window);
-
-        // Execute
-        EpilogueChainer<InitEpilogue, decltype(schedule)>{}(
-            output_tile_window, acc_tile, empty_ds, smem, schedule);
+        // Execute using EpilogueChainer
+        Chainer{}(output_tile_window, acc_tile, empty_ds, smem, m_scale_window, n_scale_window);
     }
     else
     {
-        auto schedule = Scheduler::make_base_schedule();
-
-        // Execute
-        EpilogueChainer<InitEpilogue, decltype(schedule)>{}(
-            output_tile_window, acc_tile, empty_ds, smem, schedule);
+        // Execute using EpilogueChainer
+        Chainer{}(output_tile_window, acc_tile, empty_ds, smem);
     }
 }
 
@@ -106,7 +103,7 @@ template <typename ADataType,
           index_t NPerXdl,
           index_t KPerXdl>
 using SimpleEpilogueChainerProblem =
-    CShuffleEpilogueStageProblem<ADataType,
+    CShuffleEpilogueChainProblem<ADataType,
                                  BDataType,
                                  ck_tile::tuple<>,
                                  AccDataType,
