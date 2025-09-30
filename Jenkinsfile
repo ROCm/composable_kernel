@@ -1211,20 +1211,24 @@ pipeline {
         stage("Check for changes") {
             agent{ label rocmnode("nogpu") }
             steps {
-                env.SHOULD_RUN_CI = params.FORCE_CI.toBoolean() || shouldRunCICheck()
-                echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
+                script {
+                    env.SHOULD_RUN_CI = params.FORCE_CI.toBoolean() || shouldRunCICheck()
+                    echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
+                }
             }
         }
         stage("Test stage") {
             agent{ label rocmnode("nogpu") }
             steps {
-                echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
-                if (env.SHOULD_RUN_CI.toBoolean()) {
-                    echo "confirmed"
-                } else {
-                    echo "negative"
+                script {
+                    echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
+                    if (env.SHOULD_RUN_CI.toBoolean()) {
+                        echo "confirmed"
+                    } else {
+                        echo "negative"
+                    }
+                    error "this should error"
                 }
-                error "this should error"
             }
         }
         stage("Build Docker"){
