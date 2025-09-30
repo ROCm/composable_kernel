@@ -276,9 +276,9 @@ struct UniversalGemmBasePolicy
                 // How many elements we can write by single thread to LDS,
                 // the transposed / shuffled tile dstr has size: <X1, Y2>
                 constexpr auto KThreadWrite     = TileEncodingPattern::Y2;
-                constexpr auto K0PerThreadWrite = BK0 / KThreadWrite;
+                constexpr auto K0PerThreadWrite = integer_divide_ceil(BK0, KThreadWrite);
                 constexpr auto KThreadRead      = get_warp_size() / NPerXdl;
-                constexpr auto K0PerThreadRead  = BK0 / KThreadRead;
+                constexpr auto K0PerThreadRead  = integer_divide_ceil(BK0, KThreadRead);
 
                 // check if we exceed all 32banks width - (32x4B)
                 constexpr auto LdsBanksWidth = 128;
