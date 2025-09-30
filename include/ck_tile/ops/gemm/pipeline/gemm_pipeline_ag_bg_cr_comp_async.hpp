@@ -184,7 +184,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             constexpr index_t NPerXDL = BlockGemmShape::WarpTile::at(I1{});
             constexpr index_t KPerXDL = BlockGemmShape::WarpTile::at(I2{});
 
-            constexpr index_t WaveSize = 64;
+            constexpr index_t WaveSize = get_warp_size();
             constexpr index_t WaveNumM = BlockGemmShape::BlockWarps::at(I0{});
             constexpr index_t WaveNumN = BlockGemmShape::BlockWarps::at(I1{});
 
