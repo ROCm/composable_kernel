@@ -254,11 +254,12 @@ struct UniversalGemmBasePolicy
             {
                 constexpr index_t BlockSize   = Problem::kBlockSize;
                 constexpr index_t VecLoadSize = GetVectorSizeB<Problem>();
-                using TileEncodingPattern     = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                                      KPerBlock,
-                                                                                      NPerBlock,
-                                                                                      VecLoadSize,
-                                                                                      BTileAccessPattern>;
+                using TileEncodingPattern =
+                    tile_distribution_encoding_pattern_2d<BlockSize,
+                                                          KPerBlock,
+                                                          NPerBlock,
+                                                          VecLoadSize,
+                                                          BTileAccessPattern>;
                 // BK1
                 constexpr auto BK1 = number<VecLoadSize>{};
                 constexpr auto BK0 = number<KPerBlock / BK1>{};
