@@ -54,7 +54,8 @@ int profile_contraction_impl(ck::index_t do_verification,
                              const std::vector<ck::index_t>& StridesA, // [M0, M1, K0, K1]
                              const std::vector<ck::index_t>& StridesB, // [N0, N1, K0, K1]
                              const std::vector<ck::index_t>& StridesE, // [M0, M1, N0, N1]
-                             const std::vector<ck::index_t>& StridesD) // [M0, M1, N0, N1]
+                             const std::vector<ck::index_t>& StridesD, // [M0, M1, N0, N1]
+                             int instance_index = -1)
 {
     bool pass = true;
 
@@ -197,7 +198,7 @@ int profile_contraction_impl(ck::index_t do_verification,
     float best_avg_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
-
+    int num_kernel        = 0;
     // profile device op instances
     for(auto& op_ptr : op_ptrs)
     {
@@ -256,6 +257,12 @@ int profile_contraction_impl(ck::index_t do_verification,
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            ++num_kernel;
+            if((instance_index != -1) && (instance_index + 1 != num_kernel))
+            {
+                // skip test if instance_index is specified
+                continue;
+            }
             // re-init C to zero before profiling next kernel
             e_device_buf.SetZero();
 
@@ -376,6 +383,11 @@ int profile_contraction_impl(ck::index_t do_verification,
               << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec << " GB/s, "
               << best_op_name << std::endl;
 
+    if(instance_index != -1)
+    {
+        std::cout << "contraction_instance (" << instance_index << "/" << num_kernel << "): Passed"
+                  << std::endl;
+    }
     return pass;
 }
 
