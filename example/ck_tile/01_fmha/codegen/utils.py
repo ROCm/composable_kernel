@@ -5,6 +5,7 @@
 import copy
 import dataclasses
 import os.path as path
+import textwrap
 
 
 def update_file(file_path, content):
@@ -23,7 +24,7 @@ def update_file(file_path, content):
         file.write(content)
 
 def indent(code: str, indent: str='    ') -> str:
-    return ''.join(indent + s if s.strip() != '' else '' for s in code.splitlines(keepends=True))
+    return textwrap.indent(code, indent)
 
 def if_(i: int) -> str:
     return 'if' if i == 0 else 'else if'
