@@ -1485,7 +1485,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     static bool IsSupportedArgument(const Argument& arg)
     {
         // gfx11 doesn't support float atomic
-        if(ck::is_gfx11_supported() && arg.k_batch_ > 1)
+        // Todo: Enable splitK for gfx12
+        if((ck::is_gfx12_supported() || ck::is_gfx11_supported()) && arg.k_batch_ > 1)
         {
             return false;
         }
@@ -1670,7 +1671,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         valid = false;
                     }
                 }
-                else
+            }
+            else
+            {
+                if constexpr(NXdlPerWave32 > 0)
                 {
                     if(!GridwiseGemmCTranspose32::CheckValidity(
                            arg.a_grid_desc_m_k_container_[i],
@@ -1685,10 +1689,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         valid = false;
                     }
                 }
-                if(!valid)
-                {
-                    return false;
-                }
+            }
+            if(!valid)
+            {
+                return false;
             }
         }
 
