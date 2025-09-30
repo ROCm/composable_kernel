@@ -11,7 +11,7 @@ TYPED_TEST(TEST_SUITE_NAME, SmallM)
     std::vector<int> Ms{1, 2, 3, 4, 5, 6};
     constexpr int N = 1024;
     std::vector<int> Ks;
-    for (auto K_count: {2, 3, 4, 10}) 
+    for (auto K_count: {2, 3, 4, 10, 11}) 
     {
         Ks.push_back(K_count * TestFixture::K_Tile);
     }
@@ -39,7 +39,7 @@ TYPED_TEST(TEST_SUITE_NAME, MidLargeM)
     constexpr int N           = 1024;
 
     std::vector<int> Ks;
-    for (auto K_count: {2, 3, 4, 10}) 
+    for (auto K_count: {2, 3, 4, 10, 11}) 
     {
         Ks.push_back(K_count * TestFixture::K_Tile);
     }
