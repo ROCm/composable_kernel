@@ -99,7 +99,7 @@ struct Layernorm2dFwdPipelineTwoPass
         // Problem::BlockShape
         static constexpr index_t Block_N = Problem::BlockShape::Block_N;
         index_t num_n_tile_iteration =
-            __builtin_amdgcn_readfirstlane(integer_divide_ceil(row_size, Block_N));
+            amd_wave_read_first_lane(integer_divide_ceil(row_size, Block_N));
 
         // total number of count assume current iter have no pad(only last iter has pad)
         constexpr index_t count_per_iter =
@@ -119,7 +119,7 @@ struct Layernorm2dFwdPipelineTwoPass
         auto mean         = block_norm_reduce.template MakeMeanVarBlockTile<XTensorType>();
         auto var          = block_norm_reduce.template MakeMeanVarBlockTile<XTensorType>();
 
-        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
+        for(int iN = amd_wave_read_first_lane(0); iN < num_n_tile_iteration; ++iN)
         {
             auto x            = load_tile(x_window);
             auto x_resi       = load_tile(x_residual_window);
@@ -197,7 +197,7 @@ struct Layernorm2dFwdPipelineTwoPass
         move_tile_window(y_window, {0, stride_to_right_most_window});
 
         // layernorm computation
-        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
+        for(int iN = amd_wave_read_first_lane(0); iN < num_n_tile_iteration; ++iN)
         {
             auto acc = make_static_distributed_tensor<ComputeDataType>(
                 decltype(load_tile(x_window))::get_tile_distribution());
@@ -255,7 +255,7 @@ struct Layernorm2dFwdPipelineTwoPass
             });
 
             static_assert(kFusedQuant != Layernorm2dFusedQuantEnum::DYNAMIC_QUANT);
-            Epilogue{}(y_window, ln);
+            Epilogue{}(y_window, ln, nullptr);
 
             move_tile_window(gamma_window, {-Block_N});
             move_tile_window(beta_window, {-Block_N});

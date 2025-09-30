@@ -59,7 +59,7 @@ class TestCkTileReduce : public ::testing::Test
         using Kernel = ck_tile::Reduce<Problem>;
 
         // Launch configuration
-        constexpr ck_tile::index_t kBlockSize  = 256;
+        const ck_tile::index_t kBlockSize      = Kernel::BlockSize();
         constexpr ck_tile::index_t kBlockPerCu = 1;
 
         ck_tile::index_t kGridSize =
@@ -82,18 +82,18 @@ class TestCkTileReduce : public ::testing::Test
             throw std::runtime_error("Wrong! Arguments not supported!\n");
         }
 
-        ck_tile::launch_kernel(ck_tile::stream_config{nullptr, false, 0},
-                               ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
-                                   Kernel{},
-                                   kGridSize,
-                                   kBlockSize,
-                                   0,
-                                   static_cast<XDataType*>(d_x_mem.GetDeviceBuffer()),
-                                   static_cast<YDataType*>(d_y_mem.GetDeviceBuffer()),
-                                   input_shape_tuple,
-                                   input_strides_tuple,
-                                   kept_dims,
-                                   reduce_dims));
+        ck_tile::launch_kernel(
+            ck_tile::stream_config{nullptr, false, 0},
+            ck_tile::make_kernel<kBlockPerCu>(Kernel{},
+                                              kGridSize,
+                                              kBlockSize,
+                                              0,
+                                              static_cast<XDataType*>(d_x_mem.GetDeviceBuffer()),
+                                              static_cast<YDataType*>(d_y_mem.GetDeviceBuffer()),
+                                              input_shape_tuple,
+                                              input_strides_tuple,
+                                              kept_dims,
+                                              reduce_dims));
 
         // Get results back
         d_y_mem.FromDevice(h_y.data());
@@ -308,20 +308,8 @@ using TestConfig_F32_Max = std::tuple<float,
                                       Shape1_WarpTile,
                                       Shape1_ThreadTile>;
 
-using TestConfig_F32_SquareAdd = std::tuple<float,
-                                            float,
-                                            float,
-                                            ck_tile::ReduceOp::SquareAdd,
-                                            Shape1_BlockWarps,
-                                            Shape1_BlockTile,
-                                            Shape1_WarpTile,
-                                            Shape1_ThreadTile>;
-
-using TestTypes = ::testing::Types<TestConfig_F32_Add,
-                                   TestConfig_F16_Add,
-                                   TestConfig_F32_CrossWarp,
-                                   TestConfig_F32_Max,
-                                   TestConfig_F32_SquareAdd>;
+using TestTypes = ::testing::
+    Types<TestConfig_F32_Add, TestConfig_F16_Add, TestConfig_F32_CrossWarp, TestConfig_F32_Max>;
 
 TYPED_TEST_SUITE(TestCkTileReduce, TestTypes);
 

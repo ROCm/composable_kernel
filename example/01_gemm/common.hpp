@@ -310,10 +310,14 @@ bool parse_cmd_args<ProblemSizeSplitK>(int argc,
     return true;
 }
 
-template <typename DataType>
+template <typename DataType, typename ComputeDataType = DataType>
 inline __host__ __device__ constexpr double get_rtol()
 {
-    if constexpr(std::is_same_v<DataType, float>)
+    if constexpr(std::is_same_v<DataType, float> && std::is_same_v<ComputeDataType, ck::tf32_t>)
+    {
+        return 1e-3;
+    }
+    else if constexpr(std::is_same_v<DataType, float>)
     {
         return 1e-3;
     }
@@ -351,10 +355,14 @@ inline __host__ __device__ constexpr double get_rtol()
     }
 }
 
-template <typename DataType>
+template <typename DataType, typename ComputeDataType = DataType>
 inline __host__ __device__ constexpr double get_atol()
 {
-    if constexpr(std::is_same_v<DataType, float>)
+    if constexpr(std::is_same_v<DataType, float> && std::is_same_v<ComputeDataType, ck::tf32_t>)
+    {
+        return 1e-3;
+    }
+    else if constexpr(std::is_same_v<DataType, float>)
     {
         return 1e-3;
     }

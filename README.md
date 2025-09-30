@@ -96,7 +96,7 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
 4. Build the entire CK library:
 
     ```bash
-    make -j
+    make -j"$(nproc)"
     ```
 
 5. Install CK:
@@ -184,7 +184,7 @@ hours to 1-2 minutes. In order to invoke sccache, you need to run:
 then add the following flags to the cmake command line:
 
 ```bash
- -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER_LAUNCHER=sccache
+ -DCMAKE_HIP_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER_LAUNCHER=sccache
 ```
 
 You may need to clean up the build folder and repeat the cmake and make steps in order to take

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/host/utils.hpp"
 
@@ -13,7 +13,8 @@ std::size_t integer_divide_ceil(std::size_t x, std::size_t y)
 
 const std::unordered_set<std::string>& get_xdlop_archs()
 {
-    static std::unordered_set<std::string> supported_archs{"gfx90a", "gfx908", "gfx942"};
+    static std::unordered_set<std::string> supported_archs{
+        "gfx90a", "gfx908", "gfx942", "gfx1100", "gfx1101", "gfx1102", "gfx1200", "gfx1201"};
     return supported_archs;
 }
 

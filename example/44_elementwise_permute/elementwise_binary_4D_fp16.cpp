@@ -22,6 +22,8 @@ using F32 = float;
 using ADataType = F16;
 using BDataType = F16;
 
+using NchwLayout  = ck::tensor_layout::convolution::NCHW;
+using NhwcLayout  = ck::tensor_layout::convolution::NHWC;
 using UnaryScale  = ck::tensor_operation::element_wise::Scale;
 using UnarySquare = ck::tensor_operation::element_wise::UnarySquare;
 using UnaryScaleSquare =
@@ -44,12 +46,46 @@ using DeviceElementwisePermuteInstance = ck::tensor_operation::device::DeviceEle
     ck::Sequence<8, 8>,              // InScalarPerVectorSeq
     ck::Sequence<8>>;                // OutScalarPerVectorSeq
 
-int main()
+int main(int argc, char* argv[])
 {
     bool do_verification = true;
     bool time_kernel     = true;
 
+    if(argc == 1)
+    {
+        // use default
+    }
+    else if(argc == 3)
+    {
+        do_verification = std::stoi(argv[1]);
+        time_kernel     = std::stoi(argv[2]);
+    }
+    else
+    {
+        printf("arg1: verification (0=no, 1=yes)\n");
+        printf("arg2: time kernel (0=no, 1=yes)\n");
+        exit(0);
+    }
+
     std::vector<std::size_t> nchw = {16, 128, 32, 64};
+    if(argc == 1)
+    {
+        // use default case
+    }
+    else if(argc == 5)
+    {
+        nchw[0] = std::stoi(argv[1]);
+        nchw[1] = std::stoi(argv[2]);
+        nchw[2] = std::stoi(argv[3]);
+        nchw[3] = std::stoi(argv[4]);
+    }
+    else
+    {
+        std::cerr << "arg1 to 4: N, C, H, W" << std::endl;
+
+        return 1;
+    }
+
     std::array<ck::index_t, 4> ab_lengths;
     std::array<ck::index_t, 4> ab_strides = {static_cast<int>(nchw[1] * nchw[2] * nchw[3]),
                                              static_cast<int>(nchw[2] * nchw[3]),
@@ -57,11 +93,11 @@ int main()
                                              1};
     ck::ranges::copy(nchw, ab_lengths.begin());
 
-    std::array<Tensor<ADataType>, 2> as = {Tensor<ADataType>(ab_lengths, ab_strides),
-                                           Tensor<ADataType>(ab_lengths, ab_strides)};
+    std::array<Tensor<ADataType>, 2> as = {Tensor<ADataType>(ab_lengths, ab_strides, NchwLayout{}),
+                                           Tensor<ADataType>(ab_lengths, ab_strides, NchwLayout{})};
     Tensor<ADataType>& a0               = as[0];
     Tensor<ADataType>& a1               = as[1];
-    Tensor<BDataType> b(ab_lengths, ab_strides);
+    Tensor<BDataType> b(ab_lengths, ab_strides, NchwLayout{});
     float alpha = 3.f;
     float beta  = 2.f;
     a0.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
@@ -118,7 +154,7 @@ int main()
 
     if(do_verification)
     {
-        Tensor<BDataType> host_b(ab_lengths, ab_strides);
+        Tensor<BDataType> host_b(ab_lengths, ab_strides, NchwLayout{});
 
         using ReferenceElementwiseInstance = ck::tensor_operation::host::
             ReferenceElementwise<2, ADataType, BDataType, BinaryAddUnaryScaleSquare>;

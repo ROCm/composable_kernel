@@ -31,4 +31,4 @@ using AccDataType = int32_t;
 
 #include "run_gemm_test.inc"
 
-int main() { return run_gemm_test(); }
+int main(int argc, char* argv[]) { return run_gemm_test(argc, argv); }
