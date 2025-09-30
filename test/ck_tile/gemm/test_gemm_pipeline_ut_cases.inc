@@ -10,7 +10,11 @@ TYPED_TEST(TEST_SUITE_NAME, SmallM)
 {
     std::vector<int> Ms{1, 2, 3, 4, 5, 6};
     constexpr int N = 1024;
-    std::vector<int> Ks{64, 96, 128, 320};
+    std::vector<int> Ks;
+    for (auto K_count: {2, 3, 4, 10}) 
+    {
+        Ks.push_back(K_count * TestFixture::K_Tile);
+    }
 
     for(int M : Ms)
     {
@@ -34,7 +38,11 @@ TYPED_TEST(TEST_SUITE_NAME, MidLargeM)
     std::vector<int> Ms{127, 255, 312, 799, 1573};
     constexpr int N           = 1024;
 
-    std::vector<int> Ks{64, 96, 128, 320};
+    std::vector<int> Ks;
+    for (auto K_count: {2, 3, 4, 10}) 
+    {
+        Ks.push_back(K_count * TestFixture::K_Tile);
+    }
     constexpr int VecLoadSize = (std::is_same_v<typename TestFixture::ADataType, ck_tile::fp8_t> ||
                                  std::is_same_v<typename TestFixture::ADataType, ck_tile::bf8_t> ||
                                  std::is_same_v<typename TestFixture::ADataType, ck_tile::int8_t>)
