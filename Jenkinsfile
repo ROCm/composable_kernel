@@ -1211,7 +1211,9 @@ pipeline {
     stages{
         stage("Check for changes") {
             agent{ label rocmnode("nogpu") }
-            echo "SHOULD_RUN_CI: ${SHOULD_RUN_CI}"
+            steps {
+                echo "SHOULD_RUN_CI: ${SHOULD_RUN_CI}"
+            }
         }
         stage("Build Docker"){
             when {
@@ -1875,13 +1877,15 @@ pipeline {
     }
     post {
         always {
-            if (!env.SHOULD_RUN_CI.toBoolean()) {
-                // If CI was skipped, notify each of the branch protected checks that they are successful.
-                def requiredChecks = getRequiredBranchChecks()
-                requiredChecks.each { checkName ->
-                    echo "pass skipped check: ${checkName}"
+            script {
+                if (!env.SHOULD_RUN_CI.toBoolean()) {
+                    // If CI was skipped, notify each of the branch protected checks that they are successful.
+                    def requiredChecks = getRequiredBranchChecks()
+                    requiredChecks.each { checkName ->
+                        echo "pass skipped check: ${checkName}"
+                    }
                 }
-            }
+            }            
         }
     }
 }
