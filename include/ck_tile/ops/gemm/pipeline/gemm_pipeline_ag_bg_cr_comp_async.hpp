@@ -70,8 +70,7 @@ struct BaseGemmPipelineAgBgCrCompAsync
 #if defined(__HIP_DEVICE_COMPILE__)
         __builtin_unreachable();
 #else
-        throw std::logic_error("Invalid TailNumber: Only TailNumber::Full and smaller than "
-                               "PrefetchStages are supported.");
+        throw std::logic_error("Invalid TailNumber: Only TailNumber::Three and TailNumber::Two are supported");
 #endif
     }
 };
