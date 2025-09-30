@@ -274,31 +274,6 @@ struct CShuffleEpilogue
         }
     }
 
-    template <typename DataType, typename StaticTileDistribution>
-    CK_TILE_DEVICE void print_tensor_matrix_format(
-        const static_distributed_tensor<DataType, StaticTileDistribution>& tensor,
-        const char* /*name = "tensor_matrix"*/)
-    {
-        const auto spans = tensor.get_distributed_spans();
-        //static_assert(spans.size() == 2, "This function is for 2D tensors only");
-        
-        const auto dim0_span = spans[number<0>{}];
-        const auto dim1_span = spans[number<1>{}];
-        
-        //printf("%s matrix format (tid %u):\n", name, threadIdx.x);
-        
-        sweep_tile_span(dim0_span, [&](auto row) {
-            printf("  ");
-            sweep_tile_span(dim1_span, [&](auto col) {
-                constexpr auto distributed_indices = make_tuple(row, col);
-                const auto value = tensor[distributed_indices];
-                printf("tid %u: %.7f\n", threadIdx.x, static_cast<float>(value));
-            });
-            //printf("\n");
-        });
-        //printf("\n");
-    }
-
     template <index_t MPerGroup, index_t NPerGroup, typename ODramWindow, typename OAccTile, typename DsDramWindows>
     //template <typename ODramWindow, typename OAccTile, typename DsDramWindows>
     CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
@@ -408,13 +383,6 @@ struct CShuffleEpilogue
             make_tuple(number<MBlockWidth>{}, number<NBlockWidth>{}),
             make_tuple(number<Gs * NBlockWidth>{}, number<Gs>{}));
 
-        if (threadIdx.x == 0)
-        {
-            printf("""CShuffleEpilogue::merged_op(): MPerGroup=%d, NPerGroup=%d, Gs=%d, MBlockWidth=%d, NBlockWidth=%d\n",
-                static_cast<int>(MPerGroup), static_cast<int>(NPerGroup), static_cast<int>(Gs),
-                static_cast<int>(MBlockWidth), static_cast<int>(NBlockWidth));
-        }
-
         // Loop over the groups (diagonal blocks in LDS)
         static_for<0, Gs, 1>{}([&](auto g) {
             block_sync_lds();
@@ -439,10 +407,6 @@ struct CShuffleEpilogue
                 dram_tile_distribution);
 
             auto c_out_tensor = load_tile(lds_window);
-
-            // DEBUG: Print out the c_out_tensor contents for debugging
-            //print_tensor_matrix_format(c_out_tensor, "c_out_tensor");
-            //__syncthreads();
 
             const auto ds_tensor = generate_tuple(
                 [&](auto idx) { return load_tile(d_dram_windows[idx]); }, number<NumDTensor>{});

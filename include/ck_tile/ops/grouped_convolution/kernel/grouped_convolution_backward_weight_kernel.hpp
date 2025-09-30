@@ -804,17 +804,11 @@ struct GroupedConvolutionBackwardWeightKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I3);
 
-        constexpr index_t Gs = GroupedConvTraitsType_::NumGroupsToMerge;
         const index_t ConvK = kargs.wei_g_k_c_xs_lengths[number<1>{}];
         const index_t ConvC = kargs.wei_g_k_c_xs_lengths[number<2>{}];
         const index_t ZYX = kargs.ZYX;
         const index_t MPerGroup = ConvK;
         const index_t NPerGroup = ZYX * ConvC;
-
-        if (threadIdx.x == 0)
-        {
-            printf("MPerGroup: %d, NPerGroup: %d \n", MPerGroup, NPerGroup);
-        }
 
         // Check that MPerGroup and NPerGroup map to the existing options
         if (MPerGroup == 1 && NPerGroup == 16)
@@ -857,61 +851,6 @@ struct GroupedConvolutionBackwardWeightKernel
             EpiloguePipeline{}.template operator()<2, 8, decltype(c_block_window), decltype(c_block_tile)>(
                 c_block_window, c_block_tile, d_block_window, smem_ptr_0);
         }
-
-        auto print_lds_per_wg = [&]() 
-            {
-                // Print out LDS contents.
-                // The LDS corresponds TilePartitioner_::MPerBlock * TilePartitioner_::NPerBlock matrix.
-                // Print LDS contents as matrix
-                printf("LDS Contents (%d x %d) for thread block %u:\n", TilePartitioner::MPerBlock, TilePartitioner::NPerBlock, blockIdx.x);
-                OutDataType* lds_data = reinterpret_cast<OutDataType*>(smem_ptr_0);
-                
-                const int MBlockWidth = TilePartitioner::MPerBlock / Gs;
-                const int NBlockWidth = TilePartitioner::NPerBlock / Gs;
-                const int Ncols = Gs; 
-                const int Nrows = Gs;
-
-                for(int c = 0; c < Ncols; ++c) {
-                    printf("Block %d:\n", c);
-                    for(int r = 0; r < Nrows; ++r) {
-                        printf("Row %d:\n", r);
-                        for (int m = 0; m < MBlockWidth; ++m)
-                        {
-                            for(int n = 0; n < NBlockWidth; ++n)  
-                            {
-                                int idx =  c + Ncols * n + Ncols * NBlockWidth * m + Ncols * MBlockWidth * NBlockWidth * r;
-                                printf("%.7f ", static_cast<float>(lds_data[idx]));
-                            }
-                            printf(" \n");
-                        }
-                    }
-                    printf("\n\n");
-                }
-
-
-                // Print out the c_block_window contents for debugging
-                printf("C Ptr Contents (%d x %d):\n", TilePartitioner::MPerBlock, NPerGroup);
-                for(int m = 0; m < TilePartitioner::MPerBlock; ++m) {
-                    for(int n = 0; n < NPerGroup; ++n) {
-                        int idx = m * NPerGroup + n;
-                        printf("%.7f ", static_cast<float>(c_ptr[idx]));
-                        if((n + 1) % NPerGroup == 0) printf("\n  "); // Line break every NBlockWidth elements for readability
-                    }
-                    printf("\n");
-                }
-            };
-
-        __syncthreads();
-        if (blockIdx.x == 0 && blockIdx.y == 0 && threadIdx.x == 0 && threadIdx.y == 0)
-        {
-            print_lds_per_wg();
-        }
-        __syncthreads();
-        // if (blockIdx.x == 1 && blockIdx.y == 0 && threadIdx.x == 0 && threadIdx.y == 0)
-        // {
-        //     print_lds_per_wg();
-        // }
-        // __syncthreads();
     }
 
     /**
