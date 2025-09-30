@@ -713,6 +713,31 @@ struct DeviceGemmMultipleDLayernorm_Wmma_CShuffleV3
             arg.b_element_op_,
             arg.cde_element_op_};
 
+        const auto a_grid_desc_ak0_m_ak1 =
+            GridwiseGemmWelford::MakeAsGridDescriptor_AK0_M_AK1(gemm_arg.M,
+                                                                gemm_arg.MPadded,
+                                                                gemm_arg.K,
+                                                                gemm_arg.KPadded,
+                                                                gemm_arg.StrideAs,
+                                                                gemm_arg.AK0);
+        const auto b_grid_desc_bk0_n_bk1 =
+            GridwiseGemmWelford::MakeBsGridDescriptor_BK0_N_BK1(gemm_arg.K,
+                                                                gemm_arg.KPadded,
+                                                                gemm_arg.N,
+                                                                gemm_arg.NPadded,
+                                                                gemm_arg.StrideBs,
+                                                                gemm_arg.BK0);
+
+        const auto M = a_grid_desc_ak0_m_ak1[I0].GetLength(I1);
+        const auto N = b_grid_desc_bk0_n_bk1[I0].GetLength(I1);
+        const auto K =
+            a_grid_desc_ak0_m_ak1[I0].GetLength(I0) * a_grid_desc_ak0_m_ak1[I0].GetLength(I2);
+
+        if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K % KPerBlock == 0))
+        {
+            return false;
+        }
+
         return GridwiseGemmWelford::CheckValidity(gemm_arg);
     }
 
