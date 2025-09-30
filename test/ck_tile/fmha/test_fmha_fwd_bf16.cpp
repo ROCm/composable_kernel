@@ -32,7 +32,7 @@ const auto AppendKVHDimValues =
 
 const auto ModeValues = Values(mode_enum::batch, mode_enum::group);
 
-const auto IsVRowmajorValues = Values(false, true);
+const auto IsVRowmajorValues = Values(true);
 
 const bool squant             = false;
 const std::string init_method = "uf";

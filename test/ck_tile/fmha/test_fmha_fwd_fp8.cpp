@@ -23,20 +23,17 @@ const auto SplitKVHDimValues = Values(std::tuple{64, -1}, std::tuple{128, -1});
 
 const auto AppendKVHDimValues = Values(std::tuple{64, -1}, std::tuple{128, -1});
 
-// There are no fp8 instances with seqlen padding (mode_enum::group requires it)
-const auto ModeValues = Values(mode_enum::batch);
+const auto ModeValues = Values(mode_enum::batch, mode_enum::group);
 
-const auto IsVRowmajorValues = Values(false);
+const auto IsVRowmajorValues = Values(true);
 
 const auto squant             = true;
 const std::string init_method = "uf";
 const bool def_lse            = false;
 const bool def_is_v_rowmajor  = true;
 
-int adjust_seqlen(int seqlen)
-{
-    // There are no fp8 instances with padding, pad seqlen to avoid skipping most of the tests
-    return ck_tile::integer_least_multiple(seqlen, 128);
-}
+// When there are no fp8 instances with padding, pad seqlen to avoid skipping most of the tests:
+// return ck_tile::integer_least_multiple(seqlen, 128);
+int adjust_seqlen(int seqlen) { return seqlen; }
 
 #include "test_fmha_fwd.inc"
