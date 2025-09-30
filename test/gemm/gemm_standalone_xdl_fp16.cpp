@@ -105,6 +105,7 @@ int main(int argc, char* argv[])
 
     bool do_verification = true;
     bool time_kernel     = true;
+    int problem_index    = -1;
 
     if(argc == 1)
     {
@@ -115,16 +116,28 @@ int main(int argc, char* argv[])
         do_verification = std::stoi(argv[1]);
         time_kernel     = std::stoi(argv[2]);
     }
+    else if(argc == 4)
+    {
+        do_verification = std::stoi(argv[1]);
+        time_kernel     = std::stoi(argv[2]);
+        problem_index   = std::stoi(argv[3]);
+    }
     else
     {
         std::cerr << "arg1: verification (0=no, 1=yes)" << std::endl
-                  << "arg2: time kernel (0=no, 1=yes)" << std::endl;
+                  << "arg2: time kernel (0=no, 1=yes)" << std::endl
+                  << "arg3: problem index (0-35, -1 means all)" << std::endl;
         return 0;
     }
 
     bool pass = true;
-    for(auto& p : problems)
+    for(size_t i = 0; i < problems.size(); i++)
     {
+        if(problem_index != -1 && problem_index != static_cast<ck::index_t>(i))
+        {
+            continue;
+        }
+        auto& p                           = problems[i];
         GemmParams& problem_size          = std::get<0>(p);
         const LayoutConfig& layout_config = std::get<1>(p);
         const auto& factory               = std::get<2>(p);
