@@ -429,7 +429,8 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WG              = remove_cvref_t<decltype(config.template at<0>())>;
 
-        return WG::WarpGemmAttribute::Impl::kCM1PerLane;
+        constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::ODataType);
+        return min(MaxVectorSize, WG::WarpGemmAttribute::Impl::kCM1PerLane);
     }
 
     template <typename Problem>
