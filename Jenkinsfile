@@ -1846,17 +1846,4 @@ pipeline {
             }
         }
     }
-    post {
-        always {
-            script {
-                if (!env.SHOULD_RUN_CI.toBoolean()) {
-                    // If CI was skipped, notify each of the branch protected checks that they are successful.
-                    def requiredChecks = getRequiredBranchChecks()
-                    requiredChecks.each { checkName ->
-                        echo "pass skipped check: ${checkName}"
-                    }
-                }
-            }            
-        }
-    }
 }
