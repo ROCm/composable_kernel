@@ -204,7 +204,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
             make_tile_window(q_lds, make_tuple(number<kM0>{}, number<kSubQKHeaddim>{}), {0, 0});
         auto q_lds_read_window =
             make_tile_window(q_lds,
-                             make_tuple(number<kM0>{}, number<kSubQKHeaddim>{}),
+                             make_tuple(number<kM0>{}, number<kQKHeaddim>{}),
                              {0, 0},
                              Policy::template MakeQRegTileDistribution<Problem>());
 

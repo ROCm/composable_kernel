@@ -52,7 +52,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVSDefaultPolicy
 
         return BlockGemm::template MakeABlockTileDistribution<
             Problem::BlockFmhaShape::kM0,
-            Problem::BlockFmhaShape::kSubQKHeaddim>();
+            Problem::BlockFmhaShape::kQKHeaddim>();
     }
 
     template <typename Problem>
