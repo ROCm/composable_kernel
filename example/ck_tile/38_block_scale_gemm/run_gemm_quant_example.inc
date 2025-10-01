@@ -71,6 +71,9 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   bool flush_cache,
                   int rotating_count)
 {
+    std::cout << std::endl
+              << __func__ << ": Running Gemm kernel with M =" << M << " N =" << N << " K =" << K
+              << std::endl;
     ck_tile::QuantGemmHostArgs args;
     args.a_ptr     = a_m_k_dev_buf.GetDeviceBuffer();
     args.aq_ptr    = (aq_dev_buf != nullptr) ? aq_dev_buf->GetDeviceBuffer() : nullptr;
@@ -182,7 +185,7 @@ int run_gemm_example_with_layouts(int argc,
         if(K % QuantGroupSize != 0)
         {
             throw std::runtime_error(
-                "K must be aligned with QuantGroupSize for AQuantGrouped mode");
+                "K must be aligned with QuantGroupSize for AQuantGrouped/BQuantGrouped mode");
         }
     }
     ck_tile::index_t AQK, BQK;
@@ -190,6 +193,7 @@ int run_gemm_example_with_layouts(int argc,
     {
         AQK = K / QuantGroupSize; // Group quantization: AQK = K / GroupSize
         BQK = 0;                  // No B quantization
+        std::cout << std::endl << __func__ << ": AQK = " << AQK << std::endl;
     }
     else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
     {
@@ -204,7 +208,7 @@ int run_gemm_example_with_layouts(int argc,
     }
     else
     {
-        static_assert(false, "Unsupported QuantMode");
+        throw std::runtime_error("Unsupported QuantMode");
     }
 
     ck_tile::index_t stride_A  = arg_parser.get_int("stride_a");
@@ -230,6 +234,7 @@ int run_gemm_example_with_layouts(int argc,
     {
         stride_AQ = ck_tile::get_default_stride(M, AQK, stride_AQ, is_row_major(aq_layout));
         stride_BQ = 0; // No B quantization
+        std::cout << std::endl << __func__ << ": stride_AQ = " << stride_AQ << std::endl;
     }
     else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
     {
@@ -282,9 +287,9 @@ int run_gemm_example_with_layouts(int argc,
             ck_tile::host_tensor_descriptor(1, 1, stride_BQ, is_row_major(bq_layout)));
     }
 
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<std::uint32_t> fill_seed(0, 500);
+    // std::random_device rd;
+    // std::mt19937 gen(rd());
+    // std::uniform_int_distribution<std::uint32_t> fill_seed(0, 500);
 
     if(init_method == 0)
     {
@@ -292,40 +297,34 @@ int run_gemm_example_with_layouts(int argc,
         {
             if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
             {
-                ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f, fill_seed(gen)}(
-                    b_k_n);
+                ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f}(b_k_n);
             }
             else
             {
-                ck_tile::FillUniformDistribution<BDataType>{-2.0f, 3.0f, fill_seed(gen)}(b_k_n);
+                ck_tile::FillUniformDistribution<BDataType>{-2.0f, 3.0f}(b_k_n);
             }
-            ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
-                *bq_tensor_ptr);
-            ck_tile::FillUniformDistribution<ADataType>{-5.0f, 5.0f, fill_seed(gen)}(a_m_k);
+            ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f}(*bq_tensor_ptr);
+            ck_tile::FillUniformDistribution<ADataType>{-5.0f, 5.0f}(a_m_k);
         }
         else if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
         {
             if constexpr(std::is_same_v<ADataType, ck_tile::pk_int4_t>)
             {
-                ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f, fill_seed(gen)}(
-                    a_m_k);
+                ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f}(a_m_k);
             }
             else
             {
-                ck_tile::FillUniformDistribution<ADataType>{-2.0f, 3.0f, fill_seed(gen)}(a_m_k);
+                ck_tile::FillUniformDistribution<ADataType>{-2.0f, 3.0f}(a_m_k);
             }
-            ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
-                *aq_tensor_ptr);
-            ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f, fill_seed(gen)}(b_k_n);
+            ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f}(*aq_tensor_ptr);
+            ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f}(b_k_n);
         }
         else
         {
-            ck_tile::FillUniformDistribution<ADataType>{-2.0f, 2.0f, fill_seed(gen)}(a_m_k);
-            ck_tile::FillUniformDistribution<BDataType>{-2.0f, 2.0f, fill_seed(gen)}(b_k_n);
-            ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
-                *aq_tensor_ptr);
-            ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
-                *bq_tensor_ptr);
+            ck_tile::FillUniformDistribution<ADataType>{-2.0f, 2.0f}(a_m_k);
+            ck_tile::FillUniformDistribution<BDataType>{-2.0f, 2.0f}(b_k_n);
+            ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f}(*aq_tensor_ptr);
+            ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f}(*bq_tensor_ptr);
         }
     }
     else if(init_method == 1)
@@ -360,6 +359,8 @@ int run_gemm_example_with_layouts(int argc,
         b_k_n.SetZero();
         bq_tensor_ptr->SetZero();
     }
+
+    a_m_k.print_first_n(std::cout, 10);
 
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());

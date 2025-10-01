@@ -306,6 +306,7 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                                        [[maybe_unused]] ASmemBlockWindow& a_block_window,
                                        [[maybe_unused]] BSmemBlockWindow& b_block_window)
         {
+            // printf("BlockGemmImpl<GemmPipelineScheduler::Intrawave, GemmTraits>\n");
             static_assert(std::is_same_v<CDataType, typename CBlockTensor::DataType>,
                           "The CDataType as defined in traits should be the same as corresponding "
                           "C block tensor data type!");
