@@ -1184,6 +1184,7 @@ pipeline {
                     when {
                         beforeAgent true
                         expression { false }
+                    }
                     agent{ label rocmnode("nogpu") }
                     steps{
                         script {
