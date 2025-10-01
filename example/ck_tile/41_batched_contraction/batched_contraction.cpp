@@ -92,7 +92,13 @@ float batched_contraction_impl(const ck_tile::BatchedContractionHostArgs<DsDataT
 
     using BaseGemmPipeline = UNIVERSAL_GEMM_PIPELINE<GemmPipelineProblem>;
 
-    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(args.K_total);
+    ck_tile::index_t K_total = 1;
+    for(ck_tile::index_t i = NumDimG + NumDimM; i < NumDimG + NumDimM + NumDimK; ++i)
+    {
+        K_total *= args.A_dims[i];
+    }
+
+    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_total);
     const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
     const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
 
@@ -211,6 +217,7 @@ float batched_contraction(const ck_tile::BatchedContractionHostArgs<DsDataType::
 
     HANDLE_CASE(1, 1, 1, 1);
     HANDLE_CASE(2, 1, 1, 1);
+    HANDLE_CASE(2, 2, 2, 1);
     HANDLE_CASE(1, 2, 1, 1);
     HANDLE_CASE(1, 1, 1, 2);
     HANDLE_CASE(2, 2, 2, 2);

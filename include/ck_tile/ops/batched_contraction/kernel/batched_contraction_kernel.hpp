@@ -7,11 +7,114 @@
 #include "ck_tile/ops/batched_contraction/pipeline/batched_contraction_problem.hpp"
 #include "ck_tile/ops/gemm/kernel/universal_gemm_kernel.hpp"
 
+/**
+ * @file batched_contraction_kernel.hpp
+ * @brief Batched Tensor Contraction Operations
+ *
+ * @section batched_contraction_overview What is Batched Tensor Contraction with Multiple D?
+ *
+ * Tensor contraction is a fundamental operation that generalizes matrix multiplication to
+ * multi-dimensional tensors. It performs element-wise multiplication and summation over
+ * shared dimensions
+ *
+ * **Beyond pure contraction, this kernel supports multiple auxiliary input tensors (D tensors)**
+ * that are fused with the contraction result through configurable epilogue operations, enabling
+ * efficient computation of complex tensor expressions in a single kernel launch.
+ *
+ * @subsection mathematical_formulation Mathematical Formulation
+ *
+ * For tensors A and B with arbitrary dimensionalities, the complete operation computes:
+ *
+ * **E[G₀,G₁,...,M₀,M₁,...,N₀,N₁,...] = epilogue_op(C, D₀, D₁, D₂, ...)**
+ *
+ * Where:
+ * **C[G₀,G₁,...,M₀,M₁,...,N₀,N₁,...] = Σ_{K₀,K₁,...} A[G₀,G₁,...,M₀,M₁,...,K₀,K₁,...] ×
+ * B[G₀,G₁,...,N₀,N₁,...,K₀,K₁,...]**
+ *
+ * Where:
+ * - **G dimensions**: Batch dimensions (shared across A, B, and output E)
+ * - **M dimensions**: Row dimensions of the output matrix (from tensor A)
+ * - **N dimensions**: Column dimensions of the output matrix (from tensor B)
+ * - **K dimensions**: Contraction dimensions (summed over, present in both A and B)
+ *
+ * @subsection why_gemm_implementation Why Tensor Contraction Can Be Implemented Using GEMM
+ *
+ * **Mathematical Equivalence**: Tensor contraction is fundamentally equivalent to matrix
+ * multiplication when dimensions are appropriately flattened. The key insight is that the summation
+ * operation over shared dimensions (K dimensions) in tensor contraction is mathematically identical
+ * to the dot product computation in matrix multiplication.
+ *
+ * **Dimension Flattening Strategy**:
+ * - **M dimensions** (from tensor A) → Flattened into matrix rows (M_total)
+ * - **N dimensions** (from tensor B) → Flattened into matrix columns (N_total)
+ * - **K dimensions** (contraction dims) → Flattened into inner dimension (K_total)
+ * - **G dimensions** (batch dims) → Handled through batch processing
+ *
+ * **Mathematical Transformation**:
+ * ```
+ * Original: E[g,m₀,m₁,n₀,n₁] = Σ_{k₀,k₁} A[g,m₀,m₁,k₀,k₁] × B[g,n₀,n₁,k₀,k₁]
+ * Flattened: E[g,M,N] = Σ_K A[g,M,K] × B[g,N,K]  (where M=m₀×m₁, N=n₀×n₁, K=k₀×k₁)
+ * GEMM Form: E = A × Bᵀ
+ *
+ * **Why This Approach Is Optimal**:
+ * Rather than implementing tensor contraction from scratch, this kernel leverages the highly
+ * optimized `UniversalGemmKernel` as its computational backend.
+ *
+ * @subsection current_limitations Current Kernel Limitations
+ *
+ * **Layout Restrictions:**
+ * - **Row-Major Only**: All tensors must use row-major memory layout
+ * - **Packed Tensors**: Only contiguous/packed tensor layouts supported
+ * - **Hardcoded Strides**: stride_A = K_total, stride_B = K_total, stride_E = N_total
+ * - **D Tensor Layout**: All D tensors must match E tensor layout (stride_Ds = N_total)
+ *
+ * **Implementation Constraints:**
+ * - **Fixed Stride Calculation**: Strides are automatically calculated and cannot be customized
+ * - **No Column-Major**: Column-major or custom stride patterns not supported
+ * - **No Strided Access**: Non-contiguous tensor slicing not supported
+ *
+ * **Future Enhancements:**
+ * - Support for arbitrary stride patterns
+ * - Column-major and mixed layout support
+ * - Non-contiguous tensor operation support
+ */
+
 namespace ck_tile {
 
+/// @brief Host arguments for batched tensor contraction operations.
+///
+/// @par Overview
+///     This structure encapsulates all host-side arguments required for batched tensor contraction.
+///     It supports arbitrary number of batch dimensions (G), M dimensions, N dimensions, and K
+///     dimensions. The contraction operation performs: E = epilogue_op(contraction(A, B), D0, D1,
+///     ...) for each batch, where epilogue_op is defined by the CDEElementOp passed to the
+///     underlying GEMM kernel.
+///
+/// @par Tensor Layout Assumptions
+///     - A tensor: [G0, G1, ..., M0, M1, M2, ..., K0, K1, K2, ...]
+///     - B tensor: [G0, G1, ..., N0, N1, N2, ..., K0, K1, K2, ...]
+///     - D tensors: [G0, G1, ..., M0, M1, M2, ..., N0, N1, N2, ...] (auxiliary input tensors)
+///     - E tensor: [G0, G1, ..., M0, M1, M2, ..., N0, N1, N2, ...] (output tensor)
+///
+/// @tparam NumDTensor Number of D (auxiliary input) tensors. Default is 0.
 template <ck_tile::index_t NumDTensor = 0>
 struct BatchedContractionHostArgs
 {
+    /// @brief Constructor for batched contraction host arguments.
+    ///
+    /// @param a_ptr_ Pointer to input tensor A
+    /// @param b_ptr_ Pointer to input tensor B
+    /// @param ds_ptr_ Array of pointers to auxiliary input tensors D
+    /// @param e_ptr_ Pointer to output tensor E
+    /// @param k_batch_ Number of k-splits for split-K batching
+    /// @param A_dims_ Dimension vector for tensor A: [G0, G1, ..., M0, M1, ..., K0, K1, ...]
+    /// @param B_dims_ Dimension vector for tensor B: [G0, G1, ..., N0, N1, ..., K0, K1, ...]
+    /// @param Ds_dims_ Dimension vectors for D tensors: [G0, G1, ..., M0, M1, ..., N0, N1, ...]
+    /// @param E_dims_ Dimension vector for tensor E: [G0, G1, ..., M0, M1, ..., N0, N1, ...]
+    /// @param A_strides_ Stride vector for tensor A: [G0, G1, ..., M0, M1, ..., K0, K1, ...]
+    /// @param B_strides_ Stride vector for tensor B: [G0, G1, ..., N0, N1, ..., K0, K1, ...]
+    /// @param Ds_strides_ Stride vectors for D tensors: [G0, G1, ..., M0, M1, ..., N0, N1, ...]
+    /// @param E_strides_ Stride vector for tensor E: [G0, G1, ..., M0, M1, ..., N0, N1, ...]
     CK_TILE_HOST
     BatchedContractionHostArgs(
         const void* a_ptr_,
@@ -19,10 +122,6 @@ struct BatchedContractionHostArgs
         const std::array<const void*, NumDTensor>& ds_ptr_,
         void* e_ptr_,
         ck_tile::index_t k_batch_,
-        ck_tile::index_t G_total_,
-        ck_tile::index_t M_total_,
-        ck_tile::index_t N_total_,
-        ck_tile::index_t K_total_,
         const std::vector<ck_tile::index_t>& A_dims_, // [G0, G1, ..., M0, M1, ... , K0, K1, ...]
         const std::vector<ck_tile::index_t>& B_dims_, // [G0, G1, ..., N0, N1, ... , K0, K1, ...]
         const std::array<std::vector<ck_tile::index_t>, NumDTensor>&
@@ -41,10 +140,6 @@ struct BatchedContractionHostArgs
           ds_ptr(ds_ptr_),
           e_ptr(e_ptr_),
           k_batch(k_batch_),
-          G_total(G_total_),
-          M_total(M_total_),
-          N_total(N_total_),
-          K_total(K_total_),
           A_dims(A_dims_),
           B_dims(B_dims_),
           Ds_dims(Ds_dims_),
@@ -56,27 +151,36 @@ struct BatchedContractionHostArgs
     {
     }
 
-    const void* a_ptr;
-    const void* b_ptr;
-    std::array<const void*, NumDTensor> ds_ptr;
-    void* e_ptr;
-    ck_tile::index_t k_batch;
-    ck_tile::index_t G_total;
-    ck_tile::index_t M_total;
-    ck_tile::index_t N_total;
-    ck_tile::index_t K_total;
-    const std::vector<ck_tile::index_t> A_dims; // [G0, G1, ..., M0, M1, ... , K0, K1, ...]
-    const std::vector<ck_tile::index_t> B_dims; // [G0, G1, ..., N0, N1, ... , K0, K1, ...]
-    const std::array<std::vector<ck_tile::index_t>, NumDTensor>
-        Ds_dims; // [G0, G1, ..., M0, M1, ... , N0, N1, ...][NumDTensor]
-    const std::vector<ck_tile::index_t> E_dims;    // [G0, G1, ..., M0, M1, ... , N0, N1, ...]
-    const std::vector<ck_tile::index_t> A_strides; // [G0, G1, ..., M0, M1, ...,K0, K1, ...]
-    const std::vector<ck_tile::index_t> B_strides; // [G0, G1, ..., N0, N1, ...,K0, K1, ...]
-    const std::array<std::vector<ck_tile::index_t>, NumDTensor>
-        Ds_strides; // [G0, G1, ..., M0, M1, ...,N0, N1, ...]
+    const void* a_ptr;                          ///< Pointer to input tensor A
+    const void* b_ptr;                          ///< Pointer to input tensor B
+    std::array<const void*, NumDTensor> ds_ptr; ///< Array of pointers to auxiliary input tensors D
+    void* e_ptr;                                ///< Pointer to output tensor E
+    ck_tile::index_t k_batch;                   ///< Number of k-splits for split-K batching
     const std::vector<ck_tile::index_t>
-        E_strides; // [G0, G1, ..., M0, M1, ...,N0, N1, ...][NumDTensor]
+        A_dims; ///< Dimension vector for tensor A: [G0, G1, ..., M0, M1, ..., K0, K1, ...]
+    const std::vector<ck_tile::index_t>
+        B_dims; ///< Dimension vector for tensor B: [G0, G1, ..., N0, N1, ..., K0, K1, ...]
+    const std::array<std::vector<ck_tile::index_t>, NumDTensor>
+        Ds_dims; ///< Dimension vectors for D tensors: [G0, G1, ..., M0, M1, ..., N0, N1, ...]
+    const std::vector<ck_tile::index_t>
+        E_dims; ///< Dimension vector for tensor E: [G0, G1, ..., M0, M1, ..., N0, N1, ...]
+    const std::vector<ck_tile::index_t>
+        A_strides; ///< Stride vector for tensor A: [G0, G1, ..., M0, M1, ..., K0, K1, ...]
+    const std::vector<ck_tile::index_t>
+        B_strides; ///< Stride vector for tensor B: [G0, G1, ..., N0, N1, ..., K0, K1, ...]
+    const std::array<std::vector<ck_tile::index_t>, NumDTensor>
+        Ds_strides; ///< Stride vectors for D tensors: [G0, G1, ..., M0, M1, ..., N0, N1, ...]
+    const std::vector<ck_tile::index_t>
+        E_strides; ///< Stride vector for tensor E: [G0, G1, ..., M0, M1, ..., N0, N1, ...]
 };
+
+/// @brief Kernel arguments for batched tensor contraction operations.
+///
+/// @tparam NumDimG Number of batch dimensions
+/// @tparam NumDimM Number of M (output row) dimensions
+/// @tparam NumDimN Number of N (output column) dimensions
+/// @tparam NumDimK Number of K (contraction) dimensions
+/// @tparam NumDTensor Number of auxiliary input D tensors. Default is 0.
 
 template <ck_tile::index_t NumDimG,
           ck_tile::index_t NumDimM,
@@ -85,36 +189,52 @@ template <ck_tile::index_t NumDimG,
           ck_tile::index_t NumDTensor = 0>
 struct BatchedContractionKernelArgs
 {
-    const void* a_ptr;
-    const void* b_ptr;
-    std::array<const void*, NumDTensor> ds_ptr;
-    void* e_ptr;
-    ck_tile::index_t k_batch;
+    const void* a_ptr;                          ///< Pointer to input tensor A
+    const void* b_ptr;                          ///< Pointer to input tensor B
+    std::array<const void*, NumDTensor> ds_ptr; ///< Array of pointers to auxiliary input tensors D
+    void* e_ptr;                                ///< Pointer to output tensor E
+    ck_tile::index_t k_batch;                   ///< Number of k-splits for split-K batching
 
-    ck_tile::index_t M_dims[NumDimM]; // [M0, M1, M2, ... , M_{NumDimM-1}]
-    ck_tile::index_t N_dims[NumDimN]; // [N0, N1, N2, ... , N_{NumDimN-1}]
-    ck_tile::index_t K_dims[NumDimK]; // [K0, K1, K2, ... , K_{NumDimK-1}]
-    ck_tile::index_t G_dims[NumDimG]; // [G0, G1, G2, ... , G_{NumDimG-1}]
-
-    // G_batch strides
+    ck_tile::index_t M_dims[NumDimM]; ///< M dimension sizes: [M0, M1, M2, ..., M_{NumDimM-1}]
+    ck_tile::index_t N_dims[NumDimN]; ///< N dimension sizes: [N0, N1, N2, ..., N_{NumDimN-1}]
+    ck_tile::index_t K_dims[NumDimK]; ///< K dimension sizes: [K0, K1, K2, ..., K_{NumDimK-1}]
     ck_tile::index_t
-        G_strides_A[NumDimG]; // [G0_stride_A, G1_stride_A, ... , G_{NumDimG-1}_stride_A]
-    ck_tile::index_t
-        G_strides_B[NumDimG]; // [G0_stride_B, G1_stride_B, ... , G_{NumDimG-1}_stride_B]
-    ck_tile::index_t
-        G_strides_E[NumDimG]; // [G0_stride_E, G1_stride_E, ... , G_{NumDimG-1}_stride_E]
-    std::array<std::array<ck_tile::index_t, NumDimG>, NumDTensor> G_strides_Ds;
+        G_dims[NumDimG]; ///< G (batch) dimension sizes: [G0, G1, G2, ..., G_{NumDimG-1}]
 
-    ck_tile::index_t G_total; // total G length
-    ck_tile::index_t M_total; // total M length
-    ck_tile::index_t N_total; // total N length
-    ck_tile::index_t K_total; // total K length
+    // Batch strides for each tensor across all batch dimensions
+    ck_tile::index_t G_strides_A[NumDimG]; ///< Batch strides for tensor A: [G0_stride_A,
+                                           ///< G1_stride_A, ..., G_{NumDimG-1}_stride_A]
+    ck_tile::index_t G_strides_B[NumDimG]; ///< Batch strides for tensor B: [G0_stride_B,
+                                           ///< G1_stride_B, ..., G_{NumDimG-1}_stride_B]
+    ck_tile::index_t G_strides_E[NumDimG]; ///< Batch strides for tensor E: [G0_stride_E,
+                                           ///< G1_stride_E, ..., G_{NumDimG-1}_stride_E]
+    std::array<std::array<ck_tile::index_t, NumDimG>, NumDTensor>
+        G_strides_Ds; ///< Batch strides for D tensors: [NumDTensor][NumDimG]
 
-    ck_tile::index_t stride_A;
-    ck_tile::index_t stride_B;
-    std::array<ck_tile::index_t, NumDTensor> stride_Ds;
-    ck_tile::index_t stride_E;
+    ck_tile::index_t G_total; ///< Total batch size: G0 * G1 * ... * G_{NumDimG-1}
+    ck_tile::index_t M_total; ///< Total M dimension: M0 * M1 * ... * M_{NumDimM-1}
+    ck_tile::index_t N_total; ///< Total N dimension: N0 * N1 * ... * N_{NumDimN-1}
+    ck_tile::index_t K_total; ///< Total K dimension: K0 * K1 * ... * K_{NumDimK-1}
+
+    ck_tile::index_t stride_A; ///< Leading dimension stride for tensor A (row-major: K_total)
+    ck_tile::index_t stride_B; ///< Leading dimension stride for tensor B (row-major: K_total)
+    std::array<ck_tile::index_t, NumDTensor>
+        stride_Ds;             ///< Leading dimension strides for D tensors (row-major: N_total)
+    ck_tile::index_t stride_E; ///< Leading dimension stride for tensor E (row-major: N_total)
 };
+
+/// @brief GPU kernel for batched tensor contraction operations.
+///
+/// @par Overview
+///     This kernel performs batched tensor contraction operations using the underlying
+///     UniversalGemmKernel. It supports arbitrary tensor dimensionalities (G, M, N, K) and
+///     processes multiple batch instances in parallel. Each batch performs: E =
+///     epilogue_op(contraction(A, B), D0, D1, ...).
+///
+/// @tparam Problem_ Tensor contraction problem specification defining data types and dimensions
+/// @tparam TilePartitioner_ Tile partitioning strategy for workload distribution
+/// @tparam GemmPipeline_ GEMM computation pipeline for core matrix operations
+/// @tparam EpiloguePipeline_ Epilogue pipeline for post-GEMM operations and tensor fusion
 
 template <typename Problem_,
           typename TilePartitioner_,
@@ -122,30 +242,57 @@ template <typename Problem_,
           typename EpiloguePipeline_>
 struct BatchedContractionKernel
 {
-    using Problem    = ck_tile::remove_cvref_t<Problem_>;
-    using ADataType  = ck_tile::remove_cvref_t<typename Problem::ADataType>;
-    using BDataType  = ck_tile::remove_cvref_t<typename Problem::BDataType>;
-    using DsDataType = ck_tile::remove_cvref_t<typename Problem::DsDataType>;
-    using EDataType  = ck_tile::remove_cvref_t<typename Problem::EDataType>;
+    // Type aliases for cleaner code and better readability
+    using Problem = ck_tile::remove_cvref_t<Problem_>; ///< Tensor contraction problem specification
+    using ADataType =
+        ck_tile::remove_cvref_t<typename Problem::ADataType>; ///< Data type for input tensor A
+    using BDataType =
+        ck_tile::remove_cvref_t<typename Problem::BDataType>; ///< Data type for input tensor B
+    using DsDataType =
+        ck_tile::remove_cvref_t<typename Problem::DsDataType>; ///< Data types for auxiliary input
+                                                               ///< tensors D
+    using EDataType =
+        ck_tile::remove_cvref_t<typename Problem::EDataType>; ///< Data type for output tensor E
 
-    static constexpr ck_tile::index_t NumDimG    = Problem::NumDimG;
-    static constexpr ck_tile::index_t NumDimM    = Problem::NumDimM;
-    static constexpr ck_tile::index_t NumDimN    = Problem::NumDimN;
-    static constexpr ck_tile::index_t NumDimK    = Problem::NumDimK;
-    static constexpr ck_tile::index_t NumDTensor = Problem::NumDTensor;
+    // Compile-time dimension constants extracted from problem specification
+    static constexpr ck_tile::index_t NumDimG = Problem::NumDimG; ///< Number of batch dimensions
+    static constexpr ck_tile::index_t NumDimM =
+        Problem::NumDimM; ///< Number of M (output row) dimensions
+    static constexpr ck_tile::index_t NumDimN =
+        Problem::NumDimN; ///< Number of N (output column) dimensions
+    static constexpr ck_tile::index_t NumDimK =
+        Problem::NumDimK; ///< Number of K (contraction) dimensions
+    static constexpr ck_tile::index_t NumDTensor =
+        Problem::NumDTensor; ///< Number of auxiliary input D tensors
 
-    using TilePartitioner  = ck_tile::remove_cvref_t<TilePartitioner_>;
-    using GemmPipeline     = ck_tile::remove_cvref_t<GemmPipeline_>;
-    using EpiloguePipeline = ck_tile::remove_cvref_t<EpiloguePipeline_>;
+    // Pipeline and partitioning strategy types
+    using TilePartitioner =
+        ck_tile::remove_cvref_t<TilePartitioner_>; ///< Tile partitioning strategy for workload
+                                                   ///< distribution
+    using GemmPipeline = ck_tile::remove_cvref_t<GemmPipeline_>; ///< GEMM computation pipeline
+    using EpiloguePipeline =
+        ck_tile::remove_cvref_t<EpiloguePipeline_>; ///< Epilogue pipeline for post-GEMM operations
 
+    // Underlying GEMM kernel that performs the actual computation
     using UniversalGemmKernel =
         ck_tile::UniversalGemmKernel<TilePartitioner_, GemmPipeline_, EpiloguePipeline_>;
-    static constexpr ck_tile::index_t kBlockSize = UniversalGemmKernel::kBlockSize;
 
-    using KernelArgs = BatchedContractionKernelArgs<NumDimG, NumDimM, NumDimN, NumDimK, NumDTensor>;
+    static constexpr ck_tile::index_t kBlockSize =
+        UniversalGemmKernel::kBlockSize; ///< GPU block size inherited from GEMM kernel
 
+    using KernelArgs =
+        BatchedContractionKernelArgs<NumDimG, NumDimM, NumDimN, NumDimK, NumDTensor>; ///< Kernel
+                                                                                      ///< argument
+                                                                                      ///< structure
+
+    /// @brief Returns the kernel name for debugging and profiling purposes.
+    /// @return Constant string identifier for this kernel
     CK_TILE_HOST static constexpr auto GetKernelName() { return "batched_contraction_kernel"; }
 
+    /// @brief Validates whether the given kernel arguments are supported.
+    /// @param kargs Kernel arguments to validate
+    /// @return True if arguments are supported, false otherwise
+    /// @details Checks underlying GEMM kernel support and ensures valid batch dimensions
     CK_TILE_HOST static constexpr bool IsSupportedArguments(const KernelArgs& kargs)
     {
         typename UniversalGemmKernel::KernelArgs gemm_kargs{{kargs.a_ptr},
@@ -164,11 +311,16 @@ struct BatchedContractionKernel
         return UniversalGemmKernel::IsSupportedArgument(gemm_kargs) && kargs.G_total > 0;
     }
 
+    /// @brief Returns the shared memory size required by the kernel.
+    /// @return Shared memory size in bytes
+    /// @details Delegates to underlying GEMM kernel's shared memory requirements
     CK_TILE_HOST static constexpr ck_tile::index_t GetSmemSize()
     {
         return UniversalGemmKernel::GetSmemSize();
     }
 
+    /// @brief Returns the GPU block size for kernel launch.
+    /// @return 3D block dimensions for GPU kernel execution
     CK_TILE_HOST static constexpr auto GetBlockSize()
     {
         return dim3(UniversalGemmKernel::kBlockSize);
@@ -178,123 +330,6 @@ struct BatchedContractionKernel
     {
         return dim3(
             TilePartitioner::GridSize(kargs.M_total, kargs.N_total), kargs.G_total, kargs.k_batch);
-    }
-
-    // A[G0, G1, ..., M0, M1, M2, ..., K0, K1, K2, ...]
-    CK_TILE_HOST static constexpr auto
-    Make_A_GridDescriptor_M_K(const std::vector<ck_tile::index_t>& A_dims    = {},
-                              const std::vector<ck_tile::index_t>& A_strides = {})
-    {
-        const auto to_tuple = [&](auto& vec, auto start, auto end) {
-            return generate_tuple([&](auto i) { return vec[start + i]; }, number<end - start>{});
-        };
-
-        // Remove G Dimensions
-        const auto A_dims_M_K =
-            to_tuple(A_dims, number<NumDimG>{}, number<NumDimG + NumDimM + NumDimK>{});
-        const auto A_strides_M_K =
-            to_tuple(A_strides, number<NumDimG>{}, number<NumDimG + NumDimM + NumDimK>{});
-
-        // dimension Ids for M and K
-        constexpr auto A_dims_M_ids = typename arithmetic_sequence_gen<0, NumDimM, 1>::type{};
-        constexpr auto A_dims_K_ids =
-            typename arithmetic_sequence_gen<NumDimM, NumDimM + NumDimK, 1>::type{};
-
-        // Dimensions for M [M0, M1, ...] and K [K0, K1, ...]
-        const auto dims_M = get_container_subset(A_dims_M_K, A_dims_M_ids);
-        const auto dims_K = get_container_subset(A_dims_M_K, A_dims_K_ids);
-
-        // naive tensor A[M0, M1, M2, ..., K0, K1, K2...] Discriptor
-        const auto A_grid_desc_Ms_Ks =
-            ck_tile::make_naive_tensor_descriptor(A_dims_M_K, A_strides_M_K);
-
-        // transformed tensor to flatten M and K dimensions  [M_total = M0 * M1 * M2 * ... , K_total
-        // = K0 * K1 * K2 * ...]
-        const auto A_grid_desc_Mflat_Kflat = ck_tile::transform_tensor_descriptor(
-            A_grid_desc_Ms_Ks,
-            make_tuple(make_merge_transform(dims_M), make_merge_transform(dims_K)),
-            make_tuple(A_dims_M_ids, A_dims_K_ids),
-            make_tuple(sequence<0>{}, sequence<1>{}));
-
-        return A_grid_desc_Mflat_Kflat;
-    }
-
-    // B[G0, G1, ..., N0, N1, N2, ..., K0, K1, K2, ...]
-    CK_TILE_HOST static constexpr auto
-    Make_B_GridDescriptor_N_K(const std::vector<ck_tile::index_t>& B_dims    = {},
-                              const std::vector<ck_tile::index_t>& B_strides = {})
-    {
-        const auto to_tuple = [&](auto& vec, auto start, auto end) {
-            return generate_tuple([&](auto i) { return vec[start + i]; }, number<end - start>{});
-        };
-
-        // Remove G Dimensions
-        const auto B_dims_N_K =
-            to_tuple(B_dims, number<NumDimG>{}, number<NumDimG + NumDimN + NumDimK>{});
-        const auto B_strides_N_K =
-            to_tuple(B_strides, number<NumDimG>{}, number<NumDimG + NumDimN + NumDimK>{});
-
-        // dimension Ids for N and K
-        constexpr auto B_dims_N_ids = typename arithmetic_sequence_gen<0, NumDimN, 1>::type{};
-        constexpr auto B_dims_K_ids =
-            typename arithmetic_sequence_gen<NumDimN, NumDimN + NumDimK, 1>::type{};
-
-        // Dimensions for N [N0, N1, ...] and K [K0, K1, ...]
-        const auto dims_N = get_container_subset(B_dims_N_K, B_dims_N_ids);
-        const auto dims_K = get_container_subset(B_dims_N_K, B_dims_K_ids);
-
-        // naive tensor B[N0, N1, N2, ..., K0, K1, K2...] Discriptor
-        const auto B_grid_desc_Ns_Ks =
-            ck_tile::make_naive_tensor_descriptor(B_dims_N_K, B_strides_N_K);
-
-        // transformed tensor to flatten N and K dimensions  [N_total = N0 * N1 * N2 * ... , K_total
-        // = K0 * K1 * K2 * ...]
-        const auto B_grid_desc_Nflat_Kflat = ck_tile::transform_tensor_descriptor(
-            B_grid_desc_Ns_Ks,
-            make_tuple(make_merge_transform(dims_N), make_merge_transform(dims_K)),
-            make_tuple(B_dims_N_ids, B_dims_K_ids),
-            make_tuple(sequence<0>{}, sequence<1>{}));
-
-        return B_grid_desc_Nflat_Kflat;
-    }
-
-    // E[G0, G1, ..., M0, M1, M2, ..., N0, N1, N2, ...]
-    CK_TILE_HOST static constexpr auto
-    Make_E_GridDescriptor_M_N(const std::vector<ck_tile::index_t>& E_dims    = {},
-                              const std::vector<ck_tile::index_t>& E_strides = {})
-    {
-        const auto to_tuple = [&](auto& vec, auto start, auto end) {
-            return generate_tuple([&](auto i) { return vec[start + i]; }, number<end - start>{});
-        };
-
-        // Remove G dimensions
-        const auto E_dims_M_N =
-            to_tuple(E_dims, number<NumDimG>{}, number<NumDimG + NumDimM + NumDimN>{});
-        const auto E_strides_M_N =
-            to_tuple(E_strides, number<NumDimG>{}, number<NumDimG + NumDimM + NumDimN>{});
-
-        // dimension Ids for M and N
-        constexpr auto E_dims_M_ids = typename arithmetic_sequence_gen<0, NumDimM, 1>::type{};
-        constexpr auto E_dims_N_ids =
-            typename arithmetic_sequence_gen<NumDimM, NumDimM + NumDimN, 1>::type{};
-
-        // Dimensions for M and N
-        const auto dims_M = get_container_subset(E_dims_M_N, E_dims_M_ids);
-        const auto dims_N = get_container_subset(E_dims_M_N, E_dims_N_ids);
-
-        // naive tensor E[M0, M1, M2, ..., N0, N1, N2...] Discriptor
-        const auto E_grid_desc_Ms_Ns =
-            ck_tile::make_naive_tensor_descriptor(E_dims_M_N, E_strides_M_N);
-
-        // transformed tensor to flatten M and N dimensions   [M_total = M0 * M1 * M2 * ... ,
-        // N_total = N0 * N1 * N2 * ...]
-        const auto E_grid_desc_Mflat_Nflat = ck_tile::transform_tensor_descriptor(
-            E_grid_desc_Ms_Ns,
-            make_tuple(make_merge_transform(dims_M), make_merge_transform(dims_N)),
-            make_tuple(E_dims_M_ids, E_dims_N_ids),
-            make_tuple(sequence<0>{}, sequence<1>{}));
-
-        return E_grid_desc_Mflat_Nflat;
     }
 
     CK_TILE_HOST static constexpr KernelArgs
@@ -368,10 +403,30 @@ struct BatchedContractionKernel
             }
         }
 
-        kargs.G_total = host_args.G_total;
-        kargs.M_total = host_args.M_total;
-        kargs.N_total = host_args.N_total;
-        kargs.K_total = host_args.K_total;
+        // Calculate total dimensions from individual dimension arrays
+        kargs.G_total = 1;
+        for(ck_tile::index_t i = 0; i < NumDimG; ++i)
+        {
+            kargs.G_total *= kargs.G_dims[i];
+        }
+
+        kargs.M_total = 1;
+        for(ck_tile::index_t i = 0; i < NumDimM; ++i)
+        {
+            kargs.M_total *= kargs.M_dims[i];
+        }
+
+        kargs.N_total = 1;
+        for(ck_tile::index_t i = 0; i < NumDimN; ++i)
+        {
+            kargs.N_total *= kargs.N_dims[i];
+        }
+
+        kargs.K_total = 1;
+        for(ck_tile::index_t i = 0; i < NumDimK; ++i)
+        {
+            kargs.K_total *= kargs.K_dims[i];
+        }
 
         kargs.stride_A = kargs.K_total;
         kargs.stride_B = kargs.K_total;

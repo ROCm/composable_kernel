@@ -45,11 +45,11 @@ using DDataType   = ContractionTypes::DDataType;
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("m_dims", "512", "M dimensions separated by comma (e.g., '16,32' for 2D M)")
-        .insert("n_dims", "1024", "N dimensions separated by comma (e.g., '32,32' for 2D N)")
-        .insert("k_dims", "2048", "K dimensions separated by comma (e.g., '64,32' for 2D K)")
+    arg_parser.insert("m_dims", "4,256", "M dimensions separated by comma (e.g., '16,32' for 2D M)")
+        .insert("n_dims", "16,128", "N dimensions separated by comma (e.g., '32,32' for 2D N)")
+        .insert("k_dims", "64", "K dimensions separated by comma (e.g., '64,32' for 2D K)")
         .insert(
-            "g_dims", "8", "G dimensions separated by comma (e.g., '4,2' for 2D, '2,3,4' for 3D)")
+            "g_dims", "1,2", "G dimensions separated by comma (e.g., '4,2' for 2D, '2,3,4' for 3D)")
         .insert("stride_a", "0", "Custom A tensor leading dimension stride (0 = auto)")
         .insert("stride_b", "0", "Custom B tensor leading dimension stride (0 = auto)")
         .insert("stride_e", "0", "Custom E tensor leading dimension stride (0 = auto)")

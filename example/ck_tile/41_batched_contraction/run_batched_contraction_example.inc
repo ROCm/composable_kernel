@@ -58,10 +58,6 @@ float invoke_batched_contraction_kernel(
     const std::vector<ck_tile::index_t>& B_strides, // [G0,G1,..,N0,N1,..,K0,K1,..]
     const std::array<std::vector<ck_tile::index_t>, DsDataType::size()>& Ds_strides,
     const std::vector<ck_tile::index_t>& E_strides, // [G0,G1,..,M0,M1,..,N0,N1,..]
-    ck_tile::index_t G_total,
-    ck_tile::index_t M_total,
-    ck_tile::index_t N_total,
-    ck_tile::index_t K_total,
     ck_tile::index_t kbatch,
     int n_warmup,
     int n_repeat)
@@ -73,10 +69,6 @@ float invoke_batched_contraction_kernel(
                                                                  ds_dev_buf,          // ds_ptr
                                                                  e_full_dims_dev_buf, // e_ptr
                                                                  kbatch,              // k_batch
-                                                                 G_total,             // G_total
-                                                                 M_total,             // M_total
-                                                                 N_total,             // N_total
-                                                                 K_total,             // K_total
                                                                  A_dims,              // A_dims
                                                                  B_dims,              // B_dims
                                                                  Ds_dims,             // Ds_dims
@@ -280,10 +272,6 @@ int run_batched_contraction_example_with_layouts(
                                                           B_strides,
                                                           Ds_strides,
                                                           E_strides,
-                                                          G_total,
-                                                          M_total,
-                                                          N_total,
-                                                          K_total,
                                                           kbatch,
                                                           n_warmup,
                                                           n_repeat);
