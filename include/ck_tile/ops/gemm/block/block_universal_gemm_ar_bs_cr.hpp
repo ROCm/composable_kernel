@@ -243,7 +243,6 @@ struct BlockUniversalGemmArBsCr : public BlockUniversalGemmBase<Problem_, Policy
                           "The CDataType as defined in traits should be the same as correspoinding "
                           "C block tensor data type!");
 
-            // a_warp_tile_.get_thread_buffer() = a_block_tensor.get_thread_buffer();
             // hot loop:
             static_for<0, KRepeat, 1>{}([&](auto kIter) {
                 LocalPrefetchB<kIter.value>(b_block_window);

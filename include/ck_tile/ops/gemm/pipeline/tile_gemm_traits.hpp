@@ -68,10 +68,10 @@ struct TileGemmUniversalTraits
 
     static constexpr bool TransposeC = TransposeC_;
     /// @brief SkipALds_ Parameterize the data flow for matrix A: if true, global memory ->
-    /// registers; if false, global memory -> LDS -> registers.
+    /// VGPR; if false, global memory -> VGPR -> LDS -> VGPR.
     static constexpr bool SkipALds = SkipALds_;
     /// @brief SkipBLds_ Parameterize the data flow for matrix B: if true, global memory ->
-    /// registers; if false, global memory -> LDS -> registers.
+    /// VGPR; if false, global memory -> VGPR -> LDS -> VGPR.
     static constexpr bool SkipBLds              = SkipBLds_;
     static constexpr bool UseStructuredSparsity = UseStructuredSparsity_;
     static constexpr bool UsePersistentKernel   = UsePersistentKernel_;

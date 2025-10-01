@@ -61,6 +61,7 @@ using KernelTypesMem = ::testing::Types<
     std::tuple<    Col,     Col,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,         Mem,  UseLDS,   UseLDS>,
     std::tuple<    Col,     Col,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Interwave,         Mem,  UseLDS,   UseLDS>,
     // SkipALds/SkipBLds
+    // TODO: Add A column-wise/B row-wise layout implementation and tests for the SkipLDS feature
     std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Interwave,         Mem,  UseLDS, SkipLDS>,
     std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Interwave,         Mem,  SkipLDS,  UseLDS>,
     std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Interwave,         Mem,  SkipLDS,  SkipLDS>,
