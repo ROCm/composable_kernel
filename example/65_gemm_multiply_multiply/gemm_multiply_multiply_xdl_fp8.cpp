@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -162,6 +162,28 @@ int main(int argc, char* argv[])
     Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
     Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
 
+    // Update strides based on tensor properties if they are <= 0
+    auto get_stride = [](auto& tensor, auto layout, ck::index_t current_stride) -> ck::index_t {
+        if(current_stride <= 0)
+        {
+            if constexpr(std::is_same_v<decltype(layout), Row>)
+            {
+                return tensor.GetStrides()[0];
+            }
+            else
+            {
+                return tensor.GetStrides()[1];
+            }
+        }
+        return current_stride;
+    };
+
+    StrideA              = get_stride(a0_m_k, A0Layout{}, StrideA);
+    StrideB              = get_stride(b0_k_n, B0Layout{}, StrideB);
+    ck::index_t StrideD0 = get_stride(d0_m_n, D0Layout{}, StrideD);
+    ck::index_t StrideD1 = get_stride(d1_m_n, D1Layout{}, StrideD);
+    StrideE              = get_stride(e_m_n_host_result, ELayout{}, StrideE);
+
     std::cout << "a0_m_k: " << a0_m_k.mDesc << std::endl;
     std::cout << "b0_k_n: " << b0_k_n.mDesc << std::endl;
     std::cout << "d1_m_n: " << d1_m_n.mDesc << std::endl;
@@ -202,8 +224,6 @@ int main(int argc, char* argv[])
 
     constexpr ck::index_t NumDTensor = DsDataType::Size();
 
-    constexpr auto I0 = ck::Number<0>{};
-
     // do GEMM
     auto device_op = DeviceOpInstance{};
     auto invoker   = device_op.MakeInvoker();
@@ -218,7 +238,7 @@ int main(int argc, char* argv[])
                                K,
                                StrideA,
                                StrideB,
-                               std::array<ck::index_t, NumDTensor>{I0, I0},
+                               std::array<ck::index_t, NumDTensor>{StrideD0, StrideD1},
                                StrideE,
                                KBatch,
                                a_element_op,

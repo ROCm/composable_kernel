@@ -300,12 +300,29 @@ struct tuple : impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>
 #undef TP_COM_
 };
 
-template <typename, typename = void>
+template <typename... T>
+CK_TILE_HOST_DEVICE void print(const tuple<T...>& t)
+{
+    printf("tuple<");
+    if constexpr(sizeof...(T) > 0)
+    {
+        bool first = true;
+        static_for<0, sizeof...(T), 1>{}([&t, &first](auto i) {
+            if(!first)
+                printf(", ");
+            print(t.get(i));
+            first = false;
+        });
+    }
+    printf(">");
+}
+
+template <typename, typename>
 struct vector_traits;
 
 // specialization for array
 template <typename... T>
-struct vector_traits<tuple<T...>>
+struct vector_traits<tuple<T...>, void>
 {
     using scalar_type                    = __type_pack_element<0, T...>;
     static constexpr index_t vector_size = sizeof...(T);

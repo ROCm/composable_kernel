@@ -42,13 +42,17 @@ struct GroupedConvHostArgs : public conv::ConvParam
 
 using GroupedConvFwdHostArgs       = GroupedConvHostArgs<const void*, const void*, void*>;
 using GroupedConvBwdWeightHostArgs = GroupedConvHostArgs<const void*, void*, const void*>;
+using GroupedConvBwdDataHostArgs   = GroupedConvHostArgs<void*, const void*, const void*>;
 
 template <index_t NDimSpatial_,
           ConvolutionSpecialization ConvSpecialization_,
           typename InLayout_,
           typename WeiLayout_,
           typename DsLayout_,
-          typename OutLayout_>
+          typename OutLayout_,
+          index_t VectorSizeA_ = 1,
+          index_t VectorSizeB_ = 1,
+          index_t VectorSizeC_ = 1>
 struct GroupedConvTraits
 {
     private:
@@ -66,14 +70,38 @@ struct GroupedConvTraits
     using WeiLayout                                               = WeiLayout_;
     using DsLayout                                                = DsLayout_;
     using OutLayout                                               = OutLayout_;
-    using GroupedConvImplicitGemmTraits                           = TileGemmTraits<true,
-                                                                                   true,
-                                                                                   true,
-                                                                                   ck_tile::tensor_layout::gemm::RowMajor,
-                                                                                   ck_tile::tensor_layout::gemm::ColumnMajor,
-                                                                                   ck_tile::tensor_layout::gemm::RowMajor>;
-    static constexpr index_t NumDTensor                           = DsLayout::size();
-    using ImplicitGemmDsLayout = decltype(generate_implicit_gemm_layout());
+    using GroupedConvImplicitGemmTraitsFwd =
+        TileGemmTraits<true,
+                       true,
+                       true,
+                       ck_tile::tensor_layout::gemm::RowMajor,
+                       ck_tile::tensor_layout::gemm::ColumnMajor,
+                       ck_tile::tensor_layout::gemm::RowMajor>;
+    using GroupedConvImplicitGemmTraitsBwdData =
+        TileGemmTraits<true,
+                       true,
+                       true,
+                       ck_tile::tensor_layout::gemm::RowMajor,
+                       ck_tile::tensor_layout::gemm::ColumnMajor,
+                       // TODO: Change to and enable vector load
+                       //    ck_tile::tensor_layout::gemm::RowMajor,
+                       //    ck_tile::tensor_layout::gemm::RowMajor,
+                       ck_tile::tensor_layout::gemm::RowMajor>;
+    using GroupedConvImplicitGemmTraitsBwdWeight =
+        TileGemmTraits<true,
+                       true,
+                       true,
+                       ck_tile::tensor_layout::gemm::RowMajor,
+                       ck_tile::tensor_layout::gemm::ColumnMajor,
+                       // TODO: Change to and enable vector load
+                       //    ck_tile::tensor_layout::gemm::ColumnMajor,
+                       //    ck_tile::tensor_layout::gemm::RowMajor,
+                       ck_tile::tensor_layout::gemm::RowMajor>;
+    static constexpr ck_tile::index_t VectorSizeA = VectorSizeA_;
+    static constexpr ck_tile::index_t VectorSizeB = VectorSizeB_;
+    static constexpr ck_tile::index_t VectorSizeC = VectorSizeC_;
+    static constexpr index_t NumDTensor           = DsLayout::size();
+    using ImplicitGemmDsLayout                    = decltype(generate_implicit_gemm_layout());
 };
 
 } // namespace ck_tile
