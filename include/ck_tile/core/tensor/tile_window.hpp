@@ -1343,13 +1343,13 @@ struct is_tile_window_with_static_distribution : std::false_type
 template <typename BottomTensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
-          typename ReplacementPartitionIndex_,
+          typename ReplacementPartitionIndex,
           index_t NumCoord>
 struct is_tile_window_with_static_distribution<
     tile_window_with_static_distribution<BottomTensorView_,
                                          WindowLengths_,
                                          StaticTileDistribution_,
-                                         ReplacementPartitionIndex_,
+                                         ReplacementPartitionIndex,
                                          NumCoord>> : std::true_type
 {
 };
