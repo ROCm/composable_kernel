@@ -164,7 +164,7 @@ set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_instances
   TEMPLATE_FILE wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_instance.in
-  NUM_SHARDS 1
+  NUM_SHARDS 16
   SRC_LIST GROUPED_CONV2D_FWD
   OUTPUT_DIR ${GENERATED_DIR}/wmma
 )
@@ -180,7 +180,7 @@ set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_instances
   TEMPLATE_FILE wmma/device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_f16_instance.in
-  NUM_SHARDS 1
+  NUM_SHARDS 16
   SRC_LIST GROUPED_CONV2D_FWD
   OUTPUT_DIR ${GENERATED_DIR}/wmma
 )
@@ -196,7 +196,7 @@ set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_comp_instances
   TEMPLATE_FILE wmma/comp/device_grouped_conv2d_fwd_wmma_cshufflev3_ngchw_gkcyx_ngkhw_bf16_comp_instance.in
-  NUM_SHARDS 1
+  NUM_SHARDS 16
   SRC_LIST GROUPED_CONV2D_FWD
   OUTPUT_DIR ${GENERATED_DIR}/wmma/comp
 )
@@ -212,7 +212,7 @@ set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_inter_instances
   TEMPLATE_FILE wmma/mem/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_inter_instance.in
-  NUM_SHARDS 1
+  NUM_SHARDS 16
   SRC_LIST GROUPED_CONV2D_FWD
   OUTPUT_DIR ${GENERATED_DIR}/wmma/mem
 )
@@ -228,7 +228,7 @@ set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_intra_instances
   TEMPLATE_FILE wmma/mem/device_grouped_conv2d_fwd_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_int8_mem_intra_instance.in
-  NUM_SHARDS 1
+  NUM_SHARDS 16
   SRC_LIST GROUPED_CONV2D_FWD
   OUTPUT_DIR ${GENERATED_DIR}/wmma/mem
 )
