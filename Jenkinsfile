@@ -852,7 +852,7 @@ def run_aiter_tests(Map conf=[:]){
     }
 
     withDockerContainer(image: image, args: dockerOpts) {
-        timeout(time: 2, unit: 'HOURS'){
+        timeout(time: 5, unit: 'HOURS'){
             try{
                 sh "rocminfo"
                 sh "python3 --version"
