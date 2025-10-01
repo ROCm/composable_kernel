@@ -15,6 +15,9 @@
 #include "include/ck/utility/data_type.hpp"
 #include "profiler/profile_gemm_universal_streamk_impl.hpp"
 
+extern ck::index_t param_mask;
+extern ck::index_t instance_index;
+
 namespace ck {
 namespace test {
 
@@ -56,8 +59,13 @@ class TestGemmUniversal_Streamk : public testing::Test
              const int StrideB,
              const int StrideC)
     {
-        for(auto streamk_sel : streamk_sel_list)
+        for(size_t i = 0; i < streamk_sel_list.size(); i++)
         {
+            if((param_mask & (1 << i)) == 0)
+            {
+                continue;
+            }
+            auto streamk_sel = streamk_sel_list[i];
             RunSingle(M, N, K, StrideA, StrideB, StrideC, streamk_sel, -1);
         }
     }
@@ -93,7 +101,8 @@ class TestGemmUniversal_Streamk : public testing::Test
                                                                                streamk_sel,
                                                                                Grid_size,
                                                                                n_warmup,
-                                                                               n_iter);
+                                                                               n_iter,
+                                                                               instance_index);
         EXPECT_TRUE(pass);
     }
 };

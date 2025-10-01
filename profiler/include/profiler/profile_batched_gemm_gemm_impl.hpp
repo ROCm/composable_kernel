@@ -110,11 +110,13 @@ bool profile_batched_gemm_gemm_impl(bool do_verification,
 
         if(std::is_same<decltype(layout), Row>::value)
         {
-            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, stride, 1_uz});
+            return HostTensorDescriptor(
+                {batch_count, row, col}, {batch_stride, stride, 1_uz}, layout);
         }
         else
         {
-            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, 1_uz, stride});
+            return HostTensorDescriptor(
+                {batch_count, row, col}, {batch_stride, 1_uz, stride}, layout);
         }
     };
 

@@ -852,7 +852,7 @@ def run_aiter_tests(Map conf=[:]){
     }
 
     withDockerContainer(image: image, args: dockerOpts) {
-        timeout(time: 2, unit: 'HOURS'){
+        timeout(time: 5, unit: 'HOURS'){
             try{
                 sh "rocminfo"
                 sh "python3 --version"
@@ -931,7 +931,7 @@ def run_pytorch_tests(Map conf=[:]){
 }
 
 //launch develop branch daily jobs
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_CK_TILE_FMHA_TESTS=true
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_PERFORMANCE_TESTS=true
                                               0 22 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_TILE_ENGINE_GEMM_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
                                               0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true
@@ -1127,16 +1127,16 @@ pipeline {
                     agent{ label rocmnode("nogpu") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_cmd = "find .. -not -path \'*.git*\' -iname \'*.h\' \
-                                -o -not -path \'*.git*\' -iname \'*.hpp\' \
-                                -o -not -path \'*.git*\' -iname \'*.cpp\' \
-                                -o -iname \'*.h.in\' \
-                                -o -iname \'*.hpp.in\' \
-                                -o -iname \'*.cpp.in\' \
-                                -o -iname \'*.cl\' \
+                        execute_cmd = "(cd .. && git ls-files \'*.h\' \
+                                \'*.hpp\' \
+                                \'*.cpp\' \
+                                \'*.h.in\' \
+                                \'*.hpp.in\' \
+                                \'*.cpp.in\' \
+                                \'*.cl\' \
                                 | grep -v 'build/' \
                                 | grep -v 'include/rapidjson' \
-                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\' && \
+                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\') && \
                                 /cppcheck/build/bin/cppcheck ../* -v -j \$(nproc) -I ../include -I ../profiler/include -I ../library/include \
                                 -D CK_ENABLE_FP64 -D CK_ENABLE_FP32 -D CK_ENABLE_FP16 -D CK_ENABLE_FP8 -D CK_ENABLE_BF16 -D CK_ENABLE_BF8 -D CK_ENABLE_INT8 \
                                 -D __gfx908__ -D __gfx90a__ -D __gfx942__ -D __gfx1030__ -D __gfx1100__ -D __gfx1101__ -D __gfx1102__ \
@@ -1157,16 +1157,17 @@ pipeline {
                     agent{ label rocmnode("nogpu") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_cmd = "find .. -not -path \'*.git*\' -iname \'*.h\' \
-                                -o -not -path \'*.git*\' -iname \'*.hpp\' \
-                                -o -not -path \'*.git*\' -iname \'*.cpp\' \
-                                -o -iname \'*.h.in\' \
-                                -o -iname \'*.hpp.in\' \
-                                -o -iname \'*.cpp.in\' \
-                                -o -iname \'*.cl\' \
+                        execute_cmd = "(cd .. && git ls-files \
+                                \'*.h\' \
+                                \'*.hpp\' \
+                                \'*.cpp\' \
+                                \'*.h.in\' \
+                                \'*.hpp.in\' \
+                                \'*.cpp.in\' \
+                                \'*.cl\' \
                                 | grep -v 'build/' \
                                 | grep -v 'include/rapidjson' \
-                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\'"
+                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\')"
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
@@ -1352,7 +1353,6 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx950") }
                     environment{
-                        def docker_name = "${env.CK_DOCKERHUB}:ck_ub24.04_rocm7.0.1"
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx950 && \
                                            make -j128 tile_example_fmha_fwd tile_example_fmha_bwd && \
@@ -1360,7 +1360,7 @@ pipeline {
                                            example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx950 """
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, docker_name: docker_name, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
                     }
                 }
@@ -1568,7 +1568,7 @@ pipeline {
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, docker_name: "${env.CK_DOCKERHUB}:ck_ub24.04_rocm7.0.1", config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                         cleanWs()
                     }
                 }
@@ -1659,13 +1659,13 @@ pipeline {
                         cleanWs()
                     }
                 }
-                stage("Build CK and run Tests on gfx1101")
+                stage("Build CK and run Tests on gfx11")
                 {
                     when {
                         beforeAgent true
                         expression { params.BUILD_GFX11.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
-                    agent{ label rocmnode("gfx1101") }
+                    agent{ label 'miopen && (gfx1101 || gfx1100)' }
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx11-generic" -DUSE_OPT_GFX11=ON -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \

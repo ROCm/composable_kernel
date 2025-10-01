@@ -58,3 +58,20 @@ TYPED_TEST(TestSoftmax, ReduceOddLengths)
     this->Run({this->Rank - 1});
     this->Run({this->Rank - 2});
 }
+
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 3)
+    {
+        param_mask     = strtol(argv[1], nullptr, 0);
+        instance_index = atoi(argv[2]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
+    }
+    return RUN_ALL_TESTS();
+}
