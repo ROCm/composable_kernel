@@ -1817,11 +1817,14 @@ pipeline {
                 expression { env.SHOULD_RUN_CI.toBoolean() }
                 expression { (params.RUN_PERFORMANCE_TESTS.toBoolean() || params.BUILD_INSTANCES_ONLY.toBoolean() || params.RUN_CK_TILE_FMHA_TESTS.toBoolean()) && !params.BUILD_LEGACY_OS.toBoolean() }
             }
-            stage("Process results"){
-                agent { label 'mici' }
-                steps{
-                    process_results()
-                    cleanWs()
+            parallel
+            {
+                stage("Process results"){
+                    agent { label 'mici' }
+                    steps{
+                        process_results()
+                        cleanWs()
+                    }
                 }
             }
         }
