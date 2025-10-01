@@ -23,10 +23,11 @@
 #include "grouped_convolution_forward_mem_inter_xdl.inc"
 #include "grouped_convolution_forward_mem_intra_xdl.inc"
 #endif
+#ifdef CK_USE_WMMA
+#define CK_USE_WMMA_OLD
 #ifdef CK_USE_WMMA_OLD
 #include "grouped_convolution_forward_wmma.inc"
 #endif
-#ifdef CK_USE_WMMA
 #include "grouped_convolution_forward_wmma_cshufflev3.inc"
 #include "grouped_convolution_forward_wmma_cshufflev3_merged_groups.inc"
 #include "grouped_convolution_forward_comp_wmma_cshufflev3.inc"
