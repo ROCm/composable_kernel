@@ -192,7 +192,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                              Policy::template MakeQDramTileDistribution<Problem>());
 
         // load Q here, will store Q into LDS to maximize throughput
-        auto origin_q = load_tile(q_dram_window);
+        auto q_dram_tile = load_tile(q_dram_window);
 
         __builtin_amdgcn_sched_barrier(0);
 
@@ -200,6 +200,13 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
         QDataType* q_lds_ptr = static_cast<QDataType*>(smem_ptr);
         auto q_lds           = make_tensor_view<address_space_enum::lds>(
             q_lds_ptr, Policy::template MakeQLdsBlockDescriptor<Problem>());
+        auto q_lds_write_window =
+            make_tile_window(q_lds, make_tuple(number<kM0>{}, number<kSubQKHeaddim>{}), {0, 0});
+        auto q_lds_read_window =
+            make_tile_window(q_lds,
+                             make_tuple(number<kM0>{}, number<kSubQKHeaddim>{}),
+                             {0, 0},
+                             Policy::template MakeQRegTileDistribution<Problem>());
 
         // K tile in LDS
         KDataType* k_lds_ptr = reinterpret_cast<KDataType*>(
@@ -350,23 +357,12 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
             {0, aligned_physical_seqlen_k_start}, // TODO: hdim split?
             Policy::template MakeVDramTileDistribution<Problem>());
 
-        // store Q into LDS
-        __builtin_amdgcn_sched_barrier(0);
-        auto q_lds_window_for_store = make_tile_window(
-            q_lds, Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
-
-        store_tile(q_lds_window_for_store, origin_q);
         __builtin_amdgcn_sched_barrier(0);
 
-        // load Q from LDS
-        __builtin_amdgcn_sched_barrier(0);
-        auto q_lds_window_for_load =
-            make_tile_window(q_lds,
-                             Policy::template MakeQLdsBlockDescriptor<Problem>().get_lengths(),
-                             {0, 0},
-                             Policy::template MakeQRegTileDistribution<Problem>());
+        store_tile(q_lds_write_window, q_dram_tile);
+
         block_sync_lds();
-        auto q = load_tile(q_lds_window_for_load);
+        auto q = load_tile(q_lds_read_window);
         __builtin_amdgcn_sched_barrier(0);
         auto q_tile = tile_elementwise_in(q_element_func, q);
 
