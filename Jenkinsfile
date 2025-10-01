@@ -852,7 +852,7 @@ def run_aiter_tests(Map conf=[:]){
     }
 
     withDockerContainer(image: image, args: dockerOpts) {
-        timeout(time: 2, unit: 'HOURS'){
+        timeout(time: 5, unit: 'HOURS'){
             try{
                 sh "rocminfo"
                 sh "python3 --version"
@@ -1127,16 +1127,16 @@ pipeline {
                     agent{ label rocmnode("nogpu") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_cmd = "find .. -not -path \'*.git*\' -iname \'*.h\' \
-                                -o -not -path \'*.git*\' -iname \'*.hpp\' \
-                                -o -not -path \'*.git*\' -iname \'*.cpp\' \
-                                -o -iname \'*.h.in\' \
-                                -o -iname \'*.hpp.in\' \
-                                -o -iname \'*.cpp.in\' \
-                                -o -iname \'*.cl\' \
+                        execute_cmd = "(cd .. && git ls-files \'*.h\' \
+                                \'*.hpp\' \
+                                \'*.cpp\' \
+                                \'*.h.in\' \
+                                \'*.hpp.in\' \
+                                \'*.cpp.in\' \
+                                \'*.cl\' \
                                 | grep -v 'build/' \
                                 | grep -v 'include/rapidjson' \
-                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\' && \
+                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\') && \
                                 /cppcheck/build/bin/cppcheck ../* -v -j \$(nproc) -I ../include -I ../profiler/include -I ../library/include \
                                 -D CK_ENABLE_FP64 -D CK_ENABLE_FP32 -D CK_ENABLE_FP16 -D CK_ENABLE_FP8 -D CK_ENABLE_BF16 -D CK_ENABLE_BF8 -D CK_ENABLE_INT8 \
                                 -D __gfx908__ -D __gfx90a__ -D __gfx942__ -D __gfx1030__ -D __gfx1100__ -D __gfx1101__ -D __gfx1102__ \
@@ -1157,16 +1157,17 @@ pipeline {
                     agent{ label rocmnode("nogpu") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_cmd = "find .. -not -path \'*.git*\' -iname \'*.h\' \
-                                -o -not -path \'*.git*\' -iname \'*.hpp\' \
-                                -o -not -path \'*.git*\' -iname \'*.cpp\' \
-                                -o -iname \'*.h.in\' \
-                                -o -iname \'*.hpp.in\' \
-                                -o -iname \'*.cpp.in\' \
-                                -o -iname \'*.cl\' \
+                        execute_cmd = "(cd .. && git ls-files \
+                                \'*.h\' \
+                                \'*.hpp\' \
+                                \'*.cpp\' \
+                                \'*.h.in\' \
+                                \'*.hpp.in\' \
+                                \'*.cpp.in\' \
+                                \'*.cl\' \
                                 | grep -v 'build/' \
                                 | grep -v 'include/rapidjson' \
-                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\'"
+                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\')"
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
