@@ -275,4 +275,20 @@ CK_TILE_DEVICE static constexpr auto get_device_arch()
     return gfx12_t{};
 #endif
 }
+
+enum LLVMSchedGroupMask : int32_t
+{
+    NONE       = 0,
+    ALU        = 1 << 0,
+    VALU       = 1 << 1,
+    SALU       = 1 << 2,
+    MFMA       = 1 << 3,
+    VMEM       = 1 << 4,
+    VMEM_READ  = 1 << 5,
+    VMEM_WRITE = 1 << 6,
+    DS         = 1 << 7,
+    DS_READ    = 1 << 8,
+    DS_WRITE   = 1 << 9,
+    ALL        = (DS_WRITE << 1) - 1,
+};
 } // namespace ck_tile
