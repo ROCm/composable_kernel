@@ -8,6 +8,9 @@
 #include <gtest/gtest.h>
 using namespace ck;
 
+static ck::index_t param_mask     = 0xffff;
+static ck::index_t instance_index = -1;
+
 struct ReduceParam
 {
     bool do_verification{true};
@@ -53,8 +56,13 @@ class ReduceWithIndexTest : public ::testing::Test
     template <ReduceTensorOp ReduceOpIdType>
     void Run()
     {
-        for(auto param : this->params)
+        for(size_t i = 0; i < this->params.size(); i++)
         {
+            if((param_mask & (1 << i)) == 0)
+            {
+                continue;
+            }
+            auto& param  = this->params[i];
             bool success = ck::profiler::profile_reduce_impl<InDataType, AccDataType, OutDataType>(
                 param.do_verification,
                 param.init_method,
@@ -66,7 +74,8 @@ class ReduceWithIndexTest : public ::testing::Test
                 param.propagateNan,
                 param.useIndex,
                 param.alpha,
-                param.beta);
+                param.beta,
+                instance_index);
             EXPECT_TRUE(success);
         }
     }
@@ -200,4 +209,21 @@ TYPED_TEST(ReduceWithIndexBHalfFloat, ReduceWithIndexTestBHalfFloat_MAX)
 {
     // trigger Run() -> Generic
     this->template Run<ReduceTensorOp::MAX>();
+}
+
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 3)
+    {
+        param_mask     = strtol(argv[1], nullptr, 0);
+        instance_index = atoi(argv[2]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
+    }
+    return RUN_ALL_TESTS();
 }
