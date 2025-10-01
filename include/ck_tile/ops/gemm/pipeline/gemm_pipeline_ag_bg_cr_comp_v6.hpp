@@ -549,8 +549,8 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
             block_sync_lds();
 
             // Local prefetch 1
-            BasePImpl::LocalPrefetch(a_lds_tile, a_lds_gemm_window);
-            BasePImpl::LocalPrefetch(b_lds_tile, b_lds_gemm_window);
+            BasePImpl::LocalPrefetch(a_lds_tile, a_lds_gemm_window, is_a_load_tr_v);
+            BasePImpl::LocalPrefetch(b_lds_tile, b_lds_gemm_window, is_b_load_tr_v);
 
             if(HasHotLoop)
             {
@@ -604,8 +604,8 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
                             block_gemm(c_block_tile, a_lds_tile, b_lds_tile);
 
                             // Local prefetch 2
-                            BasePImpl::LocalPrefetch(a_lds_tile, a_lds_gemm_window);
-                            BasePImpl::LocalPrefetch(b_lds_tile, b_lds_gemm_window);
+                            BasePImpl::LocalPrefetch(a_lds_tile, a_lds_gemm_window, is_a_load_tr_v);
+                            BasePImpl::LocalPrefetch(b_lds_tile, b_lds_gemm_window, is_b_load_tr_v);
                         });
 
                         HotLoopScheduler();
@@ -657,8 +657,8 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
 
                     block_gemm(c_block_tile, a_lds_tile, b_lds_tile);
 
-                    BasePImpl::LocalPrefetch(a_lds_tile, a_lds_gemm_window);
-                    BasePImpl::LocalPrefetch(b_lds_tile, b_lds_gemm_window);
+                    BasePImpl::LocalPrefetch(a_lds_tile, a_lds_gemm_window, is_a_load_tr_v);
+                    BasePImpl::LocalPrefetch(b_lds_tile, b_lds_gemm_window, is_b_load_tr_v);
                 });
 
                 HotLoopScheduler();
@@ -670,8 +670,8 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
                     block_gemm(c_block_tile, a_lds_tile, b_lds_tile);
 
                     // Local prefetch 4
-                    BasePImpl::LocalPrefetch(a_lds_tile, a_lds_gemm_window);
-                    BasePImpl::LocalPrefetch(b_lds_tile, b_lds_gemm_window);
+                    BasePImpl::LocalPrefetch(a_lds_tile, a_lds_gemm_window, is_a_load_tr_v);
+                    BasePImpl::LocalPrefetch(b_lds_tile, b_lds_gemm_window, is_b_load_tr_v);
 
                     __syncthreads();
                 });
