@@ -42,7 +42,8 @@ template <typename ThreadGroup,
           index_t DstScalarPerVector,
           typename ThreadTransferSrcResetCoordinateAfterRunFlags,
           typename ThreadTransferDstResetCoordinateAfterRunFlags,
-          index_t NumThreadScratch = 1>
+          index_t NumThreadScratch = 1,
+          typename InterDatas      = DstDatas>
 struct ThreadGroupTensorSliceTransfer_v7r3
 {
     static constexpr index_t nDim =
@@ -148,6 +149,36 @@ struct ThreadGroupTensorSliceTransfer_v7r3
         }
     }
 
+    template <typename DstBuffers,
+              typename DstVgprDescs,
+              typename DstVgprBuffers,
+              index_t ThreadScratchId = 0>
+    __device__ void
+    RunWriteAndStoreVgpr(const DstDescs& dst_descs,
+                         DstBuffers dst_bufs,
+                         const DstVgprDescs& dst_vgpr_desc,
+                         DstVgprBuffers dst_vgpr_buf,
+                         Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
+    {
+        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
+           ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
+        {
+            if constexpr(is_detected<is_tuple, decltype(dst_bufs)>::value &&
+                         is_detected<is_tuple, decltype(dst_vgpr_buf)>::value)
+                threadwise_transfer_.RunWriteAndStoreVgpr(
+                    dst_descs, dst_bufs, dst_vgpr_desc, dst_vgpr_buf, thread_scratch_id);
+            else if constexpr(is_detected<is_tuple, decltype(dst_bufs)>::value)
+                threadwise_transfer_.RunWriteAndStoreVgpr(
+                    dst_descs, dst_bufs, dst_vgpr_desc, tie(dst_vgpr_buf), thread_scratch_id);
+            else if constexpr(is_detected<is_tuple, decltype(dst_vgpr_buf)>::value)
+                threadwise_transfer_.RunWriteAndStoreVgpr(
+                    dst_descs, tie(dst_bufs), dst_vgpr_desc, dst_vgpr_buf, thread_scratch_id);
+            else
+                threadwise_transfer_.RunWriteAndStoreVgpr(
+                    dst_descs, tie(dst_bufs), dst_vgpr_desc, tie(dst_vgpr_buf), thread_scratch_id);
+        }
+    }
+
     template <typename SrcBuffers, typename DstBuffers>
     __device__ void Run(const SrcDescs& src_descs,
                         const SrcBuffers& src_bufs,
@@ -212,7 +243,8 @@ struct ThreadGroupTensorSliceTransfer_v7r3
                                            DstScalarPerVector,
                                            ThreadTransferSrcResetCoordinateAfterRunFlags,
                                            ThreadTransferDstResetCoordinateAfterRunFlags,
-                                           NumThreadScratch>;
+                                           NumThreadScratch,
+                                           InterDatas>;
 
     ThreadwiseTransfer threadwise_transfer_;
 };

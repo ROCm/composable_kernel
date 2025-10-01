@@ -43,7 +43,8 @@ template <typename SrcDatas,
           index_t DstScalarPerVector,
           typename SrcResetCoordinateAfterRunFlags, // Sequence<bool ...>
           typename DstResetCoordinateAfterRunFlags, // Sequence<bool ...>
-          index_t NumThreadScratch = 1>
+          index_t NumThreadScratch = 1,
+          typename InterDatas      = DstDatas>
 struct ThreadwiseTensorSliceTransfer_v7r3
 {
     static constexpr auto I0 = Number<0>{};
@@ -395,6 +396,105 @@ struct ThreadwiseTensorSliceTransfer_v7r3
 
     // DstDescs: Tuple<const DstDesc0&, const DstDesc1&, ...>
     // DstBuffers: Tuple<const DstBuffer0&, const DstBuffer1&, ...>
+    // DstVgprDescs: Tuple<const DstVgprDesc0&, const DstVgprDesc1&, ...>
+    // DstVgprBuffers: Tuple<DstVgprBuffer0&, DstVgprBuffer1&, ...>
+    template <typename DstBuffers,
+              typename DstVgprDescs,
+              typename DstVgprBuffers,
+              index_t ThreadScratchId                                             = 0,
+              enable_if_t<DstDescs::Size() == 1 && DstBuffers::Size() == 1, bool> = false>
+    __device__ void
+    RunWriteAndStoreVgpr(const DstDescs& dst_descs,
+                         DstBuffers dst_bufs,
+                         const DstVgprDescs&,
+                         DstVgprBuffers dst_vgpr_buf,
+                         Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
+    {
+        // Same functionality of RunWrite but additionally store internal Vgpr in dst_vgpr_buf
+        OOBCheck(thread_scratch_id);
+        TransposeFromElmToDst(thread_scratch_id);
+
+        // Vgpr buffer origin is set internally to 0
+        constexpr auto dst_slice_origin_idx =
+            generate_tuple([&](auto) { return I0; }, Number<nDim>{});
+        constexpr auto dst_scalar_step_in_vector =
+            generate_sequence(detail::lambda_scalar_step_in_vector<DstVectorDim>{}, Number<nDim>{});
+
+        // loop over space-filling curve
+        static_for<0, dst_num_access, 1>{}([&](auto iAccess) {
+            auto dst_vectors = dst_vectors_tuple_[thread_scratch_id][iAccess];
+
+            static_for<0, nDst, 1>{}([&](auto i) {
+                // copy data from buf_vectors into dst_bufs
+                using dst_vector_t = typename remove_cvref_t<decltype(dst_vectors[i])>::type;
+
+                const bool is_dst_valid =
+                    coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_descs[i],
+                                                                                dst_coords_[i]);
+
+                constexpr InMemoryDataOperationEnum DstInMemOp =
+                    static_cast<InMemoryDataOperationEnum>(DstInMemOps::At(i.value));
+
+                dst_bufs(i).template Update<DstInMemOp, dst_vector_t>(
+                    dst_coords_[i].GetOffset(),
+                    is_dst_valid,
+                    dst_vectors[i].template AsType<dst_vector_t>()[I0]);
+
+                // store Vgpr
+                using DstVgprDesc = remove_cvref_t<decltype(DstVgprDescs{}.At(i))>;
+                static_assert(DstVgprDesc::IsKnownAtCompileTime(),
+                              "wrong! DstDesc need to known at compile-time");
+                constexpr auto dst_vgpr_desc = DstVgprDesc{};
+                using DstData                = remove_cvref_t<decltype(DstDatas{}[i])>;
+                using InterData              = remove_cvref_t<decltype(InterDatas{}[i])>;
+
+                typename vector_type_maker<DstData, DstScalarPerVector>::type dst_vector;
+                using dst_vector_t =
+                    typename vector_type_maker<DstData, DstScalarPerVector>::type::type;
+
+                // copy data from src_buf into src_vector
+                dst_vector.template AsType<dst_vector_t>()(I0) =
+                    dst_vectors[i].template AsType<dst_vector_t>()[I0];
+
+                constexpr auto src_data_idx = DstSpaceFillingCurve::GetIndex(iAccess);
+                static_for<0, DstScalarPerVector, 1>{}([&](auto j) {
+                    constexpr index_t dst_offset =
+                        dst_vgpr_desc.CalculateOffset(to_multi_index(dst_slice_origin_idx) +
+                                                      src_data_idx + j * dst_scalar_step_in_vector);
+
+                    dst_vgpr_buf(I0)(Number<dst_offset>{}) =
+                        is_dst_valid
+                            ? type_convert<InterData>(dst_vector.template AsType<DstData>()[j])
+                            : NumericLimits<InterData>::QuietNaN();
+                });
+            });
+
+            // move coordinate
+            if constexpr(iAccess.value != dst_num_access - 1)
+            {
+                constexpr auto forward_step = DstSpaceFillingCurve::GetForwardStep(iAccess);
+
+                static_for<0, nDst, 1>{}([&](auto i) {
+                    move_tensor_coordinate(dst_descs[i],
+                                           dst_coords_(i),
+                                           make_tensor_coordinate_step(dst_descs[i], forward_step));
+                });
+            }
+        });
+
+        static_for<0, nDst, 1>{}([&](auto i) {
+            if constexpr(DstResetCoordinateAfterRunFlags::At(i))
+            {
+                const auto dst_reset_step =
+                    make_tensor_coordinate_step(dst_descs[i], GetDstCoordinateResetStep());
+
+                move_tensor_coordinate(dst_descs[i], dst_coords_(i), dst_reset_step);
+            }
+        });
+    }
+
+    // DstDescs: Tuple<const DstDesc0&, const DstDesc1&, ...>
+    // DstBuffers: Tuple<const DstBuffer0&, const DstBuffer1&, ...>
     template <typename DstBuffers,
               index_t ThreadScratchId                                             = 0,
               enable_if_t<DstDescs::Size() == 1 && DstBuffers::Size() == 1, bool> = false>
@@ -404,6 +504,11 @@ struct ThreadwiseTensorSliceTransfer_v7r3
     {
         OOBCheck(thread_scratch_id);
         TransposeFromElmToDst(thread_scratch_id);
+
+        // if(threadIdx.x == 0 && blockIdx.x == 0)
+        // {
+        //     printf("dst_num_access = %d\n", dst_num_access);
+        // }
 
         // loop over space-filling curve
         static_for<0, dst_num_access, 1>{}([&](auto iAccess) {
