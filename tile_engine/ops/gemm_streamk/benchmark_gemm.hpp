@@ -171,8 +171,8 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
 bool compare(std::string instanceName,
              ck_tile::index_t K,
              ck_tile::index_t kbatch,
-             ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
-             ck_tile::HostTensor<CDataType>& c_m_n_host_result)
+             const ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
+             const ck_tile::HostTensor<CDataType>& c_m_n_host_result)
 {
     const float max_accumulated_value =
         *std::max_element(c_m_n_host_result.mData.begin(), c_m_n_host_result.mData.end());
@@ -194,8 +194,8 @@ bool compare(std::string instanceName,
 
 /// @brief Function to get the kernel output with reference implementation on CPU/GPU
 void gemm_host_reference(int verify,
-                         ck_tile::HostTensor<ADataType>& a_m_k,
-                         ck_tile::HostTensor<BDataType>& b_k_n,
+                         const ck_tile::HostTensor<ADataType>& a_m_k,
+                         const ck_tile::HostTensor<BDataType>& b_k_n,
                          ck_tile::HostTensor<CDataType>& c_m_n_host_result,
                          ck_tile::DeviceMem& a_m_k_dev_buf,
                          ck_tile::DeviceMem& b_k_n_dev_buf,
