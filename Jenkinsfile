@@ -57,7 +57,7 @@ def shouldRunCICheck() {
     ]
     
     try {
-        // Get list of changed files
+        // Get the list of changed files
         def changedFiles = sh(
             returnStdout: true,
             script: '''
@@ -78,7 +78,7 @@ def shouldRunCICheck() {
         
         echo "Changed files: ${changedFiles.join(', ')}"
         
-        // Check if any changed files are not in the skip patterns.
+        // Check if any changed files are not in the skip patterns
         def hasFilesRequiringCI = changedFiles.any { file ->
             !skipFilePatterns.any { pattern ->
                 file ==~ pattern
