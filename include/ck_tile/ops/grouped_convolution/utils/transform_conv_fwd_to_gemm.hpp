@@ -34,7 +34,8 @@ struct TransformConvFwdToGemm
     // Unified 2GB limit constant for both Split-N and Split-Image
     // static constexpr long_index_t TwoGB = (long_index_t{1} << 31);
     // static constexpr long_index_t TwoGB = 100L * 1024L * 1024L;  // 100MB for testing
-    static constexpr long_index_t TwoGB = 10L * 1024L * 1024L;  // 10MB for testing
+    // static constexpr long_index_t TwoGB = 10L * 1024L * 1024L;  // 10MB for testing split-image
+    static constexpr long_index_t TwoGB = 100L * 1024L;  // 100KB for easy testing with small sizes - pieces won't trigger nested split
 
     template <typename ConvDimsType>
     static long_index_t calculate_element_space_size_impl(const ConvDimsType& lengths,
@@ -435,20 +436,52 @@ struct TransformConvFwdToGemm
             }
         } else {  // NDimSpatial == 1
             if (Wo_ > 1) {  // W-split
+                // === STEP 1: Split output dimension in half ===
+                // Example: Wo=32768 → left_wo=16384, right_wo=16384
                 IndexType left_wo = Wo_ / 2;
-                IndexType right_wo = Wo_ - left_wo;  // Handles odd numbers
+                IndexType right_wo = Wo_ - left_wo;  // Handles odd numbers (e.g., 61→30+31)
 
                 left_transformer.Wo_ = left_wo;
                 right_transformer.Wo_ = right_wo;
 
-                // Calculate input split point
+                // === STEP 2: Calculate where right piece starts in INPUT ===
+                // Formula: input_w_split = (left_wo * stride) - left_pad + (filter - 1) * dilation
+                //
+                // Why this formula?
+                // - (left_wo * stride): Base position in "unpadded" input coordinate system
+                // - (- left_pad): Adjust for padding (padding shifts coordinates left)
+                // - (+ (X-1) * dilation): Need extra input elements for filter receptive field
+                //
+                // Example: Wo=32768, left_wo=16384, stride=1, left_pad=1, X=3, dilation=1
+                //   input_w_split = (16384 * 1) - 1 + (3 - 1) * 1
+                //                 = 16384 - 1 + 2
+                //                 = 16385
+                //
+                // This means:
+                //   - Left piece processes:  input[0..16385+2]     → output[0..16384]
+                //   - Right piece processes: input[16385..32770]   → output[16384..32768]
+                //   - There's a 3-element overlap for the 3x3 filter at the boundary
                 IndexType input_w_split = (left_wo * ConvStrideW_) - InLeftPadW_ +
                                          (X_ - 1) * ConvDilationW_;
+
+                // === STEP 3: Calculate right piece input dimension ===
+                // Right piece gets remaining input elements
+                // Example: Wi=32770, input_w_split=16385
+                //   right_transformer.Wi_ = 32770 - 16385 = 16385
                 right_transformer.Wi_ = Wi_ - input_w_split;
+
+                // Right piece has no left padding (starts in middle of original tensor)
                 right_transformer.InLeftPadW_ = 0;
 
-                // Calculate offsets
+                // === STEP 4: Calculate memory offsets (in elements) ===
+                // Input offset: Where right piece starts reading
+                // Example: input_w_split=16385, G=1, C=32
+                //   input_offset = 16385 * 1 * 32 = 524320 elements
                 input_offset = input_w_split * G_ * C_;
+
+                // Output offset: Where right piece starts writing
+                // Example: left_wo=16384, G=1, K=16
+                //   output_offset = 16384 * 1 * 16 = 262144 elements
                 output_offset = left_wo * G_ * K_;
             }
         }
@@ -511,6 +544,12 @@ struct TransformConvFwdToGemm
         }
 
         // Quick check before creating transformer - avoid crash for huge tensors
+        if(s.log_level_ > 0) {
+            std::cout << "[SPLIT-IMAGE] Entering LaunchKernelWithSplitIfNeeded\n";
+            std::cout << "[SPLIT-IMAGE] Args: N=" << args.N_ << " C=" << args.C_ << " K=" << args.K_
+                      << " G=" << args.G_ << " input_spatial[0]=" << args.input_spatial_lengths_[0] << "\n";
+        }
+
         const long_index_t input_size_estimate =
             static_cast<long_index_t>(args.N_) *
             static_cast<long_index_t>(args.C_) *
@@ -563,11 +602,189 @@ struct TransformConvFwdToGemm
                 s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
 
-        // Queue-based recursive splitting needed
+        // 1D SPLIT-IMAGE IMPLEMENTATION
+        // Binary split approach: split the last spatial dimension (W for 1D, W for 2D, etc.)
+        // For NDimSpatial dimensions, the last spatial dim is at index [3 + NDimSpatial - 1]
+        constexpr index_t last_spatial_idx = 3 + NDimSpatial - 1;
+
         if(s.log_level_ > 0) {
-            std::cout << "[SPLIT-IMAGE] Split needed - will create smaller transformers\n";
+            std::cout << "[SPLIT-IMAGE 1D] Split needed - last_spatial_dim[" << last_spatial_idx
+                      << "]=" << in_lengths[last_spatial_idx] << "\n";
         }
 
+        // Split last spatial dimension (W) in half
+        const long_index_t w_out = out_lengths[last_spatial_idx];
+
+        // Split output width in half
+        const long_index_t w_out_piece1 = w_out / 2;
+        const long_index_t w_out_piece2 = w_out - w_out_piece1;
+
+        // Calculate input width needed for each output piece
+        // input_w = (output_w - 1) * stride + filter_w
+        const long_index_t filter_w = wei_lengths[last_spatial_idx];
+        const long_index_t stride_w = conv_strides[NDimSpatial - 1];  // Last spatial stride
+        const long_index_t dilation_w = conv_dilations[NDimSpatial - 1];  // Last spatial dilation
+        const long_index_t dilated_filter_w = (filter_w - 1) * dilation_w + 1;
+
+        // Piece 1: Calculate needed input for output
+        const long_index_t w_in_piece1 = (w_out_piece1 - 1) * stride_w + dilated_filter_w;
+
+        // Piece 2: Calculate needed input, but clamp to available input
+        // From old CK: Wi_right = min(Wi - wi_start_idx, theoretical_needed)
+        const long_index_t w_in_available = in_lengths[last_spatial_idx] - (w_out_piece1 * stride_w);
+        const long_index_t w_in_theoretical = (w_out_piece2 - 1) * stride_w + dilated_filter_w;
+        const long_index_t w_in_piece2 = (w_in_available < w_in_theoretical) ? w_in_available : w_in_theoretical;
+
+        const long_index_t orig_left_pad = input_left_pads[NDimSpatial - 1];
+        const long_index_t orig_right_pad = input_right_pads[NDimSpatial - 1];
+
+        if(s.log_level_ > 0) {
+            std::cout << "[SPLIT-IMAGE 1D] Original: W_in=" << in_lengths[last_spatial_idx]
+                      << " W_out=" << w_out
+                      << " left_pad=" << orig_left_pad
+                      << " right_pad=" << orig_right_pad
+                      << " stride=" << stride_w
+                      << " filter=" << filter_w << "\n";
+            std::cout << "[SPLIT-IMAGE 1D] Piece 1: w_in=" << w_in_piece1 << " w_out=" << w_out_piece1 << "\n";
+            std::cout << "[SPLIT-IMAGE 1D] Piece 2: w_in=" << w_in_piece2
+                      << " (available=" << w_in_available
+                      << " theoretical=" << w_in_theoretical
+                      << ") w_out=" << w_out_piece2 << "\n";
+        }
+
+        float total_time = 0.0f;
+
+        const ADataType* orig_in_ptr = static_cast<const ADataType*>(args.in_ptr);
+        CDataType* orig_out_ptr = static_cast<CDataType*>(args.out_ptr);
+
+        // Process piece 1 - Also use batch-by-batch to test consistency
+        if(s.log_level_ > 0) {
+            std::cout << "[SPLIT-IMAGE 1D] About to process piece 1\n";
+        }
+        {
+            auto piece_args = args;
+            const long_index_t orig_n = args.N_;
+
+            piece_args.N_ = 1;  // Process one batch at a time
+            piece_args.input_spatial_lengths_[NDimSpatial - 1] = w_in_piece1;
+            piece_args.output_spatial_lengths_[NDimSpatial - 1] = w_out_piece1;
+            // Piece 1 keeps left padding, removes right padding
+            piece_args.input_right_pads_[NDimSpatial - 1] = 0;
+
+            // Full batch strides in ORIGINAL tensor (with original spatial dimensions)
+            const long_index_t input_batch_stride = in_lengths[last_spatial_idx] * args.C_ * args.G_;
+            const long_index_t output_batch_stride = out_lengths[last_spatial_idx] * args.K_ * args.G_;
+
+            if(s.log_level_ > 0) {
+                std::cout << "[SPLIT-IMAGE 1D] Processing piece 1: " << orig_n << " batches (batch-by-batch)\n";
+                std::cout << "[SPLIT-IMAGE 1D] Piece 1: input_batch_stride=" << input_batch_stride
+                          << " output_batch_stride=" << output_batch_stride << "\n";
+            }
+
+            // Process each batch separately
+            for(long_index_t n = 0; n < orig_n; n++) {
+                // Piece 1 has no W offset, only batch offset
+                const long_index_t batch_input_offset = n * input_batch_stride;
+                const long_index_t batch_output_offset = n * output_batch_stride;
+
+                piece_args.in_ptr = orig_in_ptr + batch_input_offset;
+                piece_args.out_ptr = orig_out_ptr + batch_output_offset;
+
+                if(s.log_level_ > 0) {
+                    std::cout << "[SPLIT-IMAGE 1D] Piece 1 batch " << n << ": in_offset=" << batch_input_offset
+                              << " out_offset=" << batch_output_offset << "\n";
+                }
+
+                auto kargs = Kernel::MakeKernelArgs(piece_args);
+                const dim3 grids = Kernel::GridSize(kargs);
+                const dim3 blocks = Kernel::BlockSize();
+
+                total_time += ck_tile::launch_kernel(
+                    s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+            }
+        }
+        if(s.log_level_ > 0) {
+            std::cout << "[SPLIT-IMAGE 1D] Piece 1 completed\n";
+        }
+
+        // Process piece 2 - Use N=1 batch-by-batch to avoid stride mismatch
+        {
+            auto piece_args = args;
+            const long_index_t orig_n = args.N_;
+
+            // Set piece 2 dimensions
+            piece_args.N_ = 1;  // Process one batch at a time to avoid stride calculation issues
+            piece_args.input_spatial_lengths_[NDimSpatial - 1] = w_in_piece2;
+            piece_args.output_spatial_lengths_[NDimSpatial - 1] = w_out_piece2;
+            piece_args.input_left_pads_[NDimSpatial - 1] = 0;
+
+            // Calculate spatial offsets for piece 2 (right piece)
+            // Output offset is simply where piece 1 ends
+            const long_index_t w_offset_out = w_out_piece1;
+
+            // Input offset: Use same formula as SplitConvProblem
+            // Formula: (w_offset_out * stride) - left_pad + (filter - 1) * dilation
+            // Example: w_offset_out=16384, stride=1, left_pad=1, filter=3, dilation=1
+            //   w_offset_in = (16384 * 1) - 1 + (3 - 1) * 1 = 16385
+            const long_index_t w_offset_in = (w_offset_out * stride_w) - orig_left_pad +
+                                            (filter_w - 1) * dilation_w;
+
+            // Convert W position to element offset (accounting for C and G dimensions)
+            const long_index_t input_w_stride = args.C_ * args.G_;
+            const long_index_t output_w_stride = args.K_ * args.G_;
+            const long_index_t input_offset_per_batch = w_offset_in * input_w_stride;
+            const long_index_t output_offset_per_batch = w_offset_out * output_w_stride;
+
+            // Batch strides in ORIGINAL tensor
+            const long_index_t input_batch_stride = in_lengths[last_spatial_idx] * args.C_ * args.G_;
+            const long_index_t output_batch_stride = out_lengths[last_spatial_idx] * args.K_ * args.G_;
+
+            if(s.log_level_ > 0) {
+                std::cout << "[SPLIT-IMAGE 1D] Processing piece 2: " << orig_n << " batches (batch-by-batch to fix stride)\n";
+                std::cout << "[SPLIT-IMAGE 1D] Piece 2: w_offset_in=" << w_offset_in
+                          << " w_offset_out=" << w_offset_out << "\n";
+            }
+
+            // Process each batch separately
+            for(long_index_t n = 0; n < orig_n; n++) {
+                const long_index_t batch_input_offset = n * input_batch_stride + input_offset_per_batch;
+                const long_index_t batch_output_offset = n * output_batch_stride + output_offset_per_batch;
+
+                piece_args.in_ptr = orig_in_ptr + batch_input_offset;
+                piece_args.out_ptr = orig_out_ptr + batch_output_offset;
+
+                if(s.log_level_ > 0) {
+                    std::cout << "[SPLIT-IMAGE 1D] Piece 2 batch " << n
+                              << ": in_ptr=" << piece_args.in_ptr
+                              << " out_ptr=" << piece_args.out_ptr
+                              << " in_offset=" << batch_input_offset
+                              << " out_offset=" << batch_output_offset << "\n";
+                }
+
+                auto kargs = Kernel::MakeKernelArgs(piece_args);
+                const dim3 grids = Kernel::GridSize(kargs);
+                const dim3 blocks = Kernel::BlockSize();
+
+                if(s.log_level_ > 0) {
+                    std::cout << "[SPLIT-IMAGE 1D] Piece 2 batch " << n
+                              << " grid=(" << grids.x << "," << grids.y << "," << grids.z << ")"
+                              << " blocks=(" << blocks.x << "," << blocks.y << "," << blocks.z << ")\n";
+                }
+
+                total_time += ck_tile::launch_kernel(
+                    s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+            }
+        }
+
+        if(s.log_level_ > 0) {
+            std::cout << "[SPLIT-IMAGE 1D] Both pieces completed, total_time=" << total_time << "ms\n";
+        }
+
+        
+        return total_time;
+
+        // OLD MULTI-DIMENSIONAL SPLIT CODE (NOT USED):
+        /*
         // Don't create the full transformer - it causes memory issues
         // Instead, directly split and create smaller transformers
         std::vector<SplitProblem> ready_list;
@@ -818,6 +1035,7 @@ struct TransformConvFwdToGemm
 
         // Return average time per kernel launch
         return total_time / ready_list.size();
+        */
     }
 
 
