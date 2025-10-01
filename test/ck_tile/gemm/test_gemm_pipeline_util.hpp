@@ -111,15 +111,6 @@ class TestCkTileGemmPipeline : public ::testing::Test
     template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
     void invoke_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     {
-        // TODO Merging Remove
-        constexpr auto numWaveGroups      = 1;
-        // constexpr ck_tile::index_t M_Tile = 256;
-        // constexpr ck_tile::index_t N_Tile = 256;
-        // constexpr ck_tile::index_t K_Tile =
-        //     (PipelineType == GemmPipelineType::CompV4)
-        //         ? 32
-        //         : 64;
-
         constexpr ck_tile::index_t M_Warp = 2;
         constexpr ck_tile::index_t N_Warp = 2;
         constexpr ck_tile::index_t K_Warp = 1;
@@ -132,6 +123,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
         constexpr bool DoubleSmemBuffer = (PipelineType == GemmPipelineType::CompV4) ? true : false;
         constexpr bool TransposeC       = false;
         static constexpr bool StructuredSparsity = false;
+        static constexpr bool NumWaveGroup       = 1;
         // TODO: For now - but this should also be a test parameter
 
         constexpr int kBlockPerCu                         = 1;
@@ -147,8 +139,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
         using TilePartitioner = ck_tile::
             GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
-        using Traits =
-            ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout, numWaveGroups>;
+        using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
 
         using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
                                                                      kPadN,
@@ -160,7 +151,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                                      TransposeC,
                                                                      StructuredSparsity,
                                                                      Persistent,
-                                                                     numWaveGroups,
+                                                                     NumWaveGroup,
                                                                      preshuffle>;
 
         using GemmPipelineProblem =
