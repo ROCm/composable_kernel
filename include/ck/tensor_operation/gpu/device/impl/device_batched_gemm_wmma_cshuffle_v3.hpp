@@ -82,6 +82,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                  splitk_batch_offset.b_k_split_offset[i] + b_batch_offset;
         });
 
+        auto epilogue_args = typename GridwiseGemm::EpilogueCShuffle{};
+
         GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
             p_as_grid_shift,
             p_bs_grid_shift,
@@ -91,7 +93,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
             karg,
             karg.a_element_op,
             karg.b_element_op,
-            karg.cde_element_op);
+            karg.cde_element_op,
+            epilogue_args);
 #if defined(__gfx11__)
     }
 #endif

@@ -50,7 +50,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
         auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
-        auto epilogue_args = typename GridwiseGemm::WelfordArgument(
+        auto epilogue_args = typename GridwiseGemm::EpilogueWelfordCShuffle(
             p_welford_mean_grid, p_welford_var_grid, p_welford_count_grid, karg.M, karg.N);
 
         GridwiseGemm::template Run<HasMainKBlockLoop, EGlobalMemoryDataOperation, TailNum>(
@@ -291,13 +291,13 @@ struct DeviceGemmMultipleDLayernorm_Wmma_CShuffleV3
     }
 
     using LayernormMeanVarGridDesc_M_NBlock =
-        decltype(GridwiseGemmWelford::WelfordArgument::template MakeMeanVarDescriptor_M_N<
+        decltype(GridwiseGemmWelford::EpilogueWelfordCShuffle::template MakeMeanVarDescriptor_M_N<
                  Sequence<true, true>,
                  LayernormBlockTileSize_M_N::At(0),
                  LayernormBlockTileSize_M_N::At(1)>(1, 1));
 
     using LayernormCountGridDesc_M_NBlock =
-        decltype(GridwiseGemmWelford::WelfordArgument::template MakeCountDescriptor_M_N<
+        decltype(GridwiseGemmWelford::EpilogueWelfordCShuffle::template MakeCountDescriptor_M_N<
                  Sequence<true, true>,
                  LayernormBlockTileSize_M_N::At(0),
                  LayernormBlockTileSize_M_N::At(1)>(1, 1));
@@ -390,13 +390,13 @@ struct DeviceGemmMultipleDLayernorm_Wmma_CShuffleV3
             static_for<0, NumDTensor, 1>{}([&](auto i) { p_ds_grid_[i] = p_ds_grid[i]; });
 
             layernorm_mean_var_grid_desc_m_nblock_ =
-                GridwiseGemmWelford::WelfordArgument::template MakeMeanVarDescriptor_M_N<
+                GridwiseGemmWelford::EpilogueWelfordCShuffle::template MakeMeanVarDescriptor_M_N<
                     Sequence<true, true>,
                     LayernormBlockTileSize_M_N::At(0),
                     LayernormBlockTileSize_M_N::At(1)>(MRaw, gemm_nblock_);
 
             layernorm_count_grid_desc_m_nblock_ =
-                GridwiseGemmWelford::WelfordArgument::template MakeCountDescriptor_M_N<
+                GridwiseGemmWelford::EpilogueWelfordCShuffle::template MakeCountDescriptor_M_N<
                     Sequence<true, true>,
                     LayernormBlockTileSize_M_N::At(0),
                     LayernormBlockTileSize_M_N::At(1)>(MRaw, gemm_nblock_);

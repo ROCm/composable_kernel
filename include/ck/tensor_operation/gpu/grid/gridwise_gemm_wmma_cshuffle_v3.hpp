@@ -312,8 +312,6 @@ struct GridwiseGemm_wmma_cshuffle_v3
     using Base::MakeDsGridDescriptor_M_N;
     using Base::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock;
 
-    using Base::GetCShuffleBlockDescriptor_MShRepeat_MPerShRepeat_NShRepeat_NPerShRepeat;
-
     using Base::MakeDEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock;
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
