@@ -346,7 +346,7 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
     {
         std::cerr << gemm.GetTypeString() << " does not support this problem" << std::endl;
 
-        return true;
+        return false;
     }
 
     bool pass = true;
@@ -566,7 +566,7 @@ bool run_batched_gemm_fp16_int4_b_scale_example(int argc, char* argv[])
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n");
         printf("arg3: time kernel (0=n0, 1=yes)\n");
-        exit(0);
+        exit(1);
     }
 
     problem_size.stride_A = problem_size.K;
