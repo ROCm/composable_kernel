@@ -13,48 +13,33 @@ template <typename InDataType,
           typename ComputeDataType,
           typename OutDataType,
           typename ReduceOp,
-          typename InputShape,
-          typename OutputShape,
-          typename InputStrides,
-          typename OutputStrides,
-          typename WindowSpatialLengths,
-          typename WindowStrides,
-          typename WindowDilations,
-          typename InputLeftPads,
-          typename InputRightPads>
+          typename TensorShape,
+          typename WindowShape>
 CK_TILE_HOST void reference_pool2d(const HostTensor<InDataType>& input,
                                    HostTensor<OutDataType>& output,
-                                   InputShape input_shape,
-                                   OutputShape output_shape,
-                                   InputStrides /* input_strides */,
-                                   OutputStrides /* output_strides */,
-                                   WindowSpatialLengths window_spatial_lengths,
-                                   WindowStrides window_strides,
-                                   WindowDilations window_dilations,
-                                   InputLeftPads input_left_pads,
-                                   InputRightPads /* input_right_pads */,
+                                   PoolKernelArgs<TensorShape, WindowShape> kargs,
                                    ReduceOp reduce_op)
 {
-    const ck_tile::index_t N = input_shape.at(ck_tile::number<0>{});
-    const ck_tile::index_t H = input_shape.at(ck_tile::number<1>{});
-    const ck_tile::index_t W = input_shape.at(ck_tile::number<2>{});
-    const ck_tile::index_t C = input_shape.at(ck_tile::number<3>{});
+    const ck_tile::index_t N = kargs.input_shape.at(ck_tile::number<0>{});
+    const ck_tile::index_t H = kargs.input_shape.at(ck_tile::number<1>{});
+    const ck_tile::index_t W = kargs.input_shape.at(ck_tile::number<2>{});
+    const ck_tile::index_t C = kargs.input_shape.at(ck_tile::number<3>{});
 
-    const ck_tile::index_t Ho = output_shape.at(ck_tile::number<1>{});
-    const ck_tile::index_t Wo = output_shape.at(ck_tile::number<2>{});
+    const ck_tile::index_t Ho = kargs.output_shape.at(ck_tile::number<1>{});
+    const ck_tile::index_t Wo = kargs.output_shape.at(ck_tile::number<2>{});
 
-    const ck_tile::index_t Y = window_spatial_lengths.at(ck_tile::number<0>{});
-    const ck_tile::index_t X = window_spatial_lengths.at(ck_tile::number<1>{});
+    const ck_tile::index_t Y = kargs.window_lengths.at(ck_tile::number<0>{});
+    const ck_tile::index_t X = kargs.window_lengths.at(ck_tile::number<1>{});
 
-    const ck_tile::index_t Sy = window_strides.at(ck_tile::number<0>{});
-    const ck_tile::index_t Sx = window_strides.at(ck_tile::number<1>{});
+    const ck_tile::index_t Sy = kargs.window_strides.at(ck_tile::number<0>{});
+    const ck_tile::index_t Sx = kargs.window_strides.at(ck_tile::number<1>{});
 
-    const ck_tile::index_t Dy = window_dilations.at(ck_tile::number<0>{});
-    const ck_tile::index_t Dx = window_dilations.at(ck_tile::number<1>{});
+    const ck_tile::index_t Dy = kargs.window_dilations.at(ck_tile::number<0>{});
+    const ck_tile::index_t Dx = kargs.window_dilations.at(ck_tile::number<1>{});
 
-    const ck_tile::index_t LeftPy = input_left_pads.at(ck_tile::number<0>{});
-    const ck_tile::index_t LeftPx = input_left_pads.at(ck_tile::number<1>{});
-    // Right padding is handled implicitly by bounds checking in the implementation
+    const ck_tile::index_t LeftPy = kargs.input_left_pads.at(ck_tile::number<0>{});
+    const ck_tile::index_t LeftPx = kargs.input_left_pads.at(ck_tile::number<1>{});
+    // Right padding is handled implicitly by bounds checking
 
     auto f = [&](auto n, auto ho, auto wo, auto c) {
         ComputeDataType v_acc = reduce_op.template GetIdentityValue<ComputeDataType>();
@@ -89,54 +74,39 @@ template <typename InDataType,
           typename ComputeDataType,
           typename OutDataType,
           typename ReduceOp,
-          typename InputShape,
-          typename OutputShape,
-          typename InputStrides,
-          typename OutputStrides,
-          typename WindowSpatialLengths,
-          typename WindowStrides,
-          typename WindowDilations,
-          typename InputLeftPads,
-          typename InputRightPads>
+          typename TensorShape,
+          typename WindowShape>
 CK_TILE_HOST void reference_pool3d(const HostTensor<InDataType>& input,
                                    HostTensor<OutDataType>& output,
-                                   InputShape input_shape,
-                                   OutputShape output_shape,
-                                   InputStrides /* input_strides */,
-                                   OutputStrides /* output_strides */,
-                                   WindowSpatialLengths window_spatial_lengths,
-                                   WindowStrides window_strides,
-                                   WindowDilations window_dilations,
-                                   InputLeftPads input_left_pads,
-                                   InputRightPads /* input_right_pads */,
+                                   PoolKernelArgs<TensorShape, WindowShape> kargs,
                                    ReduceOp reduce_op)
 {
-    const ck_tile::index_t N = input_shape.at(ck_tile::number<0>{});
-    const ck_tile::index_t D = input_shape.at(ck_tile::number<1>{});
-    const ck_tile::index_t H = input_shape.at(ck_tile::number<2>{});
-    const ck_tile::index_t W = input_shape.at(ck_tile::number<3>{});
-    const ck_tile::index_t C = input_shape.at(ck_tile::number<4>{});
+    const ck_tile::index_t N = kargs.input_shape.at(ck_tile::number<0>{});
+    const ck_tile::index_t D = kargs.input_shape.at(ck_tile::number<1>{});
+    const ck_tile::index_t H = kargs.input_shape.at(ck_tile::number<2>{});
+    const ck_tile::index_t W = kargs.input_shape.at(ck_tile::number<3>{});
+    const ck_tile::index_t C = kargs.input_shape.at(ck_tile::number<4>{});
 
-    const ck_tile::index_t Do = output_shape.at(ck_tile::number<1>{});
-    const ck_tile::index_t Ho = output_shape.at(ck_tile::number<2>{});
-    const ck_tile::index_t Wo = output_shape.at(ck_tile::number<3>{});
+    const ck_tile::index_t Do = kargs.output_shape.at(ck_tile::number<1>{});
+    const ck_tile::index_t Ho = kargs.output_shape.at(ck_tile::number<2>{});
+    const ck_tile::index_t Wo = kargs.output_shape.at(ck_tile::number<3>{});
 
-    const ck_tile::index_t Z = window_spatial_lengths.at(ck_tile::number<0>{});
-    const ck_tile::index_t Y = window_spatial_lengths.at(ck_tile::number<1>{});
-    const ck_tile::index_t X = window_spatial_lengths.at(ck_tile::number<2>{});
+    const ck_tile::index_t Z = kargs.window_lengths.at(ck_tile::number<0>{});
+    const ck_tile::index_t Y = kargs.window_lengths.at(ck_tile::number<1>{});
+    const ck_tile::index_t X = kargs.window_lengths.at(ck_tile::number<2>{});
 
-    const ck_tile::index_t Sz = window_strides.at(ck_tile::number<0>{});
-    const ck_tile::index_t Sy = window_strides.at(ck_tile::number<1>{});
-    const ck_tile::index_t Sx = window_strides.at(ck_tile::number<2>{});
+    const ck_tile::index_t Sz = kargs.window_strides.at(ck_tile::number<0>{});
+    const ck_tile::index_t Sy = kargs.window_strides.at(ck_tile::number<1>{});
+    const ck_tile::index_t Sx = kargs.window_strides.at(ck_tile::number<2>{});
 
-    const ck_tile::index_t Dz = window_dilations.at(ck_tile::number<0>{});
-    const ck_tile::index_t Dy = window_dilations.at(ck_tile::number<1>{});
-    const ck_tile::index_t Dx = window_dilations.at(ck_tile::number<2>{});
+    const ck_tile::index_t Dz = kargs.window_dilations.at(ck_tile::number<0>{});
+    const ck_tile::index_t Dy = kargs.window_dilations.at(ck_tile::number<1>{});
+    const ck_tile::index_t Dx = kargs.window_dilations.at(ck_tile::number<2>{});
 
-    const ck_tile::index_t LeftPz = input_left_pads.at(ck_tile::number<0>{});
-    const ck_tile::index_t LeftPy = input_left_pads.at(ck_tile::number<1>{});
-    const ck_tile::index_t LeftPx = input_left_pads.at(ck_tile::number<2>{});
-    // Right padding is handled implicitly by bounds checking in the implementation
+    const ck_tile::index_t LeftPz = kargs.input_left_pads.at(ck_tile::number<0>{});
+    const ck_tile::index_t LeftPy = kargs.input_left_pads.at(ck_tile::number<1>{});
+    const ck_tile::index_t LeftPx = kargs.input_left_pads.at(ck_tile::number<2>{});
+    // Right padding is handled implicitly by bounds checking
 
     auto f = [&](auto n, auto do_, auto ho, auto wo, auto c) {
         ComputeDataType v_acc = reduce_op.template GetIdentityValue<ComputeDataType>();
@@ -158,8 +128,9 @@ CK_TILE_HOST void reference_pool3d(const HostTensor<InDataType>& input,
 
                     if(di >= 0 && di < D && hi >= 0 && hi < H && wi >= 0 && wi < W)
                     {
-                        const ComputeDataType v_in = type_convert<ComputeDataType>(input(n, di, hi, wi, c));
-                        v_acc                      = reduce_op(v_acc, v_in);
+                        const ComputeDataType v_in =
+                            type_convert<ComputeDataType>(input(n, di, hi, wi, c));
+                        v_acc = reduce_op(v_acc, v_in);
                     }
                     // For positions outside bounds, we implicitly use identity value
                 }

@@ -17,15 +17,15 @@ struct PoolHostArgs
 
     CK_TILE_HOST PoolHostArgs(const void* input_ptr_,
                               void* output_ptr_,
-                              TensorShape input_shape_,  
-                              TensorShape output_shape_, 
+                              TensorShape input_shape_,
+                              TensorShape output_shape_,
                               TensorShape input_strides_,
                               TensorShape output_strides_,
-                              WindowShape window_lengths_,  
-                              WindowShape window_strides_,  
-                              WindowShape window_dilations_, 
-                              WindowShape input_left_pads_,  
-                              WindowShape input_right_pads_) 
+                              WindowShape window_lengths_,
+                              WindowShape window_strides_,
+                              WindowShape window_dilations_,
+                              WindowShape input_left_pads_,
+                              WindowShape input_right_pads_)
         : input_ptr(input_ptr_),
           output_ptr(output_ptr_),
           input_shape(input_shape_),
@@ -84,7 +84,6 @@ struct Pool
     static constexpr index_t kBlockSize = Problem::BlockShape::BlockSize;
 
     public:
-
     /// @brief Validates if the given arguments are supported by the pooling kernel.
     ///
     /// @param kargs The pooling kernel arguments containing all necessary parameters.
@@ -98,15 +97,12 @@ struct Pool
     template <typename TensorShape, typename WindowShape>
     CK_TILE_HOST static bool IsSupportedArgument(PoolKernelArgs<TensorShape, WindowShape> kargs)
     {
-        // using S = typename Problem::BlockShape;
-        // constexpr index_t VectorSize = S::ThreadTile_N;
-        
-        constexpr index_t InputRank = TensorShape::size();
+        constexpr index_t InputRank  = TensorShape::size();
         constexpr index_t OutputRank = TensorShape::size(); // Same as input rank
         constexpr index_t WindowRank = WindowShape::size();
-        
+
         // Validate window dimensions (only 2D and 3D supported)
-        if constexpr (WindowRank != 2 && WindowRank != 3)
+        if constexpr(WindowRank != 2 && WindowRank != 3)
         {
             if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
             {
@@ -114,9 +110,9 @@ struct Pool
             }
             return false;
         }
-        
+
         // Validate that input rank matches expected rank for window dimensions
-        if constexpr ((WindowRank == 2 && InputRank != 4) || (WindowRank == 3 && InputRank != 5))
+        if constexpr((WindowRank == 2 && InputRank != 4) || (WindowRank == 3 && InputRank != 5))
         {
             if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
             {
@@ -124,7 +120,7 @@ struct Pool
             }
             return false;
         }
-        
+
         // Check that channel dimension (last dimension) is contiguous for both input and output
         if(kargs.input_strides.at(number<InputRank - 1>{}) != 1)
         {
@@ -134,7 +130,7 @@ struct Pool
             }
             return false;
         }
-        
+
         if(kargs.output_strides.at(number<OutputRank - 1>{}) != 1)
         {
             if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
@@ -143,35 +139,7 @@ struct Pool
             }
             return false;
         }
-        
-        // // Check vector alignment for dimensions with stride 1
-        // for(index_t i = 0; i < InputRank; ++i)
-        // {
-        //     if(kargs.input_strides.at(number<i>{}) == 1)
-        //     {
-        //         if(kargs.input_shape.at(number<i>{}) % VectorSize != 0)
-        //         {
-        //             if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-        //             {
-        //                 CK_TILE_ERROR("Input dimension with stride 1 must be divisible by vector size!");
-        //             }
-        //             return false;
-        //         }
-        //     }
-            
-        //     if(kargs.output_strides.at(number<i>{}) == 1)
-        //     {
-        //         if(kargs.output_shape.at(number<i>{}) % VectorSize != 0)
-        //         {
-        //             if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-        //             {
-        //                 CK_TILE_ERROR("Output dimension with stride 1 must be divisible by vector size!");
-        //             }
-        //             return false;
-        //         }
-        //     }
-        // }
-        
+
         return true;
     }
     /// @brief Create kernel arguments from host arguments
@@ -196,7 +164,7 @@ struct Pool
     static CK_TILE_DEVICE auto MakeView2D(PoolKernelArgs<TensorShape, WindowShape> kargs)
     {
         using S = typename Problem::BlockShape;
-        
+
         // Compile-time validation for 2D pooling
         static_assert(TensorShape::size() == 4, "2D pooling requires 4D input tensor (N,H,W,C)");
         static_assert(WindowShape::size() == 2, "2D pooling requires 2D window shape (Y,X)");
@@ -281,7 +249,7 @@ struct Pool
             make_tuple(sequence<0>{}, sequence<1>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
-        // 5) Output tensor (N,Ho,Wo,C) -> merge -> M (reuse same M as input kept dims)
+        // Output tensor (N,Ho,Wo,C) -> merge -> M (reuse same M as input kept dims)
         const OutDataType out_identity =
             type_convert<OutDataType>(reduce_op.template GetIdentityValue<ComputeDataType>());
         auto out_desc = make_naive_tensor_descriptor(kargs.output_shape, kargs.output_strides);
@@ -311,7 +279,7 @@ struct Pool
     static CK_TILE_DEVICE auto MakeView3D(PoolKernelArgs<TensorShape, WindowShape> kargs)
     {
         using S = typename Problem::BlockShape;
-        
+
         // Compile-time validation for 3D pooling
         static_assert(TensorShape::size() == 5, "3D pooling requires 5D input tensor (N,D,H,W,C)");
         static_assert(WindowShape::size() == 3, "3D pooling requires 3D window shape (Z,Y,X)");
@@ -389,7 +357,11 @@ struct Pool
                 make_embed_transform(make_tuple(X, Wo), make_tuple(WindowDilationW, WindowStrideW)),
                 make_pass_through_transform(C)),
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}, sequence<4>{}),
-            make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3, 4>{}, sequence<5, 6>{}, sequence<7>{}));
+            make_tuple(sequence<0>{},
+                       sequence<1, 2>{},
+                       sequence<3, 4>{},
+                       sequence<5, 6>{},
+                       sequence<7>{}));
 
         // Reshape into 2D matrix: output positions (M) x pooling window elements (K)
         const auto merged_embed_in_tensor =
@@ -435,10 +407,10 @@ struct Pool
     CK_TILE_DEVICE void operator()(PoolKernelArgs<TensorShape, WindowShape> kargs) const
     {
         using S = typename Problem::BlockShape;
-        
+
         // Compile-time validation for supported window dimensions
-        static_assert(WindowShape::size() == 2 || WindowShape::size() == 3, 
-                     "Only 2D and 3D pooling operations are supported");
+        static_assert(WindowShape::size() == 2 || WindowShape::size() == 3,
+                      "Only 2D and 3D pooling operations are supported");
 
         const auto iM = get_block_id() * S::Block_M;
 

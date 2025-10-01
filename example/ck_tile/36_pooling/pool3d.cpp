@@ -17,7 +17,7 @@ auto create_args(int argc, char* argv[])
         .insert("D", "30", "D dimension")
         .insert("Z", "2", "Z dimension")
         .insert("Y", "2", "Y dimension")
-        .insert("X", "2", "X dimension")        
+        .insert("X", "2", "X dimension")
         .insert("Sz", "2", "window stride d")
         .insert("Sy", "2", "window stride h")
         .insert("Sx", "2", "window stride w")
@@ -67,12 +67,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     const ck_tile::index_t RightPy = arg_parser.get_int("RightPy");
     const ck_tile::index_t RightPx = arg_parser.get_int("RightPx");
 
-    // Calculate effective window size with dilation
     const ck_tile::index_t Zs = (Z - 1) * Dz + 1;
     const ck_tile::index_t Ys = (Y - 1) * Dy + 1;
     const ck_tile::index_t Xs = (X - 1) * Dx + 1;
 
-    // Calculate output spatial dimensions
     const ck_tile::index_t Do = (D + LeftPz + RightPz - Zs) / Sz + 1;
     const ck_tile::index_t Ho = (H + LeftPy + RightPy - Ys) / Sy + 1;
     const ck_tile::index_t Wo = (W + LeftPx + RightPx - Xs) / Sx + 1;
@@ -87,10 +85,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int repeat        = arg_parser.get_int("repeat");
 
     // Shapes / strides / parameters (NDHWC)
-    const auto input_shape            = ck_tile::make_tuple(N, D, H, W, C);
-    const auto output_shape           = ck_tile::make_tuple(N, Do, Ho, Wo, C);
-    const auto input_strides          = ck_tile::make_tuple(D * H * W * C, H * W * C, W * C, C, 1);
-    const auto output_strides         = ck_tile::make_tuple(Do * Ho * Wo * C, Ho * Wo * C, Wo * C, C, 1);
+    const auto input_shape    = ck_tile::make_tuple(N, D, H, W, C);
+    const auto output_shape   = ck_tile::make_tuple(N, Do, Ho, Wo, C);
+    const auto input_strides  = ck_tile::make_tuple(D * H * W * C, H * W * C, W * C, C, 1);
+    const auto output_strides = ck_tile::make_tuple(Do * Ho * Wo * C, Ho * Wo * C, Wo * C, C, 1);
     const auto window_spatial_lengths = ck_tile::make_tuple(Z, Y, X);
     const auto window_strides         = ck_tile::make_tuple(Sz, Sy, Sx);
     const auto window_dilations       = ck_tile::make_tuple(Dz, Dy, Dx);
@@ -98,8 +96,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     const auto input_right_pads       = ck_tile::make_tuple(RightPz, RightPy, RightPx);
 
     ck_tile::HostTensor<InDataType> in({N, D, H, W, C}, {D * H * W * C, H * W * C, W * C, C, 1});
-    ck_tile::HostTensor<OutDataType> out({N, Do, Ho, Wo, C}, {Do * Ho * Wo * C, Ho * Wo * C, Wo * C, C, 1});
-    ck_tile::HostTensor<OutDataType> out_ref({N, Do, Ho, Wo, C}, {Do * Ho * Wo * C, Ho * Wo * C, Wo * C, C, 1});
+    ck_tile::HostTensor<OutDataType> out({N, Do, Ho, Wo, C},
+                                         {Do * Ho * Wo * C, Ho * Wo * C, Wo * C, C, 1});
+    ck_tile::HostTensor<OutDataType> out_ref({N, Do, Ho, Wo, C},
+                                             {Do * Ho * Wo * C, Ho * Wo * C, Wo * C, C, 1});
 
     ck_tile::FillUniformDistribution<InDataType>{-5.f, 5.f}(in);
 
@@ -112,7 +112,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using BlockWarps = ck_tile::sequence<4, 1>;
     using BlockTile  = ck_tile::sequence<128, 128>;
     using WarpTile   = ck_tile::sequence<32, 128>;
-    using ThreadTile     = ck_tile::sequence<8, 8>;
+    using ThreadTile = ck_tile::sequence<8, 8>;
 
     using Shape   = ck_tile::PoolShape<BlockWarps, BlockTile, WarpTile, ThreadTile>;
     using Problem = ck_tile::PoolProblem<InDataType,
@@ -134,7 +134,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
         (M + BlockTile::at(ck_tile::number<0>{}) - 1) / BlockTile::at(ck_tile::number<0>{});
     std::cout << "grid size " << kGridSize << std::endl;
 
-    // Package arguments for kernel execution
     auto host_args = ck_tile::PoolHostArgs<decltype(input_shape), decltype(window_spatial_lengths)>{
         static_cast<InDataType*>(in_buf.GetDeviceBuffer()),
         static_cast<OutDataType*>(out_buf.GetDeviceBuffer()),
@@ -156,13 +155,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
         std::cout << "ERROR: Kernel arguments are not supported!" << std::endl;
         return false;
     }
-    std::cout << "Kernel argument validation: PASSED" << std::endl;
 
     float ave_time = launch_kernel(
         ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
         ck_tile::make_kernel<kBlockPerCu>(Kernel{}, kGridSize, kBlockSize, 0, kernel_args));
 
-    // Calculate bandwidth: input + output data volume
     std::size_t num_btype = sizeof(InDataType) * N * D * H * W * C + sizeof(OutDataType) * M;
 
     float gb_per_sec = num_btype / 1.E6 / ave_time;
@@ -173,19 +170,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(do_validation)
     {
-        // Compare against CPU reference implementation
-        ck_tile::reference_pool3d<InDataType, ComputeDataType, OutDataType>(in,
-                                                                            out_ref,
-                                                                            input_shape,
-                                                                            output_shape,
-                                                                            input_strides,
-                                                                            output_strides,
-                                                                            window_spatial_lengths,
-                                                                            window_strides,
-                                                                            window_dilations,
-                                                                            input_left_pads,
-                                                                            input_right_pads,
-                                                                            ReduceOp{});
+        ck_tile::reference_pool3d<InDataType, ComputeDataType, OutDataType>(
+            in, out_ref, kernel_args, ReduceOp{});
         out_buf.FromDevice(out.mData.data());
         pass = ck_tile::check_err(out, out_ref);
 
