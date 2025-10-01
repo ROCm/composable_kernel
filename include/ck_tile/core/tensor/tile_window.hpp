@@ -962,6 +962,16 @@ struct tile_window_with_static_distribution
                                    pre_computed_coords_(iCoord)(I1),
                                    step);
         });
+
+        if constexpr(Base::BottomTensorView::buffer_view::get_address_space() ==
+                     address_space_enum::global)
+        {
+            static_for<0, NumCoord, 1>{}([&](auto iCoord) {
+                move_tensor_coordinate(this->bottom_tensor_view_.get_tensor_descriptor(),
+                                       pre_computed_warp_coords_(iCoord)(I1),
+                                       step);
+            });
+        }
     }
 
     CK_TILE_DEVICE void set_window_origin_extended(const typename Base::BottomTensorIndex&)
