@@ -225,6 +225,9 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                                        void* __restrict__ p_smem_0,
                                        void* __restrict__ p_smem_1) const
         {
+            // TODO support multi-ABD
+            static_assert(1 == std::tuple_size_v<AsDramBlockWindowTmp>);
+            static_assert(1 == std::tuple_size_v<BsDramBlockWindowTmp>);
             using ADramBlockWindowTmp =
                 remove_cvref_t<std::tuple_element_t<number<0>{}, AsDramBlockWindowTmp>>;
             using BDramBlockWindowTmp =
@@ -232,6 +235,10 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
             // TODO currently fused elementwise are not supported
             ignore = a_element_func;
             ignore = b_element_func;
+            static_assert(std::is_same_v<remove_cvref_t<decltype(a_element_func)>,
+                                         element_wise::PassThrough>);
+            static_assert(std::is_same_v<remove_cvref_t<decltype(b_element_func)>,
+                                         element_wise::PassThrough>);
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
                     std::is_same_v<BDataType,
@@ -280,7 +287,7 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                         b_dram_block_window_tmp[number<idx>{}].get_window_origin(),
                         Policy::template MakeBDramTileDistribution<Problem>());
                 },
-                number<AsLayout::size()>{});
+                number<BsLayout::size()>{});
 
             // this pipeline has a pair of LDS buffers per logical tile
             auto&& [a_lds_block0, b_lds_block0] = Base::GetABLdsTensorViews(p_smem_0);
