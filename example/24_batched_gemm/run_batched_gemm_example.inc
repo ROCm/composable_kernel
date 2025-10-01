@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 #include <random>
 
 #pragma once
@@ -243,7 +245,7 @@ bool run_batched_gemm_example(int argc, char* argv[])
                problem_size.N,
                problem_size.K,
                problem_size.batch_count);
-        exit(0);
+        exit(1);
     }
 
     problem_size.stride_A = problem_size.K;
