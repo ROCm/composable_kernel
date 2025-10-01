@@ -46,20 +46,6 @@ def runShell(String command){
     return (output != "")
 }
 
-// Return the names of the checks that are required to succeed.
-def getRequiredBranchChecks() {
-    return [
-        "Clang Format",
-        "Run Codegen Tests on gfx90a",
-        "Build CK and run Tests on gfx942",
-        "Build CK and run Tests on gfx950",
-        "Build CK and run Tests on gfx90a",
-        "Build CK and run Tests on gfx1030",
-        "Build CK and run Tests on gfx11",
-        "Build CK and run Tests on gfx1201"
-    ]
-}
-
 def shouldRunCICheck() {
     // Define patterns for files that should not trigger CI
     def skipFilePatterns = [
@@ -92,7 +78,7 @@ def shouldRunCICheck() {
         
         echo "Changed files: ${changedFiles.join(', ')}"
         
-        // Check if any changed files are NOT in the skip patterns.
+        // Check if any changed files are not in the skip patterns.
         def hasFilesRequiringCI = changedFiles.any { file ->
             !skipFilePatterns.any { pattern ->
                 file ==~ pattern
@@ -1174,9 +1160,10 @@ pipeline {
         ck_git_creds = "${ck_git_creds}"
         gerrit_cred="${gerrit_cred}"
         DOCKER_BUILDKIT = "1"
+        SHOULD_RUN_CI = "true"
     }
     stages{
-        stage("Check for changes") {
+        stage("Determine CI Execution") {
             agent{ label rocmnode("nogpu") }
             steps {
                 script {
@@ -1828,19 +1815,13 @@ pipeline {
             when {
                 beforeAgent true
                 expression { env.SHOULD_RUN_CI.toBoolean() }
+                expression { (params.RUN_PERFORMANCE_TESTS.toBoolean() || params.BUILD_INSTANCES_ONLY.toBoolean() || params.RUN_CK_TILE_FMHA_TESTS.toBoolean()) && !params.BUILD_LEGACY_OS.toBoolean() }
             }
-            parallel
-            {
-                stage("Process results"){
-                    when {
-                        beforeAgent true
-                        expression { (params.RUN_PERFORMANCE_TESTS.toBoolean() || params.BUILD_INSTANCES_ONLY.toBoolean() || params.RUN_CK_TILE_FMHA_TESTS.toBoolean()) && !params.BUILD_LEGACY_OS.toBoolean() }
-                    }
-                    agent { label 'mici' }
-                    steps{
-                        process_results()
-                        cleanWs()
-                    }
+            stage("Process results"){
+                agent { label 'mici' }
+                steps{
+                    process_results()
+                    cleanWs()
                 }
             }
         }
