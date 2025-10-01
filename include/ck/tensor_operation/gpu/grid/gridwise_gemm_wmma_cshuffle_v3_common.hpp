@@ -1295,45 +1295,37 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         }
     }
 
-    template <InMemoryDataOperationEnum EGlobalMemoryDataOperation,
-              typename CThreadBuf,
-              typename DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-              typename EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>
-    __device__ static void Epilogue(CThreadBuf& c_thread_buf,
-                                    DsGridPointer p_ds_grid,
-                                    EDataType* p_e_grid,
-                                    void* p_shared,
-                                    const DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock&
-                                        ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                                    const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock&
-                                        e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                    CDEElementwiseOperation& cde_element_op,
-                                    const index_t& block_m_id,
-                                    const index_t& block_n_id,
-                                    CShuffle&)
+    __device__ static constexpr auto GetSpaceFillingCurveCShuffleVgpr()
     {
-        auto blockwise_gemm_pipeline = BlockwiseGemmPipe{};
+        return SpaceFillingCurve<
+            Sequence<MRepeat, 1, 1, NRepeat, 1, 1, BlockwiseGemmPipe::MAccVgprs>,
+            Sequence<0, 1, 2, 3, 4, 5, 6>,
+            Sequence<CShuffleMRepeatPerShuffle,
+                     1,
+                     1,
+                     CShuffleNRepeatPerShuffle,
+                     1,
+                     1,
+                     BlockwiseGemmPipe::MAccVgprs>>{};
+    }
 
-        const auto ds_grid_buf = generate_tuple(
-            [&](auto i) {
-                return make_dynamic_buffer<AddressSpaceEnum::Global>(
-                    p_ds_grid[i],
-                    ds_grid_desc_mblock_mperblock_nblock_nperblock[i].GetElementSpaceSize());
-            },
-            Number<NumDTensor>{});
+    __device__ static constexpr auto GetSpaceFillingCurveCShuffleVmem()
+    {
+        return SpaceFillingCurve<
+            Sequence<1, MPerBlock, 1, NPerBlock>,
+            Sequence<0, 2, 1, 3>,
+            Sequence<1,
+                     CShuffleMRepeatPerShuffle * BlockwiseGemmPipe::MWaves * MPerWmma,
+                     1,
+                     CShuffleNRepeatPerShuffle * BlockwiseGemmPipe::NWaves * NPerWmma>>{};
+    }
 
-        auto e_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_e_grid, e_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
-
-        // C mapping in single thread.
-        constexpr auto c_thread_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs =
-            blockwise_gemm_pipeline
-                .GetCThreadDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs();
-
+    __device__ static constexpr auto MakeCShuffleLDSDescriptor()
+    {
         // C mapping in single block
         constexpr auto c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs_tmp =
-            blockwise_gemm_pipeline
-                .GetCBlockDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs();
+            BlockwiseGemmPipe::
+                GetCBlockDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs();
 
         constexpr auto MWave =
             c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs_tmp
@@ -1351,39 +1343,50 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs_tmp
                 .GetLength(I6);
 
-        // LDS descriptor, shuffle and write out in MRepeat x NRepeat times
-        constexpr auto c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat =
-            GetCShuffleBlockDescriptor_MShRepeat_MPerShRepeat_NShRepeat_NPerShRepeat();
+        return transform_tensor_descriptor(
+            GetCShuffleBlockDescriptor_MShRepeat_MPerShRepeat_NShRepeat_NPerShRepeat(),
+            make_tuple(make_freeze_transform(I0),
+                       make_unmerge_transform(make_tuple(
+                           Number<CShuffleMRepeatPerShuffle>{}, // MRepeat per shuffle repeat
+                           MWave,                               // MWave
+                           MSubGroup,                           // MSubGroup * MAccVgprs = MPerWmma
+                           MAccVgprs)),
+                       make_freeze_transform(I0),
+                       make_unmerge_transform(make_tuple(
+                           Number<CShuffleNRepeatPerShuffle>{}, // NRepeat per shuffle repeat
+                           NWave,                               // NWave
+                           NThreadPerSubGroup))),               // NThreadPerSubGroup = NPerWmma
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+            make_tuple(Sequence<>{}, Sequence<0, 1, 2, 6>{}, Sequence<>{}, Sequence<3, 4, 5>{}));
+    }
 
-        auto c_shuffle_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<CShuffleDataType*>(p_shared),
-            c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat
-                .GetElementSpaceSize());
+    __device__ static auto GetVgprToLDSEpilogueDescriptor()
+    {
+        // C mapping in single block
+        constexpr auto c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs_tmp =
+            BlockwiseGemmPipe::
+                GetCBlockDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs();
 
-        constexpr auto
-            c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs =
-                transform_tensor_descriptor(
-                    c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat,
-                    make_tuple(
-                        make_freeze_transform(I0),
-                        make_unmerge_transform(make_tuple(
-                            Number<CShuffleMRepeatPerShuffle>{}, // MRepeat per shuffle repeat
-                            MWave,                               // MWave
-                            MSubGroup,                           // MSubGroup * MAccVgprs = MPerWmma
-                            MAccVgprs)),
-                        make_freeze_transform(I0),
-                        make_unmerge_transform(make_tuple(
-                            Number<CShuffleNRepeatPerShuffle>{}, // NRepeat per shuffle repeat
-                            NWave,                               // NWave
-                            NThreadPerSubGroup))),               // NThreadPerSubGroup = NPerWmma
-                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-                    make_tuple(
-                        Sequence<>{}, Sequence<0, 1, 2, 6>{}, Sequence<>{}, Sequence<3, 4, 5>{}));
+        constexpr auto MWave =
+            c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs_tmp
+                .GetLength(I1);
+        constexpr auto MSubGroup =
+            c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs_tmp
+                .GetLength(I2);
+        constexpr auto NWave =
+            c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs_tmp
+                .GetLength(I4);
+        constexpr auto NThreadPerSubGroup =
+            c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs_tmp
+                .GetLength(I5);
+        constexpr auto MAccVgprs =
+            c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs_tmp
+                .GetLength(I6);
 
         // calculate origin of thread output tensor on global memory
         //     blockwise GEMM c matrix starting index
         const auto c_thread_mtx_on_block =
-            blockwise_gemm_pipeline.CalculateCThreadOriginDataIndex(I0, I0);
+            BlockwiseGemmPipe::CalculateCThreadOriginDataIndex(I0, I0);
 
         const index_t m_thread_data_on_block = c_thread_mtx_on_block[I0];
         const index_t n_thread_data_on_block = c_thread_mtx_on_block[I1];
@@ -1408,12 +1411,12 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             n_thread_data_on_block_to_nrepeat_nwave_nthreadpersubgroup_adaptor.CalculateBottomIndex(
                 make_multi_index(n_thread_data_on_block));
 
-        // shuffle: threadwise copy C from VGPR to LDS
-        auto c_thread_copy_vgpr_to_lds = ThreadwiseTensorSliceTransfer_v1r3<
+        return ThreadwiseTensorSliceTransfer_v1r3<
             AccDataType,
             CShuffleDataType,
-            decltype(c_thread_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs),
-            decltype(c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs),
+            decltype(BlockwiseGemmPipe::
+                         GetCThreadDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs()),
+            decltype(MakeCShuffleLDSDescriptor()),
             ck::tensor_operation::element_wise::PassThrough,
             Sequence<CShuffleMRepeatPerShuffle,
                      I1,
@@ -1424,10 +1427,10 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                      MAccVgprs>,
             Sequence<0, 1, 2, 3, 4, 5, 6>,
             6,
-            1, // vector write pixel
+            1,
             InMemoryDataOperationEnum::Set,
             1,
-            true>{c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs,
+            true>{MakeCShuffleLDSDescriptor(),
                   make_multi_index(0,
                                    m_thread_data_on_block_idx[I1],
                                    m_thread_data_on_block_idx[I2],
@@ -1436,21 +1439,18 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                    n_thread_data_on_block_idx[I2],
                                    m_thread_data_on_block_idx[I3]),
                   ck::tensor_operation::element_wise::PassThrough{}};
+    }
 
-        // tuple of reference to C/Ds tensor descriptors
-        const auto c_ds_desc_refs = concat_tuple_of_reference(
-            tie(c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat),
-            generate_tie([&](auto i) -> const auto& // return type should be reference
-                         { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
-                         Number<NumDTensor>{}));
-
-        // tuple of reference to C/Ds tensor buffers
-        const auto c_ds_buf_refs = concat_tuple_of_reference(
-            tie(c_shuffle_block_buf),
-            generate_tie([&](auto i) -> const auto& // return type should be reference
-                         { return ds_grid_buf[i]; },
-                         Number<NumDTensor>{}));
-
+    template <InMemoryDataOperationEnum EGlobalMemoryDataOperation,
+              typename CDsDescRefs,
+              typename EGridDesc>
+    __device__ static auto
+    GetLDSToVmemEpilogueDescriptor(CDsDescRefs& c_ds_desc_refs,
+                                   EGridDesc& e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                   CDEElementwiseOperation& cde_element_op,
+                                   const index_t& block_m_id,
+                                   const index_t& block_n_id)
+    {
         // tuple of starting index of C/Ds blockwise copy
         const auto idx_c_ds_block_begin = container_concat(
             make_tuple(make_multi_index(0, 0, 0, 0)),
@@ -1459,18 +1459,19 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
         // blockwise copy which loads C from LDS, D from global, applies elementwise
         // operation and stores result E to global
-        auto cde_shuffle_block_copy_lds_and_global = ThreadGroupTensorSliceTransfer_v7r3<
+        return ThreadGroupTensorSliceTransfer_v7r3<
             ThisThreadBlock, // ThreadGroup
             decltype(container_concat(make_tuple(CShuffleDataType{}), DsDataType{})),
             Tuple<EDataType>,
-            decltype(c_ds_desc_refs),
+            CDsDescRefs,
             decltype(tie(e_grid_desc_mblock_mperblock_nblock_nperblock)),
             CDEElementwiseOperation,                                    // ElementwiseOperation,
             Sequence<static_cast<index_t>(EGlobalMemoryDataOperation)>, // DstInMemOps,
             Sequence<1,
-                     CShuffleMRepeatPerShuffle * MWave * MPerWmma,
+                     CShuffleMRepeatPerShuffle * BlockwiseGemmPipe::MWaves * MPerWmma,
                      1,
-                     CShuffleNRepeatPerShuffle * NWave * NPerWmma>, // BlockSliceLengths,
+                     CShuffleNRepeatPerShuffle * BlockwiseGemmPipe::NWaves *
+                         NPerWmma>, // BlockSliceLengths,
             CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
             Sequence<0, 1, 2, 3>,                    // ThreadClusterArrangeOrder,
             Sequence<0, 1, 2, 3>,                    // SrcDimAccessOrder,
@@ -1483,39 +1484,99 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                 Sequence<true>,
                 uniform_sequence_gen_t<NumDTensor,
                                        false>>, // ThreadTransferSrcResetCoordinateAfterRunFlags
-            Sequence<false>>                    // ThreadTransferDstResetCoordinateAfterRunFlags
-            {c_ds_desc_refs,
-             idx_c_ds_block_begin,
-             tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
-             make_tuple(make_multi_index(block_m_id, 0, block_n_id, 0)),
-             cde_element_op};
+            Sequence<false>,                    // ThreadTransferDstResetCoordinateAfterRunFlags
+            1,
+            Tuple<AccDataType>>{c_ds_desc_refs,
+                                idx_c_ds_block_begin,
+                                tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                                make_tuple(make_multi_index(block_m_id, 0, block_n_id, 0)),
+                                cde_element_op};
+    }
 
-        // space filling curve for local reg & global memory
-        // space filling curve for threadwise C in VGPR
-        constexpr auto sfc_c_vgpr =
-            SpaceFillingCurve<Sequence<MRepeat, 1, 1, NRepeat, 1, 1, MAccVgprs>,
-                              Sequence<0, 1, 2, 3, 4, 5, 6>,
-                              Sequence<CShuffleMRepeatPerShuffle,
-                                       1,
-                                       1,
-                                       CShuffleNRepeatPerShuffle,
-                                       1,
-                                       1,
-                                       MAccVgprs>>{};
+    template <InMemoryDataOperationEnum EGlobalMemoryDataOperation,
+              typename CThreadBuf,
+              typename DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
+              typename EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>
+    __device__ static void Epilogue(CThreadBuf& c_thread_buf,
+                                    DsGridPointer p_ds_grid,
+                                    EDataType* p_e_grid,
+                                    void* p_shared,
+                                    const DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock&
+                                        ds_grid_desc_mblock_mperblock_nblock_nperblock,
+                                    const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock&
+                                        e_grid_desc_mblock_mperblock_nblock_nperblock,
+                                    CDEElementwiseOperation& cde_element_op,
+                                    const index_t& block_m_id,
+                                    const index_t& block_n_id,
+                                    CShuffle&)
+    {
+        const auto ds_grid_buf = generate_tuple(
+            [&](auto i) {
+                return make_dynamic_buffer<AddressSpaceEnum::Global>(
+                    p_ds_grid[i],
+                    ds_grid_desc_mblock_mperblock_nblock_nperblock[i].GetElementSpaceSize());
+            },
+            Number<NumDTensor>{});
 
-        // space filling curve for shuffled blockwise C in global mem
-        constexpr auto sfc_cde_global =
-            SpaceFillingCurve<Sequence<1, MPerBlock, 1, NPerBlock>,
-                              Sequence<0, 2, 1, 3>,
-                              Sequence<1,
-                                       CShuffleMRepeatPerShuffle * MWave * MPerWmma,
-                                       1,
-                                       CShuffleNRepeatPerShuffle * NWave * NPerWmma>>{};
+        auto e_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
+            p_e_grid, e_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
+
+        // C mapping in single thread.
+        constexpr auto c_thread_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs =
+            BlockwiseGemmPipe::
+                GetCThreadDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs();
+
+        // LDS buffer
+        constexpr auto c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat =
+            GetCShuffleBlockDescriptor_MShRepeat_MPerShRepeat_NShRepeat_NPerShRepeat();
+
+        auto c_shuffle_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+            static_cast<CShuffleDataType*>(p_shared),
+            c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat
+                .GetElementSpaceSize());
+
+        // Thread transfer Vgpr to LDS
+        auto c_thread_copy_vgpr_to_lds = GetVgprToLDSEpilogueDescriptor();
+
+        // Space Filling Curve Vgpr
+        constexpr auto sfc_c_vgpr = GetSpaceFillingCurveCShuffleVgpr();
+
+        // Space Filling Curve Vmem
+        constexpr auto sfc_cde_global = GetSpaceFillingCurveCShuffleVmem();
+
+        // Block descriptor
+        constexpr auto
+            c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs =
+                MakeCShuffleLDSDescriptor();
+
+        // tuple of reference to C/Ds tensor descriptors
+        const auto c_ds_desc_refs = concat_tuple_of_reference(
+            tie(c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat),
+            generate_tie([&](auto i) -> const auto& // return type should be reference
+                         { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
+                         Number<NumDTensor>{}));
+
+        // Thread transfer LDS to Vmem
+        auto cde_shuffle_block_copy_lds_and_global =
+            GetLDSToVmemEpilogueDescriptor<EGlobalMemoryDataOperation>(
+                c_ds_desc_refs,
+                e_grid_desc_mblock_mperblock_nblock_nperblock,
+                cde_element_op,
+                block_m_id,
+                block_n_id);
+
+        // tuple of reference to C/Ds tensor buffers
+        const auto c_ds_buf_refs = concat_tuple_of_reference(
+            tie(c_shuffle_block_buf),
+            generate_tie([&](auto i) -> const auto& // return type should be reference
+                         { return ds_grid_buf[i]; },
+                         Number<NumDTensor>{}));
 
         constexpr index_t num_access = sfc_c_vgpr.GetNumOfAccess();
 
         static_assert(num_access == sfc_cde_global.GetNumOfAccess(), "wrong!");
 
+        // CShuffle and Store
         static_for<0, num_access, 1>{}([&](auto access_id) {
             // make sure it's safe to write to LDS
             block_sync_lds();
@@ -1572,8 +1633,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                     const index_t& block_n_id,
                                     WelfordArgument& epilogue_args)
     {
-        auto blockwise_gemm_pipeline = BlockwiseGemmPipe{};
-
+        // Vmem buffers
         const auto ds_grid_buf = generate_tuple(
             [&](auto i) {
                 return make_dynamic_buffer<AddressSpaceEnum::Global>(
@@ -1604,33 +1664,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             epilogue_args.p_welford_count_grid,
             count_grid_desc_mblock_mperblock_nblock.GetElementSpaceSize());
 
-        // C mapping in single thread.
-        constexpr auto c_thread_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs =
-            blockwise_gemm_pipeline
-                .GetCThreadDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs();
-
-        // C mapping in single block
-        constexpr auto c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs_tmp =
-            blockwise_gemm_pipeline
-                .GetCBlockDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs();
-
-        constexpr auto MWave =
-            c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs_tmp
-                .GetLength(I1);
-        constexpr auto MSubGroup =
-            c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs_tmp
-                .GetLength(I2);
-        constexpr auto NWave =
-            c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs_tmp
-                .GetLength(I4);
-        constexpr auto NThreadPerSubGroup =
-            c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs_tmp
-                .GetLength(I5);
-        constexpr auto MAccVgprs =
-            c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs_tmp
-                .GetLength(I6);
-
-        // LDS descriptor, shuffle and write out in MRepeat x NRepeat times
+        // LDS buffer
         constexpr auto c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat =
             GetCShuffleBlockDescriptor_MShRepeat_MPerShRepeat_NShRepeat_NPerShRepeat();
 
@@ -1639,134 +1673,65 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat
                 .GetElementSpaceSize());
 
+        // tuple of reference to C/Ds tensor buffers (mix LDS and Vmem)
+        const auto c_ds_buf_refs = concat_tuple_of_reference(
+            tie(c_shuffle_block_buf),
+            generate_tie([&](auto i) -> const auto& // return type should be reference
+                         { return ds_grid_buf[i]; },
+                         Number<NumDTensor>{}));
+
+        // Thread transfer Vgpr to LDS
+        auto c_thread_copy_vgpr_to_lds = GetVgprToLDSEpilogueDescriptor();
+
+        // Space Filling Curve Vgpr
+        constexpr auto sfc_c_vgpr = GetSpaceFillingCurveCShuffleVgpr();
+
+        // Space Filling Curve Vmem
+        constexpr auto sfc_cde_global = GetSpaceFillingCurveCShuffleVmem();
+
+        // C thread descriptor
+        constexpr auto c_thread_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs =
+            BlockwiseGemmPipe::
+                GetCThreadDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs();
+
+        // tuple of reference to C/Ds tensor descriptors
+        const auto c_ds_desc_refs = concat_tuple_of_reference(
+            tie(c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat),
+            generate_tie([&](auto i) -> const auto& // return type should be reference
+                         { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
+                         Number<NumDTensor>{}));
+
+        // Thread transfer LDS to Vmem
+        auto cde_shuffle_block_copy_lds_and_global =
+            GetLDSToVmemEpilogueDescriptor<EGlobalMemoryDataOperation>(
+                c_ds_desc_refs,
+                e_grid_desc_mblock_mperblock_nblock_nperblock,
+                cde_element_op,
+                block_m_id,
+                block_n_id);
+
+        // Block descriptor
         constexpr auto
             c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs =
-                transform_tensor_descriptor(
-                    c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat,
-                    make_tuple(
-                        make_freeze_transform(I0),
-                        make_unmerge_transform(make_tuple(
-                            Number<CShuffleMRepeatPerShuffle>{}, // MRepeat per shuffle repeat
-                            MWave,                               // MWave
-                            MSubGroup,                           // MSubGroup * MAccVgprs = MPerWmma
-                            MAccVgprs)),
-                        make_freeze_transform(I0),
-                        make_unmerge_transform(make_tuple(
-                            Number<CShuffleNRepeatPerShuffle>{}, // NRepeat per shuffle repeat
-                            NWave,                               // NWave
-                            NThreadPerSubGroup))),               // NThreadPerSubGroup = NPerWmma
-                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-                    make_tuple(
-                        Sequence<>{}, Sequence<0, 1, 2, 6>{}, Sequence<>{}, Sequence<3, 4, 5>{}));
+                MakeCShuffleLDSDescriptor();
 
-        // calculate origin of thread output tensor on global memory
-        //     blockwise GEMM c matrix starting index
-        const auto c_thread_mtx_on_block =
-            blockwise_gemm_pipeline.CalculateCThreadOriginDataIndex(I0, I0);
-
-        const index_t m_thread_data_on_block = c_thread_mtx_on_block[I0];
-        const index_t n_thread_data_on_block = c_thread_mtx_on_block[I1];
-
-        const auto m_thread_data_on_block_to_mrepeat_mwave_msubgroup_maccvgprs_adaptor =
-            make_single_stage_tensor_adaptor(
-                make_tuple(make_merge_transform(make_tuple(MRepeat, MWave, MSubGroup, MAccVgprs))),
-                make_tuple(Sequence<0, 1, 2, 3>{}),
-                make_tuple(Sequence<0>{}));
-
-        const auto m_thread_data_on_block_idx =
-            m_thread_data_on_block_to_mrepeat_mwave_msubgroup_maccvgprs_adaptor
-                .CalculateBottomIndex(make_multi_index(m_thread_data_on_block));
-
-        const auto n_thread_data_on_block_to_nrepeat_nwave_nthreadpersubgroup_adaptor =
-            make_single_stage_tensor_adaptor(
-                make_tuple(make_merge_transform(make_tuple(NRepeat, NWave, NThreadPerSubGroup))),
-                make_tuple(Sequence<0, 1, 2>{}),
-                make_tuple(Sequence<0>{}));
-
-        const auto n_thread_data_on_block_idx =
-            n_thread_data_on_block_to_nrepeat_nwave_nthreadpersubgroup_adaptor.CalculateBottomIndex(
-                make_multi_index(n_thread_data_on_block));
-
-        // shuffle: threadwise copy C from VGPR to LDS
-        auto c_thread_copy_vgpr_to_lds = ThreadwiseTensorSliceTransfer_v1r3<
-            AccDataType,
-            CShuffleDataType,
-            decltype(c_thread_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs),
-            decltype(c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs),
-            ck::tensor_operation::element_wise::PassThrough,
-            Sequence<CShuffleMRepeatPerShuffle,
-                     I1,
-                     I1,
-                     CShuffleNRepeatPerShuffle,
-                     I1,
-                     I1,
-                     MAccVgprs>,
-            Sequence<0, 1, 2, 3, 4, 5, 6>,
-            6,
-            1,
-            InMemoryDataOperationEnum::Set,
-            1,
-            true>{c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs,
-                  make_multi_index(0,
-                                   m_thread_data_on_block_idx[I1],
-                                   m_thread_data_on_block_idx[I2],
-                                   0,
-                                   n_thread_data_on_block_idx[I1],
-                                   n_thread_data_on_block_idx[I2],
-                                   m_thread_data_on_block_idx[I3]),
-                  ck::tensor_operation::element_wise::PassThrough{}};
-
-        // space filling curve for local reg & global memory
-        // space filling curve for threadwise C in VGPR
-        constexpr auto sfc_c_vgpr =
-            SpaceFillingCurve<Sequence<MRepeat, 1, 1, NRepeat, 1, 1, MAccVgprs>,
-                              Sequence<0, 1, 2, 3, 4, 5, 6>,
-                              Sequence<CShuffleMRepeatPerShuffle,
-                                       1,
-                                       1,
-                                       CShuffleNRepeatPerShuffle,
-                                       1,
-                                       1,
-                                       MAccVgprs>>{};
-
-        // space filling curve for shuffled blockwise C in global mem
-        constexpr auto sfc_cde_global =
-            SpaceFillingCurve<Sequence<1, MPerBlock, 1, NPerBlock>,
-                              Sequence<0, 2, 1, 3>,
-                              Sequence<1,
-                                       CShuffleMRepeatPerShuffle * MWave * MPerWmma,
-                                       1,
-                                       CShuffleNRepeatPerShuffle * NWave * NPerWmma>>{};
-
-        // LDS c_shuffle_block_desc_mpershrepeat_npershrepeat
-        constexpr auto c_shuffle_block_desc_mpershrepeat_npershrepeat = transform_tensor_descriptor(
-            c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat,
-            make_tuple(
-                make_freeze_transform(I0),
-                make_pass_through_transform(
-                    c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat.GetLength(
-                        I1)),
-                make_freeze_transform(I0),
-                make_pass_through_transform(
-                    c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat.GetLength(
-                        I3))),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-            make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<>{}, Sequence<1>{}));
-
+        // E Vgpr buffer
         constexpr index_t PostShuffleThreadSliceSize_M =
-            (CShuffleMRepeatPerShuffle * MWave * MPerWmma) /
+            (CShuffleMRepeatPerShuffle * BlockwiseGemmPipe::MWaves * MPerWmma) /
             CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock::At(I1);
 
         constexpr index_t PostShuffleThreadSliceSize_N =
-            (CShuffleNRepeatPerShuffle * NWave * NPerWmma) /
+            (CShuffleNRepeatPerShuffle * BlockwiseGemmPipe::NWaves * NPerWmma) /
             CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock::At(I3);
 
         constexpr auto PostShuffleThreadSliceSize_M_N =
             Sequence<PostShuffleThreadSliceSize_M, PostShuffleThreadSliceSize_N>{};
 
-        // VGPR post_shuffle_thread_desc_m_n
+        // Welford
         constexpr auto post_shuffle_thread_desc_m_n =
-            make_naive_tensor_descriptor_packed(make_tuple(Number<PostShuffleThreadSliceSize_M>{},
+            make_naive_tensor_descriptor_packed(make_tuple(Number<1>{},
+                                                           Number<PostShuffleThreadSliceSize_M>{},
+                                                           Number<1>{},
                                                            Number<PostShuffleThreadSliceSize_N>{}));
 
         auto e_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, AccDataType>(
@@ -1776,8 +1741,6 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock::At(I1),
             CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock::At(I3)>;
 
-        // To apply D0, D1, ... and Welford.
-        // threadwise copy from LDS to VGPR
         constexpr auto post_shuffle_thread_cluster_desc =
             make_cluster_descriptor(PostShuffleThreadClusterSize_M_N{}, Sequence<0, 1>{});
 
@@ -1788,92 +1751,6 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         const auto post_shuffle_thread_data_idx_begin =
             post_shuffle_thread_cluster_idx * PostShuffleThreadSliceSize_M_N;
 
-        // To apply D0, D1, ... and Welford.
-        // Copy c shuffle from LDS back to VGPR
-        auto post_shuffle_thread_copy_lds_to_vgpr = ThreadwiseTensorSliceTransfer_v2<
-            CShuffleDataType,
-            AccDataType,
-            decltype(c_shuffle_block_desc_mpershrepeat_npershrepeat),
-            decltype(post_shuffle_thread_desc_m_n),
-            decltype(PostShuffleThreadSliceSize_M_N),
-            Sequence<0, 1>,
-            1,
-            CDEShuffleBlockTransferScalarPerVectors{}[I0],
-            1,
-            true>{c_shuffle_block_desc_mpershrepeat_npershrepeat,
-                  post_shuffle_thread_data_idx_begin};
-
-        // D0, D1, ..., Dn
-        constexpr auto post_shuffle_thread_desc_I1_mperblock_I1_nperblock =
-            make_naive_tensor_descriptor_packed(make_tuple(I1,
-                                                           Number<PostShuffleThreadSliceSize_M>{},
-                                                           I1,
-                                                           Number<PostShuffleThreadSliceSize_N>{}));
-
-        // FIXME: Decrease usage of VGPR
-        // Apply pointwise lambda function from multi-source (Global and LDS) into VGPR
-        auto ds_thread_buf = generate_tuple(
-            [&](auto) {
-                return make_static_buffer<AddressSpaceEnum::Vgpr, CShuffleDataType>(
-                    post_shuffle_thread_desc_I1_mperblock_I1_nperblock.GetElementSpaceSize());
-            },
-            Number<NumDTensor>{});
-
-        // HACK: this force m/n_block_data_idx_on_grid into SGPR
-        const index_t m_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_m_id * MPerBlock);
-
-        const index_t n_block_data_idx_on_grid =
-            __builtin_amdgcn_readfirstlane(block_n_id * NPerBlock);
-
-        // Copy D0, D1, ..., Dn from global to VGPR
-        auto ds_thread_copy_global_to_vgpr = generate_tuple(
-            [&](auto I) {
-                using DDataType = remove_cvref_t<tuple_element_t<I.value, DsDataType>>;
-                return ThreadwiseTensorSliceTransfer_v2<
-                    DDataType,
-                    AccDataType,
-                    decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock[I]),
-                    decltype(post_shuffle_thread_desc_I1_mperblock_I1_nperblock),
-                    Sequence<I1, PostShuffleThreadSliceSize_M, I1, PostShuffleThreadSliceSize_N>,
-                    Sequence<0, 1, 2, 3>,
-                    3,
-                    CDEShuffleBlockTransferScalarPerVectors{}[I0],
-                    1,
-                    true>(ds_grid_desc_mblock_mperblock_nblock_nperblock[I],
-                          make_multi_index(
-                              I0,
-                              m_block_data_idx_on_grid + post_shuffle_thread_data_idx_begin[I0],
-                              I0,
-                              n_block_data_idx_on_grid + post_shuffle_thread_data_idx_begin[I1]));
-            },
-            Number<NumDTensor>{});
-
-        // Copy E from vgpr to global
-        auto e_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
-            AccDataType,
-            EDataType,
-            decltype(post_shuffle_thread_desc_I1_mperblock_I1_nperblock),
-            decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
-            tensor_operation::element_wise::PassThrough,
-            Sequence<I1,
-                     PostShuffleThreadSliceSize_M,
-                     I1,
-                     PostShuffleThreadSliceSize_N>, // SliceLengths
-            Sequence<0, 1, 2, 3>,                   // DimAccessOrder
-            3,                                      // DstVectorDim
-            CDEShuffleBlockTransferScalarPerVectors{}[I0],
-            EGlobalMemoryDataOperation,
-            1,
-            true>{
-            e_grid_desc_mblock_mperblock_nblock_nperblock,
-            make_multi_index(I0,
-                             m_block_data_idx_on_grid + post_shuffle_thread_data_idx_begin[I0],
-                             I0,
-                             n_block_data_idx_on_grid + post_shuffle_thread_data_idx_begin[I1]),
-            tensor_operation::element_wise::PassThrough{}};
-
-        // Welford
         constexpr auto thread_welford_src_desc_m_k = make_naive_tensor_descriptor_packed(make_tuple(
             Number<PostShuffleThreadSliceSize_M>{}, Number<PostShuffleThreadSliceSize_N>{}));
 
@@ -1890,9 +1767,11 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                                   Sequence<0, 1>,
                                                   false>;
 
-        constexpr int num_shuffleM = MPerBlock / (CShuffleMRepeatPerShuffle * MWave * MPerWmma);
+        constexpr int num_shuffleM =
+            MPerBlock / (CShuffleMRepeatPerShuffle * BlockwiseGemmPipe::MWaves * MPerWmma);
 
-        constexpr int num_shuffleN = NPerBlock / (CShuffleNRepeatPerShuffle * NWave * NPerWmma);
+        constexpr int num_shuffleN =
+            NPerBlock / (CShuffleNRepeatPerShuffle * BlockwiseGemmPipe::NWaves * NPerWmma);
 
         using mean_var_vgpr_type = decltype(make_static_buffer<AddressSpaceEnum::Vgpr, AccDataType>(
             thread_welford_dst_desc_m.GetElementSpaceSize()));
@@ -1912,7 +1791,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         // tail block
         if(block_n_id % nblock == nblock - 1)
         {
-            constexpr index_t NPerShuffleBlock = CShuffleNRepeatPerShuffle * NWave * NPerWmma;
+            constexpr index_t NPerShuffleBlock =
+                CShuffleNRepeatPerShuffle * BlockwiseGemmPipe::NWaves * NPerWmma;
 
             int NPerBlockTail = epilogue_args.NRaw - NPerBlock * (nblock - 1);
             int thread_max_len =
@@ -1935,6 +1815,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             max_count = shuffle_step * PostShuffleThreadSliceSize_N + delta;
         }
 
+        // Initialize Welford
         static_for<0, num_shuffleM, 1>{}([&](auto i) {
             threadwise_welfords(i).max_count_ = max_count;
             mean_thread_bufs(i) = make_static_buffer<AddressSpaceEnum::Vgpr, AccDataType>(
@@ -1957,6 +1838,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
         static_assert(num_access == sfc_cde_global.GetNumOfAccess(), "wrong!");
 
+        // Run CShuffle + Store E + Welford threadwise
         int shuffleM_index = __builtin_amdgcn_readfirstlane(0);
         static_for<0, num_access, 1>{}([&](auto access_id) {
             // make sure it's safe to read from LDS
@@ -1973,54 +1855,28 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             // make sure it's safe to write to LDS
             block_sync_lds();
 
-            // Get shuffle data from LDS to VGPR
-            post_shuffle_thread_copy_lds_to_vgpr.Run(c_shuffle_block_desc_mpershrepeat_npershrepeat,
-                                                     c_shuffle_block_buf,
-                                                     post_shuffle_thread_desc_m_n,
-                                                     make_tuple(I0, I0),
-                                                     e_thread_buf);
+            // Read LDS / Vmem + CDE elementwise operation
+            cde_shuffle_block_copy_lds_and_global.RunRead(c_ds_desc_refs, c_ds_buf_refs);
 
-            // Global read D0, D1, ...
-            static_for<0, NumDTensor, 1>{}([&](auto Id) {
-                auto& d_thread_copy_global_to_vgpr = ds_thread_copy_global_to_vgpr(Id);
-                d_thread_copy_global_to_vgpr.Run(ds_grid_desc_mblock_mperblock_nblock_nperblock[Id],
-                                                 ds_grid_buf[Id],
-                                                 post_shuffle_thread_desc_I1_mperblock_I1_nperblock,
-                                                 make_tuple(I0, I0, I0, I0),
-                                                 ds_thread_buf(Id));
-
-                if constexpr(access_id < num_access - 1)
-                {
-                    // move on D0, D1, ...
-                    constexpr auto de_global_step = sfc_cde_global.GetForwardStep(access_id);
-                    d_thread_copy_global_to_vgpr.MoveSrcSliceWindow(
-                        ds_grid_desc_mblock_mperblock_nblock_nperblock[Id], de_global_step);
-                }
-            });
-
-            // cde_element_op(e, c, d0, d1, ...);
-            static_for<0, post_shuffle_thread_desc_m_n.GetElementSize(), 1>{}([&](auto i) {
-                const auto c_ds_src_data_refs = concat_tuple_of_reference(
-                    tie(e_thread_buf[i]),
-                    generate_tie([&](auto Id) -> const auto& { return ds_thread_buf[Id][i]; },
-                                 Number<NumDTensor>{}));
-                auto e_dst_data_refs = tie(e_thread_buf(i));
-                unpack2(cde_element_op, e_dst_data_refs, c_ds_src_data_refs);
-            });
-
-            // Global write E
-            e_thread_copy_vgpr_to_global.Run(post_shuffle_thread_desc_I1_mperblock_I1_nperblock,
-                                             make_tuple(I0, I0, I0, I0),
-                                             e_thread_buf,
-                                             e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                             e_grid_buf);
+            // Store to Vmem, but keep data in Vgpr for Welford
+            cde_shuffle_block_copy_lds_and_global.RunWriteAndStoreVgpr(
+                tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                tie(e_grid_buf),
+                tie(post_shuffle_thread_desc_m_n),
+                tie(e_thread_buf));
 
             if constexpr(access_id < num_access - 1)
             {
+                constexpr auto cde_global_step = sfc_cde_global.GetForwardStep(access_id);
+                // move on Ds
+                static_for<0, NumDTensor, 1>{}([&](auto i) {
+                    cde_shuffle_block_copy_lds_and_global.MoveSrcSliceWindow(
+                        c_ds_desc_refs, i + I1, cde_global_step);
+                });
+
                 // move on E
-                constexpr auto de_global_step = sfc_cde_global.GetForwardStep(access_id);
-                e_thread_copy_vgpr_to_global.MoveDstSliceWindow(
-                    e_grid_desc_mblock_mperblock_nblock_nperblock, de_global_step);
+                cde_shuffle_block_copy_lds_and_global.MoveDstSliceWindow(
+                    tie(e_grid_desc_mblock_mperblock_nblock_nperblock), cde_global_step);
             }
 
             // Threadwise welford
@@ -2039,7 +1895,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                         I1);
                 shuffleM_index = __builtin_amdgcn_readfirstlane(shuffleM_index + shuffleMInc);
             }
-        }); // copy c, d, e + welford
+        });
 
         // Blockwise welford and write out
         static_for<0, num_shuffleM, 1>{}([&](auto i) {
