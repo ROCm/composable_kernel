@@ -1172,6 +1172,39 @@ pipeline {
                 }
             }
         }
+        stage("Parallel Test")
+        {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
+            parallel
+            {
+                stage("Parallel Test 1"){
+                    when {
+                        beforeAgent true
+                        expression { false }
+                    agent{ label rocmnode("nogpu") }
+                    steps{
+                        script {
+                            echo "parallel test 1"
+                        }
+                    }
+                }
+                stage("Parallel Test 2"){
+                    when {
+                        beforeAgent true
+                        expression { false }
+                    }
+                    agent{ label rocmnode("nogpu") }
+                    steps{
+                        script {
+                            echo "parallel test 2"
+                        }
+                    }
+                }
+            }
+        }
         stage("Build Docker"){
             when {
                 beforeAgent true
