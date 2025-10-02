@@ -1,6 +1,6 @@
 # Split-K GEMM with Bias, Elementwise Operation, and Permutation
 
-This example demonstrates a highly complex fusion: a **Split-K GEMM** where the final result is fused with a bias addition, a second element-wise operation, and a final permutation. This kernel combines the parallelism-enhancing Split-K strategy with a multi-stage epilogue, making it suitable for accelerating very large or "skinny" GEMMs that are part of a more complex computational graph.
+This example demonstrates a highly complex fusion: a **Split-K GEMM** where the final result is fused with a bias addition, a second elementwise operation, and a final permutation. This kernel combines the parallelism-enhancing Split-K strategy with a multi-stage epilogue, making it suitable for accelerating very large or "skinny" GEMMs that are part of a more complex computational graph.
 
 ## Mathematical Formulation
 
@@ -12,7 +12,7 @@ The operation first computes a GEMM using the Split-K algorithm and then applies
 2.  **Bias Addition Stage**: A bias vector `D` is broadcast and added.
     $C_{temp2} = C_{temp1} + D$
 
-3.  **Elementwise Stage**: A second element-wise operation is performed with tensor `E`.
+3.  **Elementwise Stage**: A second elementwise operation is performed with tensor `E`.
     $C_{temp3} = C_{temp2} \odot E$
 
 4.  **Permutation Stage**: The final result is permuted.
@@ -38,7 +38,7 @@ Composable Kernel's implementation abstracts this complexity, providing a single
 
 ## Source Code Organization
 
--   [`splitk_gemm_bias_e_permute_xdl.cpp`](./splitk_gemm_bias_e_permute_xdl.cpp): The main example file. It sets up the GEMM problem, the bias and element-wise tensors, the permutation, and instantiates the `DeviceSplitkGemmBiasEPermute` operation.
+-   [`splitk_gemm_bias_e_permute_xdl.cpp`](./splitk_gemm_bias_e_permute_xdl.cpp): The main example file. It sets up the GEMM problem, the bias and elementwise tensors, the permutation, and instantiates the `DeviceSplitkGemmBiasEPermute` operation.
 -   The device-level interface and underlying kernels are highly specialized. They manage the Split-K parameter, the workspace allocation (if needed), and the two-stage execution process, combining the logic from `DeviceGemmSplitK` and `DeviceGemmBiasEPermute`.
 
 ## Build and Run

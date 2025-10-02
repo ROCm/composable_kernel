@@ -1,10 +1,10 @@
 # Binary Elementwise Operations with Broadcasting
 
-This example demonstrates a generic binary element-wise operation, a fundamental building block in numerical computing. It covers two important cases:
+This example demonstrates a generic binary elementwise operation, a fundamental building block in numerical computing. It covers two important cases:
 1.  **Simple Elementwise**: Applying a binary function to two input tensors of the *same* shape.
 2.  **Elementwise with Broadcasting**: Applying a binary function to two input tensors of *different but compatible* shapes.
 
-Broadcasting defines a set of rules for applying element-wise operations on tensors of different sizes, and it is a cornerstone of libraries like NumPy and TensorFlow.
+Broadcasting defines a set of rules for applying elementwise operations on tensors of different sizes, and it is a cornerstone of libraries like NumPy and TensorFlow.
 
 ## Mathematical Formulation
 
@@ -14,14 +14,14 @@ Given two input tensors, A and B, of the same rank and dimensions, and a binary 
 $C_{i,j,k,\dots} = A_{i,j,k,\dots} \odot B_{i,j,k,\dots}$
 
 ### Elementwise with Broadcasting
-Broadcasting allows element-wise operations on tensors with different shapes, provided they are compatible. Two dimensions are compatible if they are equal, or if one of them is 1. The operation implicitly "stretches" or "duplicates" the tensor with the dimension of size 1 to match the other tensor's shape.
+Broadcasting allows elementwise operations on tensors with different shapes, provided they are compatible. Two dimensions are compatible if they are equal, or if one of them is 1. The operation implicitly "stretches" or "duplicates" the tensor with the dimension of size 1 to match the other tensor's shape.
 
 For example, adding a bias vector `B` of shape `(1, N)` to a matrix `A` of shape `(M, N)`:
 $C_{i,j} = A_{i,j} + B_{0,j}$
 
 Here, the single row of `B` is broadcast across all `M` rows of `A`. The output tensor `C` has the shape `(M, N)`.
 
-Common binary element-wise operations include addition, subtraction, multiplication (Hadamard product), division, max, and min.
+Common binary elementwise operations include addition, subtraction, multiplication (Hadamard product), division, max, and min.
 
 ## Algorithmic Strategy: Grid-Stride Loop with Broadcasting
 
@@ -50,7 +50,7 @@ The implementation for both cases relies on the efficient **grid-stride loop**, 
 -   The core of the broadcasting logic lies in the `get_broadcast_coord` function. If an input tensor's dimension is 1, the coordinate for that dimension is always set to 0, effectively reusing the same element across the broadcast dimension. If the dimension matches the output, the coordinate is passed through.
 -   This strategy ensures that memory accesses to the larger tensor remain coalesced, while accesses to the smaller, broadcasted tensor will naturally involve re-reading the same values, which is efficiently handled by the GPU's cache hierarchy.
 
-Like the simple case, broadcasted element-wise operations are almost always memory-bandwidth-bound.
+Like the simple case, broadcasted elementwise operations are almost always memory-bandwidth-bound.
 
 ## Source Code Organization
 
@@ -83,7 +83,7 @@ make -j
 
 ### Run the Example
 ```bash
-# Run the simple element-wise example
+# Run the simple elementwise example
 ./binary_elementwise_xdl 1 2 1
 
 # Run the broadcasting example

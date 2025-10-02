@@ -21,13 +21,13 @@ Persistence mode is a GPU optimization where thread blocks remain active on the 
 - **Usage**: `invoke_gemm<ALayout, BLayout, CLayout, true>` enables persistence
 
 #### Multi-D Operations
-Multi-D operations extend the standard GEMM operation by supporting additional element-wise operations on the result tensor. This feature is particularly useful for workloads that require post-processing of the GEMM output.
+Multi-D operations extend the standard GEMM operation by supporting additional elementwise operations on the result tensor. This feature is particularly useful for workloads that require post-processing of the GEMM output.
 
 - **Implementation**: Available in `grouped_gemm_multi_d.cpp`
 - **Operation**: E = C × D₀ × D₁ (where C = A × B is the standard GEMM result)
 - **Configuration**: Uses `GemmConfigV3`, `GemmConfigV4`, `GemmConfigMemory` template configuration with 2 D tensors
 - **Data Types**: Supports fp16 
-- **Benefits**: Enables complex operations like scaling, activation functions, or other element-wise transformations in a single kernel call
+- **Benefits**: Enables complex operations like scaling, activation functions, or other elementwise transformations in a single kernel call
 - **Build Target**: `make tile_example_grouped_gemm_multi_d -j`
 
 Multi-D operations supports both persistence and non-persistence modes.

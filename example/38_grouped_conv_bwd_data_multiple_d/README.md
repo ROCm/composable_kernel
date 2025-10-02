@@ -1,6 +1,6 @@
 # Grouped Convolution Backward Data with Multiple Elementwise Inputs
 
-This example demonstrates a **Grouped Convolution Backward Data Pass** fused with an element-wise operation that takes multiple auxiliary input tensors (`D` tensors). The backward data pass (also known as a transposed convolution or deconvolution) computes the gradient of the loss with respect to the convolution's *input* tensor. Fusing it with other operations is a powerful way to optimize the backward pass of a neural network.
+This example demonstrates a **Grouped Convolution Backward Data Pass** fused with an elementwise operation that takes multiple auxiliary input tensors (`D` tensors). The backward data pass (also known as a transposed convolution or deconvolution) computes the gradient of the loss with respect to the convolution's *input* tensor. Fusing it with other operations is a powerful way to optimize the backward pass of a neural network.
 
 ## Mathematical Formulation
 
@@ -10,7 +10,7 @@ The operation computes the gradient with respect to the input (`GradIn`) of a gr
     $GradIn_{temp[g]} = \text{ConvBwdData}(\text{GradOut}_{[g]}, \text{W}_{[g]})$
     Where `GradOut` is the gradient from the subsequent layer and `W` is the weight tensor from the forward pass.
 
-2.  **Elementwise Stage**: The result of the backward convolution is combined with one or more auxiliary tensors ($D_{0[g]}, D_{1[g]}, \dots$) using a user-defined element-wise function `f`.
+2.  **Elementwise Stage**: The result of the backward convolution is combined with one or more auxiliary tensors ($D_{0[g]}, D_{1[g]}, \dots$) using a user-defined elementwise function `f`.
     $GradIn_{[g]} = f(GradIn_{temp[g]}, D_{0[g]}, D_{1[g]}, \dots)$
 
 This fusion is particularly useful for operations like adding the gradient from a residual "skip" connection, which is a common pattern in modern network architectures. By fusing the addition, we avoid a separate kernel launch and a full read/write pass of the `GradIn` tensor.
@@ -23,9 +23,9 @@ The implementation uses the implicit GEMM algorithm, but configured for the back
 
 2.  **Implicit GEMM for Backward Data**: The backward data convolution can be mathematically re-arranged to be equivalent to a forward convolution with transformed inputs and weights, which can then be solved with an implicit GEMM algorithm. Composable Kernel handles this transformation. A thread block executes the implicit GEMM for its assigned group, accumulating the `GradIn_temp` result in registers.
 
-3.  **Fused Multi-D Epilogue**: Before writing the result to global memory, the epilogue performs the element-wise fusion:
+3.  **Fused Multi-D Epilogue**: Before writing the result to global memory, the epilogue performs the elementwise fusion:
     -   Threads load the corresponding tiles from the auxiliary `D` tensors for the assigned group.
-    -   The user-defined element-wise function `f` is applied in registers to the computed gradient and the `D` tensor values.
+    -   The user-defined elementwise function `f` is applied in registers to the computed gradient and the `D` tensor values.
     -   The final result `GradIn` for the group is written to global memory.
 
 This strategy minimizes memory bandwidth by avoiding the materialization of the intermediate gradient tensor and maximizes parallelism by executing all groups concurrently.
@@ -72,4 +72,4 @@ make -j
 Fusing operations into the backward pass is a critical optimization for training deep neural networks.
 
 -   **Fused Residual Gradient**: In a residual block (`y = F(x) + x`), the gradient with respect to `x` is `dF/dx + dy/dx`. If `F` is a convolution, `dF/dx` is the output of the `ConvBwdData` operation. The `dy/dx` term (the gradient from the skip connection) can be passed as a `D` tensor and fused via an addition, computing the full gradient for `x` in a single kernel.
--   **Fused Gradient Clipping/Scaling**: The `D` tensors and the element-wise function `f` could be used to apply gradient scaling or other custom gradient processing steps directly to the output of the backward convolution, before the result is written back to memory.
+-   **Fused Gradient Clipping/Scaling**: The `D` tensors and the elementwise function `f` could be used to apply gradient scaling or other custom gradient processing steps directly to the output of the backward convolution, before the result is written back to memory.

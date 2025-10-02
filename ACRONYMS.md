@@ -4,9 +4,8 @@ The following acronyms are used in the Composable Kernel codebase:
 
 | Acronym | Expansion | Explanation |
 |---------|-----------|-------------|
-| B2B     | Back-to-Back | Fused or sequential kernel operations (e.g., B2B GEMM) |
-| BF16    | Brain Floating Point 16 | 1 Signed bit, 8 Exponent bits, 7 Mantissa bits |
-| BF8     | 8-bit Brain Floating Point | 1 Signed bit, 3 Exponent bits, 4 Mantissa bits |
+| BF16    | Brain Floating Point 16 | 1 Signed bit, 8 Exponent bits, 7 Significand bits |
+| BF8     | 8-bit Brain Floating Point | 1 Signed bit, 3 Exponent bits, 4 Significand bits |
 | DLA     | Deep Learning Accelerator | Specialized hardware for deep learning workloads |
 | DRAM    | Dynamic Random-Access Memory | Main memory. Global memory on GPU |
 | E2E     | End-to-End | Complete pipeline or process from input to output |
