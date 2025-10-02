@@ -41,6 +41,22 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t K_Warp_Tile = 32;
 };
 
+struct GemmConfigPreshuffleQuant : public GemmConfigBase
+{
+    static constexpr bool PreshuffleQuant = true;
+};
+
+struct GemmConfigTransposeC : public GemmConfigBase
+{
+    static constexpr bool TransposeC = true;
+};
+
+struct GemmConfigPreshuffleQuantTransposeC : public GemmConfigBase
+{
+    static constexpr bool PreshuffleQuant = true;
+    static constexpr bool TransposeC      = true;
+};
+
 struct GemmConfigPreshuffleB
 {
     static constexpr bool kPadM = false;
@@ -100,6 +116,24 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     void SetUpQuantTypeSpecific() {}
     void TearDownQuantTypeSpecific() {}
 
+    template <typename T>
+    auto shuffle_aq(const ck_tile::HostTensor<T>* t, int block_aq_k)
+    {
+        if(t->get_lengths().size() != 2)
+        {
+            throw std::runtime_error("Host tensor is not rank 2 tensor.");
+        }
+        int m_   = t->get_lengths()[0];
+        int aqk_ = t->get_lengths()[1];
+        if(aqk_ % block_aq_k != 0)
+        {
+            throw std::runtime_error("shuffle_aq needs a aqk of multiple times of block_aq_k.");
+        }
+        ck_tile::HostTensor<T> t_view({m_, aqk_ / block_aq_k, block_aq_k});
+        std::copy(t->begin(), t->end(), t_view.begin());
+        return ck_tile::reference_permute(t_view, {1, 0, 2});
+    }
+
     // AQuant-specific data generation
     void run_test_with_validation(ck_tile::index_t M, ck_tile::index_t N, ck_tile::index_t K)
     {
@@ -150,7 +184,17 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         {
             a_m_k_dev_buf.ToDevice(a_m_k.data());
         }
-        aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());
+        // aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());
+        if constexpr(Base::GemmConfig::PreshuffleQuant)
+        {
+            ck_tile::HostTensor<QDataType> aq_shuffle_host =
+                shuffle_aq(&aq_m_aqk, Base::GemmConfig::K_Tile / QuantGroupSize);
+            aq_m_aqk_dev_buf.ToDevice(aq_shuffle_host.data());
+        }
+        else
+        {
+            aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());
+        }
         b_k_n_dev_buf.ToDevice(b_k_n.data());
 
         // Create args for kernel execution
@@ -245,7 +289,7 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
             constexpr bool has_hot_loop_v = has_hot_loop_.value;
             constexpr auto tail_number_v  = tail_number_.value;
-            constexpr bool transpose_c    = false;
+            constexpr bool transpose_c    = CodegenGemmTraits::TransposeC;
 
             using PipelineProblem =
                 ck_tile::GemmAQuantPipelineProblem<ADataType,
@@ -701,7 +745,7 @@ class TestCkTileGemmRowColQuant
         const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
             constexpr bool has_hot_loop_v = has_hot_loop_.value;
             constexpr auto tail_number_v  = tail_number_.value;
-            constexpr bool transpose_c    = false;
+            constexpr bool transpose_c    = CodegenGemmTraits::TransposeC;
 
             using PipelineProblem = ck_tile::GemmRowColTensorQuantPipelineProblem<
                 ADataType,
@@ -916,7 +960,7 @@ class TestCkTileGemmTensorQuant
         const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
             constexpr bool has_hot_loop_v = has_hot_loop_.value;
             constexpr auto tail_number_v  = tail_number_.value;
-            constexpr bool transpose_c    = false;
+            constexpr bool transpose_c    = CodegenGemmTraits::TransposeC;
 
             using PipelineProblem = ck_tile::GemmRowColTensorQuantPipelineProblem<
                 ADataType,
