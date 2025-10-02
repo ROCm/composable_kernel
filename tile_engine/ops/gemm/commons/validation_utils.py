@@ -26,6 +26,31 @@ ELEMENT_SIZE_MAP = {
     "fp64": 8,
 }
 
+WARP_SUPPORTED_COMBINATIONS = {
+    "gfx90a": [
+        [1, 4, 1], 
+        [2, 2, 1], 
+        [4, 1, 1],
+    ],
+    "gfx942": [
+        [1, 4, 1], 
+        [2, 2, 1], 
+        [4, 1, 1],
+    ],
+    "gfx950": [
+        [1, 4, 1], 
+        [2, 2, 1], 
+        [4, 1, 1],
+    ],
+    "gfx1201": [
+        [2, 4, 1], 
+        [1, 8, 1], 
+        [8, 1, 1], 
+        [4, 2, 1],
+    ],    
+}
+
+# [TODO] Handle this while moving code to commons
 # Supported warp tile combinations for different GPU architectures and data types
 WARP_TILE_SUPPORTED_COMBINATIONS = {
     "gfx90a": {
@@ -107,32 +132,7 @@ WARP_TILE_SUPPORTED_COMBINATIONS = {
         "fp16_fp16_fp16": [
             [16, 16, 16],
         ],
-    },    
-}
-
-# Supported warp tile combinations for different GPU architectures and data types
-WARP_SUPPORTED_COMBINATIONS = {
-    "gfx90a": [
-        [1, 4, 1], 
-        [2, 2, 1], 
-        [4, 1, 1],
-    ],
-    "gfx942": [
-        [1, 4, 1], 
-        [2, 2, 1], 
-        [4, 1, 1],
-    ],
-    "gfx950": [
-        [1, 4, 1], 
-        [2, 2, 1], 
-        [4, 1, 1],
-    ],
-    "gfx1201": [
-        [2, 4, 1], 
-        [1, 8, 1], 
-        [8, 1, 1], 
-        [4, 2, 1],
-    ],    
+    },  
 }
 
 # Unsupported trait combinations
@@ -394,3 +394,35 @@ def is_tile_config_valid(
         return False
 
     return True
+
+
+# [TODO] Handle this while moving code to commons Add more datatype to this function if needed
+def get_dtype_string(datatype: str) -> str:
+    """Get C++ type string for datatype"""
+    dtype_map = {
+        "fp16": "ck_tile::fp16_t",
+        "fp8": "ck_tile::fp8_t",
+        "bf8": "ck_tile::bf8_t",
+        "bf16": "ck_tile::bf16_t",
+        "fp32": "float",
+        "fp64": "double",
+    }
+    return dtype_map.get(datatype, "float")
+
+
+LAYOUT_MAP = {
+    "r": "ck_tile::tensor_layout::gemm::RowMajor",
+    "c": "ck_tile::tensor_layout::gemm::ColumnMajor",
+}
+
+
+def get_abc_layouts(layout_code: str) -> Tuple[str, str, str]:
+    """
+    Return (ALayout, BLayout, CLayout) from a 3-letter code like 'rcr', 'ccr', 'crr', 'rrr'.
+    """
+    code = str(layout_code).strip().lower()
+
+    a_layout = LAYOUT_MAP[code[0]]
+    b_layout = LAYOUT_MAP[code[1]]
+    c_layout = LAYOUT_MAP[code[2]]
+    return a_layout, b_layout, c_layout

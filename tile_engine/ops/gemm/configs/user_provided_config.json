@@ -1,31 +1,28 @@
 {
-  "problem": {
-  },
   "tile_config": {
     "tile_m": {
       "values": [
-        128,
-        256
+        64
       ]
     },
     "tile_n": {
       "values": [
-        128
+        64
       ]
     },
     "tile_k": {
       "values": [
-        128
+        64
       ]
     },
     "warp_m": {
       "values": [
-        4
+        1
       ]
     },
     "warp_n": {
       "values": [
-        1
+        4
       ]
     },
     "warp_k": {
@@ -35,17 +32,17 @@
     },
     "warp_tile_m": {
       "values": [
-        16, 32
+        16
       ]
     },
     "warp_tile_n": {
       "values": [
-        16, 32
+        16
       ]
     },
     "warp_tile_k": {
       "values": [
-        16, 32
+        16
       ]
     }
   },
@@ -89,5 +86,6 @@
             true
         ]
     }
-  }
+  },
+  "k_block_per_cu": 1
 }

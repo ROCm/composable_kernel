@@ -828,7 +828,7 @@ def main():
 
         print(f"Generated {header_file}")
 
-    elif args.gen_individual:
+    elif args.gen_all_individual:
         # Generate all individual kernel files
         builder.run(args.num_workers)
         pass
