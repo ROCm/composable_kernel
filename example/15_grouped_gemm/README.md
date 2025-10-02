@@ -58,13 +58,6 @@ include/ck/tensor_operation/gpu/grid/
 
 - **DeviceGroupedGemmXdl** (in `device_grouped_gemm_xdl.hpp`):  
   Device API for grouped GEMM.
-  ```cpp
-  template <typename ALayout, typename BLayout, typename CLayout,
-            typename ADataType, typename BDataType, typename CDataType,
-            typename AElementwiseOperation, typename BElementwiseOperation,
-            typename CElementwiseOperation, typename GemmSpecialization>
-  struct DeviceGroupedGemmXdl : public BaseOperator
-  ```
 - **gridwise_grouped_gemm_xdl** (in `gridwise_grouped_gemm_xdl.hpp`):  
   Implements the tiled/blocking grouped GEMM kernel.
 

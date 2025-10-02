@@ -72,13 +72,6 @@ include/ck/tensor_operation/gpu/block/
 
 - **DeviceConvNdFwd** (in `device_convnd_fwd.hpp`):  
   Device API for N-dimensional convolution.
-  ```cpp
-  template <typename InLayout, typename WeiLayout, typename OutLayout,
-            typename InDataType, typename WeiDataType, typename OutDataType,
-            typename InElementwiseOperation, typename WeiElementwiseOperation,
-            typename OutElementwiseOperation, typename ConvSpecialization>
-  struct DeviceConvNdFwd : public BaseOperator
-  ```
 - **gridwise_convnd_fwd_xdl** (in `gridwise_convnd_fwd_xdl.hpp`):  
   Implements the tiled/blocking convolution kernel.
 - **blockwise_convnd_fwd_xdl** (in `blockwise_convnd_fwd_xdl.hpp`):  

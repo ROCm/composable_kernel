@@ -205,13 +205,6 @@ library/reference_tensor_operation/cpu/
 
 - **DeviceGemmXdl** (in `device_gemm.hpp`):  
   Main device API for launching GEMM kernels.  
-  ```cpp
-  template <typename ALayout, typename BLayout, typename CLayout,
-            typename ADataType, typename BDataType, typename CDataType,
-            typename AElementwiseOperation, typename BElementwiseOperation,
-            typename CElementwiseOperation, typename GemmSpecialization>
-  struct DeviceGemmXdl : public BaseOperator
-  ```
 - **GridwiseGemmXdl** (in `gridwise_gemm_xdl.hpp`):  
   Implements the tiled/blocking GEMM kernel for the GPU grid.
 - **BlockwiseGemmXdl** (in `blockwise_gemm_xdl.hpp`):  

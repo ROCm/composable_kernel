@@ -67,12 +67,6 @@ include/ck/tensor_operation/gpu/block/
 
 - **DeviceSoftmax** (in `device_softmax.hpp`):  
   Device API for softmax.
-  ```cpp
-  template <typename InDataType, typename OutDataType, typename AccDataType,
-            typename ReduceOp, typename InElementwiseOperation,
-            typename AccElementwiseOperation, typename OutElementwiseOperation>
-  struct DeviceSoftmax : public BaseOperator
-  ```
 - **gridwise_softmax** (in `gridwise_softmax.hpp`):  
   Implements the tiled/blocking softmax kernel.
 - **blockwise_softmax** (in `blockwise_softmax.hpp`):  

@@ -133,12 +133,6 @@ include/ck/tensor_operation/gpu/grid/
 
 - **DeviceBatchnormFwd** (in `device_batchnorm_fwd.hpp`):  
   Device API for batch normalization.
-  ```cpp
-  template <typename XDataType, typename GammaBetaDataType, typename YDataType,
-            typename MeanVarDataType, typename XElementwiseOperation,
-            typename YElementwiseOperation>
-  struct DeviceBatchnormFwd : public BaseOperator
-  ```
 - **gridwise_batchnorm_fwd** (in `gridwise_batchnorm_fwd.hpp`):  
   Implements the tiled/blocking batchnorm kernel.
 

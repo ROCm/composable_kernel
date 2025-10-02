@@ -50,11 +50,6 @@ include/ck/tensor_operation/gpu/grid/
 
 - **DevicePermute** (in `device_permute.hpp`):  
   Device API for tensor permutation.
-  ```cpp
-  template <typename InDataType, typename OutDataType, ck::index_t NDimSpatial,
-            typename InElementwiseOperation, typename OutElementwiseOperation>
-  struct DevicePermute : public BaseOperator
-  ```
 - **gridwise_permute** (in `gridwise_permute.hpp`):  
   Implements the tiled/blocking permutation kernel.
 

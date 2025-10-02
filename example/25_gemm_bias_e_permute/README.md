@@ -50,12 +50,6 @@ include/ck/tensor_operation/gpu/grid/
 
 - **DeviceGemmBiasEPermute** (in `device_gemm_bias_e_permute.hpp`):  
   Device API for GEMM fused with bias, elementwise, and permutation.
-  ```cpp
-  template <typename ALayout, typename BLayout, typename CLayout,
-            typename ADataType, typename BDataType, typename CDataType,
-            typename BiasDataType, typename ElementwiseOp, typename PermuteOp>
-  struct DeviceGemmBiasEPermute : public BaseOperator
-  ```
 - **gridwise_gemm_bias_e_permute** (in `gridwise_gemm_bias_e_permute.hpp`):  
   Implements the tiled/blocking GEMM kernel with fused epilogue and permutation.
 

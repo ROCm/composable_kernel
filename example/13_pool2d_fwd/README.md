@@ -98,12 +98,6 @@ include/ck/tensor_operation/gpu/block/
 
 - **DevicePoolFwd** (in `device_pool_fwd.hpp`):  
   Device API for pooling.
-  ```cpp
-  template <typename InDataType, typename OutDataType, typename IndexDataType,
-            ck::index_t NDimSpatial, typename ReduceOperation,
-            typename InElementwiseOperation, typename OutElementwiseOperation>
-  struct DevicePoolFwd : public BaseOperator
-  ```
 - **gridwise_pool_fwd** (in `gridwise_pool_fwd.hpp`):  
   Implements the tiled/blocking pooling kernel.
 - **blockwise_pool** (in `blockwise_pool.hpp`):  

@@ -50,14 +50,6 @@ include/ck/tensor_operation/gpu/grid/
 
 - **DeviceGemmMultiDMultiReduces** (in `device_gemm_multi_d_multi_reduces.hpp`):  
   Device API for GEMM with multiple outputs and reductions.
-  ```cpp
-  template <typename ALayout, typename BLayout, typename DsLayout, typename ELayout,
-            typename ADataType, typename BDataType, typename DsDataType,
-            typename EDataType, typename ReduceOpTypes,
-            typename AElementwiseOperation, typename BElementwiseOperation,
-            typename CDEElementwiseOperation>
-  struct DeviceGemmMultiDMultiReduces : public BaseOperator
-  ```
 - **gridwise_gemm_multi_d_multi_reduces** (in `gridwise_gemm_multi_d_multi_reduces.hpp`):  
   Implements the tiled/blocking GEMM kernel with multi-output/reduce epilogue.
 

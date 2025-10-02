@@ -51,13 +51,6 @@ include/ck/tensor_operation/gpu/grid/
 
 - **DeviceBatchedGemmXdl** (in `device_batched_gemm_xdl.hpp`):  
   Device API for batched GEMM.
-  ```cpp
-  template <typename ALayout, typename BLayout, typename CLayout,
-            typename ADataType, typename BDataType, typename CDataType,
-            typename AElementwiseOperation, typename BElementwiseOperation,
-            typename CElementwiseOperation, typename GemmSpecialization>
-  struct DeviceBatchedGemmXdl : public BaseOperator
-  ```
 - **gridwise_batched_gemm_xdl** (in `gridwise_batched_gemm_xdl.hpp`):  
   Implements the tiled/blocking batched GEMM kernel.
 

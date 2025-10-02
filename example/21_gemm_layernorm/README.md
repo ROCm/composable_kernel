@@ -51,13 +51,6 @@ include/ck/tensor_operation/gpu/grid/
 
 - **DeviceGemmLayerNorm** (in `device_gemm_layernorm.hpp`):  
   Device API for GEMM fused with layer normalization.
-  ```cpp
-  template <typename ALayout, typename BLayout, typename DsLayout, typename ELayout,
-            typename ADataType, typename BDataType, typename DsDataType,
-            typename EDataType, typename AElementwiseOperation,
-            typename BElementwiseOperation, typename CDEElementwiseOperation>
-  struct DeviceGemmLayerNorm : public BaseOperator
-  ```
 - **gridwise_gemm_layernorm** (in `gridwise_gemm_layernorm.hpp`):  
   Implements the tiled/blocking GEMM kernel with layer normalization epilogue.
 

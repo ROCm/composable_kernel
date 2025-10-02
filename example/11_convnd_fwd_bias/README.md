@@ -51,14 +51,6 @@ include/ck/tensor_operation/gpu/grid/
 
 - **DeviceConvNdFwdBias** (in `device_convnd_fwd_bias.hpp`):  
   Device API for N-dimensional convolution with bias.
-  ```cpp
-  template <typename InLayout, typename WeiLayout, typename OutLayout,
-            typename InDataType, typename WeiDataType, typename OutDataType,
-            typename BiasDataType,
-            typename InElementwiseOperation, typename WeiElementwiseOperation,
-            typename OutElementwiseOperation, typename ConvSpecialization>
-  struct DeviceConvNdFwdBias : public BaseOperator
-  ```
 - **gridwise_convnd_fwd_bias** (in `gridwise_convnd_fwd_bias.hpp`):  
   Implements the tiled/blocking convolution kernel with bias epilogue.
 

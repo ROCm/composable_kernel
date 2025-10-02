@@ -53,12 +53,6 @@ include/ck/tensor_operation/gpu/grid/
 
 - **DeviceLayernormFwd** (in `device_layernorm_fwd.hpp`):  
   Device API for layer normalization.
-  ```cpp
-  template <typename XDataType, typename GammaBetaDataType, typename YDataType,
-            typename MeanVarDataType, typename XElementwiseOperation,
-            typename YElementwiseOperation>
-  struct DeviceLayernormFwd : public BaseOperator
-  ```
 - **gridwise_layernorm_fwd** (in `gridwise_layernorm_fwd.hpp`):  
   Implements the tiled/blocking layernorm kernel.
 
