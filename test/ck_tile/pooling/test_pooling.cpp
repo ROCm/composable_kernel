@@ -198,58 +198,54 @@ TYPED_TEST_SUITE(TestCkTilePooling, TestTypes);
 
 TYPED_TEST(TestCkTilePooling, Pool3D_2x2x2)
 {
-    typename TestFixture::Config3D config = {
-        1,  // N - batch size
-        4,  // D - depth dimension
-        4,  // H - height dimension  
-        4,  // W - width dimension
-        32, // C - channel dimension
-        2,  // Z - pooling window depth
-        2,  // Y - pooling window height
-        2,  // X - pooling window width
-        2,  // Sz - window stride depth
-        2,  // Sy - window stride height
-        2,  // Sx - window stride width
-        1,  // Dz - window dilation depth
-        1,  // Dy - window dilation height
-        1,  // Dx - window dilation width
-        0,  // LeftPz - left padding depth
-        0,  // LeftPy - left padding height
-        0,  // LeftPx - left padding width
-        0,  // RightPz - right padding depth
-        0,  // RightPy - right padding height
-        0,  // RightPx - right padding width
-        "2x2x2 pooling"
-    };
-    bool pass = this->RunPool3D(config);
+    typename TestFixture::Config3D config = {1,  // N - batch size
+                                             4,  // D - depth dimension
+                                             4,  // H - height dimension
+                                             4,  // W - width dimension
+                                             32, // C - channel dimension
+                                             2,  // Z - pooling window depth
+                                             2,  // Y - pooling window height
+                                             2,  // X - pooling window width
+                                             2,  // Sz - window stride depth
+                                             2,  // Sy - window stride height
+                                             2,  // Sx - window stride width
+                                             1,  // Dz - window dilation depth
+                                             1,  // Dy - window dilation height
+                                             1,  // Dx - window dilation width
+                                             0,  // LeftPz - left padding depth
+                                             0,  // LeftPy - left padding height
+                                             0,  // LeftPx - left padding width
+                                             0,  // RightPz - right padding depth
+                                             0,  // RightPy - right padding height
+                                             0,  // RightPx - right padding width
+                                             "2x2x2 pooling"};
+    bool pass                             = this->RunPool3D(config);
     EXPECT_TRUE(pass);
 }
 
 TYPED_TEST(TestCkTilePooling, Pool3D_3x3x3)
 {
-    typename TestFixture::Config3D config = {
-        2,   // N - batch size
-        16,  // D - depth dimension
-        16,  // H - height dimension
-        16,  // W - width dimension
-        128, // C - channel dimension
-        3,   // Z - pooling window depth
-        3,   // Y - pooling window height
-        3,   // X - pooling window width
-        2,   // Sz - window stride depth
-        2,   // Sy - window stride height
-        2,   // Sx - window stride width
-        1,   // Dz - window dilation depth
-        1,   // Dy - window dilation height
-        1,   // Dx - window dilation width
-        1,   // LeftPz - left padding depth
-        1,   // LeftPy - left padding height
-        1,   // LeftPx - left padding width
-        1,   // RightPz - right padding depth
-        1,   // RightPy - right padding height
-        1,   // RightPx - right padding width
-        "3x3x3 pooling"
-    };
-    bool pass = this->RunPool3D(config);
+    typename TestFixture::Config3D config = {2,   // N - batch size
+                                             16,  // D - depth dimension
+                                             16,  // H - height dimension
+                                             16,  // W - width dimension
+                                             128, // C - channel dimension
+                                             3,   // Z - pooling window depth
+                                             3,   // Y - pooling window height
+                                             3,   // X - pooling window width
+                                             2,   // Sz - window stride depth
+                                             2,   // Sy - window stride height
+                                             2,   // Sx - window stride width
+                                             1,   // Dz - window dilation depth
+                                             1,   // Dy - window dilation height
+                                             1,   // Dx - window dilation width
+                                             1,   // LeftPz - left padding depth
+                                             1,   // LeftPy - left padding height
+                                             1,   // LeftPx - left padding width
+                                             1,   // RightPz - right padding depth
+                                             1,   // RightPy - right padding height
+                                             1,   // RightPx - right padding width
+                                             "3x3x3 pooling"};
+    bool pass                             = this->RunPool3D(config);
     EXPECT_TRUE(pass);
 }
