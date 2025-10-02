@@ -128,23 +128,14 @@ struct Pool
         const index_t MPad = integer_least_multiple(MRaw, S::Block_M) - MRaw;
         const index_t KPad = integer_least_multiple(KRaw, S::Block_N) - KRaw;
 
-        auto in_desc = make_naive_tensor_descriptor(kargs.input_shape, kargs.input_strides);
-
         auto reduce_op = typename Problem::ReduceOp{};
 
-        const InDataType in_identity =
-            type_convert<InDataType>(reduce_op.template GetIdentityValue<ComputeDataType>());
+        // Create input descriptor with all transformations
+        auto in_desc = make_naive_tensor_descriptor(kargs.input_shape, kargs.input_strides);
 
-        auto in_buffer_view = make_buffer_view<address_space_enum::global>(
-            static_cast<const InDataType*>(kargs.input_ptr),
-            in_desc.get_element_space_size(),
-            in_identity);
-        const auto in_tensor =
-            tensor_view<decltype(in_buffer_view), decltype(in_desc)>{in_buffer_view, in_desc};
-
-        // Apply spatial padding to input tensor
-        const auto padded_in_tensor = transform_tensor_view(
-            in_tensor,
+        // Apply spatial padding to input descriptor
+        const auto padded_in_desc = transform_tensor_descriptor(
+            in_desc,
             make_tuple(make_pass_through_transform(N),
                        make_pad_transform(H, InLeftPadH, InRightPadH),
                        make_pad_transform(W, InLeftPadW, InRightPadW),
@@ -152,9 +143,9 @@ struct Pool
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}));
 
-        // Create sliding windows by embedding pooling windows into tensor
-        const auto embed_in_tensor = transform_tensor_view(
-            padded_in_tensor,
+        // Create sliding windows by embedding pooling windows into descriptor
+        const auto embed_in_desc = transform_tensor_descriptor(
+            padded_in_desc,
             make_tuple(
                 make_pass_through_transform(N),
                 make_embed_transform(make_tuple(Y, Ho), make_tuple(WindowDilationH, WindowStrideH)),
@@ -164,41 +155,55 @@ struct Pool
             make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3, 4>{}, sequence<5>{}));
 
         // Reshape into 2D matrix: output positions (M) x pooling window elements (K)
-        const auto merged_embed_in_tensor =
-            transform_tensor_view(embed_in_tensor,
-                                  make_tuple(make_merge_transform(make_tuple(N, Ho, Wo, C)),
-                                             make_merge_transform(make_tuple(Y, X))),
-                                  make_tuple(sequence<0, 2, 4, 5>{}, sequence<1, 3>{}),
-                                  make_tuple(sequence<0>{}, sequence<1>{}));
+        const auto merged_embed_in_desc =
+            transform_tensor_descriptor(embed_in_desc,
+                                        make_tuple(make_merge_transform(make_tuple(N, Ho, Wo, C)),
+                                                   make_merge_transform(make_tuple(Y, X))),
+                                        make_tuple(sequence<0, 2, 4, 5>{}, sequence<1, 3>{}),
+                                        make_tuple(sequence<0>{}, sequence<1>{}));
 
-        const auto in_tensor_padded = transform_tensor_view(
-            merged_embed_in_tensor,
+        const auto in_desc_padded = transform_tensor_descriptor(
+            merged_embed_in_desc,
             make_tuple(make_right_pad_transform(MRaw, MPad), make_right_pad_transform(KRaw, KPad)),
             make_tuple(sequence<0>{}, sequence<1>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
-        // Output tensor (N,Ho,Wo,C) -> merge -> M (reuse same M as input kept dims)
+        // Create output descriptor with transformations
+        auto out_desc = make_naive_tensor_descriptor(kargs.output_shape, kargs.output_strides);
+
+        const auto merged_out_desc = transform_tensor_descriptor(
+            out_desc,
+            make_tuple(make_merge_transform(make_tuple(No, Ho, Wo, Co))),
+            make_tuple(sequence<0, 1, 2, 3>{}),
+            make_tuple(sequence<0>{}));
+
+        const auto out_desc_padded =
+            transform_tensor_descriptor(merged_out_desc,
+                                        make_tuple(make_right_pad_transform(MRaw, MPad)),
+                                        make_tuple(sequence<0>{}),
+                                        make_tuple(sequence<0>{}));
+
+        // Now create buffer views and tensor views with the fully transformed descriptors
+        const InDataType in_identity =
+            type_convert<InDataType>(reduce_op.template GetIdentityValue<ComputeDataType>());
         const OutDataType out_identity =
             type_convert<OutDataType>(reduce_op.template GetIdentityValue<ComputeDataType>());
-        auto out_desc = make_naive_tensor_descriptor(kargs.output_shape, kargs.output_strides);
+
+        auto in_buffer_view = make_buffer_view<address_space_enum::global>(
+            static_cast<const InDataType*>(kargs.input_ptr),
+            in_desc.get_element_space_size(),
+            in_identity);
+        const auto in_tensor_padded =
+            tensor_view<decltype(in_buffer_view), decltype(in_desc_padded)>{in_buffer_view,
+                                                                            in_desc_padded};
+
         auto out_buffer_view = make_buffer_view<address_space_enum::global>(
             static_cast<OutDataType*>(kargs.output_ptr),
             out_desc.get_element_space_size(),
             out_identity);
-        const auto out_tensor =
-            tensor_view<decltype(out_buffer_view), decltype(out_desc)>{out_buffer_view, out_desc};
-
-        const auto merged_out_tensor =
-            transform_tensor_view(out_tensor,
-                                  make_tuple(make_merge_transform(make_tuple(No, Ho, Wo, Co))),
-                                  make_tuple(sequence<0, 1, 2, 3>{}),
-                                  make_tuple(sequence<0>{}));
-
         const auto out_tensor_padded =
-            transform_tensor_view(merged_out_tensor,
-                                  make_tuple(make_right_pad_transform(MRaw, MPad)),
-                                  make_tuple(sequence<0>{}),
-                                  make_tuple(sequence<0>{}));
+            tensor_view<decltype(out_buffer_view), decltype(out_desc_padded)>{out_buffer_view,
+                                                                              out_desc_padded};
 
         return make_tuple(in_tensor_padded, out_tensor_padded);
     }
@@ -250,23 +255,14 @@ struct Pool
         const index_t MPad = integer_least_multiple(MRaw, S::Block_M) - MRaw;
         const index_t KPad = integer_least_multiple(KRaw, S::Block_N) - KRaw;
 
-        auto in_desc = make_naive_tensor_descriptor(kargs.input_shape, kargs.input_strides);
-
         auto reduce_op = typename Problem::ReduceOp{};
 
-        const InDataType in_identity =
-            type_convert<InDataType>(reduce_op.template GetIdentityValue<ComputeDataType>());
+        // Create input descriptor with all transformations
+        auto in_desc = make_naive_tensor_descriptor(kargs.input_shape, kargs.input_strides);
 
-        auto in_buffer_view = make_buffer_view<address_space_enum::global>(
-            static_cast<const InDataType*>(kargs.input_ptr),
-            in_desc.get_element_space_size(),
-            in_identity);
-        const auto in_tensor =
-            tensor_view<decltype(in_buffer_view), decltype(in_desc)>{in_buffer_view, in_desc};
-
-        // Apply spatial padding to input tensor (all 3D dimensions)
-        const auto padded_in_tensor = transform_tensor_view(
-            in_tensor,
+        // Apply spatial padding to input descriptor (all 3D dimensions)
+        const auto padded_in_desc = transform_tensor_descriptor(
+            in_desc,
             make_tuple(make_pass_through_transform(N),
                        make_pad_transform(D, InLeftPadD, InRightPadD),
                        make_pad_transform(H, InLeftPadH, InRightPadH),
@@ -275,9 +271,9 @@ struct Pool
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}, sequence<4>{}),
             make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}, sequence<4>{}));
 
-        // Create 3D sliding windows by embedding pooling windows
-        const auto embed_in_tensor = transform_tensor_view(
-            padded_in_tensor,
+        // Create 3D sliding windows by embedding pooling windows into descriptor
+        const auto embed_in_desc = transform_tensor_descriptor(
+            padded_in_desc,
             make_tuple(
                 make_pass_through_transform(N),
                 make_embed_transform(make_tuple(Z, Do), make_tuple(WindowDilationD, WindowStrideD)),
@@ -292,41 +288,55 @@ struct Pool
                        sequence<7>{}));
 
         // Reshape into 2D matrix: output positions (M) x pooling window elements (K)
-        const auto merged_embed_in_tensor =
-            transform_tensor_view(embed_in_tensor,
-                                  make_tuple(make_merge_transform(make_tuple(N, Do, Ho, Wo, C)),
-                                             make_merge_transform(make_tuple(Z, Y, X))),
-                                  make_tuple(sequence<0, 2, 4, 6, 7>{}, sequence<1, 3, 5>{}),
-                                  make_tuple(sequence<0>{}, sequence<1>{}));
+        const auto merged_embed_in_desc = transform_tensor_descriptor(
+            embed_in_desc,
+            make_tuple(make_merge_transform(make_tuple(N, Do, Ho, Wo, C)),
+                       make_merge_transform(make_tuple(Z, Y, X))),
+            make_tuple(sequence<0, 2, 4, 6, 7>{}, sequence<1, 3, 5>{}),
+            make_tuple(sequence<0>{}, sequence<1>{}));
 
-        const auto in_tensor_padded = transform_tensor_view(
-            merged_embed_in_tensor,
+        const auto in_desc_padded = transform_tensor_descriptor(
+            merged_embed_in_desc,
             make_tuple(make_right_pad_transform(MRaw, MPad), make_right_pad_transform(KRaw, KPad)),
             make_tuple(sequence<0>{}, sequence<1>{}),
             make_tuple(sequence<0>{}, sequence<1>{}));
 
-        // Setup output tensor with same flattening as input
+        // Create output descriptor with transformations
+        auto out_desc = make_naive_tensor_descriptor(kargs.output_shape, kargs.output_strides);
+
+        const auto merged_out_desc = transform_tensor_descriptor(
+            out_desc,
+            make_tuple(make_merge_transform(make_tuple(No, Do, Ho, Wo, Co))),
+            make_tuple(sequence<0, 1, 2, 3, 4>{}),
+            make_tuple(sequence<0>{}));
+
+        const auto out_desc_padded =
+            transform_tensor_descriptor(merged_out_desc,
+                                        make_tuple(make_right_pad_transform(MRaw, MPad)),
+                                        make_tuple(sequence<0>{}),
+                                        make_tuple(sequence<0>{}));
+
+        // Now create buffer views and tensor views with the fully transformed descriptors
+        const InDataType in_identity =
+            type_convert<InDataType>(reduce_op.template GetIdentityValue<ComputeDataType>());
         const OutDataType out_identity =
             type_convert<OutDataType>(reduce_op.template GetIdentityValue<ComputeDataType>());
-        auto out_desc = make_naive_tensor_descriptor(kargs.output_shape, kargs.output_strides);
+
+        auto in_buffer_view = make_buffer_view<address_space_enum::global>(
+            static_cast<const InDataType*>(kargs.input_ptr),
+            in_desc.get_element_space_size(),
+            in_identity);
+        const auto in_tensor_padded =
+            tensor_view<decltype(in_buffer_view), decltype(in_desc_padded)>{in_buffer_view,
+                                                                            in_desc_padded};
+
         auto out_buffer_view = make_buffer_view<address_space_enum::global>(
             static_cast<OutDataType*>(kargs.output_ptr),
             out_desc.get_element_space_size(),
             out_identity);
-        const auto out_tensor =
-            tensor_view<decltype(out_buffer_view), decltype(out_desc)>{out_buffer_view, out_desc};
-
-        const auto merged_out_tensor =
-            transform_tensor_view(out_tensor,
-                                  make_tuple(make_merge_transform(make_tuple(No, Do, Ho, Wo, Co))),
-                                  make_tuple(sequence<0, 1, 2, 3, 4>{}),
-                                  make_tuple(sequence<0>{}));
-
         const auto out_tensor_padded =
-            transform_tensor_view(merged_out_tensor,
-                                  make_tuple(make_right_pad_transform(MRaw, MPad)),
-                                  make_tuple(sequence<0>{}),
-                                  make_tuple(sequence<0>{}));
+            tensor_view<decltype(out_buffer_view), decltype(out_desc_padded)>{out_buffer_view,
+                                                                              out_desc_padded};
 
         return make_tuple(in_tensor_padded, out_tensor_padded);
     }
