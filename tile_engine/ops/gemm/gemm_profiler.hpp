@@ -9,7 +9,7 @@
 
 #include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "benchmark_gemm.hpp"
+#include "gemm_benchmark.hpp"
 
 class GemmProfiler
 {
