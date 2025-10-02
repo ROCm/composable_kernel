@@ -126,7 +126,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using Kernel  = ck_tile::Pool<Problem>;
 
     constexpr ck_tile::index_t kBlockPerCu = 1;
-    constexpr ck_tile::index_t kBlockSize  = Kernel::kBlockSize;
+    const ck_tile::index_t kBlockSize      = Kernel::BlockSize();
 
     // M dimension = merged (N,Do,Ho,Wo,C)
     const ck_tile::index_t M = N * Do * Ho * Wo * C;

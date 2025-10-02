@@ -106,7 +106,7 @@ class TestCkTilePooling : public ::testing::Test
         using Kernel  = ck_tile::Pool<Problem>;
 
         constexpr ck_tile::index_t kBlockPerCu = 1;
-        constexpr ck_tile::index_t kBlockSize  = Kernel::kBlockSize;
+        const ck_tile::index_t kBlockSize      = Kernel::BlockSize();
 
         const ck_tile::index_t M = config.N * Do * Ho * Wo * config.C;
         const ck_tile::index_t kGridSize =

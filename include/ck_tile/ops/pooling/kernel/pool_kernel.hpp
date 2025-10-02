@@ -83,81 +83,9 @@ struct Pool
 
     static constexpr index_t kBlockSize = Problem::BlockShape::BlockSize;
 
-    public:
-    /// @brief Validates if the given arguments are supported by the pooling kernel.
-    ///
-    /// @param kargs The pooling kernel arguments containing all necessary parameters.
-    ///
-    /// @return true if the arguments are supported, false otherwise.
-    ///
-    /// @note Requirements:
-    ///       - Last dimension (C) must be contiguous (stride = 1) for vectorized access
-    ///       - Window dimensions must be supported (2D or 3D)
-    ///       - All dimension sizes must be consistent between input and output
-    template <typename TensorShape, typename WindowShape>
-    CK_TILE_HOST static bool IsSupportedArgument(PoolKernelArgs<TensorShape, WindowShape> kargs)
+    CK_TILE_HOST static constexpr auto BlockSize()
     {
-        constexpr index_t InputRank  = TensorShape::size();
-        constexpr index_t OutputRank = TensorShape::size(); // Same as input rank
-        constexpr index_t WindowRank = WindowShape::size();
-
-        // Validate window dimensions (only 2D and 3D supported)
-        if constexpr(WindowRank != 2 && WindowRank != 3)
-        {
-            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-            {
-                CK_TILE_ERROR("Only 2D and 3D pooling are supported!");
-            }
-            return false;
-        }
-
-        // Validate that input rank matches expected rank for window dimensions
-        if constexpr((WindowRank == 2 && InputRank != 4) || (WindowRank == 3 && InputRank != 5))
-        {
-            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-            {
-                CK_TILE_ERROR("Input tensor rank doesn't match window dimensions!");
-            }
-            return false;
-        }
-
-        // Check that channel dimension (last dimension) is contiguous for both input and output
-        if(kargs.input_strides.at(number<InputRank - 1>{}) != 1)
-        {
-            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-            {
-                CK_TILE_ERROR("Input tensor's channel dimension must have stride 1!");
-            }
-            return false;
-        }
-
-        if(kargs.output_strides.at(number<OutputRank - 1>{}) != 1)
-        {
-            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-            {
-                CK_TILE_ERROR("Output tensor's channel dimension must have stride 1!");
-            }
-            return false;
-        }
-
-        return true;
-    }
-    /// @brief Create kernel arguments from host arguments
-    template <typename TensorShape, typename WindowShape>
-    CK_TILE_HOST static constexpr auto
-    MakeKernelArgs(PoolHostArgs<TensorShape, WindowShape>& host_args)
-    {
-        return PoolKernelArgs<TensorShape, WindowShape>{host_args.input_ptr,
-                                                        host_args.output_ptr,
-                                                        host_args.input_shape,
-                                                        host_args.output_shape,
-                                                        host_args.input_strides,
-                                                        host_args.output_strides,
-                                                        host_args.window_lengths,
-                                                        host_args.window_strides,
-                                                        host_args.window_dilations,
-                                                        host_args.input_left_pads,
-                                                        host_args.input_right_pads};
+        return is_wave32() ? kBlockSize / 2 : kBlockSize;
     }
 
     template <typename TensorShape, typename WindowShape>
@@ -403,6 +331,7 @@ struct Pool
         return make_tuple(in_tensor_padded, out_tensor_padded);
     }
 
+    public:
     template <typename TensorShape, typename WindowShape>
     CK_TILE_DEVICE void operator()(PoolKernelArgs<TensorShape, WindowShape> kargs) const
     {
@@ -458,6 +387,82 @@ struct Pool
         block_reduce2d_sync(y_tile, reduce_op);
         block_reduce2d_cross_warp(y_tile, smem, reduce_op);
         store_tile(y_window, cast_tile<OutDataType>(y_tile));
+    }
+
+    /// @brief Validates if the given arguments are supported by the pooling kernel.
+    ///
+    /// @param kargs The pooling kernel arguments containing all necessary parameters.
+    ///
+    /// @return true if the arguments are supported, false otherwise.
+    ///
+    /// @note Requirements:
+    ///       - Last dimension (C) must be contiguous (stride = 1) for vectorized access
+    ///       - Window dimensions must be supported (2D or 3D)
+    ///       - All dimension sizes must be consistent between input and output
+    template <typename TensorShape, typename WindowShape>
+    CK_TILE_HOST static bool IsSupportedArgument(PoolKernelArgs<TensorShape, WindowShape> kargs)
+    {
+        constexpr index_t InputRank  = TensorShape::size();
+        constexpr index_t OutputRank = TensorShape::size(); // Same as input rank
+        constexpr index_t WindowRank = WindowShape::size();
+
+        // Validate window dimensions (only 2D and 3D supported)
+        if constexpr(WindowRank != 2 && WindowRank != 3)
+        {
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR("Only 2D and 3D pooling are supported!");
+            }
+            return false;
+        }
+
+        // Validate that input rank matches expected rank for window dimensions
+        if constexpr((WindowRank == 2 && InputRank != 4) || (WindowRank == 3 && InputRank != 5))
+        {
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR("Input tensor rank doesn't match window dimensions!");
+            }
+            return false;
+        }
+
+        // Check that channel dimension (last dimension) is contiguous for both input and output
+        if(kargs.input_strides.at(number<InputRank - 1>{}) != 1)
+        {
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR("Input tensor's channel dimension must have stride 1!");
+            }
+            return false;
+        }
+
+        if(kargs.output_strides.at(number<OutputRank - 1>{}) != 1)
+        {
+            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+            {
+                CK_TILE_ERROR("Output tensor's channel dimension must have stride 1!");
+            }
+            return false;
+        }
+
+        return true;
+    }
+    /// @brief Create kernel arguments from host arguments
+    template <typename TensorShape, typename WindowShape>
+    CK_TILE_HOST static constexpr auto
+    MakeKernelArgs(PoolHostArgs<TensorShape, WindowShape>& host_args)
+    {
+        return PoolKernelArgs<TensorShape, WindowShape>{host_args.input_ptr,
+                                                        host_args.output_ptr,
+                                                        host_args.input_shape,
+                                                        host_args.output_shape,
+                                                        host_args.input_strides,
+                                                        host_args.output_strides,
+                                                        host_args.window_lengths,
+                                                        host_args.window_strides,
+                                                        host_args.window_dilations,
+                                                        host_args.input_left_pads,
+                                                        host_args.input_right_pads};
     }
 };
 
