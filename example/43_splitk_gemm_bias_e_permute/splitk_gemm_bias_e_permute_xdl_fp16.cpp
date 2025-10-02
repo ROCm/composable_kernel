@@ -22,6 +22,9 @@ using S = ck::Sequence<Is...>;
 using F16 = ck::half_t;
 using F32 = float;
 
+using Row    = ck::tensor_layout::gemm::RowMajor;
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
+
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using Add         = ck::tensor_operation::element_wise::Add;
 
@@ -250,19 +253,24 @@ int main(int argc, char* argv[])
 
     Tensor<ADataType> a_gs_ms_ks(
         std::vector<std::size_t>(a_gs_ms_ks_lengths.begin(), a_gs_ms_ks_lengths.end()),
-        std::vector<std::size_t>(a_gs_ms_ks_strides.begin(), a_gs_ms_ks_strides.end()));
+        std::vector<std::size_t>(a_gs_ms_ks_strides.begin(), a_gs_ms_ks_strides.end()),
+        Row{});
     Tensor<BDataType> b_gs_ns_ks(
         std::vector<std::size_t>(b_gs_ns_ks_lengths.begin(), b_gs_ns_ks_lengths.end()),
-        std::vector<std::size_t>(b_gs_ns_ks_strides.begin(), b_gs_ns_ks_strides.end()));
+        std::vector<std::size_t>(b_gs_ns_ks_strides.begin(), b_gs_ns_ks_strides.end()),
+        Row{});
     Tensor<DDataType> d_gs_ms_ns(
         std::vector<std::size_t>(d_gs_ms_ns_lengths.begin(), d_gs_ms_ns_lengths.end()),
-        std::vector<std::size_t>(d_gs_ms_ns_strides.begin(), d_gs_ms_ns_strides.end()));
+        std::vector<std::size_t>(d_gs_ms_ns_strides.begin(), d_gs_ms_ns_strides.end()),
+        Bypass{});
     Tensor<EDataType> e_gs_ms_ns_host_result(
         std::vector<std::size_t>(e_gs_ms_ns_lengths.begin(), e_gs_ms_ns_lengths.end()),
-        std::vector<std::size_t>(e_gs_ms_ns_strides.begin(), e_gs_ms_ns_strides.end()));
+        std::vector<std::size_t>(e_gs_ms_ns_strides.begin(), e_gs_ms_ns_strides.end()),
+        Bypass{});
     Tensor<EDataType> e_gs_ms_ns_device_result(
         std::vector<std::size_t>(e_gs_ms_ns_lengths.begin(), e_gs_ms_ns_lengths.end()),
-        std::vector<std::size_t>(e_gs_ms_ns_strides.begin(), e_gs_ms_ns_strides.end()));
+        std::vector<std::size_t>(e_gs_ms_ns_strides.begin(), e_gs_ms_ns_strides.end()),
+        Bypass{});
 
     std::cout << "a_gs_ms_ks: " << a_gs_ms_ks.mDesc << std::endl;
     std::cout << "b_gs_ns_ks: " << b_gs_ns_ks.mDesc << std::endl;
@@ -372,7 +380,8 @@ int main(int argc, char* argv[])
     {
         Tensor<CShuffleDataType> c_ms_ns_host_result(
             std::vector<std::size_t>(e_gs_ms_ns_lengths.begin(), e_gs_ms_ns_lengths.end()),
-            std::vector<std::size_t>(e_gs_ms_ns_strides.begin(), e_gs_ms_ns_strides.end()));
+            std::vector<std::size_t>(e_gs_ms_ns_strides.begin(), e_gs_ms_ns_strides.end()),
+            Bypass{});
 
         using ReferenceOpInstance = ReferenceContraction_G2_M2_N2_K1<NumDimG,
                                                                      NumDimM,

@@ -14,7 +14,8 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "include/ck/utility/data_type.hpp"
 #include "profiler/profile_gemm_universal_impl.hpp"
-
+extern ck::index_t param_mask;
+extern ck::index_t instance_index;
 namespace ck {
 namespace test {
 
@@ -49,8 +50,13 @@ class TestGemmUniversal : public testing::Test
              const int StrideB,
              const int StrideC)
     {
-        for(auto kb : k_batches_)
+        for(size_t i = 0; i < k_batches_.size(); i++)
         {
+            if((param_mask & (1 << i)) == 0)
+            {
+                continue;
+            }
+            auto kb = k_batches_[i];
             RunSingle(M, N, K, StrideA, StrideB, StrideC, kb);
         }
     }
@@ -84,7 +90,8 @@ class TestGemmUniversal : public testing::Test
                                                                        StrideC,
                                                                        kbatch,
                                                                        n_warmup,
-                                                                       n_iter);
+                                                                       n_iter,
+                                                                       instance_index);
         EXPECT_TRUE(pass);
     }
 };

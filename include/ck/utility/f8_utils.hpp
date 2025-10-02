@@ -273,8 +273,8 @@ template <typename X, typename Y, bool negative_zero_nan, bool clip, bool stoch>
 __host__ __device__ Y cast_to_f8(X x, uint32_t rng)
 {
     // check datatypes
-    constexpr bool is_half  = std::is_same<X, half_t>::value;
-    constexpr bool is_float = std::is_same<X, float>::value;
+    constexpr bool is_half  = is_same<X, half_t>::value;
+    constexpr bool is_float = is_same<X, float>::value;
     static_assert(is_half || is_float, "Only half and float can be casted.");
 
     return run_cast_to_f8<X, Y, negative_zero_nan, clip, stoch>(x, rng);
@@ -284,8 +284,8 @@ template <typename X, typename Y, bool negative_zero_nan>
 __host__ __device__ Y cast_from_f8(X x)
 {
     // check datatype
-    constexpr bool is_half  = std::is_same<Y, half_t>::value;
-    constexpr bool is_float = std::is_same<Y, float>::value;
+    constexpr bool is_half  = is_same<Y, half_t>::value;
+    constexpr bool is_float = is_same<Y, float>::value;
     static_assert(is_half || is_float, "only half and float are supported.");
 
     return run_cast_from_f8<X, Y, negative_zero_nan>(x);

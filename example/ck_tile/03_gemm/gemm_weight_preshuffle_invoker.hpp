@@ -109,7 +109,7 @@ struct WeightPreshuffleInvoker
                                                  GemmConfig::NumWaveGroups,
                                                  false,
                                                  1,
-                                                 true>>;
+                                                 GemmConfig::TiledMMAPermuteN>>;
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 
