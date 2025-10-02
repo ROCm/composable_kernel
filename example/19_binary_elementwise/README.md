@@ -30,23 +30,8 @@ The implementation for both cases relies on the efficient **grid-stride loop**, 
 1.  **Grid Partitioning**: The problem is mapped to a 1D grid of threads based on the number of elements in the **output** tensor.
 
 2.  **Grid-Stride Loop**: Each thread iterates through a subset of the output elements. For each output index, it must calculate the corresponding indices into the input tensors A and B.
-    ```
-    for (int out_idx = ...; out_idx < N_out; out_idx += ... )
-    {
-        // Map 1D output index to multi-dimensional coordinates (i, j, k...)
-        Coord out_coord = get_coord(out_idx);
 
-        // Calculate input indices based on broadcasting rules
-        Coord a_coord = get_broadcast_coord(out_coord, shape_A);
-        Coord b_coord = get_broadcast_coord(out_coord, shape_B);
-
-        // Map multi-dimensional input coords back to 1D indices
-        int a_idx = get_idx(a_coord, strides_A);
-        int b_idx = get_idx(b_coord, strides_B);
-
-        C[out_idx] = A[a_idx] op B[b_idx];
-    }
-    ```
+3.  **Broadcasting Logic**:
 -   The core of the broadcasting logic lies in the `get_broadcast_coord` function. If an input tensor's dimension is 1, the coordinate for that dimension is always set to 0, effectively reusing the same element across the broadcast dimension. If the dimension matches the output, the coordinate is passed through.
 -   This strategy ensures that memory accesses to the larger tensor remain coalesced, while accesses to the smaller, broadcasted tensor will naturally involve re-reading the same values, which is efficiently handled by the GPU's cache hierarchy.
 

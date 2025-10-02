@@ -101,13 +101,6 @@ include/ck/tensor_operation/gpu/element/
 
 - **DeviceGemmMultipleD** (in `device_gemm_multiple_d.hpp`):  
   Device API for GEMM with multiple auxiliary tensors and fused epilogues.
-  ```cpp
-  template <typename ALayout, typename BLayout, typename DsLayout, typename ELayout,
-            typename ADataType, typename BDataType, typename DsDataType,
-            typename EDataType, typename AElementwiseOperation,
-            typename BElementwiseOperation, typename CDEElementwiseOperation>
-  struct DeviceGemmMultipleD : public BaseOperator
-  ```
 - **gridwise_gemm_multiple_d** (in `gridwise_gemm_multiple_d.hpp`):  
   Implements the tiled/blocking GEMM kernel with multi-tensor epilogue.
 - **element_wise_operation** (in `element_wise_operation.hpp`):  

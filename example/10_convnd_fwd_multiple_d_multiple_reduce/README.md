@@ -51,14 +51,6 @@ include/ck/tensor_operation/gpu/grid/
 
 - **DeviceConvNdFwdMultipleDMultipleReduce** (in `device_convnd_fwd_multiple_d_multiple_reduce.hpp`):  
   Device API for N-dimensional convolution with multiple outputs and reductions.
-  ```cpp
-  template <typename InLayout, typename WeiLayout, typename OutLayout,
-            typename InDataType, typename WeiDataType, typename OutDataType,
-            typename DDataTypes, typename ReduceOpTypes,
-            typename InElementwiseOperation, typename WeiElementwiseOperation,
-            typename OutElementwiseOperation, typename ConvSpecialization>
-  struct DeviceConvNdFwdMultipleDMultipleReduce : public BaseOperator
-  ```
 - **gridwise_convnd_fwd_multiple_d_multiple_reduce** (in `gridwise_convnd_fwd_multiple_d_multiple_reduce.hpp`):  
   Implements the tiled/blocking convolution kernel with multi-output/reduce epilogue.
 

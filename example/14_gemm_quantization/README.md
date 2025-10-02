@@ -52,14 +52,6 @@ include/ck/tensor_operation/gpu/element/
 
 - **DeviceGemmQuantized** (in `device_gemm_quantized.hpp`):  
   Device API for quantized GEMM.
-  ```cpp
-  template <typename ALayout, typename BLayout, typename CLayout,
-            typename ADataType, typename BDataType, typename CDataType,
-            typename AccDataType, typename QuantizationScheme,
-            typename AElementwiseOperation, typename BElementwiseOperation,
-            typename CElementwiseOperation>
-  struct DeviceGemmQuantized : public BaseOperator
-  ```
 - **gridwise_gemm_quantized** (in `gridwise_gemm_quantized.hpp`):  
   Implements the tiled/blocking quantized GEMM kernel.
 - **quantization_operations** (in `quantization_operations.hpp`):  

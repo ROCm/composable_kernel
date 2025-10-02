@@ -51,11 +51,6 @@ include/ck/tensor_operation/gpu/element/
 
 - **DeviceElementwisePermute** (in `device_elementwise_permute.hpp`):  
   Device API for fused elementwise and permutation.
-  ```cpp
-  template <typename InDataTypes, typename OutDataTypes, typename ElementwiseOperation,
-            ck::index_t NDimSpatial, typename PermutationPattern>
-  struct DeviceElementwisePermute : public BaseOperator
-  ```
 - **gridwise_elementwise_permute** (in `gridwise_elementwise_permute.hpp`):  
   Implements the tiled/blocking elementwise+permute kernel.
 - **element_wise_operation** (in `element_wise_operation.hpp`):  

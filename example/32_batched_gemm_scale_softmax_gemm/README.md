@@ -53,13 +53,6 @@ include/ck/tensor_operation/gpu/grid/
 
 - **DeviceBatchedGemmScaleSoftmaxGemm** (in `device_batched_gemm_scale_softmax_gemm.hpp`):  
   Device API for fused attention.
-  ```cpp
-  template <typename ALayout, typename BLayout, typename B1Layout, typename CLayout,
-            typename ADataType, typename BDataType, typename B1DataType, 
-            typename CDataType, typename AccDataType, typename AElementwiseOperation,
-            typename BElementwiseOperation, typename CDEElementwiseOperation>
-  struct DeviceBatchedGemmScaleSoftmaxGemm : public BaseOperator
-  ```
 - **gridwise_batched_gemm_softmax** (in `gridwise_batched_gemm_softmax.hpp`):  
   Implements the tiled/blocking fused attention kernel.
 - **gridwise_online_softmax** (in `gridwise_online_softmax.hpp`):  

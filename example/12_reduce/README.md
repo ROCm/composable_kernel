@@ -117,12 +117,6 @@ include/ck/tensor_operation/gpu/block/
 
 - **DeviceReduce** (in `device_reduce.hpp`):  
   Device API for reductions.
-  ```cpp
-  template <typename InDataType, typename OutDataType, typename AccDataType,
-            typename ReduceOperation, typename InElementwiseOperation,
-            typename AccElementwiseOperation, typename OutElementwiseOperation>
-  struct DeviceReduce : public BaseOperator
-  ```
 - **gridwise_reduce** (in `gridwise_reduce.hpp`):  
   Implements the tiled/blocking reduction kernel.
 - **blockwise_reduce** (in `blockwise_reduce.hpp`):  

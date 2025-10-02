@@ -53,14 +53,6 @@ include/ck/tensor_operation/gpu/element/
 
 - **DeviceConv2dFwdQuantization** (in `device_conv2d_fwd_quantization.hpp`):  
   Device API for quantized 2D convolution.
-  ```cpp
-  template <typename InLayout, typename WeiLayout, typename OutLayout,
-            typename InDataType, typename WeiDataType, typename OutDataType,
-            typename AccDataType, typename QuantizationScheme,
-            typename InElementwiseOperation, typename WeiElementwiseOperation,
-            typename OutElementwiseOperation, typename ConvSpecialization>
-  struct DeviceConv2dFwdQuantization : public BaseOperator
-  ```
 - **gridwise_conv2d_fwd_quantization** (in `gridwise_conv2d_fwd_quantization.hpp`):  
   Implements the tiled/blocking quantized conv2d kernel.
 - **quantization_operations** (in `quantization_operations.hpp`):  
