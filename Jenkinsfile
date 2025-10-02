@@ -1383,19 +1383,19 @@ pipeline {
                                             -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx90a" \
-                                            -D GEMM_DATATYPE="fp8;fp16" \
+                                            -D GEMM_DATATYPE="fp8;fp16;bf8;bf16" \
                                             -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
-                                            -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8" \
+                                            -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf8;bf16" \
                                             -D GEMM_PRESHUFFLE_LAYOUT="rcr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_all && \
                                            python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" \
                                            --warmup 5 --repeat 5 --verbose --json results.json && \
-                                           ninja -j64 benchmark_gemm_preshuffle_all && \
-                                           python3 ../tile_engine/ops/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" \
-                                           --warmup 5 --repeat 5 --verbose --json results.json && \
+                                        //    ninja -j64 benchmark_gemm_preshuffle_all && \
+                                        //    python3 ../tile_engine/ops/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" \
+                                        //    --warmup 5 --repeat 5 --verbose --json results.json && \
                                            ninja -j64 benchmark_gemm_multi_d_fp16_rrrr && \
                                            ./bin/benchmark_gemm_multi_d_fp16_rrrr && \
                                            ninja -j64 benchmark_gemm_multi_d_fp16_ccrr && \
@@ -1423,19 +1423,19 @@ pipeline {
                                             -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx942" \
-                                            -D GEMM_DATATYPE="fp8;fp16" \
+                                            -D GEMM_DATATYPE="fp8;fp16;bf8;bf16" \
                                             -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
-                                            -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8" \
+                                            -D GEMM_PRESHUFFLE_DATATYPE="fp8;fp16;bf8;bf16" \
                                             -D GEMM_PRESHUFFLE_LAYOUT="rcr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_all && \
                                            python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" \
                                            --warmup 5 --repeat 5 --verbose --json results.json && \
-                                           ninja -j64 benchmark_gemm_preshuffle_all && \
-                                           python3 ../tile_engine/ops/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" \
-                                           --warmup 5 --repeat 5 --verbose --json results.json && \
+                                        //    ninja -j64 benchmark_gemm_preshuffle_all && \
+                                        //    python3 ../tile_engine/ops/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" \
+                                        //    --warmup 5 --repeat 5 --verbose --json results.json && \
                                            ninja -j64 benchmark_gemm_multi_d_fp16_rrrr && \
                                            ./bin/benchmark_gemm_multi_d_fp16_rrrr && \
                                            ninja -j64 benchmark_gemm_multi_d_fp16_ccrr && \
@@ -1463,17 +1463,12 @@ pipeline {
                                             -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx1201" \
-                                            -D GEMM_DATATYPE="fp16" \
+                                            -D GEMM_DATATYPE="fp8;fp16;bf8;bf16" \
                                             -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
-                                            -DGEMM_CONFIG_FILE=gfx120x_config.json \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_all && \
                                            python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" \
-                                           --warmup 5 --repeat 5 --verbose --json results.json && \
-                                           ninja -j64 benchmark_gemm_fp16_rcr && \
-                                           ninja -j64 benchmark_gemm_fp16_rrr && \
-                                           ninja -j64 benchmark_gemm_fp16_crr && \
-                                           ninja -j64 benchmark_gemm_fp16_ccr """
+                                           --warmup 5 --repeat 5 --verbose --json results.json """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
