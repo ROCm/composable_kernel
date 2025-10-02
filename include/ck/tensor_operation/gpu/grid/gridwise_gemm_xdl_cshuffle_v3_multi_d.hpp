@@ -700,7 +700,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         constexpr index_t WaveSize = BlockSize / (MWave * NWave);
 #if defined(__gfx950__)
         // Force use padded layout on gfx950 to reduce bank conflicts
-        constexpr index_t ABlockLdsExtraM = true;
+        constexpr index_t ABlockLdsExtraM = 1;
 #else
         constexpr index_t ABlockLdsExtraM = ABlockLdsExtraMCustom;
 #endif
@@ -849,7 +849,7 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         constexpr index_t WaveSize = BlockSize / (MWave * NWave);
 #if defined(__gfx950__)
         // Force use padded layout on gfx950 to reduce bank conflicts
-        constexpr index_t BBlockLdsExtraN = true;
+        constexpr index_t BBlockLdsExtraN = 1;
 #else
         constexpr index_t BBlockLdsExtraN = BBlockLdsExtraNCustom;
 #endif
