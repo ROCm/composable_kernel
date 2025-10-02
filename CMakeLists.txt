@@ -229,7 +229,7 @@ message(STATUS "Building CK for the following targets: ${SUPPORTED_GPU_TARGETS}"
 # Cache SUPPORTED_GPU_TARGETS for debug
 set(SUPPORTED_GPU_TARGETS "${SUPPORTED_GPU_TARGETS}" CACHE STRING "List of supported GPU targets")
 
-if (SUPPORTED_GPU_TARGETS MATCHES "gfx9")
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
     message(STATUS "Enabling XDL instances")
     add_definitions(-DCK_USE_XDL)
     set(CK_USE_XDL "ON")
