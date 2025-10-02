@@ -166,6 +166,42 @@ struct GroupedConvolutionForwardInvoker
                 const ck_tile::long_index_t x_eff = (filter - 1) * dilation + 1;
 
                 // ═══════════════════════════════════════════════════════════
+                // SAFETY CHECKS: Can we split this dimension safely?
+                // ═══════════════════════════════════════════════════════════
+                // Calculate split boundaries (same formula for all dimensions)
+                const ck_tile::long_index_t right_start = out_left * stride;
+                const ck_tile::long_index_t left_end = (out_left - 1) * stride + x_eff;
+
+                // Check if split is safe:
+                // 1. Output dimension must be > 1 (can't split a single element)
+                // 2. RIGHT piece must start after left padding
+                // 3. LEFT piece must end within input bounds
+                const bool is_possible_to_split =
+                    out_total != 1 &&
+                    right_start > left_pad &&
+                    left_end <= (left_pad + in_total);
+
+                if(!is_possible_to_split) {
+                    if(s.log_level_ > 0) {
+                        std::cout << "[SPLIT " << NDimSpatial << "D] Cannot split safely! Falling back to normal path." << std::endl;
+                        std::cout << "  Reason: out_total=" << out_total
+                                  << ", right_start=" << right_start << " (must be > left_pad=" << left_pad << ")"
+                                  << ", left_end=" << left_end << " (must be <= " << (left_pad + in_total) << ")" << std::endl;
+                    }
+                    // Fall back to normal launch
+                    auto kargs = Kernel::MakeKernelArgs(args);
+                    const dim3 grids = Kernel::GridSize(kargs);
+                    const dim3 blocks = Kernel::BlockSize();
+                    ave_time = ck_tile::launch_kernel(
+                        s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+                    return ave_time;
+                }
+
+                if(s.log_level_ > 0) {
+                    std::cout << "[SPLIT " << NDimSpatial << "D] Safety check passed! Split is safe." << std::endl;
+                }
+
+                // ═══════════════════════════════════════════════════════════
                 // DIMENSION-SPECIFIC: Calculate strides for offset computation
                 // ═══════════════════════════════════════════════════════════
                 ck_tile::long_index_t input_stride, output_stride;
