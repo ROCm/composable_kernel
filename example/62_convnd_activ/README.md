@@ -1,6 +1,6 @@
 # N-Dimensional Convolution with Activation
 
-This example demonstrates an **N-dimensional convolution forward pass fused with an activation function**. This fusion pattern combines the convolution operation with element-wise activation functions in a single kernel, which is extremely common in convolutional neural networks and provides significant performance benefits.
+This example demonstrates an **N-dimensional convolution forward pass fused with an activation function**. This fusion pattern combines the convolution operation with elementwise activation functions in a single kernel, which is extremely common in convolutional neural networks and provides significant performance benefits.
 
 ## Mathematical Formulation
 
@@ -10,7 +10,7 @@ The operation performs an N-dimensional convolution followed immediately by an a
     $C_{temp} = \text{Conv}_{\text{ND}}(\text{In}, \text{W})$
     Where `In` is the input tensor, `W` is the weight tensor, and the convolution can be 1D, 2D, 3D, or higher-dimensional.
 
-2.  **Activation Function**: Apply an element-wise activation function to the convolution result.
+2.  **Activation Function**: Apply an elementwise activation function to the convolution result.
     $\text{Out} = \text{Activation}(C_{temp})$
     Common activation functions include:
     - **ReLU**: $\text{ReLU}(x) = \max(0, x)$

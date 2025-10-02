@@ -1,10 +1,10 @@
 # GEMM with Double Multiply Operations
 
-This example demonstrates a **GEMM followed by two sequential element-wise multiplication operations**. This fusion pattern is useful for implementing layers that require matrix multiplication followed by multiple scaling or masking operations, such as certain attention mechanisms or gated neural network architectures.
+This example demonstrates a **GEMM followed by two sequential elementwise multiplication operations**. This fusion pattern is useful for implementing layers that require matrix multiplication followed by multiple scaling or masking operations, such as certain attention mechanisms or gated neural network architectures.
 
 ## Mathematical Formulation
 
-The operation performs a matrix multiplication followed by two sequential element-wise multiplications.
+The operation performs a matrix multiplication followed by two sequential elementwise multiplications.
 
 1.  **GEMM Stage**: A standard matrix multiplication.
     $C_{temp1} = A \times B$
@@ -25,9 +25,9 @@ The implementation uses a tiled GEMM algorithm with a multi-stage fused epilogue
 
 2.  **Dual-Multiply Epilogue**: Before any data is written to global memory, the following sequence occurs for the tile of data held in registers:
     -   **Load First Multiplicand**: Threads load the corresponding elements of tensor `D`.
-    -   **First Multiplication**: The element-wise multiplication is performed in registers: `result *= D`.
+    -   **First Multiplication**: The elementwise multiplication is performed in registers: `result *= D`.
     -   **Load Second Multiplicand**: Threads load the corresponding elements of tensor `E`.
-    -   **Second Multiplication**: The second element-wise multiplication is performed in registers: `result *= E`.
+    -   **Second Multiplication**: The second elementwise multiplication is performed in registers: `result *= E`.
     -   **Store Final Result**: The final result `F` is written to global memory.
 
 This deep fusion eliminates multiple kernel launches and the memory bandwidth required to write and re-read intermediate tensors.
@@ -101,7 +101,7 @@ The performance benefits of this fusion depend on several factors:
 This pattern can be extended in several ways:
 
 -   **More Multiplications**: Additional sequential multiplications can be added to the epilogue
--   **Mixed Operations**: Combine multiplications with additions or other element-wise operations
+-   **Mixed Operations**: Combine multiplications with additions or other elementwise operations
 -   **Conditional Operations**: Apply multiplications conditionally based on masks or thresholds
 -   **Broadcasting**: Handle different broadcasting patterns for the multiplicand tensors
 

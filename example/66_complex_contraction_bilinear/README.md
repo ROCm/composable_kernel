@@ -20,7 +20,7 @@ Given complex tensors with real and imaginary components:
     $F = \text{BilinearOp}(C_{temp}, D, E, \ldots)$
 
 The bilinear operations can include various combinations such as:
-- $F = C_{temp} \odot D + E$ (element-wise multiply and add)
+- $F = C_{temp} \odot D + E$ (elementwise multiply and add)
 - $F = \alpha \cdot C_{temp} + \beta \cdot (D \odot E)$ (scaled combinations)
 - More complex multi-term bilinear expressions
 

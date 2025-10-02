@@ -1,6 +1,6 @@
 # Fused Batched GEMM-Add-Add-ReLU-GEMM-Add
 
-This example demonstrates an exceptionally deep and complex fusion, chaining two GEMMs with multiple element-wise additions and a ReLU activation. This pattern is designed to fuse a significant portion of a residual block, such as the feed-forward network (FFN) in a Transformer, into a single, highly optimized kernel.
+This example demonstrates an exceptionally deep and complex fusion, chaining two GEMMs with multiple elementwise additions and a ReLU activation. This pattern is designed to fuse a significant portion of a residual block, such as the feed-forward network (FFN) in a Transformer, into a single, highly optimized kernel.
 
 ## Mathematical Formulation
 
@@ -9,10 +9,10 @@ The operation computes a complex chain of operations, batched `B` times. For eac
 1.  **First GEMM (GEMM0)**:
     $C_{temp1[b]} = A_{[b]} \times B_{[b]}$
 
-2.  **First Add (Add0)**: An element-wise addition with tensor `D0`.
+2.  **First Add (Add0)**: An elementwise addition with tensor `D0`.
     $C_{temp2[b]} = C_{temp1[b]} + D0_{[b]}$
 
-3.  **Second Add (Add1)**: Another element-wise addition with tensor `D1`.
+3.  **Second Add (Add1)**: Another elementwise addition with tensor `D1`.
     $C_{temp3[b]} = C_{temp2[b]} + D1_{[b]}$
 
 4.  **Activation (ReLU)**: A Rectified Linear Unit activation is applied.
@@ -21,14 +21,14 @@ The operation computes a complex chain of operations, batched `B` times. For eac
 5.  **Second GEMM (GEMM1)**: The result is fed into a second GEMM.
     $E_{temp[b]} = C_{temp4[b]} \times C_{[b]}$
 
-6.  **Third Add (Add2)**: A final element-wise addition with tensor `D2`.
+6.  **Third Add (Add2)**: A final elementwise addition with tensor `D2`.
     $E_{[b]} = E_{temp[b]} + D2_{[b]}$
 
 The key optimization is that all intermediate tensors ($C_{temp1}$ through $E_{temp}$) are **never written to global memory**. They are produced and consumed entirely within the GPU's on-chip memory (registers and LDS/shared memory).
 
 ## Algorithmic Strategy: Deeply Fused Producer-Consumer Chain
 
-This kernel represents a pinnacle of fusion capability. It chains two "producer-consumer" GEMMs together, with a series of element-wise operations fused into the epilogue of the first GEMM.
+This kernel represents a pinnacle of fusion capability. It chains two "producer-consumer" GEMMs together, with a series of elementwise operations fused into the epilogue of the first GEMM.
 
 1.  **Batch Scheduling**: The `B` independent problems are distributed across the GPU's thread blocks. Each thread block is assigned to compute the full chain for one batch item `b`.
 
@@ -51,7 +51,7 @@ This deep fusion avoids five separate kernel launches and the associated read/wr
 ## Source Code Organization
 
 -   [`batched_gemm_add_add_relu_gemm_add_xdl.cpp`](./batched_gemm_add_add_relu_gemm_add_xdl.cpp): The main example file. It sets up the numerous input tensors (A, B, C, D0, D1, D2) and instantiates the highly specialized device-level operation.
--   The device-level interface and underlying grid-wise kernel for this operation are extremely complex, templated on the multiple element-wise operations and managing the intricate data flow between registers, shared memory, and global memory.
+-   The device-level interface and underlying grid-wise kernel for this operation are extremely complex, templated on the multiple elementwise operations and managing the intricate data flow between registers, shared memory, and global memory.
 
 ## Build and Run
 

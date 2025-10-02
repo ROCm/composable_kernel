@@ -1,6 +1,6 @@
 # Grouped Convolution Forward with Multiple Elementwise Inputs
 
-This example demonstrates a **Grouped Convolution Forward Pass** fused with an element-wise operation that takes multiple auxiliary input tensors (`D` tensors). This is a powerful fusion that combines the parallel structure of grouped convolutions with the ability to merge subsequent element-wise layers, such as custom activations or residual connections, into a single kernel.
+This example demonstrates a **Grouped Convolution Forward Pass** fused with an elementwise operation that takes multiple auxiliary input tensors (`D` tensors). This is a powerful fusion that combines the parallel structure of grouped convolutions with the ability to merge subsequent elementwise layers, such as custom activations or residual connections, into a single kernel.
 
 ## Mathematical Formulation
 
@@ -9,10 +9,10 @@ This operation performs `G` independent fused convolution operations in parallel
 1.  **Convolution Stage**: A standard N-dimensional forward convolution is performed for the group.
     $C_{out[g]} = \text{Conv}(\text{In}_{[g]}, \text{W}_{[g]})$
 
-2.  **Elementwise Stage**: The result of the convolution is combined with one or more auxiliary tensors ($D_{0[g]}, D_{1[g]}, \dots$) using a user-defined element-wise function `f`.
+2.  **Elementwise Stage**: The result of the convolution is combined with one or more auxiliary tensors ($D_{0[g]}, D_{1[g]}, \dots$) using a user-defined elementwise function `f`.
     $E_{[g]} = f(C_{out[g]}, D_{0[g]}, D_{1[g]}, \dots)$
 
-The key optimization is that the intermediate convolution result, $C_{out[g]}$, is never written to global memory. It is computed and held in registers, then immediately consumed by the element-wise part of the kernel's epilogue before the final result `E` is stored.
+The key optimization is that the intermediate convolution result, $C_{out[g]}$, is never written to global memory. It is computed and held in registers, then immediately consumed by the elementwise part of the kernel's epilogue before the final result `E` is stored.
 
 ## Algorithmic Strategy: Implicit Grouped GEMM with Fused Multi-D Epilogue
 
@@ -24,9 +24,9 @@ The implementation combines three core concepts: the implicit GEMM transformatio
     -   Calculating the base memory addresses for the group's input tensors: $\text{In}_{[g]}, \text{W}_{[g]}, D_{0[g]}, \dots, E_{[g]}$.
     -   Performing a tiled GEMM, where tiles of the input `In` and weights `W` are read (with the `im2col` transformation happening on-the-fly) and the result is accumulated in registers.
 
-3.  **Fused Multi-D Epilogue**: Before writing the result to global memory, the epilogue performs the element-wise fusion:
+3.  **Fused Multi-D Epilogue**: Before writing the result to global memory, the epilogue performs the elementwise fusion:
     -   Threads load the corresponding tiles from the auxiliary `D` tensors for the assigned group.
-    -   The user-defined element-wise function `f` is applied in registers to the convolution result and the `D` tensor values.
+    -   The user-defined elementwise function `f` is applied in registers to the convolution result and the `D` tensor values.
     -   The final result `E` for the group is written to global memory.
 
 This strategy is highly efficient as it minimizes memory bandwidth by avoiding the materialization of the intermediate convolution output and maximizes parallelism by executing all groups concurrently.
@@ -82,6 +82,6 @@ Following arguments (depending on number of spatial dims):
 
 This kernel is ideal for optimizing layers in modern CNNs that use grouped convolutions followed by complex activations or residual connections.
 
--   **Fused Residual Connections**: A common pattern is `Conv(x) + x`. This can be implemented by passing the input `x` as a `D` tensor and defining the element-wise function as `f(conv_out, d0) = conv_out + d0`. If this is a grouped convolution, this kernel is a perfect fit.
--   **Custom Gated Activations**: Some architectures use gated activations, such as `Conv_A(x) * sigmoid(Conv_B(x))`. While this kernel doesn't compute two convolutions, it can fuse one convolution with an element-wise multiplication against another tensor. For example, it could compute `Conv_A(x) * D0`, where `D0` is the pre-computed `sigmoid(Conv_B(x))`.
--   **Depthwise Separable Convolutions**: These layers consist of a depthwise convolution (a grouped convolution with `G = C`) followed by a pointwise convolution (`1x1` conv). If there is a residual connection or other element-wise operation after the depthwise stage, this kernel can fuse it directly, improving the performance of this widely used building block.
+-   **Fused Residual Connections**: A common pattern is `Conv(x) + x`. This can be implemented by passing the input `x` as a `D` tensor and defining the elementwise function as `f(conv_out, d0) = conv_out + d0`. If this is a grouped convolution, this kernel is a perfect fit.
+-   **Custom Gated Activations**: Some architectures use gated activations, such as `Conv_A(x) * sigmoid(Conv_B(x))`. While this kernel doesn't compute two convolutions, it can fuse one convolution with an elementwise multiplication against another tensor. For example, it could compute `Conv_A(x) * D0`, where `D0` is the pre-computed `sigmoid(Conv_B(x))`.
+-   **Depthwise Separable Convolutions**: These layers consist of a depthwise convolution (a grouped convolution with `G = C`) followed by a pointwise convolution (`1x1` conv). If there is a residual connection or other elementwise operation after the depthwise stage, this kernel can fuse it directly, improving the performance of this widely used building block.

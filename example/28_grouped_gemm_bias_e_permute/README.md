@@ -1,6 +1,6 @@
 # Grouped GEMM with Bias, Elementwise Operation, and Permutation
 
-This example demonstrates a highly complex and specialized fusion: a **Grouped GEMM** where each individual GEMM operation is fused with a bias addition, a second element-wise operation, and a final permutation of the output. This kernel is designed to accelerate layers that have a group-parallel structure, such as depthwise separable convolutions or multi-head attention, when they are part of a larger fused computational graph.
+This example demonstrates a highly complex and specialized fusion: a **Grouped GEMM** where each individual GEMM operation is fused with a bias addition, a second elementwise operation, and a final permutation of the output. This kernel is designed to accelerate layers that have a group-parallel structure, such as depthwise separable convolutions or multi-head attention, when they are part of a larger fused computational graph.
 
 ## Mathematical Formulation
 
@@ -12,7 +12,7 @@ This operation performs `G` independent fused GEMM operations in parallel, where
 2.  **Bias Addition Stage**: A bias vector `D_[g]` is broadcast and added.
     $C_{temp2[g]} = C_{temp1[g]} + D_{[g]}$
 
-3.  **Elementwise Stage**: A second element-wise operation is performed with tensor `E_[g]`.
+3.  **Elementwise Stage**: A second elementwise operation is performed with tensor `E_[g]`.
     $C_{temp3[g]} = C_{temp2[g]} \odot E_{[g]}$
 
 4.  **Permutation Stage**: The final result for the group is permuted.
@@ -31,7 +31,7 @@ The implementation combines the scheduling strategy of Grouped GEMM with the mul
     -   Executing a standard tiled GEMM for $A_{[g]} \times B_{[g]}$, accumulating the result in registers.
     -   Executing the fused epilogue:
         -   Load the bias `D_[g]` and add it.
-        -   Load the element-wise tensor `E_[g]` and apply the operation.
+        -   Load the elementwise tensor `E_[g]` and apply the operation.
         -   Calculate the permuted destination coordinates and write the final result to `F_[g]`.
 
 This approach maximizes parallelism at two levels: the coarse-grained parallelism across the `G` groups, and the fine-grained data parallelism within each individual GEMM operation.
@@ -77,7 +77,7 @@ make -j
 
 This highly specialized kernel is valuable for optimizing specific patterns in modern neural networks:
 
--   **Multi-Head Attention (MHA)**: The computation for each head in MHA is independent. The entire MHA block can be viewed as a Grouped GEMM where the number of groups `G` is the number of attention heads. If the Q, K, or V projections involve fusions with bias, other element-wise ops, and permutations to prepare the data for the batched GEMM, this kernel could potentially fuse a large part of that logic.
+-   **Multi-Head Attention (MHA)**: The computation for each head in MHA is independent. The entire MHA block can be viewed as a Grouped GEMM where the number of groups `G` is the number of attention heads. If the Q, K, or V projections involve fusions with bias, other elementwise ops, and permutations to prepare the data for the batched GEMM, this kernel could potentially fuse a large part of that logic.
 -   **Depthwise Separable Convolutions**: The depthwise part of this convolution is a Grouped GEMM with `G` equal to the number of channels. If this is followed by a fused activation function (e.g., a gated activation) and a permutation, this kernel could be a perfect match.
 -   **Mixture-of-Experts (MoE) Models**: In MoE layers, an input is routed to one of several "expert" sub-networks. If these experts have identical structure, their execution can be formulated as a Grouped GEMM, where `G` is the number of experts. Any fusions within the expert network could be captured by this kernel.
 

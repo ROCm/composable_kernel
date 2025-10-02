@@ -49,7 +49,7 @@ Composable Kernel encapsulates this two-pass logic into a single, efficient `Dev
 
 -   [`groupnorm_fwd_xdl.cpp`](./groupnorm_fwd_xdl.cpp): The main example file. It sets up the input tensor, `gamma` and `beta` vectors, the number of groups, and instantiates the `DeviceGroupnormFwd` operation.
 -   [`../../include/ck/tensor_operation/gpu/device/device_groupnorm_fwd.hpp`](../../include/ck/tensor_operation/gpu/device/device_groupnorm_fwd.hpp): The high-level device interface for the GroupNorm forward pass.
--   The implementation internally uses a reduction kernel based on Welford's algorithm to compute the statistics and an element-wise kernel to apply the normalization.
+-   The implementation internally uses a reduction kernel based on Welford's algorithm to compute the statistics and an elementwise kernel to apply the normalization.
 
 ## Build and Run
 

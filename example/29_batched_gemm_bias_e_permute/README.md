@@ -1,6 +1,6 @@
 # Batched GEMM with Bias, Elementwise Operation, and Permutation
 
-This example demonstrates a **Batched GEMM** where each individual GEMM operation is fused with a bias addition, a second element-wise operation, and a final permutation of the output. This kernel is designed to accelerate layers that have a batch-parallel structure, such as the dense layers in a Transformer's feed-forward network, when they are part of a larger fused computational graph.
+This example demonstrates a **Batched GEMM** where each individual GEMM operation is fused with a bias addition, a second elementwise operation, and a final permutation of the output. This kernel is designed to accelerate layers that have a batch-parallel structure, such as the dense layers in a Transformer's feed-forward network, when they are part of a larger fused computational graph.
 
 ## Mathematical Formulation
 
@@ -12,7 +12,7 @@ This operation performs `B` independent fused GEMM operations in parallel, where
 2.  **Bias Addition Stage**: A bias vector `D_[b]` is broadcast and added.
     $C_{temp2[b]} = C_{temp1[b]} + D_{[b]}$
 
-3.  **Elementwise Stage**: A second element-wise operation is performed with tensor `E_[b]`.
+3.  **Elementwise Stage**: A second elementwise operation is performed with tensor `E_[b]`.
     $C_{temp3[b]} = C_{temp2[b]} \odot E_{[b]}$
 
 4.  **Permutation Stage**: The final result for the batch item is permuted.
@@ -35,7 +35,7 @@ The implementation combines the scheduling strategy of Batched GEMM with the mul
     -   Executing a standard tiled GEMM for $A_{[b]} \times B_{[b]}$, accumulating the result in registers.
     -   Executing the fused epilogue:
         -   Load the bias `D_[b]` and add it.
-        -   Load the element-wise tensor `E_[b]` and apply the operation.
+        -   Load the elementwise tensor `E_[b]` and apply the operation.
         -   Calculate the permuted destination coordinates and write the final result to `F_{[b]`.
 
 This approach is extremely efficient when the batch size `B` is large enough to saturate the GPU's parallelism.
@@ -85,7 +85,7 @@ A typical Transformer FFN block is:
 `FFN(X) = Linear_2(ReLU(Linear_1(X)))`
 
 -   `Linear_1` is a GEMM.
--   `ReLU` is an element-wise activation.
+-   `ReLU` is an elementwise activation.
 -   `Linear_2` is another GEMM.
 
-Sometimes, for performance reasons (e.g., to align with a subsequent layer's expected input layout), the output of the FFN needs to be permuted. This kernel could fuse the `Linear_2` GEMM with its bias, a subsequent element-wise operation (if any), and the final permutation, all while operating on a batch of input sequences. This avoids multiple kernel launches and saves significant memory bandwidth, leading to faster model execution.
+Sometimes, for performance reasons (e.g., to align with a subsequent layer's expected input layout), the output of the FFN needs to be permuted. This kernel could fuse the `Linear_2` GEMM with its bias, a subsequent elementwise operation (if any), and the final permutation, all while operating on a batch of input sequences. This avoids multiple kernel launches and saves significant memory bandwidth, leading to faster model execution.
