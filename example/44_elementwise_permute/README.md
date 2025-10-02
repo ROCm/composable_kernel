@@ -22,7 +22,7 @@ cd composable_kernel/build
 make -j install
 ```
 
-### Build and Execute
+### Build and run
 ```bash
 cd composable_kernel/example/44_elementwise_permute
 mkdir build && cd build

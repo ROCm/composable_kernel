@@ -25,7 +25,7 @@ cd composable_kernel/build
 make -j install
 ```
 
-### Build and Execute
+### Build and run
 ```bash
 cd composable_kernel/example/12_reduce
 mkdir build && cd build

@@ -22,7 +22,7 @@ cd composable_kernel/build
 make -j install
 ```
 
-### Build and Execute
+### Build and run
 ```bash
 cd composable_kernel/client_example/23_elementwise_transpose
 mkdir build && cd build

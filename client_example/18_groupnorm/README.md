@@ -29,7 +29,7 @@ cd composable_kernel/build
 make -j install
 ```
 
-### Build and Execute
+### Build and run
 ```bash
 cd composable_kernel/client_example/18_groupnorm
 mkdir build && cd build

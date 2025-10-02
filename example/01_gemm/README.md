@@ -169,7 +169,7 @@ Split-K is supported (requires zeroing output buffer if splitK > 1).
 
 ## How to Run
 
-### Build and Execute
+### Build and run
 
 ```bash
 cd composable_kernel/example/01_gemm

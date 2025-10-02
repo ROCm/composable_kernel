@@ -27,7 +27,7 @@ cd composable_kernel/build
 make -j install
 ```
 
-### Build and Execute
+### Build and run
 ```bash
 cd composable_kernel/example/13_pool2d_fwd
 mkdir build && cd build

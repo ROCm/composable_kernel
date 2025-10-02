@@ -28,7 +28,7 @@ make -j
 make install
 ```
 
-### Build and Execute
+### Build and run
 ```bash
 cd composable_kernel/client_example/30_gemm_bf16Aint8B
 mkdir build && cd build

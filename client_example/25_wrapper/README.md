@@ -8,7 +8,7 @@ This tutorial demonstrates how to implement matrix multiplication (GEMM) using t
 
 ## How to Run
 
-### Build and Execute
+### Build and run
 ```bash
 cd composable_kernel/client_example/25_wrapper
 mkdir build && cd build

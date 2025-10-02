@@ -10,7 +10,7 @@ make -j
 make install
 ```
 
-### Build and Execute
+### Build and run
 ```bash
 /opt/rocm/bin/hipcc gemm_mx_fp8.cpp -o gemm_mx_fp8
 

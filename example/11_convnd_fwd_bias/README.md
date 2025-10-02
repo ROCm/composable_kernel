@@ -24,7 +24,7 @@ cd composable_kernel/build
 make -j install
 ```
 
-### Build and Execute
+### Build and run
 ```bash
 cd composable_kernel/example/11_convnd_fwd_bias
 mkdir build && cd build

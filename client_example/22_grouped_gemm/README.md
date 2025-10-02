@@ -21,7 +21,7 @@ cd composable_kernel/build
 make -j install
 ```
 
-### Build and Execute
+### Build and run
 ```bash
 cd composable_kernel/client_example/22_grouped_gemm
 mkdir build && cd build

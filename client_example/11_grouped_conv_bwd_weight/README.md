@@ -86,7 +86,7 @@ cd composable_kernel/build
 make -j install
 ```
 
-### Build and Execute
+### Build and run
 ```bash
 cd composable_kernel/client_example/11_grouped_conv_bwd_weight
 mkdir build && cd build
