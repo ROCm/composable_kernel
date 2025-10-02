@@ -84,10 +84,8 @@ Table of supported cases by instance factory with fused elementwise operation:
 ## How to Run
 
 ### Prerequisites
-```bash
-cd composable_kernel/build
-make -j install
-```
+
+Please follow the instructions in the main [Build Guide](../../README.md#building-ck) section as a prerequisite to building and running this example.
 
 ### Build and run
 ```bash

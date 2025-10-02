@@ -17,10 +17,8 @@ For $G$ groups, each with its own $A_g$, $B_g$, $b_g$:
 ## How to Run
 
 ### Prerequisites
-```bash
-cd composable_kernel/build
-make -j install
-```
+
+Please follow the instructions in the main [Build Guide](../../README.md#building-ck) section as a prerequisite to building and running this example.
 
 ### Build and run
 ```bash

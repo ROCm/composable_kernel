@@ -18,10 +18,8 @@ Where $s_H, s_W, s_D$ are strides, $k_H, k_W, k_D$ are kernel sizes.
 ## How to Run
 
 ### Prerequisites
-```bash
-cd composable_kernel/build
-make -j install
-```
+
+Please follow the instructions in the main [Build Guide](../../README.md#building-ck) section as a prerequisite to building and running this example.
 
 ### Build and run
 ```bash

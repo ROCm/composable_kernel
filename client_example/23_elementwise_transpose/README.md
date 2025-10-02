@@ -17,10 +17,8 @@ This client example demonstrates **elementwise operations fused with 3D tensor t
 ## How to Run
 
 ### Prerequisites
-```bash
-cd composable_kernel/build
-make -j install
-```
+
+Please follow the instructions in the main [Build Guide](../../README.md#building-ck) section as a prerequisite to building and running this example.
 
 ### Build and run
 ```bash
