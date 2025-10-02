@@ -100,7 +100,7 @@ using GammaBetaDeviceInstance = ck::tensor_operation::device::DeviceNormalizatio
     4,     // DGammaDstVectorSize
     4>;    // DBetaDstVectorSize
 
-int main()
+int main(int argc, char* argv[])
 {
     bool time_kernel = false;
 
@@ -109,6 +109,25 @@ int main()
     ck::index_t W = 16;
     ck::index_t G = 32;
     ck::index_t C = 64;
+
+    if(argc == 1)
+    {
+        // use default case
+    }
+    else if(argc == 6)
+    {
+        N = std::stoi(argv[1]);
+        H = std::stoi(argv[2]);
+        W = std::stoi(argv[3]);
+        G = std::stoi(argv[4]);
+        C = std::stoi(argv[5]);
+    }
+    else
+    {
+        std::cerr << "arg1 to 5: N, H, W, G, C" << std::endl;
+
+        return 1;
+    }
 
     Tensor<DYDataType> dy({N, H, W, G, C});
     Tensor<XDataType> x({N, H, W, G, C});

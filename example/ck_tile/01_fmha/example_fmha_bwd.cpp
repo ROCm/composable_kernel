@@ -43,7 +43,7 @@ auto create_args(int argc, char* argv[])
                 "e(lementwise) or 1, elementwise bias with 1*1*s*s. e:1, 1*h*s*s. e:2, b*h*s*s\n"
                 "a(libi) or 2, alibi with 1*h. a:1, b*h")
         .insert("dbias", "0", "output bias gradient or not")
-        .insert("prec", "fp16", "data type. fp16 or bf16")
+        .insert("prec", "fp16", "data type. fp32/fp16/bf16")
         .insert("mask",
                 "0",
                 "0: no mask, 1: top-left(same as 't'), 2:bottom-right(same as 'b')\n"
@@ -159,7 +159,11 @@ int main(int argc, char* argv[])
             return -1;
 
         const std::string data_type = arg_parser.get_str("prec");
-        if(data_type == "fp16")
+        if(data_type == "fp32")
+        {
+            return run<FmhaBwdFp32>(arg_parser) == bwd_result::success ? 0 : -2;
+        }
+        else if(data_type == "fp16")
         {
             return run<FmhaBwdFp16>(arg_parser) == bwd_result::success ? 0 : -2;
         }

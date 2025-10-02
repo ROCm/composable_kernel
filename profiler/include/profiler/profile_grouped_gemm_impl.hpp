@@ -44,7 +44,8 @@ bool profile_grouped_gemm_impl(int do_verification,
                                const std::vector<int>& StrideCs,
                                const std::vector<int>& kbatches = {},
                                int n_warmup                     = 1,
-                               int n_iter                       = 10)
+                               int n_iter                       = 10,
+                               int instance_index               = -1)
 {
     bool pass = true;
     // TODO: Fixme - we do not pass compute data type here but need it
@@ -57,11 +58,11 @@ bool profile_grouped_gemm_impl(int do_verification,
 
             if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
+                return HostTensorDescriptor({row, col}, {stride, 1_uz}, layout);
             }
             else
             {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
+                return HostTensorDescriptor({row, col}, {1_uz, stride}, layout);
             }
         };
 
@@ -195,8 +196,8 @@ bool profile_grouped_gemm_impl(int do_verification,
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
     float best_kbatch     = 0;
-
-    auto p_ds = std::vector<std::array<const void*, 0>>{};
+    int num_kernel        = 0;
+    auto p_ds             = std::vector<std::array<const void*, 0>>{};
 
     if(do_verification)
     {
@@ -279,6 +280,13 @@ bool profile_grouped_gemm_impl(int do_verification,
 
             if(gemm_ptr->IsSupportedArgument(argument_ptr.get()))
             {
+                ++num_kernel;
+                if((instance_index != -1) && (instance_index + 1 != num_kernel))
+                {
+                    // skip test if instance_index is specified
+                    continue;
+                }
+
                 for(std::size_t i = 0; i < gemm_descs.size(); i++)
                     c_device_buf[i]->SetZero();
 
@@ -371,7 +379,11 @@ bool profile_grouped_gemm_impl(int do_verification,
                   << best_gb_per_sec << " GB/s, " << best_gemm_name << ", KBatch = " << best_kbatch
                   << std::endl;
     }
-
+    if(instance_index != -1)
+    {
+        std::cout << "grouped_gemm_instance (" << instance_index << "/" << num_kernel << "): Passed"
+                  << std::endl;
+    }
     return pass;
 }
 
