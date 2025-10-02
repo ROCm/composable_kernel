@@ -232,8 +232,8 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
                     auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
                     float scale_reg_f = cvt_scale_to_fp32(scale_reg);
 
-                    auto& scale_reg1   = bq_block_tensor.get_thread_buffer()[kQScale];
-                    float scale_reg_f1 = cvt_scale_to_fp32(scale_reg1);
+                    // auto& scale_reg1   = bq_block_tensor.get_thread_buffer()[kQScale];
+                    // float scale_reg_f1 = cvt_scale_to_fp32(scale_reg1);
 
 
                     // if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0){
