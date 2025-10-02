@@ -27,7 +27,7 @@ The implementation fuses the reduction into the epilogue of a batched GEMM kerne
 
 1.  **Batch Scheduling**: The `BatchCount` GEMM problems are distributed across the GPU's thread blocks. Each block is assigned one or more GEMMs from the batch to compute.
 
-2.  **Tiled GEMM Core**: For each assigned GEMM, the thread block executes a standard tiled GEMM algorithm to compute the product $A_{[b]} \times B_{[b]}$. The result for each tile of $C_{[b]}$ is accumulated in the private registers of the threads.
+2.  **Tiled GEMM Core**: For each assigned GEMM, the thread block runs a standard tiled GEMM algorithm to compute the product $A_{[b]} \times B_{[b]}$. The result for each tile of $C_{[b]}$ is accumulated in the private registers of the threads.
 
 3.  **Fused Reduction Epilogue**: This is where the fusion occurs. Instead of writing the computed tile of $C_{[b]}$ to global memory, the threads use it as input for a parallel reduction.
     -   **Intra-Block Reduction**: The threads within a block, which collectively hold the values for a tile of $C_{[b]}$, perform a local reduction. For example, to reduce along the M dimension, threads responsible for different M-rows but the same N-column will cooperate, using fast shared memory to sum their partial results.

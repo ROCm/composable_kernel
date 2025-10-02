@@ -64,7 +64,15 @@ client_example/16_convnd_fwd/
 ## Additional Details
 
 - Supports FP16, FP32, and FP8 composite for 3D convolution.
-- Example parameters can be adjusted in the source for different workloads.
+- Parameters can be adjusted in the source files for different workloads. The following parameters are configurable:
+  - `NumDimSpatial`: Number of spatial dimensions (default: 3 for 3D convolution)
+  - `G`: Number of groups (default: 1)
+  - `N`: Batch size (default: 64)
+  - `K`: Number of output channels (default: 128)
+  - `C`: Number of input channels (default: 64)
+  - `Z`, `Y`, `X`: Filter/kernel dimensions (default: 3x3x3)
+  - `Di`, `Hi`, `Wi`: Input dimensions - depth, height, width (default: 28x28x3)
+  - `Do`, `Ho`, `Wo`: Output dimensions - depth, height, width (default: 28x28x3)
 
 ---
 
