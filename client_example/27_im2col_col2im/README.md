@@ -2,7 +2,7 @@
 
 ## Theory
 
-This client example demonstrates **im2col (image-to-column) and col2im (column-to-image) transformations**. These operations are used to convert image data into a matrix form suitable for GEMM-based convolution, and to reconstruct images from column representations.
+This client example demonstrates **im2col (image-to-column) and col2im (column-to-image) transformations**. These operations are used to convert image data into a matrix form suitable for GEMM-based convolution and reconstruct images from column representations.
 
 **Mathematical Formulation:**
 - **im2col**: Rearranges image blocks into columns, mapping a 3D/4D tensor to a 2D matrix.

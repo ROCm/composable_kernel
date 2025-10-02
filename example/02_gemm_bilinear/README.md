@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This example demonstrates GEMM (General Matrix Multiplication) fused with bilinear operations on auxiliary tensors using Composable Kernel (CK). Bilinear fusion patterns are widely used in neural networks for gating, attention, and multimodal feature fusion, where the output of a matrix multiplication is combined elementwise with one or more additional tensors.
+This example demonstrates GEMM (General Matrix Multiplication) fused with bilinear operations on auxiliary tensors using Composable Kernel. Bilinear fusion patterns are widely used in neural networks for gating, attention, and multimodal feature fusion, where the output of a matrix multiplication is combined elementwise with one or more additional tensors.
 
 ---
 

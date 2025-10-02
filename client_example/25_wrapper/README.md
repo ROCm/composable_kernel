@@ -2,11 +2,15 @@
 
 # Composable Kernel Wrapper GEMM Tutorial
 
-This tutorial demonstrates how to implement matrix multiplication (GEMM) using the Composable Kernel (CK) wrapper. The examples show both basic and optimized GEMM implementations, as well as how to use the wrapper for tensor transformations such as im2col.
+This tutorial demonstrates how to implement matrix multiplication (GEMM) using the Composable Kernel wrapper. The three examples show both basic and optimized GEMM implementations, as well as how to use the wrapper for tensor transformations such as im2col.
 
 ---
 
 ## How to Run
+
+### Prerequisites
+
+Please follow the instructions in the main [Build Guide](../../README.md#building-ck) section as a prerequisite to building and running this example.
 
 ### Build and run
 ```bash
