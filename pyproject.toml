@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "setuptools-scm"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -36,4 +36,4 @@ ck4inductor = "python/ck4inductor"
 "ck4inductor.library" = ["src/tensor_operation_instance/gpu/gemm_universal/**/*.hpp", "src/tensor_operation_instance/gpu/gemm_universal_batched/**/*.hpp", "include/ck/library/tensor_operation_instance/gpu/grouped_conv_fwd/**/*.hpp"]
 
 [tool.setuptools.dynamic]
-version = { attr = "setuptools_scm.get_version" }
+version = { attr = "ck4inductor.__version__" }

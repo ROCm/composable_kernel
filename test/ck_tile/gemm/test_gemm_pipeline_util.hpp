@@ -38,7 +38,8 @@ enum struct GemmPipelineType
     Mem,
     CompV3,
     CompV4,
-    CompV6
+    CompV6,
+    CompAsync
 };
 
 template <GemmPipelineType PT, typename Problem>
@@ -78,6 +79,15 @@ struct GemmPipelineTypeSelector<GemmPipelineType::CompV6, Problem>
     using pipeline      = ck_tile::GemmPipelineAgBgCrCompV6<Problem>;
 
     static constexpr auto GetName() { return "GemmPipelineAgBgCrCompV6"; }
+};
+
+template <typename Problem>
+struct GemmPipelineTypeSelector<GemmPipelineType::CompAsync, Problem>
+{
+    using base_pipeline = ck_tile::BaseGemmPipelineAgBgCrCompAsync<Problem>;
+    using pipeline      = ck_tile::GemmPipelineAgBgCrCompAsync<Problem>;
+
+    static constexpr auto GetName() { return "GemmPipelineAgBgCrCompAsync"; }
 };
 
 template <typename Tuple, typename Derived>
@@ -120,10 +130,12 @@ class TestCkTileGemmPipeline : public ::testing::Test
         constexpr bool kPadK      = PadK;
         constexpr bool preshuffle = Preshuffle;
 
-        constexpr bool DoubleSmemBuffer = (PipelineType == GemmPipelineType::CompV4) ? true : false;
+        constexpr bool DoubleSmemBuffer = (PipelineType == GemmPipelineType::CompV4 ||
+                                           PipelineType == GemmPipelineType::CompAsync);
         constexpr bool TransposeC       = false;
         static constexpr bool StructuredSparsity = false;
         static constexpr bool NumWaveGroup       = 1;
+
         // TODO: For now - but this should also be a test parameter
 
         constexpr int kBlockPerCu                         = 1;
