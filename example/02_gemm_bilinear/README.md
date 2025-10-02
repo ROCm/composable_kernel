@@ -58,6 +58,10 @@ CK provides a composable API for GEMM with multiple auxiliary tensors via the `D
 
 ## How to Run
 
+### Prerequisites
+
+Please follow the instructions in the main [Build Guide](../../README.md#building-ck) section as a prerequisite to building and running this example.
+
 ### Build and run
 
 ```bash

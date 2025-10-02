@@ -169,6 +169,10 @@ Split-K is supported (requires zeroing output buffer if splitK > 1).
 
 ## How to Run
 
+### Prerequisites
+
+Please follow the instructions in the main [Build Guide](../../README.md#building-ck) section as a prerequisite to building and running this example.
+
 ### Build and run
 
 ```bash
