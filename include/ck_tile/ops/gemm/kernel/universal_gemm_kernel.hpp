@@ -743,7 +743,7 @@ struct UniversalGemmKernel
                     make_tuple(kargs.M, kargs.N),
                     make_tuple(1, kargs.stride_E),
                     number<1>{},
-                    number<1>{});
+                    number<EpiloguePipeline::GetVectorSizeC()>{});
             }
         }();
 

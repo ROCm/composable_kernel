@@ -350,7 +350,7 @@ CK_TILE_DEVICE void atomic_add<fp16x2_t>(fp16x2_t* p_dst, fp16x2_t const& x)
         new_.f162 = add_f16x2_t(cur_v.f162, x);
         new_v     = new_.u32;
         cur_v.u32 = atomicCAS(dword_addr.u32_a, old_v, new_v);
-    } while(cur_v.u32 != old_v);
+} while(cur_v.u32 != old_v);
 #endif
 }
 
@@ -361,6 +361,7 @@ CK_TILE_DEVICE void atomic_add_g(T* p_dst, const thread_buffer<T, N>& x)
                       (std::is_same<T, uint32_t>::value && (N == 1)) ||
                       (std::is_same<T, float>::value && (N == 1 || N == 2 || N == 4)) ||
                       (std::is_same<T, double>::value && (N == 1 || N == 2)) ||
+                      (std::is_same<T, half_t>::value && (N == 2 || N == 4 || N == 8)) ||
                       (std::is_same<T, fp16_t>::value && (N == 2 || N == 4 || N == 8)) ||
                       (std::is_same<T, bf16_t>::value && (N == 2 || N == 4 || N == 8)) ||
                       (std::is_same<T, fp8_t>::value && (N == 4 || N == 8 || N == 16)) ||
