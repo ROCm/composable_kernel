@@ -295,7 +295,7 @@ class KernelComponentFactoryBase:
         if dtype in ['fp16', 'bf16']:
             # NOTICE: it will be very complicated if we consider all the hdim_q padding cases while
             #         applying rotary embedding, so I just use 't' in inter/half pipelines
-            for vlayout, pagedkv in  itertools.product(['row', 'col'], ['t', 'f']):
+            for vlayout, pagedkv in  itertools.product(['row'], ['t', 'f']):
                 pipelines.append(FmhaFwdAppendKVPipeline(vlayout, 'f', 't', 'f', 'f', 'no', pagedkv))
                 pipelines.append(FmhaFwdAppendKVPipeline(vlayout, 't', 't', 't', 't', 'no', pagedkv))
 
@@ -306,7 +306,7 @@ class KernelComponentFactoryBase:
                 pipelines.append(FmhaFwdAppendKVPipeline(vlayout, 't', 't', 't', 't', 'half', pagedkv))
         elif dtype in ['fp8', 'bf8']:
             # rope/paged-kv is not supported
-            pipelines.append(FmhaFwdAppendKVPipeline('col', 't', 't', 't', 't', 'no', 'f'))
+            pipelines.append(FmhaFwdAppendKVPipeline('row', 't', 't', 't', 't', 'no', 'f'))
         elif dtype in ['fp8fp16', 'fp8bf16']:
             # TODO
             None

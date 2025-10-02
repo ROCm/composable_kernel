@@ -619,19 +619,13 @@ class KernelComponentFactoryBase:
         if dtype in ['fp16', 'bf16']:
             for logits, mask, bias, pagedkv in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"]):
                 pipelines.append(Pipeline('qr', 'row', 'f', 't', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
-                pipelines.append(Pipeline('qr', 'col', 'f', 't', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
-
                 pipelines.append(Pipeline('qr', 'row', 't', 'f', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
-                pipelines.append(Pipeline('qr', 'col', 't', 'f', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
-
                 pipelines.append(Pipeline('qr', 'row', 't', 't', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
-                pipelines.append(Pipeline('qr', 'col', 't', 't', 'f', 'f', logits, bias, 't', squant, pagedkv, mask))
-
                 pipelines.append(Pipeline('qr', 'row', 't', 't', 't', 't', logits, bias, 't', squant, pagedkv, mask))
-                pipelines.append(Pipeline('qr', 'col', 't', 't', 't', 't', logits, bias, 't', squant, pagedkv, mask))
         elif dtype in ['fp8', 'bf8']:
             for logits, mask, bias in itertools.product(["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()):
-                pipelines.append(Pipeline('qr', 'col', 'f', 'f', 'f', 'f', logits, bias, 't', squant, 'f', mask))
+                pipelines.append(Pipeline('qr', 'row', 'f', 'f', 'f', 'f', logits, bias, 't', squant, 'f', mask))
+                pipelines.append(Pipeline('qr', 'row', 't', 't', 'f', 'f', logits, bias, 't', squant, 'f', mask))
         elif dtype in ['fp8fp16', 'fp8bf16']:
             # TODO
             None
@@ -649,7 +643,8 @@ class KernelComponentFactoryBase:
                 pipelines.append(Pipeline('unused', spad, dvpad, lse, squant))
         elif dtype in ['fp8', 'bf8']:
             # no need lse kernels
-            pipelines.append(Pipeline('unused', 'f', 'f', 'f', squant))
+            for spad, dvpad in itertools.product(["t", "f"], ["t", "f"]):
+                pipelines.append(Pipeline('unused', spad, dvpad, 'f', squant))
         else:
             assert False
         return pipelines
