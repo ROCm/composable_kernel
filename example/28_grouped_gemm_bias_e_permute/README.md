@@ -1,4 +1,4 @@
-# Grouped GEMM with Bias, Element-wise Operation, and Permutation
+# Grouped GEMM with Bias, Elementwise Operation, and Permutation
 
 This example demonstrates a highly complex and specialized fusion: a **Grouped GEMM** where each individual GEMM operation is fused with a bias addition, a second element-wise operation, and a final permutation of the output. This kernel is designed to accelerate layers that have a group-parallel structure, such as depthwise separable convolutions or multi-head attention, when they are part of a larger fused computational graph.
 
@@ -12,7 +12,7 @@ This operation performs `G` independent fused GEMM operations in parallel, where
 2.  **Bias Addition Stage**: A bias vector `D_[g]` is broadcast and added.
     $C_{temp2[g]} = C_{temp1[g]} + D_{[g]}$
 
-3.  **Element-wise Stage**: A second element-wise operation is performed with tensor `E_[g]`.
+3.  **Elementwise Stage**: A second element-wise operation is performed with tensor `E_[g]`.
     $C_{temp3[g]} = C_{temp2[g]} \odot E_{[g]}$
 
 4.  **Permutation Stage**: The final result for the group is permuted.

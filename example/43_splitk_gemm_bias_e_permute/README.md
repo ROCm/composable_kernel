@@ -1,4 +1,4 @@
-# Split-K GEMM with Bias, Element-wise Operation, and Permutation
+# Split-K GEMM with Bias, Elementwise Operation, and Permutation
 
 This example demonstrates a highly complex fusion: a **Split-K GEMM** where the final result is fused with a bias addition, a second element-wise operation, and a final permutation. This kernel combines the parallelism-enhancing Split-K strategy with a multi-stage epilogue, making it suitable for accelerating very large or "skinny" GEMMs that are part of a more complex computational graph.
 
@@ -12,7 +12,7 @@ The operation first computes a GEMM using the Split-K algorithm and then applies
 2.  **Bias Addition Stage**: A bias vector `D` is broadcast and added.
     $C_{temp2} = C_{temp1} + D$
 
-3.  **Element-wise Stage**: A second element-wise operation is performed with tensor `E`.
+3.  **Elementwise Stage**: A second element-wise operation is performed with tensor `E`.
     $C_{temp3} = C_{temp2} \odot E$
 
 4.  **Permutation Stage**: The final result is permuted.
