@@ -350,7 +350,7 @@ CK_TILE_DEVICE void atomic_add<fp16x2_t>(fp16x2_t* p_dst, fp16x2_t const& x)
         new_.f162 = add_f16x2_t(cur_v.f162, x);
         new_v     = new_.u32;
         cur_v.u32 = atomicCAS(dword_addr.u32_a, old_v, new_v);
-} while(cur_v.u32 != old_v);
+    } while(cur_v.u32 != old_v);
 #endif
 }
 

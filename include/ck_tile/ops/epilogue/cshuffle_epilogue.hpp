@@ -169,8 +169,10 @@ struct CShuffleEpilogue
         using DiDataType = remove_cvref_t<std::tuple_element_t<index.value, DsDataType>>;
         using DiLayout   = remove_cvref_t<std::tuple_element_t<index.value, DsLayout>>;
         static_assert(std::is_same_v<DiLayout, ELayout>, "ELayout is not equal to DiLayout!");
-        constexpr bool IsDRowMajor = std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor> ? true : false;
-        constexpr bool IsDColMajor = std::is_same_v<DiLayout, tensor_layout::gemm::ColumnMajor> ? true : false;
+        constexpr bool IsDRowMajor =
+            std::is_same_v<DiLayout, tensor_layout::gemm::RowMajor> ? true : false;
+        constexpr bool IsDColMajor =
+            std::is_same_v<DiLayout, tensor_layout::gemm::ColumnMajor> ? true : false;
         if constexpr(IsDRowMajor)
         {
             return std::min(static_cast<int>(NPerIteration),
