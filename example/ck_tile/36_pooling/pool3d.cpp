@@ -152,8 +152,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // Validate kernel can handle the given configuration
     if(!Kernel::IsSupportedArgument(kernel_args))
     {
-        std::cout << "ERROR: Kernel arguments are not supported!" << std::endl;
-        return false;
+        throw std::runtime_error("ERROR: Kernel arguments are not supported! \n");
     }
 
     float ave_time = launch_kernel(
