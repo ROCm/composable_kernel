@@ -23,7 +23,7 @@ cd composable_kernel/build
 make -j install
 ```
 
-### Build and Execute
+### Build and run
 ```bash
 cd composable_kernel/example/25_gemm_bias_e_permute
 mkdir build && cd build

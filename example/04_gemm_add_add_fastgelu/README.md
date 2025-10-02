@@ -32,7 +32,7 @@ cd composable_kernel/build
 make -j install
 ```
 
-### Build and Execute
+### Build and run
 ```bash
 cd composable_kernel/example/04_gemm_add_add_fastgelu
 mkdir build && cd build

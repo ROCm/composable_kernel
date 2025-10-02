@@ -23,7 +23,7 @@ cd composable_kernel/build
 make -j install
 ```
 
-### Build and Execute
+### Build and run
 ```bash
 cd composable_kernel/example/46_gemm_add_multiply
 mkdir build && cd build

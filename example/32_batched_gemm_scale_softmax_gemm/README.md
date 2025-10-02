@@ -24,7 +24,7 @@ cd composable_kernel/build
 make -j install
 ```
 
-### Build and Execute
+### Build and run
 ```bash
 cd composable_kernel/example/32_batched_gemm_scale_softmax_gemm
 mkdir build && cd build

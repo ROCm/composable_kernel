@@ -19,7 +19,7 @@ $$
 
 ## How to Run
 
-### Build and Execute
+### Build and run
 ```bash
 cd composable_kernel/example/03_gemm_bias_relu
 mkdir build && cd build

@@ -58,7 +58,7 @@ CK provides a composable API for GEMM with multiple auxiliary tensors via the `D
 
 ## How to Run
 
-### Build and Execute
+### Build and run
 
 ```bash
 cd composable_kernel/example/02_gemm_bilinear
