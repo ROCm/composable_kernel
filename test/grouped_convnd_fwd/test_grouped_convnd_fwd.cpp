@@ -50,11 +50,11 @@ class TestGroupedConvndFwd : public ::testing::Test
                                                                               InLayout,
                                                                               WeiLayout,
                                                                               OutLayout,
-                                                                              DataType,
-                                                                              DataType,
-                                                                              DataType,
-                                                                              DataType,
-                                                                              DataType,
+                                                                              InDataType,
+                                                                              WeiDataType,
+                                                                              OutDataType,
+                                                                              AComputeType,
+                                                                              BComputeType,
                                                                               IndexType>(
                                true,  // do_verification
                                1,     // init_method: integer value
