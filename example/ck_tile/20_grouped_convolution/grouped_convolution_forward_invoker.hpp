@@ -338,6 +338,238 @@ struct GroupedConvolutionForwardInvoker
                               << "ms, Total=" << ave_time << "ms\n";
                 }
 
+            } else if(output_size >= threshold && NDimSpatial == 2) {
+                // ═══════════════════════════════════════════════════════════
+                // 2D SPLIT-IMAGE (N=1 only for now)
+                // ═══════════════════════════════════════════════════════════
+                if(s.log_level_ > 0) {
+                    std::cout << "[INVOKER] Entering split path (2D split-image)!" << std::endl;
+                }
+
+                // === STEP 1: Always split H dimension ===
+                // For NHWGC layout, only H is contiguous in memory
+                // W is NOT contiguous (scattered across rows), so we can't split it with a single offset
+                const ck_tile::long_index_t h_out_total = args.output_spatial_lengths_[0];
+                const ck_tile::long_index_t w_out_total = args.output_spatial_lengths_[1];
+
+                if(s.log_level_ > 0) {
+                    std::cout << "[SPLIT 2D] Output H=" << h_out_total
+                              << ", W=" << w_out_total
+                              << ", splitting H (W not contiguous)" << std::endl;
+                }
+
+                // === SPLIT H DIMENSION ===
+                const ck_tile::long_index_t h_out_left = h_out_total / 2;
+                const ck_tile::long_index_t h_out_right = h_out_total - h_out_left;
+
+                const ck_tile::long_index_t left_pad_h = args.input_left_pads_[0];
+                const ck_tile::long_index_t right_pad_h = args.input_right_pads_[0];
+                const ck_tile::long_index_t filter_h = args.filter_spatial_lengths_[0];
+                const ck_tile::long_index_t stride_h = args.conv_filter_strides_[0];
+                const ck_tile::long_index_t dilation_h = args.conv_filter_dilations_[0];
+
+                // Get input width (actual input, not output)
+                const ck_tile::long_index_t w_in = args.input_spatial_lengths_[1];
+
+                // Calculate physical offset
+                const ck_tile::long_index_t physical_h_offset = (h_out_left * stride_h) - left_pad_h;
+
+                // For NHWGC layout: stride_H = W_in*G*C (use INPUT width!)
+                const ck_tile::long_index_t input_offset = physical_h_offset * w_in * args.G_ * args.C_;
+                const ck_tile::long_index_t output_offset = h_out_left * w_out_total * args.G_ * args.K_;
+
+                if(s.log_level_ > 0) {
+                    std::cout << "[SPLIT 2D-H] H_out_left=" << h_out_left
+                              << ", H_out_right=" << h_out_right
+                              << ", offset=" << input_offset << std::endl;
+                }
+
+                // Calculate input sizes
+                const ck_tile::long_index_t x_eff = (filter_h - 1) * dilation_h + 1;
+                const ck_tile::long_index_t h_in_left_end = (h_out_left - 1) * stride_h + x_eff;
+                const ck_tile::long_index_t h_in_left = h_in_left_end - left_pad_h;
+
+                const ck_tile::long_index_t h_in_right_start = h_out_left * stride_h;
+                const ck_tile::long_index_t h_in_right_available = args.input_spatial_lengths_[0] - (h_in_right_start - left_pad_h);
+                const ck_tile::long_index_t h_in_right = ck_tile::min(h_in_right_available,
+                                                                      (h_out_right - 1) * stride_h + x_eff);
+
+                // Create LEFT args
+                auto left_args = args;
+                left_args.input_spatial_lengths_[0] = h_in_left;
+                left_args.output_spatial_lengths_[0] = h_out_left;
+                left_args.input_left_pads_[0] = left_pad_h;
+                left_args.input_right_pads_[0] = 0;
+
+                auto kargs_left = Kernel::MakeKernelArgs(left_args);
+                const dim3 grids_left = Kernel::GridSize(kargs_left);
+                const dim3 blocks_left = Kernel::BlockSize();
+
+                // Create RIGHT args
+                InDataType* orig_in_ptr = const_cast<InDataType*>(static_cast<const InDataType*>(args.in_ptr));
+                OutDataType* orig_out_ptr = const_cast<OutDataType*>(static_cast<const OutDataType*>(args.out_ptr));
+
+                auto right_args = args;
+                right_args.input_spatial_lengths_[0] = h_in_right;
+                right_args.output_spatial_lengths_[0] = h_out_right;
+                right_args.input_left_pads_[0] = 0;
+                right_args.input_right_pads_[0] = right_pad_h;
+                right_args.in_ptr = orig_in_ptr + input_offset;
+                right_args.out_ptr = orig_out_ptr + output_offset;
+
+                auto kargs_right = Kernel::MakeKernelArgs(right_args);
+                const dim3 grids_right = Kernel::GridSize(kargs_right);
+                const dim3 blocks_right = Kernel::BlockSize();
+
+                // Launch LEFT
+                if(s.log_level_ > 0) {
+                    std::cout << "[SPLIT 2D-H] Launching LEFT kernel..." << std::endl;
+                }
+                float left_time = ck_tile::launch_kernel(
+                    s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids_left, blocks_left, 0, kargs_left));
+
+                // Launch RIGHT
+                if(s.log_level_ > 0) {
+                    std::cout << "[SPLIT 2D-H] Launching RIGHT kernel..." << std::endl;
+                }
+                float right_time = ck_tile::launch_kernel(
+                    s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids_right, blocks_right, 0, kargs_right));
+
+                ave_time = left_time + right_time;
+
+                if(s.log_level_ > 0) {
+                    std::cout << "[SPLIT 2D-H] Complete! Left=" << left_time
+                              << "ms, Right=" << right_time
+                              << "ms, Total=" << ave_time << "ms\n";
+                }
+
+            } else if(output_size >= threshold && NDimSpatial == 3) {
+                // ═══════════════════════════════════════════════════════════
+                // 3D SPLIT-IMAGE (D-split only)
+                // ═══════════════════════════════════════════════════════════
+                if(s.log_level_ > 0) {
+                    std::cout << "[INVOKER] Entering split path (3D split-image)!" << std::endl;
+                }
+
+                const ck_tile::long_index_t d_out_total = args.output_spatial_lengths_[0];
+                const ck_tile::long_index_t h_out_total = args.output_spatial_lengths_[1];
+                const ck_tile::long_index_t w_out_total = args.output_spatial_lengths_[2];
+
+                if(s.log_level_ > 0) {
+                    std::cout << "[SPLIT 3D] Output D=" << d_out_total
+                              << ", H=" << h_out_total
+                              << ", W=" << w_out_total
+                              << ", splitting D (H,W not contiguous)" << std::endl;
+                }
+
+                // === SPLIT D DIMENSION ===
+                const ck_tile::long_index_t d_out_left = d_out_total / 2;
+                const ck_tile::long_index_t d_out_right = d_out_total - d_out_left;
+
+                const ck_tile::long_index_t left_pad_d = args.input_left_pads_[0];
+                const ck_tile::long_index_t right_pad_d = args.input_right_pads_[0];
+                const ck_tile::long_index_t filter_d = args.filter_spatial_lengths_[0];
+                const ck_tile::long_index_t stride_d = args.conv_filter_strides_[0];
+                const ck_tile::long_index_t dilation_d = args.conv_filter_dilations_[0];
+
+                // Get input H and W (actual input dimensions)
+                const ck_tile::long_index_t h_in = args.input_spatial_lengths_[1];
+                const ck_tile::long_index_t w_in = args.input_spatial_lengths_[2];
+
+                // Calculate physical offset
+                const ck_tile::long_index_t physical_d_offset = (d_out_left * stride_d) - left_pad_d;
+
+                // For NDHWGC layout: stride_D = H_in*W_in*G*C (use INPUT H and W!)
+                const ck_tile::long_index_t input_offset = physical_d_offset * h_in * w_in * args.G_ * args.C_;
+                const ck_tile::long_index_t output_offset = d_out_left * h_out_total * w_out_total * args.G_ * args.K_;
+
+                if(s.log_level_ > 0) {
+                    std::cout << "[SPLIT 3D-D] D_out_left=" << d_out_left
+                              << ", D_out_right=" << d_out_right << std::endl;
+                    std::cout << "[SPLIT 3D-D] Input dimensions: D_in=" << args.input_spatial_lengths_[0]
+                              << ", H_in=" << h_in << ", W_in=" << w_in << std::endl;
+                    std::cout << "[SPLIT 3D-D] Physical D offset: " << physical_d_offset << std::endl;
+                    std::cout << "[SPLIT 3D-D] Stride_D = " << h_in << " * " << w_in << " * " << args.G_ << " * " << args.C_
+                              << " = " << (h_in * w_in * args.G_ * args.C_) << " elements per D-slice" << std::endl;
+                    std::cout << "[SPLIT 3D-D] Input offset: " << input_offset << " elements" << std::endl;
+                    std::cout << "[SPLIT 3D-D] Output offset: " << output_offset << " elements" << std::endl;
+                }
+
+                // Calculate input sizes
+                const ck_tile::long_index_t x_eff = (filter_d - 1) * dilation_d + 1;
+                const ck_tile::long_index_t d_in_left_end = (d_out_left - 1) * stride_d + x_eff;
+                const ck_tile::long_index_t d_in_left = d_in_left_end - left_pad_d;
+
+                const ck_tile::long_index_t d_in_right_start = d_out_left * stride_d;
+                const ck_tile::long_index_t d_in_right_available = args.input_spatial_lengths_[0] - (d_in_right_start - left_pad_d);
+                const ck_tile::long_index_t d_in_right = ck_tile::min(d_in_right_available,
+                                                                      (d_out_right - 1) * stride_d + x_eff);
+
+                // Create LEFT args
+                auto left_args = args;
+                left_args.input_spatial_lengths_[0] = d_in_left;
+                left_args.output_spatial_lengths_[0] = d_out_left;
+                left_args.input_left_pads_[0] = left_pad_d;
+                left_args.input_right_pads_[0] = 0;
+
+                if(s.log_level_ > 0) {
+                    std::cout << "[SPLIT 3D-D] LEFT: D_in=" << d_in_left
+                              << ", D_out=" << d_out_left
+                              << ", left_pad=" << left_pad_d
+                              << ", right_pad=0" << std::endl;
+                }
+
+                auto kargs_left = Kernel::MakeKernelArgs(left_args);
+                const dim3 grids_left = Kernel::GridSize(kargs_left);
+                const dim3 blocks_left = Kernel::BlockSize();
+
+                // Create RIGHT args
+                InDataType* orig_in_ptr = const_cast<InDataType*>(static_cast<const InDataType*>(args.in_ptr));
+                OutDataType* orig_out_ptr = const_cast<OutDataType*>(static_cast<const OutDataType*>(args.out_ptr));
+
+                auto right_args = args;
+                right_args.input_spatial_lengths_[0] = d_in_right;
+                right_args.output_spatial_lengths_[0] = d_out_right;
+                right_args.input_left_pads_[0] = 0;
+                right_args.input_right_pads_[0] = right_pad_d;
+                right_args.in_ptr = orig_in_ptr + input_offset;
+                right_args.out_ptr = orig_out_ptr + output_offset;
+
+                if(s.log_level_ > 0) {
+                    std::cout << "[SPLIT 3D-D] RIGHT: D_in=" << d_in_right
+                              << ", D_out=" << d_out_right
+                              << ", left_pad=0"
+                              << ", right_pad=" << right_pad_d
+                              << ", in_ptr_offset=" << input_offset
+                              << ", out_ptr_offset=" << output_offset << std::endl;
+                }
+
+                auto kargs_right = Kernel::MakeKernelArgs(right_args);
+                const dim3 grids_right = Kernel::GridSize(kargs_right);
+                const dim3 blocks_right = Kernel::BlockSize();
+
+                // Launch LEFT
+                if(s.log_level_ > 0) {
+                    std::cout << "[SPLIT 3D-D] Launching LEFT kernel..." << std::endl;
+                }
+                float left_time = ck_tile::launch_kernel(
+                    s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids_left, blocks_left, 0, kargs_left));
+
+                // Launch RIGHT
+                if(s.log_level_ > 0) {
+                    std::cout << "[SPLIT 3D-D] Launching RIGHT kernel..." << std::endl;
+                }
+                float right_time = ck_tile::launch_kernel(
+                    s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids_right, blocks_right, 0, kargs_right));
+
+                ave_time = left_time + right_time;
+
+                if(s.log_level_ > 0) {
+                    std::cout << "[SPLIT 3D-D] Complete! Left=" << left_time
+                              << "ms, Right=" << right_time
+                              << "ms, Total=" << ave_time << "ms\n";
+                }
+
             } else {
                 // Normal launch - tensor fits in memory
                 if(s.log_level_ > 0) {
