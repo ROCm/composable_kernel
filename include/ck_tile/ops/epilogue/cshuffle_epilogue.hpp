@@ -436,8 +436,8 @@ struct CShuffleEpilogue
         static constexpr int RowsPerLane = CWarpTensor::get_thread_buffer_size();
 
         static_assert(MPerXdl % RowsPerLane == 0,
-                  "CShuffle (permuteN): MPerXdl must be divisible by per-lane row count.");
-        
+                      "CShuffle (permuteN): MPerXdl must be divisible by per-lane row count.");
+
         constexpr int kM0 = MWave;
         constexpr int kM2 = RowsPerLane;
         constexpr int kM1 = MPerXdl / kM2;
@@ -523,19 +523,21 @@ struct CShuffleEpilogue
                 const index_t plane = c_warp_y_lengths.product();
 
                 // local lambda to fuse scale (if present) and convert
-                static_for<0, kM2, 1>{}([&](auto m_lane){
-                    const int src = n_idx * plane + m_lane;        // source row in this N-plane
-                    const int dst = n_idx + m_lane * NRepeat;       // permuted N layout in output
+                static_for<0, kM2, 1>{}([&](auto m_lane) {
+                    const int src = n_idx * plane + m_lane;   // source row in this N-plane
+                    const int dst = n_idx + m_lane * NRepeat; // permuted N layout in output
                     AccDataType v = shuffle_acc.get_thread_buffer()[src];
-                    if constexpr (has_scalar_scales) {
+                    if constexpr(has_scalar_scales)
+                    {
                         v = static_cast<AccDataType>(v * scale_m * scale_n);
-                    } else if constexpr (has_scales && !has_scalar_scales) {
+                    }
+                    else if constexpr(has_scales && !has_scalar_scales)
+                    {
                         const auto sm = static_cast<float>(sm_tile.get_thread_buffer()[dst]);
                         const auto sn = static_cast<float>(sn_tile.get_thread_buffer()[dst]);
-                        v = static_cast<AccDataType>(v * sm * sn);
+                        v             = static_cast<AccDataType>(v * sm * sn);
                     }
                     c_out_tensor.get_thread_buffer()[dst] = type_convert<ODataType>(v);
-
                 });
             });
 
