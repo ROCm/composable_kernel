@@ -14,11 +14,13 @@ namespace ck_tile {
 // A is block window on shared memory
 // B is block distributed tensor
 // C is block distributed tensor
-template <typename Problem_, typename Policy_ = BlockGemmASmemBRegCRegV1DefaultPolicy>
-struct BlockUniversalGemmAsBrCr : public BlockUniversalGemmBase<Problem_, Policy_>
+template <typename Problem_,
+          typename Policy_     = BlockGemmASmemBRegCRegV1DefaultPolicy,
+          index_t UnaryOpSize_ = 8>
+struct BlockUniversalGemmAsBrCr : public BlockUniversalGemmBase<Problem_, Policy_, UnaryOpSize_>
 {
     private:
-    using Base = BlockUniversalGemmBase<Problem_, Policy_>;
+    using Base = BlockUniversalGemmBase<Problem_, Policy_, UnaryOpSize_>;
     using Base::a_warp_y_index_zeros;
     using Base::a_warp_y_lengths;
     using Base::b_warp_y_index_zeros;

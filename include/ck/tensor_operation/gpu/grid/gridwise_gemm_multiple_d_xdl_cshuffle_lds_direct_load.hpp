@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -57,21 +57,25 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const Block2ETileMap block_2_etile_map)
 {
 #if(defined(__gfx90a__) || defined(__gfx94__))
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
+    {
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop>(p_a_grid,
-                                                  p_b_grid,
-                                                  p_ds_grid,
-                                                  p_e_grid,
-                                                  p_shared,
-                                                  a_element_op,
-                                                  b_element_op,
-                                                  cde_element_op,
-                                                  a_grid_desc_ak0_m_ak1,
-                                                  b_grid_desc_bk0_n_bk1,
-                                                  ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  e_grid_desc_mblock_mperblock_nblock_nperblock,
-                                                  block_2_etile_map);
+        GridwiseGemm::template Run<HasMainKBlockLoop>(
+            p_a_grid,
+            p_b_grid,
+            p_ds_grid,
+            p_e_grid,
+            p_shared,
+            a_element_op,
+            b_element_op,
+            cde_element_op,
+            a_grid_desc_ak0_m_ak1,
+            b_grid_desc_bk0_n_bk1,
+            ds_grid_desc_mblock_mperblock_nblock_nperblock,
+            e_grid_desc_mblock_mperblock_nblock_nperblock,
+            block_2_etile_map);
+    }
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -140,7 +144,7 @@ template <typename ALayout,
           index_t CDEShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched,
           PipelineVersion PipelineVer = PipelineVersion::v4,
-          typename BComputeDataType   = AComputeDataType_>
+          typename BComputeDataType_  = AComputeDataType_>
 struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
@@ -168,7 +172,10 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
     using AComputeDataType =
         conditional_t<is_same_v<AComputeDataType_, ck::half_t>, ck::bhalf_t, AComputeDataType_>;
 #else
-    using AComputeDataType = AComputeDataType_;
+    using AComputeDataType =
+        conditional_t<is_same_v<AComputeDataType_, ck::tf32_t>, float, AComputeDataType_>;
+    using BComputeDataType =
+        conditional_t<is_same_v<BComputeDataType_, ck::tf32_t>, float, BComputeDataType_>;
 #endif
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
@@ -424,6 +431,8 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
 
     using Block2ETileMap = remove_cvref_t<decltype(MakeDefaultBlock2ETileMap(EGridDesc_M_N{}))>;
 
+    IS_VALID_COMPILATION_PARAMETER_IMPL(EDataType)
+
     __host__ __device__ static constexpr bool CheckValidity(const AGridDesc_M_K& a_grid_desc_m_k,
                                                             const BGridDesc_N_K& b_grid_desc_n_k,
                                                             const DsGridDesc_M_N& ds_grid_desc_m_n,
@@ -433,6 +442,7 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
         static_assert((MPerBlock % (MPerXdl * MXdlPerWave) == 0) &&
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
+
         static_assert(KPerBlock % AK1Value == 0 && KPerBlock % BK1Value == 0,
                       "KPerBlock must be divisible by AK1Value and BK1Value!");
 
@@ -566,7 +576,6 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
         // This forces m/n_block_data_idx_on_grid into SGPR.
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I0] * MPerBlock);
-
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I1] * NPerBlock);
 
@@ -633,10 +642,10 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
         constexpr auto is_scale_mfma = false;
 
         constexpr index_t KPack = math::max(lcm_AK1_BK1,
-                                            MfmaSelector<AComputeDataType,
+                                            MfmaSelector<AComputeDataType_,
                                                          MPerXdl,
                                                          NPerXdl,
-                                                         BComputeDataType,
+                                                         BComputeDataType_,
                                                          is_single_rate_mfma,
                                                          is_scale_mfma>::selected_mfma.k_per_blk);
 
@@ -652,7 +661,9 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
             MXdlPerWave,
             NXdlPerWave,
             KPack,
-            LoopSched>();
+            LoopSched,
+            AComputeDataType_,
+            BComputeDataType_>();
 
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
 

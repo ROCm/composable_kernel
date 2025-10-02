@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/common/load_interleaved_pk_type.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_default_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/elementwise.hpp"
@@ -14,11 +15,13 @@ namespace ck_tile {
 // A is block window on shared memory
 // B is block window on shared memory
 // C is block distributed tensor
-template <typename Problem_, typename Policy_ = BlockGemmASmemBSmemCRegV1DefaultPolicy>
-struct BlockUniversalGemmAsBsCr : public BlockUniversalGemmBase<Problem_, Policy_>
+template <typename Problem_,
+          typename Policy_     = BlockGemmASmemBSmemCRegV1DefaultPolicy,
+          index_t UnaryOpSize_ = 8>
+struct BlockUniversalGemmAsBsCr : public BlockUniversalGemmBase<Problem_, Policy_, UnaryOpSize_>
 {
     private:
-    using Base = BlockUniversalGemmBase<Problem_, Policy_>;
+    using Base = BlockUniversalGemmBase<Problem_, Policy_, UnaryOpSize_>;
     using Base::a_warp_y_index_zeros;
     using Base::a_warp_y_lengths;
     using Base::b_warp_y_index_zeros;
@@ -88,7 +91,7 @@ struct BlockUniversalGemmAsBsCr : public BlockUniversalGemmBase<Problem_, Policy
 
             if constexpr(std::is_same_v<ADataType, pk_int4_t>)
             {
-                load_interleaved_pk_type(a_warp_tile_, a_block_window);
+                Base::Loader::load_interleaved_pk_type(a_warp_tile_, a_block_window);
             }
             else
             {
@@ -96,7 +99,7 @@ struct BlockUniversalGemmAsBsCr : public BlockUniversalGemmBase<Problem_, Policy
             }
             if constexpr(std::is_same_v<BDataType, pk_int4_t>)
             {
-                load_interleaved_pk_type(b_warp_tile_, b_block_window);
+                Base::Loader::load_interleaved_pk_type(b_warp_tile_, b_block_window);
             }
             else
             {
@@ -174,7 +177,7 @@ struct BlockUniversalGemmAsBsCr : public BlockUniversalGemmBase<Problem_, Policy
         {
             if constexpr(std::is_same_v<ADataType, pk_int4_t>)
             {
-                load_interleaved_pk_type(a_warp_tile_, a_block_window);
+                Base::Loader::load_interleaved_pk_type(a_warp_tile_, a_block_window);
             }
             else if constexpr(ALoadTranspose)
             {
@@ -192,7 +195,7 @@ struct BlockUniversalGemmAsBsCr : public BlockUniversalGemmBase<Problem_, Policy
         {
             if constexpr(std::is_same_v<BDataType, pk_int4_t>)
             {
-                load_interleaved_pk_type(b_warp_tile_, b_block_window);
+                Base::Loader::load_interleaved_pk_type(b_warp_tile_, b_block_window);
             }
             else if constexpr(BLoadTranspose)
             {
@@ -309,7 +312,7 @@ struct BlockUniversalGemmAsBsCr : public BlockUniversalGemmBase<Problem_, Policy
 
             if constexpr(std::is_same_v<ADataType, pk_int4_t>)
             {
-                load_interleaved_pk_type(a_warp_tile_, a_block_window);
+                Base::Loader::load_interleaved_pk_type(a_warp_tile_, a_block_window);
             }
             else if constexpr(ALoadTranspose)
             {
@@ -356,7 +359,7 @@ struct BlockUniversalGemmAsBsCr : public BlockUniversalGemmBase<Problem_, Policy
 
             if constexpr(std::is_same_v<BDataType, pk_int4_t>)
             {
-                load_interleaved_pk_type(b_warp_tile_, b_block_window);
+                Base::Loader::load_interleaved_pk_type(b_warp_tile_, b_block_window);
             }
             else if constexpr(BLoadTranspose)
             {

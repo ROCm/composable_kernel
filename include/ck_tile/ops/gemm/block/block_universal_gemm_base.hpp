@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/common/load_interleaved_pk_type.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v1_default_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
@@ -11,7 +12,7 @@
 
 namespace ck_tile {
 
-template <typename Problem_, typename Policy_>
+template <typename Problem_, typename Policy_, index_t UnaryOpSize_>
 struct BlockUniversalGemmBase
 {
     protected:
@@ -81,7 +82,6 @@ struct BlockUniversalGemmBase
     };
 
     public:
-    // using Traits = UniversalGemmPolicyBase<Problem_, Policy_>::GemmTraits;
     using Traits = GemmTraits_<Problem_, Policy_>;
 
     using ADataType       = remove_cvref_t<typename Traits::ADataType>;
@@ -99,6 +99,7 @@ struct BlockUniversalGemmBase
     static constexpr index_t NWarp = Traits::NWarp;
 
     static constexpr auto Scheduler = Traits::Scheduler;
+    using Loader = remove_cvref_t<InterleavedPKTypeLoader<ComputeDataType, UnaryOpSize_>>;
 
     using AWarpDstr = typename WarpGemm::AWarpDstr;
     using BWarpDstr = typename WarpGemm::BWarpDstr;

@@ -13,6 +13,28 @@
 #include "test_gemm_pipeline_smoke_util.hpp"
 #include "test_gemm_pipeline_smoke_run_test.inc"
 
+struct GemmConfig_Mfma : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 256;
+    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t K_Tile = 64;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+};
+
+struct GemmConfig_Wmma : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 64;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+};
+
 template <typename GemmConfig,
           typename ADataType,
           typename BDataType,
@@ -38,17 +60,17 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     constexpr int kBlockPerCu = 1;
 
     // This part comes from the Codegen
-    constexpr ck_tile::index_t M_Tile = 256;
-    constexpr ck_tile::index_t N_Tile = 256;
-    constexpr ck_tile::index_t K_Tile = 64;
+    constexpr ck_tile::index_t M_Tile = GemmConfig::M_Tile;
+    constexpr ck_tile::index_t N_Tile = GemmConfig::N_Tile;
+    constexpr ck_tile::index_t K_Tile = GemmConfig::K_Tile;
 
     constexpr ck_tile::index_t M_Warp = 2;
     constexpr ck_tile::index_t N_Warp = 2;
     constexpr ck_tile::index_t K_Warp = 1;
 
-    constexpr ck_tile::index_t M_Warp_Tile = 32;
-    constexpr ck_tile::index_t N_Warp_Tile = 32;
-    constexpr ck_tile::index_t K_Warp_Tile = 16;
+    constexpr ck_tile::index_t M_Warp_Tile = GemmConfig::M_Warp_Tile;
+    constexpr ck_tile::index_t N_Warp_Tile = GemmConfig::N_Warp_Tile;
+    constexpr ck_tile::index_t K_Warp_Tile = GemmConfig::K_Warp_Tile;
 
     using CodegenGemmShape =
         ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
@@ -130,7 +152,10 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     }
 }
 
-template <typename APrecType, typename BPrecType = APrecType, typename CPrecType = APrecType>
+template <typename GemmConfig,
+          typename APrecType,
+          typename BPrecType = APrecType,
+          typename CPrecType = APrecType>
 bool run_gemm_test_prec_type(std::string a_layout,
                              std::string b_layout,
                              ck_tile::ArgParser& arg_parser)
@@ -142,12 +167,12 @@ bool run_gemm_test_prec_type(std::string a_layout,
     {
         if(a_layout == "R" && b_layout == "C")
         {
-            return run_gemm_test_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
+            return run_gemm_test_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
                 arg_parser, Row{}, Col{}, Row{});
         }
         else if(a_layout == "C" && b_layout == "C")
         {
-            return run_gemm_test_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
+            return run_gemm_test_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
                 arg_parser, Col{}, Col{}, Row{});
         }
         else
@@ -160,22 +185,22 @@ bool run_gemm_test_prec_type(std::string a_layout,
     {
         if(a_layout == "R" && b_layout == "C")
         {
-            return run_gemm_test_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
+            return run_gemm_test_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
                 arg_parser, Row{}, Col{}, Row{});
         }
         else if(a_layout == "R" && b_layout == "R")
         {
-            return run_gemm_test_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
+            return run_gemm_test_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
                 arg_parser, Row{}, Row{}, Row{});
         }
         else if(a_layout == "C" && b_layout == "R")
         {
-            return run_gemm_test_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
+            return run_gemm_test_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
                 arg_parser, Col{}, Row{}, Row{});
         }
         else if(a_layout == "C" && b_layout == "C")
         {
-            return run_gemm_test_with_layouts<GemmConfigBase, APrecType, BPrecType, CPrecType>(
+            return run_gemm_test_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
                 arg_parser, Col{}, Col{}, Row{});
         }
         else
@@ -185,7 +210,7 @@ bool run_gemm_test_prec_type(std::string a_layout,
     }
 }
 
-template <typename APrecType, typename BPrecType, typename CPrecType>
+template <typename GemmConfig, typename APrecType, typename BPrecType, typename CPrecType>
 bool run_gemm_test(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -195,11 +220,12 @@ bool run_gemm_test(int argc, char* argv[])
     std::string a_layout = arg_parser.get_str("a_layout");
     std::string b_layout = arg_parser.get_str("b_layout");
 
-    return run_gemm_test_prec_type<APrecType, BPrecType, CPrecType>(a_layout, b_layout, arg_parser);
+    return run_gemm_test_prec_type<GemmConfig, APrecType, BPrecType, CPrecType>(
+        a_layout, b_layout, arg_parser);
 }
 
 template <typename APrecType, typename BPrecType = APrecType, typename CPrecType = APrecType>
-int run_gemm_combinations()
+bool run_gemm_combinations()
 {
     // Define possible values for each parameter
     std::vector<std::string> m_values = {"128", "1024"};
@@ -255,8 +281,15 @@ int run_gemm_combinations()
                 // Call the function with the current configuration
                 try
                 {
-                    is_success = run_gemm_test<APrecType, BPrecType, CPrecType>(ARG_COUNT, argv) &&
+#if CK_TILE_USE_WMMA
+                    is_success = run_gemm_test<GemmConfig_Wmma, APrecType, BPrecType, CPrecType>(
+                                     ARG_COUNT, argv) &&
                                  is_success;
+#else
+                    is_success = run_gemm_test<GemmConfig_Mfma, APrecType, BPrecType, CPrecType>(
+                                     ARG_COUNT, argv) &&
+                                 is_success;
+#endif
                 }
                 catch(const ArgumentsNotSupportedException& e)
                 {
@@ -271,5 +304,5 @@ int run_gemm_combinations()
             }
         }
     }
-    return is_success ? EXIT_SUCCESS : EXIT_FAILURE;
+    return is_success;
 }
