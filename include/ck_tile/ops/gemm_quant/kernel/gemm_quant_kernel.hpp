@@ -73,7 +73,7 @@ struct is_quantpreshuffle_enabled
 };
 
 template <typename T>
-struct is_quantpreshuffle_enabled<T, decltype(T::PreshuffleQuant)>
+struct is_quantpreshuffle_enabled<T, std::void_t<decltype(T::PreshuffleQuant)>>
 {
     static constexpr bool value = T::PreshuffleQuant;
 };
