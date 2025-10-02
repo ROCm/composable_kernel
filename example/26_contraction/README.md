@@ -45,11 +45,8 @@ Crucially, the reshaping operations are often *logical*. The data is not physica
 ## Build and Run
 
 ### Prerequisites
-Ensure the Composable Kernel library is built and installed.
-```bash
-cd /path/to/composable_kernel/build
-make -j install
-```
+
+Please follow the instructions in the main [Build Guide](../../README.md#building-ck) section as a prerequisite to building and running this example.
 
 ### Build the Example
 ```bash
