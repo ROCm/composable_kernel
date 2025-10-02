@@ -9,10 +9,10 @@ The operation performs a matrix multiplication followed by two sequential elemen
 1.  **GEMM Stage**: A standard matrix multiplication.
     $C_{temp1} = A \times B$
 
-2.  **First Multiplication**: Element-wise multiplication with tensor `D`.
+2.  **First Multiplication**: Elementwise multiplication with tensor `D`.
     $C_{temp2} = C_{temp1} \odot D$
 
-3.  **Second Multiplication**: Element-wise multiplication with tensor `E`.
+3.  **Second Multiplication**: Elementwise multiplication with tensor `E`.
     $F = C_{temp2} \odot E$
 
 The key optimization is that the intermediate tensors `C_temp1` and `C_temp2` are **never written to global memory**. All operations are fused into the GEMM's epilogue, operating on data held in registers.

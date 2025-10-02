@@ -1,4 +1,4 @@
-# Grouped Convolution Forward with Multiple Element-wise Inputs
+# Grouped Convolution Forward with Multiple Elementwise Inputs
 
 This example demonstrates a **Grouped Convolution Forward Pass** fused with an element-wise operation that takes multiple auxiliary input tensors (`D` tensors). This is a powerful fusion that combines the parallel structure of grouped convolutions with the ability to merge subsequent element-wise layers, such as custom activations or residual connections, into a single kernel.
 
@@ -9,7 +9,7 @@ This operation performs `G` independent fused convolution operations in parallel
 1.  **Convolution Stage**: A standard N-dimensional forward convolution is performed for the group.
     $C_{out[g]} = \text{Conv}(\text{In}_{[g]}, \text{W}_{[g]})$
 
-2.  **Element-wise Stage**: The result of the convolution is combined with one or more auxiliary tensors ($D_{0[g]}, D_{1[g]}, \dots$) using a user-defined element-wise function `f`.
+2.  **Elementwise Stage**: The result of the convolution is combined with one or more auxiliary tensors ($D_{0[g]}, D_{1[g]}, \dots$) using a user-defined element-wise function `f`.
     $E_{[g]} = f(C_{out[g]}, D_{0[g]}, D_{1[g]}, \dots)$
 
 The key optimization is that the intermediate convolution result, $C_{out[g]}$, is never written to global memory. It is computed and held in registers, then immediately consumed by the element-wise part of the kernel's epilogue before the final result `E` is stored.

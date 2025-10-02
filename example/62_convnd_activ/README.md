@@ -31,7 +31,7 @@ The implementation uses the implicit GEMM algorithm for convolution with the act
     -   **Output Accumulation**: Results are accumulated in registers as standard GEMM tiles.
 
 2.  **Fused Activation Epilogue**: Before storing results to global memory:
-    -   **Element-wise Activation**: Apply the activation function to each element in the accumulated tile.
+    -   **Elementwise Activation**: Apply the activation function to each element in the accumulated tile.
     -   **Vectorized Operations**: Use vectorized instructions where possible for activation computation.
     -   **Store Activated Result**: Write the final activated output directly to global memory.
 

@@ -1,4 +1,4 @@
-# Grouped Convolution Backward Data with Multiple Element-wise Inputs
+# Grouped Convolution Backward Data with Multiple Elementwise Inputs
 
 This example demonstrates a **Grouped Convolution Backward Data Pass** fused with an element-wise operation that takes multiple auxiliary input tensors (`D` tensors). The backward data pass (also known as a transposed convolution or deconvolution) computes the gradient of the loss with respect to the convolution's *input* tensor. Fusing it with other operations is a powerful way to optimize the backward pass of a neural network.
 
@@ -10,7 +10,7 @@ The operation computes the gradient with respect to the input (`GradIn`) of a gr
     $GradIn_{temp[g]} = \text{ConvBwdData}(\text{GradOut}_{[g]}, \text{W}_{[g]})$
     Where `GradOut` is the gradient from the subsequent layer and `W` is the weight tensor from the forward pass.
 
-2.  **Element-wise Stage**: The result of the backward convolution is combined with one or more auxiliary tensors ($D_{0[g]}, D_{1[g]}, \dots$) using a user-defined element-wise function `f`.
+2.  **Elementwise Stage**: The result of the backward convolution is combined with one or more auxiliary tensors ($D_{0[g]}, D_{1[g]}, \dots$) using a user-defined element-wise function `f`.
     $GradIn_{[g]} = f(GradIn_{temp[g]}, D_{0[g]}, D_{1[g]}, \dots)$
 
 This fusion is particularly useful for operations like adding the gradient from a residual "skip" connection, which is a common pattern in modern network architectures. By fusing the addition, we avoid a separate kernel launch and a full read/write pass of the `GradIn` tensor.

@@ -1,19 +1,19 @@
-# Binary Element-wise Operations with Broadcasting
+# Binary Elementwise Operations with Broadcasting
 
 This example demonstrates a generic binary element-wise operation, a fundamental building block in numerical computing. It covers two important cases:
-1.  **Simple Element-wise**: Applying a binary function to two input tensors of the *same* shape.
-2.  **Element-wise with Broadcasting**: Applying a binary function to two input tensors of *different but compatible* shapes.
+1.  **Simple Elementwise**: Applying a binary function to two input tensors of the *same* shape.
+2.  **Elementwise with Broadcasting**: Applying a binary function to two input tensors of *different but compatible* shapes.
 
 Broadcasting defines a set of rules for applying element-wise operations on tensors of different sizes, and it is a cornerstone of libraries like NumPy and TensorFlow.
 
 ## Mathematical Formulation
 
-### Simple Element-wise
+### Simple Elementwise
 Given two input tensors, A and B, of the same rank and dimensions, and a binary operator $\odot$, the operation computes an output tensor C where each element is:
 
 $C_{i,j,k,\dots} = A_{i,j,k,\dots} \odot B_{i,j,k,\dots}$
 
-### Element-wise with Broadcasting
+### Elementwise with Broadcasting
 Broadcasting allows element-wise operations on tensors with different shapes, provided they are compatible. Two dimensions are compatible if they are equal, or if one of them is 1. The operation implicitly "stretches" or "duplicates" the tensor with the dimension of size 1 to match the other tensor's shape.
 
 For example, adding a bias vector `B` of shape `(1, N)` to a matrix `A` of shape `(M, N)`:
@@ -65,11 +65,8 @@ This example contains multiple files to demonstrate different scenarios:
 ## Build and Run
 
 ### Prerequisites
-Ensure the Composable Kernel library is built and installed.
-```bash
-cd /path/to/composable_kernel/build
-make -j install
-```
+
+Please follow the instructions in the main [Build Guide](../../README.md#building-ck) section as a prerequisite to building and running this example.
 
 ### Build the Example
 ```bash

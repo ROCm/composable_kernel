@@ -2,7 +2,7 @@
 
 ## Theory
 
-This client example demonstrates **softmax computation over 4D tensors**. Softmax is a key operation in deep learning, especially in attention mechanisms and classification, converting logits into normalized probabilities.
+This client example demonstrates **Softmax computation over 4D tensors**. Softmax is a key operation in deep learning, especially in attention mechanisms and classification, converting logits into normalized probabilities.
 
 **Mathematical Formulation:**
 Given input $X$ and axis $a$:
@@ -15,8 +15,8 @@ $$
   1. Subtract the maximum value for numerical stability.
   2. Exponentiate and sum.
   3. Normalize by the sum.
-- Efficient parallel softmax requires careful reduction and memory access patterns.
-- This example demonstrates softmax over a 4D tensor, as used in attention and vision models.
+- Efficient parallel Softmax requires careful reduction and memory access patterns.
+- This example demonstrates Softmax over a 4D tensor, as used in attention and vision models.
 
 ## How to Run
 
@@ -47,8 +47,8 @@ client_example/06_softmax/
 ### Key Functions
 
 - **main()** (in `softmax4d.cpp`):  
-  Sets up input tensors, configures softmax parameters, launches the softmax kernel, and verifies the result.
+  Sets up input tensors, configures Softmax parameters, launches the Softmax kernel, and verifies the result.
 - **Softmax kernel invocation**:  
-  Uses the Composable Kernel device API to launch the softmax operation.
+  Uses the Composable Kernel device API to launch the Softmax operation.
 
-This client example provides a demonstration of efficient, numerically stable softmax for 4D tensors in deep learning models.
+This client example provides a demonstration of efficient, numerically stable Softmax for 4D tensors in deep learning models.

@@ -37,7 +37,7 @@ The implementation treats this as a parallel reduction problem with spatial aggr
     -   **Intra-Block Reduction**: Threads perform parallel reduction using shared memory to compute the final statistics for each batch item.
 
 3.  **Normalization and Scale/Shift**: 
-    -   **Element-wise Processing**: Each thread processes one or more elements of the batch item.
+    -   **Elementwise Processing**: Each thread processes one or more elements of the batch item.
     -   **Apply Normalization**: Use the computed mean and variance to normalize each element.
     -   **Apply Scale/Shift**: Apply the appropriate `gamma` and `beta` values based on the parameterization choice.
     -   **Store Result**: Write the final normalized result to the output tensor.

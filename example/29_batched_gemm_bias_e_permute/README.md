@@ -1,4 +1,4 @@
-# Batched GEMM with Bias, Element-wise Operation, and Permutation
+# Batched GEMM with Bias, Elementwise Operation, and Permutation
 
 This example demonstrates a **Batched GEMM** where each individual GEMM operation is fused with a bias addition, a second element-wise operation, and a final permutation of the output. This kernel is designed to accelerate layers that have a batch-parallel structure, such as the dense layers in a Transformer's feed-forward network, when they are part of a larger fused computational graph.
 
@@ -12,7 +12,7 @@ This operation performs `B` independent fused GEMM operations in parallel, where
 2.  **Bias Addition Stage**: A bias vector `D_[b]` is broadcast and added.
     $C_{temp2[b]} = C_{temp1[b]} + D_{[b]}$
 
-3.  **Element-wise Stage**: A second element-wise operation is performed with tensor `E_[b]`.
+3.  **Elementwise Stage**: A second element-wise operation is performed with tensor `E_[b]`.
     $C_{temp3[b]} = C_{temp2[b]} \odot E_{[b]}$
 
 4.  **Permutation Stage**: The final result for the batch item is permuted.
