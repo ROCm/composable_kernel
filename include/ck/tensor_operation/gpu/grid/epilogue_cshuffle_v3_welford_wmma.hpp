@@ -221,7 +221,7 @@ struct EpilogueWelfordCShuffle
 
         // Thread transfer LDS to Vmem
         auto cde_shuffle_block_copy_lds_and_global =
-            Base::template GetLDSToVmemEpilogueDescriptor<EGlobalMemoryDataOperation>(
+            Base::template GetLDSToVmemEpilogueDescriptor<EGlobalMemoryDataOperation, AccDataType>(
                 c_ds_desc_refs,
                 e_grid_desc_mblock_mperblock_nblock_nperblock,
                 cde_element_op,

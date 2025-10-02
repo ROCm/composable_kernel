@@ -197,6 +197,7 @@ struct EpilogueCShuffleBase
     }
 
     template <InMemoryDataOperationEnum EGlobalMemoryDataOperation,
+              typename InterDataType,
               typename CDsDescRefs,
               typename EGridDesc>
     __device__ static auto
@@ -241,11 +242,11 @@ struct EpilogueCShuffleBase
                                        false>>, // ThreadTransferSrcResetCoordinateAfterRunFlags
             Sequence<false>,                    // ThreadTransferDstResetCoordinateAfterRunFlags
             1,
-            Tuple<AccDataType>>{c_ds_desc_refs,
-                                idx_c_ds_block_begin,
-                                tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
-                                make_tuple(make_multi_index(block_m_id, 0, block_n_id, 0)),
-                                cde_element_op};
+            Tuple<InterDataType>>{c_ds_desc_refs,
+                                  idx_c_ds_block_begin,
+                                  tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
+                                  make_tuple(make_multi_index(block_m_id, 0, block_n_id, 0)),
+                                  cde_element_op};
     }
 };
 

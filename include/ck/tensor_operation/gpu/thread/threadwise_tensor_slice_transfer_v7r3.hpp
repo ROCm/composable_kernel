@@ -154,7 +154,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3
         // loop over space-filling curve
         static_for<0, src_num_access, 1>{}([&](auto iAccess) {
             auto src_vectors = generate_vectors<SrcDatas, SrcScalarPerVector>();
-            auto elm_vectors = generate_vectors<DstDatas, SrcScalarPerVector>();
+            auto elm_vectors = generate_vectors<InterDatas, SrcScalarPerVector>();
 
             bool oob_val = true;
 
@@ -227,9 +227,10 @@ struct ThreadwiseTensorSliceTransfer_v7r3
                 auto dst_data_refs = generate_tie(
                     // return type should be lvalue
                     [&](auto iDst) -> auto& {
-                        using DstData = remove_cvref_t<tuple_element_t<iDst.value, DstDatas>>;
+                        using InterData = remove_cvref_t<tuple_element_t<iDst.value, InterDatas>>;
 
-                        using elem_op_vec_t = typename vector_type<DstData, elem_op_vec_len>::type;
+                        using elem_op_vec_t =
+                            typename vector_type<InterData, elem_op_vec_len>::type;
 
                         return elm_vectors(iDst).template AsType<elem_op_vec_t>()(i);
                     },
@@ -298,17 +299,17 @@ struct ThreadwiseTensorSliceTransfer_v7r3
     __device__ void
     TransposeFromElmToDst(Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
-        using DstData = remove_cvref_t<decltype(DstDatas{}[I0])>;
+        using InterData = remove_cvref_t<decltype(InterDatas{}[I0])>;
 
         using ElmThreadScratch =
             StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
-                                            DstData,
+                                            InterData,
                                             SrcScalarPerVector,
                                             decltype(GetSrcThreadScratchDescriptor()),
                                             true>;
         using DstThreadScratch =
             StaticTensorTupleOfVectorBuffer<AddressSpaceEnum::Vgpr,
-                                            DstData,
+                                            InterData,
                                             DstScalarPerVector,
                                             decltype(GetDstThreadScratchDescriptor()),
                                             true>;
@@ -320,11 +321,11 @@ struct ThreadwiseTensorSliceTransfer_v7r3
             bit_cast<decltype(elm_thread_scratch_.data_)>(elm_vectors_tuple_[thread_scratch_id]);
 
         if constexpr(SrcVectorDim != DstVectorDim &&
-                     ((is_same<half_t, remove_cvref_t<DstData>>::value &&
+                     ((is_same<half_t, remove_cvref_t<InterData>>::value &&
                        SrcScalarPerVector % 2 == 0 && DstScalarPerVector % 2 == 0) ||
-                      (is_same<f8_t, remove_cvref_t<DstData>>::value &&
+                      (is_same<f8_t, remove_cvref_t<InterData>>::value &&
                        SrcScalarPerVector % 4 == 0 && DstScalarPerVector % 4 == 0) ||
-                      (is_same<int8_t, remove_cvref_t<DstData>>::value &&
+                      (is_same<int8_t, remove_cvref_t<InterData>>::value &&
                        SrcScalarPerVector % 4 == 0 && DstScalarPerVector % 4 == 0)))
         {
             // each transpose does
@@ -357,8 +358,8 @@ struct ThreadwiseTensorSliceTransfer_v7r3
                 constexpr auto data_idx_seq = generate_sequence_v2(
                     [&](auto i) { return Number<data_idx[i]>{}; }, Number<nDim>{});
 
-                using src_vector_t = vector_type_maker_t<DstData, SrcScalarPerVector>;
-                using dst_vector_t = vector_type_maker_t<DstData, DstScalarPerVector>;
+                using src_vector_t = vector_type_maker_t<InterData, SrcScalarPerVector>;
+                using dst_vector_t = vector_type_maker_t<InterData, DstScalarPerVector>;
 
                 // get DstScalarPerVector # of read-only references to src vectors from
                 // src_thread_scratch_
@@ -381,7 +382,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3
                     Number<num_dst_vector>{});
 
                 // do data transpose
-                transpose_vectors<DstData, DstScalarPerVector, SrcScalarPerVector>{}(
+                transpose_vectors<InterData, DstScalarPerVector, SrcScalarPerVector>{}(
                     src_vector_refs, dst_vector_refs);
             });
         }
@@ -426,7 +427,17 @@ struct ThreadwiseTensorSliceTransfer_v7r3
 
             static_for<0, nDst, 1>{}([&](auto i) {
                 // copy data from buf_vectors into dst_bufs
-                using dst_vector_t = typename remove_cvref_t<decltype(dst_vectors[i])>::type;
+                using DstData   = remove_cvref_t<decltype(DstDatas{}[i])>;
+                using InterData = remove_cvref_t<decltype(InterDatas{}[i])>;
+
+                typename vector_type_maker<DstData, DstScalarPerVector>::type dst_vector;
+                using dst_vector_t =
+                    typename vector_type_maker<DstData, DstScalarPerVector>::type::type;
+
+                static_for<0, DstScalarPerVector, 1>{}([&](auto j) {
+                    dst_vector.template AsType<DstData>()(j) =
+                        type_convert<DstData>(dst_vectors[i].template AsType<InterData>()[j]);
+                });
 
                 const bool is_dst_valid =
                     coordinate_has_valid_offset_assuming_visible_index_is_valid(dst_descs[i],
@@ -438,23 +449,13 @@ struct ThreadwiseTensorSliceTransfer_v7r3
                 dst_bufs(i).template Update<DstInMemOp, dst_vector_t>(
                     dst_coords_[i].GetOffset(),
                     is_dst_valid,
-                    dst_vectors[i].template AsType<dst_vector_t>()[I0]);
+                    dst_vector.template AsType<dst_vector_t>()[I0]);
 
                 // store Vgpr
                 using DstVgprDesc = remove_cvref_t<decltype(DstVgprDescs{}.At(i))>;
                 static_assert(DstVgprDesc::IsKnownAtCompileTime(),
                               "wrong! DstDesc need to known at compile-time");
                 constexpr auto dst_vgpr_desc = DstVgprDesc{};
-                using DstData                = remove_cvref_t<decltype(DstDatas{}[i])>;
-                using InterData              = remove_cvref_t<decltype(InterDatas{}[i])>;
-
-                typename vector_type_maker<DstData, DstScalarPerVector>::type dst_vector;
-                using dst_vector_t =
-                    typename vector_type_maker<DstData, DstScalarPerVector>::type::type;
-
-                // copy data from src_buf into src_vector
-                dst_vector.template AsType<dst_vector_t>()(I0) =
-                    dst_vectors[i].template AsType<dst_vector_t>()[I0];
 
                 constexpr auto src_data_idx = DstSpaceFillingCurve::GetIndex(iAccess);
                 static_for<0, DstScalarPerVector, 1>{}([&](auto j) {
@@ -463,9 +464,8 @@ struct ThreadwiseTensorSliceTransfer_v7r3
                                                       src_data_idx + j * dst_scalar_step_in_vector);
 
                     dst_vgpr_buf(I0)(Number<dst_offset>{}) =
-                        is_dst_valid
-                            ? type_convert<InterData>(dst_vector.template AsType<DstData>()[j])
-                            : NumericLimits<InterData>::QuietNaN();
+                        is_dst_valid ? dst_vectors[i].template AsType<InterData>()[j]
+                                     : NumericLimits<InterData>::QuietNaN();
                 });
             });
 
@@ -502,13 +502,11 @@ struct ThreadwiseTensorSliceTransfer_v7r3
                              DstBuffers dst_bufs,
                              Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
+        static_assert(is_same_v<InterDatas, DstDatas>,
+                      "RunWrite doesn't support inter data type different from dst data type");
+
         OOBCheck(thread_scratch_id);
         TransposeFromElmToDst(thread_scratch_id);
-
-        // if(threadIdx.x == 0 && blockIdx.x == 0)
-        // {
-        //     printf("dst_num_access = %d\n", dst_num_access);
-        // }
 
         // loop over space-filling curve
         static_for<0, dst_num_access, 1>{}([&](auto iAccess) {
@@ -735,8 +733,8 @@ struct ThreadwiseTensorSliceTransfer_v7r3
 
     private:
     using SrcVectorsType = decltype(generate_vectors<SrcDatas, SrcScalarPerVector>());
-    using ElmVectorsType = decltype(generate_vectors<DstDatas, SrcScalarPerVector>());
-    using DstVectorsType = decltype(generate_vectors<DstDatas, DstScalarPerVector>());
+    using ElmVectorsType = decltype(generate_vectors<InterDatas, SrcScalarPerVector>());
+    using DstVectorsType = decltype(generate_vectors<InterDatas, DstScalarPerVector>());
 
     static constexpr auto src_num_access = SrcSpaceFillingCurve::GetNumOfAccess();
     static constexpr auto dst_num_access = DstSpaceFillingCurve::GetNumOfAccess();
