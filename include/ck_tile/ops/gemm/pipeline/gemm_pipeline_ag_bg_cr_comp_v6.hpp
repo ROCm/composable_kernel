@@ -90,8 +90,8 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
     using Base      = BaseGemmPipelineAgBgCrCompV6<Problem>;
     using BasePImpl = GemmPipelineAgBgCrImplBase<Problem, Policy>;
 
-    using AsDataType      = remove_cvref_t<typename Problem::AsDataTypeTuple>;
-    using BsDataType      = remove_cvref_t<typename Problem::BsDataTypeTuple>;
+    using AsDataType     = remove_cvref_t<typename Problem::AsDataTypeTuple>;
+    using BsDataType     = remove_cvref_t<typename Problem::BsDataTypeTuple>;
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
@@ -570,8 +570,7 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
                                         Policy::template MakeShuffledARegTileDistribution<
                                             Problem>());
                                     transpose_tile2d(a_shuffle_tmp, a_block_tile[vmem_buf_idx]);
-                                    BasePImpl::LocalPrefill(
-                                        a_copy_lds_window, a_shuffle_tmp);
+                                    BasePImpl::LocalPrefill(a_copy_lds_window, a_shuffle_tmp);
                                 }
                                 else
                                 {
@@ -584,8 +583,7 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
                                         Policy::template MakeShuffledBRegTileDistribution<
                                             Problem>());
                                     transpose_tile2d(b_shuffle_tmp, b_block_tile[vmem_buf_idx]);
-                                    BasePImpl::LocalPrefill(
-                                        b_copy_lds_window, b_shuffle_tmp);
+                                    BasePImpl::LocalPrefill(b_copy_lds_window, b_shuffle_tmp);
                                 }
                                 else
                                 {
@@ -594,9 +592,11 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
                                 }
 
                                 // Global prefetch 4
-                                a_block_tile[vmem_buf_idx] = load_tile_with_elementwise(a_copy_dram_window, a_element_func);
+                                a_block_tile[vmem_buf_idx] =
+                                    load_tile_with_elementwise(a_copy_dram_window, a_element_func);
                                 move_tile_window(a_copy_dram_window, a_dram_tile_window_step);
-                                b_block_tile[vmem_buf_idx] = load_tile_with_elementwise(b_copy_dram_window, b_element_func);
+                                b_block_tile[vmem_buf_idx] =
+                                    load_tile_with_elementwise(b_copy_dram_window, b_element_func);
                                 move_tile_window(b_copy_dram_window, b_dram_tile_window_step);
 
                                 block_sync_lds();
@@ -630,26 +630,22 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
                             auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
                                 Policy::template MakeShuffledARegTileDistribution<Problem>());
                             transpose_tile2d(a_shuffle_tmp, a_block_tile[vmem_buf_idx]);
-                            BasePImpl::LocalPrefill(
-                                a_copy_lds_window, a_shuffle_tmp);
+                            BasePImpl::LocalPrefill(a_copy_lds_window, a_shuffle_tmp);
                         }
                         else
                         {
-                            BasePImpl::LocalPrefill(
-                                a_copy_lds_window, a_block_tile[vmem_buf_idx]);
+                            BasePImpl::LocalPrefill(a_copy_lds_window, a_block_tile[vmem_buf_idx]);
                         }
                         if constexpr(is_b_row_major && !is_b_load_tr_v())
                         {
                             auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
                                 Policy::template MakeShuffledBRegTileDistribution<Problem>());
                             transpose_tile2d(b_shuffle_tmp, b_block_tile[vmem_buf_idx]);
-                            BasePImpl::LocalPrefill(
-                                b_copy_lds_window, b_shuffle_tmp);
+                            BasePImpl::LocalPrefill(b_copy_lds_window, b_shuffle_tmp);
                         }
                         else
                         {
-                            BasePImpl::LocalPrefill(
-                                b_copy_lds_window, b_block_tile[vmem_buf_idx]);
+                            BasePImpl::LocalPrefill(b_copy_lds_window, b_block_tile[vmem_buf_idx]);
                         }
 
                         block_sync_lds();
@@ -755,11 +751,11 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
                                    void* __restrict__ p_smem) const
     {
         return operator()(ck_tile::make_tuple(a_dram_block_window_tmp),
-                    a_element_func,
-                    ck_tile::make_tuple(b_dram_block_window_tmp),
-                    b_element_func,
-                    num_loop,
-                    p_smem);
+                          a_element_func,
+                          ck_tile::make_tuple(b_dram_block_window_tmp),
+                          b_element_func,
+                          num_loop,
+                          p_smem);
     }
 };
 } // namespace ck_tile

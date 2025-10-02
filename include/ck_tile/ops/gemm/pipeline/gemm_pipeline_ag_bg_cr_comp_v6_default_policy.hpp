@@ -20,8 +20,8 @@ struct GemmPipelineAgBgCrCompV6DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
-        using BlockWarps      = typename Problem::BlockGemmShape::BlockWarps;
-        using WarpTile        = typename Problem::BlockGemmShape::WarpTile;
+        using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
+        using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
 
         constexpr index_t vector_size =
             DS_READ_TR_SIZE() / sizeof(typename Problem::ComputeDataType);
@@ -33,16 +33,16 @@ struct GemmPipelineAgBgCrCompV6DefaultPolicy
             : vector_size * 4 == thread_elements              ? WGAttrNumAccessEnum::Quad
                                                               : WGAttrNumAccessEnum::Invalid;
 
-        using WarpGemm        = WarpGemmDispatcher<typename Problem::ADataType,
-                                                   typename Problem::BDataType,
-                                                   typename Problem::CDataType,
-                                                   WarpTile::at(I0),
-                                                   WarpTile::at(I1),
-                                                   WarpTile::at(I2),
-                                                   Problem::TransposeC,
-                                                   false,
-                                                   false,
-                                                   wg_attr_num_access>;
+        using WarpGemm = WarpGemmDispatcher<typename Problem::ADataType,
+                                            typename Problem::BDataType,
+                                            typename Problem::CDataType,
+                                            WarpTile::at(I0),
+                                            WarpTile::at(I1),
+                                            WarpTile::at(I2),
+                                            Problem::TransposeC,
+                                            false,
+                                            false,
+                                            wg_attr_num_access>;
 
         using BlockGemmPolicy = BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::ADataType,
                                                                     typename Problem::BDataType,

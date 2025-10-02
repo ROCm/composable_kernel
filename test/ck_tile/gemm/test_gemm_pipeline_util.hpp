@@ -130,9 +130,9 @@ class TestCkTileGemmPipeline : public ::testing::Test
         constexpr bool kPadK      = PadK;
         constexpr bool preshuffle = Preshuffle;
 
-        constexpr bool DoubleSmemBuffer = (PipelineType == GemmPipelineType::CompV4 ||
+        constexpr bool DoubleSmemBuffer          = (PipelineType == GemmPipelineType::CompV4 ||
                                            PipelineType == GemmPipelineType::CompAsync);
-        constexpr bool TransposeC       = false;
+        constexpr bool TransposeC                = false;
         static constexpr bool StructuredSparsity = false;
         static constexpr bool NumWaveGroup       = 1;
 
