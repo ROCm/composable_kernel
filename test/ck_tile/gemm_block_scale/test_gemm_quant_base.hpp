@@ -65,9 +65,9 @@ class TestCkTileGemmQuantBase : public ::testing::Test
     // Common test execution logic
     void invoke_quant_gemm(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s)
     {
-        constexpr bool kPadM       = false;
-        constexpr bool kPadN       = false;
-        constexpr bool kPadK       = false;
+        constexpr bool kPadM = false;
+        constexpr bool kPadN = false;
+        constexpr bool kPadK = false;
 
         using CodegenGemmShape =
             ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
