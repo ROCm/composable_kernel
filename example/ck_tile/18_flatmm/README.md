@@ -16,7 +16,7 @@ $$
 C^{(b)} = A^{(b)} \times B^{(b)}
 $$
 
-- **Tilewise FLATMM**: Each thread block processes a tile of $C$ for a specific batch, loading corresponding tiles from $A$ and $B$, performing blockwise matrix multiply-accumulate, and writing results. FLATMM may use flattened or packed memory layouts for improved memory access.
+- **FLATMM**: An alternative solution as the Preshuffled GEMM in /03_gemm
 
 ---
 
@@ -27,12 +27,6 @@ $$
 
 ---
 
-## Features
-
-- **Flexible Layouts**: Supports row/column-major and custom strides for $A$, $B$, $C$.
-- **Batching**: Efficiently computes multiple GEMMs in parallel.
-- **Precision**: Supports fp16, bf16, fp8, bf8.
-- **Validation**: CPU/GPU validation and error tolerance options.
 
 ---
 
