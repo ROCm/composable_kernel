@@ -25,7 +25,9 @@ from codegen.ops.fmha_fwd import (
 FMHA_FWD_APPENDKV_KERNEL_BODY="""
 #include <iostream>
 
-#if !defined(__HIP_DEVICE_COMPILE__) || {F_check_archs}
+#if !defined(__HIP_DEVICE_COMPILE__) || defined(__{F_arch}__)
+
+using fmha_arch_tag = ck_tile::{F_arch}_t;
 
 using fmha_dtype_{F_idx} = {F_dtype};
 
@@ -57,7 +59,7 @@ using trait_{F_idx} = fmha_fwd_appendkv_traits_<{F_hdim}, {F_dtype}, {F_bs}, {F_
                         {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_rope}, {F_pagedkv}>;
 
 template<>
-float fmha_fwd_appendkv_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fwd_appendkv_args a)
+float fmha_fwd_appendkv_<trait_{F_idx}, fmha_arch_tag>(const ck_tile::stream_config& s, fmha_fwd_appendkv_args a)
 {{
     using k_ = fmha_kernel_{F_idx};
     if(s.log_level_ > 0)
@@ -65,10 +67,10 @@ float fmha_fwd_appendkv_<trait_{F_idx}>(const ck_tile::stream_config& s, fmha_fw
     auto [kargs, grids] = fmha_fwd_appendkv_create_kargs_and_grids<k_>(a);
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
-    return ck_tile::launch_kernel(s, ck_tile::make_kernel<kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs));
+    return ck_tile::launch_kernel(s, ck_tile::make_kernel<kBlockPerCu, fmha_arch_tag>(k_{{}}, grids, blocks, 0, kargs));
 }}
 
-#endif // !defined(__HIP_DEVICE_COMPILE__) || {F_check_archs}
+#endif // !defined(__HIP_DEVICE_COMPILE__) || defined(__{F_arch}__)
 """
 
 FMHA_FWD_APPENDKV_API_FILENAME="fmha_fwd_appendkv_api.cpp"
@@ -87,7 +89,7 @@ FMHA_FWD_APPENDKV_API_INNER_DISPATCH="""{F_if}((t.is_v_rowmajor == {F_vlayout}) 
         ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && (t.rope_type == {F_rope_check}) &&
         ((a.block_table_ptr != nullptr) == {F_pagedkv})) {{
     using trait_ = fmha_fwd_appendkv_traits_<{F_hdim}, {F_dtype}, {F_bs}, {F_bsk}, {F_bd}, {F_bdv}, {F_vlayout}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_rope}, {F_pagedkv}>;
-    return fmha_fwd_appendkv_<trait_>(s, a);
+    return fmha_fwd_appendkv_<trait_, ck_tile::{F_arch}_t>(s, a);
 }}
 """
 
@@ -182,7 +184,7 @@ class FmhaFwdAppendKVApiPool:
                 for i_hdim, (hdim, pool_by_hdim) in enumerate(pool_by_dtype.items()):
                     inners = str()
                     for i_trait, trait in enumerate(pool_by_hdim):
-                        inners += FMHA_FWD_APPENDKV_API_INNER_DISPATCH.format(F_if=if_(i_trait), F_vlayout=LAYOUT_MAP[trait.vlayout],
+                        inners += FMHA_FWD_APPENDKV_API_INNER_DISPATCH.format(F_if=if_(i_trait), F_arch=arch, F_vlayout=LAYOUT_MAP[trait.vlayout],
                                    F_scheck=trait.scheck, F_skcheck=trait.skcheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_rope_check=ROPE_CHECK_MAP[trait.rope],
                                    F_pagedkv=BOOL_MAP[trait.pagedkv], F_spad=BOOL_MAP[trait.spad], F_skpad=BOOL_MAP[trait.skpad], F_dpad=BOOL_MAP[trait.dpad], F_dvpad=BOOL_MAP[trait.dvpad],
                                    F_rope=ROPE_MAP[trait.rope], F_bs=trait.bs, F_bsk=trait.bsk, F_bd=trait.bd, F_bdv=trait.bdv, F_hdim=hdim, F_dtype=FWD_DTYPE_MAP[dtype])
@@ -208,7 +210,7 @@ class FmhaFwdAppendKVTileSize:
 
 @dataclass
 class FmhaFwdAppendKVKernel:
-    F_archs         : List[str]
+    F_arch          : str
     F_idx           : int  # this is not a tunable, but a counter to differentiate symbol
     F_hdim          : int  # hdim
     F_dtype         : str  # data type
@@ -218,11 +220,10 @@ class FmhaFwdAppendKVKernel:
 
     @property
     def template(self) -> str:
-        check_archs = ' || '.join(f'defined(__{a}__)' for a in self.F_archs)
         return FMHA_FWD_KERNEL_HEADER + \
             FMHA_FWD_APPENDKV_KERNEL_BODY.format(
                 F_idx           = self.F_idx,
-                F_check_archs   = check_archs,
+                F_arch          = self.F_arch,
                 F_hdim          = self.F_hdim,
                 F_dtype         = FWD_DTYPE_MAP[self.F_dtype],
                 F_bs            = self.F_tile.F_bs,
@@ -246,11 +247,11 @@ class FmhaFwdAppendKVKernel:
 
     @property
     def filename(self) -> str:
-        return self.name + ".cpp"
+        return f"{self.name}_{self.F_arch}.cpp"
 
     def api_trait(self) -> FmhaFwdAppendKVApiTrait:
         return FmhaFwdAppendKVApiTrait(
-                arch=self.F_archs[0],
+                arch=self.F_arch,
                 hdim=str(self.F_hdim),
                 dtype=self.F_dtype,
                 bs=self.F_tile.F_bs,
@@ -352,7 +353,7 @@ def get_fwd_appendkv_blobs(targets: List[str], kernel_filter : Optional[str], re
             hdim = int(hdim_str)
             for pipeline in factory.get_pipelines(dtype, hdim):
                 k = FmhaFwdAppendKVKernel(
-                                  F_archs=[arch],
+                                  F_arch=arch,
                                   F_idx=0,
                                   F_hdim=hdim,
                                   F_dtype=dtype,
@@ -387,7 +388,7 @@ def get_fwd_appendkv_blobs(targets: List[str], kernel_filter : Optional[str], re
                 api_pool.register_traits(k.api_trait())
                 gen.append(k)
 
-    return (api_pool, group_kernels_by_filename(gen))
+    return (api_pool, gen)
 
 def write_single_kernel(kernel: FmhaFwdAppendKVKernel, autogen_dir: Path) -> None:
     update_file(autogen_dir / kernel.filename, kernel.template)

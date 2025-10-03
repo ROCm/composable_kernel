@@ -25,7 +25,9 @@ FMHA_BWD_KERNEL_HEADER = """// SPDX-License-Identifier: MIT
 FMHA_BWD_DQ_DK_DV_KERNEL_BODY="""
 #include <iostream>
 
-#if !defined(__HIP_DEVICE_COMPILE__) || {F_check_archs}
+#if !defined(__HIP_DEVICE_COMPILE__) || defined(__{F_arch}__)
+
+using fmha_arch_tag = ck_tile::{F_arch}_t;
 
 using fmha_dtype_{F_idx} = {F_dtype};
 
@@ -128,7 +130,7 @@ using dq_dk_dv_trait_{F_idx} = fmha_bwd_dq_dk_dv_traits_<{F_hdim},
                                                          {F_bn0}>;
 
 template <>
-float fmha_bwd_dq_dk_dv_<dq_dk_dv_trait_{F_idx}>(const ck_tile::stream_config& s, fmha_bwd_args a)
+float fmha_bwd_dq_dk_dv_<dq_dk_dv_trait_{F_idx}, fmha_arch_tag>(const ck_tile::stream_config& s, fmha_bwd_args a)
 {{
     using k_ = fmha_bwd_dq_dk_dv_kernel_{F_idx};
     if(s.log_level_ > 0)
@@ -137,62 +139,61 @@ float fmha_bwd_dq_dk_dv_<dq_dk_dv_trait_{F_idx}>(const ck_tile::stream_config& s
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
     return ck_tile::launch_kernel(
-        s, ck_tile::make_kernel<kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs));
+        s, ck_tile::make_kernel<kBlockPerCu, fmha_arch_tag>(k_{{}}, grids, blocks, 0, kargs));
 }}
 
 template <>
-void fmha_bwd_dq_dk_dv_oneshot_<dq_dk_dv_trait_{F_idx}>(const ck_tile::stream_config& s,
-                                                        fmha_bwd_args a)
+void fmha_bwd_dq_dk_dv_oneshot_<dq_dk_dv_trait_{F_idx}, fmha_arch_tag>(const ck_tile::stream_config& s, fmha_bwd_args a)
 {{
     using k_                               = fmha_bwd_dq_dk_dv_kernel_{F_idx};
     auto [kargs, grids]                    = fmha_bwd_dq_dk_dv_create_kargs_and_grids<k_>(a);
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
-    ck_tile::make_kernel<kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs)(
+    ck_tile::make_kernel<kBlockPerCu, fmha_arch_tag>(k_{{}}, grids, blocks, 0, kargs)(
         ck_tile::stream_config{{s.stream_id_}});
 }}
 
 template <>
-int fmha_bwd_dq_dk_dv_maxq_<dq_dk_dv_trait_{F_idx}>()
+int fmha_bwd_dq_dk_dv_maxq_<dq_dk_dv_trait_{F_idx}, fmha_arch_tag>()
 {{
     using k_ = fmha_bwd_dq_dk_dv_kernel_{F_idx};
     return k_::kMaxSeqLenQ;
 }}
 
 template <>
-std::string fmha_bwd_dq_dk_dv_get_name_<dq_dk_dv_trait_{F_idx}>()
+std::string fmha_bwd_dq_dk_dv_get_name_<dq_dk_dv_trait_{F_idx}, fmha_arch_tag>()
 {{
     using k_ = fmha_bwd_dq_dk_dv_kernel_{F_idx};
     return k_::GetName();
 }}
 
-#endif // !defined(__HIP_DEVICE_COMPILE__) || {F_check_archs}
+#endif // !defined(__HIP_DEVICE_COMPILE__) || defined(__{F_arch}__)
 """
 
 FMHA_BWD_API_FILENAME="fmha_bwd_api.cpp"
 FMHA_BWD_API="""
 #include <iostream>
 
-template <typename dot_do_o_trait_, typename dq_dk_dv_trait_, typename convert_dq_trait_>
+template <typename dot_do_o_trait_, typename dq_dk_dv_trait_, typename convert_dq_trait_, typename Arch>
 float fmha_bwd_(const ck_tile::stream_config& s, fmha_bwd_args a)
 {{
     if constexpr (!std::is_same_v<convert_dq_trait_, void>)
     {{
         if(s.log_level_ > 0)
-            std::cout << ", " << fmha_bwd_dot_do_o_get_name_<dot_do_o_trait_>() << "@" << fmha_bwd_convert_dq_get_name_<convert_dq_trait_>() << "@" << fmha_bwd_dq_dk_dv_get_name_<dq_dk_dv_trait_>() << std::flush;
+            std::cout << ", " << fmha_bwd_dot_do_o_get_name_<dot_do_o_trait_, Arch>() << "@" << fmha_bwd_convert_dq_get_name_<convert_dq_trait_, Arch>() << "@" << fmha_bwd_dq_dk_dv_get_name_<dq_dk_dv_trait_, Arch>() << std::flush;
         return ck_tile::launch_kernel(s,
-            [=](const ck_tile::stream_config& s_){{ fmha_bwd_dot_do_o_oneshot_<dot_do_o_trait_>(s_, a); }},
-            [=](const ck_tile::stream_config& s_){{ fmha_bwd_dq_dk_dv_oneshot_<dq_dk_dv_trait_>(s_, a); }},
-            [=](const ck_tile::stream_config& s_){{ fmha_bwd_convert_dq_oneshot_<convert_dq_trait_>(s_, a); }}
+            [=](const ck_tile::stream_config& s_){{ fmha_bwd_dot_do_o_oneshot_<dot_do_o_trait_, Arch>(s_, a); }},
+            [=](const ck_tile::stream_config& s_){{ fmha_bwd_dq_dk_dv_oneshot_<dq_dk_dv_trait_, Arch>(s_, a); }},
+            [=](const ck_tile::stream_config& s_){{ fmha_bwd_convert_dq_oneshot_<convert_dq_trait_, Arch>(s_, a); }}
         );
     }}
     else
     {{
         if(s.log_level_ > 0)
-            std::cout << ", " << fmha_bwd_dot_do_o_get_name_<dot_do_o_trait_>() << "@" << fmha_bwd_dq_dk_dv_get_name_<dq_dk_dv_trait_>() << std::flush;
+            std::cout << ", " << fmha_bwd_dot_do_o_get_name_<dot_do_o_trait_, Arch>() << "@" << fmha_bwd_dq_dk_dv_get_name_<dq_dk_dv_trait_, Arch>() << std::flush;
         return ck_tile::launch_kernel(s,
-            [=](const ck_tile::stream_config& s_){{ fmha_bwd_dot_do_o_oneshot_<dot_do_o_trait_>(s_, a); }},
-            [=](const ck_tile::stream_config& s_){{ fmha_bwd_dq_dk_dv_oneshot_<dq_dk_dv_trait_>(s_, a); }}
+            [=](const ck_tile::stream_config& s_){{ fmha_bwd_dot_do_o_oneshot_<dot_do_o_trait_, Arch>(s_, a); }},
+            [=](const ck_tile::stream_config& s_){{ fmha_bwd_dq_dk_dv_oneshot_<dq_dk_dv_trait_, Arch>(s_, a); }}
         );
     }}
 }}
@@ -222,7 +223,7 @@ FMHA_BWD_API_INNER_DISPATCH="""
     using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad1d}, ({F_dvpad} > 0)>;
     using dq_dk_dv_trait_ = fmha_bwd_dq_dk_dv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_mask}, {F_dropout}, {F_bias}, {F_dbias}, {F_dpad}, {F_dvpad}, {F_deterministic}, {F_trload}, {F_maxq}, {F_bn0}>;
     using convert_dq_trait_ = fmha_bwd_convert_dq_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad1d}, ({F_dpad} > 0), {F_deterministic}, {F_convert_dq_bn0}>;
-    r = fmha_bwd_<dot_do_o_trait_, dq_dk_dv_trait_, std::conditional_t<{F_convert_dq_enabled}, convert_dq_trait_, void>>(s, a);
+    r = fmha_bwd_<dot_do_o_trait_, dq_dk_dv_trait_, std::conditional_t<{F_convert_dq_enabled}, convert_dq_trait_, void>, ck_tile::{F_arch}_t>(s, a);
     return r;
 }}
 """
@@ -273,7 +274,7 @@ class FmhaBwdDQDKDVTileSize:
 
 @dataclass(frozen=True)
 class FmhaBwdDQDKDVKernel:
-    F_archs         : List[str]
+    F_arch          : str
     F_idx           : int  # this is not a tunable, but a counter to differentiate symbol
     F_hdim          : int  # hdim
     F_dtype         : str  # data type
@@ -291,11 +292,10 @@ class FmhaBwdDQDKDVKernel:
 
     @property
     def template(self) -> str:
-        check_archs = ' || '.join(f'defined(__{a}__)' for a in self.F_archs)
         return FMHA_BWD_KERNEL_HEADER + \
             FMHA_BWD_DQ_DK_DV_KERNEL_BODY.format(
                 F_idx           = self.F_idx,
-                F_check_archs   = check_archs,
+                F_arch          = self.F_arch,
                 F_hdim          = self.F_hdim,
                 F_dtype         = BWD_DTYPE_MAP[self.F_dtype],
                 F_bm0           = self.F_tile.F_bm0,
@@ -373,7 +373,7 @@ class FmhaBwdDQDKDVKernel:
 
     @property
     def filename(self) -> str:
-        return self.name + ".cpp"
+        return f"{self.name}_{self.F_arch}.cpp"
 
 class KernelComponentFactoryBase:
     pass
@@ -451,7 +451,9 @@ def get_factory(target: str):
 FMHA_BWD_DOT_DO_O_KERNEL_BODY="""
 #include <iostream>
 
-#if !defined(__HIP_DEVICE_COMPILE__) || {F_check_archs}
+#if !defined(__HIP_DEVICE_COMPILE__) || defined(__{F_arch}__)
+
+using fmha_arch_tag = ck_tile::{F_arch}_t;
 
 using fmha_dtype_{F_idx} = {F_dtype};
 
@@ -477,7 +479,7 @@ using dot_do_o_trait_{F_idx} =
     fmha_bwd_dot_do_o_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad}, {F_dvpad}>;
 
 template <>
-float fmha_bwd_dot_do_o_<dot_do_o_trait_{F_idx}>(const ck_tile::stream_config& s, fmha_bwd_args a)
+float fmha_bwd_dot_do_o_<dot_do_o_trait_{F_idx}, fmha_arch_tag>(const ck_tile::stream_config& s, fmha_bwd_args a)
 {{
     using k_ = fmha_bwd_dot_do_o_kernel_{F_idx};
     if(s.log_level_ > 0)
@@ -486,33 +488,33 @@ float fmha_bwd_dot_do_o_<dot_do_o_trait_{F_idx}>(const ck_tile::stream_config& s
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
     return ck_tile::launch_kernel(
-        s, ck_tile::make_kernel<kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs));
+        s, ck_tile::make_kernel<kBlockPerCu, fmha_arch_tag>(k_{{}}, grids, blocks, 0, kargs));
 }}
 
 template <>
-void fmha_bwd_dot_do_o_oneshot_<dot_do_o_trait_{F_idx}>(const ck_tile::stream_config& s, fmha_bwd_args a)
+void fmha_bwd_dot_do_o_oneshot_<dot_do_o_trait_{F_idx}, fmha_arch_tag>(const ck_tile::stream_config& s, fmha_bwd_args a)
 {{
     using k_                               = fmha_bwd_dot_do_o_kernel_{F_idx};
     auto [kargs, grids]                    = fmha_bwd_dot_do_o_create_kargs_and_grids<k_>(a);
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
-    ck_tile::make_kernel<kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs)(
+    ck_tile::make_kernel<kBlockPerCu, fmha_arch_tag>(k_{{}}, grids, blocks, 0, kargs)(
         ck_tile::stream_config{{s.stream_id_}});
 }}
 
 template <>
-std::string fmha_bwd_dot_do_o_get_name_<dot_do_o_trait_{F_idx}>()
+std::string fmha_bwd_dot_do_o_get_name_<dot_do_o_trait_{F_idx}, fmha_arch_tag>()
 {{
     using k_ = fmha_bwd_dot_do_o_kernel_{F_idx};
     return k_::GetName();
 }}
 
-#endif // !defined(__HIP_DEVICE_COMPILE__) || {F_check_archs}
+#endif // !defined(__HIP_DEVICE_COMPILE__) || defined(__{F_arch}__)
 """
 
 @dataclass(frozen=True)
 class FmhaBwdOGradDotOKernel:
-    F_archs     : List[str]
+    F_arch      : str
     F_idx       : int  # this is not a tunable, but a counter to differentiate symbol
     F_hdim      : int  # hdim
     F_dtype     : str  # data type
@@ -524,11 +526,10 @@ class FmhaBwdOGradDotOKernel:
 
     @property
     def template(self) -> str:
-        check_archs = ' || '.join(f'defined(__{a}__)' for a in self.F_archs)
         return FMHA_BWD_KERNEL_HEADER + \
             FMHA_BWD_DOT_DO_O_KERNEL_BODY.format(
                 F_idx         = self.F_idx,
-                F_check_archs = check_archs,
+                F_arch        = self.F_arch,
                 F_hdim        = self.F_hdim,
                 F_dtype       = BWD_DTYPE_MAP[self.F_dtype],
                 F_bm0         = self.F_bm0,
@@ -553,12 +554,14 @@ class FmhaBwdOGradDotOKernel:
 
     @property
     def filename(self) -> str:
-        return self.name + ".cpp"
+        return f"{self.name}_{self.F_arch}.cpp"
 
 FMHA_BWD_CONVERT_DQ_KERNEL_BODY="""
 #include <iostream>
 
-#if !defined(__HIP_DEVICE_COMPILE__) || {F_check_archs}
+#if !defined(__HIP_DEVICE_COMPILE__) || defined(__{F_arch}__)
+
+using fmha_arch_tag = ck_tile::{F_arch}_t;
 
 using fmha_dtype_{F_idx} = {F_dtype};
 
@@ -592,7 +595,7 @@ using convert_dq_trait_{F_idx} = fmha_bwd_convert_dq_traits_<{F_hdim},
                                                              {F_bn0}>;
 
 template <>
-float fmha_bwd_convert_dq_<convert_dq_trait_{F_idx}>(const ck_tile::stream_config& s, fmha_bwd_args a)
+float fmha_bwd_convert_dq_<convert_dq_trait_{F_idx}, fmha_arch_tag>(const ck_tile::stream_config& s, fmha_bwd_args a)
 {{
     using k_ = fmha_bwd_convert_dq_kernel_{F_idx};
     if(s.log_level_ > 0)
@@ -601,34 +604,33 @@ float fmha_bwd_convert_dq_<convert_dq_trait_{F_idx}>(const ck_tile::stream_confi
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
     return ck_tile::launch_kernel(
-        s, ck_tile::make_kernel<kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs));
+        s, ck_tile::make_kernel<kBlockPerCu, fmha_arch_tag>(k_{{}}, grids, blocks, 0, kargs));
 }}
 
 template <>
-void fmha_bwd_convert_dq_oneshot_<convert_dq_trait_{F_idx}>(const ck_tile::stream_config& s,
-                                                            fmha_bwd_args a)
+void fmha_bwd_convert_dq_oneshot_<convert_dq_trait_{F_idx}, fmha_arch_tag>(const ck_tile::stream_config& s, fmha_bwd_args a)
 {{
     using k_                               = fmha_bwd_convert_dq_kernel_{F_idx};
     auto [kargs, grids]                    = fmha_bwd_convert_dq_create_kargs_and_grids<k_>(a);
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
-    ck_tile::make_kernel<kBlockPerCu>(k_{{}}, grids, blocks, 0, kargs)(
+    ck_tile::make_kernel<kBlockPerCu, fmha_arch_tag>(k_{{}}, grids, blocks, 0, kargs)(
         ck_tile::stream_config{{s.stream_id_}});
 }}
 
 template <>
-std::string fmha_bwd_convert_dq_get_name_<convert_dq_trait_{F_idx}>()
+std::string fmha_bwd_convert_dq_get_name_<convert_dq_trait_{F_idx}, fmha_arch_tag>()
 {{
     using k_ = fmha_bwd_convert_dq_kernel_{F_idx};
     return k_::GetName();
 }}
 
-#endif // !defined(__HIP_DEVICE_COMPILE__) || {F_check_archs}
+#endif // !defined(__HIP_DEVICE_COMPILE__) || defined(__{F_arch}__)
 """
 
 @dataclass(frozen=True)
 class FmhaBwdConvertQGradKernel:
-    F_archs         : List[str]
+    F_arch          : str
     F_idx           : int  # this is not a tunable, but a counter to differentiate symbol
     F_hdim          : int  # hdim
     F_dtype         : str  # data type
@@ -643,11 +645,10 @@ class FmhaBwdConvertQGradKernel:
 
     @property
     def template(self) -> str:
-        check_archs = ' || '.join(f'defined(__{a}__)' for a in self.F_archs)
         return FMHA_BWD_KERNEL_HEADER + \
             FMHA_BWD_CONVERT_DQ_KERNEL_BODY.format(
                 F_idx           = self.F_idx,
-                F_check_archs   = check_archs,
+                F_arch          = self.F_arch,
                 F_hdim          = self.F_hdim,
                 F_dtype         = BWD_DTYPE_MAP[self.F_dtype],
                 F_bm0           = self.F_bm0,
@@ -676,7 +677,7 @@ class FmhaBwdConvertQGradKernel:
 
     @property
     def filename(self) -> str:
-        return self.name + ".cpp"
+        return f"{self.name}_{self.F_arch}.cpp"
 
 @dataclass(frozen=True)
 class FmhaBwdApiTrait:
@@ -756,13 +757,13 @@ class FmhaBwdApiTrait:
             return 2
 
         F_dvpad = 't' if self.dvpad else 'f'
-        return FmhaBwdOGradDotOKernel(F_archs=[self.arch], F_idx=self.idx, F_hdim=self.hdim, F_dtype=self.dtype,
+        return FmhaBwdOGradDotOKernel(F_arch=self.arch, F_idx=self.idx, F_hdim=self.hdim, F_dtype=self.dtype,
             F_bm0=M0_1D, F_spad=self.spad1d, F_dvpad=F_dvpad,
             F_mode=self.mode, F_occupancy=get_occupancy(self.dtype, self.hdim))
 
     @property
     def dq_dk_dv_kernel(self) -> FmhaBwdDQDKDVKernel:
-        return FmhaBwdDQDKDVKernel(F_archs=[self.arch], F_idx=self.idx, F_hdim=self.hdim, F_dtype=self.dtype, F_tile=self.tile,
+        return FmhaBwdDQDKDVKernel(F_arch=self.arch, F_idx=self.idx, F_hdim=self.hdim, F_dtype=self.dtype, F_tile=self.tile,
             F_dpad=self.dpad, F_dvpad=self.dvpad, F_bias=self.bias, F_dbias=self.dbias, F_dropout=self.dropout,
             F_mask=self.mask, F_mode=self.mode, F_deterministic=self.deterministic, mask_impl=self.mask_impl, F_trload=self.tr_load)
 
@@ -774,7 +775,7 @@ class FmhaBwdApiTrait:
             return 2
 
         F_dpad = 't' if self.dpad else 'f'
-        return FmhaBwdConvertQGradKernel(F_archs=[self.arch], F_idx=self.idx, F_hdim=self.hdim, F_dtype=self.dtype,
+        return FmhaBwdConvertQGradKernel(F_arch=self.arch, F_idx=self.idx, F_hdim=self.hdim, F_dtype=self.dtype,
             F_bm0=M0_1D, F_bn0=self.convert_dq_bn0, F_spad=self.spad1d, F_dpad=F_dpad,
             F_mode=self.mode, F_occupancy=get_occupancy(self.dtype, self.hdim),
             F_deterministic=self.deterministic, disabled=self.tile.max_seq_q != 0)
@@ -793,7 +794,7 @@ class FmhaBwdApiPool:
     def _api_inners(self, traits: List[FmhaBwdApiTrait]) -> str:
         inners = ""
         for i_trait, trait in enumerate(traits):
-            inners += FMHA_BWD_API_INNER_DISPATCH.format(F_if=if_(i_trait), F_mode=MODE_MAP[trait.mode],
+            inners += FMHA_BWD_API_INNER_DISPATCH.format(F_if=if_(i_trait), F_arch=trait.arch, F_mode=MODE_MAP[trait.mode],
                 F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_mask=get_mask_map(self.mask_impl)[trait.mask], F_bias_check=BIAS_CHECK_MAP[trait.bias],
                 F_bias=BIAS_MAP[trait.bias], F_dbias=BOOL_MAP[trait.dbias], F_dropout_check=DROPOUT_CHECK_MAP[trait.dropout], F_dropout=DROPOUT_MAP[trait.dropout],
                 F_scheck=trait.scheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_hdim=trait.hdim, F_dtype=BWD_DTYPE_MAP[trait.dtype],
@@ -854,9 +855,10 @@ def get_bwd_blobs(targets: List[str], filter_list: str, receipt, mask_impl, optd
     # Place more specific architectures first
     factories = sorted(list(factories.values()), key=lambda f: len(f.arch), reverse=True)
 
-    gen_dot_do_o: List[FmhaBwdOGradDotOKernel] = []
-    gen_dq_dk_dv: List[FmhaBwdDQDKDVKernel] = []
-    gen_convert_dq: List[FmhaBwdConvertQGradKernel] = []
+    # use dict as ordered set
+    gen_dot_do_o: Dict[FmhaBwdOGradDotOKernel, Literal[True]] = OrderedDict()
+    gen_dq_dk_dv: Dict[FmhaBwdDQDKDVKernel, Literal[True]] = OrderedDict()
+    gen_convert_dq: Dict[FmhaBwdConvertQGradKernel, Literal[True]] = OrderedDict()
     api_pool = FmhaBwdApiPool(mask_impl)
 
     for factory, dtype, tr_load in itertools.product(factories, BWD_DTYPE_MAP.keys(), ["t", "f"]):
@@ -965,13 +967,13 @@ def get_bwd_blobs(targets: List[str], filter_list: str, receipt, mask_impl, optd
                 if dtype == 'fp32':
                     continue
 
-            gen_dot_do_o.append(t.dot_do_o_kernel)
-            gen_dq_dk_dv.append(t.dq_dk_dv_kernel)
+            gen_dot_do_o[t.dot_do_o_kernel] = True
+            gen_dq_dk_dv[t.dq_dk_dv_kernel] = True
             if not t.convert_dq_kernel.disabled:
-                gen_convert_dq.append(t.convert_dq_kernel)
+                gen_convert_dq[t.convert_dq_kernel] = True
             api_pool.register_dq_dk_dv_traits(t)
 
-    return api_pool, group_kernels_by_filename(gen_dot_do_o), group_kernels_by_filename(gen_dq_dk_dv), group_kernels_by_filename(gen_convert_dq)
+    return api_pool, list(gen_dot_do_o.keys()), list(gen_dq_dk_dv.keys()), list(gen_convert_dq.keys())
 
 def write_blobs(targets: List[str], output_dir : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
     api_pool, kernels_dot_do_o, kernels_dq_dk_dv, kernels_convert_dq = get_bwd_blobs(
