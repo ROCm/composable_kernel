@@ -108,16 +108,7 @@ struct GroupedConvolutionForwardInvoker
             float ave_time = 0.0f;
 
             // Create kargs and check if split-image is needed
-            if(s.log_level_ > 0) {
-                std::cout << "[INVOKER] Creating kargs with N=" << args.N_ << std::endl;
-            }
             auto kargs = Kernel::MakeKernelArgs(args);
-
-            if(s.log_level_ > 0) {
-                std::cout << "[INVOKER] kargs: n_per_split=" << kargs.n_per_split
-                          << ", n_splits=" << kargs.n_splits
-                          << ", original_n=" << kargs.original_n << std::endl;
-            }
 
             // Check if split-image is needed (uses unified threshold internally)
             auto split_info = kargs.GetSplitImageInfo();
@@ -141,10 +132,6 @@ struct GroupedConvolutionForwardInvoker
 
             // RECURSIVE split-image path
             {
-                if(s.log_level_ > 0) {
-                    std::cout << "[RECURSIVE SPLIT] Starting recursive split-image" << std::endl;
-                }
-
                 const int split_dim = 0;  // Always split first spatial dimension (W/H/D)
                 const int MAX_DEPTH = 10;  // Max recursion depth (2^10 = 1024 pieces max)
 
@@ -171,12 +158,6 @@ struct GroupedConvolutionForwardInvoker
                 initial_args.N_ = kargs.n_per_split;  // Use split-N result
                 split_queue.emplace(initial_args, 0, 0, 0);
 
-                int level = 0;
-                if(s.log_level_ > 0) {
-                    std::cout << "[RECURSIVE SPLIT] Initial piece: N=" << initial_args.N_
-                              << ", offset_in=0, offset_out=0, depth=0" << std::endl;
-                }
-
                 // BFS-style recursive splitting
                 while(!split_queue.empty()) {
                     SplitPiece current = split_queue.front();
@@ -186,40 +167,12 @@ struct GroupedConvolutionForwardInvoker
                     auto piece_kargs = Kernel::MakeKernelArgs(current.args);
                     auto piece_split_info = piece_kargs.GetSplitImageInfo();
 
-                    if(s.log_level_ > 0) {
-                        std::cout << "[LEVEL " << level << "] Checking piece: ";
-                        if constexpr (NDimSpatial == 1) {
-                            std::cout << "Wo=" << current.args.output_spatial_lengths_[0];
-                        } else if constexpr (NDimSpatial == 2) {
-                            std::cout << "Ho=" << current.args.output_spatial_lengths_[0]
-                                      << ", Wo=" << current.args.output_spatial_lengths_[1];
-                        } else if constexpr (NDimSpatial == 3) {
-                            std::cout << "Do=" << current.args.output_spatial_lengths_[0]
-                                      << ", Ho=" << current.args.output_spatial_lengths_[1]
-                                      << ", Wo=" << current.args.output_spatial_lengths_[2];
-                        }
-                        std::cout << ", offset_in=" << current.input_offset
-                                  << ", offset_out=" << current.output_offset
-                                  << ", depth=" << current.depth << std::endl;
-                    }
-
                     // Check if we should stop splitting: either small enough OR max depth reached
                     if(!piece_split_info.should_split || current.depth >= MAX_DEPTH) {
                         // This piece is ready to launch
                         ready_list.push_back(current);
-                        if(s.log_level_ > 0) {
-                            if(!piece_split_info.should_split) {
-                                std::cout << "  -> Ready to launch (below threshold)" << std::endl;
-                            } else {
-                                std::cout << "  -> Ready to launch (max depth " << MAX_DEPTH << " reached)" << std::endl;
-                            }
-                        }
                     } else {
                         // This piece needs to be split into LEFT and RIGHT
-                        if(s.log_level_ > 0) {
-                            std::cout << "  -> SPLIT! Left=" << piece_split_info.out_left
-                                      << ", Right=" << piece_split_info.out_right << std::endl;
-                        }
 
                         // Create LEFT piece (inherits parent's offset)
                         auto left_args = current.args;
@@ -232,12 +185,6 @@ struct GroupedConvolutionForwardInvoker
                         auto left_input_offset = current.input_offset;
                         auto left_output_offset = current.output_offset;
 
-                        if(s.log_level_ > 0) {
-                            std::cout << "    LEFT: offset_in=" << left_input_offset
-                                      << " (parent), offset_out=" << left_output_offset
-                                      << " (parent)" << std::endl;
-                        }
-
                         // Create RIGHT piece (parent offset + local offset)
                         auto right_args = current.args;
                         right_args.input_spatial_lengths_[split_dim] = piece_split_info.in_right;
@@ -249,48 +196,16 @@ struct GroupedConvolutionForwardInvoker
                         auto right_input_offset = current.input_offset + piece_split_info.input_offset;
                         auto right_output_offset = current.output_offset + piece_split_info.output_offset;
 
-                        if(s.log_level_ > 0) {
-                            std::cout << "    RIGHT: local_offset_in=" << piece_split_info.input_offset
-                                      << ", local_offset_out=" << piece_split_info.output_offset << std::endl;
-                            std::cout << "    RIGHT: cumulative_offset_in=" << right_input_offset
-                                      << " (" << current.input_offset << "+" << piece_split_info.input_offset << ")"
-                                      << ", cumulative_offset_out=" << right_output_offset
-                                      << " (" << current.output_offset << "+" << piece_split_info.output_offset << ")"
-                                      << std::endl;
-                        }
-
                         // Push LEFT and RIGHT back to queue with incremented depth
                         split_queue.emplace(left_args, left_input_offset, left_output_offset, current.depth + 1);
                         split_queue.emplace(right_args, right_input_offset, right_output_offset, current.depth + 1);
                     }
-
-                    level++;
-                }
-
-                if(s.log_level_ > 0) {
-                    std::cout << "[RECURSIVE SPLIT] Split complete! Total pieces: " << ready_list.size() << std::endl;
                 }
 
                 // Launch all pieces from ready_list
                 ave_time = 0.0f;
                 for(size_t i = 0; i < ready_list.size(); i++) {
                     const auto& piece = ready_list[i];
-
-                    if(s.log_level_ > 0) {
-                        std::cout << "[LAUNCH " << (i+1) << "/" << ready_list.size() << "] ";
-                        if constexpr (NDimSpatial == 1) {
-                            std::cout << "Wo=" << piece.args.output_spatial_lengths_[0];
-                        } else if constexpr (NDimSpatial == 2) {
-                            std::cout << "Ho=" << piece.args.output_spatial_lengths_[0]
-                                      << ", Wo=" << piece.args.output_spatial_lengths_[1];
-                        } else if constexpr (NDimSpatial == 3) {
-                            std::cout << "Do=" << piece.args.output_spatial_lengths_[0]
-                                      << ", Ho=" << piece.args.output_spatial_lengths_[1]
-                                      << ", Wo=" << piece.args.output_spatial_lengths_[2];
-                        }
-                        std::cout << ", offset_in=" << piece.input_offset
-                                  << ", offset_out=" << piece.output_offset << std::endl;
-                    }
 
                     // Create kargs for this piece
                     auto piece_kargs = Kernel::MakeKernelArgs(piece.args);
@@ -318,14 +233,6 @@ struct GroupedConvolutionForwardInvoker
                         s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, piece_kargs));
 
                     ave_time += piece_time;
-
-                    if(s.log_level_ > 0) {
-                        std::cout << "  Time: " << piece_time << "ms" << std::endl;
-                    }
-                }
-
-                if(s.log_level_ > 0) {
-                    std::cout << "[RECURSIVE SPLIT] Complete! Total time: " << ave_time << "ms" << std::endl;
                 }
             }
 

@@ -40,11 +40,6 @@ struct GroupedConvFwdKernelArgs
                                 bool>::type = false>
     CK_TILE_HOST GroupedConvFwdKernelArgs(const GroupedConvFwdHostArgs& args)
     {
-        // Debug: Print what dimensions we're using
-        printf("[KERNEL 1D] Input spatial: %ld, Output spatial: %ld\n",
-               static_cast<long>(args.input_spatial_lengths_[0]),
-               static_cast<long>(args.output_spatial_lengths_[0]));
-
         in_g_n_c_wis_lengths  = {static_cast<index_t>(args.G_),
                                  static_cast<index_t>(args.N_),
                                  static_cast<index_t>(args.C_),
