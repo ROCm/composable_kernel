@@ -54,6 +54,7 @@ jobs:
 
       - name: Patch rocm-libraries
         run: |
+          rm ./TheRock/patches/amd-mainline/rocm-libraries/0009-Use-workgroupMappingDim-in-rocroller_host.patch
           git config --global --add safe.directory '*'
           git -c user.name="therockbot" -c "user.email=therockbot@amd.com" am --whitespace=nowarn ./TheRock/patches/amd-mainline/rocm-libraries/*.patch
 
