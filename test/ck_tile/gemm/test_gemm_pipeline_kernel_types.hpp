@@ -8,16 +8,7 @@
 
 #include "ck_tile/host.hpp"
 #include "test_gemm_pipeline_util.hpp"
-
-using INT8  = ck_tile::int8_t;
-using INT32 = ck_tile::int32_t;
-
-using F16 = ck_tile::half_t;
-using F32 = float;
-using F8  = ck_tile::fp8_t;
-
-using BF16 = ck_tile::bf16_t;
-using BF8  = ck_tile::bf8_t;
+#include "test_gemm_pipeline_prec_types.hpp"
 
 using Row       = ck_tile::tensor_layout::gemm::RowMajor;
 using Col       = ck_tile::tensor_layout::gemm::ColumnMajor;
