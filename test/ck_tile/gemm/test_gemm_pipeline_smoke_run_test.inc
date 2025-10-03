@@ -203,13 +203,9 @@ template <typename GemmConfig,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-bool run_gemm_test_with_layouts(ck_tile::ArgParser& arg_parser)
+bool run_gemm_test_with_layouts(const int M, const int N, const int K)
 {
     using AccDataType = typename GemmTypeConfig<ADataType, BDataType, CDataType>::AccDataType;
-
-    ck_tile::index_t M = arg_parser.get_int("m");
-    ck_tile::index_t N = arg_parser.get_int("n");
-    ck_tile::index_t K = arg_parser.get_int("k");
 
     ck_tile::index_t stride_A = 0;
     ck_tile::index_t stride_B = 0;

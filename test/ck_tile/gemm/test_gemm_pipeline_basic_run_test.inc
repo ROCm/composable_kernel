@@ -156,86 +156,46 @@ template <typename GemmConfig,
           typename APrecType,
           typename BPrecType = APrecType,
           typename CPrecType = APrecType>
-bool run_gemm_test_prec_type(ck_tile::ArgParser& arg_parser)
+bool run_gemm_test_prec_type(const int M, const int N, const int K)
 {
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
     return run_gemm_test_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType, Row, Col, Row>(
-        arg_parser);
-}
-
-template <typename GemmConfig, typename APrecType, typename BPrecType, typename CPrecType>
-bool run_gemm_test(int argc, char* argv[])
-{
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-        return false;
-
-    return run_gemm_test_prec_type<GemmConfig, APrecType, BPrecType, CPrecType>(arg_parser);
+        M, N, K);
 }
 
 template <typename APrecType, typename BPrecType = APrecType, typename CPrecType = APrecType>
 bool run_gemm_combinations()
 {
     // Define possible values for each parameter
-    std::vector<std::string> m_values = {"128", "1024"};
-    std::vector<std::string> n_values = {"128", "2048"};
-    std::vector<std::string> k_values = {"64", "128"};
-
-    // We'll store all our arguments as strings first
-    std::vector<std::string> arg_strings = {
-        "./bin/tile_example_gemm_basic",
-        "", // m placeholder
-        "", // n placeholder
-        "", // k placeholder
-    };
-
-    // Create an array of const char pointers for argv
-    constexpr size_t ARG_COUNT   = 4;
-    constexpr size_t ARG_MAX_LEN = 64;
-    char args[ARG_COUNT][ARG_MAX_LEN];
-    char* argv[ARG_COUNT];
+    std::vector<int> m_values = {128, 1024};
+    std::vector<int> n_values = {128, 2048};
+    std::vector<int> k_values = {64, 128};
 
     // Run all combinations
     bool is_success = true;
     for(const auto& m : m_values)
     {
-        arg_strings[1] = "-m=" + m;
-
         for(const auto& n : n_values)
         {
-            arg_strings[2] = "-n=" + n;
-
             for(const auto& k : k_values)
             {
-                arg_strings[3] = "-k=" + k;
-
-                // Set up the argv array with pointers to the string data
-                for(size_t i = 0; i < ARG_COUNT; i++)
-                {
-                    strncpy(args[i], arg_strings[i].c_str(), ARG_MAX_LEN);
-                    argv[i] = args[i];
-                }
-
-                std::cout << "Arguments received: ";
-                for(size_t i = 1; i < ARG_COUNT; ++i)
-                {
-                    std::cout << argv[i] << " ";
-                }
-                std::cout << std::endl;
+                std::cout << "-m=" << m << " -n=" << n << " -k=" << k << std::endl;
 
                 // Call the function with the current configuration
                 try
                 {
 #if CK_TILE_USE_WMMA
-                    is_success = run_gemm_test<GemmConfig_Wmma, APrecType, BPrecType, CPrecType>(
-                                     ARG_COUNT, argv) &&
-                                 is_success;
+                    is_success =
+                        run_gemm_test_prec_type<GemmConfig_Wmma, APrecType, BPrecType, CPrecType>(
+                            m, n, k) &&
+                        is_success;
 #else
-                    is_success = run_gemm_test<GemmConfig_Mfma, APrecType, BPrecType, CPrecType>(
-                                     ARG_COUNT, argv) &&
-                                 is_success;
+                    is_success =
+                        run_gemm_test_prec_type<GemmConfig_Mfma, APrecType, BPrecType, CPrecType>(
+                            m, n, k) &&
+                        is_success;
 #endif
                 }
                 catch(const ArgumentsNotSupportedException& e)
