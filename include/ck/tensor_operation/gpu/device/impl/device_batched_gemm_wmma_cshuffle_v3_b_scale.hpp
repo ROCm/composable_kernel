@@ -51,9 +51,9 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         // functions not directly using the Z dimension for other calculations. As it turns out, k
         // batching does rely directly on blockIdx.Z through SplitKBatchOffset. Therefore, for now
         // we will use the grid Y dimension for batching. This may be a bit fragile.
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    const index_t g_idx = amd_wave_read_first_lane(blockIdx.y);
+        const index_t g_idx = amd_wave_read_first_lane(blockIdx.y);
 
         const long_index_t a_batch_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetAPtrOffset(g_idx));
@@ -249,18 +249,19 @@ template <typename ALayout,
           typename ComputeTypeB                       = ComputeTypeA,
           bool PermuteA                               = false,
           bool PermuteB                               = false>
-struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale : public DeviceBatchedGemmV2BScale<ALayout,
-                                                                    BLayout,
-                                                                    CLayout,
-                                                                    ADataType,
-                                                                    BDataType,
-                                                                    BScaleDataType,
-                                                                    CDataType,
-                                                                    ScaleBlockN,
-                                                                    ScaleBlockK,
-                                                                    AElementwiseOperation,
-                                                                    BElementwiseOperation,
-                                                                    CElementwiseOperation>
+struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale
+    : public DeviceBatchedGemmV2BScale<ALayout,
+                                       BLayout,
+                                       CLayout,
+                                       ADataType,
+                                       BDataType,
+                                       BScaleDataType,
+                                       CDataType,
+                                       ScaleBlockN,
+                                       ScaleBlockK,
+                                       AElementwiseOperation,
+                                       BElementwiseOperation,
+                                       CElementwiseOperation>
 {
     // We are inheriting from DeviceBatchedGemm and this base class does not support permuteA and
     // permuteB arguments so for now we are not including this functionality.
@@ -275,10 +276,10 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale : public DeviceBatchedGemmV2BSca
                                        index_t BatchStrideB,
                                        index_t BatchStrideC,
                                        index_t BatchStrideScaleB)
-            : BatchStrideA_(BatchStrideA), 
-              BatchStrideB_(BatchStrideB), 
+            : BatchStrideA_(BatchStrideA),
+              BatchStrideB_(BatchStrideB),
               BatchStrideC_(BatchStrideC),
-              BatchStrideScaleB_(BatchStrideScaleB) 
+              BatchStrideScaleB_(BatchStrideScaleB)
         {
         }
 
@@ -300,6 +301,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale : public DeviceBatchedGemmV2BSca
         {
             return g_idx * static_cast<long_index_t>(BatchStrideScaleB_);
         }
+
         private:
         index_t BatchStrideA_;
         index_t BatchStrideB_;
@@ -406,7 +408,8 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale : public DeviceBatchedGemmV2BSca
                                      c_element_op_,
                                      is_reduce_),
               Batch(Batch_),
-              compute_ptr_offset_of_batch{BatchStrideA_, BatchStrideB_, BatchStrideC_, BatchStrideScaleB_}
+              compute_ptr_offset_of_batch{
+                  BatchStrideA_, BatchStrideB_, BatchStrideC_, BatchStrideScaleB_}
         {
         }
 
@@ -770,8 +773,7 @@ struct DeviceBatchedGemm_Wmma_CShuffleV3_BScale : public DeviceBatchedGemmV2BSca
                                           KBatch,
                                           a_element_op,
                                           b_element_op,
-                                          c_element_op
-                                        );
+                                          c_element_op);
     }
 
     // polymorphic

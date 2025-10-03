@@ -28,7 +28,6 @@ TYPED_TEST(TestBatchedGemmBScale_MK_NK, MidLargeM)
 
     constexpr int NBatches = 7;
 
-
     for(int M : Ms)
         this->Run(M, N, K, StrideA, StrideB, StrideC, NBatches);
 }
