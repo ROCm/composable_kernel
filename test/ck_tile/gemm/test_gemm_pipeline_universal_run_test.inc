@@ -228,16 +228,15 @@ int run_gemm_combinations()
     std::vector<std::string> k_values = {"512", "1024"};
 
     // We'll store all our arguments as strings first
-    std::vector<std::string> arg_strings = {"./bin/tile_example_gemm_universal",
-                                            "", // m placeholder
-                                            "", // n placeholder
-                                            "", // k placeholder
-                                            "-stride_a=0",
-                                            "-stride_b=0",
-                                            "-stride_c=0"};
+    std::vector<std::string> arg_strings = {
+        "./bin/tile_example_gemm_universal",
+        "", // m placeholder
+        "", // n placeholder
+        "", // k placeholder
+    };
 
     // Create an array of const char pointers for argv
-    constexpr size_t ARG_COUNT   = 7;
+    constexpr size_t ARG_COUNT   = 4;
     constexpr size_t ARG_MAX_LEN = 64;
     char args[ARG_COUNT][ARG_MAX_LEN];
     char* argv[ARG_COUNT];
