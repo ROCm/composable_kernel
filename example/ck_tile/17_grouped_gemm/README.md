@@ -4,7 +4,7 @@ The `Grouped GEMM` operators are versions of GEMM that run multiple GEMM operati
 
 ### Preshuffle and Persistence
 
-The grouped GEMM examples include two advanced optimization features:
+The grouped GEMM examples include the following advanced optimization features:
 
 #### Weight Preshuffle
 Weight preshuffle is an optimization technique that reorganizes the B matrix (weights) in memory to improve data access patterns and reduce memory bandwidth requirements. This is particularly beneficial for inference workloads where the same weights are reused across multiple batches.
@@ -26,7 +26,7 @@ Multi-D operations extend the standard GEMM operation by supporting additional e
 - **Implementation**: Available in `grouped_gemm_multi_d.cpp`
 - **Operation**: E = C × D₀ × D₁ (where C = A × B is the standard GEMM result)
 - **Configuration**: Uses `GemmConfigV3`, `GemmConfigV4`, `GemmConfigMemory` template configuration with 2 D tensors
-- **Data Types**: Supports fp16 
+- **Data Types**: Supports fp16, fp8
 - **Benefits**: Enables complex operations like scaling, activation functions, or other elementwise transformations in a single kernel call
 - **Build Target**: `make tile_example_grouped_gemm_multi_d -j`
 
