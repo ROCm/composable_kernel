@@ -78,22 +78,23 @@ struct GroupedConvFwdKernelArgs
         }
         out_ptr = args.out_ptr;
 
-        ConvToGemmFwdTransformer conv_to_gemm_transformer{in_g_n_c_wis_lengths,
-                                                          wei_g_k_c_xs_lengths,
-                                                          out_g_n_k_wos_lengths,
-                                                          conv_filter_strides,
-                                                          conv_filter_dilations,
-                                                          input_left_pads,
-                                                          input_right_pads};
+        // Create and STORE transformer (for split-image support)
+        transformer_ = ConvToGemmFwdTransformer{in_g_n_c_wis_lengths,
+                                                wei_g_k_c_xs_lengths,
+                                                out_g_n_k_wos_lengths,
+                                                conv_filter_strides,
+                                                conv_filter_dilations,
+                                                input_left_pads,
+                                                input_right_pads};
 
         a_grid_desc_m_k =
-            conv_to_gemm_transformer
+            transformer_
                 .template MakeADescriptor_M_K<typename GroupedConvTraitsType_::InLayout>();
         b_grid_desc_n_k =
-            conv_to_gemm_transformer
+            transformer_
                 .template MakeBDescriptor_N_K<typename GroupedConvTraitsType_::WeiLayout>();
         c_grid_desc_m_n =
-            conv_to_gemm_transformer
+            transformer_
                 .template MakeCDescriptor_M_N<typename GroupedConvTraitsType_::OutLayout>();
 
         group_stride_a = args.C_;
@@ -106,19 +107,19 @@ struct GroupedConvFwdKernelArgs
 
         // Initialize Split-N support fields for 1D convolution (NWGC layout)
         // Get the actual split N from transformer
-        n_per_split = conv_to_gemm_transformer.GetN();
-        original_n  = conv_to_gemm_transformer.GetOriginalN();
+        n_per_split = transformer_.GetN();
+        original_n  = transformer_.GetOriginalN();
         n_splits    = ck_tile::integer_divide_ceil(original_n, n_per_split);
 
-        // Calculate batch strides for NWGC layout
-        // Need to account for G dimension when moving between batches
+        // FIX: Calculate batch strides using args dimensions
+        // These are the ORIGINAL dimensions passed to constructor, not modified by invoker yet
+        // (invoker modifies args AFTER calling MakeKernelArgs)
         input_batch_stride  = args.G_ * args.C_ * args.input_spatial_lengths_[0];
         output_batch_stride = args.G_ * args.K_ * args.output_spatial_lengths_[0];
 
         // Update GemmM to use split N (not original N)
         GemmM = n_per_split * args.output_spatial_lengths_[0];
-
-        // Process split-image if needed
+        
     }
 
     template <
@@ -171,22 +172,23 @@ struct GroupedConvFwdKernelArgs
         }
         out_ptr = args.out_ptr;
 
-        ConvToGemmFwdTransformer conv_to_gemm_transformer{in_g_n_c_wis_lengths,
-                                                          wei_g_k_c_xs_lengths,
-                                                          out_g_n_k_wos_lengths,
-                                                          conv_filter_strides,
-                                                          conv_filter_dilations,
-                                                          input_left_pads,
-                                                          input_right_pads};
+        // Create and STORE transformer (for split-image support)
+        transformer_ = ConvToGemmFwdTransformer{in_g_n_c_wis_lengths,
+                                                wei_g_k_c_xs_lengths,
+                                                out_g_n_k_wos_lengths,
+                                                conv_filter_strides,
+                                                conv_filter_dilations,
+                                                input_left_pads,
+                                                input_right_pads};
 
         a_grid_desc_m_k =
-            conv_to_gemm_transformer
+            transformer_
                 .template MakeADescriptor_M_K<typename GroupedConvTraitsType_::InLayout>();
         b_grid_desc_n_k =
-            conv_to_gemm_transformer
+            transformer_
                 .template MakeBDescriptor_N_K<typename GroupedConvTraitsType_::WeiLayout>();
         c_grid_desc_m_n =
-            conv_to_gemm_transformer
+            transformer_
                 .template MakeCDescriptor_M_N<typename GroupedConvTraitsType_::OutLayout>();
 
         group_stride_a = args.C_;
@@ -199,8 +201,8 @@ struct GroupedConvFwdKernelArgs
 
         // Initialize Split-N support fields for 2D convolution (NHWGC layout)
         // Get the actual split N from transformer
-        n_per_split = conv_to_gemm_transformer.GetN();
-        original_n  = conv_to_gemm_transformer.GetOriginalN();
+        n_per_split = transformer_.GetN();
+        original_n  = transformer_.GetOriginalN();
         n_splits    = ck_tile::integer_divide_ceil(original_n, n_per_split);
 
         // Calculate batch strides for NHWGC layout
@@ -213,7 +215,7 @@ struct GroupedConvFwdKernelArgs
         // Update GemmM to use split N (not original N)
         GemmM = n_per_split * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1];
 
-        // Process split-image if needed
+        
     }
 
     template <
@@ -274,22 +276,23 @@ struct GroupedConvFwdKernelArgs
         }
         out_ptr = args.out_ptr;
 
-        ConvToGemmFwdTransformer conv_to_gemm_transformer{in_g_n_c_wis_lengths,
-                                                          wei_g_k_c_xs_lengths,
-                                                          out_g_n_k_wos_lengths,
-                                                          conv_filter_strides,
-                                                          conv_filter_dilations,
-                                                          input_left_pads,
-                                                          input_right_pads};
+        // Create and STORE transformer (for split-image support)
+        transformer_ = ConvToGemmFwdTransformer{in_g_n_c_wis_lengths,
+                                                wei_g_k_c_xs_lengths,
+                                                out_g_n_k_wos_lengths,
+                                                conv_filter_strides,
+                                                conv_filter_dilations,
+                                                input_left_pads,
+                                                input_right_pads};
 
         a_grid_desc_m_k =
-            conv_to_gemm_transformer
+            transformer_
                 .template MakeADescriptor_M_K<typename GroupedConvTraitsType_::InLayout>();
         b_grid_desc_n_k =
-            conv_to_gemm_transformer
+            transformer_
                 .template MakeBDescriptor_N_K<typename GroupedConvTraitsType_::WeiLayout>();
         c_grid_desc_m_n =
-            conv_to_gemm_transformer
+            transformer_
                 .template MakeCDescriptor_M_N<typename GroupedConvTraitsType_::OutLayout>();
 
         group_stride_a = args.C_;
@@ -302,8 +305,8 @@ struct GroupedConvFwdKernelArgs
 
         // Initialize Split-N support fields for 3D convolution (NDHWGC layout)
         // Get the actual split N from transformer
-        n_per_split = conv_to_gemm_transformer.GetN();
-        original_n  = conv_to_gemm_transformer.GetOriginalN();
+        n_per_split = transformer_.GetN();
+        original_n  = transformer_.GetOriginalN();
         n_splits    = ck_tile::integer_divide_ceil(original_n, n_per_split);
 
         // Calculate batch strides for NDHWGC layout
@@ -317,7 +320,7 @@ struct GroupedConvFwdKernelArgs
         GemmM = n_per_split * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1] *
                 args.output_spatial_lengths_[2];
 
-        // Process split-image if needed
+        
     }
 
     using AGridDescMK = remove_cvref_t<
@@ -366,7 +369,20 @@ struct GroupedConvFwdKernelArgs
     index_t input_batch_stride  = 0; // Stride to next batch in input tensor
     index_t output_batch_stride = 0; // Stride to next batch in output tensor
 
-    // Split-image fields removed - handling moved to invoker level
+    // Split-image support - spatial offsets (applied per-batch in operator())
+    long_index_t spatial_offset_in  = 0; // Spatial offset for input (e.g., W/2 for 1D split)
+    long_index_t spatial_offset_out = 0; // Spatial offset for output (e.g., W/2 for 1D split)
+
+    // Split-image support - transformer instance
+    // We store the transformer so invoker can call CalculateSplitImage()
+    // which uses N_ (after Split-N) for correct offset calculation
+    ConvToGemmFwdTransformer transformer_;
+
+    // Method to get split-image information from transformer
+    CK_TILE_HOST auto GetSplitImageInfo(long_index_t threshold_elements) const
+    {
+        return transformer_.CalculateSplitImage(threshold_elements);
+    }
 
 };
 
@@ -839,8 +855,8 @@ struct GroupedConvolutionForwardKernel
     CK_TILE_DEVICE void operator()(GroupedConvFwdKernelArgsSpecialized kargs) const
     {
         const auto blockIdX = amd_wave_read_first_lane(blockIdx.x);
+        const auto blockIdY = amd_wave_read_first_lane(blockIdx.y);
 
-        const auto blockIdY       = amd_wave_read_first_lane(blockIdx.y);
         const auto group_offset_a = amd_wave_read_first_lane(kargs.group_stride_a * blockIdY);
         const auto group_offset_b = amd_wave_read_first_lane(kargs.group_stride_b * blockIdY);
         const auto group_offset_c = amd_wave_read_first_lane(kargs.group_stride_c * blockIdY);
@@ -858,15 +874,18 @@ struct GroupedConvolutionForwardKernel
             static_cast<long_index_t>(batch_offset) *
             static_cast<long_index_t>(kargs.output_batch_stride);
 
-        // Adjust pointers: combine group offset and batch offset
+        // FIX: Adjust pointers with formula: base + group_offset + batch_offset + spatial_offset
+        // This ensures spatial offset is applied per-batch, not globally
         const InDataType* base_a_ptr =
-            static_cast<const InDataType*>(kargs.in_ptr) + group_offset_a + input_batch_offset;
+            static_cast<const InDataType*>(kargs.in_ptr) + group_offset_a + input_batch_offset +
+            kargs.spatial_offset_in;  // Add spatial offset from split-image
         const WeiDataType* b_ptr = static_cast<const WeiDataType*>(kargs.wei_ptr) +
                                    group_offset_b; // No batch offset for weights!
         OutDataType* base_c_ptr =
-            static_cast<OutDataType*>(kargs.out_ptr) + group_offset_c + output_batch_offset;
+            static_cast<OutDataType*>(kargs.out_ptr) + group_offset_c + output_batch_offset +
+            kargs.spatial_offset_out;  // Add spatial offset from split-image
 
-        // Use base pointers directly - split handling done at invoker level
+        // Use base pointers directly
         const InDataType* a_ptr = base_a_ptr;
         OutDataType* c_ptr = base_c_ptr;
 

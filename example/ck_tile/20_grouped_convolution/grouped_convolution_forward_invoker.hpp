@@ -130,172 +130,145 @@ struct GroupedConvolutionForwardInvoker
             // UNIFIED SPLIT-IMAGE PATH (1D/2D/3D)
             // ═══════════════════════════════════════════════════════════
             if(output_size >= threshold && (NDimSpatial == 1 || NDimSpatial == 2 || NDimSpatial == 3)) {
-                // ═══════════════════════════════════════════════════════════
-                // COMMON: Get parameters for split dimension (always dim 0)
-                // ═══════════════════════════════════════════════════════════
-                const int split_dim = 0;  // Always split first spatial dimension (W/H/D)
-                const ck_tile::long_index_t left_pad = args.input_left_pads_[split_dim];
-                const ck_tile::long_index_t right_pad = args.input_right_pads_[split_dim];
-                const ck_tile::long_index_t out_total = args.output_spatial_lengths_[split_dim];
-                const ck_tile::long_index_t in_total = args.input_spatial_lengths_[split_dim];
-                const ck_tile::long_index_t filter = args.filter_spatial_lengths_[split_dim];
-                const ck_tile::long_index_t stride = args.conv_filter_strides_[split_dim];
-                const ck_tile::long_index_t dilation = args.conv_filter_dilations_[split_dim];
 
                 if(s.log_level_ > 0) {
                     std::cout << "[INVOKER] Entering split path (" << NDimSpatial << "D split-image)!" << std::endl;
-                    if(NDimSpatial == 1) {
-                        std::cout << "[SPLIT " << NDimSpatial << "D] Output W=" << out_total << ", splitting W" << std::endl;
-                    } else if(NDimSpatial == 2) {
-                        std::cout << "[SPLIT " << NDimSpatial << "D] Output H=" << out_total
-                                  << ", W=" << args.output_spatial_lengths_[1]
-                                  << ", splitting H (W not contiguous)" << std::endl;
-                    } else if(NDimSpatial == 3) {
-                        std::cout << "[SPLIT " << NDimSpatial << "D] Output D=" << out_total
-                                  << ", H=" << args.output_spatial_lengths_[1]
-                                  << ", W=" << args.output_spatial_lengths_[2]
-                                  << ", splitting D (H,W not contiguous)" << std::endl;
-                    }
                 }
 
                 // ═══════════════════════════════════════════════════════════
-                // COMMON: Binary split calculation
+                // GET SPLIT INFO FROM TRANSFORMER (AFTER Split-N!)
                 // ═══════════════════════════════════════════════════════════
-                const ck_tile::long_index_t out_left = out_total / 2;
-                const ck_tile::long_index_t out_right = out_total - out_left;
-                const ck_tile::long_index_t x_eff = (filter - 1) * dilation + 1;
+                // Create temporary kargs to trigger Split-N in transformer
+                if(s.log_level_ > 0) {
+                    std::cout << "[DEBUG INVOKER] Creating temp_kargs with N=" << args.N_ << std::endl;
+                }
+                auto temp_kargs = Kernel::MakeKernelArgs(args);
 
-                // ═══════════════════════════════════════════════════════════
-                // SAFETY CHECKS: Can we split this dimension safely?
-                // ═══════════════════════════════════════════════════════════
-                // Calculate split boundaries (same formula for all dimensions)
-                const ck_tile::long_index_t right_start = out_left * stride;
-                const ck_tile::long_index_t left_end = (out_left - 1) * stride + x_eff;
+                if(s.log_level_ > 0) {
+                    std::cout << "[DEBUG INVOKER] temp_kargs: n_per_split=" << temp_kargs.n_per_split
+                              << ", n_splits=" << temp_kargs.n_splits
+                              << ", original_n=" << temp_kargs.original_n << std::endl;
+                }
 
-                // Check if split is safe:
-                // 1. Output dimension must be > 1 (can't split a single element)
-                // 2. RIGHT piece must start after left padding
-                // 3. LEFT piece must end within input bounds
-                const bool is_possible_to_split =
-                    out_total != 1 &&
-                    right_start > left_pad &&
-                    left_end <= (left_pad + in_total);
+                // Get split info from transformer (uses N_ after Split-N!)
+                auto split_info = temp_kargs.GetSplitImageInfo(threshold);
 
-                if(!is_possible_to_split) {
+                if(!split_info.should_split) {
                     if(s.log_level_ > 0) {
-                        std::cout << "[SPLIT " << NDimSpatial << "D] Cannot split safely! Falling back to normal path." << std::endl;
-                        std::cout << "  Reason: out_total=" << out_total
-                                  << ", right_start=" << right_start << " (must be > left_pad=" << left_pad << ")"
-                                  << ", left_end=" << left_end << " (must be <= " << (left_pad + in_total) << ")" << std::endl;
+                        std::cout << "[SPLIT " << NDimSpatial << "D] Cannot split safely or not needed! Using normal path." << std::endl;
                     }
                     // Fall back to normal launch
-                    auto kargs = Kernel::MakeKernelArgs(args);
-                    const dim3 grids = Kernel::GridSize(kargs);
+                    const dim3 grids = Kernel::GridSize(temp_kargs);
                     const dim3 blocks = Kernel::BlockSize();
                     ave_time = ck_tile::launch_kernel(
-                        s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+                        s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, temp_kargs));
                     return ave_time;
                 }
 
                 if(s.log_level_ > 0) {
-                    std::cout << "[SPLIT " << NDimSpatial << "D] Safety check passed! Split is safe." << std::endl;
+                    std::cout << "[SPLIT " << NDimSpatial << "D] Split info obtained from transformer!" << std::endl;
+                    std::cout << "[SPLIT " << NDimSpatial << "D] Out_left=" << split_info.out_left
+                              << ", Out_right=" << split_info.out_right << std::endl;
+                    std::cout << "[SPLIT " << NDimSpatial << "D] Input offset: " << split_info.input_offset << " elements" << std::endl;
+                    std::cout << "[SPLIT " << NDimSpatial << "D] Output offset: " << split_info.output_offset << " elements" << std::endl;
                 }
 
                 // ═══════════════════════════════════════════════════════════
-                // DIMENSION-SPECIFIC: Calculate strides for offset computation
+                // Use split info from transformer for LEFT and RIGHT
                 // ═══════════════════════════════════════════════════════════
-                ck_tile::long_index_t input_stride, output_stride;
-                if constexpr (NDimSpatial == 1) {
-                    // 1D NWGC: stride_W = G * C
-                    input_stride = static_cast<ck_tile::long_index_t>(args.G_) *
-                                   static_cast<ck_tile::long_index_t>(args.C_);
-                    output_stride = static_cast<ck_tile::long_index_t>(args.G_) *
-                                    static_cast<ck_tile::long_index_t>(args.K_);
-                } else if constexpr (NDimSpatial == 2) {
-                    // 2D NHWGC: stride_H = W_in * G * C (use INPUT width!)
-                    const ck_tile::long_index_t w_in = args.input_spatial_lengths_[1];
-                    const ck_tile::long_index_t w_out = args.output_spatial_lengths_[1];
-                    input_stride = w_in * static_cast<ck_tile::long_index_t>(args.G_) *
-                                   static_cast<ck_tile::long_index_t>(args.C_);
-                    output_stride = w_out * static_cast<ck_tile::long_index_t>(args.G_) *
-                                    static_cast<ck_tile::long_index_t>(args.K_);
-                } else if constexpr (NDimSpatial == 3) {
-                    // 3D NDHWGC: stride_D = H_in * W_in * G * C (use INPUT H and W!)
-                    const ck_tile::long_index_t h_in = args.input_spatial_lengths_[1];
-                    const ck_tile::long_index_t w_in = args.input_spatial_lengths_[2];
-                    const ck_tile::long_index_t h_out = args.output_spatial_lengths_[1];
-                    const ck_tile::long_index_t w_out = args.output_spatial_lengths_[2];
-                    input_stride = h_in * w_in * static_cast<ck_tile::long_index_t>(args.G_) *
-                                   static_cast<ck_tile::long_index_t>(args.C_);
-                    output_stride = h_out * w_out * static_cast<ck_tile::long_index_t>(args.G_) *
-                                    static_cast<ck_tile::long_index_t>(args.K_);
-                }
-
-                // ═══════════════════════════════════════════════════════════
-                // COMMON: Calculate physical offset and memory offsets
-                // ═══════════════════════════════════════════════════════════
-                const ck_tile::long_index_t physical_offset = (out_left * stride) - left_pad;
-                const ck_tile::long_index_t input_offset = physical_offset * input_stride;
-                const ck_tile::long_index_t output_offset = out_left * output_stride;
+                const int split_dim = 0;  // Always split first spatial dimension (W/H/D)
 
                 if(s.log_level_ > 0) {
-                    std::cout << "[SPLIT " << NDimSpatial << "D] Out_left=" << out_left
-                              << ", Out_right=" << out_right << std::endl;
-                    std::cout << "[SPLIT " << NDimSpatial << "D] Physical offset: " << physical_offset << std::endl;
-                    std::cout << "[SPLIT " << NDimSpatial << "D] Input offset: " << input_offset << " elements" << std::endl;
-                    std::cout << "[SPLIT " << NDimSpatial << "D] Output offset: " << output_offset << " elements" << std::endl;
-                }
-
-                // ═══════════════════════════════════════════════════════════
-                // COMMON: Calculate input sizes for LEFT and RIGHT
-                // ═══════════════════════════════════════════════════════════
-                const ck_tile::long_index_t in_left_end = (out_left - 1) * stride + x_eff;
-                const ck_tile::long_index_t in_left = in_left_end - left_pad;
-
-                const ck_tile::long_index_t in_right_start = out_left * stride;
-                const ck_tile::long_index_t in_right_available = in_total - (in_right_start - left_pad);
-                const ck_tile::long_index_t in_right = ck_tile::min(in_right_available,
-                                                                     (out_right - 1) * stride + x_eff);
-
-                if(s.log_level_ > 0) {
-                    std::cout << "[SPLIT " << NDimSpatial << "D] LEFT: In=" << in_left
-                              << ", Out=" << out_left
-                              << ", left_pad=" << left_pad
-                              << ", right_pad=0" << std::endl;
-                    std::cout << "[SPLIT " << NDimSpatial << "D] RIGHT: In=" << in_right
-                              << ", Out=" << out_right
-                              << ", left_pad=0"
-                              << ", right_pad=" << right_pad << std::endl;
+                    std::cout << "[SPLIT " << NDimSpatial << "D] LEFT: In=" << split_info.in_left
+                              << ", Out=" << split_info.out_left
+                              << ", left_pad=" << split_info.left_pad_left
+                              << ", right_pad=" << split_info.right_pad_left << std::endl;
+                    std::cout << "[SPLIT " << NDimSpatial << "D] RIGHT: In=" << split_info.in_right
+                              << ", Out=" << split_info.out_right
+                              << ", left_pad=" << split_info.left_pad_right
+                              << ", right_pad=" << split_info.right_pad_right << std::endl;
                 }
 
                 // ═══════════════════════════════════════════════════════════
                 // COMMON: Create LEFT descriptor
                 // ═══════════════════════════════════════════════════════════
                 auto left_args = args;
-                left_args.input_spatial_lengths_[split_dim] = in_left;
-                left_args.output_spatial_lengths_[split_dim] = out_left;
-                left_args.input_left_pads_[split_dim] = left_pad;
-                left_args.input_right_pads_[split_dim] = 0;
+                left_args.input_spatial_lengths_[split_dim] = split_info.in_left;
+                left_args.output_spatial_lengths_[split_dim] = split_info.out_left;
+                left_args.input_left_pads_[split_dim] = split_info.left_pad_left;
+                left_args.input_right_pads_[split_dim] = split_info.right_pad_left;
 
+                // CRITICAL FIX: Use the ALREADY-SPLIT N from temp_kargs!
+                // Don't let LEFT/RIGHT do Split-N again - use n_per_split from first transformer
+                left_args.N_ = temp_kargs.n_per_split;
+
+                if(s.log_level_ > 0) {
+                    std::cout << "[DEBUG INVOKER] Creating LEFT kargs with N=" << left_args.N_
+                              << " (using n_per_split from temp_kargs)" << std::endl;
+                }
                 auto kargs_left = Kernel::MakeKernelArgs(left_args);
+
+                // CRITICAL: Manually set n_splits to match temp_kargs!
+                // The LEFT transformer won't do Split-N (N=1), so it sets n_splits=1
+                // But we need grid.z = original n_splits to process all batches
+                kargs_left.n_splits = temp_kargs.n_splits;
+                kargs_left.original_n = temp_kargs.original_n;
+
+                // FIX: Use batch_stride from temp_kargs (calculated with ORIGINAL dimensions)
+                kargs_left.input_batch_stride = temp_kargs.input_batch_stride;
+                kargs_left.output_batch_stride = temp_kargs.output_batch_stride;
+
+                if(s.log_level_ > 0) {
+                    std::cout << "[DEBUG INVOKER] LEFT kargs: n_per_split=" << kargs_left.n_per_split
+                              << ", n_splits=" << kargs_left.n_splits << " (manually set)" << std::endl;
+                }
                 const dim3 grids_left = Kernel::GridSize(kargs_left);
                 const dim3 blocks_left = Kernel::BlockSize();
 
                 // ═══════════════════════════════════════════════════════════
-                // COMMON: Create RIGHT descriptor with offset pointers
+                // COMMON: Create RIGHT descriptor WITHOUT pointer offset
                 // ═══════════════════════════════════════════════════════════
-                InDataType* orig_in_ptr = const_cast<InDataType*>(static_cast<const InDataType*>(args.in_ptr));
-                OutDataType* orig_out_ptr = const_cast<OutDataType*>(static_cast<const OutDataType*>(args.out_ptr));
-
                 auto right_args = args;
-                right_args.input_spatial_lengths_[split_dim] = in_right;
-                right_args.output_spatial_lengths_[split_dim] = out_right;
-                right_args.input_left_pads_[split_dim] = 0;
-                right_args.input_right_pads_[split_dim] = right_pad;
-                right_args.in_ptr = orig_in_ptr + input_offset;
-                right_args.out_ptr = orig_out_ptr + output_offset;
+                right_args.input_spatial_lengths_[split_dim] = split_info.in_right;
+                right_args.output_spatial_lengths_[split_dim] = split_info.out_right;
+                right_args.input_left_pads_[split_dim] = split_info.left_pad_right;
+                right_args.input_right_pads_[split_dim] = split_info.right_pad_right;
 
+                // FIX: Keep base pointer, don't apply offset here!
+                right_args.in_ptr = args.in_ptr;   // Keep original base pointer
+                right_args.out_ptr = args.out_ptr; // Keep original base pointer
+
+                // CRITICAL FIX: Use the ALREADY-SPLIT N from temp_kargs!
+                // Don't let LEFT/RIGHT do Split-N again - use n_per_split from first transformer
+                right_args.N_ = temp_kargs.n_per_split;
+
+                if(s.log_level_ > 0) {
+                    std::cout << "[DEBUG INVOKER] Creating RIGHT kargs with N=" << right_args.N_
+                              << " (using n_per_split from temp_kargs)" << std::endl;
+                    std::cout << "[DEBUG INVOKER] RIGHT spatial offset: input=" << split_info.input_offset
+                              << ", output=" << split_info.output_offset << std::endl;
+                }
                 auto kargs_right = Kernel::MakeKernelArgs(right_args);
+
+                // CRITICAL: Manually set n_splits to match temp_kargs!
+                // The RIGHT transformer won't do Split-N (N=1), so it sets n_splits=1
+                // But we need grid.z = original n_splits to process all batches
+                kargs_right.n_splits = temp_kargs.n_splits;
+                kargs_right.original_n = temp_kargs.original_n;
+
+                // FIX: Use batch_stride from temp_kargs (calculated with ORIGINAL dimensions)
+                // The kargs_right was created with MODIFIED dimensions, so batch_stride is wrong
+                kargs_right.input_batch_stride = temp_kargs.input_batch_stride;
+                kargs_right.output_batch_stride = temp_kargs.output_batch_stride;
+
+                // FIX: Store spatial offset in kargs (applied per-batch in operator())
+                kargs_right.spatial_offset_in = split_info.input_offset;
+                kargs_right.spatial_offset_out = split_info.output_offset;
+
+                if(s.log_level_ > 0) {
+                    std::cout << "[DEBUG INVOKER] RIGHT kargs: n_per_split=" << kargs_right.n_per_split
+                              << ", n_splits=" << kargs_right.n_splits << " (manually set)" << std::endl;
+                }
                 const dim3 grids_right = Kernel::GridSize(kargs_right);
                 const dim3 blocks_right = Kernel::BlockSize();
 

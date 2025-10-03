@@ -11,6 +11,38 @@
 
 namespace ck_tile {
 
+// ═══════════════════════════════════════════════════════════════════════
+// Split-Image Information Structure
+// ═══════════════════════════════════════════════════════════════════════
+// This structure holds all information needed to perform split-image
+// for 1D/2D/3D convolutions. It is calculated AFTER Split-N to ensure
+// correct offset calculations when both splitting strategies are active.
+template <typename IndexType = index_t>
+struct SplitImageInfo {
+    bool should_split;
+
+    // Split dimensions (output)
+    IndexType out_left;
+    IndexType out_right;
+
+    // Input sizes for LEFT and RIGHT pieces
+    IndexType in_left;
+    IndexType in_right;
+
+    // Memory offsets (in elements)
+    // These are calculated using N_ AFTER Split-N happens
+    long_index_t input_offset;   // Offset for RIGHT piece input pointer
+    long_index_t output_offset;  // Offset for RIGHT piece output pointer
+
+    // Padding adjustments for LEFT piece
+    IndexType left_pad_left;
+    IndexType right_pad_left;
+
+    // Padding adjustments for RIGHT piece
+    IndexType left_pad_right;
+    IndexType right_pad_right;
+};
+
 template <index_t NDimSpatial,
           ConvolutionSpecialization ConvSpecialization,
           index_t VectorSizeA,
@@ -2118,6 +2150,168 @@ struct TransformConvFwdToGemm
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // Split-Image Calculation (AFTER Split-N)
+    // ═══════════════════════════════════════════════════════════════════════
+    // This method calculates split-image information using N_ (after Split-N).
+    // This ensures correct offset calculations when both Split-N and Split-Image
+    // are active simultaneously.
+
+    public:
+
+    CK_TILE_HOST SplitImageInfo<IndexType> CalculateSplitImage(
+        long_index_t threshold_elements) const
+    {
+        SplitImageInfo<IndexType> info;
+        info.should_split = false;
+
+        // Determine which dimension to split based on NDimSpatial
+        IndexType out_total, in_total, left_pad, right_pad, stride, dilation, filter;
+
+        if constexpr (NDimSpatial == 1) {
+            out_total = Wo_;
+            in_total = Wi_;
+            left_pad = InLeftPadW_;
+            right_pad = InRightPadW_;
+            stride = ConvStrideW_;
+            dilation = ConvDilationW_;
+            filter = X_;
+        } else if constexpr (NDimSpatial == 2) {
+            out_total = Ho_;
+            in_total = Hi_;
+            left_pad = InLeftPadH_;
+            right_pad = InRightPadH_;
+            stride = ConvStrideH_;
+            dilation = ConvDilationH_;
+            filter = Y_;
+        } else if constexpr (NDimSpatial == 3) {
+            out_total = Do_;
+            in_total = Di_;
+            left_pad = InLeftPadD_;
+            right_pad = InRightPadD_;
+            stride = ConvStrideD_;
+            dilation = ConvDilationD_;
+            filter = Z_;
+        } else {
+            return info;  // Unsupported dimension
+        }
+
+        // DEBUG: Print N values used in calculation
+        std::cout << "[DEBUG CalculateSplitImage] N_=" << N_
+                  << ", original_N_=" << original_N_ << std::endl;
+
+        // Check if split is needed - IMPORTANT: Use N_ (after Split-N!)
+        long_index_t output_size;
+        if constexpr (NDimSpatial == 1) {
+            output_size = static_cast<long_index_t>(N_) *
+                         static_cast<long_index_t>(Wo_) *
+                         static_cast<long_index_t>(K_) *
+                         static_cast<long_index_t>(G_);
+        } else if constexpr (NDimSpatial == 2) {
+            output_size = static_cast<long_index_t>(N_) *
+                         static_cast<long_index_t>(Ho_) *
+                         static_cast<long_index_t>(Wo_) *
+                         static_cast<long_index_t>(K_) *
+                         static_cast<long_index_t>(G_);
+        } else if constexpr (NDimSpatial == 3) {
+            output_size = static_cast<long_index_t>(N_) *
+                         static_cast<long_index_t>(Do_) *
+                         static_cast<long_index_t>(Ho_) *
+                         static_cast<long_index_t>(Wo_) *
+                         static_cast<long_index_t>(K_) *
+                         static_cast<long_index_t>(G_);
+        }
+
+        if (output_size < threshold_elements) {
+            return info;
+        }
+
+        // Binary split
+        info.out_left = out_total / 2;
+        info.out_right = out_total - info.out_left;
+
+        // Effective filter size
+        const IndexType x_eff = (filter - 1) * dilation + 1;
+
+        // Safety checks
+        const IndexType right_start = info.out_left * stride;
+        const IndexType left_end = (info.out_left - 1) * stride + x_eff;
+
+        const bool is_possible_to_split =
+            out_total != 1 &&
+            right_start > left_pad &&
+            left_end <= (left_pad + in_total);
+
+        if (!is_possible_to_split) {
+            return info;  // Cannot split safely
+        }
+
+        info.should_split = true;
+
+        // Calculate input sizes
+        const IndexType in_left_end = (info.out_left - 1) * stride + x_eff;
+        info.in_left = in_left_end - left_pad;
+
+        const IndexType in_right_start = info.out_left * stride;
+        const IndexType in_right_available = in_total - (in_right_start - left_pad);
+        info.in_right = ck_tile::min(in_right_available,
+                                     (info.out_right - 1) * stride + x_eff);
+
+        // Calculate physical offset
+        const IndexType physical_offset = (info.out_left * stride) - left_pad;
+
+        // Calculate strides - for WITHIN a single batch
+        // The stride to jump from one W-position to the next WITHIN the same batch
+        long_index_t input_stride, output_stride;
+        if constexpr (NDimSpatial == 1) {
+            // 1D NWGC: stride_W = G * C (within ONE batch)
+            input_stride = static_cast<long_index_t>(G_) *
+                          static_cast<long_index_t>(C_);
+            output_stride = static_cast<long_index_t>(G_) *
+                           static_cast<long_index_t>(K_);
+        } else if constexpr (NDimSpatial == 2) {
+            // 2D NHWGC: stride_H = W_in * G * C (within ONE batch)
+            input_stride = static_cast<long_index_t>(Wi_) *
+                          static_cast<long_index_t>(G_) *
+                          static_cast<long_index_t>(C_);
+            output_stride = static_cast<long_index_t>(Wo_) *
+                           static_cast<long_index_t>(G_) *
+                           static_cast<long_index_t>(K_);
+        } else if constexpr (NDimSpatial == 3) {
+            // 3D NDHWGC: stride_D = H_in * W_in * G * C (within ONE batch)
+            input_stride = static_cast<long_index_t>(Hi_) *
+                          static_cast<long_index_t>(Wi_) *
+                          static_cast<long_index_t>(G_) *
+                          static_cast<long_index_t>(C_);
+            output_stride = static_cast<long_index_t>(Ho_) *
+                           static_cast<long_index_t>(Wo_) *
+                           static_cast<long_index_t>(G_) *
+                           static_cast<long_index_t>(K_);
+        }
+
+        // Calculate offsets in elements
+        info.input_offset = static_cast<long_index_t>(physical_offset) * input_stride;
+        info.output_offset = static_cast<long_index_t>(info.out_left) * output_stride;
+
+        // DEBUG: Print stride and offset calculation
+        std::cout << "[DEBUG CalculateSplitImage] input_stride=" << input_stride
+                  << ", output_stride=" << output_stride << std::endl;
+        std::cout << "[DEBUG CalculateSplitImage] physical_offset=" << physical_offset
+                  << ", out_left=" << info.out_left << std::endl;
+        std::cout << "[DEBUG CalculateSplitImage] input_offset=" << info.input_offset
+                  << ", output_offset=" << info.output_offset << std::endl;
+
+        // Padding adjustments
+        info.left_pad_left = left_pad;
+        info.right_pad_left = 0;
+        info.left_pad_right = 0;
+        info.right_pad_right = right_pad;
+
+        return info;
+    }
+
+    private:
 
     IndexType G_, N_, original_N_;
     IndexType Di_, Hi_, Wi_;
