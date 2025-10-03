@@ -202,9 +202,9 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
 
                 using AccDataType = float;
                 float max_accumulated_value =
-                    *std::max_element(wei_host.mData.begin(),wei_host.mData.end());
+                    *std::max_element(wei_host.mData.begin(), wei_host.mData.end());
 
-                const ck::index_t num_accums = out.GetElementSize() / conv_param.K_;
+                const ck::index_t num_accums         = out.GetElementSize() / conv_param.K_;
                 const ck::index_t num_accums_split_k = split_k;
                 double rtol =
                     ck::utils::get_relative_threshold<InDataType, WeiDataType, AccDataType>(
@@ -225,8 +225,8 @@ class TestGroupedConvndBwdWeight : public ::testing::Test
                 rtol = std::max(rtol, rtol_split_k);
                 atol = std::max(atol, atol_split_k);
 
-                passed &= ck::utils::check_err(wei_device, wei_host,
-                    "Error: incorrect results!", rtol, atol);
+                passed &= ck::utils::check_err(
+                    wei_device, wei_host, "Error: incorrect results!", rtol, atol);
 
                 std::size_t flop =
                     conv_param.GetFlops() +
