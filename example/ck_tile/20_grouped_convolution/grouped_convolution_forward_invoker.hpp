@@ -3,6 +3,8 @@
 #pragma once
 
 #include "grouped_convolution_utils.hpp"
+#include <queue>
+#include <vector>
 
 struct GroupedConvolutionForwardInvoker
 {
@@ -105,9 +107,7 @@ struct GroupedConvolutionForwardInvoker
 
             float ave_time = 0.0f;
 
-            // ═══════════════════════════════════════════════════════════
             // Create kargs and check if split-image is needed
-            // ═══════════════════════════════════════════════════════════
             if(s.log_level_ > 0) {
                 std::cout << "[INVOKER] Creating kargs with N=" << args.N_ << std::endl;
             }
@@ -139,124 +139,193 @@ struct GroupedConvolutionForwardInvoker
                 return ave_time;
             }
 
-            // ═══════════════════════════════════════════════════════════
-            // Split-image path - create LEFT and RIGHT splits
-            // ═══════════════════════════════════════════════════════════
+            // RECURSIVE split-image path
             {
                 if(s.log_level_ > 0) {
-                    std::cout << "[INVOKER] Split-image needed! Creating left and right splits" << std::endl;
-                    std::cout << "[INVOKER] Out_left=" << split_info.out_left
-                              << ", Out_right=" << split_info.out_right << std::endl;
-                    std::cout << "[INVOKER] LEFT: In=" << split_info.in_left
-                              << ", Out=" << split_info.out_left << std::endl;
-                    std::cout << "[INVOKER] RIGHT: In=" << split_info.in_right
-                              << ", Out=" << split_info.out_right << std::endl;
+                    std::cout << "[RECURSIVE SPLIT] Starting recursive split-image" << std::endl;
                 }
 
                 const int split_dim = 0;  // Always split first spatial dimension (W/H/D)
+                const int MAX_DEPTH = 10;  // Max recursion depth (2^10 = 1024 pieces max)
 
-                // Create LEFT descriptor
-                auto left_args = args;
-                left_args.input_spatial_lengths_[split_dim] = split_info.in_left;
-                left_args.output_spatial_lengths_[split_dim] = split_info.out_left;
-                left_args.input_left_pads_[split_dim] = split_info.left_pad_left;
-                left_args.input_right_pads_[split_dim] = split_info.right_pad_left;
+                // Define SplitPiece to track each piece with cumulative offsets and depth
+                struct SplitPiece {
+                    ck_tile::GroupedConvFwdHostArgs args;
+                    ck_tile::long_index_t input_offset;   // Cumulative offset from original base
+                    ck_tile::long_index_t output_offset;  // Cumulative offset from original base
+                    int depth;                             // Recursion depth level
 
-                // CRITICAL FIX: Use the ALREADY-SPLIT N from kargs!
-                // Don't let LEFT/RIGHT do Split-N again - use n_per_split from first transformer
-                left_args.N_ = kargs.n_per_split;
+                    // Constructor to initialize from args
+                    SplitPiece(const ck_tile::GroupedConvFwdHostArgs& a,
+                               ck_tile::long_index_t in_off,
+                               ck_tile::long_index_t out_off,
+                               int d)
+                        : args(a), input_offset(in_off), output_offset(out_off), depth(d) {}
+                };
 
+                std::queue<SplitPiece> split_queue;
+                std::vector<SplitPiece> ready_list;
+
+                // Start with original problem (offset = 0, depth = 0)
+                auto initial_args = args;
+                initial_args.N_ = kargs.n_per_split;  // Use split-N result
+                split_queue.emplace(initial_args, 0, 0, 0);
+
+                int level = 0;
                 if(s.log_level_ > 0) {
-                    std::cout << "[DEBUG INVOKER] Creating LEFT kargs with N=" << left_args.N_
-                              << " (using n_per_split from kargs)" << std::endl;
+                    std::cout << "[RECURSIVE SPLIT] Initial piece: N=" << initial_args.N_
+                              << ", offset_in=0, offset_out=0, depth=0" << std::endl;
                 }
-                auto kargs_left = Kernel::MakeKernelArgs(left_args);
 
-                // CRITICAL: Manually set n_splits to match kargs!
-                // The LEFT transformer won't do Split-N (N=1), so it sets n_splits=1
-                // But we need grid.z = original n_splits to process all batches
-                kargs_left.n_splits = kargs.n_splits;
-                kargs_left.original_n = kargs.original_n;
+                // BFS-style recursive splitting
+                while(!split_queue.empty()) {
+                    SplitPiece current = split_queue.front();
+                    split_queue.pop();
 
-                // FIX: Use batch_stride from kargs (calculated with ORIGINAL dimensions)
-                kargs_left.input_batch_stride = kargs.input_batch_stride;
-                kargs_left.output_batch_stride = kargs.output_batch_stride;
+                    // Create kargs for this piece and check if it needs splitting
+                    auto piece_kargs = Kernel::MakeKernelArgs(current.args);
+                    auto piece_split_info = piece_kargs.GetSplitImageInfo();
 
-                if(s.log_level_ > 0) {
-                    std::cout << "[DEBUG INVOKER] LEFT kargs: n_per_split=" << kargs_left.n_per_split
-                              << ", n_splits=" << kargs_left.n_splits << " (manually set)" << std::endl;
+                    if(s.log_level_ > 0) {
+                        std::cout << "[LEVEL " << level << "] Checking piece: ";
+                        if constexpr (NDimSpatial == 1) {
+                            std::cout << "Wo=" << current.args.output_spatial_lengths_[0];
+                        } else if constexpr (NDimSpatial == 2) {
+                            std::cout << "Ho=" << current.args.output_spatial_lengths_[0]
+                                      << ", Wo=" << current.args.output_spatial_lengths_[1];
+                        } else if constexpr (NDimSpatial == 3) {
+                            std::cout << "Do=" << current.args.output_spatial_lengths_[0]
+                                      << ", Ho=" << current.args.output_spatial_lengths_[1]
+                                      << ", Wo=" << current.args.output_spatial_lengths_[2];
+                        }
+                        std::cout << ", offset_in=" << current.input_offset
+                                  << ", offset_out=" << current.output_offset
+                                  << ", depth=" << current.depth << std::endl;
+                    }
+
+                    // Check if we should stop splitting: either small enough OR max depth reached
+                    if(!piece_split_info.should_split || current.depth >= MAX_DEPTH) {
+                        // This piece is ready to launch
+                        ready_list.push_back(current);
+                        if(s.log_level_ > 0) {
+                            if(!piece_split_info.should_split) {
+                                std::cout << "  -> Ready to launch (below threshold)" << std::endl;
+                            } else {
+                                std::cout << "  -> Ready to launch (max depth " << MAX_DEPTH << " reached)" << std::endl;
+                            }
+                        }
+                    } else {
+                        // This piece needs to be split into LEFT and RIGHT
+                        if(s.log_level_ > 0) {
+                            std::cout << "  -> SPLIT! Left=" << piece_split_info.out_left
+                                      << ", Right=" << piece_split_info.out_right << std::endl;
+                        }
+
+                        // Create LEFT piece (inherits parent's offset)
+                        auto left_args = current.args;
+                        left_args.input_spatial_lengths_[split_dim] = piece_split_info.in_left;
+                        left_args.output_spatial_lengths_[split_dim] = piece_split_info.out_left;
+                        left_args.input_left_pads_[split_dim] = piece_split_info.left_pad_left;
+                        left_args.input_right_pads_[split_dim] = piece_split_info.right_pad_left;
+
+                        // LEFT inherits parent's cumulative offset (no change)
+                        auto left_input_offset = current.input_offset;
+                        auto left_output_offset = current.output_offset;
+
+                        if(s.log_level_ > 0) {
+                            std::cout << "    LEFT: offset_in=" << left_input_offset
+                                      << " (parent), offset_out=" << left_output_offset
+                                      << " (parent)" << std::endl;
+                        }
+
+                        // Create RIGHT piece (parent offset + local offset)
+                        auto right_args = current.args;
+                        right_args.input_spatial_lengths_[split_dim] = piece_split_info.in_right;
+                        right_args.output_spatial_lengths_[split_dim] = piece_split_info.out_right;
+                        right_args.input_left_pads_[split_dim] = piece_split_info.left_pad_right;
+                        right_args.input_right_pads_[split_dim] = piece_split_info.right_pad_right;
+
+                        // CRITICAL: RIGHT accumulates offset (parent + local)
+                        auto right_input_offset = current.input_offset + piece_split_info.input_offset;
+                        auto right_output_offset = current.output_offset + piece_split_info.output_offset;
+
+                        if(s.log_level_ > 0) {
+                            std::cout << "    RIGHT: local_offset_in=" << piece_split_info.input_offset
+                                      << ", local_offset_out=" << piece_split_info.output_offset << std::endl;
+                            std::cout << "    RIGHT: cumulative_offset_in=" << right_input_offset
+                                      << " (" << current.input_offset << "+" << piece_split_info.input_offset << ")"
+                                      << ", cumulative_offset_out=" << right_output_offset
+                                      << " (" << current.output_offset << "+" << piece_split_info.output_offset << ")"
+                                      << std::endl;
+                        }
+
+                        // Push LEFT and RIGHT back to queue with incremented depth
+                        split_queue.emplace(left_args, left_input_offset, left_output_offset, current.depth + 1);
+                        split_queue.emplace(right_args, right_input_offset, right_output_offset, current.depth + 1);
+                    }
+
+                    level++;
                 }
-                const dim3 grids_left = Kernel::GridSize(kargs_left);
-                const dim3 blocks_left = Kernel::BlockSize();
-
-                // ═══════════════════════════════════════════════════════════
-                // COMMON: Create RIGHT descriptor WITHOUT pointer offset
-                // ═══════════════════════════════════════════════════════════
-                auto right_args = args;
-                right_args.input_spatial_lengths_[split_dim] = split_info.in_right;
-                right_args.output_spatial_lengths_[split_dim] = split_info.out_right;
-                right_args.input_left_pads_[split_dim] = split_info.left_pad_right;
-                right_args.input_right_pads_[split_dim] = split_info.right_pad_right;
-
-                // FIX: Keep base pointer, don't apply offset here!
-                right_args.in_ptr = args.in_ptr;   // Keep original base pointer
-                right_args.out_ptr = args.out_ptr; // Keep original base pointer
-
-                // CRITICAL FIX: Use the ALREADY-SPLIT N from kargs!
-                // Don't let LEFT/RIGHT do Split-N again - use n_per_split from first transformer
-                right_args.N_ = kargs.n_per_split;
 
                 if(s.log_level_ > 0) {
-                    std::cout << "[DEBUG INVOKER] Creating RIGHT kargs with N=" << right_args.N_
-                              << " (using n_per_split from kargs)" << std::endl;
-                    std::cout << "[DEBUG INVOKER] RIGHT spatial offset: input=" << split_info.input_offset
-                              << ", output=" << split_info.output_offset << std::endl;
+                    std::cout << "[RECURSIVE SPLIT] Split complete! Total pieces: " << ready_list.size() << std::endl;
                 }
-                auto kargs_right = Kernel::MakeKernelArgs(right_args);
 
-                // CRITICAL: Manually set n_splits to match kargs!
-                // The RIGHT transformer won't do Split-N (N=1), so it sets n_splits=1
-                // But we need grid.z = original n_splits to process all batches
-                kargs_right.n_splits = kargs.n_splits;
-                kargs_right.original_n = kargs.original_n;
+                // Launch all pieces from ready_list
+                ave_time = 0.0f;
+                for(size_t i = 0; i < ready_list.size(); i++) {
+                    const auto& piece = ready_list[i];
 
-                // FIX: Use batch_stride from kargs (calculated with ORIGINAL dimensions)
-                // The kargs_right was created with MODIFIED dimensions, so batch_stride is wrong
-                kargs_right.input_batch_stride = kargs.input_batch_stride;
-                kargs_right.output_batch_stride = kargs.output_batch_stride;
+                    if(s.log_level_ > 0) {
+                        std::cout << "[LAUNCH " << (i+1) << "/" << ready_list.size() << "] ";
+                        if constexpr (NDimSpatial == 1) {
+                            std::cout << "Wo=" << piece.args.output_spatial_lengths_[0];
+                        } else if constexpr (NDimSpatial == 2) {
+                            std::cout << "Ho=" << piece.args.output_spatial_lengths_[0]
+                                      << ", Wo=" << piece.args.output_spatial_lengths_[1];
+                        } else if constexpr (NDimSpatial == 3) {
+                            std::cout << "Do=" << piece.args.output_spatial_lengths_[0]
+                                      << ", Ho=" << piece.args.output_spatial_lengths_[1]
+                                      << ", Wo=" << piece.args.output_spatial_lengths_[2];
+                        }
+                        std::cout << ", offset_in=" << piece.input_offset
+                                  << ", offset_out=" << piece.output_offset << std::endl;
+                    }
 
-                // FIX: Store spatial offset in kargs (applied per-batch in operator())
-                kargs_right.spatial_offset_in = split_info.input_offset;
-                kargs_right.spatial_offset_out = split_info.output_offset;
+                    // Create kargs for this piece
+                    auto piece_kargs = Kernel::MakeKernelArgs(piece.args);
 
-                if(s.log_level_ > 0) {
-                    std::cout << "[DEBUG INVOKER] RIGHT kargs: n_per_split=" << kargs_right.n_per_split
-                              << ", n_splits=" << kargs_right.n_splits << " (manually set)" << std::endl;
+                    // Copy Split-N metadata from original kargs
+                    piece_kargs.n_splits = kargs.n_splits;
+                    piece_kargs.original_n = kargs.original_n;
+
+                    // Use batch_stride from ORIGINAL kargs (not split piece's)
+                    piece_kargs.input_batch_stride = kargs.input_batch_stride;
+                    piece_kargs.output_batch_stride = kargs.output_batch_stride;
+
+                    // Store cumulative spatial offset (applied per-batch in kernel)
+                    piece_kargs.spatial_offset_in = piece.input_offset;
+                    piece_kargs.spatial_offset_out = piece.output_offset;
+
+                    const dim3 grids = Kernel::GridSize(piece_kargs);
+                    const dim3 blocks = Kernel::BlockSize();
+
+                    if(!Kernel::IsSupportedArgument(piece_kargs)) {
+                        throw std::runtime_error("Wrong! Split piece arguments not supported!\n");
+                    }
+
+                    float piece_time = ck_tile::launch_kernel(
+                        s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, piece_kargs));
+
+                    ave_time += piece_time;
+
+                    if(s.log_level_ > 0) {
+                        std::cout << "  Time: " << piece_time << "ms" << std::endl;
+                    }
                 }
-                const dim3 grids_right = Kernel::GridSize(kargs_right);
-                const dim3 blocks_right = Kernel::BlockSize();
-
-                // ═══════════════════════════════════════════════════════════
-                // COMMON: Launch LEFT and RIGHT kernels sequentially
-                // ═══════════════════════════════════════════════════════════
-                if(s.log_level_ > 0) {
-                    std::cout << "[SPLIT " << NDimSpatial << "D] Launching LEFT kernel..." << std::endl;
-                }
-                float left_time = ck_tile::launch_kernel(
-                    s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids_left, blocks_left, 0, kargs_left));
 
                 if(s.log_level_ > 0) {
-                    std::cout << "[SPLIT " << NDimSpatial << "D] Launching RIGHT kernel..." << std::endl;
-                }
-                float right_time = ck_tile::launch_kernel(
-                    s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids_right, blocks_right, 0, kargs_right));
-
-                ave_time = left_time + right_time;
-
-                if(s.log_level_ > 0) {
-                    std::cout << "[SPLIT " << NDimSpatial << "D] Complete! Left=" << left_time
-                              << "ms, Right=" << right_time
-                              << "ms, Total=" << ave_time << "ms\n";
+                    std::cout << "[RECURSIVE SPLIT] Complete! Total time: " << ave_time << "ms" << std::endl;
                 }
             }
 
