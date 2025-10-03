@@ -28,7 +28,7 @@ namespace ck_tile {
 // -----------------
 // - Allows bypassing the Local Data Share (LDS) for A and/or B tiles,
 //   directly transferring data from Global Memory to Registers when enabled.
-//   When disabled, data flows through Global Memory -> LDS -> Registers.
+//   When disabled, data flows through Global Memory -> VGPR -> LDS -> VGPR.
 // - Supported for both intrawave and interwave pipelines.
 // ============================================================================
 
