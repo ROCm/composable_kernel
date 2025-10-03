@@ -27,7 +27,7 @@ static_assert(ckb::ConvSignatureDescriptor<ConvSignature>);
 // Defines the tunable algorithmic parameters for the convolution kernel.
 // This includes thread block configuration, tuning parameters, data transfer
 // settings, and the GEMM pipeline version.
-struct FwdConvAlgorithm
+struct BwdDataConvAlgorithm
 {
     ckb::ThreadBlock thread_block;
     ckb::ConvTuningParams tuning_params;
@@ -38,19 +38,19 @@ struct FwdConvAlgorithm
         ckb::BlockCTransferLengths thread_cluster_dims_c;
     } block_transfer;
 };
-static_assert(ckb::ConvAlgorithmDescriptor<FwdConvAlgorithm>);
-static_assert(ckb::SpecifiesThreadBlock<FwdConvAlgorithm>);
-static_assert(ckb::SpecifiesConvTuning<FwdConvAlgorithm>);
-static_assert(ckb::SpecifiesBlockATransfer<FwdConvAlgorithm>);
-static_assert(ckb::SpecifiesBlockBTransfer<FwdConvAlgorithm>);
-static_assert(ckb::SpecifiesBlockCTransfer<FwdConvAlgorithm>);
+static_assert(ckb::ConvAlgorithmDescriptor<BwdDataConvAlgorithm>);
+static_assert(ckb::SpecifiesThreadBlock<BwdDataConvAlgorithm>);
+static_assert(ckb::SpecifiesConvTuning<BwdDataConvAlgorithm>);
+static_assert(ckb::SpecifiesBlockATransfer<BwdDataConvAlgorithm>);
+static_assert(ckb::SpecifiesBlockBTransfer<BwdDataConvAlgorithm>);
+static_assert(ckb::SpecifiesBlockCTransfer<BwdDataConvAlgorithm>);
 
 // A container for a single test case, bundling a descriptive name, the
 // algorithm configuration, and the expected generated kernel type string.
 struct TestCase
 {
     std::string_view name;
-    FwdConvAlgorithm algorithm;
+    BwdDataConvAlgorithm algorithm;
     std::string_view expected_type;
 };
 
@@ -135,7 +135,7 @@ TYPED_TEST_SUITE(ConvBuilderBwdInstancesTest,
 // underlying factory parameters.
 TYPED_TEST(ConvBuilderBwdInstancesTest, KernelParamsConfigured)
 {
-    static constexpr const FwdConvAlgorithm& ALGORITHM =
+    static constexpr const BwdDataConvAlgorithm& ALGORITHM =
         ConvBuilderBwdInstancesTest<TypeParam>::ALGORITHM;
     static constexpr const ConvSignature SIGNATURE;
     using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
