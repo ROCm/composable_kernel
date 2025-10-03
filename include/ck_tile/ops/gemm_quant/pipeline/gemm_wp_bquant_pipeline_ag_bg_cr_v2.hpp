@@ -93,8 +93,8 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
         // clang-format on
     }
 
-    static constexpr bool PreshuffleB      = Problem::PreshuffleB;
-    static constexpr auto TailNum          = Problem::TailNum;
+    static constexpr bool PreshuffleB = Problem::PreshuffleB;
+    static constexpr auto TailNum     = Problem::TailNum;
 
     template <TailNumber TailNum,
               typename ADramBlockWindowTmp,
