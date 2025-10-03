@@ -219,13 +219,6 @@ struct CShuffleEpilogue
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDescriptor()
     {
-        if constexpr(NumGroupsToMerge > 1)
-        {
-            // We haven't yet tested the ColumnMajor case.
-            static_assert(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
-                        "Currently, the CShuffle Epilogue with NumGroupsToMerge > 1 only supports the Row Major layout");
-        }
-
         // N is contiguous dimension
         if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
@@ -264,33 +257,17 @@ struct CShuffleEpilogue
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
-        if constexpr(NumGroupsToMerge > 1)
-        {
-            return kMPerBlock * kNPerBlock * sizeof(ODataType);
-        }
-        else
-        {
-            return MPerIterationShuffle * NPerIterationShuffle * sizeof(ODataType);
-        }
+        return MPerIterationShuffle * NPerIterationShuffle * sizeof(ODataType);
     }
 
-    template <index_t MPerGroup, index_t NPerGroup, typename ODramWindow, typename OAccTile, typename DsDramWindows>
-    //template <typename ODramWindow, typename OAccTile, typename DsDramWindows>
+    template <typename ODramWindow, typename OAccTile, typename DsDramWindows>
     CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
                                    const OAccTile& o_acc_tile,
                                    const DsDramWindows& ds_dram_windows,
                                    void* p_smem)
 
     {
-        if constexpr (NumGroupsToMerge == 1)
-        {
-            return unmerged_op(out_dram_window, o_acc_tile, ds_dram_windows, p_smem);
-        }
-        else 
-        {
-            return merged_op<MPerGroup, NPerGroup>(out_dram_window, o_acc_tile, ds_dram_windows, p_smem);
-            //return merged_op(out_dram_window, o_acc_tile, ds_dram_windows, p_smem);
-        }
+        return unmerged_op(out_dram_window, o_acc_tile, ds_dram_windows, p_smem);
     }
 
     template <index_t MPerGroup, index_t NPerGroup, typename ODramWindow, typename OAccTile, typename DsDramWindows>

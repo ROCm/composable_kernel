@@ -620,45 +620,9 @@ struct GroupedConvolutionBackwardWeightKernel
             return false;
         }
 
-        if (GroupedConvTraitsType_::NumGroupsToMerge > 1)
-        {
-            const index_t ZYX = kargs.ZYX;
-            const index_t MPerGroup = ConvK;
-            const index_t NPerGroup = ZYX * ConvC;
-
-            // TODO: Fix this check
-            if (GroupedConvTraitsType_::MPerGroup != MPerGroup)
-            {
-                CK_TILE_ERROR("MPerGroup must be equal to Conv K!");
-                return false;
-            }
-
-            // TODO: Fix this check
-            if (GroupedConvTraitsType_::NPerGroup != NPerGroup)
-            {
-                CK_TILE_ERROR("NPerGroup must be equal to Conv C * ZYX!");
-                return false;
-            }
-
-            // TODO: Remove this check when ConvC > 1 is implemented.
-            if (ConvC > 1)
-            {
-                CK_TILE_ERROR("Only Conv C == 1 is supported!");
-                return false;
-            }
-
-            if (kargs.NumGroupsPerBatch * ConvC * ZYX > TilePartitioner_::NPerBlock)
-            {
-                CK_TILE_ERROR("NumGroupsPerBatch * Conv C * ZYX must be less or equal to NPerBlock!");
-                return false;
-            }
-
-            if (kargs.NumGroupsPerBatch * ConvK > TilePartitioner_::MPerBlock)
-            {
-                CK_TILE_ERROR("NumGroupsToMerge * Conv K must be less or equal to MPerBlock!");
-                return false;
-            }      
-        }
+        // TODO: Should we enforce 
+        // - ConvG % NumGroupsToMerge == 0?
+        // - ConvK % NumGroupsToMerge == 0?
 
         return true;
     }
@@ -845,8 +809,6 @@ struct GroupedConvolutionBackwardWeightKernel
         auto& c_block_window = gemm_tile_windows.at(I3);
 
         EpiloguePipeline{}.template operator()<
-            GroupedConvTraitsType_::MPerGroup, 
-            GroupedConvTraitsType_::NPerGroup, 
             decltype(c_block_window), 
             decltype(c_block_tile)>(
                 c_block_window, c_block_tile, d_block_window, smem_ptr_0);

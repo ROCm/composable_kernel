@@ -21,8 +21,6 @@ template <ck_tile::index_t NDimSpatial,
           typename WeiLayout,
           typename OutLayout,
           ck_tile::index_t NumGroupsToMerge = 1,
-          ck_tile::index_t MPerGroup = 0,
-          ck_tile::index_t NPerGroup = 0,
           typename DsDataType     = ck_tile::tuple<>,
           typename DsLayout       = ck_tile::tuple<>,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
@@ -66,9 +64,7 @@ float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
             WeiLayout, 
             DsLayout, 
             OutLayout, 
-            NumGroupsToMerge,
-            MPerGroup,
-            NPerGroup>;
+            NumGroupsToMerge>;
     using CodegenPipelineProblem =
         ck_tile::GemmPipelineProblem<InDataType,
                                      WeiDataType,
@@ -160,8 +156,6 @@ float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
 template <
     typename InPrecType, 
     ck_tile::index_t NumGroupsToMerge = 1,
-    ck_tile::index_t MPerGroup = 0,
-    ck_tile::index_t NPerGroup = 0, 
     typename WeiPrecType = InPrecType, 
     typename OutPrecType = InPrecType>
 int run_grouped_conv_bwd_weight_example_prec_type(
@@ -185,9 +179,7 @@ int run_grouped_conv_bwd_weight_example_prec_type(
                                                                 InPrecType,
                                                                 WeiPrecType,
                                                                 OutPrecType,
-                                                                NumGroupsToMerge,
-                                                                MPerGroup,
-                                                                NPerGroup>(
+                                                                NumGroupsToMerge>(
             argc, argv, NWGC{}, GKXC{}, NWGK{});
     }
     else if(in_layout == "NHWGC" && wei_layout == "GKYXC" && out_layout == "NHWGK")
@@ -196,9 +188,7 @@ int run_grouped_conv_bwd_weight_example_prec_type(
                                                                 InPrecType,
                                                                 WeiPrecType,
                                                                 OutPrecType,
-                                                                NumGroupsToMerge,
-                                                                MPerGroup,
-                                                                NPerGroup>(
+                                                                NumGroupsToMerge>(
             argc, argv, NHWGC{}, GKYXC{}, NHWGK{});
     }
     else if(in_layout == "NDHWGC" && wei_layout == "GKZYXC" && out_layout == "NDHWGK")
@@ -207,9 +197,7 @@ int run_grouped_conv_bwd_weight_example_prec_type(
                                                                 InPrecType,
                                                                 WeiPrecType,
                                                                 OutPrecType,
-                                                                NumGroupsToMerge,
-                                                                MPerGroup,
-                                                                NPerGroup>(
+                                                                NumGroupsToMerge>(
             argc, argv, NDHWGC{}, GKZYXC{}, NDHWGK{});
     }
     else
@@ -223,8 +211,6 @@ int run(const std::string& in_layout,
         const std::string& wei_layout,
         const std::string& out_layout,
         int num_groups_to_merge,
-        int m_per_group,
-        int n_per_group,
         int argc,
         char* argv[])
 {
@@ -234,47 +220,7 @@ int run(const std::string& in_layout,
     }
     else if (num_groups_to_merge == 8)
     {
-        if (m_per_group == 1 && n_per_group == 16)
-        {
-            return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8, 1, 16>(in_layout, wei_layout, out_layout, argc, argv);
-        }
-        else if (m_per_group == 2 && n_per_group == 16)
-        {
-            return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8, 2, 16>(in_layout, wei_layout, out_layout, argc, argv);
-        }
-        else if (m_per_group == 4 && n_per_group == 16)
-        {
-            return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8, 4, 16>(in_layout, wei_layout, out_layout, argc, argv);
-        }
-        else if (m_per_group == 1 && n_per_group == 4)
-        {
-            return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8, 1, 4>(in_layout, wei_layout, out_layout, argc, argv);
-        }
-        else if (m_per_group == 2 && n_per_group == 4)
-        {
-            return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8, 2, 4>(in_layout, wei_layout, out_layout, argc, argv);
-        }
-        else if (m_per_group == 4 && n_per_group == 4)
-        {
-            return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8, 4, 4>(in_layout, wei_layout, out_layout, argc, argv);
-        }
-        else if (m_per_group == 1 && n_per_group == 8)
-        {
-            return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8, 1, 8>(in_layout, wei_layout, out_layout, argc, argv);
-        }
-        else if (m_per_group == 2 && n_per_group == 8)
-        {
-            return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8, 2, 8>(in_layout, wei_layout, out_layout, argc, argv);
-        }
-        else if (m_per_group == 4 && n_per_group == 8)
-        {
-            return run_grouped_conv_bwd_weight_example_prec_type<InPrecType, 8, 4, 8>(in_layout, wei_layout, out_layout, argc, argv);
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported MPerGroup and NPerGroup combination for NumGroupsToMerge=8! Supported combinations are (1,16), (2,8), (4,4), (8,2), (16,1).");
-        }
-
+        return run_grouped_conv_bwd_weight_example_prec_type<InPrecType>(in_layout, wei_layout, out_layout, argc, argv);
     }
     else
     {
@@ -293,18 +239,16 @@ int run_grouped_conv_bwd_weight_example(int argc, char* argv[])
     std::string wei_layout = arg_parser.get_str("wei_layout");
     std::string out_layout = arg_parser.get_str("out_layout");
     ck_tile::index_t num_groups_to_merge = arg_parser.get_int("num_groups_to_merge");
-    ck_tile::index_t m_per_group = arg_parser.get_int("m_per_group");
-    ck_tile::index_t n_per_group = arg_parser.get_int("n_per_group");
 
     if(data_type == "fp16")
     {
         return run<ck_tile::half_t>(
-            in_layout, wei_layout, out_layout, num_groups_to_merge, m_per_group, n_per_group, argc, argv);
+            in_layout, wei_layout, out_layout, num_groups_to_merge, argc, argv);
     }
     else if(data_type == "bf16")
     {
         return run<ck_tile::bf16_t>(
-            in_layout, wei_layout, out_layout, num_groups_to_merge, m_per_group, n_per_group, argc, argv);
+            in_layout, wei_layout, out_layout, num_groups_to_merge, argc, argv);
     }
     else
     {
