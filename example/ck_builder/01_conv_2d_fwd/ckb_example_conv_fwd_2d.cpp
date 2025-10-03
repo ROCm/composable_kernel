@@ -7,11 +7,9 @@ int main() {
     namespace ckb = ck_tile::builder;
     namespace ckb_examples = ck_tile::builder::examples;
 
-    constexpr size_t m_tile = 32;
-    constexpr size_t n_tile = 16;
-    constexpr size_t k_tile = 64;
-    constexpr size_t k0 = 4;
-    constexpr size_t k1 = 1;
+    constexpr size_t m_tile = 128;
+    constexpr size_t n_tile = 128;
+    constexpr size_t k_tile = 32;
 
     constexpr ckb_examples::ConvSignature FwdConvSignature 
     {
@@ -30,16 +28,27 @@ int main() {
 
     constexpr ckb_examples::BlockTransfer FwdBlockTransfer
     {
-        .thread_cluster_dims_a = {.k0 = k0, .m = m_tile, .k1 = k1},
-        .thread_cluster_dims_b = {.k0 = k0, .n = n_tile, .k1 = k1},
+        .thread_cluster_dims_a = {.k0 = 4, .m = 64, .k1 = 1},
+        .thread_cluster_dims_b = {.k0 = 4, .n = 64, .k1 = 1},
         .thread_cluster_dims_c = {
-            .m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 8}
+            .m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 8},
+        .vector_transfer_a = {
+            .src_vector_dim = 2, .src_scaler_per_vector = 8, .dest_scaler_per_vector_k1 = 8, .add_extra = true},
+        .vector_transfer_b = {
+            .src_vector_dim = 2, .src_scaler_per_vector = 8, .dest_scaler_per_vector_k1 = 8, .add_extra = true},
+        .vector_transfer_c = {
+            .m_xdl_per_wave_per_shuffle = 1, .n_xdl_per_wave_per_shuffle = 2, .scaler_per_vector = 8},
+        .a_thread_cluster_access_order = {1, 0, 2},
+        .b_thread_cluster_access_order = {1, 0, 2},
+        .a_source_access_order = {1, 0, 2},
+        .b_source_access_order = {1, 0, 2}
     };
+    
 
     constexpr ckb_examples::ConvAlgorithm FwdConvAlgorithm
     {
         .thread_block = FwdThreadBlock,
-        .tuning_params = {.ak1 = 16, .bk1 = 16, .m_xdl_per_wave = 2, .n_xdl_per_wave = 2},
+        .tuning_params = {.ak1 = 8, .bk1 = 8, .m_xdl_per_wave = 1, .n_xdl_per_wave = 4},
         .block_transfer = FwdBlockTransfer,
         .pipeline_version = ckb::BlockGemmPipelineVersion::V1,
     };
@@ -48,6 +57,11 @@ int main() {
     const auto kernel_string = Builder::Instance::TypeString();
 
     std::cout << "Generated kernel: " << kernel_string << std::endl;
+
+    // The invoker is the entrypoint to launch the kernel.
+    // Creating the invoker triggers the validation of the builder configuration.
+    //auto invoker = Builder::Instance::MakeInvoker();
+    //(void)invoker;
 
     return 0;
 }

@@ -6,6 +6,11 @@
 
 namespace ck_tile::builder {
 
+// TODO: VP (Oct 3, 2025) - Separate the concepts and structs into separate files.
+// Concepts the define interface and structs are PODs that implement the concepts.
+// The interface is really just the concepts. Clients can define their own structs
+// as long as they satisfy the concepts.
+
 // Convenience struct for a tuple of m, n, and k values.
 template <typename T>
 struct MNK
@@ -100,6 +105,34 @@ struct BlockBTransferLengths
 };
 static_assert(BlockBTransferDescriptor<BlockBTransferLengths>);
 
+// Concept for the thread cluster access order
+template <typename T>
+concept ThreadClusterAccessOrderDescriptor = requires(T t) {
+    { t.order } -> std::convertible_to<std::array<int, 3>>;
+};
+
+// Describe the thread cluster access order.
+struct ThreadClusterAccessOrder
+{
+    // Order of the cluster dimensions. Must be a permutation of {0, 1, 2}.
+    std::array<int, 3> order;
+};
+static_assert(ThreadClusterAccessOrderDescriptor<ThreadClusterAccessOrder>);
+
+// Concept to describe source access order
+template <typename T>
+concept SourceAccessOrderDescriptor = requires(T t) {
+    { t.order } -> std::convertible_to<std::array<int, 3>>;
+}; 
+
+// Describe the source access order.
+struct SourceAccessOrder
+{
+    // Order of the source dimensions. Must be a permutation of {0, 1, 2}.
+    std::array<int, 3> order;
+};
+static_assert(SourceAccessOrderDescriptor<SourceAccessOrder>);
+
 // Concept for C block transfer thread cluster lengths.
 template <typename T>
 concept BlockCTransferDescriptor = requires(T t) {
@@ -119,6 +152,40 @@ struct BlockCTransferLengths
 };
 static_assert(BlockCTransferDescriptor<BlockCTransferLengths>);
 
+// Concept for vector transfer details for A and B tensors
+template <typename T>
+concept VectorTransferDescriptorAB = requires(T t) {
+    { t.src_vector_dim } -> std::convertible_to<size_t>;
+    { t.src_scaler_per_vector } -> std::convertible_to<size_t>;
+    { t.dest_scaler_per_vector_k1 } -> std::convertible_to<size_t>;
+    { t.add_extra } -> std::convertible_to<bool>;
+};
+
+struct VectorTransferAB
+{
+    size_t src_vector_dim;
+    size_t src_scaler_per_vector;
+    size_t dest_scaler_per_vector_k1;
+    bool add_extra; 
+};
+static_assert(VectorTransferDescriptorAB<VectorTransferAB>);
+
+// Concept for the C tensor vectors transfer details.
+template <typename T>
+concept VectorTransferDescriptorC = requires(T t) {
+    { t.m_xdl_per_wave_per_shuffle } -> std::convertible_to<size_t>;
+    { t.n_xdl_per_wave_per_shuffle } -> std::convertible_to<size_t>;
+    { t.scaler_per_vector } -> std::convertible_to<size_t>;
+};
+
+struct VectorTransferC
+{
+    size_t m_xdl_per_wave_per_shuffle;
+    size_t n_xdl_per_wave_per_shuffle;
+    size_t scaler_per_vector;
+};
+static_assert(VectorTransferDescriptorC<VectorTransferC>);
+
 // Concept to check if a struct specifies A Block tranfer info.
 template <typename T>
 concept SpecifiesBlockATransfer = requires(T t) {
@@ -135,6 +202,48 @@ concept SpecifiesBlockBTransfer = requires(T t) {
 template <typename T>
 concept SpecifiesBlockCTransfer = requires(T t) {
     { T::block_transfer.thread_cluster_dims_c } -> BlockCTransferDescriptor;
+};
+
+// Concept to check if a struct specifies A block vector transfer info.
+template <typename T>
+concept SpecifiesBlockAVectorTransfer = requires(T t) {
+    { T::block_transfer.vector_transfer_a } -> VectorTransferDescriptorAB;
+};
+
+// Concept to check if a struct specifies B block vector transfer info.
+template <typename T>
+concept SpecifiesBlockBVectorTransfer = requires(T t) {
+    { T::block_transfer.vector_transfer_b } -> VectorTransferDescriptorAB;
+};
+
+// Concept to check if a struct specifies C block vector transfer info.
+template <typename T>
+concept SpecifiesBlockCVectorTransfer = requires(T t) {
+    { T::block_transfer.vector_transfer_c } -> VectorTransferDescriptorC;
+};
+
+// Concept to check if a struct specifies thread cluster access order info.
+template <typename T>
+concept SpecifiesAThreadClusterAccessOrder = requires(T t) {
+    { T::block_transfer.a_thread_cluster_access_order } -> ThreadClusterAccessOrderDescriptor;
+};
+
+// Concept to check if a struct specifies thread cluster access order info.
+template <typename T>
+concept SpecifiesBThreadClusterAccessOrder = requires(T t) {
+    { T::block_transfer.b_thread_cluster_access_order } -> ThreadClusterAccessOrderDescriptor;
+};
+
+// Concept to check if a struct specifies source access order info.
+template <typename T>
+concept SpecifiesASourceAccessOrder = requires(T t) {
+    { T::block_transfer.a_source_access_order } -> SourceAccessOrderDescriptor;
+};
+
+// Concept to check if a struct specifies source access order info.
+template <typename T>
+concept SpecifiesBSourceAccessOrder = requires(T t) {
+    { T::block_transfer.b_source_access_order } -> SourceAccessOrderDescriptor;
 };
 
 // Enums for the current block GEMM pipeline versions.
