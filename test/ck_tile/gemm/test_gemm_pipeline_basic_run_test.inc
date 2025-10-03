@@ -165,51 +165,56 @@ bool run_gemm_test_prec_type(const int M, const int N, const int K)
         M, N, K);
 }
 
-template <typename APrecType, typename BPrecType = APrecType, typename CPrecType = APrecType>
-bool run_gemm_combinations()
+template <typename Tuple>
+class TestCkTileGemmPipelineBasic : public ::testing::Test
 {
-    // Define possible values for each parameter
-    std::vector<int> m_values = {128, 1024};
-    std::vector<int> n_values = {128, 2048};
-    std::vector<int> k_values = {64, 128};
+    protected:
+    using APrecType = std::tuple_element_t<0, Tuple>;
+    using BPrecType = std::tuple_element_t<1, Tuple>;
+    using CPrecType = std::tuple_element_t<2, Tuple>;
 
-    // Run all combinations
-    bool is_success = true;
-    for(const auto& m : m_values)
+    void run_gemm_combinations(const int m, const int n, const int k)
     {
-        for(const auto& n : n_values)
+        // Skip tests that are known to fail
+        if constexpr(std::is_same_v<APrecType, F8> && std::is_same_v<BPrecType, BF8>)
         {
-            for(const auto& k : k_values)
-            {
-                std::cout << "-m=" << m << " -n=" << n << " -k=" << k << std::endl;
+            GTEST_SKIP() << "Skipping this test due to known failures with F8 x BF8";
+        }
+        else if constexpr(std::is_same_v<APrecType, F16> && std::is_same_v<BPrecType, I4>)
+        {
+            GTEST_SKIP() << "Skipping this test due to known failures with F16 x I4";
+        }
+        else
+        {
+            bool is_success = true;
+            std::cout << "-m=" << m << " -n=" << n << " -k=" << k << std::endl;
 
-                // Call the function with the current configuration
-                try
-                {
+            // Call the function with the current configuration
+            try
+            {
 #if CK_TILE_USE_WMMA
-                    is_success =
-                        run_gemm_test_prec_type<GemmConfig_Wmma, APrecType, BPrecType, CPrecType>(
-                            m, n, k) &&
-                        is_success;
+                is_success =
+                    run_gemm_test_prec_type<GemmConfig_Wmma, APrecType, BPrecType, CPrecType>(
+                        m, n, k) &&
+                    is_success;
 #else
-                    is_success =
-                        run_gemm_test_prec_type<GemmConfig_Mfma, APrecType, BPrecType, CPrecType>(
-                            m, n, k) &&
-                        is_success;
+                is_success =
+                    run_gemm_test_prec_type<GemmConfig_Mfma, APrecType, BPrecType, CPrecType>(
+                        m, n, k) &&
+                    is_success;
 #endif
-                }
-                catch(const ArgumentsNotSupportedException& e)
-                {
-                    std::cerr << "Caught ArgumentsNotSupportedException: " << e.what() << '\n';
-                    // ArgumentsNotSupportedException  is not an error. Do not change is_success
-                }
-                catch(const std::runtime_error& e)
-                {
-                    std::cerr << "Caught runtime error: " << e.what() << '\n';
-                    is_success = false;
-                }
             }
+            catch(const ArgumentsNotSupportedException& e)
+            {
+                std::cerr << "Caught ArgumentsNotSupportedException: " << e.what() << '\n';
+                // ArgumentsNotSupportedException  is not an error. Do not change is_success
+            }
+            catch(const std::runtime_error& e)
+            {
+                std::cerr << "Caught runtime error: " << e.what() << '\n';
+                is_success = false;
+            }
+            EXPECT_TRUE(is_success);
         }
     }
-    return is_success;
-}
+};

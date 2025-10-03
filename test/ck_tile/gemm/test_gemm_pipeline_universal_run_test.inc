@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
+#include "gtest/gtest.h"
 
 template <typename GemmConfig,
           typename ADataType,
@@ -209,58 +210,49 @@ bool run_gemm_test_prec_type(const int M, const int N, const int K)
         M, N, K);
 }
 
-template <typename APrecType, typename BPrecType = APrecType, typename CPrecType = APrecType>
-int run_gemm_combinations()
+template <typename Tuple>
+class TestCkTileGemmPipelineUniversal : public ::testing::Test
 {
-    // Define possible values for each parameter
-    std::vector<int> m_values = {512, 1024};
-    std::vector<int> n_values = {512, 2048};
-    std::vector<int> k_values = {512, 1024};
+    protected:
+    using APrecType = std::tuple_element_t<0, Tuple>;
+    using BPrecType = std::tuple_element_t<1, Tuple>;
+    using CPrecType = std::tuple_element_t<2, Tuple>;
 
-    // Run all combinations
-    bool is_success = true;
-    for(const auto& m : m_values)
+    void run_gemm_combinations(const int m, const int n, const int k)
     {
-        for(const auto& n : n_values)
+        bool is_success = true;
+        // Call the function with the current configuration
+        try
         {
-            for(const auto& k : k_values)
-            {
-                std::cout << "-m=" << m << " -n=" << n << " -k=" << k << std::endl;
-
-                // Call the function with the current configuration
-                try
-                {
 #if CK_TILE_USE_WMMA
-                    is_success = run_gemm_test_prec_type<GemmConfigComputeV3_WMMA<CPrecType>,
-                                                         APrecType,
-                                                         BPrecType,
-                                                         CPrecType>(m, n, k) &&
-                                 is_success;
+            is_success = run_gemm_test_prec_type<GemmConfigComputeV3_WMMA<CPrecType>,
+                                                 APrecType,
+                                                 BPrecType,
+                                                 CPrecType>(m, n, k) &&
+                         is_success;
 #else
-                    is_success = run_gemm_test_prec_type<GemmConfigComputeV3<CPrecType>,
-                                                         APrecType,
-                                                         BPrecType,
-                                                         CPrecType>(m, n, k) &&
-                                 is_success;
-                    is_success = run_gemm_test_prec_type<GemmConfigComputeV3_2<CPrecType>,
-                                                         APrecType,
-                                                         BPrecType,
-                                                         CPrecType>(m, n, k) &&
-                                 is_success;
+            is_success = run_gemm_test_prec_type<GemmConfigComputeV3<CPrecType>,
+                                                 APrecType,
+                                                 BPrecType,
+                                                 CPrecType>(m, n, k) &&
+                         is_success;
+            is_success = run_gemm_test_prec_type<GemmConfigComputeV3_2<CPrecType>,
+                                                 APrecType,
+                                                 BPrecType,
+                                                 CPrecType>(m, n, k) &&
+                         is_success;
 #endif
-                }
-                catch(const ArgumentsNotSupportedException& e)
-                {
-                    std::cerr << "Caught ArgumentsNotSupportedException: " << e.what() << '\n';
-                    // ArgumentsNotSupportedException  is not an error. Do not change is_success
-                }
-                catch(const std::runtime_error& e)
-                {
-                    std::cerr << "Caught runtime error: " << e.what() << '\n';
-                    is_success = false;
-                }
-            }
         }
+        catch(const ArgumentsNotSupportedException& e)
+        {
+            std::cerr << "Caught ArgumentsNotSupportedException: " << e.what() << '\n';
+            // ArgumentsNotSupportedException  is not an error. Do not change is_success
+        }
+        catch(const std::runtime_error& e)
+        {
+            std::cerr << "Caught runtime error: " << e.what() << '\n';
+            is_success = false;
+        }
+        EXPECT_TRUE(is_success);
     }
-    return is_success;
-}
+};
