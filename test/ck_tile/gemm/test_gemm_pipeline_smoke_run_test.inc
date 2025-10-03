@@ -203,10 +203,7 @@ template <typename GemmConfig,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-bool run_gemm_test_with_layouts(ck_tile::ArgParser& arg_parser,
-                                const ALayout a_layout                  = ALayout{},
-                                const BLayout b_layout                  = BLayout{},
-                                [[maybe_unused]] const CLayout c_layout = CLayout{})
+bool run_gemm_test_with_layouts(ck_tile::ArgParser& arg_parser)
 {
     using AccDataType = typename GemmTypeConfig<ADataType, BDataType, CDataType>::AccDataType;
 
@@ -225,14 +222,14 @@ bool run_gemm_test_with_layouts(ck_tile::ArgParser& arg_parser,
     constexpr int n_repeat            = 1;
     constexpr bool persistent         = false;
 
-    stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
-    stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
+    stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(ALayout{}));
+    stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(BLayout{}));
     stride_C = ck_tile::get_default_stride(M, N, stride_C, is_row_major(CLayout{}));
 
     ck_tile::HostTensor<ADataType> a_m_k(
-        ck_tile::host_tensor_descriptor(M, K, stride_A, is_row_major(a_layout)));
+        ck_tile::host_tensor_descriptor(M, K, stride_A, is_row_major(ALayout{})));
     ck_tile::HostTensor<BDataType> b_k_n(
-        ck_tile::host_tensor_descriptor(K, N, stride_B, is_row_major(b_layout)));
+        ck_tile::host_tensor_descriptor(K, N, stride_B, is_row_major(BLayout{})));
     ck_tile::HostTensor<CDataType> c_m_n_dev_result(
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 

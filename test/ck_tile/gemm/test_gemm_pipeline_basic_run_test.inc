@@ -161,8 +161,8 @@ bool run_gemm_test_prec_type(ck_tile::ArgParser& arg_parser)
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
-    return run_gemm_test_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-        arg_parser, Row{}, Col{}, Row{});
+    return run_gemm_test_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType, Row, Col, Row>(
+        arg_parser);
 }
 
 template <typename GemmConfig, typename APrecType, typename BPrecType, typename CPrecType>
