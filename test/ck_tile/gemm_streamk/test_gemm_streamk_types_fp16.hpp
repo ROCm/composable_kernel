@@ -5,17 +5,17 @@
 
 #include "test_gemm_streamk_types.hpp"
 
-template<typename M_MacroTile,
-         typename N_MacroTile,
-         typename K_MacroTile,
-         typename M_Warps,
-         typename N_Warps,
-         typename K_Warps,
-         typename M_MmaTile,
-         typename N_MmaTile,
-         typename K_MmaTile,
-         typename PipelineType,
-         typename Persistent>
+template <typename M_MacroTile,
+          typename N_MacroTile,
+          typename K_MacroTile,
+          typename M_Warps,
+          typename N_Warps,
+          typename K_Warps,
+          typename M_MmaTile,
+          typename N_MmaTile,
+          typename K_MmaTile,
+          typename PipelineType,
+          typename Persistent>
 struct F16Layouts
 {
     // clang-format off
@@ -39,8 +39,7 @@ struct F16Layouts
 // #define CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE_X, MACRO_TILE_Y, MACRO_TILE, WORKGROUP, WAVE_TILE) \
 //     DATA_TYPE##_##MACRO_TILE##_##WORKGROUP##_##WAVE_TILE
 
-template<typename PipelineType,
-         typename Persistent>
+template <typename PipelineType, typename Persistent>
 struct F16Set
 {
     // clang-format off
@@ -118,23 +117,77 @@ struct F16Set
     // clang-format on
 };
 
-#define CONCATENATE_FORMATTED_NAME(DATA_TYPE, LAYOUT_TYPE, PIPELINE_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT) \
+#define CONCATENATE_FORMATTED_NAME(                                                      \
+    DATA_TYPE, LAYOUT_TYPE, PIPELINE_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT) \
     DATA_TYPE##_##LAYOUT_TYPE##_##PIPELINE_TYPE##_##MACRO_TILE##_##WORKGROUP##_##WAVE_TILE##_##PERSISTENT
-
-
 
 #define FORMAT_MEMBER(FORMATTED_NAME, SET_NAME, PIPELINE_TYPE, PERSISTENT, MEMBER_NAME) \
     using FORMATTED_NAME = typename SET_NAME<PIPELINE_TYPE, PERSISTENT>::MEMBER_NAME;
 
-#define EXPAND_MEMBER_LAYOUTS(SET_NAME, DATA_TYPE, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PIPELINE_TYPE, PERSISTENT) \
-    FORMAT_MEMBER(CONCATENATE_FORMATTED_NAME(DATA_TYPE, rrr, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), SET_NAME, PIPELINE_TYPE, PERSISTENT, CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::rrr) \
-    FORMAT_MEMBER(CONCATENATE_FORMATTED_NAME(DATA_TYPE, rrc, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), SET_NAME, PIPELINE_TYPE, PERSISTENT, CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::rrc) \
-    FORMAT_MEMBER(CONCATENATE_FORMATTED_NAME(DATA_TYPE, rcr, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), SET_NAME, PIPELINE_TYPE, PERSISTENT, CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::rcr) \
-    FORMAT_MEMBER(CONCATENATE_FORMATTED_NAME(DATA_TYPE, rcc, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), SET_NAME, PIPELINE_TYPE, PERSISTENT, CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::rcc) \
-    FORMAT_MEMBER(CONCATENATE_FORMATTED_NAME(DATA_TYPE, crr, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), SET_NAME, PIPELINE_TYPE, PERSISTENT, CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::crr) \
-    FORMAT_MEMBER(CONCATENATE_FORMATTED_NAME(DATA_TYPE, crc, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), SET_NAME, PIPELINE_TYPE, PERSISTENT, CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::crc) \
-    FORMAT_MEMBER(CONCATENATE_FORMATTED_NAME(DATA_TYPE, ccr, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), SET_NAME, PIPELINE_TYPE, PERSISTENT, CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::ccr) \
-    FORMAT_MEMBER(CONCATENATE_FORMATTED_NAME(DATA_TYPE, ccc, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), SET_NAME, PIPELINE_TYPE, PERSISTENT, CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::ccc)
+#define EXPAND_MEMBER_LAYOUTS(SET_NAME,                                                       \
+                              DATA_TYPE,                                                      \
+                              PIPELINE_TYPE_LOW,                                              \
+                              MACRO_TILE,                                                     \
+                              WORKGROUP,                                                      \
+                              WAVE_TILE,                                                      \
+                              PIPELINE_TYPE,                                                  \
+                              PERSISTENT)                                                     \
+    FORMAT_MEMBER(                                                                            \
+        CONCATENATE_FORMATTED_NAME(                                                           \
+            DATA_TYPE, rrr, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), \
+        SET_NAME,                                                                             \
+        PIPELINE_TYPE,                                                                        \
+        PERSISTENT,                                                                           \
+        CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::rrr)            \
+    FORMAT_MEMBER(                                                                            \
+        CONCATENATE_FORMATTED_NAME(                                                           \
+            DATA_TYPE, rrc, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), \
+        SET_NAME,                                                                             \
+        PIPELINE_TYPE,                                                                        \
+        PERSISTENT,                                                                           \
+        CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::rrc)            \
+    FORMAT_MEMBER(                                                                            \
+        CONCATENATE_FORMATTED_NAME(                                                           \
+            DATA_TYPE, rcr, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), \
+        SET_NAME,                                                                             \
+        PIPELINE_TYPE,                                                                        \
+        PERSISTENT,                                                                           \
+        CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::rcr)            \
+    FORMAT_MEMBER(                                                                            \
+        CONCATENATE_FORMATTED_NAME(                                                           \
+            DATA_TYPE, rcc, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), \
+        SET_NAME,                                                                             \
+        PIPELINE_TYPE,                                                                        \
+        PERSISTENT,                                                                           \
+        CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::rcc)            \
+    FORMAT_MEMBER(                                                                            \
+        CONCATENATE_FORMATTED_NAME(                                                           \
+            DATA_TYPE, crr, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), \
+        SET_NAME,                                                                             \
+        PIPELINE_TYPE,                                                                        \
+        PERSISTENT,                                                                           \
+        CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::crr)            \
+    FORMAT_MEMBER(                                                                            \
+        CONCATENATE_FORMATTED_NAME(                                                           \
+            DATA_TYPE, crc, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), \
+        SET_NAME,                                                                             \
+        PIPELINE_TYPE,                                                                        \
+        PERSISTENT,                                                                           \
+        CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::crc)            \
+    FORMAT_MEMBER(                                                                            \
+        CONCATENATE_FORMATTED_NAME(                                                           \
+            DATA_TYPE, ccr, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), \
+        SET_NAME,                                                                             \
+        PIPELINE_TYPE,                                                                        \
+        PERSISTENT,                                                                           \
+        CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::ccr)            \
+    FORMAT_MEMBER(                                                                            \
+        CONCATENATE_FORMATTED_NAME(                                                           \
+            DATA_TYPE, ccc, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), \
+        SET_NAME,                                                                             \
+        PIPELINE_TYPE,                                                                        \
+        PERSISTENT,                                                                           \
+        CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::ccc)
 
 #define EXPAND_
 EXPAND_MEMBER_LAYOUTS(F16Set, f16, compv3, 256x256x32, 2x2x1, 32x32x16, CompV3, NonPersistent);

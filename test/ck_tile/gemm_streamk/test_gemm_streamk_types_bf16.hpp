@@ -5,17 +5,17 @@
 
 #include "test_gemm_streamk_types.hpp"
 
-template<typename M_MacroTile,
-         typename N_MacroTile,
-         typename K_MacroTile,
-         typename M_Warps,
-         typename N_Warps,
-         typename K_Warps,
-         typename M_MmaTile,
-         typename N_MmaTile,
-         typename K_MmaTile,
-         typename PipelineType,
-         typename Persistent>
+template <typename M_MacroTile,
+          typename N_MacroTile,
+          typename K_MacroTile,
+          typename M_Warps,
+          typename N_Warps,
+          typename K_Warps,
+          typename M_MmaTile,
+          typename N_MmaTile,
+          typename K_MmaTile,
+          typename PipelineType,
+          typename Persistent>
 struct BF16Layouts
 {
     // clang-format off
@@ -33,8 +33,7 @@ struct BF16Layouts
     // clang-format on
 };
 
-template<typename PipelineType,
-         typename Persistent>
+template <typename PipelineType, typename Persistent>
 struct BF16Set
 {
     // clang-format off

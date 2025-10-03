@@ -12,27 +12,34 @@
 #endif
 
 // Macros to help generate test names from the parameters given
-// Concatenate is able to stitch the template parameters symbol together with the runtime args values
-#define CONCATENATE_TEST_NAME(SIZE_M, SIZE_N, SIZE_K, NUM_SK_BLOCKS) M##SIZE_M##_N##SIZE_N##_K##SIZE_K##_SKBlocks##NUM_SK_BLOCKS
+// Concatenate is able to stitch the template parameters symbol together with the runtime args
+// values
+#define CONCATENATE_TEST_NAME(SIZE_M, SIZE_N, SIZE_K, NUM_SK_BLOCKS) \
+    M##SIZE_M##_N##SIZE_N##_K##SIZE_K##_SKBlocks##NUM_SK_BLOCKS
 // Helper macro to expand the arguments before passing them to CONCATENATE_TEST_NAME
-#define MAKE_TEST_NAME(SIZE_M, SIZE_N, SIZE_K, NUM_SK_BLOCKS) CONCATENATE_TEST_NAME(SIZE_M, SIZE_N, SIZE_K, NUM_SK_BLOCKS)
+#define MAKE_TEST_NAME(SIZE_M, SIZE_N, SIZE_K, NUM_SK_BLOCKS) \
+    CONCATENATE_TEST_NAME(SIZE_M, SIZE_N, SIZE_K, NUM_SK_BLOCKS)
 
 // Macro to add a test TEST_NAME to the TEST_SUITE_NAME with the given parameters
-#define STREAM_K_TEST_INTERNAL(SIZE_M, SIZE_N, SIZE_K, NUM_SK_BLOCKS, TEST_NAME)                     \
-    TYPED_TEST(TEST_SUITE_NAME, TEST_NAME)                                                           \
-    {                                                                                                \
-        ck_tile::index_t M     = SIZE_M;                                                             \
-        ck_tile::index_t N     = SIZE_N;                                                             \
-        ck_tile::index_t K     = SIZE_K;                                                             \
-        uint32_t num_sk_blocks = NUM_SK_BLOCKS;                                                      \
-                                                                                                     \
-        this->Run(M, N, K, num_sk_blocks);                                                           \
+#define STREAM_K_TEST_INTERNAL(SIZE_M, SIZE_N, SIZE_K, NUM_SK_BLOCKS, TEST_NAME) \
+    TYPED_TEST(TEST_SUITE_NAME, TEST_NAME)                                       \
+    {                                                                            \
+        ck_tile::index_t M     = SIZE_M;                                         \
+        ck_tile::index_t N     = SIZE_N;                                         \
+        ck_tile::index_t K     = SIZE_K;                                         \
+        uint32_t num_sk_blocks = NUM_SK_BLOCKS;                                  \
+                                                                                 \
+        this->Run(M, N, K, num_sk_blocks);                                       \
     }
 
 // Macro that generates a test name from the TEST_SUITE_TPARAMS symbol and the given parameters,
 // then adds that test to test suite TEST_SUITE_NAME
-#define STREAM_K_TEST(SIZE_M, SIZE_N, SIZE_K, NUM_SK_BLOCKS)                                         \
-    STREAM_K_TEST_INTERNAL(SIZE_M, SIZE_N, SIZE_K, NUM_SK_BLOCKS, MAKE_TEST_NAME(SIZE_M, SIZE_N, SIZE_K, NUM_SK_BLOCKS))
+#define STREAM_K_TEST(SIZE_M, SIZE_N, SIZE_K, NUM_SK_BLOCKS) \
+    STREAM_K_TEST_INTERNAL(SIZE_M,                           \
+                           SIZE_N,                           \
+                           SIZE_K,                           \
+                           NUM_SK_BLOCKS,                    \
+                           MAKE_TEST_NAME(SIZE_M, SIZE_N, SIZE_K, NUM_SK_BLOCKS))
 
 // TODO: segfaults
 // STREAM_K_TEST(1, 1, 1, 0)
@@ -145,7 +152,6 @@ STREAM_K_TEST(512, 32, 512, 16)
 STREAM_K_TEST(32, 32, 512, 0)
 STREAM_K_TEST(32, 32, 512, 8)
 STREAM_K_TEST(32, 32, 512, 16)
-
 
 // TODO: Renable this test once reduction is implemented
 TYPED_TEST(TEST_SUITE_NAME, StreamK_M256_N256_K256_SKBlocks12)

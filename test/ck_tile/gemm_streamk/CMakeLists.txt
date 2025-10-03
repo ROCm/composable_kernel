@@ -2,7 +2,7 @@
 if(GPU_TARGETS MATCHES "gfx9")
 
     include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
-
+ 
     #TODO: support all arches
     #TODO: current stream-k c-shuffle only supports C layout as R
     add_gtest_executable(test_ck_tile_streamk_smoke 
@@ -61,7 +61,7 @@ if(GPU_TARGETS MATCHES "gfx9")
                         ${CMAKE_CURRENT_SOURCE_DIR}/extended_tests/compv3/bf16_ccr_compv3_128x128x32_2x2x1_32x32x16_NonPersistent.cpp
                        #${CMAKE_CURRENT_SOURCE_DIR}/extended_tests/compv3/bf16_ccc_compv3_128x128x32_2x2x1_32x32x16_NonPersistent.cpp
                         
-                       # compv4 pipeline
+                       # TODO: add compv4 pipeline
                     #     ${CMAKE_CURRENT_SOURCE_DIR}/extended_tests/compv4/f16_rrr_compv4_256x256x32_2x2x1_32x32x16_NonPersistent.cpp
                     #    #${CMAKE_CURRENT_SOURCE_DIR}/extended_tests/compv4/f16_rrc_compv4_256x256x32_2x2x1_32x32x16_NonPersistent.cpp
                     #     ${CMAKE_CURRENT_SOURCE_DIR}/extended_tests/compv4/f16_rcr_compv4_256x256x32_2x2x1_32x32x16_NonPersistent.cpp

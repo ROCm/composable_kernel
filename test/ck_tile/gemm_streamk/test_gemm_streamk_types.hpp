@@ -25,33 +25,33 @@ using CompV4 = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType::Co
 using Persistent    = std::true_type;
 using NonPersistent = std::false_type;
 
-using I1  = ck_tile::number<1>;
-using I2  = ck_tile::number<2>;
-using I4  = ck_tile::number<4>;
-using I8  = ck_tile::number<8>;
+using I1   = ck_tile::number<1>;
+using I2   = ck_tile::number<2>;
+using I4   = ck_tile::number<4>;
+using I8   = ck_tile::number<8>;
 using I16  = ck_tile::number<16>;
 using I32  = ck_tile::number<32>;
 using I64  = ck_tile::number<64>;
-using I128  = ck_tile::number<128>;
+using I128 = ck_tile::number<128>;
 using I256 = ck_tile::number<256>;
 
-template<typename ADataType,
-         typename BDataType,
-         typename AccDataType,
-         typename CDataType,
-         typename M_MacroTile,
-         typename N_MacroTile,
-         typename K_MacroTile,
-         typename M_Warps,
-         typename N_Warps,
-         typename K_Warps,
-         typename M_MmaTile,
-         typename N_MmaTile,
-         typename K_MmaTile,
-         typename PipelineType,
-         typename Persistent>
+template <typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename M_MacroTile,
+          typename N_MacroTile,
+          typename K_MacroTile,
+          typename M_Warps,
+          typename N_Warps,
+          typename K_Warps,
+          typename M_MmaTile,
+          typename N_MmaTile,
+          typename K_MmaTile,
+          typename PipelineType,
+          typename Persistent>
 struct Layouts
-{   
+{
     // clang-format off
     // Create all combinations of A, B, Acc, C layouts
     //                                      ALayout, BLayout, CLayout, ADataType, BDataType, AccDataType, CDataType, M_MacroTile, N_MacroTile, K_MacroTile, M_Warps, N_Warps, K_Warps, M_MmaTile, N_MmaTile, K_MmaTile, PipelineType, Persistent
@@ -68,4 +68,3 @@ struct Layouts
 
 #include "test_gemm_streamk_types_fp16.hpp"
 #include "test_gemm_streamk_types_bf16.hpp"
-

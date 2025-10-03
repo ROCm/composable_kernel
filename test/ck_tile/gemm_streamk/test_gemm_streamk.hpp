@@ -28,7 +28,7 @@ class TestCkTileStreamK : public ::testing::Test
     using CDataType   = std::tuple_element_t<6, Tuple>;
     using DsLayout    = ck_tile::tuple<>;
     using DsDataType  = ck_tile::tuple<>;
-    
+
     static constexpr ck_tile::index_t M_Tile = std::tuple_element_t<7, Tuple>::value;
     static constexpr ck_tile::index_t N_Tile = std::tuple_element_t<8, Tuple>::value;
     static constexpr ck_tile::index_t K_Tile = std::tuple_element_t<9, Tuple>::value;
@@ -42,7 +42,7 @@ class TestCkTileStreamK : public ::testing::Test
     static constexpr ck_tile::index_t K_Warp_Tile = std::tuple_element_t<15, Tuple>::value;
 
     static constexpr GemmPipelineType PipelineType = std::tuple_element_t<16, Tuple>::value;
-    static constexpr bool Persistent = std::tuple_element_t<17, Tuple>::value;
+    static constexpr bool Persistent               = std::tuple_element_t<17, Tuple>::value;
 
     template <ck_tile::StreamKReductionStrategy ReductionStrategy,
               bool PadM       = true,
@@ -101,7 +101,8 @@ class TestCkTileStreamK : public ::testing::Test
                                                                                scheduler>;
             // For initial testing, we will just test with one pipeline.
             // More extensive testing is coming later and will test other pipelines.
-            using GemmPipeline = typename GemmPipelineTypeSelector<PipelineType, UniversalGemmProblem>::pipeline;
+            using GemmPipeline =
+                typename GemmPipelineTypeSelector<PipelineType, UniversalGemmProblem>::pipeline;
 
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
@@ -136,16 +137,16 @@ class TestCkTileStreamK : public ::testing::Test
 
             ck_tile::launch_kernel(
                 s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grid_dims, block_dims, 0, kargs));
-            
+
             return true;
         };
 
         return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                       // Since we are doing stream K, in the case of
-                                       // atomics, multiple workgroups may write to the same
-                                       // output tile in the C tensor, so we must atomic add
-                                       // the results (not set)
-                                       ck_tile::memory_operation_enum::atomic_add>{});
+                                              // Since we are doing stream K, in the case of
+                                              // atomics, multiple workgroups may write to the same
+                                              // output tile in the C tensor, so we must atomic add
+                                              // the results (not set)
+                                              ck_tile::memory_operation_enum::atomic_add>{});
     }
 
     public:
@@ -237,7 +238,7 @@ class TestCkTileStreamK : public ::testing::Test
                                       num_sk_blocks};
 
         if(!invoke_streamk<ck_tile::StreamKReductionStrategy::Atomic>(
-            args, ck_tile::stream_config{nullptr, false, 0, 0, 1}, num_cu, occupancy))
+               args, ck_tile::stream_config{nullptr, false, 0, 0, 1}, num_cu, occupancy))
         {
             GTEST_SKIP() << "Skipping this test: The kernel cannot solve the problem\n";
         }
