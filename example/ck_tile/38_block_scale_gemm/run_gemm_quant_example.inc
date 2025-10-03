@@ -300,9 +300,8 @@ int run_gemm_example_with_layouts(int argc,
             {
                 ck_tile::FillUniformDistribution<BDataType>{-2.0f, 3.0f, fill_seed(gen)}(b_k_n);
             }
-            // ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
-            //     *bq_tensor_ptr);
-            ck_tile::FillConstant<BQDataType>{static_cast<BQDataType>(1.0f)}(*bq_tensor_ptr);
+            ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
+                *bq_tensor_ptr);
             ck_tile::FillUniformDistribution<ADataType>{-5.0f, 5.0f, fill_seed(gen)}(a_m_k);
         }
         else if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
@@ -339,9 +338,9 @@ int run_gemm_example_with_layouts(int argc,
     {
         if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
-            ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x48)}(a_m_k);
-            ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x48)}(b_k_n);
-            ck_tile::FillConstant<BQDataType>{static_cast<BQDataType>(1.0f)}(*bq_tensor_ptr);
+            ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x38)}(a_m_k);
+            ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x20)}(b_k_n);
+            ck_tile::FillConstant<BQDataType>{static_cast<BQDataType>(0.5f)}(*bq_tensor_ptr);
         }
         else
         {

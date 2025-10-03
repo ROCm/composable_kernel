@@ -259,9 +259,9 @@ struct DataTypeTraits<ck_tile::int8_t>
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("m", "128", "m dimension")
-        .insert("n", "128", "n dimension")
-        .insert("k", "128", "k dimension")
+    arg_parser.insert("m", "3840", "m dimension")
+        .insert("n", "4096", "n dimension")
+        .insert("k", "2048", "k dimension")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
         .insert("b_layout", "C", "B tensor data layout - Column by default")
         .insert("bq_layout", "C", "Bq tensor data layout - Column by default")
@@ -274,8 +274,8 @@ auto create_args(int argc, char* argv[])
         .insert("prec",
                 "fp8",
                 "data type. For AQuant: fp8/bf8/i4fp8/i4bf8, For Bquant: fp8/bf8/fp8i4/bf8i4")
-        .insert("warmup", "1", "number of iterations before benchmark the kernel")
-        .insert("repeat", "1", "number of iterations to benchmark the kernel")
+        .insert("warmup", "50", "number of iterations before benchmark the kernel")
+        .insert("repeat", "1000", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("split_k", "1", "splitK value")
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
