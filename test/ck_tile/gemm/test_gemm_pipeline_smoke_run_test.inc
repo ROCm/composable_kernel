@@ -218,11 +218,12 @@ bool run_gemm_test_with_layouts(ck_tile::ArgParser& arg_parser,
     ck_tile::index_t stride_B = arg_parser.get_int("stride_b");
     ck_tile::index_t stride_C = arg_parser.get_int("stride_c");
 
-    ck_tile::index_t kbatch      = arg_parser.get_int("split_k");
-    int n_warmup                 = arg_parser.get_int("warmup");
-    int n_repeat                 = arg_parser.get_int("repeat");
-    ck_tile::index_t init_method = arg_parser.get_int("init");
-    bool persistent              = arg_parser.get_int("persistent");
+    constexpr ck_tile::index_t kbatch = 1;
+    constexpr int init_method         = 0;
+    constexpr int verification_method = 2;
+    constexpr int n_warmup            = 0;
+    constexpr int n_repeat            = 1;
+    constexpr bool persistent         = false;
 
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
     stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
@@ -235,17 +236,17 @@ bool run_gemm_test_with_layouts(ck_tile::ArgParser& arg_parser,
     ck_tile::HostTensor<CDataType> c_m_n_dev_result(
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
-    if(init_method == 0)
+    if constexpr(init_method == 0)
     {
         ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
         ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
     }
-    else if(init_method == 1)
+    else if constexpr(init_method == 1)
     {
         ck_tile::FillMonotonicSeq<ADataType>{}(a_m_k);
         ck_tile::FillMonotonicSeq<BDataType>{}(b_k_n);
     }
-    else if(init_method == 2)
+    else if constexpr(init_method == 2)
     {
         ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_m_k);
         ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_k_n);
@@ -325,7 +326,7 @@ bool run_gemm_test_with_layouts(ck_tile::ArgParser& arg_parser,
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;
 
-    if(arg_parser.get_int("v") == 1)
+    if constexpr(verification_method == 1)
     {
         ck_tile::HostTensor<CDataType> c_m_n_host_ref(
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
@@ -348,7 +349,7 @@ bool run_gemm_test_with_layouts(ck_tile::ArgParser& arg_parser,
                   << std::endl;
         std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
     }
-    else if(arg_parser.get_int("v") == 2)
+    else if constexpr(verification_method == 2)
     {
         if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
         {

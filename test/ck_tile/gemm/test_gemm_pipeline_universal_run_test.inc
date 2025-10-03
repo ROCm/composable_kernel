@@ -283,13 +283,10 @@ int run_gemm_combinations()
                                             "", // k placeholder
                                             "-stride_a=0",
                                             "-stride_b=0",
-                                            "-stride_c=0",
-                                            "-v=2",
-                                            "-warmup=0",
-                                            "-repeat=1"};
+                                            "-stride_c=0"};
 
     // Create an array of const char pointers for argv
-    constexpr size_t ARG_COUNT   = 10;
+    constexpr size_t ARG_COUNT   = 7;
     constexpr size_t ARG_MAX_LEN = 64;
     char args[ARG_COUNT][ARG_MAX_LEN];
     char* argv[ARG_COUNT];
