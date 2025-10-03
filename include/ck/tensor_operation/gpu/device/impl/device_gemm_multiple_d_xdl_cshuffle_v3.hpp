@@ -682,6 +682,10 @@ struct DeviceGemmMultiD_Xdl_CShuffle_V3 : public DeviceGemmMultipleDSplitK<ALayo
                 return GridwiseGemm64::CheckValidity(arg);
             }
         }
+        if(CDEShuffleBlockTransferScalarPerVectors{}[Number<0>{}] <= 1 && (arg.KBatch > 1))
+        {
+            return false;
+        }
         else
         {
             if constexpr(NXdlPerWave32 > 0)

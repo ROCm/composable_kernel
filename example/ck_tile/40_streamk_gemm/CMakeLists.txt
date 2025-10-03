@@ -1,0 +1,5 @@
+if(GPU_TARGETS MATCHES "gfx9")
+    add_executable(tile_example_streamk_gemm_basic EXCLUDE_FROM_ALL streamk_gemm_basic.cpp)
+else()
+    message(DEBUG "Skipping ck_tile streamk gemm tests for current target")
+endif()
