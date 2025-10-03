@@ -318,12 +318,11 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
         const index_t num_total_loop =
             integer_divide_ceil(physical_seqlen_k_end - aligned_physical_seqlen_k_start, kN0);
 
-        auto [i_page_block_k, k_dram_block_window] = k_page_block_navigator.make_tile_window(
+        auto [i_page_block_k, k_dram_block_tmp] = k_page_block_navigator.make_tile_window(
             k_dram_block_window_lengths, {aligned_physical_seqlen_k_start, 0});
 
         auto k_dram_window = make_tile_window(
-            k_dram_block_window,
-            Policy::template MakeKDramTileDistribution<Problem>()); // K DRAM tile window for
+            k_dram_block_tmp, Policy::template MakeKDramTileDistribution<Problem>());
 
         index_t seqlen_k_curr_offset = aligned_physical_seqlen_k_start;
 
@@ -551,11 +550,9 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
             if(i_total_loops < num_total_loop - 1)
             {
                 // move K tile windows
+                move_tile_window(k_dram_window, {0, -k0_loops * kK0});
                 i_page_block_k = k_page_block_navigator.move_tile_window(
-                    i_page_block_k, k_dram_block_window, {kN0, 0});
-
-                k_dram_window = make_tile_window(
-                    k_dram_block_window, Policy::template MakeKDramTileDistribution<Problem>());
+                    i_page_block_k, k_dram_window, {kN0, 0});
 
                 seqlen_k_curr_offset += kN0;
             }
