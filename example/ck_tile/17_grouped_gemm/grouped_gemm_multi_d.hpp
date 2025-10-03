@@ -76,6 +76,7 @@ struct GemmConfigMemory : public GemmConfigBase
     static constexpr ck_tile::index_t K_Warp_Tile = 8;
 
     static constexpr bool DoubleSmemBuffer     = false;
+    static constexpr bool Persistent           = true;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_MEMORY;
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Interwave;
 };
@@ -116,6 +117,7 @@ struct GemmConfigV4 : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
+    static constexpr bool Persistent           = true;
     static constexpr bool DoubleSmemBuffer     = true;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V4;
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
