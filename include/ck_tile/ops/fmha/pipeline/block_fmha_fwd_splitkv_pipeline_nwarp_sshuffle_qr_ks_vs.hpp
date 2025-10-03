@@ -402,6 +402,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                     if constexpr(i_k0 < k0_loops - 2)
                     {
                         k_tiles[number<(i_k0 + 2) % 2>{}] = load_tile(k_dram_window);
+                        move_tile_window(k_dram_window, {0, kK0});
                     }
                     else
                     {
@@ -417,11 +418,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                                           sequence<kM0, (i_k0 + 1) * kK0>{}),
                            k_lds_window);
 
-                    if constexpr(i_k0 < k0_loops - 2)
-                    {
-                        move_tile_window(k_dram_window, {0, kK0});
-                    }
-                    else
+                    if constexpr(i_k0 >= k0_loops - 2)
                     {
                         i_page_block_v_ = v_page_block_navigator.move_tile_window(
                             i_page_block_v_, v_dram_window_, {0, kK1});
