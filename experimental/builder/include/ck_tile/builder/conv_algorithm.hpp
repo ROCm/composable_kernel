@@ -50,6 +50,8 @@ template <typename T>
 concept ConvTuningDescriptor = requires(T t) {
     { t.ak1 } -> std::convertible_to<int>;
     { t.bk1 } -> std::convertible_to<int>;
+    { t.m_per_xdl } -> std::convertible_to<int>;
+    { t.n_per_xdl } -> std::convertible_to<int>;
     { t.m_xdl_per_wave } -> std::convertible_to<int>;
     { t.n_xdl_per_wave } -> std::convertible_to<int>;
 };
@@ -60,6 +62,8 @@ struct ConvTuningParams
     // NOTE: ak1 and bk1 are difficult to verify in the kernel instantiation!!!
     int ak1            = 0;
     int bk1            = 0;
+    int m_per_xdl      = 0;
+    int n_per_xdl      = 0;
     int m_xdl_per_wave = 0;
     int n_xdl_per_wave = 0;
 };
