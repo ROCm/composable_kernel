@@ -18,15 +18,6 @@ $$
 
 - **FLATMM**: An alternative solution as the Preshuffled GEMM in /03_gemm
 
----
-
-## Tile Programming Model
-
-- **Tiles**: Each thread block processes a tile of $C$ for a given batch.
-- **Pipeline**: Modular, supports different memory/computation pipelines and flat/padded layouts.
-
----
-
 
 ---
 
