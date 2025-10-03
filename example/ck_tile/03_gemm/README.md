@@ -9,11 +9,11 @@ mkdir build && cd build
 # you can replace <arch> with the appropriate architecture (for example gfx90a or gfx942) or leave it blank
 ../script/cmake-ck-dev.sh  ../ <arch>
 # The basic pipeline method on the gemm calculation
-make tile_example_gemm_basic -j
+make tile_example_gemm_basic -j`nproc`
 # The memory bound pipeline on the gemm calculation
-make tile_example_gemm_universal -j
+make tile_example_gemm_universal -j`nproc`
 # The weight preshuffle pipeline on the gemm calculation
-make tile_example_gemm_weight_preshuffle -j
+make tile_example_gemm_weight_preshuffle -j`nproc`
 ```
 This will result in an executable `build/bin/tile_example_gemm_basic` & `build/bin/tile_example_gemm_universal`
 
@@ -30,11 +30,13 @@ args:
    -stride_b    Tensor B stride (default:0)
    -stride_c    Tensor C stride (default:0)
           -v    0. No validation, 1. Validation on CPU, 2. Validation on GPU (default:2)
-       -prec    data type. fp16/bf16/fp8/bf8/int8 (default:fp16)
-     -warmup    number of iterations before benchmark the kernel (default:10)
+       -prec    data type. fp16/bf16/fp8/bf8 (default:fp16)
+     -warmup    number of iterations before benchmark the kernel (default:50)
      -repeat    number of iterations to benchmark the kernel (default:100)
       -timer    gpu:gpu timer, cpu:cpu timer (default:gpu)
     -split_k    splitK value (default:1)
-       -init    0:random, 1:linear, 2:constant (default:1)
+       -init    0:random, 1:linear, 2:constant(1) (default:0)
  -persistent    0:non-persistent, 1:persistent (default:0)
+       -json    0: No Json, 1: Dump Results in Json format (default:0)
+   -jsonfile    json file name to dump results (default:gemm.json)
 ```

@@ -21,11 +21,15 @@ struct ElementWiseKernel
     using ElementWiseOperation = ck_tile::remove_cvref_t<typename Problem::ElementWiseOperation>;
 
     static constexpr index_t kBlockSize = Problem::BlockShape::kBlockSize;
+    CK_TILE_HOST static constexpr auto BlockSize()
+    {
+        return is_wave32() ? kBlockSize / 2 : kBlockSize;
+    }
 
     template <typename... XDataType, typename Dims>
-    CK_TILE_DEVICE void operator()(Dims lens,
-                                   Dims input_strides,
-                                   Dims output_strides,
+    CK_TILE_DEVICE void operator()(const Dims lens,
+                                   const Dims input_strides,
+                                   const Dims output_strides,
                                    const tuple<XDataType...>& input_tensors,
                                    YDataType* p_y) const
     {
@@ -100,24 +104,8 @@ struct ElementWiseKernel
     template <typename... Ints>
     CK_TILE_HOST static bool IsSupportedArgument(const ck_tile::tuple<Ints...>& input_sizes)
     {
-        int total_elements  = 1;
-        const auto kVectorM = Problem_::BlockShape::kVectorM;
-
-        apply([&](auto&&... args) { ((total_elements *= args), ...); }, input_sizes);
-
-        if((total_elements % kVectorM) != 0)
-        {
-            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-            {
-                CK_TILE_ERROR("Conditions not met: total number of input elements (",
-                              total_elements,
-                              ") should be multiple of the vectorization size (",
-                              kVectorM,
-                              ")");
-            }
-            return false;
-        }
-
+        // when total elements % kVectorM != 0; should use Pad instead of unsupported
+        ignore = input_sizes;
         return true;
     }
 };

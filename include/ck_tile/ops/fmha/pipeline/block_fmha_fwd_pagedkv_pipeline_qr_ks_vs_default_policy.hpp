@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -32,12 +32,27 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVSDefaultPolicy
 
         constexpr auto warp_gemm = []() {
             constexpr index_t WarpGemmM = Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{});
-            static_assert(WarpGemmM == 4 || WarpGemmM == 16 || WarpGemmM == 32);
 
-            if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
-                         std::is_same_v<typename Problem::KDataType, half_t> &&
+            if constexpr(std::is_same_v<typename Problem::QDataType, float> &&
+                         std::is_same_v<typename Problem::KDataType, float> &&
                          std::is_same_v<typename Problem::SaccDataType, float>)
             {
+                static_assert(WarpGemmM == 16);
+
+                return WarpGemmDispatcher<typename Problem::QDataType,
+                                          typename Problem::KDataType,
+                                          typename Problem::SaccDataType,
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
+                                          true>{};
+            }
+            else if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
+                              std::is_same_v<typename Problem::KDataType, half_t> &&
+                              std::is_same_v<typename Problem::SaccDataType, float>)
+            {
+                static_assert(WarpGemmM == 4 || WarpGemmM == 16 || WarpGemmM == 32);
+
                 if constexpr(WarpGemmM == 32)
                     return WarpGemmMfmaF16F16F32M32N32K16SwizzleBTransposedCDistribution{};
                 else if constexpr(WarpGemmM == 16)
@@ -49,6 +64,8 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVSDefaultPolicy
                               std::is_same_v<typename Problem::KDataType, bf16_t> &&
                               std::is_same_v<typename Problem::SaccDataType, float>)
             {
+                static_assert(WarpGemmM == 4 || WarpGemmM == 16 || WarpGemmM == 32);
+
                 if constexpr(WarpGemmM == 32)
                     return WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution{};
                 else if constexpr(WarpGemmM == 16)

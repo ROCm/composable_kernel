@@ -24,5 +24,7 @@ args:
        -st_o    row stride of output/indices, -1 means same as topk (default:-1)
        -seed    seed to be used, -1 means random every time (default:-1)
       -kname    when set to 1 it will print kernel name (default:0)
+       -json    0: No Json, 1: Dump Results in Json format (default:0)
+   -jsonfile    json file name to dump results (default:topk_softmax.json)
 
 ```

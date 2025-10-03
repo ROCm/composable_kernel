@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -350,6 +350,8 @@ struct GridwiseGemmMultipleD_xdl_splitk_cshuffle
         return BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, EGridDesc_M_N>(
             e_grid_desc_m_n);
     }
+
+    IS_VALID_COMPILATION_PARAMETER_IMPL(EDataType)
 
     template <typename ALayout,
               typename BLayout,
