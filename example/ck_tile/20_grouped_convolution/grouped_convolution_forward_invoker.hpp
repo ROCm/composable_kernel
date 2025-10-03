@@ -103,120 +103,84 @@ struct GroupedConvolutionForwardInvoker
                                                                     CodegenPipeline,
                                                                     ConvEpilogue>;
 
-            // Check if output size exceeds threshold and needs splitting
-            // Calculate output tensor size FIRST before creating kargs
-            ck_tile::long_index_t output_size = static_cast<ck_tile::long_index_t>(args.N_) *
-                                      static_cast<ck_tile::long_index_t>(args.K_) *
-                                      static_cast<ck_tile::long_index_t>(args.G_);
-            for(size_t i = 0; i < args.output_spatial_lengths_.size(); i++) {
-                output_size *= static_cast<ck_tile::long_index_t>(args.output_spatial_lengths_[i]);
-            }
-
-            // Threshold: 2GB in production, 10MB for testing
-            static constexpr ck_tile::long_index_t TwoGB = 10L * 1024L * 1024L;  // 10MB for testing
-            const ck_tile::long_index_t threshold = TwoGB / sizeof(OutDataType);
-
-            if(s.log_level_ > 0) {
-                std::cout << "[INVOKER] Output size: " << output_size << " elements" << std::endl;
-                std::cout << "[INVOKER] Threshold: " << threshold << " elements (OutDataType size: "
-                          << sizeof(OutDataType) << " bytes)" << std::endl;
-                std::cout << "[INVOKER] Comparison: " << output_size << " >= " << threshold << " is "
-                          << (output_size >= threshold ? "TRUE" : "FALSE") << std::endl;
-            }
-
             float ave_time = 0.0f;
 
             // ═══════════════════════════════════════════════════════════
-            // UNIFIED SPLIT-IMAGE PATH (1D/2D/3D)
+            // Create kargs and check if split-image is needed
             // ═══════════════════════════════════════════════════════════
-            if(output_size >= threshold && (NDimSpatial == 1 || NDimSpatial == 2 || NDimSpatial == 3)) {
+            if(s.log_level_ > 0) {
+                std::cout << "[INVOKER] Creating kargs with N=" << args.N_ << std::endl;
+            }
+            auto kargs = Kernel::MakeKernelArgs(args);
 
+            if(s.log_level_ > 0) {
+                std::cout << "[INVOKER] kargs: n_per_split=" << kargs.n_per_split
+                          << ", n_splits=" << kargs.n_splits
+                          << ", original_n=" << kargs.original_n << std::endl;
+            }
+
+            // Check if split-image is needed (uses unified threshold internally)
+            auto split_info = kargs.GetSplitImageInfo();
+
+            if(!split_info.should_split) {
+                // No split-image needed - use kargs directly (may have Split-N)
                 if(s.log_level_ > 0) {
-                    std::cout << "[INVOKER] Entering split path (" << NDimSpatial << "D split-image)!" << std::endl;
+                    std::cout << "[INVOKER] No split-image needed - launching with kargs" << std::endl;
+                }
+                const dim3 grids = Kernel::GridSize(kargs);
+                const dim3 blocks = Kernel::BlockSize();
+
+                if(!Kernel::IsSupportedArgument(kargs)) {
+                    throw std::runtime_error("Wrong! Arguments not supported! Skipping conv!\n");
                 }
 
-                // ═══════════════════════════════════════════════════════════
-                // GET SPLIT INFO FROM TRANSFORMER (AFTER Split-N!)
-                // ═══════════════════════════════════════════════════════════
-                // Create temporary kargs to trigger Split-N in transformer
+                ave_time = ck_tile::launch_kernel(
+                    s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+                return ave_time;
+            }
+
+            // ═══════════════════════════════════════════════════════════
+            // Split-image path - create LEFT and RIGHT splits
+            // ═══════════════════════════════════════════════════════════
+            {
                 if(s.log_level_ > 0) {
-                    std::cout << "[DEBUG INVOKER] Creating temp_kargs with N=" << args.N_ << std::endl;
-                }
-                auto temp_kargs = Kernel::MakeKernelArgs(args);
-
-                if(s.log_level_ > 0) {
-                    std::cout << "[DEBUG INVOKER] temp_kargs: n_per_split=" << temp_kargs.n_per_split
-                              << ", n_splits=" << temp_kargs.n_splits
-                              << ", original_n=" << temp_kargs.original_n << std::endl;
-                }
-
-                // Get split info from transformer (uses N_ after Split-N!)
-                auto split_info = temp_kargs.GetSplitImageInfo(threshold);
-
-                if(!split_info.should_split) {
-                    if(s.log_level_ > 0) {
-                        std::cout << "[SPLIT " << NDimSpatial << "D] Cannot split safely or not needed! Using normal path." << std::endl;
-                    }
-                    // Fall back to normal launch
-                    const dim3 grids = Kernel::GridSize(temp_kargs);
-                    const dim3 blocks = Kernel::BlockSize();
-                    ave_time = ck_tile::launch_kernel(
-                        s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, temp_kargs));
-                    return ave_time;
-                }
-
-                if(s.log_level_ > 0) {
-                    std::cout << "[SPLIT " << NDimSpatial << "D] Split info obtained from transformer!" << std::endl;
-                    std::cout << "[SPLIT " << NDimSpatial << "D] Out_left=" << split_info.out_left
+                    std::cout << "[INVOKER] Split-image needed! Creating left and right splits" << std::endl;
+                    std::cout << "[INVOKER] Out_left=" << split_info.out_left
                               << ", Out_right=" << split_info.out_right << std::endl;
-                    std::cout << "[SPLIT " << NDimSpatial << "D] Input offset: " << split_info.input_offset << " elements" << std::endl;
-                    std::cout << "[SPLIT " << NDimSpatial << "D] Output offset: " << split_info.output_offset << " elements" << std::endl;
+                    std::cout << "[INVOKER] LEFT: In=" << split_info.in_left
+                              << ", Out=" << split_info.out_left << std::endl;
+                    std::cout << "[INVOKER] RIGHT: In=" << split_info.in_right
+                              << ", Out=" << split_info.out_right << std::endl;
                 }
 
-                // ═══════════════════════════════════════════════════════════
-                // Use split info from transformer for LEFT and RIGHT
-                // ═══════════════════════════════════════════════════════════
                 const int split_dim = 0;  // Always split first spatial dimension (W/H/D)
 
-                if(s.log_level_ > 0) {
-                    std::cout << "[SPLIT " << NDimSpatial << "D] LEFT: In=" << split_info.in_left
-                              << ", Out=" << split_info.out_left
-                              << ", left_pad=" << split_info.left_pad_left
-                              << ", right_pad=" << split_info.right_pad_left << std::endl;
-                    std::cout << "[SPLIT " << NDimSpatial << "D] RIGHT: In=" << split_info.in_right
-                              << ", Out=" << split_info.out_right
-                              << ", left_pad=" << split_info.left_pad_right
-                              << ", right_pad=" << split_info.right_pad_right << std::endl;
-                }
-
-                // ═══════════════════════════════════════════════════════════
-                // COMMON: Create LEFT descriptor
-                // ═══════════════════════════════════════════════════════════
+                // Create LEFT descriptor
                 auto left_args = args;
                 left_args.input_spatial_lengths_[split_dim] = split_info.in_left;
                 left_args.output_spatial_lengths_[split_dim] = split_info.out_left;
                 left_args.input_left_pads_[split_dim] = split_info.left_pad_left;
                 left_args.input_right_pads_[split_dim] = split_info.right_pad_left;
 
-                // CRITICAL FIX: Use the ALREADY-SPLIT N from temp_kargs!
+                // CRITICAL FIX: Use the ALREADY-SPLIT N from kargs!
                 // Don't let LEFT/RIGHT do Split-N again - use n_per_split from first transformer
-                left_args.N_ = temp_kargs.n_per_split;
+                left_args.N_ = kargs.n_per_split;
 
                 if(s.log_level_ > 0) {
                     std::cout << "[DEBUG INVOKER] Creating LEFT kargs with N=" << left_args.N_
-                              << " (using n_per_split from temp_kargs)" << std::endl;
+                              << " (using n_per_split from kargs)" << std::endl;
                 }
                 auto kargs_left = Kernel::MakeKernelArgs(left_args);
 
-                // CRITICAL: Manually set n_splits to match temp_kargs!
+                // CRITICAL: Manually set n_splits to match kargs!
                 // The LEFT transformer won't do Split-N (N=1), so it sets n_splits=1
                 // But we need grid.z = original n_splits to process all batches
-                kargs_left.n_splits = temp_kargs.n_splits;
-                kargs_left.original_n = temp_kargs.original_n;
+                kargs_left.n_splits = kargs.n_splits;
+                kargs_left.original_n = kargs.original_n;
 
-                // FIX: Use batch_stride from temp_kargs (calculated with ORIGINAL dimensions)
-                kargs_left.input_batch_stride = temp_kargs.input_batch_stride;
-                kargs_left.output_batch_stride = temp_kargs.output_batch_stride;
+                // FIX: Use batch_stride from kargs (calculated with ORIGINAL dimensions)
+                kargs_left.input_batch_stride = kargs.input_batch_stride;
+                kargs_left.output_batch_stride = kargs.output_batch_stride;
 
                 if(s.log_level_ > 0) {
                     std::cout << "[DEBUG INVOKER] LEFT kargs: n_per_split=" << kargs_left.n_per_split
@@ -238,28 +202,28 @@ struct GroupedConvolutionForwardInvoker
                 right_args.in_ptr = args.in_ptr;   // Keep original base pointer
                 right_args.out_ptr = args.out_ptr; // Keep original base pointer
 
-                // CRITICAL FIX: Use the ALREADY-SPLIT N from temp_kargs!
+                // CRITICAL FIX: Use the ALREADY-SPLIT N from kargs!
                 // Don't let LEFT/RIGHT do Split-N again - use n_per_split from first transformer
-                right_args.N_ = temp_kargs.n_per_split;
+                right_args.N_ = kargs.n_per_split;
 
                 if(s.log_level_ > 0) {
                     std::cout << "[DEBUG INVOKER] Creating RIGHT kargs with N=" << right_args.N_
-                              << " (using n_per_split from temp_kargs)" << std::endl;
+                              << " (using n_per_split from kargs)" << std::endl;
                     std::cout << "[DEBUG INVOKER] RIGHT spatial offset: input=" << split_info.input_offset
                               << ", output=" << split_info.output_offset << std::endl;
                 }
                 auto kargs_right = Kernel::MakeKernelArgs(right_args);
 
-                // CRITICAL: Manually set n_splits to match temp_kargs!
+                // CRITICAL: Manually set n_splits to match kargs!
                 // The RIGHT transformer won't do Split-N (N=1), so it sets n_splits=1
                 // But we need grid.z = original n_splits to process all batches
-                kargs_right.n_splits = temp_kargs.n_splits;
-                kargs_right.original_n = temp_kargs.original_n;
+                kargs_right.n_splits = kargs.n_splits;
+                kargs_right.original_n = kargs.original_n;
 
-                // FIX: Use batch_stride from temp_kargs (calculated with ORIGINAL dimensions)
+                // FIX: Use batch_stride from kargs (calculated with ORIGINAL dimensions)
                 // The kargs_right was created with MODIFIED dimensions, so batch_stride is wrong
-                kargs_right.input_batch_stride = temp_kargs.input_batch_stride;
-                kargs_right.output_batch_stride = temp_kargs.output_batch_stride;
+                kargs_right.input_batch_stride = kargs.input_batch_stride;
+                kargs_right.output_batch_stride = kargs.output_batch_stride;
 
                 // FIX: Store spatial offset in kargs (applied per-batch in operator())
                 kargs_right.spatial_offset_in = split_info.input_offset;
@@ -294,59 +258,7 @@ struct GroupedConvolutionForwardInvoker
                               << "ms, Right=" << right_time
                               << "ms, Total=" << ave_time << "ms\n";
                 }
-            } else {
-                // Normal launch - tensor fits in memory
-                if(s.log_level_ > 0) {
-                    std::cout << "[INVOKER] Output size " << output_size
-                              << " elements fits in threshold - normal launch\n";
-                }
-
-                // Create kargs for normal launch
-                auto kargs   = Kernel::MakeKernelArgs(args);
-                const dim3 grids  = Kernel::GridSize(kargs);
-                const dim3 blocks = Kernel::BlockSize();
-
-                if(!Kernel::IsSupportedArgument(kargs))
-                {
-                    throw std::runtime_error("Wrong! Arguments not supported! Skipping conv!\n");
-                }
-
-                if(s.log_level_ > 0)
-                {
-                    std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
-                              << "shape: " << CodegenShape::GetName() << '\n'
-                              << "problem: " << CodegenPipelineProblem::GetName() << '\n'
-                              << "pipeline: " << CodegenPipeline::GetName() << '\n'
-                              << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                              << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
-                              << "}" << '\n'
-                              << "Vector size A: " << CodegenPipeline::GetVectorSizeA()
-                              << ", Vector size B: " << CodegenPipeline::GetVectorSizeB()
-                              << ", Vector size C: " << ConvEpilogue::GetVectorSizeC() << std::endl;
-                }
-
-                ave_time = ck_tile::launch_kernel(
-                    s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
             }
-
-
-            // // Use split-image helper which handles splitting if needed
-            // using TransformerType = ck_tile::TransformConvFwdToGemm<
-            //     GroupedConvTraitsType::NDimSpatial,
-            //     GroupedConvTraitsType::ConvSpecialization,
-            //     GroupedConvTraitsType::VectorSizeA,
-            //     GroupedConvTraitsType::VectorSizeB,
-            //     GroupedConvTraitsType::VectorSizeC,
-            //     true>; // Split N enabled
-
-            // // This helper will check if splitting is needed and handle everything
-            // if(s.log_level_ > 0) {
-            //     std::cout << "[INVOKER] About to call LaunchKernelWithSplitIfNeeded\n";
-            // }
-            // float ave_time = TransformerType::template LaunchKernelWithSplitIfNeeded<Kernel, kBlockPerCu>(args, s);
-            // if(s.log_level_ > 0) {
-            //     std::cout << "[INVOKER] LaunchKernelWithSplitIfNeeded returned, ave_time=" << ave_time << "\n";
-            // }
 
             return ave_time;
         };

@@ -2160,11 +2160,13 @@ struct TransformConvFwdToGemm
 
     public:
 
-    CK_TILE_HOST SplitImageInfo<IndexType> CalculateSplitImage(
-        long_index_t threshold_elements) const
+    CK_TILE_HOST SplitImageInfo<IndexType> CalculateSplitImage() const
     {
         SplitImageInfo<IndexType> info;
         info.should_split = false;
+
+        // Use unified threshold from TwoGB constant
+        const long_index_t threshold_elements = TwoGB / sizeof(CDataType);
 
         // Determine which dimension to split based on NDimSpatial
         IndexType out_total, in_total, left_pad, right_pad, stride, dilation, filter;

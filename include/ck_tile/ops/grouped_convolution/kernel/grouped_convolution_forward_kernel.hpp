@@ -379,9 +379,10 @@ struct GroupedConvFwdKernelArgs
     ConvToGemmFwdTransformer transformer_;
 
     // Method to get split-image information from transformer
-    CK_TILE_HOST auto GetSplitImageInfo(long_index_t threshold_elements) const
+    // Uses unified TwoGB threshold internally
+    CK_TILE_HOST auto GetSplitImageInfo() const
     {
-        return transformer_.CalculateSplitImage(threshold_elements);
+        return transformer_.CalculateSplitImage();
     }
 
 };
