@@ -195,7 +195,6 @@ int run_gemm_example_with_layouts(int argc,
     {
         AQK = 0;                  // No A quantization
         BQK = K / QuantGroupSize; // Group quantization: BQK = K / GroupSize
-        std::printf("BQK: %d, N: %d\n", BQK, N);
     }
     else if constexpr(QuantMode == ck_tile::QuantType::RowColQuant ||
                       QuantMode == ck_tile::QuantType::TensorQuant)
@@ -339,7 +338,7 @@ int run_gemm_example_with_layouts(int argc,
         if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
             ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x38)}(a_m_k);
-            ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x20)}(b_k_n);
+            ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x22)}(b_k_n);
             ck_tile::FillConstant<BQDataType>{static_cast<BQDataType>(0.5f)}(*bq_tensor_ptr);
         }
         else
