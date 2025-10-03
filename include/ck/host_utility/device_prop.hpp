@@ -102,7 +102,7 @@ inline bool is_lds_direct_load_supported()
 {
     // Check if direct loads from global memory to LDS are supported.
     return ck::get_device_name() == "gfx90a" || ck::get_device_name() == "gfx942" ||
-           ck::get_device_name() == "gfx950";
+           ck::get_device_name() == "gfx950" || ck::get_device_name() == "gfx908";
 }
 
 inline bool is_bf16_atomic_supported()
