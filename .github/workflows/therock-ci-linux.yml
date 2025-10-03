@@ -41,7 +41,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: "ROCm/TheRock"
-          ref: 3f62012a748df3a3099c51fa95d104db643a4588 # 10-03-2025 commit
+          ref: dc05d637054ad197c84b00e24b6262af0ec797c6 # 10-03-2025 commit
           path: "TheRock"
 
       - name: Runner Health Settings
@@ -54,7 +54,6 @@ jobs:
 
       - name: Patch rocm-libraries
         run: |
-          rm ./TheRock/patches/amd-mainline/rocm-libraries/0009-Use-workgroupMappingDim-in-rocroller_host.patch
           git config --global --add safe.directory '*'
           git -c user.name="therockbot" -c "user.email=therockbot@amd.com" am --whitespace=nowarn ./TheRock/patches/amd-mainline/rocm-libraries/*.patch
 
