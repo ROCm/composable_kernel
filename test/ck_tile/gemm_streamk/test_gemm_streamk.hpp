@@ -50,7 +50,7 @@ class TestCkTileStreamK : public ::testing::Test
               bool PadK       = true,
               bool Preshuffle = false,
               bool TransposeC = false>
-    void invoke_streamk(const ck_tile::StreamKHostArgs& args,
+    bool invoke_streamk(const ck_tile::StreamKHostArgs& args,
                         const ck_tile::stream_config& s,
                         int num_cu,
                         int occupancy)
@@ -128,7 +128,7 @@ class TestCkTileStreamK : public ::testing::Test
 
             if(!Kernel::IsSupportedArgument(kargs))
             {
-                 GTEST_SKIP() << "Skipping this test: The arguments are not supported by the kernel\n";
+                return false;
             }
 
             dim3 grid_dims  = Kernel::GridSize(kargs.tile_partitioner);
@@ -136,9 +136,11 @@ class TestCkTileStreamK : public ::testing::Test
 
             ck_tile::launch_kernel(
                 s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grid_dims, block_dims, 0, kargs));
+            
+            return true;
         };
 
-        Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
                                        // Since we are doing stream K, in the case of
                                        // atomics, multiple workgroups may write to the same
                                        // output tile in the C tensor, so we must atomic add
@@ -234,8 +236,11 @@ class TestCkTileStreamK : public ::testing::Test
                                       reduction_strategy,
                                       num_sk_blocks};
 
-        invoke_streamk<ck_tile::StreamKReductionStrategy::Atomic>(
-            args, ck_tile::stream_config{nullptr, false, 0, 0, 1}, num_cu, occupancy);
+        if(!invoke_streamk<ck_tile::StreamKReductionStrategy::Atomic>(
+            args, ck_tile::stream_config{nullptr, false, 0, 0, 1}, num_cu, occupancy))
+        {
+            GTEST_SKIP() << "Skipping this test: The kernel cannot solve the problem\n";
+        }
 
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
 

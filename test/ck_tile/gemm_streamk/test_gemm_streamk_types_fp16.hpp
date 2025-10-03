@@ -33,6 +33,12 @@ struct F16Layouts
     // clang-format on
 };
 
+#define CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE) \
+    DATA_TYPE##_##MACRO_TILE##_##WORKGROUP##_##WAVE_TILE
+
+// #define CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE_X, MACRO_TILE_Y, MACRO_TILE, WORKGROUP, WAVE_TILE) \
+//     DATA_TYPE##_##MACRO_TILE##_##WORKGROUP##_##WAVE_TILE
+
 template<typename PipelineType,
          typename Persistent>
 struct F16Set
@@ -112,8 +118,37 @@ struct F16Set
     // clang-format on
 };
 
+#define CONCATENATE_FORMATTED_NAME(DATA_TYPE, LAYOUT_TYPE, PIPELINE_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT) \
+    DATA_TYPE##_##LAYOUT_TYPE##_##PIPELINE_TYPE##_##MACRO_TILE##_##WORKGROUP##_##WAVE_TILE##_##PERSISTENT
+
+
+
+#define FORMAT_MEMBER(FORMATTED_NAME, SET_NAME, PIPELINE_TYPE, PERSISTENT, MEMBER_NAME) \
+    using FORMATTED_NAME = typename SET_NAME<PIPELINE_TYPE, PERSISTENT>::MEMBER_NAME;
+
+#define EXPAND_MEMBER_LAYOUTS(SET_NAME, DATA_TYPE, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PIPELINE_TYPE, PERSISTENT) \
+    FORMAT_MEMBER(CONCATENATE_FORMATTED_NAME(DATA_TYPE, rrr, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), SET_NAME, PIPELINE_TYPE, PERSISTENT, CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::rrr) \
+    FORMAT_MEMBER(CONCATENATE_FORMATTED_NAME(DATA_TYPE, rrc, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), SET_NAME, PIPELINE_TYPE, PERSISTENT, CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::rrc) \
+    FORMAT_MEMBER(CONCATENATE_FORMATTED_NAME(DATA_TYPE, rcr, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), SET_NAME, PIPELINE_TYPE, PERSISTENT, CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::rcr) \
+    FORMAT_MEMBER(CONCATENATE_FORMATTED_NAME(DATA_TYPE, rcc, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), SET_NAME, PIPELINE_TYPE, PERSISTENT, CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::rcc) \
+    FORMAT_MEMBER(CONCATENATE_FORMATTED_NAME(DATA_TYPE, crr, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), SET_NAME, PIPELINE_TYPE, PERSISTENT, CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::crr) \
+    FORMAT_MEMBER(CONCATENATE_FORMATTED_NAME(DATA_TYPE, crc, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), SET_NAME, PIPELINE_TYPE, PERSISTENT, CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::crc) \
+    FORMAT_MEMBER(CONCATENATE_FORMATTED_NAME(DATA_TYPE, ccr, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), SET_NAME, PIPELINE_TYPE, PERSISTENT, CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::ccr) \
+    FORMAT_MEMBER(CONCATENATE_FORMATTED_NAME(DATA_TYPE, ccc, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT), SET_NAME, PIPELINE_TYPE, PERSISTENT, CONCATENATE_MEMBER_NAME(DATA_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE)::ccc)
+
+#define EXPAND_
+EXPAND_MEMBER_LAYOUTS(F16Set, f16, compv3, 256x256x32, 2x2x1, 32x32x16, CompV3, NonPersistent);
+// #define EXPAND_SET(SET_NAME, DATA_TYPE, PIPELINE_TYPE, MACRO_TILE, WORKGROUP, WAVE_TILE, PERSISTENT) \
+//     using DATA_TYPE##_rrr_##PIPELINE_TYPE##_##MACRO_TILE##_##WORKGROUP##_##WAVE_TILE##_##PERSISTENT = typename SET_NAME<PIPELINE_TYPE, PERSISTENT>::##DATATYPE##_##MACRO_TILE##_##WORKGROUP##_##WAVE_TILE::rrr; \
+//     using DATA_TYPE##_rrc_##PIPELINE_TYPE##_##MACRO_TILE##_##WORKGROUP##_##WAVE_TILE##_##PERSISTENT = typename SET_NAME<PIPELINE_TYPE, PERSISTENT>::##DATATYPE##_##MACRO_TILE##_##WORKGROUP##_##WAVE_TILE::rrc; \
+//     using DATA_TYPE##_rcr_##PIPELINE_TYPE##_##MACRO_TILE##_##WORKGROUP##_##WAVE_TILE##_##PERSISTENT = typename SET_NAME<PIPELINE_TYPE, PERSISTENT>::##DATATYPE##_##MACRO_TILE##_##WORKGROUP##_##WAVE_TILE::rcr; \
+//     using DATA_TYPE##_rcc_##PIPELINE_TYPE##_##MACRO_TILE##_##WORKGROUP##_##WAVE_TILE##_##PERSISTENT = typename SET_NAME<PIPELINE_TYPE, PERSISTENT>::##DATATYPE##_##MACRO_TILE##_##WORKGROUP##_##WAVE_TILE::rcc; \
+//     using DATA_TYPE##_crr_##PIPELINE_TYPE##_##MACRO_TILE##_##WORKGROUP##_##WAVE_TILE##_##PERSISTENT = typename SET_NAME<PIPELINE_TYPE, PERSISTENT>::##DATATYPE##_##MACRO_TILE##_##WORKGROUP##_##WAVE_TILE::crr; \
+//     using DATA_TYPE##_crc_##PIPELINE_TYPE##_##MACRO_TILE##_##WORKGROUP##_##WAVE_TILE##_##PERSISTENT = typename SET_NAME<PIPELINE_TYPE, PERSISTENT>::##DATATYPE##_##MACRO_TILE##_##WORKGROUP##_##WAVE_TILE::crc; \
+//     using DATA_TYPE##_ccr_##PIPELINE_TYPE##_##MACRO_TILE##_##WORKGROUP##_##WAVE_TILE##_##PERSISTENT = typename SET_NAME<PIPELINE_TYPE, PERSISTENT>::##DATATYPE##_##MACRO_TILE##_##WORKGROUP##_##WAVE_TILE::ccr; \
+//     using DATA_TYPE##_ccc_##PIPELINE_TYPE##_##MACRO_TILE##_##WORKGROUP##_##WAVE_TILE##_##PERSISTENT = typename SET_NAME<PIPELINE_TYPE, PERSISTENT>::##DATATYPE##_##MACRO_TILE##_##WORKGROUP##_##WAVE_TILE::ccc;
+
 // clang-format off
-// mem
 // 32x32x16
 // 2x2x1
 using f16_rrr_mem_128x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x128x32_2x2x1_32x32x16::rrr;
@@ -124,6 +159,78 @@ using f16_crr_mem_128x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem,
 using f16_crc_mem_128x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x128x32_2x2x1_32x32x16::crc;
 using f16_ccr_mem_128x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x128x32_2x2x1_32x32x16::ccr;
 using f16_ccc_mem_128x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x128x32_2x2x1_32x32x16::ccc;
+
+using f16_rrr_mem_128x128x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x128x64_2x2x1_32x32x16::rrr;
+using f16_rrc_mem_128x128x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x128x64_2x2x1_32x32x16::rrc;
+using f16_rcr_mem_128x128x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x128x64_2x2x1_32x32x16::rcr;
+using f16_rcc_mem_128x128x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x128x64_2x2x1_32x32x16::rcc;
+using f16_crr_mem_128x128x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x128x64_2x2x1_32x32x16::crr;
+using f16_crc_mem_128x128x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x128x64_2x2x1_32x32x16::crc;
+using f16_ccr_mem_128x128x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x128x64_2x2x1_32x32x16::ccr;
+using f16_ccc_mem_128x128x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x128x64_2x2x1_32x32x16::ccc;
+
+using f16_rrr_mem_128x128x128_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x128x128_2x2x1_32x32x16::rrr;
+using f16_rrc_mem_128x128x128_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x128x128_2x2x1_32x32x16::rrc;
+using f16_rcr_mem_128x128x128_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x128x128_2x2x1_32x32x16::rcr;
+using f16_rcc_mem_128x128x128_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x128x128_2x2x1_32x32x16::rcc;
+using f16_crr_mem_128x128x128_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x128x128_2x2x1_32x32x16::crr;
+using f16_crc_mem_128x128x128_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x128x128_2x2x1_32x32x16::crc;
+using f16_ccr_mem_128x128x128_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x128x128_2x2x1_32x32x16::ccr;
+using f16_ccc_mem_128x128x128_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x128x128_2x2x1_32x32x16::ccc;
+
+using f16_rrr_mem_256x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x128x32_2x2x1_32x32x16::rrr;
+using f16_rrc_mem_256x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x128x32_2x2x1_32x32x16::rrc;
+using f16_rcr_mem_256x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x128x32_2x2x1_32x32x16::rcr;
+using f16_rcc_mem_256x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x128x32_2x2x1_32x32x16::rcc;
+using f16_crr_mem_256x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x128x32_2x2x1_32x32x16::crr;
+using f16_crc_mem_256x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x128x32_2x2x1_32x32x16::crc;
+using f16_ccr_mem_256x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x128x32_2x2x1_32x32x16::ccr;
+using f16_ccc_mem_256x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x128x32_2x2x1_32x32x16::ccc;
+
+using f16_rrr_mem_256x128x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x128x64_2x2x1_32x32x16::rrr;
+using f16_rrc_mem_256x128x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x128x64_2x2x1_32x32x16::rrc;
+using f16_rcr_mem_256x128x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x128x64_2x2x1_32x32x16::rcr;
+using f16_rcc_mem_256x128x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x128x64_2x2x1_32x32x16::rcc;
+using f16_crr_mem_256x128x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x128x64_2x2x1_32x32x16::crr;
+using f16_crc_mem_256x128x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x128x64_2x2x1_32x32x16::crc;
+using f16_ccr_mem_256x128x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x128x64_2x2x1_32x32x16::ccr;
+using f16_ccc_mem_256x128x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x128x64_2x2x1_32x32x16::ccc;
+
+using f16_rrr_mem_128x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x256x32_2x2x1_32x32x16::rrr;
+using f16_rrc_mem_128x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x256x32_2x2x1_32x32x16::rrc;
+using f16_rcr_mem_128x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x256x32_2x2x1_32x32x16::rcr;
+using f16_rcc_mem_128x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x256x32_2x2x1_32x32x16::rcc;
+using f16_crr_mem_128x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x256x32_2x2x1_32x32x16::crr;
+using f16_crc_mem_128x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x256x32_2x2x1_32x32x16::crc;
+using f16_ccr_mem_128x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x256x32_2x2x1_32x32x16::ccr;
+using f16_ccc_mem_128x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x256x32_2x2x1_32x32x16::ccc;
+
+using f16_rrr_mem_128x256x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x256x64_2x2x1_32x32x16::rrr;
+using f16_rrc_mem_128x256x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x256x64_2x2x1_32x32x16::rrc;
+using f16_rcr_mem_128x256x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x256x64_2x2x1_32x32x16::rcr;
+using f16_rcc_mem_128x256x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x256x64_2x2x1_32x32x16::rcc;
+using f16_crr_mem_128x256x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x256x64_2x2x1_32x32x16::crr;
+using f16_crc_mem_128x256x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x256x64_2x2x1_32x32x16::crc;
+using f16_ccr_mem_128x256x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x256x64_2x2x1_32x32x16::ccr;
+using f16_ccc_mem_128x256x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_128x256x64_2x2x1_32x32x16::ccc;
+
+using f16_rrr_mem_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::rrr;
+using f16_rrc_mem_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::rrc;
+using f16_rcr_mem_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::rcr;
+using f16_rcc_mem_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::rcc;
+using f16_crr_mem_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::crr;
+using f16_crc_mem_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::crc;
+using f16_ccr_mem_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::ccr;
+using f16_ccc_mem_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::ccc;
+
+using f16_rrr_mem_256x256x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x256x64_2x2x1_32x32x16::rrr;
+using f16_rrc_mem_256x256x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x256x64_2x2x1_32x32x16::rrc;
+using f16_rcr_mem_256x256x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x256x64_2x2x1_32x32x16::rcr;
+using f16_rcc_mem_256x256x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x256x64_2x2x1_32x32x16::rcc;
+using f16_crr_mem_256x256x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x256x64_2x2x1_32x32x16::crr;
+using f16_crc_mem_256x256x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x256x64_2x2x1_32x32x16::crc;
+using f16_ccr_mem_256x256x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x256x64_2x2x1_32x32x16::ccr;
+using f16_ccc_mem_256x256x64_2x2x1_32x32x16_NonPersistent = typename F16Set<Mem, NonPersistent>::f16_256x256x64_2x2x1_32x32x16::ccc;
 
 
 // compv3
@@ -137,5 +244,53 @@ using f16_crr_compv3_128x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<C
 using f16_crc_compv3_128x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV3, NonPersistent>::f16_128x128x32_2x2x1_32x32x16::crc;
 using f16_ccr_compv3_128x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV3, NonPersistent>::f16_128x128x32_2x2x1_32x32x16::ccr;
 using f16_ccc_compv3_128x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV3, NonPersistent>::f16_128x128x32_2x2x1_32x32x16::ccc;
+
+// compv3
+// 32x32x16
+// 2x2x1
+using f16_rrr_compv3_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV3, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::rrr;
+using f16_rrc_compv3_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV3, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::rrc;
+using f16_rcr_compv3_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV3, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::rcr;
+using f16_rcc_compv3_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV3, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::rcc;
+using f16_crr_compv3_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV3, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::crr;
+using f16_crc_compv3_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV3, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::crc;
+using f16_ccr_compv3_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV3, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::ccr;
+using f16_ccc_compv3_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV3, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::ccc;
+
+
+// compv4
+// 32x32x16
+// 2x2x1
+using f16_rrr_compv4_128x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV4, NonPersistent>::f16_128x128x32_2x2x1_32x32x16::rrr;
+using f16_rrc_compv4_128x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV4, NonPersistent>::f16_128x128x32_2x2x1_32x32x16::rrc;
+using f16_rcr_compv4_128x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV4, NonPersistent>::f16_128x128x32_2x2x1_32x32x16::rcr;
+using f16_rcc_compv4_128x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV4, NonPersistent>::f16_128x128x32_2x2x1_32x32x16::rcc;
+using f16_crr_compv4_128x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV4, NonPersistent>::f16_128x128x32_2x2x1_32x32x16::crr;
+using f16_crc_compv4_128x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV4, NonPersistent>::f16_128x128x32_2x2x1_32x32x16::crc;
+using f16_ccr_compv4_128x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV4, NonPersistent>::f16_128x128x32_2x2x1_32x32x16::ccr;
+using f16_ccc_compv4_128x128x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV4, NonPersistent>::f16_128x128x32_2x2x1_32x32x16::ccc;
+
+// compv4
+// 32x32x16
+// 2x2x1
+using f16_rrr_compv4_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV4, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::rrr;
+using f16_rrc_compv4_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV4, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::rrc;
+using f16_rcr_compv4_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV4, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::rcr;
+using f16_rcc_compv4_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV4, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::rcc;
+using f16_crr_compv4_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV4, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::crr;
+using f16_crc_compv4_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV4, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::crc;
+using f16_ccr_compv4_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV4, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::ccr;
+using f16_ccc_compv4_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV4, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::ccc;
+
+//EXPAND_MEMBER(SET_NAME, DATA_TYPE, PIPELINE_TYPE_LOW, MACRO_TILE, WORKGROUP, WAVE_TILE, PIPELINE_TYPE, PERSISTENT) 
+EXPAND_MEMBER_LAYOUTS(F16Set, f16, compv3, 256x256x32, 2x2x1, 32x32x16, CompV3, NonPersistent);
+// using f16_rrr_compv3_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV3, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::rrr;
+// using f16_rrc_compv3_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV3, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::rrc;
+// using f16_rcr_compv3_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV3, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::rcr;
+// using f16_rcc_compv3_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV3, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::rcc;
+// using f16_crr_compv3_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV3, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::crr;
+// using f16_crc_compv3_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV3, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::crc;
+// using f16_ccr_compv3_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV3, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::ccr;
+// using f16_ccc_compv3_256x256x32_2x2x1_32x32x16_NonPersistent = typename F16Set<CompV3, NonPersistent>::f16_256x256x32_2x2x1_32x32x16::ccc;
 
 // clang-format on
