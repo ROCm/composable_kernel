@@ -202,7 +202,7 @@ message(STATUS "Building GEMM tile engine tests for GPU targets: ${GEMM_TEST_GPU
 
 # Available test configurations (minimal set for fast CI/testing)
 set(TEST_CONFIGS
-    "smoke_test_config"
+    "simple_test_config"
     # "medium_tiles_config"  # Uncomment for broader testing
 )
 
