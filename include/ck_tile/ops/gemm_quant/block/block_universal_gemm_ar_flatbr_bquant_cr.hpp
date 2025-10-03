@@ -134,9 +134,8 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
 
         CWarpTensor c_warp_tensor;
 
-        statically_indexed_array<
-            statically_indexed_array<decltype(c_warp_tensor), NIterPerWarp>,
-            MIterPerWarp>
+        statically_indexed_array<statically_indexed_array<decltype(c_warp_tensor), NIterPerWarp>,
+                                 MIterPerWarp>
             c_warp_tensors;
 
         static_for<0, QScalesPerBlockRow, 1>{}([&](auto kQScale) {
@@ -148,10 +147,12 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
                         // warp GEMM
                         if constexpr(kIterInQScale == 0)
                         {
-                            c_warp_tensors(mIter)(nIter) = WG{}(a_warp_tensor(number<AwarpIter>{}),
-                                                 b_warp_tensor(nIter)(number<kIter>{}));
+                            c_warp_tensors(mIter)(nIter) =
+                                WG{}(a_warp_tensor(number<AwarpIter>{}),
+                                     b_warp_tensor(nIter)(number<kIter>{}));
                         }
-                        else{
+                        else
+                        {
                             WG{}(c_warp_tensors(mIter)(nIter),
                                  a_warp_tensor(number<AwarpIter>{}),
                                  b_warp_tensor(nIter)(number<kIter>{}));
@@ -160,7 +161,7 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
                     __builtin_amdgcn_sched_barrier(0x7F6);
                     // preload next A from lds
                     if constexpr((kIter * MIterPerWarp + mIter) <
-                                    (KIterPerWarp * MIterPerWarp - m_preload))
+                                 (KIterPerWarp * MIterPerWarp - m_preload))
                     {
                         constexpr auto AmIter = (mIter + m_preload) % MIterPerWarp;
                         constexpr auto AkIter = (kIter + (mIter + m_preload) / MIterPerWarp);
@@ -176,15 +177,15 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
             });
             static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-
                     constexpr auto tbuf_offset =
-                        number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(merge_sequences(
-                                sequence<mIter, nIter>{}, c_warp_y_index_zeros)) /
-                            CBlockTensor::PackedSize>{};
+                        number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
+                                   merge_sequences(sequence<mIter, nIter>{},
+                                                   c_warp_y_index_zeros)) /
+                               CBlockTensor::PackedSize>{};
 
                     constexpr index_t reg_offset = nIter * KPerBlockBQ + kQScale;
                     // nIter * KPerBlockBQ + kQScale; //((kIter * WG::kK) / kQuantGroupSize);
-                    
+
                     auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
                     float scale_reg_f = cvt_scale_to_fp32(scale_reg);
 

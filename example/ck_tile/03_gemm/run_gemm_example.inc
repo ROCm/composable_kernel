@@ -345,6 +345,10 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
             }
         }();
         // shuffled buffer B for device implementation
+        if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+        {
+            ck_tile::permute_vectors_i4x4_b(b_shuffle_host);
+        }
         b_k_n_dev_buf.ToDevice(b_shuffle_host.data());
     }
     else

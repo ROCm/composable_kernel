@@ -47,6 +47,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                                     QuantMode,
                                                     ALayout, // for AQLayout
                                                     BLayout, // for BQLayout
+                                                    false,
                                                     GemmConfig::DoubleSmemBuffer>;
 
     using GemmPipelineProblem = ck_tile::GemmPipelineProblemBase<typename TypeConfig::ADataType,
