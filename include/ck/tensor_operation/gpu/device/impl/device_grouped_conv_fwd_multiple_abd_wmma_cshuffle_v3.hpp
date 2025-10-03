@@ -2001,7 +2001,7 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                                                                arg.cde_element_op_};
             // TODO: No is_reduce argument, defaults to false.
 
-            return GridwiseGemmCTranspose::CheckValidity(gemm_arg);
+            return GridwiseGemmCTranspose::CheckValidity(gemm_arg, true); // allow_short_v3_pipe
         }
         else
         {
@@ -2022,7 +2022,7 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
                                                                arg.cde_element_op_};
             // TODO: No is_reduce argument, defaults to false.
 
-            return GridwiseGemmCTranspose::CheckValidity(gemm_arg);
+            return GridwiseGemmCTranspose::CheckValidity(gemm_arg, true); // allow_short_v3_pipe
         }
     }
 

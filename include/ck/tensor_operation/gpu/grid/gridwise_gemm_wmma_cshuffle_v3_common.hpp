@@ -951,7 +951,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     template <typename Argument>
-    __host__ static constexpr bool CheckValidity(const Argument& karg)
+    __host__ static constexpr bool CheckValidity(const Argument& karg,
+                                                 bool allow_short_v3_pipe = false)
     {
         static_assert((MPerBlock % (MPerWmma * MRepeat) == 0) &&
                           (NPerBlock % (NPerWmma * NRepeat)) == 0,
@@ -1135,14 +1136,17 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         {
             if(num_k_loop <= BlockwiseGemmPipe::PrefetchStages)
             {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                if(!(allow_short_v3_pipe && BlkGemmPipelineVer == BlockGemmPipelineVersion::v3))
                 {
-                    std::cout << "Pipeline validation failed: num_k_loop (" << num_k_loop
-                              << ") <= PrefetchStages (" << BlockwiseGemmPipe::PrefetchStages
-                              << ") for pipeline version != v1." << __FILE__ << ":" << __LINE__
-                              << ", in function: " << __func__ << std::endl;
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                        std::cout << "Pipeline validation failed: num_k_loop (" << num_k_loop
+                                  << ") <= PrefetchStages (" << BlockwiseGemmPipe::PrefetchStages
+                                  << ") for pipeline version != v1." << __FILE__ << ":" << __LINE__
+                                  << ", in function: " << __func__ << std::endl;
+                    }
+                    return false;
                 }
-                return false;
             }
         }
 
