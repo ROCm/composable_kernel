@@ -70,3 +70,17 @@ Currently, the entrypoint to the CK builder is the test suite that can be built 
 ```bash
 make -j test_conv_builder
 ```
+
+There's also a CK example application that demonstrates creartion of the kernel instance via the build.
+The example code can be built using CMake as follows
+
+```bash
+make -j builder_example_conv_fwd_2d
+```
+
+Note that if option `-D MIOPEN_REQ_LIBS_ONLY=ON` was specified for building the tests, the CMake configure step
+must re-executed with option
+
+```cmake
+-D MIOPEN_REQ_LIBS_ONLY=OFF
+```
