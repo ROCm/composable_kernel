@@ -378,6 +378,13 @@ struct TransformConvFwdToGemm
         return (input_size < threshold) && (output_size < threshold);
     }
 
+#if 0  // ═══════════════════════════════════════════════════════════════════
+       // OUTDATED SPLIT-IMAGE CODE (disabled - replaced by CalculateSplitImage)
+       // ═══════════════════════════════════════════════════════════════════
+       // This old implementation used recursive queue-based splitting.
+       // The new implementation (CalculateSplitImage, line ~2163) is simpler
+       // and correctly handles Split-N + Split-Image interaction.
+       // ═══════════════════════════════════════════════════════════════════
     // Binary split for recursive queue approach (old CK way)
     // Returns tuple of (left_transformer, right_transformer, input_offset, output_offset)
     CK_TILE_HOST auto SplitConvProblem() const {
@@ -1069,6 +1076,7 @@ struct TransformConvFwdToGemm
         return total_time / ready_list.size();
         */
     }
+#endif  // End of outdated split-image code
 
 
     // TODO: implement ck_tile::tensor_layout::convolution that describe packed/strided dimemsion as
