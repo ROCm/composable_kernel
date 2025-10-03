@@ -57,4 +57,12 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmMultiD
 
 #include "run_batched_gemm_example.inc"
 
-int main(int argc, char* argv[]) { return run_batched_gemm_example(argc, argv); }
+int main(int argc, char* argv[])
+{
+    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    {
+        return 0;
+    }
+
+    return run_batched_gemm_example(argc, argv);
+}
