@@ -46,3 +46,27 @@ Draft of kernel description, to be iterated and aligned with existing CK convolu
 
   - **Hardware Optimization**  
     Captures architecture-specific choices (e.g., MFMA type, LDS usage, register pressure).
+
+## 🔨 Building the CK builder
+
+
+For the CMake configure step, add an additional option
+
+```cmake
+-D MIOPEN_REQ_LIBS_ONLY=ON
+```
+
+Note that this disables building some of the other CK assets such as CK profiler.
+
+The builder tests depend on `gMock` that may not be automatically installed on the standard CK development environments. 
+The `gMock` library can be installed via `apt`
+
+```bash
+sudo apt install libgmock-dev
+```
+
+Currently, the entrypoint to the CK builder is the test suite that can be built via dedicated CMake target
+
+```bash
+make -j test_conv_builder
+```
