@@ -22,7 +22,7 @@ add_ck_builder_test(test_conv_builder
     test_conv_grp_fwd_3d.cpp
     test_conv_grp_bwd_2d.cpp
     test_conv_fwd_instances.cpp
-    test_conv_bwd_instances.cpp
+    test_conv_bwd_data_instances.cpp
     testing_utils.cpp)
 
 add_ck_builder_test(test_builder_utils test_builder_utils.cpp)
