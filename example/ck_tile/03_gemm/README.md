@@ -10,24 +10,29 @@ GEMM computes:
 $$
 C = A \times B
 $$
-where $A$ is $[M, K]$, $B$ is $[K, N]$, and $C$ is $[M, N]$.
+where $A$ is $[M, K]$, $B$ is $[N, K]$, and $C$ is $[M, N]$.
 
-- **Tilewise GEMM**: Each thread block computes a tile of $C$ by loading tiles of $A$ and $B$, performing blockwise matrix multiply-accumulate, and writing results back.
+- **BlockTile GEMM**: Each Block Tile computes a tile of $C$ by loading tiles of $A$ and $B$, performing blockwise matrix multiply-accumulation, and writing results back with the epilogue.
 
 ---
 
 ## Tile Programming Model
 
-- **Tiles**: Each thread block processes a tile of $C$.
-- **Pipeline**: Modular design allows swapping different memory/computation pipelines (e.g., basic, memory-bound).
+- **Configuration**: The Configuration of how the kernel going to be initialized with Block Tile Dimension, Warps Layout, Warp Tile Dimension, and other improvements.
+- **Block Tile**: Each block tile allocates in the compute unit of AMD GPU grabbing the .
+- **Pipeline**: Modular design allows swapping different memory/computation pipelines (e.g., basic, memory-bound, compute).
+- **Block GEMM**: Block Level implementation on how to coordinate the warps iteration and memory layout in block tile.
+- **Warp GEMM**: Each Warp's GEMM Calculation
+- **Epilogue**: Transferring the Accumulated result from register to global memory.
 
 ---
 
 ## Features
 
 - **Flexible Layouts**: Supports row/column-major and custom strides for $A$, $B$, $C$.
-- **Batching**: Batched GEMM supported.
-- **Precision**: Supports fp16, bf16, fp8, bf8.
+- **Split K**: Split the Block Tile also on K Dimension and add it back after the matrix multiply-accumulation. Have a higher performance when M and N is small and K is large.
+- **Preshuffled GEMM**: In inference task, shuffle the GEMM of B (weight) matrix in the warp layout and bypass the shared memory to do the GEMM calculation. Best performance solution for GEMM.
+- **Precision**: Supports fp16, bf16, fp8, bf8, int4 (for B Matrix).
 - **Validation**: CPU/GPU validation and error tolerance options.
 
 ---
@@ -74,7 +79,7 @@ args:
 
 ## Source Structure
 
-- **Kernels**: `gemm_basic.cpp`, `universal_gemm.cpp` (different pipelines)
+- **Executables**: `gemm_basic.cpp`, `universal_gemm.cpp` (different kinds of GEMM implementation)
 - **Utils**: `gemm_utils.hpp` (helper functions)
 - **Build**: `CMakeLists.txt`, `run_gemm_example.inc`
 - **Scripts**: `script/` (build and run helpers)
@@ -84,7 +89,7 @@ args:
 ## Related CK Tile Examples
 
 - [01_fmha](../01_fmha/README.md): Fused multi-head attention (FMHA)
-- [02_layernorm2d](../02_layernorm2d/README.md): Tile-programming LayerNorm
+- [18_flatmm](../18_flatmm/README.md): Preshuffled GEMM alternative solution
 - [16_batched_gemm](../16_batched_gemm/README.md): Batched GEMM with tiles
 
 For distribution, see `include/ck_tile/tile_program/tile_distribution/`.
