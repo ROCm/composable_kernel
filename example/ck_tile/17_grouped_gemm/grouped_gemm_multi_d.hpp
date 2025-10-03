@@ -76,6 +76,7 @@ struct GemmConfigMemory : public GemmConfigBase
     static constexpr ck_tile::index_t K_Warp_Tile = 8;
 
     static constexpr bool DoubleSmemBuffer     = false;
+    static constexpr bool Persistent           = true;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_MEMORY;
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Interwave;
 };
@@ -95,6 +96,7 @@ struct GemmConfigV3 : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
+    static constexpr bool Persistent           = true;
     static constexpr bool DoubleSmemBuffer     = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
@@ -115,6 +117,7 @@ struct GemmConfigV4 : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
+    static constexpr bool Persistent           = true;
     static constexpr bool DoubleSmemBuffer     = true;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V4;
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
@@ -170,7 +173,7 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V4>
     using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV4<PipelineProblem>;
 };
 
-using grouped_gemm_multi_d_kargs = ck_tile::GroupedGemmHostArgs<2>;
+using grouped_gemm_multi_d_kargs = ck_tile::GroupedGemmHostArgs<DsDataType::size()>;
 
 std::pair<bool, ck_tile::ArgParser> create_args(int argc, char* argv[])
 {
@@ -201,7 +204,7 @@ std::pair<bool, ck_tile::ArgParser> create_args(int argc, char* argv[])
 
 inline std::size_t get_workspace_size(const std::vector<grouped_gemm_multi_d_kargs>& gemm_descs)
 {
-    return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg<2>);
+    return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg<DsDataType::size()>);
 }
 
 template <typename GemmConfig,
