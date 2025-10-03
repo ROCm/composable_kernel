@@ -1,34 +1,86 @@
 #include <iostream>
-#include "ck_tile/builder/types.hpp"
 #include "ck_tile/builder/conv_builder.hpp"
-
-
+#include "ck_tile/builder/conv_signature.hpp"
 
 namespace
 {
-    std::string to_string(const ck_tile::builder::DataType& dt)
+    namespace ckb = ck_tile::builder;
+
+    struct ConvSignature {
+        int spatial_dim;
+        ckb::ConvDirection direction;
+        ckb::GroupConvLayout layout;
+        ckb::DataType data_type;
+    };
+    static_assert(ckb::ConvSignatureDescriptor<ConvSignature>);
+
+    struct ConvAlgorithm
     {
-        switch(dt)
+        ckb::ThreadBlock thread_block;
+        ckb::ConvTuningParams tuning_params;
+        struct BlockTransfer
         {
-            case ck_tile::builder::DataType::FP16: return "FP16";
-            case ck_tile::builder::DataType::BF16: return "BF16";
-            case ck_tile::builder::DataType::FP32: return "FP32";
-            case ck_tile::builder::DataType::FP64: return "FP64";
-            case ck_tile::builder::DataType::S16: return "S16";
-            case ck_tile::builder::DataType::S4: return "S4";
-            case ck_tile::builder::DataType::S8: return "S8";
-            default: return "Unknown";
-        }
-    }
+            ckb::BlockATransferLengths thread_cluster_dims_a;
+            ckb::BlockBTransferLengths thread_cluster_dims_b;
+            ckb::BlockCTransferLengths thread_cluster_dims_c;
+        } block_transfer;
+        ckb::BlockGemmPipelineVersion pipeline_version;
+    };
+    static_assert(ckb::ConvAlgorithmDescriptor<ConvAlgorithm>);
+    static_assert(ckb::SpecifiesThreadBlock<ConvAlgorithm>);
+    static_assert(ckb::SpecifiesConvTuning<ConvAlgorithm>);
+    static_assert(ckb::SpecifiesBlockATransfer<ConvAlgorithm>);
+    static_assert(ckb::SpecifiesBlockBTransfer<ConvAlgorithm>);
+    static_assert(ckb::SpecifiesBlockCTransfer<ConvAlgorithm>);
+    static_assert(ckb::SpecifiesGemmPipelineVersion<ConvAlgorithm>);
+
 } // namespace
 
 int main() {
 
-  using namespace ck_tile::builder;
+    namespace ckb = ck_tile::builder;
 
-  const auto dt = DataType::BF16;
+    constexpr ConvSignature FwdConvSignature 
+    {
+        .spatial_dim = 2,
+        .direction = ckb::ConvDirection::FORWARD,
+        .layout = ckb::GroupConvLayout::CHANNELS_LAST,
+        .data_type = ckb::DataType::BF16,
+    };
+    static_assert(ckb::ValidConvSignature<FwdConvSignature>);
 
-  std::cout << "Hello, builder!" << std::endl;
-  std::cout << "DataType: " << to_string(dt) << std::endl;
-  return 0;
+    constexpr size_t m_tile = 32;
+    constexpr size_t n_tile = 16;
+    constexpr size_t k_tile = 64;
+    constexpr size_t k0 = 4;
+    constexpr size_t k1 = 1; 
+
+    constexpr ckb::ThreadBlock FwdThreadBlock
+    {
+        .block_size = 256, 
+        .submatrix = {.m = m_tile, .n = n_tile, .k = k_tile}
+    };
+
+    constexpr ConvAlgorithm::BlockTransfer FwdBlockTransfer
+    {
+        .thread_cluster_dims_a = {.k0 = k0, .m = m_tile, .k1 = k1},
+        .thread_cluster_dims_b = {.k0 = k0, .n = n_tile, .k1 = k1},
+        .thread_cluster_dims_c = {
+            .m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 8}
+    };
+
+    constexpr ConvAlgorithm FwdConvAlgorithm
+    {
+        .thread_block = FwdThreadBlock,
+        .tuning_params = {.ak1 = 16, .bk1 = 16, .m_xdl_per_wave = 2, .n_xdl_per_wave = 2},
+        .block_transfer = FwdBlockTransfer,
+        .pipeline_version = ckb::BlockGemmPipelineVersion::V1,
+    };
+
+    using Builder = ckb::ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
+    const auto kernel_string = Builder::Instance::TypeString();
+
+    std::cout << "Generated kernel: " << kernel_string << std::endl;
+
+    return 0;
 }
