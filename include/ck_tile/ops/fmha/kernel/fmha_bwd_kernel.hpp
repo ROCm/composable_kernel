@@ -1217,7 +1217,7 @@ struct FmhaBwdOGradDotOKernel
             return n.empty() ? n : std::string("p") + n; }();
         return
             _SS_("fmha_bwd_dot_do_o_d") + _TS_(kVHeaddim) + "_" + _SS_(t2s<ODataType>::name) +
-            "_" + (kIsGroupMode ? "group" : "batch") + "_" +
+            "_b" + _TS_(kM0) + "_" + (kIsGroupMode ? "group" : "batch") + "_" +
             ("o" + _TS_(kBlockPerCu)) + (pn.empty() ? "_npad" : "_" + pn);
         #undef _SS_
         #undef _TS_
