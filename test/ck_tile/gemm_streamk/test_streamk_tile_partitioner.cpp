@@ -347,3 +347,148 @@ TEST(StreamKTilePartitionerBaseGetOutputTileIndex, TestAllMappings)
         }
     }
 }
+
+// Persistent
+TEST(StreamKTilePartitioner_v2_PersistentConstructor, SKOnly)
+{
+    using Config = StreamKTilePartitionerBaseConfigSKOnly;
+
+    ck_tile::StreamKTilePartitioner_v2<Config::GemmShape,
+                                       ck_tile::StreamKReductionStrategy::Atomic,
+                                       true>
+        tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
+
+    StreamKTilePartitionerV2PersistentExpected expected_values{0, 0, 3};
+    validate_streamk_v2_persistent<Config::GemmShape>(expected_values, tile_partitioner);
+}
+
+TEST(StreamKTilePartitioner_v2_PersistentConstructor, DPOnly)
+{
+    using Config = StreamKTilePartitionerBaseConfigDPOnly;
+
+    ck_tile::StreamKTilePartitioner_v2<typename Config::GemmShape,
+                                       ck_tile::StreamKReductionStrategy::Atomic,
+                                       true>
+        tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
+
+    StreamKTilePartitionerV2PersistentExpected expected_values{2, 0, 3};
+    validate_streamk_v2_persistent<Config::GemmShape>(expected_values, tile_partitioner);
+}
+
+TEST(StreamKTilePartitioner_v2_PersistentConstructor, DP2TileSK)
+{
+    using Config = StreamKTilePartitionerBaseConfigDP2TileSK;
+
+    ck_tile::StreamKTilePartitioner_v2<typename Config::GemmShape,
+                                       ck_tile::StreamKReductionStrategy::Atomic,
+                                       true>
+        tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
+
+    StreamKTilePartitionerV2PersistentExpected expected_values{1, 0, 3};
+    validate_streamk_v2_persistent<Config::GemmShape>(expected_values, tile_partitioner);
+}
+
+TEST(StreamKTilePartitioner_v2_PersistentConstructor, EdgeCase)
+{
+    using Config = StreamKTilePartitionerBaseConfigEdgeCase;
+
+    ck_tile::StreamKTilePartitioner_v2<typename Config::GemmShape,
+                                       ck_tile::StreamKReductionStrategy::Atomic,
+                                       true>
+        tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
+
+    StreamKTilePartitionerV2PersistentExpected expected_values{0, 1, 4};
+    validate_streamk_v2_persistent<Config::GemmShape>(expected_values, tile_partitioner);
+}
+
+TEST(StreamKTilePartitioner_v2_GridSize_Persistent, SKOnly)
+{
+    using Config = StreamKTilePartitionerBaseConfigSKOnly;
+
+    ck_tile::StreamKTilePartitioner_v2<typename Config::GemmShape,
+                                       ck_tile::StreamKReductionStrategy::Atomic,
+                                       true>
+        tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
+
+    const auto g = tile_partitioner.grid_size();
+    EXPECT_EQ(g.x, Config::GRID);
+}
+
+TEST(StreamKTilePartitioner_v2_GridSize_Persistent, EdgeCase)
+{
+    using Config = StreamKTilePartitionerBaseConfigEdgeCase;
+
+    ck_tile::StreamKTilePartitioner_v2<typename Config::GemmShape,
+                                       ck_tile::StreamKReductionStrategy::Atomic,
+                                       true>
+        tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
+
+    const auto g = tile_partitioner.grid_size();
+    EXPECT_EQ(g.x, 1);
+}
+
+// Non-Persistent Tests
+TEST(StreamKTilePartitioner_v2_NonPersistentConstructor, SKOnly)
+{
+    using Config = StreamKTilePartitionerBaseConfigSKOnly;
+
+    ck_tile::StreamKTilePartitioner_v2<Config::GemmShape,
+                                       ck_tile::StreamKReductionStrategy::Atomic,
+                                       false>
+        tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
+
+    StreamKTilePartitionerV2NonPersistentExpected expected_values{0, 0, 0, 3};
+    validate_streamk_v2_nonpersistent<Config::GemmShape>(expected_values, tile_partitioner);
+}
+
+TEST(StreamKTilePartitioner_v2_NonPersistentConstructor, DPOnly)
+{
+    using Config = StreamKTilePartitionerBaseConfigDPOnly;
+
+    ck_tile::StreamKTilePartitioner_v2<typename Config::GemmShape,
+                                       ck_tile::StreamKReductionStrategy::Atomic,
+                                       false>
+        tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
+
+    StreamKTilePartitionerV2NonPersistentExpected expected_values{6, 0, 6, 3};
+    validate_streamk_v2_nonpersistent<Config::GemmShape>(expected_values, tile_partitioner);
+}
+
+TEST(StreamKTilePartitioner_v2_NonPersistentConstructor, DP2TileSK)
+{
+    using Config = StreamKTilePartitionerBaseConfigDP2TileSK;
+
+    ck_tile::StreamKTilePartitioner_v2<typename Config::GemmShape,
+                                       ck_tile::StreamKReductionStrategy::Atomic,
+                                       false>
+        tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
+
+    StreamKTilePartitionerV2NonPersistentExpected expected_values{3, 0, 3, 3};
+    validate_streamk_v2_nonpersistent<Config::GemmShape>(expected_values, tile_partitioner);
+}
+
+TEST(StreamKTilePartitioner_v2_NonPersistentConstructor, EdgeCase)
+{
+    using Config = StreamKTilePartitionerBaseConfigEdgeCase;
+
+    ck_tile::StreamKTilePartitioner_v2<typename Config::GemmShape,
+                                       ck_tile::StreamKReductionStrategy::Atomic,
+                                       false>
+        tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
+
+    StreamKTilePartitionerV2NonPersistentExpected expected_values{1, 0, 1, 4};
+    validate_streamk_v2_nonpersistent<Config::GemmShape>(expected_values, tile_partitioner);
+}
+
+TEST(StreamKTilePartitioner_v2_GridSize_NonPersistent, DP2TileSK)
+{
+    using Config = StreamKTilePartitionerBaseConfigDP2TileSK;
+
+    ck_tile::StreamKTilePartitioner_v2<typename Config::GemmShape,
+                                       ck_tile::StreamKReductionStrategy::Atomic,
+                                       false>
+        tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
+
+    const auto g = tile_partitioner.grid_size();
+    EXPECT_EQ(g.x, 6);
+}
