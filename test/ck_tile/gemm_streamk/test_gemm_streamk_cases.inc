@@ -41,9 +41,8 @@
                            NUM_SK_BLOCKS,                    \
                            MAKE_TEST_NAME(SIZE_M, SIZE_N, SIZE_K, NUM_SK_BLOCKS))
 
-// TODO: segfaults
-// STREAM_K_TEST(1, 1, 1, 0)
-// STREAM_K_TEST(1, 1, 1, 1)
+STREAM_K_TEST(1, 1, 1, 0)
+STREAM_K_TEST(1, 1, 1, 1)
 
 // TODO: fails for <= wave tile
 // STREAM_K_TEST(16, 16, 16, 0)
@@ -62,11 +61,10 @@ STREAM_K_TEST(37, 32, 32, 1)
 STREAM_K_TEST(37, 32, 32, 2)
 STREAM_K_TEST(37, 32, 32, 3)
 
-// TODO: Fails with aperture violation
-// STREAM_K_TEST(32, 37, 32, 0)
-// STREAM_K_TEST(32, 37, 32, 1)
-// STREAM_K_TEST(32, 37, 32, 2)
-// STREAM_K_TEST(32, 37, 32, 3)
+STREAM_K_TEST(32, 37, 32, 0)
+STREAM_K_TEST(32, 37, 32, 1)
+STREAM_K_TEST(32, 37, 32, 2)
+STREAM_K_TEST(32, 37, 32, 3)
 
 // TODO: Fails
 // STREAM_K_TEST(32, 32, 37, 0)
@@ -75,16 +73,15 @@ STREAM_K_TEST(37, 32, 32, 3)
 // STREAM_K_TEST(32, 32, 37, 3)
 
 // TODO: Fails
-// STREAM_K_TEST(37, 32, 37, 0)
-// STREAM_K_TEST(37, 32, 37, 1)
-// STREAM_K_TEST(37, 32, 37, 2)
-// STREAM_K_TEST(37, 32, 37, 3)
+STREAM_K_TEST(37, 32, 37, 0)
+STREAM_K_TEST(37, 32, 37, 1)
+STREAM_K_TEST(37, 32, 37, 2)
+STREAM_K_TEST(37, 32, 37, 3)
 
-// TODO: Fails with core dump
-// STREAM_K_TEST(37, 37, 37, 0)
-// STREAM_K_TEST(37, 37, 37, 1)
-// STREAM_K_TEST(37, 37, 37, 2)
-// STREAM_K_TEST(37, 37, 37, 3)
+STREAM_K_TEST(37, 37, 37, 0)
+STREAM_K_TEST(37, 37, 37, 1)
+STREAM_K_TEST(37, 37, 37, 2)
+STREAM_K_TEST(37, 37, 37, 3)
 
 /// Cubed sizes
 STREAM_K_TEST(256, 256, 256, 0)
@@ -114,10 +111,9 @@ STREAM_K_TEST(544, 544, 544, 8)
 STREAM_K_TEST(544, 544, 544, 16)
 
 /// Long M skinny N and K
-// TODO: Fails with core dump
-// STREAM_K_TEST(512, 1, 1, 0)
-// STREAM_K_TEST(512, 1, 1, 8)
-// STREAM_K_TEST(512, 1, 1, 16)
+STREAM_K_TEST(512, 1, 1, 0)
+STREAM_K_TEST(512, 1, 1, 8)
+STREAM_K_TEST(512, 1, 1, 16)
 
 STREAM_K_TEST(512, 32, 32, 0)
 STREAM_K_TEST(512, 32, 32, 8)
@@ -134,20 +130,18 @@ STREAM_K_TEST(512, 512, 32, 8)
 STREAM_K_TEST(512, 512, 32, 16)
 
 /// Long M and K and skinny N
-// TODO: Fails with core dump
-// STREAM_K_TEST(512, 1, 512, 0)
-// STREAM_K_TEST(512, 1, 512, 8)
-// STREAM_K_TEST(512, 1, 512, 16)
+STREAM_K_TEST(512, 1, 512, 0)
+STREAM_K_TEST(512, 1, 512, 8)
+STREAM_K_TEST(512, 1, 512, 16)
 
 STREAM_K_TEST(512, 32, 512, 0)
 STREAM_K_TEST(512, 32, 512, 8)
 STREAM_K_TEST(512, 32, 512, 16)
 
 /// Long K and skinny M and N
-// TODO: Fails with core dump
-// STREAM_K_TEST(1, 1, 512, 0)
-// STREAM_K_TEST(1, 1, 512, 8)
-// STREAM_K_TEST(1, 1, 512, 16)
+STREAM_K_TEST(1, 1, 512, 0)
+STREAM_K_TEST(1, 1, 512, 8)
+STREAM_K_TEST(1, 1, 512, 16)
 
 STREAM_K_TEST(32, 32, 512, 0)
 STREAM_K_TEST(32, 32, 512, 8)
