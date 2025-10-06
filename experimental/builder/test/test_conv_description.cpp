@@ -33,7 +33,7 @@ TEST(ConvDescriptionTest, DefaultInstanceHasBriefDescription)
     static constexpr const ConvSignature SIGNATURE;
     static constexpr const DefaultAlgorithm ALGORITHM;
     using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
-    EXPECT_THAT(ckr::Description<Builder>::brief(), ckt::StringEqWithDiff("Forward convolution"));
+    EXPECT_THAT(ckr::Describe<Builder>().brief(), ckt::StringEqWithDiff("Forward convolution"));
 }
 
 TEST(ConvDescriptionTest, DefaultInstanceHasDetailedDescription)
@@ -41,7 +41,7 @@ TEST(ConvDescriptionTest, DefaultInstanceHasDetailedDescription)
     static constexpr const ConvSignature SIGNATURE;
     static constexpr const DefaultAlgorithm ALGORITHM;
     using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
-    EXPECT_THAT(ckr::Description<Builder>{}.detailed(),
+    EXPECT_THAT(ckr::Describe<Builder>().detailed(),
                 ckt::StringEqWithDiff( //
                     "2D Forward Convolution Kernel\n"
                     "├─ Signature\n"
@@ -74,11 +74,11 @@ TEST(ConvDescriptionTest, BackwardDataInstanceHasDetailedDescription)
     using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
 
     // Verify Brief works
-    EXPECT_THAT(ckr::Description<Builder>::brief(),
+    EXPECT_THAT(ckr::Describe<Builder>().brief(),
                 ckt::StringEqWithDiff("Backward Data convolution"));
 
     // Verify detailed works with backward data factory defaults
-    EXPECT_THAT(ckr::Description<Builder>{}.detailed(),
+    EXPECT_THAT(ckr::Describe<Builder>().detailed(),
                 ckt::StringEqWithDiff( //
                     "2D Backward Data Convolution Kernel\n"
                     "├─ Signature\n"
