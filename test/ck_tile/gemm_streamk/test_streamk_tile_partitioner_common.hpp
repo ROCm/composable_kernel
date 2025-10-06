@@ -297,4 +297,45 @@ void test_get_output_tile_index(ck_tile::index_t tile_idx,
     in_dev.FromDevice(&in);
     EXPECT_EQ(im, im_expected);
     EXPECT_EQ(in, in_expected);
+};
+
+// Configs for TilePartitioner Child structs
+struct StreamKTilePartitionerV2PersistentExpected
+{
+    ck_tile::index_t dp_tiles_per_cta_;
+    ck_tile::index_t extra_dp_tiles_;
+    ck_tile::index_t grid_;
+};
+
+struct StreamKTilePartitionerV2NonPersistentExpected
+{
+    ck_tile::index_t dp_ctas_;
+    ck_tile::index_t dp_start_block_idx_;
+    ck_tile::index_t sk_start_block_idx_;
+    ck_tile::index_t grid_;
+};
+
+// Persistent
+template <typename GemmShape>
+void validate_streamk_v2_persistent(
+    StreamKTilePartitionerV2PersistentExpected& expected_values,
+    ck_tile::StreamKTilePartitioner_v2<GemmShape, ck_tile::StreamKReductionStrategy::Atomic, true>&
+        tile_partitioner)
+{
+    EXPECT_EQ(tile_partitioner.get_dp_tiles_per_cta(), expected_values.dp_tiles_per_cta_);
+    EXPECT_EQ(tile_partitioner.get_extra_dp_tiles(), expected_values.extra_dp_tiles_);
+    EXPECT_EQ(tile_partitioner.get_grid(), expected_values.grid_);
+}
+
+// Non-Persistent
+template <typename GemmShape>
+void validate_streamk_v2_nonpersistent(
+    StreamKTilePartitionerV2NonPersistentExpected& expected_values,
+    ck_tile::StreamKTilePartitioner_v2<GemmShape, ck_tile::StreamKReductionStrategy::Atomic, false>&
+        tile_partitioner)
+{
+    EXPECT_EQ(tile_partitioner.get_dp_ctas(), expected_values.dp_ctas_);
+    EXPECT_EQ(tile_partitioner.get_dp_start_block_idx(), expected_values.dp_start_block_idx_);
+    EXPECT_EQ(tile_partitioner.get_sk_start_block_idx(), expected_values.sk_start_block_idx_);
+    EXPECT_EQ(tile_partitioner.get_grid(), expected_values.grid_);
 }
