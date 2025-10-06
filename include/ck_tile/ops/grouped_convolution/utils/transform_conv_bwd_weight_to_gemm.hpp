@@ -502,9 +502,9 @@ struct TransformConvBwdWeightToGemm
             // Merge To M, N
             return transform_tensor_descriptor(
                 unmerged_padded_desc,
-                make_tuple(make_merge_transform(make_tuple(NumGroupsToMerge, K_)),
+                make_tuple(make_merge_transform(make_tuple(K_, NumGroupsToMerge)),
                         make_merge_transform(make_tuple(X_, NumGroupsToMerge, C_))),
-                make_tuple(sequence<0, 1>{}, sequence<2, 3, 4>{}),
+                make_tuple(sequence<1, 0>{}, sequence<2, 3, 4>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
         else
@@ -570,7 +570,7 @@ struct TransformConvBwdWeightToGemm
         // GKYXC
         const index_t KStride  = Y_ * X_ * C_;
         constexpr auto CStride = I1;
-        
+
         if constexpr (NumGroupsToMerge > 1)
         {
             const index_t YXStride = C_;
@@ -607,9 +607,9 @@ struct TransformConvBwdWeightToGemm
             // Merge To M, N
             return transform_tensor_descriptor(
                 unmerged_padded_desc,
-                make_tuple(make_merge_transform(make_tuple(NumGroupsToMerge, K_)),
+                make_tuple(make_merge_transform(make_tuple(K_, NumGroupsToMerge)),
                         make_merge_transform(make_tuple(Y_ * X_, NumGroupsToMerge, C_))),
-                make_tuple(sequence<0, 1>{}, sequence<2, 3, 4>{}),
+                make_tuple(sequence<1, 0>{}, sequence<2, 3, 4>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
         else
@@ -712,9 +712,9 @@ struct TransformConvBwdWeightToGemm
             // Merge To M, N
             return transform_tensor_descriptor(
                 unmerged_padded_desc,
-                make_tuple(make_merge_transform(make_tuple(NumGroupsToMerge, K_)),
+                make_tuple(make_merge_transform(make_tuple(K_, NumGroupsToMerge)),
                         make_merge_transform(make_tuple(Z_ * Y_ * X_, NumGroupsToMerge, C_))),
-                make_tuple(sequence<0, 1>{}, sequence<2, 3, 4>{}),
+                make_tuple(sequence<1, 0>{}, sequence<2, 3, 4>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
         else
