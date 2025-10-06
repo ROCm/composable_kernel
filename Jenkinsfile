@@ -1818,6 +1818,15 @@ pipeline {
             }
             parallel
             {
+                stage("Performance Test Coordination") {
+                    agent{ label rocmnode("nogpu") }
+                    steps {
+                        script {
+                            echo "Coordinating Process Performance Test Results stage execution"
+                            echo "CI execution status: ${env.SHOULD_RUN_CI}"
+                        }
+                    }
+                }
                 stage("Process results"){
                     when {
                         beforeAgent true
