@@ -422,6 +422,10 @@ struct TransformConvBwdWeightToGemm
 
         // TODO Add support for NumGroupsToMerge > 1
 
+        // return make_naive_tensor_descriptor(make_tuple(N_ * Wo_, K_),
+                                            // make_tuple(NDoHoWoStride, KStride),
+                                            // number<VectorSizeA>{},
+                                            // I1);
         return make_naive_tensor_descriptor(make_tuple(K_, N_ * Wo_),
                                             make_tuple(KStride, NDoHoWoStride),
                                             number<VectorSizeA>{},
@@ -463,9 +467,12 @@ struct TransformConvBwdWeightToGemm
         constexpr auto KStride      = I1;
 
         // TODO Add support for NumGroupsToMerge > 1
-
-        return make_naive_tensor_descriptor(make_tuple(K_, N_ * Ho_ * Wo_),
-                                            make_tuple(KStride, NDoHoWoStride),
+        // return make_naive_tensor_descriptor(make_tuple(K_, N_ * Ho_ * Wo_),
+                                            // make_tuple(KStride, NDoHoWoStride),
+                                            // number<VectorSizeA>{},
+                                            // I1);
+        return make_naive_tensor_descriptor(make_tuple(N_ * Ho_ * Wo_, K_), // K_M
+                                            make_tuple(NDoHoWoStride, KStride),
                                             number<VectorSizeA>{},
                                             I1);
     }
@@ -480,7 +487,7 @@ struct TransformConvBwdWeightToGemm
         constexpr auto CStride = I1;
 
         // TODO Add support for NumGroupsToMerge > 1
-        return make_naive_tensor_descriptor(make_tuple(N_, Hi_, Wi_, C_),
+        return make_naive_tensor_descriptor(make_tuple(N_, Hi_, Wi_, C_), // K_N
                                             make_tuple(NStride, HiStride, WiStride, CStride),
                                             number<VectorSizeB>{},
                                             I1);
@@ -507,8 +514,12 @@ struct TransformConvBwdWeightToGemm
 
         // TODO Add support for NumGroupsToMerge > 1
 
-        return make_naive_tensor_descriptor(make_tuple(K_, N_ * Do_ * Ho_ * Wo_),
-                                            make_tuple(KStride, NDoHoWoStride),
+        // return make_naive_tensor_descriptor(make_tuple(K_, N_ * Do_ * Ho_ * Wo_), // K = M NHW = K
+        //                            make_tuple(KStride, NDoHoWoStride),
+        //                            number<VectorSizeA>{},
+        //                            I1);
+        return make_naive_tensor_descriptor(make_tuple(N_ * Do_ * Ho_ * Wo_, K_),
+                                            make_tuple(NDoHoWoStride, KStride),
                                             number<VectorSizeA>{},
                                             I1);
     }
@@ -577,7 +588,7 @@ struct TransformConvBwdWeightToGemm
                                         make_tuple(make_merge_transform(make_tuple(X_, C_)),
                                                    make_merge_transform(make_tuple(N_, Wo_))),
                                         make_tuple(sequence<1, 3>{}, sequence<0, 2>{}),
-                                        make_tuple(sequence<0>{}, sequence<1>{}));
+                                        make_tuple(sequence<1>{}, sequence<0>{}));
 
         return make_tuple(out_grid_desc, in_gemmn_gemmktotal_grid_desc, wei_grid_desc);
     }
@@ -614,7 +625,7 @@ struct TransformConvBwdWeightToGemm
                                         make_tuple(make_merge_transform(make_tuple(Y_, X_, C_)),
                                                    make_merge_transform(make_tuple(N_, Ho_, Wo_))),
                                         make_tuple(sequence<1, 3, 5>{}, sequence<0, 2, 4>{}),
-                                        make_tuple(sequence<0>{}, sequence<1>{}));
+                                        make_tuple(sequence<1>{}, sequence<0>{}));
 
         return make_tuple(out_grid_desc, in_gemmn_gemmktotal_grid_desc, wei_grid_desc);
     }
@@ -657,7 +668,7 @@ struct TransformConvBwdWeightToGemm
             make_tuple(make_merge_transform(make_tuple(Z_, Y_, X_, C_)),
                        make_merge_transform(make_tuple(N_, Do_, Ho_, Wo_))),
             make_tuple(sequence<1, 3, 5, 7>{}, sequence<0, 2, 4, 6>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
+            make_tuple(sequence<1>{}, sequence<0>{}));
 
         return make_tuple(out_grid_desc, in_gemmn_gemmktotal_grid_desc, wei_grid_desc);
     }
