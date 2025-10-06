@@ -1823,5 +1823,16 @@ pipeline {
                 cleanWs()
             }
         }
+        stage("Clean Up Test Stage")
+        {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
+            agent{ label rocmnode("nogpu") }
+            steps {
+                cleanWs()
+            }
+        }
     }
 }
