@@ -19,11 +19,11 @@ namespace ck_tile {
 // correct offset calculations when both splitting strategies are active.
 template <typename IndexType = index_t>
 struct SplitImageInfo {
-    bool should_split;
+    bool should_split; // Should we split?
 
     // Split dimensions (output)
-    IndexType out_left;
-    IndexType out_right;
+    IndexType out_left; // LEFT output size
+    IndexType out_right; // RIGHT output size
 
     // Input sizes for LEFT and RIGHT pieces
     IndexType in_left;
@@ -64,11 +64,8 @@ struct TransformConvFwdToGemm
     static constexpr auto I5 = number<5>{};
 
     // Unified 2GB limit constant for both Split-N and Split-Image
-    // static constexpr long_index_t TwoGB = (long_index_t{1} << 31);
-    // static constexpr long_index_t TwoGB = 100L * 1024L * 1024L;  // 100MB for testing
-    // static constexpr long_index_t TwoGB = 10L * 1024L * 1024L;  // 10MB for testing split-image
-    static constexpr long_index_t TwoGB = 100L * 1024L;  // 100KB for easy testing with small sizes - pieces won't trigger nested split
-
+    static constexpr long_index_t TwoGB = (long_index_t{1} << 31);        // 2GB    
+    
     template <typename ConvDimsType>
     static long_index_t calculate_element_space_size_impl(const ConvDimsType& lengths,
                                                           const ConvDimsType& strides,
@@ -346,7 +343,9 @@ struct TransformConvFwdToGemm
         }
     }
 
-    // Simple check if descriptors fit within memory threshold
+    // Check if descriptors fit within memory threshold
+    // NOTE: Not used by forward convolution (uses CalculateSplitImage() instead)
+    // May be used by backward convolution implementations
     CK_TILE_HOST bool AreDescriptorsSmallerThan2GB() const {
         const long_index_t input_size =
             static_cast<long_index_t>(N_) * Di_ * Hi_ * Wi_ * C_;
@@ -1585,6 +1584,120 @@ struct TransformConvFwdToGemm
         info.right_pad_right = right_pad;
 
         return info;
+    }
+
+    // Helper function for recursive split-image kernel launching
+    // Handles BFS-style recursive splitting with depth limit
+    template<typename Kernel, index_t kBlockPerCu, typename StreamConfig>
+    CK_TILE_HOST static float LaunchWithRecursiveSplit(
+        const ck_tile::GroupedConvFwdHostArgs& args,
+        const StreamConfig& s,
+        const typename Kernel::GroupedConvFwdKernelArgsSpecialized& original_kargs)
+    {
+        constexpr int split_dim = 0;  // Always split first spatial dimension (W/H/D)
+        constexpr int MAX_DEPTH = 10; // Max recursion depth (2^10 = 1024 pieces max)
+                                      // With 2GB threshold: handles up to 2TB initial tensor
+
+        // Structure to track each piece with cumulative offsets and depth
+        struct SplitPiece {
+            ck_tile::GroupedConvFwdHostArgs args;
+            long_index_t input_offset;   // Cumulative offset from original base
+            long_index_t output_offset;  // Cumulative offset from original base
+            int depth;                    // Recursion depth level
+
+            SplitPiece(const ck_tile::GroupedConvFwdHostArgs& a,
+                      long_index_t in_off,
+                      long_index_t out_off,
+                      int d)
+                : args(a), input_offset(in_off), output_offset(out_off), depth(d) {}
+        };
+
+        std::queue<SplitPiece> split_queue;
+        std::vector<SplitPiece> ready_list;
+
+        // Start with original problem (offset = 0, depth = 0)
+        auto initial_args = args;
+        initial_args.N_ = original_kargs.n_per_split;  // Use split-N result
+        split_queue.emplace(initial_args, 0, 0, 0);
+
+        // BFS-style recursive splitting
+        while(!split_queue.empty()) {
+            SplitPiece current = split_queue.front();
+            split_queue.pop();
+
+            // Create kargs for this piece and check if it needs splitting
+            auto piece_kargs = Kernel::MakeKernelArgs(current.args);
+            auto piece_split_info = piece_kargs.GetSplitImageInfo();
+
+            // Check if we should stop splitting: either small enough OR max depth reached
+            if(!piece_split_info.should_split || current.depth >= MAX_DEPTH) {
+                // This piece is ready to launch
+                ready_list.push_back(current);
+            } else {
+                // This piece needs to be split into LEFT and RIGHT
+
+                // Create LEFT piece (inherits parent's offset)
+                auto left_args = current.args;
+                left_args.input_spatial_lengths_[split_dim] = piece_split_info.in_left;
+                left_args.output_spatial_lengths_[split_dim] = piece_split_info.out_left;
+                left_args.input_left_pads_[split_dim] = piece_split_info.left_pad_left;
+                left_args.input_right_pads_[split_dim] = piece_split_info.right_pad_left;
+
+                // LEFT inherits parent's cumulative offset (no change)
+                auto left_input_offset = current.input_offset;
+                auto left_output_offset = current.output_offset;
+
+                // Create RIGHT piece (parent offset + local offset)
+                auto right_args = current.args;
+                right_args.input_spatial_lengths_[split_dim] = piece_split_info.in_right;
+                right_args.output_spatial_lengths_[split_dim] = piece_split_info.out_right;
+                right_args.input_left_pads_[split_dim] = piece_split_info.left_pad_right;
+                right_args.input_right_pads_[split_dim] = piece_split_info.right_pad_right;
+
+                // CRITICAL: RIGHT accumulates offset (parent + local)
+                auto right_input_offset = current.input_offset + piece_split_info.input_offset;
+                auto right_output_offset = current.output_offset + piece_split_info.output_offset;
+
+                // Push LEFT and RIGHT back to queue with incremented depth
+                split_queue.emplace(left_args, left_input_offset, left_output_offset, current.depth + 1);
+                split_queue.emplace(right_args, right_input_offset, right_output_offset, current.depth + 1);
+            }
+        }
+
+        // Launch all pieces from ready_list
+        float ave_time = 0.0f;
+        for(size_t i = 0; i < ready_list.size(); i++) {
+            const auto& piece = ready_list[i];
+
+            // Create kargs for this piece
+            auto piece_kargs = Kernel::MakeKernelArgs(piece.args);
+
+            // Copy Split-N metadata from original kargs
+            piece_kargs.n_splits = original_kargs.n_splits;
+            piece_kargs.original_n = original_kargs.original_n;
+
+            // Use batch_stride from ORIGINAL kargs (not split piece's)
+            piece_kargs.input_batch_stride = original_kargs.input_batch_stride;
+            piece_kargs.output_batch_stride = original_kargs.output_batch_stride;
+
+            // Store cumulative spatial offset (applied per-batch in kernel)
+            piece_kargs.spatial_offset_in = piece.input_offset;
+            piece_kargs.spatial_offset_out = piece.output_offset;
+
+            const dim3 grids = Kernel::GridSize(piece_kargs);
+            const dim3 blocks = Kernel::BlockSize();
+
+            if(!Kernel::IsSupportedArgument(piece_kargs)) {
+                throw std::runtime_error("Wrong! Split piece arguments not supported!\n");
+            }
+
+            float piece_time = ck_tile::launch_kernel(
+                s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, piece_kargs));
+
+            ave_time += piece_time;
+        }
+
+        return ave_time;
     }
 
     private:
