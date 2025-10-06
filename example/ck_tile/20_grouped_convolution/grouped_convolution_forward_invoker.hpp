@@ -134,6 +134,7 @@ struct GroupedConvolutionForwardInvoker
             {
                 const int split_dim = 0;  // Always split first spatial dimension (W/H/D)
                 const int MAX_DEPTH = 10;  // Max recursion depth (2^10 = 1024 pieces max)
+                                           // With 2GB threshold: handles up to 2TB initial tensor (2GB × 1024)
 
                 // Define SplitPiece to track each piece with cumulative offsets and depth
                 struct SplitPiece {
