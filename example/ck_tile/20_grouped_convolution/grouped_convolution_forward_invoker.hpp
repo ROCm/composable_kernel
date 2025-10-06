@@ -21,7 +21,8 @@ struct GroupedConvolutionForwardInvoker
     static float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args,
                                   const ck_tile::stream_config& s)
     {
-        if(s.log_level_ > 0) {
+        if(s.log_level_ > 0)
+        {
             std::cout << "[INVOKER] grouped_conv_fwd called, NDimSpatial=" << NDimSpatial << "\n";
         }
         constexpr int kBlockPerCu = 1;
@@ -111,15 +112,19 @@ struct GroupedConvolutionForwardInvoker
             // Check if split-image is needed (uses unified threshold internally)
             auto split_info = kargs.GetSplitImageInfo();
 
-            if(!split_info.should_split) {
+            if(!split_info.should_split)
+            {
                 // No split-image needed - use kargs directly (may have Split-N)
-                if(s.log_level_ > 0) {
-                    std::cout << "[INVOKER] No split-image needed - launching with kargs" << std::endl;
+                if(s.log_level_ > 0)
+                {
+                    std::cout << "[INVOKER] No split-image needed - launching with kargs"
+                              << std::endl;
                 }
-                const dim3 grids = Kernel::GridSize(kargs);
+                const dim3 grids  = Kernel::GridSize(kargs);
                 const dim3 blocks = Kernel::BlockSize();
 
-                if(!Kernel::IsSupportedArgument(kargs)) {
+                if(!Kernel::IsSupportedArgument(kargs))
+                {
                     throw std::runtime_error("Wrong! Arguments not supported! Skipping conv!\n");
                 }
 
@@ -129,7 +134,9 @@ struct GroupedConvolutionForwardInvoker
             }
 
             // RECURSIVE split-image path - delegate to transformer helper
-            ave_time = decltype(kargs.transformer_)::template LaunchWithRecursiveSplit<Kernel, kBlockPerCu>(args, s, kargs);
+            ave_time = decltype(kargs.transformer_)::template LaunchWithRecursiveSplit<Kernel,
+                                                                                       kBlockPerCu>(
+                args, s, kargs);
 
             return ave_time;
         };

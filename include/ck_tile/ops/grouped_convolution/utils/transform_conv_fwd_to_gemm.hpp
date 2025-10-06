@@ -18,11 +18,12 @@ namespace ck_tile {
 // for 1D/2D/3D convolutions. It is calculated AFTER Split-N to ensure
 // correct offset calculations when both splitting strategies are active.
 template <typename IndexType = index_t>
-struct SplitImageInfo {
+struct SplitImageInfo
+{
     bool should_split; // Should we split?
 
     // Split dimensions (output)
-    IndexType out_left; // LEFT output size
+    IndexType out_left;  // LEFT output size
     IndexType out_right; // RIGHT output size
 
     // Input sizes for LEFT and RIGHT pieces
@@ -31,8 +32,8 @@ struct SplitImageInfo {
 
     // Memory offsets (in elements)
     // These are calculated using N_ AFTER Split-N happens
-    long_index_t input_offset;   // Offset for RIGHT piece input pointer
-    long_index_t output_offset;  // Offset for RIGHT piece output pointer
+    long_index_t input_offset;  // Offset for RIGHT piece input pointer
+    long_index_t output_offset; // Offset for RIGHT piece output pointer
 
     // Padding adjustments for LEFT piece
     IndexType left_pad_left;
@@ -64,8 +65,8 @@ struct TransformConvFwdToGemm
     static constexpr auto I5 = number<5>{};
 
     // Unified 2GB limit constant for both Split-N and Split-Image
-    static constexpr long_index_t TwoGB = (long_index_t{1} << 31);        // 2GB    
-    
+    static constexpr long_index_t TwoGB = (long_index_t{1} << 31); // 2GB
+
     template <typename ConvDimsType>
     static long_index_t calculate_element_space_size_impl(const ConvDimsType& lengths,
                                                           const ConvDimsType& strides,
@@ -346,11 +347,10 @@ struct TransformConvFwdToGemm
     // Check if descriptors fit within memory threshold
     // NOTE: Not used by forward convolution (uses CalculateSplitImage() instead)
     // May be used by backward convolution implementations
-    CK_TILE_HOST bool AreDescriptorsSmallerThan2GB() const {
-        const long_index_t input_size =
-            static_cast<long_index_t>(N_) * Di_ * Hi_ * Wi_ * C_;
-        const long_index_t output_size =
-            static_cast<long_index_t>(N_) * Do_ * Ho_ * Wo_ * K_;
+    CK_TILE_HOST bool AreDescriptorsSmallerThan2GB() const
+    {
+        const long_index_t input_size  = static_cast<long_index_t>(N_) * Di_ * Hi_ * Wi_ * C_;
+        const long_index_t output_size = static_cast<long_index_t>(N_) * Do_ * Ho_ * Wo_ * K_;
 
         const long_index_t threshold = TwoGB / sizeof(ADataType);
         return (input_size < threshold) && (output_size < threshold);
@@ -1444,7 +1444,6 @@ struct TransformConvFwdToGemm
     // are active simultaneously.
 
     public:
-
     CK_TILE_HOST SplitImageInfo<IndexType> CalculateSplitImage() const
     {
         SplitImageInfo<IndexType> info;
@@ -1456,62 +1455,68 @@ struct TransformConvFwdToGemm
         // Determine which dimension to split based on NDimSpatial
         IndexType out_total, in_total, left_pad, right_pad, stride, dilation, filter;
 
-        if constexpr (NDimSpatial == 1) {
+        if constexpr(NDimSpatial == 1)
+        {
             out_total = Wo_;
-            in_total = Wi_;
-            left_pad = InLeftPadW_;
+            in_total  = Wi_;
+            left_pad  = InLeftPadW_;
             right_pad = InRightPadW_;
-            stride = ConvStrideW_;
-            dilation = ConvDilationW_;
-            filter = X_;
-        } else if constexpr (NDimSpatial == 2) {
+            stride    = ConvStrideW_;
+            dilation  = ConvDilationW_;
+            filter    = X_;
+        }
+        else if constexpr(NDimSpatial == 2)
+        {
             out_total = Ho_;
-            in_total = Hi_;
-            left_pad = InLeftPadH_;
+            in_total  = Hi_;
+            left_pad  = InLeftPadH_;
             right_pad = InRightPadH_;
-            stride = ConvStrideH_;
-            dilation = ConvDilationH_;
-            filter = Y_;
-        } else if constexpr (NDimSpatial == 3) {
+            stride    = ConvStrideH_;
+            dilation  = ConvDilationH_;
+            filter    = Y_;
+        }
+        else if constexpr(NDimSpatial == 3)
+        {
             out_total = Do_;
-            in_total = Di_;
-            left_pad = InLeftPadD_;
+            in_total  = Di_;
+            left_pad  = InLeftPadD_;
             right_pad = InRightPadD_;
-            stride = ConvStrideD_;
-            dilation = ConvDilationD_;
-            filter = Z_;
-        } else {
-            return info;  // Unsupported dimension
+            stride    = ConvStrideD_;
+            dilation  = ConvDilationD_;
+            filter    = Z_;
+        }
+        else
+        {
+            return info; // Unsupported dimension
         }
 
         // Check if split is needed - IMPORTANT: Use N_ (after Split-N!)
         long_index_t output_size;
-        if constexpr (NDimSpatial == 1) {
-            output_size = static_cast<long_index_t>(N_) *
-                         static_cast<long_index_t>(Wo_) *
-                         static_cast<long_index_t>(K_) *
-                         static_cast<long_index_t>(G_);
-        } else if constexpr (NDimSpatial == 2) {
-            output_size = static_cast<long_index_t>(N_) *
-                         static_cast<long_index_t>(Ho_) *
-                         static_cast<long_index_t>(Wo_) *
-                         static_cast<long_index_t>(K_) *
-                         static_cast<long_index_t>(G_);
-        } else if constexpr (NDimSpatial == 3) {
-            output_size = static_cast<long_index_t>(N_) *
-                         static_cast<long_index_t>(Do_) *
-                         static_cast<long_index_t>(Ho_) *
-                         static_cast<long_index_t>(Wo_) *
-                         static_cast<long_index_t>(K_) *
-                         static_cast<long_index_t>(G_);
+        if constexpr(NDimSpatial == 1)
+        {
+            output_size = static_cast<long_index_t>(N_) * static_cast<long_index_t>(Wo_) *
+                          static_cast<long_index_t>(K_) * static_cast<long_index_t>(G_);
+        }
+        else if constexpr(NDimSpatial == 2)
+        {
+            output_size = static_cast<long_index_t>(N_) * static_cast<long_index_t>(Ho_) *
+                          static_cast<long_index_t>(Wo_) * static_cast<long_index_t>(K_) *
+                          static_cast<long_index_t>(G_);
+        }
+        else if constexpr(NDimSpatial == 3)
+        {
+            output_size = static_cast<long_index_t>(N_) * static_cast<long_index_t>(Do_) *
+                          static_cast<long_index_t>(Ho_) * static_cast<long_index_t>(Wo_) *
+                          static_cast<long_index_t>(K_) * static_cast<long_index_t>(G_);
         }
 
-        if (output_size < threshold_elements) {
+        if(output_size < threshold_elements)
+        {
             return info;
         }
 
         // Binary split
-        info.out_left = out_total / 2;
+        info.out_left  = out_total / 2;
         info.out_right = out_total - info.out_left;
 
         // Effective filter size
@@ -1519,27 +1524,25 @@ struct TransformConvFwdToGemm
 
         // Safety checks
         const IndexType right_start = info.out_left * stride;
-        const IndexType left_end = (info.out_left - 1) * stride + x_eff;
+        const IndexType left_end    = (info.out_left - 1) * stride + x_eff;
 
         const bool is_possible_to_split =
-            out_total != 1 &&
-            right_start > left_pad &&
-            left_end <= (left_pad + in_total);
+            out_total != 1 && right_start > left_pad && left_end <= (left_pad + in_total);
 
-        if (!is_possible_to_split) {
-            return info;  // Cannot split safely
+        if(!is_possible_to_split)
+        {
+            return info; // Cannot split safely
         }
 
         info.should_split = true;
 
         // Calculate input sizes
         const IndexType in_left_end = (info.out_left - 1) * stride + x_eff;
-        info.in_left = in_left_end - left_pad;
+        info.in_left                = in_left_end - left_pad;
 
-        const IndexType in_right_start = info.out_left * stride;
+        const IndexType in_right_start     = info.out_left * stride;
         const IndexType in_right_available = in_total - (in_right_start - left_pad);
-        info.in_right = ck_tile::min(in_right_available,
-                                     (info.out_right - 1) * stride + x_eff);
+        info.in_right = ck_tile::min(in_right_available, (info.out_right - 1) * stride + x_eff);
 
         // Calculate physical offset
         const IndexType physical_offset = (info.out_left * stride) - left_pad;
@@ -1547,40 +1550,37 @@ struct TransformConvFwdToGemm
         // Calculate strides - for WITHIN a single batch
         // The stride to jump from one W-position to the next WITHIN the same batch
         long_index_t input_stride, output_stride;
-        if constexpr (NDimSpatial == 1) {
+        if constexpr(NDimSpatial == 1)
+        {
             // 1D NWGC: stride_W = G * C (within ONE batch)
-            input_stride = static_cast<long_index_t>(G_) *
-                          static_cast<long_index_t>(C_);
-            output_stride = static_cast<long_index_t>(G_) *
-                           static_cast<long_index_t>(K_);
-        } else if constexpr (NDimSpatial == 2) {
+            input_stride  = static_cast<long_index_t>(G_) * static_cast<long_index_t>(C_);
+            output_stride = static_cast<long_index_t>(G_) * static_cast<long_index_t>(K_);
+        }
+        else if constexpr(NDimSpatial == 2)
+        {
             // 2D NHWGC: stride_H = W_in * G * C (within ONE batch)
-            input_stride = static_cast<long_index_t>(Wi_) *
-                          static_cast<long_index_t>(G_) *
-                          static_cast<long_index_t>(C_);
-            output_stride = static_cast<long_index_t>(Wo_) *
-                           static_cast<long_index_t>(G_) *
-                           static_cast<long_index_t>(K_);
-        } else if constexpr (NDimSpatial == 3) {
+            input_stride = static_cast<long_index_t>(Wi_) * static_cast<long_index_t>(G_) *
+                           static_cast<long_index_t>(C_);
+            output_stride = static_cast<long_index_t>(Wo_) * static_cast<long_index_t>(G_) *
+                            static_cast<long_index_t>(K_);
+        }
+        else if constexpr(NDimSpatial == 3)
+        {
             // 3D NDHWGC: stride_D = H_in * W_in * G * C (within ONE batch)
-            input_stride = static_cast<long_index_t>(Hi_) *
-                          static_cast<long_index_t>(Wi_) *
-                          static_cast<long_index_t>(G_) *
-                          static_cast<long_index_t>(C_);
-            output_stride = static_cast<long_index_t>(Ho_) *
-                           static_cast<long_index_t>(Wo_) *
-                           static_cast<long_index_t>(G_) *
-                           static_cast<long_index_t>(K_);
+            input_stride = static_cast<long_index_t>(Hi_) * static_cast<long_index_t>(Wi_) *
+                           static_cast<long_index_t>(G_) * static_cast<long_index_t>(C_);
+            output_stride = static_cast<long_index_t>(Ho_) * static_cast<long_index_t>(Wo_) *
+                            static_cast<long_index_t>(G_) * static_cast<long_index_t>(K_);
         }
 
         // Calculate offsets in elements
-        info.input_offset = static_cast<long_index_t>(physical_offset) * input_stride;
+        info.input_offset  = static_cast<long_index_t>(physical_offset) * input_stride;
         info.output_offset = static_cast<long_index_t>(info.out_left) * output_stride;
 
         // Padding adjustments
-        info.left_pad_left = left_pad;
-        info.right_pad_left = 0;
-        info.left_pad_right = 0;
+        info.left_pad_left   = left_pad;
+        info.right_pad_left  = 0;
+        info.left_pad_right  = 0;
         info.right_pad_right = right_pad;
 
         return info;
@@ -1588,7 +1588,7 @@ struct TransformConvFwdToGemm
 
     // Helper function for recursive split-image kernel launching
     // Handles BFS-style recursive splitting with depth limit
-    template<typename Kernel, index_t kBlockPerCu, typename StreamConfig>
+    template <typename Kernel, index_t kBlockPerCu, typename StreamConfig>
     CK_TILE_HOST static float LaunchWithRecursiveSplit(
         const ck_tile::GroupedConvFwdHostArgs& args,
         const StreamConfig& s,
@@ -1599,17 +1599,20 @@ struct TransformConvFwdToGemm
                                       // With 2GB threshold: handles up to 2TB initial tensor
 
         // Structure to track each piece with cumulative offsets and depth
-        struct SplitPiece {
+        struct SplitPiece
+        {
             ck_tile::GroupedConvFwdHostArgs args;
-            long_index_t input_offset;   // Cumulative offset from original base
-            long_index_t output_offset;  // Cumulative offset from original base
-            int depth;                    // Recursion depth level
+            long_index_t input_offset;  // Cumulative offset from original base
+            long_index_t output_offset; // Cumulative offset from original base
+            int depth;                  // Recursion depth level
 
             SplitPiece(const ck_tile::GroupedConvFwdHostArgs& a,
-                      long_index_t in_off,
-                      long_index_t out_off,
-                      int d)
-                : args(a), input_offset(in_off), output_offset(out_off), depth(d) {}
+                       long_index_t in_off,
+                       long_index_t out_off,
+                       int d)
+                : args(a), input_offset(in_off), output_offset(out_off), depth(d)
+            {
+            }
         };
 
         std::queue<SplitPiece> split_queue;
@@ -1617,77 +1620,85 @@ struct TransformConvFwdToGemm
 
         // Start with original problem (offset = 0, depth = 0)
         auto initial_args = args;
-        initial_args.N_ = original_kargs.n_per_split;  // Use split-N result
+        initial_args.N_   = original_kargs.n_per_split; // Use split-N result
         split_queue.emplace(initial_args, 0, 0, 0);
 
         // BFS-style recursive splitting
-        while(!split_queue.empty()) {
+        while(!split_queue.empty())
+        {
             SplitPiece current = split_queue.front();
             split_queue.pop();
 
             // Create kargs for this piece and check if it needs splitting
-            auto piece_kargs = Kernel::MakeKernelArgs(current.args);
+            auto piece_kargs      = Kernel::MakeKernelArgs(current.args);
             auto piece_split_info = piece_kargs.GetSplitImageInfo();
 
             // Check if we should stop splitting: either small enough OR max depth reached
-            if(!piece_split_info.should_split || current.depth >= MAX_DEPTH) {
+            if(!piece_split_info.should_split || current.depth >= MAX_DEPTH)
+            {
                 // This piece is ready to launch
                 ready_list.push_back(current);
-            } else {
+            }
+            else
+            {
                 // This piece needs to be split into LEFT and RIGHT
 
                 // Create LEFT piece (inherits parent's offset)
-                auto left_args = current.args;
-                left_args.input_spatial_lengths_[split_dim] = piece_split_info.in_left;
+                auto left_args                               = current.args;
+                left_args.input_spatial_lengths_[split_dim]  = piece_split_info.in_left;
                 left_args.output_spatial_lengths_[split_dim] = piece_split_info.out_left;
-                left_args.input_left_pads_[split_dim] = piece_split_info.left_pad_left;
-                left_args.input_right_pads_[split_dim] = piece_split_info.right_pad_left;
+                left_args.input_left_pads_[split_dim]        = piece_split_info.left_pad_left;
+                left_args.input_right_pads_[split_dim]       = piece_split_info.right_pad_left;
 
                 // LEFT inherits parent's cumulative offset (no change)
-                auto left_input_offset = current.input_offset;
+                auto left_input_offset  = current.input_offset;
                 auto left_output_offset = current.output_offset;
 
                 // Create RIGHT piece (parent offset + local offset)
-                auto right_args = current.args;
-                right_args.input_spatial_lengths_[split_dim] = piece_split_info.in_right;
+                auto right_args                               = current.args;
+                right_args.input_spatial_lengths_[split_dim]  = piece_split_info.in_right;
                 right_args.output_spatial_lengths_[split_dim] = piece_split_info.out_right;
-                right_args.input_left_pads_[split_dim] = piece_split_info.left_pad_right;
-                right_args.input_right_pads_[split_dim] = piece_split_info.right_pad_right;
+                right_args.input_left_pads_[split_dim]        = piece_split_info.left_pad_right;
+                right_args.input_right_pads_[split_dim]       = piece_split_info.right_pad_right;
 
                 // CRITICAL: RIGHT accumulates offset (parent + local)
-                auto right_input_offset = current.input_offset + piece_split_info.input_offset;
+                auto right_input_offset  = current.input_offset + piece_split_info.input_offset;
                 auto right_output_offset = current.output_offset + piece_split_info.output_offset;
 
                 // Push LEFT and RIGHT back to queue with incremented depth
-                split_queue.emplace(left_args, left_input_offset, left_output_offset, current.depth + 1);
-                split_queue.emplace(right_args, right_input_offset, right_output_offset, current.depth + 1);
+                split_queue.emplace(
+                    left_args, left_input_offset, left_output_offset, current.depth + 1);
+                split_queue.emplace(
+                    right_args, right_input_offset, right_output_offset, current.depth + 1);
             }
         }
 
         // Launch all pieces from ready_list
         float ave_time = 0.0f;
-        for(size_t i = 0; i < ready_list.size(); i++) {
+        for(size_t i = 0; i < ready_list.size(); i++)
+        {
             const auto& piece = ready_list[i];
 
             // Create kargs for this piece
             auto piece_kargs = Kernel::MakeKernelArgs(piece.args);
 
             // Copy Split-N metadata from original kargs
-            piece_kargs.n_splits = original_kargs.n_splits;
+            piece_kargs.n_splits   = original_kargs.n_splits;
             piece_kargs.original_n = original_kargs.original_n;
 
             // Use batch_stride from ORIGINAL kargs (not split piece's)
-            piece_kargs.input_batch_stride = original_kargs.input_batch_stride;
+            piece_kargs.input_batch_stride  = original_kargs.input_batch_stride;
             piece_kargs.output_batch_stride = original_kargs.output_batch_stride;
 
             // Store cumulative spatial offset (applied per-batch in kernel)
-            piece_kargs.spatial_offset_in = piece.input_offset;
+            piece_kargs.spatial_offset_in  = piece.input_offset;
             piece_kargs.spatial_offset_out = piece.output_offset;
 
-            const dim3 grids = Kernel::GridSize(piece_kargs);
+            const dim3 grids  = Kernel::GridSize(piece_kargs);
             const dim3 blocks = Kernel::BlockSize();
 
-            if(!Kernel::IsSupportedArgument(piece_kargs)) {
+            if(!Kernel::IsSupportedArgument(piece_kargs))
+            {
                 throw std::runtime_error("Wrong! Split piece arguments not supported!\n");
             }
 
@@ -1701,7 +1712,6 @@ struct TransformConvFwdToGemm
     }
 
     private:
-
     IndexType G_, N_, original_N_;
     IndexType Di_, Hi_, Wi_;
     IndexType Do_, Ho_, Wo_;
