@@ -86,9 +86,7 @@ namespace ck_tile {
 /// @par Overview
 ///     This structure encapsulates all host-side arguments required for batched tensor contraction.
 ///     It supports arbitrary number of batch dimensions (G), M dimensions, N dimensions, and K
-///     dimensions. The contraction operation performs: E = epilogue_op(contraction(A, B), D0, D1,
-///     ...) for each batch, where epilogue_op is defined by the CDEElementOp passed to the
-///     underlying GEMM kernel.
+///     dimensions.
 ///
 /// @par Tensor Layout Assumptions
 ///     - A tensor: [G0, G1, ..., M0, M1, M2, ..., K0, K1, K2, ...]
@@ -201,15 +199,11 @@ struct BatchedContractionKernelArgs
     ck_tile::index_t
         G_dims[NumDimG]; ///< G (batch) dimension sizes: [G0, G1, G2, ..., G_{NumDimG-1}]
 
-    // Batch strides for each tensor across all batch dimensions
-    ck_tile::index_t G_strides_A[NumDimG]; ///< Batch strides for tensor A: [G0_stride_A,
-                                           ///< G1_stride_A, ..., G_{NumDimG-1}_stride_A]
-    ck_tile::index_t G_strides_B[NumDimG]; ///< Batch strides for tensor B: [G0_stride_B,
-                                           ///< G1_stride_B, ..., G_{NumDimG-1}_stride_B]
-    ck_tile::index_t G_strides_E[NumDimG]; ///< Batch strides for tensor E: [G0_stride_E,
-                                           ///< G1_stride_E, ..., G_{NumDimG-1}_stride_E]
-    std::array<std::array<ck_tile::index_t, NumDimG>, NumDTensor>
-        G_strides_Ds; ///< Batch strides for D tensors: [NumDTensor][NumDimG]
+    // Batch strides for efficient offset calculation
+    ck_tile::index_t batch_stride_A;                          ///< Batch stride for tensor A
+    ck_tile::index_t batch_stride_B;                          ///< Batch stride for tensor B
+    ck_tile::index_t batch_stride_E;                          ///< Batch stride for tensor E
+    std::array<ck_tile::index_t, NumDTensor> batch_stride_Ds; ///< Batch strides for D tensors
 
     ck_tile::index_t G_total; ///< Total batch size: G0 * G1 * ... * G_{NumDimG-1}
     ck_tile::index_t M_total; ///< Total M dimension: M0 * M1 * ... * M_{NumDimM-1}
@@ -371,13 +365,26 @@ struct BatchedContractionKernel
         kargs.e_ptr   = host_args.e_ptr;
         kargs.k_batch = host_args.k_batch;
 
+        // Validate and set G dimensions (must be identical across all tensors)
         for(ck_tile::index_t i = 0; i < NumDimG; ++i)
         {
-            kargs.G_dims[i]      = host_args.A_dims[i];
-            kargs.G_strides_A[i] = host_args.A_strides[i];
-            kargs.G_strides_B[i] = host_args.B_strides[i];
-            kargs.G_strides_E[i] = host_args.E_strides[i];
+            // All tensors must have same G dimensions for valid contraction
+            if(host_args.A_dims[i] != host_args.B_dims[i] ||
+               host_args.A_dims[i] != host_args.E_dims[i])
+            {
+                throw std::invalid_argument(
+                    "All tensors must have identical G dimensions for valid contraction");
+            }
+
+            // Store G dimensions (same for all tensors)
+            kargs.G_dims[i] = host_args.A_dims[i];
         }
+
+        // Set batch strides from the stride of last G dimension
+        kargs.batch_stride_A = host_args.A_strides[NumDimG - 1];
+        kargs.batch_stride_B = host_args.B_strides[NumDimG - 1];
+        kargs.batch_stride_E = host_args.E_strides[NumDimG - 1];
+
         for(ck_tile::index_t i = 0; i < NumDimM; ++i)
         {
             kargs.M_dims[i] = host_args.A_dims[NumDimG + i];
@@ -432,54 +439,33 @@ struct BatchedContractionKernel
         kargs.stride_B = kargs.K_total;
         kargs.stride_E = kargs.N_total;
 
+        // Validate D tensors have same G dimensions and set their batch strides
         for(ck_tile::index_t d = 0; d < NumDTensor; ++d)
         {
             for(ck_tile::index_t i = 0; i < NumDimG; ++i)
             {
-                kargs.G_strides_Ds[d][i] = host_args.Ds_strides[d][i];
+                if(host_args.Ds_dims[d][i] != host_args.A_dims[i])
+                {
+                    throw std::invalid_argument(
+                        "D tensor G dimensions must match A/B/E tensor G dimensions");
+                }
             }
-            kargs.stride_Ds[d] = kargs.N_total; // D tensors same shape as E
+            // Set batch stride for D tensor
+            kargs.batch_stride_Ds[d] = host_args.Ds_strides[d][NumDimG - 1];
+            kargs.stride_Ds[d]       = kargs.N_total; // D tensors same shape as E
         }
 
         return kargs;
     }
-    struct BatchOffsets
-    {
-        ck_tile::index_t a;
-        ck_tile::index_t b;
-        ck_tile::index_t e;
-        std::array<ck_tile::index_t, NumDTensor> ds;
-    };
 
-    CK_TILE_DEVICE constexpr auto
-    CalculateOffsetFromFlatIndex(ck_tile::index_t flat_g_idx,
-                                 const ck_tile::index_t* G_dims,
-                                 const ck_tile::index_t* G_strides) const
+    /// @brief Calculate batch offset using linear calculation
+    /// @param flat_g_idx Flat batch index
+    /// @param batch_stride Batch stride for the specific tensor
+    /// @return Batch offset for the specific tensor
+    CK_TILE_DEVICE constexpr auto CalculateBatchOffset(ck_tile::index_t flat_g_idx,
+                                                       ck_tile::index_t batch_stride) const
     {
-        ck_tile::index_t offset    = 0;
-        ck_tile::index_t remaining = flat_g_idx;
-        // Iterate from last to first dimension
-        for(int i = NumDimG - 1; i >= 0; --i)
-        {
-            const ck_tile::index_t idx = remaining % G_dims[i];
-            offset += idx * G_strides[i];
-            remaining /= G_dims[i];
-        }
-        return offset;
-    }
-
-    CK_TILE_DEVICE constexpr auto CalculateAllBatchOffsets(ck_tile::index_t flat_g_index,
-                                                           const KernelArgs& kargs) const
-    {
-        BatchOffsets offsets;
-        offsets.a = CalculateOffsetFromFlatIndex(flat_g_index, kargs.G_dims, kargs.G_strides_A);
-        offsets.b = CalculateOffsetFromFlatIndex(flat_g_index, kargs.G_dims, kargs.G_strides_B);
-        offsets.e = CalculateOffsetFromFlatIndex(flat_g_index, kargs.G_dims, kargs.G_strides_E);
-        static_for<0, NumDTensor, 1>{}([&](auto i) {
-            offsets.ds[i] = CalculateOffsetFromFlatIndex(
-                flat_g_index, kargs.G_dims, kargs.G_strides_Ds[i].data());
-        });
-        return offsets;
+        return static_cast<ck_tile::index_t>(flat_g_idx) * batch_stride;
     }
 
     CK_TILE_DEVICE void operator()(const KernelArgs& kargs) const
@@ -495,16 +481,21 @@ struct BatchedContractionKernel
         const auto i_batch_flat = __builtin_amdgcn_readfirstlane(blockIdx.y);
         const auto i_splitk     = __builtin_amdgcn_readfirstlane(blockIdx.z);
 
-        const auto offsets = CalculateAllBatchOffsets(i_batch_flat, kargs);
+        // Calculate batch offsets for each tensor
+        const auto batch_offset_A = CalculateBatchOffset(i_batch_flat, kargs.batch_stride_A);
+        const auto batch_offset_B = CalculateBatchOffset(i_batch_flat, kargs.batch_stride_B);
+        const auto batch_offset_E = CalculateBatchOffset(i_batch_flat, kargs.batch_stride_E);
 
-        const ADataType* a_ptr = static_cast<const ADataType*>(kargs.a_ptr) + offsets.a;
-        const BDataType* b_ptr = static_cast<const BDataType*>(kargs.b_ptr) + offsets.b;
-        EDataType* e_ptr       = static_cast<EDataType*>(kargs.e_ptr) + offsets.e;
+        const ADataType* a_ptr = static_cast<const ADataType*>(kargs.a_ptr) + batch_offset_A;
+        const BDataType* b_ptr = static_cast<const BDataType*>(kargs.b_ptr) + batch_offset_B;
+        EDataType* e_ptr       = static_cast<EDataType*>(kargs.e_ptr) + batch_offset_E;
 
         std::array<const void*, NumDTensor> ds_batch_ptr;
         static_for<0, NumDTensor, 1>{}([&](auto i) {
             using DDataType = typename std::tuple_element<i.value, DsDataType>::type;
-            ds_batch_ptr[i] = static_cast<const DDataType*>(kargs.ds_ptr[i]) + offsets.ds[i];
+            const auto batch_offset_D =
+                CalculateBatchOffset(i_batch_flat, kargs.batch_stride_Ds[i]);
+            ds_batch_ptr[i] = static_cast<const DDataType*>(kargs.ds_ptr[i]) + batch_offset_D;
         });
 
         typename UniversalGemmKernel::KernelArgs gemm_kargs{{a_ptr},
