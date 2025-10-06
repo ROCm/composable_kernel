@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+#include <gmock/gmock.h>
 
 #include <ck_tile/builder/conv_builder.hpp>
 #include "testing_utils.hpp"
@@ -6,6 +7,7 @@
 namespace {
 
 namespace ckb = ck_tile::builder;
+namespace ckt = ck_tile::test;
 using P       = ckb::BlockGemmPipelineVersion;
 
 // Defines the signature of the convolution operation to be tested.
@@ -29,11 +31,11 @@ TEST(ConvBuilderTest, TestDefaultInstance)
     static constexpr const ConvSignature SIGNATURE;
     static constexpr const DefaultAlgorithm ALGORITHM;
     using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
-    std::string expected =
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 256, 256, 32, Default, 32, 32, 4, 4, "
-        "8, 8, 8, 1, 1, BlkGemmPipelineScheduler: Intrawave, BlkGemmPipelineVersion: v4>";
-    EXPECT_EQ(Builder::Instance::TypeString(), expected)
-        << ck_tile::test::formatInlineDiff(Builder::Instance::TypeString(), expected);
+    EXPECT_THAT(
+        Builder::Instance::TypeString(),
+        ckt::StringEqWithDiff("DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<256, 256, 256, 32, "
+                              "Default, 32, 32, 4, 4, 8, 8, 8, 1, 1, BlkGemmPipelineScheduler: "
+                              "Intrawave, BlkGemmPipelineVersion: v4>"));
 }
 
 } // namespace
