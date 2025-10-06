@@ -1594,15 +1594,6 @@ pipeline {
             }
             parallel
             {
-                stage("Build Coordination") {
-                    agent{ label rocmnode("nogpu") }
-                    steps {
-                        script {
-                            echo "Coordinating Build CK and run Tests stage execution"
-                            echo "CI execution status: ${env.SHOULD_RUN_CI}"
-                        }
-                    }
-                }
                 stage("Build CK with RHEL8")
                 {
                     when {
@@ -1824,29 +1815,12 @@ pipeline {
             when {
                 beforeAgent true
                 expression { env.SHOULD_RUN_CI.toBoolean() }
+                expression { (params.RUN_PERFORMANCE_TESTS.toBoolean() || params.BUILD_INSTANCES_ONLY.toBoolean() || params.RUN_CK_TILE_FMHA_TESTS.toBoolean()) && !params.BUILD_LEGACY_OS.toBoolean() }
             }
-            parallel
-            {
-                stage("Performance Test Coordination") {
-                    agent{ label rocmnode("nogpu") }
-                    steps {
-                        script {
-                            echo "Coordinating Process Performance Test Results stage execution"
-                            echo "CI execution status: ${env.SHOULD_RUN_CI}"
-                        }
-                    }
-                }
-                stage("Process results"){
-                    when {
-                        beforeAgent true
-                        expression { (params.RUN_PERFORMANCE_TESTS.toBoolean() || params.BUILD_INSTANCES_ONLY.toBoolean() || params.RUN_CK_TILE_FMHA_TESTS.toBoolean()) && !params.BUILD_LEGACY_OS.toBoolean() }
-                    }
-                    agent { label 'mici' }
-                    steps{
-                        process_results()
-                        cleanWs()
-                    }
-                }
+            agent { label 'mici' }
+            steps {
+                process_results()
+                cleanWs()
             }
         }
     }
