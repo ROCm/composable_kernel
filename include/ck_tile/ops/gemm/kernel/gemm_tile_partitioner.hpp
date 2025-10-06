@@ -10,6 +10,8 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
+#include <format>
+#include <iostream>
 
 namespace ck_tile {
 
@@ -810,4 +812,5 @@ struct StreamKTilePartitioner
     uint32_t M_, N_, K_;
     uint32_t num_tile_m_, num_tile_n_, num_tile_k_;
 };
+
 } // namespace ck_tile
