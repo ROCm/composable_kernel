@@ -202,6 +202,117 @@ struct StreamKTilePartitionerBase
     index_t n_;
 };
 
+/**
+ * @brief Template for the Stream-K tile partitioner derived struct.
+ *
+ * This partitioner is responsible for mapping workgroups to tiles in the C tensor
+ * for the Stream-K algorithm. This struct is derived from
+ * StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategy>. Behavior of the
+ * StreamKTilePartitioner based on persistency will be in the template specializations.
+ *
+ *  @tparam BlockGemmShapeType  A class providing basic GEMM parameters.
+ *  @tparam ReductionStrategy   An enum that defines the reduction strategy for the results in the C
+ * Tensor.
+ *  @tparam Persistent          A bool that indicates whether to use a Persistent approach
+ */
+template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategy, bool Persistent>
+struct StreamKTilePartitioner_v2;
+
+/**
+ * @brief Persistent Stream-K tile partitioner derived struct.
+ *
+ * This partitioner is responsible for mapping workgroups to tiles in the C tensor
+ * for the Stream-K algorithm when using a Persistent approach where no extra workgroups
+ * are allocated for data parallel.
+ *
+ *  @tparam BlockGemmShapeType  A class providing basic GEMM parameters.
+ *  @tparam ReductionStrategy   An enum that defines the reduction strategy for the results in the C
+ * Tensor.
+ */
+template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategy>
+struct StreamKTilePartitioner_v2<BlockGemmShapeType, ReductionStrategy, true>
+    : StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategy>
+{
+    StreamKTilePartitioner_v2(ck_tile::index_t m,
+                              ck_tile::index_t n,
+                              ck_tile::index_t k,
+                              ck_tile::index_t grid);
+
+    public:
+    /**
+     * @brief Calculates the launching grid size for the Stream-K kernel. In the Persistent
+     * case, no extra workgroups are allocated for the data parallel section, making the grid
+     * size num_cu * occupancy.
+     *
+     * @return dim_3           The launching grid size for the kernel.
+     */
+    CK_TILE_HOST auto grid_size() const noexcept -> dim3;
+
+    CK_TILE_HOST_DEVICE index_t get_dp_tiles_per_cta() const noexcept;
+    CK_TILE_HOST_DEVICE index_t get_extra_dp_tiles() const noexcept;
+
+    protected:
+    /**
+     * @brief The total number of DP tiles per workgroup.
+     */
+    int dp_tiles_per_cta_;
+
+    /**
+     * @brief The total number of DP tiles left over when dp_tiles is not evenly divisible by grid.
+     */
+    int extra_dp_tiles_;
+};
+
+/**
+ * @brief Non-Persistent Stream-K tile partitioner derived struct.
+ *
+ * This partitioner is responsible for mapping workgroups to tiles in the C tensor
+ * for the Stream-K algorithm when using a Non-Persistent approach where extra workgroups
+ * are allocated for the data parallel section.
+ *
+ *  @tparam BlockGemmShapeType  A class providing basic GEMM parameters.
+ *  @tparam ReductionStrategy   An enum that defines the reduction strategy for the results in the C
+ * Tensor.
+ */
+template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategy>
+struct StreamKTilePartitioner_v2<BlockGemmShapeType, ReductionStrategy, false>
+    : StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategy>
+{
+    StreamKTilePartitioner_v2(ck_tile::index_t m,
+                              ck_tile::index_t n,
+                              ck_tile::index_t k,
+                              ck_tile::index_t grid);
+
+    public:
+    /**
+     * @brief Calculates the launching grid size for the Stream-K kernel. In the Non-Persistent
+     * case, extra workgroups are allocated for the data parallel section, making the grid
+     * size the total number of Stream-K and data parallel workgroups.
+     *
+     * @return dim_3           The launching grid size for the kernel.
+     */
+    CK_TILE_HOST auto grid_size() const noexcept -> dim3;
+    CK_TILE_HOST_DEVICE index_t get_dp_ctas() const noexcept;
+    CK_TILE_HOST_DEVICE index_t get_dp_start_block_idx() const noexcept;
+    CK_TILE_HOST_DEVICE index_t get_sk_start_block_idx() const noexcept;
+
+    protected:
+    /**
+     * @brief The total number of DP workgroups.
+     */
+    int dp_ctas_;
+
+    /**
+     * @brief The index that starts the DP workgroups, always 0 in our implementation.
+     */
+    int dp_start_block_idx_;
+
+    /**
+     * @brief The index that starts the Stream-K workgroups, set to the number of dp_tiles.
+     */
+    int sk_start_block_idx_;
+};
+
 } // namespace ck_tile
 
 #include "streamk_gemm_tile_partitioner_impl.hpp"
