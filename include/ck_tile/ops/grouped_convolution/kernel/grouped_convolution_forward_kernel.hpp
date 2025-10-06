@@ -83,14 +83,11 @@ struct GroupedConvFwdKernelArgs
                                                 input_right_pads};
 
         a_grid_desc_m_k =
-            transformer_
-                .template MakeADescriptor_M_K<typename GroupedConvTraitsType_::InLayout>();
+            transformer_.template MakeADescriptor_M_K<typename GroupedConvTraitsType_::InLayout>();
         b_grid_desc_n_k =
-            transformer_
-                .template MakeBDescriptor_N_K<typename GroupedConvTraitsType_::WeiLayout>();
+            transformer_.template MakeBDescriptor_N_K<typename GroupedConvTraitsType_::WeiLayout>();
         c_grid_desc_m_n =
-            transformer_
-                .template MakeCDescriptor_M_N<typename GroupedConvTraitsType_::OutLayout>();
+            transformer_.template MakeCDescriptor_M_N<typename GroupedConvTraitsType_::OutLayout>();
 
         group_stride_a = args.C_;
         group_stride_b = args.K_ * args.C_ *
@@ -114,7 +111,6 @@ struct GroupedConvFwdKernelArgs
 
         // Update GemmM to use split N (not original N)
         GemmM = n_per_split * args.output_spatial_lengths_[0];
-        
     }
 
     template <
@@ -177,14 +173,11 @@ struct GroupedConvFwdKernelArgs
                                                 input_right_pads};
 
         a_grid_desc_m_k =
-            transformer_
-                .template MakeADescriptor_M_K<typename GroupedConvTraitsType_::InLayout>();
+            transformer_.template MakeADescriptor_M_K<typename GroupedConvTraitsType_::InLayout>();
         b_grid_desc_n_k =
-            transformer_
-                .template MakeBDescriptor_N_K<typename GroupedConvTraitsType_::WeiLayout>();
+            transformer_.template MakeBDescriptor_N_K<typename GroupedConvTraitsType_::WeiLayout>();
         c_grid_desc_m_n =
-            transformer_
-                .template MakeCDescriptor_M_N<typename GroupedConvTraitsType_::OutLayout>();
+            transformer_.template MakeCDescriptor_M_N<typename GroupedConvTraitsType_::OutLayout>();
 
         group_stride_a = args.C_;
         group_stride_b = args.K_ * args.C_ *
@@ -209,8 +202,6 @@ struct GroupedConvFwdKernelArgs
 
         // Update GemmM to use split N (not original N)
         GemmM = n_per_split * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1];
-
-        
     }
 
     template <
@@ -281,14 +272,11 @@ struct GroupedConvFwdKernelArgs
                                                 input_right_pads};
 
         a_grid_desc_m_k =
-            transformer_
-                .template MakeADescriptor_M_K<typename GroupedConvTraitsType_::InLayout>();
+            transformer_.template MakeADescriptor_M_K<typename GroupedConvTraitsType_::InLayout>();
         b_grid_desc_n_k =
-            transformer_
-                .template MakeBDescriptor_N_K<typename GroupedConvTraitsType_::WeiLayout>();
+            transformer_.template MakeBDescriptor_N_K<typename GroupedConvTraitsType_::WeiLayout>();
         c_grid_desc_m_n =
-            transformer_
-                .template MakeCDescriptor_M_N<typename GroupedConvTraitsType_::OutLayout>();
+            transformer_.template MakeCDescriptor_M_N<typename GroupedConvTraitsType_::OutLayout>();
 
         group_stride_a = args.C_;
         group_stride_b = args.K_ * args.C_ *
@@ -314,8 +302,6 @@ struct GroupedConvFwdKernelArgs
         // Update GemmM to use split N (not original N)
         GemmM = n_per_split * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1] *
                 args.output_spatial_lengths_[2];
-
-        
     }
 
     using AGridDescMK = remove_cvref_t<
@@ -375,11 +361,7 @@ struct GroupedConvFwdKernelArgs
 
     // Method to get split-image information from transformer
     // Uses unified TwoGB threshold internally
-    CK_TILE_HOST auto GetSplitImageInfo() const
-    {
-        return transformer_.CalculateSplitImage();
-    }
-
+    CK_TILE_HOST auto GetSplitImageInfo() const { return transformer_.CalculateSplitImage(); }
 };
 
 /// @brief The Grouped Convolution Forward kernel template.
@@ -874,20 +856,20 @@ struct GroupedConvolutionForwardKernel
         // This ensures spatial offset is applied per-batch, not globally
         const InDataType* base_a_ptr =
             static_cast<const InDataType*>(kargs.in_ptr) + group_offset_a + input_batch_offset +
-            kargs.spatial_offset_in;  // Add spatial offset from split-image
+            kargs.spatial_offset_in; // Add spatial offset from split-image
         const WeiDataType* b_ptr = static_cast<const WeiDataType*>(kargs.wei_ptr) +
                                    group_offset_b; // No batch offset for weights!
-        OutDataType* base_c_ptr =
-            static_cast<OutDataType*>(kargs.out_ptr) + group_offset_c + output_batch_offset +
-            kargs.spatial_offset_out;  // Add spatial offset from split-image
+        OutDataType* base_c_ptr = static_cast<OutDataType*>(kargs.out_ptr) + group_offset_c +
+                                  output_batch_offset +
+                                  kargs.spatial_offset_out; // Add spatial offset from split-image
 
         // Use base pointers directly
         const InDataType* a_ptr = base_a_ptr;
-        OutDataType* c_ptr = base_c_ptr;
+        OutDataType* c_ptr      = base_c_ptr;
 
         // Tile partitioning
-        const auto [iM, iN] =
-            TilePartitioner{kargs.GemmM, kargs.GemmN}.GetOutputTileIndex(static_cast<index_t>(blockIdX));
+        const auto [iM, iN] = TilePartitioner{kargs.GemmM, kargs.GemmN}.GetOutputTileIndex(
+            static_cast<index_t>(blockIdX));
         const index_t i_m = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
         const index_t i_n = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
 
