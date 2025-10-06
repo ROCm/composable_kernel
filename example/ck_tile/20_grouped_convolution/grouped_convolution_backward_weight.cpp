@@ -32,11 +32,11 @@ float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
     // Block tile: <MPerBlock, NPerBlock, KPerBlock>
     // Note that we must satisfy 
     // - MIterPerWarp * MWarp * WarpGemm::kM == MPerBlock
-    constexpr ck_tile::index_t M_Tile = 8;
+    constexpr ck_tile::index_t M_Tile = 8; // 16;
     constexpr ck_tile::index_t N_Tile = 128;
     constexpr ck_tile::index_t K_Tile = 64;
 
-    constexpr ck_tile::index_t M_Warp = 2;
+    constexpr ck_tile::index_t M_Warp = 2; //4;
     constexpr ck_tile::index_t N_Warp = 2;
     constexpr ck_tile::index_t K_Warp = 1;
 
@@ -44,9 +44,9 @@ float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
     constexpr ck_tile::index_t N_Warp_Tile = 64;
     constexpr ck_tile::index_t K_Warp_Tile = 16;
 
-    constexpr ck_tile::index_t VectorSizeA = 8;
-    constexpr ck_tile::index_t VectorSizeB = 8;
-    constexpr ck_tile::index_t VectorSizeC = 8;
+    constexpr ck_tile::index_t VectorSizeA = 2; // 8
+    constexpr ck_tile::index_t VectorSizeB = 2; //8;
+    constexpr ck_tile::index_t VectorSizeC = 2; //8;
 
     // Implicit GEMM Traits
     using CodegenShape =

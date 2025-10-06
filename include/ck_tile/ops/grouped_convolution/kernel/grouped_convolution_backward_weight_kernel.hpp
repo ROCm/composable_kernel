@@ -84,12 +84,13 @@ struct GroupedConvBwdWeightKernelArgs
         b_grid_desc_n_k = grid_descs.at(number<1>{});
         c_grid_desc_m_n = grid_descs.at(number<2>{});
 
-        NumGroupsPerBatch = 
-            std::min(static_cast<index_t>(args.G_), GroupedConvTraitsType_::NumGroupsToMerge);
+        NumGroupsPerBatch = GroupedConvTraitsType_::NumGroupsToMerge;
+            //std::min(static_cast<index_t>(args.G_), GroupedConvTraitsType_::NumGroupsToMerge);
 
         group_stride_a = args.K_ * NumGroupsPerBatch;            // A: Out NWGK
         group_stride_b = args.C_ * NumGroupsPerBatch;            // B: In  NWGC
-        group_stride_c = args.K_ * args.C_ * NumGroupsPerBatch   // C: Wei GKXC
+        group_stride_c = args.K_ * args.C_                       // C: Wei GKXC
+                        * NumGroupsPerBatch
                            * std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
@@ -172,12 +173,13 @@ struct GroupedConvBwdWeightKernelArgs
         b_grid_desc_n_k = grid_descs.at(number<1>{});
         c_grid_desc_m_n = grid_descs.at(number<2>{});
 
-        NumGroupsPerBatch = 
-            std::min(static_cast<index_t>(args.G_), GroupedConvTraitsType_::NumGroupsToMerge);
+        NumGroupsPerBatch = GroupedConvTraitsType_::NumGroupsToMerge;
+            //std::min(static_cast<index_t>(args.G_), GroupedConvTraitsType_::NumGroupsToMerge);
 
         group_stride_a = args.K_ * NumGroupsPerBatch;            // A: Out NHWGK
         group_stride_b = args.C_ * NumGroupsPerBatch;            // B: In  NHWGC
-        group_stride_c = args.K_ * args.C_ * NumGroupsPerBatch   // C: Wei GKYXC
+        group_stride_c = args.K_ * args.C_                       // C: Wei GKYXC
+                        * NumGroupsPerBatch 
                            * std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
@@ -267,12 +269,13 @@ struct GroupedConvBwdWeightKernelArgs
         b_grid_desc_n_k = grid_descs.at(number<1>{});
         c_grid_desc_m_n = grid_descs.at(number<2>{});
 
-        NumGroupsPerBatch = 
-            std::min(static_cast<index_t>(args.G_), GroupedConvTraitsType_::NumGroupsToMerge);
+        NumGroupsPerBatch = GroupedConvTraitsType_::NumGroupsToMerge;
+            //std::min(static_cast<index_t>(args.G_), GroupedConvTraitsType_::NumGroupsToMerge);
 
         group_stride_a = args.K_ * NumGroupsPerBatch;            // A: Out NDHWGK
         group_stride_b = args.C_ * NumGroupsPerBatch;            // B: In  NDHWGC
-        group_stride_c = args.K_ * args.C_ * NumGroupsPerBatch   // C: Wei GKZYXC
+        group_stride_c = args.K_ * args.C_                       // C: Wei GKZYXC
+                        * NumGroupsPerBatch 
                            * std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
@@ -620,9 +623,17 @@ struct GroupedConvolutionBackwardWeightKernel
             return false;
         }
 
-        // TODO: Should we enforce 
-        // - ConvG % NumGroupsToMerge == 0?
-        // - ConvK % NumGroupsToMerge == 0?
+        // if constexpr (GroupedConvTraitsType_::NumGroupsToMerge > 1)
+        // {
+        //     const index_t ConvG = kargs.wei_g_k_c_xs_lengths[number<0>{}];
+        //     if (ConvG % GroupedConvTraitsType_::NumGroupsToMerge != 0)
+        //     {
+        //         CK_TILE_ERROR("ConvG must be a multiple of NumGroupsToMerge!");
+        //         return false;
+        //     }
+
+        //     // TODO: Should we also check that GemmM <= MPerBlock and GemmN <= NPerBlock?
+        // }
 
         return true;
     }
@@ -731,8 +742,6 @@ struct GroupedConvolutionBackwardWeightKernel
         const auto& ds_pad_view = views.at(I2);
         const auto& c_pad_view  = views.at(I3);
 
-        constexpr index_t Gm = GroupedConvTraitsType_::NumGroupsToMerge;
-
         const auto& a_block_window = [&]() {
             return make_tile_window(a_pad_view,
                                     make_tuple(number<TilePartitioner::MPerBlock>{},
@@ -751,7 +760,7 @@ struct GroupedConvolutionBackwardWeightKernel
             [&](auto i) {
                 return make_tile_window(ds_pad_view[i],
                                         make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                   number<TilePartitioner::NPerBlock/Gm>{}),
+                                                   number<TilePartitioner::NPerBlock>{}),
                                         {i_m, i_n});
             },
             number<NumDTensor>{});
@@ -759,7 +768,7 @@ struct GroupedConvolutionBackwardWeightKernel
         auto c_block_window = make_tile_window(
             c_pad_view,
             make_tuple(number<TilePartitioner::MPerBlock>{}, 
-                       number<TilePartitioner::NPerBlock/Gm>{}),
+                       number<TilePartitioner::NPerBlock>{}),
             {i_m, i_n});
 
         return make_tuple(a_block_window, b_block_window, ds_block_window, c_block_window);
@@ -812,6 +821,53 @@ struct GroupedConvolutionBackwardWeightKernel
             decltype(c_block_window), 
             decltype(c_block_tile)>(
                 c_block_window, c_block_tile, d_block_window, smem_ptr_0);
+
+        __syncthreads();
+        if (blockIdx.x == 0 && blockIdx.y == 0 && threadIdx.x == 0 && threadIdx.y == 0)
+        {
+            constexpr index_t Gs = GroupedConvTraitsType_::NumGroupsToMerge;
+            constexpr index_t NBlockWidth = TilePartitioner::NPerBlock / Gs;
+
+            // Print out LDS contents.
+            // The LDS corresponds TilePartitioner_::MPerBlock * TilePartitioner_::NPerBlock matrix.
+            // Print LDS contents as matrix
+            // printf("LDS Contents (%d x %d):\n", TilePartitioner::MPerBlock, TilePartitioner::NPerBlock);
+            // OutDataType* lds_data = reinterpret_cast<OutDataType*>(smem_ptr_0);
+            
+            // for(int c = 0; c < Gs; ++c) {
+            //     printf("Block %d:\n", c);
+            //     for(int r = 0; r < Gs; ++r) {
+            //         printf("Row %d: ", r);
+            //         for(int n = 0; n < NBlockWidth; ++n) 
+            //         {
+            //             int idx =  (r * NBlockWidth + n) * TilePartitioner::MPerBlock + c;
+            //             printf("%.7f ", static_cast<float>(lds_data[idx]));
+            //         }
+            //         printf(" \n");
+            //     }
+            //     printf("\n\n");
+            // }
+
+            // Print out the LDS contents as a linear array
+            printf("LDS Contents as Linear Array:\n");
+            OutDataType* lds_data = reinterpret_cast<OutDataType*>(smem_ptr_0);
+            for(int i = 0; i < TilePartitioner::MPerBlock * TilePartitioner::NPerBlock; ++i) 
+            {
+                printf("%.7f\n", static_cast<float>(lds_data[i]));
+            }
+
+            // Print out the c_block_window contents for debugging
+            printf("C Ptr Contents (%d x %d):\n", TilePartitioner::MPerBlock, NBlockWidth);
+            for(int m = 0; m < TilePartitioner::MPerBlock; ++m) {
+                for(int n = 0; n < NBlockWidth; ++n) {
+                    int idx = m * NBlockWidth + n;
+                    printf("%.7f ", static_cast<float>(c_ptr[idx]));
+                    if((n + 1) % NBlockWidth == 0) printf("\n  "); // Line break every NBlockWidth elements for readability
+                }
+                printf("\n");
+            }
+        }
+        __syncthreads();
     }
 
     /**
@@ -889,12 +945,6 @@ struct GroupedConvolutionBackwardWeightKernel
         const InDataType* b_ptr  = static_cast<const InDataType*>(kargs.in_ptr) + group_offset_b;
         WeiDataType* c_ptr       = static_cast<WeiDataType*>(kargs.wei_ptr) + group_offset_c;
 
-        // allocate LDS
-        if constexpr (GroupedConvTraitsType_::NumGroupsToMerge > 1)
-        {
-            static_assert(GetSmemSize() >= TilePartitioner_::MPerBlock * TilePartitioner_::NPerBlock * sizeof(OutDataType),
-                          "Not enough LDS for NumGroupsToMerge > 1!"); 
-        }
         __shared__ char smem_ptr_0[GetSmemSize()];
 
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)

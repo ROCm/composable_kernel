@@ -422,7 +422,7 @@ struct TransformConvBwdWeightToGemm
 
         if constexpr (NumGroupsToMerge > 1)
         {
-            const index_t BatchStride = G_;
+            const index_t BatchStride = K_;
             return make_naive_tensor_descriptor(
                 make_tuple(K_, NumGroupsToMerge,   N_ * Wo_),
                 make_tuple(KStride, BatchStride, NDoHoWoStride));
@@ -524,10 +524,10 @@ struct TransformConvBwdWeightToGemm
         // NHWGK
         const index_t NDoHoWoStride = G_ * K_;
         constexpr auto KStride = I1;
-        
+
         if constexpr (NumGroupsToMerge > 1)
         {
-            const index_t BatchStride = G_;
+            const index_t BatchStride = K_;
             return make_naive_tensor_descriptor(
                 make_tuple(K_, NumGroupsToMerge,  N_ * Ho_ * Wo_),
                 make_tuple(KStride, BatchStride, NDoHoWoStride));
@@ -632,7 +632,7 @@ struct TransformConvBwdWeightToGemm
         
         if constexpr (NumGroupsToMerge > 1)
         {
-            const auto BatchStride = G_;
+            const auto BatchStride = K_;
             return make_naive_tensor_descriptor(
                 make_tuple(K_, NumGroupsToMerge, N_ * Do_ * Ho_ * Wo_),
                 make_tuple(KStride, BatchStride, NDoHoWoStride));
@@ -834,7 +834,7 @@ struct TransformConvBwdWeightToGemm
         {
             // Output tensor transformation
             // [0,  1,         2] -> [0,              1]
-            // [Gm, K, (N*Ho*Wo)] -> [(K*Gm), (N*Ho*Wo)]
+            // [K, Gm, (N*Ho*Wo)] -> [(K*Gm), (N*Ho*Wo)]
             const auto out_gemm_m_gemm_k_grid_desc = 
                 transform_tensor_descriptor(
                     out_grid_desc,

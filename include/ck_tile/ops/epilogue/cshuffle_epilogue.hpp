@@ -260,6 +260,31 @@ struct CShuffleEpilogue
         return MPerIterationShuffle * NPerIterationShuffle * sizeof(ODataType);
     }
 
+    // template <typename DataType, typename StaticTileDistribution>
+    // CK_TILE_DEVICE void print_tensor_matrix_format(
+    //     const static_distributed_tensor<DataType, StaticTileDistribution>& tensor,
+    //     const char* /*name = "tensor_matrix"*/)
+    // {
+    //     const auto spans = tensor.get_distributed_spans();
+    //     //static_assert(spans.size() == 2, "This function is for 2D tensors only");
+        
+    //     const auto dim0_span = spans[number<0>{}];
+    //     const auto dim1_span = spans[number<1>{}];
+        
+    //     //printf("%s matrix format (tid %u):\n", name, threadIdx.x);
+        
+    //     sweep_tile_span(dim0_span, [&](auto row) {
+    //         printf("  ");
+    //         sweep_tile_span(dim1_span, [&](auto col) {
+    //             constexpr auto distributed_indices = make_tuple(row, col);
+    //             const auto value = tensor[distributed_indices];
+    //             printf("tid %u: %.7f\n", threadIdx.x, static_cast<float>(value));
+    //         });
+    //         //printf("\n");
+    //     });
+    //     //printf("\n");
+    // }
+
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows>
     CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
                                    const OAccTile& o_acc_tile,
@@ -270,151 +295,155 @@ struct CShuffleEpilogue
         return unmerged_op(out_dram_window, o_acc_tile, ds_dram_windows, p_smem);
     }
 
-    template <index_t MPerGroup, index_t NPerGroup, typename ODramWindow, typename OAccTile, typename DsDramWindows>
-    CK_TILE_DEVICE auto merged_op(ODramWindow& out_dram_window,
-                                   const OAccTile& o_acc_tile,
-                                   const DsDramWindows& ds_dram_windows,
-                                   void* p_smem)
-    {
-        constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
-        auto lds_tile = make_static_distributed_tensor<AccDataType>(LdsTileDistr);
+    // template <index_t MPerGroup, index_t NPerGroup, typename ODramWindow, typename OAccTile, typename DsDramWindows>
+    // CK_TILE_DEVICE auto merged_op(ODramWindow& out_dram_window,
+    //                                const OAccTile& o_acc_tile,
+    //                                const DsDramWindows& ds_dram_windows,
+    //                                void* p_smem)
+    // {
+    //     constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
+    //     auto lds_tile = make_static_distributed_tensor<AccDataType>(LdsTileDistr);
 
-        constexpr auto lds_block_desc = MakeLdsBlockDescriptor<Problem>();
+    //     constexpr auto lds_block_desc = MakeLdsBlockDescriptor<Problem>();
 
-        auto o_lds_block              = make_tensor_view<address_space_enum::lds>(
-            static_cast<ODataType*>(p_smem), lds_block_desc);
+    //     auto o_lds_block              = make_tensor_view<address_space_enum::lds>(
+    //         static_cast<ODataType*>(p_smem), lds_block_desc);
 
-        auto in_lds_window = make_tile_window(
-            o_lds_block,
-            make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
-            {0, 0},
-            LdsTileDistr);
+    //     auto in_lds_window = make_tile_window(
+    //         o_lds_block,
+    //         make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
+    //         {0, 0},
+    //         LdsTileDistr);
 
-        using SFC = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
-                                    sequence<0, 1>,
-                                    sequence<MPerIterationShuffle, NPerIterationShuffle>>;
+    //     using SFC = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
+    //                                 sequence<0, 1>,
+    //                                 sequence<MPerIterationShuffle, NPerIterationShuffle>>;
 
-        constexpr index_t num_access = SFC::get_num_of_access();
+    //     constexpr index_t num_access = SFC::get_num_of_access();
 
-        static_assert(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
-                    "Currently, the CShuffle Epilogue only supports the Row Major Output layout");
+    //     static_assert(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
+    //                 "Currently, the CShuffle Epilogue only supports the Row Major Output layout");
 
-        constexpr auto c_warp_y_lengths =
-            to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
-        constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
+    //     constexpr auto c_warp_y_lengths =
+    //         to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
+    //     constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
-        // Store full data to LDS.
-        // TODO: No need to store the full data, only the diagnoal blocks are needed.
-        // Note that in the current data layout, it is not easy to store only the diagonal blocks.
-        block_sync_lds();
-        static_for<0, num_access, 1>{}([&](auto iAccess) {
+    //     // Store full data to LDS.
+    //     // TODO: No need to store the full data, only the diagnoal blocks are needed.
+    //     // Note that in the current data layout, it is not easy to store only the diagonal blocks.
+    //     block_sync_lds();
+    //     static_for<0, num_access, 1>{}([&](auto iAccess) {
             
-            constexpr auto idx_y_start = SFC::get_index(iAccess);
+    //         constexpr auto idx_y_start = SFC::get_index(iAccess);
 
-            constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (MPerIterationShuffle)>{};
-            constexpr auto nIter = number<idx_y_start.at(number<1>{}) / (NPerIterationShuffle)>{};
+    //         constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (MPerIterationShuffle)>{};
+    //         constexpr auto nIter = number<idx_y_start.at(number<1>{}) / (NPerIterationShuffle)>{};
 
-            lds_tile.get_thread_buffer() = o_acc_tile.get_y_sliced_thread_data(
-                merge_sequences(
-                    sequence<mIter * NumMXdlPerWavePerShuffle, nIter * NumNXdlPerWavePerShuffle>{},
-                    c_warp_y_index_zeros),
-                merge_sequences(sequence<NumMXdlPerWavePerShuffle, NumNXdlPerWavePerShuffle>{},
-                                c_warp_y_lengths));
+    //         lds_tile.get_thread_buffer() = o_acc_tile.get_y_sliced_thread_data(
+    //             merge_sequences(
+    //                 sequence<mIter * NumMXdlPerWavePerShuffle, nIter * NumNXdlPerWavePerShuffle>{},
+    //                 c_warp_y_index_zeros),
+    //             merge_sequences(sequence<NumMXdlPerWavePerShuffle, NumNXdlPerWavePerShuffle>{},
+    //                             c_warp_y_lengths));
 
-            const auto c_warptile_in_tensor_casted = cast_tile<ODataType>(lds_tile);
+    //         const auto c_warptile_in_tensor_casted = cast_tile<ODataType>(lds_tile);
 
-            store_tile(in_lds_window, c_warptile_in_tensor_casted);
+    //         store_tile(in_lds_window, c_warptile_in_tensor_casted);
             
-            if constexpr(iAccess != num_access - 1)
-            {
-                constexpr auto step = SFC::get_forward_step(iAccess);
+    //         if constexpr(iAccess != num_access - 1)
+    //         {
+    //             constexpr auto step = SFC::get_forward_step(iAccess);
 
-                move_tile_window(in_lds_window, {step.at(number<0>{}), step.at(number<1>{})});
-            }
-        });
-        block_sync_lds();
+    //             move_tile_window(in_lds_window, {step.at(number<0>{}), step.at(number<1>{})});
+    //         }
+    //     });
+    //     block_sync_lds();
 
-        constexpr index_t Gs = NumGroupsToMerge;
-        constexpr index_t MBlockWidth = kMPerBlock / Gs;
-        constexpr index_t NBlockWidth = kNPerBlock / Gs;      
+    //     constexpr index_t Gs = NumGroupsToMerge;
+    //     constexpr index_t MBlockWidth = kMPerBlock / Gs;
+    //     constexpr index_t NBlockWidth = kNPerBlock / Gs;      
 
-        // Tile enconding for a single group (diagonal block in LDS)
-        constexpr auto dram_tile_encoding = tile_distribution_encoding<
-            sequence<>,
-            tuple<sequence<1, 1, MPerGroup, 1>, 
-                sequence<1, 1, NPerGroup, 1>>,
-            tuple<sequence<1,2>, sequence<1,2>>,
-            tuple<sequence<1,1>, sequence<2,2>>, 
-            sequence<1, 1, 2, 2>, 
-            sequence<0, 3, 0, 3>>{};
-        constexpr auto dram_tile_distribution = make_static_tile_distribution(dram_tile_encoding);
+    //     // Tile enconding for a single group (diagonal block in LDS)
+    //     constexpr auto dram_tile_encoding = tile_distribution_encoding<
+    //         sequence<>,
+    //         tuple<sequence<1, 1, MPerGroup, 1>, 
+    //             sequence<1, 1, NPerGroup, 1>>,
+    //         tuple<sequence<1,2>, sequence<1,2>>,
+    //         tuple<sequence<1,1>, sequence<2,2>>, 
+    //         sequence<1, 1, 2, 2>, 
+    //         sequence<0, 3, 0, 3>>{};
+    //     constexpr auto dram_tile_distribution = make_static_tile_distribution(dram_tile_encoding);
 
-        // The LDS data has the following 4D layout in the row-major case.
-        // linear_index = c + Gs * n + Gs * NBlockWidth * m + Gs * MBlockWidth * NBlockWidth * r
-        // for 4D coordinates (r,c,m,n) where (r,c) is the group index and (m,n) is the index within the group.
-        // Within the sub-block, we have column-major layout (n is the faster index).
-        // We pick-up only the diagonal blocks where r == c.
-        // For each block, the tile distribution and the tensor descriptors are the same.
-        // The only thing that changes is the p_smem offset.
-        constexpr auto lds_block_desc_2d = make_naive_tensor_descriptor(
-            make_tuple(number<MBlockWidth>{}, number<NBlockWidth>{}),
-            make_tuple(number<Gs * NBlockWidth>{}, number<Gs>{}));
+    //     // The LDS data has the following 4D layout in the row-major case.
+    //     // linear_index = c + Gs * n + Gs * NBlockWidth * m + Gs * MBlockWidth * NBlockWidth * r
+    //     // for 4D coordinates (r,c,m,n) where (r,c) is the group index and (m,n) is the index within the group.
+    //     // Within the sub-block, we have column-major layout (n is the faster index).
+    //     // We pick-up only the diagonal blocks where r == c.
+    //     // For each block, the tile distribution and the tensor descriptors are the same.
+    //     // The only thing that changes is the p_smem offset.
+    //     constexpr auto lds_block_desc_2d = make_naive_tensor_descriptor(
+    //         make_tuple(number<MBlockWidth>{}, number<NBlockWidth>{}),
+    //         make_tuple(number<Gs * NBlockWidth>{}, number<Gs>{}));
 
-        // Loop over the groups (diagonal blocks in LDS)
-        static_for<0, Gs, 1>{}([&](auto g) {
-            block_sync_lds();
+    //     // Loop over the groups (diagonal blocks in LDS)
+    //     static_for<0, Gs, 1>{}([&](auto g) {
+    //         block_sync_lds();
 
-            // With to the single diagonal block of LDS. 
-            // This block may have more elements that the actual output groups contains
-            // because we have MPerGroup <= MBlockWidth and NPerGroup <= NBlockWidth. 
-            constexpr index_t group_offset = g * (1 + Gs* MBlockWidth * NBlockWidth * MPerGroup);
-            auto lds_view = make_tensor_view<address_space_enum::lds>(
-                         static_cast<ODataType*>(p_smem) + group_offset, lds_block_desc_2d);
+    //         // With to the single diagonal block of LDS. 
+    //         // This block may have more elements that the actual output groups contains
+    //         // because we have MPerGroup <= MBlockWidth and NPerGroup <= NBlockWidth. 
+    //         constexpr index_t group_offset = g * (1 + Gs* MBlockWidth * NBlockWidth * MPerGroup);
+    //         auto lds_view = make_tensor_view<address_space_enum::lds>(
+    //                      static_cast<ODataType*>(p_smem) + group_offset, lds_block_desc_2d);
 
-            auto d_dram_windows = generate_tuple(
-                [&](auto idx) {
-                    return make_tile_window(ds_dram_windows[idx], dram_tile_distribution);
-                },
-                number<NumDTensor>{});
+    //         auto d_dram_windows = generate_tuple(
+    //             [&](auto idx) {
+    //                 return make_tile_window(ds_dram_windows[idx], dram_tile_distribution);
+    //             },
+    //             number<NumDTensor>{});
 
-            const auto lds_window = make_tile_window(
-                lds_view,
-                make_tuple(number<MPerGroup>{}, number<NPerGroup>{}),
-                {0, 0},
-                dram_tile_distribution);
+    //         const auto lds_window = make_tile_window(
+    //             lds_view,
+    //             make_tuple(number<MPerGroup>{}, number<NPerGroup>{}),
+    //             {0, 0},
+    //             dram_tile_distribution);
 
-            auto c_out_tensor = load_tile(lds_window);
+    //         auto c_out_tensor = load_tile(lds_window);
 
-            const auto ds_tensor = generate_tuple(
-                [&](auto idx) { return load_tile(d_dram_windows[idx]); }, number<NumDTensor>{});
+    //         // DEBUG: Print out the c_out_tensor contents for debugging
+    //         print_tensor_matrix_format(c_out_tensor, "c_out_tensor");
+    //         __syncthreads();
 
-            const auto c_ds_tiles = concat_tuple_of_reference(
-                tie(c_out_tensor, c_out_tensor),
-                generate_tie([&](auto idx) -> const auto& { return ds_tensor[idx]; },
-                            number<NumDTensor>{}));
+    //         const auto ds_tensor = generate_tuple(
+    //             [&](auto idx) { return load_tile(d_dram_windows[idx]); }, number<NumDTensor>{});
 
-            tile_elementwise_inout_unpack(typename Problem::CDElementwise{}, c_ds_tiles);
+    //         const auto c_ds_tiles = concat_tuple_of_reference(
+    //             tie(c_out_tensor, c_out_tensor),
+    //             generate_tie([&](auto idx) -> const auto& { return ds_tensor[idx]; },
+    //                         number<NumDTensor>{}));
 
-            if constexpr(MemoryOperation == memory_operation_enum::set)
-            {
-                store_tile(out_dram_window, c_out_tensor);
-            }
-            else
-            {
-                update_tile(out_dram_window, c_out_tensor);
-            }
+    //         tile_elementwise_inout_unpack(typename Problem::CDElementwise{}, c_ds_tiles);
 
-            // Move the output window to the next group position.
-            if constexpr(g != Gs - 1)
-            {
-                move_tile_window(out_dram_window, {number<MPerGroup>{}, 0});
+    //         if constexpr(MemoryOperation == memory_operation_enum::set)
+    //         {
+    //             store_tile(out_dram_window, c_out_tensor);
+    //         }
+    //         else
+    //         {
+    //             update_tile(out_dram_window, c_out_tensor);
+    //         }
 
-                static_for<0, NumDTensor, 1>{}([&](auto idx) {
-                    move_tile_window(d_dram_windows[idx], {number<MPerGroup>{}, 0});
-                });
-            }
-        });
-    }
+    //         // Move the output window to the next group position.
+    //         if constexpr(g != Gs - 1)
+    //         {
+    //             move_tile_window(out_dram_window, {number<MPerGroup>{}, 0});
+
+    //             static_for<0, NumDTensor, 1>{}([&](auto idx) {
+    //                 move_tile_window(d_dram_windows[idx], {number<MPerGroup>{}, 0});
+    //             });
+    //         }
+    //     });
+    // }
 
     template <typename ODramWindow, typename OAccTile, typename DsDramWindows>
     CK_TILE_DEVICE auto unmerged_op(ODramWindow& out_dram_window,
