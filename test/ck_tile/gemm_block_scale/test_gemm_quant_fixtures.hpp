@@ -24,6 +24,7 @@ struct GemmConfigBase
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
     static constexpr bool PreshuffleQuant           = false;
+    static constexpr bool PreshuffleB               = false;
     static constexpr bool DoubleSmemBuffer          = false;
 
     // Default GEMM tile sizes for tests
@@ -38,6 +39,57 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = 32;
+};
+
+struct GemmConfigPreshuffleQuant : public GemmConfigBase
+{
+    static constexpr bool PreshuffleQuant = true;
+};
+
+struct GemmConfigTransposeC : public GemmConfigBase
+{
+    static constexpr bool TransposeC = true;
+};
+
+struct GemmConfigPreshuffleQuantTransposeC : public GemmConfigBase
+{
+    static constexpr bool PreshuffleQuant = true;
+    static constexpr bool TransposeC      = true;
+};
+
+struct GemmConfigPreshuffleB
+{
+    static constexpr bool kPadM = false;
+    static constexpr bool kPadN = false;
+    static constexpr bool kPadK = false;
+
+    static constexpr bool PermuteA = false;
+    static constexpr bool PermuteB = false;
+
+    static constexpr bool TransposeC            = false;
+    static constexpr bool UseStructuredSparsity = false;
+
+    static constexpr int kBlockPerCu                         = 1;
+    static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
+    static constexpr ck_tile::index_t TileParitionerM01      = 4;
+    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
+    static constexpr bool PreshuffleQuant           = false;
+    static constexpr bool PreshuffleB               = true;
+    static constexpr bool DoubleSmemBuffer          = true;
+
+    // Default GEMM tile sizes for tests
+    static constexpr ck_tile::index_t M_Tile = 16;
+    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 256;
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 64;
 };
 
 template <typename Tuple>
@@ -63,6 +115,24 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     protected:
     void SetUpQuantTypeSpecific() {}
     void TearDownQuantTypeSpecific() {}
+
+    template <typename T>
+    auto shuffle_aq(const ck_tile::HostTensor<T>* t, int block_aq_k)
+    {
+        if(t->get_lengths().size() != 2)
+        {
+            throw std::runtime_error("Host tensor is not rank 2 tensor.");
+        }
+        int m_   = t->get_lengths()[0];
+        int aqk_ = t->get_lengths()[1];
+        if(aqk_ % block_aq_k != 0)
+        {
+            throw std::runtime_error("shuffle_aq needs a aqk of multiple times of block_aq_k.");
+        }
+        ck_tile::HostTensor<T> t_view({m_, aqk_ / block_aq_k, block_aq_k});
+        std::copy(t->begin(), t->end(), t_view.begin());
+        return ck_tile::reference_permute(t_view, {1, 0, 2});
+    }
 
     // AQuant-specific data generation
     void run_test_with_validation(ck_tile::index_t M, ck_tile::index_t N, ck_tile::index_t K)
@@ -114,7 +184,17 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         {
             a_m_k_dev_buf.ToDevice(a_m_k.data());
         }
-        aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());
+        // aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());
+        if constexpr(Base::GemmConfig::PreshuffleQuant)
+        {
+            ck_tile::HostTensor<QDataType> aq_shuffle_host =
+                shuffle_aq(&aq_m_aqk, Base::GemmConfig::K_Tile / QuantGroupSize);
+            aq_m_aqk_dev_buf.ToDevice(aq_shuffle_host.data());
+        }
+        else
+        {
+            aq_m_aqk_dev_buf.ToDevice(aq_m_aqk.data());
+        }
         b_k_n_dev_buf.ToDevice(b_k_n.data());
 
         // Create args for kernel execution
@@ -209,7 +289,7 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
             constexpr bool has_hot_loop_v = has_hot_loop_.value;
             constexpr auto tail_number_v  = tail_number_.value;
-            constexpr bool transpose_c    = false;
+            constexpr bool transpose_c    = CodegenGemmTraits::TransposeC;
 
             using PipelineProblem =
                 ck_tile::GemmAQuantPipelineProblem<ADataType,
@@ -288,6 +368,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
 
     static constexpr auto QuantType          = Base::QuantType;
     static constexpr uint32_t QuantGroupSize = Base::QuantGroupSize;
+    static constexpr auto PreshuffleB        = Base::PreshuffleB;
 
     protected:
     void SetUpQuantTypeSpecific() {}
@@ -324,16 +405,23 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
 
         // Copy to device
         a_m_k_dev_buf.ToDevice(a_m_k.data());
+        ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
         if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
         {
-            // Permute vector pk_i4x4 data for device implementation
-            ck_tile::HostTensor<BDataType> temp = b_k_n;
-            ck_tile::permute_vectors_i4x4_b(temp);
-            b_k_n_dev_buf.ToDevice(temp.data());
+            if constexpr(PreshuffleB)
+            {
+                b_k_n_dev = this->shuffle_b(b_k_n);
+            }
+            ck_tile::permute_vectors_i4x4_b(b_k_n_dev);
+            b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
         }
         else
         {
-            b_k_n_dev_buf.ToDevice(b_k_n.data());
+            if constexpr(PreshuffleB)
+            {
+                b_k_n_dev = this->shuffle_b(b_k_n);
+            }
+            b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
         }
         bq_bqk_n_dev_buf.ToDevice(bq_bqk_n.data());
 
@@ -419,7 +507,10 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
                                                                      CodegenGemmTraits,
                                                                      ComputeDataType>;
 
-        using BaseGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>;
+        using BaseGemmPipeline = std::conditional_t<
+            PreshuffleB == false,
+            ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
+            ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>>;
 
         const ck_tile::index_t K_split  = (args.K + Base::K_Tile - 1) / Base::K_Tile * Base::K_Tile;
         const ck_tile::index_t num_loop = TilePartitioner::GetLoopNum(K_split);
@@ -443,7 +534,11 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
                                                    has_hot_loop_v,
                                                    tail_number_v>;
 
-            using GemmPipeline = ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>;
+            using GemmPipeline =
+                std::conditional_t<PreshuffleB == false,
+                                   ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
+                                   ck_tile::WPQuantBPipelineAgBgCrV2<PipelineProblem>>;
+
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,
@@ -484,6 +579,11 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
 
         return BaseGemmPipeline::TailHandler(Run, has_hot_loop, tail_num);
     }
+};
+
+template <typename Tuple>
+class TestCkTileGemmPreshuffleBBQuant : public TestCkTileGemmBQuant<Tuple>
+{
 };
 
 // RowColQuant-specific test fixture
@@ -645,7 +745,7 @@ class TestCkTileGemmRowColQuant
         const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
             constexpr bool has_hot_loop_v = has_hot_loop_.value;
             constexpr auto tail_number_v  = tail_number_.value;
-            constexpr bool transpose_c    = false;
+            constexpr bool transpose_c    = CodegenGemmTraits::TransposeC;
 
             using PipelineProblem = ck_tile::GemmRowColTensorQuantPipelineProblem<
                 ADataType,
@@ -860,7 +960,7 @@ class TestCkTileGemmTensorQuant
         const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
             constexpr bool has_hot_loop_v = has_hot_loop_.value;
             constexpr auto tail_number_v  = tail_number_.value;
-            constexpr bool transpose_c    = false;
+            constexpr bool transpose_c    = CodegenGemmTraits::TransposeC;
 
             using PipelineProblem = ck_tile::GemmRowColTensorQuantPipelineProblem<
                 ADataType,

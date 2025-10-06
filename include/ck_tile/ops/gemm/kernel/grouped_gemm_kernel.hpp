@@ -324,10 +324,18 @@ struct GroupedGemmKernel
         }
         else // SingleSmemBuffer
         {
+
             if constexpr(UsePersistentKernel)
             {
-                RunGemmWithPipelineSelection(
-                    a_ptr, b_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
+                RunGemmWithPipelineSelection(a_ptr,
+                                             b_ptr,
+                                             kargs.ds_ptr,
+                                             c_ptr,
+                                             smem_ptr_0,
+                                             kargs,
+                                             splitk_batch_offset,
+                                             i_m,
+                                             i_n);
             }
             else // Non-persistent kernel
             {
@@ -365,6 +373,7 @@ struct GroupedGemmKernel
     CK_TILE_DEVICE static void
     RunGemmWithPipelineSelection(const ADataType* a_ptr,
                                  const BDataType* b_ptr,
+                                 const std::array<const void*, NumDTensor_>& ds_ptr,
                                  CDataType* c_ptr,
                                  void* smem_ptr_0,
                                  const UniversalGemmKernelArgs<1, 1, NumDTensor_>& kargs,
@@ -375,7 +384,7 @@ struct GroupedGemmKernel
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
             Base::template MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
-                {a_ptr}, {b_ptr}, {/*ds_ptr*/}, c_ptr, kargs, splitk_batch_offset.splitted_k);
+                {a_ptr}, {b_ptr}, ds_ptr, c_ptr, kargs, splitk_batch_offset.splitted_k);
 
         const auto& gemm_pad_views = Base::MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows =
