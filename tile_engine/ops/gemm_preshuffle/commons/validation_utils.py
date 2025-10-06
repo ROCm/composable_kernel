@@ -35,7 +35,6 @@ WARP_TILE_SUPPORTED_COMBINATIONS = {
             [16, 16, 16],
             [32, 32, 16],
             [16, 16, 32],
-            [4, 64, 16],
             [64, 4, 16],
         ],
         "bf16_bf16_bf16": [
@@ -43,7 +42,6 @@ WARP_TILE_SUPPORTED_COMBINATIONS = {
             [16, 16, 16],
             [32, 32, 16],
             [16, 16, 32],
-            [4, 64, 16],
             [64, 4, 16],
         ],
         "fp8_fp8_fp16": [[32, 32, 16], [32, 32, 32]],
@@ -55,7 +53,6 @@ WARP_TILE_SUPPORTED_COMBINATIONS = {
             [16, 16, 16],
             [32, 32, 16],
             [16, 16, 32],
-            [4, 64, 16],
             [64, 4, 16],
         ],
         "bf16_bf16_bf16": [
@@ -63,7 +60,6 @@ WARP_TILE_SUPPORTED_COMBINATIONS = {
             [16, 16, 16],
             [32, 32, 16],
             [16, 16, 32],
-            [4, 64, 16],
             [64, 4, 16],
         ],
         "fp8_fp8_fp16": [[32, 32, 16], [32, 32, 32], [16, 16, 32], [16, 16, 64]],
@@ -76,7 +72,6 @@ WARP_TILE_SUPPORTED_COMBINATIONS = {
             [16, 16, 16],
             [32, 32, 16],
             [16, 16, 32],
-            [4, 64, 16],
             [64, 4, 16],
         ],
         "bf16_bf16_bf16": [
@@ -84,7 +79,6 @@ WARP_TILE_SUPPORTED_COMBINATIONS = {
             [16, 16, 16],
             [32, 32, 16],
             [16, 16, 32],
-            [4, 64, 16],
             [64, 4, 16],
         ],
         "fp8_fp8_fp16": [
@@ -297,6 +291,15 @@ def is_tile_config_valid(
         return False
     if warp_k * warp_tile_k > tile_k:
         return False
+    
+    # Validate vector load alignment
+    m_iter_per_warp = tile_m / (warp_m * warp_tile_m);
+    vector_valid, vector_error = validate_vector_load_alignment(
+        warp_tile_m, warp_tile_k, a_datatype, m_iter_per_warp, wave_size=64, vector_load_size=16
+    )
+    if not vector_valid:
+        logging.debug(f"Vector load alignment failed: {vector_error}")
+        return False
 
     # Validate warp configuration
     if not validate_warp_configuration(warp_m, warp_n, warp_k):
@@ -343,6 +346,34 @@ def is_tile_config_valid(
 
     return True
 
+def validate_vector_load_alignment(
+    wg_m: int,
+    wg_k: int,
+    a_datatype: str,
+    m_iter_per_warp: int,
+    wave_size: int,
+    vector_load_size: int
+) -> Tuple[bool, str]:
+
+    try:
+        # Calculate the memory access pattern size
+        a_element_size = element_size(a_datatype)
+        access_size = (wg_m * wg_k * a_element_size * m_iter_per_warp) / wave_size
+        
+        # Check if it's aligned to vector load size
+        if access_size % vector_load_size != 0:
+            error_msg = (
+                f"Vector load alignment violation: "
+                f"({wg_m} * {wg_k} * {a_element_size} * {m_iter_per_warp} / {wave_size}) "
+                f"% {vector_load_size} = {access_size % vector_load_size} != 0. "
+                f"Access size: {access_size} bytes"
+            )
+            return False, error_msg
+            
+        return True, ""
+        
+    except Exception as e:
+        return False, f"Error in vector load validation: {str(e)}"
 
 # [TODO] Handle this while moving code to commons Add more datatype to this function if needed
 def get_dtype_string(datatype: str) -> str:
