@@ -1594,6 +1594,15 @@ pipeline {
             }
             parallel
             {
+                stage("Build Coordination") {
+                    agent{ label rocmnode("nogpu") }
+                    steps {
+                        script {
+                            echo "Coordinating Build CK and run Tests stage execution"
+                            echo "CI execution status: ${env.SHOULD_RUN_CI}"
+                        }
+                    }
+                }
                 stage("Build CK with RHEL8")
                 {
                     when {
