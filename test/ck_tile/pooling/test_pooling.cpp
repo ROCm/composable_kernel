@@ -108,10 +108,6 @@ class TestCkTilePooling : public ::testing::Test
         constexpr ck_tile::index_t kBlockPerCu = 1;
         const ck_tile::index_t kBlockSize      = Kernel::BlockSize();
 
-        const ck_tile::index_t M = config.N * Do * Ho * Wo * config.C;
-        const ck_tile::index_t kGridSize =
-            (M + BlockTile_::at(ck_tile::number<0>{}) - 1) / BlockTile_::at(ck_tile::number<0>{});
-
         auto host_args =
             ck_tile::PoolHostArgs<decltype(input_shape), decltype(window_spatial_lengths)>{
                 static_cast<InDataType*>(d_in_mem.GetDeviceBuffer()),
@@ -127,6 +123,8 @@ class TestCkTilePooling : public ::testing::Test
                 input_right_pads};
 
         auto kernel_args = Kernel::MakeKernelArgs(host_args);
+
+        const ck_tile::index_t kGridSize = Kernel::CalculateGridSize(kernel_args);
 
         if(!Kernel::IsSupportedArgument(kernel_args))
         {

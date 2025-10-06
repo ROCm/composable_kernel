@@ -13,7 +13,7 @@ template <typename InDataType_,
           typename IndexDataType_,
           typename ReduceOp_,
           bool OutputIndex_,
-          bool PropogateNan_,
+          bool PropagateNan_,
           typename BlockShape_>
 struct PoolProblem
 {
@@ -24,7 +24,7 @@ struct PoolProblem
     using BlockShape      = remove_cvref_t<BlockShape_>;
     using ReduceOp        = ReduceOp_;
     using OutputIndex     = bool_constant<OutputIndex_>;
-    using PropogateNan    = bool_constant<PropogateNan_>;
+    using PropagateNan    = bool_constant<PropagateNan_>;
 
     static constexpr bool kNeedCrossLaneSync = BlockShape::ThreadPerWarp_N > 1;
     static constexpr bool kNeedCrossWarpSync = BlockShape::WarpPerBlock_N > 1;

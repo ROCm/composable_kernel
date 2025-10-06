@@ -128,12 +128,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     constexpr ck_tile::index_t kBlockPerCu = 1;
     const ck_tile::index_t kBlockSize      = Kernel::BlockSize();
 
-    // M dimension = merged (N,Do,Ho,Wo,C)
-    const ck_tile::index_t M = N * Do * Ho * Wo * C;
-    const ck_tile::index_t kGridSize =
-        (M + BlockTile::at(ck_tile::number<0>{}) - 1) / BlockTile::at(ck_tile::number<0>{});
-    std::cout << "grid size " << kGridSize << std::endl;
-
     auto host_args = ck_tile::PoolHostArgs<decltype(input_shape), decltype(window_spatial_lengths)>{
         static_cast<InDataType*>(in_buf.GetDeviceBuffer()),
         static_cast<OutDataType*>(out_buf.GetDeviceBuffer()),
@@ -149,6 +143,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     auto kernel_args = Kernel::MakeKernelArgs(host_args);
 
+    const ck_tile::index_t kGridSize = Kernel::CalculateGridSize(kernel_args);
+    std::cout << "grid size " << kGridSize << std::endl;
+
     // Validate kernel can handle the given configuration
     if(!Kernel::IsSupportedArgument(kernel_args))
     {
@@ -159,7 +156,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
         ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
         ck_tile::make_kernel<kBlockPerCu>(Kernel{}, kGridSize, kBlockSize, 0, kernel_args));
 
-    std::size_t num_btype = sizeof(InDataType) * N * D * H * W * C + sizeof(OutDataType) * M;
+    std::size_t num_btype =
+        sizeof(InDataType) * N * D * H * W * C + sizeof(OutDataType) * N * Do * Ho * Wo * C;
 
     float gb_per_sec = num_btype / 1.E6 / ave_time;
 

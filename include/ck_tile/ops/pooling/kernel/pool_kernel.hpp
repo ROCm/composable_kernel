@@ -361,7 +361,7 @@ struct Pool
                 return MakeView3D(kargs);
             else
                 static_assert(WindowShape::size() == 2 || WindowShape::size() == 3,
-                              "wrong! only 2D and 3D pooling are supported");
+                              "Unsupported WindowShape rank: only 2D or 3D pooling is supported");
         }();
 
         auto reduce_op = typename Problem::ReduceOp{};
@@ -457,6 +457,23 @@ struct Pool
 
         return true;
     }
+
+    /// @param kargs The pooling kernel arguments
+    /// @return The calculated grid size
+    template <typename TensorShape, typename WindowShape>
+    CK_TILE_HOST static constexpr index_t
+    CalculateGridSize(PoolKernelArgs<TensorShape, WindowShape> kargs)
+    {
+        using S = typename Problem::BlockShape;
+
+        // Calculate total output elements (M dimension)
+        index_t M = 1;
+        static_for<0, TensorShape::size(), 1>{}([&](auto i) { M *= kargs.output_shape.at(i); });
+
+        // Calculate grid size: ceil(M / Block_M)
+        return (M + S::Block_M - 1) / S::Block_M;
+    }
+
     /// @brief Create kernel arguments from host arguments
     template <typename TensorShape, typename WindowShape>
     CK_TILE_HOST static constexpr auto

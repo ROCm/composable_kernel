@@ -1,6 +1,6 @@
 # Pooling Operator
 
-This folder contains example for the pooling operator using ck_tile tile-programming implementation.Currently the pooling kernel, only supports 2D and 3D pooling.
+This folder contains example for the pooling operator using ck_tile tile-programming implementation. Currently the pooling kernel only supports 2D and 3D pooling.
 
 ## build
 ```
