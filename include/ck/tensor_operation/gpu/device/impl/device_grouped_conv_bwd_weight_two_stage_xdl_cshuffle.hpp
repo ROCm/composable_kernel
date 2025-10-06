@@ -1745,6 +1745,11 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             {
                 return false;
             }
+            // TODO: this is needed because there is a bug
+            if(arg.k_batch_ > 1)
+            {
+                return false;
+            }
         }
 
         // Check this here, it allows to use other instances from factory even
