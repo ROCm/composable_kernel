@@ -263,7 +263,7 @@ struct CShuffleEpilogue
         }
     }
 
-    CK_TILE_HOST_DEVICE static constexpr auto MakeLdsDistributionEncode()
+    CK_TILE_DEVICE static constexpr auto MakeLdsDistributionEncode()
     {
         constexpr auto block_outer_dstr_encoding =
             tile_distribution_encoding<sequence<>,
@@ -574,7 +574,8 @@ struct CShuffleEpilogue
                                    const ScaleN& scale_n = {})
     {
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
-        auto lds_tile               = make_static_distributed_tensor<AccDataType>(LdsTileDistr);
+
+        auto lds_tile = make_static_distributed_tensor<AccDataType>(LdsTileDistr);
 
         constexpr auto lds_block_desc = MakeLdsBlockDescriptor<Problem>();
         auto o_lds_block              = make_tensor_view<address_space_enum::lds>(
@@ -601,7 +602,7 @@ struct CShuffleEpilogue
                                                   MPerIterationShuffle,
                                                   NPerIterationShuffle,
                                                   GetVectorSizeC(),
-                                                  tile_distribution_pattern::sparse_row,
+                                                  tile_distribution_pattern::thread_raked,
                                                   Problem::kNumWaveGroups>;
         constexpr auto dram_tile_distribution =
             TileEncodingPattern::make_2d_static_tile_distribution();
