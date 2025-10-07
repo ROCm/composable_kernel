@@ -25,7 +25,9 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         if constexpr(is_a_load_tr<Problem>)
         {
-            // TODO: better lds descriptor for performance
+            // TODO: better LDS descriptor for performance
+            // This branch is reusing the logic from
+            // UniversalGemmBasePolicy::MakeALdsBlockDescriptor
             constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor( //
                 make_tuple(number<KPerBlock>{}, number<MPerBlock>{}),
                 make_tuple(number<MPerBlock>{}, number<1>{}),
@@ -60,12 +62,14 @@ struct GemmPipelineAgBgCrCompAsyncDefaultPolicy
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         if constexpr(is_b_load_tr<Problem>)
         {
-            // TODO: better lds descriptor for performance
-            constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor( //
-                make_tuple(number<KPerBlock>{}, number<NPerBlock>{}),
-                make_tuple(number<NPerBlock>{}, number<1>{}),
-                number<NPerBlock>{},
-                number<1>{});
+            // TODO: better LDS descriptor for performance
+            // This branch is reusing the logic from
+            // UniversalGemmBasePolicy::MakeBLdsBlockDescriptor
+            constexpr auto b_lds_block_desc_0 =
+                make_naive_tensor_descriptor(make_tuple(number<KPerBlock>{}, number<NPerBlock>{}),
+                                             make_tuple(number<NPerBlock>{}, number<1>{}),
+                                             number<NPerBlock>{},
+                                             number<1>{});
             return b_lds_block_desc_0;
         }
         else
