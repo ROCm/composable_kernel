@@ -246,12 +246,7 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrCompV3<P
                                        index_t num_loop,
                                        void* p_smem) const
         {
-            (void)m;
-            if(get_thread_id() == 0 && get_block_id() == 0)
-            {
-                printf("PrefetchStages: %d\n", PrefetchStages);
-                printf("HasHotLoop: %d\n", HasHotLoop);
-            }
+            (void)m; // unused variable
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
                     std::is_same_v<BDataType,
@@ -490,10 +485,7 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrCompV3<P
                                    index_t num_loop,
                                    void* p_smem) const
     {
-        if(get_thread_global_1d_id() == 0)
-        {
-            printf("gemm_aquant_pipeline_ag_bg_cr_mem\n");
-        }
+
         return PipelineImpl<GemmPipelineScheduler::Interwave>{}
             .template operator()<HasHotLoop, TailNum>(
                 a_dram_block_window_tmp,

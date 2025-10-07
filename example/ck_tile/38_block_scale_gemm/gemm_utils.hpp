@@ -254,8 +254,8 @@ auto create_args(int argc, char* argv[])
         .insert("prec",
                 "fp8",
                 "data type. For AQuant: fp8/bf8/i4fp8/i4bf8, For Bquant: fp8/bf8/fp8i4/bf8i4")
-        .insert("warmup", "0", "number of iterations before benchmark the kernel")
-        .insert("repeat", "1", "number of iterations to benchmark the kernel")
+        .insert("warmup", "50", "number of iterations before benchmark the kernel")
+        .insert("repeat", "1000", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("split_k", "1", "splitK value")
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")

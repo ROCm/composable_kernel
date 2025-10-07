@@ -292,34 +292,40 @@ int run_gemm_example_with_layouts(int argc,
         {
             if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
             {
-                ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f}(b_k_n);
+                ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f, fill_seed(gen)}(
+                    b_k_n);
             }
             else
             {
-                ck_tile::FillUniformDistribution<BDataType>{-2.0f, 3.0f}(b_k_n);
+                ck_tile::FillUniformDistribution<BDataType>{-2.0f, 3.0f, fill_seed(gen)}(b_k_n);
             }
-            ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f}(*bq_tensor_ptr);
-            ck_tile::FillUniformDistribution<ADataType>{-5.0f, 5.0f}(a_m_k);
+            ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
+                *bq_tensor_ptr);
+            ck_tile::FillUniformDistribution<ADataType>{-5.0f, 5.0f, fill_seed(gen)}(a_m_k);
         }
         else if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
         {
             if constexpr(std::is_same_v<ADataType, ck_tile::pk_int4_t>)
             {
-                ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f}(a_m_k);
+                ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f, fill_seed(gen)}(
+                    a_m_k);
             }
             else
             {
-                ck_tile::FillUniformDistribution<ADataType>{-2.0f, 3.0f}(a_m_k);
+                ck_tile::FillUniformDistribution<ADataType>{-2.0f, 3.0f, fill_seed(gen)}(a_m_k);
             }
-            ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f}(*aq_tensor_ptr);
-            ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f}(b_k_n);
+            ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
+                *aq_tensor_ptr);
+            ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f, fill_seed(gen)}(b_k_n);
         }
         else
         {
-            ck_tile::FillUniformDistribution<ADataType>{-2.0f, 2.0f}(a_m_k);
-            ck_tile::FillUniformDistribution<BDataType>{-2.0f, 2.0f}(b_k_n);
-            ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f}(*aq_tensor_ptr);
-            ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f}(*bq_tensor_ptr);
+            ck_tile::FillUniformDistribution<ADataType>{-2.0f, 2.0f, fill_seed(gen)}(a_m_k);
+            ck_tile::FillUniformDistribution<BDataType>{-2.0f, 2.0f, fill_seed(gen)}(b_k_n);
+            ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
+                *aq_tensor_ptr);
+            ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
+                *bq_tensor_ptr);
         }
     }
     else if(init_method == 1)
@@ -354,8 +360,6 @@ int run_gemm_example_with_layouts(int argc,
         b_k_n.SetZero();
         bq_tensor_ptr->SetZero();
     }
-
-    a_m_k.print_first_n(std::cout, 10);
 
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
