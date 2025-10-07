@@ -6,7 +6,7 @@ General matrix multiplications operation. In CK GEMM operation is called as `Dev
 * **CLayout** - B matrix layout (RowMajor/ColumnMajor).
 * **ADataType** - A matrix data type.
 * **BDataType** - B matrix data type.
-* **CDataType** - B matrix data type.
+* **CDataType** - C matrix data type.
 * **AElementwiseOperation** - Fused operation on tensor A before GEMM.
 * **BElementwiseOperation** - Fused operation on tensor B before GEMM.
 * **CElementwiseOperation** - Fused operation on tensor C after GEMM.
