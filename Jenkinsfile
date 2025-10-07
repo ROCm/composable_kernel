@@ -1160,23 +1160,13 @@ pipeline {
         ck_git_creds = "${ck_git_creds}"
         gerrit_cred="${gerrit_cred}"
         DOCKER_BUILDKIT = "1"
-        SHOULD_RUN_CI = "false"
     }
     stages{
         stage("Determine CI Execution") {
             agent{ label rocmnode("nogpu") }
             steps {
                 script {
-                    def forceCI = params.FORCE_CI.toBoolean()
-                    def shouldRunCI = shouldRunCICheck()
-                    def finalResult = forceCI || shouldRunCI
-                    
-                    echo "DEBUG: FORCE_CI param = ${params.FORCE_CI}"
-                    echo "DEBUG: forceCI boolean = ${forceCI}"
-                    echo "DEBUG: shouldRunCICheck() = ${shouldRunCI}"
-                    echo "DEBUG: finalResult (forceCI || shouldRunCI) = ${finalResult}"
-                    
-                    env.SHOULD_RUN_CI = String.valueOf(finalResult)
+                    env.SHOULD_RUN_CI = String.valueOf(params.FORCE_CI.toBoolean() || shouldRunCICheck())
                     echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
                 }
             }
