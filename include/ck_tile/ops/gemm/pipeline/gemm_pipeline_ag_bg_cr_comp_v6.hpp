@@ -73,8 +73,7 @@ struct BaseGemmPipelineAgBgCrCompV6
 #if defined(__HIP_DEVICE_COMPILE__)
         __builtin_unreachable();
 #else
-        throw std::logic_error("Invalid TailNumber: Only TailNumber::Full and smaller than "
-                               "PrefetchStages are supported.");
+        throw std::logic_error("Invalid TailNumber: Only TailNumber::Odd and TailNumber::Even are supported in this pipeline context.");
 #endif
     }
 };
@@ -166,7 +165,10 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
                       concat('x', GetVectorSizeA(), GetVectorSizeB(),  GetVectorSizeC()),
                       concat('x', kPadM, kPadN, kPadK),
                       concat('x', TailNum),
-                      concat('_', KRepeat)); // DEBUG
+                      concat('_', KRepeat),
+                      concat('_', DoubleSmemBuffer),
+                      concat('_', Preshuffle),
+                      concat('_', HasHotLoop));
         // clang-format on
     }
 
