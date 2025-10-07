@@ -50,6 +50,66 @@ struct BlockReduce2d
 
     CK_TILE_DEVICE constexpr BlockReduce2d() {}
 
+    private:
+    // Empty types for when index tracking is not needed
+    struct EmptyIndexTensor
+    {
+        using DataType = int;
+        CK_TILE_DEVICE int operator()(auto...) const { return 0; }
+    };
+    struct EmptyIndexCalculator
+    {
+        CK_TILE_DEVICE int operator()(auto...) const { return 0; }
+    };
+
+    template <typename XDistributedTensor_,
+              typename YDistributedTensor_,
+              typename YIndexDistributedTensor_,
+              typename ReduceFunc,
+              typename IndexCalculatorFunc,
+              typename ReducePacksPerXDim>
+    CK_TILE_DEVICE void reduce_impl(const XDistributedTensor_& x_tensor,
+                                    YDistributedTensor_& y_tensor,
+                                    YIndexDistributedTensor_& y_index_tensor,
+                                    const ReduceFunc& reduce_func,
+                                    const IndexCalculatorFunc& index_calculator,
+                                    ReducePacksPerXDim)
+    {
+        constexpr bool has_index_tracking =
+            !std::is_same_v<YIndexDistributedTensor_, EmptyIndexTensor>;
+
+        sweep_tile<XDistributedTensor_>(
+            [&](auto... idx_) {
+                constexpr auto idx_0 = make_tuple(make_tuple(idx_[number<0>{}]...)[number<0>{}]);
+
+                (..., [&](auto idx) {
+                    auto val = ck_tile::type_convert<ComputeDataType>(x_tensor[idx]);
+
+                    if constexpr(Problem::kOutputIndex && has_index_tracking)
+                    {
+                        bool changed    = false;
+                        y_tensor(idx_0) = reduce_func(y_tensor(idx_0), val, changed);
+
+                        if(changed)
+                        {
+                            const auto x_indices = get_x_indices_from_distributed_indices(
+                                XDistributedTensor_::get_tile_distribution(), idx);
+                            const auto red_idx = index_calculator(x_indices);
+                            y_index_tensor(idx_0) =
+                                type_convert<typename YIndexDistributedTensor_::DataType>(red_idx);
+                        }
+                    }
+                    else
+                    {
+                        y_tensor(idx_0) = reduce_func(y_tensor(idx_0), val);
+                    }
+                }(idx_));
+            },
+            ReducePacksPerXDim{});
+    }
+
+    public:
+    // Overload for non-index tracking
     template <
         typename XDistributedTensor_,
         typename YDistributedTensor_,
@@ -61,35 +121,36 @@ struct BlockReduce2d
                                    const ReduceFunc& reduce_func,
                                    ReducePacksPerXDim = {})
     {
-        sweep_tile<XDistributedTensor_>(
-            [&](auto... idx_) {
-                constexpr auto idx_0 = make_tuple(make_tuple(idx_[number<0>{}]...)[number<0>{}]);
-                y_tensor(idx_0)      = reduce_func(
-                    y_tensor(idx_0), ck_tile::type_convert<ComputeDataType>(x_tensor[idx_])...);
-            },
-            ReducePacksPerXDim{});
+        EmptyIndexTensor empty_index_tensor{};
+        EmptyIndexCalculator empty_index_calc{};
+        reduce_impl(x_tensor,
+                    y_tensor,
+                    empty_index_tensor,
+                    reduce_func,
+                    empty_index_calc,
+                    ReducePacksPerXDim{});
+    }
 
-#if 0
-        constexpr auto I0 = number<0>{};
-        constexpr auto I1 = number<1>{};
-        constexpr auto spans = XDistributedTensor_::get_distributed_spans();
-
-        // FIXME: hard coded to reduce 2nd axis
-        sweep_tile_span(spans[I0], [&](auto dstr_idx_i0) {
-            constexpr auto y_dstr_idx = make_tuple(dstr_idx_i0);
-
-            auto y = y_tensor[y_dstr_idx];
-
-            sweep_tile_span(spans[I1], [&](auto dstr_idx_i1) {
-                constexpr auto in_dstr_idx = make_tuple(dstr_idx_i0, dstr_idx_i1);
-                const auto x = ck_tile::type_convert<ComputeDataType>(x_tensor[in_dstr_idx]);
-
-                y = reduce_func(y, x);
-            });
-
-            y_tensor(y_dstr_idx) = y;
-        });
-#endif
+    // Overload for index tracking
+    template <typename XDistributedTensor_,
+              typename YDistributedTensor_,
+              typename YIndexDistributedTensor_,
+              typename ReduceFunc,
+              typename IndexCalculatorFunc,
+              typename ReducePacksPerXDim = uniform_sequence_gen_t<2, 1>>
+    CK_TILE_DEVICE void operator()(const XDistributedTensor_& x_tensor,
+                                   YDistributedTensor_& y_tensor,
+                                   YIndexDistributedTensor_& y_index_tensor,
+                                   const ReduceFunc& reduce_func,
+                                   const IndexCalculatorFunc& index_calculator,
+                                   ReducePacksPerXDim = {})
+    {
+        reduce_impl(x_tensor,
+                    y_tensor,
+                    y_index_tensor,
+                    reduce_func,
+                    index_calculator,
+                    ReducePacksPerXDim{});
     }
 
     template <typename XDistributedTensor_>
@@ -107,6 +168,25 @@ struct BlockReduce2d
                 reduce_dims));
 
         auto tensor = make_static_distributed_tensor<ComputeDataType>(dstr);
+
+        return tensor;
+    }
+
+    template <typename XDistributedTensor_, typename IndexDataType = index_t>
+    CK_TILE_DEVICE static auto MakeYIndexBlockTile()
+    {
+        static_assert(std::is_same_v<XDataType, typename XDistributedTensor_::DataType>, "wrong!");
+
+        // FIXME: hard coded to reduce 2nd axis
+        constexpr auto reduce_dims = sequence<1>{};
+
+        constexpr auto dstr =
+            make_static_tile_distribution(detail::make_reduce_tile_distribution_encoding(
+                XDistributedTensor_::get_tile_distribution()
+                    .get_static_tile_distribution_encoding(),
+                reduce_dims));
+
+        auto tensor = make_static_distributed_tensor<IndexDataType>(dstr);
 
         return tensor;
     }
@@ -135,9 +215,49 @@ struct BlockReduce2dSync
 {
     using Problem = remove_cvref_t<Problem_>;
 
-    template <typename YDistributedTensor_, typename ReduceFunc>
-    CK_TILE_DEVICE void operator()(YDistributedTensor_& y_tensor, const ReduceFunc& reduce_func)
+    private:
+    // Empty type for when index tracking is not needed
+    struct EmptyIndexTensor
     {
+        using DataType = int;
+        struct ThreadBuffer
+        {
+            CK_TILE_DEVICE int& operator[](int)
+            {
+                static int dummy;
+                return dummy;
+            }
+            CK_TILE_DEVICE const int& operator[](int) const
+            {
+                static int dummy;
+                return dummy;
+            }
+            CK_TILE_DEVICE int& operator()(int)
+            {
+                static int dummy;
+                return dummy;
+            }
+        };
+        CK_TILE_DEVICE ThreadBuffer& get_thread_buffer()
+        {
+            static ThreadBuffer buf;
+            return buf;
+        }
+        CK_TILE_DEVICE const ThreadBuffer& get_thread_buffer() const
+        {
+            static ThreadBuffer buf;
+            return buf;
+        }
+    };
+
+    template <typename YDistributedTensor_, typename YIndexDistributedTensor_, typename ReduceFunc>
+    CK_TILE_DEVICE void reduce_impl(YDistributedTensor_& y_tensor,
+                                    YIndexDistributedTensor_& y_index_tensor,
+                                    const ReduceFunc& reduce_func)
+    {
+        constexpr bool has_index_tracking =
+            !std::is_same_v<YIndexDistributedTensor_, EmptyIndexTensor>;
+
         using Dstr             = typename YDistributedTensor_::StaticTileDistribution;
         using DstrEncode       = typename Dstr::DstrEncode;
         using DstrEncodeDetail = typename DstrEncode::detail;
@@ -156,6 +276,16 @@ struct BlockReduce2dSync
         // loop over thread data
         static_for<0, thread_buf_size, 1>{}([&](auto i) {
             auto v_local = y_tensor.get_thread_buffer()[i];
+
+            // Use conditional type for index data
+            using IndexDataType = std::
+                conditional_t<has_index_tracking, typename YIndexDistributedTensor_::DataType, int>;
+            IndexDataType idx_local{};
+
+            if constexpr(Problem::kOutputIndex && has_index_tracking)
+            {
+                idx_local = y_index_tensor.get_thread_buffer()[i];
+            }
 
             // cross-lane reduce for replication
             // only reduce on R dimension correspond to lane
@@ -183,14 +313,50 @@ struct BlockReduce2dSync
 
                         // pull data from remote lane
                         const auto v_remote = warp_shuffle(v_local, src_lane);
-                        v_local             = reduce_func(v_local, v_remote);
+
+                        if constexpr(Problem::kOutputIndex && has_index_tracking)
+                        {
+                            const auto idx_remote = warp_shuffle(idx_local, src_lane);
+                            bool changed          = false;
+                            v_local               = reduce_func(v_local, v_remote, changed);
+                            if(changed)
+                            {
+                                idx_local = idx_remote;
+                            }
+                        }
+                        else
+                        {
+                            v_local = reduce_func(v_local, v_remote);
+                        }
                     });
                 }
             });
 
             // TODO - Do we need to broadcast to other lane?
             y_tensor.get_thread_buffer()(i) = v_local;
+
+            if constexpr(Problem::kOutputIndex && has_index_tracking)
+            {
+                y_index_tensor.get_thread_buffer()(i) = idx_local;
+            }
         });
+    }
+
+    public:
+    template <typename YDistributedTensor_, typename ReduceFunc>
+    CK_TILE_DEVICE void operator()(YDistributedTensor_& y_tensor, const ReduceFunc& reduce_func)
+    {
+        EmptyIndexTensor empty_index_tensor{};
+        reduce_impl(y_tensor, empty_index_tensor, reduce_func);
+    }
+
+    template <typename YDistributedTensor_, typename YIndexDistributedTensor_, typename ReduceFunc>
+    CK_TILE_DEVICE void operator()(YDistributedTensor_& y_tensor,
+                                   YIndexDistributedTensor_& y_index_tensor,
+                                   const ReduceFunc& reduce_func)
+    {
+        reduce_impl<YDistributedTensor_, YIndexDistributedTensor_, ReduceFunc>(
+            y_tensor, y_index_tensor, reduce_func);
     }
 };
 
@@ -252,15 +418,71 @@ struct BlockReduce2dCrossWarpSync
         return num_warps * thread_buf_size * sizeof(DataType);
     }
 
-    template <typename YDistributedTensor_, typename ReduceFunc>
-    CK_TILE_DEVICE void
-    operator()(YDistributedTensor_& y_tensor, void* smem, const ReduceFunc& reduce_func)
+    // return in byte - separate shared memory size calculation for indices
+    template <typename YIndexDistributedTensor_>
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeForIndices()
     {
+        using IndexDataType               = typename YIndexDistributedTensor_::DataType;
+        constexpr index_t thread_buf_size = YIndexDistributedTensor_::get_thread_buffer_size();
+        constexpr index_t num_warps       = BlockShape::BlockSize / get_warp_size();
+        return num_warps * thread_buf_size * sizeof(IndexDataType);
+    }
+
+    private:
+    // Empty type for when index tracking is not needed
+    struct EmptyIndexTensor
+    {
+        using DataType = int;
+        struct ThreadBuffer
+        {
+            CK_TILE_DEVICE int& operator[](int)
+            {
+                static int dummy;
+                return dummy;
+            }
+            CK_TILE_DEVICE const int& operator[](int) const
+            {
+                static int dummy;
+                return dummy;
+            }
+            CK_TILE_DEVICE int& operator()(int)
+            {
+                static int dummy;
+                return dummy;
+            }
+        };
+        CK_TILE_DEVICE ThreadBuffer& get_thread_buffer()
+        {
+            static ThreadBuffer buf;
+            return buf;
+        }
+        CK_TILE_DEVICE const ThreadBuffer& get_thread_buffer() const
+        {
+            static ThreadBuffer buf;
+            return buf;
+        }
+    };
+
+    template <typename YDistributedTensor_, typename YIndexDistributedTensor_, typename ReduceFunc>
+    CK_TILE_DEVICE void reduce_impl(YDistributedTensor_& y_tensor,
+                                    YIndexDistributedTensor_& y_index_tensor,
+                                    void* smem,
+                                    void* smem_indices_ptr,
+                                    const ReduceFunc& reduce_func)
+    {
+        constexpr bool has_index_tracking =
+            !std::is_same_v<YIndexDistributedTensor_, EmptyIndexTensor>;
         using DataType = typename YDistributedTensor_::DataType;
 
         constexpr index_t thread_buf_size = YDistributedTensor_::get_thread_buffer_size();
 
-        DataType* smem_ptr              = reinterpret_cast<DataType*>(smem);
+        DataType* smem_ptr    = reinterpret_cast<DataType*>(smem);
+        index_t* smem_indices = nullptr;
+        if constexpr(Problem::kOutputIndex && has_index_tracking)
+        {
+            smem_indices = reinterpret_cast<index_t*>(smem_indices_ptr);
+        }
+
         const index_t lane_id           = get_lane_id();
         const index_t warp_id           = get_warp_id();
         constexpr auto num_reduce_warps = GetReduceWarps<YDistributedTensor_>();
@@ -276,6 +498,11 @@ struct BlockReduce2dCrossWarpSync
         {
             static_for<0, thread_buf_size, 1>{}([&](auto i) {
                 smem_ptr[smem_offset + i * num_warps] = y_tensor.get_thread_buffer()[i];
+                if constexpr(Problem::kOutputIndex && has_index_tracking)
+                {
+                    smem_indices[smem_offset + i * num_warps] =
+                        y_index_tensor.get_thread_buffer()[i];
+                }
             });
         }
         block_sync_lds();
@@ -283,28 +510,99 @@ struct BlockReduce2dCrossWarpSync
         // load from smem. here we let everythread to do compute :)
         index_t local_warp_id = warp_id / num_reduce_warps;
         index_t local_smem_os = local_warp_id * num_reduce_warps;
+
         DataType all_scratch[thread_buf_size * num_reduce_warps];
-        static_for<0, thread_buf_size, 1>{}([&](auto i_0) {
-            static_for<0, num_reduce_warps, 1>{}([&](auto i_1) {
-                all_scratch[i_0 * num_reduce_warps + i_1] =
-                    smem_ptr[i_0 * num_warps + local_smem_os + i_1];
+
+        auto perform_reduction = [&]<bool kUseIndices>() {
+            index_t all_indices[kUseIndices ? thread_buf_size * num_reduce_warps : 1];
+
+            // Load data from shared memory
+            static_for<0, thread_buf_size, 1>{}([&](auto i_0) {
+                static_for<0, num_reduce_warps, 1>{}([&](auto i_1) {
+                    all_scratch[i_0 * num_reduce_warps + i_1] =
+                        smem_ptr[i_0 * num_warps + local_smem_os + i_1];
+
+                    if constexpr(kUseIndices)
+                    {
+                        all_indices[i_0 * num_reduce_warps + i_1] =
+                            smem_indices[i_0 * num_warps + local_smem_os + i_1];
+                    }
+                });
             });
-        });
-        block_sync_lds(); // TODO: we don't need sync here
+            block_sync_lds(); // TODO: we don't need sync here
 
-        static_for<0, thread_buf_size, 1>{}([&](auto i_0) {
-            // TODO: use descriptor for this
-            auto v_local = all_scratch[i_0 * num_reduce_warps];
+            // Perform reduction
+            static_for<0, thread_buf_size, 1>{}([&](auto i_0) {
+                // TODO: use descriptor for this
+                auto v_local = all_scratch[i_0 * num_reduce_warps];
 
-            // further reduce mean/var
-            static_for<0, num_reduce_warps - 1, 1>{}([&](auto i_1_n1) {
-                constexpr auto i_1      = number<i_1_n1 + 1>{};
-                const DataType v_remote = all_scratch[i_0 * num_reduce_warps + i_1];
-                v_local                 = reduce_func(v_local, v_remote);
+                // Use conditional type for index data
+                using IndexDataType = std::
+                    conditional_t<kUseIndices, typename YIndexDistributedTensor_::DataType, int>;
+                IndexDataType idx_local{};
+                if constexpr(kUseIndices)
+                {
+                    idx_local = all_indices[i_0 * num_reduce_warps];
+                }
+
+                // further reduce mean/var
+                static_for<0, num_reduce_warps - 1, 1>{}([&](auto i_1_n1) {
+                    constexpr auto i_1      = number<i_1_n1 + 1>{};
+                    const DataType v_remote = all_scratch[i_0 * num_reduce_warps + i_1];
+
+                    if constexpr(kUseIndices)
+                    {
+                        const index_t idx_remote = all_indices[i_0 * num_reduce_warps + i_1];
+
+                        bool changed = false;
+                        v_local      = reduce_func(v_local, v_remote, changed);
+                        if(changed)
+                        {
+                            idx_local = idx_remote;
+                        }
+                    }
+                    else
+                    {
+                        v_local = reduce_func(v_local, v_remote);
+                    }
+                });
+
+                y_tensor.get_thread_buffer()(i_0) = v_local;
+                if constexpr(kUseIndices)
+                {
+                    y_index_tensor.get_thread_buffer()(i_0) = idx_local;
+                }
             });
+        };
 
-            y_tensor.get_thread_buffer()(i_0) = v_local;
-        });
+        if constexpr(Problem::kOutputIndex && has_index_tracking)
+        {
+            perform_reduction.template operator()<true>();
+        }
+        else
+        {
+            perform_reduction.template operator()<false>();
+        }
+    }
+
+    public:
+    template <typename YDistributedTensor_, typename ReduceFunc>
+    CK_TILE_DEVICE void
+    operator()(YDistributedTensor_& y_tensor, void* smem, const ReduceFunc& reduce_func)
+    {
+        EmptyIndexTensor empty_index_tensor{};
+        reduce_impl(y_tensor, empty_index_tensor, smem, nullptr, reduce_func);
+    }
+
+    template <typename YDistributedTensor_, typename YIndexDistributedTensor_, typename ReduceFunc>
+    CK_TILE_DEVICE void operator()(YDistributedTensor_& y_tensor,
+                                   YIndexDistributedTensor_& y_index_tensor,
+                                   void* smem,
+                                   void* smem_indices,
+                                   const ReduceFunc& reduce_func)
+    {
+        reduce_impl<YDistributedTensor_, YIndexDistributedTensor_, ReduceFunc>(
+            y_tensor, y_index_tensor, smem, smem_indices, reduce_func);
     }
 };
 

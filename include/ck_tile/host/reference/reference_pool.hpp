@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/host_tensor.hpp"
 #include <thread>
+#include <cmath>
 
 namespace ck_tile {
 
@@ -144,4 +145,52 @@ CK_TILE_HOST void reference_pool3d(const HostTensor<InDataType>& input,
     make_ParallelTensorFunctor(f, N, Do, Ho, Wo, C)(std::thread::hardware_concurrency());
 }
 
+/// @brief Validates that pooling indices correctly point to their corresponding input values
+/// @param input Input tensor
+/// @param output Output tensor (for value comparison)
+/// @param output_index Output indices tensor (to validate)
+/// @return true if all indices are valid, false otherwise
+template <typename InDataType, typename OutDataType, typename IndexDataType>
+CK_TILE_HOST bool validate_pool_indices(const HostTensor<InDataType>& input,
+                                        const HostTensor<OutDataType>& output,
+                                        const HostTensor<IndexDataType>& output_index)
+{
+    int mismatches = 0;
+
+    const auto input_size  = input.get_element_space_size();
+    const auto output_size = output.get_element_space_size();
+
+    // Validate each output position's index
+    for(int out_pos = 0; out_pos < static_cast<int>(output_size); out_pos++)
+    {
+        auto kernel_idx = output_index.mData[out_pos];
+        auto output_val = static_cast<float>(output.mData[out_pos]);
+
+        if(kernel_idx == -1)
+        {
+            // Padding case - skip validation
+            continue;
+        }
+
+        // Validate that index is within bounds
+        if(kernel_idx >= 0 && kernel_idx < static_cast<int>(input_size))
+        {
+            double input_val         = static_cast<double>(input.mData[kernel_idx]);
+            double output_val_double = static_cast<double>(output_val);
+
+            // Validate that the indexed input value matches the output value
+            if(std::abs(input_val - output_val_double) > 1e-5)
+            {
+                mismatches++;
+            }
+        }
+        else
+        {
+            // Invalid index
+            mismatches++;
+        }
+    }
+
+    return mismatches == 0;
+}
 } // namespace ck_tile

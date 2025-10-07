@@ -85,6 +85,22 @@ struct Max
     {
         return max(y, x);
     }
+
+    // Overload with changed flag for index tracking
+    template <typename T,
+              typename = std::enable_if_t<std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                                          std::is_same_v<T, int32_t> || std::is_same_v<T, int8_t> ||
+                                          std::is_same_v<T, half_t> || std::is_same_v<T, bf16_t> ||
+                                          std::is_same_v<T, fp8_t> || std::is_same_v<T, bf8_t>>>
+    CK_TILE_HOST_DEVICE constexpr T operator()(T& y, const T x, bool& changed) const
+    {
+        T new_max = max(y, x);
+        if(new_max > y)
+        {
+            changed = true;
+        }
+        return new_max;
+    }
 };
 
 struct AbsMax
@@ -107,6 +123,22 @@ struct AbsMax
     CK_TILE_HOST_DEVICE constexpr T operator()(const T& y, const T x) const
     {
         return max(y, abs(x));
+    }
+
+    // Overload with changed flag for index tracking
+    template <typename T,
+              typename = std::enable_if_t<std::is_same_v<T, float> || std::is_same_v<T, double> ||
+                                          std::is_same_v<T, int32_t> || std::is_same_v<T, int8_t> ||
+                                          std::is_same_v<T, half_t> || std::is_same_v<T, bf16_t> ||
+                                          std::is_same_v<T, fp8_t> || std::is_same_v<T, bf8_t>>>
+    CK_TILE_HOST_DEVICE constexpr T operator()(T& y, const T x, bool& changed) const
+    {
+        T new_max = max(y, abs(x));
+        if(new_max > y)
+        {
+            changed = true;
+        }
+        return new_max;
     }
 };
 
