@@ -122,7 +122,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_b_scale
           ComputeTypeA,
           ComputeTypeB,
           PermuteA,
-          PermuteB>
+          PermuteB,
+          true>
 {
     using Base = GridwiseGemm_wmma_cshuffle_v3_base<
         ALayout,
@@ -174,7 +175,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_b_scale
         ComputeTypeA,
         ComputeTypeB,
         PermuteA,
-        PermuteB>;
+        PermuteB,
+        true>;
 
     using Base::I0;
     using Base::I1;
