@@ -59,7 +59,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
     using BaseGemmPipeline = std::conditional_t<
         GemmConfig::PreshuffleB == true,
         ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>,
-        ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>;
+        ck_tile::BaseAQuantGemmPipelineAgBgCrMem<GemmPipelineProblem>>;
 
     const ck_tile::index_t K_split =
         (args.K + GemmConfig::K_Tile - 1) / GemmConfig::K_Tile * GemmConfig::K_Tile;
@@ -67,14 +67,15 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
     const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
     const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
 
-    std::cout << std::endl << __func__ << ": has_hot_loop = " << has_hot_loop << std::endl;
-    std::cout << std::endl << __func__ << ": tail_num = " << tail_num << std::endl;
     std::cout << std::endl << __func__ << ": num_loop = " << num_loop << std::endl;
 
     const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
         constexpr bool has_hot_loop_v = has_hot_loop_.value;
         constexpr auto tail_number_v  = tail_number_.value;
         constexpr bool transpose_c    = false;
+
+        std::cout << std::endl << __func__ << ": has_hot_loop = " << has_hot_loop_v << std::endl;
+        std::cout << std::endl << __func__ << ": tail_num = " << tail_number_v << std::endl;
 
         // row-col and tensor quants use the regular pipeline, A/B quants use their own
         using PipelineProblem = std::conditional_t<

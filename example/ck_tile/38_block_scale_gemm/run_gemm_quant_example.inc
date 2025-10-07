@@ -293,6 +293,7 @@ int run_gemm_example_with_layouts(int argc,
 
     if(init_method == 0)
     {
+        std::cout << std::endl << __func__ << ": init_method = " << init_method << std::endl;
         if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
             if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
@@ -316,7 +317,8 @@ int run_gemm_example_with_layouts(int argc,
             {
                 ck_tile::FillUniformDistribution<ADataType>{-2.0f, 3.0f}(a_m_k);
             }
-            ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f}(*aq_tensor_ptr);
+            // ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f}(*aq_tensor_ptr);
+            ck_tile::FillUniformDistribution<AQDataType>{1.0f, 1.0f}(*aq_tensor_ptr);
             ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f}(b_k_n);
         }
         else
@@ -334,6 +336,7 @@ int run_gemm_example_with_layouts(int argc,
     }
     else if(init_method == 2)
     {
+        std::cout << std::endl << __func__ << ": init_method = " << init_method << std::endl;
         if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
             ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x38)}(a_m_k);
@@ -345,6 +348,10 @@ int run_gemm_example_with_layouts(int argc,
             ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x22)}(a_m_k);
             ck_tile::FillConstant<AQDataType>{static_cast<AQDataType>(0.5f)}(*aq_tensor_ptr);
             ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x38)}(b_k_n);
+
+            // ck_tile::FillUniformDistribution<ADataType>{1.0f, 1.0f}(a_m_k);
+            // ck_tile::FillUniformDistribution<AQDataType>{1.0f, 1.0f}(*aq_tensor_ptr);
+            // ck_tile::FillUniformDistribution<BDataType>{1.0f, 1.0f}(b_k_n);
 
             if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
             {

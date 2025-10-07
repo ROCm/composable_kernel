@@ -80,6 +80,77 @@ struct BaseAQuantGemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<
     }
 };
 
+template <typename Problem>
+struct BaseAQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrCompV3<Problem>
+{
+    CK_TILE_HOST_DEVICE static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
+    {
+        if(num_loop % BaseGemmPipelineAgBgCrCompV3<Problem>::PrefetchStages == 0)
+        {
+            return TailNumber::Even;
+        }
+        else
+        {
+            return TailNumber::Odd;
+        }
+    }
+    template <typename RunFunction>
+    CK_TILE_HOST_DEVICE static auto
+    TailHandler(const RunFunction& run_func, bool has_hot_loop, TailNumber tail_number)
+    {
+        if(has_hot_loop)
+        {
+            if(tail_number == ck_tile::TailNumber::Full)
+            {
+                return run_func(
+                    ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+            }
+            else if(tail_number == ck_tile::TailNumber::Odd)
+            {
+                return run_func(
+                    ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+            }
+            else if(tail_number == ck_tile::TailNumber::Even)
+            {
+                return run_func(
+                    ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
+            }
+            else
+            {
+                throw std::runtime_error("Unsupported tail number for this operation !!!");
+            }
+        }
+        else
+        {
+            if(tail_number == ck_tile::TailNumber::Full)
+            {
+                return run_func(
+                    ck_tile::bool_constant<false>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
+            }
+            else if(tail_number == ck_tile::TailNumber::Odd)
+            {
+                return run_func(
+                    ck_tile::bool_constant<false>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
+            }
+            else if(tail_number == ck_tile::TailNumber::Even)
+            {
+                return run_func(
+                    ck_tile::bool_constant<false>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
+            }
+            else
+            {
+                throw std::runtime_error("Unsupported tail number for this operation !!!");
+            }
+        }
+    }
+};
+
 template <typename Problem, typename Policy = GemmAQuantPipelineAgBgCrDefaultPolicy>
 struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV3<Problem>
 {
@@ -242,7 +313,6 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                                        void* p_smem) const
         {
             (void)m;
-            (void)num_loop;
             if(get_thread_id() == 0 && get_block_id() == 0)
             {
                 printf("PrefetchStages: %d\n", PrefetchStages);
@@ -386,86 +456,87 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             });
 
             // Main hot loop for memory pipeline
-            // if constexpr(HasHotLoop)
-            // {
-            //     index_t i = 0;
-            //     do
-            //     {
-            //         static_for<0, PrefetchStages, 1>{}([&](auto prefetch_idx) {
-            //             block_sync_lds();
-            //             block_gemm(c_block_tile,
-            //                        aq_block_tiles.get(number<prefetch_idx>{}),
-            //                        a_lds_gemm_window,
-            //                        b_lds_gemm_window);
+            if constexpr(HasHotLoop)
+            {
+                index_t i = 0;
+                do
+                {
+                    static_for<0, PrefetchStages, 1>{}([&](auto prefetch_idx) {
+                        block_sync_lds();
+                        block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+                        block_gemm(c_block_tile,
+                                   aq_block_tiles.get(number<prefetch_idx>{}),
+                                   a_lds_gemm_window,
+                                   b_lds_gemm_window);
+                        block_sync_lds();
 
-            //             // Prepare next iteration data
-            //             if constexpr(is_a_col_major)
-            //             {
-            //                 auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
-            //                     Policy::template MakeShuffledARegTileDistribution<Problem>());
-            //                 transpose_tile2d(
-            //                     a_shuffle_tmp,
-            //                     a_block_tiles.get(number<(prefetch_idx + 1) %
-            //                     PrefetchStages>{}));
-            //                 Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
-            //             }
-            //             else
-            //             {
-            //                 Base::LocalPrefill(
-            //                     a_copy_lds_window,
-            //                     a_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}),
-            //                     a_element_func);
-            //             }
-            //             if constexpr(is_b_row_major)
-            //             {
-            //                 auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
-            //                     Policy::template MakeShuffledBRegTileDistribution<Problem>());
-            //                 transpose_tile2d(
-            //                     b_shuffle_tmp,
-            //                     b_block_tiles.get(number<(prefetch_idx + 1) %
-            //                     PrefetchStages>{}));
-            //                 Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
-            //             }
-            //             else
-            //             {
-            //                 Base::LocalPrefill(
-            //                     b_copy_lds_window,
-            //                     b_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}),
-            //                     b_element_func);
-            //             }
+                        // Prepare next iteration data
+                        if constexpr(is_a_col_major)
+                        {
+                            auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
+                                Policy::template MakeShuffledARegTileDistribution<Problem>());
+                            transpose_tile2d(
+                                a_shuffle_tmp,
+                                a_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}));
+                            Base::LocalPrefill(a_copy_lds_window, a_shuffle_tmp, a_element_func);
+                        }
+                        else
+                        {
+                            Base::LocalPrefill(
+                                a_copy_lds_window,
+                                a_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}),
+                                a_element_func);
+                        }
+                        if constexpr(is_b_row_major)
+                        {
+                            auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
+                                Policy::template MakeShuffledBRegTileDistribution<Problem>());
+                            transpose_tile2d(
+                                b_shuffle_tmp,
+                                b_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}));
+                            Base::LocalPrefill(b_copy_lds_window, b_shuffle_tmp, b_element_func);
+                        }
+                        else
+                        {
+                            Base::LocalPrefill(
+                                b_copy_lds_window,
+                                b_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}),
+                                b_element_func);
+                        }
 
-            //             Base::GlobalPrefetch(a_block_tiles.get(number<prefetch_idx>{}),
-            //                                  a_copy_dram_window,
-            //                                  a_dram_tile_window_step);
-            //             Base::GlobalPrefetch(b_block_tiles.get(number<prefetch_idx>{}),
-            //                                  b_copy_dram_window,
-            //                                  b_dram_tile_window_step);
-            //             Base::GlobalPrefetch(aq_block_tiles.get(number<prefetch_idx>{}),
-            //                                  aq_copy_dram_window,
-            //                                  aq_dram_tile_window_step);
-            //         });
+                        Base::GlobalPrefetch(a_block_tiles.get(number<prefetch_idx>{}),
+                                             a_copy_dram_window,
+                                             a_dram_tile_window_step);
+                        Base::GlobalPrefetch(b_block_tiles.get(number<prefetch_idx>{}),
+                                             b_copy_dram_window,
+                                             b_dram_tile_window_step);
+                        Base::GlobalPrefetch(aq_block_tiles.get(number<prefetch_idx>{}),
+                                             aq_copy_dram_window,
+                                             aq_dram_tile_window_step);
+                        block_sync_lds();
+                    });
 
-            //         i += PrefetchStages;
-            //     } while(i < (num_loop - PrefetchStages));
-            // }
+                    i += PrefetchStages;
+                } while(i < (num_loop - PrefetchStages));
+            }
 
             // Tail handling
             block_sync_lds();
             block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
-            block_sync_lds();
             block_gemm(
                 c_block_tile, aq_block_tiles.get(I0{}), a_lds_gemm_window, b_lds_gemm_window);
 
-            // // Only do second iteration if we have even tail numbers
-            // if constexpr(TailNum == TailNumber::Even || TailNum == TailNumber::Full)
-            // {
-            //     Base::LocalPrefill(a_copy_lds_window, a_block_tiles.get(I1{}), a_element_func);
-            //     Base::LocalPrefill(b_copy_lds_window, b_block_tiles.get(I1{}), b_element_func);
-            //     block_sync_lds();
-            //     block_gemm(
-            //         c_block_tile, aq_block_tiles.get(I1{}), a_lds_gemm_window,
-            //         b_lds_gemm_window);
-            // }
+            if constexpr(TailNum == TailNumber::Even || TailNum == TailNumber::Full)
+            {
+                block_sync_lds();
+                Base::LocalPrefill(a_copy_lds_window, a_block_tiles.get(I1{}), a_element_func);
+                Base::LocalPrefill(b_copy_lds_window, b_block_tiles.get(I1{}), b_element_func);
+                block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+                block_sync_lds();
+                block_gemm(
+                    c_block_tile, aq_block_tiles.get(I1{}), a_lds_gemm_window, b_lds_gemm_window);
+                block_sync_lds();
+            }
             return c_block_tile;
         }
     };
