@@ -1167,7 +1167,16 @@ pipeline {
             agent{ label rocmnode("nogpu") }
             steps {
                 script {
-                    env.SHOULD_RUN_CI = String.valueOf(params.FORCE_CI.toBoolean() || shouldRunCICheck())
+                    def forceCI = params.FORCE_CI.toBoolean()
+                    def shouldRunCI = shouldRunCICheck()
+                    def finalResult = forceCI || shouldRunCI
+                    
+                    echo "DEBUG: FORCE_CI param = ${params.FORCE_CI}"
+                    echo "DEBUG: forceCI boolean = ${forceCI}"
+                    echo "DEBUG: shouldRunCICheck() = ${shouldRunCI}"
+                    echo "DEBUG: finalResult (forceCI || shouldRunCI) = ${finalResult}"
+                    
+                    env.SHOULD_RUN_CI = String.valueOf(finalResult)
                     echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
                 }
             }
