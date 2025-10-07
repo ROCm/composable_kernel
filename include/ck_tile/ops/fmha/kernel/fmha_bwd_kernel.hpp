@@ -60,12 +60,12 @@ struct FmhaBwdDQDKDVKernel
     using VGradDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::VGradDataType>;
     using BiasGradDataType = ck_tile::remove_cvref_t<typename FmhaPipeline::BiasGradDataType>;
 
-    static constexpr bool kIsGroupMode = FmhaPipeline::kIsGroupMode;
-    static constexpr bool kPadHeadDimQ = FmhaPipeline::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV = FmhaPipeline::kPadHeadDimV;
-    static constexpr auto BiasEnum     = FmhaPipeline::BiasEnum;
-    static constexpr bool kHasBiasGrad = FmhaPipeline::kHasBiasGrad;
-    using FmhaMask                     = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
+    static constexpr bool kIsGroupMode    = FmhaPipeline::kIsGroupMode;
+    static constexpr index_t kPadHeadDimQ = FmhaPipeline::kPadHeadDimQ;
+    static constexpr index_t kPadHeadDimV = FmhaPipeline::kPadHeadDimV;
+    static constexpr auto BiasEnum        = FmhaPipeline::BiasEnum;
+    static constexpr bool kHasBiasGrad    = FmhaPipeline::kHasBiasGrad;
+    using FmhaMask                    = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
     using FmhaDropout                 = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaDropout>;
     static constexpr bool kHasMask    = FmhaMask::IsMasking;
     static constexpr bool kHasDropout = FmhaDropout::IsDropout;
@@ -75,13 +75,14 @@ struct FmhaBwdDQDKDVKernel
     static constexpr index_t kMaxSeqLenQ   = FmhaPipeline::BlockFmhaShape::kMaxSeqLenQ;
     static_assert(kUseQrQtrDorPipeline == (kMaxSeqLenQ != 0));
 #if defined(__gfx950__)
-    static constexpr bool kIsAvialable = true;
+    static constexpr bool kIsAvailable = true;
 #else
-    static constexpr bool kIsAvialable = !kUseTrLoad;
+    static constexpr bool kIsAvailable = !kUseTrLoad;
 #endif
 
     // clang-format off
     template <typename T> struct t2s;
+    template <> struct t2s<float> { static constexpr const char * name = "fp32"; };
     template <> struct t2s<ck_tile::fp16_t> { static constexpr const char * name = "fp16"; };
     template <> struct t2s<ck_tile::bf16_t> { static constexpr const char * name = "bf16"; };
     // clang-format on
@@ -100,8 +101,8 @@ struct FmhaBwdDQDKDVKernel
         #define _TS_  std::to_string
         auto pn = [&] () {
             std::string n;
-            if (kPadHeadDimQ) n += "d";
-            if (kPadHeadDimV) n += "dv";
+            if (kPadHeadDimQ) n += "d" + _TS_(kPadHeadDimQ);
+            if (kPadHeadDimV) n += "dv"+ _TS_(kPadHeadDimV);
             return n.empty() ? n : std::string("p") + n; }();
         return
             _SS_("fmha_bwd_d") + _TS_(bfs::kQKHeaddim) + "_" + _SS_(t2s<QDataType>::name) +
@@ -113,9 +114,11 @@ struct FmhaBwdDQDKDVKernel
             "r" + _TS_(gbr4::at(ck_tile::number<0>{})) + "x" + _TS_(gbr4::at(ck_tile::number<1>{})) + "x" + _TS_(gbr4::at(ck_tile::number<2>{})) + "_" +
             "w" + _TS_(gwt0::at(ck_tile::number<0>{})) + "x" + _TS_(gwt0::at(ck_tile::number<1>{})) + "x" + _TS_(gwt0::at(ck_tile::number<2>{})) + "_" +
             "w" + _TS_(gwt1::at(ck_tile::number<0>{})) + "x" + _TS_(gwt1::at(ck_tile::number<1>{})) + "x" + _TS_(gwt1::at(ck_tile::number<2>{})) + "_" +
-            ("o" + _TS_(kBlockPerCu)) + (pn.empty() ? "_npad" : "_" + pn) +
+            ("o" + _TS_(kBlockPerCu)) + "_" +
+            ("maxq" + _TS_(kMaxSeqLenQ)) +
+            (pn.empty() ? "_npad" : "_" + pn) +
             (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("_nbias") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
-            (kHasBiasGrad ? "_dbias" : "_ndbias") + (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kHasDropout ? "_dropout" : "_ndropout" ) +
+            (kHasBiasGrad ? "_dbias" : "_ndbias") + (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kHasDropout ? gwt0::at(ck_tile::number<0>{}) == 16? "_dropout_wg16":"_dropout_wg32" : "_ndropout" ) +
             (kIsStoreRandval ? "_storerandval" : "" ) + (kIsDeterministic ? "_deterministic" : "_ndeterministic" ) + (kUseTrLoad ? "_trload" : "_ntrload");
         #undef _SS_
         #undef _TS_
@@ -676,7 +679,7 @@ struct FmhaBwdDQDKDVKernel
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
-        if constexpr(kIsAvialable)
+        if constexpr(kIsAvailable)
             run_(std::move(kargs));
     }
 
@@ -688,7 +691,7 @@ struct FmhaBwdDQDKDVKernel
         // divide problem
         const auto [i_tile_n, i_nhead, i_batch] = GetTileIndex();
 
-        const index_t i_n0 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN0);
+        const index_t i_n0 = amd_wave_read_first_lane(i_tile_n * FmhaPipeline::kN0);
 
         long_index_t batch_offset_q       = 0;
         long_index_t batch_offset_k       = 0;
@@ -813,7 +816,7 @@ struct FmhaBwdDQDKDVKernel
         const auto q_dram = pad_tensor_view(
             q_dram_naive,
             make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kQKHeaddim>{}),
-            sequence<false, kPadHeadDimQ>{});
+            sequence<false, (kPadHeadDimQ > 0)>{});
 
         const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
             k_ptr,
@@ -824,7 +827,7 @@ struct FmhaBwdDQDKDVKernel
         const auto k_dram = pad_tensor_view(
             k_dram_naive,
             make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kQKHeaddim>{}),
-            sequence<false, kPadHeadDimQ>{});
+            sequence<false, (kPadHeadDimQ > 0)>{});
 
         const auto v_dram = [&]() {
             const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
@@ -836,7 +839,7 @@ struct FmhaBwdDQDKDVKernel
             return pad_tensor_view(
                 v_dram_naive,
                 make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kVHeaddim>{}),
-                sequence<false, kPadHeadDimV>{});
+                sequence<false, (kPadHeadDimV > 0)>{});
         }();
 
         // lse and d should be fine to read unpaded data as they are not on the reduction dimension
@@ -855,7 +858,7 @@ struct FmhaBwdDQDKDVKernel
         const auto do_dram = pad_tensor_view(
             do_dram_naive,
             make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kVHeaddim>{}),
-            sequence<false, kPadHeadDimV>{});
+            sequence<false, (kPadHeadDimV > 0)>{});
 
         auto q_dram_window = make_tile_window(
             q_dram,
@@ -903,7 +906,7 @@ struct FmhaBwdDQDKDVKernel
             const auto dq_acc_dram = pad_tensor_view(
                 dq_acc_dram_naive,
                 make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kQKHeaddim>{}),
-                sequence<false, kPadHeadDimQ>{});
+                sequence<false, (kPadHeadDimQ > 0)>{});
             return make_tile_window(
                 dq_acc_dram,
                 make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kQKHeaddim>{}),
@@ -1087,7 +1090,7 @@ struct FmhaBwdDQDKDVKernel
             return pad_tensor_view(
                 dk_dram_naive,
                 make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kQKHeaddim>{}),
-                sequence<false, kPadHeadDimQ>{});
+                sequence<false, (kPadHeadDimQ > 0)>{});
         }();
 
         auto dv_dram = [&]() {
@@ -1101,7 +1104,7 @@ struct FmhaBwdDQDKDVKernel
             return pad_tensor_view(
                 dv_dram_naive,
                 make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kVHeaddim>{}),
-                sequence<false, kPadHeadDimV>{});
+                sequence<false, (kPadHeadDimV > 0)>{});
         }();
 
         auto dk_dram_window = make_tile_window(
@@ -1185,6 +1188,7 @@ struct FmhaBwdOGradDotOKernel
 
     // clang-format off
     template <typename T> struct t2s;
+    template <> struct t2s<float> { static constexpr const char * name = "fp32"; };
     template <> struct t2s<ck_tile::fp16_t> { static constexpr const char * name = "fp16"; };
     template <> struct t2s<ck_tile::bf16_t> { static constexpr const char * name = "bf16"; };
     // clang-format on
@@ -1336,7 +1340,7 @@ struct FmhaBwdOGradDotOKernel
         // divide problem
         const auto [i_tile_m, i_nhead, i_batch] = GetTileIndex();
 
-        const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * kM0);
+        const index_t i_m0 = amd_wave_read_first_lane(i_tile_m * kM0);
 
         long_index_t batch_offset_o  = 0;
         long_index_t batch_offset_do = 0;
@@ -1441,6 +1445,7 @@ struct FmhaBwdConvertQGradKernel
 
     // clang-format off
     template <typename T> struct t2s;
+    template <> struct t2s<float> { static constexpr const char * name = "fp32"; };
     template <> struct t2s<ck_tile::fp16_t> { static constexpr const char * name = "fp16"; };
     template <> struct t2s<ck_tile::bf16_t> { static constexpr const char * name = "bf16"; };
     // clang-format on
@@ -1616,7 +1621,7 @@ struct FmhaBwdConvertQGradKernel
         // divide problem
         const auto [i_tile_m, i_nhead, i_batch] = GetTileIndex();
 
-        const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * kM0);
+        const index_t i_m0 = amd_wave_read_first_lane(i_tile_m * kM0);
 
         long_index_t batch_offset_dq     = 0;
         long_index_t batch_offset_dq_acc = 0;

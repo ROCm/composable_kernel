@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -92,9 +92,14 @@ int profile_gemm_multiply_multiply(int argc, char* argv[])
     using F32  = float;
     using BF16 = ck::bhalf_t;
     using F16  = ck::half_t;
-    using F8   = ck::f8_t;
-    using I8   = int8_t;
-    using I32  = int;
+#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || CK_USE_OCP_FP8 || defined(CK_USE_GFX94) || \
+    defined(CK_USE_WMMA_FP8)
+    using F8 = ck::f8_t;
+#endif
+#ifdef CK_ENABLE_INT8
+    using I8  = int8_t;
+    using I32 = int;
+#endif
 
     using Row = ck::tensor_layout::gemm::RowMajor;
     using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -162,33 +167,32 @@ int profile_gemm_multiply_multiply(int argc, char* argv[])
 
         return pass ? 0 : 1;
     };
-
+#if defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || CK_USE_OCP_FP8 || defined(CK_USE_GFX94) || \
+    defined(CK_USE_WMMA_FP8)
     if(data_type == GemmDataType::F8_F8_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
         return profile(
             F8{}, F8{}, F8{}, F32{}, F32{}, F32{}, BF16{}, Row{}, Col{}, Row{}, Col{}, Row{});
     }
-    else if(data_type == GemmDataType::F8_F8_F16 && layout == GemmMatrixLayout::MK_NK_MN)
+    if(data_type == GemmDataType::F8_F8_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
         return profile(
             F8{}, F8{}, F8{}, F32{}, F32{}, F32{}, F16{}, Row{}, Col{}, Row{}, Col{}, Row{});
     }
-    else if(data_type == GemmDataType::INT8_INT8_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
+#endif // CK_ENABLE_FP8
+    if(data_type == GemmDataType::INT8_INT8_BF16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
         return profile(
             I8{}, I8{}, I8{}, I32{}, F32{}, F32{}, BF16{}, Row{}, Col{}, Row{}, Col{}, Row{});
     }
-    else if(data_type == GemmDataType::INT8_INT8_F16 && layout == GemmMatrixLayout::MK_NK_MN)
+    if(data_type == GemmDataType::INT8_INT8_F16 && layout == GemmMatrixLayout::MK_NK_MN)
     {
         return profile(
             I8{}, I8{}, I8{}, I32{}, F16{}, F16{}, F16{}, Row{}, Col{}, Row{}, Col{}, Row{});
     }
-    else
-    {
-        std::cout << "this data_type & layout is not implemented" << std::endl;
 
-        return 1;
-    }
+    std::cout << "this data_type & layout is not implemented" << std::endl;
+    return 1;
 }
 
 REGISTER_PROFILER_OPERATION(OP_NAME, OP_DESC, profile_gemm_multiply_multiply);

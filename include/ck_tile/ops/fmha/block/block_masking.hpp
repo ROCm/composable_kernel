@@ -203,27 +203,36 @@ struct GenericAttentionMask
     CK_TILE_HOST_DEVICE constexpr auto
     IsEdgeTile(index_t i_tile_top, index_t i_tile_left, number<TileHeight>, number<TileWidth>) const
     {
-        if constexpr(IsLocal)
+        if constexpr(!IsMasking)
         {
-            // check top-right corner > x or left-borrom corner < x
-            index_t i_tile_right  = i_tile_left + TileWidth;
-            index_t i_tile_bottom = i_tile_top + TileHeight;
-            index_t x_end         = min(i_tile_top + x, x_total);
-
-            bool top_right_edge          = i_tile_right > (i_tile_top + x);
-            bool bottom_left_edge        = i_tile_bottom > (i_tile_left + y);
-            bool is_partial_out_of_bound = i_tile_right > x_end; // only consider right-pad for now
-
-            return top_right_edge || bottom_left_edge || is_partial_out_of_bound;
+            // TODO: no need to check begin
+            return (i_tile_left + TileWidth) > x_total;
         }
         else
         {
-            // only need to check top-right corner > x
-            index_t i_tile_right = i_tile_left + TileWidth;
-            index_t x_end        = min(i_tile_top + x, x_total);
+            if constexpr(IsLocal)
+            {
+                // check top-right corner > x or left-borrom corner < x
+                index_t i_tile_right  = i_tile_left + TileWidth;
+                index_t i_tile_bottom = i_tile_top + TileHeight;
+                index_t x_end         = min(i_tile_top + x, x_total);
 
-            bool top_right_edge = i_tile_right > x_end;
-            return top_right_edge;
+                bool top_right_edge   = i_tile_right > (i_tile_top + x);
+                bool bottom_left_edge = i_tile_bottom > (i_tile_left + y);
+                bool is_partial_out_of_bound =
+                    i_tile_right > x_end; // only consider right-pad for now
+
+                return top_right_edge || bottom_left_edge || is_partial_out_of_bound;
+            }
+            else
+            {
+                // only need to check top-right corner > x
+                index_t i_tile_right = i_tile_left + TileWidth;
+                index_t x_end        = min(i_tile_top + x, x_total);
+
+                bool top_right_edge = i_tile_right > x_end;
+                return top_right_edge;
+            }
         }
     }
 

@@ -31,7 +31,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
     using PersistentType             = std::tuple_element_t<7, Tuple>;
     static constexpr bool Persistent = PersistentType::value;
 
-    struct GroupedGemKernelParam
+    struct GroupedGemKernelParam_Mfma
     {
         static const bool kPadM = false;
         static const bool kPadN = false;
@@ -51,13 +51,24 @@ class TestCkTileGroupedGemm : public ::testing::Test
         static const ck_tile::index_t K_Warp_Tile = 16;
     };
 
-    using grouped_gemm_kargs = ck_tile::GroupedGemmHostArgs;
+    struct GroupedGemKernelParam_Wmma : public GroupedGemKernelParam_Mfma
+    {
+        static const ck_tile::index_t M_Tile = 128;
+        static const ck_tile::index_t N_Tile = 128;
+        static const ck_tile::index_t K_Tile = 64;
+
+        static const ck_tile::index_t M_Warp_Tile = 16;
+        static const ck_tile::index_t N_Warp_Tile = 16;
+        static const ck_tile::index_t K_Warp_Tile = 16;
+    };
+
+    using grouped_gemm_kargs = ck_tile::GroupedGemmHostArgs<>;
     std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gemm_descs)
     {
-        return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg);
+        return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg<>);
     }
 
-    template <typename ALayout, typename BLayout, typename CLayout>
+    template <typename GroupedGemKernelParam, typename ALayout, typename BLayout, typename CLayout>
     void invoke_grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                              const ck_tile::stream_config& s,
                              void* kargs_ptr)
@@ -200,7 +211,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
         BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
     }
 
-    template <typename ALayout, typename BLayout, typename CLayout>
+    template <typename GroupedGemKernelParam, typename ALayout, typename BLayout, typename CLayout>
     void invoke_grouped_gemm_persistent(const ck_tile::stream_config& s,
                                         const ck_tile::index_t num_groups,
                                         void* kargs_ptr,
@@ -425,8 +436,18 @@ class TestCkTileGroupedGemm : public ::testing::Test
             const void* p_b = b_k_n_dev_buf[i]->GetDeviceBuffer();
             void* p_c       = c_m_n_dev_buf[i]->GetDeviceBuffer();
 
-            gemm_descs.push_back(
-                {p_a, p_b, p_c, kbatch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
+            gemm_descs.push_back({p_a,
+                                  p_b,
+                                  {/*ds_ptr*/},
+                                  p_c,
+                                  kbatch,
+                                  M,
+                                  N,
+                                  K,
+                                  stride_As[i],
+                                  stride_Bs[i],
+                                  {/*stride_Ds*/},
+                                  stride_Cs[i]});
         }
 
         ck_tile::DeviceMem gemm_workspace;
@@ -435,7 +456,7 @@ class TestCkTileGroupedGemm : public ::testing::Test
         if constexpr(Persistent)
         {
             // Generate kernel arguments
-            std::vector<ck_tile::GemmTransKernelArg> kargs;
+            std::vector<ck_tile::GemmTransKernelArg<>> kargs;
             void* kargs_ptr   = gemm_workspace.GetDeviceBuffer();
             const bool splitk = gemm_descs[0].k_batch > 1;
             for(const auto& arg : gemm_descs)
@@ -457,18 +478,30 @@ class TestCkTileGroupedGemm : public ::testing::Test
             ck_tile::hip_check_error(
                 hipMemcpyWithStream(kargs_ptr,
                                     kargs.data(),
-                                    kargs.size() * sizeof(ck_tile::GemmTransKernelArg),
+                                    kargs.size() * sizeof(ck_tile::GemmTransKernelArg<>),
                                     hipMemcpyHostToDevice,
                                     stream.stream_id_));
-            invoke_grouped_gemm_persistent<ALayout, BLayout, CLayout>(
+#if CK_TILE_USE_WMMA
+            invoke_grouped_gemm_persistent<GroupedGemKernelParam_Wmma, ALayout, BLayout, CLayout>(
                 stream, group_count, kargs_ptr, splitk);
+#else
+            invoke_grouped_gemm_persistent<GroupedGemKernelParam_Mfma, ALayout, BLayout, CLayout>(
+                stream, group_count, kargs_ptr, splitk);
+#endif
         }
         else
         {
-            invoke_grouped_gemm<ALayout, BLayout, CLayout>(
+#if CK_TILE_USE_WMMA
+            invoke_grouped_gemm<GroupedGemKernelParam_Wmma, ALayout, BLayout, CLayout>(
                 gemm_descs,
                 ck_tile::stream_config{nullptr, false, 1},
                 gemm_workspace.GetDeviceBuffer());
+#else
+            invoke_grouped_gemm<GroupedGemKernelParam_Mfma, ALayout, BLayout, CLayout>(
+                gemm_descs,
+                ck_tile::stream_config{nullptr, false, 1},
+                gemm_workspace.GetDeviceBuffer());
+#endif
         }
 
         // Copy results back to host for validation

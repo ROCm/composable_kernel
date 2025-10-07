@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
+#include "ck/utility/env.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -466,20 +467,26 @@ struct GridwiseFpAintBGemm_Wmma
         if(!(M == c_grid_desc_m_n.GetLength(I0) && N == c_grid_desc_m_n.GetLength(I1) &&
              K == GetBProblemsizeNK()[I1]))
         {
-            printf("A: MxK = %d x %d, B: NxK = %d x %d, C: MxN = %d x %d\n",
-                   GetAProblemsizeMK()[I0],
-                   GetAProblemsizeMK()[I1],
-                   GetBProblemsizeNK()[I0],
-                   GetBProblemsizeNK()[I1],
-                   c_grid_desc_m_n.GetLength(I0),
-                   c_grid_desc_m_n.GetLength(I1));
-            printf("GridwiseOp err: ProblemSize check");
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                printf("A: MxK = %d x %d, B: NxK = %d x %d, C: MxN = %d x %d\n",
+                       GetAProblemsizeMK()[I0],
+                       GetAProblemsizeMK()[I1],
+                       GetBProblemsizeNK()[I0],
+                       GetBProblemsizeNK()[I1],
+                       c_grid_desc_m_n.GetLength(I0),
+                       c_grid_desc_m_n.GetLength(I1));
+                printf("GridwiseOp err: ProblemSize check");
+            }
             return false;
         }
 
         if(!(M % MPerBlock == 0 && N % NPerBlock == 0 && K % KPerBlock == 0))
         {
-            printf("GridwiseOp err: ProblemSize division");
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                printf("GridwiseOp err: ProblemSize division");
+            }
             return false;
         }
 
@@ -488,7 +495,10 @@ struct GridwiseFpAintBGemm_Wmma
 
         if(!GridwiseGemmPipe::IsSupported(num_k_loop))
         {
-            printf("GridwiseOp err: Pipeline not support this k_loop");
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                printf("GridwiseOp err: Pipeline not support this k_loop");
+            }
             return false;
         }
 

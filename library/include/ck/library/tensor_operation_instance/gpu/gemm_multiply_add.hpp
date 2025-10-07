@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -19,6 +19,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
+#if defined(CK_USE_XDL)
 void add_device_gemm_multiply_add_xdl_c_shuffle_f16_f16_f16_f16_f16_mk_kn_mn_mn_mn_instances(
     std::vector<std::unique_ptr<DeviceGemmMultipleD<Row,
                                                     Row,
@@ -71,9 +72,64 @@ void add_device_gemm_multiply_add_xdl_c_shuffle_f16_f8_f32_f32_f16_mk_nk_mn_mn_m
                                                     PassThrough,
                                                     PassThrough,
                                                     MultiplyAdd>>>&);
-#endif
+#endif // CK_ENABLE_FP8
+#endif // CK_USE_XDL
 
-// GEMM + Multiply + Add
+#if defined(CK_USE_WMMA)
+void add_device_gemm_multiply_add_wmma_c_shuffle_f16_f16_f16_f16_f16_mk_kn_mn_mn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
+                                                          Row,
+                                                          Row_Row_Tuple,
+                                                          Row,
+                                                          F16,
+                                                          F16,
+                                                          F16_F16_Tuple,
+                                                          F16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyAdd>>>&);
+
+void add_device_gemm_multiply_add_wmma_c_shuffle_f16_f16_f16_f16_f16_mk_nk_mn_mn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
+                                                          Col,
+                                                          Row_Row_Tuple,
+                                                          Row,
+                                                          F16,
+                                                          F16,
+                                                          F16_F16_Tuple,
+                                                          F16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyAdd>>>&);
+#ifdef CK_USE_WMMA_FP8
+void add_device_gemm_multiply_add_wmma_c_shuffle_f16_f8_f32_f32_f16_mk_kn_mn_mn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
+                                                          Row,
+                                                          Row_Row_Tuple,
+                                                          Row,
+                                                          F16,
+                                                          F8,
+                                                          F32_F32_Tuple,
+                                                          F16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyAdd>>>&);
+
+void add_device_gemm_multiply_add_wmma_c_shuffle_f16_f8_f32_f32_f16_mk_nk_mn_mn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGemmMultipleDSplitK<Row,
+                                                          Col,
+                                                          Row_Row_Tuple,
+                                                          Row,
+                                                          F16,
+                                                          F8,
+                                                          F32_F32_Tuple,
+                                                          F16,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyAdd>>>&);
+#endif // CK_USE_WMMA_FP8
+#endif // CK_USE_WMMA
+
 template <typename ALayout,
           typename BLayout,
           typename D0Layout,
@@ -84,18 +140,107 @@ template <typename ALayout,
           typename D0DataType,
           typename D1DataType,
           typename EDataType>
-struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMultipleD<
-    ALayout,
-    BLayout,
-    ck::Tuple<D0Layout, D1Layout>,
-    ELayout,
-    ADataType,
-    BDataType,
-    ck::Tuple<D0DataType, D1DataType>,
-    EDataType,
-    ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::PassThrough,
-    ck::tensor_operation::element_wise::MultiplyAdd>>
+struct DeviceOperationInstanceFactory<DeviceGemmMultipleDSplitK<ALayout,
+                                                                BLayout,
+                                                                ck::Tuple<D0Layout, D1Layout>,
+                                                                ELayout,
+                                                                ADataType,
+                                                                BDataType,
+                                                                ck::Tuple<D0DataType, D1DataType>,
+                                                                EDataType,
+                                                                PassThrough,
+                                                                PassThrough,
+                                                                MultiplyAdd>>
+{
+    using DeviceOp = DeviceGemmMultipleDSplitK<ALayout,
+                                               BLayout,
+                                               ck::Tuple<D0Layout, D1Layout>,
+                                               ELayout,
+                                               ADataType,
+                                               BDataType,
+                                               ck::Tuple<D0DataType, D1DataType>,
+                                               EDataType,
+                                               PassThrough,
+                                               PassThrough,
+                                               MultiplyAdd>;
+
+    static auto GetInstances()
+    {
+        std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
+
+#ifdef CK_USE_XDL
+        // No XDL instances for DeviceGemmMultipleDSplitK with MultiplyAdd at the moment
+#endif // CK_USE_XDL
+
+#ifdef CK_USE_WMMA
+        if constexpr(is_same_v<ADataType, F16> && is_same_v<BDataType, F16> &&
+                     is_same_v<D0DataType, F16> && is_same_v<D1DataType, F16> &&
+                     is_same_v<EDataType, F16>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+                         is_same_v<D0Layout, Row> && is_same_v<D1Layout, Row> &&
+                         is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_multiply_add_wmma_c_shuffle_f16_f16_f16_f16_f16_mk_kn_mn_mn_mn_instances(
+                    op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+                              is_same_v<D0Layout, Row> && is_same_v<D1Layout, Row> &&
+                              is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_multiply_add_wmma_c_shuffle_f16_f16_f16_f16_f16_mk_nk_mn_mn_mn_instances(
+                    op_ptrs);
+            }
+        }
+#endif // CK_USE_WMMA
+#ifdef CK_USE_WMMA_FP8
+        if constexpr(is_same_v<ADataType, F16> && is_same_v<BDataType, F8> &&
+                     is_same_v<D0DataType, F32> && is_same_v<D1DataType, F32> &&
+                     is_same_v<EDataType, F16>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+                         is_same_v<D0Layout, Row> && is_same_v<D1Layout, Row> &&
+                         is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_multiply_add_wmma_c_shuffle_f16_f8_f32_f32_f16_mk_kn_mn_mn_mn_instances(
+                    op_ptrs);
+            }
+            else if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Col> &&
+                              is_same_v<D0Layout, Row> && is_same_v<D1Layout, Row> &&
+                              is_same_v<ELayout, Row>)
+            {
+                add_device_gemm_multiply_add_wmma_c_shuffle_f16_f8_f32_f32_f16_mk_nk_mn_mn_mn_instances(
+                    op_ptrs);
+            }
+        }
+#endif // CK_USE_WMMA
+
+        return op_ptrs;
+    }
+};
+
+// DeviceGemmMultipleD specialization
+template <typename ALayout,
+          typename BLayout,
+          typename D0Layout,
+          typename D1Layout,
+          typename ELayout,
+          typename ADataType,
+          typename BDataType,
+          typename D0DataType,
+          typename D1DataType,
+          typename EDataType>
+struct DeviceOperationInstanceFactory<DeviceGemmMultipleD<ALayout,
+                                                          BLayout,
+                                                          ck::Tuple<D0Layout, D1Layout>,
+                                                          ELayout,
+                                                          ADataType,
+                                                          BDataType,
+                                                          ck::Tuple<D0DataType, D1DataType>,
+                                                          EDataType,
+                                                          PassThrough,
+                                                          PassThrough,
+                                                          MultiplyAdd>>
 {
     using DeviceOp = DeviceGemmMultipleD<ALayout,
                                          BLayout,
@@ -105,17 +250,18 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
                                          BDataType,
                                          ck::Tuple<D0DataType, D1DataType>,
                                          EDataType,
-                                         ck::tensor_operation::element_wise::PassThrough,
-                                         ck::tensor_operation::element_wise::PassThrough,
-                                         ck::tensor_operation::element_wise::MultiplyAdd>;
+                                         PassThrough,
+                                         PassThrough,
+                                         MultiplyAdd>;
 
     static auto GetInstances()
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
 
-        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, half_t> &&
-                     is_same_v<D0DataType, half_t> && is_same_v<D1DataType, half_t> &&
-                     is_same_v<EDataType, half_t>)
+#ifdef CK_USE_XDL
+        if constexpr(is_same_v<ADataType, F16> && is_same_v<BDataType, F16> &&
+                     is_same_v<D0DataType, F16> && is_same_v<D1DataType, F16> &&
+                     is_same_v<EDataType, F16>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<D0Layout, Row> && is_same_v<D1Layout, Row> &&
@@ -133,10 +279,10 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
             }
         }
 
-#if defined CK_ENABLE_FP8
-        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, f8_t> &&
-                     is_same_v<D0DataType, float> && is_same_v<D1DataType, float> &&
-                     is_same_v<EDataType, half_t>)
+#ifdef CK_ENABLE_FP8
+        if constexpr(is_same_v<ADataType, F16> && is_same_v<BDataType, F8> &&
+                     is_same_v<D0DataType, F32> && is_same_v<D1DataType, F32> &&
+                     is_same_v<EDataType, F16>)
         {
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<D0Layout, Row> && is_same_v<D1Layout, Row> &&
@@ -153,7 +299,29 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGemmMu
                     op_ptrs);
             }
         }
-#endif
+#endif // CK_ENABLE_FP8
+#endif // CK_USE_XDL
+
+#ifdef CK_USE_WMMA
+        // Reuse DeviceGemmMultipleDSplitK instances
+        using Wrapper = DeviceGemmMultipleDSplitKWrapper<ALayout,
+                                                         BLayout,
+                                                         ck::Tuple<D0Layout, D1Layout>,
+                                                         ELayout,
+                                                         ADataType,
+                                                         BDataType,
+                                                         ck::Tuple<D0DataType, D1DataType>,
+                                                         EDataType,
+                                                         PassThrough,
+                                                         PassThrough,
+                                                         MultiplyAdd>;
+        auto new_op_ptrs =
+            DeviceOperationInstanceFactory<typename Wrapper::DeviceOp>::GetInstances();
+        for(auto& op_ptr : new_op_ptrs)
+        {
+            op_ptrs.emplace_back(std::make_unique<Wrapper>(std::move(op_ptr)));
+        }
+#endif // CK_USE_WMMA
 
         return op_ptrs;
     }
