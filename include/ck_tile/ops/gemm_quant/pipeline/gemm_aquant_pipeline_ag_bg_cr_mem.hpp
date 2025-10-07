@@ -455,7 +455,7 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrCompV3<P
             block_gemm(
                 c_block_tile, aq_block_tiles.get(I0{}), a_lds_gemm_window, b_lds_gemm_window);
 
-            if constexpr(TailNum == TailNumber::Even || TailNum == TailNumber::Full)
+            if constexpr(TailNum == TailNumber::Even)
             {
 
                 Base::LocalPrefill(a_copy_lds_window, a_block_tiles.get(I1{}), a_element_func);
