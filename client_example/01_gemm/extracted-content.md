@@ -3,7 +3,7 @@ General matrix multiplications operation. In CK GEMM operation is called as `Dev
 
 * **ALayout** - A matrix layout (RowMajor/ColumnMajor).
 * **BLayout** - B matrix layout (RowMajor/ColumnMajor).
-* **CLayout** - B matrix layout (RowMajor/ColumnMajor).
+* **CLayout** - C matrix layout (RowMajor/ColumnMajor).
 * **ADataType** - A matrix data type.
 * **BDataType** - B matrix data type.
 * **CDataType** - C matrix data type.
