@@ -3,7 +3,7 @@
 #pragma once
 #include "gtest/gtest.h"
 
-TYPED_TEST_SUITE(TestCkTileGemmPipelineUniversal, PrecTypes);
+TYPED_TEST_SUITE(TestCkTileGemmPipelineUniversal, UniversalTestTypes);
 
 TYPED_TEST(TestCkTileGemmPipelineUniversal, GemmTest)
 {

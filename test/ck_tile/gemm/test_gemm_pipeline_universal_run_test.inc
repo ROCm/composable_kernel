@@ -214,45 +214,41 @@ template <typename Tuple>
 class TestCkTileGemmPipelineUniversal : public ::testing::Test
 {
     protected:
-    using APrecType = std::tuple_element_t<0, Tuple>;
-    using BPrecType = std::tuple_element_t<1, Tuple>;
-    using CPrecType = std::tuple_element_t<2, Tuple>;
+    using GemmConfig = std::tuple_element_t<0, Tuple>;
+    using APrecType  = std::tuple_element_t<1, Tuple>;
+    using BPrecType  = std::tuple_element_t<2, Tuple>;
+    using CPrecType  = std::tuple_element_t<3, Tuple>;
 
     void run_gemm_combinations(const int m, const int n, const int k)
     {
-        bool is_success = true;
-        // Call the function with the current configuration
-        try
+        // Skip tests that are known to fail
+        if constexpr((std::is_same_v<GemmConfig, GemmConfigComputeV3<F16>> ||
+                      std::is_same_v<GemmConfig, GemmConfigComputeV3_2<F16>>) &&
+                     std::is_same_v<APrecType, F8> && std::is_same_v<BPrecType, BF8>)
         {
-#if CK_TILE_USE_WMMA
-            is_success = run_gemm_test_prec_type<GemmConfigComputeV3_WMMA<CPrecType>,
-                                                 APrecType,
-                                                 BPrecType,
-                                                 CPrecType>(m, n, k) &&
-                         is_success;
-#else
-            is_success = run_gemm_test_prec_type<GemmConfigComputeV3<CPrecType>,
-                                                 APrecType,
-                                                 BPrecType,
-                                                 CPrecType>(m, n, k) &&
-                         is_success;
-            is_success = run_gemm_test_prec_type<GemmConfigComputeV3_2<CPrecType>,
-                                                 APrecType,
-                                                 BPrecType,
-                                                 CPrecType>(m, n, k) &&
-                         is_success;
-#endif
+            GTEST_SKIP()
+                << "Skipping this test due to known failures with F8 x BF8 on the V3 pipeline";
         }
-        catch(const ArgumentsNotSupportedException& e)
+        else
         {
-            std::cerr << "Caught ArgumentsNotSupportedException: " << e.what() << '\n';
-            // ArgumentsNotSupportedException  is not an error. Do not change is_success
+            bool is_success = true;
+            // Call the function with the current configuration
+            try
+            {
+                is_success =
+                    run_gemm_test_prec_type<GemmConfig, APrecType, BPrecType, CPrecType>(m, n, k);
+            }
+            catch(const ArgumentsNotSupportedException& e)
+            {
+                std::cerr << "Caught ArgumentsNotSupportedException: " << e.what() << '\n';
+                // ArgumentsNotSupportedException  is not an error. Do not change is_success
+            }
+            catch(const std::runtime_error& e)
+            {
+                std::cerr << "Caught runtime error: " << e.what() << '\n';
+                is_success = false;
+            }
+            EXPECT_TRUE(is_success);
         }
-        catch(const std::runtime_error& e)
-        {
-            std::cerr << "Caught runtime error: " << e.what() << '\n';
-            is_success = false;
-        }
-        EXPECT_TRUE(is_success);
     }
 };

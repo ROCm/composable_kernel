@@ -35,6 +35,12 @@ struct GemmConfig_Wmma : public GemmConfigBase
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 };
 
+#if CK_TILE_USE_WMMA
+using GemmConfigs = ::testing::Types<GemmConfig_Wmma>;
+#else
+using GemmConfigs = ::testing::Types<GemmConfig_Mfma>;
+#endif
+
 template <typename GemmConfig,
           typename ADataType,
           typename BDataType,
@@ -169,9 +175,10 @@ template <typename Tuple>
 class TestCkTileGemmPipelineBasic : public ::testing::Test
 {
     protected:
-    using APrecType = std::tuple_element_t<0, Tuple>;
-    using BPrecType = std::tuple_element_t<1, Tuple>;
-    using CPrecType = std::tuple_element_t<2, Tuple>;
+    using GemmConfig = std::tuple_element_t<0, Tuple>;
+    using APrecType  = std::tuple_element_t<1, Tuple>;
+    using BPrecType  = std::tuple_element_t<2, Tuple>;
+    using CPrecType  = std::tuple_element_t<3, Tuple>;
 
     void run_gemm_combinations(const int m, const int n, const int k)
     {
@@ -192,17 +199,8 @@ class TestCkTileGemmPipelineBasic : public ::testing::Test
             // Call the function with the current configuration
             try
             {
-#if CK_TILE_USE_WMMA
                 is_success =
-                    run_gemm_test_prec_type<GemmConfig_Wmma, APrecType, BPrecType, CPrecType>(
-                        m, n, k) &&
-                    is_success;
-#else
-                is_success =
-                    run_gemm_test_prec_type<GemmConfig_Mfma, APrecType, BPrecType, CPrecType>(
-                        m, n, k) &&
-                    is_success;
-#endif
+                    run_gemm_test_prec_type<GemmConfig, APrecType, BPrecType, CPrecType>(m, n, k);
             }
             catch(const ArgumentsNotSupportedException& e)
             {

@@ -6,7 +6,11 @@
 #include "test_gemm_pipeline_smoke_run_test.inc"
 #include "test_gemm_pipeline_prec_types.hpp"
 #include "test_gemm_pipeline_universal_run_test.inc"
+#include "test_gemm_pipeline_type_param_product.hpp"
 
-using PrecTypes = ::testing::Types<std::tuple<BF16, BF16, BF16>, std::tuple<BF16, I4, BF16>>;
+// Test each combination of GEMM config and precision type tuple by forming a cartesian product
+using GemmConfigs = GemmConfigsTemplate<BF16>;
+using PrecTypes   = ::testing::Types<std::tuple<BF16, BF16, BF16>, std::tuple<BF16, I4, BF16>>;
+using UniversalTestTypes = CartesianProduct_t<GemmConfigs, PrecTypes>;
 
 #include "test_gemm_pipeline_universal_cases.hpp"
