@@ -3,12 +3,6 @@
 #pragma once
 
 #include "grouped_convolution_utils.hpp"
-#include "gemm_configs.hpp"
-
-using MemoryOpSet =
-    std::integral_constant<ck_tile::memory_operation_enum, ck_tile::memory_operation_enum::set>;
-using MemoryOpAtomicAdd = std::integral_constant<ck_tile::memory_operation_enum,
-                                                 ck_tile::memory_operation_enum::atomic_add>;
 
 struct GroupedConvolutionBackwardWeightTwoStageInvoker
 {
@@ -44,34 +38,34 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
         constexpr ck_tile::index_t VectorSizeB = 8;
         constexpr ck_tile::index_t VectorSizeC = 8;
 
-        constexpr auto ConvSpec      = ck_tile::ConvolutionSpecialization::Default;
+        constexpr auto ConvSpec = ck_tile::ConvolutionSpecialization::Default;
         using TilePartitioner =
-             ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
-                                                        GemmConfig::TileParitionerGroupNum,
-                                                        GemmConfig::TileParitionerM01>;
-        using GroupedConvTraitsType  = ck_tile::GroupedConvTraits<NDimSpatial,
-                                                                  ConvSpec,
-                                                                  InLayout,
-                                                                  WeiLayout,
-                                                                  DsLayout,
-                                                                  OutLayout,
-                                                                  VectorSizeA,
-                                                                  VectorSizeB,
-                                                                  VectorSizeC>;
+            ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
+                                                       GemmConfig::TileParitionerGroupNum,
+                                                       GemmConfig::TileParitionerM01>;
+        using GroupedConvTraitsType = ck_tile::GroupedConvTraits<NDimSpatial,
+                                                                 ConvSpec,
+                                                                 InLayout,
+                                                                 WeiLayout,
+                                                                 DsLayout,
+                                                                 OutLayout,
+                                                                 VectorSizeA,
+                                                                 VectorSizeB,
+                                                                 VectorSizeC>;
 
-        using GemmUniversalTraits =
-            ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
-                                             GemmConfig::kPadN,
-                                             GemmConfig::kPadK,
-                                             GemmConfig::DoubleSmemBuffer,
-                                             typename GroupedConvTraitsType::GroupedConvImplicitGemmTraitsBwdWeight::AsLayout,
-                                             typename GroupedConvTraitsType::GroupedConvImplicitGemmTraitsBwdWeight::BsLayout,
-                                             typename GroupedConvTraitsType::GroupedConvImplicitGemmTraitsBwdWeight::CLayout,
-                                             GemmConfig::TransposeC,
-                                             GemmConfig::UseStructuredSparsity,
-                                             false, //Persistent,
-                                             GemmConfig::NumWaveGroups,
-                                             GemmConfig::Preshuffle>;
+        using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<
+            GemmConfig::kPadM,
+            GemmConfig::kPadN,
+            GemmConfig::kPadK,
+            GemmConfig::DoubleSmemBuffer,
+            typename GroupedConvTraitsType::GroupedConvImplicitGemmTraitsBwdWeight::AsLayout,
+            typename GroupedConvTraitsType::GroupedConvImplicitGemmTraitsBwdWeight::BsLayout,
+            typename GroupedConvTraitsType::GroupedConvImplicitGemmTraitsBwdWeight::CLayout,
+            GemmConfig::TransposeC,
+            GemmConfig::UseStructuredSparsity,
+            false, // Persistent,
+            GemmConfig::NumWaveGroups,
+            GemmConfig::Preshuffle>;
 
         using GemmPipelineProblem = ck_tile::GemmPipelineProblem<
             OutDataType,
@@ -89,7 +83,11 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
         using BaseGemmPipeline = typename PipelineTypeTraits<
             GemmConfig::Pipeline>::template UniversalGemmPipeline<GemmPipelineProblem>;
 
-        const ck_tile::index_t gemm_k = args.N_ * std::accumulate(args.output_spatial_lengths_.begin(), args.output_spatial_lengths_.end(), 1, std::multiplies<ck_tile::index_t>());
+        const ck_tile::index_t gemm_k =
+            args.N_ * std::accumulate(args.output_spatial_lengths_.begin(),
+                                      args.output_spatial_lengths_.end(),
+                                      1,
+                                      std::multiplies<ck_tile::index_t>());
 
         const ck_tile::index_t k_grain     = args.k_batch * GemmConfig::K_Tile;
         const ck_tile::index_t K_split     = (gemm_k + k_grain - 1) / k_grain * GemmConfig::K_Tile;
@@ -106,20 +104,21 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
             constexpr auto scheduler        = GemmConfig::Scheduler;
             constexpr auto memory_operation = memory_operation_.value;
 
-            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<OutDataType,
-                                                                               InDataType,
-                                                                               AccDataType,
-                                                                               GemmShape,
-                                                                               GemmUniversalTraits,
-                                                                               scheduler,
-                                                                               has_hot_loop_v,
-                                                                               tail_number_v,
-                                                                               ck_tile::element_wise::PassThrough,
-                                                                               ck_tile::element_wise::PassThrough,
-                                                                               WeiDataType,
-                                                                               true,
-                                                                               VectorSizeA,
-                                                                               VectorSizeB>;
+            using UniversalGemmProblem =
+                ck_tile::UniversalGemmPipelineProblem<OutDataType,
+                                                      InDataType,
+                                                      AccDataType,
+                                                      GemmShape,
+                                                      GemmUniversalTraits,
+                                                      scheduler,
+                                                      has_hot_loop_v,
+                                                      tail_number_v,
+                                                      ck_tile::element_wise::PassThrough,
+                                                      ck_tile::element_wise::PassThrough,
+                                                      WeiDataType,
+                                                      true,
+                                                      VectorSizeA,
+                                                      VectorSizeB>;
 
             using GemmPipeline = typename PipelineTypeTraits<
                 GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;

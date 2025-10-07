@@ -81,9 +81,6 @@ struct GroupedConvTraits
         TileGemmTraits<true,
                        true,
                        true,
-                       //ck_tile::tensor_layout::gemm::RowMajor,
-                       //ck_tile::tensor_layout::gemm::ColumnMajor,
-                       // TODO: Change to and enable vector load
                        ck_tile::tensor_layout::gemm::RowMajor,
                        ck_tile::tensor_layout::gemm::RowMajor,
                        ck_tile::tensor_layout::gemm::RowMajor>;
@@ -91,9 +88,6 @@ struct GroupedConvTraits
         TileGemmTraits<true,
                        true,
                        true,
-                       //ck_tile::tensor_layout::gemm::RowMajor,
-                       //ck_tile::tensor_layout::gemm::ColumnMajor,
-                       // TODO: Change to and enable vector load
                        ck_tile::tensor_layout::gemm::ColumnMajor,
                        ck_tile::tensor_layout::gemm::RowMajor,
                        ck_tile::tensor_layout::gemm::RowMajor>;

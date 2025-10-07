@@ -502,7 +502,7 @@ struct TransformConvBwdDataToGemm
         // TODO Add support for NumGroupsToMerge > 1
         return make_naive_tensor_descriptor(make_tuple(N_, Hi_, Wi_, C_),
                                             make_tuple(NStride, HiStride, WiStride, CStride),
-                                            number<VectorSizeB>{},
+                                            number<VectorSizeC>{},
                                             I1);
     }
 
@@ -512,7 +512,7 @@ struct TransformConvBwdDataToGemm
         // GKYXC
         return make_naive_tensor_descriptor(make_tuple(K_, Y_, X_, C_),
                                             make_tuple(C_ * X_ * Y_, C_ * X_, C_, I1),
-                                            number<VectorSizeC>{},
+                                            number<VectorSizeB>{},
                                             I1);
     }
 
