@@ -1,5 +1,5 @@
 # ONLY XDL_KERNELS
-add_instance_library(device_grouped_conv2d_fwd_clamp_instance
+add_instance_library(device_grouped_conv2d_nhwgc_fwd_clamp_instance
    xdl/device_grouped_conv2d_fwd_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_instance.cpp
    xdl/device_grouped_conv2d_fwd_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_16x16_instance.cpp
    xdl/large_tensor/device_grouped_conv2d_fwd_clamp_xdl_large_tensor_nhwgc_gkyxc_nhwgk_bf16_instance.cpp

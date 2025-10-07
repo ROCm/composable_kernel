@@ -204,19 +204,14 @@ endfunction(add_instance_library INSTANCE_NAME)
 file(GLOB dir_list LIST_DIRECTORIES true *)
 set(CK_DEVICE_OTHER_INSTANCES)
 set(CK_DEVICE_GEMM_INSTANCES)
-set(CK_DEVICE_CONV_NEW_INSTANCES)
-set(CK_DEVICE_CONV_OLD_INSTANCES)
-set(CK_DEVICE_CONV_GNWC_INSTANCES)
-set(CK_DEVICE_CONV_NWGC_INSTANCES)
-set(CK_DEVICE_CONV_NHWGC_INSTANCES)
-set(CK_DEVICE_CONV_NGCHW_INSTANCES)
-set(CK_DEVICE_CONV_GNHWC_INSTANCES)
-set(CK_DEVICE_CONV_GNDHWC_INSTANCES)
-set(CK_DEVICE_CONV_NDHWGC_INSTANCES)
-set(CK_DEVICE_CONV_NGCDHW_INSTANCES)
 set(CK_DEVICE_MHA_INSTANCES)
 set(CK_DEVICE_CONTRACTION_INSTANCES)
 set(CK_DEVICE_REDUCTION_INSTANCES)
+set(CONV_LIBS "old" "gnwc" "nwgc" "nhwgc" "ngchw" "gnhwc" "gndhwc" "ndhwgc" "ngcdhw")
+foreach(lib ${CONV_LIBS})
+    set(CK_DEVICE_CONV_"${lib}"_INSTANCES)
+endforeach()
+
 FOREACH(subdir_path ${dir_list})
     set(target_dir)
     IF(IS_DIRECTORY "${subdir_path}")
@@ -341,14 +336,24 @@ FOREACH(subdir_path ${dir_list})
             add_subdirectory(${target_dir})
             if("${cmake_instance}" MATCHES "gemm")
                 list(APPEND CK_DEVICE_GEMM_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
-            elseif("${cmake_instance}" MATCHES "device_conv")
-                 list(APPEND CK_DEVICE_CONV_OLD_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
+            elseif("${cmake_instance}" MATCHES "device_conv" || "${cmake_instance}" MATCHES "device_grouped_convnd" )
+                 list(APPEND CK_DEVICE_CONV_old_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
             elseif("${cmake_instance}" MATCHES "device_grouped_conv1d" && "${cmake_instance}" MATCHES "gnwc")
-                 list(APPEND CK_DEVICE_CONV_GNWC_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
+                 list(APPEND CK_DEVICE_CONV_gnwc_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
             elseif("${cmake_instance}" MATCHES "device_grouped_conv1d" && "${cmake_instance}" MATCHES "nwgc")
-                 list(APPEND CK_DEVICE_CONV_NWGC_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
-            elseif("${cmake_instance}" MATCHES "device_grouped_conv" && "${cmake_instance}" NOT MATCHES "gnwc|nwgc")
-                 list(APPEND CK_DEVICE_CONV_NEW_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
+                 list(APPEND CK_DEVICE_CONV_nwgc_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
+            elseif("${cmake_instance}" MATCHES "device_grouped_conv2d" && "${cmake_instance}" MATCHES "nhwgc")
+                 list(APPEND CK_DEVICE_CONV_nhwgc_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
+            elseif("${cmake_instance}" MATCHES "device_grouped_conv2d" && "${cmake_instance}" MATCHES "ngchw")
+                 list(APPEND CK_DEVICE_CONV_ngchw_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
+            elseif("${cmake_instance}" MATCHES "device_grouped_conv2d" && "${cmake_instance}" MATCHES "gnhwc")
+                 list(APPEND CK_DEVICE_CONV_gnhwc_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
+            elseif("${cmake_instance}" MATCHES "device_grouped_conv3d" && "${cmake_instance}" MATCHES "gndhwc")
+                 list(APPEND CK_DEVICE_CONV_gndhwc_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
+            elseif("${cmake_instance}" MATCHES "device_grouped_conv3d" && "${cmake_instance}" MATCHES "ndhwgc")
+                 list(APPEND CK_DEVICE_CONV_ndhwgc_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
+            elseif("${cmake_instance}" MATCHES "device_grouped_conv3d" && "${cmake_instance}" MATCHES "ngcdhw")
+                 list(APPEND CK_DEVICE_CONV_ngcdhw_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
             elseif("${cmake_instance}" MATCHES "mha")
                  list(APPEND CK_DEVICE_MHA_INSTANCES $<TARGET_OBJECTS:device_${target_dir}_instance>)
             elseif("${cmake_instance}" MATCHES "contr")
@@ -424,103 +429,33 @@ if(CK_DEVICE_GEMM_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
         )
 endif()
-if(CK_DEVICE_CONV_OLD_INSTANCES)
-        add_library(device_conv_old_operations ${CK_DEVICE_CONV_OLD_INSTANCES})
-        add_library(composablekernels::device_conv_old_operations ALIAS device_conv_old_operations)
-        target_compile_features(device_conv_old_operations PUBLIC)
-        set_target_properties(device_conv_old_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
-        set_target_properties(device_conv_old_operations
+foreach(lib ${CONV_LIBS})
+    if(CK_DEVICE_CONV_"${lib}"_INSTANCES)
+        add_library(device_conv_"${lib}"_operations ${CK_DEVICE_CONV_"${lib}"_INSTANCES})
+        add_library(composablekernels::device_conv_"${lib}"_operations ALIAS device_conv_"${lib}"_operations)
+        target_compile_features(device_conv_"${lib}"_operations PUBLIC)
+        set_target_properties(device_conv_"${lib}"_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
+        set_target_properties(device_conv_"${lib}"_operations
             PROPERTIES
             VERSION ${CMAKE_PROJECT_VERSION}
             SOVERSION ${CMAKE_PROJECT_VERSION_MAJOR}
         )
-        target_include_directories(device_conv_old_operations PUBLIC
-            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu>
-            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/conv_tensor_rearrange>
-        )
-        rocm_install(TARGETS device_conv_old_operations
-            EXPORT device_conv_old_operationsTargets)
-        rocm_install(EXPORT device_conv_old_operationsTargets
-            FILE composable_kerneldevice_conv_old_operationsTargets.cmake
-            NAMESPACE composable_kernel::
-            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
-        )
-endif()
-if(CK_DEVICE_CONV_GNWC_INSTANCES)
-        add_library(device_conv_gnwc_operations ${CK_DEVICE_CONV_GNWC_INSTANCES})
-        add_library(composablekernels::device_conv_gnwc_operations ALIAS device_conv_gnwc_operations)
-        target_compile_features(device_conv_gnwc_operations PUBLIC)
-        set_target_properties(device_conv_gnwc_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
-        set_target_properties(device_conv_gnwc_operations
-            PROPERTIES
-            VERSION ${CMAKE_PROJECT_VERSION}
-            SOVERSION ${CMAKE_PROJECT_VERSION_MAJOR}
-        )
-        target_include_directories(device_conv_gnwc_operations PUBLIC
+        target_include_directories(device_conv_"${lib}"_operations PUBLIC
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu>
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/conv_tensor_rearrange>
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data>
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight>
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_fwd>
         )
-        rocm_install(TARGETS device_conv_gnwc_operations
-            EXPORT device_conv_gnwc_operationsTargets)
-        rocm_install(EXPORT device_conv_gnwc_operationsTargets
-            FILE composable_kerneldevice_conv_gnwc_operationsTargets.cmake
+        rocm_install(TARGETS device_conv_"${lib}"_operations
+            EXPORT device_conv_"${lib}"_operationsTargets)
+        rocm_install(EXPORT device_conv_"${lib}"_operationsTargets
+            FILE composable_kerneldevice_conv_"${lib}"_operationsTargets.cmake
             NAMESPACE composable_kernel::
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
         )
-endif()
-if(CK_DEVICE_CONV_NWGC_INSTANCES)
-        add_library(device_conv_nwgc_operations ${CK_DEVICE_CONV_NWGC_INSTANCES})
-        add_library(composablekernels::device_conv_nwgc_operations ALIAS device_conv_nwgc_operations)
-        target_compile_features(device_conv_nwgc_operations PUBLIC)
-        set_target_properties(device_conv_nwgc_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
-        set_target_properties(device_conv_nwgc_operations
-            PROPERTIES
-            VERSION ${CMAKE_PROJECT_VERSION}
-            SOVERSION ${CMAKE_PROJECT_VERSION_MAJOR}
-        )
-        target_include_directories(device_conv_nwgc_operations PUBLIC
-            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu>
-            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/conv_tensor_rearrange>
-            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data>
-            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight>
-            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_fwd>
-        )
-        rocm_install(TARGETS device_conv_nwgc_operations
-            EXPORT device_conv_nwgc_operationsTargets)
-        rocm_install(EXPORT device_conv_nwgc_operationsTargets
-            FILE composable_kerneldevice_conv_nwgc_operationsTargets.cmake
-            NAMESPACE composable_kernel::
-            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
-        )
-endif()
-if(CK_DEVICE_CONV_NEW_INSTANCES)
-        add_library(device_conv_new_operations ${CK_DEVICE_CONV_NEW_INSTANCES})
-        add_library(composablekernels::device_conv_new_operations ALIAS device_conv_new_operations)
-        target_compile_features(device_conv_new_operations PUBLIC)
-        set_target_properties(device_conv_new_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
-        set_target_properties(device_conv_new_operations
-            PROPERTIES
-            VERSION ${CMAKE_PROJECT_VERSION}
-            SOVERSION ${CMAKE_PROJECT_VERSION_MAJOR}
-        )
-        target_include_directories(device_conv_new_operations PUBLIC
-            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu>
-            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/conv_tensor_rearrange>
-            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data>
-            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight>
-            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_fwd>
-        )
-        rocm_install(TARGETS device_conv_new_operations
-            EXPORT device_conv_new_operationsTargets)
-        rocm_install(EXPORT device_conv_new_operationsTargets
-            FILE composable_kerneldevice_conv_new_operationsTargets.cmake
-            NAMESPACE composable_kernel::
-            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
-        )
-endif()
+    endif()
+endforeach()
 if(CK_DEVICE_MHA_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY AND BUILD_MHA_LIB)
         set(gpu_list ${INST_TARGETS})
         if(gpu_list MATCHES "gfx94" OR gpu_list MATCHES "gfx90a" OR gpu_list MATCHES "gfx95")
@@ -592,13 +527,12 @@ if(NOT MIOPEN_REQ_LIBS_ONLY)
     target_link_libraries(device_conv_operations INTERFACE
         device_conv_gnwc_operations
         device_conv_nwgc_operations
-        #device_conv_nhwgc_operations
-        #device_conv_ngchw_operations
-        #device_conv_gnhwc_operations
-        #device_conv_gndhwc_operations
-        #device_conv_ndhwgc_operations
-        #device_conv_ngcdhw_operations
-        device_conv_new_operations
+        device_conv_nhwgc_operations
+        device_conv_ngchw_operations
+        device_conv_gnhwc_operations
+        device_conv_gndhwc_operations
+        device_conv_ndhwgc_operations
+        device_conv_ngcdhw_operations
         device_conv_old_operations)
     add_library(device_operations INTERFACE)
     target_link_libraries(device_operations INTERFACE

@@ -32,4 +32,4 @@ set(GROUPED_CONV3D_FWD
    xdl/device_grouped_conv3d_fwd_clamp_xdl_ndhwgc_gkzyxc_ndhwgk_fp32_tf32_instance.cpp
    )
 
-add_instance_library(device_grouped_conv3d_fwd_clamp_instance ${GROUPED_CONV3D_FWD})
+add_instance_library(device_grouped_conv3d_ndhwgc_fwd_clamp_instance ${GROUPED_CONV3D_FWD})

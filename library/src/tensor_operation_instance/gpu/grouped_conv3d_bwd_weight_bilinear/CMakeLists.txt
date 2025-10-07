@@ -9,4 +9,4 @@ if((DTYPES MATCHES "fp8" AND DTYPES MATCHES "bf8" AND DTYPES MATCHES "fp16") OR 
       xdl/device_grouped_conv3d_bwd_weight_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_f16_comp_bf8_fp8_instance.cpp)
 endif()
 
-add_instance_library(device_grouped_conv3d_bwd_weight_bilinear_instance ${GROUPED_CONV3D_BWD_WEIGHT_BILINEAR})
+add_instance_library(device_grouped_conv3d_ndhwgc_bwd_weight_bilinear_instance ${GROUPED_CONV3D_BWD_WEIGHT_BILINEAR})

@@ -1,9 +1,15 @@
 # ONLY XDL_AND_WMMA_KERNELS
-set(GROUPED_CONV3D_FWD
+set(GROUPED_CONV3D_FWD_GNDHWC
    xdl/device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_bf16_instance.cpp
    xdl/device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_f16_instance.cpp
    xdl/device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_f32_instance.cpp
    xdl/device_grouped_conv3d_fwd_xdl_gndhwc_gkzyxc_gndhwk_int8_instance.cpp
+   wmma/device_grouped_conv3d_fwd_wmma_gndhwc_gkzyxc_gndhwk_f16_instance.cpp
+   wmma/device_grouped_conv3d_fwd_wmma_gndhwc_gkzyxc_gndhwk_i8_instance.cpp
+   wmma/device_grouped_conv3d_fwd_wmma_gndhwc_gkzyxc_gndhwk_f16_1x1p0_instance.cpp
+   wmma/device_grouped_conv3d_fwd_wmma_gndhwc_gkzyxc_gndhwk_i8_1x1p0_instance.cpp
+)
+set(GROUPED_CONV3D_FWD_NDHWGC
    xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_instance.cpp
    xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_instance.cpp
    xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_instance.cpp
@@ -12,48 +18,26 @@ set(GROUPED_CONV3D_FWD
    xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_16x16_instance.cpp
    xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_16x16_instance.cpp
    xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_int8_instance.cpp
-   xdl/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_instance.cpp
-   xdl/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_16x16_instance.cpp
-   xdl/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_16x16_instance.cpp
-   xdl/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_16x16_instance.cpp
-
    xdl/large_tensor/device_grouped_conv3d_fwd_xdl_large_tensor_ndhwgc_gkzyxc_ndhwgk_bf16_instance.cpp
    xdl/large_tensor/device_grouped_conv3d_fwd_xdl_large_tensor_ndhwgc_gkzyxc_ndhwgk_f16_instance.cpp
    xdl/large_tensor/device_grouped_conv3d_fwd_xdl_large_tensor_ndhwgc_gkzyxc_ndhwgk_f32_instance.cpp
    xdl/large_tensor/device_grouped_conv3d_fwd_xdl_large_tensor_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instance.cpp
-
    xdl/merged_groups/device_grouped_conv3d_fwd_xdl_merged_groups_ndhwgc_gkzyxc_ndhwgk_bf16_instance.cpp
    xdl/merged_groups/device_grouped_conv3d_fwd_xdl_merged_groups_ndhwgc_gkzyxc_ndhwgk_f16_instance.cpp
    xdl/merged_groups/device_grouped_conv3d_fwd_xdl_merged_groups_ndhwgc_gkzyxc_ndhwgk_f32_instance.cpp
    xdl/merged_groups/device_grouped_conv3d_fwd_xdl_merged_groups_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instance.cpp
-   xdl/merged_groups/device_grouped_conv3d_fwd_xdl_merged_groups_ngcdhw_gkczyx_ngkdhw_bf16_instance.cpp
-   xdl/merged_groups/device_grouped_conv3d_fwd_xdl_merged_groups_ngcdhw_gkczyx_ngkdhw_f16_instance.cpp
-   xdl/merged_groups/device_grouped_conv3d_fwd_xdl_merged_groups_ngcdhw_gkczyx_ngkdhw_f32_instance.cpp
-
    xdl/mem/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_mem_inter_instance.cpp
    xdl/mem/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_mem_inter_instance.cpp
    xdl/mem/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_mem_inter_instance.cpp
    xdl/mem/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_tf32_mem_inter_instance.cpp
-
    xdl/mem/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_mem_intra_instance.cpp
    xdl/mem/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_mem_intra_instance.cpp
    xdl/mem/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_mem_intra_instance.cpp
    xdl/mem/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_tf32_mem_intra_instance.cpp
-
    xdl/comp/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_comp_instance.cpp
    xdl/comp/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f32_tf32_comp_instance.cpp
-   xdl/comp/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_comp_instance.cpp
-   xdl/comp/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_comp_2x_instance.cpp
-   xdl/comp/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_comp_2x_instance.cpp
-   xdl/comp/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_comp_part2_instance.cpp
-   xdl/comp/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_comp_part2_instance.cpp
-
-   wmma/device_grouped_conv3d_fwd_wmma_gndhwc_gkzyxc_gndhwk_f16_instance.cpp
-   wmma/device_grouped_conv3d_fwd_wmma_gndhwc_gkzyxc_gndhwk_i8_instance.cpp
    wmma/device_grouped_conv3d_fwd_wmma_ndhwgc_gkzyxc_ndhwgk_f16_instance.cpp
    wmma/device_grouped_conv3d_fwd_wmma_ndhwgc_gkzyxc_ndhwgk_i8_instance.cpp
-   wmma/device_grouped_conv3d_fwd_wmma_gndhwc_gkzyxc_gndhwk_f16_1x1p0_instance.cpp
-   wmma/device_grouped_conv3d_fwd_wmma_gndhwc_gkzyxc_gndhwk_i8_1x1p0_instance.cpp
    wmma/device_grouped_conv3d_fwd_wmma_ndhwgc_gkzyxc_ndhwgk_f16_1x1p0_instance.cpp
    wmma/device_grouped_conv3d_fwd_wmma_ndhwgc_gkzyxc_ndhwgk_i8_1x1p0_instance.cpp
    wmma/device_grouped_conv3d_fwd_wmma_gndhwc_gkzyxc_gndhwk_f16_1x1s1p0_instance.cpp
@@ -65,6 +49,20 @@ set(GROUPED_CONV3D_FWD
    wmma/device_grouped_conv3d_fwd_wmma_ndhwgc_gkzyxc_ndhwgk_f16_oddc_instance.cpp
    wmma/device_grouped_conv3d_fwd_wmma_ndhwgc_gkzyxc_ndhwgk_i8_oddc_instance.cpp
 )
+set(GROUPED_CONV3D_FWD_NGCDHW
+   xdl/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_instance.cpp
+   xdl/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_16x16_instance.cpp
+   xdl/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_16x16_instance.cpp
+   xdl/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_16x16_instance.cpp
+   xdl/merged_groups/device_grouped_conv3d_fwd_xdl_merged_groups_ngcdhw_gkczyx_ngkdhw_bf16_instance.cpp
+   xdl/merged_groups/device_grouped_conv3d_fwd_xdl_merged_groups_ngcdhw_gkczyx_ngkdhw_f16_instance.cpp
+   xdl/merged_groups/device_grouped_conv3d_fwd_xdl_merged_groups_ngcdhw_gkczyx_ngkdhw_f32_instance.cpp
+   xdl/comp/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_comp_instance.cpp
+   xdl/comp/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_comp_2x_instance.cpp
+   xdl/comp/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_comp_2x_instance.cpp
+   xdl/comp/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_comp_part2_instance.cpp
+   xdl/comp/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_comp_part2_instance.cpp
+)
 # Add generated files for sharded instantiations.
 include(ShardInstantiation)
 
@@ -73,7 +71,7 @@ generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instances
   TEMPLATE_FILE xdl/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_instance.in
   NUM_SHARDS 8
-  SRC_LIST GROUPED_CONV3D_FWD
+  SRC_LIST GROUPED_CONV3D_FWD_NGCDHW
   OUTPUT_DIR ${GENERATED_DIR}/xdl
 )
 set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
@@ -81,7 +79,7 @@ generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_instances
   TEMPLATE_FILE xdl/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_instance.in
   NUM_SHARDS 8
-  SRC_LIST GROUPED_CONV3D_FWD
+  SRC_LIST GROUPED_CONV3D_FWD_NGCDHW
   OUTPUT_DIR ${GENERATED_DIR}/xdl
 )
 
@@ -90,21 +88,21 @@ generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_mem_inter_instances
   TEMPLATE_FILE xdl/mem/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_mem_inter_instance.in
   NUM_SHARDS 10
-  SRC_LIST GROUPED_CONV3D_FWD
+  SRC_LIST GROUPED_CONV3D_FWD_NGCDHW
   OUTPUT_DIR ${GENERATED_DIR}/xdl/mem
 )
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_mem_inter_instances
   TEMPLATE_FILE xdl/mem/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_mem_inter_instance.in
   NUM_SHARDS 10
-  SRC_LIST GROUPED_CONV3D_FWD
+  SRC_LIST GROUPED_CONV3D_FWD_NGCDHW
   OUTPUT_DIR ${GENERATED_DIR}/xdl/mem
 )
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_inter_instances
   TEMPLATE_FILE xdl/mem/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_inter_instance.in
   NUM_SHARDS 10
-  SRC_LIST GROUPED_CONV3D_FWD
+  SRC_LIST GROUPED_CONV3D_FWD_NGCDHW
   OUTPUT_DIR ${GENERATED_DIR}/xdl/mem
 )
 
@@ -112,21 +110,21 @@ generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_mem_intra_instances
   TEMPLATE_FILE xdl/mem/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_mem_intra_instance.in
   NUM_SHARDS 10
-  SRC_LIST GROUPED_CONV3D_FWD
+  SRC_LIST GROUPED_CONV3D_FWD_NGCDHW
   OUTPUT_DIR ${GENERATED_DIR}/xdl/mem
 )
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_mem_intra_instances
   TEMPLATE_FILE xdl/mem/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_mem_intra_instance.in
   NUM_SHARDS 10
-  SRC_LIST GROUPED_CONV3D_FWD
+  SRC_LIST GROUPED_CONV3D_FWD_NGCDHW
   OUTPUT_DIR ${GENERATED_DIR}/xdl/mem
 )
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_intra_instances
   TEMPLATE_FILE xdl/mem/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f32_mem_intra_instance.in
   NUM_SHARDS 10
-  SRC_LIST GROUPED_CONV3D_FWD
+  SRC_LIST GROUPED_CONV3D_FWD_NGCDHW
   OUTPUT_DIR ${GENERATED_DIR}/xdl/mem
 )
 
@@ -134,51 +132,52 @@ generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_comp_instances
   TEMPLATE_FILE xdl/comp/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_comp_instance.in
   NUM_SHARDS 12
-  SRC_LIST GROUPED_CONV3D_FWD
+  SRC_LIST GROUPED_CONV3D_FWD_NDHWGC
   OUTPUT_DIR ${GENERATED_DIR}/xdl/comp
 )
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_instances
   TEMPLATE_FILE xdl/comp/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_instance.in
   NUM_SHARDS 12
-  SRC_LIST GROUPED_CONV3D_FWD
+  SRC_LIST GROUPED_CONV3D_FWD_NDHWGC
   OUTPUT_DIR ${GENERATED_DIR}/xdl/comp
 )
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_comp_instances
   TEMPLATE_FILE xdl/comp/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_bf16_comp_instance.in
   NUM_SHARDS 12
-  SRC_LIST GROUPED_CONV3D_FWD
+  SRC_LIST GROUPED_CONV3D_FWD_NGCDHW
   OUTPUT_DIR ${GENERATED_DIR}/xdl/comp
 )
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_comp_instances
   TEMPLATE_FILE xdl/comp/device_grouped_conv3d_fwd_xdl_ngcdhw_gkczyx_ngkdhw_f16_comp_instance.in
   NUM_SHARDS 12
-  SRC_LIST GROUPED_CONV3D_FWD
+  SRC_LIST GROUPED_CONV3D_FWD_NGCDHW
   OUTPUT_DIR ${GENERATED_DIR}/xdl/comp
 )
 
 if((DTYPES MATCHES "fp8" AND DTYPES MATCHES "fp16") OR NOT DEFINED DTYPES)
-    list(APPEND GROUPED_CONV3D_FWD
+    list(APPEND GROUPED_CONV3D_FWD_NDHWGC
       xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_f16_comp_fp8_instance.cpp)
 endif()
 
 if((DTYPES MATCHES "fp8") OR NOT DEFINED DTYPES)
-    list(APPEND GROUPED_CONV3D_FWD
+    list(APPEND GROUPED_CONV3D_FWD_NDHWGC
       xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_fp8_instance.cpp)
 endif()
 
 if((DTYPES MATCHES "bf8") OR NOT DEFINED DTYPES)
-    list(APPEND GROUPED_CONV3D_FWD
+    list(APPEND GROUPED_CONV3D_FWD_NDHWGC
       xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf8_instance.cpp)
 endif()
 
 if((DTYPES MATCHES "fp8" AND DTYPES MATCHES "bf8") OR NOT DEFINED DTYPES)
-    list(APPEND GROUPED_CONV3D_FWD
-      xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_fp8_bf8_instance.cpp)
-    list(APPEND GROUPED_CONV3D_FWD
+    list(APPEND GROUPED_CONV3D_FWD_NDHWGC
+      xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_fp8_bf8_instance.cpp
       xdl/device_grouped_conv3d_fwd_xdl_ndhwgc_gkzyxc_ndhwgk_bf8_fp8_instance.cpp)
 endif()
 
-add_instance_library(device_grouped_conv3d_fwd_instance ${GROUPED_CONV3D_FWD})
+add_instance_library(device_grouped_conv3d_gndhwc_fwd_instance ${GROUPED_CONV3D_FWD_GNDHWC})
+add_instance_library(device_grouped_conv3d_ndhwgc_fwd_instance ${GROUPED_CONV3D_FWD_NDHWGC})
+add_instance_library(device_grouped_conv3d_ngcdhw_fwd_instance ${GROUPED_CONV3D_FWD_NGCDHW})
