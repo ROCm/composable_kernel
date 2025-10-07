@@ -98,6 +98,30 @@ struct GemmConfigMemoryInterwave : public GemmConfigBase
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_MEMORY;
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Interwave;
 
+    static constexpr bool SkipALds = false;
+    static constexpr bool SkipBLds = false;
+};
+
+template <typename PrecType>
+struct GemmConfigMemoryInterwaveSkipABLds : public GemmConfigBase
+{
+    // Memory friendly for Interwave scheduler
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 32;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 4;
+    static constexpr ck_tile::index_t N_Warp = 1;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = sizeof(PrecType) == 2 ? 8 : 16;
+
+    static constexpr bool DoubleSmemBuffer     = false;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_MEMORY;
+    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Interwave;
+
     static constexpr bool SkipALds = true;
     static constexpr bool SkipBLds = true;
 };

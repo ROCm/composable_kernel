@@ -87,7 +87,7 @@ struct PersistenceType
 };
 
 template <bool v>
-struct UseLDSType
+struct SkipLDSType
 {
     static constexpr bool value = v;
 };
@@ -102,13 +102,13 @@ struct is_persistence_type<PersistenceType<v>> : std::true_type
 {
 };
 
-// Trait to check if a type T is an instance of the UseLDSType template
+// Trait to check if a type T is an instance of the SkipLDSType template
 template <typename T>
-struct is_use_lds_type : std::false_type
+struct is_skip_lds_type : std::false_type
 {
 };
 template <bool v>
-struct is_use_lds_type<UseLDSType<v>> : std::true_type
+struct is_skip_lds_type<SkipLDSType<v>> : std::true_type
 {
 };
 
@@ -144,12 +144,12 @@ class TestCkTileGemmPipeline : public ::testing::Test
         is_persistence_type<type_at<15>>::value ? type_at<15>::value : false;
 
     static constexpr bool SkipALds =
-        is_use_lds_type<type_at<15>>::value ? !type_at<15>::value : false;
+        is_skip_lds_type<type_at<15>>::value ? type_at<15>::value : false;
 
     static constexpr bool SkipBLds = [] {
         if constexpr(!std::is_same_v<type_at<16>, void>)
         {
-            return is_use_lds_type<type_at<16>>::value ? !type_at<16>::value : false;
+            return is_skip_lds_type<type_at<16>>::value ? type_at<16>::value : false;
         }
         else
         {

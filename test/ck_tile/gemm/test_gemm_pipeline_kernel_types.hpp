@@ -34,8 +34,8 @@ using CompAsync = ck_tile::integral_constant<GemmPipelineType, GemmPipelineType:
 using Persistent    = PersistenceType<true>;
 using NonPersistent = PersistenceType<false>;
 
-using UseLDS  = UseLDSType<true>;
-using SkipLDS = UseLDSType<false>;
+using UseLDS  = SkipLDSType<false>;
+using SkipLDS = SkipLDSType<true>;
 
 using I16  = ck_tile::number<16>;
 using I32  = ck_tile::number<32>;
