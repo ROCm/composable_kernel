@@ -1160,7 +1160,7 @@ pipeline {
         ck_git_creds = "${ck_git_creds}"
         gerrit_cred="${gerrit_cred}"
         DOCKER_BUILDKIT = "1"
-        SHOULD_RUN_CI = "true"
+        SHOULD_RUN_CI = "false"
     }
     stages{
         stage("Determine CI Execution") {
