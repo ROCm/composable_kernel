@@ -1840,21 +1840,5 @@ pipeline {
                 }
             }
         }
-        stage("Clean Up Test Stage")
-        {
-            when {
-                beforeAgent true
-                expression { env.SHOULD_RUN_CI.toBoolean() }
-            }
-            agent{ label rocmnode("nogpu") }
-            steps {
-                script {
-                    def variant = env.STAGE_NAME
-                    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${variant}", account: 'ROCm', repo: 'composable_kernel') {
-                        echo "Clean up test stage executing"
-                    }
-                }
-            }
-        }
     }
 }
