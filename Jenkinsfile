@@ -1830,7 +1830,7 @@ pipeline {
                 always {
                     script {
                         if (env.SHOULD_RUN_CI.toBoolean() && !(params.RUN_PERFORMANCE_TESTS.toBoolean() || params.BUILD_INSTANCES_ONLY.toBoolean() || params.RUN_CK_TILE_FMHA_TESTS.toBoolean()) && params.BUILD_LEGACY_OS.toBoolean()) {
-                            // Report the skipped stage's status.
+                            // Report the skipped stage's status
                             def variant = "Process results"
                             gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${variant}", account: 'ROCm', repo: 'composable_kernel') {
                                 echo "Process Performance Test Results stage skipped."
