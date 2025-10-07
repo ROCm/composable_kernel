@@ -1160,14 +1160,14 @@ pipeline {
         ck_git_creds = "${ck_git_creds}"
         gerrit_cred="${gerrit_cred}"
         DOCKER_BUILDKIT = "1"
-        SHOULD_RUN_CI = "false"
+        SHOULD_RUN_CI = "true"
     }
     stages{
         stage("Determine CI Execution") {
             agent{ label rocmnode("nogpu") }
             steps {
                 script {
-                    env.SHOULD_RUN_CI = params.FORCE_CI.toBoolean() || shouldRunCICheck()
+                    env.SHOULD_RUN_CI = String.valueOf(params.FORCE_CI.toBoolean() || shouldRunCICheck())
                     echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
                 }
             }
