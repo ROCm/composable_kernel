@@ -415,6 +415,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                 aq_block_tiles.get(I0{}), aq_copy_dram_window, aq_dram_tile_window_step);
 
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
+            block_sync_lds();
 
             // LDS prefill
             if constexpr(is_a_col_major)
@@ -442,6 +443,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                 Base::LocalPrefill(b_copy_lds_window, b_block_tiles.get(I0{}), b_element_func);
             }
 
+            block_sync_lds();
             // Additional prefetching for memory pipeline
             static_for<1, PrefetchStages, 1>{}([&](auto prefetch_idx) {
                 Base::GlobalPrefetch(a_block_tiles.get(number<prefetch_idx>{}),
@@ -503,7 +505,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                                 b_block_tiles.get(number<(prefetch_idx + 1) % PrefetchStages>{}),
                                 b_element_func);
                         }
-
+                        block_sync_lds();
                         Base::GlobalPrefetch(a_block_tiles.get(number<prefetch_idx>{}),
                                              a_copy_dram_window,
                                              a_dram_tile_window_step);
@@ -523,14 +525,17 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             // Tail handling
             block_sync_lds();
             block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
+            block_sync_lds();
             block_gemm(
                 c_block_tile, aq_block_tiles.get(I0{}), a_lds_gemm_window, b_lds_gemm_window);
+            block_sync_lds();
 
             if constexpr(TailNum == TailNumber::Even || TailNum == TailNumber::Full)
             {
                 block_sync_lds();
                 Base::LocalPrefill(a_copy_lds_window, a_block_tiles.get(I1{}), a_element_func);
                 Base::LocalPrefill(b_copy_lds_window, b_block_tiles.get(I1{}), b_element_func);
+                block_sync_lds();
                 block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
                 block_sync_lds();
                 block_gemm(
