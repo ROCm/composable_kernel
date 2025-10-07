@@ -7,3 +7,4 @@ set(GROUPED_CONV3D_FWD_CONVSCALE
    xdl/device_grouped_conv3d_fwd_xdl_combconvscale_ndhwgc_gkzyxc_ndhwgk_f8_f8_f32_instance.cpp)
 
 add_instance_library(device_grouped_conv3d_ndhwgc_fwd_convscale_instance ${GROUPED_CONV3D_FWD_CONVSCALE})
+add_library(device_grouped_conv3d_fwd_convscale_instance ALIAS device_grouped_conv3d_ndhwgc_fwd_convscale_instance)

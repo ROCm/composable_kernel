@@ -34,3 +34,4 @@ add_instance_library(device_grouped_conv2d_nhwgc_fwd_clamp_instance
    xdl/comp/device_grouped_conv2d_fwd_clamp_xdl_nhwgc_gkyxc_nhwgk_fp32_comp_instance.cpp
    xdl/comp/device_grouped_conv2d_fwd_clamp_xdl_nhwgc_gkyxc_nhwgk_fp32_tf32_comp_instance.cpp
 )
+add_library(device_grouped_conv2d_fwd_clamp_instance ALIAS device_grouped_conv2d_nhwgc_fwd_clamp_instance)

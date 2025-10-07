@@ -7,3 +7,4 @@ set(GROUPED_CONV3D_FWD_BILINEAR
    xdl/device_grouped_conv3d_fwd_xdl_bilinear_ndhwgc_gkzyxc_ndhwgk_int8_instance.cpp)
 
 add_instance_library(device_grouped_conv3d_ndhwgc_fwd_bilinear_instance ${GROUPED_CONV3D_FWD_BILINEAR})
+add_library(device_grouped_conv3d_fwd_bilinear_instance ALIAS device_grouped_conv3d_ndhwgc_fwd_bilinear_instance)

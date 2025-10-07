@@ -78,3 +78,9 @@ endif()
 add_instance_library(device_grouped_conv3d_gndhwc_bwd_weight_instance ${GROUPED_CONV3D_BWD_WEIGHT_GNDHWC})
 add_instance_library(device_grouped_conv3d_ndhwgc_bwd_weight_instance ${GROUPED_CONV3D_BWD_WEIGHT_NDHWGC})
 add_instance_library(device_grouped_conv3d_ngcdhw_bwd_weight_instance ${GROUPED_CONV3D_BWD_WEIGHT_NGCDHW})
+
+add_library(device_grouped_conv3d_bwd_weight_instance INTERFACE)
+target_link_libraries(device_grouped_conv3d_bwd_weight_instance INTERFACE
+    device_grouped_conv3d_ndhwgc_bwd_weight_instance
+    device_grouped_conv3d_ngcdhw_bwd_weight_instance
+    device_grouped_conv3d_gndhwc_bwd_weight_instance)

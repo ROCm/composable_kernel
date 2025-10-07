@@ -286,3 +286,4 @@ generate_sharded_instantiations(
 )
 
 add_instance_library(device_grouped_conv2d_nhwgc_fwd_bias_bnorm_clamp_instance ${GROUPED_CONV2D_FWD_BIAS_BNORM_CLAMP})
+add_library(device_grouped_conv2d_fwd_bias_bnorm_clamp_instance ALIAS device_grouped_conv2d_nhwgc_fwd_bias_bnorm_clamp_instance)

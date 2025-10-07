@@ -10,3 +10,4 @@ if((DTYPES MATCHES "fp8" AND DTYPES MATCHES "bf8" AND DTYPES MATCHES "fp16") OR 
 endif()
 
 add_instance_library(device_grouped_conv3d_ndhwgc_bwd_weight_scale_instance ${GROUPED_CONV3D_BWD_WEIGHT_SCALE})
+add_library(device_grouped_conv3d_bwd_weight_scale_instance ALIAS device_grouped_conv3d_ndhwgc_bwd_weight_scale_instance)

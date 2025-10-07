@@ -33,3 +33,4 @@ set(GROUPED_CONV3D_FWD
    )
 
 add_instance_library(device_grouped_conv3d_ndhwgc_fwd_bias_clamp_instance ${GROUPED_CONV3D_FWD})
+add_library(device_grouped_conv3d_fwd_bias_clamp_instance ALIAS device_grouped_conv3d_ndhwgc_fwd_bias_clamp_instance)

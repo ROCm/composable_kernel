@@ -522,7 +522,27 @@ if(CK_DEVICE_REDUCTION_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
         )
 endif()
 
+
 if(NOT MIOPEN_REQ_LIBS_ONLY)
+
+    add_library(device_grouped_conv2d_fwd_instance INTERFACE)
+    target_link_libraries(device_grouped_conv2d_fwd_instance INTERFACE
+        device_grouped_conv2d_gnhwc_fwd_instance
+        device_grouped_conv2d_ngchw_fwd_instance
+        device_grouped_conv2d_nhwgc_fwd_instance)
+
+    add_library(device_grouped_conv2d_bwd_data_instance INTERFACE)
+    target_link_libraries(device_grouped_conv2d_bwd_data_instance INTERFACE
+        device_grouped_conv2d_gnhwc_bwd_data_instance
+        device_grouped_conv2d_nhwgc_bwd_data_instance
+        device_grouped_conv2d_ngchw_bwd_data_instance)
+
+    add_library(device_grouped_conv2d_bwd_weight_instance INTERFACE)
+    target_link_libraries(device_grouped_conv2d_bwd_weight_instance INTERFACE
+        device_grouped_conv2d_gnhwc_bwd_weight_instance
+        device_grouped_conv2d_nhwgc_bwd_weight_instance
+        device_grouped_conv2d_ngchw_bwd_weight_instance)
+
     add_library(device_conv_operations INTERFACE)
     target_link_libraries(device_conv_operations INTERFACE
         device_conv_gnwc_operations
@@ -534,6 +554,7 @@ if(NOT MIOPEN_REQ_LIBS_ONLY)
         device_conv_ndhwgc_operations
         device_conv_ngcdhw_operations
         device_conv_old_operations)
+
     add_library(device_operations INTERFACE)
     target_link_libraries(device_operations INTERFACE
         device_contraction_operations

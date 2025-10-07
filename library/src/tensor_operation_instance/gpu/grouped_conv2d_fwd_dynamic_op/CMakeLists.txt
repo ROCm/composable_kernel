@@ -6,3 +6,4 @@ set(GROUPED_CONV2D_FWD_DYNAMIC_OP
    xdl/device_grouped_conv2d_fwd_xdl_dynamic_op_nhwgc_gkyxc_nhwgk_int8_instance.cpp)
 
 add_instance_library(device_grouped_conv2d_nhwgc_fwd_dynamic_op_instance ${GROUPED_CONV2D_FWD_DYNAMIC_OP})
+add_library(device_grouped_conv2d_fwd_dynamic_op_instance ALIAS device_grouped_conv2d_nhwgc_fwd_dynamic_op_instance)

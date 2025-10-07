@@ -181,3 +181,9 @@ endif()
 add_instance_library(device_grouped_conv3d_gndhwc_fwd_instance ${GROUPED_CONV3D_FWD_GNDHWC})
 add_instance_library(device_grouped_conv3d_ndhwgc_fwd_instance ${GROUPED_CONV3D_FWD_NDHWGC})
 add_instance_library(device_grouped_conv3d_ngcdhw_fwd_instance ${GROUPED_CONV3D_FWD_NGCDHW})
+
+add_library(device_grouped_conv3d_fwd_instance INTERFACE)
+target_link_libraries(device_grouped_conv3d_fwd_instance INTERFACE
+        device_grouped_conv3d_gndhwc_fwd_instance
+        device_grouped_conv3d_ndhwgc_fwd_instance
+        device_grouped_conv3d_ngcdhw_fwd_instance)

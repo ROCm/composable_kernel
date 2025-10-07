@@ -46,3 +46,10 @@ endif()
 add_instance_library(device_grouped_conv3d_gndhwc_bwd_data_instance ${GROUPED_CONV3D_BWD_DATA_GNDHWC})
 add_instance_library(device_grouped_conv3d_ndhwgc_bwd_data_instance ${GROUPED_CONV3D_BWD_DATA_NDHWGC})
 add_instance_library(device_grouped_conv3d_ngcdhw_bwd_data_instance ${GROUPED_CONV3D_BWD_DATA_NGCDHW})
+
+add_library(device_grouped_conv3d_bwd_data_instance INTERFACE)
+target_link_libraries(device_grouped_conv3d_bwd_data_instance INTERFACE
+    device_grouped_conv3d_ndhwgc_bwd_data_instance
+    device_grouped_conv3d_ngcdhw_bwd_data_instance
+    device_grouped_conv3d_gndhwc_bwd_data_instance)
+    
