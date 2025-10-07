@@ -73,7 +73,8 @@ struct BaseGemmPipelineAgBgCrCompV6
 #if defined(__HIP_DEVICE_COMPILE__)
         __builtin_unreachable();
 #else
-        throw std::logic_error("Invalid TailNumber: Only TailNumber::Odd and TailNumber::Even are supported in this pipeline context.");
+        throw std::logic_error("Invalid TailNumber: Only TailNumber::Odd and TailNumber::Even are "
+                               "supported in this pipeline context.");
 #endif
     }
 };
