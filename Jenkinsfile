@@ -1812,22 +1812,26 @@ pipeline {
         }
         stage("Process Performance Test Results")
         {
-            when {
-                beforeAgent true
-                expression { env.SHOULD_RUN_CI.toBoolean() }
-                expression { (params.RUN_PERFORMANCE_TESTS.toBoolean() || params.BUILD_INSTANCES_ONLY.toBoolean() || params.RUN_CK_TILE_FMHA_TESTS.toBoolean()) && !params.BUILD_LEGACY_OS.toBoolean() }
-            }
-            agent { label 'mici' }
-            steps {
-                process_results()
-                cleanWs()
+            parallel
+            {
+                stage("Process results"){
+                    when {
+                        beforeAgent true
+                        expression { (params.RUN_PERFORMANCE_TESTS.toBoolean() || params.BUILD_INSTANCES_ONLY.toBoolean() || params.RUN_CK_TILE_FMHA_TESTS.toBoolean()) && !params.BUILD_LEGACY_OS.toBoolean() }
+                    }
+                    agent { label 'mici' }
+                    steps{
+                        process_results()
+                        cleanWs()
+                    }
+                }
             }
             post {
                 always {
                     script {
                         if (env.SHOULD_RUN_CI.toBoolean() && !(params.RUN_PERFORMANCE_TESTS.toBoolean() || params.BUILD_INSTANCES_ONLY.toBoolean() || params.RUN_CK_TILE_FMHA_TESTS.toBoolean()) && params.BUILD_LEGACY_OS.toBoolean()) {
-                            // CI should run but stage is skipped
-                            def variant = env.STAGE_NAME
+                            // Report the skipped stage's status.
+                            def variant = "Process results"
                             gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${variant}", account: 'ROCm', repo: 'composable_kernel') {
                                 echo "Process Performance Test Results stage skipped."
                             }
