@@ -71,9 +71,6 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   bool flush_cache,
                   int rotating_count)
 {
-    std::cout << std::endl
-              << __func__ << ": Running Gemm kernel with M =" << M << " N =" << N << " K =" << K
-              << std::endl;
     ck_tile::QuantGemmHostArgs args;
     args.a_ptr     = a_m_k_dev_buf.GetDeviceBuffer();
     args.aq_ptr    = (aq_dev_buf != nullptr) ? aq_dev_buf->GetDeviceBuffer() : nullptr;
@@ -193,7 +190,6 @@ int run_gemm_example_with_layouts(int argc,
     {
         AQK = K / QuantGroupSize; // Group quantization: AQK = K / GroupSize
         BQK = 0;                  // No B quantization
-        std::cout << std::endl << __func__ << ": AQK = " << AQK << std::endl;
     }
     else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
     {
@@ -234,7 +230,6 @@ int run_gemm_example_with_layouts(int argc,
     {
         stride_AQ = ck_tile::get_default_stride(M, AQK, stride_AQ, is_row_major(aq_layout));
         stride_BQ = 0; // No B quantization
-        std::cout << std::endl << __func__ << ": stride_AQ = " << stride_AQ << std::endl;
     }
     else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
     {
@@ -287,13 +282,12 @@ int run_gemm_example_with_layouts(int argc,
             ck_tile::host_tensor_descriptor(1, 1, stride_BQ, is_row_major(bq_layout)));
     }
 
-    // std::random_device rd;
-    // std::mt19937 gen(rd());
-    // std::uniform_int_distribution<std::uint32_t> fill_seed(0, 500);
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<std::uint32_t> fill_seed(0, 500);
 
     if(init_method == 0)
     {
-        std::cout << std::endl << __func__ << ": init_method = " << init_method << std::endl;
         if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
             if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
@@ -317,9 +311,7 @@ int run_gemm_example_with_layouts(int argc,
             {
                 ck_tile::FillUniformDistribution<ADataType>{-2.0f, 3.0f}(a_m_k);
             }
-            // ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f}(*aq_tensor_ptr);
-            ck_tile::FillUniformDistribution<AQDataType>{1.0f, 1.0f}(*aq_tensor_ptr);
-            std::cout << "aq_tensor_ptr: initialialized with 1.0f" << std::endl;
+            ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f}(*aq_tensor_ptr);
             ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f}(b_k_n);
         }
         else
@@ -337,7 +329,6 @@ int run_gemm_example_with_layouts(int argc,
     }
     else if(init_method == 2)
     {
-        std::cout << std::endl << __func__ << ": init_method = " << init_method << std::endl;
         if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
             ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x38)}(a_m_k);
@@ -346,13 +337,9 @@ int run_gemm_example_with_layouts(int argc,
         }
         else
         {
-            // ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x22)}(a_m_k);
-            // ck_tile::FillConstant<AQDataType>{static_cast<AQDataType>(0.5f)}(*aq_tensor_ptr);
-            // ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x38)}(b_k_n);
-
-            ck_tile::FillUniformDistribution<ADataType>{1.0f, 1.0f}(a_m_k);
-            ck_tile::FillUniformDistribution<AQDataType>{1.0f, 1.0f}(*aq_tensor_ptr);
-            ck_tile::FillUniformDistribution<BDataType>{1.0f, 1.0f}(b_k_n);
+            ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x22)}(a_m_k);
+            ck_tile::FillConstant<AQDataType>{static_cast<AQDataType>(0.5f)}(*aq_tensor_ptr);
+            ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x38)}(b_k_n);
 
             if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
             {

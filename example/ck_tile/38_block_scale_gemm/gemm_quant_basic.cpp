@@ -68,15 +68,10 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
     const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
     const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
 
-    std::cout << std::endl << __func__ << ": num_loop = " << num_loop << std::endl;
-
     const auto Run = [&](const auto has_hot_loop_, const auto tail_number_) {
         constexpr bool has_hot_loop_v = has_hot_loop_.value;
         constexpr auto tail_number_v  = tail_number_.value;
         constexpr bool transpose_c    = false;
-
-        std::cout << std::endl << __func__ << ": has_hot_loop = " << has_hot_loop_v << std::endl;
-        std::cout << std::endl << __func__ << ": tail_num = " << tail_number_v << std::endl;
 
         // row-col and tensor quants use the regular pipeline, A/B quants use their own
         using PipelineProblem = std::conditional_t<
@@ -124,7 +119,8 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
             ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>,
             std::conditional_t<
                 QuantMode == ck_tile::QuantType::AQuantGrouped,
-                ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
+                ck_tile::AQuantGemmPipelineAgBgCrMem<PipelineProblem>, // memory pipeline hardcoded
+                                                                       // for aquant
                 std::conditional_t<GemmConfig::PreshuffleB == true,
                                    ck_tile::WPQuantBPipelineAgBgCrV2<PipelineProblem>,
                                    ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>>;
@@ -249,7 +245,6 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     {
         if(a_layout == "R" && b_layout == "C")
         {
-            std::cout << std::endl << __func__ << ": Running layout: R, C" << std::endl;
             return run_gemm_example_with_layouts<GemmConfig, TypeConfig, QuantGroupSize, QuantMode>(
                 argc, argv, Row{}, Row{}, Col{}, Col{}, Row{});
         }
@@ -283,11 +278,9 @@ int run_gemm_example(int argc, char* argv[])
     {
         using TypeConfig =
             decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t, float>{});
-        std::cout << std::endl << __func__ << ": Running fp8" << std::endl;
 
         if(quant_mode == "aquant")
         {
-            std::cout << std::endl << __func__ << ": Running aquant" << std::endl;
             return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
                                               TypeConfig,
                                               128,
@@ -457,8 +450,4 @@ int run_gemm_example(int argc, char* argv[])
     }
 }
 
-int main(int argc, char* argv[])
-{
-    std::cout << std::endl << __func__ << ": Running GemmConfigQuant" << std::endl;
-    return !run_gemm_example<GemmConfigQuant>(argc, argv);
-}
+int main(int argc, char* argv[]) { return !run_gemm_example<GemmConfigQuant>(argc, argv); }
