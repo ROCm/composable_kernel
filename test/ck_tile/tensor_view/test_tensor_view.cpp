@@ -712,43 +712,11 @@ __global__ void test_4x4_matrix_get_2x2_blocks_with_sfc_and_lds_kernel(int* inpu
     store_tile(in_lds_window, lds_tile);
     block_sync_lds();
 
-    // Print the contents of LDS
-    if(threadIdx.x == 0 && blockIdx.x == 0)
-    {
-        printf("LDS contents:\n");
-        int* lds_data = reinterpret_cast<int*>(p_smem);
-        for(index_t i = 0; i < 4; i++)
-        {
-            for(index_t j = 0; j < 4; j++)
-            {
-                printf("%3d ", lds_data[i * 4 + j]);
-            }
-            printf("\n");
-        }
-    }
-
     // For the output tensor, we need to copy only the diagonal 2x2 blocks to global memory.
     static_for<0, NumGroupsToMerge, 1>{}([&](auto group) {
         auto out_tensor = load_tile(make_tile_window(out_lds_window, output_tile_distribution));
 
         store_tile(output_window, out_tensor);
-
-        // Print the output tensor contents.
-        __syncthreads();
-        if(threadIdx.x == 0 && blockIdx.x == 0)
-        {
-
-            printf("Output tensor contents after loading group %d:\n", group.value);
-            for(index_t i = 0; i < 4; i++)
-            {
-                for(index_t j = 0; j < 2; j++)
-                {
-                    printf("%3d", output[i * 2 + j]);
-                }
-                printf("\n");
-            }
-        }
-        __syncthreads();
 
         // Moving output window works correctly.
         if constexpr(group != NumGroupsToMerge - 1)
