@@ -49,11 +49,11 @@ def runShell(String command){
 def shouldRunCICheck() {
     // Define patterns for files that should not trigger CI
     def skipFilePatterns = [
-        ~/^\.github\/.*/, // GitHub workflow files
-        ~/^docs\/.*/, // Documentation files
-        ~/^LICENSE$/, // License file
-        ~/^.*\.gitignore$/, // Git ignore files
-        ~/.*\.md$/ // Markdown files
+        /^\.github\/.*/, // GitHub workflow files
+        /^docs\/.*/, // Documentation files
+        /^LICENSE$/, // License file
+        /^.*\.gitignore$/, // Git ignore files
+        /.*\.md$/ // Markdown files
     ]
     
     try {
@@ -1160,7 +1160,7 @@ pipeline {
         ck_git_creds = "${ck_git_creds}"
         gerrit_cred="${gerrit_cred}"
         DOCKER_BUILDKIT = "1"
-        SHOULD_RUN_CI = "true"
+        SHOULD_RUN_CI = "false"
     }
     stages{
         stage("Determine CI Execution") {
