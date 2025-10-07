@@ -372,6 +372,12 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
                                        index_t num_loop,
                                        void* __restrict__ p_smem) const
         {
+            // TODO: Add Multi A/B support
+            static_assert(std::tuple_size<remove_cvref_t<AsDramBlockWindowTmp>>::value == 1,
+                          "Multi A/B is not yet supported for this pipeline.");
+            static_assert(std::tuple_size<remove_cvref_t<BsDramBlockWindowTmp>>::value == 1,
+                          "Multi A/B is not yet supported for this pipeline.");
+
             using ADramBlockWindowTmp =
                 remove_cvref_t<std::tuple_element_t<number<0>{}, AsDramBlockWindowTmp>>;
             using BDramBlockWindowTmp =
