@@ -29,7 +29,6 @@ template <typename AsDataType_,
           index_t KPerXdl_,
           bool isCTransposed_,
           memory_operation_enum MemoryOperation_,
-          index_t NumGroupsToMerge_ = 1,
           index_t kNumWaveGroups_ = 1,
           bool FixedVectorSize_   = false,
           index_t VectorSizeC_    = 1,
@@ -59,7 +58,6 @@ struct CShuffleEpilogueProblem
     static constexpr bool TiledMMAPermuteN                 = TiledMMAPermuteN_;
     static constexpr index_t kNumWaveGroups                = kNumWaveGroups_;
     static constexpr index_t NumDTensor                    = DsDataType::size();
-    static constexpr index_t NumGroupsToMerge              = NumGroupsToMerge_;
 
     static_assert(NumDTensor == DsLayout::size(),
                   "The size of DsDataType and DsLayout should be the same");

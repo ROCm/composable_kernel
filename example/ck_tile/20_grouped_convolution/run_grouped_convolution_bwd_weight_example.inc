@@ -4,6 +4,8 @@
 
 template <ck_tile::index_t NDimSpatial,
           typename GemmWarpConfig,
+          typename GemmTileConfig,
+          typename GemmVectorLoads,
           typename Invoker,
           typename InDataType,
           typename WeiDataType,
@@ -19,6 +21,8 @@ float invoke_grouped_conv_bwd_weight(ck_tile::GroupedConvBwdWeightHostArgs& args
 {
     float ave_time = Invoker::template grouped_conv_bwd_weight<NDimSpatial,
                                                                GemmWarpConfig,
+                                                               GemmTileConfig,
+                                                               GemmVectorLoads,
                                                                InDataType,
                                                                WeiDataType,
                                                                AccDataType,
@@ -34,11 +38,13 @@ float invoke_grouped_conv_bwd_weight(ck_tile::GroupedConvBwdWeightHostArgs& args
 
 template <ck_tile::index_t NDimSpatial,
           typename GemmWarpConfig,
+          typename GemmTileConfig,
+          typename GemmVectorLoads,
           typename Invoker,
+          ck_tile::index_t NumGroupsToMerge,
           typename InDataType,
           typename WeiDataType = InDataType,
           typename OutDataType = InDataType,
-          ck_tile::index_t NumGroupsToMerge,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout>
@@ -136,6 +142,8 @@ int run_grouped_conv_bwd_weight_example_with_layouts(ck_tile::ArgParser& arg_par
 
     float ave_time = invoke_grouped_conv_bwd_weight<NDimSpatial,
                                                     GemmWarpConfig,
+                                                    GemmTileConfig,
+                                                    GemmVectorLoads,
                                                     Invoker,
                                                     InDataType,
                                                     WeiDataType,
@@ -199,6 +207,9 @@ int run_grouped_conv_bwd_weight_example_with_layouts(ck_tile::ArgParser& arg_par
 
 template <typename Invoker,
           typename GemmWarpConfig,
+          typename GemmTileConfig,
+          typename GemmVectorLoads,
+          ck_tile::index_t NumGroupsToMerge,
           typename InPrecType,
           typename WeiPrecType = InPrecType,
           typename OutPrecType = InPrecType>
@@ -223,7 +234,10 @@ int run_grouped_conv_bwd_weight_example_prec_type(std::string in_layout,
     {
         return run_grouped_conv_bwd_weight_example_with_layouts<ck_tile::number<1>{},
                                                                 GemmWarpConfig,
+                                                                GemmTileConfig,
+                                                                GemmVectorLoads,
                                                                 Invoker,
+                                                                NumGroupsToMerge,
                                                                 InPrecType,
                                                                 WeiPrecType,
                                                                 OutPrecType>(
@@ -233,7 +247,10 @@ int run_grouped_conv_bwd_weight_example_prec_type(std::string in_layout,
     {
         return run_grouped_conv_bwd_weight_example_with_layouts<ck_tile::number<2>{},
                                                                 GemmWarpConfig,
+                                                                GemmTileConfig,
+                                                                GemmVectorLoads,
                                                                 Invoker,
+                                                                NumGroupsToMerge,
                                                                 InPrecType,
                                                                 WeiPrecType,
                                                                 OutPrecType>(
@@ -243,7 +260,10 @@ int run_grouped_conv_bwd_weight_example_prec_type(std::string in_layout,
     {
         return run_grouped_conv_bwd_weight_example_with_layouts<ck_tile::number<3>{},
                                                                 GemmWarpConfig,
+                                                                GemmTileConfig,
+                                                                GemmVectorLoads,
                                                                 Invoker,
+                                                                NumGroupsToMerge,
                                                                 InPrecType,
                                                                 WeiPrecType,
                                                                 OutPrecType>(

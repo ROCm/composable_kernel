@@ -12,11 +12,26 @@
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/grouped_convolution.hpp"
 
+struct GemmWarpConfig_Mfma_merged_groups
+{
+    static constexpr ck_tile::index_t M_Warp_Tile = 4;
+    static constexpr ck_tile::index_t N_Warp_Tile = 64;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    static constexpr ck_tile::index_t M_Warp      = 2;
+    static constexpr ck_tile::index_t N_Warp      = 2;
+    static constexpr ck_tile::index_t K_Warp      = 1;
+};
+
 struct GemmWarpConfig_Mfma
 {
     static constexpr ck_tile::index_t M_Warp_Tile = 32;
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    static constexpr ck_tile::index_t M_Warp      = 2;
+    static constexpr ck_tile::index_t N_Warp      = 2;
+    static constexpr ck_tile::index_t K_Warp      = 1;
 };
 
 struct GemmWarpConfig_Wmma
@@ -24,6 +39,38 @@ struct GemmWarpConfig_Wmma
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    static constexpr ck_tile::index_t M_Warp      = 2;
+    static constexpr ck_tile::index_t N_Warp      = 2;
+    static constexpr ck_tile::index_t K_Warp      = 1;
+};
+
+struct GemmTileConfig_merged_groups
+{
+    static constexpr ck_tile::index_t M_Tile = 8;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 64;
+};
+
+struct GemmTileConfig
+{
+    static constexpr ck_tile::index_t M_Tile = 64;
+    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 64;
+};
+
+struct GemmVectorLoads_merged_groups
+{
+    static constexpr ck_tile::index_t VectorSizeA = 1;
+    static constexpr ck_tile::index_t VectorSizeB = 1;
+    static constexpr ck_tile::index_t VectorSizeC = 2;
+};
+
+struct GemmVectorLoads
+{
+    static constexpr ck_tile::index_t VectorSizeA = 1;
+    static constexpr ck_tile::index_t VectorSizeB = 1;
+    static constexpr ck_tile::index_t VectorSizeC = 8;
 };
 
 template <typename InDataType, typename WeiDataType, typename AccDataType, typename OutDataType>
@@ -136,7 +183,7 @@ auto create_args(int argc, char* argv[])
         .insert("split_k", "1", "splitK value")
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
         .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
-        .insert("num_groups_to_merge", "1", "Number of groups to merge for grouped convolution");
+        .insert("num_groups_to_merge", "-1", "Number of groups to merge for grouped convolution");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);

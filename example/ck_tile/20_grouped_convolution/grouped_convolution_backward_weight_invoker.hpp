@@ -8,6 +8,8 @@ struct GroupedConvolutionBackwardWeightInvoker
 {
     template <ck_tile::index_t NDimSpatial,
               typename GemmWarpConfig,
+              typename GemmTileConfig,
+              typename GemmVectorLoads,
               typename InDataType,
               typename WeiDataType,
               typename AccDataType,
@@ -15,6 +17,7 @@ struct GroupedConvolutionBackwardWeightInvoker
               typename InLayout,
               typename WeiLayout,
               typename OutLayout,
+              ck_tile::index_t  NumGroupMerge  = 1,
               typename DsDataType     = ck_tile::tuple<>,
               typename DsLayout       = ck_tile::tuple<>,
               typename CDEElementWise = ck_tile::element_wise::PassThrough>
@@ -23,21 +26,21 @@ struct GroupedConvolutionBackwardWeightInvoker
     {
         constexpr int kBlockPerCu = 1;
 
-        constexpr ck_tile::index_t M_Tile = 64;
-        constexpr ck_tile::index_t N_Tile = 64;
-        constexpr ck_tile::index_t K_Tile = 64;
+        constexpr ck_tile::index_t M_Tile = GemmTileConfig::M_Tile;
+        constexpr ck_tile::index_t N_Tile = GemmTileConfig::N_Tile;
+        constexpr ck_tile::index_t K_Tile = GemmTileConfig::K_Tile;
 
-        constexpr ck_tile::index_t M_Warp = 2;
-        constexpr ck_tile::index_t N_Warp = 2;
-        constexpr ck_tile::index_t K_Warp = 1;
+        constexpr ck_tile::index_t M_Warp = GemmWarpConfig::M_Warp;
+        constexpr ck_tile::index_t N_Warp = GemmWarpConfig::N_Warp;
+        constexpr ck_tile::index_t K_Warp = GemmWarpConfig::K_Warp;
 
         constexpr ck_tile::index_t M_Warp_Tile = GemmWarpConfig::M_Warp_Tile;
         constexpr ck_tile::index_t N_Warp_Tile = GemmWarpConfig::N_Warp_Tile;
         constexpr ck_tile::index_t K_Warp_Tile = GemmWarpConfig::K_Warp_Tile;
 
-        constexpr ck_tile::index_t VectorSizeA = 1;
-        constexpr ck_tile::index_t VectorSizeB = 1;
-        constexpr ck_tile::index_t VectorSizeC = 8;
+        constexpr ck_tile::index_t VectorSizeA = GemmVectorLoads::VectorSizeA;
+        constexpr ck_tile::index_t VectorSizeB = GemmVectorLoads::VectorSizeB;
+        constexpr ck_tile::index_t VectorSizeC = GemmVectorLoads::VectorSizeC;
 
         // Implicit GEMM Traits
         using CodegenShape =
