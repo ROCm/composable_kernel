@@ -101,12 +101,7 @@ enum struct tile_distribution_pattern
      * @brief Block raked pattern - aka linear.
      *
      */
-    block_raked,
-    /**
-     * @brief Sparse rows pattern - when we have very few rows, but potentially many columns.
-     *
-     */
-    sparse_row
+    block_raked
 };
 
 struct tile_distribution_encoding_pattern
@@ -168,7 +163,6 @@ struct tile_distribution_encoding_pattern_2d<BlockSize,
 
     static_assert(X0 * Y1 * Y0 * NumWaveGroups == BlockSize,
                   "X0 * warp_ys * Y0 must cover whole workgroup!");
-
     static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover whole YPerTile");
 
     CK_TILE_HOST_DEVICE static constexpr auto make_2d_static_tile_distribution()
@@ -234,6 +228,7 @@ struct tile_distribution_encoding_pattern_2d<BlockSize,
                                              NumWaveGroups>
     : public tile_distribution_encoding_pattern
 {
+
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
     static constexpr index_t warp_size  = get_warp_size();
     static constexpr index_t num_warps  = BlockSize / get_warp_size();
@@ -292,7 +287,7 @@ struct tile_distribution_encoding_pattern_2d<BlockSize,
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
     static constexpr index_t warp_size  = get_warp_size();
     static constexpr index_t num_warps  = BlockSize / get_warp_size();
-    static constexpr index_t LargestVec = max(1, (XPerTile * YPerTile) / (num_warps * warp_size));
+    static constexpr index_t LargestVec = (XPerTile * YPerTile) / (num_warps * warp_size);
     static constexpr index_t X1         = VecSize > LargestVec ? LargestVec : VecSize;
     static constexpr index_t X0         = XPerTile / X1; // # of threads in X dim
     static constexpr index_t Y2 = warp_size / X0; // # of rows in Y dim to cover whole wavefront
@@ -333,7 +328,6 @@ constexpr const char* tile_distribution_pattern_to_string(tile_distribution_patt
     case tile_distribution_pattern::thread_raked: return "thread_raked";
     case tile_distribution_pattern::warp_raked: return "warp_raked";
     case tile_distribution_pattern::block_raked: return "block_raked";
-    case tile_distribution_pattern::sparse_row: return "sparse_row";
     default: return "unknown";
     }
 }
