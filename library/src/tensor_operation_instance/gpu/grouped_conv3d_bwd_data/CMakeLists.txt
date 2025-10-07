@@ -61,7 +61,7 @@ set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_f16_16_16_instances
   TEMPLATE_FILE xdl/device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_f16_16_16_instance.in
-  NUM_SHARDS 15
+  NUM_SHARDS 6
   SRC_LIST GROUPED_CONV3D_BWD_DATA
   OUTPUT_DIR ${GENERATED_DIR}/xdl
 )
@@ -70,7 +70,7 @@ set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_16_16_instances
   TEMPLATE_FILE xdl/device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_bf16_16_16_instance.in
-  NUM_SHARDS 15
+  NUM_SHARDS 6
   SRC_LIST GROUPED_CONV3D_BWD_DATA
   OUTPUT_DIR ${GENERATED_DIR}/xdl
 )
@@ -79,7 +79,7 @@ set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_f32_16_16_instances
   TEMPLATE_FILE xdl/device_grouped_conv3d_bwd_data_xdl_ndhwgc_gkzyxc_ndhwgk_f32_16_16_instance.in
-  NUM_SHARDS 12
+  NUM_SHARDS 6
   SRC_LIST GROUPED_CONV3D_BWD_DATA
   OUTPUT_DIR ${GENERATED_DIR}/xdl
 )
@@ -115,7 +115,7 @@ set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv3d_bwd_data_xdl_ngcdhw_gkczyx_ngkdhw_f16_16_16_instances
   TEMPLATE_FILE xdl/device_grouped_conv3d_bwd_data_xdl_ngcdhw_gkczyx_ngkdhw_f16_16_16_instance.in
-  NUM_SHARDS 15
+  NUM_SHARDS 6
   SRC_LIST GROUPED_CONV3D_BWD_DATA
   OUTPUT_DIR ${GENERATED_DIR}/xdl
 )
@@ -124,7 +124,7 @@ set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv3d_bwd_data_xdl_ngcdhw_gkczyx_ngkdhw_bf16_16_16_instances
   TEMPLATE_FILE xdl/device_grouped_conv3d_bwd_data_xdl_ngcdhw_gkczyx_ngkdhw_bf16_16_16_instance.in
-  NUM_SHARDS 15
+  NUM_SHARDS 6
   SRC_LIST GROUPED_CONV3D_BWD_DATA
   OUTPUT_DIR ${GENERATED_DIR}/xdl
 )
@@ -133,7 +133,7 @@ set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv3d_bwd_data_xdl_ngcdhw_gkczyx_ngkdhw_f32_16_16_instances
   TEMPLATE_FILE xdl/device_grouped_conv3d_bwd_data_xdl_ngcdhw_gkczyx_ngkdhw_f32_16_16_instance.in
-  NUM_SHARDS 12
+  NUM_SHARDS 6
   SRC_LIST GROUPED_CONV3D_BWD_DATA
   OUTPUT_DIR ${GENERATED_DIR}/xdl
 )
@@ -192,6 +192,32 @@ generate_sharded_instantiations(
   OUTPUT_DIR ${GENERATED_DIR}/xdl
 )
 
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+generate_sharded_instantiations(
+  INSTANCES_NAME device_grouped_conv3d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f16_optimized_loads_instances
+  TEMPLATE_FILE xdl/device_grouped_conv3d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f16_optimized_loads_instance.in
+  NUM_SHARDS 18
+  SRC_LIST GROUPED_CONV3D_BWD_DATA
+  OUTPUT_DIR ${GENERATED_DIR}/xdl
+)
+
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+generate_sharded_instantiations(
+  INSTANCES_NAME device_grouped_conv3d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_bf16_optimized_loads_instances
+  TEMPLATE_FILE xdl/device_grouped_conv3d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f16_optimized_loads_instance.in
+  NUM_SHARDS 18
+  SRC_LIST GROUPED_CONV3D_BWD_DATA
+  OUTPUT_DIR ${GENERATED_DIR}/xdl
+)
+
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+generate_sharded_instantiations(
+  INSTANCES_NAME device_grouped_conv3d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_optimized_loads_instances
+  TEMPLATE_FILE xdl/device_grouped_conv3d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f16_optimized_loads_instance.in
+  NUM_SHARDS 12
+  SRC_LIST GROUPED_CONV3D_BWD_DATA
+  OUTPUT_DIR ${GENERATED_DIR}/xdl
+)
    
 set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
