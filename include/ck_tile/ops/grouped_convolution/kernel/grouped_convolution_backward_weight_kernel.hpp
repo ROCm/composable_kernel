@@ -88,8 +88,6 @@ struct GroupedConvBwdWeightKernelArgs
         c_grid_desc_m_n = grid_descs.at(number<2>{});
 
         NumGroupsPerBatch = GroupedConvTraitsType_::NumGroupsToMerge;
-            //std::min(static_cast<index_t>(args.G_), GroupedConvTraitsType_::NumGroupsToMerge);
-
         group_stride_a = args.K_ * NumGroupsPerBatch;            // A: Out NWGK
         group_stride_b = args.C_ * NumGroupsPerBatch;            // B: In  NWGC
         group_stride_c = args.K_ * args.C_                       // C: Wei GKXC
@@ -103,14 +101,12 @@ struct GroupedConvBwdWeightKernelArgs
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
         GemmBatch = integer_divide_ceil(args.G_, NumGroupsPerBatch);
-        ZYX = conv_to_gemm_transformer.ZYX_;
 
         if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
         {
             std::cout << "GemmM: " << GemmM << ", GemmN: " << GemmN << ", GemmK: " << GemmK
                       << ", GemmBatch: " << GemmBatch 
-                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch 
-                      << ", ZYX: " << ZYX << std::endl;
+                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch << std::endl;
         }
     }
 
@@ -177,8 +173,6 @@ struct GroupedConvBwdWeightKernelArgs
         c_grid_desc_m_n = grid_descs.at(number<2>{});
 
         NumGroupsPerBatch = GroupedConvTraitsType_::NumGroupsToMerge;
-            //std::min(static_cast<index_t>(args.G_), GroupedConvTraitsType_::NumGroupsToMerge);
-
         group_stride_a = args.K_ * NumGroupsPerBatch;            // A: Out NHWGK
         group_stride_b = args.C_ * NumGroupsPerBatch;            // B: In  NHWGC
         group_stride_c = args.K_ * args.C_                       // C: Wei GKYXC
@@ -192,14 +186,12 @@ struct GroupedConvBwdWeightKernelArgs
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
         GemmBatch = integer_divide_ceil(args.G_, NumGroupsPerBatch);
-        ZYX = conv_to_gemm_transformer.ZYX_;
 
         if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
         {
             std::cout << "GemmM: " << GemmM << ", GemmN: " << GemmN << ", GemmK: " << GemmK
                       << ", GemmBatch: " << GemmBatch 
-                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch 
-                      << ", ZYX: " << ZYX << std::endl;
+                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch << std::endl;
         }
     }
 
@@ -273,8 +265,6 @@ struct GroupedConvBwdWeightKernelArgs
         c_grid_desc_m_n = grid_descs.at(number<2>{});
 
         NumGroupsPerBatch = GroupedConvTraitsType_::NumGroupsToMerge;
-            //std::min(static_cast<index_t>(args.G_), GroupedConvTraitsType_::NumGroupsToMerge);
-
         group_stride_a = args.K_ * NumGroupsPerBatch;            // A: Out NDHWGK
         group_stride_b = args.C_ * NumGroupsPerBatch;            // B: In  NDHWGC
         group_stride_c = args.K_ * args.C_                       // C: Wei GKZYXC
@@ -288,14 +278,12 @@ struct GroupedConvBwdWeightKernelArgs
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
         GemmBatch = integer_divide_ceil(args.G_, NumGroupsPerBatch);
-        ZYX = conv_to_gemm_transformer.ZYX_;
 
         if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
         {
             std::cout << "GemmM: " << GemmM << ", GemmN: " << GemmN << ", GemmK: " << GemmK
                       << ", GemmBatch: " << GemmBatch 
-                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch 
-                      << ", ZYX: " << ZYX << std::endl;
+                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch << std::endl;
         }
     }
 
@@ -322,7 +310,6 @@ struct GroupedConvBwdWeightKernelArgs
     index_t GemmK;
     index_t GemmBatch;
     index_t NumGroupsPerBatch;
-    index_t ZYX;
 
     const void* out_ptr;
     const void* in_ptr;

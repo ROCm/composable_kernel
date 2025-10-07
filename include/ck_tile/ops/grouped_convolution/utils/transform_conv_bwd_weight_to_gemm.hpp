@@ -125,8 +125,7 @@ struct TransformConvBwdWeightToGemm
           InLeftPadW_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.InLeftPadW_)},
           InRightPadD_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.InRightPadD_)},
           InRightPadH_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.InRightPadH_)},
-          InRightPadW_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.InRightPadW_)},
-          ZYX_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.ZYX_)}
+          InRightPadW_{static_cast<IndexType>(transform_conv_fwd_to_gemm_base.InRightPadW_)}
     {
     }
 
@@ -164,8 +163,7 @@ struct TransformConvBwdWeightToGemm
           InLeftPadW_{input_left_pads[I0]},
           InRightPadD_{I0},
           InRightPadH_{I0},
-          InRightPadW_{input_right_pads[I0]},
-          ZYX_{X_}
+          InRightPadW_{input_right_pads[I0]}
     {
         static_assert(std::is_same_v<ConvSpatialDimsType, std::array<IndexType, NDimSpatial>> ||
                       std::is_same_v<ConvSpatialDimsType, ck_tile::array<IndexType, NDimSpatial>>);
@@ -219,8 +217,7 @@ struct TransformConvBwdWeightToGemm
           InLeftPadW_{input_left_pads[I1]},
           InRightPadD_{I0},
           InRightPadH_{input_right_pads[I0]},
-          InRightPadW_{input_right_pads[I1]},
-          ZYX_{Y_ * X_}
+          InRightPadW_{input_right_pads[I1]}
     {
         static_assert(std::is_same_v<ConvSpatialDimsType, std::array<IndexType, NDimSpatial>> ||
                       std::is_same_v<ConvSpatialDimsType, ck_tile::array<IndexType, NDimSpatial>>);
@@ -274,8 +271,7 @@ struct TransformConvBwdWeightToGemm
           InLeftPadW_{input_left_pads[I2]},
           InRightPadD_{input_right_pads[I0]},
           InRightPadH_{input_right_pads[I1]},
-          InRightPadW_{input_right_pads[I2]},
-          ZYX_{Z_ * Y_ * X_}
+          InRightPadW_{input_right_pads[I2]}
     {
         static_assert(std::is_same_v<ConvSpatialDimsType, std::array<IndexType, NDimSpatial>> ||
                       std::is_same_v<ConvSpatialDimsType, ck_tile::array<IndexType, NDimSpatial>>);
@@ -413,9 +409,6 @@ struct TransformConvBwdWeightToGemm
     }
 #endif
 
-    //////////////////
-    // 1D
-    //////////////////
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 1, bool>::type = false>
     CK_TILE_HOST auto make_out_grid_desc() const
     {
@@ -529,9 +522,6 @@ struct TransformConvBwdWeightToGemm
         }
     }
 
-    //////////////////
-    // 2D
-    //////////////////
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 2, bool>::type = false>
     CK_TILE_HOST auto make_out_grid_desc() const
     {
@@ -646,9 +636,6 @@ struct TransformConvBwdWeightToGemm
         }
     }
 
-    //////////////////
-    // 3D
-    //////////////////
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 3, bool>::type = false>
     CK_TILE_HOST auto make_out_grid_desc() const
     {
@@ -1075,7 +1062,6 @@ struct TransformConvBwdWeightToGemm
     IndexType ConvDilationD_, ConvDilationH_, ConvDilationW_;
     IndexType InLeftPadD_, InLeftPadH_, InLeftPadW_;
     IndexType InRightPadD_, InRightPadH_, InRightPadW_;
-    IndexType ZYX_;
 };
 
 } // namespace ck_tile
