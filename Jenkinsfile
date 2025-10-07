@@ -1822,6 +1822,19 @@ pipeline {
                 process_results()
                 cleanWs()
             }
+            post {
+                always {
+                    script {
+                        if (env.SHOULD_RUN_CI.toBoolean() && !(params.RUN_PERFORMANCE_TESTS.toBoolean() || params.BUILD_INSTANCES_ONLY.toBoolean() || params.RUN_CK_TILE_FMHA_TESTS.toBoolean()) && params.BUILD_LEGACY_OS.toBoolean()) {
+                            // CI should run but stage is skipped
+                            def variant = env.STAGE_NAME
+                            gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${variant}", account: 'ROCm', repo: 'composable_kernel') {
+                                echo "Process Performance Test Results stage skipped."
+                            }
+                        }
+                    }
+                }
+            }
         }
         stage("Clean Up Test Stage")
         {
@@ -1831,7 +1844,12 @@ pipeline {
             }
             agent{ label rocmnode("nogpu") }
             steps {
-                cleanWs()
+                script {
+                    def variant = env.STAGE_NAME
+                    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${variant}", account: 'ROCm', repo: 'composable_kernel') {
+                        echo "Clean up test stage executing"
+                    }
+                }
             }
         }
     }
