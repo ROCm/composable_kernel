@@ -1,129 +1,121 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+
+#include "test_cshuffle_epilogue_util.hpp"
 #include <gtest/gtest.h>
-#include <vector>
-
-#include "ck_tile/core.hpp"
-#include "ck_tile/core/tensor/tile_distribution.hpp"
-#include "ck_tile/ops/common/tensor_layout.hpp"
-#include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
-#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_problem.hpp"
-#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
-#include "ck_tile/ops/gemm/kernel/gemm_tile_partitioner.hpp"
-#include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_custom_policy.hpp"
-#include "ck_tile/ops/gemm/block/block_universal_gemm_as_bs_cr.hpp"
-#include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
-#include "ck_tile/ops/gemm/pipeline/gemm_pipeline_agmem_bgmem_creg_v1.hpp"
-#include "ck_tile/ops/gemm/pipeline/tile_gemm_traits.hpp"
-#include "ck_tile/ops/epilogue.hpp"
-#include "ck_tile/ops/gemm.hpp"
-//#include "ck_tile/ops/grouped_convolution.hpp"
-#include "ck_tile/ops/grouped_convolution/utils/convolution_specialization.hpp"
-
-
-#include "ck_tile/ops/grouped_convolution/utils/grouped_convolution_utils.hpp"
-#include "ck_tile/ops/epilogue/cshuffle_epilogue.hpp"
-
+#include <hip/hip_runtime.h>
 
 using namespace ck_tile;
 
-class TestCShuffleEpilogue : public ::testing::Test
+class CShuffleEpilogueTest : public ::testing::Test
 {
-protected:
+    protected:
     void SetUp() override {}
-    void TearDown() override {}
 };
 
-TEST_F(TestCShuffleEpilogue, LdsTileEncoding)
+TEST_F(CShuffleEpilogueTest, BasicHalfTest)
 {
-  constexpr index_t M_Tile = 8;
-  constexpr index_t N_Tile = 128;
-  constexpr index_t K_Tile = 64;
+    // Basic test configuration with half_t data types
+    using ADataType   = ck_tile::half_t;
+    using BDataType   = ck_tile::half_t;
+    using AccDataType = float;
+    using ODataType   = ck_tile::half_t;
 
-  constexpr index_t M_Warp = 2;
-  constexpr index_t N_Warp = 2;
-  constexpr index_t K_Warp = 1;
+    constexpr index_t kMPerBlock = 256;
+    constexpr index_t kNPerBlock = 256;
+    constexpr index_t MWave      = 2;
+    constexpr index_t NWave      = 2;
+    constexpr index_t MPerXdl    = 32;
+    constexpr index_t NPerXdl    = 32;
+    constexpr index_t KPerXdl    = 8;
 
-  constexpr index_t M_Warp_Tile = 4;
-  constexpr index_t N_Warp_Tile = 64;
-  constexpr index_t K_Warp_Tile = 16;
+    using TestProblem = SimpleCShuffleEpilogueProblem<ADataType,
+                                                      BDataType,
+                                                      AccDataType,
+                                                      ODataType,
+                                                      kMPerBlock,
+                                                      kNPerBlock,
+                                                      MWave,
+                                                      NWave,
+                                                      MPerXdl,
+                                                      NPerXdl,
+                                                      KPerXdl>;
 
-  constexpr index_t VectorSizeA = 8;
-  constexpr index_t VectorSizeB = 8;
-  constexpr index_t VectorSizeC = 8;
+    auto result = run_cshuffle_epilogue_test<TestProblem, kMPerBlock, kNPerBlock>(ScaleType::None);
+    EXPECT_FLOAT_EQ(result[0], 2.0F) << "Basic CShuffleEpilogue test failed";
+}
 
-  constexpr index_t NumGroupsToMerge = 8;
-  constexpr index_t NDimSpatial = 2;
+TEST_F(CShuffleEpilogueTest, BasicHalfTestWithScale)
+{
+    // Basic test configuration with half_t data types
+    using ADataType   = ck_tile::half_t;
+    using BDataType   = ck_tile::half_t;
+    using AccDataType = float;
+    using ODataType   = ck_tile::half_t;
 
-  constexpr auto ConvSpec = ck_tile::ConvolutionSpecialization::Default;
+    constexpr index_t kMPerBlock = 256;
+    constexpr index_t kNPerBlock = 256;
+    constexpr index_t MWave      = 2;
+    constexpr index_t NWave      = 2;
+    constexpr index_t MPerXdl    = 32;
+    constexpr index_t NPerXdl    = 32;
+    constexpr index_t KPerXdl    = 8;
 
-  using InDataType  = ck_tile::half_t;
-  using WeiDataType = ck_tile::half_t;
-  using AccDataType = float;
-  using DsDataType  = ck_tile::tuple<>;
-  using OutDataType = ck_tile::half_t;
+    using TestProblem = SimpleCShuffleEpilogueProblem<ADataType,
+                                                      BDataType,
+                                                      AccDataType,
+                                                      ODataType,
+                                                      kMPerBlock,
+                                                      kNPerBlock,
+                                                      MWave,
+                                                      NWave,
+                                                      MPerXdl,
+                                                      NPerXdl,
+                                                      KPerXdl>;
 
-  using InLayout  = ck_tile::tensor_layout::convolution::NHWGC;
-  using WeiLayout  = ck_tile::tensor_layout::convolution::GKYXC;
-  using DsLayout  = ck_tile::tuple<>;
-  using OutLayout  = ck_tile::tensor_layout::convolution::NHWGK;
+    auto result =
+        run_cshuffle_epilogue_test<TestProblem, kMPerBlock, kNPerBlock>(ScaleType::RowCol);
+    EXPECT_FLOAT_EQ(result[0], 2.0F) << "RowCol CShuffleEpilogue test failed: first element not 2";
+    EXPECT_FLOAT_EQ(result[1], 4.0F)
+        << "RowCol CShuffleEpilogue test failed: second element not 2*2";
+}
 
-  using GroupedConvTraitsType =
-        ck_tile::GroupedConvTraits<NDimSpatial, ConvSpec, InLayout, WeiLayout, DsLayout, OutLayout, NumGroupsToMerge>;
+TEST_F(CShuffleEpilogueTest, BasicHalfTestWithTensorScale)
+{
+    // Basic test configuration with half_t data types
+    using ADataType   = ck_tile::half_t;
+    using BDataType   = ck_tile::half_t;
+    using AccDataType = float;
+    using ODataType   = ck_tile::half_t;
 
-  using CodegenShape =
-        ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
-                               ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
-                               ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
+    constexpr index_t kMPerBlock = 256;
+    constexpr index_t kNPerBlock = 256;
+    constexpr index_t MWave      = 2;
+    constexpr index_t NWave      = 2;
+    constexpr index_t MPerXdl    = 32;
+    constexpr index_t NPerXdl    = 32;
+    constexpr index_t KPerXdl    = 8;
 
-  using TilePartitioner   = ck_tile::GemmTile1DPartitioner<CodegenShape>;
+    using TestProblem = SimpleCShuffleEpilogueProblem<ADataType,
+                                                      BDataType,
+                                                      AccDataType,
+                                                      ODataType,
+                                                      kMPerBlock,
+                                                      kNPerBlock,
+                                                      MWave,
+                                                      NWave,
+                                                      MPerXdl,
+                                                      NPerXdl,
+                                                      KPerXdl>;
 
-  using CodegenPipelineProblem =
-        ck_tile::GemmPipelineProblem<InDataType,
-                                     WeiDataType,
-                                     AccDataType,
-                                     CodegenShape,
-                                     typename GroupedConvTraitsType::GroupedConvImplicitGemmTraits,
-                                     InDataType,
-                                     true,
-                                     VectorSizeA,
-                                     VectorSizeB>;
+    auto result =
+        run_cshuffle_epilogue_test<TestProblem, kMPerBlock, kNPerBlock>(ScaleType::Tensor);
+    EXPECT_FLOAT_EQ(result[0], 4.0F)
+        << "TensorScale CShuffleEpilogue test failed: first element not 2*2=4";
+}
 
-  using MemoryOp = ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                              ck_tile::memory_operation_enum::set>;
-
-  using ConvEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<
-              InDataType,
-              WeiDataType,
-              DsDataType,
-              AccDataType,
-              OutDataType,
-              typename GroupedConvTraitsType::ImplicitGemmDsLayout,
-              ck_tile::tensor_layout::gemm::RowMajor,
-              ck_tile::element_wise::PassThrough,
-              TilePartitioner::MPerBlock,
-              TilePartitioner::NPerBlock,
-              M_Warp,
-              N_Warp,
-              M_Warp_Tile,
-              N_Warp_Tile,
-              K_Warp_Tile,
-              CodegenPipelineProblem::TransposeC,
-              MemoryOp::value,
-              1,
-              true,
-              VectorSizeC>>;
-
-  constexpr auto encoding = ConvEpilogue::MakeLdsDistributionEncode();
-  print(encoding);
-  constexpr auto lds_dstr = make_static_tile_distribution(encoding);
-  
-  EXPECT_EQ(lds_dstr.get_num_of_dimension_x(), 2);
-  EXPECT_EQ(lds_dstr.get_num_of_dimension_y(), 4);
-  EXPECT_EQ(lds_dstr.get_num_of_dimension_p(), 2);
-  EXPECT_EQ(lds_dstr.get_num_of_dimension_r(), 0);
-
-  const auto distributed_spans = lds_dstr.get_distributed_spans();
-  EXPECT_EQ(distributed_spans.size(), 2);
-  EXPECT_EQ(distributed_spans[number<0>{}].impl_.size(), 3);
-  EXPECT_EQ(distributed_spans[number<1>{}].impl_.size(), 1);
+int main(int argc, char** argv)
+{
+    ::testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
 }

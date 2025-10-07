@@ -27,30 +27,35 @@ jobs:
       TEATIME_FORCE_INTERACTIVE: 0
       AWS_SHARED_CREDENTIALS_FILE: /home/awsconfig/credentials.ini
     steps:
+      - name: "Checking out repository for rocm-libraries"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: "ROCm/rocm-libraries"
+
       - name: Checkout composable_kernel repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: "composable_kernel"
 
       - name: Checkout TheRock repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: "ROCm/TheRock"
-          ref: ec1c2ef4f2636bce7733fd8c95e1dbb6692c8a57
+          ref: dc05d637054ad197c84b00e24b6262af0ec797c6 # 10-03-2025 commit
           path: "TheRock"
 
       - name: Runner Health Settings
         run: |
-          df -h
-          cmake --version
-          echo "Installed Python versions:"
-          ls -d /opt/python
-          echo "python: $(which python), python3: $(which python3)"
-          echo "Git version: $(git --version)"
-          git config --global --add safe.directory $PWD
-          git config fetch.parallel 10
+          ./TheRock/build_tools/health_status.py
       
       - name: Fetch sources
         run: |
-          ./TheRock/build_tools/fetch_sources.py --jobs 12
+          ./TheRock/build_tools/fetch_sources.py --jobs 12 --no-include-rocm-libraries --no-include-ml-frameworks
+
+      - name: Patch rocm-libraries
+        run: |
+          git config --global --add safe.directory '*'
+          git -c user.name="therockbot" -c "user.email=therockbot@amd.com" am --whitespace=nowarn ./TheRock/patches/amd-mainline/rocm-libraries/*.patch
 
       - name: Install python deps
         run: |
@@ -92,32 +97,14 @@ jobs:
           aws-region: us-east-2
           role-to-assume: arn:aws:iam::692859939525:role/therock-artifacts-external
 
-      - name: Create Logs index Files and upload logs
+      - name: Post Build Upload
         if: always()
         run: |
-          python3 TheRock/build_tools/github_actions/create_log_index.py \
-            --build-dir=TheRock/build \
-            --amdgpu-family=${{ env.AMDGPU_FAMILIES }}
-
-          python3 TheRock/build_tools/github_actions/upload_build_logs_to_s3.py \
-            --build-dir=TheRock/build \
-            --run-id ${{ github.run_id }} \
-            --amdgpu-family ${{ env.AMDGPU_FAMILIES }}
-
-      - name: Upload artifacts
-        run: |
-          python TheRock/build_tools/github_actions/upload_build_artifacts.py \
+          python3 TheRock/build_tools/github_actions/post_build_upload.py \
             --run-id ${{ github.run_id }} \
             --amdgpu-family ${{ env.AMDGPU_FAMILIES }} \
-            --build-dir TheRock/build
-
-      - name: Add Links to Job Summary
-        if: always()
-        run: |
-          python TheRock/build_tools/github_actions/upload_build_summary.py \
-            --run-id ${{ github.run_id }} \
-            --amdgpu-family ${{ env.AMDGPU_FAMILIES }} \
-            --build-dir TheRock/build
+            --build-dir TheRock/build \
+            --upload
 
   therock-test-linux:
     name: "Test"

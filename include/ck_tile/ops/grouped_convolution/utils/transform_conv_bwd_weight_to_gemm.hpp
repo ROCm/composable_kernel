@@ -10,6 +10,9 @@ namespace ck_tile {
 
 template <index_t NDimSpatial,
           ConvolutionSpecialization ConvolutionSpecialization,
+          index_t VectorSizeA,
+          index_t VectorSizeB,
+          index_t VectorSizeC,
           index_t NumGroupsToMerge = 1,
           bool SplitN              = false,
           typename ADataType       = float,
@@ -425,13 +428,17 @@ struct TransformConvBwdWeightToGemm
             const index_t BatchStride = K_;
             return make_naive_tensor_descriptor(
                 make_tuple(K_, NumGroupsToMerge,   N_ * Wo_),
-                make_tuple(KStride, BatchStride, NDoHoWoStride));
+                make_tuple(KStride, BatchStride, NDoHoWoStride),
+                                            number<VectorSizeA>{},
+                                            I1);
         }
         else
         {
             return make_naive_tensor_descriptor(
                 make_tuple(K_, N_ * Wo_),
-                make_tuple(KStride, NDoHoWoStride));
+                make_tuple(KStride, NDoHoWoStride),
+                                            number<VectorSizeA>{},
+                                            I1);
         }
     }
 
@@ -448,14 +455,18 @@ struct TransformConvBwdWeightToGemm
             const auto BatchStride = C_;
             return make_naive_tensor_descriptor(
                 make_tuple(N_, Wi_, NumGroupsToMerge, C_),
-                make_tuple(NStride, WiStride, BatchStride, CStride));
+                make_tuple(NStride, WiStride, BatchStride, CStride),
+                                            number<VectorSizeB>{},
+                                            I1);
         }
         else
         {
             
             return make_naive_tensor_descriptor(
                 make_tuple(N_, Wi_, C_),
-                make_tuple(NStride, WiStride, CStride));
+                make_tuple(NStride, WiStride, CStride),
+                                            number<VectorSizeB>{},
+                                            I1);
         }
     }
 
@@ -463,8 +474,8 @@ struct TransformConvBwdWeightToGemm
     CK_TILE_HOST auto make_wei_grid_desc() const
     {
         // GKXC
-        const index_t KStride  = X_ * C_;
-        constexpr auto CStride = I1;
+        const index_t KStride   = X_ * C_;
+        constexpr auto CXStride = I1;
 
         if constexpr (NumGroupsToMerge > 1)
         {
@@ -474,7 +485,9 @@ struct TransformConvBwdWeightToGemm
             // for Batch+N dimension
             const auto desc = make_naive_tensor_descriptor(
                 make_tuple(NumGroupsToMerge, K_, X_, 1,  C_),
-                make_tuple(BatchStride, KStride, XStride, BatchStride, CStride));
+                make_tuple(BatchStride, KStride, XStride, BatchStride, CXStride),
+                                            number<VectorSizeC>{},
+                                            I1);
             // Padd 1 to NumGroupsToMerge
             const auto padded_desc = transform_tensor_descriptor(
                 desc,
@@ -510,8 +523,9 @@ struct TransformConvBwdWeightToGemm
         else
         {
             return make_naive_tensor_descriptor(
-                make_tuple(K_, X_ * C_),
-                make_tuple(KStride, CStride));
+                
+            make_tuple(K_, X_ * C_),
+                make_tuple(KStride, CXStride), number<VectorSizeC>{}, I1);
         }
     }
 
@@ -523,20 +537,24 @@ struct TransformConvBwdWeightToGemm
     {
         // NHWGK
         const index_t NDoHoWoStride = G_ * K_;
-        constexpr auto KStride = I1;
+        constexpr auto KStride      = I1;
 
         if constexpr (NumGroupsToMerge > 1)
         {
             const index_t BatchStride = K_;
             return make_naive_tensor_descriptor(
                 make_tuple(K_, NumGroupsToMerge,  N_ * Ho_ * Wo_),
-                make_tuple(KStride, BatchStride, NDoHoWoStride));
+                make_tuple(KStride, BatchStride, NDoHoWoStride),
+                                            number<VectorSizeA>{},
+                                            I1);
         }
         else
         {
             return make_naive_tensor_descriptor(
                 make_tuple(K_, N_ * Ho_ * Wo_),
-                make_tuple(KStride, NDoHoWoStride));
+                make_tuple(KStride, NDoHoWoStride),
+                                            number<VectorSizeA>{},
+                                            I1);
         }
     }
 
@@ -554,13 +572,17 @@ struct TransformConvBwdWeightToGemm
             const auto BatchStride = C_;
             return make_naive_tensor_descriptor(
                 make_tuple(N_, Hi_, Wi_, NumGroupsToMerge, C_),
-                make_tuple(NStride, HiStride, WiStride, BatchStride, CStride));
+                make_tuple(NStride, HiStride, WiStride, BatchStride, CStride),
+                                            number<VectorSizeB>{},
+                                            I1);
         }
         else
         {
             return make_naive_tensor_descriptor(
                 make_tuple(N_, Hi_, Wi_, C_),
-                make_tuple(NStride, HiStride, WiStride, CStride));
+                make_tuple(NStride, HiStride, WiStride, CStride),
+                                            number<VectorSizeB>{},
+                                            I1);
         }
     }
 
@@ -579,7 +601,9 @@ struct TransformConvBwdWeightToGemm
             // for Batch+N dimension
             const auto desc = make_naive_tensor_descriptor(
                 make_tuple(NumGroupsToMerge, K_, Y_* X_, 1,  C_),
-                make_tuple(BatchStride, KStride, YXStride, BatchStride, CStride));
+                make_tuple(BatchStride, KStride, YXStride, BatchStride, CStride),
+                                            number<VectorSizeC>{},
+                                            I1);
             // Padd 1 to NumGroupsToMerge
             const auto padded_desc = transform_tensor_descriptor(
                 desc,
@@ -616,7 +640,9 @@ struct TransformConvBwdWeightToGemm
         {
             return make_naive_tensor_descriptor(
                 make_tuple(K_, Y_* X_ * C_),
-                make_tuple(KStride, CStride));
+                make_tuple(KStride, CStride),
+                                            number<VectorSizeC>{},
+                                            I1);
         }
     }
 
@@ -628,20 +654,24 @@ struct TransformConvBwdWeightToGemm
     {
         // NDHWGK
         const index_t NDoHoWoStride = G_ * K_;
-        constexpr auto KStride = I1;
+        constexpr auto KStride      = I1;
         
         if constexpr (NumGroupsToMerge > 1)
         {
             const auto BatchStride = K_;
             return make_naive_tensor_descriptor(
                 make_tuple(K_, NumGroupsToMerge, N_ * Do_ * Ho_ * Wo_),
-                make_tuple(KStride, BatchStride, NDoHoWoStride));
+                make_tuple(KStride, BatchStride, NDoHoWoStride),
+                                            number<VectorSizeA>{},
+                                            I1);
         }
         else
         {
             return make_naive_tensor_descriptor(
                 make_tuple(K_, N_ * Do_ * Ho_ * Wo_),
-                make_tuple(KStride, NDoHoWoStride));
+                make_tuple(KStride, NDoHoWoStride),
+                                            number<VectorSizeA>{},
+                                            I1);
         }
     }
 
@@ -659,13 +689,17 @@ struct TransformConvBwdWeightToGemm
             const index_t BatchStride = C_;
             return make_naive_tensor_descriptor(
                 make_tuple(N_, Di_, Hi_, Wi_, NumGroupsToMerge, C_),
-                make_tuple(NStride, DiStride, HiStride, WiStride, BatchStride, CStride));
+                make_tuple(NStride, DiStride, HiStride, WiStride, BatchStride, CStride),
+            number<VectorSizeB>{},
+            I1);
         }
         else
         {
             return make_naive_tensor_descriptor(
                 make_tuple(N_, Di_, Hi_, Wi_, C_),
-                make_tuple(NStride, DiStride, HiStride, WiStride, CStride));
+                make_tuple(NStride, DiStride, HiStride, WiStride, CStride),
+            number<VectorSizeB>{},
+            I1);
         }
     }
 
@@ -684,7 +718,9 @@ struct TransformConvBwdWeightToGemm
             // for Batch+N dimension
             const auto desc = make_naive_tensor_descriptor(
                 make_tuple(NumGroupsToMerge, K_, Z_ * Y_ * X_, 1, C_),
-                make_tuple(BatchStride, KStride, ZYXStride, BatchStride, CStride));
+                make_tuple(BatchStride, KStride, ZYXStride, BatchStride, CStride),
+                                                        number<VectorSizeC>{},
+                                                        I1);
             // Padd 1 to NumGroupsToMerge
             const auto padded_desc = transform_tensor_descriptor(
                 desc,
@@ -721,7 +757,9 @@ struct TransformConvBwdWeightToGemm
         {
             return make_naive_tensor_descriptor(
                 make_tuple(K_, Z_ * Y_ * X_ * C_),
-                make_tuple(KStride, CStride));
+                make_tuple(KStride, CStride),
+                                            number<VectorSizeC>{},
+                                            I1);
         }
     }
 

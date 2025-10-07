@@ -15,6 +15,10 @@
 #include <utility>
 #include <variant>
 
+struct FmhaBwdFp32
+{
+};
+
 struct FmhaBwdFp16
 {
 };
@@ -25,6 +29,26 @@ struct FmhaBwdBf16
 
 template <typename DataType>
 struct FmhaBwdTypeConfig;
+
+template <>
+struct FmhaBwdTypeConfig<FmhaBwdFp32>
+{
+    using QDataType             = float;
+    using KDataType             = float;
+    using VDataType             = float;
+    using GemmDataType          = float;
+    using BiasDataType          = float;
+    using LSEDataType           = float;
+    using AccDataType           = float; // data type for gemm accumulation
+    using DDataType             = float;
+    using RandValOutputDataType = uint8_t;
+    using ODataType             = float;
+    using OGradDataType         = float;
+    using QGradDataType         = float;
+    using KGradDataType         = float;
+    using VGradDataType         = float;
+    using BiasGradDataType      = float;
+};
 
 template <>
 struct FmhaBwdTypeConfig<FmhaBwdFp16>
@@ -368,11 +392,12 @@ template <ck_tile::index_t HDim_,
           typename FmhaDropout_,
           ck_tile::BlockAttentionBiasEnum BiasEnum_,
           bool kHasBiasGrad_,
-          bool kPadD_,
-          bool kPadDv_,
+          ck_tile::index_t kPadD_,
+          ck_tile::index_t kPadDv_,
           bool kIsDeterministic_,
           bool kUseTrLoad_,
-          ck_tile::index_t MaxSeqLenQ_>
+          ck_tile::index_t MaxSeqLenQ_,
+          ck_tile::index_t kN0>
 struct fmha_bwd_dq_dk_dv_traits_
 {
 };
@@ -412,15 +437,10 @@ template <ck_tile::index_t HDim_,
           bool kIsGroupMode_,
           bool kPadS_,
           bool kPadD_,
-          bool kIsDeterministic_>
+          bool kIsDeterministic_,
+          ck_tile::index_t kN0>
 struct fmha_bwd_convert_dq_traits_
 {
-    static constexpr ck_tile::index_t HDim = HDim_;
-    using DataType                         = ck_tile::remove_cvref_t<DataType_>;
-    static constexpr bool kIsGroupMode     = kIsGroupMode_;
-    static constexpr bool kPadS            = kPadS_;
-    static constexpr bool kPadD            = kPadD_;
-    static constexpr bool kIsDeterministic = kIsDeterministic_;
 };
 
 template <typename Traits_>

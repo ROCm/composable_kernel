@@ -1,7 +1,7 @@
 #include "ck_tile/host.hpp"
 #include "add_rmsnorm2d_rdquant_fwd.hpp"
 #include <cstring>
-#include "json_dump.hpp"
+#include "ck_tile/utility/json_dump.hpp"
 
 // different threshold for different dtype
 template <typename InputDataType>

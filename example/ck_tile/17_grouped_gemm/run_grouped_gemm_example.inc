@@ -40,7 +40,6 @@ template <typename GemmConfig,
           typename BLayout,
           typename DsLayout,
           typename CLayout,
-          bool Persistent,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float invoke_gemm(int n_warmup,
                   int n_repeat,
@@ -52,10 +51,10 @@ float invoke_gemm(int n_warmup,
     gemm_workspace.Realloc(get_workspace_size(args));
 
     float ave_time = 0;
-    if constexpr(!Persistent)
+    if constexpr(!GemmConfig::Persistent)
     {
-        // Regular version of grouped gemm
-        ave_time = grouped_gemm<ADataType,
+        ave_time = grouped_gemm<GemmConfig,
+                                ADataType,
                                 BDataType,
                                 DsDataType,
                                 AccDataType,
@@ -71,15 +70,25 @@ float invoke_gemm(int n_warmup,
     }
     else
     {
-        // NOTE: With the persistent TileLoop kernel, we do not necessarily need to have
-        // the gemm problems known on the host. Instead, we can just pass the pointer
-        // to the kernel and let the workgroups figure out which tiles to work on.
-        // This is useful when the gemm problems are generated dynamically.
+        if(GemmConfig::Preshuffle)
+        {
+            // not supported yet
+            throw std::runtime_error(
+                "Persistent grouped gemm with preshuffle is not supported yet");
+        }
+
+        // NOTE: With the persistent TileLoop kernel, we do not necessarily need to haveCollapse
+        // commentComment on line L74tenpercent commented on Sep 5, 2025 tenpercenton Sep 5,
+        // 2025ContributorMore actionsdid you intend to remove the comment?Write a replyResolve
+        // commentCode has comments. Press enter to view. the gemm problems known on the host.
+        // Instead, we can just pass the pointer to the kernel and let the workgroups figure out
+        // which tiles to work on. This is useful when the gemm problems are generated dynamically.
         // In this example however, we generate the `kargs` using the known gemm_descs,
         // and copy the gemm descriptions to the device memory.
         // The contents of the memory pointed to by `kargs_ptr` pointer could be
         // written by e.g. another kernel from earlier stage.
-        std::vector<ck_tile::GemmTransKernelArg> kargs;
+
+        std::vector<ck_tile::GemmTransKernelArg<>> kargs;
         void* kargs_ptr   = gemm_workspace.GetDeviceBuffer();
         const bool splitk = args[0].k_batch > 1;
         for(const auto& arg : args)
@@ -100,7 +109,7 @@ float invoke_gemm(int n_warmup,
         const auto stream = ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat};
         HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
                                             kargs.data(),
-                                            kargs.size() * sizeof(ck_tile::GemmTransKernelArg),
+                                            kargs.size() * sizeof(ck_tile::GemmTransKernelArg<>),
                                             hipMemcpyHostToDevice,
                                             stream.stream_id_));
         ave_time = grouped_gemm_tileloop<GemmConfig,
@@ -116,8 +125,7 @@ float invoke_gemm(int n_warmup,
     return ave_time;
 }
 
-template <bool Persistent,
-          typename GemmConfig,
+template <typename GemmConfig,
           typename ADataType,
           typename BDataType,
           typename CDataType,
@@ -131,12 +139,8 @@ int run_grouped_gemm_example_with_layouts(int argc,
                                           const BLayout b_layout                  = BLayout{},
                                           [[maybe_unused]] const CLayout c_layout = CLayout{})
 {
-    auto [result, arg_parser] = create_args(argc, argv);
 
-    if(!result)
-    {
-        return -1;
-    };
+    auto [result, arg_parser] = create_args(argc, argv);
 
     auto valid_input_data = [&](int group_count, const auto&... args) {
         return !(args.empty() || ...) && group_count == (args.size() == ...);
@@ -165,15 +169,28 @@ int run_grouped_gemm_example_with_layouts(int argc,
     if(!valid_input_data(group_count, Ms, Ns, Ks, stride_As, stride_Bs, stride_Cs))
     {
         std::cout << "Please check the input data. Default values will be used." << std::endl;
+        std::cout << "Default values: Ms (256, 512, 768, 1024..), Ns (256, 768, 1280..), Ks (512, "
+                     "896, 1280..)"
+                  << std::endl;
+
+        // Clear existing (invalid) data before adding defaults
+        Ms.clear();
+        Ns.clear();
+        Ks.clear();
+        stride_As.clear();
+        stride_Bs.clear();
+        stride_Cs.clear();
+
         for(int i = 0; i < group_count; i++)
         {
             Ms.push_back(256 + 256 * i);
             Ns.push_back(256 + 512 * i);
-            Ks.push_back(512 + 128 * i);
+            Ks.push_back(512 + 384 * i);
 
-            stride_As.push_back(Ks[i]);
-            stride_Bs.push_back(Ks[i]);
-            stride_Cs.push_back(Ns[i]);
+            // Set default strides based on layout later using get_default_stride
+            stride_As.push_back(0);
+            stride_Bs.push_back(0);
+            stride_Cs.push_back(0);
         }
     }
 
@@ -198,11 +215,12 @@ int run_grouped_gemm_example_with_layouts(int argc,
 
     for(int i = 0; i < group_count; ++i)
     {
+
         const ck_tile::index_t M = Ms[i];
         const ck_tile::index_t N = Ns[i];
         const ck_tile::index_t K = Ks[i];
 
-        stride_As[i] = ck_tile::get_default_stride(M, N, stride_As[i], is_row_major(a_layout));
+        stride_As[i] = ck_tile::get_default_stride(M, K, stride_As[i], is_row_major(a_layout));
         stride_Bs[i] = ck_tile::get_default_stride(K, N, stride_Bs[i], is_row_major(b_layout));
         stride_Cs[i] = ck_tile::get_default_stride(M, N, stride_Cs[i], is_row_major(CLayout{}));
 
@@ -220,15 +238,21 @@ int run_grouped_gemm_example_with_layouts(int argc,
         ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensors[i]);
         ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
 
-        a_m_k_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
-            a_m_k_tensors[i].get_element_space_size_in_bytes()));
-        b_k_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
-            b_k_n_tensors[i].get_element_space_size_in_bytes()));
-        c_m_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
-            c_m_n_tensors[i].get_element_space_size_in_bytes()));
+        a_m_k_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(a_m_k_tensors[i]));
 
-        a_m_k_dev_buf[i]->ToDevice(a_m_k_tensors[i].data());
-        b_k_n_dev_buf[i]->ToDevice(b_k_n_tensors[i].data());
+        // Perform preshuffle for B tensor
+        if constexpr(GemmConfig::Preshuffle)
+        {
+            ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<GemmConfig>(b_k_n_tensors[i]);
+            b_k_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(b_shuffle_host));
+        }
+        else
+        {
+            b_k_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(b_k_n_tensors[i]));
+        }
+
+        c_m_n_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(c_m_n_tensors[i]));
+
         c_m_n_dev_buf[i]->SetZero();
         c_m_n_tensors[i].SetZero();
 
@@ -236,11 +260,22 @@ int run_grouped_gemm_example_with_layouts(int argc,
         const void* p_b = b_k_n_dev_buf[i]->GetDeviceBuffer();
         void* p_c       = c_m_n_dev_buf[i]->GetDeviceBuffer();
 
-        gemm_descs.push_back(
-            {p_a, p_b, p_c, kbatch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
+        gemm_descs.push_back({p_a,
+                              p_b,
+                              {/*ds_ptr*/},
+                              p_c,
+                              kbatch,
+                              M,
+                              N,
+                              K,
+                              stride_As[i],
+                              stride_Bs[i],
+                              {/*stride_Ds*/},
+                              stride_Cs[i]});
     }
 
-    float ave_time = invoke_gemm<ADataType,
+    float ave_time = invoke_gemm<GemmConfig,
+                                 ADataType,
                                  BDataType,
                                  ck_tile::tuple<>,
                                  AccDataType,
@@ -248,8 +283,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
                                  ALayout,
                                  BLayout,
                                  ck_tile::tuple<>,
-                                 CLayout,
-                                 Persistent>(warmup, repeat, group_count, gemm_descs);
+                                 CLayout>(warmup, repeat, group_count, gemm_descs);
 
     std::string op_name{"Grouped Gemm"};
 
@@ -289,11 +323,12 @@ int run_grouped_gemm_example_with_layouts(int argc,
             const auto rtol_atol =
                 calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
                     Ks[i], kbatch, max_accumulated_value);
-            pass &= ck_tile::check_err(c_m_n_tensors[i],
-                                       c_m_n_host_ref,
-                                       "Error: Incorrect results!",
-                                       rtol_atol.at(ck_tile::number<0>{}),
-                                       rtol_atol.at(ck_tile::number<1>{}));
+            pass &=
+                ck_tile::check_err(c_m_n_tensors[i],
+                                   c_m_n_host_ref,
+                                   "Error: Incorrect results! in group [" + std::to_string(i) + "]",
+                                   rtol_atol.at(ck_tile::number<0>{}),
+                                   rtol_atol.at(ck_tile::number<1>{}));
             std::cout << "gemm[" << i
                       << "] Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
                       << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
@@ -314,87 +349,4 @@ int run_grouped_gemm_example_with_layouts(int argc,
     }
 
     return pass;
-}
-
-template <bool Persistent, typename GemmConfig, typename PrecType>
-int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
-{
-    using Row   = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col   = ck_tile::tensor_layout::gemm::ColumnMajor;
-    using Types = GemmTypeConfig<PrecType>;
-    // Specific type aliases for easy access
-    using ADataType   = typename Types::ADataType;
-    using BDataType   = typename Types::BDataType;
-    using AccDataType = typename Types::AccDataType;
-    using CDataType   = typename Types::CDataType;
-
-    if(a_layout == "R" && b_layout == "C")
-    {
-        return run_grouped_gemm_example_with_layouts<Persistent,
-                                                     GemmConfig,
-                                                     ADataType,
-                                                     BDataType,
-                                                     CDataType,
-                                                     AccDataType>(argc, argv, Row{}, Col{}, Row{});
-    }
-    else if(a_layout == "R" && b_layout == "R")
-    {
-        return run_grouped_gemm_example_with_layouts<Persistent,
-                                                     GemmConfig,
-                                                     ADataType,
-                                                     BDataType,
-                                                     CDataType,
-                                                     AccDataType>(argc, argv, Row{}, Row{}, Row{});
-    }
-    else if(a_layout == "C" && b_layout == "R")
-    {
-        return run_grouped_gemm_example_with_layouts<Persistent,
-                                                     GemmConfig,
-                                                     ADataType,
-                                                     BDataType,
-                                                     CDataType,
-                                                     AccDataType>(argc, argv, Col{}, Row{}, Row{});
-    }
-    else if(a_layout == "C" && b_layout == "C")
-    {
-        return run_grouped_gemm_example_with_layouts<Persistent,
-                                                     GemmConfig,
-                                                     ADataType,
-                                                     BDataType,
-                                                     CDataType,
-                                                     AccDataType>(argc, argv, Col{}, Col{}, Row{});
-    }
-    else
-    {
-        throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
-    }
-}
-
-template <bool Persistent, template <typename PrecType> typename GemmConfig>
-int run_grouped_gemm_example(int argc, char* argv[])
-{
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-    {
-        return -1;
-    }
-
-    const std::string a_layout  = arg_parser.get_str("a_layout");
-    const std::string b_layout  = arg_parser.get_str("b_layout");
-    const std::string data_type = arg_parser.get_str("prec");
-
-    if(data_type == "fp16")
-    {
-        return run_gemm_example_prec_type<Persistent, GemmConfig<ck_tile::half_t>, ck_tile::half_t>(
-            a_layout, b_layout, argc, argv);
-    }
-    else if(data_type == "fp8")
-    {
-        return run_gemm_example_prec_type<Persistent, GemmConfig<ck_tile::fp8_t>, ck_tile::fp8_t>(
-            a_layout, b_layout, argc, argv);
-    }
-    else
-    {
-        throw std::runtime_error("Unsupported data type configuration.");
-    }
 }

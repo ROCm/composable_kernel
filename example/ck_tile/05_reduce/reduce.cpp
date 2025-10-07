@@ -3,7 +3,7 @@
 
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/reduce.hpp"
-#include "json_dump.hpp"
+#include "ck_tile/utility/json_dump.hpp"
 #include <cstring>
 
 template <typename T>
@@ -88,7 +88,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // using WarpTile   = ck_tile::sequence<1, 512>;
     // using Vector = ck_tile::sequence<1, 8>;
 
-    constexpr ck_tile::index_t kBlockSize  = 256;
     constexpr ck_tile::index_t kBlockPerCu = 1;
     ck_tile::index_t kept_dim_len_prod     = N * C;
     ck_tile::index_t kGridSize = (kept_dim_len_prod + BlockTile::at(ck_tile::number<0>{}) - 1) /
@@ -99,8 +98,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using Porblem =
         ck_tile::Reduce2dProblem<XDataType, ComputeDataType, YDataType, Shape, ReduceOp>;
 
-    using Kernel = ck_tile::Reduce<Porblem>;
-
+    using Kernel                      = ck_tile::Reduce<Porblem>;
+    const ck_tile::index_t kBlockSize = Kernel::BlockSize();
     // Create input tensor shape and strides
     auto input_shape =
         ck_tile::make_tuple(problem_shape[0], problem_shape[1], problem_shape[2], problem_shape[3]);

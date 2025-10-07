@@ -4,7 +4,8 @@
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/elementwise.hpp"
 #include "ck_tile/host/reference/reference_transpose.hpp"
-#include "json_dump.hpp"
+#include "ck_tile/utility/json_dump.hpp"
+#include "elementwise_common.hpp"
 
 auto create_args(int argc, char* argv[])
 {
@@ -32,10 +33,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(stride_in < 0)
         stride_in = N; // Dense input: stride for M dim is N
-    std::string data_type = arg_parser.get_str("prec");
-    int do_validation     = arg_parser.get_int("v");
-    int warmup            = arg_parser.get_int("warmup");
-    int repeat            = arg_parser.get_int("repeat");
+    int do_validation = arg_parser.get_int("v");
+    int warmup        = arg_parser.get_int("warmup");
+    int repeat        = arg_parser.get_int("repeat");
 
     if(stride_in < N)
     {
@@ -89,8 +89,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     ck_tile::index_t total_elements = M * N;
 
-    constexpr ck_tile::index_t kBlockSize =
-        ck_tile::get_warp_size() * BlockWarps::at(ck_tile::number<0>{});
+    const ck_tile::index_t kBlockSize             = Kernel::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu        = 1;
     constexpr ck_tile::index_t elements_per_block = BlockTile::at(ck_tile::number<0>{});
     ck_tile::index_t kGridSize = (total_elements + elements_per_block - 1) / elements_per_block;
@@ -157,16 +156,25 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
 int main(int argc, char* argv[])
 {
-    auto [result, arg_parser] = create_args(argc, argv);
+    bool result = true;
+    ck_tile::ArgParser arg_parser;
+    std::tie(result, arg_parser) = create_args(argc, argv);
     if(!result)
         return -1;
 
-    const std::string data_type = arg_parser.get_str("prec");
-    if(data_type == "fp16")
+    try
     {
-        return run<ck_tile::half_t>(arg_parser) ? 0 : -2;
+        const auto prec_variant = string_to_datatype(arg_parser.get_str("prec"));
+        return std::visit(
+            [&](auto&& dt) -> int {
+                using DataType = std::decay_t<decltype(dt)>;
+                return run<DataType>(arg_parser);
+            },
+            prec_variant);
     }
-
-    std::cerr << "Unsupported data type: " << data_type << std::endl;
-    return -3;
+    catch(const std::exception& e)
+    {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return -3;
+    }
 }
