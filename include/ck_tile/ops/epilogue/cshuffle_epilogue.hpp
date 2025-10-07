@@ -216,11 +216,11 @@ struct CShuffleEpilogue
 
     static constexpr auto MNPerIterationShuffle = [] {
         constexpr index_t m_val = MPerXdl * MWave * NumMXdlPerWavePerShuffle;
-            constexpr index_t n_val = NPerXdl * NWave * NumNXdlPerWavePerShuffle;
-            if constexpr(kMPerBlock % m_val != 0 || kNPerBlock % n_val != 0)
-                return std::make_tuple(MPerXdl * MWave, NPerXdl * NWave);
-            else
-                return std::make_tuple(m_val, n_val);
+        constexpr index_t n_val = NPerXdl * NWave * NumNXdlPerWavePerShuffle;
+        if constexpr(kMPerBlock % m_val != 0 || kNPerBlock % n_val != 0)
+            return std::make_tuple(MPerXdl * MWave, NPerXdl * NWave);
+        else
+            return std::make_tuple(m_val, n_val);
     }();
     static constexpr index_t MPerIterationShuffle = std::get<0>(MNPerIterationShuffle);
     static constexpr index_t NPerIterationShuffle = std::get<1>(MNPerIterationShuffle);
@@ -574,7 +574,7 @@ struct CShuffleEpilogue
                                    const ScaleN& scale_n = {})
     {
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
-        auto lds_tile = make_static_distributed_tensor<AccDataType>(LdsTileDistr);
+        auto lds_tile               = make_static_distributed_tensor<AccDataType>(LdsTileDistr);
 
         constexpr auto lds_block_desc = MakeLdsBlockDescriptor<Problem>();
         auto o_lds_block              = make_tensor_view<address_space_enum::lds>(
@@ -594,14 +594,15 @@ struct CShuffleEpilogue
         constexpr index_t num_access = SFC::get_num_of_access();
 
         static_assert(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
-                    "Currently, the CShuffle Epilogue only supports the Row Major Output layout");
+                      "Currently, the CShuffle Epilogue only supports the Row Major Output layout");
 
-        using TileEncodingPattern = tile_distribution_encoding_pattern_2d<kBlockSize,
-                                                    MPerIterationShuffle,
-                                                    NPerIterationShuffle,
-                                                    GetVectorSizeC(),
-                                                    tile_distribution_pattern::sparse_row,
-                                                    Problem::kNumWaveGroups>;
+        using TileEncodingPattern =
+            tile_distribution_encoding_pattern_2d<kBlockSize,
+                                                  MPerIterationShuffle,
+                                                  NPerIterationShuffle,
+                                                  GetVectorSizeC(),
+                                                  tile_distribution_pattern::sparse_row,
+                                                  Problem::kNumWaveGroups>;
         constexpr auto dram_tile_distribution =
             TileEncodingPattern::make_2d_static_tile_distribution();
 

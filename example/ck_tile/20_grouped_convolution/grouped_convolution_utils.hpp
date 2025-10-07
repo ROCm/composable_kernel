@@ -18,9 +18,9 @@ struct GemmWarpConfig_Mfma_merged_groups
     static constexpr ck_tile::index_t N_Warp_Tile = 64;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
-    static constexpr ck_tile::index_t M_Warp      = 2;
-    static constexpr ck_tile::index_t N_Warp      = 2;
-    static constexpr ck_tile::index_t K_Warp      = 1;
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
 };
 
 struct GemmWarpConfig_Mfma
@@ -29,9 +29,9 @@ struct GemmWarpConfig_Mfma
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
-    static constexpr ck_tile::index_t M_Warp      = 2;
-    static constexpr ck_tile::index_t N_Warp      = 2;
-    static constexpr ck_tile::index_t K_Warp      = 1;
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
 };
 
 struct GemmWarpConfig_Wmma
@@ -40,9 +40,9 @@ struct GemmWarpConfig_Wmma
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
-    static constexpr ck_tile::index_t M_Warp      = 2;
-    static constexpr ck_tile::index_t N_Warp      = 2;
-    static constexpr ck_tile::index_t K_Warp      = 1;
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
 };
 
 struct GemmTileConfig_merged_groups
