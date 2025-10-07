@@ -1838,7 +1838,7 @@ pipeline {
                 }
             }
             post {
-                always {
+                success {
                     script {
                         // Report the skipped stage's status
                         def variant = "Process results"
