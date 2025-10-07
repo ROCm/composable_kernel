@@ -49,11 +49,11 @@ def runShell(String command){
 def shouldRunCICheck() {
     // Define patterns for files that should not trigger CI
     def skipFilePatterns = [
-        '^\.github\/.*', // GitHub workflow files
-        '^docs\/.*', // Documentation files
-        '^LICENSE$', // License file
-        '^.*\.gitignore$', // Git ignore files
-        '.*\.md$' // Markdown files
+        ~/^\.github\/.*/, // GitHub workflow files
+        ~/^docs\/.*/, // Documentation files
+        ~/^LICENSE$/, // License file
+        ~/^.*\.gitignore$/, // Git ignore files
+        ~/.*\.md$/ // Markdown files
     ]
     
     try {
