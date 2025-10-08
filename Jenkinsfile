@@ -1839,7 +1839,12 @@ pipeline {
             post {
                 success {
                     script {
-                        // Report the skipped stage's status // TODO: Test run - delete me
+                        // Report the skipped parent's stage status
+                        def variant = "Process Performance Test Results"
+                        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${variant}", account: 'ROCm', repo: 'composable_kernel') {
+                            echo "Process Performance Test Results stage skipped."
+                        }
+                        // Report the skipped stage's status
                         def variant = "Process results"
                         gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${variant}", account: 'ROCm', repo: 'composable_kernel') {
                             echo "Process Performance Test Results stage skipped."
