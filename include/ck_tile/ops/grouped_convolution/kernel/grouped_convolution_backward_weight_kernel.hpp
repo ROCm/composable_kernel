@@ -5,13 +5,11 @@
 
 #include <iostream>
 #include <string>
-#include <algorithm>
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/host/concat.hpp"
 #include "ck_tile/core/utility/env.hpp"
-#include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/host/convolution_parameter.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/transform_conv_bwd_weight_to_gemm.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/grouped_convolution_utils.hpp"
