@@ -543,6 +543,24 @@ if(NOT MIOPEN_REQ_LIBS_ONLY)
         device_grouped_conv2d_nhwgc_bwd_weight_instance
         device_grouped_conv2d_ngchw_bwd_weight_instance)
 
+    add_library(device_grouped_conv3d_bwd_data_instance INTERFACE)
+    target_link_libraries(device_grouped_conv3d_bwd_data_instance INTERFACE
+        device_grouped_conv3d_ndhwgc_bwd_data_instance
+        device_grouped_conv3d_ngcdhw_bwd_data_instance
+        device_grouped_conv3d_gndhwc_bwd_data_instance)
+
+    add_library(device_grouped_conv3d_bwd_weight_instance INTERFACE)
+    target_link_libraries(device_grouped_conv3d_bwd_weight_instance INTERFACE
+        device_grouped_conv3d_ndhwgc_bwd_weight_instance
+        device_grouped_conv3d_ngcdhw_bwd_weight_instance
+        device_grouped_conv3d_gndhwc_bwd_weight_instance)
+
+    add_library(device_grouped_conv3d_fwd_instance INTERFACE)
+    target_link_libraries(device_grouped_conv3d_fwd_instance INTERFACE
+        device_grouped_conv3d_gndhwc_fwd_instance
+        device_grouped_conv3d_ndhwgc_fwd_instance
+        device_grouped_conv3d_ngcdhw_fwd_instance)
+
     add_library(device_conv_operations INTERFACE)
     target_link_libraries(device_conv_operations INTERFACE
         device_conv_gnwc_operations

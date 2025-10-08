@@ -5,3 +5,4 @@ set(GROUPED_CONV3D_BWD_DATA_BILINEAR
    xdl/device_grouped_conv3d_bwd_data_xdl_scale_ndhwgc_gkzyxc_ndhwgk_f32_instance.cpp)
 
 add_instance_library(device_grouped_conv3d_ndhwgc_bwd_data_scale_instance ${GROUPED_CONV3D_BWD_DATA_BILINEAR})
+add_library(device_grouped_conv3d_bwd_data_scale_instance ALIAS device_grouped_conv3d_ndhwgc_bwd_data_scale_instance)
