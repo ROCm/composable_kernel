@@ -72,7 +72,7 @@ struct PoolKernelArgs
 };
 
 template <typename Problem_, typename Policy_ = PoolDefaultPolicy>
-struct Pool
+struct PoolKernel
 {
     using Problem = ck_tile::remove_cvref_t<Problem_>;
     using Policy  = ck_tile::remove_cvref_t<Policy_>;
@@ -89,7 +89,7 @@ struct Pool
     }
 
     template <typename TensorShape, typename WindowShape>
-    static CK_TILE_DEVICE auto MakeView2D(PoolKernelArgs<TensorShape, WindowShape> kargs)
+    static CK_TILE_DEVICE auto MakeTensorView2D(PoolKernelArgs<TensorShape, WindowShape> kargs)
     {
         using S = typename Problem::BlockShape;
 
@@ -209,7 +209,7 @@ struct Pool
     }
 
     template <typename TensorShape, typename WindowShape>
-    static CK_TILE_DEVICE auto MakeView3D(PoolKernelArgs<TensorShape, WindowShape> kargs)
+    static CK_TILE_DEVICE auto MakeTensorView3D(PoolKernelArgs<TensorShape, WindowShape> kargs)
     {
         using S = typename Problem::BlockShape;
 
@@ -356,9 +356,9 @@ struct Pool
         // Get tensors based on dimensionality
         auto [in_tensor_padded, out_tensor_padded] = [&]() {
             if constexpr(WindowShape::size() == 2)
-                return MakeView2D(kargs);
+                return MakeTensorView2D(kargs);
             else if constexpr(WindowShape::size() == 3)
-                return MakeView3D(kargs);
+                return MakeTensorView3D(kargs);
             else
                 static_assert(WindowShape::size() == 2 || WindowShape::size() == 3,
                               "Unsupported WindowShape rank: only 2D or 3D pooling is supported");

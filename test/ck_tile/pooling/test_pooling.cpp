@@ -103,7 +103,7 @@ class TestCkTilePooling : public ::testing::Test
                                              false,
                                              false,
                                              TestPoolShape>;
-        using Kernel  = ck_tile::Pool<Problem>;
+        using Kernel  = ck_tile::PoolKernel<Problem>;
 
         constexpr ck_tile::index_t kBlockPerCu = 1;
         const ck_tile::index_t kBlockSize      = Kernel::BlockSize();
