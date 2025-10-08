@@ -17,7 +17,7 @@ struct GroupedConvolutionBackwardWeightInvoker
               typename InLayout,
               typename WeiLayout,
               typename OutLayout,
-              ck_tile::index_t NumGroupMerge = 1,
+              ck_tile::index_t NumGroupsToMerge = 1,
               typename DsDataType            = ck_tile::tuple<>,
               typename DsLayout              = ck_tile::tuple<>,
               typename CDEElementWise        = ck_tile::element_wise::PassThrough>
@@ -58,7 +58,8 @@ struct GroupedConvolutionBackwardWeightInvoker
                                                                   OutLayout,
                                                                   VectorSizeA,
                                                                   VectorSizeB,
-                                                                  VectorSizeC>;
+                                                                  VectorSizeC,
+                                                                  NumGroupsToMerge>;
         using CodegenPipelineProblem = ck_tile::GemmPipelineProblem<
             InDataType,
             WeiDataType,
