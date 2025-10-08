@@ -75,7 +75,7 @@ struct BaseAQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrCompV3<Pro
 };
 
 template <typename Problem, typename Policy = GemmAQuantPipelineAgBgCrDefaultPolicy>
-struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrCompV3<Problem>
+struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrMem<Problem>
 {
     using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
     using PipelineImplBase = GemmAQuantPipelineAgBgCrImplBase<Problem, Policy>;
