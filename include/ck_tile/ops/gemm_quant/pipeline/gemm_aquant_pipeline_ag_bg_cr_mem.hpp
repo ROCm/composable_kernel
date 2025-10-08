@@ -34,13 +34,7 @@ struct BaseAQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrCompV3<Pro
     {
         if(has_hot_loop)
         {
-            if(tail_number == ck_tile::TailNumber::Full)
-            {
-                return run_func(
-                    ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-            }
-            else if(tail_number == ck_tile::TailNumber::Odd)
+            if(tail_number == ck_tile::TailNumber::Odd)
             {
                 return run_func(
                     ck_tile::bool_constant<true>{},
@@ -59,13 +53,8 @@ struct BaseAQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrCompV3<Pro
         }
         else
         {
-            if(tail_number == ck_tile::TailNumber::Full)
-            {
-                return run_func(
-                    ck_tile::bool_constant<false>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-            }
-            else if(tail_number == ck_tile::TailNumber::Odd)
+
+            if(tail_number == ck_tile::TailNumber::Odd)
             {
                 return run_func(
                     ck_tile::bool_constant<false>{},
@@ -370,8 +359,6 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrCompV3<P
                 // VGPRs to LDS
                 Base::LocalPrefill(b_copy_lds_window, b_block_tiles.get(I0{}), b_element_func);
             }
-
-            block_sync_lds();
             // Additional prefetching for memory pipeline
             static_for<1, PrefetchStages, 1>{}([&](auto prefetch_idx) {
                 Base::GlobalPrefetch(a_block_tiles.get(number<prefetch_idx>{}),
