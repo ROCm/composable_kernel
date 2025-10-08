@@ -253,21 +253,6 @@ TEST_F(TestTensorView, StaticDistributedTensor)
     hip_check_error(hipFree(output_device));
 }
 
-template <typename DistributedIndex>
-__device__ void print_distributed_index(const DistributedIndex& idx)
-{
-    printf("[");
-    for(auto i = 0; i < idx.impl_.size(); i++)
-    {
-        printf("%d", idx.impl_[i]);
-        if(i < idx.impl_.size() - 1)
-        {
-            printf(", ");
-        }
-    }
-    printf("]");
-}
-
 __global__ void test_4x4_matrix_2x2_blocks_modify_input_kernel(int* input, int* output, bool)
 {
     constexpr index_t global_shape_0 = 4;
@@ -315,16 +300,6 @@ __global__ void test_4x4_matrix_2x2_blocks_modify_input_kernel(int* input, int* 
 
     constexpr index_t x0_size = reduce_on_sequence(hs_lengths_0, multiplies{}, number<1>{});
     constexpr index_t x1_size = reduce_on_sequence(hs_lengths_1, multiplies{}, number<1>{});
-
-    if(threadIdx.x == 0 && blockIdx.x == 0)
-    {
-        printf("\n- Tile distribution created:\n");
-        printf("  X dimensions: %d\n", distribution.get_num_of_dimension_x());
-        printf("  Y dimensions: %d\n", distribution.get_num_of_dimension_y());
-        printf("  P dimensions: %d\n", distribution.get_num_of_dimension_p());
-        printf("  X lengths: [%d, %d]\n", x0_size, x1_size);
-    }
-    block_sync_lds();
 
     auto global_view = make_naive_tensor_view_packed<address_space_enum::global>(
         input, make_tuple(global_shape_0, global_shape_1));
@@ -393,13 +368,15 @@ TEST_F(TestTensorView, StaticDistributedTensor4x4Matrix2x2Blocks_modify_input)
         output_host.data(), output_device, total_elements * sizeof(int), hipMemcpyDeviceToHost));
 
     // Verify the 4x4 matrix is correctly organized as 2x2 blocks
-    // Expected matrix:
-    //  2  4  6  8
-    //  10 12 14 16
-    //  18 20 22 24
-    //  26 28 30 32
-
-    std::vector<int> expected_output = {2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32};
+    // clang-format off
+    std::vector<int> expected_output = 
+        {
+            2,  4,  6,  8, 
+            10, 12, 14, 16, 
+            18, 20, 22, 24, 
+            26, 28, 30, 32
+        };
+    // clang-format on
 
     EXPECT_EQ(output_host, expected_output);
 
@@ -540,9 +517,9 @@ TEST_F(TestTensorView, StaticDistributedTensor4x4Matrix2x2Blocks_get_sub_blocks)
     // clang-format off
     std::vector<int> data_host = 
       {
-        1, 2, 3 ,4,
-        5, 6, 7, 8, 
-        9, 10, 11, 12,
+        1,  2,  3,  4,
+        5,  6,  7,  8, 
+        9,  10, 11, 12,
         13, 14, 15, 16
       };
     // clang-format on
@@ -571,13 +548,15 @@ TEST_F(TestTensorView, StaticDistributedTensor4x4Matrix2x2Blocks_get_sub_blocks)
         output_host.data(), output_device, total_elements * sizeof(int), hipMemcpyDeviceToHost));
 
     // Verify the 4x4 matrix is correctly organized as 2x2 blocks
-    // Expected matrix:
-    //  1  2
-    //  5  6
-    //  11 12
-    //  15 16
-
-    std::vector<int> expected_output = {1, 2, 5, 6, 11, 12, 15, 16};
+    // clang-format off
+    std::vector<int> expected_output = 
+        {
+            1,  2, 
+            5,  6, 
+            11, 12, 
+            15, 16
+        };
+    // clang-format on
 
     EXPECT_EQ(output_host, expected_output);
 
@@ -637,7 +616,7 @@ __global__ void test_4x4_matrix_get_2x2_blocks_with_sfc_and_lds_kernel(int* inpu
                          {0, 0}); // We have only threadblock
 
     //------------------------------------------------------------
-    // CShuffle epilogue similation
+    // CShuffle epilogue simulation
     //------------------------------------------------------------
 
     // Allocate and prepare LDS
@@ -659,6 +638,7 @@ __global__ void test_4x4_matrix_get_2x2_blocks_with_sfc_and_lds_kernel(int* inpu
 
     constexpr index_t MPerIterationShuffle = 2;
     constexpr index_t NPerIterationShuffle = 2;
+    constexpr index_t VectorSize           = 1;
 
     auto lds_tile = make_static_distributed_tensor<int>(distribution);
 
@@ -692,16 +672,14 @@ __global__ void test_4x4_matrix_get_2x2_blocks_with_sfc_and_lds_kernel(int* inpu
                                          sequence<MPerIterationShuffle, NPerIterationShuffle>,
                                          false>;
 
-    using TileEncodingPattern =
-        tile_distribution_encoding_pattern_2d<4, // Block size
-                                              MPerIterationShuffle,
-                                              NPerIterationShuffle,
-                                              2, // Vector size
-                                              tile_distribution_pattern::sparse_row,
-                                              1>; // Number of wave groups
-
-    constexpr auto output_tile_distribution =
-        TileEncodingPattern::make_2d_static_tile_distribution();
+    constexpr auto output_tile_distribution = make_static_tile_distribution(
+        tile_distribution_encoding<sequence<>,
+                                   tuple<sequence<1, 1, MPerIterationShuffle, VectorSize>,
+                                         sequence<1, 1, NPerIterationShuffle, VectorSize>>,
+                                   tuple<sequence<1, 2>, sequence<1, 2>>,
+                                   tuple<sequence<1, 1>, sequence<2, 2>>,
+                                   sequence<1, 1, 2, 2>,
+                                   sequence<0, 3, 0, 3>>{});
 
     // Copy the tile at one go from register to LDS.
     block_sync_lds();
@@ -737,9 +715,9 @@ TEST_F(TestTensorView, StaticDistributedTensor4x4Matrix2x2Blocks_get_sub_blocks_
     // clang-format off
     std::vector<int> data_host = 
       {
-        1, 2, 3 ,4,
-        5, 6, 7, 8, 
-        9, 10, 11, 12,
+        1,  2,  3,  4,
+        5,  6,  7,  8, 
+        9,  10, 11, 12,
         13, 14, 15, 16
       };
     // clang-format on
@@ -769,13 +747,15 @@ TEST_F(TestTensorView, StaticDistributedTensor4x4Matrix2x2Blocks_get_sub_blocks_
         output_host.data(), output_device, total_elements * sizeof(int), hipMemcpyDeviceToHost));
 
     // Verify the 4x4 matrix is correctly organized as 2x2 blocks
-    // Expected matrix:
-    //  1  2
-    //  5  6
-    //  11 12
-    //  15 16
-
-    std::vector<int> expected_output = {1, 2, 5, 6, 11, 12, 15, 16};
+    // clang-format off
+    std::vector<int> expected_output = 
+        {
+            1,  2, 
+            5,  6, 
+            11, 12, 
+            15, 16
+        };
+    // clang-format on
 
     EXPECT_EQ(output_host, expected_output);
 

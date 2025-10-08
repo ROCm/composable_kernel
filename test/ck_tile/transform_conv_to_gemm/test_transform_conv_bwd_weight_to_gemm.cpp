@@ -24,6 +24,9 @@ struct TestConfig
     static constexpr ConvolutionSpecialization ConvSpec = ConvolutionSpecialization::Default;
     static constexpr bool SplitN                        = false;
     static constexpr index_t NumberOfGroupsToMerge      = NumGroupsToMerge;
+    static constexpr index_t VectorSizeA                = 2;
+    static constexpr index_t VectorSizeB                = 4;
+    static constexpr index_t VectorSizeC                = 8;
 
     using ADataType = float;
     using CDataType = float;
@@ -31,6 +34,9 @@ struct TestConfig
 
     using TransformType = TransformConvBwdWeightToGemm<NDimSpatial,
                                                        ConvSpec,
+                                                       VectorSizeA,
+                                                       VectorSizeB,
+                                                       VectorSizeC,
                                                        NumGroupsToMerge,
                                                        SplitN,
                                                        ADataType,
@@ -210,7 +216,6 @@ TYPED_TEST(TestTransformConvBwdWeightToGemm, Constructor)
         EXPECT_EQ(transform.Wi_, this->Wi_);
         EXPECT_EQ(transform.Wo_, this->Wo_);
         EXPECT_EQ(transform.X_, this->X_);
-        EXPECT_EQ(transform.ZYX_, this->X_);
     }
     else if constexpr(NDim == 2)
     {
@@ -233,7 +238,6 @@ TYPED_TEST(TestTransformConvBwdWeightToGemm, Constructor)
         EXPECT_EQ(transform.Wo_, this->Wo_);
         EXPECT_EQ(transform.Y_, this->Y_);
         EXPECT_EQ(transform.X_, this->X_);
-        EXPECT_EQ(transform.ZYX_, this->Y_ * this->X_);
     }
     else if constexpr(NDim == 3)
     {
@@ -259,7 +263,6 @@ TYPED_TEST(TestTransformConvBwdWeightToGemm, Constructor)
         EXPECT_EQ(transform.Z_, this->Z_);
         EXPECT_EQ(transform.Y_, this->Y_);
         EXPECT_EQ(transform.X_, this->X_);
-        EXPECT_EQ(transform.ZYX_, this->Z_ * this->Y_ * this->X_);
     }
 }
 
@@ -302,15 +305,13 @@ TYPED_TEST(TestTransformConvBwdWeightToGemm, GridDescriptors)
         {
             EXPECT_EQ(out_grid_desc.get_num_of_dimension(), 3);
             EXPECT_EQ(in_grid_desc.get_num_of_dimension(), NDim + 3);
-            EXPECT_EQ(wei_grid_desc.get_num_of_dimension(), 4);
+            EXPECT_EQ(wei_grid_desc.get_num_of_dimension(), 2);
 
             EXPECT_EQ(in_grid_desc.get_length(I2), Gm);
             EXPECT_EQ(in_grid_desc.get_length(I3), this->C_);
 
-            EXPECT_EQ(wei_grid_desc.get_length(I0), 1); // Padding dimension
-            EXPECT_EQ(wei_grid_desc.get_length(I1), Gm);
-            EXPECT_EQ(wei_grid_desc.get_length(I2), this->K_);
-            EXPECT_EQ(wei_grid_desc.get_length(I3), this->X_ * this->C_);
+            EXPECT_EQ(wei_grid_desc.get_length(I0), Gm * this->K_);
+            EXPECT_EQ(wei_grid_desc.get_length(I1), Gm * this->X_ * this->C_);
 
             EXPECT_EQ(out_grid_desc.get_length(I1), Gm);
             EXPECT_EQ(out_grid_desc.get_length(I2), this->N_ * this->Wo_);
@@ -356,15 +357,13 @@ TYPED_TEST(TestTransformConvBwdWeightToGemm, GridDescriptors)
         {
             EXPECT_EQ(out_grid_desc.get_num_of_dimension(), 3);
             EXPECT_EQ(in_grid_desc.get_num_of_dimension(), NDim + 3);
-            EXPECT_EQ(wei_grid_desc.get_num_of_dimension(), 4);
+            EXPECT_EQ(wei_grid_desc.get_num_of_dimension(), 2);
 
             EXPECT_EQ(in_grid_desc.get_length(I3), Gm);
             EXPECT_EQ(in_grid_desc.get_length(I4), this->C_);
 
-            EXPECT_EQ(wei_grid_desc.get_length(I0), 1); // Padding dimension
-            EXPECT_EQ(wei_grid_desc.get_length(I1), Gm);
-            EXPECT_EQ(wei_grid_desc.get_length(I2), this->K_);
-            EXPECT_EQ(wei_grid_desc.get_length(I3), this->Y_ * this->X_ * this->C_);
+            EXPECT_EQ(wei_grid_desc.get_length(I0), Gm * this->K_);
+            EXPECT_EQ(wei_grid_desc.get_length(I1), Gm * this->Y_ * this->X_ * this->C_);
 
             EXPECT_EQ(out_grid_desc.get_length(I1), Gm);
             EXPECT_EQ(out_grid_desc.get_length(I2), this->N_ * this->Ho_ * this->Wo_);
@@ -411,15 +410,13 @@ TYPED_TEST(TestTransformConvBwdWeightToGemm, GridDescriptors)
         {
             EXPECT_EQ(out_grid_desc.get_num_of_dimension(), 3);
             EXPECT_EQ(in_grid_desc.get_num_of_dimension(), NDim + 3);
-            EXPECT_EQ(wei_grid_desc.get_num_of_dimension(), 4);
+            EXPECT_EQ(wei_grid_desc.get_num_of_dimension(), 2);
 
             EXPECT_EQ(in_grid_desc.get_length(I4), Gm);
             EXPECT_EQ(in_grid_desc.get_length(I5), this->C_);
 
-            EXPECT_EQ(wei_grid_desc.get_length(I0), 1); // Padding dimension
-            EXPECT_EQ(wei_grid_desc.get_length(I1), Gm);
-            EXPECT_EQ(wei_grid_desc.get_length(I2), this->K_);
-            EXPECT_EQ(wei_grid_desc.get_length(I3), this->Z_ * this->Y_ * this->X_ * this->C_);
+            EXPECT_EQ(wei_grid_desc.get_length(I0), Gm * this->K_);
+            EXPECT_EQ(wei_grid_desc.get_length(I1), Gm * this->Z_ * this->Y_ * this->X_ * this->C_);
 
             EXPECT_EQ(out_grid_desc.get_length(I1), Gm);
             EXPECT_EQ(out_grid_desc.get_length(I2), this->N_ * this->Do_ * this->Ho_ * this->Wo_);
