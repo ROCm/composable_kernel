@@ -23,13 +23,15 @@ struct GroupedConvHostArgs : public conv::ConvParam
                                      WeiPtr wei_ptr_,
                                      const std::vector<const void*> ds_ptr_,
                                      OutPtr out_ptr_,
-                                     index_t k_batch_)
+                                     index_t k_batch_,
+                                     const void* elfunc_args_ptr_ = nullptr)
         : conv::ConvParam(conv_param),
           in_ptr(in_ptr_),
           wei_ptr(wei_ptr_),
           ds_ptr(ds_ptr_),
           out_ptr(out_ptr_),
-          k_batch(k_batch_)
+          k_batch(k_batch_),
+          elfunc_args_ptr(elfunc_args_ptr_)
     {
     }
 
@@ -38,6 +40,7 @@ struct GroupedConvHostArgs : public conv::ConvParam
     const std::vector<const void*> ds_ptr;
     OutPtr out_ptr;
     index_t k_batch;
+    const void* elfunc_args_ptr;
 };
 
 using GroupedConvFwdHostArgs       = GroupedConvHostArgs<const void*, const void*, void*>;
@@ -50,9 +53,10 @@ template <index_t NDimSpatial_,
           typename WeiLayout_,
           typename DsLayout_,
           typename OutLayout_,
-          index_t VectorSizeA_ = 1,
-          index_t VectorSizeB_ = 1,
-          index_t VectorSizeC_ = 1>
+          index_t VectorSizeA_   = 1,
+          index_t VectorSizeB_   = 1,
+          index_t VectorSizeC_   = 1,
+          index_t NumElfuncArgs_ = 0>
 struct GroupedConvTraits
 {
     private:
@@ -97,11 +101,12 @@ struct GroupedConvTraits
                        //    ck_tile::tensor_layout::gemm::ColumnMajor,
                        //    ck_tile::tensor_layout::gemm::RowMajor,
                        ck_tile::tensor_layout::gemm::RowMajor>;
-    static constexpr ck_tile::index_t VectorSizeA = VectorSizeA_;
-    static constexpr ck_tile::index_t VectorSizeB = VectorSizeB_;
-    static constexpr ck_tile::index_t VectorSizeC = VectorSizeC_;
-    static constexpr index_t NumDTensor           = DsLayout::size();
-    using ImplicitGemmDsLayout                    = decltype(generate_implicit_gemm_layout());
+    static constexpr ck_tile::index_t VectorSizeA   = VectorSizeA_;
+    static constexpr ck_tile::index_t VectorSizeB   = VectorSizeB_;
+    static constexpr ck_tile::index_t VectorSizeC   = VectorSizeC_;
+    static constexpr index_t NumDTensor             = DsLayout::size();
+    static constexpr ck_tile::index_t NumElfuncArgs = NumElfuncArgs_;
+    using ImplicitGemmDsLayout                      = decltype(generate_implicit_gemm_layout());
 };
 
 } // namespace ck_tile

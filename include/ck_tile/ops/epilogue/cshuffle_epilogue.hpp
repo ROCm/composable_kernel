@@ -353,8 +353,9 @@ struct CShuffleEpilogue
         store_tile(in_lds_window, c_warptile_in_tensor_casted);
     }
 
-    template <typename DramWindows, typename COutTensor>
-    CK_TILE_DEVICE void apply_d_tensors(DramWindows& d_dram_windows, COutTensor& c_out_tensor)
+    template <typename DramWindows, typename COutTensor, typename Tuple>
+    CK_TILE_DEVICE void
+    apply_d_tensors(DramWindows& d_dram_windows, COutTensor& c_out_tensor, Tuple elfunc_args)
     {
         const auto ds_tensor = generate_tuple(
             [&](auto idx) { return load_tile(d_dram_windows[idx]); }, number<NumDTensor>{});
@@ -364,7 +365,9 @@ struct CShuffleEpilogue
             generate_tie([&](auto idx) -> const auto& { return ds_tensor[idx]; },
                          number<NumDTensor>{}));
 
-        tile_elementwise_inout_unpack(typename Problem::CDElementwise{}, c_ds_tiles);
+        typename Problem::CDElementwise elfunc =
+            tile_elementwise_instantiate<typename Problem::CDElementwise>(elfunc_args);
+        tile_elementwise_inout_unpack(elfunc, c_ds_tiles);
     }
 
     template <typename OutDramWindow, typename COutTensor>
@@ -425,13 +428,15 @@ struct CShuffleEpilogue
               typename ScaleM                         = EmptyScale,
               typename ScaleN                         = EmptyScale,
               int EnablePermuateN_                    = TiledMMAPermuteN,
-              std::enable_if_t<EnablePermuateN_, int> = 0>
+              std::enable_if_t<EnablePermuateN_, int> = 0,
+              typename Tuple                          = tuple<>>
     CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
                                    const OAccTile& o_acc_tile,
                                    const DsDramWindows& ds_dram_windows,
-                                   void* /*p_smem*/,
-                                   const ScaleM& scale_m = {},
-                                   const ScaleN& scale_n = {})
+                                   void* /* p_smem */,
+                                   const ScaleM& scale_m              = {},
+                                   const ScaleN& scale_n              = {},
+                                   [[maybe_unused]] Tuple elfunc_args = {})
     {
         static constexpr int RowsPerLane = CWarpTensor::get_thread_buffer_size();
 
@@ -565,13 +570,15 @@ struct CShuffleEpilogue
               typename ScaleM                          = EmptyScale,
               typename ScaleN                          = EmptyScale,
               int EnablePermuateN_                     = TiledMMAPermuteN,
-              std::enable_if_t<!EnablePermuateN_, int> = 0>
+              std::enable_if_t<!EnablePermuateN_, int> = 0,
+              typename Tuple                           = tuple<>>
     CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
                                    const OAccTile& o_acc_tile,
                                    const DsDramWindows& ds_dram_windows,
                                    void* p_smem,
                                    const ScaleM& scale_m = {},
-                                   const ScaleN& scale_n = {})
+                                   const ScaleN& scale_n = {},
+                                   Tuple elfunc_args     = {})
     {
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
 
@@ -660,7 +667,7 @@ struct CShuffleEpilogue
 
             auto c_out_tensor = load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
 
-            apply_d_tensors(d_dram_windows, c_out_tensor);
+            apply_d_tensors(d_dram_windows, c_out_tensor, elfunc_args);
             store_to_dram(out_dram_window, c_out_tensor);
             move_windows<iAccess>(out_dram_window, d_dram_windows);
         });

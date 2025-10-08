@@ -11,6 +11,7 @@
 #include "ck_tile/host/concat.hpp"
 #include "ck_tile/core/utility/env.hpp"
 #include "ck_tile/host/convolution_parameter.hpp"
+#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/transform_conv_fwd_to_gemm.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/grouped_convolution_utils.hpp"
 
@@ -28,7 +29,8 @@ struct GroupedConvFwdKernelArgs
                                GroupedConvTraitsType_::VectorSizeB,
                                GroupedConvTraitsType_::VectorSizeC,
                                true>; // Split N enabled
-    static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
+    static constexpr index_t NumDTensor    = GroupedConvTraitsType_::NumDTensor;
+    static constexpr index_t NumElfuncArgs = GroupedConvTraitsType_::NumElfuncArgs;
 
     template <
         typename InLay                      = typename GroupedConvTraitsType_::InLayout,
@@ -71,7 +73,8 @@ struct GroupedConvFwdKernelArgs
         {
             ds_ptr[d] = args.ds_ptr[d];
         }
-        out_ptr = args.out_ptr;
+        out_ptr         = args.out_ptr;
+        elfunc_args_ptr = args.elfunc_args_ptr;
 
         ConvToGemmFwdTransformer conv_to_gemm_transformer{in_g_n_c_wis_lengths,
                                                           wei_g_k_c_xs_lengths,
@@ -161,7 +164,8 @@ struct GroupedConvFwdKernelArgs
         {
             ds_ptr[d] = args.ds_ptr[d];
         }
-        out_ptr = args.out_ptr;
+        out_ptr         = args.out_ptr;
+        elfunc_args_ptr = args.elfunc_args_ptr;
 
         ConvToGemmFwdTransformer conv_to_gemm_transformer{in_g_n_c_wis_lengths,
                                                           wei_g_k_c_xs_lengths,
@@ -261,7 +265,8 @@ struct GroupedConvFwdKernelArgs
         {
             ds_ptr[d] = args.ds_ptr[d];
         }
-        out_ptr = args.out_ptr;
+        out_ptr         = args.out_ptr;
+        elfunc_args_ptr = args.elfunc_args_ptr;
 
         ConvToGemmFwdTransformer conv_to_gemm_transformer{in_g_n_c_wis_lengths,
                                                           wei_g_k_c_xs_lengths,
@@ -335,6 +340,7 @@ struct GroupedConvFwdKernelArgs
     const void* in_ptr;
     const void* wei_ptr;
     std::array<const void*, NumDTensor> ds_ptr;
+    const void* elfunc_args_ptr;
     void* out_ptr;
 
     AGridDescMK a_grid_desc_m_k;
@@ -412,8 +418,9 @@ struct GroupedConvolutionForwardKernel
     using OutLayout = remove_cvref_t<typename GroupedConvTraitsType_::OutLayout>;
     using DsLayout  = remove_cvref_t<typename GroupedConvTraitsType_::DsLayout>;
 
-    using GemmDsLayout                  = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
-    static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
+    using GemmDsLayout                     = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
+    static constexpr index_t NumDTensor    = GroupedConvTraitsType_::NumDTensor;
+    static constexpr index_t NumElfuncArgs = GroupedConvTraitsType_::NumElfuncArgs;
 
     static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
 
@@ -765,8 +772,11 @@ struct GroupedConvolutionForwardKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I3);
 
+        const float* elfunc_args_ptr = reinterpret_cast<const float*>(kargs.elfunc_args_ptr);
+        const auto& elfunc_args =
+            generate_tuple([&](auto idx) { return elfunc_args_ptr[idx]; }, number<NumElfuncArgs>{});
         EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-            c_block_window, c_block_tile, d_block_window, smem_ptr_0);
+            c_block_window, c_block_tile, d_block_window, smem_ptr_0, {}, {}, elfunc_args);
     }
 
     /**

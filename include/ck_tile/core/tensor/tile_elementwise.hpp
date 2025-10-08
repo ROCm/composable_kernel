@@ -60,6 +60,35 @@ CK_TILE_DEVICE auto tile_elementwise_in(const InElementFunc& in_element_func,
 }
 
 /**
+ * @brief  Template function that "unpacks" a tuple and instantiates a curried element-wise
+ * operation.
+ *
+ * @param t                  Any container containing arguments to curry, with known size and
+ * tuple-like semantic.
+ * @return Element-wise function instantiated with currying.
+ */
+template <typename ElementFunc, typename Tuple, size_t... I>
+CK_TILE_DEVICE ElementFunc tile_elementwise_instantiate(const Tuple& t, std::index_sequence<I...>)
+{
+    return ElementFunc(t[number<I>{}]...);
+}
+
+/**
+ * @brief  Template function that "unpacks" a tuple and instantiates a curried element-wise
+ * operation.
+ *
+ * @param t                  Any container containing arguments to curry, with known size and
+ * tuple-like semantic.
+ * @return Calls the overloaded function, passing an index sequence.
+ */
+template <typename ElementFunc, typename Tuple>
+CK_TILE_DEVICE ElementFunc tile_elementwise_instantiate(const Tuple& t)
+{
+    static constexpr auto size = Tuple::size();
+    return tile_elementwise_instantiate<ElementFunc>(t, std::make_index_sequence<size>{});
+}
+
+/**
  * @brief  Template function that "unpacks" a tuple and applies an element-wise operation.
  *
  * @param in_element_func    Function to apply element-wise.
