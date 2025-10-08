@@ -24,13 +24,29 @@ constexpr std::string_view PipelineToString(ck::BlockGemmPipelineVersion pipelin
     default: return "Unknown";
     }
 }
-// enum class PipelineVersion;
-
-// // Forward declare PipelineToString (actual definition must be included separately)
-// constexpr std::string_view PipelineToString(PipelineVersion);
 
 // Helper class for formatting hierarchical tree structures with proper indentation
 // and tree-drawing characters (├─, └─, │, etc.)
+//
+// Example Usage:
+//
+//   TreeFormatter f;
+//   f.writeLine(0, "Root");
+//   f.writeLine(1, "Branch 1");
+//   f.writeLine(2, "Item 1a");
+//   f.writeLast(2, "Item 1b");
+//   f.writeLast(1, "Branch 2");
+//   f.writeLast(2, "Item 2a");
+//   std::cout << f.getString() << "\n";
+//
+// Generated Output:
+//
+//   Root
+//   ├─ Branch 1
+//   │  ├─ Item 1a
+//   │  └─ Item 1b
+//   └─ Branch 2
+//      └─ Item 2a
 class TreeFormatter
 {
     public:
@@ -45,7 +61,7 @@ class TreeFormatter
 
     // Write the last line at the specified indentation level (branch ends)
     template <typename... Args>
-    void writeLastLine(int indent_level, Args&&... args)
+    void writeLast(int indent_level, Args&&... args)
     {
         writeLineImpl(indent_level, true, std::forward<Args>(args)...);
     }
