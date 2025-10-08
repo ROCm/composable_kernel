@@ -334,7 +334,7 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrMem<Prob
 
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 
-            // LDS prefill
+            // LDS prefill - VGPRs to LDS
             if constexpr(is_a_col_major)
             {
                 auto a_shuffle_tmp = make_static_distributed_tensor<ADataType>(
@@ -344,7 +344,6 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrMem<Prob
             }
             else
             {
-                // VGPRs to LDS
                 Base::LocalPrefill(a_copy_lds_window, a_block_tiles.get(I0{}), a_element_func);
             }
             if constexpr(is_b_row_major)
@@ -356,10 +355,9 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrMem<Prob
             }
             else
             {
-                // VGPRs to LDS
                 Base::LocalPrefill(b_copy_lds_window, b_block_tiles.get(I0{}), b_element_func);
             }
-            // Additional prefetching for memory pipeline
+            // Additional prefetching for memory pipeline - DRAM to VGPRs
             static_for<1, PrefetchStages, 1>{}([&](auto prefetch_idx) {
                 Base::GlobalPrefetch(a_block_tiles.get(number<prefetch_idx>{}),
                                      a_copy_dram_window,
@@ -381,12 +379,11 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrMem<Prob
                     static_for<0, PrefetchStages, 1>{}([&](auto prefetch_idx) {
                         block_sync_lds();
                         block_gemm.LocalPrefetch(a_lds_gemm_window, b_lds_gemm_window);
-                        block_sync_lds();
                         block_gemm(c_block_tile,
                                    aq_block_tiles.get(number<prefetch_idx>{}),
                                    a_lds_gemm_window,
                                    b_lds_gemm_window);
-
+                        block_sync_lds();
                         // Prepare next iteration data
                         if constexpr(is_a_col_major)
                         {
