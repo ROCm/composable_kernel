@@ -65,6 +65,8 @@ bwd_result fmha_bwd_run(mode_enum mode,
                         ck_tile::index_t nhead_k,
                         std::vector<ck_tile::index_t> seqlen_qs,
                         std::vector<ck_tile::index_t> seqlen_ks,
+                        std::vector<ck_tile::index_t> seqlen_qpads,
+                        std::vector<ck_tile::index_t> seqlen_kpads,
                         ck_tile::index_t hdim_q,
                         ck_tile::index_t hdim_v,
                         bool i_perm,
@@ -119,10 +121,15 @@ bwd_result fmha_bwd_run(mode_enum mode,
         std::cerr << "dbias only exists when bias type is elementwise" << std::endl;
         return bwd_result::invalid_args;
     }
-    std::vector<ck_tile::index_t> seqlen_kpads;
-    std::tie(seqlen_qs, seqlen_ks, seqlen_kpads) =
-        generate_missing_seqlens(mode, batch, seqlen_qs, seqlen_ks, {}, 0, false, random_engine);
-    ck_tile::ignore = seqlen_kpads;
+
+    std::tie(seqlen_qs, seqlen_ks, seqlen_qpads, seqlen_kpads) = generate_missing_seqlens(
+        mode, batch, seqlen_qs, seqlen_ks, seqlen_qpads, seqlen_kpads, 0, false, random_engine);
+
+    bool use_qpadding =
+        mode == mode_enum::group && (!seqlen_qpads.empty() && seqlen_qpads[0] != -1);
+    bool use_kpadding =
+        mode == mode_enum::group && (!seqlen_kpads.empty() && seqlen_kpads[0] != -1);
+
 #if 0
     std::cout << "seqlen_qs: " << seqlen_qs << std::endl;
     std::cout << "seqlen_ks: " << seqlen_ks << std::endl;
@@ -146,8 +153,10 @@ bwd_result fmha_bwd_run(mode_enum mode,
         s_randval = true;
     }
 
-    const auto seqstart_q_host = to_seqstarts(seqlen_qs);
-    const auto seqstart_k_host = to_seqstarts(seqlen_ks);
+    const auto seqstart_q_host =
+        (use_qpadding ? to_seqstarts(seqlen_qpads) : to_seqstarts(seqlen_qs));
+    const auto seqstart_k_host =
+        (use_kpadding ? to_seqstarts(seqlen_kpads) : to_seqstarts(seqlen_ks));
 
     using TypeConfig = FmhaBwdTypeConfig<DataTypeConfig>;
 
@@ -336,6 +345,10 @@ bwd_result fmha_bwd_run(mode_enum mode,
     ck_tile::DeviceMem do_buf(do_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem dbias_buf(dbias_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
+    ck_tile::DeviceMem seqlen_q_dev(mode == mode_enum::batch ? 0
+                                                            : seqlen_qs.size() * sizeof(int32_t));
+    ck_tile::DeviceMem seqlen_k_dev(mode == mode_enum::batch ? 0
+                                                            : seqlen_ks.size() * sizeof(int32_t));                                                             
     ck_tile::DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem drop_seed_buf(drop_prefs ? sizeof(uint64_t) : 0);
     ck_tile::DeviceMem drop_offset_buf(drop_prefs ? sizeof(uint64_t) : 0);
@@ -349,6 +362,13 @@ bwd_result fmha_bwd_run(mode_enum mode,
     do_buf.ToDevice(do_host.data());
     seqstart_q.ToDevice(seqstart_q_host.data());
     seqstart_k.ToDevice(seqstart_k_host.data());
+    if(mode == mode_enum::group)
+    {
+        std::vector<int32_t> seqlen_q_host(seqlen_qs.begin(), seqlen_qs.end());
+        seqlen_q_dev.ToDevice(seqlen_q_host.data());
+        std::vector<int32_t> seqlen_k_host(seqlen_ks.begin(), seqlen_ks.end());
+        seqlen_k_dev.ToDevice(seqlen_k_host.data());
+    }
     drop_seed_buf.ToDevice(drop_prefs ? &drop_seed : nullptr);
     drop_offset_buf.ToDevice(drop_prefs ? &drop_offset : nullptr);
     alibi_slope_buf.ToDevice(alibi_slope_host.data());
@@ -440,11 +460,14 @@ bwd_result fmha_bwd_run(mode_enum mode,
             }
         }();
 
+        const void* seqlen_q_ptr_dev = use_qpadding ? seqlen_q_dev.GetDeviceBuffer() : nullptr;
+        const void* seqlen_k_ptr_dev = use_kpadding ? seqlen_k_dev.GetDeviceBuffer() : nullptr;
+
         return fmha_bwd_args{q_buf.GetDeviceBuffer(),
                              k_buf.GetDeviceBuffer(),
                              v_buf.GetDeviceBuffer(),
                              bias.type == bias_enum::alibi ? alibi_slope_buf.GetDeviceBuffer()
-                                                             : bias_buf.GetDeviceBuffer(),
+                                                           : bias_buf.GetDeviceBuffer(),
                              o_buf.GetDeviceBuffer(),
                              lse_buf.GetDeviceBuffer(),
                              do_buf.GetDeviceBuffer(),
@@ -457,7 +480,8 @@ bwd_result fmha_bwd_run(mode_enum mode,
                              dq_acc_buf.GetDeviceBuffer(),
                              seqstart_q.GetDeviceBuffer(),
                              seqstart_k.GetDeviceBuffer(),
-                             nullptr,
+                             seqlen_q_ptr_dev,
+                             seqlen_k_ptr_dev,
                              shape_seqlen_q,
                              shape_seqlen_k,
                              batch,
@@ -472,7 +496,7 @@ bwd_result fmha_bwd_run(mode_enum mode,
                              stride_k,
                              stride_v,
                              bias.type == bias_enum::alibi ? (bias.rank_info == 0 ? 0 : nhead)
-                                                             : stride_bias,
+                                                           : stride_bias,
                              stride_o,
                              stride_randval,
                              stride_do,

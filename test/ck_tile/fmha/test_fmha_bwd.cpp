@@ -77,6 +77,8 @@ void fmha_bwd_test(const FmhaBwdTestParam& param)
         nhead_k,
         {seqlen_q},
         {seqlen_k},
+        {-1},
+        {-1},
         hdim_q,
         hdim_v,
         i_perm,
