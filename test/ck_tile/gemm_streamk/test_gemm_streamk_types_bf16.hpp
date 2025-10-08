@@ -19,7 +19,7 @@ template <typename M_MacroTile,
 struct BF16Layouts
 {
     // clang-format off
-    // For CDNA, we support [A, B, Acc, C] = [f16, f16, f32, f16] and [f16, f16, f32, f32]:
+    // For CDNA, we support [A, B, Acc, C] = [bf16, bf16, f32, bf16] and [bf16, bf16, f32, f32]:
     using BF16_BF16_F32_BF16 = Layouts<BF16, BF16, F32, BF16, M_MacroTile, N_MacroTile, K_MacroTile, M_Warps, N_Warps, K_Warps, M_MmaTile, N_MmaTile, K_MmaTile, PipelineType, Persistent>;
     using BF16_BF16_F32_F32 = Layouts<BF16, BF16, F32, F32, M_MacroTile, N_MacroTile, K_MacroTile, M_Warps, N_Warps, K_Warps, M_MmaTile, N_MmaTile, K_MmaTile, PipelineType, Persistent>;
     using RRR = detail::combine_t<typename BF16_BF16_F32_BF16::RRR, typename BF16_BF16_F32_F32::RRR>;
