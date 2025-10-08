@@ -245,8 +245,9 @@ template <typename PrecType>
 #if CK_TILE_USE_WMMA
 using GemmConfigsTemplate = ::testing::Types<GemmConfigComputeV3_WMMA<PrecType>>;
 #else
-using GemmConfigsTemplate =
-    ::testing::Types<GemmConfigComputeV3<PrecType>, GemmConfigComputeV3_2<PrecType>>;
+using GemmConfigsTemplate = ::testing::Types<GemmConfigComputeV3<PrecType>,
+                                             GemmConfigComputeV3_2<PrecType>,
+                                             GemmConfigComputeV4<PrecType>>;
 #endif
 
 template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>

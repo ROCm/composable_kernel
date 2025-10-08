@@ -221,13 +221,19 @@ class TestCkTileGemmPipelineUniversal : public ::testing::Test
 
     void run_gemm_combinations(const int m, const int n, const int k)
     {
-        // Skip tests that are known to fail
-        if constexpr((std::is_same_v<GemmConfig, GemmConfigComputeV3<F16>> ||
-                      std::is_same_v<GemmConfig, GemmConfigComputeV3_2<F16>>) &&
+        // Skip tests that are known to fail or are not supported
+        if constexpr((std::is_same_v<GemmConfig, GemmConfigComputeV3<CPrecType>> ||
+                      std::is_same_v<GemmConfig, GemmConfigComputeV3_2<CPrecType>>) &&
                      std::is_same_v<APrecType, F8> && std::is_same_v<BPrecType, BF8>)
         {
             GTEST_SKIP()
                 << "Skipping this test due to known failures with F8 x BF8 on the V3 pipeline";
+        }
+        else if constexpr((std::is_same_v<GemmConfig, GemmConfigComputeV4<CPrecType>>) &&
+                          std::is_same_v<BPrecType, I4>)
+        {
+            GTEST_SKIP()
+                << "Skipping this test because BPrecType I4 is not supported on the V4 pipeline";
         }
         else
         {
