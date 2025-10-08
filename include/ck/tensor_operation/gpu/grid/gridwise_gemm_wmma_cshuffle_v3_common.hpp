@@ -45,7 +45,9 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                     std::is_same_v<e_data_type, ck::bhalf_t>)))
     {
 #endif
-        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
+            typename GridwiseGemm::EpilogueCShuffle>();
+        __shared__ char p_shared[LDS_size];
 
         auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
@@ -1190,6 +1192,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         return BlockwiseGemmPipe::BlockLoopTailNum(num_loop);
     }
 
+    template <typename EpilogueType>
     __device__ static constexpr index_t GetSharedMemoryNumberOfByte()
     {
         // LDS allocation for A and B: be careful of alignment
@@ -1207,7 +1210,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
 
         // LDS allocation for C shuffle in LDS
         constexpr auto c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat =
-            EpilogueCShuffle::
+            EpilogueType::
                 GetCShuffleBlockDescriptor_MShRepeat_MPerShRepeat_NShRepeat_NPerShRepeat();
 
         constexpr auto c_block_size =

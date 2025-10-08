@@ -45,8 +45,10 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                     std::is_same_v<e_data_type, ck::bhalf_t>)))
     {
 #endif
+        constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
+            typename GridwiseGemm::EpilogueWelfordCShuffle>();
 
-        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared[LDS_size];
 
         auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 

@@ -60,7 +60,9 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         const long_index_t c_batch_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetCPtrOffset(g_idx));
 
-        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
+            typename GridwiseGemm::EpilogueCShuffle>();
+        __shared__ char p_shared[LDS_size];
 
         auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
