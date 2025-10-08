@@ -15,7 +15,7 @@
 namespace ck_tile {
 
 template <typename Problem>
-struct BaseAQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrCompV3<Problem>
+struct BaseAQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
 {
     CK_TILE_HOST_DEVICE static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
     {
@@ -77,7 +77,7 @@ struct BaseAQuantGemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrCompV3<Pro
 template <typename Problem, typename Policy = GemmAQuantPipelineAgBgCrDefaultPolicy>
 struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrMem<Problem>
 {
-    using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
+    using Base             = BaseGemmPipelineAgBgCrMem<Problem>;
     using PipelineImplBase = GemmAQuantPipelineAgBgCrImplBase<Problem, Policy>;
 
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
