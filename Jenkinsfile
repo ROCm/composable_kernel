@@ -1160,9 +1160,6 @@ pipeline {
         ck_git_creds = "${ck_git_creds}"
         gerrit_cred="${gerrit_cred}"
         DOCKER_BUILDKIT = "1"
-        // Stage name constants for consistent referencing
-        PROCESS_PERFORMANCE_RESULTS_STAGE = "Process Performance Test Results"
-        PROCESS_RESULTS_SUBSTAGE = "Process results"
     }
     stages{
         stage("Determine CI Execution") {
@@ -1823,11 +1820,11 @@ pipeline {
                 }
             }
         }
-        stage("${env.PROCESS_PERFORMANCE_RESULTS_STAGE}")
+        stage("Process Performance Test Results")
         {
             parallel
             {
-                stage("${env.PROCESS_RESULTS_SUBSTAGE}"){
+                stage("Process results"){
                     when {
                         beforeAgent true
                         expression { (params.RUN_PERFORMANCE_TESTS.toBoolean() || params.BUILD_INSTANCES_ONLY.toBoolean() || params.RUN_CK_TILE_FMHA_TESTS.toBoolean()) && !params.BUILD_LEGACY_OS.toBoolean() }
@@ -1843,14 +1840,14 @@ pipeline {
                 success {
                     script {
                         // Report the skipped parent's stage status
-                        def parentVariant = env.PROCESS_PERFORMANCE_RESULTS_STAGE
+                        def parentVariant = "Process Performance Test Results"
                         gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${parentVariant}", account: 'ROCm', repo: 'composable_kernel') {
-                            echo "${env.PROCESS_PERFORMANCE_RESULTS_STAGE} stage passed or skipped."
+                            echo "Process Performance Test Results stage skipped."
                         }
                         // Report the skipped stage's status
-                        def variant = env.PROCESS_RESULTS_SUBSTAGE
+                        def variant = "Process results"
                         gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${variant}", account: 'ROCm', repo: 'composable_kernel') {
-                            echo "${env.PROCESS_RESULTS_SUBSTAGE} stage passed or skipped."
+                            echo "Process Performance Test Results stage skipped."
                         }
                     }
                 }
