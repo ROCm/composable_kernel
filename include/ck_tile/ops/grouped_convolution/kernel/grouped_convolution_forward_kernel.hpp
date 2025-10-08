@@ -103,9 +103,9 @@ struct GroupedConvFwdKernelArgs
         original_n  = transformer_.GetOriginalN();
         n_splits    = ck_tile::integer_divide_ceil(original_n, n_per_split);
 
-        // FIX: Calculate batch strides using args dimensions
-        // These are the ORIGINAL dimensions passed to constructor, not modified by invoker yet
-        // (invoker modifies args AFTER calling MakeKernelArgs)
+        // Calculate batch strides using the original argument dimensions.
+        // These are the original dimensions passed to the constructor, not modified by the invoker yet.
+        // (The invoker modifies args after calling MakeKernelArgs.)
         input_batch_stride  = args.G_ * args.C_ * args.input_spatial_lengths_[0];
         output_batch_stride = args.G_ * args.K_ * args.output_spatial_lengths_[0];
 
