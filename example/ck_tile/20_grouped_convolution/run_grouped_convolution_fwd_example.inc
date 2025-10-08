@@ -4,6 +4,8 @@
 
 template <ck_tile::index_t NDimSpatial,
           typename GemmWarpConfig,
+          typename GemmTileConfig,
+          typename GemmVectorLoads,
           typename Invoker,
           typename InDataType,
           typename WeiDataType,
@@ -11,20 +13,24 @@ template <ck_tile::index_t NDimSpatial,
           typename OutDataType,
           typename InLayout,
           typename WeiLayout,
-          typename OutLayout>
+          typename OutLayout,
+          ck_tile::index_t NumGroupsToMerge = 1>
 float invoke_grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args,
                               int n_warmup,
                               int n_repeat)
 {
     float ave_time = Invoker::template grouped_conv_fwd<NDimSpatial,
                                                         GemmWarpConfig,
+                                                        GemmTileConfig,
+                                                        GemmVectorLoads,
                                                         InDataType,
                                                         WeiDataType,
                                                         AccDataType,
                                                         OutDataType,
                                                         InLayout,
                                                         WeiLayout,
-                                                        OutLayout>(
+                                                        OutLayout,
+                                                        NumGroupsToMerge>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::size_t flop     = args.GetFlops();
@@ -40,20 +46,18 @@ float invoke_grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args,
 
 template <ck_tile::index_t NDimSpatial,
           typename GemmWarpConfig,
+          typename GemmTileConfig,
+          typename GemmVectorLoads,
           typename Invoker,
+          ck_tile::index_t NumGroupsToMerge,
           typename InDataType,
           typename WeiDataType = InDataType,
           typename OutDataType = InDataType,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout>
-int run_grouped_conv_fwd_example_with_layouts(
-    int argc, char* argv[], const InLayout, const WeiLayout, const OutLayout)
+int run_grouped_conv_fwd_example_with_layouts(ck_tile::ArgParser& arg_parser, const InLayout, const WeiLayout, const OutLayout)
 {
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-        return -1;
-
     using AccDataType = float;
 
     std::vector<ck_tile::index_t> filter_spatial_lengths;
@@ -139,9 +143,12 @@ int run_grouped_conv_fwd_example_with_layouts(
     std::cout << "input: " << input.mDesc << std::endl;
     std::cout << "weight: " << weight.mDesc << std::endl;
     std::cout << "output: " << output.mDesc << std::endl;
+    std::cout << "number of groups to merge: " << NumGroupsToMerge << std::endl;
 
     invoke_grouped_conv_fwd<NDimSpatial,
                             GemmWarpConfig,
+                            GemmTileConfig,
+                            GemmVectorLoads,
                             Invoker,
                             InDataType,
                             WeiDataType,
@@ -149,7 +156,8 @@ int run_grouped_conv_fwd_example_with_layouts(
                             OutDataType,
                             InLayout,
                             WeiLayout,
-                            OutLayout>(args, n_warmup, n_repeat);
+                            OutLayout,
+                            NumGroupsToMerge>(args, n_warmup, n_repeat);
 
     output_dev_buf.FromDevice(output.data());
     bool pass = true;
@@ -194,11 +202,14 @@ int run_grouped_conv_fwd_example_with_layouts(
 
 template <typename Invoker,
           typename GemmWarpConfig,
+          typename GemmTileConfig,
+          typename GemmVectorLoads,
+          ck_tile::index_t NumGroupsToMerge,
           typename InPrecType,
           typename WeiPrecType = InPrecType,
           typename OutPrecType = InPrecType>
 int run_grouped_conv_fwd_example_prec_type(
-    std::string in_layout, std::string wei_layout, std::string out_layout, int argc, char* argv[])
+    std::string in_layout, std::string wei_layout, std::string out_layout, ck_tile::ArgParser& arg_parser)
 {
     using NWGC   = ck_tile::tensor_layout::convolution::NWGC;
     using NHWGC  = ck_tile::tensor_layout::convolution::NHWGC;
@@ -216,31 +227,40 @@ int run_grouped_conv_fwd_example_prec_type(
     {
         return run_grouped_conv_fwd_example_with_layouts<ck_tile::number<1>{},
                                                          GemmWarpConfig,
+                                                         GemmTileConfig,
+                                                         GemmVectorLoads,
                                                          Invoker,
+                                                         NumGroupsToMerge,
                                                          InPrecType,
                                                          WeiPrecType,
                                                          OutPrecType>(
-            argc, argv, NWGC{}, GKXC{}, NWGK{});
+            arg_parser, NWGC{}, GKXC{}, NWGK{});
     }
     else if(in_layout == "NHWGC" && wei_layout == "GKYXC" && out_layout == "NHWGK")
     {
         return run_grouped_conv_fwd_example_with_layouts<ck_tile::number<2>{},
                                                          GemmWarpConfig,
+                                                         GemmTileConfig,
+                                                         GemmVectorLoads,
                                                          Invoker,
+                                                         NumGroupsToMerge,
                                                          InPrecType,
                                                          WeiPrecType,
                                                          OutPrecType>(
-            argc, argv, NHWGC{}, GKYXC{}, NHWGK{});
+            arg_parser, NHWGC{}, GKYXC{}, NHWGK{});
     }
     else if(in_layout == "NDHWGC" && wei_layout == "GKZYXC" && out_layout == "NDHWGK")
     {
         return run_grouped_conv_fwd_example_with_layouts<ck_tile::number<3>{},
                                                          GemmWarpConfig,
+                                                         GemmTileConfig,
+                                                         GemmVectorLoads,
                                                          Invoker,
+                                                         NumGroupsToMerge,
                                                          InPrecType,
                                                          WeiPrecType,
                                                          OutPrecType>(
-            argc, argv, NDHWGC{}, GKZYXC{}, NDHWGK{});
+            arg_parser, NDHWGC{}, GKZYXC{}, NDHWGK{});
     }
     else
     {

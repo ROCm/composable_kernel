@@ -60,11 +60,12 @@ struct GroupedConvFwdKernelArgs
         input_right_pads      = {static_cast<index_t>(args.input_right_pads_[0])};
 
         k_batch = args.k_batch;
+        NumGroupsPerBatch = GroupedConvTraitsType_::NumGroupsToMerge;
 
         // GemmM will be set after Split-N calculation
         GemmN     = args.K_;
         GemmK     = args.C_ * args.filter_spatial_lengths_[0];
-        GemmBatch = args.G_;
+        GemmBatch = integer_divide_ceil(args.G_, NumGroupsPerBatch);
 
         in_ptr  = args.in_ptr;
         wei_ptr = args.wei_ptr;
@@ -92,13 +93,13 @@ struct GroupedConvFwdKernelArgs
             conv_to_gemm_transformer
                 .template MakeCDescriptor_M_N<typename GroupedConvTraitsType_::OutLayout>();
 
-        group_stride_a = args.C_;
-        group_stride_b = args.K_ * args.C_ *
+        group_stride_a = args.C_ * NumGroupsPerBatch;
+        group_stride_b = args.K_ * args.C_ * NumGroupsPerBatch *
                          std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
                                          std::multiplies<index_t>());
-        group_stride_c = args.K_;
+        group_stride_c = args.K_ * NumGroupsPerBatch;
 
         // Initialize Split-N support fields for 1D convolution (NWGC layout)
         // Get the actual split N from transformer
@@ -112,6 +113,13 @@ struct GroupedConvFwdKernelArgs
 
         // Update GemmM to use split N (not original N)
         GemmM = n_per_split * args.output_spatial_lengths_[0];
+
+        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+        {
+            std::cout << "GemmM: " << GemmM << ", GemmN: " << GemmN << ", GemmK: " << GemmK
+                      << ", GemmBatch: " << GemmBatch
+                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch << std::endl;
+        }
     }
 
     template <
@@ -150,11 +158,12 @@ struct GroupedConvFwdKernelArgs
                                  static_cast<index_t>(args.input_right_pads_[1])};
 
         k_batch = args.k_batch;
+        NumGroupsPerBatch = GroupedConvTraitsType_::NumGroupsToMerge;
 
         // Note: GemmM will be set after Split-N calculation
         GemmN     = args.K_;
         GemmK     = args.C_ * args.filter_spatial_lengths_[0] * args.filter_spatial_lengths_[1];
-        GemmBatch = args.G_;
+        GemmBatch = integer_divide_ceil(args.G_, NumGroupsPerBatch);
 
         in_ptr  = args.in_ptr;
         wei_ptr = args.wei_ptr;
@@ -182,13 +191,13 @@ struct GroupedConvFwdKernelArgs
             conv_to_gemm_transformer
                 .template MakeCDescriptor_M_N<typename GroupedConvTraitsType_::OutLayout>();
 
-        group_stride_a = args.C_;
-        group_stride_b = args.K_ * args.C_ *
+        group_stride_a = args.C_ * NumGroupsPerBatch;
+        group_stride_b = args.K_ * args.C_ * NumGroupsPerBatch *
                          std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
                                          std::multiplies<index_t>());
-        group_stride_c = args.K_;
+        group_stride_c = args.K_ * NumGroupsPerBatch;
 
         // Initialize Split-N support fields for 2D convolution (NHWGC layout)
         // Get the actual split N from transformer
@@ -204,6 +213,13 @@ struct GroupedConvFwdKernelArgs
 
         // Update GemmM to use split N (not original N)
         GemmM = n_per_split * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1];
+
+        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+        {
+            std::cout << "GemmM: " << GemmM << ", GemmN: " << GemmN << ", GemmK: " << GemmK
+                      << ", GemmBatch: " << GemmBatch
+                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch << std::endl;
+        }
     }
 
     template <
@@ -249,12 +265,13 @@ struct GroupedConvFwdKernelArgs
                                  static_cast<index_t>(args.input_right_pads_[2])};
 
         k_batch = args.k_batch;
+        NumGroupsPerBatch = GroupedConvTraitsType_::NumGroupsToMerge;
 
         // Note: GemmM will be set after Split-N calculation
         GemmN = args.K_;
         GemmK = args.C_ * args.filter_spatial_lengths_[0] * args.filter_spatial_lengths_[1] *
                 args.filter_spatial_lengths_[2];
-        GemmBatch = args.G_;
+        GemmBatch = integer_divide_ceil(args.G_, NumGroupsPerBatch);
 
         in_ptr  = args.in_ptr;
         wei_ptr = args.wei_ptr;
@@ -282,13 +299,13 @@ struct GroupedConvFwdKernelArgs
             conv_to_gemm_transformer
                 .template MakeCDescriptor_M_N<typename GroupedConvTraitsType_::OutLayout>();
 
-        group_stride_a = args.C_;
-        group_stride_b = args.K_ * args.C_ *
+        group_stride_a = args.C_ * NumGroupsPerBatch;
+        group_stride_b = args.K_ * args.C_ * NumGroupsPerBatch *
                          std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
                                          std::multiplies<index_t>());
-        group_stride_c = args.K_;
+        group_stride_c = args.K_ * NumGroupsPerBatch;
 
         // Initialize Split-N support fields for 3D convolution (NDHWGC layout)
         // Get the actual split N from transformer
@@ -305,8 +322,14 @@ struct GroupedConvFwdKernelArgs
         // Update GemmM to use split N (not original N)
         GemmM = n_per_split * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1] *
                 args.output_spatial_lengths_[2];
-    }
 
+        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+        {
+            std::cout << "GemmM: " << GemmM << ", GemmN: " << GemmN << ", GemmK: " << GemmK
+                      << ", GemmBatch: " << GemmBatch
+                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch << std::endl;
+        }
+    }
     using AGridDescMK = remove_cvref_t<
         decltype(ConvToGemmFwdTransformer{}
                      .template MakeADescriptor_M_K<typename GroupedConvTraitsType_::InLayout>())>;
@@ -332,6 +355,7 @@ struct GroupedConvFwdKernelArgs
     index_t GemmN;
     index_t GemmK;
     index_t GemmBatch;
+    index_t NumGroupsPerBatch;
 
     const void* in_ptr;
     const void* wei_ptr;
@@ -461,6 +485,12 @@ struct GroupedConvolutionForwardKernel
     CK_TILE_HOST static constexpr GroupedConvFwdKernelArgsSpecialized
     MakeKernelArgs(const GroupedConvFwdHostArgs& hostArgs)
     {
+        if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
+        {
+            std::cout << "MPerBlock: " << number<TilePartitioner::MPerBlock>{} << std::endl;
+            std::cout << "NPerBlock: " << number<TilePartitioner::NPerBlock>{} << std::endl;
+            std::cout << "KPerBlock: " << number<TilePartitioner::KPerBlock>{} << std::endl;
+        }
         return GroupedConvFwdKernelArgsSpecialized(hostArgs);
     }
 
@@ -554,9 +584,11 @@ struct GroupedConvolutionForwardKernel
                      std::is_same_v<InLayout, ctc::NDHWGC>)
         {
             // Check access per C
-            if(ConvC % GroupedConvTraitsType_::VectorSizeA != 0)
+            if((GroupedConvTraitsType_::NumGroupsToMerge * ConvC) %
+                   GroupedConvTraitsType_::VectorSizeA !=
+               0)
             {
-                CK_TILE_ERROR("Conv C is not a multiple of vector load size for input image!");
+                CK_TILE_ERROR("NumGroupsToMerge * Conv C is not a multiple of vector load size for input image!");
                 return false;
             }
         }
@@ -572,9 +604,11 @@ struct GroupedConvolutionForwardKernel
                      std::is_same_v<WeiLayout, ctc::GKYXC> ||
                      std::is_same_v<WeiLayout, ctc::GKZYXC>)
         {
-            if(ConvC % GroupedConvTraitsType_::VectorSizeB != 0)
+            if((GroupedConvTraitsType_::NumGroupsToMerge * ConvC) %
+                   GroupedConvTraitsType_::VectorSizeB !=
+               0)
             {
-                CK_TILE_ERROR("Conv C is not a multiple of vector load size for weight!");
+                CK_TILE_ERROR("NumGroupsToMerge * Conv C is not a multiple of vector load size for weight!");
                 return false;
             }
         }
@@ -589,9 +623,11 @@ struct GroupedConvolutionForwardKernel
                      std::is_same_v<OutLayout, ctc::NHWGK> ||
                      std::is_same_v<OutLayout, ctc::NDHWGK>)
         {
-            if(ConvK % GroupedConvTraitsType_::VectorSizeC != 0)
+            if((GroupedConvTraitsType_::NumGroupsToMerge * ConvK) %
+                   GroupedConvTraitsType_::VectorSizeC !=
+               0)
             {
-                CK_TILE_ERROR("Conv K is not a multiple of vector store size for output image!");
+                CK_TILE_ERROR("NumGroupsToMerge * Conv K is not a multiple of vector store size for output image!");
                 return false;
             }
         }
@@ -599,6 +635,16 @@ struct GroupedConvolutionForwardKernel
         {
             CK_TILE_ERROR("Not supported output layout!");
             return false;
+        }
+
+        if constexpr(GroupedConvTraitsType_::NumGroupsToMerge > 1)
+        {
+            const index_t ConvG = kargs.wei_g_k_c_xs_lengths[number<0>{}];
+            if(ConvG % GroupedConvTraitsType_::NumGroupsToMerge != 0)
+            {
+                CK_TILE_ERROR("ConvG must be a multiple of NumGroupsToMerge!");
+                return false;
+            }
         }
 
         return true;

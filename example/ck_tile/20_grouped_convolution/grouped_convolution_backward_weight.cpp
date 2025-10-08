@@ -219,9 +219,9 @@ int main(int argc, char* argv[])
             // we will run the example with the merged groups config.
             // The tile size are selected such that we have number of
             // merged groups any power of two smaller or equal to 64.
-            return !run_grouped_conv_bwd_weight_example<GemmWarpConfig_Mfma_merged_groups,
-                                                        GemmTileConfig_merged_groups,
-                                                        GemmVectorLoads_merged_groups>(arg_parser);
+            return !run_grouped_conv_bwd_weight_example<GemmWarpConfig_Mfma_bwd_weight,
+                                                        GemmTileConfig_bwd_weight,
+                                                        GemmVectorLoads_bwd_weight>(arg_parser);
         }
 #endif
     }

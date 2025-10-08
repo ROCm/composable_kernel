@@ -17,15 +17,13 @@ struct GroupedConvolutionForwardInvoker
               typename InLayout,
               typename WeiLayout,
               typename OutLayout,
-              ck_tile::index_t NumGroupMerge = 1,
-              typename DsDataType            = ck_tile::tuple<>,
-              typename DsLayout              = ck_tile::tuple<>,
-              typename CDEElementWise        = ck_tile::element_wise::PassThrough>
+              ck_tile::index_t NumGroupsToMerge = 1,
+              typename DsDataType               = ck_tile::tuple<>,
+              typename DsLayout                 = ck_tile::tuple<>,
+              typename CDEElementWise           = ck_tile::element_wise::PassThrough>
     static float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args,
                                   const ck_tile::stream_config& s)
     {
-        constexpr int kBlockPerCu = 1;
-
         constexpr int kBlockPerCu = 1;
 
         constexpr ck_tile::index_t M_Tile = GemmTileConfig::M_Tile;
@@ -60,7 +58,8 @@ struct GroupedConvolutionForwardInvoker
                                                                   OutLayout,
                                                                   VectorSizeA,
                                                                   VectorSizeB,
-                                                                  VectorSizeC>;
+                                                                  VectorSizeC,
+                                                                  NumGroupsToMerge>;
         using CodegenPipelineProblem = ck_tile::GemmPipelineProblem<
             InDataType,
             WeiDataType,

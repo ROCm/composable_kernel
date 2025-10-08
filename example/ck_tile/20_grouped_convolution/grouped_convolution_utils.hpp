@@ -12,10 +12,21 @@
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/grouped_convolution.hpp"
 
-struct GemmWarpConfig_Mfma_merged_groups
+struct GemmWarpConfig_Mfma_bwd_weight
 {
     static constexpr ck_tile::index_t M_Warp_Tile = 4;
     static constexpr ck_tile::index_t N_Warp_Tile = 64;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+};
+
+struct GemmWarpConfig_Mfma_fwd
+{
+    static constexpr ck_tile::index_t M_Warp_Tile = 64;
+    static constexpr ck_tile::index_t N_Warp_Tile = 4;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
     static constexpr ck_tile::index_t M_Warp = 2;
@@ -45,10 +56,17 @@ struct GemmWarpConfig_Wmma
     static constexpr ck_tile::index_t K_Warp = 1;
 };
 
-struct GemmTileConfig_merged_groups
+struct GemmTileConfig_bwd_weight
 {
     static constexpr ck_tile::index_t M_Tile = 8;
     static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 64;
+};
+
+struct GemmTileConfig_fwd
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 8;
     static constexpr ck_tile::index_t K_Tile = 64;
 };
 
@@ -59,11 +77,18 @@ struct GemmTileConfig
     static constexpr ck_tile::index_t K_Tile = 64;
 };
 
-struct GemmVectorLoads_merged_groups
+struct GemmVectorLoads_bwd_weight
 {
     static constexpr ck_tile::index_t VectorSizeA = 1;
     static constexpr ck_tile::index_t VectorSizeB = 1;
     static constexpr ck_tile::index_t VectorSizeC = 2;
+};
+
+struct GemmVectorLoads_fwd
+{
+    static constexpr ck_tile::index_t VectorSizeA = 2;
+    static constexpr ck_tile::index_t VectorSizeB = 2;
+    static constexpr ck_tile::index_t VectorSizeC = 4;
 };
 
 struct GemmVectorLoads
