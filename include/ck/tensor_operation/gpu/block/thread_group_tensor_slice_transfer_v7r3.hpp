@@ -98,7 +98,7 @@ struct ThreadGroupTensorSliceTransfer_v7r3
         static_assert(ThreadGroup::GetNumOfThread() >= thread_cluster_desc_.GetElementSize(),
                       "wrong! ThreadGroup::GetNumOfThread() too small");
 
-        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
+        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() ||
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
             const auto thread_cluster_idx = thread_cluster_desc_.CalculateBottomIndex(
@@ -124,7 +124,7 @@ struct ThreadGroupTensorSliceTransfer_v7r3
                             const SrcBuffers& src_bufs,
                             Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
-        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
+        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() ||
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
             threadwise_transfer_.RunRead(src_descs, src_bufs, thread_scratch_id);
@@ -139,7 +139,7 @@ struct ThreadGroupTensorSliceTransfer_v7r3
                              DstBuffers dst_bufs,
                              Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
-        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
+        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() ||
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
             if constexpr(is_detected<is_tuple, decltype(dst_bufs)>::value)
@@ -160,7 +160,7 @@ struct ThreadGroupTensorSliceTransfer_v7r3
                          DstVgprBuffers dst_vgpr_buf,
                          Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
-        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
+        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() ||
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
             if constexpr(is_detected<is_tuple, decltype(dst_bufs)>::value &&
@@ -193,7 +193,7 @@ struct ThreadGroupTensorSliceTransfer_v7r3
     __device__ void
     MoveSrcSliceWindow(const SrcDescs& src_descs, Number<ISrc> iSrc, const Index& step)
     {
-        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
+        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() ||
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
             threadwise_transfer_.MoveSrcSliceWindow(src_descs, iSrc, step);
@@ -210,7 +210,7 @@ struct ThreadGroupTensorSliceTransfer_v7r3
     __device__ void
     MoveDstSliceWindow(const DstDescs& dst_descs, Number<IDst> iDst, const Index& step)
     {
-        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
+        if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() ||
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
             threadwise_transfer_.MoveDstSliceWindow(dst_descs, iDst, step);
