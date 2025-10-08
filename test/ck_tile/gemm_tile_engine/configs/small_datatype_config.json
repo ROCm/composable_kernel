@@ -1,0 +1,25 @@
+{
+  "problem": {
+    "description": "Configuration optimized for small data types (fp8, fp16, bf16) with larger warp tiles"
+  },
+  "tile_config": {
+    "tile_m": {"values": [128]},
+    "tile_n": {"values": [128]},
+    "tile_k": {"values": [32]},
+    "warp_m": {"values": [2]},
+    "warp_n": {"values": [2]},
+    "warp_k": {"values": [1]},
+    "warp_tile_m": {"values": [32]},
+    "warp_tile_n": {"values": [32]},
+    "warp_tile_k": {"values": [32]}
+  },
+  "trait_config": {
+    "pipeline": {"values": ["compv3"]},
+    "epilogue": {"values": ["default"]},
+    "scheduler": {"values": ["intrawave"]},
+    "pad_m": {"values": [false]},
+    "pad_n": {"values": [false]},
+    "pad_k": {"values": [false]},
+    "persistent": {"values": [false]}
+  }
+}
