@@ -86,7 +86,6 @@ struct TransformConvFwdToGemm
     static IndexType GetSplitedNSize(const ConvDimsType& a_g_n_c_wis_lengths,
                                      const ConvDimsType& c_g_n_k_wos_lengths)
     {
-        // Removed verbose debug prints for cleaner output
 
         // Calculate strides internally assuming contiguous memory layout
         ConvDimsType a_g_n_c_wis_strides, c_g_n_k_wos_strides;
