@@ -1137,8 +1137,8 @@ struct FmhaFwdKernel
                 }
                 if constexpr(kStoreLSE)
                 {
-                    // LSE stays indexed by unpadded starts
-                    batch_offset_lse = query_start_unpadded;
+                    // LSE follows the padded layout to stay consistent with other tensors
+                    batch_offset_lse = query_start_padded;
                 }
                 if constexpr(kHasDropout)
                 {
@@ -1630,8 +1630,8 @@ struct FmhaFwdKernel
                     batch_offset_bias = query_start_padded * kargs.stride_bias;
                 }
 
-                // LSE layout is [nhead, total_seqlen], index by unpadded start
-                batch_offset_lse = query_start_unpadded;
+                // LSE layout is [nhead, total_seqlen] following the padded layout for Q/O
+                batch_offset_lse = query_start_padded;
                 batch_offset_o   = query_start_padded * kargs.stride_o;
 
                 // get real # queries & # keys under group mode

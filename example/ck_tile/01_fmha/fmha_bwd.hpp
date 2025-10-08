@@ -116,6 +116,7 @@ struct fmha_bwd_args
     void* dq_acc_ptr;
     const void* seqstart_q_ptr;
     const void* seqstart_k_ptr;
+    const void* seqlen_q_ptr;
     const void* seqlen_k_ptr;
     ck_tile::index_t seqlen_q;
     ck_tile::index_t seqlen_k;
@@ -203,6 +204,7 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                       dq_ptr,
                                                       args.seqstart_q_ptr,
                                                       args.seqstart_k_ptr,
+                                                      args.seqlen_q_ptr,
                                                       args.seqlen_k_ptr,
                                                       args.hdim_q,
                                                       args.hdim_v,
@@ -315,6 +317,7 @@ auto fmha_bwd_dot_do_o_create_kargs_and_grids(fmha_bwd_args args)
                                                      args.d_ptr,
                                                      args.p_undrop,
                                                      args.seqstart_q_ptr,
+                                                     args.seqlen_q_ptr,
                                                      args.hdim_v,
                                                      args.stride_do,
                                                      args.stride_o,
@@ -356,6 +359,8 @@ auto fmha_bwd_convert_dq_create_kargs_and_grids(fmha_bwd_args args)
                                                         args.dq_ptr,
                                                         args.seqstart_q_ptr,
                                                         args.seqstart_k_ptr,
+                                                        args.seqlen_q_ptr,
+                                                        args.seqlen_k_ptr,
                                                         args.hdim_q,
                                                         args.stride_dq,
                                                         args.stride_dq_acc,

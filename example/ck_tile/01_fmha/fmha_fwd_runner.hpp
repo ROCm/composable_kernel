@@ -330,11 +330,12 @@ fwd_result fmha_fwd_run(mode_enum mode,
         return fwd_result::invalid_args;
     }
 
-    std::tie(seqlen_qs, seqlen_ks, seqlen_kpads) =
+    std::tie(seqlen_qs, seqlen_ks, seqlen_qpads, seqlen_kpads) =
         generate_missing_seqlens(mode,
                                  batch,
                                  seqlen_qs,
                                  seqlen_ks,
+                                 seqlen_qpads,
                                  seqlen_kpads,
                                  /*seqlen_k_min=*/0 < seqlen_knew ? seqlen_knew : 0,
                                  need_append_kvcache,
@@ -346,7 +347,13 @@ fwd_result fmha_fwd_run(mode_enum mode,
             std::cerr << "kpad must be greater than or equal to seqlen for k" << std::endl;
             return fwd_result::invalid_args;
         }
+        if(seqlen_qpads[wb] > 0 && seqlen_qpads[wb] < seqlen_qs[wb])
+        {
+            std::cerr << "qpad must be greater than or equal to seqlen for q" << std::endl;
+            return fwd_result::invalid_args;
+        }
     }
+
     // compute kvcache seqlen_k (before appending knew/vnew)
     auto cache_seqlen_ks = seqlen_ks;
     std::transform(cache_seqlen_ks.begin(),
@@ -357,6 +364,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
 #if 0
     std::cout << "seqlen_qs: " << seqlen_qs << std::endl;
     std::cout << "seqlen_ks: " << seqlen_ks << std::endl;
+    std::cout << "seqlen_qpads: " << seqlen_qpads << std::endl;
     std::cout << "seqlen_kpads: " << seqlen_kpads << std::endl;
     std::cout << "cache_seqlen_ks: " << cache_seqlen_ks << std::endl;
 #endif
@@ -514,9 +522,6 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
     // host memory for storing all the tensor elements
     const ck_tile::index_t shape_batch = (mode == mode_enum::batch ? batch : 1);
-    // logical(unpadded) total seqlen_q for group; batch uses fixed seqlen
-    const ck_tile::index_t shape_seqlen_q_lse =
-        (mode == mode_enum::batch ? seqlen_qs[0] : seqstart_q_host.back());
     // physical(padded) total seqlen_q for group when s_qpad is provided; else use logical
     const ck_tile::index_t shape_seqlen_q =
         (mode == mode_enum::batch
@@ -580,7 +585,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
     // batch mode of lse data layout is [batch, nhead, seqlen_q]
     // group mode of lse data layout is [nhead, total_seqlen_q]
     ck_tile::HostTensor<LSEDataType> lse_host(
-        lse ? std::array<ck_tile::index_t, 3>{shape_batch, nhead, shape_seqlen_q_lse}
+        lse ? std::array<ck_tile::index_t, 3>{shape_batch, nhead, shape_seqlen_q}
             : std::array<ck_tile::index_t, 3>{1, 1, 1} /* dummy shape for simplifying code */);
 
     ck_tile::HostTensor<ODataType> o_host(
@@ -970,8 +975,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
         const ck_tile::index_t nhead_stride_bias =
             (i_perm ? 0 * shape_seqlen_q * max_seqlen_k : 0 * max_seqlen_k);
         const ck_tile::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
-        const ck_tile::index_t nhead_stride_lse     = shape_seqlen_q_lse;
-        const ck_tile::index_t nhead_stride_lse_acc = (num_splits * shape_seqlen_q_lse);
+        const ck_tile::index_t nhead_stride_lse     = shape_seqlen_q;
+        const ck_tile::index_t nhead_stride_lse_acc = (num_splits * shape_seqlen_q);
         const ck_tile::index_t nhead_stride_o_acc   = (num_splits * shape_seqlen_q * hdim_v);
         const ck_tile::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         // setup batch_stride_* arguments
@@ -986,8 +991,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
         const ck_tile::index_t batch_stride_vnew    = (nhead_k * hdim_v * seqlen_knew);
         const ck_tile::index_t batch_stride_bias    = (0 * nhead * shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
-        const ck_tile::index_t batch_stride_lse     = (nhead * shape_seqlen_q_lse);
-        const ck_tile::index_t batch_stride_lse_acc = (nhead * num_splits * shape_seqlen_q_lse);
+        const ck_tile::index_t batch_stride_lse     = (nhead * shape_seqlen_q);
+        const ck_tile::index_t batch_stride_lse_acc = (nhead * num_splits * shape_seqlen_q);
         const ck_tile::index_t batch_stride_o_acc = (nhead * num_splits * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_o     = (nhead * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_block_table = (max_num_page_blocks / batch);
@@ -1727,12 +1732,11 @@ fwd_result fmha_fwd_run(mode_enum mode,
             if(lse)
             {
                 ck_tile::HostTensor<SMPLComputeDataType> lse_host_result({nhead, real_seqlen_q});
-                const ck_tile::index_t query_offset_lse =
-                    (mode == mode_enum::batch ? 0 : seqstart_q_host[wb]);
                 lse_host_result.ForEach([&](auto& self, auto idx) {
-                    self(idx) = lse_host(b_idx, idx[0], idx[1] + query_offset_lse);
+                    self(idx) = lse_host(b_idx, idx[0], idx[1] + query_offset);
                 });
-
+                std::cout << "lse_host_result shape: " << shape_batch << ", " << nhead << ", " << shape_seqlen_q << std::endl;
+                
                 cur_pass = ck_tile::check_err(lse_host_result,
                                               lse_host_ref,
                                               "LSE Error: Incorrect results!",
