@@ -621,13 +621,13 @@ struct DeviceGemmMultipleDLayernorm_Wmma_CShuffleV3
         int gemm_welford_size = pArg_->MRaw_ * pArg_->gemm_nblock_;
 
         // workspace for welford intermediate mean
-        workspace_size += gemm_welford_size * sizeof(EMeanVarDataType) + 64;
+        workspace_size += gemm_welford_size * sizeof(EMeanVarDataType) + 128;
 
         // workspace for welford intermediate variance
-        workspace_size += gemm_welford_size * sizeof(EMeanVarDataType) + 64;
+        workspace_size += gemm_welford_size * sizeof(EMeanVarDataType) + 128;
 
         // workspace for welford intermediate count
-        workspace_size += pArg_->gemm_nblock_ * sizeof(int32_t) + 64;
+        workspace_size += pArg_->gemm_nblock_ * sizeof(int32_t) + 128;
 
         if constexpr(!is_same_v<EMeanVarDataType, HDataType>)
             workspace_size += pArg_->MRaw_ * pArg_->NRaw_ * sizeof(EMeanVarDataType);
@@ -649,20 +649,20 @@ struct DeviceGemmMultipleDLayernorm_Wmma_CShuffleV3
         pArg_->p_workspace_mean_ = static_cast<char*>(pArg_->p_workspace_);
 
         index_t mean_space_sz = gemm_welford_size * sizeof(EMeanVarDataType);
-        mean_space_sz         = math::integer_least_multiple(mean_space_sz, 64);
+        mean_space_sz         = math::integer_least_multiple(mean_space_sz, 128);
 
         // setup buffer used for intermediate welford varirance
         pArg_->p_workspace_var_ = reinterpret_cast<char*>(pArg_->p_workspace_mean_) + mean_space_sz;
 
         index_t variance_space_sz = gemm_welford_size * sizeof(EMeanVarDataType);
-        variance_space_sz         = math::integer_least_multiple(variance_space_sz, 64);
+        variance_space_sz         = math::integer_least_multiple(variance_space_sz, 128);
 
         // setup buffer used for intermediate welford count
         pArg_->p_workspace_count_ =
             reinterpret_cast<char*>(pArg_->p_workspace_var_) + variance_space_sz;
 
         index_t count_space_sz = gemm_welford_size * sizeof(int32_t);
-        count_space_sz         = math::integer_least_multiple(count_space_sz, 64);
+        count_space_sz         = math::integer_least_multiple(count_space_sz, 128);
 
         if constexpr(!is_same_v<EMeanVarDataType, HDataType>)
             pArg_->p_workspace_e_grid_ =
