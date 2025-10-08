@@ -1134,6 +1134,7 @@ struct UniversalGemmKernel
 
         while(block_id < num_work)
         {
+            s_waitcnt_barrier();
             // Get the tile index for this block
             const auto tile_idx = amd_wave_read_first_lane(block_id % num_tiles);
             const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(tile_idx);
