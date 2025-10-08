@@ -105,7 +105,7 @@ jobs:
           echo "CCache Stats:"
           echo "-------------"
           ccache -s -v
-          tail -v -n +1 .ccache/compiler_check_cache/* > build/logs/ccache_compiler_check_cache.log
+          tail -v -n +1 .ccache/compiler_check_cache/* > TheROck/build/logs/ccache_compiler_check_cache.log
 
       - name: Configure AWS Credentials for non-forked repos
         if: ${{ always() && !github.event.pull_request.head.repo.fork }}
