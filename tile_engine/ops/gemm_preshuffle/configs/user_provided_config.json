@@ -2,7 +2,7 @@
   "tile_config": {
     "tile_m": {
       "values": [
-        192
+        64
       ]
     },
     "tile_n": {
@@ -12,7 +12,7 @@
     },
     "tile_k": {
       "values": [
-        128
+        192
       ]
     },
     "warp_m": {
@@ -42,23 +42,27 @@
     },
     "warp_tile_k": {
       "values": [
-        16
+        32
       ]
     }
   },
   "trait_config": {
     "pipeline": {
       "values": [
+        "preshufflev1",
         "preshufflev2"
       ]
     },
     "scheduler": {
       "values": [
+        "intrawave",
+        "default",
         "interwave"
       ]
     },
     "epilogue": {
       "values": [
+        "default",
         "cshuffle"
       ]
     },
