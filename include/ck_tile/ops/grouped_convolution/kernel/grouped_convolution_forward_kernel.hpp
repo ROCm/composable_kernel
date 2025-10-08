@@ -852,8 +852,8 @@ struct GroupedConvolutionForwardKernel
             static_cast<long_index_t>(batch_offset) *
             static_cast<long_index_t>(kargs.output_batch_stride);
 
-        // FIX: Adjust pointers with formula: base + group_offset + batch_offset + spatial_offset
-        // This ensures spatial offset is applied per-batch, not globally
+        // Adjust pointers with formula: base + group_offset + batch_offset + spatial_offset
+        // This ensures spatial offset is applied per-batch, not globally (standard behavior)
         const InDataType* base_a_ptr =
             static_cast<const InDataType*>(kargs.in_ptr) + group_offset_a + input_batch_offset +
             kargs.spatial_offset_in; // Add spatial offset from split-image
