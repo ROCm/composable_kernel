@@ -60,7 +60,8 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
     using BaseGemmPipeline = std::conditional_t<
         GemmConfig::PreshuffleB == true,
         ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>,
-        ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>;
+        ck_tile::BaseAQuantGemmPipelineAgBgCrMem<GemmPipelineProblem>>; // memory pipeline hardcoded
+                                                                        // for aquant
 
     const ck_tile::index_t K_split =
         (args.K + GemmConfig::K_Tile - 1) / GemmConfig::K_Tile * GemmConfig::K_Tile;
@@ -119,7 +120,8 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
             ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>,
             std::conditional_t<
                 QuantMode == ck_tile::QuantType::AQuantGrouped,
-                ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
+                ck_tile::AQuantGemmPipelineAgBgCrMem<PipelineProblem>, // memory pipeline hardcoded
+                                                                       // for aquant
                 std::conditional_t<GemmConfig::PreshuffleB == true,
                                    ck_tile::WPQuantBPipelineAgBgCrV2<PipelineProblem>,
                                    ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>>;
@@ -449,7 +451,4 @@ int run_gemm_example(int argc, char* argv[])
     }
 }
 
-int main(int argc, char* argv[])
-{
-    return !run_gemm_example<GemmConfigPreshuffleB_Bquant_prefill>(argc, argv);
-}
+int main(int argc, char* argv[]) { return !run_gemm_example<GemmConfigPreshuffleB_Bquant_prefill>(argc, argv); }
