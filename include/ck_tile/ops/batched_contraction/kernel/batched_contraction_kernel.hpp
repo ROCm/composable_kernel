@@ -458,16 +458,6 @@ struct BatchedContractionKernel
         return kargs;
     }
 
-    /// @brief Calculate batch offset using linear calculation
-    /// @param flat_g_idx Flat batch index
-    /// @param batch_stride Batch stride for the specific tensor
-    /// @return Batch offset for the specific tensor
-    CK_TILE_DEVICE constexpr auto CalculateBatchOffset(ck_tile::index_t flat_g_idx,
-                                                       ck_tile::index_t batch_stride) const
-    {
-        return static_cast<ck_tile::index_t>(flat_g_idx) * batch_stride;
-    }
-
     CK_TILE_DEVICE void operator()(const KernelArgs& kargs) const
     {
 
@@ -482,9 +472,9 @@ struct BatchedContractionKernel
         const auto i_splitk     = __builtin_amdgcn_readfirstlane(blockIdx.z);
 
         // Calculate batch offsets for each tensor
-        const auto batch_offset_A = CalculateBatchOffset(i_batch_flat, kargs.batch_stride_A);
-        const auto batch_offset_B = CalculateBatchOffset(i_batch_flat, kargs.batch_stride_B);
-        const auto batch_offset_E = CalculateBatchOffset(i_batch_flat, kargs.batch_stride_E);
+        const auto batch_offset_A = i_batch_flat * kargs.batch_stride_A;
+        const auto batch_offset_B = i_batch_flat * kargs.batch_stride_B;
+        const auto batch_offset_E = i_batch_flat * kargs.batch_stride_E;
 
         const ADataType* a_ptr = static_cast<const ADataType*>(kargs.a_ptr) + batch_offset_A;
         const BDataType* b_ptr = static_cast<const BDataType*>(kargs.b_ptr) + batch_offset_B;
@@ -492,9 +482,8 @@ struct BatchedContractionKernel
 
         std::array<const void*, NumDTensor> ds_batch_ptr;
         static_for<0, NumDTensor, 1>{}([&](auto i) {
-            using DDataType = typename std::tuple_element<i.value, DsDataType>::type;
-            const auto batch_offset_D =
-                CalculateBatchOffset(i_batch_flat, kargs.batch_stride_Ds[i]);
+            using DDataType           = typename std::tuple_element<i.value, DsDataType>::type;
+            const auto batch_offset_D = i_batch_flat * kargs.batch_stride_Ds[i];
             ds_batch_ptr[i] = static_cast<const DDataType*>(kargs.ds_ptr[i]) + batch_offset_D;
         });
 
