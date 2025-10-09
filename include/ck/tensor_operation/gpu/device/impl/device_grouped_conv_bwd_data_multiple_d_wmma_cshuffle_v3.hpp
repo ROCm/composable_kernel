@@ -1476,7 +1476,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         const index_t input_spatial_acum = ck::accumulate_n<index_t>(
             arg.a_g_n_k_wos_lengths_.begin() + I3, NDimSpatial, 1, std::multiplies<>());
 
-        // Specifialization
+        // Specialization
         if constexpr(ConvBackwardDataSpecialization ==
                      ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0)
         {
