@@ -38,4 +38,18 @@ struct DetermineWarpPrecType<ck_tile::pk_fp4_raw_t, OtherPrecType>
 {
     using prec_type = OtherPrecType;
 };
+
+// For fp8 x bf16 or bf16 x fp8, convert fp8 to float
+template <>
+struct DetermineWarpPrecType<ck_tile::fp8_t, ck_tile::bf16_t>
+{
+    using prec_type = float;
+};
+
+// For fp8 x bf16 or bf16 x fp8, convert bf16 to float
+template <>
+struct DetermineWarpPrecType<ck_tile::bf16_t, ck_tile::fp8_t>
+{
+    using prec_type = float;
+};
 }; // namespace ck_tile
