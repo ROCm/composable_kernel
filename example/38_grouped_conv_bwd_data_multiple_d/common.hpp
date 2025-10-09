@@ -61,6 +61,12 @@ struct ExecutionConfig final
         NDimSpatial, 32, 4, 192, 192, {3, 3}, {28, 28}, {1, 1}, {1, 1}, {1, 1}, { 1, 1 } \
     }
 
+#define DefaultConvParams_3D                                                                \
+    ck::utils::conv::ConvParam                                                           \
+    {                                                                                    \
+        NDimSpatial_3D, 32, 4, 192, 192, {3, 3, 3}, {28, 28,28}, {1, 1,1}, {1, 1,1}, {1, 1,1}, { 1, 1 ,1} \
+    }
+
 inline void print_help_msg()
 {
     std::cerr << "arg1: verification (0=no, 1=yes)\n"
