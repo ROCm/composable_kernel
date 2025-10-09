@@ -182,7 +182,7 @@ int run_gemm_example_with_layouts(int argc,
         if(K % QuantGroupSize != 0)
         {
             throw std::runtime_error(
-                "K must be aligned with QuantGroupSize for AQuantGrouped mode");
+                "K must be aligned with QuantGroupSize for AQuantGrouped/BQuantGrouped mode");
         }
     }
     ck_tile::index_t AQK, BQK;
@@ -204,7 +204,7 @@ int run_gemm_example_with_layouts(int argc,
     }
     else
     {
-        static_assert(false, "Unsupported QuantMode");
+        throw std::runtime_error("Unsupported QuantMode");
     }
 
     ck_tile::index_t stride_A  = arg_parser.get_int("stride_a");
