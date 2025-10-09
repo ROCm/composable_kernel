@@ -7,7 +7,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common/utils.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
-#include "ck_tile/ops/common/tensor_layout.hpp"
+#include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 #include <type_traits>
@@ -92,16 +92,8 @@ struct CShuffleEpilogue
     using ADataType = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataTypeTuple>>;
     using BDataType = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataTypeTuple>>;
 
-    using ATypeToUse = std::conditional_t<std::is_same_v<ADataType, pk_int4_t> ||
-                                              std::is_same_v<ADataType, pk_fp4_t>,
-                                          BDataType,
-                                          ADataType>;
-    // Used for weight-only quantization kernel, B would be dequantized to the same data type as A
-    using BTypeToUse = std::conditional_t<std::is_same_v<BDataType, pk_int4_t> ||
-                                              std::is_same_v<BDataType, pk_fp4_t> ||
-                                              std::is_same_v<BDataType, pk_fp4_raw_t>,
-                                          ADataType,
-                                          BDataType>;
+    using ATypeToUse = typename DetermineWarpPrecType<ADataType, BDataType>::prec_type;
+    using BTypeToUse = typename DetermineWarpPrecType<BDataType, ADataType>::prec_type;
 
     using ELayout                                = remove_cvref_t<typename Problem::ELayout>;
     using CDElementwise                          = remove_cvref_t<typename Problem::CDElementwise>;
