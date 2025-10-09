@@ -15,7 +15,6 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
-#include "ck/library/utility/validation_common.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
 namespace ck {
@@ -86,16 +85,13 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
 
             if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
+                return HostTensorDescriptor({row, col}, {stride, 1_uz}, layout);
             }
             else
             {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
+                return HostTensorDescriptor({row, col}, {1_uz, stride}, layout);
             }
         };
-
-    ck::utils::validate_gemm_strides_abc<ALayout, BLayout, CLayout>(
-        M, N, K, StrideA, StrideB, StrideC);
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor2d(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor2d(K, N, StrideB, BLayout{}));
