@@ -62,8 +62,7 @@ struct GroupedConvolutionBackwardWeightInvoker
             GemmConfig::TransposeC,
             GemmConfig::UseStructuredSparsity,
             false, // Persistent,
-            GemmConfig::NumWaveGroups,
-            GemmConfig::Preshuffle>;
+            GemmConfig::NumWaveGroups>;
 
         using GemmPipelineProblem = ck_tile::GemmPipelineProblem<
             OutDataType,

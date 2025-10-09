@@ -40,13 +40,13 @@ struct GroupedConvBwdWeightKernelArgs
     CK_TILE_HOST GroupedConvBwdWeightKernelArgs(const GroupedConvBwdWeightHostArgs& args)
     {
         in_g_n_c_wis_lengths  = {static_cast<index_t>(args.G_),
-                                 static_cast<index_t>(args.N_),
-                                 static_cast<index_t>(args.C_),
-                                 static_cast<index_t>(args.input_spatial_lengths_[0])};
+                                static_cast<index_t>(args.N_),
+                                static_cast<index_t>(args.C_),
+                                static_cast<index_t>(args.input_spatial_lengths_[0])};
         wei_g_k_c_xs_lengths  = {static_cast<index_t>(args.G_),
-                                 static_cast<index_t>(args.K_),
-                                 static_cast<index_t>(args.C_),
-                                 static_cast<index_t>(args.filter_spatial_lengths_[0])};
+                                static_cast<index_t>(args.K_),
+                                static_cast<index_t>(args.C_),
+                                static_cast<index_t>(args.filter_spatial_lengths_[0])};
         out_g_n_k_wos_lengths = {static_cast<index_t>(args.G_),
                                  static_cast<index_t>(args.N_),
                                  static_cast<index_t>(args.K_),
@@ -109,15 +109,15 @@ struct GroupedConvBwdWeightKernelArgs
     CK_TILE_HOST GroupedConvBwdWeightKernelArgs(const GroupedConvBwdWeightHostArgs& args)
     {
         in_g_n_c_wis_lengths  = {static_cast<index_t>(args.G_),
-                                 static_cast<index_t>(args.N_),
-                                 static_cast<index_t>(args.C_),
-                                 static_cast<index_t>(args.input_spatial_lengths_[0]),
-                                 static_cast<index_t>(args.input_spatial_lengths_[1])};
+                                static_cast<index_t>(args.N_),
+                                static_cast<index_t>(args.C_),
+                                static_cast<index_t>(args.input_spatial_lengths_[0]),
+                                static_cast<index_t>(args.input_spatial_lengths_[1])};
         wei_g_k_c_xs_lengths  = {static_cast<index_t>(args.G_),
-                                 static_cast<index_t>(args.K_),
-                                 static_cast<index_t>(args.C_),
-                                 static_cast<index_t>(args.filter_spatial_lengths_[0]),
-                                 static_cast<index_t>(args.filter_spatial_lengths_[1])};
+                                static_cast<index_t>(args.K_),
+                                static_cast<index_t>(args.C_),
+                                static_cast<index_t>(args.filter_spatial_lengths_[0]),
+                                static_cast<index_t>(args.filter_spatial_lengths_[1])};
         out_g_n_k_wos_lengths = {static_cast<index_t>(args.G_),
                                  static_cast<index_t>(args.N_),
                                  static_cast<index_t>(args.K_),
@@ -125,13 +125,13 @@ struct GroupedConvBwdWeightKernelArgs
                                  static_cast<index_t>(args.output_spatial_lengths_[1])};
 
         conv_filter_strides   = {static_cast<index_t>(args.conv_filter_strides_[0]),
-                                 static_cast<index_t>(args.conv_filter_strides_[1])};
+                               static_cast<index_t>(args.conv_filter_strides_[1])};
         conv_filter_dilations = {static_cast<index_t>(args.conv_filter_dilations_[0]),
                                  static_cast<index_t>(args.conv_filter_dilations_[1])};
         input_left_pads       = {static_cast<index_t>(args.input_left_pads_[0]),
-                                 static_cast<index_t>(args.input_left_pads_[1])};
+                           static_cast<index_t>(args.input_left_pads_[1])};
         input_right_pads      = {static_cast<index_t>(args.input_right_pads_[0]),
-                                 static_cast<index_t>(args.input_right_pads_[1])};
+                            static_cast<index_t>(args.input_right_pads_[1])};
 
         k_batch = args.k_batch;
 
@@ -185,17 +185,17 @@ struct GroupedConvBwdWeightKernelArgs
     CK_TILE_HOST GroupedConvBwdWeightKernelArgs(const GroupedConvBwdWeightHostArgs& args)
     {
         in_g_n_c_wis_lengths  = {static_cast<index_t>(args.G_),
-                                 static_cast<index_t>(args.N_),
-                                 static_cast<index_t>(args.C_),
-                                 static_cast<index_t>(args.input_spatial_lengths_[0]),
-                                 static_cast<index_t>(args.input_spatial_lengths_[1]),
-                                 static_cast<index_t>(args.input_spatial_lengths_[2])};
+                                static_cast<index_t>(args.N_),
+                                static_cast<index_t>(args.C_),
+                                static_cast<index_t>(args.input_spatial_lengths_[0]),
+                                static_cast<index_t>(args.input_spatial_lengths_[1]),
+                                static_cast<index_t>(args.input_spatial_lengths_[2])};
         wei_g_k_c_xs_lengths  = {static_cast<index_t>(args.G_),
-                                 static_cast<index_t>(args.K_),
-                                 static_cast<index_t>(args.C_),
-                                 static_cast<index_t>(args.filter_spatial_lengths_[0]),
-                                 static_cast<index_t>(args.filter_spatial_lengths_[1]),
-                                 static_cast<index_t>(args.filter_spatial_lengths_[2])};
+                                static_cast<index_t>(args.K_),
+                                static_cast<index_t>(args.C_),
+                                static_cast<index_t>(args.filter_spatial_lengths_[0]),
+                                static_cast<index_t>(args.filter_spatial_lengths_[1]),
+                                static_cast<index_t>(args.filter_spatial_lengths_[2])};
         out_g_n_k_wos_lengths = {static_cast<index_t>(args.G_),
                                  static_cast<index_t>(args.N_),
                                  static_cast<index_t>(args.K_),
@@ -204,17 +204,17 @@ struct GroupedConvBwdWeightKernelArgs
                                  static_cast<index_t>(args.output_spatial_lengths_[2])};
 
         conv_filter_strides   = {static_cast<index_t>(args.conv_filter_strides_[0]),
-                                 static_cast<index_t>(args.conv_filter_strides_[1]),
-                                 static_cast<index_t>(args.conv_filter_strides_[2])};
+                               static_cast<index_t>(args.conv_filter_strides_[1]),
+                               static_cast<index_t>(args.conv_filter_strides_[2])};
         conv_filter_dilations = {static_cast<index_t>(args.conv_filter_dilations_[0]),
                                  static_cast<index_t>(args.conv_filter_dilations_[1]),
                                  static_cast<index_t>(args.conv_filter_dilations_[2])};
         input_left_pads       = {static_cast<index_t>(args.input_left_pads_[0]),
-                                 static_cast<index_t>(args.input_left_pads_[1]),
-                                 static_cast<index_t>(args.input_left_pads_[2])};
+                           static_cast<index_t>(args.input_left_pads_[1]),
+                           static_cast<index_t>(args.input_left_pads_[2])};
         input_right_pads      = {static_cast<index_t>(args.input_right_pads_[0]),
-                                 static_cast<index_t>(args.input_right_pads_[1]),
-                                 static_cast<index_t>(args.input_right_pads_[2])};
+                            static_cast<index_t>(args.input_right_pads_[1]),
+                            static_cast<index_t>(args.input_right_pads_[2])};
 
         k_batch = args.k_batch;
 
@@ -251,14 +251,14 @@ struct GroupedConvBwdWeightKernelArgs
                                          1,
                                          std::multiplies<index_t>());
 
-        GemmM     = a_grid_desc_k_m.get_length(number<1>{}); // reversed
-        GemmN     = b_grid_desc_k_n.get_length(number<1>{}); // reversed
-        GemmK     = a_grid_desc_k_m.get_length(number<0>{}); // reversed
+        GemmM     = a_grid_desc_k_m.get_length(number<1>{});
+        GemmN     = b_grid_desc_k_n.get_length(number<1>{});
+        GemmK     = a_grid_desc_k_m.get_length(number<0>{});
         GemmBatch = args.G_;
     }
 
-    using ABCGridDescs = remove_cvref_t<
-        decltype(ConvToGemmTransformer{}.MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N())>;
+    using ABCGridDescs = remove_cvref_t<decltype(
+        ConvToGemmTransformer{}.MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N())>;
 
     using AGridDescKM = remove_cvref_t<decltype(ABCGridDescs{}[number<0>{}])>;
     using BGridDescKN = remove_cvref_t<decltype(ABCGridDescs{}[number<1>{}])>;
@@ -376,9 +376,6 @@ struct GroupedConvolutionBackwardWeightKernel
 
     static_assert(GemmPipeline::kPadM && GemmPipeline::kPadN && GemmPipeline::kPadK,
                   "Not supported!");
-    // static_assert(std::is_same_v<GemmALayout, tensor_layout::gemm::RowMajor>, "Not supported!");
-    // static_assert(std::is_same_v<GemmBLayout, tensor_layout::gemm::ColumnMajor>, "Not supported!");
-    // TODO: Change to and enable vector load
     static_assert(std::is_same_v<GemmALayout, tensor_layout::gemm::ColumnMajor>, "Not supported!");
     static_assert(std::is_same_v<GemmBLayout, tensor_layout::gemm::RowMajor>, "Not supported!");
     static_assert(std::is_same_v<GemmCLayout, tensor_layout::gemm::RowMajor>, "Not supported!");
@@ -809,9 +806,6 @@ struct GroupedConvolutionBackwardWeightKernel
             ck_tile::integer_divide_ceil(kargs.GemmK, kargs.k_batch * TilePartitioner::KPerBlock));
         const index_t i_k =
             amd_wave_read_first_lane(blockIdZ * num_loop * TilePartitioner::KPerBlock);
-
-        //if(threadIdx.x ==0 && blockIdx.x == 0)
-        //    printf("gemm k inside %d\n", kargs.GemmK);
 
         const auto blockIdY       = amd_wave_read_first_lane(blockIdx.y);
         const auto group_offset_a = amd_wave_read_first_lane(kargs.group_stride_a * blockIdY);
