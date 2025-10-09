@@ -127,6 +127,8 @@ struct DeviceOperationInstanceFactory<
                             op_ptrs);
                         add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_tf32_16_16_instances(
                             op_ptrs);
+                        add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_tf32_optimized_loads_instances(
+                            op_ptrs);
                     }
                     else
                     {
@@ -303,6 +305,8 @@ struct DeviceOperationInstanceFactory<
                         add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_tf32_instances(
                             op_ptrs);
                         add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_tf32_16_16_instances(
+                            op_ptrs);
+                        add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_tf32_optimized_loads_instances(
                             op_ptrs);
                     }
                 }
