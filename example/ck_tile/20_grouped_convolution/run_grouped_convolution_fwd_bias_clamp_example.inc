@@ -24,7 +24,11 @@ float invoke_grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args,
                                                         OutDataType,
                                                         InLayout,
                                                         WeiLayout,
-                                                        OutLayout>(
+                                                        OutLayout,
+                                                        ck_tile::tuple<>,
+                                                        ck_tile::tuple<>,
+                                                        ck_tile::element_wise::Bias,
+                                                        1>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::size_t flop     = args.GetFlops();
@@ -88,6 +92,10 @@ int run_grouped_conv_fwd_example_with_layouts(
     int n_repeat                 = arg_parser.get_int("repeat");
     ck_tile::index_t init_method = arg_parser.get_int("init");
 
+    const float bias                   = 3.f;
+    std::vector<float> elfunc_args_vec = {bias};
+    const size_t num_elfunc_args       = elfunc_args_vec.size();
+
     const auto in_g_n_c_wis_desc =
         ck_tile::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(conv_param);
     const auto wei_g_k_c_xs_desc =
@@ -98,6 +106,7 @@ int run_grouped_conv_fwd_example_with_layouts(
     ck_tile::HostTensor<InDataType> input(in_g_n_c_wis_desc);
     ck_tile::HostTensor<WeiDataType> weight(wei_g_k_c_xs_desc);
     ck_tile::HostTensor<OutDataType> output(out_g_n_k_wos_desc);
+    ck_tile::HostTensor<float> elfunc_args({num_elfunc_args});
 
     if(init_method == 0)
     {
@@ -120,22 +129,29 @@ int run_grouped_conv_fwd_example_with_layouts(
         weight.SetZero();
     }
 
+    for(size_t i = 0; i < num_elfunc_args; ++i)
+        elfunc_args(i) = elfunc_args_vec[i];
+
     ck_tile::DeviceMem input_dev_buf(input.get_element_space_size_in_bytes());
     ck_tile::DeviceMem weight_dev_buf(weight.get_element_space_size_in_bytes());
     ck_tile::DeviceMem output_dev_buf(output.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem elfunc_args_dev_buf(elfunc_args.get_element_space_size_in_bytes());
 
     input_dev_buf.ToDevice(input.data());
     weight_dev_buf.ToDevice(weight.data());
     output_dev_buf.SetZero();
+    elfunc_args_dev_buf.ToDevice(elfunc_args.data());
 
     ck_tile::GroupedConvFwdHostArgs args(conv_param,
                                          input_dev_buf.GetDeviceBuffer(),
                                          weight_dev_buf.GetDeviceBuffer(),
                                          {},
                                          output_dev_buf.GetDeviceBuffer(),
-                                         kbatch);
+                                         kbatch,
+                                         elfunc_args_dev_buf.GetDeviceBuffer());
 
-    std::cout << "Run Grouped Conv Fwd kernel" << std::endl;
+    std::cout << "Run Grouped Conv Fwd kernel with bias " << bias << " and clamp (min, max)."
+              << std::endl;
     std::cout << "input: " << input.mDesc << std::endl;
     std::cout << "weight: " << weight.mDesc << std::endl;
     std::cout << "output: " << output.mDesc << std::endl;

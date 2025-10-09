@@ -1450,6 +1450,20 @@ struct Logistic
     const float alpha_;
 };
 
+struct Bias
+{
+    Bias(float bias = 0.0f) : bias_(bias){};
+
+    template <typename T>
+    CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
+    {
+        T bias = ck_tile::type_convert<T>(bias_);
+        y      = x + bias;
+    }
+
+    float bias_;
+};
+
 struct ConvInvscale
 {
     CK_TILE_HOST_DEVICE
