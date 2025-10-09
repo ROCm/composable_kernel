@@ -453,12 +453,11 @@ bool bnorm_fwd_nhwc_test(bool do_verification,
     return (pass);
 };
 
-const double epsilon              = std::numeric_limits<float>::epsilon();
-static const double averageFactor = 0.1;
-
 int main(int argc, char* argv[])
 {
-    bool pass = true;
+    const double epsilon              = std::numeric_limits<float>::epsilon();
+    static const double averageFactor = 0.1;
+    bool pass                         = true;
 
     if(argc > 1)
     {

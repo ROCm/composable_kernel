@@ -281,8 +281,7 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
             src_buf.template DirectCopyToLds<remove_cvref_t<decltype(dst_buf)>, ScalarPerVector>(
                 dst_buf, src_offset, dst_offset, true);
 
-            constexpr auto move_src_on_dim = [&]() constexpr
-            {
+            constexpr auto move_src_on_dim = [&]() constexpr {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
                 static_for<0, nDim, 1>{}([&](auto i) {
@@ -295,11 +294,9 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
                 });
 
                 return move_on_dim_;
-            }
-            ();
+            }();
 
-            constexpr auto move_dst_on_dim = [&]() constexpr
-            {
+            constexpr auto move_dst_on_dim = [&]() constexpr {
                 StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
                 static_for<0, nDim, 1>{}([&](auto i) {
@@ -311,8 +308,7 @@ struct ThreadGroupTensorSliceTransfer_Gather_DirectLoad
                 });
 
                 return move_on_dim_;
-            }
-            ();
+            }();
 
             // Decide whether to move forward or backward.
             constexpr auto forward_sweep = [&]() {

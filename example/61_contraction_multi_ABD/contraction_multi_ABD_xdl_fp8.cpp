@@ -19,6 +19,9 @@
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/numeric.hpp"
 
+using Row    = ck::tensor_layout::gemm::RowMajor;
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
+
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
@@ -140,12 +143,12 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
-    Tensor<A0DataType> a0_ms_ks(a0_ms_ks_lengths, a0_ms_ks_strides);
-    Tensor<A1DataType> a1_ms_ks(a1_ms_ks_lengths, a1_ms_ks_strides);
-    Tensor<B0DataType> b0_ns_ks(b0_ns_ks_lengths, b0_ns_ks_strides);
-    Tensor<B1DataType> b1_ns_ks(b1_ns_ks_lengths, b1_ns_ks_strides);
-    Tensor<EDataType> e_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides);
-    Tensor<EDataType> e_ms_ns_device_result(e_ms_ns_lengths, e_ms_ns_strides);
+    Tensor<A0DataType> a0_ms_ks(a0_ms_ks_lengths, a0_ms_ks_strides, Row{});
+    Tensor<A1DataType> a1_ms_ks(a1_ms_ks_lengths, a1_ms_ks_strides, Bypass{});
+    Tensor<B0DataType> b0_ns_ks(b0_ns_ks_lengths, b0_ns_ks_strides, Row{});
+    Tensor<B1DataType> b1_ns_ks(b1_ns_ks_lengths, b1_ns_ks_strides, Row{});
+    Tensor<EDataType> e_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides, Row{});
+    Tensor<EDataType> e_ms_ns_device_result(e_ms_ns_lengths, e_ms_ns_strides, Row{});
 
     std::cout << "a0_ms_ks: " << a0_ms_ks.mDesc << std::endl;
     std::cout << "a1_ms_ks: " << a1_ms_ks.mDesc << std::endl;
@@ -194,9 +197,9 @@ int main(int argc, char* argv[])
     auto invoker   = device_op.MakeInvoker();
     auto argument  = device_op.MakeArgument(
         std::array<const void*, 2>{a0_device_buf.GetDeviceBuffer(),
-                                   a1_device_buf.GetDeviceBuffer()},
+                                    a1_device_buf.GetDeviceBuffer()},
         std::array<const void*, 2>{b0_device_buf.GetDeviceBuffer(),
-                                   b1_device_buf.GetDeviceBuffer()},
+                                    b1_device_buf.GetDeviceBuffer()},
         std::array<const void*, 0>{},
         e_device_buf.GetDeviceBuffer(),
         std::array<std::vector<ck::index_t>, 2>{a0_ms_ks_lengths, a1_ms_ks_lengths},
@@ -246,9 +249,9 @@ int main(int argc, char* argv[])
     if(do_verification)
     {
 
-        Tensor<CShuffleDataType> c_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides);
+        Tensor<CShuffleDataType> c_ms_ns_host_result(e_ms_ns_lengths, e_ms_ns_strides, Row{});
 
-        Tensor<A0DataType> a_ms_ks(a0_ms_ks_lengths, a0_ms_ks_strides);
+        Tensor<A0DataType> a_ms_ks(a0_ms_ks_lengths, a0_ms_ks_strides, Row{});
 
         for(size_t m0 = 0; m0 < a_ms_ks.mDesc.GetLengths()[0]; ++m0)
         {
@@ -266,7 +269,7 @@ int main(int argc, char* argv[])
             }
         }
 
-        Tensor<B0DataType> b_ns_ks(b0_ns_ks_lengths, b0_ns_ks_strides);
+        Tensor<B0DataType> b_ns_ks(b0_ns_ks_lengths, b0_ns_ks_strides, Row{});
 
         for(size_t n0 = 0; n0 < b_ns_ks.mDesc.GetLengths()[0]; ++n0)
         {

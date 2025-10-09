@@ -320,9 +320,9 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
                 k_block_tile = load_tile(k_dram_window);
             }
             auto physical_next_block_id_k =
-                __builtin_amdgcn_readfirstlane(k_page_block_navigator.prefetch_table_id(
+                amd_wave_read_first_lane(k_page_block_navigator.prefetch_table_id(
                     i_page_block_k, k_dram_block_window, {kN0, 0}));
-            auto physical_next_block_id_v = __builtin_amdgcn_readfirstlane(
+            auto physical_next_block_id_v = amd_wave_read_first_lane(
                 v_page_block_navigator.prefetch_table_id(i_page_block_v, v_dram_window, {0, kK1}));
 
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
@@ -441,28 +441,46 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
                 }
             }
             move_tile_window(bias_dram_window, {0, kN0});
-            if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
+
             {
                 const auto k_origin = k_page_block_navigator.to_global_window_origin(
                     i_page_block_k, k_dram_block_window.get_window_origin());
-                // mask accept only logical coordinates, do conversion here
-                bool need_perpixel_check = mask.IsEdgeTile(q_origin.at(number<0>{}),
-                                                           k_origin.at(number<0>{}) - kv_l2p_offset,
-                                                           number<kM0>{},
-                                                           number<kN0>{});
-                if(need_perpixel_check)
+
+                if constexpr(kIsPagedKV)
                 {
-                    set_tile_if(
-                        s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
-                            const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
-                            const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
-                            return !variant.LogitsMask(variant_params,
-                                                       block_indices.batch_idx,
-                                                       row,
-                                                       col - kv_l2p_offset,
-                                                       block_indices.qo_head_idx,
-                                                       block_indices.kv_head_idx);
-                        });
+                    // check columns in [aligned_physical_seqlen_k_start, physical_seqlen_k_end)
+                    if(kv_l2p_offset > 0)
+                    {
+                        set_tile_if(
+                            s_acc,
+                            -numeric<SMPLComputeDataType>::infinity(),
+                            [&, physical_seqlen_k_start_ = physical_seqlen_k_start](auto tile_idx) {
+                                const auto col =
+                                    k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                                return col < physical_seqlen_k_start_;
+                            });
+                    };
+                }
+
+                if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
+                {
+                    // mask accept only logical coordinates, do conversion here
+                    bool need_perpixel_check =
+                        mask.IsEdgeTile(q_origin.at(number<0>{}),
+                                        k_origin.at(number<0>{}) - kv_l2p_offset,
+                                        number<kM0>{},
+                                        number<kN0>{});
+                    if(need_perpixel_check)
+                    {
+                        set_tile_if(
+                            s_acc, -numeric<SMPLComputeDataType>::infinity(), [&](auto tile_idx) {
+                                const auto row =
+                                    q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
+                                const auto col =
+                                    k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
+                                return mask.IsOutOfBound(row, col - kv_l2p_offset);
+                            });
+                    }
                 }
             }
 

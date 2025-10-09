@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include <iomanip>
 #include <iostream>
 #include <typeinfo>
+#if defined(__unix__)
 #include <unistd.h>
+#endif
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -54,11 +56,11 @@ int profile_gemm_impl(int do_verification,
 
             if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
+                return HostTensorDescriptor({row, col}, {stride, 1_uz}, layout);
             }
             else
             {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
+                return HostTensorDescriptor({row, col}, {1_uz, stride}, layout);
             }
         };
 
@@ -213,7 +215,9 @@ int profile_gemm_impl(int do_verification,
         instance_id++;
     }
 
+#if defined(__unix__)
     sleep(2);
+#endif
 
     // Run the best instance again
     {

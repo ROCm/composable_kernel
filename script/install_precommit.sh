@@ -15,7 +15,7 @@ source "$(dirname "$0")/../.venv/bin/activate"
 
 echo "I: Installing tools required for pre-commit checks..."
 run_and_check pip install dos2unix
-run_and_check pip install clang-format==12.0.1
+run_and_check pip install clang-format==18.1.3
 echo "I: Installing pre-commit in virtual environment..."
 run_and_check pip install pre-commit
 run_and_check pre-commit install

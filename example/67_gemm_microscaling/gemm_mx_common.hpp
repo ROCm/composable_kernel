@@ -100,8 +100,11 @@ bool parse_cmd_args(int argc,
                   << std::endl
                   << "arg3: time kernel (0=no, 1=yes)" << std::endl
                   << "arg4: verbosity (0=no info, 1=verbose info)" << std::endl
-                  << "arg5 to 10: M(128x), N(128x), K(256x), StrideA, StrideB, StrideC" << std::endl
-                  << "arg11: KBatch" << std::endl;
+                  << "arg5 to 10: M(256x), N(256x), K(512x), StrideA, StrideB, StrideC" << std::endl
+                  << "arg11: KBatch" << std::endl
+                  << "arg12: warmup runs pre-timing" << std::endl
+                  << "arg13: repeat run count for timing" << std::endl;
+
         return false;
     }
 

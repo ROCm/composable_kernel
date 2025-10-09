@@ -562,6 +562,58 @@ struct NormalizeInInfer
     double epsilon_;
 };
 
+// used by Conv+Bias+BatchNorm+Clamp inference
+struct BiasNormalizeInInferClamp
+{
+    BiasNormalizeInInferClamp(float floor   = 0.f,
+                              float ceil    = NumericLimits<float>::Max(),
+                              float epsilon = 1e-4)
+        : clamp_(floor, ceil), epsilon_(epsilon)
+    {
+    }
+
+    template <typename T>
+    __host__ __device__ constexpr void operator()(T& y,
+                                                  const T& x,
+                                                  const T& bias,
+                                                  const T& mean,
+                                                  const T& variance,
+                                                  const T& gamma,
+                                                  const T& beta) const
+    {
+        using ck::type_convert;
+        using ck::math::sqrt;
+
+        float tmp_x = type_convert<float>(x) + type_convert<float>(bias);
+
+        float tmp_y =
+            ((tmp_x - type_convert<float>(mean)) / sqrt(type_convert<float>(variance) + epsilon_)) *
+                type_convert<float>(gamma) +
+            type_convert<float>(beta);
+        clamp_(tmp_y, tmp_y);
+        y = type_convert<T>(tmp_y);
+    };
+
+    template <>
+    __host__ __device__ constexpr void operator()(float& y,
+                                                  const float& x,
+                                                  const float& bias,
+                                                  const float& mean,
+                                                  const float& variance,
+                                                  const float& gamma,
+                                                  const float& beta) const
+    {
+        using ck::type_convert;
+        using ck::math::sqrt;
+
+        float tmp_y = (((x + bias) - mean) / sqrt(variance + epsilon_)) * gamma + beta;
+        clamp_(y, tmp_y);
+    };
+
+    Clamp clamp_;
+    float epsilon_;
+};
+
 template <typename Y, typename X>
 struct UnaryTypeConvert;
 

@@ -70,6 +70,15 @@ struct Rmsnorm2dFwdPipelineDefaultPolicy
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetBlockReduce2dTreeCrossWarpSync()
+    {
+        using P_ = BlockReduce2dProblem<typename Problem::ComputeDataType,
+                                        typename Problem::ComputeDataType,
+                                        typename Problem::BlockShape>;
+        return BlockReduce2dTreeCrossWarpSync<P_>{};
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
         if constexpr(Problem::kNeedCrossWarpSync)

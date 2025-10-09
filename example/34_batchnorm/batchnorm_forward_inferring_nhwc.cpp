@@ -314,11 +314,10 @@ bool bnorm_infer_nhwc_test(bool do_verification,
     return (pass);
 };
 
-static const double epsilon = std::numeric_limits<float>::epsilon();
-
 int main(int argc, char* argv[])
 {
-    bool pass = true;
+    static const double epsilon = std::numeric_limits<float>::epsilon();
+    bool pass                   = true;
 
     if(argc > 1)
     {

@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/fmha.hpp"
 #include "ck_tile/ops/epilogue.hpp"
@@ -13,6 +14,10 @@
 #include <type_traits>
 #include <utility>
 #include <variant>
+
+struct FmhaBwdFp32
+{
+};
 
 struct FmhaBwdFp16
 {
@@ -24,6 +29,26 @@ struct FmhaBwdBf16
 
 template <typename DataType>
 struct FmhaBwdTypeConfig;
+
+template <>
+struct FmhaBwdTypeConfig<FmhaBwdFp32>
+{
+    using QDataType             = float;
+    using KDataType             = float;
+    using VDataType             = float;
+    using GemmDataType          = float;
+    using BiasDataType          = float;
+    using LSEDataType           = float;
+    using AccDataType           = float; // data type for gemm accumulation
+    using DDataType             = float;
+    using RandValOutputDataType = uint8_t;
+    using ODataType             = float;
+    using OGradDataType         = float;
+    using QGradDataType         = float;
+    using KGradDataType         = float;
+    using VGradDataType         = float;
+    using BiasGradDataType      = float;
+};
 
 template <>
 struct FmhaBwdTypeConfig<FmhaBwdFp16>
@@ -155,6 +180,12 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
 {
     assert(args.nhead_q % args.nhead_k == 0);
     auto kargs = [&] {
+        constexpr bool dq_uss_acc  = FmhaBwdDQDKDVKernel::kMaxSeqLenQ == 0;
+        const auto dq_ptr          = dq_uss_acc ? args.dq_acc_ptr : args.dq_ptr;
+        const auto stride_dq       = dq_uss_acc ? args.stride_dq_acc : args.stride_dq;
+        const auto nhead_stride_dq = dq_uss_acc ? args.nhead_stride_dq_acc : args.nhead_stride_dq;
+        const auto batch_stride_dq = dq_uss_acc ? args.batch_stride_dq_acc : args.batch_stride_dq;
+
         // create group mode kernel arguments
         if constexpr(FmhaBwdDQDKDVKernel::kIsGroupMode)
         {
@@ -169,7 +200,7 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                       args.dk_ptr,
                                                       args.dv_ptr,
                                                       args.dbias_ptr,
-                                                      args.dq_acc_ptr,
+                                                      dq_ptr,
                                                       args.seqstart_q_ptr,
                                                       args.seqstart_k_ptr,
                                                       args.seqlen_k_ptr,
@@ -184,7 +215,7 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                       args.stride_bias,
                                                       args.stride_randval,
                                                       args.stride_do,
-                                                      args.stride_dq_acc,
+                                                      stride_dq,
                                                       args.stride_dk,
                                                       args.stride_dv,
                                                       args.stride_dbias,
@@ -195,7 +226,7 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                       args.nhead_stride_randval,
                                                       args.nhead_stride_do,
                                                       args.nhead_stride_lsed,
-                                                      args.nhead_stride_dq_acc,
+                                                      nhead_stride_dq,
                                                       args.nhead_stride_dk,
                                                       args.nhead_stride_dv,
                                                       args.nhead_stride_dbias,
@@ -219,7 +250,7 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                       args.dk_ptr,
                                                       args.dv_ptr,
                                                       args.dbias_ptr,
-                                                      args.dq_acc_ptr,
+                                                      dq_ptr,
                                                       args.seqlen_q,
                                                       args.seqlen_k,
                                                       args.hdim_q,
@@ -233,7 +264,7 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                       args.stride_bias,
                                                       args.stride_randval,
                                                       args.stride_do,
-                                                      args.stride_dq_acc,
+                                                      stride_dq,
                                                       args.stride_dk,
                                                       args.stride_dv,
                                                       args.stride_dbias,
@@ -244,7 +275,7 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                       args.nhead_stride_randval,
                                                       args.nhead_stride_do,
                                                       args.nhead_stride_lsed,
-                                                      args.nhead_stride_dq_acc,
+                                                      nhead_stride_dq,
                                                       args.nhead_stride_dk,
                                                       args.nhead_stride_dv,
                                                       args.nhead_stride_dbias,
@@ -255,7 +286,7 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
                                                       args.batch_stride_randval,
                                                       args.batch_stride_do,
                                                       args.batch_stride_lsed,
-                                                      args.batch_stride_dq_acc,
+                                                      batch_stride_dq,
                                                       args.batch_stride_dk,
                                                       args.batch_stride_dv,
                                                       args.batch_stride_dbias,
@@ -357,31 +388,18 @@ auto fmha_bwd_convert_dq_create_kargs_and_grids(fmha_bwd_args args)
 template <ck_tile::index_t HDim_,
           typename DataType_,
           bool kIsGroupMode_,
-          ck_tile::BlockFmhaBwdPipelineEnum FmhaBwdPipelineEnum_,
           typename FmhaMask_,
           typename FmhaDropout_,
           ck_tile::BlockAttentionBiasEnum BiasEnum_,
           bool kHasBiasGrad_,
-          bool kPadS_,
-          bool kPadSK_,
-          bool kPadD_,
-          bool kPadDv_,
-          bool kIsDeterministic_>
+          ck_tile::index_t kPadD_,
+          ck_tile::index_t kPadDv_,
+          bool kIsDeterministic_,
+          bool kUseTrLoad_,
+          ck_tile::index_t MaxSeqLenQ_,
+          ck_tile::index_t kN0>
 struct fmha_bwd_dq_dk_dv_traits_
 {
-    static constexpr ck_tile::index_t HDim    = HDim_;
-    using DataType                            = ck_tile::remove_cvref_t<DataType_>;
-    static constexpr bool kIsGroupMode        = kIsGroupMode_;
-    static constexpr auto FmhaBwdPipelineEnum = FmhaBwdPipelineEnum_;
-    using FmhaMask                            = ck_tile::remove_cvref_t<FmhaMask_>;
-    using FmhaDropout                         = ck_tile::remove_cvref_t<FmhaDropout_>;
-    static constexpr auto BiasEnum            = BiasEnum_;
-    static constexpr bool kHasBiasGrad        = kHasBiasGrad_;
-    static constexpr bool kPadS               = kPadS_;
-    static constexpr bool kPadSK              = kPadSK_;
-    static constexpr bool kPadD               = kPadD_;
-    static constexpr bool kPadDv              = kPadDv_;
-    static constexpr bool kIsDeterministic    = kIsDeterministic_;
 };
 
 template <typename Traits_>
@@ -392,6 +410,8 @@ void fmha_bwd_dq_dk_dv_oneshot_(const ck_tile::stream_config&, fmha_bwd_args);
 
 template <typename Traits_>
 std::string fmha_bwd_dq_dk_dv_get_name_();
+template <typename Traits_>
+int fmha_bwd_dq_dk_dv_maxq_();
 
 template <ck_tile::index_t HDim_, typename DataType_, bool kIsGroupMode_, bool kPadS_, bool kPadDv_>
 struct fmha_bwd_dot_do_o_traits_
@@ -417,15 +437,10 @@ template <ck_tile::index_t HDim_,
           bool kIsGroupMode_,
           bool kPadS_,
           bool kPadD_,
-          bool kIsDeterministic_>
+          bool kIsDeterministic_,
+          ck_tile::index_t kN0>
 struct fmha_bwd_convert_dq_traits_
 {
-    static constexpr ck_tile::index_t HDim = HDim_;
-    using DataType                         = ck_tile::remove_cvref_t<DataType_>;
-    static constexpr bool kIsGroupMode     = kIsGroupMode_;
-    static constexpr bool kPadS            = kPadS_;
-    static constexpr bool kPadD            = kPadD_;
-    static constexpr bool kIsDeterministic = kIsDeterministic_;
 };
 
 template <typename Traits_>

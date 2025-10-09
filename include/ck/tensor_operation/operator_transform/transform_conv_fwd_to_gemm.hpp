@@ -389,7 +389,9 @@ struct TransformConvFwdToGemm
         return is_a_descriptor_smaller_than_2GB && is_c_descriptor_smaller_than_2GB;
     }
 
+    template <typename DsPointer>
     __host__ auto SplitConvProblem(const ADataType* a_grid_ptr_base,
+                                   DsPointer& ds_grid_ptr_base,
                                    CDataType* c_grid_ptr_base) const
     {
         // Create copies
@@ -480,11 +482,17 @@ struct TransformConvFwdToGemm
             a_right_offset = ((Wo_ / 2) * ConvStrideW_ - InLeftPadW_) * WiStride_;
             c_right_offset = (Wo_ / 2) * WoStride_;
         }
+
+        static constexpr index_t NumDTensor = DsPointer::Size();
+        const auto ds_grid_right_ptr        = generate_tuple(
+            [&](auto i) { return ds_grid_ptr_base(i) + c_right_offset; }, Number<NumDTensor>{});
+
         // Return left transform, right transformer, right offset to Input and right offset to
         // Output
         return ck::make_tuple(conv_to_gemm_transformer_left,
                               conv_to_gemm_transformer_right,
                               a_grid_ptr_base + a_right_offset,
+                              ds_grid_right_ptr,
                               c_grid_ptr_base + c_right_offset);
     }
 

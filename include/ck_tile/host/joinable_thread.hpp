@@ -15,7 +15,7 @@ struct joinable_thread : std::thread
     {
     }
 
-    joinable_thread(joinable_thread&&) = default;
+    joinable_thread(joinable_thread&&)            = default;
     joinable_thread& operator=(joinable_thread&&) = default;
 
     ~joinable_thread()

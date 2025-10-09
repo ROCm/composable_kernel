@@ -19,7 +19,7 @@ __host__ __device__ constexpr auto container_push_back(const Array<TData, NSize>
 {
     Array<TData, NSize + 1> r;
 
-    static_for<0, NSize, 1>{}([&r, &a ](auto i) constexpr { r(i) = a[i]; });
+    static_for<0, NSize, 1>{}([&r, &a](auto i) constexpr { r(i) = a[i]; });
 
     r(Number<NSize>{}) = x;
 

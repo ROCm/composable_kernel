@@ -1,39 +1,21 @@
 {
     "problem": {
-        "layout_a": {
-            "values": [
-                "r"
-            ]
-        },
-        "layout_b": {
-            "values": [
-                "c"
-            ]
-        },
-        "layout_c": {
-            "values": [
-                "r"
-            ]
-        }
     },
     "tile_config": {
         "tile_m": {
             "max": 256,
             "min": 64,
-            "step": 64,
-            "exclude": [192]
+            "step": 64
         },
         "tile_n": {
             "max": 256,
             "min": 64,
-            "step": 64,
-            "exclude": [192]
+            "step": 64
         },
         "tile_k": {
             "max": 256,
             "min": 64,
-            "step": 64,
-            "exclude": [192]
+            "step": 64
         },
         "warp_m": {
             "values": [
@@ -94,7 +76,8 @@
         },
         "epilogue": {
             "values": [
-                "cshuffle"
+                "cshuffle",
+                "default"
             ]
         },
         "pad_m": {
@@ -110,6 +93,12 @@
         "pad_k": {
             "values": [
                 false
+            ]
+        },
+        "persistent": {
+            "values": [
+                false,
+                true
             ]
         }
     }

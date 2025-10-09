@@ -1,6 +1,7 @@
 #include "ck_tile/host.hpp"
 #include "rmsnorm2d_fwd.hpp"
 #include <cstring>
+#include "ck_tile/utility/json_dump.hpp"
 
 // different threshold for different dtype
 template <typename DataType>
@@ -52,7 +53,10 @@ auto create_args(int argc, char* argv[])
         .insert("fadd", "0", "fused-add, 0:no fused add, 1:preadd+store, 2:preadd only")
         .insert("fquant", "0", "fused-quant, 0:no, 1:smooth-dynamic-quant, 2:dynamic-quant")
         .insert("warmup", "5", "cold iter")
-        .insert("repeat", "20", "hot iter");
+        .insert("repeat", "20", "hot iter")
+        .insert("s", "0", "sensitive model mode, 0: for no specific model, 1: for T5-like model")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "rmsnorm2d_fwd.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -66,15 +70,16 @@ template <typename InDataType,
           bool SaveUnquant>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
-    ck_tile::index_t m = arg_parser.get_int("m");
-    ck_tile::index_t n = arg_parser.get_int("n");
-    float epsilon      = arg_parser.get_float("e");
-    int kname          = arg_parser.get_int("kname");
-    int do_validation  = arg_parser.get_int("v");
-    int fused_add      = arg_parser.get_int("fadd");
-    int fused_quant    = arg_parser.get_int("fquant");
-    int warmup         = arg_parser.get_int("warmup");
-    int repeat         = arg_parser.get_int("repeat");
+    ck_tile::index_t m                    = arg_parser.get_int("m");
+    ck_tile::index_t n                    = arg_parser.get_int("n");
+    float epsilon                         = arg_parser.get_float("e");
+    int kname                             = arg_parser.get_int("kname");
+    int do_validation                     = arg_parser.get_int("v");
+    int fused_add                         = arg_parser.get_int("fadd");
+    int fused_quant                       = arg_parser.get_int("fquant");
+    int warmup                            = arg_parser.get_int("warmup");
+    int repeat                            = arg_parser.get_int("repeat");
+    const int use_model_sensitive_rmsnorm = arg_parser.get_int("s");
 
     ck_tile::index_t x_stride = arg_parser.get_int("x_stride");
     if(x_stride < 0)
@@ -191,13 +196,19 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return base_str;
     }();
 
-    std::cout << "[" << prec_str << "]"
-              << " m:" << m << ", n:" << n << ", x_stride:" << x_stride
+    std::cout << "[" << prec_str << "]" << " m:" << m << ", n:" << n << ", x_stride:" << x_stride
               << ", xr_stride:" << xr_stride << ", y_stride:" << y_stride
-              << ", yr_stride:" << yr_stride << std::flush;
+              << ", yr_stride:" << yr_stride << ", s:" << use_model_sensitive_rmsnorm << std::flush;
 
-    rmsnorm2d_fwd_traits traits{
-        prec_i, prec_o, prec_sm, prec_sy, SaveRms, SaveUnquant, fused_add, fused_quant};
+    rmsnorm2d_fwd_traits traits{prec_i,
+                                prec_o,
+                                prec_sm,
+                                prec_sy,
+                                SaveRms,
+                                SaveUnquant,
+                                fused_add,
+                                fused_quant,
+                                use_model_sensitive_rmsnorm};
 
     rmsnorm2d_fwd_args args{x_buf.GetDeviceBuffer(),
                             fused_add != 0 ? x_residual_buf.GetDeviceBuffer() : nullptr,
@@ -427,6 +438,23 @@ bool run(const ck_tile::ArgParser& arg_parser)
         }
 
         std::cout << ", valid:" << (pass ? "y" : "n") << std::flush << std::endl;
+    }
+
+    if(arg_parser.get_int("json") == 1)
+    {
+        dump_rmsnorm2d_fwd_json(arg_parser.get_str("jsonfile"),
+                                prec_str,
+                                m,
+                                n,
+                                x_stride,
+                                xr_stride,
+                                y_stride,
+                                yr_stride,
+                                use_model_sensitive_rmsnorm,
+                                ave_time,
+                                0,
+                                gb_per_sec,
+                                pass);
     }
 
     return pass;

@@ -23,8 +23,9 @@ template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
 template <ck::index_t NDimSpatial, typename InLayout>
-using device_column_to_image_bf16_instances = std::tuple<
-    // clang-format off
+using device_column_to_image_bf16_instances =
+    std::tuple<
+        // clang-format off
         //#####################|        Num| InLayout| InDataType| OutDataType| Block|  MPer|  KPer|    Thread| Scalar|
         //#####################|        Dim|         |           |            |  Size| Block| Block|   Cluster|    Per|
         //#####################|    Spatial|         |           |            |      |      |      |   Lengths| Vector|
@@ -39,12 +40,13 @@ using device_column_to_image_bf16_instances = std::tuple<
         DeviceColumnToImageImpl<NDimSpatial, InLayout,       BF16,        BF16,   256,    64,    64, S<16, 16>,     4>,
         DeviceColumnToImageImpl<NDimSpatial, InLayout,       BF16,        BF16,   256,   128,   128, S<16, 16>,     4>,
         DeviceColumnToImageImpl<NDimSpatial, InLayout,       BF16,        BF16,   256,   128,   128, S<16, 16>,     8>
-    // clang-format on
-    >;
+        // clang-format on
+        >;
 
 template <ck::index_t NDimSpatial, typename InLayout>
-using device_column_to_image_f16_instances = std::tuple<
-    // clang-format off
+using device_column_to_image_f16_instances =
+    std::tuple<
+        // clang-format off
         //#####################|        Num| InLayout| InDataType| OutDataType| Block|  MPer|  KPer|    Thread| Scalar|
         //#####################|        Dim|         |           |            |  Size| Block| Block|   Cluster|    Per|
         //#####################|    Spatial|         |           |            |      |      |      |   Lengths| Vector|
@@ -59,12 +61,13 @@ using device_column_to_image_f16_instances = std::tuple<
         DeviceColumnToImageImpl<NDimSpatial, InLayout,        F16,         F16,   256,    64,    64, S<16, 16>,     4>,
         DeviceColumnToImageImpl<NDimSpatial, InLayout,        F16,         F16,   256,   128,   128, S<16, 16>,     4>,
         DeviceColumnToImageImpl<NDimSpatial, InLayout,        F16,         F16,   256,   128,   128, S<16, 16>,     8>
-    // clang-format on
-    >;
+        // clang-format on
+        >;
 
 template <ck::index_t NDimSpatial, typename InLayout>
-using device_column_to_image_f32_instances = std::tuple<
-    // clang-format off
+using device_column_to_image_f32_instances =
+    std::tuple<
+        // clang-format off
         //#####################|        Num| InLayout| InDataType| OutDataType| Block|  MPer|  KPer|    Thread| Scalar|
         //#####################|        Dim|         |           |            |  Size| Block| Block|   Cluster|    Per|
         //#####################|    Spatial|         |           |            |      |      |      |   Lengths| Vector|
@@ -76,12 +79,13 @@ using device_column_to_image_f32_instances = std::tuple<
         DeviceColumnToImageImpl<NDimSpatial, InLayout,        F32,         F32,   128,    32,    64,  S<8, 16>,     4>,
         DeviceColumnToImageImpl<NDimSpatial, InLayout,        F32,         F32,   256,    64,    64, S<16, 16>,     4>,
         DeviceColumnToImageImpl<NDimSpatial, InLayout,        F32,         F32,   256,   128,   128, S<16, 16>,     4>
-    // clang-format on
-    >;
+        // clang-format on
+        >;
 
 template <ck::index_t NDimSpatial, typename InLayout>
-using device_column_to_image_i8_instances = std::tuple<
-    // clang-format off
+using device_column_to_image_i8_instances =
+    std::tuple<
+        // clang-format off
         //#####################|        Num| InLayout| InDataType| OutDataType| Block|  MPer|  KPer|    Thread| Scalar|
         //#####################|        Dim|         |           |            |  Size| Block| Block|   Cluster|    Per|
         //#####################|    Spatial|         |           |            |      |      |      |   Lengths| Vector|
@@ -97,8 +101,8 @@ using device_column_to_image_i8_instances = std::tuple<
         DeviceColumnToImageImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   256,   128,   128, S<16, 16>,     4>,
         DeviceColumnToImageImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   256,   128,   128, S<16, 16>,     8>,
         DeviceColumnToImageImpl<NDimSpatial, InLayout,     int8_t,      int8_t,   256,   256,   256, S<16, 16>,     16>
-    // clang-format on
-    >;
+        // clang-format on
+        >;
 
 } // namespace instance
 } // namespace device

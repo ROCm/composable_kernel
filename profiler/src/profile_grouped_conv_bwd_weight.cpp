@@ -56,7 +56,9 @@ static void print_helper_msg()
               << "arg5: initialization (0: no init, 1: integer value, 2: decimal value)\n"
               << "arg6: print tensor value (0: no; 1: yes)\n"
               << "arg7: time kernel (0: no, 1: yes)\n"
-              << ck::utils::conv::get_conv_param_parser_helper_msg() << " SplitK\n"
+              << ck::utils::conv::get_conv_param_parser_helper_msg()
+              << " SplitK (-1 for internally computed split-K value, positive value to set k "
+                 "batches explicitly, or 'all' to test all internal split-K values)\n"
               << std::endl;
 }
 
@@ -88,7 +90,7 @@ int profile_grouped_conv_bwd_weight(int argc, char* argv[])
 
     const auto params = ck::utils::conv::parse_conv_param(num_dim_spatial, 9, argv);
 
-    ck::index_t split_k = std::stoi(argv[8 + 1 + 4 + 6 * num_dim_spatial]);
+    const auto& split_k = std::string(argv[8 + 1 + 4 + 6 * num_dim_spatial]);
 
     using F32  = float;
     using F16  = ck::half_t;

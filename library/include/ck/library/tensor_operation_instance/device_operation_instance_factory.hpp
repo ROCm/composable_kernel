@@ -16,6 +16,7 @@ namespace instance {
 // aliasing, for commonly used data type
 using F64  = double;
 using F32  = float;
+using TF32 = ck::tf32_t;
 using F16  = ck::half_t;
 using BF16 = ck::bhalf_t;
 using I8   = int8_t;
@@ -24,6 +25,8 @@ using F8   = ck::f8_t;
 using BF8  = ck::bf8_t;
 using I4   = ck::pk_i4_t;
 using F4   = ck::f4x2_pk_t;
+using F6   = ck::f6x16_pk_t;
+using BF6  = ck::bf6x16_pk_t;
 
 using E8M0   = ck::e8m0_bexp_t;
 using E8M0PK = int32_t;
@@ -45,6 +48,9 @@ using BF16_Tuple    = ck::Tuple<BF16>;
 
 using F32_F32_Tuple = ck::Tuple<F32, F32>;
 
+// Generic layouts
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
+
 // GEMM layout
 using Row  = ck::tensor_layout::gemm::RowMajor;
 using Col  = ck::tensor_layout::gemm::ColumnMajor;
@@ -52,6 +58,7 @@ using MFMA = ck::tensor_layout::gemm::MFMA;
 
 using Row_Tuple     = ck::Tuple<Row>;
 using Row_Row_Tuple = ck::Tuple<Row, Row>;
+using Row_Col_Tuple = ck::Tuple<Row, Col>;
 
 // Conv layout
 //
@@ -111,29 +118,30 @@ using GK_Tuple    = ck::Tuple<G_K>;
 using GK_GK_Tuple = ck::Tuple<G_K, G_K>;
 
 // pointwise functor
-using PassThrough         = ck::tensor_operation::element_wise::PassThrough;
-using Relu                = ck::tensor_operation::element_wise::Relu;
-using TanH                = ck::tensor_operation::element_wise::TanH;
-using Scale               = ck::tensor_operation::element_wise::Scale;
-using Bilinear            = ck::tensor_operation::element_wise::Bilinear;
-using AddAddFastGelu      = ck::tensor_operation::element_wise::AddAddFastGelu;
-using AddFastGelu         = ck::tensor_operation::element_wise::AddFastGelu;
-using MultiplyAddFastGelu = ck::tensor_operation::element_wise::MultiplyAddFastGelu;
-using AddRelu             = ck::tensor_operation::element_wise::AddRelu;
-using AddClamp            = ck::tensor_operation::element_wise::AddClamp;
-using Clamp               = ck::tensor_operation::element_wise::Clamp;
-using AddSilu             = ck::tensor_operation::element_wise::AddSilu;
-using AddReluAdd          = ck::tensor_operation::element_wise::AddReluAdd;
-using FastGelu            = ck::tensor_operation::element_wise::FastGelu;
-using MultiplyFastGelu    = ck::tensor_operation::element_wise::MultiplyFastGelu;
-using AddMultiply         = ck::tensor_operation::element_wise::AddMultiply;
-using MultiplyAdd         = ck::tensor_operation::element_wise::MultiplyAdd;
-using MultiplyMultiply    = ck::tensor_operation::element_wise::MultiplyMultiply;
-using ScaleAdd            = ck::tensor_operation::element_wise::ScaleAdd;
-using Gelu                = ck::tensor_operation::element_wise::Gelu;
-using Swish               = ck::tensor_operation::element_wise::Swish;
-using Add                 = ck::tensor_operation::element_wise::Add;
-using Multiply            = ck::tensor_operation::element_wise::Multiply;
+using PassThrough               = ck::tensor_operation::element_wise::PassThrough;
+using Relu                      = ck::tensor_operation::element_wise::Relu;
+using TanH                      = ck::tensor_operation::element_wise::TanH;
+using Scale                     = ck::tensor_operation::element_wise::Scale;
+using Bilinear                  = ck::tensor_operation::element_wise::Bilinear;
+using AddAddFastGelu            = ck::tensor_operation::element_wise::AddAddFastGelu;
+using AddFastGelu               = ck::tensor_operation::element_wise::AddFastGelu;
+using MultiplyAddFastGelu       = ck::tensor_operation::element_wise::MultiplyAddFastGelu;
+using AddRelu                   = ck::tensor_operation::element_wise::AddRelu;
+using BiasNormalizeInInferClamp = ck::tensor_operation::element_wise::BiasNormalizeInInferClamp;
+using AddClamp                  = ck::tensor_operation::element_wise::AddClamp;
+using Clamp                     = ck::tensor_operation::element_wise::Clamp;
+using AddSilu                   = ck::tensor_operation::element_wise::AddSilu;
+using AddReluAdd                = ck::tensor_operation::element_wise::AddReluAdd;
+using FastGelu                  = ck::tensor_operation::element_wise::FastGelu;
+using MultiplyFastGelu          = ck::tensor_operation::element_wise::MultiplyFastGelu;
+using AddMultiply               = ck::tensor_operation::element_wise::AddMultiply;
+using MultiplyAdd               = ck::tensor_operation::element_wise::MultiplyAdd;
+using MultiplyMultiply          = ck::tensor_operation::element_wise::MultiplyMultiply;
+using ScaleAdd                  = ck::tensor_operation::element_wise::ScaleAdd;
+using Gelu                      = ck::tensor_operation::element_wise::Gelu;
+using Swish                     = ck::tensor_operation::element_wise::Swish;
+using Add                       = ck::tensor_operation::element_wise::Add;
+using Multiply                  = ck::tensor_operation::element_wise::Multiply;
 
 template <typename Activation>
 using Activation_Mul_Clamp = ck::tensor_operation::element_wise::Activation_Mul_Clamp<Activation>;

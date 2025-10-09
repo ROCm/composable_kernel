@@ -1,3 +1,6 @@
+// Copyright © Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
 #include <algorithm>
 #include <cstring>
 #include <unordered_set>
@@ -5,6 +8,7 @@
 #include <set>
 
 #include "ck_tile/host.hpp"
+#include "ck_tile/utility/json_dump.hpp"
 #include "fused_moe.hpp"
 
 // different threshold for different dtype
@@ -130,7 +134,9 @@ auto create_args(int argc, char* argv[])
                 "normalized(slow)")
         .insert("seed", "11939", "seed used to do random")
         .insert("warmup", "5", "cold iter")
-        .insert("repeat", "20", "hot iter");
+        .insert("repeat", "20", "hot iter")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "fused_moe.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -218,8 +224,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
             return std::string(", st:") + std::to_string(stride);
     }();
 
-    std::cout << "[" << api_str << "|" << prec_str << "]"
-              << " t:" << tokens;
+    std::cout << "[" << api_str << "|" << prec_str << "]" << " t:" << tokens;
 
     if(is_local_token)
     {
@@ -399,7 +404,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         // if return zero, means no need workspace, can set moe_sorting_args.p_ws to nullptr
         ck_tile::index_t workspace_size =
-            ck_tile::moe_sorting_get_workspace_size(tokens, experts, topk);
+            ck_tile::moe_sorting_get_workspace_size(tokens, experts, topk, 0 /*dispatch_policy*/);
         ck_tile::DeviceMem moe_sorting_ws(workspace_size != 0 ? workspace_size : 0);
         if(workspace_size != 0)
             moe_sorting_ws.SetZero(); // note, clear here!!!!
@@ -514,6 +519,29 @@ bool run(const ck_tile::ArgParser& arg_parser)
             std::cout << ", valid:" << (pass ? "y" : "n") << std::flush;
         }
         std::cout << std::flush << std::endl;
+
+        if(arg_parser.get_int("json") == 1)
+        {
+            dump_fused_moe_json(arg_parser.get_str("jsonfile"),
+                                api_str,
+                                prec_str,
+                                tokens,
+                                is_local_token,
+                                local_tokens,
+                                experts,
+                                topk,
+                                hidden_size,
+                                intermediate_size,
+                                stride,
+                                block_m,
+                                activation,
+                                gate_only,
+                                fused_quant,
+                                pass,
+                                ave_time,
+                                cal_tflops(ave_time),
+                                cal_tbps(ave_time));
+        }
         return pass;
     }
     else if(api == 1)
@@ -619,6 +647,29 @@ bool run(const ck_tile::ArgParser& arg_parser)
             std::cout << ", valid:" << (pass ? "y" : "n") << std::flush;
         }
         std::cout << std::flush << std::endl;
+
+        if(arg_parser.get_int("json") == 1)
+        {
+            dump_fused_moe_json(arg_parser.get_str("jsonfile"),
+                                api_str,
+                                prec_str,
+                                tokens,
+                                is_local_token,
+                                local_tokens,
+                                experts,
+                                topk,
+                                hidden_size,
+                                intermediate_size,
+                                stride,
+                                block_m,
+                                activation,
+                                gate_only,
+                                fused_quant,
+                                pass,
+                                ave_time,
+                                cal_tflops(ave_time),
+                                cal_tbps(ave_time));
+        }
 
         return pass;
     }

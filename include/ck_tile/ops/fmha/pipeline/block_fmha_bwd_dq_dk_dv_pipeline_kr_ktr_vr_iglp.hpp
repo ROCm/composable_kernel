@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -49,31 +49,30 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
     static constexpr index_t kVHeaddim  = BlockFmhaShape::kVHeaddim;
 
     static constexpr bool kIsGroupMode     = Problem::kIsGroupMode;
-    static constexpr bool kPadSeqLenQ      = Problem::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK      = Problem::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ     = Problem::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV     = Problem::kPadHeadDimV;
+    static constexpr index_t kPadHeadDimQ  = Problem::kPadHeadDimQ;
+    static constexpr index_t kPadHeadDimV  = Problem::kPadHeadDimV;
     static constexpr auto BiasEnum         = Problem::BiasEnum;
     static constexpr bool kHasBiasGrad     = Problem::kHasBiasGrad;
     static constexpr bool kIsDeterministic = Problem::kIsDeterministic;
+    static constexpr bool kUseTrLoad       = Problem::kUseTrLoad;
+    static_assert(!kUseTrLoad, "This pipeline does not use trload!");
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
     static constexpr index_t kAlignmentQ =
-        kPadHeadDimQ ? 1 : Policy::template GetAlignmentQ<Problem>();
+        kPadHeadDimQ ? kPadHeadDimQ : Policy::template GetAlignmentQ<Problem>();
     static constexpr index_t kAlignmentK =
-        kPadHeadDimQ ? 1 : Policy::template GetAlignmentK<Problem>();
+        kPadHeadDimQ ? kPadHeadDimQ : Policy::template GetAlignmentK<Problem>();
     static constexpr index_t kAlignmentV =
-        kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
+        kPadHeadDimV ? kPadHeadDimV : Policy::template GetAlignmentV<Problem>();
     static constexpr index_t kAlignmentOGrad =
-        kPadHeadDimV ? 1 : Policy::template GetAlignmentOGrad<Problem>();
+        kPadHeadDimV ? kPadHeadDimV : Policy::template GetAlignmentOGrad<Problem>();
     static constexpr index_t kAlignmentQGrad = 1;
     static constexpr index_t kAlignmentKGrad =
-        kPadHeadDimQ ? 1 : Policy::template GetAlignmentKGrad<Problem>();
+        kPadHeadDimQ ? kPadHeadDimQ : Policy::template GetAlignmentKGrad<Problem>();
     static constexpr index_t kAlignmentVGrad =
-        kPadHeadDimV ? 1 : Policy::template GetAlignmentVGrad<Problem>();
-    static constexpr index_t kAlignmentBias =
-        kPadSeqLenK ? 1 : Policy::template GetTransposedAlignmentBias<Problem>();
+        kPadHeadDimV ? kPadHeadDimV : Policy::template GetAlignmentVGrad<Problem>();
+    static constexpr index_t kAlignmentBias = 1;
 
     static constexpr const char* name = "kr_ktr_vr_iglp";
 
@@ -94,7 +93,8 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
               typename BiasGradDramBlockWindowTmp,
               typename PositionEncoding>
     CK_TILE_HOST_DEVICE auto
-    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,
+    operator()(void* smem_ptr,
+               const QDramBlockWindowTmp& q_dram_block_window_tmp,
                const KDramBlockWindowTmp& k_dram_block_window_tmp,
                const VDramBlockWindowTmp& v_dram_block_window_tmp,
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp,
@@ -110,7 +110,6 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                float scale,
                float rp_undrop,
                float scale_rp_undrop,
-               void* smem_ptr,
                FmhaDropout& dropout) const
     {
         static_assert(
@@ -182,7 +181,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
 
         auto k_lds_read_window =
             make_tile_window(k_lds_write_window.get_bottom_tensor_view(),
-                             make_tuple(number<kN0>{}, number<kK0>{}),
+                             make_tuple(number<kN0>{}, number<kQKHeaddim>{}),
                              k_lds_write_window.get_window_origin(),
                              Policy::template MakeKRegBlockDescriptor<Problem>());
 
@@ -208,7 +207,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
 
         auto v_lds_read_window =
             make_tile_window(v_lds_write_window.get_bottom_tensor_view(),
-                             make_tuple(number<kN0>{}, number<kK2>{}),
+                             make_tuple(number<kN0>{}, number<kVHeaddim>{}),
                              v_lds_write_window.get_window_origin(),
                              Policy::template MakeVRegBlockDescriptor<Problem>());
 
@@ -560,6 +559,9 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                 auto shuffled_bias_tile = make_static_distributed_tensor<BiasDataType>(
                     Policy::template MakeShuffledBiasTileDistribution<Problem>());
                 shuffle_tile(shuffled_bias_tile, bias_tile);
+                // SGrad and Bias use the same address in LDS, finish loading ds on the previous
+                // iteration to reuse LDS.
+                block_sync_lds();
                 store_tile(bias_lds_write_window, shuffled_bias_tile);
                 block_sync_lds();
                 auto bias_s_tile = load_tile(bias_s_lds_read_window);
@@ -590,7 +592,6 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                 });
             }
 
-            if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
                 bool need_perpixel_check = mask.IsEdgeTile(
                     seqlen_q_step, k_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
@@ -658,9 +659,7 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             }();
 
             // STAGE 3, P^T@OGrad^T Gemm1
-            Policy::template PTFromGemm0CToGemm1A<Problem,
-                                                  decltype(pt_reg_tensor),
-                                                  decltype(p_gemm)>(pt_reg_tensor, p_gemm);
+            Policy::template PTFromGemm0CToGemm1A<Problem>(pt_reg_tensor, p_gemm);
             gemm_1(dv_acc, pt_reg_tensor, dot_reg_tensor);
 
             auto qt_reg_tensor = load_tile(qt_lds_read_window);
@@ -732,12 +731,15 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             // STAGE 6, SGrad^T@Q^T Gemm3
             const auto ds_gemm = cast_tile<GemmDataType>(ds);
 
-            Policy::template SGradTFromGemm2CToGemm3A<Problem,
-                                                      decltype(dst_reg_tensor),
-                                                      decltype(ds_gemm)>(dst_reg_tensor, ds_gemm);
+            Policy::template SGradTFromGemm2CToGemm3A<Problem>(dst_reg_tensor, ds_gemm);
 
             gemm_3(dk_acc, dst_reg_tensor, qt_reg_tensor);
 
+            if constexpr(kHasBiasGrad)
+            {
+                // SGrad and BiasGrad use the same address in LDS.
+                block_sync_lds();
+            }
             store_tile(ds_lds_window, ds_gemm);
 
             block_sync_lds();
@@ -815,6 +817,9 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             auto shuffled_bias_tile = make_static_distributed_tensor<BiasDataType>(
                 Policy::template MakeShuffledBiasTileDistribution<Problem>());
             shuffle_tile(shuffled_bias_tile, bias_tile);
+            // SGrad and Bias use the same address in LDS, finish loading ds in the hot loop to
+            // reuse LDS.
+            block_sync_lds();
             store_tile(bias_lds_write_window, shuffled_bias_tile);
             block_sync_lds();
             auto bias_s_tile = load_tile(bias_s_lds_read_window);
@@ -844,7 +849,6 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
             });
         }
 
-        if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
         {
             bool need_perpixel_check = mask.IsEdgeTile(
                 seqlen_q_step, k_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
@@ -958,6 +962,8 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                     return cast_tile<BiasGradDataType>(ds);
                 }
             }();
+            // Finish loading bias_s to reuse LDS.
+            block_sync_lds();
             store_tile(bias_lds_write_window, dbias);
             block_sync_lds();
             auto shuffled_dbias_tile = load_tile(dbias_lds_read_window);
@@ -976,6 +982,10 @@ struct BlockFmhaBwdDQDKDVPipelineKRKTRVRIGLP
                                                   decltype(ds_gemm)>(dst_reg_tensor, ds_gemm);
 
         gemm_3(dk_acc, dst_reg_tensor, qt_reg_tensor);
+
+        // SGrad and Bias/BiasGrad use the same address in LDS, finish loading bias/dbias or, when
+        // bias is not used, loading ds in the hot loop to reuse LDS.
+        block_sync_lds();
         store_tile(ds_lds_window, ds_gemm);
 
         block_sync_lds();
