@@ -1,21 +1,45 @@
 add_gtest_executable(test_grouped_convnd_bwd_data_xdl test_grouped_convnd_bwd_data_xdl.cpp)
 if(result EQUAL 0)
-    target_link_libraries(test_grouped_convnd_bwd_data_xdl PRIVATE utility device_grouped_conv2d_bwd_data_instance device_grouped_conv3d_bwd_data_instance)
+    target_link_libraries(test_grouped_convnd_bwd_data_xdl PRIVATE utility
+    device_grouped_conv2d_gnhwc_bwd_data_instance
+    device_grouped_conv2d_nhwgc_bwd_data_instance
+    device_grouped_conv2d_ngchw_bwd_data_instance
+    device_grouped_conv3d_ndhwgc_bwd_data_instance
+    device_grouped_conv3d_ngcdhw_bwd_data_instance
+    device_grouped_conv3d_gndhwc_bwd_data_instance)
 endif()
 if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
     add_executable(test_grouped_convnd_bwd_data_xdl_large_cases test_grouped_convnd_bwd_data_xdl_large_cases.cpp)
     target_compile_options(test_grouped_convnd_bwd_data_xdl_large_cases PRIVATE -Wno-global-constructors -Wno-undef)
-    target_link_libraries(test_grouped_convnd_bwd_data_xdl_large_cases PRIVATE gtest_main getopt::getopt utility device_grouped_conv2d_bwd_data_instance device_grouped_conv3d_bwd_data_instance)
+    target_link_libraries(test_grouped_convnd_bwd_data_xdl_large_cases PRIVATE gtest_main getopt::getopt utility
+    device_grouped_conv2d_gnhwc_bwd_data_instance
+    device_grouped_conv2d_nhwgc_bwd_data_instance
+    device_grouped_conv2d_ngchw_bwd_data_instance
+    evice_grouped_conv3d_ndhwgc_bwd_data_instance
+    device_grouped_conv3d_ngcdhw_bwd_data_instance
+    device_grouped_conv3d_gndhwc_bwd_data_instance)
 endif()
 add_gtest_executable(test_grouped_convnd_bwd_data_wmma test_grouped_convnd_bwd_data_wmma.cpp)
 if(result EQUAL 0)
-    target_link_libraries(test_grouped_convnd_bwd_data_wmma PRIVATE utility device_grouped_conv2d_bwd_data_instance device_grouped_conv3d_bwd_data_instance)
+    target_link_libraries(test_grouped_convnd_bwd_data_wmma PRIVATE utility
+    device_grouped_conv2d_gnhwc_bwd_data_instance
+    device_grouped_conv2d_nhwgc_bwd_data_instance
+    device_grouped_conv2d_ngchw_bwd_data_instance
+    evice_grouped_conv3d_ndhwgc_bwd_data_instance
+    device_grouped_conv3d_ngcdhw_bwd_data_instance
+    device_grouped_conv3d_gndhwc_bwd_data_instance)
 endif()
 add_gtest_executable(test_grouped_convnd_bwd_data_interface_xdl test_grouped_convnd_bwd_data_interface_xdl.cpp)
 if(result EQUAL 0)
-    target_link_libraries(test_grouped_convnd_bwd_data_interface_xdl PRIVATE utility device_grouped_conv2d_bwd_data_instance)
+    target_link_libraries(test_grouped_convnd_bwd_data_interface_xdl PRIVATE utility
+    device_grouped_conv2d_gnhwc_bwd_data_instance
+    device_grouped_conv2d_nhwgc_bwd_data_instance
+    device_grouped_conv2d_ngchw_bwd_data_instance)
 endif()
 add_gtest_executable(test_grouped_convnd_bwd_data_interface_wmma test_grouped_convnd_bwd_data_interface_wmma.cpp)
 if(result EQUAL 0)
-    target_link_libraries(test_grouped_convnd_bwd_data_interface_wmma PRIVATE utility device_grouped_conv2d_bwd_data_instance)
+    target_link_libraries(test_grouped_convnd_bwd_data_interface_wmma PRIVATE utility
+    device_grouped_conv2d_gnhwc_bwd_data_instance
+    device_grouped_conv2d_nhwgc_bwd_data_instance
+    device_grouped_conv2d_ngchw_bwd_data_instance)
 endif()
