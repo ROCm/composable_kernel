@@ -12,6 +12,21 @@ def show_node_info() {
     """
 }
 
+// aiter test choice list
+def ALL_AITER_TEST_SCRIPTS = [
+    "gemm_a8w8",
+    "gemm_a8w8_blockscale",
+    "mha",
+    "mha_varlen",
+    "moe",
+    "moe_2stage",
+    "moe_blockscale",
+    "moe_ep",
+    "moe_sorting",
+    "moe_sorting_mxfp4",
+    "moe_tkw1",
+]
+
 class Version {
     int major, minor, patch
     @Override
@@ -237,7 +252,7 @@ def buildDocker(install_prefix){
     if(params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
         dockerArgs = dockerArgs + " --no-cache --build-arg BASE_DOCKER='${base_image_name}' -f Dockerfile.compiler . "
     }
-    else if(params.RUN_AITER_TESTS){
+    else if(params.RUN_AITER_TESTS.size() > 0){
         image_name = "${env.CK_DOCKERHUB_PRIVATE}:ck_aiter"
         dockerArgs = dockerArgs + " --no-cache -f Dockerfile.aiter --build-arg AITER_BRANCH='${params.aiter_branch}' --build-arg CK_AITER_BRANCH='${params.ck_aiter_branch}' . "
     }
@@ -250,7 +265,7 @@ def buildDocker(install_prefix){
     }
     echo "Build Args: ${dockerArgs}"
     try{
-        if(params.BUILD_DOCKER || params.RUN_AITER_TESTS || params.RUN_PYTORCH_TESTS){
+        if(params.BUILD_DOCKER || (params.RUN_AITER_TESTS.size() > 0) || params.RUN_PYTORCH_TESTS){
             //force building the new docker if that parameter is true
             echo "Building image: ${image_name}"
             retimage = docker.build("${image_name}", dockerArgs)
@@ -626,7 +641,7 @@ def Build_CK(Map conf=[:]){
                             """
                     }
                     // run performance tests, stash the logs, results will be processed on the master node
-					dir("script"){
+                    dir("script"){
                         if (params.RUN_PERFORMANCE_TESTS){
                         if (params.RUN_FULL_QA && arch == 1){
                             // run full tests on gfx90a
@@ -903,30 +918,34 @@ def run_aiter_tests(Map conf=[:]){
         }
     }
 
+    def test_dir = "/home/jenkins/workspace/aiter/op_tests"
+    def test_scripts = params.RUN_AITER_TESTS == "all" ? ALL_AITER_TEST_SCRIPTS : params.RUN_AITER_TESTS.split("(,| )+")
+    def script_exe = params.RUN_AITER_PYTESTS ? "pytest -v" : "python3"
+    def timeout_hr = params.RUN_AITER_PYTESTS ? 8 : 5
+
+    echo "Running aiter scripts: ${test_scripts.join(", ")}"
+
     withDockerContainer(image: image, args: dockerOpts) {
-        timeout(time: 5, unit: 'HOURS'){
-            try{
-                sh "rocminfo"
-                sh "python3 --version"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha_varlen.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_2stage.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_blockscale.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_ep.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_sorting.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_sorting_mxfp4.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_tkw1.py"
-            }
-            catch(e){
-                echo "Throwing error exception while running AITER tests"
-                echo 'Exception occurred: ' + e.toString()
-                throw e
-            }
-            finally{
-                echo "Finished running AITER tests"
+        timeout(time: timeout_hr, unit: 'HOURS'){
+            sh "rocminfo"
+            sh "python3 --version"
+
+            for (script in test_scripts) {
+                def script_path = "${test_dir}/test_${script}.py"
+                try{
+                    sh """
+                        if [[ -f ${script_path} ]]; then
+                            ${script_exe} ${script_path}
+                        else
+                            echo 'Script ${script_path} not found!'
+                        fi
+                    """
+                }
+                catch(e){
+                    echo "Throwing error exception while running AITER tests"
+                    echo 'Exception occurred: ' + e.toString()
+                    throw e
+                }
             }
         }
     }
@@ -983,14 +1002,14 @@ def run_pytorch_tests(Map conf=[:]){
 }
 
 //launch develop branch daily jobs
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_PERFORMANCE_TESTS=true;FORCE_CI=true
-                                              0 22 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_TILE_ENGINE_GEMM_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
-                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
-                                              0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
-                                              0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
-                                              0 15 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;FORCE_CI=true
-                                              0 13 * * * % RUN_AITER_TESTS=true;BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true
-                                              0 11 * * * % RUN_PYTORCH_TESTS=true;RUN_CODEGEN_TESTS=false;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;BUILD_GFX10=false;BUILD_GFX11=false;BUILD_GFX12=false;BUILD_GFX90A=false;FORCE_CI=true''' : ""
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % FORCE_CI=true;RUN_FULL_QA=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_PERFORMANCE_TESTS=true
+                                              0 22 * * * % FORCE_CI=true;RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_TILE_ENGINE_GEMM_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
+                                              0 21 * * * % FORCE_CI=true;RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
+                                              0 19 * * * % FORCE_CI=true;BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true
+                                              0 17 * * * % FORCE_CI=true;BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true
+                                              0 15 * * * % FORCE_CI=true;BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
+                                              0 13 * * * % FORCE_CI=true;RUN_AITER_TESTS=all;BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false
+                                              0 11 * * * % FORCE_CI=true;RUN_PYTORCH_TESTS=true;RUN_CODEGEN_TESTS=false;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;BUILD_GFX10=false;BUILD_GFX11=false;BUILD_GFX12=false;BUILD_GFX90A=false''' : ""
 
 pipeline {
     agent none
@@ -1133,10 +1152,15 @@ pipeline {
             name: 'ck_pytorch_branch',
             defaultValue: 'develop',
             description: 'Specify which branch of CK to test with Pytorch (default: develop)')
-        booleanParam(
+        string(
             name: "RUN_AITER_TESTS",
+            defaultValue: "",
+            description: "Run AITER tests with latest CK develop branch: use 'all' for all test scripts or a comma " +
+            "separated list of '" + ALL_AITER_TEST_SCRIPTS.join(',') + "' (default: empty string)")
+        booleanParam(
+            name: "RUN_AITER_PYTESTS",
             defaultValue: false,
-            description: "Run AITER tests with latest CK develop branch (default: OFF)")
+            description: "Run AITER tests with pytest or not (default: false for not using pytest)")
         string(
             name: 'aiter_branch',
             defaultValue: 'main',
@@ -1284,7 +1308,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.RUN_AITER_TESTS.toBoolean() }
+                        expression { params.RUN_AITER_TESTS.size() > 0 }
                     }
                     agent{ label rocmnode("gfx942")}
                     steps{
@@ -1296,7 +1320,7 @@ pipeline {
                 {
                     when {
                         beforeAgent true
-                        expression { params.RUN_AITER_TESTS.toBoolean() }
+                        expression { params.RUN_AITER_TESTS.size() > 0 }
                     }
                     agent{ label rocmnode("gfx950")}
                     steps{
@@ -1585,7 +1609,7 @@ pipeline {
             }
         }
 
-		stage("Build CK and run Tests")
+        stage("Build CK and run Tests")
         {
             when {
                 beforeAgent true
