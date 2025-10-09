@@ -16,9 +16,7 @@ elseif(DL_KERNELS)
    device_grouped_conv1d_nwgc_bwd_weight_instance
    device_grouped_conv2d_gnhwc_bwd_weight_instance
    device_grouped_conv2d_nhwgc_bwd_weight_instance
-   device_grouped_conv2d_ngchw_bwd_weight_instance
    device_grouped_conv3d_ndhwgc_bwd_weight_instance
-   device_grouped_conv3d_ngcdhw_bwd_weight_instance
    device_grouped_conv3d_gndhwc_bwd_weight_instance)
 elseif(GPU_TARGETS MATCHES "gfx11")
    add_gtest_executable(test_grouped_convnd_bwd_weight test_grouped_convnd_bwd_weight.cpp)
