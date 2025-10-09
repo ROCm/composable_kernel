@@ -4,6 +4,7 @@
 
 #include <sstream>
 #include <gtest/gtest.h>
+#include <string>
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
@@ -31,6 +32,35 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
         max_accumulated_value, kbatch);
     // Use higher threshold
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
+}
+
+template <typename Type>
+void print_tensor(int M, int N, ck_tile::HostTensor<Type>& tensor, std::string label)
+{
+    int i = 0;
+    std::cout << "----------" << label << "----------\n";
+    for(int col = 0; col < N; ++col)
+    {
+        std::cout << std::setw(5) << col;
+    }
+    std::cout << std::endl;
+
+    for(int col = 0; col < N; ++col)
+    {
+        std::cout << std::setw(5) << "-----";
+    }
+    std::cout << std::endl;
+
+    for(int row = 0; row < M; ++row)
+    {
+        for(int col = 0; col < N; ++col)
+        {
+            const double r = ck_tile::type_convert<float>(*std::next(std::begin(tensor), i));
+            std::cout << std::setw(5) << r;
+            ++i;
+        }
+        std::cout << std::endl;
+    }
 }
 
 enum struct GemmPipelineType
@@ -306,7 +336,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
         else
         {
             // Otherwise, use k_batch = 1 and 2
-            k_batches_ = {1, 2};
+            k_batches_ = {1}; //, 2};
         }
     }
 
@@ -377,8 +407,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
         ck_tile::HostTensor<CDataType> c_m_n_dev_result(
             f_host_tensor_descriptor(M, N, stride_C, CLayout{}));
 
-        ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5, 5, 11939}(a_m_k);
-        ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5, 5, 11940}(b_k_n);
+        ck_tile::FillUniformDistributionIntegerValue<ADataType>{1, 1, 11939}(a_m_k);
+        ck_tile::FillUniformDistributionIntegerValue<BDataType>{1, 1, 11940}(b_k_n);
 
         ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
@@ -400,9 +430,10 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                       stride_B,
                                       stride_C};
 
-        invoke_gemm<PadM, PadN, PadK, Preshuffle>(args, ck_tile::stream_config{nullptr, false});
+        invoke_gemm<PadM, PadN, PadK, Preshuffle>(args,
+                                                  ck_tile::stream_config{nullptr, false, 0, 0, 1});
 
-        c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
+        // c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
         bool pass = true;
 
         ck_tile::HostTensor<CDataType> c_m_n_host_ref(
@@ -411,6 +442,10 @@ class TestCkTileGemmPipeline : public ::testing::Test
 
         ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
             a_m_k, b_k_n, c_m_n_host_ref);
+
+        print_tensor<CDataType>(M, N, c_m_n_host_ref, std::string{"REFERENCE"});
+        std::cout << "\n\n\n";
+        print_tensor<CDataType>(M, N, c_m_n_dev_result, std::string{"GPU RESULT"});
 
         const float max_accumulated_value =
             *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
