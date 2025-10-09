@@ -36,6 +36,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added the row-wise column-wise quantization for CK_TILE GEMM & CK_TILE Grouped GEMM.
 * Added support for f32 to FMHA (fwd/bwd).
 * Added tensor-wise quantization for CK_TILE GEMM.
+* Added pooling kernel in CK_TILE
 
 ### Optimized
 
