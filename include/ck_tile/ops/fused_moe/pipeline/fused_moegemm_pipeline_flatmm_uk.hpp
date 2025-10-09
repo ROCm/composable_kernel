@@ -184,17 +184,17 @@ struct FusedMoeGemmPipeline_FlatmmUk
         index_t nr_1 = kargs.hidden_size / BlockShape::Warp_N1;
         index_t kr_1 = shared_intermediate_size_1 / BlockShape::Warp_K1;
 
-        const IndexDataType expert_id = __builtin_amdgcn_readfirstlane(
+        const IndexDataType expert_id = amd_wave_read_first_lane(
             reinterpret_cast<const IndexDataType*>(kargs.sorted_expert_ids_ptr)[sorted_tile_id]);
         index_t expert_stride_0 = shared_intermediate_size_0 * kargs.hidden_size;
         index_t expert_stride_1 = shared_intermediate_size_1 * kargs.hidden_size;
 
         // nr*kr*w
-        index_t interm_idx_nr0 = __builtin_amdgcn_readfirstlane(
+        index_t interm_idx_nr0 = amd_wave_read_first_lane(
             intermediate_tile_id *
             BlockShape::Block_Nr0); // intermediate_tile_id * Block_N / (N in W)
 
-        index_t interm_idx_kr1 = __builtin_amdgcn_readfirstlane(
+        index_t interm_idx_kr1 = amd_wave_read_first_lane(
             intermediate_tile_id *
             BlockShape::Block_Kr1); // intermediate_tile_id * Block_N / (N in W)
 
@@ -210,7 +210,8 @@ struct FusedMoeGemmPipeline_FlatmmUk
 
         auto a_res =
             make_wave_buffer_resource(reinterpret_cast<const ADataType*>(kargs.a_ptr),
-                                      kargs.num_tokens * kargs.stride_token * sizeof(ADataType));
+                                      kargs.num_tokens * kargs.stride_token * sizeof(ADataType),
+                                      std::true_type{});
 
         auto make_gu_win = [&](const auto* ptr_) {
             auto view_ = make_naive_tensor_view<address_space_enum::global>(
@@ -322,7 +323,8 @@ struct FusedMoeGemmPipeline_FlatmmUk
 
         auto o_res =
             make_wave_buffer_resource(reinterpret_cast<const ODataType*>(kargs.o_ptr),
-                                      kargs.num_tokens * kargs.stride_token * sizeof(ODataType));
+                                      kargs.num_tokens * kargs.stride_token * sizeof(ODataType),
+                                      std::true_type{});
         auto row_coords_o = GetRowCoords_O(sorted_tile_id * BlockShape::Block_M0);
         auto w_scale      = GetWeightScale(
             row_coords_o, reinterpret_cast<const TopkWeightDataType*>(kargs.sorted_weight_ptr));

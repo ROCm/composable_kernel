@@ -271,8 +271,8 @@ struct StreamKKernel
         uint32_t block_idx = ck_tile::get_block_1d_id();
 
         bool is_padding_block =
-            __builtin_amdgcn_readfirstlane(block_idx >= kargs.tile_partitioner.sk_num_blocks &&
-                                           block_idx < kargs.tile_partitioner.dp_start_block_idx);
+            amd_wave_read_first_lane(block_idx >= kargs.tile_partitioner.sk_num_blocks &&
+                                     block_idx < kargs.tile_partitioner.dp_start_block_idx);
 
         // Padding blocks make it such that the DP blocks are aligned with the number of CUs; they
         // should not partake in the GEMM
@@ -289,7 +289,7 @@ struct StreamKKernel
         {
             // Determine the number of macro tiles in A and B this WG is resposible for in the
             // current C macro tile.
-            uint32_t current_iter_length = __builtin_amdgcn_readfirstlane(
+            uint32_t current_iter_length = amd_wave_read_first_lane(
                 kargs.tile_partitioner.GetCurrentIterLength(iter_start, iter_end));
 
             // Determine the 1D tile_idx and the iter_offset for this WG.

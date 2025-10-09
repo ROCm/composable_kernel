@@ -16,7 +16,7 @@ enum struct QuantType : std::uint16_t
     TensorQuant   = 3
 };
 
-std::string quant_type_to_string(QuantType quant_type)
+inline std::string quant_type_to_string(QuantType quant_type)
 {
     switch(quant_type)
     {
@@ -32,12 +32,14 @@ template <bool kPadM_,
           bool kPadN_,
           bool kPadK_,
           bool PreshuffleQuant_,
+          bool PreshuffleB_,
           typename ALayout_,
           typename BLayout_,
           typename CLayout_,
           QuantType QuantType_,
           typename AQLayout_        = ALayout_,
           typename BQLayout_        = BLayout_,
+          bool TransposeC_          = false,
           bool DoubleSmemBuffer_    = false,
           bool UsePersistentKernel_ = false>
 struct TileGemmQuantTraits
@@ -61,12 +63,13 @@ struct TileGemmQuantTraits
     using AsLayout = ALayout_;
     using BsLayout = BLayout_;
 
-    static constexpr bool TransposeC            = false;
+    static constexpr bool TransposeC            = TransposeC_;
     static constexpr bool UseStructuredSparsity = false;
     static constexpr index_t NumWaveGroups      = 1;
     static constexpr bool UsePersistentKernel   = UsePersistentKernel_;
 
     static constexpr bool PreshuffleQuant = PreshuffleQuant_;
+    static constexpr bool PreshuffleB     = PreshuffleB_;
 };
 
 } // namespace ck_tile
