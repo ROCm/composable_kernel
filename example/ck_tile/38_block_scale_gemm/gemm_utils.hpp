@@ -9,7 +9,7 @@
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "ck_tile/ops/gemm_group_quant.hpp"
+#include "ck_tile/ops/gemm_quant.hpp"
 
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()
@@ -91,6 +91,7 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t TileParitionerM01      = 4;
 
     static constexpr bool PreshuffleQuant  = false;
+    static constexpr bool PreshuffleB      = false;
     static constexpr bool DoubleSmemBuffer = false;
 };
 
@@ -143,6 +144,26 @@ struct GemmConfigPreshuffleQuant : public GemmConfigBase
         get_k_from_preshuffled_warp_tile<PrecType, M_Warp_Tile>();
 
     static constexpr bool PreshuffleQuant = true;
+};
+
+template <typename PrecType>
+struct GemmConfigPreshuffleB_Bquant_decode : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 16;
+    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 256 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        get_k_from_preshuffled_warp_tile<PrecType, M_Warp_Tile>();
+
+    static constexpr bool PreshuffleB      = true;
+    static constexpr bool DoubleSmemBuffer = true;
 };
 
 template <typename ADataType_,
@@ -222,7 +243,6 @@ auto create_args(int argc, char* argv[])
         .insert("n", "4096", "n dimension")
         .insert("k", "2048", "k dimension")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
-        .insert("aq_layout", "R", "Aq tensor data layout - Row by default")
         .insert("b_layout", "C", "B tensor data layout - Column by default")
         .insert("bq_layout", "C", "Bq tensor data layout - Column by default")
         .insert("c_layout", "R", "C tensor data layout - Row by default")
@@ -240,8 +260,8 @@ auto create_args(int argc, char* argv[])
         .insert("split_k", "1", "splitK value")
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
         .insert("flush_cache", "true", "flush cache before running the kernel, defaults to true")
-        .insert("rotating_count", "1", "rotating count, defaults to 1")
-        .insert("quant_mode", "aquant", "Choose aquant (default), bquant or rowcol");
+        .insert("rotating_count", "1000", "rotating count, defaults to 1")
+        .insert("quant_mode", "aquant", "Choose aquant (default), bquant, tensor or rowcol");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);

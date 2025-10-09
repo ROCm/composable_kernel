@@ -98,8 +98,8 @@ struct DeviceGemm_Wmma_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
         BLayout,
         Tuple<>,
         CLayout,
-        ADataType,
-        BDataType,
+        Tuple<ADataType>,
+        Tuple<BDataType>,
         GemmAccDataType,
         ReduceDataType,
         Tuple<>,
@@ -147,15 +147,15 @@ struct DeviceGemm_Wmma_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
 
     struct Argument : public GridwiseGemm::Argument
     {
-        Argument(const ADataType* p_a_grid_,
-                 const BDataType* p_b_grid_,
+        Argument(std::array<const void*, 1> p_a_grid_,
+                 std::array<const void*, 1> p_b_grid_,
                  const ::std::array<const void*, NumDTensor> p_ds_,
                  CDataType* p_c_grid_,
                  index_t M_,
                  index_t N_,
                  index_t K_,
-                 index_t StrideA_,
-                 index_t StrideB_,
+                 std::array<index_t, 1> StrideA_,
+                 std::array<index_t, 1> StrideB_,
                  const ::std::array<index_t, NumDTensor> stride_ds_,
                  index_t StrideC_,
                  index_t KBatch_,
@@ -196,7 +196,7 @@ struct DeviceGemm_Wmma_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
 
     static constexpr auto DsVectorLengthSequence = generate_sequence_v2(
         [](auto i) {
-            using DLayout = ::std::__remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+            using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
             if constexpr(is_same<CLayout, DLayout>::value)
                 return Number<CShuffleBlockTransferScalarPerVector_NPerBlock>{};
             else
@@ -253,7 +253,7 @@ struct DeviceGemm_Wmma_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
             static_for<0, NumDTensor, 1>{}([&](auto i) {
                 DsLengths[i] = out_lengths;
 
-                using DLayout = ::std::__remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
+                using DLayout = remove_cvref_t<tuple_element_t<i.value, DsLayout>>;
                 if constexpr(is_same<DLayout, ck::tensor_layout::gemm::RowMajor>::value)
                 {
                     DsStrides[i] = {arg.StrideDs[i], 1};
@@ -430,15 +430,15 @@ struct DeviceGemm_Wmma_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                              BElementwiseOperation b_element_op,
                              CElementwiseOperation c_element_op)
     {
-        return Argument{p_a,
-                        p_b,
+        return Argument{std::array<const void*, 1>{p_a},
+                        std::array<const void*, 1>{p_b},
                         p_ds,
                         p_c,
                         M,
                         N,
                         K,
-                        StrideA,
-                        StrideB,
+                        std::array<index_t, 1>{StrideA},
+                        std::array<index_t, 1>{StrideB},
                         stride_ds,
                         StrideC,
                         KBatch,
@@ -472,15 +472,15 @@ struct DeviceGemm_Wmma_CShuffleV3R1 : public DeviceGemmV2R1<ALayout,
                                                         BElementwiseOperation b_element_op,
                                                         CElementwiseOperation c_element_op) override
     {
-        return ::std::make_unique<Argument>(static_cast<const ADataType*>(p_a),
-                                            static_cast<const BDataType*>(p_b),
+        return ::std::make_unique<Argument>(std::array<const void*, 1>{p_a},
+                                            std::array<const void*, 1>{p_b},
                                             p_ds,
                                             static_cast<CDataType*>(p_c),
                                             M,
                                             N,
                                             K,
-                                            StrideA,
-                                            StrideB,
+                                            std::array<index_t, 1>{StrideA},
+                                            std::array<index_t, 1>{StrideB},
                                             DsStrides,
                                             StrideC,
                                             KSplit,
