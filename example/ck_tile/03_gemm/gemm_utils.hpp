@@ -55,9 +55,9 @@ constexpr ck_tile::index_t get_k_warp_tile_flatmm()
 
 struct GemmConfigBase
 {
-    static constexpr bool kPadM = false;
-    static constexpr bool kPadN = false;
-    static constexpr bool kPadK = false;
+    static constexpr bool kPadM = true;
+    static constexpr bool kPadN = true;
+    static constexpr bool kPadK = true;
 
     static constexpr bool PermuteA = false;
     static constexpr bool PermuteB = false;
