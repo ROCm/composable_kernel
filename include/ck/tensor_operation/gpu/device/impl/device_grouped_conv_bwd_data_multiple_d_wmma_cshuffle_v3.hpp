@@ -1457,6 +1457,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
     {
         if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported())
         {
+            std::cerr << "This configuration is not suported!" << std::endl;
             return false;
         }
 
@@ -1464,6 +1465,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         {
             if(arg.k_batch_ > 1)
             {
+                std::cerr << "SplitK is not supported!" << std::endl;
                 return false;
             }
         }
@@ -1499,6 +1501,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         {
             if(!(ABlockTransferSrcVectorDim == 2 && ConvK % ABlockTransferSrcScalarPerVector == 0))
             {
+                std::cerr << "VectorDim is wrong!" << std::endl;
                 return false;
             }
         }
@@ -1511,10 +1514,12 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             {
                 if(ABlockTransferSrcVectorDim != 1)
                 {
+                    std::cerr << "CTranspose is not supported!" << std::endl;
                     return false;
                 }
                 if(output_spatial_acum % ABlockTransferSrcScalarPerVector != 0)
                 {
+                    std::cerr << "CTranspose is not supported!" << std::endl;
                     return false;
                 }
             }
@@ -1534,6 +1539,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
 
             if(!(BBlockTransferSrcVectorDim == 1 && ConvC % BBlockTransferSrcScalarPerVector == 0))
             {
+                std::cerr << "VectorDim is wrong!" << std::endl;
                 return false;
             }
         }
@@ -1561,6 +1567,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                     // vector load D matrix from global memory
                     if(!(ConvC % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
                     {
+                        std::cerr << "VectorDim is wrong!" << std::endl;
                         ds_valid = false;
                     }
                 }
@@ -1596,6 +1603,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                 // vector store C matrix into global memory
                 if(!(ConvC % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
                 {
+                    std::cerr << "VectorDim is wrong!" << std::endl;
                     return false;
                 }
             }
