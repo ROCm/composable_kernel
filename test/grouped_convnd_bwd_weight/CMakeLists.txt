@@ -1,4 +1,4 @@
-if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
+if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12" AND NOT DL_KERNELS)
    add_gtest_executable(test_grouped_convnd_bwd_weight test_grouped_convnd_bwd_weight.cpp)
    target_link_libraries(test_grouped_convnd_bwd_weight PRIVATE utility
    device_grouped_conv1d_gnwc_bwd_weight_instance
@@ -9,21 +9,27 @@ if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
    device_grouped_conv3d_ngcdhw_bwd_weight_instance
    device_grouped_conv3d_gndhwc_bwd_weight_instance
    device_grouped_convnd_bwd_weight_instance)
-elseif(DL_KERNELS)
+elseif(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12" AND DL_KERNELS)
    add_gtest_executable(test_grouped_convnd_bwd_weight test_grouped_convnd_bwd_weight.cpp)
    target_link_libraries(test_grouped_convnd_bwd_weight PRIVATE utility
    device_grouped_conv1d_gnwc_bwd_weight_instance
    device_grouped_conv1d_nwgc_bwd_weight_instance
    device_grouped_conv2d_gnhwc_bwd_weight_instance
    device_grouped_conv2d_nhwgc_bwd_weight_instance
-   device_grouped_conv3d_ndhwgc_bwd_weight_instance
-   device_grouped_conv3d_gndhwc_bwd_weight_instance)
-elseif(GPU_TARGETS MATCHES "gfx11")
-   add_gtest_executable(test_grouped_convnd_bwd_weight test_grouped_convnd_bwd_weight.cpp)
-   target_link_libraries(test_grouped_convnd_bwd_weight PRIVATE utility
+   device_grouped_conv2d_ngchw_bwd_weight_instance
    device_grouped_conv3d_ndhwgc_bwd_weight_instance
    device_grouped_conv3d_ngcdhw_bwd_weight_instance
-   device_grouped_conv3d_gndhwc_bwd_weight_instance)
+   device_grouped_conv3d_gndhwc_bwd_weight_instance
+   device_grouped_convnd_bwd_weight_instance)
+elseif(GPU_TARGETS MATCHES "gfx10" AND DL_KERNELS)
+    add_gtest_executable(test_grouped_convnd_bwd_weight test_grouped_convnd_bwd_weight.cpp)
+    target_link_libraries(test_grouped_convnd_bwd_weight PRIVATE utility
+    device_grouped_conv1d_gnwc_bwd_weight_instance
+    device_grouped_conv1d_nwgc_bwd_weight_instance
+    device_grouped_conv2d_gnhwc_bwd_weight_instance
+    device_grouped_conv2d_nhwgc_bwd_weight_instance
+    device_grouped_conv3d_ndhwgc_bwd_weight_instance
+    device_grouped_conv3d_gndhwc_bwd_weight_instance)
 endif()
 add_gtest_executable(test_grouped_convnd_bwd_weight_interface_xdl test_grouped_convnd_bwd_weight_interface_xdl.cpp)
 if(result EQUAL 0)

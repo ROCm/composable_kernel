@@ -205,7 +205,7 @@ if(SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1[1
   list(APPEND DEVICE_INSTANCES device_conv1d_bwd_data_instance)
   list(APPEND DEVICE_INSTANCES device_conv3d_bwd_data_instance)
   list(APPEND DEVICE_INSTANCES device_conv2d_bwd_data_instance)
-  list(APPEND DEVICE_INSTANCES device_grouped_conv1d_gnwc_bwd_weight_instance device_grouped_conv1d_nwgc_bwd_weight_instance)
+  list(APPEND DEVICE_INSTANCES device_grouped_conv1d_gnwc_bwd_weight_instance)
   list(APPEND DEVICE_INSTANCES device_grouped_conv2d_gnhwc_bwd_weight_instance device_grouped_conv2d_nhwgc_bwd_weight_instance device_grouped_conv2d_ngchw_bwd_weight_instance)
   list(APPEND DEVICE_INSTANCES device_grouped_convnd_bwd_weight_instance)
   list(APPEND DEVICE_INSTANCES device_grouped_conv3d_fwd_convscale_instance)
