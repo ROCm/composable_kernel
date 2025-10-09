@@ -87,6 +87,7 @@ class TestCkTileGemmQuantBase : public ::testing::Test
                                                                QuantType,
                                                                ALayout,
                                                                BLayout,
+                                                               GemmConfig::TransposeC,
                                                                DoubleSmemBuffer>;
 
         // Let the derived class create the appropriate pipeline and epilogue
