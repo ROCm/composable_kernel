@@ -11,7 +11,7 @@
     "warp_k": {"values": [1]},
     "warp_tile_m": {"values": [32]},
     "warp_tile_n": {"values": [32]},
-    "warp_tile_k": {"values": [32]}
+    "warp_tile_k": {"values": [16]}
   },
   "trait_config": {
     "pipeline": {"values": ["compv3"]},
