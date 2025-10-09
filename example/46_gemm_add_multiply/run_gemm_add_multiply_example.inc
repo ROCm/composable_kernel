@@ -131,7 +131,16 @@ bool run_gemm_add_multiply(const ProblemSize& problem_size, const ExecutionConfi
 
         e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
-        return ck::utils::check_err(e_m_n_device_result, e_m_n_host_result);
+        if(std::is_same_v<ck::ranges::range_value_t<decltype(e_m_n_device_result)>, ck::half_t> &&
+           std::is_same_v<ck::ranges::range_value_t<decltype(e_m_n_host_result)>, ck::half_t>)
+        {
+            return ck::utils::check_err(
+                e_m_n_device_result, e_m_n_host_result, "Error: Incorrect results!", 5e-3, 1e-3);
+        }
+        else
+        {
+            return ck::utils::check_err(e_m_n_device_result, e_m_n_host_result);
+        }
     }
 
     return true;

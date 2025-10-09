@@ -9,6 +9,26 @@
 
 namespace ck_tile {
 
+template <typename T, typename = void>
+struct has_a_tile_access_pattern : std::false_type
+{
+};
+
+template <typename T>
+struct has_a_tile_access_pattern<T, std::void_t<decltype(T::ATileAccessPattern)>> : std::true_type
+{
+};
+
+template <typename T, typename = void>
+struct has_b_tile_access_pattern : std::false_type
+{
+};
+
+template <typename T>
+struct has_b_tile_access_pattern<T, std::void_t<decltype(T::BTileAccessPattern)>> : std::true_type
+{
+};
+
 template <typename Derived>
 struct UniversalGemmBasePolicy
 {
@@ -30,8 +50,25 @@ struct UniversalGemmBasePolicy
     static constexpr auto I1 = number<1>{};
     static constexpr auto I2 = number<2>{};
 
-    static constexpr auto ATileAccessPattern = tile_distribution_pattern::thread_raked;
-    static constexpr auto BTileAccessPattern = tile_distribution_pattern::thread_raked;
+    // Default tile access patterns
+    static constexpr auto DefaultATileAccessPattern = tile_distribution_pattern::thread_raked;
+    static constexpr auto DefaultBTileAccessPattern = tile_distribution_pattern::thread_raked;
+
+    static constexpr auto getATileAccessPattern()
+    {
+        if constexpr(has_a_tile_access_pattern<Derived>::value)
+            return Derived::ATileAccessPattern;
+        else
+            return DefaultATileAccessPattern;
+    }
+
+    static constexpr auto getBTileAccessPattern()
+    {
+        if constexpr(has_b_tile_access_pattern<Derived>::value)
+            return Derived::BTileAccessPattern;
+        else
+            return DefaultBTileAccessPattern;
+    }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
@@ -168,11 +205,12 @@ struct UniversalGemmBasePolicy
         {
             constexpr index_t BlockSize   = Problem::kBlockSize;
             constexpr index_t VecLoadSize = GetVectorSizeB<Problem>();
-            using TileEncodingPattern     = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                                  KPerBlock,
-                                                                                  NPerBlock,
-                                                                                  VecLoadSize,
-                                                                                  BTileAccessPattern>;
+            using TileEncodingPattern =
+                tile_distribution_encoding_pattern_2d<BlockSize,
+                                                      KPerBlock,
+                                                      NPerBlock,
+                                                      VecLoadSize,
+                                                      getBTileAccessPattern()>;
 
             constexpr auto BK0 = number<TileEncodingPattern::X1>{};
             constexpr auto BK1 = number<TileEncodingPattern::Y0>{};
@@ -500,23 +538,25 @@ struct UniversalGemmBasePolicy
         // Tile: MPerBlock X KPerBlock
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
-            using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                              MPerBlock,
-                                                                              KPerBlock,
-                                                                              VecLoadSize,
-                                                                              ATileAccessPattern,
-                                                                              NumWaveGroups>;
+            using TileEncodingPattern =
+                tile_distribution_encoding_pattern_2d<BlockSize,
+                                                      MPerBlock,
+                                                      KPerBlock,
+                                                      VecLoadSize,
+                                                      getATileAccessPattern(),
+                                                      NumWaveGroups>;
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }
         // Tile: KPerBlock X MPerBlock
         else
         {
-            using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                              KPerBlock,
-                                                                              MPerBlock,
-                                                                              VecLoadSize,
-                                                                              ATileAccessPattern,
-                                                                              NumWaveGroups>;
+            using TileEncodingPattern =
+                tile_distribution_encoding_pattern_2d<BlockSize,
+                                                      KPerBlock,
+                                                      MPerBlock,
+                                                      VecLoadSize,
+                                                      getATileAccessPattern(),
+                                                      NumWaveGroups>;
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }
     }
@@ -536,23 +576,25 @@ struct UniversalGemmBasePolicy
         // Tile: KPerBlock X NPerBlock
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
-            using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                              KPerBlock,
-                                                                              NPerBlock,
-                                                                              VecLoadSize,
-                                                                              BTileAccessPattern,
-                                                                              NumWaveGroups>;
+            using TileEncodingPattern =
+                tile_distribution_encoding_pattern_2d<BlockSize,
+                                                      KPerBlock,
+                                                      NPerBlock,
+                                                      VecLoadSize,
+                                                      getBTileAccessPattern(),
+                                                      NumWaveGroups>;
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }
         // Tile: NPerBlock X KPerBlock
         else
         {
-            using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                              NPerBlock,
-                                                                              KPerBlock,
-                                                                              VecLoadSize,
-                                                                              BTileAccessPattern,
-                                                                              NumWaveGroups>;
+            using TileEncodingPattern =
+                tile_distribution_encoding_pattern_2d<BlockSize,
+                                                      NPerBlock,
+                                                      KPerBlock,
+                                                      VecLoadSize,
+                                                      getBTileAccessPattern(),
+                                                      NumWaveGroups>;
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }
     }
@@ -573,7 +615,7 @@ struct UniversalGemmBasePolicy
                                                                           KPerBlock,
                                                                           MPerBlock,
                                                                           VecLoadSize,
-                                                                          ATileAccessPattern,
+                                                                          getATileAccessPattern(),
                                                                           NumWaveGroups>;
         return TileEncodingPattern::make_shuffled_2d_static_tile_distribution();
     }
@@ -594,7 +636,7 @@ struct UniversalGemmBasePolicy
                                                                           KPerBlock,
                                                                           NPerBlock,
                                                                           VecLoadSize,
-                                                                          BTileAccessPattern,
+                                                                          getBTileAccessPattern(),
                                                                           NumWaveGroups>;
         return TileEncodingPattern::make_shuffled_2d_static_tile_distribution();
     }

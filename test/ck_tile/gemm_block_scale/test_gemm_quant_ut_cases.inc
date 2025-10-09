@@ -15,6 +15,11 @@ TYPED_TEST(TestCkTileGemmBQuant, BQuantGroupedTest)
     this->run_test_with_validation(1024, 1024, 1024);
 }
 
+// BQuant tests
+TYPED_TEST(TestCkTileGemmPreshuffleBBQuant, BQuantGroupedTest)
+{
+    this->run_test_with_validation(1024, 1024, 1024);
+}
 // RowColQuant tests
 TYPED_TEST(TestCkTileGemmRowColQuant, RowColQuantTest)
 {

@@ -37,41 +37,17 @@ jobs:
 
   test_components:
     name: 'Test ${{ matrix.components.job_name }}'
-    runs-on: ${{ inputs.test_runs_on }}
-    needs: configure_test_matrix
+    needs: [configure_test_matrix]
     # skip tests if no test matrix to run
     if: ${{ needs.configure_test_matrix.outputs.components != '[]' }}
     strategy:
       fail-fast: false
       matrix:
         components: ${{ fromJSON(needs.configure_test_matrix.outputs.components) }}
-    defaults:
-      run:
-        shell: bash
-    env:
-      VENV_DIR: ${{ github.workspace }}/.venv
-      ARTIFACT_RUN_ID: "${{ github.run_id }}"
-      OUTPUT_ARTIFACTS_DIR: ${{ github.workspace }}/build
-      THEROCK_BIN_DIR: "./build/bin"
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          repository: "ROCm/TheRock"
-
-      - name: Run setup test environment workflow
-        uses: './.github/actions/setup_test_environment'
-        with:
-          ARTIFACT_RUN_ID: ${{ env.ARTIFACT_RUN_ID }}
-          AMDGPU_FAMILIES: ${{ inputs.amdgpu_families }}
-          OUTPUT_ARTIFACTS_DIR: ${{ env.OUTPUT_ARTIFACTS_DIR }}
-          VENV_DIR: ${{ env.VENV_DIR }}
-          FETCH_ARTIFACT_ARGS: ${{ matrix.components.fetch_artifact_args }}
-          PLATFORM: ${{ inputs.platform }}
-          IS_PR_FROM_FORK: ${{ github.event.pull_request.head.repo.fork }}
-
-      - name: Test
-        timeout-minutes: ${{ matrix.components.timeout_minutes }}
-        run: |
-          if [ "${{ inputs.PLATFORM }}" == "linux" ]; then source ${VENV_DIR}/bin/activate ; else . ${VENV_DIR}/Scripts/activate ; fi
-          ${{ matrix.components.test_script }}
+    uses: './.github/workflows/therock-test-component.yml'
+    with:
+      artifact_run_id: ${{  github.run_id }}
+      amdgpu_families: ${{ inputs.amdgpu_families }}
+      test_runs_on: ${{ inputs.test_runs_on }}
+      platform: ${{ inputs.platform }}
+      component: ${{ toJSON(matrix.components) }}
