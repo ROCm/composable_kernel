@@ -221,7 +221,7 @@ struct Rmsnorm2dFwdPipelineModelSensitiveT5Pass
         }
         else
         {
-            Epilogue{}(y_window_, rmsn);
+            Epilogue{}(y_window_, rmsn, nullptr);
         }
     }
 };

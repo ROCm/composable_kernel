@@ -70,3 +70,41 @@ summary of the key design of this fused-moe operator:
 //
 //   max_num_tokens_padded: opk_ids.numel() + num_experts * (block_size - 1)
 ```
+
+## example
+```
+args:
+          -t    number of input tokens. (default:128)
+                If "local_t" presents, this value indicates global concurrency of all ranks.
+    -local_t    Number of local input tokens for curent rank. (default:-1)
+                This value must be within range "[0, t)", or "-1"(no such feature)
+                This feature is to simulate EP case where where each rank has different tokens.
+                Besides, this value will be stored in a GPU buffer, which is friendly for CUDA graph.
+          -e    num of experts (default:32)
+          -k    topk (default:5)
+          -h    hidden_size of this model (default:8192)
+          -i    intermediate_size between 2 gemms of FFN (default:8192)
+     -stride    stride per row, if -1 then equal to hidden_size (default:-1)
+         -bm    blocking factor for sorted tokens (default:32)
+         -tp    tensor parallel size (default:8)
+          -v    cpu validation or not (default:1)
+      -kname    print kernel name or not (default:1)
+     -prec_i    input precision (default:bf16)
+     -prec_w    weight precision (default:bf16)
+     -prec_o    output precision (default:bf16)
+    -prec_st    token scale data type. auto will set to fp32 (default:auto)
+    -prec_sw    weight scale data type. auto will set to fp32 (default:auto)
+    -prec_sq    (dynamic) smooth quant data type. auto will set to fp32 (default:auto)
+    -prec_kw    topk-weight data type. auto will set to fp32 (default:auto)
+     -fquant    fused-quant, 0:no, 1:smooth-dynamic-quant, 2:dynamic-quant (default:0)
+  -gate_only    w0(gate/up) style, 0:gate+up will double interm size, 1:only gate (default:1)
+        -api    benchmark api set: 0:fused-moe(moe-gemm+moe-sorting), 1:moe-gemm (default:0)
+        -act    activation after first gemm. 0:gelu, 1:silu (default:0)
+    -balance    if set to 1, will try balance the expert in topk-ids(convenient for testing) (default:0)
+       -init    init method. 0:random stepped float(fast). 1: random uniform[-0.5, 0.5], 2:rand normalized[0, 1]normalized(slow) (default:1)
+       -seed    seed used to do random (default:11939)
+     -warmup    cold iter (default:5)
+     -repeat    hot iter (default:20)
+       -json    0: No Json, 1: Dump Results in Json format (default:0)
+   -jsonfile    json file name to dump results (default:fused_moe.json)
+```

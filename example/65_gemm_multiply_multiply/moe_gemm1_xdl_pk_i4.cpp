@@ -121,6 +121,7 @@ struct MulABScaleExpertWeight
 };
 
 static constexpr bool MulRoutedWeight = true;
+static constexpr ck::index_t KPack    = 32;
 
 using CDEElementOp = MulABScaleExpertWeight; // combine MulRoutedWeight = true
 
@@ -129,7 +130,6 @@ using CDEElementOp = MulABScaleExpertWeight; // combine MulRoutedWeight = true
 #if 1
 void preShuffleBuffer(const I4* src, I4* dst, int N, int K, int NXdl)
 {
-    int KPack = 32;
     int NLane = NXdl;
     int KLane = 64 / NLane;
 
@@ -169,18 +169,19 @@ static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecializatio
 static constexpr ck::index_t MPerBlock = 128;
 static constexpr ck::index_t Nswizzle  = false;
 static constexpr ck::index_t Act_OP    = 1; // 0: gelu_and_mul, 1: silu_and_mul
+
 // clang-format off
 using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemm<
             Row, Col, DsLayout, ELayout, 
             A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
             AElementOp,  BElementOp, CDEElementOp,       GemmSpec,   
             256,   MPerBlock,   64,    128,
-            16,   32,
+            16,   KPack,
             16,   16,
-            8,    1,
+            4,    2,
             S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
             S<4, 64, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 32, 32, 0,
-            2,    1,   S<1, 32, 1, 8>, S<8, 1, 1>,
+            2,    1,   S<1, 32, 1, 8>, S<4, 1, 1>,
             ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, Act_OP, Nswizzle, true, MulRoutedWeight, true, ck::index_t, A0DataType>;
 // clang-format on
 
@@ -263,15 +264,18 @@ int main(int argc, char* argv[])
     }
 
     Tensor<A0DataType> a0_t_k(HostTensorDescriptor({tokens, K}, {K, 1}));
-    Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
-    Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}));
+    Tensor<B0DataType> b0_e_n_k(
+        HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}, Col{}));
+    Tensor<B0DataType> b0_preshuffled(
+        HostTensorDescriptor({experts, K, N * 2}, {N * 2 * K, 1, K}, Col{}));
     Tensor<D0DataType> d0_t_n(HostTensorDescriptor({tokens, N}, {StrideDs[0], 0}));
     Tensor<D1DataType> d1_e_n(
         HostTensorDescriptor({experts, N * 2}, {StrideDs[1] * N * 2, StrideDs[1]}));
     Tensor<D2DataType> d2_e_n(HostTensorDescriptor({sorted_size, N}, {1, 0}));
-    Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}));
+    Tensor<EDataType> e_t_n_host_result(
+        HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}, Row{}));
     Tensor<EDataType> e_t_n_device_result(
-        HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}));
+        HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}, Row{}));
 
     std::cout << "a0_t_k: " << a0_t_k.mDesc << std::endl;
     std::cout << "b0_e_n_k: " << b0_e_n_k.mDesc << std::endl;
@@ -458,9 +462,10 @@ int main(int argc, char* argv[])
             "not support this GEMM problem");
     }
 
-    if(!(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950"))
+    if(!(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950" ||
+         ck::is_gfx11_supported() || ck::is_gfx12_supported()))
     {
-        std::cout << "This kernel support gfx942 and gfx950 only" << std::endl;
+        std::cout << "This kernel support gfx942, gfx950, gfx11 and gfx12 only" << std::endl;
     }
 
     if(time_kernel)
@@ -486,7 +491,7 @@ int main(int argc, char* argv[])
 
         e_device_buf.FromDevice(e_t_n_device_result.mData.data());
 
-        Tensor<CShuffleDataType> c_t_k_n({tokens, topk, N}, {topk * N, N, 1});
+        Tensor<CShuffleDataType> c_t_k_n({tokens, topk, N}, {topk * N, N, 1}, Row{});
 
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceMoeGemm<A0DataType,
                                                                                    B0DataType,

@@ -14,7 +14,7 @@ function(create_tile_layernorm2d_fwd SUFFIX)
     target_compile_options(${TEST_CK_TILE_LAYERNORM2D_FWD} PRIVATE ${TEST_CK_TILE_LAYERNORM2D_FWD_COMPILE_OPTIONS})
 endfunction()
 
-if(GPU_TARGETS MATCHES "gfx9")
+if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
     set(LAYERNORM2D_FWD_KNOWN_APIS "fwd;bwd")
     set(LAYERNORM2D_FWD_ENABLE_APIS  "fwd" CACHE STRING
         "semicolon-separated list of APIs to generate (${LAYERNORM2D_FWD_KNOWN_APIS}) & link, or \"all\".")

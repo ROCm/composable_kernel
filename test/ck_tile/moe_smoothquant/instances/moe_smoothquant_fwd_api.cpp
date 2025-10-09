@@ -24,9 +24,7 @@ using trait_ = moe_smoothquant_traits_<InType,
                                        kTwoPass_>;
 
 template <typename in_type, typename out_type>
-float moe_smoothquant_dispatch(moe_smoothquant_traits /*t*/,
-                               moe_smoothquant_args a,
-                               const ck_tile::stream_config& s)
+float moe_smoothquant_dispatch(moe_smoothquant_args a, const ck_tile::stream_config& s)
 {
     float r = -1;
     // clang-format off
@@ -130,26 +128,30 @@ float moe_smoothquant_dispatch(moe_smoothquant_traits /*t*/,
     // clang-format on
 }
 
-float moe_smoothquant(moe_smoothquant_traits t,
-                      moe_smoothquant_args a,
-                      const ck_tile::stream_config& s)
+template <>
+float moe_smoothquant<ck_tile::fp16_t, ck_tile::int8_t>(moe_smoothquant_args a,
+                                                        const ck_tile::stream_config& s)
 {
-    if(t.in_type.compare("fp16") == 0 && t.out_type == "int8")
-    {
-        return moe_smoothquant_dispatch<ck_tile::fp16_t, ck_tile::int8_t>(t, a, s);
-    }
-    else if(t.in_type.compare("fp16") == 0 && t.out_type == "fp8")
-    {
-        return moe_smoothquant_dispatch<ck_tile::fp16_t, ck_tile::fp8_t>(t, a, s);
-    }
-    else if(t.in_type.compare("bf16") == 0 && t.out_type == "int8")
-    {
-        return moe_smoothquant_dispatch<ck_tile::bf16_t, ck_tile::int8_t>(t, a, s);
-    }
-    else if(t.in_type.compare("bf16") == 0 && t.out_type == "fp8")
-    {
-        return moe_smoothquant_dispatch<ck_tile::bf16_t, ck_tile::fp8_t>(t, a, s);
-    }
-    else
-        throw std::runtime_error("Without supported instances!");
-}
+    return moe_smoothquant_dispatch<ck_tile::fp16_t, ck_tile::int8_t>(a, s);
+};
+
+template <>
+float moe_smoothquant<ck_tile::fp16_t, ck_tile::fp8_t>(moe_smoothquant_args a,
+                                                       const ck_tile::stream_config& s)
+{
+    return moe_smoothquant_dispatch<ck_tile::fp16_t, ck_tile::fp8_t>(a, s);
+};
+
+template <>
+float moe_smoothquant<ck_tile::bf16_t, ck_tile::int8_t>(moe_smoothquant_args a,
+                                                        const ck_tile::stream_config& s)
+{
+    return moe_smoothquant_dispatch<ck_tile::bf16_t, ck_tile::int8_t>(a, s);
+};
+
+template <>
+float moe_smoothquant<ck_tile::bf16_t, ck_tile::fp8_t>(moe_smoothquant_args a,
+                                                       const ck_tile::stream_config& s)
+{
+    return moe_smoothquant_dispatch<ck_tile::bf16_t, ck_tile::fp8_t>(a, s);
+};
