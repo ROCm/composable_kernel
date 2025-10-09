@@ -15,7 +15,7 @@ if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
     device_grouped_conv2d_gnhwc_bwd_data_instance
     device_grouped_conv2d_nhwgc_bwd_data_instance
     device_grouped_conv2d_ngchw_bwd_data_instance
-    evice_grouped_conv3d_ndhwgc_bwd_data_instance
+    device_grouped_conv3d_ndhwgc_bwd_data_instance
     device_grouped_conv3d_ngcdhw_bwd_data_instance
     device_grouped_conv3d_gndhwc_bwd_data_instance)
 endif()
@@ -25,7 +25,7 @@ if(result EQUAL 0)
     device_grouped_conv2d_gnhwc_bwd_data_instance
     device_grouped_conv2d_nhwgc_bwd_data_instance
     device_grouped_conv2d_ngchw_bwd_data_instance
-    evice_grouped_conv3d_ndhwgc_bwd_data_instance
+    device_grouped_conv3d_ndhwgc_bwd_data_instance
     device_grouped_conv3d_ngcdhw_bwd_data_instance
     device_grouped_conv3d_gndhwc_bwd_data_instance)
 endif()
