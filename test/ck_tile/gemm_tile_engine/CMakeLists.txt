@@ -293,8 +293,23 @@ else()
     message(WARNING "Padding config file not found: ${PADDING_CONFIG_FILE}")
 endif()
 
+# 5. TILE SIZE COVERAGE: Test different tile sizes (16, 32, 64, 128, 256) with fixed fp16/rcr configuration
+#    This focuses on tile size performance and validation across different dimensions
+set(TILE_SIZE_CONFIG "tile_size_coverage_config")
+set(TILE_SIZE_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/configs/${TILE_SIZE_CONFIG}.json")
+
+if(EXISTS ${TILE_SIZE_CONFIG_FILE})
+    message(STATUS "Processing tile size config: ${TILE_SIZE_CONFIG} (fp16/rcr only)")
+    build_gemm_test_targets("fp16" "rcr" "${TILE_SIZE_CONFIG}")
+else()
+    message(WARNING "Tile size config file not found: ${TILE_SIZE_CONFIG_FILE}")
+endif()
+# ============================================================================
+
+
 message(STATUS "GEMM tile engine tests configured with datatype-specific design:")
 message(STATUS "  - Small datatypes (fp8, fp16, bf16) with optimized large warp tiles")
 message(STATUS "  - Large datatypes (fp32, fp64) with memory-constrained smaller warp tiles")
 message(STATUS "  - Traits coverage with fp16/rcr")
 message(STATUS "  - Padding coverage with fp16/rcr")
+message(STATUS "  - Tile size coverage with fp16/rcr (16, 32, 64, 128, 256)")
