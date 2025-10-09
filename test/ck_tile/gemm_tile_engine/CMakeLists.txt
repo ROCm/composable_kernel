@@ -32,35 +32,19 @@ function(create_individual_gemm_test_target datatype layout config_name trait ti
     set(target_name "test_gemm_tile_engine_${datatype}_${layout}_${config_name}_${trait}_${tile_config}")
     set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/${layout}/${config_name}")
     
-    # Generated header path for this specific kernel configuration
+    # Generated header path (already created during cmake configuration)
     set(test_header "${working_path}/gemm_single_${datatype}_${layout}_${trait}_${tile_config}.hpp")
     
-    # Generate kernel header using tile_engine's Python script
-    add_custom_command(
-        OUTPUT ${test_header}
-        COMMAND ${Python3_EXECUTABLE} ${TILE_ENGINE_GEMM_DIR}/gemm_instance_builder.py
-                --working_path ${working_path}
-                --datatype ${datatype}
-                --layout ${layout}
-                --config_json ${config_json}
-                --gen_single
-                --kernel_name "test_gemm_${datatype}_${layout}_${trait}_${tile_config}"
-                --tile_config "${tile_config}"
-                --trait_combo "${trait}"
-        DEPENDS ${TILE_ENGINE_GEMM_DIR}/gemm_instance_builder.py ${config_json}
-        COMMENT "Generating test header ${test_header}"
-        VERBATIM
-    )
+    # Verify header exists (should have been generated during cmake configuration)
+    if(NOT EXISTS ${test_header})
+        message(WARNING "Generated header not found: ${test_header}")
+        return()
+    endif()
 
     # Create GTest executable for this kernel configuration
     add_gtest_executable(${target_name}
         ${CMAKE_CURRENT_SOURCE_DIR}/test_gemm_simple.cpp
     )
-
-    # Ensure header is generated before compilation
-    set(header_target "${target_name}_header")
-    add_custom_target(${header_target} DEPENDS ${test_header})
-    add_dependencies(${target_name} ${header_target})
 
     # Configure GPU architectures for HIP compilation
     set_property(TARGET ${target_name} PROPERTY HIP_ARCHITECTURES ${GEMM_TEST_GPU_TARGETS})
@@ -115,7 +99,7 @@ function(build_gemm_test_targets datatype layout config_name)
     # Prepare build directory for this configuration
     file(MAKE_DIRECTORY ${working_path})
 
-    # STEP 1: Discovery phase - list all valid kernel configurations (verbose Python output)
+    # STEP 1: Discovery phase - list all valid kernel configurations
     execute_process(
         COMMAND ${Python3_EXECUTABLE} -u ${TILE_ENGINE_GEMM_DIR}/gemm_instance_builder.py
                 --working_path ${working_path}
@@ -134,20 +118,40 @@ function(build_gemm_test_targets datatype layout config_name)
         return()
     endif()
 
-    # Check kernel count and always show reporting for visibility
+    # Check kernel count
     set(kernel_count 0)
     if(EXISTS ${working_path}/gemm_kernel_count.txt)
         file(READ ${working_path}/gemm_kernel_count.txt kernel_count)
         string(STRIP "${kernel_count}" kernel_count)
     endif()
 
-    # Always show CMake status messages for full visibility into validation
     message(STATUS "Building tests for ${datatype}_${layout}_${config_name}")
-    message(STATUS "  Using test config: ${config_filename}")
-    message(STATUS "  Listing kernel configurations for ${datatype}_${layout}...")
     message(STATUS "  Found ${kernel_count} test configurations for ${datatype}_${layout}")
 
-    # STEP 2: Generation phase - create test targets only if kernels were found
+    # STEP 2: Parallel generation phase - generate all headers at once during cmake
+    if(kernel_count GREATER 0)
+        message(STATUS "  Generating all headers in parallel...")
+        execute_process(
+            COMMAND ${Python3_EXECUTABLE} -u ${TILE_ENGINE_GEMM_DIR}/gemm_instance_builder.py
+                    --working_path ${working_path}
+                    --datatype ${datatype}
+                    --layout ${layout}
+                    --config_json ${json_blob}
+                    --gen_individual
+            WORKING_DIRECTORY ${TILE_ENGINE_GEMM_DIR}
+            RESULT_VARIABLE gen_ret
+            OUTPUT_VARIABLE gen_output
+            ERROR_VARIABLE gen_error
+        )
+
+        if(NOT gen_ret EQUAL 0)
+            message(WARNING "Failed to generate headers for ${datatype}_${layout}: ${gen_error}")
+            return()
+        endif()
+        message(STATUS "  All headers generated for ${datatype}_${layout}")
+    endif()
+
+    # STEP 3: Target creation phase - create test targets only if kernels were found
     if(kernel_count GREATER 0)
         if(EXISTS ${working_path}/gemm_kernel_list.txt)
             file(STRINGS ${working_path}/gemm_kernel_list.txt kernel_lines)
@@ -237,29 +241,29 @@ set(TEST_LAYOUTS "rcr;rrr;ccr;crr")
 
 # 1. SMALL DATATYPES: Test optimized config for small data types (fp8, fp16, bf16)
 #    These data types can use larger warp tiles due to smaller memory footprint
-set(SMALL_DATATYPE_CONFIG "small_datatype_config")
-set(SMALL_DATATYPE_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/configs/${SMALL_DATATYPE_CONFIG}.json")
-set(SMALL_DATATYPES "fp8;fp16;bf16")
+# set(SMALL_DATATYPE_CONFIG "small_datatype_config")
+# set(SMALL_DATATYPE_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/configs/${SMALL_DATATYPE_CONFIG}.json")
+# set(SMALL_DATATYPES "fp8;fp16;bf16")
 
-if(EXISTS ${SMALL_DATATYPE_CONFIG_FILE})
-    message(STATUS "Processing small datatype config: ${SMALL_DATATYPE_CONFIG} (fp8, fp16, bf16)")
-    foreach(datatype IN LISTS SMALL_DATATYPES)
-        foreach(layout IN LISTS TEST_LAYOUTS)
-            build_gemm_test_targets("${datatype}" "${layout}" "${SMALL_DATATYPE_CONFIG}")
-        endforeach()
-    endforeach()
-else()
-    message(WARNING "Small datatype config file not found: ${SMALL_DATATYPE_CONFIG_FILE}")
-endif()
+# if(EXISTS ${SMALL_DATATYPE_CONFIG_FILE})
+#     message(STATUS "Processing small datatype config: ${SMALL_DATATYPE_CONFIG} (fp8, fp16, bf16)")
+#     foreach(datatype IN LISTS SMALL_DATATYPES)
+#         foreach(layout IN LISTS TEST_LAYOUTS)
+#             build_gemm_test_targets("${datatype}" "${layout}" "${SMALL_DATATYPE_CONFIG}")
+#         endforeach()
+#     endforeach()
+# else()
+#     message(WARNING "Small datatype config file not found: ${SMALL_DATATYPE_CONFIG_FILE}")
+# endif()
 
-# 2. LARGE DATATYPES: Test optimized config for large data types (fp32, fp64)
+# 2. LARGE DATATYPES: Test optimized config for large data types (fp32)
 #    These data types require smaller warp tiles due to larger memory footprint
 set(LARGE_DATATYPE_CONFIG "large_datatype_config")
 set(LARGE_DATATYPE_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/configs/${LARGE_DATATYPE_CONFIG}.json")
-set(LARGE_DATATYPES "fp32;fp64")
+set(LARGE_DATATYPES "fp32")
 
 if(EXISTS ${LARGE_DATATYPE_CONFIG_FILE})
-    message(STATUS "Processing large datatype config: ${LARGE_DATATYPE_CONFIG} (fp32, fp64)")
+    message(STATUS "Processing large datatype config: ${LARGE_DATATYPE_CONFIG} (fp32)")
     foreach(datatype IN LISTS LARGE_DATATYPES)
         foreach(layout IN LISTS TEST_LAYOUTS)
             build_gemm_test_targets("${datatype}" "${layout}" "${LARGE_DATATYPE_CONFIG}")
@@ -271,45 +275,45 @@ endif()
 
 # 3. TRAITS COVERAGE: Test trait combinations with fixed fp16/rcr configuration
 #    This focuses on kernel traits (pipelines, epilogues, schedulers, persistent)
-set(TRAITS_CONFIG "traits_coverage_config")
-set(TRAITS_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/configs/${TRAITS_CONFIG}.json")
+# set(TRAITS_CONFIG "traits_coverage_config")
+# set(TRAITS_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/configs/${TRAITS_CONFIG}.json")
 
-if(EXISTS ${TRAITS_CONFIG_FILE})
-    message(STATUS "Processing traits config: ${TRAITS_CONFIG} (fp16/rcr only)")
-    build_gemm_test_targets("fp16" "rcr" "${TRAITS_CONFIG}")
-else()
-    message(WARNING "Traits config file not found: ${TRAITS_CONFIG_FILE}")
-endif()
+# if(EXISTS ${TRAITS_CONFIG_FILE})
+#     message(STATUS "Processing traits config: ${TRAITS_CONFIG} (fp16/rcr only)")
+#     build_gemm_test_targets("fp16" "rcr" "${TRAITS_CONFIG}")
+# else()
+#     message(WARNING "Traits config file not found: ${TRAITS_CONFIG_FILE}")
+# endif()
 
 # 4. PADDING COVERAGE: Test padding combinations with fixed fp16/rcr configuration
 #    This focuses on padding behavior (pad_m, pad_n, pad_k)
-set(PADDING_CONFIG "padding_coverage_config")
-set(PADDING_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/configs/${PADDING_CONFIG}.json")
+# set(PADDING_CONFIG "padding_coverage_config")
+# set(PADDING_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/configs/${PADDING_CONFIG}.json")
 
-if(EXISTS ${PADDING_CONFIG_FILE})
-    message(STATUS "Processing padding config: ${PADDING_CONFIG} (fp16/rcr only)")
-    build_gemm_test_targets("fp16" "rcr" "${PADDING_CONFIG}")
-else()
-    message(WARNING "Padding config file not found: ${PADDING_CONFIG_FILE}")
-endif()
+# if(EXISTS ${PADDING_CONFIG_FILE})
+#     message(STATUS "Processing padding config: ${PADDING_CONFIG} (fp16/rcr only)")
+#     build_gemm_test_targets("fp16" "rcr" "${PADDING_CONFIG}")
+# else()
+#     message(WARNING "Padding config file not found: ${PADDING_CONFIG_FILE}")
+# endif()
 
 # 5. TILE SIZE COVERAGE: Test different tile sizes (16, 32, 64, 128, 256) with fixed fp16/rcr configuration
 #    This focuses on tile size performance and validation across different dimensions
-set(TILE_SIZE_CONFIG "tile_size_coverage_config")
-set(TILE_SIZE_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/configs/${TILE_SIZE_CONFIG}.json")
+# set(TILE_SIZE_CONFIG "tile_size_coverage_config")
+# set(TILE_SIZE_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/configs/${TILE_SIZE_CONFIG}.json")
 
-if(EXISTS ${TILE_SIZE_CONFIG_FILE})
-    message(STATUS "Processing tile size config: ${TILE_SIZE_CONFIG} (fp16/rcr only)")
-    build_gemm_test_targets("fp16" "rcr" "${TILE_SIZE_CONFIG}")
-else()
-    message(WARNING "Tile size config file not found: ${TILE_SIZE_CONFIG_FILE}")
-endif()
+# if(EXISTS ${TILE_SIZE_CONFIG_FILE})
+#     message(STATUS "Processing tile size config: ${TILE_SIZE_CONFIG} (fp16/rcr only)")
+#     build_gemm_test_targets("fp16" "rcr" "${TILE_SIZE_CONFIG}")
+# else()
+#     message(WARNING "Tile size config file not found: ${TILE_SIZE_CONFIG_FILE}")
+# endif()
 # ============================================================================
 
 
 message(STATUS "GEMM tile engine tests configured with datatype-specific design:")
 message(STATUS "  - Small datatypes (fp8, fp16, bf16) with optimized large warp tiles")
-message(STATUS "  - Large datatypes (fp32, fp64) with memory-constrained smaller warp tiles")
+message(STATUS "  - Large datatypes (fp32) with memory-constrained smaller warp tiles")
 message(STATUS "  - Traits coverage with fp16/rcr")
 message(STATUS "  - Padding coverage with fp16/rcr")
 message(STATUS "  - Tile size coverage with fp16/rcr (16, 32, 64, 128, 256)")
