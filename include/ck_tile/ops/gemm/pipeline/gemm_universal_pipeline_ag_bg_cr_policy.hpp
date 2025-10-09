@@ -895,14 +895,10 @@ struct UniversalGemmPipelineAgBgCrPolicy
             : vector_size * 4 == thread_elements              ? WGAttrNumAccessEnum::Quad
                                                               : WGAttrNumAccessEnum::Invalid;
 
-        using ADataType = remove_cvref_t<typename Problem::ADataType>;
-        using BDataType = remove_cvref_t<typename Problem::BDataType>;
-        using ATypeToUse =
-            std::conditional_t<std::is_same_v<ADataType, pk_int4_t>, BDataType, ADataType>;
-        using BTypeToUse = std::conditional_t<std::is_same_v<BDataType, pk_int4_t> ||
-                                                  std::is_same_v<BDataType, pk_fp4_raw_t>,
-                                              ADataType,
-                                              BDataType>;
+        using ADataType  = remove_cvref_t<typename Problem::ADataType>;
+        using BDataType  = remove_cvref_t<typename Problem::BDataType>;
+        using ATypeToUse = typename DetermineWarpPrecType<ADataType, BDataType>::prec_type;
+        using BTypeToUse = typename DetermineWarpPrecType<BDataType, ADataType>::prec_type;
 
         using WarpGemm = WarpGemmDispatcher<ATypeToUse,
                                             BTypeToUse,
