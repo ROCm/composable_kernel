@@ -12,6 +12,7 @@ function(add_ck_builder_test test_name)
     target_compile_options(${test_name} PRIVATE
         -Wno-global-constructors
         -Wno-c++20-compat
+        -Wno-error=missing-include-dirs
     )
     target_link_libraries(${test_name} PRIVATE GTest::gtest GTest::gtest_main GTest::gmock)
 endfunction()
