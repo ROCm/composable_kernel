@@ -1,6 +1,6 @@
 #pragma once
 
-#include "conv_algorithm_concepts.hpp"
+#include "conv_algorithm.hpp"
 
 namespace ck_tile::builder {
 // Convenience struct for a tuple of m, n, and k values.
