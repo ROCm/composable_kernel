@@ -7,7 +7,6 @@
 #include "ck/utility/dtype_vector.hpp"
 #include "ck/utility/type_convert.hpp"
 #include "ck/utility/amd_address_space.hpp"
-#include "ck/utility/amd_buffer_addressing.hpp"
 #include "ck/utility/dynamic_buffer.hpp"
 #include "ck/tensor/static_tensor.hpp"
 
