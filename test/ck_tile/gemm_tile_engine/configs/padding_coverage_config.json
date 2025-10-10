@@ -24,9 +24,9 @@
     "pipeline": {"values": ["compv3"]},
     "epilogue": {"values": ["default"]},
     "scheduler": {"values": ["intrawave"]},
-    "pad_m": {"values": [false, true]},
-    "pad_n": {"values": [false, true]},
-    "pad_k": {"values": [false, true]},
+    "pad_m": {"values": [true]},
+    "pad_n": {"values": [true]},
+    "pad_k": {"values": [true]},
     "persistent": {"values": [false]}
   }
 }
