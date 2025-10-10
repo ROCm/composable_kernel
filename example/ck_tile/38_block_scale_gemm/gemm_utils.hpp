@@ -9,11 +9,7 @@
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "ck_tile/ops/gemm_group_quant.hpp"
-
-#define CK_TILE_PIPELINE_PREFILL 1
-#define CK_TILE_PIPELINE_DECODE 2
-#define CK_TILE_PIPELINE_PRESHUFFLEQUANT 3
+#include "ck_tile/ops/gemm_quant.hpp"
 
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()
@@ -46,6 +42,13 @@ constexpr ck_tile::index_t get_k_from_preshuffled_warp_tile()
     else
         return sizeof(PrecType) == 2 ? 32 : 64;
 #endif
+}
+
+template <typename Layout>
+static constexpr inline auto is_row_major(Layout layout_)
+{
+    return ck_tile::bool_constant<std::is_same_v<ck_tile::remove_cvref_t<decltype(layout_)>,
+                                                 ck_tile::tensor_layout::gemm::RowMajor>>{};
 }
 
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
@@ -81,10 +84,14 @@ struct GemmConfigBase
     static constexpr bool TransposeC            = false;
     static constexpr bool UseStructuredSparsity = false;
 
+    static constexpr int kBlockPerCu = 1;
+    static constexpr auto Scheduler  = ck_tile::GemmPipelineScheduler::Intrawave;
+
     static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
     static constexpr ck_tile::index_t TileParitionerM01      = 4;
 
     static constexpr bool PreshuffleQuant  = false;
+    static constexpr bool PreshuffleB      = false;
     static constexpr bool DoubleSmemBuffer = false;
 };
 
@@ -102,8 +109,22 @@ struct GemmConfigQuant : public GemmConfigBase
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
+};
 
-    static constexpr int kBlockPerCu = 1;
+template <typename PrecType>
+struct GemmConfigRowColQuant : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 16;
+    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 256 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
 };
 
 template <typename PrecType>
@@ -122,9 +143,27 @@ struct GemmConfigPreshuffleQuant : public GemmConfigBase
     static constexpr ck_tile::index_t K_Warp_Tile =
         get_k_from_preshuffled_warp_tile<PrecType, M_Warp_Tile>();
 
-    static constexpr int kBlockPerCu = 1;
-
     static constexpr bool PreshuffleQuant = true;
+};
+
+template <typename PrecType>
+struct GemmConfigPreshuffleB_Bquant_decode : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 16;
+    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t K_Tile = 256 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        get_k_from_preshuffled_warp_tile<PrecType, M_Warp_Tile>();
+
+    static constexpr bool PreshuffleB      = true;
+    static constexpr bool DoubleSmemBuffer = true;
 };
 
 template <typename ADataType_,
@@ -204,27 +243,26 @@ auto create_args(int argc, char* argv[])
         .insert("n", "4096", "n dimension")
         .insert("k", "2048", "k dimension")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
-        .insert("aq_layout", "R", "Aq tensor data layout - Row by default")
         .insert("b_layout", "C", "B tensor data layout - Column by default")
+        .insert("bq_layout", "C", "Bq tensor data layout - Column by default")
         .insert("c_layout", "R", "C tensor data layout - Row by default")
         .insert("stride_a", "0", "Tensor A stride")
         .insert("stride_q", "0", "Tensor AQ stride")
         .insert("stride_b", "0", "Tensor B stride")
         .insert("stride_c", "0", "Tensor C stride")
         .insert("v", "1", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
-        .insert("prec", "fp8", "data type. fp8/bf8/i4fp8/i4bf8/i4f32fp8/i4f32bf8")
+        .insert("prec",
+                "fp8",
+                "data type. For AQuant: fp8/bf8/i4fp8/i4bf8, For Bquant: fp8/bf8/fp8i4/bf8i4")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "1000", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("split_k", "1", "splitK value")
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
-        .insert("persistent", "0", "0:non-persistent, 1:persistent")
-        .insert("as_br_cr", "false", "Choose between as_br_cr and as_bs_cr")
-        .insert("quant_mode", "aquant", "Choose aquant (default) or rowcol");
+        .insert("flush_cache", "true", "flush cache before running the kernel, defaults to true")
+        .insert("rotating_count", "1000", "rotating count, defaults to 1")
+        .insert("quant_mode", "aquant", "Choose aquant (default), bquant, tensor or rowcol");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
-
-// host API
-float gemm_calc_aquant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s);

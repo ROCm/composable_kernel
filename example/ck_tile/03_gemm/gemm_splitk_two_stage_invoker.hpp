@@ -11,6 +11,12 @@ struct GemmConfigTwoStage : public GemmConfigComputeV3<PrecType_>
     using WorkspaceType = ck_tile::remove_cvref_t<WorkspaceType_>;
 };
 
+template <typename PrecType_, typename WorkspaceType_>
+struct GemmConfigTwoStage_Wmma : public GemmConfigComputeV3_WMMA<PrecType_>
+{
+    using WorkspaceType = ck_tile::remove_cvref_t<WorkspaceType_>;
+};
+
 struct SplitKTwoStageInvoker
 {
     template <typename GemmConfig,
@@ -155,8 +161,7 @@ struct SplitKTwoStageInvoker
             for(auto d : shape)
                 total_elements *= d;
 
-            constexpr ck_tile::index_t kBlockSize =
-                ck_tile::get_warp_size() * BlockWarps::at(ck_tile::number<0>{});
+            const ck_tile::index_t kBlockSize      = ElementwiseKernel::BlockSize();
             constexpr ck_tile::index_t kBlockPerCu = 1;
 
             constexpr ck_tile::index_t elements_per_block = BlockTile::at(ck_tile::number<0>{});
@@ -226,7 +231,7 @@ struct SplitKTwoStageInvoker
                 preprocess = clear_gemm_output;
             }
 
-            return ck_tile::launch_kernel_time_mask(
+            ave_time = ck_tile::launch_kernel_time_mask(
                 s,
                 preprocess,
                 ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
@@ -240,20 +245,21 @@ struct SplitKTwoStageInvoker
                                                   ck_tile::make_tuple(args.N, 1), // Output Stride
                                                   input_tensors,
                                                   static_cast<CDataType*>(c_ptr)));
+
+            return ave_time;
         };
 
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
             if(args.k_batch == 1)
             {
-                Run(has_hot_loop_, tail_number_, MemoryOpSet{});
+                return Run(has_hot_loop_, tail_number_, MemoryOpSet{});
             }
             else
             {
-                Run(has_hot_loop_, tail_number_, MemoryOpAtomicAdd{});
+                return Run(has_hot_loop_, tail_number_, MemoryOpAtomicAdd{});
             }
         };
 
-        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
-        return ave_time;
+        return ave_time = BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
     }
 };

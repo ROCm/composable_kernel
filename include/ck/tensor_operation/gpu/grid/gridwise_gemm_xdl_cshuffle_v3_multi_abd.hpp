@@ -34,19 +34,22 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3(typename GridwiseGemm::Argument karg)
 {
-#if defined(__gfx9__)
-    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
+    {
+        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        karg.p_as_grid,
-        karg.p_bs_grid,
-        karg.p_ds_grid,
-        karg.p_c_grid,
-        p_shared,
-        karg,
-        karg.a_element_op,
-        karg.b_element_op,
-        karg.c_element_op);
+        GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+            karg.p_as_grid,
+            karg.p_bs_grid,
+            karg.p_ds_grid,
+            karg.p_c_grid,
+            p_shared,
+            karg,
+            karg.a_element_op,
+            karg.b_element_op,
+            karg.c_element_op);
+    }
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -64,23 +67,26 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     // __attribute__((amdgpu_waves_per_eu(1, 1)))
     kernel_gemm_xdl_cshuffle_v3_2lds(typename GridwiseGemm::Argument karg)
 {
-#if defined(__gfx9__)
-    // Pass two lds pointer is the key to tell compiler that ds_read/write
-    // operate on different lds chunk at same time without order dependecy
-    __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-    __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+#if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
+    {
+        // Pass two lds pointer is the key to tell compiler that ds_read/write
+        // operate on different lds chunk at same time without order dependecy
+        __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-        karg.p_as_grid,
-        karg.p_bs_grid,
-        karg.p_ds_grid,
-        karg.p_c_grid,
-        p_shared_0,
-        p_shared_1,
-        karg,
-        karg.a_element_op,
-        karg.b_element_op,
-        karg.c_element_op);
+        GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+            karg.p_as_grid,
+            karg.p_bs_grid,
+            karg.p_ds_grid,
+            karg.p_c_grid,
+            p_shared_0,
+            p_shared_1,
+            karg,
+            karg.a_element_op,
+            karg.b_element_op,
+            karg.c_element_op);
+    }
 #else
     ignore = karg;
 #endif // end of if (defined(__gfx9__))
@@ -1111,6 +1117,8 @@ struct GridwiseGemm_xdl_cshuffle_v3
                           b_block_space_size_aligned * sizeof(LDSTypeB)),
                          c_block_size * sizeof(CShuffleDataType));
     }
+
+    IS_VALID_COMPILATION_PARAMETER_IMPL(CDataType)
 
     // block_id to matrix tile idx (m0, n0) mapping are controlled by {M01, N01}
     __host__ static constexpr bool CheckValidity(const Argument& karg)

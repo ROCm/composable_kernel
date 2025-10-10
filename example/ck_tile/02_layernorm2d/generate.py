@@ -114,15 +114,11 @@ struct layernorm2d_fwd_traits_
     static constexpr ck_tile::index_t Block_M = Repeat_M_ * ThreadPerBlock_M_;
     static constexpr ck_tile::index_t Block_N = Repeat_N_ * ThreadPerBlock_N_ * Vector_N_;
 
-    static constexpr ck_tile::index_t Warp_M = ThreadPerBlock_M_ / BlockWarps_M;
-    static constexpr ck_tile::index_t Warp_N = ThreadPerBlock_N_ / BlockWarps_N * Vector_N_;
-
     using BlockTile  = ck_tile::sequence<Block_M, Block_N>;
-    using BlockWarps = ck_tile::sequence<BlockWarps_M, BlockWarps_N>;
-    using WarpTile   = ck_tile::sequence<Warp_M, Warp_N>;
     using Vector     = ck_tile::sequence<1, Vector_N_>;
+    using ThreadPerBlock = ck_tile::sequence<ThreadPerBlock_M_, ThreadPerBlock_N_>;
 
-    using Shape = ck_tile::Generic2dBlockShape<BlockTile, BlockWarps, WarpTile, Vector>;
+    using Shape = ck_tile::Generic2dBlockShape<BlockTile, ThreadPerBlock, Vector>;
 
     static constexpr bool kPadN           = kPadN_;
     static constexpr bool kSaveMeanInvStd = kSaveMeanInvStd_;

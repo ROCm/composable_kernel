@@ -46,6 +46,58 @@ def runShell(String command){
     return (output != "")
 }
 
+def shouldRunCICheck() {
+    // Define patterns for files that should not trigger CI
+    def skipFilePatterns = [
+        /^\.github\/.*/, // GitHub workflow files
+        /^docs\/.*/, // Documentation files
+        /^LICENSE$/, // License file
+        /^.*\.gitignore$/, // Git ignore files
+        /.*\.md$/ // Markdown files
+    ]
+    
+    try {
+        // Get the list of changed files
+        def changedFiles = sh(
+            returnStdout: true,
+            script: '''
+                if [ "$CHANGE_ID" != "" ]; then
+                    # For PR builds, compare against target branch
+                    git diff --name-only origin/$CHANGE_TARGET...HEAD
+                else
+                    # For regular builds, compare against previous commit
+                    git diff --name-only HEAD~1..HEAD
+                fi
+            '''
+        ).trim().split('\n')
+        
+        if (changedFiles.isEmpty() || (changedFiles.size() == 1 && changedFiles[0].trim().isEmpty())) {
+            echo "No changed files detected - this might be a manual trigger or merge commit, running CI for safety"
+            return true
+        }
+        
+        echo "Changed files: ${changedFiles.join(', ')}"
+        
+        // Check if any changed files are not in the skip patterns
+        def hasFilesRequiringCI = changedFiles.any { file ->
+            !skipFilePatterns.any { pattern ->
+                file ==~ pattern
+            }
+        }
+        
+        if (hasFilesRequiringCI) {
+            echo "Found files that require CI"
+            return true
+        } else {
+            echo "Only non-relevant files changed, skipping CI"
+            return false
+        } 
+    } catch (Exception e) {
+        echo "Error checking changed files: ${e.getMessage()}, running CI by default"
+        return true
+    }
+}
+
 def getBaseDockerImageName(){
     def img
     if (params.USE_CUSTOM_DOCKER != ""){
@@ -53,7 +105,7 @@ def getBaseDockerImageName(){
     }
     else{
         def ROCM_numeric = parseVersion("${params.ROCMVERSION}")
-        if ( ROCM_numeric.major <= 6 && ROCM_numeric.minor < 5 ){
+        if ( ROCM_numeric.major <= 7 && ROCM_numeric.minor < 1 ){
             img = "${env.CK_DOCKERHUB}:ck_ub24.04_rocm${params.ROCMVERSION}"
             }
         else{
@@ -149,7 +201,7 @@ def getDockerImage(Map conf=[:]){
         image = conf.get("docker_name", "")
         echo "Using legacy docker: ${image}"
     }
-    else if ( params.BUILD_GFX950 && conf.get("docker_name", "") != "" ){
+    else if ( (params.BUILD_GFX950 || params.RUN_CK_TILE_FMHA_TESTS) && conf.get("docker_name", "") != "" ){
         image = conf.get("docker_name", "")
         echo "Using special docker: ${image}"
     }
@@ -157,9 +209,9 @@ def getDockerImage(Map conf=[:]){
         image = getDockerImageName()
         echo "Using default docker: ${image}"
     }
-    //Check if image exists 
+    //Check if image exists
     def retimage
-    try 
+    try
     {
         echo "Pulling image: ${image}"
         retimage = docker.image("${image}")
@@ -186,11 +238,11 @@ def buildDocker(install_prefix){
         dockerArgs = dockerArgs + " --no-cache --build-arg BASE_DOCKER='${base_image_name}' -f Dockerfile.compiler . "
     }
     else if(params.RUN_AITER_TESTS){
-        image_name = "rocm/composable_kernel:ck_aiter"
+        image_name = "${env.CK_DOCKERHUB_PRIVATE}:ck_aiter"
         dockerArgs = dockerArgs + " --no-cache -f Dockerfile.aiter --build-arg AITER_BRANCH='${params.aiter_branch}' --build-arg CK_AITER_BRANCH='${params.ck_aiter_branch}' . "
     }
      else if(params.RUN_PYTORCH_TESTS){
-        image_name = "rocm/composable_kernel:ck_pytorch"
+        image_name = "${env.CK_DOCKERHUB}:ck_pytorch"
         dockerArgs = dockerArgs + " --no-cache -f Dockerfile.pytorch --build-arg CK_PYTORCH_BRANCH='${params.ck_pytorch_branch}' . "
     }
    else{
@@ -232,7 +284,7 @@ def cmake_build(Map conf=[:]){
     def setup_args = conf.get("setup_args","")
     // make sure all unit tests always run on develop branch
     def runAllUnitTests = (env.BRANCH_NAME == "develop") ? true : params.RUN_ALL_UNIT_TESTS
-    
+
     if (prefixpath != "/usr/local"){
         setup_args = setup_args + " -DCMAKE_PREFIX_PATH=${prefixpath} "
     }
@@ -321,7 +373,7 @@ def cmake_build(Map conf=[:]){
                     ${redis_pre_setup_cmd}
                 """)
             sh cmd1
-            setup_args = " -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER_LAUNCHER=sccache " + setup_args
+            setup_args = " -DCMAKE_HIP_COMPILER_LAUNCHER=sccache -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_C_COMPILER_LAUNCHER=sccache " + setup_args
         }
         catch(Exception err){
             echo "could not connect to redis server: ${err.getMessage()}. will not use sccache."
@@ -357,7 +409,7 @@ def cmake_build(Map conf=[:]){
             "build_cmd",
             "${build_envs} ninja -j${nt} ${config_targets}"
         )
-        
+
         cmd = conf.get("cmd", """
             ${setup_cmd}
             ${build_cmd}
@@ -449,7 +501,7 @@ def buildHipClangJob(Map conf=[:]){
         checkout scm
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
 
-        // Jenkins is complaining about the render group 
+        // Jenkins is complaining about the render group
         def dockerOpts
         if ( params.BUILD_INSTANCES_ONLY ){
             dockerOpts = "--group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
@@ -476,7 +528,7 @@ def buildHipClangJob(Map conf=[:]){
         def retimage
         (retimage, image) = getDockerImage(conf)
 
-        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${variant}", account: 'ROCm', repo: 'composable_kernel') {
             withDockerContainer(image: image, args: dockerOpts + ' -v=/var/jenkins/:/var/jenkins') {
                 timeout(time: 20, unit: 'HOURS')
                 {
@@ -515,7 +567,7 @@ def Build_CK(Map conf=[:]){
         checkout scm
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
 
-        // Jenkins is complaining about the render group 
+        // Jenkins is complaining about the render group
         def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
         if (conf.get("enforce_xnack_on", false)) {
             dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
@@ -538,7 +590,7 @@ def Build_CK(Map conf=[:]){
         def image
         def retimage
 
-        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${variant}", account: 'ROCm', repo: 'composable_kernel') {
             try {
                 (retimage, image) = getDockerImage(conf)
                 withDockerContainer(image: image, args: dockerOpts) {
@@ -716,10 +768,10 @@ def process_results(Map conf=[:]){
     env.HSA_ENABLE_SDMA=0
     checkout scm
     //use older image that has user jenkins
-    def image = "rocm/composable_kernel:ck_ub22.04_rocm6.3"
+    def image = "${env.CK_DOCKERHUB}:ck_ub22.04_rocm6.3"
     def prefixpath = "/opt/rocm"
 
-    // Jenkins is complaining about the render group 
+    // Jenkins is complaining about the render group
     def dockerOpts="--cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
     if (conf.get("enforce_xnack_on", false)) {
         dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
@@ -728,7 +780,7 @@ def process_results(Map conf=[:]){
     def variant = env.STAGE_NAME
     def retimage
 
-    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${variant}", account: 'ROCm', repo: 'composable_kernel') {
         try
         {
             echo "Pulling image: ${image}"
@@ -827,7 +879,7 @@ def run_aiter_tests(Map conf=[:]){
     env.HSA_ENABLE_SDMA=0
     checkout scm
     //use the latest pytorch image
-    def image = "rocm/composable_kernel:ck_aiter"
+    def image = "${env.CK_DOCKERHUB_PRIVATE}:ck_aiter"
     def dockerOpts="--network=host --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --group-add irc --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --user=jenkins -v=/var/jenkins/:/var/jenkins"
     def variant = env.STAGE_NAME
     def retimage
@@ -836,7 +888,7 @@ def run_aiter_tests(Map conf=[:]){
     dockerOpts = dockerOpts + " --group-add=${video_id} --group-add=${render_id} "
     echo "Docker flags: ${dockerOpts}"
 
-    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${variant}", account: 'ROCm', repo: 'composable_kernel') {
         try
         {
             echo "Pulling image: ${image}"
@@ -852,13 +904,14 @@ def run_aiter_tests(Map conf=[:]){
     }
 
     withDockerContainer(image: image, args: dockerOpts) {
-        timeout(time: 2, unit: 'HOURS'){
+        timeout(time: 5, unit: 'HOURS'){
             try{
                 sh "rocminfo"
                 sh "python3 --version"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha.py"
+                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha_varlen.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_2stage.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe_blockscale.py"
@@ -885,7 +938,7 @@ def run_pytorch_tests(Map conf=[:]){
     env.HSA_ENABLE_SDMA=0
     checkout scm
     //use the latest pytorch-nightly image
-    def image = "rocm/composable_kernel:ck_pytorch"
+    def image = "${env.CK_DOCKERHUB}:ck_pytorch"
     def dockerOpts="--network=host --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --group-add irc --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --user=jenkins -v=/var/jenkins/:/var/jenkins"
     def variant = env.STAGE_NAME
     def retimage
@@ -894,7 +947,7 @@ def run_pytorch_tests(Map conf=[:]){
     dockerOpts = dockerOpts + " --group-add=${video_id} --group-add=${render_id} "
     echo "Docker flags: ${dockerOpts}"
 
-    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${variant}", account: 'ROCm', repo: 'composable_kernel') {
         try
         {
             echo "Pulling image: ${image}"
@@ -930,13 +983,14 @@ def run_pytorch_tests(Map conf=[:]){
 }
 
 //launch develop branch daily jobs
-CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_TILE_ENGINE_GEMM_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
-                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
-                                              0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true
-                                              0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true
-                                              0 15 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
-                                              0 13 * * * % RUN_AITER_TESTS=true;BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false
-                                              0 11 * * * % RUN_PYTORCH_TESTS=true;RUN_CODEGEN_TESTS=false;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;BUILD_GFX10=false;BUILD_GFX11=false;BUILD_GFX12=false;BUILD_GFX90A=false''' : ""
+CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_PERFORMANCE_TESTS=true;FORCE_CI=true
+                                              0 22 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_TILE_ENGINE_GEMM_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
+                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
+                                              0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
+                                              0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
+                                              0 15 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;FORCE_CI=true
+                                              0 13 * * * % RUN_AITER_TESTS=true;BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true
+                                              0 11 * * * % RUN_PYTORCH_TESTS=true;RUN_CODEGEN_TESTS=false;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;BUILD_GFX10=false;BUILD_GFX11=false;BUILD_GFX12=false;BUILD_GFX90A=false;FORCE_CI=true''' : ""
 
 pipeline {
     agent none
@@ -956,20 +1010,20 @@ pipeline {
             defaultValue: '',
             description: 'If you want to use a custom docker image, please specify it here (default: leave blank).')
         string(
-            name: 'ROCMVERSION', 
-            defaultValue: '6.4.1',
-            description: 'Specify which ROCM version to use: 6.4.1 (default).')
+            name: 'ROCMVERSION',
+            defaultValue: '7.0.1',
+            description: 'Specify which ROCM version to use: 7.0.1 (default).')
         string(
-            name: 'COMPILER_VERSION', 
-            defaultValue: '', 
+            name: 'COMPILER_VERSION',
+            defaultValue: '',
             description: 'Specify which version of compiler to use: release, amd-staging, amd-mainline, or leave blank (default).')
         string(
-            name: 'COMPILER_COMMIT', 
-            defaultValue: '', 
+            name: 'COMPILER_COMMIT',
+            defaultValue: '',
             description: 'Specify which commit of compiler branch to use: leave blank to use the latest commit (default), or use some specific commit of llvm-project branch.')
         string(
-            name: 'BUILD_COMPILER', 
-            defaultValue: '/opt/rocm/llvm/bin/clang++', 
+            name: 'BUILD_COMPILER',
+            defaultValue: '/opt/rocm/llvm/bin/clang++',
             description: 'Build CK with /opt/rocm/bin/hipcc, /llvm-project/build/bin/clang++, or with /opt/rocm/llvm/bin/clang++ (default).')
         booleanParam(
             name: "RUN_FULL_QA",
@@ -1033,12 +1087,12 @@ pipeline {
             description: "Build CK and run tests on gfx90a (default: ON)")
         booleanParam(
             name: "BUILD_GFX942",
-            defaultValue: false,
-            description: "Build CK and run tests on gfx942 (default: OFF)")
+            defaultValue: true,
+            description: "Build CK and run tests on gfx942 (default: ON)")
         booleanParam(
             name: "BUILD_GFX950",
-            defaultValue: false,
-            description: "Build CK and run tests on gfx950 (default: OFF)")
+            defaultValue: true,
+            description: "Build CK and run tests on gfx950 (default: ON)")
         booleanParam(
             name: "BUILD_GFX10",
             defaultValue: true,
@@ -1091,6 +1145,10 @@ pipeline {
             name: 'ck_aiter_branch',
             defaultValue: 'develop',
             description: 'Specify which branch of CK to test with AITER (default: develop)')
+        booleanParam(
+            name: "FORCE_CI",
+            defaultValue: false,
+            description: "Force CI to run even when only non-relevant files are changed (default: OFF)")
     }
     environment{
         dbuser = "${dbuser}"
@@ -1104,7 +1162,20 @@ pipeline {
         DOCKER_BUILDKIT = "1"
     }
     stages{
+        stage("Determine CI Execution") {
+            agent{ label rocmnode("nogpu") }
+            steps {
+                script {
+                    env.SHOULD_RUN_CI = String.valueOf(params.FORCE_CI.toBoolean() || shouldRunCICheck())
+                    echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
+                }
+            }
+        }
         stage("Build Docker"){
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
             parallel{
                 stage('Docker /opt/rocm'){
                     agent{ label rocmnode("nogpu") }
@@ -1116,6 +1187,11 @@ pipeline {
             }
         }
         stage("Static checks") {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+                expression { params.RUN_CPPCHECK.toBoolean() }
+            }
             parallel{
                 stage('Clang Format and Cppcheck') {
                     when {
@@ -1125,16 +1201,16 @@ pipeline {
                     agent{ label rocmnode("nogpu") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_cmd = "find .. -not -path \'*.git*\' -iname \'*.h\' \
-                                -o -not -path \'*.git*\' -iname \'*.hpp\' \
-                                -o -not -path \'*.git*\' -iname \'*.cpp\' \
-                                -o -iname \'*.h.in\' \
-                                -o -iname \'*.hpp.in\' \
-                                -o -iname \'*.cpp.in\' \
-                                -o -iname \'*.cl\' \
+                        execute_cmd = "(cd .. && git ls-files \'*.h\' \
+                                \'*.hpp\' \
+                                \'*.cpp\' \
+                                \'*.h.in\' \
+                                \'*.hpp.in\' \
+                                \'*.cpp.in\' \
+                                \'*.cl\' \
                                 | grep -v 'build/' \
                                 | grep -v 'include/rapidjson' \
-                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\' && \
+                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\') && \
                                 /cppcheck/build/bin/cppcheck ../* -v -j \$(nproc) -I ../include -I ../profiler/include -I ../library/include \
                                 -D CK_ENABLE_FP64 -D CK_ENABLE_FP32 -D CK_ENABLE_FP16 -D CK_ENABLE_FP8 -D CK_ENABLE_BF16 -D CK_ENABLE_BF8 -D CK_ENABLE_INT8 \
                                 -D __gfx908__ -D __gfx90a__ -D __gfx942__ -D __gfx1030__ -D __gfx1100__ -D __gfx1101__ -D __gfx1102__ \
@@ -1155,16 +1231,17 @@ pipeline {
                     agent{ label rocmnode("nogpu") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_cmd = "find .. -not -path \'*.git*\' -iname \'*.h\' \
-                                -o -not -path \'*.git*\' -iname \'*.hpp\' \
-                                -o -not -path \'*.git*\' -iname \'*.cpp\' \
-                                -o -iname \'*.h.in\' \
-                                -o -iname \'*.hpp.in\' \
-                                -o -iname \'*.cpp.in\' \
-                                -o -iname \'*.cl\' \
+                        execute_cmd = "(cd .. && git ls-files \
+                                \'*.h\' \
+                                \'*.hpp\' \
+                                \'*.cpp\' \
+                                \'*.h.in\' \
+                                \'*.hpp.in\' \
+                                \'*.cpp.in\' \
+                                \'*.cl\' \
                                 | grep -v 'build/' \
                                 | grep -v 'include/rapidjson' \
-                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\'"
+                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\')"
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
@@ -1175,6 +1252,10 @@ pipeline {
         }
          stage("Run Pytorch Tests")
         {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
             parallel
             {
                 stage("Run Pytorch Tests on gfx942")
@@ -1193,6 +1274,10 @@ pipeline {
         }
         stage("Run AITER Tests")
         {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
             parallel
             {
                 stage("Run AITER Tests on gfx942")
@@ -1207,10 +1292,26 @@ pipeline {
                         cleanWs()
                     }
                 }
+                stage("Run AITER Tests on gfx950")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_AITER_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx950")}
+                    steps{
+                        run_aiter_tests()
+                        cleanWs()
+                    }
+                }
             }
         }
         stage("Run Grouped Conv Large Case Tests")
         {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
             parallel
             {
                 stage("Run Grouped Conv Large Case Tests on gfx90a")
@@ -1235,6 +1336,10 @@ pipeline {
         }
         stage("Run Comprehensive Convolution Dataset Tests")
         {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
             parallel
             {
                 stage("Run Comprehensive Dataset Tests on gfx90a")
@@ -1267,6 +1372,10 @@ pipeline {
         }
         stage("Run Codegen Tests")
         {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
             parallel
             {
                 stage("Run Codegen Tests on gfx90a")
@@ -1278,7 +1387,7 @@ pipeline {
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_args = """ CXX=/opt/rocm/llvm/bin/clang++ cmake ../codegen && \
+                        execute_args = """ CXX=/opt/rocm/llvm/bin/clang++ cmake -DCMAKE_PREFIX_PATH=/opt/rocm ../codegen && \
                                            make -j64 check"""
                     }
                     steps{
@@ -1290,6 +1399,10 @@ pipeline {
         }
         stage("Run CK_TILE_FMHA Tests")
         {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
             parallel
             {
                 stage("Run CK_TILE_FMHA Tests on gfx90a")
@@ -1321,9 +1434,28 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
-                                           make -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
+                                           make -j128 tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
                                            example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+                }
+                stage("Run CK_TILE_FMHA Tests on gfx950")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_CK_TILE_FMHA_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx950") }
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx950 && \
+                                           make -j128 tile_example_fmha_fwd tile_example_fmha_bwd && \
+                                           cd ../ &&
+                                           example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx950 """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1334,6 +1466,10 @@ pipeline {
         }
         stage("Run TILE_ENGINE_GEMM Tests")
         {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
             parallel
             {
                 stage("Run TILE_ENGINE_GEMM Tests on gfx90a")
@@ -1353,9 +1489,14 @@ pipeline {
                                             -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
+                                            -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8" \
+                                            -D GEMM_PRESHUFFLE_LAYOUT="rcr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_all && \
                                            python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" \
+                                           --warmup 5 --repeat 5 --verbose --json results.json && \
+                                           ninja -j64 benchmark_gemm_preshuffle_all && \
+                                           python3 ../tile_engine/ops/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" \
                                            --warmup 5 --repeat 5 --verbose --json results.json && \
                                            ninja -j64 benchmark_gemm_multi_d_fp16_rrrr && \
                                            ./bin/benchmark_gemm_multi_d_fp16_rrrr && \
@@ -1388,9 +1529,14 @@ pipeline {
                                             -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
+                                            -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8" \
+                                            -D GEMM_PRESHUFFLE_LAYOUT="rcr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_all && \
                                            python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" \
+                                           --warmup 5 --repeat 5 --verbose --json results.json && \
+                                           ninja -j64 benchmark_gemm_preshuffle_all && \
+                                           python3 ../tile_engine/ops/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" \
                                            --warmup 5 --repeat 5 --verbose --json results.json && \
                                            ninja -j64 benchmark_gemm_multi_d_fp16_rrrr && \
                                            ./bin/benchmark_gemm_multi_d_fp16_rrrr && \
@@ -1406,11 +1552,45 @@ pipeline {
                         cleanWs()
                     }
                 }
+                stage("Run TILE_ENGINE_GEMM Tests on gfx1201")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_TILE_ENGINE_GEMM_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx1201") }
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                            -D CMAKE_CXX_COMPILER="${build_compiler()}" \
+                                            -D CMAKE_BUILD_TYPE=Release \
+                                            -D GPU_TARGETS="gfx1201" \
+                                            -D GEMM_DATATYPE="fp16" \
+                                            -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
+                                            -DGEMM_CONFIG_FILE=gfx120x_config.json \
+                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && \
+                                           ninja -j64 benchmark_gemm_all && \
+                                           python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" \
+                                           --warmup 5 --repeat 5 --verbose --json results.json && \
+                                           ninja -j64 benchmark_gemm_fp16_rcr && \
+                                           ninja -j64 benchmark_gemm_fp16_rrr && \
+                                           ninja -j64 benchmark_gemm_fp16_crr && \
+                                           ninja -j64 benchmark_gemm_fp16_ccr """
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+                }
             }
         }
 
 		stage("Build CK and run Tests")
         {
+            when {
+                beforeAgent true
+                expression { env.SHOULD_RUN_CI.toBoolean() }
+            }
             parallel
             {
                 stage("Build CK with RHEL8")
@@ -1494,7 +1674,7 @@ pipeline {
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_ub24.04_rocm7.0", config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                         cleanWs()
                     }
                 }
@@ -1549,7 +1729,7 @@ pipeline {
                     agent{ label rocmnode("gfx942") }
                     steps{
                         script {
-                            def execute_args = params.NINJA_FTIME_TRACE ? 
+                            def execute_args = params.NINJA_FTIME_TRACE ?
                                 """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
                                     -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                     -D CMAKE_BUILD_TYPE=Release \
@@ -1558,8 +1738,8 @@ pipeline {
                                     -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                     -D CMAKE_BUILD_TYPE=Release \
                                     -D CMAKE_CXX_FLAGS=" -O3 " .. && ninja -j64 """
-                            
-                            buildHipClangJobAndReboot(setup_cmd: "",  build_cmd: "", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_ub24.04_rocm7.0")
+
+                            buildHipClangJobAndReboot(setup_cmd: "",  build_cmd: "", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, docker_name: "${env.CK_DOCKERHUB}:ck_ub24.04_rocm7.0.1")
                         }
                         cleanWs()
                     }
@@ -1585,13 +1765,13 @@ pipeline {
                         cleanWs()
                     }
                 }
-                stage("Build CK and run Tests on gfx1101")
+                stage("Build CK and run Tests on gfx11")
                 {
                     when {
                         beforeAgent true
                         expression { params.BUILD_GFX11.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
-                    agent{ label rocmnode("gfx1101") }
+                    agent{ label 'miopen && (gfx1101 || gfx1100)' }
                     environment{
                         setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx11-generic" -DUSE_OPT_GFX11=ON -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
@@ -1628,6 +1808,17 @@ pipeline {
                     }
                 }
             }
+            post {
+                success {
+                    script {
+                        // Report the parent stage build ck and run tests status
+                        def variant = env.STAGE_NAME
+                        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${variant}", account: 'ROCm', repo: 'composable_kernel') {
+                            echo "Reporting success status for build ck and run tests"
+                        }
+                    }
+                }
+            }
         }
         stage("Process Performance Test Results")
         {
@@ -1642,6 +1833,22 @@ pipeline {
                     steps{
                         process_results()
                         cleanWs()
+                    }
+                }
+            }
+            post {
+                success {
+                    script {
+                        // Report the skipped parent's stage status
+                        def parentVariant = "Process Performance Test Results"
+                        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${parentVariant}", account: 'ROCm', repo: 'composable_kernel') {
+                            echo "Process Performance Test Results stage skipped."
+                        }
+                        // Report the skipped stage's status
+                        def variant = "Process results"
+                        gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "${variant}", account: 'ROCm', repo: 'composable_kernel') {
+                            echo "Process Performance Test Results stage skipped."
+                        }
                     }
                 }
             }

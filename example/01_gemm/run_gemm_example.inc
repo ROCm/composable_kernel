@@ -2,7 +2,11 @@
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-#include "ck/library/utility/validation_common.hpp"
+
+// use macro to minimize code change
+#ifndef EXAMPLE_WITH_COMPUTE_DATATYPE
+using ComputeDataType = AccDataType;
+#endif
 
 template <typename ProblemType>
 bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
@@ -24,11 +28,11 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
             {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
+                return HostTensorDescriptor({row, col}, {stride, 1_uz}, layout);
             }
             else
             {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
+                return HostTensorDescriptor({row, col}, {1_uz, stride}, layout);
             }
         };
 
@@ -53,17 +57,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     StrideA = f_get_default_stride(M, K, StrideA, ALayout{});
     StrideB = f_get_default_stride(K, N, StrideB, BLayout{});
     StrideC = f_get_default_stride(M, N, StrideC, CLayout{});
-
-    try
-    {
-        ck::utils::validate_gemm_strides_abc<ALayout, BLayout, CLayout>(
-            M, N, K, StrideA, StrideB, StrideC);
-    }
-    catch(const std::runtime_error& e)
-    {
-        std::cerr << "Error: " << e.what() << std::endl;
-        return false;
-    }
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, StrideB, BLayout{}));
@@ -218,8 +211,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         pass &= ck::utils::check_err(c_m_n_device_result,
                                      c_m_n_host_result,
                                      "Error: Incorrect results!",
-                                     get_rtol<CDataType>(),
-                                     get_atol<CDataType>());
+                                     get_rtol<CDataType, ComputeDataType>(),
+                                     get_atol<CDataType, ComputeDataType>());
 #endif
     }
 
@@ -249,8 +242,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         pass &= ck::utils::check_err(c_m_n_device_result,
                                      c_m_n_device_ref_result,
                                      "Error: Incorrect results!",
-                                     get_rtol<CDataType>(),
-                                     get_atol<CDataType>());
+                                     get_rtol<CDataType, ComputeDataType>(),
+                                     get_atol<CDataType, ComputeDataType>());
     }
 
     return pass == true;

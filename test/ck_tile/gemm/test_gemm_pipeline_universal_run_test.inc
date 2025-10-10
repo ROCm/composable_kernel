@@ -325,6 +325,13 @@ int run_gemm_combinations()
                 // Call the function with the current configuration
                 try
                 {
+#if CK_TILE_USE_WMMA
+                    is_success = run_gemm_test<GemmConfigComputeV3_WMMA<CPrecType>,
+                                               APrecType,
+                                               BPrecType,
+                                               CPrecType>(ARG_COUNT, argv) &&
+                                 is_success;
+#else
                     is_success = run_gemm_test<GemmConfigComputeV3<CPrecType>,
                                                APrecType,
                                                BPrecType,
@@ -335,6 +342,7 @@ int run_gemm_combinations()
                                                BPrecType,
                                                CPrecType>(ARG_COUNT, argv) &&
                                  is_success;
+#endif
                 }
                 catch(const ArgumentsNotSupportedException& e)
                 {
@@ -349,5 +357,5 @@ int run_gemm_combinations()
             }
         }
     }
-    return is_success ? EXIT_SUCCESS : EXIT_FAILURE;
+    return is_success;
 }

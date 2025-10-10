@@ -4,6 +4,7 @@
 #pragma once
 
 #include <string>
+#include <variant>
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
@@ -71,6 +72,7 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t Pipeline      = CK_TILE_PIPELINE_COMPUTE_V3;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
     static constexpr bool Preshuffle                = false;
+    static constexpr bool TiledMMAPermuteN          = false;
 };
 
 template <typename PrecType>
@@ -173,7 +175,6 @@ struct GemmConfigComputeV3_2 : public GemmConfigBase
     static constexpr int kBlockPerCu = 2;
 };
 
-#if CK_TILE_USE_WMMA
 template <typename PrecType>
 struct GemmConfigComputeV3_WMMA : public GemmConfigBase
 {
@@ -194,7 +195,6 @@ struct GemmConfigComputeV3_WMMA : public GemmConfigBase
 
     static constexpr int kBlockPerCu = 2;
 };
-#endif
 
 template <typename PrecType>
 struct GemmConfigComputeV4 : public GemmConfigBase
@@ -276,6 +276,8 @@ struct GemmConfigPreshuffleDecode : public GemmConfigBase
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
     static constexpr bool Preshuffle           = true;
     static constexpr bool DoubleSmemBuffer     = true;
+    static constexpr int N_Repeat              = N_Tile / N_Warp_Tile / N_Warp;
+    static constexpr bool TiledMMAPermuteN     = N_Repeat % 2 == 0;
 };
 
 template <typename PrecType>
@@ -298,6 +300,16 @@ struct GemmConfigPreshufflePrefill : public GemmConfigBase
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
     static constexpr bool Preshuffle           = true;
     static constexpr bool DoubleSmemBuffer     = true;
+    static constexpr int N_Repeat              = N_Tile / N_Warp_Tile / N_Warp;
+    static constexpr bool TiledMMAPermuteN     = N_Repeat % 2 == 0;
+};
+
+template <typename PrecType>
+struct GemmConfigPreshufflePrefill_Wmma : public GemmConfigPreshufflePrefill<PrecType>
+{
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
 };
 
 template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>
@@ -336,6 +348,24 @@ struct GemmTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>
 {
     using ADataType   = ck_tile::bf8_t;
     using BDataType   = ck_tile::bf8_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::half_t;
+};
+
+template <>
+struct GemmTypeConfig<ck_tile::fp8_t, ck_tile::pk_int4_t, ck_tile::half_t>
+{
+    using ADataType   = ck_tile::fp8_t;
+    using BDataType   = ck_tile::pk_int4_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::half_t;
+};
+
+template <>
+struct GemmTypeConfig<ck_tile::bf8_t, ck_tile::pk_int4_t, ck_tile::half_t>
+{
+    using ADataType   = ck_tile::bf8_t;
+    using BDataType   = ck_tile::pk_int4_t;
     using AccDataType = float;
     using CDataType   = ck_tile::half_t;
 };
