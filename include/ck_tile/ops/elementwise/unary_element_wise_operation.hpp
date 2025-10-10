@@ -1464,6 +1464,23 @@ struct Bias
     float bias_;
 };
 
+struct Clamp
+{
+    CK_TILE_HOST_DEVICE Clamp(const float lower = std::numeric_limits<float>::lowest(),
+                              const float upper = std::numeric_limits<float>::max())
+        : lower_(lower), upper_(upper) {};
+
+    template <typename T>
+    CK_TILE_HOST_DEVICE constexpr void operator()(T& y, const T& x) const
+    {
+        T lower = ck_tile::type_convert<T>(lower_);
+        T upper = ck_tile::type_convert<T>(upper_);
+        y       = ck_tile::clamp(x, lower, upper);
+    }
+
+    float lower_, upper_;
+};
+
 struct ConvInvscale
 {
     CK_TILE_HOST_DEVICE
