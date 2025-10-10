@@ -430,27 +430,27 @@ if(CK_DEVICE_GEMM_INSTANCES AND NOT MIOPEN_REQ_LIBS_ONLY)
         )
 endif()
 foreach(lib ${CONV_LIBS})
-    if(CK_DEVICE_CONV_"${lib}"_INSTANCES)
-        add_library(device_conv_"${lib}"_operations ${CK_DEVICE_CONV_"${lib}"_INSTANCES})
-        add_library(composablekernels::device_conv_"${lib}"_operations ALIAS device_conv_"${lib}"_operations)
-        target_compile_features(device_conv_"${lib}"_operations PUBLIC)
-        set_target_properties(device_conv_"${lib}"_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
-        set_target_properties(device_conv_"${lib}"_operations
+    if(CK_DEVICE_CONV_${lib}_INSTANCES)
+        add_library(device_conv_${lib}_operations ${CK_DEVICE_CONV_${lib}_INSTANCES})
+        add_library(composablekernels::device_conv_${lib}_operations ALIAS device_conv_${lib}_operations)
+        target_compile_features(device_conv_${lib}_operations PUBLIC)
+        set_target_properties(device_conv_${lib}_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
+        set_target_properties(device_conv_${lib}_operations
             PROPERTIES
             VERSION ${CMAKE_PROJECT_VERSION}
             SOVERSION ${CMAKE_PROJECT_VERSION_MAJOR}
         )
-        target_include_directories(device_conv_"${lib}"_operations PUBLIC
+        target_include_directories(device_conv_${lib}_operations PUBLIC
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu>
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/conv_tensor_rearrange>
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data>
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight>
             $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_fwd>
         )
-        rocm_install(TARGETS device_conv_"${lib}"_operations
-            EXPORT device_conv_"${lib}"_operationsTargets)
-        rocm_install(EXPORT device_conv_"${lib}"_operationsTargets
-            FILE composable_kerneldevice_conv_"${lib}"_operationsTargets.cmake
+        rocm_install(TARGETS device_conv_${lib}_operations
+            EXPORT device_conv_${lib}_operationsTargets)
+        rocm_install(EXPORT device_conv_${lib}_operationsTargets
+            FILE composable_kerneldevice_conv_${lib}_operationsTargets.cmake
             NAMESPACE composable_kernel::
             DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
         )
