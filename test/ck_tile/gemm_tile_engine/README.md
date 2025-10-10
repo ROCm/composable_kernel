@@ -22,6 +22,13 @@ JSON Config → tile_engine Python scripts → Generated Headers → Test Execut
 - **Same verification**: Uses tile_engine's adaptive error thresholds and reference calculations
 - **Same patterns**: Follows tile_engine's tensor initialization, stride calculation, and kernel launching
 
+### Config-Specific Test Parameters
+
+Each test configuration can specify optimized problem sizes in its JSON file:
+- **`test_params.problem_sizes`**: Array of `{m, n, k, split_k}` configurations
+- **CMake extraction**: `extract_test_params.py` generates config-specific test parameter files
+- **Build integration**: Each test target uses parameters appropriate for its kernel configuration
+- **Optimized testing**: Different configs test different problem sizes that showcase their strengths
 
 
 The key idea: **Unit tests that use tile_engine's exact kernel generation and verification methodology** instead of creating separate test infrastructure.
