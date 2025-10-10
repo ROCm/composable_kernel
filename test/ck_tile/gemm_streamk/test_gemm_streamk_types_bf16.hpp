@@ -34,11 +34,11 @@ struct BF16Layouts
 };
 // clang-format off
 
-// Macro to declare all layout combinations for FP16 data type
+// Macro to declare all layout combinations for BF16 data type
 #define DECLARE_BF16_PARAMS_ALL_LAYOUTS(PIPELINE_TYPE, M_MACRO_TILE, N_MACRO_TILE, K_MACRO_TILE, M_WARPS, N_WARPS, K_WARPS, M_MMA_TILE, N_MMA_TILE, K_MMA_TILE, PERSISTENT) \
     DECLARE_PARAMS_ALL_LAYOUTS(BF16Layouts, BF16, PIPELINE_TYPE, M_MACRO_TILE, N_MACRO_TILE, K_MACRO_TILE, M_WARPS, N_WARPS, K_WARPS, M_MMA_TILE, N_MMA_TILE, K_MMA_TILE, PERSISTENT)
 
-// Macro to declare all layout combinations for FP16 data type and a variety of sizes
+// Macro to declare all layout combinations for BF16 data type and a variety of sizes
 #define DECLARE_BF16_PARAMS_ALL_LAYOUTS_ALL_SIZES(PIPELINE_TYPE, PERSISTENT) \
     DECLARE_BF16_PARAMS_ALL_LAYOUTS(PIPELINE_TYPE, 128, 128, 32, 2, 2, 1, 32, 32, 16, PERSISTENT) \
     DECLARE_BF16_PARAMS_ALL_LAYOUTS(PIPELINE_TYPE, 128, 128, 64, 2, 2, 1, 32, 32, 16, PERSISTENT) \
@@ -50,7 +50,7 @@ struct BF16Layouts
     DECLARE_BF16_PARAMS_ALL_LAYOUTS(PIPELINE_TYPE, 256, 256, 32, 2, 2, 1, 32, 32, 16, PERSISTENT) \
     DECLARE_BF16_PARAMS_ALL_LAYOUTS(PIPELINE_TYPE ,256 ,256, 64, 2, 2, 1, 32, 32 ,16, PERSISTENT) 
 
-// Declare all FP16 parameter sets for different pipeline types and persistence options
+// Declare all BF16 parameter sets for different pipeline types and persistence options
 DECLARE_BF16_PARAMS_ALL_LAYOUTS_ALL_SIZES(Mem, NonPersistent)
 DECLARE_BF16_PARAMS_ALL_LAYOUTS_ALL_SIZES(CompV3, NonPersistent)
 DECLARE_BF16_PARAMS_ALL_LAYOUTS_ALL_SIZES(CompV4, NonPersistent)
