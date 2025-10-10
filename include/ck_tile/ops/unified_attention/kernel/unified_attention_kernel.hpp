@@ -285,6 +285,11 @@ struct FmhaFwdV3Kernel
         // divide problem
         const auto [kv_head_idx, q_block_global_idx] = GetTileIndex(pid, kargs);
 
+        // grid size is (num_kv_heads, total_num_q_blocks)
+        // total_num_q_blocks = q.shape[0] // BLOCK_Q + num_seqs
+        // q.shape[0] is total number of query tokens across all batches
+        // one q_block spans BLOCK_Q = BLOCK_M // num_queries_per_kv number of query token groups. One query token group shares one kv token
+
         const index_t seq_idx = find_seq_idx(
             kargs.unifiedAttentionVarlenKargs.query_start_len_ptr, q_block_global_idx, kargs.unifiedAttentionVarlenKargs.num_seqs, kargs.unifiedAttentionCommonKargs.BLOCK_Q, true
         ); // which batch
@@ -316,38 +321,77 @@ struct FmhaFwdV3Kernel
             + 1
         );
 
-        // for simplicity, batch stride we just modify the pointer
-        const QDataType* q_ptr = reinterpret_cast<const QDataType*>(kargs.unifiedAttentionCommonKargs.q_ptr) +
-                                 static_cast<long_index_t>(kv_head_idx) * kargs.unifiedAttentionCommonKargs.num_queries_per_kv * kargs.unifiedAttentionCommonKargs.query_stride_1 +
-                                 static_cast<long_index_t>(cur_batch_in_all_start_index) * kargs.unifiedAttentionCommonKargs.query_stride_0;
-        // const KDataType* k_ptr =
-        //     reinterpret_cast<const KDataType*>(kargs.k_ptr) +
-        //     static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) * kargs.nhead_stride_k +
-        //     batch_offset_k;
-        // const VDataType* v_ptr =
-        //     reinterpret_cast<const VDataType*>(kargs.v_ptr) +
-        //     static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) * kargs.nhead_stride_v +
-        //     batch_offset_v;
-        ODataType* o_ptr = reinterpret_cast<ODataType*>(kargs.o_ptr) +
-                           static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_o +
-                           batch_offset_o;
-
+        const QDataType* q_ptr = reinterpret_cast<const QDataType*>(kargs.unifiedAttentionCommonKargs.q_ptr)
+        const KDataType* k_ptr = reinterpret_cast<const KDataType*>(kargs.unifiedAttentionCommonKargs.k_ptr)
+        const VDataType* v_ptr = reinterpret_cast<const VDataType*>(kargs.unifiedAttentionCommonKargs.v_ptr)
+        ODataType* o_ptr = reinterpret_cast<ODataType*>(kargs.unifiedAttentionCommonKargs.o_ptr)
+        
         // Q/K/V DRAM and DRAM window
         const auto q_dram = [&]() {
-            const auto q_dram_naive = make_naive_tensor_view<address_space_enum::global>(
+            const index_t qheads = kargs.unifiedAttentionCommonKargs.num_head_q;
+            const index_t kheads = kargs.unifiedAttentionCommonKargs.num_head_k;
+            const index_t qheads_per_kv = qheads / kheads;
+            const index_t BLOCK_Q = kargs.unifiedAttentionVarlenKargs.BLOCK_Q; // = BLOCK_M / qheads_per_kv
+            const index_t BLOCK_D = kargs.unifiedAttentionVarlenKargs.BLOCK_D; // BLOCK_SIZE along head dim
+            const index_t D = kargs.unifiedAttentionCommonKargs.HEAD_SIZE; //  head dim
+            const index_t cu_seqlens = kPadSeqLenQ;
+            
+            
+            const auto q_dram_base = make_naive_tensor_view<address_space_enum::global>(
                 q_ptr,
-                make_tuple(seq_len, kargs.unifiedAttentionCommonKargs.HEAD_SIZE_PADDED),
-                make_tuple(kargs.unifiedAttentionCommonKargs.query_stride_0, 1),
+                make_tuple(cu_seqlens, qheads, D),
+                make_tuple(kargs.unifiedAttentionCommonKargs.query_stride_0, kargs.unifiedAttentionCommonKargs.query_stride_1, 1),
                 number<FmhaPipeline::kAlignmentQ>{},
                 number<1>{});
 
-            return pad_tensor_view(
-                q_dram_naive,
+            const auto q_dram_pad = pad_tensor_view( // aling cu_seqlen with BLOCK_Q and head dim with BLOCK_D
+                q_dram_base,
                 // block sizes
-                make_tuple(number<kargs.unifiedAttentionVarlenKargs.BLOCK_Q>{}, number<FmhaPipeline::kSubQKHeaddim>{}),
-                // bool defining should we pad
-                sequence<kPadSeqLenQ, kPadHeadDimQ>{});
+                make_tuple(BLOCK_Q, 1, BLOCK_D),
+                sequence<kPadSeqLenQ, qheads, BLOCK_D>{}
+            );
+
+            const auto q_dram_unmerged = transform_tensor_view(
+                        q_dram_pad,
+                        make_tuple(
+                            make_pass_through_transform(kPadSeqLenQ),
+                            make_unmerge_transform(make_tuple(qheads / kheads, kheads)),
+                            make_pass_through_transform(BLOCK_D)
+                        ),
+                        make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+                        make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{})
+            );
+
+            const auto q_dram_permuted = transform_tensor_view(
+                        q_dram_unmerged,
+                        make_tuple(
+                            make_pass_through_transform(qheads / kheads),
+                            make_pass_through_transform(kPadSeqLenQ),
+                            make_pass_through_transform(kheads),
+                            make_pass_through_transform(BLOCK_D)
+                        ),
+                        make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
+                        make_tuple(sequence<1>{}, sequence<0>{}, sequence<2>{}, sequence<3>{})
+            );
+            const auto q_dram_merged = transform_tensor_view(
+                        q_dram_permuted,
+                        make_tuple(
+                            make_merge_transform_v3_division_mod(
+                                make_tuple(number<qheads / kheads>{}, kPadSeqLenQ, kheads)
+                            ),
+                            make_pass_through_transform(BLOCK_D)
+                        ),
+                        make_tuple(sequence<0, 1, 2>{}, sequence<3>{}),
+                        make_tuple(sequence<0>{}, sequence<1>{})
+            );
+            return q_dram_merged;
         }();
+        auto q_dram_window = make_tile_window(
+            q_dram,
+            make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kSubQKHeaddim>{}),
+            {kv_head_idx * kPadSeqLenQ + q_block_global_idx*BLOCK_Q, 0}
+        );
+        
         const auto k_dram = [&]() {
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 k_ptr,
@@ -361,6 +405,8 @@ struct FmhaFwdV3Kernel
                 make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
                 sequence<kPadSeqLenK, kPadHeadDimQ>{});
         }();
+        auto k_dram_window = make_tile_window(
+            k_dram, make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}), {0, 0});
         const auto v_dram = [&]() {
             const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 v_ptr,
@@ -374,19 +420,15 @@ struct FmhaFwdV3Kernel
                 make_tuple(number<FmhaPipeline::kK1>{}, number<FmhaPipeline::kN1>{}),
                 sequence<kPadSeqLenK, kPadHeadDimV>{});
         }();
-
-        auto q_dram_window = make_tile_window(
-            q_dram,
-            make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kSubQKHeaddim>{}),
-            {i_m0, 0});
-
-        auto k_dram_window = make_tile_window(
-            k_dram, make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}), {0, 0});
-
-        auto v_dram_window =
-            make_tile_window(v_dram,
-                             make_tuple(number<FmhaPipeline::kK1>{}, number<FmhaPipeline::kN1>{}),
+        auto v_dram_window = make_tile_window(
+                v_dram, make_tuple(number<FmhaPipeline::kK1>{}, number<FmhaPipeline::kN1>{}),
                              {0, i_n1});
+        
+
+
+        
+
+        
 
         // lse
         auto lse_dram_window = [&, i_nhead_ = i_nhead]() {
