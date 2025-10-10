@@ -21,13 +21,6 @@
 
 namespace ck_tile::builder {
 
-// Memory layouts for convolution tensors, following PyTorch conventions.
-enum class GroupConvLayout
-{
-    CHANNELS_LAST, // e.g., NHWGC
-    CHANNELS_FIRST // e.g., NGCHW
-};
-
 // Constrains convolution to 1D, 2D, or 3D spatial dimensions.
 template <auto N>
 concept ConvSpatialDim = std::is_integral_v<decltype(N)> && (N == 1 || N == 2 || N == 3);
@@ -35,25 +28,6 @@ concept ConvSpatialDim = std::is_integral_v<decltype(N)> && (N == 1 || N == 2 ||
 // Constrains convolution data types to common floating-point types.
 template <DataType T>
 concept ConvDataType = (T == DataType::FP32) || (T == DataType::FP16) || (T == DataType::BF16);
-
-// Direction of the convolution operation.
-enum class ConvDirection
-{
-    FORWARD,
-    BACKWARD_DATA,
-    BACKWARD_WEIGHT
-};
-
-// Fused element-wise operations.
-enum class ElementwiseOperation
-{
-    BIAS,
-    BIAS_CLAMP,
-    BILINEAR,
-    CLAMP,
-    SCALE,
-    PASS_THROUGH
-};
 
 // Concept for a type that defines a convolution's operational signature.
 template <typename T>
@@ -82,42 +56,5 @@ concept ConvDirectionIsBackwardData = (Sig.direction == ConvDirection::BACKWARD_
 // Predicate for backward weight convolution.
 template <auto Sig>
 concept ConvDirectionIsBackwardWeight = (Sig.direction == ConvDirection::BACKWARD_WEIGHT);
-
-// Helper functions to convert enums to strings
-constexpr std::string_view ConvDirectionToString(ConvDirection dir)
-{
-    switch(dir)
-    {
-    case ConvDirection::FORWARD: return "Forward";
-    case ConvDirection::BACKWARD_DATA: return "Backward Data";
-    case ConvDirection::BACKWARD_WEIGHT: return "Backward Weight";
-    default: return "Unknown";
-    }
-}
-
-constexpr std::string_view DataTypeToString(DataType dt)
-{
-    switch(dt)
-    {
-    case DataType::FP16: return "FP16";
-    case DataType::FP32: return "FP32";
-    case DataType::FP64: return "FP64";
-    case DataType::BF16: return "BF16";
-    case DataType::S16: return "S16";
-    case DataType::S8: return "S8";
-    case DataType::S4: return "S4";
-    default: return "Unknown";
-    }
-}
-
-constexpr std::string_view LayoutToString(GroupConvLayout layout)
-{
-    switch(layout)
-    {
-    case GroupConvLayout::CHANNELS_FIRST: return "Channels-first (NCHW)";
-    case GroupConvLayout::CHANNELS_LAST: return "Channels-last (NHWC)";
-    default: return "Unknown";
-    }
-}
 
 } // namespace ck_tile::builder

@@ -1,38 +1,37 @@
 
 #include "ck_tile/builder/conv_builder.hpp"
-#include "../utils/types.hpp"
+#include "ck_tile/builder/conv_signature_types.hpp"
 
 int main() 
 {
-    namespace ckb = ck_tile::builder;
-    namespace ckb_examples = ck_tile::builder::examples;
+    using namespace ck_tile::builder;
 
-    constexpr ckb_examples::ConvSignature FwdConvSignature 
+    constexpr ConvSignature FwdConvSignature 
     {
         .spatial_dim = 2,
-        .direction = ckb::ConvDirection::FORWARD,
-        .layout = ckb::GroupConvLayout::CHANNELS_LAST,
-        .data_type = ckb::DataType::BF16,
+        .direction = ConvDirection::FORWARD,
+        .layout = GroupConvLayout::CHANNELS_LAST,
+        .data_type = DataType::BF16
     };
-    static_assert(ckb::ValidConvSignature<FwdConvSignature>); 
+    static_assert(ValidConvSignature<FwdConvSignature>); 
 
     // To get valid configuration parameters, refer to "device_grouped_conv_fwd_xdl_comp_instance.hpp". 
     // This file contains the current instances of the kernel DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3.
     // Currently the build has this kernel hard-coded. 
     // In the future, we may need builders per kernel type since they typically have slightly different parameters. 
 
-    constexpr ckb::ThreadBlock FwdThreadBlock
+    constexpr ThreadBlock FwdThreadBlock
     {
         .block_size = 256, 
         .submatrix = {.m = 256, .n = 256, .k = 32} // Tile sizes
     };
 
-    constexpr ckb::ConvTuningParams FwdTuningParams
+    constexpr ConvTuningParams FwdTuningParams
     {
         .ak1 = 8, .bk1 = 8, .m_per_xdl=32, .n_per_xdl = 32, .m_xdl_per_wave = 4, .n_xdl_per_wave = 4
     };
 
-    constexpr ckb_examples::BlockTransfer FwdBlockTransfer
+    constexpr BlockTransfer FwdBlockTransfer
     {
         .thread_cluster_dims_a = {.k0 = 4, .m = 64, .k1 = 1},
         .thread_cluster_dims_b = {.k0 = 4, .n = 64, .k1 = 1},
@@ -50,15 +49,15 @@ int main()
         .b_source_access_order = {1, 0, 2}
     };
 
-    constexpr ckb_examples::ConvAlgorithm FwdConvAlgorithm
+    constexpr ConvAlgorithm FwdConvAlgorithm
     {
         .thread_block = FwdThreadBlock,
         .tuning_params = FwdTuningParams,
         .block_transfer = FwdBlockTransfer,
-        .pipeline_version = ckb::BlockGemmPipelineVersion::V4,
+        .pipeline_version = BlockGemmPipelineVersion::V4,
     };
 
-    using Builder = ckb::ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
+    using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
     const auto kernel_string = Builder::Instance::TypeString();
     std::cout << "Generated kernel: " << kernel_string << std::endl;
 

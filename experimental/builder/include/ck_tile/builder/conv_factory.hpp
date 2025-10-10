@@ -33,12 +33,12 @@
 #include <ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp>
 #include <ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_data_multiple_d_xdl_cshuffle_v1.hpp>
 #include <ck_tile/builder/conv_signature.hpp>
-#include <ck_tile/builder/conv_algorithm.hpp>
+#include <ck_tile/builder/conv_algorithm_types.hpp>
 #include <ck_tile/builder/builder_utils.hpp>
 #include <ck_tile/builder/types.hpp>
 #include <ck_tile/builder/versions.hpp>
 
-namespace ck_tile::builder {
+namespace ck_tile::builder::factory_internal {
 
 // Type mappings from the builder GroupConvLayout enum class to the CK tensor data types.
 template <GroupConvLayout Layout, int SPATIAL_DIM, ConvDirection DIR>
@@ -374,6 +374,10 @@ constexpr ck::BlockGemmPipelineVersion SetBlockGemmPipelineVersion()
     return ck::BlockGemmPipelineVersion::v4;
 }
 
+} // namespace ck_tile::builder::factory
+
+namespace ck_tile::builder {
+
 // Primary template for the convolution factory.
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
@@ -388,20 +392,20 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr int SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts = ConvTensorLayouts<SIGNATURE.layout, SPATIAL_DIM, ConvDirection::FORWARD>;
-    using Types   = ConvTensorTypes<SIGNATURE.data_type>;
-    using Ops     = ConvPassThroughOps;
-    static constexpr ConvSpec SPECIALIZATION{
+    using Layouts = factory_internal::ConvTensorLayouts<SIGNATURE.layout, SPATIAL_DIM, ConvDirection::FORWARD>;
+    using Types   = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
+    using Ops     = factory_internal::ConvPassThroughOps;
+    static constexpr factory_internal::ConvSpec SPECIALIZATION{
         .conv_spec = ck::tensor_operation::device::ConvolutionForwardSpecialization::Default,
         .gemm_spec = ck::tensor_operation::device::GemmSpecialization::MNKPadding,
     };
-    static constexpr ConvBlock BLOCK                 = SetThreadBlockInfo<ALGORITHM>();
-    static constexpr ConvTuning TUNING               = SetConvTuningInfo<SIGNATURE, ALGORITHM>();
-    static constexpr BlockTransfer A_BLOCK_TRANSFER  = SetFwdConvABlockTransfer<ALGORITHM>();
-    static constexpr BlockTransfer B_BLOCK_TRANSFER  = SetFwdConvBBlockTransfer<ALGORITHM>();
-    static constexpr CBlockTransfer C_BLOCK_TRANSFER = SetCBlockTransfer<SIGNATURE, ALGORITHM>();
-    static constexpr auto PIPELINE_SCHEDULER         = ck::BlockGemmPipelineScheduler::Intrawave;
-    static constexpr auto PIPELINE_VERSION           = SetBlockGemmPipelineVersion<ALGORITHM>();
+    static constexpr auto BLOCK              = factory_internal::SetThreadBlockInfo<ALGORITHM>();
+    static constexpr auto TUNING             = factory_internal::SetConvTuningInfo<SIGNATURE, ALGORITHM>();
+    static constexpr auto A_BLOCK_TRANSFER   = factory_internal::SetFwdConvABlockTransfer<ALGORITHM>();
+    static constexpr auto B_BLOCK_TRANSFER   = factory_internal::SetFwdConvBBlockTransfer<ALGORITHM>();
+    static constexpr auto C_BLOCK_TRANSFER   = factory_internal::SetCBlockTransfer<SIGNATURE, ALGORITHM>();
+    static constexpr auto PIPELINE_SCHEDULER = ck::BlockGemmPipelineScheduler::Intrawave;
+    static constexpr auto PIPELINE_VERSION   = factory_internal::SetBlockGemmPipelineVersion<ALGORITHM>();
     // The forward convolution kernel class instance.
     using Instance =
         ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3< //
@@ -461,20 +465,20 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr int SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts = ConvTensorLayouts<SIGNATURE.layout, SPATIAL_DIM, ConvDirection::BACKWARD_DATA>;
-    using Types   = ConvTensorTypes<SIGNATURE.data_type>;
-    using Ops     = ConvPassThroughOps;
-    static constexpr ConvSpec SPECIALIZATION{
+    using Layouts = factory_internal::ConvTensorLayouts<SIGNATURE.layout, SPATIAL_DIM, ConvDirection::BACKWARD_DATA>;
+    using Types   = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
+    using Ops     = factory_internal::ConvPassThroughOps;
+    static constexpr factory_internal::ConvSpec SPECIALIZATION{
         .conv_spec = ck::tensor_operation::device::ConvolutionBackwardDataSpecialization::Default,
         .gemm_spec = ck::tensor_operation::device::GemmSpecialization::MNKPadding,
     };
-    static constexpr ConvBlock BLOCK                 = SetThreadBlockInfo<ALGORITHM>();
-    static constexpr ConvTuning TUNING               = SetConvTuningInfo<SIGNATURE, ALGORITHM>();
-    static constexpr BlockTransfer A_BLOCK_TRANSFER  = SetBwdDataConvABlockTransfer<ALGORITHM>();
-    static constexpr BlockTransfer B_BLOCK_TRANSFER  = SetBwdDataConvBBlockTransfer<ALGORITHM>();
-    static constexpr CBlockTransfer C_BLOCK_TRANSFER = SetCBlockTransfer<SIGNATURE, ALGORITHM>();
-    static constexpr auto PIPELINE_SCHEDULER         = ck::BlockGemmPipelineScheduler::Intrawave;
-    static constexpr auto PIPELINE_VERSION           = SetBlockGemmPipelineVersion<ALGORITHM>();
+    static constexpr auto BLOCK              = factory_internal::SetThreadBlockInfo<ALGORITHM>();
+    static constexpr auto TUNING             = factory_internal::SetConvTuningInfo<SIGNATURE, ALGORITHM>();
+    static constexpr auto A_BLOCK_TRANSFER   = factory_internal::SetBwdDataConvABlockTransfer<ALGORITHM>();
+    static constexpr auto B_BLOCK_TRANSFER   = factory_internal::SetBwdDataConvBBlockTransfer<ALGORITHM>();
+    static constexpr auto C_BLOCK_TRANSFER   = factory_internal::SetCBlockTransfer<SIGNATURE, ALGORITHM>();
+    static constexpr auto PIPELINE_SCHEDULER = ck::BlockGemmPipelineScheduler::Intrawave;
+    static constexpr auto PIPELINE_VERSION   = factory_internal::SetBlockGemmPipelineVersion<ALGORITHM>();
     // The backward-data convolution kernel class instance.
     using Instance =
         ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1<
