@@ -8,7 +8,7 @@
 #error "TEST_SUITE_NAME must be defined before including this file"
 #endif
 #ifndef TEST_SUITE_PARAMS
-#error "TEST_SUITE_PPARAMS must be defined before including this file"
+#error "TEST_SUITE_PARAMS must be defined before including this file"
 #endif
 
 // Macros to help generate test names from the parameters given
