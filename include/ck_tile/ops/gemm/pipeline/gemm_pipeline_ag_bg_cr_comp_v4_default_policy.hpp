@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
+#include "ck_tile/ops/common/determine_warp_prec_type.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_universal_pipeline_ag_bg_cr_policy.hpp"
 
@@ -22,6 +23,10 @@ struct GemmPipelineAgBgCrCompV4DefaultPolicy
     {
         using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
         using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
+        using ATypeToUse = typename DetermineWarpPrecType<typename Problem::ADataType,
+                                                          typename Problem::BDataType>::prec_type;
+        using BTypeToUse = typename DetermineWarpPrecType<typename Problem::BDataType,
+                                                          typename Problem::ADataType>::prec_type;
 
         constexpr index_t vector_size =
             DS_READ_TR_SIZE() / sizeof(typename Problem::ComputeDataType);
@@ -33,8 +38,8 @@ struct GemmPipelineAgBgCrCompV4DefaultPolicy
             : vector_size * 4 == thread_elements              ? WGAttrNumAccessEnum::Quad
                                                               : WGAttrNumAccessEnum::Invalid;
 
-        using WarpGemm = WarpGemmDispatcher<typename Problem::ADataType,
-                                            typename Problem::BDataType,
+        using WarpGemm = WarpGemmDispatcher<ATypeToUse,
+                                            BTypeToUse,
                                             typename Problem::CDataType, // AccDataType
                                             WarpTile::at(I0),
                                             WarpTile::at(I1),
@@ -44,8 +49,8 @@ struct GemmPipelineAgBgCrCompV4DefaultPolicy
                                             false,
                                             wg_attr_num_access>;
 
-        using BlockGemmPolicy = BlockGemmARegBRegCRegV1CustomPolicy<typename Problem::ADataType,
-                                                                    typename Problem::BDataType,
+        using BlockGemmPolicy = BlockGemmARegBRegCRegV1CustomPolicy<ATypeToUse,
+                                                                    BTypeToUse,
                                                                     typename Problem::CDataType,
                                                                     BlockWarps,
                                                                     WarpGemm>;
