@@ -1111,7 +1111,6 @@ struct QuantGemmKernel
 
         // allocate LDS
         __shared__ char smem_ptr_0[GetSmemSize()];
-
         assert(kargs.k_batch == 1);
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
