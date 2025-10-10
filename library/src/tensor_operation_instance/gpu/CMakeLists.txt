@@ -433,6 +433,7 @@ foreach(lib ${CONV_LIBS})
     if(CK_DEVICE_CONV_${lib}_INSTANCES)
         add_library(device_conv_${lib}_operations ${CK_DEVICE_CONV_${lib}_INSTANCES})
         add_library(composablekernels::device_conv_${lib}_operations ALIAS device_conv_${lib}_operations)
+        add_library(composable_kernel::device_conv_${lib}_operations ALIAS device_conv_${lib}_operations)
         target_compile_features(device_conv_${lib}_operations PUBLIC)
         set_target_properties(device_conv_${lib}_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
         set_target_properties(device_conv_${lib}_operations
@@ -572,6 +573,8 @@ if(NOT MIOPEN_REQ_LIBS_ONLY)
         device_conv_ndhwgc_operations
         device_conv_ngcdhw_operations
         device_conv_old_operations)
+    add_library(composablekernels::device_conv_operations ALIAS device_conv_operations)
+    add_library(composable_kernel::device_conv_operations ALIAS device_conv_operations)
 
     add_library(device_operations INTERFACE)
     target_link_libraries(device_operations INTERFACE

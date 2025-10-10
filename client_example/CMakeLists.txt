@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.15)
 project(ck_app)
 add_compile_options(-std=c++20)
+add_compile_definitions(__HIP_PLATFORM_AMD__=1)
 
 if (DTYPES)
     add_definitions(-DDTYPES)
@@ -70,7 +71,20 @@ else()
     set(CK_USE_WMMA "ON")
 endif()
 
-find_package(composable_kernel COMPONENTS device_other_operations device_gemm_operations device_reduction_operations utility)
+find_package(composable_kernel COMPONENTS
+        device_conv_gnwc_operations
+        device_conv_nwgc_operations
+        device_conv_nhwgc_operations
+        device_conv_ngchw_operations
+        device_conv_gnhwc_operations
+        device_conv_gndhwc_operations
+        device_conv_ndhwgc_operations
+        device_conv_ngcdhw_operations
+        device_conv_old_operations
+        device_other_operations
+        device_gemm_operations
+        device_reduction_operations
+        utility)
 if(GPU_TARGETS MATCHES "gfx9")
     find_package(composable_kernel COMPONENTS device_contraction_operations)
 endif()
