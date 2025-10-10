@@ -4,7 +4,7 @@ This folder contains examples of quant GEMMs using the ck_tile tile-programming 
 
 - AQuant kernel with blocks of A matrix sharing scales: custom GEMM pipeline
 - BQuant kernel with blocks of B matrix sharing scales: custom GEMM pipeline
-- Row and Column-wise scaled: Share the same rowwise or columnwise scale per A or B Matrix will implement in the epilogue stage.
+- Row and Column-wise scaled: All of the rowwise elements in A Matrix and columwise elements in B Matrix will share the same quantization element and the elementwisde operation will complete in epilogue.
 - Tensor-wise scaled: Share the same scalar scale across the whole tensor of A or B
 
 ---
