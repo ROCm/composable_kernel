@@ -7,8 +7,10 @@
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/fmha/block/block_masking.hpp"
 
+#include <string>
 #include <type_traits>
 #include <utility>
+#include <variant>
 
 namespace ck_tile {
 
@@ -33,6 +35,18 @@ struct FmhaFwdV3Kernel
     static constexpr bool kPadHeadDimQ = FmhaPipeline::kPadHeadDimQ;
     static constexpr bool kPadHeadDimV = FmhaPipeline::kPadHeadDimV;
 
+    // TODO add yjese 
+    static constexpr index_t HEAD_SIZE = FmhaPipeline::HEAD_SIZE;
+    static constexpr index_t HEAD_SIZE_PADDED = FmhaPipeline::HEAD_SIZE_PADDED;
+    
+    // BLOCK_Q = BLOCK_M // num_queries_per_kv
+    // BLOCK_Q is the block size for q seqlen
+    static constexpr index_t BLOCK_Q = FmhaPipeline::BLOCK_Q;
+    // static constexpr index_t BLOCK_M = FmhaPipeline::BLOCK_M;
+    // BLOCK size for K seqlen
+    static constexpr index_t BLOCK_SIZE = FmhaPipeline::BLOCK_SIZE;
+
+
     // kargs use aggregate initializer, so no constructor will provided
     // use inheritance to minimize karg size
     // user need to use MakeKargs() function to create kargs.
@@ -50,7 +64,7 @@ struct FmhaFwdV3Kernel
         ck_tile::index_t num_head_q;
         // for MQA/GQA, nhead could be different. This parameter is nhead_q / nhead_k
         // if this param is larger than 1, indicate MQA/GQA case
-        ck_tile::index_t num_queries_per_kv;
+        const ck_tile::index_t num_queries_per_kv;
         // scales
         float scale_s;
         float scale;
@@ -71,7 +85,6 @@ struct FmhaFwdV3Kernel
         ck_tile::index_t stride_v_cache_3;
         ck_tile::index_t output_stride_0;
         ck_tile::index_t output_stride_1;
-        ck_tile::index_t HEAD_SIZE_PADDED;
     };
 
 
@@ -82,9 +95,6 @@ struct FmhaFwdV3Kernel
         const int32_t* query_start_len_ptr; // [num_seqs+1]
 
         ck_tile::index_t num_seqs; // number of batches for q
-        ck_tile::index_t BLOCK_SIZE; // Block size for kv cache. to 2's exponent????
-        ck_tile::index_t BLOCK_Q; // Block size for kv cache. to 2's exponent????
-        ck_tile::index_t BLOCK_M; // Block size for kv cache. to 2's exponent????
     };
 
     struct Kargs {
@@ -102,7 +112,7 @@ struct FmhaFwdV3Kernel
               ck_tile::index_t hdim_q,
               ck_tile::index_t hdim_v,
               ck_tile::index_t num_head_q,
-              ck_tile::index_t num_queries_per_kv,
+              const ck_tile::index_t num_queries_per_kv,
                 float scale_s,
                 float scale,
                 float scale_k,
@@ -125,9 +135,6 @@ struct FmhaFwdV3Kernel
                 const int32_t* seq_lens_ptr,
                 const int32_t* query_start_len_ptr,
                 ck_tile::index_t num_seqs,
-                ck_tile::index_t BLOCK_SIZE,
-                ck_tile::index_t BLOCK_Q,
-                ck_tile::index_t BLOCK_M
         )
     {
         Kargs kargs{{q_ptr,
@@ -160,10 +167,7 @@ struct FmhaFwdV3Kernel
                         block_tables_ptr,
                         seq_lens_ptr,
                         query_start_len_ptr,
-                        num_seqs,
-                        BLOCK_SIZE,
-                        BLOCK_Q,
-                        BLOCK_M
+                        num_seqs
                     }};
 
         return kargs;
@@ -279,6 +283,9 @@ struct FmhaFwdV3Kernel
         __shared__ char smem_ptr[GetSmemSize()];
 
         ck_tile::index_t pid = blockIdx.x;
+        index_t num_queries_per_kv = kargs.unifiedAttentionCommonKargs.num_queries_per_kv;
+
+        const index_t BLOCK_M = BLOCK_Q * kargs.unifiedAttentionCommonKargs.num_queries_per_kv;
 
         pid = RemapTileIndices(pid, kargs);
 
@@ -304,11 +311,11 @@ struct FmhaFwdV3Kernel
         const index_t cur_batch_query_len = cur_batch_in_all_stop_index - cur_batch_in_all_start_index;
 
         // TODO check if we get the block size info from pipeline
-        if (q_block_local_idx * kargs.unifiedAttentionVarlenKargs.BLOCK_Q >= cur_batch_query_len) {
+        if (q_block_local_idx * BLOCK_Q >= cur_batch_query_len) {
             return;
         }
 
-        const index_t query_pos = q_block_local_idx * kargs.unifiedAttentionVarlenKargs.BLOCK_Q;
+        const index_t query_pos = q_block_local_idx * BLOCK_Q;
         const index_t seq_len = kargs.unifiedAttentionVarlenKargs.seq_lens_ptr[seq_idx];
 
         const index_t context_len = seq_len - cur_batch_query_len;
@@ -316,11 +323,15 @@ struct FmhaFwdV3Kernel
 
         const index_t max_seq_prefix_len = (
             context_len
-            + q_block_local_idx * kargs.unifiedAttentionVarlenKargs.BLOCK_Q
-            + (kargs.unifiedAttentionVarlenKargs.BLOCK_M - 1) // num_queries_per_kv
+            + q_block_local_idx * BLOCK_Q
+            + (BLOCK_M - 1) // num_queries_per_kv
             + 1
         );
 
+        // for simplicity, batch stride we just modify the pointer
+        index_t num_head_q = kargs.unifiedAttentionCommonKargs.num_head_q;
+
+        // Q/K/V DRAM and DRAM window
         const QDataType* q_ptr = reinterpret_cast<const QDataType*>(kargs.unifiedAttentionCommonKargs.q_ptr)
         const KDataType* k_ptr = reinterpret_cast<const KDataType*>(kargs.unifiedAttentionCommonKargs.k_ptr)
         const VDataType* v_ptr = reinterpret_cast<const VDataType*>(kargs.unifiedAttentionCommonKargs.v_ptr)
@@ -331,8 +342,6 @@ struct FmhaFwdV3Kernel
             const index_t qheads = kargs.unifiedAttentionCommonKargs.num_head_q;
             const index_t kheads = kargs.unifiedAttentionCommonKargs.num_head_k;
             const index_t qheads_per_kv = qheads / kheads;
-            const index_t BLOCK_Q = kargs.unifiedAttentionVarlenKargs.BLOCK_Q; // = BLOCK_M / qheads_per_kv
-            const index_t BLOCK_D = kargs.unifiedAttentionVarlenKargs.BLOCK_D; // BLOCK_SIZE along head dim
             const index_t D = kargs.unifiedAttentionCommonKargs.HEAD_SIZE; //  head dim
             const index_t cu_seqlens = kPadSeqLenQ;
             
