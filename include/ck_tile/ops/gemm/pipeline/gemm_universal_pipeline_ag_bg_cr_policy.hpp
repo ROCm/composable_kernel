@@ -109,7 +109,7 @@ struct UniversalGemmBasePolicy
                                                           KPerBlock,
                                                           MPerBlock,
                                                           VecLoadSize,
-                                                          ATileAccessPattern>;
+                                                          getATileAccessPattern()>;
                 // AK1
                 constexpr auto AK1 = number<VecLoadSize>{};
                 constexpr auto AK0 = number<KPerBlock / AK1>{};
@@ -297,7 +297,7 @@ struct UniversalGemmBasePolicy
                                                           KPerBlock,
                                                           NPerBlock,
                                                           VecLoadSize,
-                                                          BTileAccessPattern>;
+                                                          getBTileAccessPattern()>;
                 // BK1
                 constexpr auto BK1 = number<VecLoadSize>{};
                 constexpr auto BK0 = number<KPerBlock / BK1>{};
