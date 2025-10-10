@@ -1,11 +1,103 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
+#include "example/ck_tile/01_fmha/fmha_fwd.hpp"
+#include "example/ck_tile/01_fmha/fmha_fwd_runner.hpp"
+
+#include "gtest/gtest.h"
+
+#ifndef DataTypeConfig
+#define DataTypeConfig FmhaFwdFp16 // or FmhaFwdBf16 / FmhaFwdFp8 / FmhaFwdFp32
+#endif
+
 using ::testing::Bool;
 using ::testing::Combine;
 using ::testing::TestWithParam;
 using ::testing::Values;
 using ::testing::ValuesIn;
+
+template <typename T>
+struct TestConfigs
+{
+    static constexpr auto HDimValues = std::array{
+        std::tuple{32, -1},
+        std::tuple{64, -1},
+        std::tuple{96, 128},
+        std::tuple{128, -1},
+        std::tuple{192, 128},
+        std::tuple{192, -1},
+        std::tuple{256, -1},
+    };
+    static constexpr auto SplitKVHDimValues = std::array{
+        std::tuple{32, -1},
+        std::tuple{64, -1},
+        std::tuple{96, -1},
+        std::tuple{128, -1},
+        std::tuple{256, -1},
+    };
+    static constexpr auto AppendKVHDimValues = std::array{
+        std::tuple{32, -1}, std::tuple{64, -1}, std::tuple{128, -1}, std::tuple{256, -1}};
+    static constexpr auto ModeValues        = std::array{mode_enum::batch, mode_enum::group};
+    static constexpr auto IsVRowmajorValues = std::array{false, true};
+    static constexpr bool squant            = false;
+    static constexpr bool def_lse           = true;
+    static constexpr bool def_is_v_rowmajor = true;
+    static int adjust_seqlen(int seqlen) { return seqlen; }
+};
+template <>
+struct TestConfigs<FmhaFwdFp8>
+{
+    // Currently there are no fp8 instances for splitkv, pagedkv by default (the tests pass if such
+    // instances are added), however the corresponding tests are not disabled (they will be skipped)
+    // in case such instances will be added in the future.
+
+    static constexpr auto HDimValues         = std::array{std::tuple{64, -1}, std::tuple{128, -1}};
+    static constexpr auto SplitKVHDimValues  = std::array{std::tuple{64, -1}, std::tuple{128, -1}};
+    static constexpr auto AppendKVHDimValues = std::array{std::tuple{64, -1}, std::tuple{128, -1}};
+    // There are no fp8 instances with seqlen padding (mode_enum::group requires it)
+    static constexpr auto ModeValues        = std::array{mode_enum::batch};
+    static constexpr auto IsVRowmajorValues = std::array{false};
+    static constexpr bool squant            = true;
+    static constexpr bool def_lse           = false;
+    static constexpr bool def_is_v_rowmajor = true;
+    static int adjust_seqlen(int seqlen)
+    {
+        // There are no fp8 instances with padding, pad seqlen to avoid skipping most of the tests
+        return ck_tile::integer_least_multiple(seqlen, 128);
+    }
+};
+template <>
+struct TestConfigs<FmhaFwdFp32>
+{
+    static constexpr auto HDimValues = std::array{
+        std::tuple{32, -1},
+        std::tuple{48, -1},
+        std::tuple{64, -1},
+        std::tuple{96, 128},
+        std::tuple{128, -1},
+        std::tuple{192, -1},
+        std::tuple{256, -1},
+    };
+    static constexpr auto SplitKVHDimValues  = std::array<std::tuple<int, int>, 0>{};
+    static constexpr auto AppendKVHDimValues = std::array<std::tuple<int, int>, 0>{};
+    static constexpr auto ModeValues         = std::array{mode_enum::batch, mode_enum::group};
+    static constexpr auto IsVRowmajorValues  = std::array{true};
+    static constexpr bool squant             = false;
+    static constexpr bool def_lse            = true;
+    static constexpr bool def_is_v_rowmajor  = true;
+    static int adjust_seqlen(int seqlen) { return seqlen; }
+};
+
+static auto HDimValues           = ValuesIn(TestConfigs<DataTypeConfig>::HDimValues);
+static auto SplitKVHDimValues    = ValuesIn(TestConfigs<DataTypeConfig>::SplitKVHDimValues);
+static auto AppendKVHDimValues   = ValuesIn(TestConfigs<DataTypeConfig>::AppendKVHDimValues);
+static auto ModeValues           = ValuesIn(TestConfigs<DataTypeConfig>::ModeValues);
+static auto IsVRowmajorValues    = ValuesIn(TestConfigs<DataTypeConfig>::IsVRowmajorValues);
+constexpr bool squant            = TestConfigs<DataTypeConfig>::squant;
+constexpr bool def_lse           = TestConfigs<DataTypeConfig>::def_lse;
+constexpr bool def_is_v_rowmajor = TestConfigs<DataTypeConfig>::def_is_v_rowmajor;
+int adjust_seqlen(int seqlen) { return TestConfigs<DataTypeConfig>::adjust_seqlen(seqlen); }
+constexpr auto init_method = "uf";
 
 // Random seed used for initializing input tensors. 0 for non-deterministic seed
 CK_TILE_DECLARE_ENV_VAR(CK_TILE_TEST_SEED, uint64_t, 123456)
@@ -79,7 +171,7 @@ INSTANTIATE_TEST_SUITE_P(
                    std::tuple{1, 2, 1, -1, -1, 33, 0, -1, "2"},
                    std::tuple{1, 2, 1, -1, -1, 1, 10, 32, "2"})));
 
-TEST_P(AllLong, Test)
+TEST_P(AllLong, DataTypeConfig)
 {
     auto [_, hdims, perm, is_v_rowmajor, mode, lse, bias_str, p_drop, dims_mask] = GetParam();
     auto [hdim_q, hdim_v]                                                        = hdims;
@@ -283,7 +375,7 @@ INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
                                         std::tuple{1, 2, -1, 900, 256, -1, "0"},
                                         std::tuple{2, 1, -1, 256, 256, -1, "1"})));
 
-TEST_P(HDimPadding, Test)
+TEST_P(HDimPadding, DataTypeConfig)
 {
     auto [hdims, perm, is_v_rowmajor, mode, dims_mask]                      = GetParam();
     auto [hdim_q, hdim_v]                                                   = hdims;
@@ -343,7 +435,7 @@ INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
                                         std::tuple{3, 2, -1, 128, 256, "2"},
                                         std::tuple{2, 2, -1, 130, 499, "t:50,64"})));
 
-TEST_P(ElementwiseBias, Test)
+TEST_P(ElementwiseBias, DataTypeConfig)
 {
     auto [hdims, i_perm, mode, bias_str, dims_mask]            = GetParam();
     auto [hdim_q, hdim_v]                                      = hdims;
@@ -402,7 +494,7 @@ INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
                                         std::tuple{2, 8, 2, 300, 355}),
                                  Values("0", "t", "b", "t:50,64", "b:32,40")));
 
-TEST_P(Alibi, Test)
+TEST_P(Alibi, DataTypeConfig)
 {
     auto [hdims, mode, bias_str, dims, mask_str]     = GetParam();
     auto [hdim_q, hdim_v]                            = hdims;
@@ -462,7 +554,7 @@ INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
                                         std::tuple{3, 2, 2, 256, 128, "1"},
                                         std::tuple{4, 3, 1, 100, 768, "2"})));
 
-TEST_P(Dropout, Test)
+TEST_P(Dropout, DataTypeConfig)
 {
     auto [hdims, mode, p_drop, drop_seed_offset_prefs, dims_mask] = GetParam();
     auto [hdim_q, hdim_v]                                         = hdims;
@@ -528,7 +620,7 @@ INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
                                         std::tuple{3, 2, -1, 128, 768, "2"},
                                         std::tuple{2, 2, -1, 230, 899, "t:50,64"})));
 
-TEST_P(PagedKV, Test)
+TEST_P(PagedKV, DataTypeConfig)
 {
     auto [hdims, i_perm, is_v_rowmajor, mode, page_block_size, dims_mask] = GetParam();
     auto [hdim_q, hdim_v]                                                 = hdims;
@@ -597,7 +689,7 @@ INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
                                         std::tuple{2, 2, -1, 512, 2000, "0"},
                                         std::tuple{3, 2, -1, 230, 899, "t:128,128"})));
 
-TEST_P(SplitKV, Test)
+TEST_P(SplitKV, DataTypeConfig)
 {
     auto [hdims, i_perm, is_v_rowmajor, mode_use_cache_batch_idx, num_splits, dims_mask] =
         GetParam();
@@ -668,7 +760,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(AppendKV);
 
-TEST_P(AppendKV, Test)
+TEST_P(AppendKV, DataTypeConfig)
 {
     auto [hdims,
           i_perm,
@@ -745,7 +837,7 @@ INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd,
                                         std::tuple{1, 2, 1, 128, 55, "0"},
                                         std::tuple{3, 4, 2, 72, 128, "1"})));
 
-TEST_P(AppendKVRoPE, Test)
+TEST_P(AppendKVRoPE, DataTypeConfig)
 {
     auto [_, hdims, i_perm, is_v_rowmajor, rotary, seqlen_knew, dims_mask] = GetParam();
     auto [hdim_q, hdim_v]                                                  = hdims;
@@ -1017,7 +1109,7 @@ static const std::vector<PaddingParam> kPaddingParams = BuildPaddingParams();
 
 INSTANTIATE_TEST_SUITE_P(TestCkTileFmhaFwd_Padding, PaddingCases, ValuesIn(kPaddingParams));
 
-TEST_P(PaddingCases, Test)
+TEST_P(PaddingCases, DataTypeConfig)
 {
     if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8>)
     {
