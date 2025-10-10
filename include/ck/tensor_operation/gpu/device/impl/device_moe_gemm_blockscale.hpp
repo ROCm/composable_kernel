@@ -98,68 +98,74 @@ struct DeviceMoeGemmBlockScale
                                                         BElementwiseOperation,
                                                         CElementwiseOperation>
 {
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
     static constexpr index_t NumDTensor = DsDataType::Size();
-    using GridwiseGemm                  = GridwiseMoeGemmBlockScale<
-                         ALayout,
-                         BLayout,
-                         DsLayout,
-                         CLayout,
-                         ADataType,
-                         BDataType,
-                         GemmAccDataType,
-                         CShuffleDataType,
-                         DsDataType,
-                         CDataType,
-                         AElementwiseOperation,
-                         BElementwiseOperation,
-                         CElementwiseOperation,
-                         GemmSpec,
-                         BlockSize,
-                         ScaleBlockM,
-                         ScaleBlockN,
-                         ScaleBlockK,
-                         MPerBlock,
-                         NPerBlock,
-                         KPerBlock,
-                         AK1,
-                         BK1,
-                         MPerXDL,
-                         NPerXDL,
-                         MXdlPerWave,
-                         NXdlPerWave,
-                         ABlockTransferThreadClusterLengths_AK0_M_AK1,
-                         ABlockTransferThreadClusterArrangeOrder,
-                         ABlockTransferSrcAccessOrder,
-                         ABlockTransferSrcVectorDim,
-                         ABlockTransferSrcScalarPerVector,
-                         ABlockTransferDstScalarPerVector_AK1,
-                         false,
-                         ABlockLdsExtraM,
-                         BBlockTransferThreadClusterLengths_BK0_N_BK1,
-                         BBlockTransferThreadClusterArrangeOrder,
-                         BBlockTransferSrcAccessOrder,
-                         BBlockTransferSrcVectorDim,
-                         BBlockTransferSrcScalarPerVector,
-                         BBlockTransferDstScalarPerVector_BK1,
-                         false,
-                         BBlockLdsExtraN,
-                         CShuffleMXdlPerWavePerShuffle,
-                         CShuffleNXdlPerWavePerShuffle,
-                         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
-                         CDEShuffleBlockTransferScalarPerVectors,
-                         BlkGemmPipeSched,
-                         BlkGemmPipelineVer,
-                         ActivationOP,
-                         NSwizzle,
-                         IsInputGemm,
-                         MulRoutedWeight,
-                         IndexType,
-                         ComputeTypeA,
-                         ComputeTypeB,
-                         LDSTypeA,
-                         LDSTypeB>;
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseMoeGemmBlockScale<
+        ALayout,
+        BLayout,
+        DsLayout,
+        CLayout,
+        ADataType,
+        BDataType,
+        GemmAccDataType,
+        CShuffleDataType,
+        DsDataType,
+        CDataType,
+        AElementwiseOperation,
+        BElementwiseOperation,
+        CElementwiseOperation,
+        GemmSpec,
+        BlockSize,
+        ScaleBlockM,
+        ScaleBlockN,
+        ScaleBlockK,
+        MPerBlock,
+        NPerBlock,
+        KPerBlock,
+        AK1,
+        BK1,
+        MPerXDL,
+        NPerXDL,
+        MXdlPerWave,
+        NXdlPerWave_,
+        ABlockTransferThreadClusterLengths_AK0_M_AK1,
+        ABlockTransferThreadClusterArrangeOrder,
+        ABlockTransferSrcAccessOrder,
+        ABlockTransferSrcVectorDim,
+        ABlockTransferSrcScalarPerVector,
+        ABlockTransferDstScalarPerVector_AK1,
+        false,
+        ABlockLdsExtraM,
+        BBlockTransferThreadClusterLengths_BK0_N_BK1,
+        BBlockTransferThreadClusterArrangeOrder,
+        BBlockTransferSrcAccessOrder,
+        BBlockTransferSrcVectorDim,
+        BBlockTransferSrcScalarPerVector,
+        BBlockTransferDstScalarPerVector_BK1,
+        false,
+        BBlockLdsExtraN,
+        CShuffleMXdlPerWavePerShuffle,
+        math::min(CShuffleNXdlPerWavePerShuffle, NXdlPerWave_),
+        CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        CDEShuffleBlockTransferScalarPerVectors,
+        BlkGemmPipeSched,
+        BlkGemmPipelineVer,
+        ActivationOP,
+        NSwizzle,
+        IsInputGemm,
+        MulRoutedWeight,
+        IndexType,
+        ComputeTypeA,
+        ComputeTypeB,
+        LDSTypeA,
+        LDSTypeB>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
-    using Argument = typename GridwiseGemm::Argument;
+    using Argument = typename GridwiseGemm64::Argument;
 
     static constexpr index_t APackedSize = []() {
         if constexpr(is_same_v<remove_cvref_t<ADataType>, pk_i4_t>)
@@ -180,7 +186,9 @@ struct DeviceMoeGemmBlockScale
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
             {
@@ -207,7 +215,7 @@ struct DeviceMoeGemmBlockScale
 
                     std::array<std::size_t, NumDTensor> DsSize;
 
-                    Argument arg_ = arg;
+                    auto arg_ = arg;
 
                     const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(
                         arg_.M, arg_.MPadded, arg_.K, arg_.KPadded, arg_.StrideA, arg_.AK0);
@@ -226,8 +234,13 @@ struct DeviceMoeGemmBlockScale
                         using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
                         DsSize[i] = ds_grid_desc_m_n[i].GetElementSpaceSize() * sizeof(DDataType);
                     });
-                    ck::utility::RotatingMemWrapperMultiD<Argument, DsDataType> rotating_mem(
-                        arg_, stream_config.rotating_count, size_a_buffer, size_b_buffer, DsSize);
+                    ck::utility::RotatingMemWrapperMultiD<typename GridwiseGemm::Argument,
+                                                                      DsDataType>
+                        rotating_mem(arg_,
+                                     stream_config.rotating_count,
+                                     size_a_buffer,
+                                     size_b_buffer,
+                                     DsSize);
                     rotating_mem.Print();
 
                     auto run_flush_cache = [&]() {
@@ -385,6 +398,8 @@ struct DeviceMoeGemmBlockScale
             return ave_time;
         }
 
+        INVOKER_RUN3_IMPL
+
         // polymorphic
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override
@@ -406,11 +421,10 @@ struct DeviceMoeGemmBlockScale
         {
             return false;
         }
-        if(!ck::is_xdl_supported())
+        if(!ck::is_xdl_wmma_supported<ComputeTypeA, ComputeTypeB, MPerXDL, NPerXDL>())
         {
             return false;
         }
-
         if(!is_bf16_atomic_supported() && std::is_same_v<CDataType, ck::bhalf_t> && arg.KBatch > 1)
         {
             return false;
@@ -428,7 +442,22 @@ struct DeviceMoeGemmBlockScale
             return false;
         }
 
-        return GridwiseGemm::CheckValidity(arg);
+        if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                return GridwiseGemm64::CheckValidity(arg);
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                return GridwiseGemm32::CheckValidity(
+                    reinterpret_cast<const typename GridwiseGemm32::Argument&>(arg));
+            }
+        }
+        return false;
     }
 
     // polymorphic
@@ -572,7 +601,7 @@ struct DeviceMoeGemmBlockScale
             << "BlkGemmPipelineVersion: "
             << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
             << "BlkGemmPipelinePrefetchStages: "
-            << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages;
+            << GridwiseGemm64::BlockwiseGemmPipe::PrefetchStages;
         // clang-format on
 
         return str.str();

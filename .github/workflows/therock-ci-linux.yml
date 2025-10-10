@@ -21,34 +21,42 @@ jobs:
       id-token: write
     container:
       image: ghcr.io/rocm/therock_build_manylinux_x86_64@sha256:044b113562629f4bd2ec5d2e64b32eee11562d48fb1a75d7493daec9dd8d8292
+      options: -v /runner/config:/home/awsconfig/
     env:
       AMDGPU_FAMILIES: ${{ inputs.amdgpu_families }}
       TEATIME_FORCE_INTERACTIVE: 0
+      AWS_SHARED_CREDENTIALS_FILE: /home/awsconfig/credentials.ini
     steps:
+      - name: "Checking out repository for rocm-libraries"
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          repository: "ROCm/rocm-libraries"
+
       - name: Checkout composable_kernel repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          path: "composable_kernel"
 
       - name: Checkout TheRock repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           repository: "ROCm/TheRock"
-          ref: ec1c2ef4f2636bce7733fd8c95e1dbb6692c8a57
+          ref: 3f62012a748df3a3099c51fa95d104db643a4588 # 10-03-2025 commit
           path: "TheRock"
 
       - name: Runner Health Settings
         run: |
-          df -h
-          cmake --version
-          echo "Installed Python versions:"
-          ls -d /opt/python
-          echo "python: $(which python), python3: $(which python3)"
-          echo "Git version: $(git --version)"
-          git config --global --add safe.directory $PWD
-          git config fetch.parallel 10
+          ./TheRock/build_tools/health_status.py
       
       - name: Fetch sources
         run: |
-          ./TheRock/build_tools/fetch_sources.py --jobs 12
+          ./TheRock/build_tools/fetch_sources.py --jobs 12 --no-include-rocm-libraries --no-include-ml-frameworks
+
+      - name: Patch rocm-libraries
+        run: |
+          rm ./TheRock/patches/amd-mainline/rocm-libraries/0009-Use-workgroupMappingDim-in-rocroller_host.patch
+          git config --global --add safe.directory '*'
+          git -c user.name="therockbot" -c "user.email=therockbot@amd.com" am --whitespace=nowarn ./TheRock/patches/amd-mainline/rocm-libraries/*.patch
 
       - name: Install python deps
         run: |
@@ -83,39 +91,21 @@ jobs:
           echo "----------"
           du -h -d 1 TheRock/build/artifacts
 
-      - name: Configure AWS Credentials
-        if: always()
-        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0
+      - name: Configure AWS Credentials for non-forked repos
+        if: ${{ always() && !github.event.pull_request.head.repo.fork }}
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           aws-region: us-east-2
           role-to-assume: arn:aws:iam::692859939525:role/therock-artifacts-external
 
-      - name: Create Logs index Files and upload logs
+      - name: Post Build Upload
         if: always()
         run: |
-          python3 TheRock/build_tools/github_actions/create_log_index.py \
-            --build-dir=TheRock/build \
-            --amdgpu-family=${{ env.AMDGPU_FAMILIES }}
-
-          python3 TheRock/build_tools/github_actions/upload_build_logs_to_s3.py \
-            --build-dir=TheRock/build \
-            --run-id ${{ github.run_id }} \
-            --amdgpu-family ${{ env.AMDGPU_FAMILIES }}
-
-      - name: Upload artifacts
-        run: |
-          python TheRock/build_tools/github_actions/upload_build_artifacts.py \
+          python3 TheRock/build_tools/github_actions/post_build_upload.py \
             --run-id ${{ github.run_id }} \
             --amdgpu-family ${{ env.AMDGPU_FAMILIES }} \
-            --build-dir TheRock/build
-
-      - name: Add Links to Job Summary
-        if: always()
-        run: |
-          python TheRock/build_tools/github_actions/upload_build_summary.py \
-            --run-id ${{ github.run_id }} \
-            --amdgpu-family ${{ env.AMDGPU_FAMILIES }} \
-            --build-dir TheRock/build
+            --build-dir TheRock/build \
+            --upload
 
   therock-test-linux:
     name: "Test"

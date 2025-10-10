@@ -17,8 +17,10 @@
 #include <utility>
 #include <vector>
 
+#if !CK_TILE_USE_WMMA
 #ifdef PERMUTE_USE_ALTERNATIVE_IMPL
 #include "alternative_impl/matrix_core_swizzle.hpp"
+#endif
 #endif
 
 namespace detail {
@@ -54,11 +56,11 @@ float permute(permute_args a, const ck_tile::stream_config& s)
 
     auto kargs = Kernel::MakeKargs(a);
 
-    const dim3 grids      = Kernel::GridSize(a);
-    constexpr dim3 blocks = Kernel::BlockSize();
+    const dim3 grids  = Kernel::GridSize(a);
+    const dim3 blocks = Kernel::BlockSize();
 
-    float ave_time = ck_tile::launch_kernel(
-        s, ck_tile::make_kernel<blocks.x, 1>(Kernel{}, grids, blocks, 0, kargs));
+    float ave_time =
+        ck_tile::launch_kernel(s, ck_tile::make_kernel<1>(Kernel{}, grids, blocks, 0, kargs));
 
     return ave_time;
 }
@@ -193,6 +195,7 @@ class TestCkTilePermute : public ::testing::Test
 
             return permute<DataType>(a, stream_config);
         };
+#if !CK_TILE_USE_WMMA
 #ifdef PERMUTE_USE_ALTERNATIVE_IMPL
         // batch* n0*n1*n2*k0*k1*k2 -> batch* n0*k0*n1*k1*n2*k2
         if((perm == std::string("0,1,4,2,5,3,6") || perm == std::string("0,1,2,4,5,3,6") ||
@@ -278,6 +281,7 @@ class TestCkTilePermute : public ::testing::Test
             }
         }
         else
+#endif
 #endif
         {
             run_permute();

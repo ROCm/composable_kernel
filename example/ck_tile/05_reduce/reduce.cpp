@@ -3,7 +3,23 @@
 
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/reduce.hpp"
+#include "ck_tile/utility/json_dump.hpp"
 #include <cstring>
+
+template <typename T>
+struct DataTypeTraits;
+
+template <>
+struct DataTypeTraits<ck_tile::half_t>
+{
+    static constexpr const char* name = "fp16";
+};
+
+template <>
+struct DataTypeTraits<ck_tile::bf16_t>
+{
+    static constexpr const char* name = "bf16";
+};
 
 auto create_args(int argc, char* argv[])
 {
@@ -14,8 +30,10 @@ auto create_args(int argc, char* argv[])
         .insert("c", "512", "c dimension")
         .insert("v", "1", "cpu validation or not")
         .insert("prec", "fp16", "precision")
-        .insert("warmup", "0", "cold iter")
-        .insert("repeat", "1", "hot iter");
+        .insert("warmup", "5", "cold iter")
+        .insert("repeat", "20", "hot iter")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "reduce.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -70,7 +88,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // using WarpTile   = ck_tile::sequence<1, 512>;
     // using Vector = ck_tile::sequence<1, 8>;
 
-    constexpr ck_tile::index_t kBlockSize  = 256;
     constexpr ck_tile::index_t kBlockPerCu = 1;
     ck_tile::index_t kept_dim_len_prod     = N * C;
     ck_tile::index_t kGridSize = (kept_dim_len_prod + BlockTile::at(ck_tile::number<0>{}) - 1) /
@@ -81,8 +98,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using Porblem =
         ck_tile::Reduce2dProblem<XDataType, ComputeDataType, YDataType, Shape, ReduceOp>;
 
-    using Kernel = ck_tile::Reduce<Porblem>;
-
+    using Kernel                      = ck_tile::Reduce<Porblem>;
+    const ck_tile::index_t kBlockSize = Kernel::BlockSize();
     // Create input tensor shape and strides
     auto input_shape =
         ck_tile::make_tuple(problem_shape[0], problem_shape[1], problem_shape[2], problem_shape[3]);
@@ -94,18 +111,18 @@ bool run(const ck_tile::ArgParser& arg_parser)
         throw std::runtime_error("Wrong! Arguments not supported!\n");
     }
 
-    float ave_time = launch_kernel(ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
-                                   ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
-                                       Kernel{},
-                                       kGridSize,
-                                       kBlockSize,
-                                       0,
-                                       static_cast<XDataType*>(x_buf.GetDeviceBuffer()),
-                                       static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
-                                       input_shape,
-                                       input_strides,
-                                       kept_dim,
-                                       reduce_dims));
+    float ave_time = launch_kernel(
+        ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
+        ck_tile::make_kernel<kBlockPerCu>(Kernel{},
+                                          kGridSize,
+                                          kBlockSize,
+                                          0,
+                                          static_cast<XDataType*>(x_buf.GetDeviceBuffer()),
+                                          static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
+                                          input_shape,
+                                          input_strides,
+                                          kept_dim,
+                                          reduce_dims));
 
     std::size_t num_btype = sizeof(XDataType) * N * C * H * W + sizeof(YDataType) * N * C;
 
@@ -124,6 +141,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
         pass = ck_tile::check_err(y_host_dev, y_host_ref);
 
         std::cout << "valid:" << (pass ? "y" : "n") << std::flush << std::endl;
+    }
+
+    if(arg_parser.get_int("json") == 1)
+    {
+        dump_reduce_json_results<DataType, DataTypeTraits>(
+            arg_parser.get_str("jsonfile"), N, C, H, W, pass, ave_time, 0, gb_per_sec);
     }
 
     return pass;

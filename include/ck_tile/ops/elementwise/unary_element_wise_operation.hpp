@@ -4,15 +4,46 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include <cstdint>
 #include <type_traits>
+
+#define CONSTEXPR_LOOKUP_TABLE_FOR_BF16 1
+#define CONSTEXPR_LOOKUP_TABLE_FOR_FP8 0
+#define CONSTEXPR_LOOKUP_TABLE_FOR_BF8 0
 
 namespace ck_tile {
 namespace element_wise {
 
-// Fast int4x4 to fp16x8_t data type conversion based on paper
-// [Who Says Elephants Can't Run: Bringing Large Scale MoE Models into Cloud Scale Production]
-// (https://arxiv.org/abs/2211.10017) and implementation:
-// https://github.com/NVIDIA/FasterTransformer/blob/main/src/fastertransformer/cutlass_extensions/include/cutlass_extensions/interleaved_numeric_conversion.h
+// Generalized constexpr lookup table generator
+template <typename T, std::size_t N, typename F, std::size_t... Is>
+constexpr std::array<T, N> make_lookup_table_impl(F&& func, std::index_sequence<Is...>)
+{
+    return {func(Is)...};
+}
+
+template <typename T, std::size_t N, typename F>
+constexpr std::array<T, N> make_lookup_table(F&& func)
+{
+    return make_lookup_table_impl<T, N>(std::forward<F>(func), std::make_index_sequence<N>{});
+}
+
+/**
+ * @brief Fast int4x4 to fp16x8_t data type conversion based on paper
+ * "Who Says Elephants Can't Run: Bringing Large Scale MoE Models into Cloud Scale Production"
+ * @see https://arxiv.org/abs/2211.10017
+ * @see
+ * https://github.com/NVIDIA/FasterTransformer/blob/main/src/fastertransformer/cutlass_extensions/include/cutlass_extensions/interleaved_numeric_conversion.h
+ *
+ * This function converts 4 4-bit integers into 4 fp16 values.
+ * @note `int q` contains 4 bytes, low 4 bits of each byte represent an int4.
+ * @note This function assumes pk_int4_t has a bias of 8, meaning 0b0000 is converted to fp16(-8)
+ * @note The output ordering differs from input ordering. For example, when input is 0x76543210,
+ *       the output sequence will be fp16(7, 3, 6, 2, 5, 1, 4, 0). Therefore, the input tensor
+ *       must be preprocessed with permute_vectors_i4x4_b on the host side before using this
+ * function.
+ *
+ * @see permute_vectors_i4x4_b
+ */
 CK_TILE_DEVICE fp16x4_t i4_to_half4(int q)
 {
     const int LO = 0x000f000f;
@@ -46,6 +77,18 @@ CK_TILE_DEVICE fp16x4_t i4_to_half4(int q)
     return res;
 }
 
+/**
+ * @brief This function dequantizes 4 int4 values into 4 fp16 values and applies scaling.
+ *
+ * @note `int q` contains 4 bytes, low 4 bits of each byte represent an int4.
+ * @note This function assumes pk_int4_t has a bias of 8, meaning 0b0000 is converted to fp16(-8)
+ * @note The output ordering differs from input ordering. For example, when input is 0x76543210,
+ *       the output sequence will be fp16(7, 3, 6, 2, 5, 1, 4, 0). Therefore, the input tensor
+ *       must be preprocessed with permute_vectors_i4x4_b on the host side before using this
+ * function.
+ *
+ * @see permute_vectors_i4x4_b
+ */
 CK_TILE_DEVICE fp16x4_t i4_to_half4_scale(int q, const fp16x2_t& scale)
 {
     const int LO = 0x000f000f;
@@ -81,8 +124,22 @@ CK_TILE_DEVICE fp16x4_t i4_to_half4_scale(int q, const fp16x2_t& scale)
     return res;
 }
 
+/**
+ * @brief This function converts 4 4-bit integers into 4 bf16 values.
+ *
+ * @note `int q` contains 4 bytes, low 4 bits of each byte represent an int4.
+ * @note This function assumes pk_int4_t has a bias of 8, meaning 0b0000 is converted to bf16(-8)
+ * @note The output ordering differs from input ordering. For example, when input is 0x76543210,
+ *       the output sequence will be bf16(7, 3, 6, 2, 5, 1, 4, 0). Therefore, the input tensor
+ *       must be preprocessed with permute_vectors_i4x4_b on the host side before using this
+ * function.
+ *
+ * @see permute_vectors_i4x4_b
+ */
 CK_TILE_DEVICE bf16x4_t i4_to_bhalf4(int q)
 {
+#if !CONSTEXPR_LOOKUP_TABLE_FOR_BF16
+    // This approach fails validation in GEMM tests.
     uint32_t i8s = (q & 0xf) | ((q & 0xf0) << 4) | ((q & 0xf00) << 8) | ((q & 0xf000) << 12);
 
     static constexpr uint32_t fp32_base = 0x4B000000;
@@ -108,40 +165,95 @@ CK_TILE_DEVICE bf16x4_t i4_to_bhalf4(int q)
         __byte_perm(fp32_intermediates_casted[3], fp32_intermediates_casted[2], 0x7632));
 
     return res;
+#else
+    // Lookup table for bf16_t values corresponding to int4 values -8 to 7
+    constexpr auto bf16_lookup_table = make_lookup_table<bf16_t, 16>(
+        [](int i) { return bit_cast<bf16_t>(float_to_bf16_rtn_raw(i - 8)); });
+
+    return bf16x4_t{bf16_lookup_table[(q >> 0) & 0xf],
+                    bf16_lookup_table[(q >> 16) & 0xf],
+                    bf16_lookup_table[(q >> 4) & 0xf],
+                    bf16_lookup_table[(q >> 20) & 0xf]};
+#endif
 }
 
+#if !CONSTEXPR_LOOKUP_TABLE_FOR_FP8
+/**
+ * @brief This function converts 8 packed 4-bit integers into 8 fp8 values.
+ *
+ * @note `int q` contains 4 bytes, each byte represents 2 int4.
+ * @note This function assumes pk_int4_t has a bias of 8, meaning 0b0000 is converted to fp8(-8)
+ * @note The output ordering differs from input ordering. For example, when input is 0x76543210,
+ *       the output sequence will be fp8(7, 3, 6, 2, 5, 1, 4, 0). Therefore, the input tensor
+ *       must be preprocessed with permute_vectors_i4x4_b on the host side before using this
+ * function.
+ *
+ * @see permute_vectors_i4x4_b
+ */
 CK_TILE_DEVICE fp8x8_t amd_assembly_i4_to_fp8x8(int a)
 {
-    uint32_t src = static_cast<uint32_t>(a), src_hi;
-    uint32_t fp8x4_lo, fp8x4_hi;
-    float tmp_0, tmp_1;
+#if CK_TILE_USE_OCP_FP8
+    // register values [3, 2, 1, 0]
+    static constexpr uint32_t reg0 = 0xcaccced0;
+    // register values [7, 6, 5, 4]
+    static constexpr uint32_t reg1 = 0xb8c0c4c8;
+    // register values [-1, -2, -3, -4]
+    static constexpr uint32_t reg2 = 0x44403800;
+    // register values [-5, -6, -7, -8]
+    static constexpr uint32_t reg3 = 0x4e4c4a48;
+#else
+    // register values [3, 2, 1, 0]
+    static constexpr uint32_t reg0 = 0xd2d4d6d8;
+    // register values [7, 6, 5, 4]
+    static constexpr uint32_t reg1 = 0xc0c8ccd0;
+    // register values [-1, -2, -3, -4]
+    static constexpr uint32_t reg2 = 0x4C484000;
+    // register values [-5, -6, -7, -8]
+    static constexpr uint32_t reg3 = 0x56545250;
+#endif
 
-    asm volatile("v_lshrrev_b32 %[v_hi_src], 4, %[v_src]\n"
-                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_3\n"
-                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src], src0_sel:BYTE_3\n"
-                 "v_cvt_pk_fp8_f32 %[v_dst_hi], %[v_tmp_1], %[v_tmp_0], op_sel:[0, 0, 1]\n"
+    uint32_t tmp_pos, tmp_neg, tmp_res_even, tmp_res_odd, final_sel;
 
-                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_2\n"
-                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src], src0_sel:BYTE_2\n"
-                 "v_cvt_pk_fp8_f32 %[v_dst_hi], %[v_tmp_1], %[v_tmp_0]\n"
+    uint32_t dict_sel = a & 0x07070707;
+    uint32_t sign     = a >> 1;
+    asm volatile("v_and_or_b32 %0, %1, %2, %3"
+                 : "=v"(final_sel)
+                 : "v"(sign), "v"(0x04040404), "v"(0x03020100));
 
-                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_1\n"
-                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src], src0_sel:BYTE_1\n"
-                 "v_cvt_pk_fp8_f32 %[v_dst_lo], %[v_tmp_1], %[v_tmp_0], op_sel:[0, 0, 1]\n"
+    tmp_pos      = __builtin_amdgcn_perm(reg1, reg0, dict_sel);
+    tmp_neg      = __builtin_amdgcn_perm(reg3, reg2, dict_sel);
+    tmp_res_even = __builtin_amdgcn_perm(tmp_neg, tmp_pos, final_sel);
 
-                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src]\n"
-                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src]\n"
-                 "v_cvt_pk_fp8_f32 %[v_dst_lo], %[v_tmp_1], %[v_tmp_0]\n"
-                 : [v_tmp_0] "+v"(tmp_0),
-                   [v_tmp_1] "+v"(tmp_1),
-                   [v_hi_src] "+v"(src_hi),
-                   [v_dst_lo] "+v"(fp8x4_lo),
-                   [v_dst_hi] "+v"(fp8x4_hi),
-                   [v_src] "+v"(src)
-                 :);
+    a >>= 4;
+    dict_sel = a & 0x07070707;
+    sign     = a >> 1;
+    asm volatile("v_and_or_b32 %0, %1, %2, %3"
+                 : "=v"(final_sel)
+                 : "v"(sign), "v"(0x04040404), "v"(0x03020100));
 
-    return bit_cast<fp8x8_t>(((static_cast<uint64_t>(fp8x4_hi) << 32) | fp8x4_lo));
+    tmp_pos           = __builtin_amdgcn_perm(reg1, reg0, dict_sel);
+    tmp_neg           = __builtin_amdgcn_perm(reg3, reg2, dict_sel);
+    tmp_res_odd       = __builtin_amdgcn_perm(tmp_neg, tmp_pos, final_sel);
+    auto tmp_res_low  = __builtin_amdgcn_perm(tmp_res_odd, tmp_res_even, 0x06040200);
+    auto tmp_res_high = __builtin_amdgcn_perm(tmp_res_odd, tmp_res_even, 0x07050301);
+
+    return bit_cast<fp8x8_t>((static_cast<uint64_t>(tmp_res_high) << 32) | tmp_res_low);
 }
+#else
+CK_TILE_DEVICE fp8x4_t i4_to_fp8x4(int q)
+{
+    // The approach below can be used once this compiler issue is resolved:
+    // "constexpr bit cast involving type 'unsigned _BitInt(8)' is not yet supported"
+    // Lookup table for fp8_t values corresponding to int4 values -8 to 7
+    constexpr auto fp8_lookup_table = make_lookup_table<fp8_t, 16>(
+        [](int i) { return impl::cast_to_f8<float, fp8_t, true, false>(i - 8, 0); });
+
+    return fp8x4_t{fp8_lookup_table[(q >> 0) & 0xf],
+                   fp8_lookup_table[(q >> 16) & 0xf],
+                   fp8_lookup_table[(q >> 4) & 0xf],
+                   fp8_lookup_table[(q >> 20) & 0xf]};
+}
+#endif
 
 CK_TILE_DEVICE float amd_assembly_fp8_to_fp32(uint32_t src)
 {
@@ -157,38 +269,83 @@ CK_TILE_DEVICE float amd_assembly_bf8_to_fp32(uint32_t src)
     return res;
 }
 
-CK_TILE_DEVICE bf8x8_t amd_assembly_i4_to_bf8x8(int a)
+#if !CONSTEXPR_LOOKUP_TABLE_FOR_BF8
+/**
+ * @brief This function converts 8 packed 4-bit integers into 8 bf8 values.
+ *
+ * @note `int q` contains 4 bytes, each byte represents 2 int4.
+ * @note This function assumes pk_int4_t has a bias of 8, meaning 0b0000 is converted to bf8(-8)
+ * @note The output ordering differs from input ordering. For example, when input is 0x76543210,
+ *       the output sequence will be bf8(7, 3, 6, 2, 5, 1, 4, 0). Therefore, the input tensor
+ *       must be preprocessed with permute_vectors_i4x4_b on the host side before using this
+ * function.
+ *
+ * @see permute_vectors_i4x4_b
+ */
+CK_TILE_DEVICE bf8x8_t amd_assembly_i4_to_bf8x8(uint32_t a)
 {
-    uint32_t src = static_cast<uint32_t>(a), src_hi;
-    uint32_t bf8x4_lo, bf8x4_hi;
-    float tmp_0, tmp_1;
+#if CK_TILE_USE_OCP_FP8
+    // register values [3, 2, 1, 0]
+    static constexpr uint32_t reg0 = 0Xc5c6c7c8;
+    // register values [7, 6, 5, 4]
+    static constexpr uint32_t reg1 = 0Xbcc0c2c4;
+    // register values [11, 10, 9, 8]
+    static constexpr uint32_t reg2 = 0X42403c00;
+    // register values [15, 14, 13, 12]
+    static constexpr uint32_t reg3 = 0X47464544;
+#else
+    // register values [3, 2, 1, 0]
+    static constexpr uint32_t reg0 = 0Xc9cacbcc;
+    // register values [7, 6, 5, 4]
+    static constexpr uint32_t reg1 = 0Xc0c4c6c8;
+    // register values [11, 10, 9, 8]
+    static constexpr uint32_t reg2 = 0X46444000;
+    // register values [15, 14, 13, 12]
+    static constexpr uint32_t reg3 = 0X4b4a4948;
+#endif
 
-    asm volatile("v_lshrrev_b32 %[v_hi_src], 4, %[v_src]\n"
-                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_3\n"
-                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src], src0_sel:BYTE_3\n"
-                 "v_cvt_pk_bf8_f32 %[v_dst_hi], %[v_tmp_1], %[v_tmp_0], op_sel:[0, 0, 1]\n"
+    uint32_t tmp_pos, tmp_neg, tmp_res_even, tmp_res_odd, final_sel;
 
-                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_2\n"
-                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src], src0_sel:BYTE_2\n"
-                 "v_cvt_pk_bf8_f32 %[v_dst_hi], %[v_tmp_1], %[v_tmp_0]\n"
+    uint32_t dict_sel = a & 0x07070707;
+    uint32_t sign     = a >> 1;
+    asm volatile("v_and_or_b32 %0, %1, %2, %3"
+                 : "=v"(final_sel)
+                 : "v"(sign), "v"(0x04040404), "v"(0x03020100));
 
-                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_1\n"
-                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src], src0_sel:BYTE_1\n"
-                 "v_cvt_pk_bf8_f32 %[v_dst_lo], %[v_tmp_1], %[v_tmp_0], op_sel:[0, 0, 1]\n"
+    tmp_pos      = __builtin_amdgcn_perm(reg1, reg0, dict_sel);
+    tmp_neg      = __builtin_amdgcn_perm(reg3, reg2, dict_sel);
+    tmp_res_even = __builtin_amdgcn_perm(tmp_neg, tmp_pos, final_sel);
 
-                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src]\n"
-                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src]\n"
-                 "v_cvt_pk_bf8_f32 %[v_dst_lo], %[v_tmp_1], %[v_tmp_0]\n"
-                 : [v_tmp_0] "+v"(tmp_0),
-                   [v_tmp_1] "+v"(tmp_1),
-                   [v_hi_src] "+v"(src_hi),
-                   [v_dst_lo] "+v"(bf8x4_lo),
-                   [v_dst_hi] "+v"(bf8x4_hi),
-                   [v_src] "+v"(src)
-                 :);
+    a >>= 4;
+    dict_sel = a & 0x07070707;
+    sign     = a >> 1;
+    asm volatile("v_and_or_b32 %0, %1, %2, %3"
+                 : "=v"(final_sel)
+                 : "v"(sign), "v"(0x04040404), "v"(0x03020100));
 
-    return bit_cast<bf8x8_t>(((static_cast<uint64_t>(bf8x4_hi) << 32) | bf8x4_lo));
+    tmp_pos           = __builtin_amdgcn_perm(reg1, reg0, dict_sel);
+    tmp_neg           = __builtin_amdgcn_perm(reg3, reg2, dict_sel);
+    tmp_res_odd       = __builtin_amdgcn_perm(tmp_neg, tmp_pos, final_sel);
+    auto tmp_res_low  = __builtin_amdgcn_perm(tmp_res_odd, tmp_res_even, 0x06040200);
+    auto tmp_res_high = __builtin_amdgcn_perm(tmp_res_odd, tmp_res_even, 0x07050301);
+
+    return bit_cast<bf8x8_t>((static_cast<uint64_t>(tmp_res_high) << 32) | tmp_res_low);
 }
+#else
+CK_TILE_DEVICE bf8x4_t i4_to_bf8x4(int q)
+{
+    // The approach below can be used once this compiler issue is resolved:
+    // "constexpr bit cast involving type 'unsigned _BitInt(8)' is not yet supported"
+    // Lookup table for bf8_t values corresponding to int4 values -8 to 7
+    constexpr auto bf8_lookup_table = make_lookup_table<bf8_t, 16>(
+        [](int i) { return impl::cast_to_f8<float, bf8_t, true, false>(i - 8, 0); });
+
+    return bf8x4_t{bf8_lookup_table[(q >> 0) & 0xf],
+                   bf8_lookup_table[(q >> 16) & 0xf],
+                   bf8_lookup_table[(q >> 4) & 0xf],
+                   bf8_lookup_table[(q >> 20) & 0xf]};
+}
+#endif
 
 struct PassThroughPack8
 {
@@ -204,17 +361,27 @@ struct PassThroughPack8
     CK_TILE_HOST_DEVICE constexpr void operator()(bf16x8_t& y, const pk_int4x4_t& x) const
     {
         y.lo = i4_to_bhalf4(bit_cast<int>(x));
-        y.hi = i4_to_bhalf4(bit_cast<int>(x) >> 16);
+        y.hi = i4_to_bhalf4(bit_cast<int>(x) >> 8);
     }
 
     CK_TILE_HOST_DEVICE constexpr void operator()(fp8x8_t& y, const pk_int4x4_t& x) const
     {
-        y = amd_assembly_i4_to_fp8x8(bit_cast<int>(x));
+#if !CONSTEXPR_LOOKUP_TABLE_FOR_FP8
+        y = amd_assembly_i4_to_fp8x8(bit_cast<uint32_t>(x));
+#else
+        y.lo = i4_to_fp8x4(bit_cast<int>(x));
+        y.hi = i4_to_fp8x4(bit_cast<int>(x) >> 8);
+#endif
     }
 
     CK_TILE_HOST_DEVICE constexpr void operator()(bf8x8_t& y, const pk_int4x4_t& x) const
     {
-        y = amd_assembly_i4_to_bf8x8(bit_cast<int>(x));
+#if !CONSTEXPR_LOOKUP_TABLE_FOR_BF8
+        y = amd_assembly_i4_to_bf8x8(bit_cast<uint32_t>(x));
+#else
+        y.lo = i4_to_bf8x4(bit_cast<int>(x));
+        y.hi = i4_to_bf8x4(bit_cast<int>(x) >> 8);
+#endif
     }
     constexpr const static bool is_pack8_invocable = true;
 };
@@ -296,6 +463,23 @@ struct PassThrough
     }
 };
 
+struct AddScale
+{
+    template <typename E, typename... As>
+    CK_TILE_HOST_DEVICE constexpr void operator()(E& a, const As&... as) const
+    {
+        // Start with the base value c
+        float result = ck_tile::type_convert<float>(0.0f);
+
+        // Add by each D parameter using fold expression
+        ((result += ck_tile::type_convert<float>(as)), ...);
+
+        a = ck_tile::type_convert<E>(scale * result);
+    }
+
+    float scale = 1.0;
+};
+
 struct MultiDMultiply
 {
     template <typename E, typename C, typename... Ds>
@@ -326,7 +510,6 @@ struct MultiDAdd
     }
 };
 
-#if 0
 struct UnaryConvert
 {
     template <typename Y, typename X>
@@ -336,6 +519,7 @@ struct UnaryConvert
     }
 };
 
+#if 0
 struct ConvertBF16RTN
 {
     // convert to bf16 using round to nearest (rtn)
@@ -472,14 +656,14 @@ struct UnaryDivide
 
 struct UnarySquare
 {
-    template <typename T>
-    CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
+    template <typename Y, typename X>
+    CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
     {
-        static_assert(std::is_same_v<T, float> || std::is_same_v<T, ck_tile::fp16_t> ||
-                          std::is_same_v<T, double> || std::is_same_v<T, int32_t> ||
-                          std::is_same_v<T, int8_t>
+        static_assert(std::is_same_v<X, float> || std::is_same_v<X, ck_tile::fp16_t> ||
+                          std::is_same_v<X, double> || std::is_same_v<X, int32_t> ||
+                          std::is_same_v<X, int8_t>
 #ifdef CK_TILE_EXPERIMENTAL_BIT_INT_EXTENSION_INT4
-                          || std::is_same_v<T, int4_t>
+                          || std::is_same_v<X, int4_t>
 #endif
                       ,
                       "Data type is not supported by this operation!");

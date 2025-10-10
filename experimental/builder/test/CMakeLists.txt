@@ -13,16 +13,17 @@ function(add_ck_builder_test test_name)
         -Wno-global-constructors
         -Wno-c++20-compat
     )
-    target_link_libraries(${test_name} PRIVATE GTest::gtest GTest::gtest_main)
+    target_link_libraries(${test_name} PRIVATE GTest::gtest GTest::gtest_main GTest::gmock)
 endfunction()
 
 add_ck_builder_test(test_conv_builder
     test_conv_builder.cpp
+    test_conv_description.cpp
     test_conv_grp_fwd_2d.cpp
     test_conv_grp_fwd_3d.cpp
     test_conv_grp_bwd_2d.cpp
     test_conv_fwd_instances.cpp
-    test_conv_bwd_data_instances.cpp
+    test_conv_bwd_instances.cpp
     testing_utils.cpp)
 
 add_ck_builder_test(test_builder_utils test_builder_utils.cpp)
