@@ -512,6 +512,8 @@ struct MultiDAdd
 
 struct UnaryConvert
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
     {
@@ -576,6 +578,8 @@ struct ConvertF8RNE
 
 struct Scale
 {
+    static constexpr index_t NumArgs = 1;
+
     CK_TILE_HOST_DEVICE Scale(float scale = 1.f) : scale_(scale) {}
 
     template <typename Y, typename X>
@@ -623,6 +627,8 @@ struct Scale
 
 struct ScaleAndResetNaNToMinusInfinity
 {
+    static constexpr index_t NumArgs = 1;
+
     CK_TILE_HOST_DEVICE ScaleAndResetNaNToMinusInfinity(float scale) : scale_(scale) {}
 
     template <typename Y, typename X>
@@ -639,6 +645,8 @@ struct ScaleAndResetNaNToMinusInfinity
 
 struct UnaryDivide
 {
+    static constexpr index_t NumArgs = 1;
+
     CK_TILE_HOST_DEVICE UnaryDivide(const int32_t divider = 1) : divider_(divider) {}
 
     template <typename T>
@@ -656,6 +664,8 @@ struct UnaryDivide
 
 struct UnarySquare
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
     {
@@ -673,6 +683,8 @@ struct UnarySquare
 
 struct UnaryAbs
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -687,6 +699,8 @@ struct UnaryAbs
 
 struct UnarySqrt
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -699,6 +713,8 @@ struct UnarySqrt
 
 struct Relu
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -725,6 +741,8 @@ struct Relu
 // gpu code use lower accuracy "_ocml_exp_f32" and "rcp" function
 struct FastGelu
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename Y, typename X>
     CK_TILE_HOST void operator()(Y& y, const X& x) const;
 
@@ -842,6 +860,8 @@ struct FastGelu
 
 struct FastGeluAsm
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename Y, typename X>
     CK_TILE_HOST void operator()(Y& y, const X& x) const;
 
@@ -943,6 +963,8 @@ struct FastGeluAsm
 // y = 0.5*x*(1+erf(x/sqrt(2)))
 struct Gelu
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const;
 
@@ -963,6 +985,8 @@ struct Gelu
 
 struct Sigmoid
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -977,6 +1001,8 @@ struct Sigmoid
 
 struct Silu
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1066,6 +1092,8 @@ struct SiluAsm
 
 struct TanH
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1080,6 +1108,8 @@ struct TanH
 
 struct ACos
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1094,6 +1124,8 @@ struct ACos
 
 struct Neg
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1108,6 +1140,8 @@ struct Neg
 
 struct ATan
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1122,6 +1156,8 @@ struct ATan
 
 struct Sin
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1136,6 +1172,8 @@ struct Sin
 
 struct ASinH
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1150,6 +1188,8 @@ struct ASinH
 
 struct Cos
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1164,6 +1204,8 @@ struct Cos
 
 struct ACosH
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1178,6 +1220,8 @@ struct ACosH
 
 struct Tan
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1192,6 +1236,8 @@ struct Tan
 
 struct ATanH
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1206,6 +1252,8 @@ struct ATanH
 
 struct SinH
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1220,6 +1268,8 @@ struct SinH
 
 struct Ceil
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1234,6 +1284,8 @@ struct Ceil
 
 struct Exp
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1248,6 +1300,8 @@ struct Exp
 
 struct CosH
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1262,6 +1316,8 @@ struct CosH
 
 struct Floor
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1276,6 +1332,8 @@ struct Floor
 
 struct Log
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1290,6 +1348,8 @@ struct Log
 
 struct ASin
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1304,6 +1364,8 @@ struct ASin
 
 struct Rcp
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1318,6 +1380,8 @@ struct Rcp
 
 struct Swish
 {
+    static constexpr index_t NumArgs = 1;
+
     Swish(float beta = 1.0f) : beta_(beta) {}
 
     template <typename Y, typename X>
@@ -1340,6 +1404,8 @@ struct Swish
 
 struct SoftRelu
 {
+    static constexpr index_t NumArgs = 1;
+
     SoftRelu(float alpha = 1.f) : alpha_(alpha){};
 
     template <typename T>
@@ -1358,6 +1424,8 @@ struct SoftRelu
 
 struct Power
 {
+    static constexpr index_t NumArgs = 3;
+
     Power(float alpha = 0.f, float beta = 1.f, float gamma = 2.f)
         : alpha_(alpha), beta_(beta), gamma_(gamma){};
 
@@ -1381,6 +1449,8 @@ struct Power
 
 struct ClippedRelu
 {
+    static constexpr index_t NumArgs = 2;
+
     ClippedRelu(float alpha = 0.f, float beta = 1.f) : alpha_(alpha), beta_(beta){};
 
     template <typename T>
@@ -1400,6 +1470,8 @@ struct ClippedRelu
 
 struct LeakyRelu
 {
+    static constexpr index_t NumArgs = 1;
+
     LeakyRelu(float alpha = 0.01f) : alpha_(alpha){};
 
     template <typename T>
@@ -1417,6 +1489,8 @@ struct LeakyRelu
 
 struct Elu
 {
+    static constexpr index_t NumArgs = 1;
+
     Elu(float alpha = 1.f) : alpha_(alpha){};
 
     template <typename T>
@@ -1434,6 +1508,8 @@ struct Elu
 
 struct Logistic
 {
+    static constexpr index_t NumArgs = 1;
+
     Logistic(float alpha = 1.f) : alpha_(alpha){};
 
     template <typename T>
@@ -1452,6 +1528,8 @@ struct Logistic
 
 struct Bias
 {
+    static constexpr index_t NumArgs = 1;
+
     Bias(float bias = 0.0f) : bias_(bias){};
 
     template <typename T>
@@ -1466,6 +1544,8 @@ struct Bias
 
 struct Clamp
 {
+    static constexpr index_t NumArgs = 2;
+
     CK_TILE_HOST_DEVICE Clamp(const float lower = std::numeric_limits<float>::lowest(),
                               const float upper = std::numeric_limits<float>::max())
         : lower_(lower), upper_(upper) {};
@@ -1483,6 +1563,8 @@ struct Clamp
 
 struct ConvInvscale
 {
+    static constexpr index_t NumArgs = 3;
+
     CK_TILE_HOST_DEVICE
     ConvInvscale(float scale_in = 1.f, float scale_wei = 1.f, float scale_out = 1.f)
         : scale_in_(scale_in), scale_wei_(scale_wei), scale_out_(scale_out)
@@ -1506,6 +1588,8 @@ struct ConvInvscale
 
 struct ConvScale
 {
+    static constexpr index_t NumArgs = 3;
+
     CK_TILE_HOST_DEVICE
     ConvScale(float scale_in = 1.f, float scale_wei = 1.f, float scale_out = 1.f)
         : scale_in_(scale_in), scale_wei_(scale_wei), scale_out_(scale_out)
@@ -1529,6 +1613,8 @@ struct ConvScale
 
 struct ConvScaleRelu
 {
+    static constexpr index_t NumArgs = 3;
+
     CK_TILE_HOST_DEVICE
     ConvScaleRelu(float scale_in = 1.f, float scale_wei = 1.f, float scale_out = 1.f)
         : scale_in_(scale_in), scale_wei_(scale_wei), scale_out_(scale_out)
@@ -1555,11 +1641,92 @@ struct ConvScaleRelu
 template <typename DstType, typename SrcType>
 struct Cast
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(DstType& y, const SrcType& x) const
     {
         y = ck_tile::type_convert<DstType>(x);
     };
+};
+
+/**
+ * @brief Compose two unary element-wise functions into one.
+ *
+ * @note Both functions should have a `static constexpr index_t NumArgs` defined,
+ * defining how many arguments should be passed to the initializer.
+ *
+ * @tparam FuncA The first function to be applied.
+ * @tparam FuncB The second function to be applied.
+ */
+template <typename FuncA, typename FuncB>
+struct Compose
+{
+    static constexpr index_t NumArgs = FuncA::NumArgs + FuncB::NumArgs;
+
+    /**
+     * @brief Initializer that passes arguments to initializers of `FuncA` and `FuncB`.
+     *
+     * @note Arguments at index above `FuncA::NumArgs + FuncB::NumArgs` are discarded.
+     *
+     * @param args Arguments to be passed to `FuncA` and `FuncB`. The first `FuncA::NumArgs`
+     * arguments are passed to `FuncA`, and the next `FuncB::NumArgs` arguments are passed to
+     * `FuncB`.
+     */
+    template <typename... Args>
+    CK_TILE_HOST_DEVICE Compose(Args... args)
+        : func_a(
+              init_func<FuncA, 0>({args...}, typename make_index_sequence<FuncA::NumArgs>::type())),
+          func_b(init_func<FuncB, FuncA::NumArgs>(
+              {args...}, typename make_index_sequence<FuncB::NumArgs>::type()))
+    {
+    }
+
+    template <typename AIn, typename BOut, typename AOut = AIn>
+    CK_TILE_HOST_DEVICE constexpr void operator()(BOut& y, const AIn& x) const
+    {
+        AOut tmp;
+        func_a(tmp, x);
+        func_b(y, tmp);
+    }
+
+    FuncA func_a;
+    FuncB func_b;
+
+    // Plumbing necessary to split and index the parameter pack in the initializer.
+    private:
+    template <index_t... Is>
+    struct index_sequence
+    {
+    };
+
+    template <index_t N, index_t... Is>
+    struct make_index_sequence
+    {
+        typedef typename make_index_sequence<N - 1, N - 1, Is...>::type type;
+    };
+
+    template <index_t... Is>
+    struct make_index_sequence<0, Is...>
+    {
+        typedef index_sequence<Is...> type;
+    };
+
+    /**
+     * @brief Initialize an element-wise function with arguments.
+     *
+     * @tparam F Function to initialize.
+     * @tparam Offset Index in `args` at which arguments for `F` begin.
+     * @tparam Is Index sequence of length `F::NumArgs` to stop at the correct place in `args`.
+     * `args`.
+     *
+     * @param args Arguments for all composed functions.
+     */
+    template <typename F, index_t Offset, index_t... Is>
+    CK_TILE_HOST_DEVICE F init_func(const std::initializer_list<float> args, index_sequence<Is...>)
+    {
+        return F((*(args.begin() + Offset + Is))...);
+    }
 };
 
 // support fastconvert of int8 to fp16
