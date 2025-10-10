@@ -815,52 +815,6 @@ struct GroupedConvolutionForwardKernel
 
         EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
             c_block_window, c_block_tile, d_block_window, smem_ptr_0);
-
-        __syncthreads();
-        if (blockIdx.x == 0 && blockIdx.y == 0 && threadIdx.x == 0 && threadIdx.y == 0)
-        {
-            constexpr index_t NBlockWidth = TilePartitioner::NPerBlock;
-
-            // Print out LDS contents.
-            // The LDS corresponds TilePartitioner_::MPerBlock * TilePartitioner_::NPerBlock matrix.
-            // Print LDS contents as matrix
-            // printf("LDS Contents (%d x %d):\n", TilePartitioner::MPerBlock, TilePartitioner::NPerBlock);
-            // OutDataType* lds_data = reinterpret_cast<OutDataType*>(smem_ptr_0);
-            
-            // for(int c = 0; c < Gs; ++c) {
-            //     printf("Block %d:\n", c);
-            //     for(int r = 0; r < Gs; ++r) {
-            //         printf("Row %d: ", r);
-            //         for(int n = 0; n < NBlockWidth; ++n) 
-            //         {
-            //             int idx =  (r * NBlockWidth + n) * TilePartitioner::MPerBlock + c;
-            //             printf("%.7f ", static_cast<float>(lds_data[idx]));
-            //         }
-            //         printf(" \n");
-            //     }
-            //     printf("\n\n");
-            // }
-
-            // Print out the LDS contents as a linear array
-            printf("LDS Contents as Linear Array:\n");
-            OutDataType* lds_data = reinterpret_cast<OutDataType*>(smem_ptr_0);
-            for(int i = 0; i < TilePartitioner::MPerBlock * TilePartitioner::NPerBlock; ++i) 
-            {
-                printf("%.7f\n", static_cast<float>(lds_data[i]));
-            }
-
-            // Print out the c_block_window contents for debugging
-            printf("C Ptr Contents (%d x %d):\n", TilePartitioner::MPerBlock, NBlockWidth);
-            for(int m = 0; m < TilePartitioner::MPerBlock; ++m) {
-                for(int n = 0; n < NBlockWidth; ++n) {
-                    int idx = m * NBlockWidth + n;
-                    printf("%.7f ", static_cast<float>(c_ptr[idx]));
-                    if((n + 1) % NBlockWidth == 0) printf("\n  "); // Line break every NBlockWidth elements for readability
-                }
-                printf("\n");
-            }
-        }
-        __syncthreads();
     }
 
     /**
