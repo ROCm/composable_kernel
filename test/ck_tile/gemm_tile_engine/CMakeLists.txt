@@ -34,12 +34,20 @@ function(create_individual_gemm_test_target datatype layout config_name trait ti
     
     # Generated header path (already created during cmake configuration)
     set(test_header "${working_path}/gemm_single_${datatype}_${layout}_${trait}_${tile_config}.hpp")
+    set(test_params_header "${working_path}/test_params.hpp")
     
     # Verify header exists (should have been generated during cmake configuration)
     if(NOT EXISTS ${test_header})
         message(WARNING "Generated header not found: ${test_header}")
         return()
     endif()
+
+    # Verify test parameters header exists
+    if(NOT EXISTS ${test_params_header})
+        message(WARNING "Test parameters header not found: ${test_params_header}")
+        return()
+    endif()
+
 
     # Create GTest executable for this kernel configuration
     add_gtest_executable(${target_name}
@@ -49,9 +57,10 @@ function(create_individual_gemm_test_target datatype layout config_name trait ti
     # Configure GPU architectures for HIP compilation
     set_property(TARGET ${target_name} PROPERTY HIP_ARCHITECTURES ${GEMM_TEST_GPU_TARGETS})
 
-    # Define preprocessor macros for generated header location
+    # Define preprocessor macros for generated header location and test parameters
     target_compile_definitions(${target_name} PRIVATE
         GEMM_SINGLE_INSTANCE_HPP="${test_header}"
+        GEMM_TEST_PARAMS_HPP="${test_params_header}"
     )
 
     # Include directories for headers and dependencies
@@ -128,7 +137,24 @@ function(build_gemm_test_targets datatype layout config_name)
     message(STATUS "Building tests for ${datatype}_${layout}_${config_name}")
     message(STATUS "  Found ${kernel_count} test configurations for ${datatype}_${layout}")
 
-    # STEP 2: Parallel generation phase - generate all headers at once during cmake
+    # STEP 2a: Extract test parameters from config
+    set(test_params_file "${working_path}/test_params.hpp")
+    execute_process(
+        COMMAND ${Python3_EXECUTABLE} -u ${CMAKE_CURRENT_SOURCE_DIR}/extract_test_params.py
+                --config_file ${json_blob}
+                --output_file ${test_params_file}
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        RESULT_VARIABLE extract_ret
+        OUTPUT_VARIABLE extract_output
+        ERROR_VARIABLE extract_error
+    )
+
+    if(NOT extract_ret EQUAL 0)
+        message(WARNING "Failed to extract test parameters for ${datatype}_${layout}: ${extract_error}")
+        return()
+    endif()
+
+    #  STEP 2b: Parallel generation phase - generate all headers at once during cmake
     if(kernel_count GREATER 0)
         message(STATUS "  Generating all headers in parallel...")
         execute_process(

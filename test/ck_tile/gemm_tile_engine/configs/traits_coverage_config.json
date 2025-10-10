@@ -2,6 +2,13 @@
   "problem": {
     "description": "Traits coverage testing - fixed config with fp16/rcr, varying only trait combinations"
   },
+  "test_params": {
+    "problem_sizes": [
+      {"m": 128, "n": 128, "k": 64, "split_k": 1},
+      {"m": 256, "n": 128, "k": 128, "split_k": 1},
+      {"m": 128, "n": 256, "k": 128, "split_k": 1}
+    ]
+  },
   "tile_config": {
     "tile_m": {"values": [64]},
     "tile_n": {"values": [64]},
@@ -21,6 +28,5 @@
     "pad_n": {"values": [false]},
     "pad_k": {"values": [false]},
     "persistent": {"values": [false, true]}
-  },
-  "structured_sparsity": [false]
+  }
 }

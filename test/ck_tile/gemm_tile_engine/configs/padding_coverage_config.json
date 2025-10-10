@@ -2,6 +2,13 @@
   "problem": {
     "description": "Padding coverage testing - fixed config with fp16/rcr, varying only padding combinations"
   },
+  "test_params": {
+    "problem_sizes": [
+      {"m": 100, "n": 100, "k": 50, "split_k": 1},
+      {"m": 200, "n": 150, "k": 80, "split_k": 1},
+      {"m": 150, "n": 200, "k": 60, "split_k": 1}
+    ]
+  },
   "tile_config": {
     "tile_m": {"values": [64]},
     "tile_n": {"values": [64]},
@@ -21,6 +28,5 @@
     "pad_n": {"values": [false, true]},
     "pad_k": {"values": [false, true]},
     "persistent": {"values": [false]}
-  },
-  "structured_sparsity": [false]
+  }
 }

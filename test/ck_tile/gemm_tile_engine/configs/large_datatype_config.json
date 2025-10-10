@@ -2,6 +2,13 @@
   "problem": {
     "description": "Configuration optimized for large data types (fp32) with smaller warp tiles due to memory constraints"
   },
+  "test_params": {
+    "problem_sizes": [
+      {"m": 256, "n": 256, "k": 128, "split_k": 1},
+      {"m": 384, "n": 256, "k": 192, "split_k": 1},
+      {"m": 256, "n": 384, "k": 192, "split_k": 1}
+    ]
+  },
   "tile_config": {
     "tile_m": {"values": [64]},
     "tile_n": {"values": [64]},
@@ -21,6 +28,5 @@
     "pad_n": {"values": [false]},
     "pad_k": {"values": [false]},
     "persistent": {"values": [false]}
-  },
-  "structured_sparsity": [false]
+  }
 }

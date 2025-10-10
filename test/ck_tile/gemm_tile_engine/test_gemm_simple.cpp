@@ -68,6 +68,11 @@ struct GemmTestParams
     int m, n, k, split_k;
 };
 
+// Include config-specific test parameters (after GemmTestParams struct is defined)
+#ifdef GEMM_TEST_PARAMS_HPP
+#include GEMM_TEST_PARAMS_HPP
+#endif
+
 class GemmTileEngineTest : public ::testing::TestWithParam<GemmTestParams>
 {
     protected:
@@ -208,13 +213,11 @@ TEST_P(GemmTileEngineTest, KernelInfo)
               << std::endl;
 }
 
-// Define test parameters for GEMM verification
+// Use config-specific test parameters (included via compile flags)
+// CONFIG_TEST_PARAMS is defined in the auto-generated test_params.hpp file
 INSTANTIATE_TEST_SUITE_P(GemmVerification,
                          GemmTileEngineTest,
-                         ::testing::Values(GemmTestParams{256, 256, 128, 1},
-                                           GemmTestParams{256, 256, 1024, 1},
-                                           GemmTestParams{256, 512, 512, 1},
-                                           GemmTestParams{512, 256, 512, 1}),
+                         ::testing::ValuesIn(CONFIG_TEST_PARAMS),
                          [](const ::testing::TestParamInfo<GemmTestParams>& param_info) {
                              return std::to_string(param_info.param.m) + "x" +
                                     std::to_string(param_info.param.n) + "x" +
