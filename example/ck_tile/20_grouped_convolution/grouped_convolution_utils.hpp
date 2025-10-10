@@ -79,16 +79,16 @@ struct GemmTileConfig
 
 struct GemmVectorLoads_bwd_weight
 {
-    static constexpr ck_tile::index_t VectorSizeA = 1;
-    static constexpr ck_tile::index_t VectorSizeB = 1;
-    static constexpr ck_tile::index_t VectorSizeC = 2;
+    static constexpr ck_tile::index_t VectorSizeA = 1; // output
+    static constexpr ck_tile::index_t VectorSizeB = 1; // input
+    static constexpr ck_tile::index_t VectorSizeC = 2; // weight
 };
 
 struct GemmVectorLoads_fwd
 {
-    static constexpr ck_tile::index_t VectorSizeA = 2;
-    static constexpr ck_tile::index_t VectorSizeB = 2;
-    static constexpr ck_tile::index_t VectorSizeC = 4;
+    static constexpr ck_tile::index_t VectorSizeA = 2; // input
+    static constexpr ck_tile::index_t VectorSizeB = 2; // weight
+    static constexpr ck_tile::index_t VectorSizeC = 2; // output
 };
 
 struct GemmVectorLoads
