@@ -1,7 +1,7 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
-# ONLY XDL_KERNELS
+# XDL_AND_WMMA_KERNELS
 set(GROUPED_CONV2D_FWD_BIAS_BNORM_CLAMP)
 include(ShardInstantiation)
 
@@ -17,11 +17,29 @@ generate_sharded_instantiations(
 
 set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
+  INSTANCES_NAME device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instances
+  TEMPLATE_FILE wmma/device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_instance.in
+  NUM_SHARDS 16
+  SRC_LIST GROUPED_CONV2D_FWD_BIAS_BNORM_CLAMP
+  OUTPUT_DIR ${GENERATED_DIR}/wmma
+)
+
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_f16_instances
   TEMPLATE_FILE xdl/device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_f16_instance.in
   NUM_SHARDS 16
   SRC_LIST GROUPED_CONV2D_FWD_BIAS_BNORM_CLAMP
   OUTPUT_DIR ${GENERATED_DIR}/xdl
+)
+
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+generate_sharded_instantiations(
+  INSTANCES_NAME device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_instances
+  TEMPLATE_FILE wmma/device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_instance.in
+  NUM_SHARDS 16
+  SRC_LIST GROUPED_CONV2D_FWD_BIAS_BNORM_CLAMP
+  OUTPUT_DIR ${GENERATED_DIR}/wmma
 )
 
 set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
@@ -53,6 +71,24 @@ generate_sharded_instantiations(
 
 set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
+  INSTANCES_NAME device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_16x16_instances
+  TEMPLATE_FILE wmma/device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_16x16_instance.in
+  NUM_SHARDS 4
+  SRC_LIST GROUPED_CONV2D_FWD_BIAS_BNORM_CLAMP
+  OUTPUT_DIR ${GENERATED_DIR}/wmma
+)
+
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+generate_sharded_instantiations(
+  INSTANCES_NAME device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_16x16_instances
+  TEMPLATE_FILE wmma/device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_bf16_16x16_instance.in
+  NUM_SHARDS 4
+  SRC_LIST GROUPED_CONV2D_FWD_BIAS_BNORM_CLAMP
+  OUTPUT_DIR ${GENERATED_DIR}/wmma
+)
+
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_f16_16x16_instances
   TEMPLATE_FILE xdl/device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_f16_16x16_instance.in
   NUM_SHARDS 4
@@ -62,17 +98,26 @@ generate_sharded_instantiations(
 
 set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
-  INSTANCES_NAME device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_f32_16x16_instances
-  TEMPLATE_FILE xdl/device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_f32_16x16_instance.in
-  NUM_SHARDS 3
+  INSTANCES_NAME device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_16x16_instances
+  TEMPLATE_FILE wmma/device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_16x16_instance.in
+  NUM_SHARDS 4
   SRC_LIST GROUPED_CONV2D_FWD_BIAS_BNORM_CLAMP
-  OUTPUT_DIR ${GENERATED_DIR}/xdl
+  OUTPUT_DIR ${GENERATED_DIR}/wmma
 )
 
 set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
-  INSTANCES_NAME device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_f32_tf32_16x16_instances
-  TEMPLATE_FILE xdl/device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_f32_tf32_16x16_instance.in
+  INSTANCES_NAME device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_16x16_instances
+  TEMPLATE_FILE wmma/device_grouped_conv2d_fwd_bias_bn_clamp_wmma_cshufflev3_nhwgc_gkyxc_nhwgk_f16_16x16_instance.in
+  NUM_SHARDS 4
+  SRC_LIST GROUPED_CONV2D_FWD_BIAS_BNORM_CLAMP
+  OUTPUT_DIR ${GENERATED_DIR}/wmma
+)
+
+set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
+generate_sharded_instantiations(
+  INSTANCES_NAME device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_f32_16x16_instances
+  TEMPLATE_FILE xdl/device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_f32_16x16_instance.in
   NUM_SHARDS 3
   SRC_LIST GROUPED_CONV2D_FWD_BIAS_BNORM_CLAMP
   OUTPUT_DIR ${GENERATED_DIR}/xdl
