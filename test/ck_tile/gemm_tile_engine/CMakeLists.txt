@@ -324,13 +324,25 @@ else()
     message(WARNING "Padding config file not found: ${PADDING_CONFIG_FILE}")
 endif()
 
-# 5. TILE SIZE COVERAGE: Test different tile sizes (16, 32, 64, 128, 256) with fixed fp16/rcr configuration
-#    This focuses on tile size performance and validation across different dimensions
-set(TILE_SIZE_CONFIG "tile_size_quick_config")
+# 5. TILE SIZE COVERAGE: Test different tile sizes with fixed fp16/rcr configuration
+#    Two levels: quick (~25 kernels) or comprehensive (~192 kernels after validation)
+set(TILE_SIZE_LEVEL "quick" CACHE STRING "Tile size coverage level: quick or comprehensive")
+set_property(CACHE TILE_SIZE_LEVEL PROPERTY STRINGS "quick" "comprehensive")
+
+if(TILE_SIZE_LEVEL STREQUAL "quick")
+    set(TILE_SIZE_CONFIG "tile_size_quick_config")
+    set(TILE_SIZE_DESC "Quick (4×4×3 tile configs, single warp) - 48 kernels")
+elseif(TILE_SIZE_LEVEL STREQUAL "comprehensive")
+    set(TILE_SIZE_CONFIG "tile_size_comprehensive_config")
+    set(TILE_SIZE_DESC "Comprehensive (16 tile sizes × 4 warp configs) - 1,728 kernels")
+else()
+    message(FATAL_ERROR "Invalid TILE_SIZE_LEVEL: ${TILE_SIZE_LEVEL}. Must be 'quick' or 'comprehensive'")
+endif()
+
 set(TILE_SIZE_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/configs/${TILE_SIZE_CONFIG}.json")
 
 if(EXISTS ${TILE_SIZE_CONFIG_FILE})
-    message(STATUS "Processing tile size config: ${TILE_SIZE_CONFIG} (fp16/rcr only)")
+    message(STATUS "Processing tile size config: ${TILE_SIZE_LEVEL} - ${TILE_SIZE_DESC}")
     build_gemm_test_targets("fp16" "rcr" "${TILE_SIZE_CONFIG}")
 else()
     message(WARNING "Tile size config file not found: ${TILE_SIZE_CONFIG_FILE}")
@@ -343,4 +355,5 @@ message(STATUS "  - Small datatypes (fp8, fp16, bf16) with optimized large warp 
 message(STATUS "  - Large datatypes (fp32) with memory-constrained smaller warp tiles")
 message(STATUS "  - Traits coverage with fp16/rcr")
 message(STATUS "  - Padding coverage with fp16/rcr")
-message(STATUS "  - Tile size quick coverage with fp16/rcr (16, 32, 64, 128, 256)")
+message(STATUS "  - Tile size coverage: ${TILE_SIZE_LEVEL} level")
+message(STATUS "    Use -DTILE_SIZE_LEVEL=comprehensive for extensive tile size testing (1,728 kernels)")

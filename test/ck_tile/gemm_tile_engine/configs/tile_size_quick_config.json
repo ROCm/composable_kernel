@@ -1,6 +1,6 @@
 {
   "problem": {
-    "description": "Configuration for testing different tile sizes (16, 32, 64, 128, 256) with fixed warp configurations for quick coverage"
+    "description": "Configuration for testing different tile sizes (32, 64, 128, 256) with fixed warp configurations for quick coverage"
   },
   "test_params": {
     "problem_sizes": [
@@ -11,8 +11,8 @@
     ]
   },
   "tile_config": {
-    "tile_m": {"values": [16, 32, 64, 128, 256]},
-    "tile_n": {"values": [16, 32, 64, 128, 256]},
+    "tile_m": {"values": [32, 64, 128, 256]},
+    "tile_n": {"values": [32, 64, 128, 256]},
     "tile_k": {"values": [16, 32, 64]},
     "warp_m": {"values": [2]},
     "warp_n": {"values": [2]},

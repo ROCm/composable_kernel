@@ -53,11 +53,19 @@ The key idea: **Unit tests that use tile_engine's exact kernel generation and ve
 - **Traits**: compv3 pipeline only
 - **Coverage**: ~1 kernel per datatype/layout
 
-### 4. **Tile Size Coverage** (`tile_size_coverage_config.json`)
-- **Purpose**: Test different tile dimensions (16-256 range)
-- **Config**: Variable tile sizes, fixed warp config
-- **Traits**: compv3 only
-- **Coverage**: ~75 kernels per datatype/layout
+### 4. **Tile Size Coverage** (Quick or Comprehensive)
+- **Purpose**: Test different tile dimensions
+- **Quick** (`tile_size_quick_config.json`): 48 kernels
+  - tile_m/n: [32, 64, 128, 256], tile_k: [16, 32, 64]
+  - warp config: 2×2×1, warp_tile 16×16×16
+  - Total: 4×4×3 = 48 kernels
+- **Comprehensive** (`tile_size_comprehensive_config.json`): 1,728 kernels
+  - tile_m/n: [16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 224, 240, 256]
+  - tile_k: [16, 32, 64]
+  - warp configs: (1,1), (1,2), (2,1), (2,2) - enables ALL tile sizes including 16
+  - Total: 16×16×3×4_warp_configs = 1,728 kernels (after validation filtering)
+- **Traits**: compv3 pipeline only
+- **Note**: Use CMake option `-DTILE_SIZE_LEVEL=comprehensive` to enable comprehensive testing (default is quick)
 
 ### 5. **Traits Coverage** (`traits_coverage_config.json`)
 - **Purpose**: Test all pipeline/epilogue/scheduler combinations
