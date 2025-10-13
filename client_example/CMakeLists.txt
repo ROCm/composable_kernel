@@ -77,7 +77,7 @@ find_package(composable_kernel COMPONENTS
         device_conv_nhwgc_operations
         device_conv_gnhwc_operations
         device_conv_gndhwc_operations
-        device_conv_ngcdhw_operations
+        device_conv_ndhwgc_operations
         device_conv_old_operations
         device_conv_operations
         device_other_operations
@@ -87,7 +87,7 @@ find_package(composable_kernel COMPONENTS
 if (GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
        find_package(composable_kernel COMPONENTS
         device_conv_ngchw_operations
-        device_conv_ndhwgc_operations)
+        device_conv_ngcdhw_operations)
 endif()
 if(GPU_TARGETS MATCHES "gfx9")
     find_package(composable_kernel COMPONENTS device_contraction_operations)
