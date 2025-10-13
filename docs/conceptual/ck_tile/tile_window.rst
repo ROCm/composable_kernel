@@ -176,17 +176,17 @@ One of the most key aspects of TileWindow is its use of :ref:`space-filling curv
    
       graph LR
           subgraph "Linear Access Pattern"
-              L1["0→1→2→3"]
-              L2["4→5→6→7"]
-              L3["8→9→10→11"]
-              L4["12→13→14→15"]
+              L1["0,1,2,3"]
+              L2["4,5,6,7"]
+              L3["8,9,10,11"]
+              L4["12,13,14,15"]
           end
           
           subgraph "Snake Access Pattern"
-              S1["0→1→2→3"]
-              S2["7←6←5←4"]
-              S3["8→9→10→11"]
-              S4["15←14←13←12"]
+              S1["0,1,2,3"]
+              S2["7,6,5,4"]
+              S3["8,9,10,11"]
+              S4["15,14,13,12"]
           end
           
           L1 --> L2
@@ -657,13 +657,14 @@ Design distributions for optimal memory access:
 .. code-block:: cpp
 
    // Create distribution optimized for coalescing
+   // This example shows a 32x32 tile distributed across threads
    using OptimalDistribution = tile_distribution_encoding<
-       sequence<>,                              // No replication
-       tuple<sequence<4, 8>, sequence<4, 8>>,  // 32x32 threads
-       tuple<sequence<1>, sequence<1>>,        // Warp-aligned
-       tuple<sequence<0>, sequence<0>>,        // Contiguous
-       sequence<1, 4>,                         // 1x4 per thread (vectorizable)
-       sequence<1, 1>                          // Row-major access
+       sequence<>,                                    // RsLengths: No replication
+       tuple<sequence<4, 8>, sequence<4, 8>>,        // HsLengthss: Hierarchical decomposition
+       tuple<sequence<1, 2>, sequence<1, 2>>,        // Ps2RHssMajor: P to RH major mapping
+       tuple<sequence<0, 0>, sequence<1, 0>>,        // Ps2RHssMinor: P to RH minor mapping
+       sequence<1, 1, 2, 2>,                         // Ys2RHsMajor: Y to RH major mapping
+       sequence<0, 1, 0, 1>                          // Ys2RHsMinor: Y to RH minor mapping
    >;
 
 Summary
