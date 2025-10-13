@@ -325,7 +325,7 @@ endif()
 
 # 5. TILE SIZE COVERAGE: Test different tile sizes (16, 32, 64, 128, 256) with fixed fp16/rcr configuration
 #    This focuses on tile size performance and validation across different dimensions
-set(TILE_SIZE_CONFIG "tile_size_coverage_config")
+set(TILE_SIZE_CONFIG "tile_size_quick_config")
 set(TILE_SIZE_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/configs/${TILE_SIZE_CONFIG}.json")
 
 if(EXISTS ${TILE_SIZE_CONFIG_FILE})
@@ -342,4 +342,4 @@ message(STATUS "  - Small datatypes (fp8, fp16, bf16) with optimized large warp 
 message(STATUS "  - Large datatypes (fp32) with memory-constrained smaller warp tiles")
 message(STATUS "  - Traits coverage with fp16/rcr")
 message(STATUS "  - Padding coverage with fp16/rcr")
-message(STATUS "  - Tile size coverage with fp16/rcr (16, 32, 64, 128, 256)")
+message(STATUS "  - Tile size quick coverage with fp16/rcr (16, 32, 64, 128, 256)")
