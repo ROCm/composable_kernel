@@ -195,6 +195,9 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t)
     }
     else
     {
+        constexpr int MaxVecSize     = 16 / sizeof(T);
+        constexpr int KLane          = ck_tile::get_warp_size() / GemmConfig::N_Warp_Tile;
+        constexpr int ItemsPerAccess = std::min(MaxVecSize, GemmConfig::K_Warp_Tile / KLane);
         if(ck_tile::is_gfx11_supported())
         {
             int divisor = 1;
@@ -209,10 +212,6 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t)
         else
         {
             assert(is_wave32() == false);
-            constexpr int MaxVecSize     = 16 / sizeof(T);
-            constexpr int KLane          = ck_tile::get_warp_size() / GemmConfig::N_Warp_Tile;
-            constexpr int ItemsPerAccess = std::min(MaxVecSize, GemmConfig::K_Warp_Tile / KLane);
-
             ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
                                            GemmConfig::N_Warp_Tile,
                                            k_ / ItemsPerAccess,
