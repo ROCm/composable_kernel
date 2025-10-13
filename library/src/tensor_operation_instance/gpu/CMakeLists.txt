@@ -563,6 +563,7 @@ if(NOT MIOPEN_REQ_LIBS_ONLY)
         device_grouped_conv3d_ngcdhw_fwd_instance)
 
     add_library(device_conv_operations INTERFACE)
+    if (GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
     target_link_libraries(device_conv_operations INTERFACE
         device_conv_gnwc_operations
         device_conv_nwgc_operations
@@ -573,6 +574,16 @@ if(NOT MIOPEN_REQ_LIBS_ONLY)
         device_conv_ndhwgc_operations
         device_conv_ngcdhw_operations
         device_conv_old_operations)
+    else()
+    target_link_libraries(device_conv_operations INTERFACE
+        device_conv_gnwc_operations
+        device_conv_nwgc_operations
+        device_conv_nhwgc_operations
+        device_conv_gnhwc_operations
+        device_conv_gndhwc_operations
+        device_conv_ndhwgc_operations
+        device_conv_old_operations)
+    endif()
     add_library(composablekernels::device_conv_operations ALIAS device_conv_operations)
     add_library(composable_kernel::device_conv_operations ALIAS device_conv_operations)
         target_compile_features(device_conv_operations INTERFACE)
