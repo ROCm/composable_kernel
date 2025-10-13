@@ -117,9 +117,13 @@ using KernelTypesCompV3Wmma = ::testing::Types<
 
 using KernelTypesCompV4 = ::testing::Types<
     std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
+    std::tuple<    Row,     Row,     Row,       F8,        BF8,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
+    std::tuple<    Row,     Col,     Row,       F8,        BF8,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
-    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>
+    std::tuple<    Col,     Row,     Row,       F8,        BF8,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV4>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
+    std::tuple<    Col,     Col,     Row,       F8,        BF8,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV4>
 >;
 
 using KernelTypesCompV6 = ::testing::Types<
