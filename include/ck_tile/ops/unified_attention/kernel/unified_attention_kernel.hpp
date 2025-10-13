@@ -381,40 +381,70 @@ struct FmhaFwdV3Kernel
         );
         
         const auto k_dram = [&]() {
+            // HEAD dim is skipped as defined in the ptrs
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 k_ptr,
-                make_tuple(kargs.num_blks, BLOCK_SIZE, num_head_k, HEAD_SIZE),
-                make_tuple(kargs.stride_k_cache_0, kargs.stride_k_cache_1, kargs.stride_k_cache_2, kargs.stride_k_cache_3),
+                make_tuple(kargs.num_blks, BLOCK_SIZE, HEAD_SIZE),
+                make_tuple(kargs.stride_k_cache_0, kargs.stride_k_cache_1, kargs.stride_k_cache_3),
                 number<FmhaPipeline::kAlignmentK>{},
                 number<1>{});
 
-            return pad_tensor_view(
+            const auto k_dram_pad = pad_tensor_view(
                 k_dram_naive,
                 // TODO can the BLOCK_SIZE_RAW needs padding?
-                make_tuple(1, BLOCK_SIZE, 1, HEAD_SIZE_PADDED),
-                sequence<false, false, false, kPadHeadDimQ>{});
+                make_tuple(1, BLOCK_SIZE, HEAD_SIZE_PADDED),
+                sequence<false, false, kPadHeadDimQ>{});
+
+
+            const auto k_dram_merged = transform_tensor_view(
+                    k_dram_pad,
+                    make_tuple(
+                        make_merge_transform(
+                            make_tuple(kargs.num_blks, BLOCK_SIZE)
+                        ),
+                        make_pass_through_transform(HEAD_SIZE_PADDED)
+                    ),
+                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{})
+            ); // flattens the first two dims, head idx is the fastest changing dim in the merged dim
+
+            return k_dram_merged;
         }();
 
-        // auto k_dram_window = make_tile_window(
-        //     k_dram, make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}), {0, 0});
-        const auto v_dram = [&]() {
+        auto k_dram_window = make_tile_window(
+            k_dram, make_tuple(BLOCK_SIZE, HEAD_SIZE_PADDED), {0, 0});
+
+            const auto v_dram = [&]() {
             const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 v_ptr,
-                make_tuple(kargs.num_blks, BLOCK_SIZE, num_head_k, HEAD_SIZE),
-                make_tuple(kargs.stride_v_cache_0, kargs.stride_v_cache_1, kargs.stride_v_cache_2, kargs.stride_v_cache_3),
+                make_tuple(kargs.num_blks, BLOCK_SIZE, HEAD_SIZE),
+                make_tuple(kargs.stride_v_cache_0, kargs.stride_v_cache_1, kargs.stride_v_cache_3),
                 number<FmhaPipeline::kAlignmentV>{},
                 number<1>{});
 
-            return pad_tensor_view(
+            const auto v_dram_pad = pad_tensor_view(
                 v_dram_naive,
-                make_tuple(1, BLOCK_SIZE, 1, HEAD_SIZE_PADDED),
-                sequence<false, false, false, kPadHeadDimQ>{});
-        }();
-        auto v_dram_window = make_tile_window(
-                v_dram, make_tuple(number<FmhaPipeline::kK1>{}, number<FmhaPipeline::kN1>{}),
-                             {0, i_n1});
-        
+                make_tuple(1, BLOCK_SIZE, HEAD_SIZE_PADDED),
+                sequence<false, false, kPadHeadDimQ>{});
 
+            const auto v_dram_merged = transform_tensor_view(
+                    v_dram_pad,
+                    make_tuple(
+                        make_merge_transform(
+                            make_tuple(kargs.num_blks, BLOCK_SIZE)
+                        ),
+                        make_pass_through_transform(HEAD_SIZE_PADDED)
+                    ),
+                    make_tuple(sequence<0, 1>{}, sequence<2>{}),
+                    make_tuple(sequence<0>{}, sequence<1>{})
+            ); // flattens the first two dims, head idx is the fastest changing dim in the merged dim
+
+            return v_dram_merged;
+        }();
+
+        auto v_dram_window = make_tile_window(
+            v_dram, make_tuple(BLOCK_SIZE, HEAD_SIZE_PADDED), {0, 0});
+        
         auto o_acc_tile = [&]() {
             return FmhaPipeline{}(q_dram_window,
                                   k_dram_window,
