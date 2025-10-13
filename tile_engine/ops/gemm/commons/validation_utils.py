@@ -376,6 +376,8 @@ def is_tile_config_valid(
             f"[warp]: {warp_m}x{warp_n}x{warp_k} x [warp_tile]: {warp_tile_m}x{warp_tile_n}x{warp_tile_k}"
         )
         return False
+    
+    print("-----------------------------------------------------00000-------------------------------------------------------------------------------")
 
     # Validate LDS capacity
     lds_valid, lds_error = validate_lds_capacity(
@@ -384,6 +386,18 @@ def is_tile_config_valid(
     if not lds_valid:
         logging.debug(f"LDS validation failed: {lds_error}")
         return False
+    
+    print("-----------------------------------------------------111111-------------------------------------------------------------------------------")
+        
+    # Validate whole workgroup cover configuration
+    m0_m1_m2_valid, m0_m1_m2_error = validate_whole_wg_cover_configuration(
+        tile_m, tile_k, warp_m, warp_n, warp_k, a_datatype, vector_load_size=16, warp_size=64
+    )
+    if not m0_m1_m2_valid:
+        logging.debug(f"M0/M1/M2 configuration validation failed: {m0_m1_m2_error}")
+        return False 
+    
+    print("-----------------------------------------------------22222-------------------------------------------------------------------------------")
 
     # Validate warp tile combination
     warp_tile_valid, warp_tile_error = validate_warp_tile_combination(
@@ -426,3 +440,51 @@ def get_abc_layouts(layout_code: str) -> Tuple[str, str, str]:
     b_layout = LAYOUT_MAP[code[1]]
     c_layout = LAYOUT_MAP[code[2]]
     return a_layout, b_layout, c_layout
+
+def validate_whole_wg_cover_configuration(
+    tile_m: int,
+    tile_k: int,
+    warp_m: int, 
+    warp_n: int,
+    warp_k: int,
+    a_datatype: str,
+    vector_load_size: int = 16,
+    warp_size: int = 64
+) -> Tuple[bool, str]:
+    
+    print("Inside validate_whole_wg_cover_configuration")
+
+    
+    YPerTile = tile_m
+    XPerTile = tile_k
+
+    NumWarps = (warp_m * warp_n * warp_k)
+    print("NumWarps: ", NumWarps)
+    
+    BlockSize = NumWarps * warp_size
+    print("BlockSize: ", BlockSize)
+
+    print("XPerTile: ", XPerTile)
+
+    print("YPerTile: ", YPerTile)
+
+
+    if(XPerTile % vector_load_size != 0):
+        return False
+    
+    num_warps  = BlockSize / warp_size
+    LargestVec = (XPerTile * YPerTile) / (num_warps * warp_size)
+    X1 = LargestVec if vector_load_size > LargestVec else vector_load_size
+    X0         = XPerTile / X1; 
+
+    Y1 = warp_size // X0
+
+    print(f"YPerTile: {YPerTile}, XPerTile: {XPerTile}, NumWarps: {NumWarps}, BlockSize: {BlockSize}, num_warps: {num_warps}, LargestVec: {LargestVec}, X1: {X1}, X0: {X0}, Y1: {Y1}")
+    print(f"X0 * Y1: {X0 * Y1}, warp_size: {warp_size}")
+
+    if(X0 * Y1 != warp_size):
+        print("==================FALSE=======================")
+        return False, ""
+    
+    print("==================TRUE=======================")
+    return True, ""
