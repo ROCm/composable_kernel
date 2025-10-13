@@ -93,6 +93,9 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
     using QuantGroupSize = remove_cvref_t<typename Problem::QuantGroupSize>;
 
+    static_assert(QuantGroupSize::kM == 1, "only N/K blocks for BQuant kernel!");
+    static_assert(QuantGroupSize::kN == 1, "no block for N supported yet!");
+
     using I0 = number<0>;
     using I1 = number<1>;
     using I2 = number<2>;

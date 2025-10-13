@@ -26,6 +26,7 @@ struct GemmBQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Prob
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
+    static constexpr index_t NPerBlockBQ = NPerBlock / QuantGroupSize::kN;
     static constexpr index_t KPerBlockBQ = KPerBlock / QuantGroupSize::kK;
 
     static_assert(KPerBlock % QuantGroupSize::kK == 0,
@@ -38,7 +39,7 @@ struct GemmBQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Prob
     {
         static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
 
-        using YPerTile = number<NPerBlock>;
+        using YPerTile = number<NPerBlockBQ>;
         using XPerTile = number<KPerBlockBQ>;
 
         auto bq_copy_dram_window =

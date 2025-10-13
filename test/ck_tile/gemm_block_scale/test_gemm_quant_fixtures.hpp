@@ -235,7 +235,7 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
                                       BDataType,
                                       AccDataType,
                                       CDataType,
-                                      QuantGroupSize::kK,
+                                      QuantGroupSize,
                                       true>(a_m_k, aq_m_aqk, b_k_n, c_m_n_host_ref);
 
         // Get device result
@@ -463,7 +463,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
                                       BDataType,
                                       AccDataType,
                                       CDataType,
-                                      QuantGroupSize::kK,
+                                      QuantGroupSize,
                                       false>(a_m_k, bq_bqk_n, b_k_n, c_m_n_host_ref);
 
         // Get device result

@@ -87,6 +87,9 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrMem<Prob
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
     using QuantGroupSize = remove_cvref_t<typename Problem::QuantGroupSize>;
 
+    static_assert(QuantGroupSize::kM == 1, "no block for M supported yet!");
+    static_assert(QuantGroupSize::kN == 1, "only M/K blocks for AQuant kernel!");
+
     using I0 = number<0>;
     using I1 = number<1>;
     using I2 = number<2>;
