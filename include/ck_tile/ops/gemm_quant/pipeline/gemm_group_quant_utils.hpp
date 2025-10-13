@@ -196,6 +196,8 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
 
     // Number of iters per warp
     // MIters are indexed using (Y0, Y1)
+    // TODO: does this need to change? X/Y-PerTile are already the smaller size. Is NIterPerWarp good for group size N>1?
+    // TODO: should we split it so that one of the dims is the number of scales within the block? -> we should have less data per thread
     static constexpr index_t Y0 = NIterPerWarp;
 
     // # of warps in Y dim

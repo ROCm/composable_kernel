@@ -21,11 +21,12 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         using BQLayout                = remove_cvref_t<typename Problem::BQLayout>;
         using BQDataType              = remove_cvref_t<typename Problem::BQDataType>;
         constexpr index_t NPerBlock   = Problem::BlockGemmShape::kN;
+        constexpr index_t NPerBlockBQ = NPerBlock / Problem::QuantGroupSize::kN;
         constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
         constexpr index_t KPerBlockBQ = KPerBlock / Problem::QuantGroupSize::kK;
 
         static_assert(std::is_same_v<BQLayout, ck_tile::tensor_layout::gemm::ColumnMajor>);
-        return GetABQGlobalVectorLoadSize<Problem, BQDataType, NPerBlock, KPerBlockBQ>();
+        return GetABQGlobalVectorLoadSize<Problem, BQDataType, NPerBlockBQ, KPerBlockBQ>();
     }
 
     template <typename Problem>
