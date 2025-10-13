@@ -56,3 +56,4 @@ TYPED_TEST_SUITE(TestCkTileGroupedGemmPreshuffle, KernelTypes);
 
 #include "test_grouped_gemm_preshuffle_ut_cases.inc"
 #include "test_grouped_gemm_preshuffle_prefill_cases.inc"
+#include "test_grouped_gemm_preshuffle_persistent.inc"
