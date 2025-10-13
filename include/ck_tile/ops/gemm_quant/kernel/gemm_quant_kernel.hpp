@@ -73,7 +73,7 @@ struct is_quantpreshuffle_enabled
 };
 
 template <typename T>
-struct is_quantpreshuffle_enabled<T, decltype(T::PreshuffleQuant)>
+struct is_quantpreshuffle_enabled<T, std::void_t<decltype(T::PreshuffleQuant)>>
 {
     static constexpr bool value = T::PreshuffleQuant;
 };
@@ -1111,7 +1111,6 @@ struct QuantGemmKernel
 
         // allocate LDS
         __shared__ char smem_ptr_0[GetSmemSize()];
-
         assert(kargs.k_batch == 1);
         if constexpr(GemmPipeline::DoubleSmemBuffer == true)
         {
