@@ -381,7 +381,7 @@ struct FmhaFwdV3Kernel
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 k_ptr,
                 make_tuple(kargs.num_blks, BLOCK_SIZE, num_head_k, HEAD_SIZE),
-                make_tuple(kargs.stride_k_cache_3, kargs.stride_k_cache_2, kargs.stride_k_cache_1, kargs.stride_k_cache_0),
+                make_tuple(kargs.stride_k_cache_0, kargs.stride_k_cache_1, kargs.stride_k_cache_2, kargs.stride_k_cache_3),
                 number<FmhaPipeline::kAlignmentK>{},
                 number<1>{});
 
@@ -398,7 +398,7 @@ struct FmhaFwdV3Kernel
             const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 v_ptr,
                 make_tuple(kargs.num_blks, BLOCK_SIZE, num_head_k, HEAD_SIZE),
-                make_tuple(kargs.stride_v_cache_3, kargs.stride_v_cache_2, kargs.stride_v_cache_1, kargs.stride_v_cache_0),
+                make_tuple(kargs.stride_v_cache_0, kargs.stride_v_cache_1, kargs.stride_v_cache_2, kargs.stride_v_cache_3),
                 number<FmhaPipeline::kAlignmentV>{},
                 number<1>{});
 
