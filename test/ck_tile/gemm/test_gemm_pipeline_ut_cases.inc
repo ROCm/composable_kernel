@@ -33,6 +33,11 @@ TYPED_TEST(TEST_SUITE_NAME, SmallM)
     }
 }
 
+TYPED_TEST(TEST_SUITE_NAME, SingleTile)
+{
+    this->Run(TestFixture::M_Tile, TestFixture::N_Tile, TestFixture::K_Tile);
+}
+
 TYPED_TEST(TEST_SUITE_NAME, MidLargeM)
 {
     std::vector<int> Ms{127, 255, 312, 799, 1573};
