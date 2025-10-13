@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ck_tile/core/config.hpp"
-#include "ck_tile/ops/elementwise.hpp"
+#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 namespace ck_tile {
 
