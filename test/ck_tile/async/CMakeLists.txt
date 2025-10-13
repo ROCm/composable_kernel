@@ -1,1 +1,1 @@
-add_test_executable(async_load async_load.cpp)
+add_test_executable(test_async_load async_load.cpp)
