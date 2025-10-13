@@ -258,7 +258,8 @@ message(STATUS "Building GEMM tile engine tests for GPU targets: ${GEMM_TEST_GPU
 # ============================================================================
 
 # All supported data types and layouts for comprehensive testing
-set(TEST_DATATYPES "fp16;fp8;bf16;fp32;fp64")
+# Note: fp64 not included (no MFMA hardware support)
+set(TEST_DATATYPES "fp16;fp8;bf16;fp32")
 set(TEST_LAYOUTS "rcr;rrr;ccr;crr")
 
 # ============================================================================
