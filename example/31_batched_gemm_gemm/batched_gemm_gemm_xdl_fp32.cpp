@@ -83,11 +83,11 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmGemm_X
     4,           // AK1
     4,           // BK1
     1,           // B1K1
-    32,          // MPerXDL
-    32,          // NPerXDL
-    1,           // MXdlPerWave
-    4,           // NXdlPerWave
-    4,           // Gemm1NXdlPerWave
+    16,          // MPerXDL
+    16,          // NPerXDL
+    2,           // MXdlPerWave
+    8,           // NXdlPerWave
+    8,           // Gemm1NXdlPerWave
     S<4, 64, 1>, // ABlockTransfer
     S<1, 0, 2>,
     S<1, 0, 2>,
@@ -110,7 +110,7 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmGemm_X
     1,
     false,
     1,               // CShuffleMXdlPerWavePerShuffle
-    2,               // CShuffleNXdlPerWavePerShuffle
+    4,               // CShuffleNXdlPerWavePerShuffle
     S<1, 16, 1, 16>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
     4>;              // CShuffleBlockTransferScalarPerVector_NPerBlock
 
