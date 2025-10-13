@@ -26,17 +26,17 @@ template <typename Tuple, typename Derived>
 class TestCkTileGemmQuantBase : public ::testing::Test
 {
     protected:
-    using ALayout                            = std::tuple_element_t<0, Tuple>;
-    using BLayout                            = std::tuple_element_t<1, Tuple>;
-    using CLayout                            = std::tuple_element_t<2, Tuple>;
-    using ADataType                          = std::tuple_element_t<3, Tuple>;
-    using BDataType                          = std::tuple_element_t<4, Tuple>;
-    using QDataType                          = std::tuple_element_t<5, Tuple>;
-    using CDataType                          = std::tuple_element_t<6, Tuple>;
-    static constexpr auto QuantType          = std::tuple_element_t<7, Tuple>::value;
-    using GemmConfig                         = std::tuple_element_t<8, Tuple>;
-    static constexpr uint32_t QuantGroupSize = std::tuple_element_t<9, Tuple>::value;
-    using AccDataType                        = float; // accumulate always in float
+    using ALayout                   = std::tuple_element_t<0, Tuple>;
+    using BLayout                   = std::tuple_element_t<1, Tuple>;
+    using CLayout                   = std::tuple_element_t<2, Tuple>;
+    using ADataType                 = std::tuple_element_t<3, Tuple>;
+    using BDataType                 = std::tuple_element_t<4, Tuple>;
+    using QDataType                 = std::tuple_element_t<5, Tuple>;
+    using CDataType                 = std::tuple_element_t<6, Tuple>;
+    static constexpr auto QuantType = std::tuple_element_t<7, Tuple>::value;
+    using GemmConfig                = std::tuple_element_t<8, Tuple>;
+    using QuantGroupSize            = std::tuple_element_t<9, Tuple>;
+    using AccDataType               = float; // accumulate always in float
 
     // Get the quant-type specific data types from traits
     using QuantTraits     = QuantTypeTraits<QuantType>;

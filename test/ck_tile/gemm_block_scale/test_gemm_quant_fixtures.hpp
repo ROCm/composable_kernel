@@ -111,9 +111,9 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     using typename Base::CLayout;
     using typename Base::ComputeDataType;
     using typename Base::QDataType;
+    using typename Base::QuantGroupSize;
 
-    static constexpr auto QuantType          = Base::QuantType;
-    static constexpr uint32_t QuantGroupSize = Base::QuantGroupSize;
+    static constexpr auto QuantType = Base::QuantType;
 
     protected:
     void SetUpQuantTypeSpecific() {}
@@ -145,7 +145,7 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         const ck_tile::index_t stride_C = M;
 
         // AQuant uses grouped quantization for A matrix
-        const ck_tile::index_t AQK = ck_tile::integer_divide_ceil(K, QuantGroupSize);
+        const ck_tile::index_t AQK = ck_tile::integer_divide_ceil(K, QuantGroupSize::kK);
         const ck_tile::index_t stride_AQ =
             ck_tile::get_default_stride(M, AQK, 0, this->is_row_major(ALayout{}));
 
@@ -191,7 +191,7 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         if constexpr(Base::GemmConfig::PreshuffleQuant)
         {
             ck_tile::HostTensor<QDataType> aq_shuffle_host =
-                shuffle_aq(&aq_m_aqk, Base::GemmConfig::K_Tile / QuantGroupSize);
+                shuffle_aq(&aq_m_aqk, Base::GemmConfig::K_Tile / QuantGroupSize::kK);
             aq_m_aqk_dev_buf.ToDevice(aq_shuffle_host.data());
         }
         else
@@ -235,7 +235,7 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
                                       BDataType,
                                       AccDataType,
                                       CDataType,
-                                      QuantGroupSize,
+                                      QuantGroupSize::kK,
                                       true>(a_m_k, aq_m_aqk, b_k_n, c_m_n_host_ref);
 
         // Get device result
@@ -368,10 +368,10 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     using typename Base::CLayout;
     using typename Base::ComputeDataType;
     using typename Base::QDataType;
+    using typename Base::QuantGroupSize;
 
-    static constexpr auto QuantType          = Base::QuantType;
-    static constexpr uint32_t QuantGroupSize = Base::QuantGroupSize;
-    static constexpr auto PreshuffleB        = Base::PreshuffleB;
+    static constexpr auto QuantType   = Base::QuantType;
+    static constexpr auto PreshuffleB = Base::PreshuffleB;
 
     protected:
     void SetUpQuantTypeSpecific() {}
@@ -384,7 +384,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         const ck_tile::index_t stride_C = M;
 
         // BQuant uses grouped quantization for B matrix
-        const ck_tile::index_t BQK       = ck_tile::integer_divide_ceil(K, QuantGroupSize);
+        const ck_tile::index_t BQK       = ck_tile::integer_divide_ceil(K, QuantGroupSize::kK);
         const ck_tile::index_t stride_BQ = BQK;
 
         // Generate test data
@@ -463,7 +463,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
                                       BDataType,
                                       AccDataType,
                                       CDataType,
-                                      QuantGroupSize,
+                                      QuantGroupSize::kK,
                                       false>(a_m_k, bq_bqk_n, b_k_n, c_m_n_host_ref);
 
         // Get device result
@@ -607,9 +607,9 @@ class TestCkTileGemmRowColQuant
     using typename Base::CLayout;
     using typename Base::ComputeDataType;
     using typename Base::QDataType;
+    using typename Base::QuantGroupSize;
 
-    static constexpr auto QuantType          = Base::QuantType;
-    static constexpr uint32_t QuantGroupSize = Base::QuantGroupSize;
+    static constexpr auto QuantType = Base::QuantType;
 
     protected:
     void SetUpQuantTypeSpecific() {}
@@ -824,9 +824,9 @@ class TestCkTileGemmTensorQuant
     using typename Base::CLayout;
     using typename Base::ComputeDataType;
     using typename Base::QDataType;
+    using typename Base::QuantGroupSize;
 
-    static constexpr auto QuantType          = Base::QuantType;
-    static constexpr uint32_t QuantGroupSize = Base::QuantGroupSize;
+    static constexpr auto QuantType = Base::QuantType;
 
     protected:
     void SetUpQuantTypeSpecific() {}

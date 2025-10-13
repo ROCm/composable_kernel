@@ -16,7 +16,7 @@ struct GemmWPQuantPipelineAgBgCrPolicy : public UniversalWeightPreshufflePipelin
         using BQDataType              = remove_cvref_t<typename Problem::BQDataType>;
         constexpr index_t NPerBlock   = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t KPerBlockBQ = KPerBlock / Problem::kQuantGroupSize;
+        constexpr index_t KPerBlockBQ = KPerBlock / Problem::QuantGroupSize::kK;
 
         return GetABQGlobalVectorLoadSize<Problem, BQDataType, NPerBlock, KPerBlockBQ>();
     }

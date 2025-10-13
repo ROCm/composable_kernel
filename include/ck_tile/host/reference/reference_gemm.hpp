@@ -16,7 +16,7 @@ template <typename ADataType,
           typename BDataType,
           typename AccDataType,
           typename CDataType,
-          uint32_t QuantGroupSize,
+          typename QuantGroupSize,
           bool aquant,
           typename AElementOp   = ck_tile::identity,
           typename BElementOp   = ck_tile::identity,
@@ -29,6 +29,9 @@ CK_TILE_HOST void reference_gemm_quant(const HostTensor<ADataType>& a_m_k,
                                        const BElementOp& b_element_op     = {},
                                        const ACCElementOp& acc_element_op = {})
 {
+    static_assert(QuantGroupSize::kM == 1, "QuantGroupSize M must be equal to 1");
+    static_assert(QuantGroupSize::kN == 1, "QuantGroupSize N must be equal to 1");
+    static_assert(QuantGroupSize::kK > 0, "QuantGroupSize K must be greater than 0");
     const std::size_t M = a_m_k.get_length(0);
     const std::size_t N = b_k_n.get_length(1);
     const std::size_t K = a_m_k.get_length(1);
@@ -80,12 +83,11 @@ CK_TILE_HOST void reference_gemm_quant(const HostTensor<ADataType>& a_m_k,
             v_block_acc += v_a * v_b;
 
             // Apply group dequant scale
-            if((k + 1) % QuantGroupSize == 0)
+            if((k + 1) % QuantGroupSize::kK == 0)
             {
                 float scale       = 0.f;
-                index_t outer_dim = (aquant) ? m : k / QuantGroupSize;
-                index_t inner_dim = (aquant) ? k / QuantGroupSize : n;
-
+                index_t outer_dim = (aquant) ? m : k / QuantGroupSize::kK;
+                index_t inner_dim = (aquant) ? k / QuantGroupSize::kK : n;
                 if constexpr(std::is_same_v<QDataType, float>)
                 {
                     scale = q(outer_dim, inner_dim);

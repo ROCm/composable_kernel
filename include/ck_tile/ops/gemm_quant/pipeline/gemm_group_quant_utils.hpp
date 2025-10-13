@@ -217,4 +217,17 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
     }
 };
 
+template <typename GroupSizes>
+struct QuantGroupShape
+{
+    static constexpr index_t kM = GroupSizes::at(number<0>{});
+    static constexpr index_t kN = GroupSizes::at(number<1>{});
+    static constexpr index_t kK = GroupSizes::at(number<2>{});
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        return concat('_', "quant_group_shape", concat('x', kM, kN, kK));
+    }
+};
+
 } // namespace ck_tile

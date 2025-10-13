@@ -18,6 +18,7 @@ struct GemmBQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Prob
     using BDataType      = typename Base::BDataType;
     using BLayout        = typename Base::BLayout;
     using BlockGemmShape = typename Base::BlockGemmShape;
+    using QuantGroupSize = remove_cvref_t<typename Problem::QuantGroupSize>;
 
     using BQLayout = remove_cvref_t<typename Problem::BQLayout>;
 
@@ -25,10 +26,9 @@ struct GemmBQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Prob
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t QuantGroupSize = Problem::kQuantGroupSize;
-    static constexpr index_t KPerBlockBQ    = KPerBlock / QuantGroupSize;
+    static constexpr index_t KPerBlockBQ = KPerBlock / QuantGroupSize::kK;
 
-    static_assert(KPerBlock % QuantGroupSize == 0,
+    static_assert(KPerBlock % QuantGroupSize::kK == 0,
                   "KPerBlock must be a multiple of QuantGroupSize");
 
     // Create DRAM tile window for BQ

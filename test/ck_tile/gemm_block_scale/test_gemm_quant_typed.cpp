@@ -20,7 +20,7 @@ using AQuantGrouped = std::integral_constant<ck_tile::QuantType, ck_tile::QuantT
 using BQuantGrouped = std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::BQuantGrouped>;
 using RowColQuant   = std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::RowColQuant>;
 using TensorQuant   = std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::TensorQuant>;
-using GroupSize     = std::integral_constant<unsigned int, 128>;
+using GroupSize     = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
 
 // Type combinations for each quantization type
 // clang-format off

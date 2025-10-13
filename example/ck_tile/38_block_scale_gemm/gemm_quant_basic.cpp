@@ -17,7 +17,7 @@ template <typename GemmConfig,
           typename ALayout,
           typename BLayout,
           typename CLayout,
-          uint32_t QuantGroupSize,
+          typename QuantGroupSize,
           ck_tile::QuantType QuantMode,
           typename CDEElementWise>
 float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s)
@@ -225,7 +225,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
 
 template <typename GemmConfig,
           typename TypeConfig,
-          uint32_t QuantGroupSize,
+          typename QuantGroupSize,
           ck_tile::QuantType QuantMode>
 int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
 {
@@ -275,6 +275,8 @@ int run_gemm_example(int argc, char* argv[])
 
     std::string quant_mode = arg_parser.get_str("quant_mode");
 
+    using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
+
     if(data_type == "fp8")
     {
         using TypeConfig =
@@ -284,7 +286,7 @@ int run_gemm_example(int argc, char* argv[])
         {
             return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
                                               TypeConfig,
-                                              128,
+                                              QuantGroupSize,
                                               ck_tile::QuantType::AQuantGrouped>(
                 a_layout, b_layout, argc, argv);
         }
@@ -292,7 +294,7 @@ int run_gemm_example(int argc, char* argv[])
         {
             return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
                                               TypeConfig,
-                                              128,
+                                              QuantGroupSize,
                                               ck_tile::QuantType::BQuantGrouped>(
                 a_layout, b_layout, argc, argv);
         }
@@ -300,7 +302,7 @@ int run_gemm_example(int argc, char* argv[])
         {
             return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
                                               TypeConfig,
-                                              128,
+                                              QuantGroupSize,
                                               ck_tile::QuantType::RowColQuant>(
                 a_layout, b_layout, argc, argv);
         }
@@ -308,7 +310,7 @@ int run_gemm_example(int argc, char* argv[])
         {
             return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
                                               TypeConfig,
-                                              128,
+                                              QuantGroupSize,
                                               ck_tile::QuantType::TensorQuant>(
                 a_layout, b_layout, argc, argv);
         }
@@ -327,7 +329,7 @@ int run_gemm_example(int argc, char* argv[])
         {
             return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
                                               TypeConfig,
-                                              128,
+                                              QuantGroupSize,
                                               ck_tile::QuantType::AQuantGrouped>(
                 a_layout, b_layout, argc, argv);
         }
@@ -335,7 +337,7 @@ int run_gemm_example(int argc, char* argv[])
         {
             return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
                                               TypeConfig,
-                                              128,
+                                              QuantGroupSize,
                                               ck_tile::QuantType::BQuantGrouped>(
                 a_layout, b_layout, argc, argv);
         }
@@ -343,7 +345,7 @@ int run_gemm_example(int argc, char* argv[])
         {
             return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
                                               TypeConfig,
-                                              128,
+                                              QuantGroupSize,
                                               ck_tile::QuantType::RowColQuant>(
                 a_layout, b_layout, argc, argv);
         }
@@ -351,7 +353,7 @@ int run_gemm_example(int argc, char* argv[])
         {
             return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
                                               TypeConfig,
-                                              128,
+                                              QuantGroupSize,
                                               ck_tile::QuantType::TensorQuant>(
                 a_layout, b_layout, argc, argv);
         }
@@ -372,7 +374,7 @@ int run_gemm_example(int argc, char* argv[])
         {
             return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
                                               TypeConfig,
-                                              128,
+                                              QuantGroupSize,
                                               ck_tile::QuantType::AQuantGrouped>(
                 a_layout, b_layout, argc, argv);
         }
@@ -393,7 +395,7 @@ int run_gemm_example(int argc, char* argv[])
         {
             return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
                                               TypeConfig,
-                                              128,
+                                              QuantGroupSize,
                                               ck_tile::QuantType::AQuantGrouped>(
                 a_layout, b_layout, argc, argv);
         }
@@ -414,7 +416,7 @@ int run_gemm_example(int argc, char* argv[])
         {
             return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
                                               TypeConfig,
-                                              128,
+                                              QuantGroupSize,
                                               ck_tile::QuantType::BQuantGrouped>(
                 a_layout, b_layout, argc, argv);
         }
@@ -435,7 +437,7 @@ int run_gemm_example(int argc, char* argv[])
         {
             return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
                                               TypeConfig,
-                                              128,
+                                              QuantGroupSize,
                                               ck_tile::QuantType::BQuantGrouped>(
                 a_layout, b_layout, argc, argv);
         }
@@ -451,4 +453,7 @@ int run_gemm_example(int argc, char* argv[])
     }
 }
 
-int main(int argc, char* argv[]) { return !run_gemm_example<GemmConfigPreshuffleB_Bquant_prefill>(argc, argv); }
+int main(int argc, char* argv[])
+{
+    return !run_gemm_example<GemmConfigPreshuffleB_Bquant_prefill>(argc, argv);
+}
