@@ -1485,7 +1485,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
     static bool IsSupportedArgument(const Argument& arg)
     {
         // gfx11 doesn't support float atomic
-        if(ck::is_gfx11_supported() && arg.k_batch_ > 1)
+        // Todo: Enable splitK for gfx12
+        if((ck::is_gfx12_supported() || ck::is_gfx11_supported()) && arg.k_batch_ > 1)
         {
             return false;
         }
@@ -1497,6 +1498,22 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
            arg.k_batch_ > 1)
         {
             return false;
+        }
+        if constexpr(is_same_v<AComputeType, ck::tf32_t> || is_same_v<BComputeType, ck::tf32_t>)
+        {
+            if(!is_tf32_supported())
+            {
+                return false;
+            }
+            if constexpr(!is_same_v<AComputeType, BComputeType>)
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "ComputeDataType for A and B should be same while using TF32"
+                              << std::endl;
+                }
+                return false;
+            }
         }
 
         if constexpr(!IsSplitKSupported)
@@ -1670,7 +1687,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         valid = false;
                     }
                 }
-                else
+            }
+            else
+            {
+                if constexpr(NXdlPerWave32 > 0)
                 {
                     if(!GridwiseGemmCTranspose32::CheckValidity(
                            arg.a_grid_desc_m_k_container_[i],
@@ -1685,10 +1705,10 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                         valid = false;
                     }
                 }
-                if(!valid)
-                {
-                    return false;
-                }
+            }
+            if(!valid)
+            {
+                return false;
             }
         }
 

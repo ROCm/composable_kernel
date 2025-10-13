@@ -66,11 +66,13 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
 
         if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
         {
-            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, stride, 1_uz});
+            return HostTensorDescriptor(
+                {batch_count, row, col}, {batch_stride, stride, 1_uz}, layout);
         }
         else
         {
-            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, 1_uz, stride});
+            return HostTensorDescriptor(
+                {batch_count, row, col}, {batch_stride, 1_uz, stride}, layout);
         }
     };
 

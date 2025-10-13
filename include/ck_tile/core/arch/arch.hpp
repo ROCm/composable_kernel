@@ -9,6 +9,8 @@
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
+#include "ck_tile/core/arch/amd_buffer_addressing_builtins.hpp"
+#include "ck_tile/core/arch/amd_buffer_addressing.hpp"
 #include "ck_tile/core/utility/ignore.hpp"
 
 #define CK_TILE_S_CNT_MAX 0b1100'1111'0111'1111
@@ -104,7 +106,7 @@ CK_TILE_DEVICE index_t get_warp_id(bool_constant<ReturnSgpr> = {})
     const index_t warp_id = threadIdx.x / get_warp_size();
     if constexpr(ReturnSgpr)
     {
-        return __builtin_amdgcn_readfirstlane(warp_id);
+        return amd_wave_read_first_lane(warp_id);
     }
     else
     {
@@ -273,4 +275,20 @@ CK_TILE_DEVICE static constexpr auto get_device_arch()
     return gfx12_t{};
 #endif
 }
+
+enum LLVMSchedGroupMask : int32_t
+{
+    NONE       = 0,
+    ALU        = 1 << 0,
+    VALU       = 1 << 1,
+    SALU       = 1 << 2,
+    MFMA       = 1 << 3,
+    VMEM       = 1 << 4,
+    VMEM_READ  = 1 << 5,
+    VMEM_WRITE = 1 << 6,
+    DS         = 1 << 7,
+    DS_READ    = 1 << 8,
+    DS_WRITE   = 1 << 9,
+    ALL        = (DS_WRITE << 1) - 1,
+};
 } // namespace ck_tile

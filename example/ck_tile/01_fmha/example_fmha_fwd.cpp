@@ -33,6 +33,10 @@ auto create_args(int argc, char* argv[])
                 "0",
                 "seqlen_k for new key/value, 0 means not to use this at all; "
                 "-1 to choose s_knew in [1, s] randomly.")
+        .insert("s_qpad",
+                "-1",
+                "seqlen_q stride between 2 batches (group-mode optional).\n"
+                "Provide positive strides per-batch to simulate physical padding on Q.")
         .insert("s_kpad",
                 "-1",
                 "seqlen_k stride between 2 batches, currently used in group-mode only\n"
@@ -63,7 +67,7 @@ auto create_args(int argc, char* argv[])
                 "n or 0, no bias\n"
                 "e(lementwise) or 1, elementwise bias with 1*1*s*s. e:1, 1*h*s*s. e:2, b*h*s*s\n"
                 "a(libi) or 2, alibi with 1*h. a:1, b*h")
-        .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
+        .insert("prec", "fp16", "data type. fp32/fp16/bf16/fp8/bf8")
         .insert("mask",
                 "0",
                 "0: no mask, 1: top-left(same as 't'), 2:bottom-right(same as 'b')\n"
@@ -107,7 +111,15 @@ auto create_args(int argc, char* argv[])
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "20", "number of iterations to benchmark the kernel")
         .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
-        .insert("jsonfile", "fmha_fwd.json", "json file name to dump results");
+        .insert("jsonfile", "fmha_fwd.json", "json file name to dump results")
+        .insert("q_eff_lens",
+                "",
+                "Batch-mode only: per-batch effective seqlen for Q (exclude PAD).\n"
+                "Comma-separated list of length 'b'. If empty, no override.")
+        .insert("kv_eff_lens",
+                "",
+                "Batch-mode only: per-batch effective seqlen for KV (exclude PAD).\n"
+                "Comma-separated list of length 'b'. If empty, no override.");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -127,6 +139,9 @@ auto run(const ck_tile::ArgParser& arg_parser)
     ck_tile::index_t hdim_v          = arg_parser.get_int("d_v");
     ck_tile::index_t seqlen_knew     = arg_parser.get_int("s_knew");
     auto seqlen_kpads                = arg_parser.get_int_vec("s_kpad");
+    auto seqlen_qpads                = arg_parser.get_int_vec("s_qpad");
+    auto q_eff_lens_per_batch        = arg_parser.get_int_vec("q_eff_lens");
+    auto kv_eff_lens_per_batch       = arg_parser.get_int_vec("kv_eff_lens");
     ck_tile::index_t rotary_dim      = arg_parser.get_int("rotary_dim");
     bool i_perm                      = arg_parser.get_bool("iperm");
     bool o_perm                      = arg_parser.get_bool("operm");
@@ -174,7 +189,10 @@ auto run(const ck_tile::ArgParser& arg_parser)
                                         hdim_q,
                                         hdim_v,
                                         seqlen_knew,
+                                        seqlen_qpads,
                                         seqlen_kpads,
+                                        q_eff_lens_per_batch,
+                                        kv_eff_lens_per_batch,
                                         rotary_dim,
                                         i_perm,
                                         o_perm,
@@ -209,7 +227,11 @@ int main(int argc, char* argv[])
             return -1;
 
         const std::string data_type = arg_parser.get_str("prec");
-        if(data_type == "fp16")
+        if(data_type == "fp32")
+        {
+            return run<FmhaFwdFp32>(arg_parser) == fwd_result::success ? 0 : -2;
+        }
+        else if(data_type == "fp16")
         {
             return run<FmhaFwdFp16>(arg_parser) == fwd_result::success ? 0 : -2;
         }
