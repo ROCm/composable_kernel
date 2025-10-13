@@ -426,8 +426,7 @@ float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_co
                 }
             }
         };
-#ifndef __gfx1201__
-        if(a.tokens < 2048)
+        if(!ck_tile::is_gfx12_supported() || a.tokens < 2048)
         {
             if(ck_tile::impl::moe_sorting_get_smem_size_p23(a.num_experts) >
                ck_tile::get_smem_capacity())
