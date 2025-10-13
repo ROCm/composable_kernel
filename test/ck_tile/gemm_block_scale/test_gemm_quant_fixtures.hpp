@@ -57,31 +57,34 @@ struct GemmConfigPreshuffleQuantTransposeC : public GemmConfigBase
     static constexpr bool TransposeC      = true;
 };
 
-struct GemmConfigPreshuffleB
+struct GemmConfigPreshuffleBDecode : public GemmConfigBase
 {
-    static constexpr bool kPadM = false;
-    static constexpr bool kPadN = false;
-    static constexpr bool kPadK = false;
-
-    static constexpr bool PermuteA = false;
-    static constexpr bool PermuteB = false;
-
-    static constexpr bool TransposeC            = false;
-    static constexpr bool UseStructuredSparsity = false;
-
-    static constexpr int kBlockPerCu                         = 1;
-    static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
-    static constexpr ck_tile::index_t TileParitionerM01      = 4;
-    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
-    static constexpr ck_tile::index_t NumWaveGroups = 1;
-    static constexpr bool PreshuffleQuant           = false;
-    static constexpr bool PreshuffleB               = true;
-    static constexpr bool DoubleSmemBuffer          = true;
+    static constexpr bool PreshuffleB      = true;
+    static constexpr bool DoubleSmemBuffer = true;
 
     // Default GEMM tile sizes for tests
     static constexpr ck_tile::index_t M_Tile = 16;
     static constexpr ck_tile::index_t N_Tile = 64;
     static constexpr ck_tile::index_t K_Tile = 256;
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 64;
+};
+
+struct GemmConfigPreshuffleBPrefill : public GemmConfigBase
+{
+    static constexpr bool PreshuffleB      = true;
+    static constexpr bool DoubleSmemBuffer = true;
+
+    // Default GEMM tile sizes for tests
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128;
 
     static constexpr ck_tile::index_t M_Warp = 1;
     static constexpr ck_tile::index_t N_Warp = 4;
