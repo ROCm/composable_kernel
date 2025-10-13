@@ -81,6 +81,7 @@ find_package(composable_kernel COMPONENTS
         device_conv_ndhwgc_operations
         device_conv_ngcdhw_operations
         device_conv_old_operations
+        device_conv_operations
         device_other_operations
         device_gemm_operations
         device_reduction_operations

@@ -575,6 +575,27 @@ if(NOT MIOPEN_REQ_LIBS_ONLY)
         device_conv_old_operations)
     add_library(composablekernels::device_conv_operations ALIAS device_conv_operations)
     add_library(composable_kernel::device_conv_operations ALIAS device_conv_operations)
+        target_compile_features(device_conv_operations INTERFACE)
+        set_target_properties(device_conv_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
+        set_target_properties(device_conv_operations
+            PROPERTIES
+            VERSION ${CMAKE_PROJECT_VERSION}
+            SOVERSION ${CMAKE_PROJECT_VERSION_MAJOR}
+        )
+      target_include_directories(device_conv_operations INTERFACE
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu>
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/conv_tensor_rearrange>
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data>
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight>
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_fwd>
+        )
+        rocm_install(TARGETS device_conv_operations
+            EXPORT device_conv_operationsTargets)
+        rocm_install(EXPORT device_conv_operationsTargets
+            FILE composable_kerneldevice_conv_operationsTargets.cmake
+            NAMESPACE composable_kernel::
+            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
+        )
 
     add_library(device_operations INTERFACE)
     target_link_libraries(device_operations INTERFACE
