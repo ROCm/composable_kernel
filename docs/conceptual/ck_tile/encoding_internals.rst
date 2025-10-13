@@ -8,60 +8,65 @@
 Encoding Internals
 ******************
 
-
-The tile distribution encoding system represents the core mathematical framework that transforms high-level tensor distribution specifications into concrete, optimized GPU kernel implementations. This sophisticated compile-time machinery bridges the gap between abstract mathematical descriptions and executable coordinate transformations, enabling the Composable Kernel framework to generate highly efficient code for complex tensor operations.
 Overview
-
-The tile distribution encoding system represents the core mathematical framework that transforms high-level tensor distribution specifications into concrete, optimized GPU kernel implementations. This sophisticated compile-time machinery bridges the gap between abstract mathematical descriptions and executable coordinate transformations, enabling the Composable Kernel framework to generate highly efficient code for complex tensor operations.
 ========
 
-The tile distribution encoding system represents the core mathematical framework that transforms high-level tensor distribution specifications into concrete, optimized GPU kernel implementations. This sophisticated compile-time machinery bridges the gap between abstract mathematical descriptions and executable coordinate transformations, enabling the Composable Kernel framework to generate highly efficient code for complex tensor operations.
+The tile distribution encoding system represents the core mathematical framework that transforms high-level tensor distribution specifications into concrete, optimized GPU kernel implementations. This advanced compile-time machinery bridges the gap between abstract mathematical descriptions and executable coordinate transformations, enabling the Composable Kernel framework to generate highly efficient code for complex tensor operations.
 
 At its heart, the encoding system defines how multi-dimensional tensor data is distributed across GPU processing elements through a hierarchical decomposition scheme. By specifying relationships between different coordinate spaces - replication (R), hierarchical (H), partition (P), and yield (Y) dimensions (see :ref:`ck_tile_coordinate_systems` for detailed explanation) - the encoding provides a complete blueprint for data layout and access patterns that can be resolved entirely at compile time. This is the internal mechanism behind :ref:`ck_tile_tile_distribution`.
 
-.. mermaid::
+.. 
+   Original mermaid diagram (edit here, then run update_diagrams.py)
+   
+   .. mermaid::
+   
+      graph TB
+          subgraph "Encoding Components"
+              RS["R-space Lengths<br/>Replication dimensions"]
+              HS["H-space Lengths<br/>Hierarchical decomposition<br/>[[2,2],[2,2]]"]
+              P2RH["P→RH Mappings<br/>Thread to hierarchy<br/>Major/Minor"]
+              Y2RH["Y→RH Mappings<br/>Element to hierarchy<br/>Major/Minor"]
+          end
+          
+          subgraph "Generated Components"
+              ADAPTOR["ps_ys_to_xs_adaptor<br/>Coordinate transformer"]
+              DESC["ys_to_d_descriptor<br/>Memory linearizer"]
+              ENC["Encoding<br/>Original specification"]
+          end
+          
+          subgraph "Transformation Chain"
+              T1["Replicate<br/>Transform"]
+              T2["Unmerge<br/>Transform"]
+              T3["Merge<br/>Transform"]
+          end
+          
+          RS --> T1
+          HS --> T2
+          P2RH --> ADAPTOR
+          Y2RH --> ADAPTOR
+          
+          T1 --> T2
+          T2 --> T3
+          T3 --> ADAPTOR
+          
+          HS --> DESC
+          Y2RH --> DESC
+          
+          style RS fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+          style HS fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+          style ADAPTOR fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
+          style DESC fill:#fff3e0,stroke:#f57c00,stroke-width:3px
+   
+   
 
-   graph TB
-       subgraph "Encoding Components"
-           RS["R-space Lengths<br/>Replication dimensions"]
-           HS["H-space Lengths<br/>Hierarchical decomposition<br/>[[2,2],[2,2]]"]
-           P2RH["P→RH Mappings<br/>Thread to hierarchy<br/>Major/Minor"]
-           Y2RH["Y→RH Mappings<br/>Element to hierarchy<br/>Major/Minor"]
-       end
-       
-       subgraph "Generated Components"
-           ADAPTOR["ps_ys_to_xs_adaptor<br/>Coordinate transformer"]
-           DESC["ys_to_d_descriptor<br/>Memory linearizer"]
-           ENC["Encoding<br/>Original specification"]
-       end
-       
-       subgraph "Transformation Chain"
-           T1["Replicate<br/>Transform"]
-           T2["Unmerge<br/>Transform"]
-           T3["Merge<br/>Transform"]
-       end
-       
-       RS --> T1
-       HS --> T2
-       P2RH --> ADAPTOR
-       Y2RH --> ADAPTOR
-       
-       T1 --> T2
-       T2 --> T3
-       T3 --> ADAPTOR
-       
-       HS --> DESC
-       Y2RH --> DESC
-       
-       style RS fill:#fce4ec,stroke:#c2185b,stroke-width:2px
-       style HS fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-       style ADAPTOR fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
-       style DESC fill:#fff3e0,stroke:#f57c00,stroke-width:3px
+.. image:: diagrams/encoding_internals_1.svg
+   :alt: Diagram
+   :align: center
 
 Encoding Structure
 ==================
 
-The tile distribution encoding employs a sophisticated type system that captures the complete specification of tensor distribution patterns at compile time:
+The tile distribution encoding employs a template-based type system that captures the complete specification of tensor distribution patterns at compile time:
 
 .. code-block:: cpp
 
@@ -93,7 +98,7 @@ The tile distribution encoding employs a sophisticated type system that captures
             // Precomputed mappings and transformations
             static constexpr auto get_h_dim_lengths_prefix_sum();
             static constexpr auto get_uniformed_idx_y_to_h();
-            // ... extensive compile-time computation ...
+            // ... compile-time computation ...
         };
     };
 
@@ -193,44 +198,49 @@ The ``Ys2RHsMajor`` and ``Ys2RHsMinor`` define the user-facing interface:
     // Y[1,0] → H1[0], H2[1]
     // Y[1,1] → H1[1], H2[1]
 
-
-The encoding generates a transformation pipeline that converts coordinates:
 Transformation Pipeline
-
-The encoding generates a transformation pipeline that converts coordinates (using the concepts from :ref:`ck_tile_transforms` and :ref:`ck_tile_adaptors`):
 =======================
 
-The encoding generates a transformation pipeline that converts coordinates:
+The encoding generates a transformation pipeline that converts coordinates (using the concepts from :ref:`ck_tile_transforms` and :ref:`ck_tile_adaptors`):
 
-.. mermaid::
+.. 
+   Original mermaid diagram (edit here, then run update_diagrams.py)
+   
+   .. mermaid::
+   
+      flowchart LR
+          subgraph "Input Coordinates"
+              P["P-coordinates<br/>[warp_id, lane_id]"]
+              Y["Y-coordinates<br/>[y0, y1, y2, y3]"]
+          end
+          
+          subgraph "Transformation Pipeline"
+              C1["Combine P+Y"]
+              T1["Replicate<br/>Transform<br/>(if R-dims exist)"]
+              T2["Unmerge<br/>Transform<br/>(break into H-dims)"]
+              T3["Merge<br/>Transform<br/>(combine to X-dims)"]
+          end
+          
+          subgraph "Output"
+              X["X-coordinates<br/>[x0, x1]<br/>Tensor position"]
+          end
+          
+          P --> C1
+          Y --> C1
+          C1 --> T1
+          T1 --> T2
+          T2 --> T3
+          T3 --> X
+          
+          style P fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+          style Y fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+          style X fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+   
+   
 
-   flowchart LR
-       subgraph "Input Coordinates"
-           P["P-coordinates<br/>[warp_id, lane_id]"]
-           Y["Y-coordinates<br/>[y0, y1, y2, y3]"]
-       end
-       
-       subgraph "Transformation Pipeline"
-           C1["Combine P+Y"]
-           T1["Replicate<br/>Transform<br/>(if R-dims exist)"]
-           T2["Unmerge<br/>Transform<br/>(break into H-dims)"]
-           T3["Merge<br/>Transform<br/>(combine to X-dims)"]
-       end
-       
-       subgraph "Output"
-           X["X-coordinates<br/>[x0, x1]<br/>Tensor position"]
-       end
-       
-       P --> C1
-       Y --> C1
-       C1 --> T1
-       T1 --> T2
-       T2 --> T3
-       T3 --> X
-       
-       style P fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-       style Y fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-       style X fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+.. image:: diagrams/encoding_internals_2.svg
+   :alt: Diagram
+   :align: center
 
 Building the Transformation Chain
 ---------------------------------
@@ -290,14 +300,10 @@ Transform Implementation Example
         }
     };
 
-
-The Y→D descriptor handles memory layout within each thread:
 Y to D Linearization
-
-The Y→D descriptor handles memory layout within each thread (building on :ref:`ck_tile_descriptors` concepts):
 ====================
 
-The Y→D descriptor handles memory layout within each thread:
+The Y→D descriptor handles memory layout within each thread (building on :ref:`ck_tile_descriptors` concepts):
 
 .. code-block:: cpp
 
@@ -422,14 +428,10 @@ Example 2: GEMM Distribution
         Sequence<0, 1, 0, 1>   // Y components
     >;
 
-
-The encoding system is designed for maximum GPU performance:
 Performance Implications
-
-The encoding system is designed for maximum GPU performance (see :ref:`ck_tile_gpu_basics` for hardware fundamentals):
 ========================
 
-The encoding system is designed for maximum GPU performance:
+The encoding system is designed for maximum GPU performance (see :ref:`ck_tile_gpu_basics` for hardware fundamentals):
 
 Memory Access Patterns
 ----------------------
@@ -474,7 +476,7 @@ Compile-Time Optimization
 Summary
 =======
 
-The tile distribution encoding system demonstrates sophisticated compile-time computation:
+The tile distribution encoding system demonstrates compile-time computation:
 
 - **Mathematical Foundation**: Complete specification through dimensional relationships
 - **Zero Overhead**: All computations resolve at compile time

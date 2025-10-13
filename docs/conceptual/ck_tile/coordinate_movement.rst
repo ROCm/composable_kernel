@@ -13,38 +13,46 @@ Overview
 
 Advanced coordinate operations form the bridge between mathematical transformations and practical tensor manipulation in CK Tile. These operations enable efficient navigation through complex tensor layouts without recalculating entire transformation chains. Understanding coordinate movement is essential for implementing high-performance GPU kernels that traverse multi-dimensional data structures.
 
-The coordinate movement system provides two key abstractions: TensorCoordinate for descriptor-aware navigation and TensorAdaptorCoordinate for tracking positions through transformation chains. Together with movement functions, they enable sophisticated access patterns while maintaining optimal performance through incremental updates rather than full recalculation.
+The coordinate movement system provides two key abstractions: TensorCoordinate for descriptor-aware navigation and TensorAdaptorCoordinate for tracking positions through transformation chains. Together with movement functions, they enable advanced access patterns while maintaining optimal performance through incremental updates rather than full recalculation.
 
 For the mathematical foundations of coordinate systems, see :ref:`ck_tile_coordinate_systems`. For simpler coordinate concepts, see :ref:`ck_tile_tensor_coordinates`.
 
-.. mermaid::
+.. 
+   Original mermaid diagram (edit here, then run update_diagrams.py)
+   
+   .. mermaid::
+   
+      graph TB
+          subgraph "Coordinate Movement System"
+              TC["TensorCoordinate<br/>Position + Descriptor Context"]
+              TAC["TensorAdaptorCoordinate<br/>Position + Transform Context"]
+              MC["move_coordinate()<br/>Efficient Navigation"]
+          end
+          
+          subgraph "Movement Example"
+              S["Start: [1,1]<br/>Offset: 5"]
+              M1["Move [0,1]<br/>→ [1,2]<br/>Offset: 6"]
+              M2["Move [1,0]<br/>→ [2,2]<br/>Offset: 10"]
+              M3["Move [1,1]<br/>→ [3,3]<br/>Offset: 15"]
+          end
+          
+          TC --> MC
+          TAC --> MC
+          
+          S --> M1
+          M1 --> M2
+          M2 --> M3
+          
+          style TC fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+          style TAC fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+          style MC fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+   
+   
+   
 
-   graph TB
-       subgraph "Coordinate Movement System"
-           TC["TensorCoordinate<br/>Position + Descriptor Context"]
-           TAC["TensorAdaptorCoordinate<br/>Position + Transform Context"]
-           MC["move_coordinate()<br/>Efficient Navigation"]
-       end
-       
-       subgraph "Movement Example"
-           S["Start: [1,1]<br/>Offset: 5"]
-           M1["Move [0,1]<br/>→ [1,2]<br/>Offset: 6"]
-           M2["Move [1,0]<br/>→ [2,2]<br/>Offset: 10"]
-           M3["Move [1,1]<br/>→ [3,3]<br/>Offset: 15"]
-       end
-       
-       TC --> MC
-       TAC --> MC
-       
-       S --> M1
-       M1 --> M2
-       M2 --> M3
-       
-       style TC fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-       style TAC fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-       style MC fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-
-
+.. image:: diagrams/coordinate_movement.svg
+   :alt: Diagram
+   :align: center
 TensorCoordinate: Descriptor-Aware Navigation
 =============================================
 
@@ -299,7 +307,7 @@ Movement Through Adaptors
 Advanced Movement Patterns
 ==========================
 
-Real-world applications use sophisticated movement patterns for optimal memory access. These patterns often relate to :ref:`ck_tile_tile_window` operations and :ref:`ck_tile_tile_distribution` concepts:
+Real-world applications use advanced movement patterns for optimal memory access. These patterns often relate to :ref:`ck_tile_tile_window` operations and :ref:`ck_tile_tile_distribution` concepts:
 
 Tiled Access Pattern
 --------------------
@@ -519,7 +527,7 @@ Advanced coordinate operations provide the foundation for efficient tensor navig
 - **TensorCoordinate**: Combines position with descriptor context for validated navigation
 - **TensorAdaptorCoordinate**: Tracks coordinates through transformation chains
 - **move_tensor_coordinate**: Enables efficient incremental updates without recalculation
-- **Movement Patterns**: Support sophisticated access patterns like tiling and space-filling curves
+- **Movement Patterns**: Support advanced access patterns like tiling and space-filling curves
 - **Performance**: Incremental updates are orders of magnitude faster than coordinate recreation
 - **Integration**: Seamlessly works with tile windows, distributions, and other CK Tile components
 

@@ -8,51 +8,56 @@
 Tensor Coordinates
 *******************
 
-
-Before diving into transforms and adaptors, it's essential to understand the basic coordinate system in CK Tile. MultiIndex is the fundamental building block used throughout the system - a container that extends the C++ array with additional operations for multi-dimensional indexing. Think of MultiIndex as GPS coordinates for tensors, providing a universal way to specify positions in N-dimensional space.
 Overview
-
-Before diving into transforms and adaptors (see :ref:`ck_tile_transforms` and :ref:`ck_tile_adaptors`), it's essential to understand the basic coordinate system in CK Tile. MultiIndex is the fundamental building block used throughout the system - a container that extends the C++ array with additional operations for multi-dimensional indexing. Think of MultiIndex as GPS coordinates for tensors, providing a universal way to specify positions in N-dimensional space.
 ========
 
-Before diving into transforms and adaptors, it's essential to understand the basic coordinate system in CK Tile. MultiIndex is the fundamental building block used throughout the system - a container that extends the C++ array with additional operations for multi-dimensional indexing. Think of MultiIndex as GPS coordinates for tensors, providing a universal way to specify positions in N-dimensional space.
+Before diving into transforms and adaptors (see :ref:`ck_tile_transforms` and :ref:`ck_tile_adaptors`), it's essential to understand the basic coordinate system in CK Tile. MultiIndex is the fundamental building block used throughout the system - a container that extends the C++ array with additional operations for multi-dimensional indexing. Think of MultiIndex as GPS coordinates for tensors, providing a universal way to specify positions in N-dimensional space.
 
 MultiIndex serves as the common currency between different coordinate spaces (see :ref:`ck_tile_coordinate_systems`), enabling seamless transformation and navigation through complex tensor layouts. Every transform, adaptor, and descriptor in CK Tile operates on these coordinate containers.
 
-.. mermaid::
+.. 
+   Original mermaid diagram (edit here, then run update_diagrams.py)
+   
+   .. mermaid::
+   
+      graph TB
+          subgraph "MultiIndex Structure"
+              MI["MultiIndex<br/>Container for N integers"]
+              D0["Dimension 0"]
+              D1["Dimension 1"]
+              D2["Dimension 2"]
+              DN["Dimension N-1"]
+          end
+      
+          subgraph "Usage Context"
+              T["Transforms<br/>"]
+              A["Adaptors<br/>"]
+              TV["Tensors<br/>"]
+          end
+      
+          MI --> D0
+          MI --> D1
+          MI --> D2
+          MI --> DN
+      
+          T --> MI
+          A --> MI
+          TV --> MI
+      
+          style MI fill:#f3e5f5,stroke:#7b1fa2,stroke-width:3px
+          style D0 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+          style D1 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+          style D2 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+          style DN fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+          style T fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+          style A fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+          style TV fill:#ffebee,stroke:#d32f2f,stroke-width:2px
+   
+   
 
-   graph TB
-       subgraph "MultiIndex Structure"
-           MI["MultiIndex<br/>Container for N integers"]
-           D0["Dimension 0"]
-           D1["Dimension 1"]
-           D2["Dimension 2"]
-           DN["Dimension N-1"]
-       end
-   
-       subgraph "Usage Context"
-           T["Transforms<br/>"]
-           A["Adaptors<br/>"]
-           TV["Tensors<br/>"]
-       end
-   
-       MI --> D0
-       MI --> D1
-       MI --> D2
-       MI --> DN
-   
-       T --> MI
-       A --> MI
-       TV --> MI
-   
-       style MI fill:#f3e5f5,stroke:#7b1fa2,stroke-width:3px
-       style D0 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-       style D1 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-       style D2 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-       style DN fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-       style T fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-       style A fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-       style TV fill:#ffebee,stroke:#d32f2f,stroke-width:2px
+.. image:: diagrams/tensor_coordinates_1.svg
+   :alt: Diagram
+   :align: center
 
 MultiIndex Implementation
 =========================
@@ -171,27 +176,36 @@ MultiIndex in Coordinate Flow
 
 MultiIndex serves as the interface between user code and the transformation pipeline:
 
-.. mermaid::
+.. 
+   Original mermaid diagram (edit here, then run update_diagrams.py)
+   
+   .. mermaid::
+   
+      flowchart TB
+          subgraph CF ["Coordinate Flow"]
+              direction LR
+              UI["User Input<br/>[1, 2, 3]"] --> MI["MultiIndex<br/>Storage"]
+              MI --> TR["Transform<br/>Processing"]
+              TR --> MO["MultiIndex<br/>Output"]
+              MO --> TA["Tensor Access<br/>element(coord)"]
+          end
+      
+          subgraph EX ["Example: 3D Tensor Access"]
+              direction LR
+              T3D["3D Tensor<br/>shape=[4,5,6]"] --> COORD["MultiIndex(3, [1,2,3])"]
+              COORD --> ELEM["Element at<br/>position [1,2,3]"]
+          end
+      
+          style UI fill:#e0e7ff,stroke:#4338ca,stroke-width:2px
+          style MI fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+          style MO fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+          style COORD fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+   
+   
 
-   flowchart TB
-       subgraph CF ["Coordinate Flow"]
-           direction LR
-           UI["User Input<br/>[1, 2, 3]"] --> MI["MultiIndex<br/>Storage"]
-           MI --> TR["Transform<br/>Processing"]
-           TR --> MO["MultiIndex<br/>Output"]
-           MO --> TA["Tensor Access<br/>element(coord)"]
-       end
-   
-       subgraph EX ["Example: 3D Tensor Access"]
-           direction LR
-           T3D["3D Tensor<br/>shape=[4,5,6]"] --> COORD["MultiIndex(3, [1,2,3])"]
-           COORD --> ELEM["Element at<br/>position [1,2,3]"]
-       end
-   
-       style UI fill:#e0e7ff,stroke:#4338ca,stroke-width:2px
-       style MI fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-       style MO fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-       style COORD fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+.. image:: diagrams/tensor_coordinates_2.svg
+   :alt: Diagram
+   :align: center
 
 Common Usage Patterns
 =====================
@@ -349,14 +363,10 @@ Specialized Coordinates
         }
     };
 
-
-MultiIndex is the foundation for all tensor operations in CK Tile:
 Integration with Tensor Operations
-
-MultiIndex is the foundation for all tensor operations in CK Tile (see :ref:`ck_tile_tensor_views` and :ref:`ck_tile_buffer_views` for tensor abstractions):
 ==================================
 
-MultiIndex is the foundation for all tensor operations in CK Tile:
+MultiIndex is the foundation for all tensor operations in CK Tile (see :ref:`ck_tile_tensor_views` and :ref:`ck_tile_buffer_views` for tensor abstractions):
 
 .. code-block:: cpp
 
@@ -393,14 +403,10 @@ MultiIndex is the foundation for all tensor operations in CK Tile:
         });
     }
 
-
-MultiIndex is designed for zero-overhead abstraction:
 Performance Considerations
-
-MultiIndex is designed for zero-overhead abstraction (see :ref:`ck_tile_gpu_basics` for GPU performance fundamentals):
 ==========================
 
-MultiIndex is designed for zero-overhead abstraction:
+MultiIndex is designed for zero-overhead abstraction (see :ref:`ck_tile_gpu_basics` for GPU performance fundamentals):
 
 1. **Compile-Time Resolution**: When dimensions are known at compile time, all operations are inlined
 2. **Register Allocation**: Small fixed-size arrays typically stay in registers

@@ -8,59 +8,67 @@ Overview
 
 The TileWindow abstraction represents the culmination of the CK framework's approach to efficient tensor data access on GPUs. While :ref:`TileDistribution <ck_tile_tile_distribution>` determines the mapping between threads and tensor coordinates, TileWindow provides the actual mechanism for loading and storing data with optimal memory access patterns. This abstraction encapsulates the complexity of coalesced memory accesses, vectorization, and boundary handling into a clean interface that enables developers to focus on algorithmic logic rather than low-level memory management.
 
-At its core, TileWindow implements a sophisticated windowing mechanism that views a subset of a larger tensor through the lens of a tile distribution. This windowing is not merely a simple sub-tensor extraction but a distribution-aware view that automatically generates the most efficient memory access patterns for the underlying hardware. The system achieves this by combining knowledge of the :ref:`tensor's layout <ck_tile_descriptors>`, the distribution pattern, and the :ref:`GPU's memory subsystem <ck_tile_gpu_basics>` characteristics to generate optimized load and store operations.
+At its core, TileWindow implements a distribution-aware windowing mechanism that views a subset of a larger tensor through the lens of a tile distribution. This windowing is not merely a simple sub-tensor extraction but a distribution-aware view that automatically generates the most efficient memory access patterns for the underlying hardware. The system achieves this by combining knowledge of the :ref:`tensor's layout <ck_tile_descriptors>`, the distribution pattern, and the :ref:`GPU's memory subsystem <ck_tile_gpu_basics>` characteristics to generate optimized load and store operations.
 
 TileWindow Architecture
 -----------------------
 
-.. mermaid::
+.. 
+   Original mermaid diagram (edit here, then run update_diagrams.py)
+   
+   .. mermaid::
+   
+      graph TB
+          subgraph "Components"
+              TV["TensorView<br/>Data source"]
+              TD["TileDistribution<br/>Thread mapping"]
+              TW["TileWindow<br/>Access gateway"]
+              LT["LoadStoreTraits<br/>Access optimizer"]
+              DT["DistributedTensor<br/>Register storage"]
+          end
+          
+          subgraph "Operations"
+              Load["Load<br/>Global → Registers"]
+              Compute["Compute<br/>In registers"]
+              Store["Store<br/>Registers → Global"]
+          end
+          
+          subgraph "Optimizations"
+              Coal["Coalescing<br/>Adjacent access"]
+              Vec["Vectorization<br/>Multi-element ops"]
+              Bank["Bank conflict<br/>avoidance"]
+              SFC["Space-filling<br/>curve traversal"]
+          end
+          
+          TV --> TW
+          TD --> TW
+          TW --> LT
+          LT --> DT
+          
+          TW --> Load
+          Load --> Compute
+          Compute --> Store
+          
+          Load --> Coal
+          Load --> Vec
+          Load --> SFC
+          Store --> Bank
+          
+          style TW fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
+          style LT fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+          style DT fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+   
+   
 
-   graph TB
-       subgraph "Components"
-           TV["TensorView<br/>Data source"]
-           TD["TileDistribution<br/>Thread mapping"]
-           TW["TileWindow<br/>Access gateway"]
-           LT["LoadStoreTraits<br/>Access optimizer"]
-           DT["DistributedTensor<br/>Register storage"]
-       end
-       
-       subgraph "Operations"
-           Load["Load<br/>Global → Registers"]
-           Compute["Compute<br/>In registers"]
-           Store["Store<br/>Registers → Global"]
-       end
-       
-       subgraph "Optimizations"
-           Coal["Coalescing<br/>Adjacent access"]
-           Vec["Vectorization<br/>Multi-element ops"]
-           Bank["Bank conflict<br/>avoidance"]
-           SFC["Space-filling<br/>curve traversal"]
-       end
-       
-       TV --> TW
-       TD --> TW
-       TW --> LT
-       LT --> DT
-       
-       TW --> Load
-       Load --> Compute
-       Compute --> Store
-       
-       Load --> Coal
-       Load --> Vec
-       Load --> SFC
-       Store --> Bank
-       
-       style TW fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
-       style LT fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-       style DT fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-
+.. image:: diagrams/tile_window_1.svg
+   :alt: Diagram
+   :align: center
 What is a TileWindow?
 ---------------------
 
-The fundamental challenge in GPU programming lies in the gap between logical tensor operations and the physical realities of memory access. While :ref:`TileDistribution <ck_tile_tile_distribution>` elegantly solves the problem of work assignment by mapping threads to :ref:`tensor coordinates <ck_tile_coordinate_systems>`, it does not address how threads actually access the data at those coordinates. This is where TileWindow enters the picture, serving as the critical bridge between logical work assignment and physical memory operations.
+The fundamental challenge in GPU programming lies in the gap between logical tensor operations and the physical realities of memory access. While :ref:`TileDistribution <ck_tile_tile_distribution>` solves the problem of work assignment by mapping threads to :ref:`tensor coordinates <ck_tile_coordinate_systems>`, it does not address how threads actually access the data at those coordinates. This is where TileWindow enters the picture, serving as the critical bridge between logical work assignment and physical memory operations.
 
-TileWindow implements a distribution-aware windowing mechanism that transforms abstract coordinate mappings into concrete memory access patterns. The abstraction understands not just which data elements each thread needs, but also how to access them in a way that maximizes memory bandwidth utilization. This involves sophisticated techniques such as memory coalescing, where adjacent threads access adjacent memory locations, and vectorization, where multiple elements are loaded or stored in a single transaction.
+TileWindow implements a distribution-aware windowing mechanism that transforms abstract coordinate mappings into concrete memory access patterns. The abstraction understands not just which data elements each thread needs, but also how to access them in a way that maximizes memory bandwidth utilization. This involves optimized techniques such as memory coalescing, where adjacent threads access adjacent memory locations, and vectorization, where multiple elements are loaded or stored in a single transaction.
 
 **C++ Implementation Overview:**
 
@@ -115,7 +123,7 @@ TileWindow implements a distribution-aware windowing mechanism that transforms a
 LoadStoreTraits - The Access Pattern Engine
 -------------------------------------------
 
-Behind every efficient TileWindow operation lies :ref:`LoadStoreTraits <ck_tile_load_store_traits>`, a sophisticated analysis engine that determines the optimal way to access memory. This component bridges the gap between the logical distribution pattern and the physical memory subsystem, analyzing the distribution to find opportunities for vectorization and coalescing.
+Behind every efficient TileWindow operation lies :ref:`LoadStoreTraits <ck_tile_load_store_traits>`, a compile-time analysis engine that determines the optimal way to access memory. This component bridges the gap between the logical distribution pattern and the physical memory subsystem, analyzing the distribution to find opportunities for vectorization and coalescing.
 
 LoadStoreTraits performs several critical analyses:
 
@@ -159,38 +167,44 @@ LoadStoreTraits performs several critical analyses:
 Space-Filling Curves for Memory Access
 --------------------------------------
 
-One of the most sophisticated aspects of TileWindow is its use of :ref:`space-filling curves <ck_tile_space_filling_curve>` to determine the order in which memory is accessed. This isn't just about iterating through elements - it's about doing so in a way that maximizes cache utilization and minimizes memory latency.
+One of the most key aspects of TileWindow is its use of :ref:`space-filling curves <ck_tile_space_filling_curve>` to determine the order in which memory is accessed. Rather than simple linear iteration, space-filling curves provide cache-friendly traversal patterns that maximize hardware utilization. The "snake" pattern is particularly effective because it minimizes the distance between consecutive accesses, keeping data in cache longer.
 
-A space-filling curve is a continuous curve that visits every point in a multi-dimensional space exactly once. In the context of TileWindow, it determines the order in which a thread accesses its assigned elements. The "snake" pattern is particularly effective because it minimizes the distance between consecutive accesses, keeping data in cache longer.
+.. 
+   Original mermaid diagram (edit here, then run update_diagrams.py)
+   
+   .. mermaid::
+   
+      graph LR
+          subgraph "Linear Access Pattern"
+              L1["0→1→2→3"]
+              L2["4→5→6→7"]
+              L3["8→9→10→11"]
+              L4["12→13→14→15"]
+          end
+          
+          subgraph "Snake Access Pattern"
+              S1["0→1→2→3"]
+              S2["7←6←5←4"]
+              S3["8→9→10→11"]
+              S4["15←14←13←12"]
+          end
+          
+          L1 --> L2
+          L2 --> L3
+          L3 --> L4
+          
+          S1 --> S2
+          S2 --> S3
+          S3 --> S4
+          
+          style S1 fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+          style S2 fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+   
+   
 
-.. mermaid::
-
-   graph LR
-       subgraph "Linear Access Pattern"
-           L1["0→1→2→3"]
-           L2["4→5→6→7"]
-           L3["8→9→10→11"]
-           L4["12→13→14→15"]
-       end
-       
-       subgraph "Snake Access Pattern"
-           S1["0→1→2→3"]
-           S2["7←6←5←4"]
-           S3["8→9→10→11"]
-           S4["15←14←13←12"]
-       end
-       
-       L1 --> L2
-       L2 --> L3
-       L3 --> L4
-       
-       S1 --> S2
-       S2 --> S3
-       S3 --> S4
-       
-       style S1 fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-       style S2 fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-
+.. image:: diagrams/tile_window_2.svg
+   :alt: Diagram
+   :align: center
 **C++ Space-Filling Curve Implementation:**
 
 .. code-block:: cpp
@@ -221,36 +235,44 @@ A space-filling curve is a continuous curve that visits every point in a multi-d
 TileWindow Data Flow
 --------------------
 
-.. mermaid::
+.. 
+   Original mermaid diagram (edit here, then run update_diagrams.py)
+   
+   .. mermaid::
+   
+      flowchart LR
+          subgraph "Step 1: Create Window"
+              T["Tensor<br/>[256, 256]"]
+              O["Origin<br/>(64, 64)"]
+              W["Window Size<br/>[32, 32]"]
+          end
+          
+          subgraph "Step 2: Apply Distribution"
+              TD["TileDistribution<br/>Thread mapping"]
+              TW["TileWindow<br/>Created"]
+          end
+          
+          subgraph "Step 3: Load Data"
+              GM["Global Memory<br/>Window region"]
+              REG["Registers<br/>Distributed tensor"]
+          end
+          
+          T --> TW
+          O --> TW
+          W --> TW
+          TD --> TW
+          
+          TW --> GM
+          GM -->|"load()"| REG
+          
+          style TW fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
+          style REG fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+   
+   
 
-   flowchart LR
-       subgraph "Step 1: Create Window"
-           T["Tensor<br/>[256, 256]"]
-           O["Origin<br/>(64, 64)"]
-           W["Window Size<br/>[32, 32]"]
-       end
-       
-       subgraph "Step 2: Apply Distribution"
-           TD["TileDistribution<br/>Thread mapping"]
-           TW["TileWindow<br/>Created"]
-       end
-       
-       subgraph "Step 3: Load Data"
-           GM["Global Memory<br/>Window region"]
-           REG["Registers<br/>Distributed tensor"]
-       end
-       
-       T --> TW
-       O --> TW
-       W --> TW
-       TD --> TW
-       
-       TW --> GM
-       GM -->|"load()"| REG
-       
-       style TW fill:#e3f2fd,stroke:#1976d2,stroke-width:3px
-       style REG fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-
+.. image:: diagrams/tile_window_3.svg
+   :alt: Diagram
+   :align: center
 Creating and Using TileWindow
 -----------------------------
 
@@ -298,7 +320,7 @@ Let's explore how to create and use a TileWindow in practice:
 The Load Operation Deep Dive
 ----------------------------
 
-The load operation is where all the sophisticated analysis comes together. When you call ``window.load()``, a carefully orchestrated sequence of operations occurs:
+The load operation is where all the compile-time analysis comes together. When you call ``window.load()``, a carefully orchestrated sequence of operations occurs:
 
 1. **Distributed tensor creation**: Automatically creates a :ref:`distributed tensor <ck_tile_static_distributed_tensor>` sized for the distribution
 2. **Coordinate calculation**: Uses precomputed coordinates for efficiency
@@ -343,42 +365,50 @@ The load operation is where all the sophisticated analysis comes together. When 
 Load Operation Architecture
 ---------------------------
 
-.. mermaid::
+.. 
+   Original mermaid diagram (edit here, then run update_diagrams.py)
+   
+   .. mermaid::
+   
+      graph TB
+          subgraph "Load Analysis"
+              Analyze["Analyze access pattern<br/>Detect coalescing opportunities"]
+          end
+          
+          subgraph "Vectorization"
+              V1["Scalar: 4 loads"]
+              V2["Vector2: 2 loads"]
+              V4["Vector4: 1 load"]
+          end
+          
+          subgraph "Memory Transaction"
+              Coal["Coalesced access<br/>32 threads → 1 transaction"]
+              NonCoal["Non-coalesced<br/>32 threads → 32 transactions"]
+          end
+          
+          subgraph "Result"
+              Reg["Thread registers<br/>Local data"]
+          end
+          
+          Analyze --> V1
+          Analyze --> V2
+          Analyze --> V4
+          
+          V4 --> Coal
+          V1 --> NonCoal
+          
+          Coal --> Reg
+          NonCoal --> Reg
+          
+          style V4 fill:#d1fae5,stroke:#10b981,stroke-width:2px
+          style Coal fill:#d1fae5,stroke:#10b981,stroke-width:2px
+          style NonCoal fill:#fee2e2,stroke:#ef4444,stroke-width:2px
+   
+   
 
-   graph TB
-       subgraph "Load Analysis"
-           Analyze["Analyze access pattern<br/>Detect coalescing opportunities"]
-       end
-       
-       subgraph "Vectorization"
-           V1["Scalar: 4 loads"]
-           V2["Vector2: 2 loads"]
-           V4["Vector4: 1 load"]
-       end
-       
-       subgraph "Memory Transaction"
-           Coal["Coalesced access<br/>32 threads → 1 transaction"]
-           NonCoal["Non-coalesced<br/>32 threads → 32 transactions"]
-       end
-       
-       subgraph "Result"
-           Reg["Thread registers<br/>Local data"]
-       end
-       
-       Analyze --> V1
-       Analyze --> V2
-       Analyze --> V4
-       
-       V4 --> Coal
-       V1 --> NonCoal
-       
-       Coal --> Reg
-       NonCoal --> Reg
-       
-       style V4 fill:#d1fae5,stroke:#10b981,stroke-width:2px
-       style Coal fill:#d1fae5,stroke:#10b981,stroke-width:2px
-       style NonCoal fill:#fee2e2,stroke:#ef4444,stroke-width:2px
-
+.. image:: diagrams/tile_window_4.svg
+   :alt: Diagram
+   :align: center
 Memory Access Patterns
 ----------------------
 
@@ -443,7 +473,7 @@ TileWindow supports efficient window movement for sliding window algorithms. The
 Store Operations with Vectorization
 -----------------------------------
 
-Store operations use the same sophisticated analysis as loads. The :ref:`LoadStoreTraits <ck_tile_load_store_traits>` ensures that stores are just as efficient as loads, with the same vectorization and coalescing benefits:
+Store operations use the same compile-time analysis as loads. The :ref:`LoadStoreTraits <ck_tile_load_store_traits>` ensures that stores are just as efficient as loads, with the same vectorization and coalescing benefits:
 
 .. code-block:: cpp
 
@@ -557,31 +587,39 @@ Here's a complete example showing how all components work together in a :ref:`ma
 Performance Characteristics
 ---------------------------
 
-.. mermaid::
+.. 
+   Original mermaid diagram (edit here, then run update_diagrams.py)
+   
+   .. mermaid::
+   
+      graph LR
+          subgraph "Memory Access Optimization"
+              V["Vectorization<br/>4x fewer transactions"]
+              C["Coalescing<br/>32x bandwidth efficiency"]
+              P["Precomputation<br/>Zero overhead addressing"]
+              S["Space-filling<br/>Optimal cache usage"]
+          end
+          
+          subgraph "Hardware Utilization"
+              BW["Memory Bandwidth<br/>Near 100% utilization"]
+              L["Latency Hiding<br/>Overlapped operations"]
+              R["Register Reuse<br/>Minimal spills"]
+          end
+          
+          V --> BW
+          C --> BW
+          P --> L
+          S --> R
+          
+          style V fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+          style C fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+          style BW fill:#d1fae5,stroke:#10b981,stroke-width:3px
+   
+   
 
-   graph LR
-       subgraph "Memory Access Optimization"
-           V["Vectorization<br/>4x fewer transactions"]
-           C["Coalescing<br/>32x bandwidth efficiency"]
-           P["Precomputation<br/>Zero overhead addressing"]
-           S["Space-filling<br/>Optimal cache usage"]
-       end
-       
-       subgraph "Hardware Utilization"
-           BW["Memory Bandwidth<br/>Near 100% utilization"]
-           L["Latency Hiding<br/>Overlapped operations"]
-           R["Register Reuse<br/>Minimal spills"]
-       end
-       
-       V --> BW
-       C --> BW
-       P --> L
-       S --> R
-       
-       style V fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-       style C fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-       style BW fill:#d1fae5,stroke:#10b981,stroke-width:3px
-
+.. image:: diagrams/tile_window_5.svg
+   :alt: Diagram
+   :align: center
 Best Practices
 --------------
 
@@ -649,7 +687,7 @@ Key benefits:
 4. **Composability**: Integrates cleanly with other CK abstractions
 5. **Intelligence**: LoadStoreTraits analyzes and optimizes every access
 
-The TileWindow abstraction is essential for building high-performance GPU kernels, providing a clean interface for complex memory access patterns while maintaining peak performance. The sophisticated analysis performed by LoadStoreTraits ensures that every memory operation is as efficient as possible, while the space-filling curve traversal maximizes cache utilization.
+The TileWindow abstraction is essential for building high-performance GPU kernels, providing a clean interface for complex memory access patterns while maintaining peak performance. The compile-time analysis performed by LoadStoreTraits ensures that every memory operation is as efficient as possible, while the space-filling curve traversal maximizes cache utilization.
 
 Next Steps
 ----------

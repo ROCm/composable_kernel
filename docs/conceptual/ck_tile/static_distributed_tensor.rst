@@ -20,7 +20,7 @@ This design enables several critical optimizations. First, it maximizes register
 Thread-Local Storage Model
 ==========================
 
-The static distributed tensor implements a sophisticated storage model that maps multi-dimensional tensor data to thread-local arrays:
+The static distributed tensor implements a advanced storage model that maps multi-dimensional tensor data to thread-local arrays:
 
 .. code-block:: cpp
 
@@ -85,19 +85,27 @@ Understanding how static distributed tensors organize memory is crucial for perf
 
 The memory layout follows a hierarchical pattern:
 
-.. mermaid::
+.. 
+   Original mermaid diagram (edit here, then run update_diagrams.py)
+   
+   .. mermaid::
+   
+      graph TD
+          A[Global Tensor 64x64] --> B[Thread Block 16x16]
+          B --> C[Thread 0,0<br/>Elements 0:3,0:3]
+          B --> D[Thread 0,1<br/>Elements 0:3,4:7]
+          B --> E[Thread 1,0<br/>Elements 4:7,0:3]
+          B --> F[...]
+          
+          C --> G[Local Array<br/>16 elements]
+          D --> H[Local Array<br/>16 elements]
+          E --> I[Local Array<br/>16 elements]
+   
+   
 
-   graph TD
-       A[Global Tensor 64x64] --> B[Thread Block 16x16]
-       B --> C[Thread 0,0<br/>Elements 0:3,0:3]
-       B --> D[Thread 0,1<br/>Elements 0:3,4:7]
-       B --> E[Thread 1,0<br/>Elements 4:7,0:3]
-       B --> F[...]
-       
-       C --> G[Local Array<br/>16 elements]
-       D --> H[Local Array<br/>16 elements]
-       E --> I[Local Array<br/>16 elements]
-
+.. image:: diagrams/static_distributed_tensor.svg
+   :alt: Diagram
+   :align: center
 Element Access and Indexing
 ===========================
 

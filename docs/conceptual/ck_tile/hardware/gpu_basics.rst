@@ -13,7 +13,7 @@ The AMD CDNA architecture is a specialized GPU design for high-performance compu
 XCD (eXtreme Chiplet Design)
 =============================
 
-A fundamental element of CDNA is the **eXtreme Chiplet Design (XCD)**. This design breaks the GPU into smaller, modular chiplets. Each XCD contains a portion of the GPU's compute resources and a dedicated slice of the L2 cache. This modular approach allows for greater manufacturing flexibility, higher yields, and improved scalability, as multiple XCDs can be connected together to form a single, powerful GPU.
+A fundamental element of CDNA is the **eXtreme Chiplet Design (XCD)**. This design breaks the GPU into smaller, modular chiplets. Each XCD contains a portion of the GPU's compute resources and a dedicated slice of the L2 cache. This modular approach allows for greater manufacturing flexibility, higher yields, and improved scalability, as multiple XCDs can be connected together to form a single, high-performance GPU.
 
 MI300 incorporates 8 accelerator complex dies (XCD) with 40 compute units (CUs) per XCD, however 2 of them stay disabled which brings total to 304 CUs.
 
@@ -85,6 +85,23 @@ Understanding the CDNA architecture is crucial for effective use of CK Tile:
 5. **LDS Utilization**: CK Tile's :ref:`ck_tile_static_distributed_tensor` and :ref:`ck_tile_tile_window` make effective use of the 64KB LDS per CU.
 
 By understanding these architectural features, developers can better appreciate how CK Tile's abstractions map to hardware capabilities and why certain design decisions were made in the framework.
+
+Further Reading
+
+For comprehensive documentation on AMD GPU architecture and programming:
+
+**AMD GPU Architecture Programming Documentation**
+  https://gpuopen.com/amd-gpu-architecture-programming-documentation/
+
+This resource provides in-depth guides covering:
+
+- **CDNA Architecture Whitepapers**: Detailed technical specifications for MI200 and MI300 series
+- **ISA (Instruction Set Architecture) Documentation**: Complete instruction reference for AMD GPUs
+- **Optimization Guides**: Best practices for achieving peak performance
+- **Programming Guides**: ROCm and HIP programming models
+- **Performance Tools**: Profiling and analysis tool documentation
+
+These guides complement the CK Tile documentation by providing the low-level hardware details that inform the design of CK's high-level abstractions. Understanding the underlying architecture enables developers to make informed decisions about tile sizes, distribution patterns, and optimization strategies.
 
 Related Topics
 

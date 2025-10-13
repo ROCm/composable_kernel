@@ -8,7 +8,7 @@ Overview
 
 While :ref:`BufferView <ck_tile_buffer_views>` provides the foundation for raw memory access, TensorView elevates this abstraction by adding multi-dimensional structure to flat memory regions. This critical abstraction bridges the gap between how developers conceptualize data—as matrices, tensors, and higher-dimensional structures—and how that data is physically stored in linear memory. TensorView enables coordinate-based access patterns that match the natural structure of algorithms while maintaining the performance characteristics necessary for efficient GPU computation.
 
-The power of TensorView lies in its ability to present different logical views of the same underlying memory without copying data. A single memory region can be viewed as a row-major matrix, a column-major matrix, or even a transposed matrix, all through different TensorView configurations. This zero-copy abstraction enables powerful transformations and access patterns while maintaining optimal memory bandwidth utilization.
+The power of TensorView lies in its ability to present different logical views of the same underlying memory without copying data. A single memory region can be viewed as a row-major matrix, a column-major matrix, or even a transposed matrix, all through different TensorView configurations. This zero-copy abstraction enables flexible transformations and access patterns while maintaining optimal memory bandwidth utilization.
 
 TensorView Architecture
 -----------------------
@@ -52,7 +52,7 @@ The Foundation: BufferView and TensorDescriptor
 
 TensorView builds upon two fundamental components that work in concert to provide structured access to memory. The :ref:`BufferView <ck_tile_buffer_views>` component handles the low-level memory access, providing type-safe operations with address space awareness. The :ref:`TensorDescriptor <ck_tile_descriptors>` component encodes the multi-dimensional structure, including shape information and stride patterns that determine how coordinates map to memory offsets.
 
-This separation of concerns enables powerful optimizations. The BufferView can optimize for the specific memory space (global, shared, or register), while the TensorDescriptor can encode complex access patterns without concern for the underlying memory type. Together, they provide a complete abstraction for multi-dimensional data access.
+This separation of concerns enables critical optimizations. The BufferView can optimize for the specific memory space (global, shared, or register), while the TensorDescriptor can encode complex access patterns without concern for the underlying memory type. Together, they provide a complete abstraction for multi-dimensional data access.
 
 C++ Implementation
 ------------------
@@ -107,7 +107,7 @@ The creation of a TensorView involves combining a BufferView with a TensorDescri
 Coordinate-Based Access
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-The fundamental operation of TensorView is translating multi-dimensional coordinates into memory accesses. This translation happens through a sophisticated pipeline that maintains efficiency while providing flexibility:
+The fundamental operation of TensorView is translating multi-dimensional coordinates into memory accesses. This translation happens through a advanced pipeline that maintains efficiency while providing flexibility:
 
 .. raw:: html
 
@@ -142,7 +142,7 @@ The fundamental operation of TensorView is translating multi-dimensional coordin
 Memory Layouts and Strides
 --------------------------
 
-One of the most powerful features of TensorView is its ability to represent different memory layouts through stride manipulation. This capability enables zero-copy transformations that would otherwise require expensive memory operations:
+One of the most key features of TensorView is its ability to represent different memory layouts through stride manipulation. This capability enables zero-copy transformations that would otherwise require expensive memory operations:
 
 .. raw:: html
 
@@ -216,7 +216,7 @@ Advanced Operations
 Slicing and Subviews
 ~~~~~~~~~~~~~~~~~~~~
 
-TensorView supports sophisticated slicing operations that create new views of subsets of the data. These operations are essential for algorithms that process data in blocks or tiles (see :ref:`ck_tile_tile_window` for production use):
+TensorView supports advanced slicing operations that create new views of subsets of the data. These operations are essential for algorithms that process data in blocks or tiles (see :ref:`ck_tile_tile_window` for production use):
 
 .. code-block:: cpp
 
@@ -317,7 +317,7 @@ The efficiency of TensorView operations depends critically on memory access patt
 Compile-Time Optimization
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-CK's TensorView leverages extensive compile-time optimization to achieve zero-overhead abstraction. When tensor dimensions and strides are known at compile time, the entire coordinate-to-offset calculation can be resolved during compilation:
+CK's TensorView leverages compile-time optimization to achieve zero-overhead abstraction. When tensor dimensions and strides are known at compile time, the entire coordinate-to-offset calculation can be resolved during compilation:
 
 .. code-block:: cpp
 
@@ -397,13 +397,13 @@ TensorView serves as the foundation for :ref:`tile distribution's <ck_tile_tile_
 Summary
 -------
 
-TensorView represents a critical abstraction in the CK framework, bridging the gap between logical multi-dimensional data structures and physical memory layout. Through its sophisticated design, TensorView provides:
+TensorView represents a critical abstraction in the CK framework, bridging the gap between logical multi-dimensional data structures and physical memory layout. Through its advanced design, TensorView provides:
 
 **Multi-dimensional Indexing**: Natural coordinate-based access to data, matching how algorithms conceptualize their operations. This abstraction eliminates error-prone manual index calculations while maintaining performance.
 
 **Flexible Memory Layouts**: Support for row-major, column-major, and custom stride patterns enables algorithms to work with data in its most natural form. Zero-copy transformations like transposition become simple stride manipulations.
 
-**Zero-Copy Views**: The ability to create different logical views of the same physical memory enables powerful transformations without the overhead of data movement. This capability is essential for efficient GPU programming where memory bandwidth is often the limiting factor.
+**Zero-Copy Views**: The ability to create different logical views of the same physical memory enables flexible transformations without the overhead of data movement. This capability is essential for efficient GPU programming where memory bandwidth is often the limiting factor.
 
 **Type Safety**: Dimensions and memory spaces are encoded in the type system, catching errors at compile time rather than runtime. This safety comes without performance overhead thanks to template metaprogramming.
 

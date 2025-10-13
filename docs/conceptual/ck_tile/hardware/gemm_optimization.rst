@@ -42,14 +42,10 @@ Our input will be uniformly distributed random data on the interval [-1, 1]:
     initializeMatrix(A.data(), M, K, -1.0, 1.0);
     initializeMatrix(B.data(), N, K, -1.0, 1.0);
 
-
-On the AMD **MI300** GPU architecture, each Compute Unit (CU) contains **four SIMD units**. Each SIMD unit can execute a single **wavefront** of 64 threads in parallel. Since there are four wavefronts per CU, a CU can therefore sustain the execution of up to **256 concurrent threads**.
 Simple Matmul
-
-On the AMD **MI300** GPU architecture (see :ref:`ck_tile_gpu_basics` for details), each Compute Unit (CU) contains **four SIMD units**. Each SIMD unit can execute a single **wavefront** of 64 threads in parallel. Since there are four wavefronts per CU, a CU can therefore sustain the execution of up to **256 concurrent threads**.
 =============
 
-On the AMD **MI300** GPU architecture, each Compute Unit (CU) contains **four SIMD units**. Each SIMD unit can execute a single **wavefront** of 64 threads in parallel. Since there are four wavefronts per CU, a CU can therefore sustain the execution of up to **256 concurrent threads**.
+On the AMD **MI300** GPU series (see :ref:`ck_tile_gpu_basics` for details), each Compute Unit (CU) contains **four SIMD units**. Each SIMD unit can execute a single **wavefront** of 64 threads in parallel. Since there are four wavefronts per CU, a CU can therefore sustain the execution of up to **256 concurrent threads**.
 
 These 256 threads then can be logically grouped into a **thread block**, which is responsible for computing a **sub-block (tile)** of the output matrix ``C``. A block of 256 threads can be arranged as a **16×16 thread block**, where each thread computes one element of a **16×16 tile** of the result matrix ``C``. Multiple thread blocks are then organized into a **grid**, such that the collection of blocks covers the entire output matrix.
 
@@ -230,7 +226,7 @@ To maximize performance, the flow for this kernel uses a **pipeline** or **doubl
 
 * **Stage 4: Computation with MFMA:** The final stage is the core computation. The **MFMA** (Matrix-FMA) intrinsic uses the data from the VGPRs to perform the actual matrix multiplication and accumulation.
 
-By using this pipelined approach, the different stages of data movement and computation happen in parallel. While the current VGPRs are being consumed by the MFMA operation, the next set of data is already being moved from LDS to another set of VGPRs, and the next tile of data is being loaded from global memory into a third set of VGPRs. This overlapping of operations is key to keeping the GPU's powerful compute units fully utilized.
+By using this pipelined approach, the different stages of data movement and computation happen in parallel. While the current VGPRs are being consumed by the MFMA operation, the next set of data is already being moved from LDS to another set of VGPRs, and the next tile of data is being loaded from global memory into a third set of VGPRs. This overlapping of operations is key to keeping the GPU's compute units fully utilized.
 
 CK Tile Implementation
 ======================

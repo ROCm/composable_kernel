@@ -11,37 +11,45 @@ Sweep Tile
 Overview
 ========
 
-Sweep operations are the elegant way to iterate over distributed data in CK Tile. They complete the tile distribution workflow by providing clean, efficient iteration patterns that automatically handle all the complex indexing details. Sweep operations are like forEach() for distributed tensors - give them a function, and they'll call it for every element in the optimal order.
+Sweep operations are the clean way to iterate over distributed data in CK Tile. They complete the tile distribution workflow by providing clean, efficient iteration patterns that automatically handle all the complex indexing details. Sweep operations are like forEach() for distributed tensors - give them a function, and they'll call it for every element in the optimal order.
 
 The key insight is the "load once, use many times" pattern. Load X data once into registers, then sweep through Y positions while keeping X in fast memory. This maximizes data reuse and minimizes memory bandwidth requirements.
 
-.. mermaid::
+.. 
+   Original mermaid diagram (edit here, then run update_diagrams.py)
+   
+   .. mermaid::
+   
+      flowchart LR
+          subgraph "X-Tile (Reused)"
+              XT["X data loaded once<br/>Stays in registers"]
+          end
+          
+          subgraph "Y-Sweep"
+              Y1["Y position 0"]
+              Y2["Y position 1"]
+              Y3["Y position 2"]
+              YN["Y position N"]
+          end
+          
+          subgraph "Computation"
+              C["Process(X, Y)"]
+          end
+          
+          XT --> C
+          Y1 --> C
+          Y2 --> C
+          Y3 --> C
+          YN --> C
+          
+          style XT fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+          style C fill:#e0e7ff,stroke:#4338ca,stroke-width:2px
+   
+   
 
-   flowchart LR
-       subgraph "X-Tile (Reused)"
-           XT["X data loaded once<br/>Stays in registers"]
-       end
-       
-       subgraph "Y-Sweep"
-           Y1["Y position 0"]
-           Y2["Y position 1"]
-           Y3["Y position 2"]
-           YN["Y position N"]
-       end
-       
-       subgraph "Computation"
-           C["Process(X, Y)"]
-       end
-       
-       XT --> C
-       Y1 --> C
-       Y2 --> C
-       Y3 --> C
-       YN --> C
-       
-       style XT fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-       style C fill:#e0e7ff,stroke:#4338ca,stroke-width:2px
-
+.. image:: diagrams/sweep_tile_1.svg
+   :alt: Diagram
+   :align: center
 The Complete GPU Workflow
 =========================
 
@@ -52,7 +60,7 @@ Sweep operations are the final piece of the distributed computing puzzle:
 3. **Sweep Operations**: "Here's how to process every element"
 4. **Your code**: "Thanks! *does computation*"
 
-Without sweep operations, you need manual nested loops, complex index calculations, and risk missing elements or double-processing. With sweep operations, you get elegant lambda-based iteration with automatic handling of all elements.
+Without sweep operations, you need manual nested loops, complex index calculations, and risk missing elements or double-processing. With sweep operations, you get lambda-based iteration with automatic handling of all elements.
 
 For understanding the underlying coordinate systems, see :ref:`ck_tile_coordinate_systems`.
 
@@ -111,28 +119,36 @@ The sweep pattern provides significant memory efficiency benefits. This is parti
 
 The sweep pattern provides significant memory efficiency benefits:
 
-.. mermaid::
+.. 
+   Original mermaid diagram (edit here, then run update_diagrams.py)
+   
+   .. mermaid::
+   
+      graph TB
+          subgraph "Traditional Approach"
+              T1["Load X[0]"] --> P1["Process"]
+              T2["Load Y[0]"] --> P1
+              T3["Load X[0]"] --> P2["Process"]
+              T4["Load Y[1]"] --> P2
+              T5["Load X[0]"] --> P3["Process"]
+              T6["Load Y[2]"] --> P3
+              Note1["X loaded 3 times!"]
+          end
+          
+          subgraph "Sweep Approach"
+              S1["Load X[0]"] --> SP["Process with<br/>Y[0], Y[1], Y[2]"]
+              S2["Load Y[0,1,2]"] --> SP
+              Note2["X loaded once!"]
+          end
+          
+          style Note1 fill:#fee2e2,stroke:#ef4444,stroke-width:2px
+          style Note2 fill:#d1fae5,stroke:#10b981,stroke-width:2px
+   
+   
 
-   graph TB
-       subgraph "Traditional Approach"
-           T1["Load X[0]"] --> P1["Process"]
-           T2["Load Y[0]"] --> P1
-           T3["Load X[0]"] --> P2["Process"]
-           T4["Load Y[1]"] --> P2
-           T5["Load X[0]"] --> P3["Process"]
-           T6["Load Y[2]"] --> P3
-           Note1["X loaded 3 times!"]
-       end
-       
-       subgraph "Sweep Approach"
-           S1["Load X[0]"] --> SP["Process with<br/>Y[0], Y[1], Y[2]"]
-           S2["Load Y[0,1,2]"] --> SP
-           Note2["X loaded once!"]
-       end
-       
-       style Note1 fill:#fee2e2,stroke:#ef4444,stroke-width:2px
-       style Note2 fill:#d1fae5,stroke:#10b981,stroke-width:2px
-
+.. image:: diagrams/sweep_tile_2.svg
+   :alt: Diagram
+   :align: center
 Practical Sweep Patterns
 ========================
 
@@ -362,35 +378,43 @@ Performance Characteristics
 
 Sweep operations provide several performance benefits:
 
-.. mermaid::
+.. 
+   Original mermaid diagram (edit here, then run update_diagrams.py)
+   
+   .. mermaid::
+   
+      graph TB
+          subgraph "Sweep Performance Benefits"
+              B1["Zero runtime overhead<br/>Compile-time unrolling"]
+              B2["Perfect memory coalescing<br/>Sequential access patterns"]
+              B3["Automatic vectorization<br/>Compiler optimizations"]
+              B4["Register reuse<br/>X data stays in VGPR"]
+          end
+          
+          subgraph "Use Cases"
+              U1["Matrix Multiplication<br/>Reuse A columns"]
+              U2["Convolution<br/>Reuse filter weights"]
+              U3["Reduction<br/>Accumulate over Y"]
+              U4["Broadcast<br/>Apply X to all Y"]
+          end
+          
+          B1 --> Performance["High Performance"]
+          B2 --> Performance
+          B3 --> Performance
+          B4 --> Performance
+          
+          Performance --> U1
+          Performance --> U2
+          Performance --> U3
+          Performance --> U4
+          
+          style Performance fill:#d1fae5,stroke:#10b981,stroke-width:3px
+   
+   
 
-   graph TB
-       subgraph "Sweep Performance Benefits"
-           B1["Zero runtime overhead<br/>Compile-time unrolling"]
-           B2["Perfect memory coalescing<br/>Sequential access patterns"]
-           B3["Automatic vectorization<br/>Compiler optimizations"]
-           B4["Register reuse<br/>X data stays in VGPR"]
-       end
-       
-       subgraph "Use Cases"
-           U1["Matrix Multiplication<br/>Reuse A columns"]
-           U2["Convolution<br/>Reuse filter weights"]
-           U3["Reduction<br/>Accumulate over Y"]
-           U4["Broadcast<br/>Apply X to all Y"]
-       end
-       
-       B1 --> Performance["High Performance"]
-       B2 --> Performance
-       B3 --> Performance
-       B4 --> Performance
-       
-       Performance --> U1
-       Performance --> U2
-       Performance --> U3
-       Performance --> U4
-       
-       style Performance fill:#d1fae5,stroke:#10b981,stroke-width:3px
-
+.. image:: diagrams/sweep_tile_3.svg
+   :alt: Diagram
+   :align: center
 Compiler Optimizations
 ----------------------
 
@@ -426,26 +450,34 @@ Integration with CK Tile Components
 
 Complete workflow example:
 
-.. mermaid::
+.. 
+   Original mermaid diagram (edit here, then run update_diagrams.py)
+   
+   .. mermaid::
+   
+      flowchart TB
+          subgraph "Complete Workflow"
+              TD["TileDistribution<br/>Define data layout"]
+              TW["TileWindow<br/>Create view"]
+              DT["DistributedTensor<br/>Load X data"]
+              ST["SweepTile<br/>Iterate Y positions"]
+              R["Results<br/>Store outputs"]
+          end
+          
+          TD --> TW
+          TW --> DT
+          DT --> ST
+          ST --> R
+          
+          style TD fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+          style ST fill:#fff3e0,stroke:#f57c00,stroke-width:3px
+          style R fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+   
+   
 
-   flowchart TB
-       subgraph "Complete Workflow"
-           TD["TileDistribution<br/>Define data layout"]
-           TW["TileWindow<br/>Create view"]
-           DT["DistributedTensor<br/>Load X data"]
-           ST["SweepTile<br/>Iterate Y positions"]
-           R["Results<br/>Store outputs"]
-       end
-       
-       TD --> TW
-       TW --> DT
-       DT --> ST
-       ST --> R
-       
-       style TD fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-       style ST fill:#fff3e0,stroke:#f57c00,stroke-width:3px
-       style R fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-
+.. image:: diagrams/sweep_tile_4.svg
+   :alt: Diagram
+   :align: center
 .. code-block:: cpp
 
     template<typename DataType>
@@ -495,13 +527,13 @@ Complete workflow example:
     }
 
 
-SweepTile provides elegant and efficient iteration over distributed data:
+SweepTile provides clean and efficient iteration over distributed data:
 Summary
 
-SweepTile provides elegant and efficient iteration over distributed data:
+SweepTile provides clean and efficient iteration over distributed data:
 =======
 
-SweepTile provides elegant and efficient iteration over distributed data:
+SweepTile provides clean and efficient iteration over distributed data:
 
 - **Efficiency**: Load once, use many times pattern
 - **Simplicity**: Clean lambda-based iteration abstraction
@@ -515,4 +547,4 @@ Key benefits:
 3. **Code Clarity**: Express algorithms naturally
 4. **Compiler Optimization**: Enable aggressive optimizations
 
-The sweep pattern is fundamental to high-performance GPU kernels, turning complex iteration patterns into simple, efficient operations. Combined with TileDistribution and TileWindow, sweep operations complete the toolkit for elegant and performant GPU computing.
+The sweep pattern is fundamental to high-performance GPU kernels, turning complex iteration patterns into simple, efficient operations. Combined with TileDistribution and TileWindow, sweep operations complete the toolkit for clean and performant GPU computing.

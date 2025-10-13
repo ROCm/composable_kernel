@@ -8,14 +8,10 @@
 Memory Swizzling with Morton Ordering
 **************************************
 
-
-This chapter demonstrates a practical application of tensor descriptors for implementing memory swizzling patterns, specifically Morton ordering (Z-order curve) within tiles. Memory swizzling is crucial for optimizing GPU memory access patterns and reducing bank conflicts. Morton ordering provides a space-filling curve that maintains spatial locality while enabling efficient parallel access.
 Overview
-
-This chapter demonstrates a practical application of tensor descriptors for implementing memory swizzling patterns, specifically Morton ordering (Z-order curve) within tiles. Memory swizzling is crucial for optimizing GPU memory access patterns and reducing bank conflicts (see :ref:`ck_tile_lds_bank_conflicts`). Morton ordering provides a space-filling curve that maintains spatial locality while enabling efficient parallel access (see :ref:`ck_tile_space_filling_curve` for theoretical background).
 ========
 
-This chapter demonstrates a practical application of tensor descriptors for implementing memory swizzling patterns, specifically Morton ordering (Z-order curve) within tiles. Memory swizzling is crucial for optimizing GPU memory access patterns and reducing bank conflicts. Morton ordering provides a space-filling curve that maintains spatial locality while enabling efficient parallel access.
+This chapter demonstrates a practical application of tensor descriptors for implementing memory swizzling patterns, specifically Morton ordering (Z-order curve) within tiles. Memory swizzling is crucial for optimizing GPU memory access patterns and reducing bank conflicts (see :ref:`ck_tile_lds_bank_conflicts`). Morton ordering provides a space-filling curve that maintains spatial locality while enabling efficient parallel access (see :ref:`ck_tile_space_filling_curve` for theoretical background).
 
 Morton ordering is widely used in:
 
@@ -90,14 +86,10 @@ Bit pattern breakdown:
     (1,2) = (01, 10) →  6 = 0110
     (1,3) = (01, 11) →  7 = 0111
 
-
-First, we split our texture into tiles using tensor descriptors. This creates a hierarchical structure: (Y_blk, y_in, X_blk, x_in).
 Stage 1: Tiling with UnmergeTransform
-
-First, we split our texture into tiles using tensor descriptors (see :ref:`ck_tile_descriptors` and :ref:`ck_tile_transforms`). This creates a hierarchical structure: (Y_blk, y_in, X_blk, x_in).
 ======================================
 
-First, we split our texture into tiles using tensor descriptors. This creates a hierarchical structure: (Y_blk, y_in, X_blk, x_in).
+First, we split our texture into tiles using tensor descriptors (see :ref:`ck_tile_descriptors` and :ref:`ck_tile_transforms`). This creates a hierarchical structure: (Y_blk, y_in, X_blk, x_in).
 
 .. code-block:: cpp
 
@@ -357,14 +349,10 @@ Here's a complete GPU kernel using Morton ordering for optimized memory access:
         }
     }
 
-
-Morton ordering is particularly effective for reducing shared memory bank conflicts:
 Bank Conflict Reduction
-
-Morton ordering is particularly effective for reducing shared memory bank conflicts (complementing the XOR preshuffle technique described in :ref:`ck_tile_lds_index_swapping`):
 =======================
 
-Morton ordering is particularly effective for reducing shared memory bank conflicts:
+Morton ordering is particularly effective for reducing shared memory bank conflicts (complementing the XOR preshuffle technique described in :ref:`ck_tile_lds_index_swapping`):
 
 .. code-block:: cpp
 
@@ -487,12 +475,12 @@ For complete GEMM optimization techniques, see :ref:`ck_tile_gemm_optimization`.
 Summary
 =======
 
-Morton ordering with CK Tile provides powerful memory optimization capabilities:
+Morton ordering with CK Tile provides memory optimization capabilities:
 
 - **Spatial Locality**: Z-order curve maintains 2D locality in 1D memory layout
 - **Bank Conflict Reduction**: Distributed access patterns across memory banks
 - **Cache Efficiency**: Better utilization of cache lines for 2D access patterns
-- **Mathematical Framework**: Tensor descriptors express swizzling elegantly
+- **Mathematical Framework**: Tensor descriptors express swizzling cleanly
 - **Practical Implementation**: Bit manipulation provides reliable results
 
 Key implementation insights:

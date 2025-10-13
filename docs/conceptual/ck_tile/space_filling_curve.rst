@@ -185,34 +185,42 @@ Snake Pattern for Cache Optimization
 
 The snake pattern reverses traversal direction on alternate rows, minimizing the distance between consecutive accesses:
 
-.. mermaid::
+.. 
+   Original mermaid diagram (edit here, then run update_diagrams.py)
+   
+   .. mermaid::
+   
+      graph LR
+          subgraph "Linear Pattern"
+              L1["Row 0: →"]
+              L2["Row 1: →"]
+              L3["Jump back"]
+              L4["Row 2: →"]
+          end
+          
+          subgraph "Snake Pattern"
+              S1["Row 0: →"]
+              S2["Row 1: ←"]
+              S3["Continue"]
+              S4["Row 2: →"]
+          end
+          
+          L1 --> L3
+          L3 --> L2
+          L2 --> L3
+          L3 --> L4
+          
+          S1 --> S2
+          S2 --> S4
+          
+          style L3 fill:#fee2e2,stroke:#ef4444,stroke-width:2px
+          style S3 fill:#d1fae5,stroke:#10b981,stroke-width:2px
+   
+   
 
-   graph LR
-       subgraph "Linear Pattern"
-           L1["Row 0: →"]
-           L2["Row 1: →"]
-           L3["Jump back"]
-           L4["Row 2: →"]
-       end
-       
-       subgraph "Snake Pattern"
-           S1["Row 0: →"]
-           S2["Row 1: ←"]
-           S3["Continue"]
-           S4["Row 2: →"]
-       end
-       
-       L1 --> L3
-       L3 --> L2
-       L2 --> L3
-       L3 --> L4
-       
-       S1 --> S2
-       S2 --> S4
-       
-       style L3 fill:#fee2e2,stroke:#ef4444,stroke-width:2px
-       style S3 fill:#d1fae5,stroke:#10b981,stroke-width:2px
-
+.. image:: diagrams/space_filling_curve.svg
+   :alt: Diagram
+   :align: center
 .. code-block:: cpp
 
    using SnakeCurve = space_filling_curve<
@@ -483,7 +491,7 @@ Space-filling curves provide:
 - **Flexibility**: Adaptable to different :ref:`tensor shapes <ck_tile_descriptors>` and access patterns
 - **Performance**: Compile-time optimization with zero runtime overhead
 
-The sophisticated traversal patterns enabled by space-filling curves are fundamental to achieving high performance in GPU kernels, ensuring that memory access patterns align with :ref:`hardware capabilities <ck_tile_gpu_basics>`.
+The advanced traversal patterns enabled by space-filling curves are fundamental to achieving high performance in GPU kernels, ensuring that memory access patterns align with :ref:`hardware capabilities <ck_tile_gpu_basics>`.
 
 Next Steps
 ----------
