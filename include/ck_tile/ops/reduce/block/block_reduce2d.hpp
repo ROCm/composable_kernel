@@ -400,11 +400,13 @@ struct BlockReduce2dTreeCrossWarpSync
         block_sync_lds();
 
         // We let each warp holds a duplication to do reduction.
+        const index_t local_warp_id = warp_id / num_reduce_warps;
+        const index_t local_smem_os = local_warp_id * num_reduce_warps;
         static_for<0, thread_buf_size, 1>{}([&](auto i) {
             DataType v = 0;
             if(lane_id < num_reduce_warps)
             {
-                v = smem_ptr[lane_id + i * num_warps];
+                v = smem_ptr[i * num_warps + local_smem_os + lane_id];
             }
 
             // cross-lane reduce for replication

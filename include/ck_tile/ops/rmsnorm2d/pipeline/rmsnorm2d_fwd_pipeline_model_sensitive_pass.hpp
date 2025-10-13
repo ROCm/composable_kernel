@@ -146,7 +146,7 @@ struct Rmsnorm2dFwdPipelineModelSensitiveT5Pass
         // compute mean square each-thread->cross-lane->cross-warp
         auto square_sum = block_reduce2d.template MakeYBlockTile<decltype(acc)>();
         set_tile(square_sum, 0);
-        if constexpr(Problem::BlockShape::Vector_N % 2 == 0)
+        if constexpr((Problem::BlockShape::Repeat_N * Problem::BlockShape::Vector_N) % 2 == 0)
         {
             sweep_tile(
                 acc,
@@ -179,7 +179,7 @@ struct Rmsnorm2dFwdPipelineModelSensitiveT5Pass
 
             const auto gamma_ = type_convert<ComputeDataType>(gamma[j_idx]);
 
-            if constexpr(std::is_same_v<YResidualDataType, ck_tile::bf16_t>)
+            if constexpr(std::is_same_v<XDataType, ck_tile::bf16_t>)
             {
                 const auto tmp0 =
                     float_to_bf16<bf16_rounding_mode::standard>(acc[idx] * inv_rms_[i_idx]);
@@ -190,7 +190,7 @@ struct Rmsnorm2dFwdPipelineModelSensitiveT5Pass
             }
             else
             {
-                const auto tmp   = type_convert<YResidualDataType>(acc[idx] * inv_rms_[i_idx]);
+                const auto tmp   = type_convert<XDataType>(acc[idx] * inv_rms_[i_idx]);
                 const auto rmsn_ = type_convert<ComputeDataType>(tmp) * gamma_;
                 rmsn(idx)        = rmsn_;
             }
