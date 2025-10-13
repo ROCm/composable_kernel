@@ -25,7 +25,7 @@ using OutElementOp = ck::tensor_operation::element_wise::AddReluAdd;
 
 int main(int argc, char* argv[])
 {
-    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    if(ck::is_gfx11_supported() || ck::is_gfx120_supported())
     {
         return 0;
     }

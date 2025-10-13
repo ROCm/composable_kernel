@@ -146,7 +146,7 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
-    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    if(ck::is_gfx11_supported() || ck::is_gfx120_supported())
     {
         return 0;
     }

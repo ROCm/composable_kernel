@@ -153,7 +153,7 @@ int main(int argc, char* argv[])
         exit(EXIT_SUCCESS);
     }
 
-    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    if(ck::is_gfx11_supported() || ck::is_gfx120_supported())
     {
         exit(EXIT_SUCCESS);
     }

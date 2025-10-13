@@ -523,7 +523,7 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
 bool run_batched_gemm_fp16_int4_b_scale_example(int argc, char* argv[])
 {
-    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    if(ck::is_gfx11_supported() || ck::is_gfx120_supported())
     {
         return 1;
     }
