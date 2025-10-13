@@ -295,7 +295,6 @@ struct UniversalWeightPreshufflePipelineAgBgCrPolicy
     {
         using TileShape = typename Problem::BlockGemmShape;
         using ADataType = remove_cvref_t<typename Problem::ADataType>;
-        using ALayout   = remove_cvref_t<typename Problem::ALayout>;
 
         static_assert(TileShape::BlockWarps::at(I0) == 1, "requires Wave_M == 1");
 
