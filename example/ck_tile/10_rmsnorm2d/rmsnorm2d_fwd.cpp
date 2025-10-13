@@ -70,16 +70,16 @@ template <typename InDataType,
           bool SaveUnquant>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
-    ck_tile::index_t m                    = arg_parser.get_int("m");
-    ck_tile::index_t n                    = arg_parser.get_int("n");
-    float epsilon                         = arg_parser.get_float("e");
-    int kname                             = arg_parser.get_int("kname");
-    int do_validation                     = arg_parser.get_int("v");
-    int fused_add                         = arg_parser.get_int("fadd");
-    int fused_quant                       = arg_parser.get_int("fquant");
-    int warmup                            = arg_parser.get_int("warmup");
-    int repeat                            = arg_parser.get_int("repeat");
-    const int use_model_sensitive_rmsnorm = arg_parser.get_int("s");
+    ck_tile::index_t m              = arg_parser.get_int("m");
+    ck_tile::index_t n              = arg_parser.get_int("n");
+    float epsilon                   = arg_parser.get_float("e");
+    int kname                       = arg_parser.get_int("kname");
+    int do_validation               = arg_parser.get_int("v");
+    int fused_add                   = arg_parser.get_int("fadd");
+    int fused_quant                 = arg_parser.get_int("fquant");
+    int warmup                      = arg_parser.get_int("warmup");
+    int repeat                      = arg_parser.get_int("repeat");
+    int use_model_sensitive_rmsnorm = arg_parser.get_int("s");
 
     ck_tile::index_t x_stride = arg_parser.get_int("x_stride");
     if(x_stride < 0)
@@ -196,6 +196,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
         return base_str;
     }();
 
+    if(n > 8192)
+    {
+        use_model_sensitive_rmsnorm = 0;
+    }
+
     std::cout << "[" << prec_str << "]" << " m:" << m << ", n:" << n << ", x_stride:" << x_stride
               << ", xr_stride:" << xr_stride << ", y_stride:" << y_stride
               << ", yr_stride:" << yr_stride << ", s:" << use_model_sensitive_rmsnorm << std::flush;
@@ -297,7 +302,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                 const int N = acc_.mDesc.get_lengths()[1];
                 for(int n_ = 0; n_ < N; ++n_)
                 {
-                    o_unquant_(m_, n_) = ck_tile::type_convert<OutDataType>(acc_(m_, n_));
+                    o_unquant_(m_, n_) = ck_tile::type_convert<UnquantYDataType>(acc_(m_, n_));
                 }
 
                 dquant_functor(m_, o_, acc_);
@@ -316,7 +321,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                                    invRms_host_ref,
                                                                    unquant_y_host_ref,
                                                                    epsilon,
-                                                                   default_and_dquant_functor);
+                                                                   default_and_dquant_functor,
+                                                                   use_model_sensitive_rmsnorm);
             }
             else
             {
@@ -331,7 +337,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                                                    invRms_host_ref,
                                                                    unquant_y_host_ref,
                                                                    epsilon,
-                                                                   dquant_functor);
+                                                                   dquant_functor,
+                                                                   use_model_sensitive_rmsnorm);
             }
         }
         else
@@ -343,7 +350,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                              YDataType,
                                              InvRmsDataType,
                                              ck_tile::null_type>(
-                x_host, gamma_host, y_host_ref, invRms_host_ref, unquant_y_null, epsilon);
+                x_host,
+                gamma_host,
+                y_host_ref,
+                invRms_host_ref,
+                unquant_y_null,
+                epsilon,
+                ck_tile::reference_rmsnorm2d_default_epilogue{},
+                use_model_sensitive_rmsnorm);
         }
 
         y_buf.FromDevice(y_host_dev.data());
@@ -352,6 +366,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
         if(fused_add == 1)
         {
             y_residual_buf.FromDevice(y_residual_host_dev.data());
+        }
+
+        if constexpr(SaveUnquant)
+        {
+            unquant_y_buf.FromDevice(unquant_y_host_dev.data());
         }
 
         auto [rtol, atol] = get_elimit<YDataType>();
