@@ -411,8 +411,11 @@ class KernelComponentFactoryGfx950(KernelComponentFactoryGfx9):
         results = KernelComponentFactoryGfx9.get_dq_dk_dv_tiles(dtype, tr_load)
         if dtype in ['fp16', 'bf16'] and tr_load == 't':
             results.extend([
+                FmhaBwdDQDKDVTileSize( 32, 128,  64, 32,  64, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 32, 1),
                 FmhaBwdDQDKDVTileSize( 32, 128, 128, 32, 128, 32, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 32, 1),
                 FmhaBwdDQDKDVTileSize( 16, 192, 128, 16, 128, 16, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
+                # FmhaBwdDQDKDVTileSize( 32,  32,  64, 32,  64, 32, 32,  64,  64, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 32, 1, 32),
+                FmhaBwdDQDKDVTileSize( 32,  16,  64, 32,  64, 32, 16,  64,  64, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 16, 2, 32),
                 # FmhaBwdDQDKDVTileSize( 16, 32, 128, 16, 128, 16, 32, 128, 128, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 16, 1, 16),
                 FmhaBwdDQDKDVTileSize( 16,  16, 128, 16, 128, 16, 16, 128, 128, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 16, 2, 16),
             ])
@@ -882,8 +885,9 @@ def get_bwd_blobs(targets: List[str], filter_list: str, receipt, mask_impl, optd
             if spad1d == "f" and tile.max_seq_q != 0 and tile.max_seq_q < M0_1D:
                 continue # max_seq_q < M0_1D requires padding
             if tr_load == "t":
-                if dpad != 0 or dvpad != 0:
-                    continue # tr_load cannot work with dpad or dvpad
+                # tr_load can only work with 8 pad
+                if dpad != dvpad or dpad == 1:
+                    continue
             else: # tr_load == "f"
                 # do not generate instance with only 1 of dpad/dvpad being 8
                 if dpad != dvpad and dpad == 8:
