@@ -654,6 +654,32 @@ CK_TILE_HOST_DEVICE constexpr auto to_array_of_array(tuple<Seqs...> t_of_s)
     return a_of_a;
 }
 
+// template <typename Tuple1, typename Tuple2>
+// constexpr auto zip_tuples(const Tuple1& t1, const Tuple2& t2)
+// {
+//     static_assert(Tuple1::size() == Tuple2::size(), "Tuples must have the same size");
+
+//     return generate_tuple(
+//         [&](auto I) {
+//             return make_tuple(t1[I], t2[I]);
+//         },
+//         number<Tuple1::size()>{});
+// }
+
+template <typename... Tuples>
+constexpr auto zip_tuples(const Tuples&... tuples)
+{
+    static_assert(sizeof...(Tuples) > 0, "At least one tuple is required");
+    constexpr index_t tuple_size = std::decay_t<std::tuple_element_t<0, std::tuple<Tuples...>>>::size();
+    static_assert(((Tuples::size() == tuple_size) && ...), "All tuples must have the same size");
+
+    return generate_tuple(
+        [&](auto I) {
+            return make_tuple(tuples[I]...);
+        },
+        number<tuple_size>{});
+}
+
 // Here should use MultiIndex<NSize>, instead of tuple<Ys...>, although the former
 // is the alias of the latter. This is because compiler cannot infer the NSize if
 // using MultiIndex<NSize>

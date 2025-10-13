@@ -308,6 +308,201 @@ struct BlockReduce2dCrossWarpSync
     }
 };
 
+// New struct for multi-operation warp-level sync
+template <typename Problem, typename Policy>
+struct MultiBlockReduce2dSync
+{
+    CK_TILE_DEVICE void operator()(auto& y_compute_tuple, const auto& reduce_funcs) const
+    {
+        auto block_reduce2d_sync = Policy::template GetBlockReduce2dSync<Problem>();
+
+        const size_t num_ops = std::tuple_size_v<remove_cvref_t<decltype(reduce_funcs)>>;
+
+        static_for<0, num_ops, 1>{}([&](auto i) {
+            auto& y_compute_tile = y_compute_tuple.get(number<i>{});
+            const auto& reduce_func = reduce_funcs.get(number<i>{});
+
+            block_reduce2d_sync(y_compute_tile, reduce_func);
+
+            // Synchronize the entire block after each warp-level sync to prevent race conditions
+            // between different warps starting the next operation's sync.
+            // This is not needed for the very last operation, but it's harmless.
+            block_sync_lds();
+        });
+    }
+};
+
+// New struct for multi-operation cross-warp sync
+template <typename Problem, typename Policy>
+struct MultiBlockReduce2dCrossWarpSync
+{
+    CK_TILE_DEVICE void operator()(auto& y_compute_tuple,
+                                   void* smem,
+                                   const auto& reduce_funcs) const
+    {
+        using S = typename Problem::BlockShape;
+        constexpr index_t num_warps = S::BlockSize / get_warp_size();
+        const index_t lane_id = get_lane_id();
+        const index_t warp_id = get_warp_id();
+
+        auto block_reduce2d_cross_warp_sync =
+            Policy::template GetBlockReduce2dCrossWarpSync<Problem>();
+
+        // STAGE 1: Each warp's lane 0 writes its partial result for EACH operation to its own slice of smem
+        if(lane_id == 0)
+        {
+            ck_tile::apply(
+                [&](auto&&... t) {
+                    (block_reduce2d_cross_warp_sync.template SetSmem<decltype(t.get(number<0>{}))>(
+                         smem, warp_id, num_warps, t.get(number<1>{}), t.get(number<0>{})),
+                     ...);
+                },
+                zip_tuples(y_compute_tuple,
+                           ck_tile::make_index_sequence<
+                               std::tuple_size_v<remove_cvref_t<decltype(reduce_funcs)>>>()));
+        }
+
+        // STAGE 2: Synchronize the ENTIRE block. Now all partial results for all ops are in smem.
+        block_sync_lds();
+
+        // STAGE 3: Each thread reads from smem and completes the reduction for EACH operation.
+        ck_tile::apply(
+            [&](auto&&... t) {
+                (block_reduce2d_cross_warp_sync.template ReduceSmem<decltype(t.get(number<0>{}))>(
+                     smem, warp_id, num_warps, t.get(number<1>{}), t.get(number<2>{}), t.get(number<0>{})),
+                 ...);
+            },
+            zip_tuples(y_compute_tuple,
+                       ck_tile::make_index_sequence<
+                           std::tuple_size_v<remove_cvref_t<decltype(reduce_funcs)>>>(), // TODO: check tuple for compile time size (reduce_funcs.size() does not seems to work)
+                       reduce_funcs));
+    }
+};
+
+// template <typename Problem_, typename Policy_ = void>
+// struct BlockReduce2dCrossWarpSync
+// {
+//     using Problem         = remove_cvref_t<Problem_>;
+//     using XDataType       = typename Problem::XDataType;
+//     using ComputeDataType = typename Problem::ComputeDataType;
+//     using BlockShape      = typename Problem::BlockShape;
+
+//     template <typename YDistributedTensor_>
+//     CK_TILE_DEVICE static constexpr index_t GetReduceWarps()
+//     {
+//         constexpr index_t num_reduce_warps = [&]() {
+//             using Dstr             = typename YDistributedTensor_::StaticTileDistribution;
+//             using DstrEncode       = typename Dstr::DstrEncode;
+//             using DstrEncodeDetail = typename DstrEncode::detail;
+
+//             constexpr index_t NDimR = Dstr::get_num_of_dimension_r();
+
+//             constexpr index_t idim_p_warp = 0;
+
+//             index_t len_ = 1;
+//             static_for<0, NDimR, 1>{}([&](auto idim_r) {
+//                 if constexpr(DstrEncodeDetail::does_p_own_r_[idim_p_warp][idim_r])
+//                 {
+//                     constexpr index_t r_length = DstrEncode::rs_lengths_[idim_r];
+//                     len_ *= r_length;
+//                 }
+//             });
+//             return len_;
+//         }();
+//         return num_reduce_warps;
+//     }
+
+//     template <typename YDistributedTensor_>
+//     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
+//     {
+//         using DataType                    = typename YDistributedTensor_::DataType;
+//         constexpr index_t thread_buf_size = YDistributedTensor_::get_thread_buffer_size();
+//         constexpr index_t num_warps       = BlockShape::BlockSize / get_warp_size();
+//         return num_warps * thread_buf_size * sizeof(DataType);
+//     }
+
+//     template <typename YDistributedTensor_>
+//     CK_TILE_DEVICE void SetSmem(void* smem,
+//                                 index_t warp_id,
+//                                 index_t num_warps,
+//                                 index_t op_idx,
+//                                 [[maybe_unused]] const YDistributedTensor_& y_tensor) const
+//     {
+//         using YTensor = remove_cvref_t<YDistributedTensor_>;
+//         using DataType = typename YTensor::DataType;
+//         constexpr index_t thread_buf_size = YTensor::get_thread_buffer_size();
+//         const index_t smem_op_offset = op_idx * GetSmemSize<YTensor>();
+//         DataType* smem_ptr = reinterpret_cast<DataType*>(static_cast<char*>(smem) + smem_op_offset);
+//         const index_t smem_warp_offset = warp_id;
+
+//         static_for<0, thread_buf_size, 1>{}([&](auto i) {
+//             smem_ptr[smem_warp_offset + i * num_warps] = y_tensor.get_thread_buffer()[i];
+//         });
+//     }
+
+//     template <typename YDistributedTensor_, typename ReduceFunc>
+//     CK_TILE_DEVICE void ReduceSmem(void* smem,
+//                                    index_t warp_id,
+//                                    index_t num_warps,
+//                                    index_t op_idx,
+//                                    const ReduceFunc& reduce_func,
+//                                    YDistributedTensor_& y_tensor) const
+//     {
+//         using YTensor = remove_cvref_t<YDistributedTensor_>;
+//         using DataType = typename YTensor::DataType;
+//         constexpr index_t thread_buf_size = YTensor::get_thread_buffer_size();
+//         constexpr auto num_reduce_warps = GetReduceWarps<YTensor>();
+
+//         const index_t smem_op_offset = op_idx * GetSmemSize<YTensor>();
+//         DataType* smem_ptr = reinterpret_cast<DataType*>(static_cast<char*>(smem) + smem_op_offset);
+
+//         index_t local_warp_id = warp_id / num_reduce_warps;
+//         index_t local_smem_os = local_warp_id * num_reduce_warps;
+//         DataType all_scratch[thread_buf_size * num_reduce_warps];
+
+//         static_for<0, thread_buf_size, 1>{}([&](auto i_0) {
+//             static_for<0, num_reduce_warps, 1>{}([&](auto i_1) {
+//                 all_scratch[i_0 * num_reduce_warps + i_1] =
+//                     smem_ptr[i_0 * num_warps + local_smem_os + i_1];
+//             });
+//         });
+
+//         static_for<0, thread_buf_size, 1>{}([&](auto i_0) {
+//             auto v_local = all_scratch[i_0 * num_reduce_warps];
+//             static_for<0, num_reduce_warps - 1, 1>{}([&](auto i_1_n1) {
+//                 constexpr auto i_1 = number<i_1_n1 + 1>{};
+//                 const DataType v_remote = all_scratch[i_0 * num_reduce_warps + i_1];
+//                 v_local = reduce_func(v_local, v_remote);
+//             });
+//             y_tensor.get_thread_buffer()(i_0) = 2; //v_local;
+//         });
+//     }
+
+//     template <typename YDistributedTensor_, typename ReduceFunc>
+//     CK_TILE_DEVICE void
+//     operator()(YDistributedTensor_& y_tensor, void* smem, const ReduceFunc& reduce_func)
+//     {
+//         using DataType = typename YDistributedTensor_::DataType;
+
+//         constexpr auto num_reduce_warps = GetReduceWarps<YDistributedTensor_>();
+//         constexpr index_t num_warps     = BlockShape::BlockSize / get_warp_size();
+//         const index_t lane_id           = get_lane_id();
+//         const index_t warp_id           = get_warp_id();
+
+//         if constexpr(num_reduce_warps == 1)
+//             return;
+
+//         // store into smem only for lane-0 within one warp
+//         if(lane_id == 0)
+//         {
+//             SetSmem<YDistributedTensor_>(smem, warp_id, num_warps, 0, y_tensor);
+//         }
+//         block_sync_lds();
+
+//         ReduceSmem<YDistributedTensor_>(smem, warp_id, num_warps, 0, reduce_func, y_tensor);
+//     }
+// };
+
 template <typename Problem_, typename Policy_ = void>
 struct BlockReduce2dTreeCrossWarpSync
 {
