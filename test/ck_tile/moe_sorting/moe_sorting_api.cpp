@@ -426,8 +426,7 @@ float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_co
                 }
             }
         };
-#ifndef __gfx1201__
-        if(a.tokens < 2048)
+        if(!ck_tile::is_gfx12_supported() || a.tokens < 2048)
         {
             if(ck_tile::impl::moe_sorting_get_smem_size_p23(a.num_experts) >
                ck_tile::get_smem_capacity())
@@ -563,73 +562,6 @@ float moe_sorting_mp(moe_sorting_trait t, moe_sorting_args a, ck_tile::stream_co
                 }
             }
         }
-#else
-        if(ck_tile::impl::moe_sorting_get_smem_size_p23(a.num_experts) >
-           ck_tile::get_smem_capacity())
-        {
-#if MOE_SORTING_SUPPORT_LARGE_EXPERT
-            if(t.local_expert_masking)
-            {
-                float ave_time = ck_tile::launch_kernel(s,
-                                                        maybe_clear_workspace,
-                                                        MOE_SORTING_MP_0_V1(ms_index_t, 1, true),
-                                                        MOE_SORTING_MP_1(ms_index_t, 1, true),
-                                                        MOE_SORTING_MP_2(ms_index_t, 1, true),
-                                                        MOE_SORTING_MP_3(ms_index_t, 1, true));
-                return ave_time;
-            }
-            else
-            {
-                float ave_time = ck_tile::launch_kernel(s,
-                                                        maybe_clear_workspace,
-                                                        MOE_SORTING_MP_0_V1(ms_index_t, 1, false),
-                                                        MOE_SORTING_MP_1(ms_index_t, 1, false),
-                                                        MOE_SORTING_MP_2(ms_index_t, 1, false),
-                                                        MOE_SORTING_MP_3(ms_index_t, 1, false));
-                return ave_time;
-            }
-#else
-            printf("do not support large expert %d\n", a.num_experts);
-            return -1;
-#endif
-        }
-        else
-        {
-            ck_tile::index_t mesh_byte_size =
-                ck_tile::impl::moe_sorting_mesh_byte_size(a.tokens, a.num_experts, a.topk);
-            if(mesh_byte_size == 1)
-            {
-                if(a.tokens * a.topk % 4 == 0)
-                {
-                    MOR_SORTING_MP_DISPATCH_(uint8_t, 4, 16, 16)
-                }
-                else
-                {
-                    MOR_SORTING_MP_DISPATCH_(uint8_t, 1, 16, 16)
-                }
-            }
-            else if(mesh_byte_size == 2)
-            {
-#if MOE_SORTING_SUPPORT_LARGE_TOPK
-                if(a.tokens * a.topk % 4 == 0)
-                {
-                    MOR_SORTING_MP_DISPATCH_(uint16_t, 4, 8, 8)
-                }
-                else
-                {
-                    MOR_SORTING_MP_DISPATCH_(uint16_t, 1, 8, 8)
-                }
-#else
-                printf("do not support large topk %d\n", a.topk);
-                return -1;
-#endif
-            }
-            else
-            {
-                MOR_SORTING_MP_DISPATCH_(ck_tile::index_t, 1, 1, 1)
-            }
-        }
-#endif
     }
     return -1;
 }
