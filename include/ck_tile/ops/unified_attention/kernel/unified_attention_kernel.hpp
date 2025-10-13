@@ -212,10 +212,6 @@ struct FmhaFwdV3Kernel
     RemapTileIndices(const ck_tile::index_t pid, const Kargs& kargs)
     {
         using namespace ck_tile;
-        
-        const index_t num_head_q = kargs.num_head_q;
-        const index_t num_queries_per_kv = kargs.num_queries_per_kv;
-        const index_t num_head_k = kargs.num_queries_per_kv;
 
         constexpr index_t NUM_XCDS = 8;
         const index_t GRID_MN = kargs.total_num_q_blocks * 
@@ -277,9 +273,12 @@ struct FmhaFwdV3Kernel
         __shared__ char smem_ptr[GetSmemSize()];
 
         ck_tile::index_t pid = blockIdx.x;
-        index_t num_queries_per_kv = kargs.num_queries_per_kv;
 
         const index_t BLOCK_M = BLOCK_Q * kargs.num_queries_per_kv;
+        // for simplicity, batch stride we just modify the pointer
+        const index_t num_head_q = kargs.num_head_q;
+        const index_t num_queries_per_kv = kargs.num_queries_per_kv;
+        const index_t num_head_k = num_head_q / num_queries_per_kv;
 
         pid = RemapTileIndices(pid, kargs);
 
@@ -320,11 +319,6 @@ struct FmhaFwdV3Kernel
             + (BLOCK_M - 1) // num_queries_per_kv
             + 1
         );
-
-        // for simplicity, batch stride we just modify the pointer
-        const index_t num_head_q = kargs.num_head_q;
-        const index_t num_queries_per_kv = kargs.num_queries_per_kv;
-        const index_t num_head_k = num_head_q / num_queries_per_kv;
 
         // Q/K/V DRAM and DRAM window
         const QDataType* q_ptr = reinterpret_cast<const QDataType*>(kargs.q_ptr);
