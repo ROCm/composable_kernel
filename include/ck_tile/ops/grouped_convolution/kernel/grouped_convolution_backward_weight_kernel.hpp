@@ -294,26 +294,6 @@ struct GroupedConvBwdWeightKernelArgs
     long_index_t group_stride_c;
 };
 
-template <ck_tile::index_t NDimSpatial,
-          typename InLayout,
-          typename WeiLayout,
-          typename OutLayout,
-          typename InDataType,
-          typename WeiDataType,
-          typename OutDataType,
-          typename InElementwiseOperation,
-          typename WeiElementwiseOperation,
-          typename OutElementwiseOperation,
-          typename ComputeTypeA = InDataType,
-          typename ComputeTypeB = ComputeTypeA>
-struct GroupedConvolutionBackwardWeightInvoker
-{
-    virtual bool IsSupportedArgument(const ck_tile::GroupedConvBwdWeightHostArgs& args) const = 0; 
-    virtual float Run(const ck_tile::GroupedConvBwdWeightHostArgs& args, bool time_kernel) = 0;
-    virtual std::string GetName() const = 0;
-    virtual ~GroupedConvolutionBackwardWeightInvoker() = default;
-};
-
 /// @brief The Grouped Convolution Backward Weight kernel template.
 ///
 /// @paragraph Overview Overview

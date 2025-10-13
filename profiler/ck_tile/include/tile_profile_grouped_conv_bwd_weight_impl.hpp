@@ -105,7 +105,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     weight_dev_buf.SetZero();
     output_dev_buf.ToDevice(output.data());
 
-    using DeviceOp = ck_tile::GroupedConvolutionBackwardWeightInvoker<
+    using DeviceOp = ops::GroupedConvolutionBackwardWeightBaseInvoker<
                                                         NDimSpatial,
                                                         InLayout,
                                                         WeiLayout,
@@ -178,14 +178,6 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
 
                 std::string op_name = op->GetName();
 
-                // constexpr int kBlockPerCu = 1;
-                // constexpr int n_warmup = 5;
-                // constexpr int n_repeat = 50;
-                // ck_tile::stream_config s {nullptr, time_kernel, 1, n_warmup, n_repeat};
-                // float avg_time = ck_tile::launch_kernel_time_mask(
-                //     s,
-                //     Kernel::Preprocess(kargs, s),
-                //     ck_tile::make_kernel<kBlockPerCu>(*op, grids, blocks, 0, kargs));
                 float avg_time = op->Run(args, time_kernel);
 
                 std::size_t flop      = conv_param.GetFlops();
