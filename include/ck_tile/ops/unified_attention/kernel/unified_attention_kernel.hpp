@@ -321,13 +321,16 @@ struct FmhaFwdV3Kernel
             + 1
         );
 
+
+        index_t kv_head_offset = kv_head_idx * kargs.stride_k_cache_2;
+        
         // Q/K/V DRAM and DRAM window
         index_t q_ptr_offset_0 = cur_batch_in_all_start_index * kargs.query_stride_0; // move the pointer to the batch start
         index_t q_ptr_offset_1 = kv_head_idx * num_queries_per_kv * kargs.query_stride_1; // move the pointer to the correct head group start
         index_t q_ptr_offset = q_ptr_offset_0 + q_ptr_offset_1;
         const QDataType* q_ptr = reinterpret_cast<const QDataType*>(kargs.q_ptr) + q_ptr_offset;
-        const KDataType* k_ptr = reinterpret_cast<const KDataType*>(kargs.k_ptr);
-        const VDataType* v_ptr = reinterpret_cast<const VDataType*>(kargs.v_ptr);
+        const KDataType* k_ptr = reinterpret_cast<const KDataType*>(kargs.k_ptr) + kv_head_offset;
+        const VDataType* v_ptr = reinterpret_cast<const VDataType*>(kargs.v_ptr) + kv_head_offset;
         ODataType* o_ptr = reinterpret_cast<ODataType*>(kargs.o_ptr);
         
 
@@ -375,30 +378,32 @@ struct FmhaFwdV3Kernel
         const auto k_dram = [&]() {
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 k_ptr,
-                make_tuple(num_b, BLOCK_SIZE, num_head_k, HEAD_SIZE),
-                make_tuple(kargs.stride_k, 1),
+                make_tuple(kargs.num_blks, BLOCK_SIZE, num_head_k, HEAD_SIZE),
+                make_tuple(kargs.stride_k_cache_0, kargs.stride_k_cache_1, kargs.stride_k_cache_2, kargs.stride_k_cache_3),
                 number<FmhaPipeline::kAlignmentK>{},
                 number<1>{});
 
             return pad_tensor_view(
                 k_dram_naive,
-                make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}),
-                sequence<kPadSeqLenK, kPadHeadDimQ>{});
+                // TODO can the BLOCK_SIZE_RAW needs padding?
+                make_tuple(1, BLOCK_SIZE, 1, HEAD_SIZE_PADDED),
+                sequence<false, false, false, kPadHeadDimQ>{});
         }();
-        auto k_dram_window = make_tile_window(
-            k_dram, make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}), {0, 0});
+
+        // auto k_dram_window = make_tile_window(
+        //     k_dram, make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kK0>{}), {0, 0});
         const auto v_dram = [&]() {
             const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 v_ptr,
-                make_tuple(kargs.seqlen_k, kargs.hdim_v),
-                make_tuple(kargs.stride_v, 1),
+                make_tuple(kargs.num_blks, BLOCK_SIZE, num_head_k, HEAD_SIZE),
+                make_tuple(kargs.stride_v_cache_0, kargs.stride_v_cache_1, kargs.stride_v_cache_2, kargs.stride_v_cache_3),
                 number<FmhaPipeline::kAlignmentV>{},
                 number<1>{});
 
             return pad_tensor_view(
                 v_dram_naive,
-                make_tuple(number<FmhaPipeline::kK1>{}, number<FmhaPipeline::kN1>{}),
-                sequence<kPadSeqLenK, kPadHeadDimV>{});
+                make_tuple(1, BLOCK_SIZE, 1, HEAD_SIZE_PADDED),
+                sequence<false, false, false, kPadHeadDimQ>{});
         }();
         auto v_dram_window = make_tile_window(
                 v_dram, make_tuple(number<FmhaPipeline::kK1>{}, number<FmhaPipeline::kN1>{}),
