@@ -194,10 +194,7 @@ struct WeightPreshuffleInvoker
             }
             else
             {
-                Run(has_hot_loop_,
-                    tail_number_,
-                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                               ck_tile::memory_operation_enum::atomic_add>{});
+                throw std::runtime_error("split-k is not supported yet!");
             }
         };
 
