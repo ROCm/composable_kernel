@@ -13,9 +13,33 @@
 #include "ck_tile/host/convolution_parameter.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/grouped_convolution_utils.hpp"
-
+#include "ck_tile/library/tensor_operation_instance/gpu/tile_grouped_convolution_backward_weight.hpp"
+#include "ck_tile/ops/grouped_convolution/kernel/grouped_convolution_backward_weight_kernel.hpp"
+#include "ck_tile/host/reference/reference_grouped_conv_bwd_weight.hpp"
 namespace ck_tile {
 namespace profiler {
+
+template <typename InDataType, typename WeiDataType, typename AccDataType, typename OutDataType>
+auto calculate_rtol_atol(const ck_tile::index_t GemmK,
+                         const ck_tile::index_t kbatch,
+                         const float max_accumulated_value)
+{
+    using ComputeType =
+        std::conditional_t<sizeof(InDataType) < sizeof(WeiDataType), InDataType, WeiDataType>;
+    // Calculate thresholds
+    const auto rtol = ck_tile::get_relative_threshold<ComputeType, OutDataType, AccDataType>(
+        ck_tile::integer_divide_ceil(GemmK, kbatch));
+    const auto atol = ck_tile::get_absolute_threshold<ComputeType, OutDataType, AccDataType>(
+        max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(GemmK, kbatch));
+    // Calculate error due to split_k accumulation
+    const auto rtol_split_k =
+        ck_tile::get_relative_threshold<OutDataType, OutDataType, OutDataType>(kbatch);
+    const auto atol_split_k =
+        ck_tile::get_absolute_threshold<OutDataType, OutDataType, OutDataType>(
+            max_accumulated_value, kbatch);
+    // Use higher threshold
+    return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
+}
 
 template <ck_tile::index_t NDimSpatial,
           typename InLayout,
@@ -38,10 +62,6 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     using InElementOp  = ck_tile::element_wise::PassThrough;
     using WeiElementOp = ck_tile::element_wise::PassThrough;
     using OutElementOp = ck_tile::element_wise::PassThrough;
-
-    const auto in_element_op  = InElementOp{};
-    const auto wei_element_op = WeiElementOp{};
-    const auto out_element_op = OutElementOp{};
 
     const auto in_g_n_c_wis_desc =
         ck_tile::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(conv_param);
@@ -85,19 +105,19 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     weight_dev_buf.SetZero();
     output_dev_buf.ToDevice(output.data());
 
-    using DeviceOp = ck_tile::ops::DeviceGroupedConvBwdWeight<
-                                                            NDimSpatial,
-                                                            InLayout,
-                                                            WeiLayout,
-                                                            OutLayout,
-                                                            InDataType,
-                                                            WeiDataType,
-                                                            OutDataType,
-                                                            InElementOp,
-                                                            WeiElementOp,
-                                                            OutElementOp,
-                                                            ComputeTypeA,
-                                                            ComputeTypeB>;
+    using DeviceOp = ck_tile::GroupedConvolutionBackwardWeightInvoker<
+                                                        NDimSpatial,
+                                                        InLayout,
+                                                        WeiLayout,
+                                                        OutLayout,
+                                                        InDataType,
+                                                        WeiDataType,
+                                                        OutDataType,
+                                                        InElementOp,
+                                                        WeiElementOp,
+                                                        OutElementOp,
+                                                        ComputeTypeA,
+                                                        ComputeTypeB>;
 
     // get device op instances
     const auto ops = ck_tile::ops::DeviceOperationInstanceFactory<DeviceOp>::GetInstances();
@@ -141,13 +161,13 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                                                output_dev_buf.GetDeviceBuffer(),
                                                split_k_value);
 
-            using Kernel = decltype(remove_cvref_t<decltype(op)>());
+            //using Kernel = remove_cvref_t<decltype(op->Kernel())>;
             
-            auto kargs   = Kernel::MakeKernelArgs(args);
-            const dim3 grids  = Kernel::GridSize(kargs);
-            const dim3 blocks = Kernel::BlockSize();
+            // auto kargs        = Kernel::MakeKernelArgs(args);
+            // const dim3 grids  = Kernel::GridSize(kargs);
+            // const dim3 blocks = Kernel::BlockSize();
 
-            if(Kernel::IsSupportedArgument(kargs))
+            if(op->IsSupportedArgument(args))
             {
                 num_kernel++;
                 if((instance_index != -1) && (instance_index + 1 != num_kernel))
@@ -156,16 +176,17 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                     continue;
                 }
 
-                std::string op_name = op.GetName();
+                std::string op_name = op->GetName();
 
-                constexpr int kBlockPerCu = 1;
-                constexpr int n_warmup = 5;
-                constexpr int n_repeat = 50;
-                ck_tile::stream_config s {nullptr, time_kernel, 1, n_warmup, n_repeat};
-                float avg_time = ck_tile::launch_kernel_time_mask(
-                    s,
-                    Kernel::Preprocess(kargs, s),
-                    ck_tile::make_kernel<kBlockPerCu>(op, grids, blocks, 0, kargs));
+                // constexpr int kBlockPerCu = 1;
+                // constexpr int n_warmup = 5;
+                // constexpr int n_repeat = 50;
+                // ck_tile::stream_config s {nullptr, time_kernel, 1, n_warmup, n_repeat};
+                // float avg_time = ck_tile::launch_kernel_time_mask(
+                //     s,
+                //     Kernel::Preprocess(kargs, s),
+                //     ck_tile::make_kernel<kBlockPerCu>(*op, grids, blocks, 0, kargs));
+                float avg_time = op->Run(args, time_kernel);
 
                 std::size_t flop      = conv_param.GetFlops();
                 std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();

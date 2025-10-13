@@ -120,15 +120,15 @@ int tile_profile_grouped_conv_bwd_weight(int argc, char* argv[])
 #endif
 
     //using namespace ck::tensor_layout::convolution;
-    using NWGC   = ck_tile::tensor_layout::convolution::NWGC;
+    //using NWGC   = ck_tile::tensor_layout::convolution::NWGC;
     using NHWGC  = ck_tile::tensor_layout::convolution::NHWGC;
     using NDHWGC = ck_tile::tensor_layout::convolution::NDHWGC;
 
-    using GKXC   = ck_tile::tensor_layout::convolution::GKXC;
+    //using GKXC   = ck_tile::tensor_layout::convolution::GKXC;
     using GKYXC  = ck_tile::tensor_layout::convolution::GKYXC;
     using GKZYXC = ck_tile::tensor_layout::convolution::GKZYXC;
 
-    using NWGK   = ck_tile::tensor_layout::convolution::NWGK;
+    //using NWGK   = ck_tile::tensor_layout::convolution::NWGK;
     using NHWGK  = ck_tile::tensor_layout::convolution::NHWGK;
     using NDHWGK = ck_tile::tensor_layout::convolution::NDHWGK;
 
