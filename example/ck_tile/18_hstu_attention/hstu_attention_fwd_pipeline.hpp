@@ -28,7 +28,6 @@ struct HstuAttentionFwdPipelineQRKSVS
 
     static constexpr index_t kM0           = HstuAttentionTileSetting::kM0;
     static constexpr index_t kN0           = HstuAttentionTileSetting::kN0;
-    static constexpr index_t kK0           = HstuAttentionTileSetting::kK0;
     static constexpr index_t kN1           = HstuAttentionTileSetting::kN1;
     static constexpr index_t kK1           = HstuAttentionTileSetting::kK1;
     static constexpr index_t kQKHeaddim    = HstuAttentionTileSetting::kQKHeaddim;
@@ -522,8 +521,8 @@ struct HstuAttentionFwdPipelineQRKSVS
               typename BiasDramBlockWindowTmp,
               typename HstuMask>
     CK_TILE_HOST_DEVICE auto
-    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*K0 tile
-               const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*K0 tile
+    operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*kSubQKHeaddim tile
+               const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*KSubQKHeaddim tile
                const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                HstuMask mask,
