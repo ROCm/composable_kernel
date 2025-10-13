@@ -11,12 +11,12 @@
 template <ck_tile::index_t MaxK>
 struct HstuAttentionFwdBlockTile;
 
-// Tile-sizes: M N0 K0 N1 K1 MaxK (MaxK % K0 == 0, MaxK % N1 == 0, N0 % K1 == 0)
+// Tile-sizes: M N0 N1 K1 MaxK (MaxK % N1 == 0, N0 % K1 == 0)
 //
 template <>
 struct HstuAttentionFwdBlockTile<32>
 {
-    using type        = ck_tile::sequence<64, 64, 16, 32, 32, 32>;
+    using type        = ck_tile::sequence<64, 64, 32, 32, 32>;
     using gemm0_warps = ck_tile::sequence<2, 1, 1>;
     using gemm1_warps = ck_tile::sequence<2, 1, 1>;
 };
@@ -24,7 +24,7 @@ struct HstuAttentionFwdBlockTile<32>
 template <>
 struct HstuAttentionFwdBlockTile<64>
 {
-    using type        = ck_tile::sequence<128, 64, 32, 64, 32, 64>;
+    using type        = ck_tile::sequence<128, 64, 64, 32, 64>;
     using gemm0_warps = ck_tile::sequence<4, 1, 1>;
     using gemm1_warps = ck_tile::sequence<4, 1, 1>;
 };
@@ -32,7 +32,7 @@ struct HstuAttentionFwdBlockTile<64>
 template <>
 struct HstuAttentionFwdBlockTile<128>
 {
-    using type        = ck_tile::sequence<128, 32, 16, 128, 16, 128>;
+    using type        = ck_tile::sequence<128, 32, 128, 16, 128>;
     using gemm0_warps = ck_tile::sequence<4, 1, 1>;
     using gemm1_warps = ck_tile::sequence<4, 1, 1>;
 };
@@ -40,7 +40,7 @@ struct HstuAttentionFwdBlockTile<128>
 template <>
 struct HstuAttentionFwdBlockTile<256>
 {
-    using type        = ck_tile::sequence<128, 32, 16, 256, 16, 256>;
+    using type        = ck_tile::sequence<128, 32, 256, 16, 256>;
     using gemm0_warps = ck_tile::sequence<4, 1, 1>;
     using gemm1_warps = ck_tile::sequence<4, 1, 1>;
 };
