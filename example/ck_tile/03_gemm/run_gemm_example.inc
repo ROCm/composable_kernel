@@ -215,10 +215,9 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t)
             ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
                                            GemmConfig::N_Warp_Tile,
                                            k_ / ItemsPerAccess,
-                                           1,
                                            ItemsPerAccess});
             std::copy(t.begin(), t.end(), t_view.begin());
-            return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
+            return ck_tile::reference_permute(t_view, {0, 2, 1, 3});
         }
     }
 }
