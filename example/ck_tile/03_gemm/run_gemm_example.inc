@@ -300,16 +300,8 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
 
     if(init_method == 0)
     {
-        if constexpr(preshuffle)
-        {
-            ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_m_k);
-            ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_k_n);
-        }
-        else
-        {
-            ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
-            ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
-        }
+        ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
+        ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
     }
     else if(init_method == 1)
     {
@@ -353,6 +345,10 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
             }
         }();
         // shuffled buffer B for device implementation
+        if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+        {
+            ck_tile::permute_vectors_i4x4_b(b_shuffle_host);
+        }
         b_k_n_dev_buf.ToDevice(b_shuffle_host.data());
     }
     else
