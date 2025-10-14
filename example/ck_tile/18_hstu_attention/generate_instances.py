@@ -26,16 +26,17 @@ HSTU_FORWARD_INSTANCE_TEMPLATE_INC = """
 """
 
 HSTU_FORWARD_INSTANCE_TEMPLATE = """
-{extern}template void run_{mode}_forward_causal_bias_dropout_dispatch<
+{extern}template void run_{mode}_forward_causal_softmax_bias_dropout_dispatch<
     {dtype},
     {has_causal},
+    {use_softmax},
     {has_bias},
     {has_dropout},
     {max_k}>(HstuAttentionFwdParams& param, hipStream_t stream);
 """
 
 HSTU_FORWARD_INSTANCE_FNAME = (
-    "hstu_attention_{mode}_forward_{dtype_str}_{has_or_no_causal_str}_"
+    "hstu_attention_{mode}_forward_{dtype_str}_{has_or_no_causal_str}_{use_softmax_or_not_str}_"
     "{has_or_no_bias_str}_{has_or_no_dropout_str}_{max_k_str}.cpp"
 )
 
@@ -46,6 +47,11 @@ BOOL_MAP = {True: "true", False: "false"}
 BOOL_MAP_CAUSAL = {
     True: "has_causal",
     False: "no_causal",
+}
+
+BOOL_MAP_SOFTMAX = {
+    True: "softmax_true",
+    False: "softmax_false",
 }
 
 BOOL_MAP_BIAS = {
@@ -79,38 +85,41 @@ def create_forward_instances(instance_dir: Path, headdims: List) -> None:
     for mode in ["batched", "jagged"]:
         for dtype in ["fp16", "bf16"]:
             for has_causal in [True, False]:
-                for has_bias in [True, False]:
-                    for has_dropout in [True, False]:
-                        for max_k in headdims:
-                            fname = HSTU_FORWARD_INSTANCE_FNAME.format(
-                                mode=mode,
-                                dtype_str=dtype,
-                                has_or_no_causal_str=BOOL_MAP_CAUSAL[has_causal],
-                                has_or_no_bias_str=BOOL_MAP_BIAS[has_bias],
-                                has_or_no_dropout_str=BOOL_MAP_DROPOUT[has_dropout],
-                                max_k_str=INT_MAP_MAX_K[max_k],
-                            )
-                            forward_instance_inc = (
-                                HSTU_FORWARD_INSTANCE_TEMPLATE_INC.format(
+                for use_softmax in [True, False]:
+                    for has_bias in [True, False]:
+                        for has_dropout in [True, False]:
+                            for max_k in headdims:
+                                fname = HSTU_FORWARD_INSTANCE_FNAME.format(
                                     mode=mode,
-                                    dtype_file=TYPE_FNAME_MAP[dtype],
+                                    dtype_str=dtype,
+                                    has_or_no_causal_str=BOOL_MAP_CAUSAL[has_causal],
+                                    use_softmax_or_not_str=BOOL_MAP_SOFTMAX[use_softmax],
+                                    has_or_no_bias_str=BOOL_MAP_BIAS[has_bias],
+                                    has_or_no_dropout_str=BOOL_MAP_DROPOUT[has_dropout],
+                                    max_k_str=INT_MAP_MAX_K[max_k],
                                 )
-                            )
-                            forward_instance = HSTU_FORWARD_INSTANCE_TEMPLATE.format(
-                                extern="",
-                                mode=mode,
-                                dtype=TYPE_CTYPE_MAP[dtype],
-                                has_causal=BOOL_MAP[has_causal],
-                                has_bias=BOOL_MAP[has_bias],
-                                has_dropout=BOOL_MAP[has_dropout],
-                                max_k=max_k,
-                                cap_mode=MODE_NAME_MAP[mode],
-                            )
-                            (instance_dir / fname).write_text(
-                                HSTU_COPYRIGHT_HEADER
-                                + forward_instance_inc
-                                + forward_instance
-                            )
+                                forward_instance_inc = (
+                                    HSTU_FORWARD_INSTANCE_TEMPLATE_INC.format(
+                                        mode=mode,
+                                        dtype_file=TYPE_FNAME_MAP[dtype],
+                                    )
+                                )
+                                forward_instance = HSTU_FORWARD_INSTANCE_TEMPLATE.format(
+                                    extern="",
+                                    mode=mode,
+                                    dtype=TYPE_CTYPE_MAP[dtype],
+                                    has_causal=BOOL_MAP[has_causal],
+                                    use_softmax=BOOL_MAP[use_softmax],
+                                    has_bias=BOOL_MAP[has_bias],
+                                    has_dropout=BOOL_MAP[has_dropout],
+                                    max_k=max_k,
+                                    cap_mode=MODE_NAME_MAP[mode],
+                                )
+                                (instance_dir / fname).write_text(
+                                     HSTU_COPYRIGHT_HEADER
+                                     + forward_instance_inc
+                                     + forward_instance
+                                )    
 
 
 def create_forward_instances_ref(instance_dir: Path, headdims: List) -> None:
@@ -133,19 +142,21 @@ def create_forward_instances_ref(instance_dir: Path, headdims: List) -> None:
                     for has_bias in [True, False]:
                         for has_dropout in [True, False]:
                             for has_causal in [True, False]:
-                                forward_instance = (
-                                    HSTU_FORWARD_INSTANCE_TEMPLATE.format(
-                                        extern="extern ",
-                                        mode=mode,
-                                        dtype=TYPE_CTYPE_MAP[dtype],
-                                        has_causal=BOOL_MAP[has_causal],
-                                        has_bias=BOOL_MAP[has_bias],
-                                        has_dropout=BOOL_MAP[has_dropout],
-                                        max_k=max_k,
-                                        cap_mode=MODE_NAME_MAP[mode],
-                                    )
-                                )
-                                file.write(forward_instance)
+                                for use_softmax in [True, False]:
+                                    forward_instance = (
+                                        HSTU_FORWARD_INSTANCE_TEMPLATE.format(
+                                            extern="extern ",
+                                            mode=mode,
+                                            dtype=TYPE_CTYPE_MAP[dtype],
+                                            has_causal=BOOL_MAP[has_causal],
+                                            use_softmax=BOOL_MAP[use_softmax],
+                                            has_bias=BOOL_MAP[has_bias],
+                                            has_dropout=BOOL_MAP[has_dropout],
+                                            max_k=max_k,
+                                            cap_mode=MODE_NAME_MAP[mode],
+                                        )
+                                    )   
+                                    file.write(forward_instance)
 
 if __name__ == "__main__":
     headdims_fwd = [64, 128, 256]
