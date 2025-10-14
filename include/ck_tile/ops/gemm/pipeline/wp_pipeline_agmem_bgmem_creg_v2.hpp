@@ -580,13 +580,21 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
             make_tile_window(a_lds_block_ping,
                              make_tuple(number<WG::kM>{}, number<WG::kK>{}),
                              {iMWarp * WG::kM, 0},
+#if defined(__gfx11__) || defined(__gfx12__)
+                             make_static_tile_distribution(typename WG::AWarpDstrEncoding{}));
+#else
                              PipelinePolicy::template MakeALDS_WarpTileDistribution<Problem>());
+#endif
 
         auto a_warp_window_pong_tmp =
             make_tile_window(a_lds_block_pong,
                              make_tuple(number<WG::kM>{}, number<WG::kK>{}),
                              {iMWarp * WG::kM, 0},
+#if defined(__gfx11__) || defined(__gfx12__)
+                             make_static_tile_distribution(typename WG::AWarpDstrEncoding{}));
+#else
                              PipelinePolicy::template MakeALDS_WarpTileDistribution<Problem>());
+#endif
 
         statically_indexed_array<
             statically_indexed_array<decltype(a_warp_window_ping_tmp), KIterPerWarp>,
