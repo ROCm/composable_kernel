@@ -46,6 +46,24 @@ struct NumericUtils<float>
 };
 
 template <>
+struct NumericUtils<ck::tf32_t>
+{
+    static constexpr int exp            = 8;
+    static constexpr int mant           = 10;
+    static constexpr int bias           = 127;
+    static constexpr uint32_t nan_mask  = 0x7F800000;
+    static constexpr uint32_t head_mask = 0xFF800000;
+    static constexpr uint32_t mant_mask = 0x7FFFFF;
+    static constexpr uint32_t exp_mask  = 0xFF;
+    static constexpr uint32_t Inf       = 0x7F800000;
+    static constexpr uint32_t NegInf    = 0xFF800000;
+    static constexpr uint32_t NaN       = 0x7F800001;
+    static constexpr uint32_t Neg0      = 0x80000000;
+    static constexpr bool has_inf       = true;
+    using bitwise_type                  = uint32_t;
+};
+
+template <>
 struct NumericUtils<half_t>
 {
     static constexpr int exp            = 5;
