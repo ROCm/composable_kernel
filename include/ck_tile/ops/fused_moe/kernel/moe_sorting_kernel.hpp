@@ -797,7 +797,7 @@ struct MoeSortingKernel
                     else
                         smem_tokens(curr_token_id, eid)++;
                 }
-                __builtin_amdgcn_s_waitcnt(0xc07f);
+                s_waitcnt<waitcnt_arg::kMaxVmCnt, waitcnt_arg::kMaxExpCnt, 0>();
             }
             __syncthreads(); // make sure different i_token iteration not overlap by different wave
         }
@@ -922,7 +922,7 @@ struct MoeSortingKernel
                     // NOTE: this waitcnt is a must, compiler will not generate waitcnt lgkmcnt()
                     // for above write however __syncthreads will cause barrier with waves other
                     // than 0(which is not we want)
-                    __builtin_amdgcn_s_waitcnt(0xc07f);
+                    s_waitcnt<waitcnt_arg::kMaxVmCnt, waitcnt_arg::kMaxExpCnt, 0>();
                 }
                 if((lid + i_e_ - get_warp_size()) == (num_experts - 1))
                 {
