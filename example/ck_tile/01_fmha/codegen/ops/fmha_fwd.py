@@ -259,11 +259,26 @@ class FmhaFwdApiTrait:
     def skcheck(self) -> str:
         if self.mode == 'group': return 'true/*group mode skpad always true*/'                  # group mode only generate spad/skpad == true
         if self.pipeline_tag == 'qr_async':
-            if self.skpad == 't' : return f'(a.cu_seqlen_kv_ptr != nullptr) || (a.seqlen_k == 0 || a.seqlen_k % {self.bn0} != 0)'
-            else :                 return f'(a.cu_seqlen_kv_ptr == nullptr) && (a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0)'
+            if self.skpad == 't' : return (
+                                    "\n#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING\n"
+                                    f'(a.cu_seqlen_kv_ptr != nullptr) || (a.seqlen_k == 0 || a.seqlen_k % {self.bn0} != 0)'
+                                    "\n#else\n"
+                                    f'(a.seqlen_k == 0 || a.seqlen_k % {self.bn0} != 0)'
+                                    "\n#endif\n")
+            else :                 return (
+                                    "\n#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING\n"
+                                    f'(a.cu_seqlen_kv_ptr == nullptr) && (a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0)'
+                                    "\n#else\n"
+                                    f'(a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0)'
+                                    "\n#endif\n")
         elif self.pipeline_tag in ['qr', 'qs']:
             if self.skpad == 't' : return f'true /*a.seqlen_k % {self.bn0} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
-            else :                 return f'(a.cu_seqlen_kv_ptr == nullptr) && (a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0)'
+            else :                 return (
+                                    "\n#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING\n"
+                                    f'(a.cu_seqlen_kv_ptr == nullptr) && (a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0)'
+                                    "\n#else\n"
+                                    f'(a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0)'
+                                    "\n#endif\n")
         elif self.pipeline_tag == 'qr_async_trload':
             if self.skpad == 't' : return 'true'
             else:                  return 'true'

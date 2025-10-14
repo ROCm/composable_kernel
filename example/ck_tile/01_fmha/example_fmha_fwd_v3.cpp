@@ -51,9 +51,7 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
                 "11939",
                 "random seed used for initializing input tensors. 0 for "
                 "non-deterministic seed")
-        .insert("warmup", "5", "number of iterations before benchmark the kernel")
-        .insert("repeat", "30", "number of iterations to benchmark the kernel")
-        // Optional effective seqlen override (exclude PAD) for batch mode
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
         .insert("q_eff_lens",
                 "",
                 "Batch-mode only: per-batch effective seqlen for Q (exclude PAD).\n"
@@ -61,7 +59,10 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
         .insert("kv_eff_lens",
                 "",
                 "Batch-mode only: per-batch effective seqlen for KV (exclude PAD).\n"
-                "Comma-separated list of length 'b'. If empty, no override.");
+                "Comma-separated list of length 'b'. If empty, no override.")
+#endif
+        .insert("warmup", "5", "number of iterations before benchmark the kernel")
+        .insert("repeat", "30", "number of iterations to benchmark the kernel");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_pair(result, arg_parser);
@@ -120,8 +121,10 @@ struct Problem
 
         input_layout  = args.get_int("iperm") == 1 ? TensorLayout::bhsd : TensorLayout::bshd;
         output_layout = args.get_int("operm") == 1 ? TensorLayout::bhsd : TensorLayout::bshd;
-        q_eff_lens    = args.get_int_vec("q_eff_lens");
-        kv_eff_lens   = args.get_int_vec("kv_eff_lens");
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
+        q_eff_lens  = args.get_int_vec("q_eff_lens");
+        kv_eff_lens = args.get_int_vec("kv_eff_lens");
+#endif
     }
 
     std::vector<ck_tile::index_t> get_query_shape() const
@@ -183,8 +186,10 @@ struct Problem
     mask_info mask;
     TensorLayout input_layout;
     TensorLayout output_layout;
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
     std::vector<int> q_eff_lens;
     std::vector<int> kv_eff_lens;
+#endif
 };
 
 struct RunConfig
@@ -396,6 +401,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     args.batch_stride_o = problem.seqlen_q * problem.nhead_q * problem.hdim;
 
     // Optional cumulative seqlen overrides (exclude PAD)
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
     const bool has_varlen_q = !problem.q_eff_lens.empty() && problem.q_eff_lens[0] != -1;
     const bool has_varlen_k = !problem.kv_eff_lens.empty() && problem.kv_eff_lens[0] != -1;
 
@@ -448,7 +454,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     args.cu_seqlen_kv_ptr =
         !cukv_cum.empty() ? reinterpret_cast<const ck_tile::index_t*>(cukv_buf.GetDeviceBuffer())
                           : nullptr;
-
+#endif
     ck_tile::stream_config stream_config{nullptr,
                                          true,
                                          /*log_level=*/0,
@@ -511,6 +517,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
         o_ref = o_ref.transpose({0, 2, 1, 3});
     }
 
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
     // If variable lengths are provided, compute per-batch references
     // with the effective lengths; else compute a single full reference.
     if(has_varlen_q || has_varlen_k)
@@ -577,7 +584,17 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
                                         ck_tile::identity{},
                                         ck_tile::scales{problem.softmax_scale});
     }
-
+#else
+    host::fmha_fwd<float, DataType>(q,
+                                    k,
+                                    v,
+                                    problem.mask,
+                                    o_ref,
+                                    ck_tile::identity{},
+                                    ck_tile::identity{},
+                                    ck_tile::identity{},
+                                    ck_tile::scales{problem.softmax_scale});
+#endif
     ck_tile::HostTensor<DataType> o(problem.get_output_shape());
     o_buf.FromDevice(o.data());
 

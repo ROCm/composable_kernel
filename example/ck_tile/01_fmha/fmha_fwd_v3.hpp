@@ -61,6 +61,9 @@ struct fmha_fwd_v3_args
     // If provided, they override per-batch effective lengths to skip tail padding.
     const ck_tile::index_t* cu_seqlen_q_ptr  = nullptr; // [batch+1]
     const ck_tile::index_t* cu_seqlen_kv_ptr = nullptr; // [batch+1]
+
+    const int32_t* seqstart_padded_q_ptr = nullptr; // [batch+1]
+    const int32_t* seqstart_padded_k_ptr = nullptr; // [batch+1]
 };
 
 std::ostream& operator<<(std::ostream& stream, const fmha_fwd_v3_args::data_type_enum& data_type);

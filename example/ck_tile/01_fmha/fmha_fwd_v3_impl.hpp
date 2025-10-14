@@ -158,9 +158,13 @@ float fmha_fwd_v3_kernel_launch(const fmha_fwd_v3_args& args, const stream_confi
                                    args.window_size_left,
                                    args.window_size_right,
                                    args.mask_type,
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
                                    remap_opt,
                                    args.cu_seqlen_q_ptr,
                                    args.cu_seqlen_kv_ptr);
+#else
+                                   remap_opt);
+#endif
 
     dim3 grids            = Kernel::GridSize(args.batch, args.nhead_q, args.seqlen_q, args.hdim_v);
     constexpr dim3 blocks = Kernel::BlockSize();

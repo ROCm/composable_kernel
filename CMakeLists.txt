@@ -138,6 +138,17 @@ else()
     add_definitions(-DCK_TIME_KERNEL=0)
 endif()
 
+option(CK_TILE_FMHA_ENABLE_SEQLEN_PADDING "Enable padding / effective-length support in FMHA" ON)
+if(CK_TILE_FMHA_ENABLE_SEQLEN_PADDING)
+    add_compile_definitions(CK_TILE_FMHA_ENABLE_SEQLEN_PADDING=1)
+    set(_ck_tile_fmha_padding_flag "1")
+else()
+    add_compile_definitions(CK_TILE_FMHA_ENABLE_SEQLEN_PADDING=0)
+    set(_ck_tile_fmha_padding_flag "0")
+endif()
+set(ENV{CK_TILE_FMHA_ENABLE_SEQLEN_PADDING} "${_ck_tile_fmha_padding_flag}")
+message(STATUS "CK_TILE_FMHA_ENABLE_SEQLEN_PADDING=${_ck_tile_fmha_padding_flag}")
+
 include(getopt)
 
 # CK version file to record release version as well as git commit hash

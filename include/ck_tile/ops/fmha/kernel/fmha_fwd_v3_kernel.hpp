@@ -100,11 +100,13 @@ struct FmhaFwdV3Kernel
         ck_tile::index_t batch_stride_k;
         ck_tile::index_t batch_stride_v;
         ck_tile::index_t batch_stride_o;
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
 
         // Optional cumulative sequence length pointers for batch mode
         // If provided, they override seqlen_q / seqlen_k per-batch to skip tail padding.
         const ck_tile::index_t* cu_seqlen_q_ptr  = nullptr; // [batch+1]
         const ck_tile::index_t* cu_seqlen_kv_ptr = nullptr; // [batch+1]
+#endif
     };
 
     struct FmhaFwdGroupModeKargs
@@ -118,8 +120,10 @@ struct FmhaFwdV3Kernel
 
         // Optional cumulative padded sequence starts (including PAD tokens)
         // Used solely to compute memory offsets when sequences are physically padded.
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
         const int32_t* seqstart_padded_q_ptr = nullptr; // [batch+1]
         const int32_t* seqstart_padded_k_ptr = nullptr; // [batch+1]
+#endif
     };
 
     using Kargs = std::conditional_t<kIsGroupMode, FmhaFwdGroupModeKargs, FmhaFwdBatchModeKargs>;
@@ -155,9 +159,13 @@ struct FmhaFwdV3Kernel
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
               ck_tile::index_t mask_type,
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
               ck_tile::index_t remap_opt,
               const ck_tile::index_t* cu_seqlen_q_ptr  = nullptr,
               const ck_tile::index_t* cu_seqlen_kv_ptr = nullptr)
+#else
+              ck_tile::index_t remap_opt)
+#endif
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -199,8 +207,10 @@ struct FmhaFwdV3Kernel
             kargs.batch_stride_lse = batch_stride_lse;
         }
 
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
         kargs.cu_seqlen_q_ptr  = cu_seqlen_q_ptr;
         kargs.cu_seqlen_kv_ptr = cu_seqlen_kv_ptr;
+#endif
         return kargs;
     }
 
@@ -231,9 +241,13 @@ struct FmhaFwdV3Kernel
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
               ck_tile::index_t mask_type,
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
               ck_tile::index_t remap_opt,
               const void* seqstart_padded_q_ptr = nullptr,
               const void* seqstart_padded_k_ptr = nullptr)
+#else
+              ck_tile::index_t remap_opt)
+#endif
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -273,8 +287,10 @@ struct FmhaFwdV3Kernel
             kargs.nhead_stride_lse = nhead_stride_lse;
         }
 
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
         kargs.seqstart_padded_q_ptr = reinterpret_cast<const int32_t*>(seqstart_padded_q_ptr);
         kargs.seqstart_padded_k_ptr = reinterpret_cast<const int32_t*>(seqstart_padded_k_ptr);
+#endif
         return kargs;
     }
 
@@ -393,6 +409,7 @@ struct FmhaFwdV3Kernel
             // get starting offset for each batch
             const long_index_t query_start_unpadded = kargs.seqstart_q_ptr[i_batch];
             const long_index_t key_start_unpadded   = kargs.seqstart_k_ptr[i_batch];
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
 
             const long_index_t query_start_padded = kargs.seqstart_padded_q_ptr
                                                         ? kargs.seqstart_padded_q_ptr[i_batch]
@@ -400,6 +417,10 @@ struct FmhaFwdV3Kernel
             const long_index_t key_start_padded   = kargs.seqstart_padded_k_ptr
                                                         ? kargs.seqstart_padded_k_ptr[i_batch]
                                                         : key_start_unpadded;
+#else
+            const long_index_t query_start_padded = query_start_unpadded;
+            const long_index_t key_start_padded   = key_start_unpadded;
+#endif
 
             batch_offset_q = query_start_padded * kargs.stride_q;
             batch_offset_k = key_start_padded * kargs.stride_k;
@@ -445,6 +466,7 @@ struct FmhaFwdV3Kernel
             batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
 
             // If cumulative seqlen pointers are provided, override per-batch effective lengths
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
             if(kargs.cu_seqlen_q_ptr != nullptr)
             {
                 kargs.seqlen_q =
@@ -455,6 +477,7 @@ struct FmhaFwdV3Kernel
                 kargs.seqlen_k =
                     kargs.cu_seqlen_kv_ptr[i_batch + 1] - kargs.cu_seqlen_kv_ptr[i_batch];
             }
+#endif
         }
 
         // for simplicity, batch stride we just modify the pointer

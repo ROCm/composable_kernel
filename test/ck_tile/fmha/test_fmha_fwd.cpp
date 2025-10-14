@@ -189,11 +189,15 @@ TEST_P(AllLong, DataTypeConfig)
                                                {adjust_seqlen(seqlen_k)},
                                                hdim_q,
                                                hdim_v,
-                                               0,             // seqlen_knew
-                                               {-1},          // seqlen_qpads
+                                               0, // seqlen_knew
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
+                                               {-1}, // seqlen_qpads
+#endif
                                                {seqlen_kpad}, // seqlen_kpads
-                                               {},            // q_eff_lens_per_batch
-                                               {},            // kv_eff_lens_per_batch
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
+                                               {}, // q_eff_lens_per_batch
+                                               {}, // kv_eff_lens_per_batch
+#endif
                                                0,             // rotary_dim
                                                perm,          // i_perm
                                                perm,          // o_perm
@@ -226,23 +230,27 @@ TEST(TestCkTileFmhaFwd, AppendKvWithBatchEffLensShouldFail)
     // batch mode effective lengths simulate padding
     auto result = fmha_fwd_run<DataTypeConfig>(
         mode_enum::batch,
-        2,          // batch
-        4,          // nhead
-        -1,         // nhead_k
-        {128},      // seqlen_qs
-        {128},      // seqlen_ks
-        64,         // hdim_q
-        64,         // hdim_v
-        32,         // seqlen_knew -> triggers appendkv
-        {},         // seqlen_qpads
-        {},         // seqlen_kpads
+        2,     // batch
+        4,     // nhead
+        -1,    // nhead_k
+        {128}, // seqlen_qs
+        {128}, // seqlen_ks
+        64,    // hdim_q
+        64,    // hdim_v
+        32,    // seqlen_knew -> triggers appendkv
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
+        {}, // seqlen_qpads
+#endif
+        {}, // seqlen_kpads
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
         {100, 120}, // q_eff_lens_per_batch
         {90, 110},  // kv_eff_lens_per_batch
-        0,          // rotary_dim
-        true,       // i_perm
-        true,       // o_perm
-        0,          // scale_s
-        0,          // logits_soft_cap
+#endif
+        0,    // rotary_dim
+        true, // i_perm
+        true, // o_perm
+        0,    // scale_s
+        0,    // logits_soft_cap
         def_is_v_rowmajor,
         def_lse,
         0,     // page_block_size
@@ -270,23 +278,27 @@ TEST(TestCkTileFmhaFwd, SplitKvWithGroupPaddingShouldFail)
     // group mode physical padding
     auto result = fmha_fwd_run<DataTypeConfig>(
         mode_enum::group,
-        2,          // batch
-        4,          // nhead
-        -1,         // nhead_k
-        {96, 120},  // seqlen_qs logical
-        {96, 120},  // seqlen_ks logical
-        64,         // hdim_q
-        64,         // hdim_v
-        0,          // seqlen_knew
+        2,         // batch
+        4,         // nhead
+        -1,        // nhead_k
+        {96, 120}, // seqlen_qs logical
+        {96, 120}, // seqlen_ks logical
+        64,        // hdim_q
+        64,        // hdim_v
+        0,         // seqlen_knew
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
         {128, 128}, // seqlen_qpads
+#endif
         {128, 128}, // seqlen_kpads
-        {},         // q_eff
-        {},         // kv_eff
-        0,          // rotary_dim
-        true,       // i_perm
-        true,       // o_perm
-        0,          // scale_s
-        0,          // logits_soft_cap
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
+        {}, // q_eff
+        {}, // kv_eff
+#endif
+        0,    // rotary_dim
+        true, // i_perm
+        true, // o_perm
+        0,    // scale_s
+        0,    // logits_soft_cap
         def_is_v_rowmajor,
         def_lse,
         0,     // page_block_size
@@ -320,11 +332,15 @@ TEST(TestCkTileFmhaFwd, PagedKvWithGroupPaddingShouldFail)
         {80, 100},
         64,
         64,
-        0,         // seqlen_knew
+        0, // seqlen_knew
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
         {96, 128}, // seqlen_qpads
+#endif
         {96, 128}, // seqlen_kpads
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
         {},
         {},
+#endif
         0,
         true,
         true,
@@ -389,11 +405,15 @@ TEST_P(HDimPadding, DataTypeConfig)
                                                {adjust_seqlen(seqlen_k)},
                                                hdim_q,
                                                hdim_v,
-                                               0,             // seqlen_knew
-                                               {-1},          // seqlen_qpads
+                                               0, // seqlen_knew
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
+                                               {-1}, // seqlen_qpads
+#endif
                                                {seqlen_kpad}, // seqlen_kpads
-                                               {},            // q_eff_lens_per_batch
-                                               {},            // kv_eff_lens_per_batch
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
+                                               {}, // q_eff_lens_per_batch
+                                               {}, // kv_eff_lens_per_batch
+#endif
                                                0,             // rotary_dim
                                                perm,          // i_perm
                                                perm,          // o_perm
@@ -449,11 +469,15 @@ TEST_P(ElementwiseBias, DataTypeConfig)
                                                {adjust_seqlen(seqlen_k)},
                                                hdim_q,
                                                hdim_v,
-                                               0,                 // seqlen_knew
-                                               {-1},              // seqlen_qpads
-                                               {-1},              // seqlen_kpads
-                                               {},                // q_eff_lens_per_batch
-                                               {},                // kv_eff_lens_per_batch
+                                               0, // seqlen_knew
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
+                                               {-1}, // seqlen_qpads
+#endif
+                                               {-1}, // seqlen_kpads
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
+                                               {}, // q_eff_lens_per_batch
+                                               {}, // kv_eff_lens_per_batch
+#endif
                                                0,                 // rotary_dim
                                                i_perm,            // i_perm
                                                false,             // o_perm
@@ -508,11 +532,15 @@ TEST_P(Alibi, DataTypeConfig)
                                                {adjust_seqlen(seqlen_k)},
                                                hdim_q,
                                                hdim_v,
-                                               0,                 // seqlen_knew
-                                               {-1},              // seqlen_qpads
-                                               {-1},              // seqlen_kpads
-                                               {},                // q_eff_lens_per_batch
-                                               {},                // kv_eff_lens_per_batch
+                                               0, // seqlen_knew
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
+                                               {-1}, // seqlen_qpads
+#endif
+                                               {-1}, // seqlen_kpads
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
+                                               {}, // q_eff_lens_per_batch
+                                               {}, // kv_eff_lens_per_batch
+#endif
                                                0,                 // rotary_dim
                                                true,              // i_perm
                                                true,              // o_perm
@@ -569,11 +597,15 @@ TEST_P(Dropout, DataTypeConfig)
                                                {adjust_seqlen(seqlen_k)},
                                                hdim_q,
                                                hdim_v,
-                                               0,                 // seqlen_knew
-                                               {-1},              // seqlen_qpads
-                                               {-1},              // seqlen_kpads
-                                               {},                // q_eff_lens_per_batch
-                                               {},                // kv_eff_lens_per_batch
+                                               0, // seqlen_knew
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
+                                               {-1}, // seqlen_qpads
+#endif
+                                               {-1}, // seqlen_kpads
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
+                                               {}, // q_eff_lens_per_batch
+                                               {}, // kv_eff_lens_per_batch
+#endif
                                                0,                 // rotary_dim
                                                false,             // i_perm
                                                false,             // o_perm
@@ -634,11 +666,15 @@ TEST_P(PagedKV, DataTypeConfig)
                                                {adjust_seqlen(seqlen_k)},
                                                hdim_q,
                                                hdim_v,
-                                               0,               // seqlen_knew
-                                               {-1},            // seqlen_qpads
-                                               {-1},            // seqlen_kpads
-                                               {},              // q_eff_lens_per_batch
-                                               {},              // kv_eff_lens_per_batch
+                                               0, // seqlen_knew
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
+                                               {-1}, // seqlen_qpads
+#endif
+                                               {-1}, // seqlen_kpads
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
+                                               {}, // q_eff_lens_per_batch
+                                               {}, // kv_eff_lens_per_batch
+#endif
                                                0,               // rotary_dim
                                                i_perm,          // i_perm
                                                false,           // o_perm
@@ -705,11 +741,15 @@ TEST_P(SplitKV, DataTypeConfig)
                                                {adjust_seqlen(seqlen_k)},
                                                hdim_q,
                                                hdim_v,
-                                               0,                   // seqlen_knew
-                                               {-1},                // seqlen_qpads
-                                               {-1},                // seqlen_kpads
-                                               {},                  // q_eff_lens_per_batch
-                                               {},                  // kv_eff_lens_per_batch
+                                               0, // seqlen_knew
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
+                                               {-1}, // seqlen_qpads
+#endif
+                                               {-1}, // seqlen_kpads
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
+                                               {}, // q_eff_lens_per_batch
+                                               {}, // kv_eff_lens_per_batch
+#endif
                                                0,                   // rotary_dim
                                                i_perm,              // i_perm
                                                false,               // o_perm
@@ -782,11 +822,15 @@ TEST_P(AppendKV, DataTypeConfig)
                                                {adjust_seqlen(seqlen_k)},
                                                hdim_q,
                                                hdim_v,
-                                               seqlen_knew,         // seqlen_knew
-                                               {-1},                // seqlen_qpads
-                                               {-1},                // seqlen_kpads
-                                               {},                  // q_eff_lens_per_batch
-                                               {},                  // kv_eff_lens_per_batch
+                                               seqlen_knew, // seqlen_knew
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
+                                               {-1}, // seqlen_qpads
+#endif
+                                               {-1}, // seqlen_kpads
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
+                                               {}, // q_eff_lens_per_batch
+                                               {}, // kv_eff_lens_per_batch
+#endif
                                                0,                   // rotary_dim
                                                i_perm,              // i_perm
                                                true,                // o_perm
@@ -855,11 +899,15 @@ TEST_P(AppendKVRoPE, DataTypeConfig)
                                                {adjust_seqlen(seqlen_k)},
                                                hdim_q,
                                                hdim_v,
-                                               seqlen_knew,   // seqlen_knew
-                                               {-1},          // seqlen_qpads
-                                               {-1},          // seqlen_kpads
-                                               {},            // q_eff_lens_per_batch
-                                               {},            // kv_eff_lens_per_batch
+                                               seqlen_knew, // seqlen_knew
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
+                                               {-1}, // seqlen_qpads
+#endif
+                                               {-1}, // seqlen_kpads
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
+                                               {}, // q_eff_lens_per_batch
+                                               {}, // kv_eff_lens_per_batch
+#endif
                                                rotary_dim,    // rotary_dim
                                                i_perm,        // i_perm
                                                true,          // o_perm
@@ -884,6 +932,7 @@ TEST_P(AppendKVRoPE, DataTypeConfig)
 
 #endif // CK_TILE_FMHA_FWD_APPENDKV_API
 
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
 // ---------------------------------------------------------------
 // Parameterized padding tests (batch & group) using Combine+Values
 // ---------------------------------------------------------------
@@ -1174,3 +1223,4 @@ TEST_P(PaddingCases, DataTypeConfig)
                                                COMMON_ARGS);
     CHECK_RESULT(result);
 }
+#endif // CK_TILE_FMHA_ENABLE_SEQLEN_PADDING

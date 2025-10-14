@@ -33,10 +33,12 @@ auto create_args(int argc, char* argv[])
                 "0",
                 "seqlen_k for new key/value, 0 means not to use this at all; "
                 "-1 to choose s_knew in [1, s] randomly.")
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
         .insert("s_qpad",
                 "-1",
                 "seqlen_q stride between 2 batches (group-mode optional).\n"
                 "Provide positive strides per-batch to simulate physical padding on Q.")
+#endif
         .insert("s_kpad",
                 "-1",
                 "seqlen_k stride between 2 batches, currently used in group-mode only\n"
@@ -110,8 +112,7 @@ auto create_args(int argc, char* argv[])
         .insert("cache_batch_idx", "0", "whether to use index map to the kvcache")
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "20", "number of iterations to benchmark the kernel")
-        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
-        .insert("jsonfile", "fmha_fwd.json", "json file name to dump results")
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
         .insert("q_eff_lens",
                 "",
                 "Batch-mode only: per-batch effective seqlen for Q (exclude PAD).\n"
@@ -119,7 +120,10 @@ auto create_args(int argc, char* argv[])
         .insert("kv_eff_lens",
                 "",
                 "Batch-mode only: per-batch effective seqlen for KV (exclude PAD).\n"
-                "Comma-separated list of length 'b'. If empty, no override.");
+                "Comma-separated list of length 'b'. If empty, no override.")
+#endif
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "fmha_fwd.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -128,20 +132,22 @@ auto create_args(int argc, char* argv[])
 template <typename DataTypeConfig>
 auto run(const ck_tile::ArgParser& arg_parser)
 {
-    int do_validation                = arg_parser.get_int("v");
-    mode_enum mode                   = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
-    ck_tile::index_t batch           = arg_parser.get_int("b");
-    ck_tile::index_t nhead           = arg_parser.get_int("h");
-    ck_tile::index_t nhead_k         = arg_parser.get_int("h_k");
-    auto seqlen_qs                   = arg_parser.get_int_vec("s");
-    auto seqlen_ks                   = arg_parser.get_int_vec("s_k");
-    ck_tile::index_t hdim_q          = arg_parser.get_int("d");
-    ck_tile::index_t hdim_v          = arg_parser.get_int("d_v");
-    ck_tile::index_t seqlen_knew     = arg_parser.get_int("s_knew");
-    auto seqlen_kpads                = arg_parser.get_int_vec("s_kpad");
-    auto seqlen_qpads                = arg_parser.get_int_vec("s_qpad");
-    auto q_eff_lens_per_batch        = arg_parser.get_int_vec("q_eff_lens");
-    auto kv_eff_lens_per_batch       = arg_parser.get_int_vec("kv_eff_lens");
+    int do_validation            = arg_parser.get_int("v");
+    mode_enum mode               = static_cast<mode_enum>(arg_parser.get_uint32("mode"));
+    ck_tile::index_t batch       = arg_parser.get_int("b");
+    ck_tile::index_t nhead       = arg_parser.get_int("h");
+    ck_tile::index_t nhead_k     = arg_parser.get_int("h_k");
+    auto seqlen_qs               = arg_parser.get_int_vec("s");
+    auto seqlen_ks               = arg_parser.get_int_vec("s_k");
+    ck_tile::index_t hdim_q      = arg_parser.get_int("d");
+    ck_tile::index_t hdim_v      = arg_parser.get_int("d_v");
+    ck_tile::index_t seqlen_knew = arg_parser.get_int("s_knew");
+    auto seqlen_kpads            = arg_parser.get_int_vec("s_kpad");
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
+    auto seqlen_qpads          = arg_parser.get_int_vec("s_qpad");
+    auto q_eff_lens_per_batch  = arg_parser.get_int_vec("q_eff_lens");
+    auto kv_eff_lens_per_batch = arg_parser.get_int_vec("kv_eff_lens");
+#endif
     ck_tile::index_t rotary_dim      = arg_parser.get_int("rotary_dim");
     bool i_perm                      = arg_parser.get_bool("iperm");
     bool o_perm                      = arg_parser.get_bool("operm");
@@ -189,10 +195,14 @@ auto run(const ck_tile::ArgParser& arg_parser)
                                         hdim_q,
                                         hdim_v,
                                         seqlen_knew,
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
                                         seqlen_qpads,
                                         seqlen_kpads,
                                         q_eff_lens_per_batch,
                                         kv_eff_lens_per_batch,
+#else
+                                        seqlen_kpads,
+#endif
                                         rotary_dim,
                                         i_perm,
                                         o_perm,

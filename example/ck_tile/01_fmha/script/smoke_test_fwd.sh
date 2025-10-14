@@ -2,6 +2,8 @@
 # TODO: run this script from CK root or build directory
 set -euo pipefail
 
+ENABLE_FMHA_SEQLEN_PADDING="${CK_TILE_FMHA_ENABLE_SEQLEN_PADDING:-1}"
+
 SCRIPT_DIR=$(cd $(dirname "${BASH_SOURCE[0]}") && pwd)
 EXE_NAME=tile_example_fmha_fwd
 EXE="$(find . -name $EXE_NAME -type f | head -n 1)"
@@ -138,6 +140,10 @@ run_fp16_appendkv_tests() {
 }
 
 run_padding_smoke_tests() {
+    if [ "$ENABLE_FMHA_SEQLEN_PADDING" != "1" ]; then
+        echo "[skip] CK_TILE_FMHA_ENABLE_SEQLEN_PADDING disabled -> skip padding smoke tests"
+        return
+    fi
     # Padding-only smoke tests for batch/group mode using COMMON_ARGS
     local prec="fp16"
 
@@ -164,6 +170,10 @@ run_padding_smoke_tests() {
 }
 
 run_padding_basic_boundary_tests() {
+    if [ "$ENABLE_FMHA_SEQLEN_PADDING" != "1" ]; then
+        echo "[skip] CK_TILE_FMHA_ENABLE_SEQLEN_PADDING disabled -> skip padding boundary tests"
+        return
+    fi
     # Basic padding and boundary tests (reference: smoke_test_fwd_pad.sh)
     local prec
     local perm

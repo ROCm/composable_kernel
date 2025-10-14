@@ -159,10 +159,14 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         ck_tile::index_t hdim_q,
                         ck_tile::index_t hdim_v,
                         ck_tile::index_t seqlen_knew,
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
                         std::vector<ck_tile::index_t> seqlen_qpads,
                         std::vector<ck_tile::index_t> seqlen_kpads,
                         std::vector<ck_tile::index_t> q_eff_lens_per_batch,
                         std::vector<ck_tile::index_t> kv_eff_lens_per_batch,
+#else
+                        std::vector<ck_tile::index_t> seqlen_kpads,
+#endif
                         ck_tile::index_t rotary_dim,
                         bool i_perm,
                         bool o_perm,
@@ -312,6 +316,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
 #endif
     const bool use_kvcache = (need_append_kvcache || use_cache_batch_idx || 0 < page_block_size);
 
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
     // Reject unsupported padding usage in special pipelines (appendkv / splitkv / pagedkv)
     const bool has_group_padding =
         (mode == mode_enum::group && (!seqlen_qpads.empty() && seqlen_qpads[0] != -1)) ||
@@ -329,7 +334,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
                   << std::endl;
         return fwd_result::invalid_args;
     }
-
+#endif
     std::tie(seqlen_qs, seqlen_ks, seqlen_kpads) =
         generate_missing_seqlens(mode,
                                  batch,
@@ -392,7 +397,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
     const auto seqstart_q_host              = to_seqstarts(seqlen_qs);
     const auto seqstart_k_host              = to_seqstarts(seqlen_ks);
     const auto seqstart_k_with_padding_host = to_seqstarts(seqlen_kpads);
-
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
     // Optional padded Q seqstarts (group-mode only)
     std::vector<int32_t> seqstart_q_with_padding_host;
     if(mode == mode_enum::group && !seqlen_qpads.empty() && seqlen_qpads[0] != -1)
@@ -430,6 +435,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
         calculate_cumulative(q_eff_lens_per_batch, cuq_cum);
         calculate_cumulative(kv_eff_lens_per_batch, cukv_cum);
     }
+#endif
 
     using TypeConfig = FmhaFwdTypeConfig<DataTypeConfig>;
 
@@ -518,11 +524,17 @@ fwd_result fmha_fwd_run(mode_enum mode,
     const ck_tile::index_t shape_seqlen_q_lse =
         (mode == mode_enum::batch ? seqlen_qs[0] : seqstart_q_host.back());
     // physical(padded) total seqlen_q for group when s_qpad is provided; else use logical
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
     const ck_tile::index_t shape_seqlen_q =
         (mode == mode_enum::batch
              ? seqlen_qs[0]
              : (seqstart_q_with_padding_host.empty() ? seqstart_q_host.back()
                                                      : seqstart_q_with_padding_host.back()));
+#else
+    const ck_tile::index_t shape_seqlen_q =
+        (mode == mode_enum::batch ? seqlen_qs[0] : seqstart_q_host.back());
+#endif
+
     const ck_tile::index_t shape_seqlen_k =
         (mode == mode_enum::batch ? seqlen_ks[0]
                                   : (seqlen_kpads[0] < 0 ? seqstart_k_host.back()
@@ -678,6 +690,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
     ck_tile::DeviceMem o_buf(o_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
     ck_tile::DeviceMem seqstart_q_padded_buf(seqstart_q_with_padding_host.empty()
                                                  ? 0
                                                  : seqstart_q_with_padding_host.size() *
@@ -688,6 +701,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
                                                        : cuq_cum.size() * sizeof(ck_tile::index_t));
     ck_tile::DeviceMem cu_seqlen_kv_buf(
         cukv_cum.empty() ? 0 : cukv_cum.size() * sizeof(ck_tile::index_t));
+#endif
     ck_tile::DeviceMem seqlen_k_buf((mode == mode_enum::batch && use_kvcache) ||
                                             0 <= seqlen_kpads[0]
                                         ? seqlen_ks.size() * sizeof(int32_t)
@@ -780,6 +794,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
     bias_buf.ToDevice(bias_host.data());
     seqstart_q.ToDevice(seqstart_q_host.data());
     // Keep logical starts in seqstart_k; pass padded K via separate pointer
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
     seqstart_k.ToDevice(seqstart_k_host.data());
     seqstart_q_padded_buf.ToDevice(
         seqstart_q_with_padding_host.empty() ? nullptr : seqstart_q_with_padding_host.data());
@@ -787,6 +802,10 @@ fwd_result fmha_fwd_run(mode_enum mode,
                                                        : seqstart_k_with_padding_host.data());
     cu_seqlen_q_buf.ToDevice(cuq_cum.empty() ? nullptr : cuq_cum.data());
     cu_seqlen_kv_buf.ToDevice(cukv_cum.empty() ? nullptr : cukv_cum.data());
+#else
+    seqstart_k.ToDevice(seqlen_kpads[0] < 0 ? seqstart_k_host.data()
+                                            : seqstart_k_with_padding_host.data());
+#endif
     seqlen_k_buf.ToDevice((mode == mode_enum::batch && use_kvcache) || 0 <= seqlen_kpads[0]
                               ? seqlen_ks.data()
                               : nullptr);
@@ -839,6 +858,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
         std::cout << ", cache_batch_idx:" << use_cache_batch_idx;
     }
 #endif
+
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
     // Padding / effective length diagnostic logging
     auto print_vec = [&](const char* label, const std::vector<int>& v) {
         if(v.empty())
@@ -886,6 +907,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
             print_vec("kv_eff", eff_kv);
         }
     }
+#endif
 
     std::cout << std::flush;
 
@@ -1101,7 +1123,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
                 {
                     args.drop_seed_offset = std::make_pair(drop_seed, drop_offset);
                 }
-
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
                 // Group-mode: optional physical padded starts for Q/K
                 if(mode == mode_enum::group)
                 {
@@ -1124,6 +1146,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
                                                 : reinterpret_cast<const ck_tile::index_t*>(
                                                       cu_seqlen_kv_buf.GetDeviceBuffer());
                 }
+#endif
             }
             else if constexpr(std::is_same_v<fmha_fwd_splitkv_args, std::decay_t<decltype(args)>>)
             {
@@ -1344,6 +1367,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
         {
             ck_tile::index_t real_seqlen_q = seqstart_q_host[wb + 1] - seqstart_q_host[wb];
             ck_tile::index_t real_seqlen_k = seqstart_k_host[wb + 1] - seqstart_k_host[wb];
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
             if(mode == mode_enum::batch)
             {
                 if(!cuq_cum.empty())
@@ -1355,16 +1379,20 @@ fwd_result fmha_fwd_run(mode_enum mode,
                     real_seqlen_k = cukv_cum[wb + 1] - cukv_cum[wb];
                 }
             }
-
+#endif
             // adjust matrix index according to the mode
             const ck_tile::index_t b_idx = (mode == mode_enum::batch ? wb : 0);
             const ck_tile::index_t cache_b_idx =
                 (use_cache_batch_idx ? cache_batch_idx_host(b_idx) : b_idx);
             const ck_tile::index_t query_offset =
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
                 (mode == mode_enum::batch
                      ? 0
                      : (seqstart_q_with_padding_host.empty() ? seqstart_q_host[wb]
                                                              : seqstart_q_with_padding_host[wb]));
+#else
+                (mode == mode_enum::batch ? 0 : seqstart_q_host[wb]);
+#endif
             const ck_tile::index_t key_offset =
                 (mode == mode_enum::batch
                      ? 0

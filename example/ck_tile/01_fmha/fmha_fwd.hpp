@@ -182,10 +182,12 @@ struct fmha_fwd_args
     void* lse_ptr;
     void* o_ptr;
 
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
     // Optional cumulative sequence length arrays
     // Batch mode: cu_seqlen_* override effective per-batch lengths (exclude PAD)
     const ck_tile::index_t* cu_seqlen_q_ptr  = nullptr; // [batch+1]
     const ck_tile::index_t* cu_seqlen_kv_ptr = nullptr; // [batch+1]
+#endif
 
     const void* seqstart_q_ptr;
     const void* seqstart_k_ptr;
@@ -193,8 +195,10 @@ struct fmha_fwd_args
         seqlen_k_ptr; // only used if both 'seqstart_q_ptr' & 'seqstart_k_ptr' are not nullptr
 
     // Group mode: seqstart_padded_* provide physical starts including PAD (optional)
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
     const void* seqstart_padded_q_ptr = nullptr; // [batch+1]
     const void* seqstart_padded_k_ptr = nullptr; // [batch+1]
+#endif
 
     ck_tile::index_t seqlen_q;
     ck_tile::index_t seqlen_k;
@@ -583,9 +587,13 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.min_seqlen_q,
                                              args.p_drop,
                                              args.s_randval,
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
                                              args.drop_seed_offset,
                                              args.seqstart_padded_q_ptr,
                                              args.seqstart_padded_k_ptr);
+#else
+                                             args.drop_seed_offset);
+#endif
         }
         else
         { // create batch mode kernel arguments
@@ -631,9 +639,13 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.mask_type,
                                              args.p_drop,
                                              args.s_randval,
+#if CK_TILE_FMHA_ENABLE_SEQLEN_PADDING
                                              args.drop_seed_offset,
                                              args.cu_seqlen_q_ptr,
                                              args.cu_seqlen_kv_ptr);
+#else
+                                             args.drop_seed_offset);
+#endif
         }
     }();
 
