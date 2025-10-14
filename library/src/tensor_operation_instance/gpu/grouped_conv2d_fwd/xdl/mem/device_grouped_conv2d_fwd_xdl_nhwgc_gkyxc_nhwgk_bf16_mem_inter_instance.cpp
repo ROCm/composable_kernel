@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/library/tensor_operation_instance/add_device_operation_instance.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_conv_fwd/device_grouped_conv_fwd_xdl_mem_instance.hpp"
@@ -48,15 +48,6 @@ void add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_bf16_mem_inter_instance
                                                                                   Empty_Tuple,
                                                                                   NHWGK,
                                                                                   ConvFwd1x1S1P0,
-                                                                                  Interwave>{});
-
-    add_device_operation_instances(instances,
-                                   device_grouped_conv_fwd_xdl_bf16_mem_instances<2,
-                                                                                  NHWGC,
-                                                                                  GKYXC,
-                                                                                  Empty_Tuple,
-                                                                                  NHWGK,
-                                                                                  ConvFwdOddC,
                                                                                   Interwave>{});
 }
 

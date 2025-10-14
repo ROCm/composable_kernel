@@ -23,6 +23,8 @@ void add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f16_instances(
                                                                   PassThrough,
                                                                   PassThrough>>>& instances)
 {
+#if CK_BUILD_DEPRECATED
+#pragma message "These instances are getting deprecated"
     // 1. Default
     add_device_operation_instances(
         instances,
@@ -41,6 +43,10 @@ void add_device_grouped_conv2d_bwd_data_xdl_gnhwk_gkyxc_gnhwc_f16_instances(
                                                              Empty_Tuple,
                                                              GNHWC,
                                                              ConvBwdDataFilter1x1Stride1Pad0>{});
+#else
+#pragma message "These instances were deprecated"
+    std::ignore = instances;
+#endif
 }
 
 } // namespace instance

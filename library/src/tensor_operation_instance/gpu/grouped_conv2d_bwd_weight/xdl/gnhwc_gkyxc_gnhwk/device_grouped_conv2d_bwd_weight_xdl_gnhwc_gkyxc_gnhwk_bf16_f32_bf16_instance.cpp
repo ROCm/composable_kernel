@@ -22,6 +22,8 @@ void add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_bf16_f32_bf16_in
                                                            PassThrough,
                                                            PassThrough>>>& instances)
 {
+#if CK_BUILD_DEPRECATED
+#pragma message "These instances are getting deprecated"
     // 1. Default
     add_device_operation_instances(
         instances,
@@ -40,6 +42,10 @@ void add_device_grouped_conv2d_bwd_weight_xdl_gnhwc_gkyxc_gnhwk_bf16_f32_bf16_in
             GKYXC,
             GNHWK,
             ConvBwdWeightFilter1x1Stride1Pad0>{});
+#else
+#pragma message "These instances were deprecated"
+    std::ignore = instances;
+#endif
 }
 
 } // namespace instance

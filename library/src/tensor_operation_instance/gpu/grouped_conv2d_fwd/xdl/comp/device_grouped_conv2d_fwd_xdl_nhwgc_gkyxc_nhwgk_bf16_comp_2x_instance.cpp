@@ -52,15 +52,6 @@ void add_device_grouped_conv2d_fwd_xdl_nhwgc_gkyxc_nhwgk_bf16_comp_2x_instances(
                                                                Empty_Tuple,
                                                                NHWGK,
                                                                ConvFwd1x1S1P0>{});
-
-        add_device_operation_instances(
-            instances,
-            device_grouped_conv_fwd_xdl_bf16_comp_instances_2x<2,
-                                                               NHWGC,
-                                                               GKYXC,
-                                                               Empty_Tuple,
-                                                               NHWGK,
-                                                               ConvFwdOddC>{});
     }
 }
 
