@@ -67,8 +67,6 @@
     },
     "scheduler": {
       "values": [
-        "interwave",
-        "intrawave",
         "default"
       ]
     },

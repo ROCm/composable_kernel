@@ -54,9 +54,7 @@
     },
     "scheduler": {
       "values": [
-        "intrawave",
-        "default",
-        "interwave"
+        "default"
       ]
     },
     "epilogue": {
