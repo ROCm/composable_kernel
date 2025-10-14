@@ -197,11 +197,11 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
 
                 if(do_verification)
                 {
+                    weight_dev_buf.FromDevice(weight.data());
                     ck_tile::HostTensor<WeiDataType> weight_host_ref(wei_g_k_c_xs_desc);
                     weight_host_ref.SetZero();
 
-                    ck_tile::
-                        reference_grouped_conv_bwd_weight<NDimSpatial, InDataType, WeiDataType, OutDataType>(
+                    ck_tile::reference_grouped_conv_bwd_weight<NDimSpatial, InDataType, WeiDataType, OutDataType>(
                             input,
                             weight_host_ref,
                             output,
