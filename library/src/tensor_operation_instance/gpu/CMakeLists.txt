@@ -207,7 +207,11 @@ set(CK_DEVICE_GEMM_INSTANCES)
 set(CK_DEVICE_MHA_INSTANCES)
 set(CK_DEVICE_CONTRACTION_INSTANCES)
 set(CK_DEVICE_REDUCTION_INSTANCES)
-set(CONV_LIBS "old" "gnwc" "nwgc" "nhwgc" "ngchw" "gnhwc" "gndhwc" "ndhwgc" "ngcdhw")
+if(NOT MIOPEN_REQ_LIBS_ONLY)
+    set(CONV_LIBS "old" "gnwc" "nwgc" "nhwgc" "ngchw" "gnhwc" "gndhwc" "ndhwgc" "ngcdhw")
+else()
+    set(CONV_LIBS "old" "nhwgc" "ndhwgc")
+endif()
 foreach(lib ${CONV_LIBS})
     set(CK_DEVICE_CONV_"${lib}"_INSTANCES)
 endforeach()
@@ -326,7 +330,7 @@ FOREACH(subdir_path ${dir_list})
 
         if(MIOPEN_REQ_LIBS_ONLY)
             message(STATUS "Removing all sources that are not required for MIOpen")
-            if(NOT "${cmake_instance}" MATCHES "conv")
+            if(NOT "${cmake_instance}" MATCHES "device_conv|device_grouped_convnd|device_grouped_conv2d_nhwgc|device_grouped_conv3d_ndhwgc")
                 set(add_inst 0)
             endif()
         endif()
@@ -616,6 +620,35 @@ if(NOT MIOPEN_REQ_LIBS_ONLY)
         device_other_operations
         device_reduction_operations
         utility)
+else()
+    add_library(device_conv_operations INTERFACE)
+    target_link_libraries(device_conv_operations INTERFACE
+        device_conv_nhwgc_operations
+        device_conv_ndhwgc_operations
+        device_conv_old_operations)
+    add_library(composablekernels::device_conv_operations ALIAS device_conv_operations)
+    add_library(composable_kernel::device_conv_operations ALIAS device_conv_operations)
+        target_compile_features(device_conv_operations INTERFACE)
+        set_target_properties(device_conv_operations PROPERTIES POSITION_INDEPENDENT_CODE ON)
+        set_target_properties(device_conv_operations
+            PROPERTIES
+            VERSION ${CMAKE_PROJECT_VERSION}
+            SOVERSION ${CMAKE_PROJECT_VERSION_MAJOR}
+        )
+      target_include_directories(device_conv_operations INTERFACE
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu>
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/conv_tensor_rearrange>
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_data>
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_bwd_weight>
+            $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/ck/library/tensor_operation_instance/gpu/grouped_conv_fwd>
+        )
+        rocm_install(TARGETS device_conv_operations
+            EXPORT device_conv_operationsTargets)
+        rocm_install(EXPORT device_conv_operationsTargets
+            FILE composable_kerneldevice_conv_operationsTargets.cmake
+            NAMESPACE composable_kernel::
+            DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/composable_kernel
+        )
 endif()
 
 set(DEV_OPS_INC_DIRS
