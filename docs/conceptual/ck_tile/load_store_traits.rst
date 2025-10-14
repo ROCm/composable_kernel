@@ -106,27 +106,35 @@ LoadStoreTraits employs a advanced algorithm to select the best dimension for ve
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
    
-   .. mermaid::
+.. 
+   Original mermaid diagram (edit here, then run update_diagrams.py)
    
-      graph TD
-          A[Analyze Distribution] --> B{Check Each Dimension}
-          B --> C[Calculate Stride]
-          C --> D{Stride == 1?}
-          D -->|Yes| E[Candidate for Vectorization]
-          D -->|No| F[Skip Dimension]
-          E --> G[Check Alignment]
-          G --> H[Check Vector Size]
-          H --> I[Score Dimension]
-          F --> B
-          I --> J[Select Best Dimension]
-          J --> K[Configure Vector Access]
-          
-          style A fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-          style J fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-          style K fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+      .. mermaid::
+      
+         graph TD
+             A[Analyze Distribution] --> B{Check Each Dimension}
+             B --> C[Calculate Stride]
+             C --> D{Stride == 1?}
+             D -->|Yes| E[Candidate for Vectorization]
+             D -->|No| F[Skip Dimension]
+             E --> G[Check Alignment]
+             G --> H[Check Vector Size]
+             H --> I[Score Dimension]
+             F --> B
+             I --> J[Select Best Dimension]
+             J --> K[Configure Vector Access]
+             
+             style A fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+             style J fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+             style K fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+      
+      
    
    
 
+.. image:: diagrams/load_store_traits_1.svg
+   :alt: Diagram
+   :align: center
 .. image:: diagrams/load_store_traits_1.svg
    :alt: Diagram
    :align: center
@@ -174,36 +182,44 @@ LoadStoreTraits creates efficient access patterns using space-filling curves:
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
    
-   .. mermaid::
+.. 
+   Original mermaid diagram (edit here, then run update_diagrams.py)
    
-      graph LR
-          subgraph "Linear Traversal"
-              L1["0→1→2→3"]
-              L2["4→5→6→7"]
-              L3["Cache miss"]
-              L4["8→9→10→11"]
-          end
-          
-          subgraph "Snake Pattern"
-              S1["0→1→2→3"]
-              S2["7←6←5←4"]
-              S3["Cache hit!"]
-              S4["8→9→10→11"]
-          end
-          
-          L1 --> L2
-          L2 --> L3
-          L3 --> L4
-          
-          S1 --> S2
-          S2 --> S3
-          S3 --> S4
-          
-          style L3 fill:#fee2e2,stroke:#ef4444,stroke-width:2px
-          style S3 fill:#d1fae5,stroke:#10b981,stroke-width:2px
+      .. mermaid::
+      
+         graph LR
+             subgraph "Linear Traversal"
+                 L1["0→1→2→3"]
+                 L2["4→5→6→7"]
+                 L3["Cache miss"]
+                 L4["8→9→10→11"]
+             end
+             
+             subgraph "Snake Pattern"
+                 S1["0→1→2→3"]
+                 S2["7←6←5←4"]
+                 S3["Cache hit!"]
+                 S4["8→9→10→11"]
+             end
+             
+             L1 --> L2
+             L2 --> L3
+             L3 --> L4
+             
+             S1 --> S2
+             S2 --> S3
+             S3 --> S4
+             
+             style L3 fill:#fee2e2,stroke:#ef4444,stroke-width:2px
+             style S3 fill:#d1fae5,stroke:#10b981,stroke-width:2px
+      
+      
    
    
 
+.. image:: diagrams/load_store_traits_2.svg
+   :alt: Diagram
+   :align: center
 .. image:: diagrams/load_store_traits_2.svg
    :alt: Diagram
    :align: center

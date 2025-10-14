@@ -20,36 +20,44 @@ For the mathematical foundations of coordinate systems, see :ref:`ck_tile_coordi
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
    
-   .. mermaid::
+.. 
+   Original mermaid diagram (edit here, then run update_diagrams.py)
    
-      graph TB
-          subgraph "Coordinate Movement System"
-              TC["TensorCoordinate<br/>Position + Descriptor Context"]
-              TAC["TensorAdaptorCoordinate<br/>Position + Transform Context"]
-              MC["move_coordinate()<br/>Efficient Navigation"]
-          end
-          
-          subgraph "Movement Example"
-              S["Start: [1,1]<br/>Offset: 5"]
-              M1["Move [0,1]<br/>→ [1,2]<br/>Offset: 6"]
-              M2["Move [1,0]<br/>→ [2,2]<br/>Offset: 10"]
-              M3["Move [1,1]<br/>→ [3,3]<br/>Offset: 15"]
-          end
-          
-          TC --> MC
-          TAC --> MC
-          
-          S --> M1
-          M1 --> M2
-          M2 --> M3
-          
-          style TC fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
-          style TAC fill:#fff3e0,stroke:#f57c00,stroke-width:2px
-          style MC fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
-   
+      .. mermaid::
+      
+         graph TB
+             subgraph "Coordinate Movement System"
+                 TC["TensorCoordinate<br/>Position + Descriptor Context"]
+                 TAC["TensorAdaptorCoordinate<br/>Position + Transform Context"]
+                 MC["move_coordinate()<br/>Efficient Navigation"]
+             end
+             
+             subgraph "Movement Example"
+                 S["Start: [1,1]<br/>Offset: 5"]
+                 M1["Move [0,1]<br/>→ [1,2]<br/>Offset: 6"]
+                 M2["Move [1,0]<br/>→ [2,2]<br/>Offset: 10"]
+                 M3["Move [1,1]<br/>→ [3,3]<br/>Offset: 15"]
+             end
+             
+             TC --> MC
+             TAC --> MC
+             
+             S --> M1
+             M1 --> M2
+             M2 --> M3
+             
+             style TC fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+             style TAC fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+             style MC fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+      
+      
+      
    
    
 
+.. image:: diagrams/coordinate_movement.svg
+   :alt: Diagram
+   :align: center
 .. image:: diagrams/coordinate_movement.svg
    :alt: Diagram
    :align: center

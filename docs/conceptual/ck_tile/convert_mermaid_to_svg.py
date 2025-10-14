@@ -31,11 +31,16 @@ RST_FILES = [
     'descriptors.rst',
     'coordinate_movement.rst',
     'adaptors.rst',
+    'introduction_motivation.rst',
+    'buffer_views.rst',
+    'tensor_views.rst',
+    'coordinate_systems.rst',
+    'tile_distribution.rst',
 ]
 
-# Pattern to find mermaid blocks
+# Pattern to find mermaid blocks (can be indented with 3 spaces for commented blocks)
 MERMAID_PATTERN = re.compile(
-    r'^\.\. mermaid::\s*\n((?:(?:\n|   .*))*)',
+    r'^(?:   )?\.\. mermaid::\s*\n((?:(?:\n|   .*))*)',
     re.MULTILINE
 )
 
