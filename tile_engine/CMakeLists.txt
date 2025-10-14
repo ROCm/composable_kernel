@@ -3,3 +3,5 @@ include_directories(BEFORE
     )
 
 add_subdirectory(ops)
+
+add_subdirectory(01_gemm)

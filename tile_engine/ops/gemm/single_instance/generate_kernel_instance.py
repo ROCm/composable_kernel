@@ -1,7 +1,27 @@
-
 class GemmKernelBuilder:
 
     def _generate_kernel_instance(self, is_header=True):
+
+        # Map pipeline names to base pipeline for hot loop detection
+        base_pipeline_map = {
+            "mem": "ck_tile::BaseGemmPipelineAgBgCrMem",
+            "compv3": "ck_tile::BaseGemmPipelineAgBgCrCompV3",
+            "compv4": "ck_tile::BaseGemmPipelineAgBgCrCompV4",
+        }      
+
+        # Map pipeline names to the correct pipeline implementation
+        pipeline_impl_map = {
+            "mem": "ck_tile::GemmPipelineAgBgCrMem",
+            "compv3": "ck_tile::GemmPipelineAgBgCrCompV3",
+            "compv4": "ck_tile::GemmPipelineAgBgCrCompV4",
+        }          
+
+        # Map scheduler names to the correct enum values
+        scheduler_type_map = {
+            "intrawave": "ck_tile::GemmPipelineScheduler::Intrawave",
+            "interwave": "ck_tile::GemmPipelineScheduler::Interwave",
+            "default": "ck_tile::GemmPipelineScheduler::Default",
+        }
 
         a_type = "ck_tile::fp16_t"
         b_type = "ck_tile::fp16_t"
@@ -14,18 +34,35 @@ class GemmKernelBuilder:
         b_layout = "ck_tile::tensor_layout::gemm::ColumnMajor"
         c_layout = "ck_tile::tensor_layout::gemm::RowMajor"
 
-        # BlkTile: 128x256x64
+        # BlkTile: 128x256x64, WaveMap: 4x4, WaveTile: 16x16,         
         tile_config = {
             "tile_m": 128,
             "tile_n": 256,
             "tile_k": 64,
-            "warp_m": warp_m,
-            "warp_n": warp_n,
-            "warp_k": warp_k,
-            "warp_tile_m": warp_tile_m,
-            "warp_tile_n": warp_tile_n,
-            "warp_tile_k": warp_tile_k,
+            "warp_m": 4,
+            "warp_n": 4,
+            "warp_k": 1,
+            "warp_tile_m": 16,
+            "warp_tile_n": 16,
+            "warp_tile_k": 16,
         }
+
+        pad_m = "false"
+        pad_n = "false"
+        pad_k = "false" 
+
+        persistent = "false"
+
+        # BlkGemmPipelineVersion: v1, -> ?????
+        pipeline="mem"
+
+        # BlkGemmPipelineScheduler: Intrawave
+        scheduler = "intrawave"
+
+        # DeviceGemm_Wmma_CShuffleV3<Default, RCR> 
+        epilogue = "cshuffle"
+
+        # VmemReadVec: 8x8  ->  ?????
 
         kernel_name = f"gemm"
 

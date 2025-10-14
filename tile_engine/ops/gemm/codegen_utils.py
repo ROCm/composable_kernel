@@ -71,7 +71,9 @@ CSHUFFLE_EPILOGUE = """
 """
 
 PIPELINE_MAP = {
-    "mem": ["ck_tile::BaseGemmPipelineAgBgCrMem", "ck_tile::GemmPipelineAgBgCrMem"],
+    "mem": ["ck_tile::BaseGemmPipelineAgBgCrMem", 
+            "ck_tile::GemmPipelineAgBgCrMem"
+    ],
     "compv3": [
         "ck_tile::BaseGemmPipelineAgBgCrCompV3",
         "ck_tile::GemmPipelineAgBgCrCompV3",
