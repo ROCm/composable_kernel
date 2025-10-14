@@ -605,6 +605,29 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         BlockwiseGemmPipe,
         BlockSize>;
 
+    template <typename ReduceTrait>
+    using EpilogueReduceCShuffle = EpilogueReduceCShuffle<
+        DsDataType,
+        EDataType,
+        AccDataType,
+        CShuffleDataType,
+        MPerBlock,
+        NPerBlock,
+        MPerWmma,
+        NPerWmma,
+        MRepeat,
+        NRepeat,
+        CShuffleMRepeatPerShuffle,
+        CShuffleNRepeatPerShuffle,
+        CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        CDEShuffleBlockTransferScalarPerVectors,
+        CDEElementwiseOperation,
+        ThisThreadBlock,
+        BlockwiseGemmPipe,
+        GemmSpec,
+        BlockSize,
+        ReduceTrait>;
+
     template <typename DEGridDesc>
     __device__ static constexpr auto MakeDEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
         const DEGridDesc& de_grid_desc_m_n, index_t MBlock, index_t NBlock)
