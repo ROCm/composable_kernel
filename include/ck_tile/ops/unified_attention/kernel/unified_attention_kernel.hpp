@@ -500,7 +500,7 @@ struct FmhaFwdV3Kernel
         auto o_dram_window =
             make_tile_window(o_dram,
                              make_tuple(BLOCK_M, HEAD_SIZE_PADDED),
-                             {q_block_global_idx * num_queries_per_kv * HEAD_SIZE_PADDED, 0});
+                             {query_pos * num_queries_per_kv, 0});
 
         EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr);
     }
