@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
@@ -96,4 +98,4 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmMultiD
 #define BUILD_INT4_EXAMPLE
 #include "run_batched_gemm_example.inc"
 
-int main(int argc, char* argv[]) { return !run_batched_gemm_example(argc, argv); }
+int main(int argc, char* argv[]) { return run_batched_gemm_example(argc, argv); }
