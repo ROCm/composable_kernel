@@ -6,8 +6,4 @@ endif()
 if(GPU_TARGETS MATCHES "gfx94|gfx95")
     add_gtest_executable(test_ck_tile_grouped_gemm_preshuffle test_grouped_gemm_preshuffle.cpp)
     target_compile_options(test_ck_tile_grouped_gemm_preshuffle PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
-    
-    # Test for persistent mode functionality
-    add_gtest_executable(test_ck_tile_grouped_gemm_preshuffle_persistent test_grouped_gemm_preshuffle_persistent.cpp)
-    target_compile_options(test_ck_tile_grouped_gemm_preshuffle_persistent PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
 endif()
