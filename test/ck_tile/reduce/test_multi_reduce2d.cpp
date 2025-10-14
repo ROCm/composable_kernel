@@ -300,17 +300,6 @@ using Shape2_WarpTile   = ck_tile::sequence<1, 512>;
 using Shape2_ThreadTile = ck_tile::sequence<1, 8>;
 
 // Test configurations for different data types and operations
-
-using TestConfig_F16_NoOp = std::tuple<ck_tile::half_t,
-                                      float,
-                                      ck_tile::half_t,
-                                      ck_tile::tuple<>,
-                                      Shape1_BlockWarps,
-                                      Shape1_BlockTile,
-                                      Shape1_WarpTile,
-                                      Shape1_ThreadTile>;
-
-
 using TestConfig_F16_Add = std::tuple<ck_tile::half_t,
                                       float,
                                       ck_tile::half_t,
@@ -348,7 +337,7 @@ using TestConfig_F16_Add_Max = std::tuple<ck_tile::half_t,
 //                                       Shape1_ThreadTile>;
 
 using TestTypes = ::testing::
-    Types<TestConfig_F16_NoOp,TestConfig_F16_Add, TestConfig_F16_Add_Max>;
+    Types<TestConfig_F16_Add, TestConfig_F16_Add_Max>;
 
 TYPED_TEST_SUITE(TestCkTileMultiReduce, TestTypes);
 

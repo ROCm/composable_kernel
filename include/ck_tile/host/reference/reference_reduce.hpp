@@ -109,15 +109,16 @@ CK_TILE_HOST void reference_reduce(const HostTensor<XDataType>& x_tensor,
     make_ParallelTensorFunctor(f, total_kept_elements)(std::thread::hardware_concurrency());
 }
 
-template <
-    typename XDataType,
-    typename ComputeDataType,
-    typename YDataType,
-    typename YRefTuple,
-    typename ReduceOps, // Expected type: ck_tile::tuple<...> containing reduce operations
-    typename KeptDim,   // Expected type: ck_tile::sequence<...> containing dimension indices to keep
-    typename ReduceDims // Expected type: ck_tile::sequence<...> containing dimension indices to reduce
->
+template <typename XDataType,
+          typename ComputeDataType,
+          typename YDataType,
+          typename YRefTuple,
+          typename ReduceOps, // Expected type: ck_tile::tuple<...> containing reduce operations
+          typename KeptDim, // Expected type: ck_tile::sequence<...> containing dimension indices to
+                            // keep
+          typename ReduceDims // Expected type: ck_tile::sequence<...> containing dimension indices
+                              // to reduce
+          >
 CK_TILE_HOST void reference_multiple_reduce(const HostTensor<XDataType>& x_tensor,
                                             YRefTuple& y_tensor_tuple,
                                             ReduceOps reduce_ops,
@@ -137,14 +138,12 @@ CK_TILE_HOST void reference_multiple_reduce(const HostTensor<XDataType>& x_tenso
         [&](auto i) { total_reduce_elements *= x_lengths[reduce_dims.at(i)]; });
 
     auto f = [&](auto linear_kept_idx) {
-
         // Initialize accumulators for each reduction operation
         auto v_acc_tuple = ck_tile::generate_tuple(
             [&](auto i) {
                 return reduce_ops.template at<i>().template GetIdentityValue<ComputeDataType>();
             },
-            number<reduce_ops.size()>{}
-        );
+            number<reduce_ops.size()>{});
 
         // Convert linear kept index to multi-dimensional kept indices
         std::vector<index_t> kept_indices(kept_dim.size());
@@ -194,7 +193,7 @@ CK_TILE_HOST void reference_multiple_reduce(const HostTensor<XDataType>& x_tenso
 
         // Store results for each reduction operation in the output tensor
         static_for<0, reduce_ops.size(), 1>{}([&](auto i) {
-            y_tensor_tuple.template at<i>()(y_indices) = 
+            y_tensor_tuple.template at<i>()(y_indices) =
                 type_convert<YDataType>(v_acc_tuple.template at<i>());
         });
     };

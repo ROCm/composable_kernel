@@ -69,16 +69,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<YDataType> y_host_add_ref({N, C}, {C, 1});
     ck_tile::HostTensor<YDataType> y_host_max_ref({N, C}, {C, 1});
     auto y_host_ref_tuple = ck_tile::make_tuple(y_host_add_ref, y_host_max_ref);
-    using YRefTuple = decltype(y_host_ref_tuple);
+    using YRefTuple       = decltype(y_host_ref_tuple);
 
     ck_tile::HostTensor<YDataType> y_host_add_dev({N, C}, {C, 1});
     ck_tile::HostTensor<YDataType> y_host_max_dev({N, C}, {C, 1});
     auto y_host_dev_tuple = ck_tile::make_tuple(y_host_add_dev, y_host_max_dev);
     // using YTuple = decltype(y_host_dev_tuple);
 
-    const auto number_operations = y_host_dev_tuple.size(); //y_host_dev_tuple.size();
-    
-    auto y_buf_size = number_operations * y_host_dev_tuple.at(ck_tile::number<0>{}).get_element_space_size_in_bytes();
+    const auto number_operations = y_host_dev_tuple.size(); // y_host_dev_tuple.size();
+
+    auto y_buf_size = number_operations *
+                      y_host_dev_tuple.at(ck_tile::number<0>{}).get_element_space_size_in_bytes();
     ck_tile::DeviceMem y_buf(y_buf_size);
 
     const auto output_tensor_offset = N * C;
@@ -89,7 +90,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     x_buf.ToDevice(x_host.data());
 
-    using ReduceOps   = ck_tile::tuple<ck_tile::ReduceOp::Add, ck_tile::ReduceOp::Max>;
+    using ReduceOps  = ck_tile::tuple<ck_tile::ReduceOp::Add, ck_tile::ReduceOp::Max>;
     using BlockWarps = ck_tile::sequence<4, 1>;
     using BlockTile  = ck_tile::sequence<128, 128>;
     using WarpTile   = ck_tile::sequence<32, 128>;
@@ -107,7 +108,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     using Kernel                      = ck_tile::MultiReduce<Problem>;
     const ck_tile::index_t kBlockSize = Kernel::BlockSize();
-    
+
     // Create input tensor shape and strides
     auto input_shape =
         ck_tile::make_tuple(problem_shape[0], problem_shape[1], problem_shape[2], problem_shape[3]);
@@ -131,8 +132,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                           input_strides,
                                           kept_dim,
                                           reduce_dims,
-                                          output_tensor_offset
-                                          ));
+                                          output_tensor_offset));
 
     std::size_t num_btype = sizeof(XDataType) * N * C * H * W + sizeof(YDataType) * N * C;
 
@@ -144,22 +144,24 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(do_validation)
     {
-        std::vector<YDataType> h(number_operations*N*C);
+        std::vector<YDataType> h(number_operations * N * C);
 
         // reference
         ck_tile::reference_multiple_reduce<XDataType, ComputeDataType, YDataType>(
             x_host, y_host_ref_tuple, ReduceOps{}, kept_dim, reduce_dims);
-        std::cout << "Read "<< y_buf_size/10 << " Bytes from the device" << std::endl;
+        std::cout << "Read " << y_buf_size / 10 << " Bytes from the device" << std::endl;
 
         // Transfer data from device and check error for each operation
         y_buf.FromDevice(h.data());
         ck_tile::static_for<0, number_operations, 1>{}([&](auto i) {
-            std::memcpy(y_host_dev_tuple.get(ck_tile::number<i>{}).data(), h.data() + i * output_tensor_offset, output_tensor_offset * sizeof(YDataType));
-            pass &= ck_tile::check_err(y_host_dev_tuple.get(ck_tile::number<i>{}), y_host_ref_tuple.get(ck_tile::number<i>{}));
+            std::memcpy(y_host_dev_tuple.get(ck_tile::number<i>{}).data(),
+                        h.data() + i * output_tensor_offset,
+                        output_tensor_offset * sizeof(YDataType));
+            pass &= ck_tile::check_err(y_host_dev_tuple.get(ck_tile::number<i>{}),
+                                       y_host_ref_tuple.get(ck_tile::number<i>{}));
         });
-        
-        std::cout << "valid:" << (pass ? "y" : "n") << std::flush << std::endl;
 
+        std::cout << "valid:" << (pass ? "y" : "n") << std::flush << std::endl;
     }
 
     return pass;

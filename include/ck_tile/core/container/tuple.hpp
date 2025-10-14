@@ -670,14 +670,11 @@ template <typename... Tuples>
 constexpr auto zip_tuples(const Tuples&... tuples)
 {
     static_assert(sizeof...(Tuples) > 0, "At least one tuple is required");
-    constexpr index_t tuple_size = std::decay_t<std::tuple_element_t<0, std::tuple<Tuples...>>>::size();
+    constexpr index_t tuple_size =
+        std::decay_t<std::tuple_element_t<0, std::tuple<Tuples...>>>::size();
     static_assert(((Tuples::size() == tuple_size) && ...), "All tuples must have the same size");
 
-    return generate_tuple(
-        [&](auto I) {
-            return make_tuple(tuples[I]...);
-        },
-        number<tuple_size>{});
+    return generate_tuple([&](auto I) { return make_tuple(tuples[I]...); }, number<tuple_size>{});
 }
 
 // Here should use MultiIndex<NSize>, instead of tuple<Ys...>, although the former

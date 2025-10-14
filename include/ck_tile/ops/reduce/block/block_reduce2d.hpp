@@ -319,7 +319,7 @@ struct MultiBlockReduce2dSync
         const size_t num_ops = std::tuple_size_v<remove_cvref_t<decltype(reduce_funcs)>>;
 
         static_for<0, num_ops, 1>{}([&](auto i) {
-            auto& y_compute_tile = y_compute_tuple.get(number<i>{});
+            auto& y_compute_tile    = y_compute_tuple.get(number<i>{});
             const auto& reduce_func = reduce_funcs.get(number<i>{});
 
             block_reduce2d_sync(y_compute_tile, reduce_func);
@@ -336,19 +336,19 @@ struct MultiBlockReduce2dSync
 template <typename Problem, typename Policy>
 struct MultiBlockReduce2dCrossWarpSync
 {
-    CK_TILE_DEVICE void operator()(auto& y_compute_tuple,
-                                   void* smem,
-                                   const auto& reduce_funcs) const
+    CK_TILE_DEVICE void
+    operator()(auto& y_compute_tuple, void* smem, const auto& reduce_funcs) const
     {
-        using S = typename Problem::BlockShape;
+        using S                     = typename Problem::BlockShape;
         constexpr index_t num_warps = S::BlockSize / get_warp_size();
-        const index_t lane_id = get_lane_id();
-        const index_t warp_id = get_warp_id();
+        const index_t lane_id       = get_lane_id();
+        const index_t warp_id       = get_warp_id();
 
         auto block_reduce2d_cross_warp_sync =
             Policy::template GetBlockReduce2dCrossWarpSync<Problem>();
 
-        // STAGE 1: Each warp's lane 0 writes its partial result for EACH operation to its own slice of smem
+        // STAGE 1: Each warp's lane 0 writes its partial result for EACH operation to its own slice
+        // of smem
         if(lane_id == 0)
         {
             ck_tile::apply(
@@ -369,13 +369,20 @@ struct MultiBlockReduce2dCrossWarpSync
         ck_tile::apply(
             [&](auto&&... t) {
                 (block_reduce2d_cross_warp_sync.template ReduceSmem<decltype(t.get(number<0>{}))>(
-                     smem, warp_id, num_warps, t.get(number<1>{}), t.get(number<2>{}), t.get(number<0>{})),
+                     smem,
+                     warp_id,
+                     num_warps,
+                     t.get(number<1>{}),
+                     t.get(number<2>{}),
+                     t.get(number<0>{})),
                  ...);
             },
-            zip_tuples(y_compute_tuple,
-                       ck_tile::make_index_sequence<
-                           std::tuple_size_v<remove_cvref_t<decltype(reduce_funcs)>>>(), // TODO: check tuple for compile time size (reduce_funcs.size() does not seems to work)
-                       reduce_funcs));
+            zip_tuples(
+                y_compute_tuple,
+                ck_tile::make_index_sequence<std::tuple_size_v<remove_cvref_t<
+                    decltype(reduce_funcs)>>>(), // TODO: check tuple for compile time size
+                                                 // (reduce_funcs.size() does not seems to work)
+                reduce_funcs));
     }
 };
 
@@ -432,8 +439,8 @@ struct MultiBlockReduce2dCrossWarpSync
 //         using DataType = typename YTensor::DataType;
 //         constexpr index_t thread_buf_size = YTensor::get_thread_buffer_size();
 //         const index_t smem_op_offset = op_idx * GetSmemSize<YTensor>();
-//         DataType* smem_ptr = reinterpret_cast<DataType*>(static_cast<char*>(smem) + smem_op_offset);
-//         const index_t smem_warp_offset = warp_id;
+//         DataType* smem_ptr = reinterpret_cast<DataType*>(static_cast<char*>(smem) +
+//         smem_op_offset); const index_t smem_warp_offset = warp_id;
 
 //         static_for<0, thread_buf_size, 1>{}([&](auto i) {
 //             smem_ptr[smem_warp_offset + i * num_warps] = y_tensor.get_thread_buffer()[i];
@@ -454,7 +461,8 @@ struct MultiBlockReduce2dCrossWarpSync
 //         constexpr auto num_reduce_warps = GetReduceWarps<YTensor>();
 
 //         const index_t smem_op_offset = op_idx * GetSmemSize<YTensor>();
-//         DataType* smem_ptr = reinterpret_cast<DataType*>(static_cast<char*>(smem) + smem_op_offset);
+//         DataType* smem_ptr = reinterpret_cast<DataType*>(static_cast<char*>(smem) +
+//         smem_op_offset);
 
 //         index_t local_warp_id = warp_id / num_reduce_warps;
 //         index_t local_smem_os = local_warp_id * num_reduce_warps;
