@@ -29,6 +29,7 @@ struct FmhaFwdV3Kernel
     using VDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::VDataType>;
     using ODataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::ODataType>;
     using SaccDataType = ck_tile::remove_cvref_t<typename FmhaPipeline::SaccDataType>;
+    using FmhaMask                 = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
 
     static constexpr bool kIsGroupMode = FmhaPipeline::kIsGroupMode;
     static constexpr bool kPadSeqLenQ  = FmhaPipeline::kPadSeqLenQ;
@@ -339,14 +340,14 @@ struct FmhaFwdV3Kernel
         ODataType* o_ptr = reinterpret_cast<ODataType*>(kargs.o_ptr) + o_ptr_offset;
         
 
-        index_t seq_len_padded = integer_divide_ceil(seq_len, BLOCK_Q) * BLOCK_Q;
-        const bool is_seq_len_aligned = (seq_len % BLOCK_Q == 0);
+        index_t query_len_padded = integer_divide_ceil(cur_batch_query_len, BLOCK_Q) * BLOCK_Q;
+        const bool is_query_len_padded = (cur_batch_query_len % BLOCK_Q == 0);
 
         // Q/K/V DRAM and DRAM window
         const auto q_dram = [&]() {
             const auto q_dram_base = make_naive_tensor_view<address_space_enum::global>(
                 q_ptr,
-                make_tuple(seq_len, num_queries_per_kv, HEAD_SIZE),
+                make_tuple(cur_batch_query_len, num_queries_per_kv, HEAD_SIZE),
                 make_tuple(kargs.query_stride_0, kargs.query_stride_1, 1),
                 number<FmhaPipeline::kAlignmentQ>{},
                 number<1>{});
@@ -355,14 +356,14 @@ struct FmhaFwdV3Kernel
                 q_dram_base,
                 // block sizes
                 make_tuple(BLOCK_Q, 1, HEAD_SIZE_PADDED),
-                sequence<is_seq_len_aligned, false, kPadHeadDimQ>{}
+                sequence<is_query_len_padded, false, kPadHeadDimQ>{}
             ); // pads to (seq_len_padded, num_head_q, HEAD_SIZE_PADDED)
 
             const auto q_dram_merged = transform_tensor_view(
                         q_dram_pad,
                         make_tuple(
                             make_merge_transform(
-                                make_tuple(seq_len_padded, num_queries_per_kv)
+                                make_tuple(query_len_padded, num_queries_per_kv)
                             ),
                             make_pass_through_transform(HEAD_SIZE_PADDED)
                         ),
@@ -444,6 +445,18 @@ struct FmhaFwdV3Kernel
 
         auto v_dram_window = make_tile_window(
             v_dram, make_tuple(BLOCK_SIZE, HEAD_SIZE_PADDED), {0, 0});
+        
+        FmhaMask mask = [&]() {
+            if constexpr(kHasMask)
+                return ck_tile::make_generic_attention_mask_from_lr_window<FmhaMask>(
+                    kargs.BLOCK_M,
+                    kargs.BLOCK_SIZE,
+                    cur_batch_query_len,
+                    seq_len,
+                    kargs.mask_type == GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT);
+            else
+                return FmhaMask{cur_batch_query_len, seq_len};
+        }();
         
         auto o_acc_tile = [&]() {
             return FmhaPipeline{}(q_dram_window,
