@@ -2,6 +2,14 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 
+#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
+#ifdef CLANGD_COMPAT
+#include "grouped_convolution_utils.hpp"
+#endif
+
+namespace el       = ck_tile::element_wise;
+using BiasAndClamp = el::Compose<el::Bias, el::Clamp>;
+
 template <ck_tile::index_t NDimSpatial,
           typename GemmWarpConfig,
           typename Invoker,
@@ -27,8 +35,8 @@ float invoke_grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args,
                                                         OutLayout,
                                                         ck_tile::tuple<>,
                                                         ck_tile::tuple<>,
-                                                        ck_tile::element_wise::Bias,
-                                                        1>(
+                                                        BiasAndClamp,
+                                                        BiasAndClamp::NumArgs>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::size_t flop     = args.GetFlops();
@@ -93,7 +101,9 @@ int run_grouped_conv_fwd_example_with_layouts(
     ck_tile::index_t init_method = arg_parser.get_int("init");
 
     const float bias                   = 3.f;
-    std::vector<float> elfunc_args_vec = {bias};
+    const float lower                  = -100.f;
+    const float upper                  = 100.f;
+    std::vector<float> elfunc_args_vec = {bias, lower, upper};
     const size_t num_elfunc_args       = elfunc_args_vec.size();
 
     const auto in_g_n_c_wis_desc =
@@ -150,8 +160,8 @@ int run_grouped_conv_fwd_example_with_layouts(
                                          kbatch,
                                          elfunc_args_dev_buf.GetDeviceBuffer());
 
-    std::cout << "Run Grouped Conv Fwd kernel with bias " << bias << " and clamp (min, max)."
-              << std::endl;
+    std::cout << "Run Grouped Conv Fwd kernel with bias " << bias << " and clamp (" << lower << ", "
+              << upper << ")." << std::endl;
     std::cout << "input: " << input.mDesc << std::endl;
     std::cout << "weight: " << weight.mDesc << std::endl;
     std::cout << "output: " << output.mDesc << std::endl;
@@ -175,6 +185,7 @@ int run_grouped_conv_fwd_example_with_layouts(
         ck_tile::HostTensor<OutDataType> output_host_ref(out_g_n_k_wos_desc);
         output_host_ref.SetZero();
 
+        BiasAndClamp elfunc = BiasAndClamp(bias, lower, upper);
         ck_tile::reference_grouped_conv_fwd<NDimSpatial, InDataType, WeiDataType, OutDataType>(
             input,
             weight,
@@ -182,7 +193,8 @@ int run_grouped_conv_fwd_example_with_layouts(
             conv_param.conv_filter_strides_,
             conv_param.conv_filter_dilations_,
             conv_param.input_left_pads_,
-            conv_param.input_right_pads_);
+            conv_param.input_right_pads_,
+            elfunc);
         const ck_tile::index_t GemmK = weight.get_element_size() / (conv_param.G_ * conv_param.K_);
         const float max_accumulated_value =
             *std::max_element(output_host_ref.mData.begin(), output_host_ref.mData.end());
