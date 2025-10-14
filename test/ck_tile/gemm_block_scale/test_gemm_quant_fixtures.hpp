@@ -26,6 +26,7 @@ struct GemmConfigBase
     static constexpr bool PreshuffleQuant           = false;
     static constexpr bool PreshuffleB               = false;
     static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr bool TiledMMAPermuteN          = false;
 
     // Default GEMM tile sizes for tests
     static constexpr ck_tile::index_t M_Tile = 16;
@@ -93,6 +94,12 @@ struct GemmConfigPreshuffleBPrefill : public GemmConfigBase
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = 64;
+};
+
+struct GemmConfigPreshuffleBPrefillTiledPermuteN : public GemmConfigPreshuffleBPrefill
+{
+    static constexpr int N_Repeat              = N_Tile / N_Warp_Tile / N_Warp;
+    static constexpr bool TiledMMAPermuteN     = N_Repeat % 2 == 0;
 };
 
 template <typename Tuple>
@@ -372,6 +379,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     static constexpr auto QuantType          = Base::QuantType;
     static constexpr uint32_t QuantGroupSize = Base::QuantGroupSize;
     static constexpr auto PreshuffleB        = Base::PreshuffleB;
+    static constexpr auto TiledMMAPermuteN   = Base::TiledMMAPermuteN;
 
     protected:
     void SetUpQuantTypeSpecific() {}
@@ -409,24 +417,35 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         // Copy to device
         a_m_k_dev_buf.ToDevice(a_m_k.data());
         ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
+        if constexpr(PreshuffleB)
+        {
+            if constexpr(TiledMMAPermuteN)
+            {
+                printf("PreshuffleB with TiledMMAPermuteN\n");
+                b_k_n_dev = this->shuffle_b_permuteN(b_k_n);
+            }
+            else
+            {
+                printf("PreshuffleB without TiledMMAPermuteN\n");
+                b_k_n_dev = this->shuffle_b(b_k_n);
+            }
+        }
         if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
         {
-            if constexpr(PreshuffleB)
-            {
-                b_k_n_dev = this->shuffle_b(b_k_n);
-            }
             ck_tile::permute_vectors_i4x4_b(b_k_n_dev);
-            b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
+        }
+
+        b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
+
+        if constexpr(PreshuffleB && TiledMMAPermuteN)
+        {
+            printf("Preshuffle BQ with TiledMMAPermuteN \n");
+            ck_tile::HostTensor<QDataType> bq_shuffle_host =
+                this->shuffle_bq_permuteN(bq_bqk_n);
+            bq_bqk_n_dev_buf.ToDevice(bq_shuffle_host.data());
         }
         else
-        {
-            if constexpr(PreshuffleB)
-            {
-                b_k_n_dev = this->shuffle_b(b_k_n);
-            }
-            b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
-        }
-        bq_bqk_n_dev_buf.ToDevice(bq_bqk_n.data());
+            bq_bqk_n_dev_buf.ToDevice(bq_bqk_n.data());
 
         // Create args for kernel execution
         ck_tile::QuantGemmHostArgs args{
@@ -559,7 +578,11 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
                                                  Base::N_Warp_Tile,
                                                  Base::K_Warp_Tile,
                                                  false, // transpose_c
-                                                 ck_tile::memory_operation_enum::set>>;
+                                                 ck_tile::memory_operation_enum::set,
+                                                 1,
+                                                 false,
+                                                 1,
+                                                 TiledMMAPermuteN>>;
 
             using Kernel = ck_tile::QuantGemmKernel<TilePartitioner,
                                                     GemmPipeline,

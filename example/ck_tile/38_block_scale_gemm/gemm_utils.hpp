@@ -93,6 +93,7 @@ struct GemmConfigBase
     static constexpr bool PreshuffleQuant  = false;
     static constexpr bool PreshuffleB      = false;
     static constexpr bool DoubleSmemBuffer = false;
+    static constexpr bool TiledMMAPermuteN = false;
 };
 
 template <typename PrecType>
