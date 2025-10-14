@@ -7,13 +7,11 @@
 #include <vector>
 #include <memory>
 
-//#include "ck_tile/ops/grouped_convolution/kernel/grouped_convolution_backward_weight_kernel.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/grouped_convolution.hpp" 
-//#include "ck_tile/library/tensor_operation_instance/gpu/tile_grouped_conv_bwd_weight_instances.hpp"
 
 namespace ck_tile {
 namespace ops {
@@ -35,6 +33,11 @@ struct GroupedConvolutionBackwardWeightBaseInvoker
     virtual bool IsSupportedArgument(const ck_tile::GroupedConvBwdWeightHostArgs& args) const = 0; 
     virtual float Run(const ck_tile::GroupedConvBwdWeightHostArgs& args, bool time_kernel) = 0;
     virtual std::string GetName() const = 0;
+    GroupedConvolutionBackwardWeightBaseInvoker() = default;
+    GroupedConvolutionBackwardWeightBaseInvoker(const GroupedConvolutionBackwardWeightBaseInvoker&) = default;
+    GroupedConvolutionBackwardWeightBaseInvoker& operator=(const GroupedConvolutionBackwardWeightBaseInvoker&) = default;
+    GroupedConvolutionBackwardWeightBaseInvoker(GroupedConvolutionBackwardWeightBaseInvoker&&) = default;
+    GroupedConvolutionBackwardWeightBaseInvoker& operator=(GroupedConvolutionBackwardWeightBaseInvoker&&) = default;
     virtual ~GroupedConvolutionBackwardWeightBaseInvoker() = default;
 };
 
@@ -87,14 +90,13 @@ struct GroupedConvolutionBackwardWeightInvoker :
                                                                 ConvSpec_,
                                                                 InLayout,
                                                                 WeiLayout,
-                                                                OutLayout, // = DsLayout
+                                                                ck_tile::tuple<>, // = DsLayout
                                                                 OutLayout,
                                                                 VectorSizeA,
                                                                 VectorSizeB,
                                                                 VectorSizeC>;
 
     using AccDataType = float;
-    using DsDataType = OutDataType;
     using CDEElementWise = ck_tile::element_wise::PassThrough;
 
     using CodegenPipelineProblem_ = ck_tile::GemmPipelineProblem<
@@ -120,7 +122,7 @@ struct GroupedConvolutionBackwardWeightInvoker :
     using ConvEpilogue_ = ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
                 InDataType,
                 WeiDataType,
-                DsDataType,
+                ck_tile::tuple<>, // = DsDataType,
                 AccDataType,
                 OutDataType,
                 typename GroupedConvTraitsType_::ImplicitGemmDsLayout,
@@ -171,8 +173,13 @@ struct GroupedConvolutionBackwardWeightInvoker :
         return Kernel::GetName();
     };
 
+    GroupedConvolutionBackwardWeightInvoker() = default;
+    GroupedConvolutionBackwardWeightInvoker(const GroupedConvolutionBackwardWeightInvoker&) = default;
+    GroupedConvolutionBackwardWeightInvoker& operator=(const GroupedConvolutionBackwardWeightInvoker&) = default;
+    GroupedConvolutionBackwardWeightInvoker(GroupedConvolutionBackwardWeightInvoker&&) = default;
+    GroupedConvolutionBackwardWeightInvoker& operator=(GroupedConvolutionBackwardWeightInvoker&&) = default;
     ~GroupedConvolutionBackwardWeightInvoker() override = default;
-};
+  };
 
 }
 }

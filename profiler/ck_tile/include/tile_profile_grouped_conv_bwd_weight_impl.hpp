@@ -161,13 +161,8 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                                                output_dev_buf.GetDeviceBuffer(),
                                                split_k_value);
 
-            //using Kernel = remove_cvref_t<decltype(op->Kernel())>;
-            
-            // auto kargs        = Kernel::MakeKernelArgs(args);
-            // const dim3 grids  = Kernel::GridSize(kargs);
-            // const dim3 blocks = Kernel::BlockSize();
-
-            if(op->IsSupportedArgument(args))
+            // Split-K autodeduction is not supported.                                   
+            if(op->IsSupportedArgument(args) && split_k_value >= 1)
             {
                 num_kernel++;
                 if((instance_index != -1) && (instance_index + 1 != num_kernel))
@@ -177,6 +172,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                 }
 
                 std::string op_name = op->GetName();
+                std::cout << op->GetName() << ", SplitK " << split_k_param_str << " is profiled..." << std::endl;
 
                 float avg_time = op->Run(args, time_kernel);
 
@@ -232,6 +228,11 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
 
                     all_pass &= pass;
                 }
+            }
+            else 
+            {
+                std::cout << op->GetName() << ", SplitK " << split_k_param_str
+                          << " does not support this problem." << std::endl;
             }
         }
     }

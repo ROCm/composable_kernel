@@ -13,7 +13,7 @@ void CK_TILE_ERROR(Args&&... args) noexcept
 {
     std::ostringstream oss;
     (oss << ... << args);
-    std::cerr << "[ERROR] " << oss.str() << std::endl;
+    std::cerr << "[CK TILE ERROR] " << oss.str() << std::endl;
 }
 
 namespace internal {

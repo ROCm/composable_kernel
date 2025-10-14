@@ -62,14 +62,6 @@ struct DeviceOperationInstanceFactory<GroupedConvolutionBackwardWeightBaseInvoke
             if constexpr(std::is_same_v<InLayout, NHWGC> && std::is_same_v<WeiLayout, GKYXC> &&
                          std::is_same_v<OutLayout, NHWGK>)
             {
-                if constexpr(std::is_same_v<InDataType, float> && 
-                             std::is_same_v<WeiDataType, float> &&
-                             std::is_same_v<OutDataType, float> && 
-                             std::is_same_v<ComputeTypeA, float> &&
-                             std::is_same_v<ComputeTypeB, float>)
-                {
-                    add_grouped_conv2d_bwd_weight_f32_instances(op_ptrs);
-                }
                 if constexpr(std::is_same_v<InDataType, ck_tile::half_t> && 
                              std::is_same_v<WeiDataType, ck_tile::half_t> &&
                              std::is_same_v<OutDataType, ck_tile::half_t> && 
