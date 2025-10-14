@@ -114,6 +114,13 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
     std::cout << "c_g_m_n: " << c_g_m_n_device_result.mDesc << std::endl;
     std::cout << "rotating count: " << rotating_count << std::endl;
 
+    static constexpr index_t BPackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
     switch(init_method)
     {
     case 0: break;
@@ -134,7 +141,8 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
     const auto c_element_op = CElementOp{};
 
     DeviceMem a_device_buf(sizeof(ADataType) * a_g_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_g_k_n_permute.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_g_k_n_permute.mDesc.GetElementSpaceSize() /
+                           BPackedSize);
     DeviceMem b1_device_buf(sizeof(BScaleDataType) * b1_g_k_n.mDesc.GetElementSpaceSize());
     DeviceMem c_device_buf(sizeof(CDataType) * c_g_m_n_device_result.mDesc.GetElementSpaceSize());
 
@@ -414,13 +422,6 @@ bool profile_batched_gemm_b_scale_impl(int do_verification,
                                                                rotating_count});
 
                 std::size_t flop = std::size_t(2) * M * N * K * BatchSize;
-
-                static constexpr index_t BPackedSize = []() {
-                    if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
-                        return 2;
-                    else
-                        return 1;
-                }();
 
                 std::size_t num_btype = sizeof(ADataType) * M * K +
                                         sizeof(BDataType) * K * N / BPackedSize +

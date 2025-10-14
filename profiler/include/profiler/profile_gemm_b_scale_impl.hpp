@@ -122,8 +122,16 @@ bool profile_gemm_b_scale_impl(int do_verification,
     const auto b_element_op = BElementOp{};
     const auto c_element_op = CElementOp{};
 
+    static constexpr index_t BPackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
     DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n_permute.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n_permute.mDesc.GetElementSpaceSize() /
+                           BPackedSize);
     DeviceMem b1_device_buf(sizeof(BScaleDataType) * b1_k_n.mDesc.GetElementSpaceSize());
     DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
@@ -376,13 +384,6 @@ bool profile_gemm_b_scale_impl(int do_verification,
                                                                rotating_count});
 
                 std::size_t flop = std::size_t(2) * M * N * K;
-
-                static constexpr index_t BPackedSize = []() {
-                    if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
-                        return 2;
-                    else
-                        return 1;
-                }();
 
                 std::size_t num_btype = sizeof(ADataType) * M * K +
                                         sizeof(BDataType) * K * N / BPackedSize +
