@@ -685,7 +685,7 @@ struct UnifiedAttentionPipeline
 
         auto K_mem_load = [&](auto k_lds_write_idx) {
             async_load_tile_raw(k_lds_window_store(k_lds_write_idx), k_dram_window);
-
+            // TODO maybe needs i_total_loops as argument. Or maybe needs to use the k_lds_write_idx as the index
             /// FIXME: use the future-predicting method to move the window
             // move K tile windows
             auto k_dram_window = make_tile_window(k_dram_window.get_bottom_tensor_view(),
