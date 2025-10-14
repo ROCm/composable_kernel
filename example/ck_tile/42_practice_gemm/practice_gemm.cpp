@@ -17,9 +17,9 @@ int main()
     using AccDataType = float;
 
     // ArgParser
-    ck_tile::index_t M            = 1024;
-    ck_tile::index_t N            = 512;
-    ck_tile::index_t K            = 256;
+    ck_tile::index_t M            = 2048;
+    ck_tile::index_t N            = 1024;
+    ck_tile::index_t K            = 512;
     ck_tile::index_t verification = 1;
 
     ck_tile::index_t stride_a = K;
