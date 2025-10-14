@@ -2,6 +2,7 @@ include_directories(AFTER
   ${CMAKE_CURRENT_LIST_DIR}
 )
 
+add_subdirectory(00_tutorials)
 add_subdirectory(01_fmha)
 add_subdirectory(02_layernorm2d)
 add_subdirectory(03_gemm)
@@ -23,4 +24,3 @@ add_subdirectory(20_grouped_convolution)
 add_subdirectory(21_elementwise)
 add_subdirectory(35_batched_transpose)
 add_subdirectory(38_block_scale_gemm)
-add_subdirectory(42_practice_gemm)
