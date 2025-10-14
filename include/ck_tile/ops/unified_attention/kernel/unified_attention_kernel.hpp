@@ -376,8 +376,8 @@ struct FmhaFwdV3Kernel
         // stride for dim 0 (num_queries_per_kv * head_dim, head_dim, 1)
         auto q_dram_window = make_tile_window(
             q_dram,
-            make_tuple(BLOCK_Q, HEAD_SIZE_PADDED),
-            {0, 0}
+            make_tuple(BLOCK_Q * num_queries_per_kv, HEAD_SIZE_PADDED),
+            {query_pos * num_queries_per_kv, 0}
         );
         
         const auto k_dram = [&]() {
