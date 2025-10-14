@@ -391,6 +391,8 @@ struct UnifiedAttentionPipeline
                                    [[maybe_unused]] const KElementFunction& k_element_func,
                                    const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
                                    [[maybe_unused]] const VElementFunction& v_element_func,
+                                   const void* block_tables_ptr,
+                                   index_t block_table_offset,
                                    LSEDramBlockWindowTmp& lse_dram_window_tmp, // M0*1 tile
                                    const LSEElementFunction& lse_element_func,
                                    [[maybe_unused]] const SAccElementFunction& s_acc_element_func,
@@ -401,6 +403,7 @@ struct UnifiedAttentionPipeline
                                    void* smem_ptr) const
     {
         using namespace ck_tile;
+
 
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -573,22 +576,26 @@ struct UnifiedAttentionPipeline
             }
         }
 
+        index_t i_total_loops      = 0;
+        index_t kv_blk_idx = block_tables_ptr[block_table_offset + i_total_loops]; 
+        index_t kv_blk_idx_prev = 0; 
+
+
         auto k_dram_window =
             make_tile_window(k_dram_block_window_tmp.get_bottom_tensor_view(),
                              k_dram_block_window_tmp.get_window_lengths(),
-                             {seqlen_k_start, 0},
+                             {(kv_blk_idx - kv_blk_idx_prev) * BLOCK_SIZE, 0},
                              Policy::template MakeKDramTileDistribution<Problem>());
         k_dram_window.init_raw();
 
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp.get_bottom_tensor_view(),
                              v_dram_block_window_tmp.get_window_lengths(),
-                             {seqlen_k_start, 0}, // TODO: hdim split?
+                             {(kv_blk_idx - kv_blk_idx_prev) * BLOCK_SIZE, 0}, // TODO: hdim split?
                              Policy::template MakeVDramTileDistribution<Problem>());
         v_dram_window.init_raw();
 
         // prefetch K tile
-        index_t i_total_loops      = 0;
         constexpr index_t k0_loops = kQKHeaddim / kK0;
         constexpr index_t k1_loops = kN0 / kK1;
         static_assert(1 == k0_loops);
@@ -678,10 +685,13 @@ struct UnifiedAttentionPipeline
 
         auto K_mem_load = [&](auto k_lds_write_idx) {
             async_load_tile_raw(k_lds_window_store(k_lds_write_idx), k_dram_window);
-
+            // TODO maybe needs i_total_loops as argument. Or maybe needs to use the k_lds_write_idx as the index
             /// FIXME: use the future-predicting method to move the window
             // move K tile windows
-            move_tile_window(k_dram_window, {kN0, 0});
+            auto k_dram_window = make_tile_window(k_dram_window.get_bottom_tensor_view(),
+                             k_dram_window.get_window_lengths(),
+                             {(block_tables_ptr[block_table_offset + i_total_loops]) * BLOCK_SIZE, 0},
+                             Policy::template MakeVDramTileDistribution<Problem>());        
         };
 
         auto K_lds_load = [&](auto k_lds_read_idx) {
@@ -692,7 +702,10 @@ struct UnifiedAttentionPipeline
             async_load_tile_raw(v_lds_window_store(v_lds_write_idx), v_dram_window);
 
             /// FIXME: use the future-predicting method to move the window
-            move_tile_window(v_dram_window, {kK1, 0});
+            auto v_dram_window = make_tile_window(v_dram_window.get_bottom_tensor_view(),
+                             v_dram_window.get_window_lengths(),
+                             {(block_tables_ptr[block_table_offset + i_total_loops]) * BLOCK_SIZE, 0},
+                             Policy::template MakeVDramTileDistribution<Problem>());    
         };
 
         auto V_lds_load = [&](auto v_lds_read_idx) {
@@ -1231,6 +1244,8 @@ struct UnifiedAttentionPipeline
     CK_TILE_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                                    const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
                                    const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
+                                   const void* block_tables_ptr,
+                                   index_t block_table_offset,
                                    LSEDramBlockWindowTmp& lse_dram_block_window_tmp,   // M0*1 tile
                                    FmhaMask mask,
                                    float scale_s,
@@ -1244,6 +1259,8 @@ struct UnifiedAttentionPipeline
                           identity{},
                           v_dram_block_window_tmp,
                           identity{},
+                          block_tables_ptr,
+                          block_table_offset,
                           lse_dram_block_window_tmp,
                           identity{},
                           identity{},
