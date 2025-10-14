@@ -251,6 +251,7 @@ struct StreamKTilePartitioner_v2<BlockGemmShapeType, ReductionStrategyType, true
                               ck_tile::index_t grid);
 
     public:
+    static constexpr bool PERSISTENT = true;
     /**
      * @brief Calculates the launching grid size for the Stream-K kernel. In the Persistent
      * case, no extra workgroups are allocated for the data parallel section, making the grid
@@ -297,6 +298,7 @@ struct StreamKTilePartitioner_v2<BlockGemmShapeType, ReductionStrategyType, fals
                               ck_tile::index_t grid);
 
     public:
+    static constexpr bool PERSISTENT = false;
     /**
      * @brief Calculates the launching grid size for the Stream-K kernel. In the Non-Persistent
      * case, extra workgroups are allocated for the data parallel section, making the grid

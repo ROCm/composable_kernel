@@ -63,6 +63,10 @@ struct StreamKKernel
     using GemmPipeline     = remove_cvref_t<GemmPipeline_>;
     using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
 
+    static_assert(
+        TilePartitioner::PERSISTENT == PersistentDP,
+        "Persistent flag from TilePartitioner must match Persistent flag from UniversalGemm.");
+
     /// @brief  Specify the layout configurations for A, B, and C
     using ALayout = remove_cvref_t<typename GemmPipeline::ALayout>;
     using BLayout = remove_cvref_t<typename GemmPipeline::BLayout>;
@@ -337,11 +341,29 @@ struct StreamKKernel
 
     /// @brief Entry point for the Stream-K Kernel with non-persistent DP.
     template <bool U = !PersistentDP, typename = std::enable_if_t<U>>
-    CK_TILE_DEVICE void operator()(StreamKKernelArgs /*kargs*/) const
+    CK_TILE_DEVICE void operator()(StreamKKernelArgs kargs) const
     {
+        // Allocate LDS
+        __shared__ char smem_ptr_0[UniversalGemmKernel::GetSmemSize()];
+
+        index_t block_idx   = ck_tile::get_block_1d_id();
+        index_t dp_num_loop = kargs.tile_partitioner.get_iters_per_tile();
+        index_t dp_ctas     = kargs.tile_partitioner.get_dp_ctas();
+        bool is_dp_ctas     = block_idx < kargs.tile_partitioner.get_dp_ctas();
+
+        // Check if at the data parallel section
+        if(is_dp_ctas)
+        {
+            GemmCommon(kargs, block_idx, dp_num_loop, 0, 0, kargs.K, smem_ptr_0);
+        }
+        else
+        {
+            // Stream-K
+            StreamKGemm(kargs, block_idx - dp_ctas, smem_ptr_0);
+        }
     }
 
-    /// @brief Entry point for the persistent Stream-K Kernel.
+    /// @brief Entry point for the Stream-K Kernel with persistent DP.
     template <bool U = PersistentDP, typename = std::enable_if_t<U>, typename = void>
     CK_TILE_DEVICE void operator()(StreamKKernelArgs kargs) const
     {
