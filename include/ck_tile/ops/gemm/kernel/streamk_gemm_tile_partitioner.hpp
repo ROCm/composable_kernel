@@ -186,6 +186,11 @@ struct StreamKTilePartitionerBase
      */
     CK_TILE_HOST_DEVICE index_t get_n() const noexcept;
 
+    /**
+     * @brief Returns an estimate of the number of workgroups writing to the same macro tile in C.
+     */
+    CK_TILE_HOST index_t estimate_num_wgs_per_tile() const noexcept;
+
     protected:
     index_t num_tiles_;
     index_t grid_;

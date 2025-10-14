@@ -320,8 +320,7 @@ struct StreamKKernel
             auto [i_k_a, i_k_b] = GetKOffsets<ALayout, BLayout>(
                 local_iter_start, kargs.stride_As[0], kargs.stride_Bs[0]);
 
-            if constexpr(TilePartitioner::StreamKReductionStrategy ==
-                         StreamKReductionStrategy::Atomic)
+            if constexpr(TilePartitioner::ReductionStrategy == StreamKReductionStrategy::Atomic)
             {
                 GemmCommon(kargs, tile_idx, num_loop_sk, i_k_a, i_k_b, k_size, smem_ptr_0);
             }
