@@ -198,7 +198,7 @@ def validate_lds_capacity(
     matrix_b_size = (tile_n * tile_k) * element_size(b_datatype)
     total_tile_in_lds = matrix_a_size + matrix_b_size
 
-    max_tile_size = 2**15 if pipeline == "preshufflev2" else 2**16
+    max_tile_size = 2**15 if pipeline in ["preshufflev2", "compv4"] else 2**16
 
     if total_tile_in_lds > max_tile_size:
         error_msg = (

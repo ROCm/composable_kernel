@@ -49,7 +49,6 @@
   "trait_config": {
     "pipeline": {
       "values": [
-        "preshufflev1",
         "preshufflev2"
       ]
     },
