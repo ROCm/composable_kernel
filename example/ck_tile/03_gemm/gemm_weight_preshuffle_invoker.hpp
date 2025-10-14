@@ -106,7 +106,10 @@ struct WeightPreshuffleInvoker
                                                  GemmConfig::K_Warp_Tile,
                                                  UniversalGemmProblem::TransposeC,
                                                  memory_operation,
-                                                 GemmConfig::NumWaveGroups>>;
+                                                 GemmConfig::NumWaveGroups,
+                                                 false,
+                                                 1,
+                                                 GemmConfig::TiledMMAPermuteN>>;
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 
@@ -191,10 +194,7 @@ struct WeightPreshuffleInvoker
             }
             else
             {
-                Run(has_hot_loop_,
-                    tail_number_,
-                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                               ck_tile::memory_operation_enum::atomic_add>{});
+                throw std::runtime_error("split-k is not supported yet!");
             }
         };
 

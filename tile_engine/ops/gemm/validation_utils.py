@@ -103,6 +103,36 @@ WARP_TILE_SUPPORTED_COMBINATIONS = {
             [32, 32, 64],
         ],
     },
+    "gfx1201": {
+        "fp16_fp16_fp16": [
+            [16, 16, 16],
+        ],
+    },    
+}
+
+# Supported warp tile combinations for different GPU architectures and data types
+WARP_SUPPORTED_COMBINATIONS = {
+    "gfx90a": [
+        [1, 4, 1], 
+        [2, 2, 1], 
+        [4, 1, 1],
+    ],
+    "gfx942": [
+        [1, 4, 1], 
+        [2, 2, 1], 
+        [4, 1, 1],
+    ],
+    "gfx950": [
+        [1, 4, 1], 
+        [2, 2, 1], 
+        [4, 1, 1],
+    ],
+    "gfx1201": [
+        [2, 4, 1], 
+        [1, 8, 1], 
+        [8, 1, 1], 
+        [4, 2, 1],
+    ],    
 }
 
 # Unsupported trait combinations
@@ -155,9 +185,32 @@ def is_trait_combination_valid(pipeline: str, epilogue: str, scheduler: str) -> 
     return (pipeline, epilogue, scheduler) not in TRAIT_UNSUPPORTED_COMBINATIONS
 
 
-def validate_warp_configuration(warp_m: int, warp_n: int, warp_k: int) -> bool:
+def validate_warp_configuration(
+    warp_m: int, 
+    warp_n: int, 
+    warp_k: int,
+    gpu_name: str = None,
+) -> bool:
     """Validate warp configuration."""
-    return (warp_m, warp_n, warp_k) in [(1, 4, 1), (2, 2, 1), (4, 1, 1)]
+    if gpu_name is None:
+        gpu_name = get_gpu_name_by_id(0)    
+
+    current_combination = [warp_m, warp_n, warp_k]
+
+    allowed_combinations = WARP_SUPPORTED_COMBINATIONS.get(gpu_name, {})
+    if not allowed_combinations:
+        # If GPU not recognized, try to be permissive but log warning
+        logging.warning(f"No warp_[m/n/k] combinations found for GPU: {gpu_name}")
+        return True
+
+    # Check if current combination is in the allowed list
+    if current_combination not in allowed_combinations:
+        error_msg = (
+            f"Invalid warp tile combination: {current_combination} not in allowed list. "
+        )
+        return False
+                
+    return True
 
 
 def validate_dimension_alignment(

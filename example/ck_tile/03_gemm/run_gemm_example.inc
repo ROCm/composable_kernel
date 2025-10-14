@@ -181,15 +181,15 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t)
 
     if(ck_tile::is_gfx12_supported())
     {
-        // TODO: Please modify it once kABK0PerLane is changed in WmmaTraitsBase<gfx12>
         constexpr int divisor      = 2;
-        constexpr int kABK0PerLane = 2;
+        constexpr int kABK1PerLane = 8;
+        constexpr int kABK0PerLane = GemmConfig::K_Warp_Tile / divisor / kABK1PerLane;
         ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
                                        GemmConfig::N_Warp_Tile,
                                        k_ / GemmConfig::K_Warp_Tile,
-                                       divisor,
                                        kABK0PerLane,
-                                       GemmConfig::K_Warp_Tile / divisor / kABK0PerLane});
+                                       divisor,
+                                       kABK1PerLane});
         std::copy(t.begin(), t.end(), t_view.begin());
         return ck_tile::reference_permute(t_view, {0, 2, 4, 1, 3, 5});
     }
@@ -300,16 +300,8 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
 
     if(init_method == 0)
     {
-        if constexpr(preshuffle)
-        {
-            ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_m_k);
-            ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_k_n);
-        }
-        else
-        {
-            ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
-            ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
-        }
+        ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
+        ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
     }
     else if(init_method == 1)
     {
@@ -353,6 +345,10 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
             }
         }();
         // shuffled buffer B for device implementation
+        if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+        {
+            ck_tile::permute_vectors_i4x4_b(b_shuffle_host);
+        }
         b_k_n_dev_buf.ToDevice(b_shuffle_host.data());
     }
     else
