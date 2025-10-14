@@ -377,7 +377,7 @@ struct FmhaFwdV3Kernel
         auto q_dram_window = make_tile_window(
             q_dram,
             make_tuple(BLOCK_Q, HEAD_SIZE_PADDED),
-            {q_block_global_idx * num_queries_per_kv * HEAD_SIZE_PADDED, 0}
+            {0, 0}
         );
         
         const auto k_dram = [&]() {
@@ -414,7 +414,7 @@ struct FmhaFwdV3Kernel
         auto k_dram_window = make_tile_window(
             k_dram, make_tuple(BLOCK_SIZE, HEAD_SIZE_PADDED), {0, 0});
 
-            const auto v_dram = [&]() {
+        const auto v_dram = [&]() {
             const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 v_ptr,
                 make_tuple(kargs.num_blks, BLOCK_SIZE, HEAD_SIZE),
