@@ -383,7 +383,12 @@ struct GroupedConvolutionBackwardWeightKernel
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
-        return concat('_', "grouped_convolution_backward_weight", gemm_prec_str<InDataType, WeiDataType>, GemmPipeline::GetName());
+        return concat('_', "grouped_convolution_backward_weight", 
+            gemm_prec_str<InDataType, WeiDataType>(),
+            "gemm",
+            GemmPipeline::GetName(),
+            "epilogue",
+            EpiloguePipeline::GetName());
         // clang-format on
     }
 
