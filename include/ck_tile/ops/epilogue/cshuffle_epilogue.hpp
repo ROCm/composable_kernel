@@ -9,9 +9,25 @@
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 #include <optional>
-#include <type_traits>
 
 namespace ck_tile {
+
+template <typename T>
+concept HasDataType = requires { typename T::DataType; };
+
+template <typename T>
+struct GetDataType
+{
+    using type = float;
+};
+
+template <typename T>
+    requires HasDataType<T>
+struct GetDataType<T>
+{
+    using type = typename T::DataType; // Use T::ScaleN::DataType
+};
+
 template <typename AsDataType_,
           typename BsDataType_,
           typename DsDataType_,
@@ -29,10 +45,11 @@ template <typename AsDataType_,
           index_t KPerXdl_,
           bool isCTransposed_,
           memory_operation_enum MemoryOperation_,
-          index_t kNumWaveGroups_ = 1,
-          bool FixedVectorSize_   = false,
-          index_t VectorSizeC_    = 1,
-          bool TiledMMAPermuteN_  = false>
+          index_t kNumWaveGroups_      = 1,
+          bool FixedVectorSize_        = false,
+          index_t VectorSizeC_         = 1,
+          bool TiledMMAPermuteN_       = false,
+          index_t BlockedXDLN_PerWarp_ = 1> // The number of continuous xdl_output per warp
 struct CShuffleEpilogueProblem
 {
     using AsDataType                                       = remove_cvref_t<AsDataType_>;
@@ -55,6 +72,7 @@ struct CShuffleEpilogueProblem
     static constexpr memory_operation_enum MemoryOperation = MemoryOperation_;
     static constexpr bool FixedVectorSize                  = FixedVectorSize_;
     static constexpr index_t VectorSizeC                   = VectorSizeC_;
+    static constexpr index_t BlockedXDLN_PerWarp           = BlockedXDLN_PerWarp_;
     static constexpr bool TiledMMAPermuteN                 = TiledMMAPermuteN_;
     static constexpr index_t kNumWaveGroups                = kNumWaveGroups_;
     static constexpr index_t NumDTensor                    = DsDataType::size();
@@ -107,6 +125,7 @@ struct CShuffleEpilogue
     static constexpr index_t isCTransposed                 = Problem::isCTransposed;
     static constexpr bool FixedVectorSize                  = Problem::FixedVectorSize;
     static constexpr bool TiledMMAPermuteN                 = Problem::TiledMMAPermuteN;
+    static constexpr index_t BlockedXDLN_PerWarp           = Problem::BlockedXDLN_PerWarp;
     static constexpr index_t VectorSizeC                   = Problem::VectorSizeC;
     static constexpr index_t MPerIteration                 = MPerXdl * MWave;
     static constexpr index_t NPerIteration                 = NPerXdl * NWave;
@@ -212,7 +231,8 @@ struct CShuffleEpilogue
         }
     }();
     static constexpr index_t NumMXdlPerWavePerShuffle = std::get<0>(shuffle_tile_tuple);
-    static constexpr index_t NumNXdlPerWavePerShuffle = std::get<1>(shuffle_tile_tuple);
+    static constexpr index_t NumNXdlPerWavePerShuffle =
+        max(BlockedXDLN_PerWarp, std::get<1>(shuffle_tile_tuple));
 
     static constexpr auto MNPerIterationShuffle = [] {
         constexpr index_t m_val = MPerXdl * MWave * NumMXdlPerWavePerShuffle;
@@ -265,14 +285,31 @@ struct CShuffleEpilogue
 
     CK_TILE_DEVICE static constexpr auto MakeLdsDistributionEncode()
     {
-        constexpr auto block_outer_dstr_encoding =
-            tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
-                                             sequence<NumNXdlPerWavePerShuffle, NWave>>,
-                                       tuple<sequence<1, 2>>,
-                                       tuple<sequence<1, 1>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 0>>{};
+        constexpr auto block_outer_dstr_encoding = [] {
+            if constexpr(BlockedXDLN_PerWarp == 1)
+            {
+                return tile_distribution_encoding<sequence<>,
+                                                  tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
+                                                        sequence<NumNXdlPerWavePerShuffle, NWave>>,
+                                                  tuple<sequence<1, 2>>,
+                                                  tuple<sequence<1, 1>>,
+                                                  sequence<1, 2>,
+                                                  sequence<0, 0>>{};
+            }
+            else
+            {
+                constexpr int RakedXDLN_PerWarp = NumNXdlPerWavePerShuffle / BlockedXDLN_PerWarp;
+                // BlockedLayout
+                return tile_distribution_encoding<
+                    sequence<>,
+                    tuple<sequence<NumMXdlPerWavePerShuffle, MWave>,
+                          sequence<RakedXDLN_PerWarp, NWave, BlockedXDLN_PerWarp>>,
+                    tuple<sequence<1, 2>>,
+                    tuple<sequence<1, 1>>,
+                    sequence<1, 2, 2>,
+                    sequence<0, 0, 2>>{};
+            }
+        }();
         constexpr auto block_dstr_encoding = detail::make_embed_tile_distribution_encoding(
             block_outer_dstr_encoding, typename CWarpDstr::DstrEncode{});
 
@@ -284,7 +321,7 @@ struct CShuffleEpilogue
         return MPerIterationShuffle * NPerIterationShuffle * sizeof(ODataType);
     }
 
-    template <index_t iAccess, typename LdsTile, typename ScaleM, typename ScaleN>
+    template <auto iAccess, typename LdsTile, typename ScaleM, typename ScaleN>
     CK_TILE_DEVICE void
     scale_tile(LdsTile& lds_tile, ScaleM& scale_m_window, ScaleN& scale_n_window)
     {
@@ -318,7 +355,7 @@ struct CShuffleEpilogue
             constexpr index_t num_access = SFC::get_num_of_access();
             if constexpr(iAccess != num_access - 1)
             {
-                constexpr auto step = SFC::get_forward_step(number<iAccess>{});
+                constexpr auto step = SFC::get_forward_step(iAccess);
 
                 move_tile_window(scale_m_window, {step.at(number<0>{}), step.at(number<1>{})});
                 move_tile_window(scale_n_window, {step.at(number<0>{}), step.at(number<1>{})});
@@ -326,10 +363,10 @@ struct CShuffleEpilogue
         }
     }
 
-    template <index_t iAccess, typename OAccTile, typename LdsTile>
+    template <auto iAccess, typename OAccTile, typename LdsTile>
     CK_TILE_DEVICE void slice_acc_tile(const OAccTile& o_acc_tile, LdsTile& lds_tile)
     {
-        constexpr auto idx_y_start = SFC::get_index(number<iAccess>{});
+        constexpr auto idx_y_start = SFC::get_index(iAccess);
 
         constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (MPerIterationShuffle)>{};
         constexpr auto nIter = number<idx_y_start.at(number<1>{}) / (NPerIterationShuffle)>{};
@@ -384,13 +421,13 @@ struct CShuffleEpilogue
     /**
      * @brief Move both the output and D tensors windows for the next access.
      */
-    template <index_t iAccess, typename OutDramWindow, typename DDramWindows>
+    template <auto iAccess, typename OutDramWindow, typename DDramWindows>
     CK_TILE_DEVICE void move_windows(OutDramWindow& out_dram_window, DDramWindows& d_dram_windows)
     {
         constexpr index_t num_access = SFC::get_num_of_access();
         if constexpr(iAccess != num_access - 1)
         {
-            constexpr auto step = SFC::get_forward_step(number<iAccess>{});
+            constexpr auto step = SFC::get_forward_step(iAccess);
 
             // move the output dram window
             move_tile_window(out_dram_window, {step.at(number<0>{}), step.at(number<1>{})});
@@ -407,18 +444,6 @@ struct CShuffleEpilogue
     {
     };
 
-    template <typename, typename = void>
-    struct ScaleDataType
-    {
-        using DataType = float;
-    };
-
-    template <typename T>
-    struct ScaleDataType<T, std::void_t<typename T::DataType>>
-    {
-        using DataType = typename T::DataType;
-    };
-
     template <typename ODramWindow,
               typename OAccTile,
               typename DsDramWindows,
@@ -433,13 +458,8 @@ struct CShuffleEpilogue
                                    const ScaleM& scale_m = {},
                                    const ScaleN& scale_n = {})
     {
-        static constexpr int RowsPerLane = CWarpTensor::get_thread_buffer_size();
-
-        static_assert(MPerXdl % RowsPerLane == 0,
-                      "CShuffle (permuteN): MPerXdl must be divisible by per-lane row count.");
-
         constexpr int kM0 = MWave;
-        constexpr int kM2 = RowsPerLane;
+        constexpr int kM2 = 4;
         constexpr int kM1 = MPerXdl / kM2;
 
         constexpr int kN0 = NWave;
@@ -476,8 +496,8 @@ struct CShuffleEpilogue
             std::is_same_v<ScaleM, AccDataType> && std::is_same_v<ScaleN, AccDataType>;
 
         // Tiles to hold row/col scales when present
-        using SMType = typename ScaleDataType<ScaleM>::DataType;
-        using SNType = typename ScaleDataType<ScaleN>::DataType;
+        using SMType = typename GetDataType<remove_cvref_t<ScaleM>>::type;
+        using SNType = typename GetDataType<remove_cvref_t<ScaleN>>::type;
 
         auto sm_tile = make_static_distributed_tensor<SMType>(dram_tile_distribution);
         auto sn_tile = make_static_distributed_tensor<SNType>(dram_tile_distribution);
@@ -520,25 +540,32 @@ struct CShuffleEpilogue
             // Pack 4 “rows per lane” as you already do
             static_for<0, NRepeat, 1>{}([&](auto n_idx) {
                 // source indices in shuffle_acc: (n_idx * product(Y) + row)
-                const index_t plane = c_warp_y_lengths.product();
+                const index_t base = n_idx * c_warp_y_lengths.product();
 
                 // local lambda to fuse scale (if present) and convert
-                static_for<0, kM2, 1>{}([&](auto m_lane) {
-                    const int src = n_idx * plane + m_lane;   // source row in this N-plane
-                    const int dst = n_idx + m_lane * NRepeat; // permuted N layout in output
-                    AccDataType v = shuffle_acc.get_thread_buffer()[src];
+                auto emit = [&](index_t out_idx, index_t src_row) {
+                    AccDataType v = shuffle_acc.get_thread_buffer()[base + src_row];
+
                     if constexpr(has_scalar_scales)
                     {
                         v = static_cast<AccDataType>(v * scale_m * scale_n);
                     }
                     else if constexpr(has_scales && !has_scalar_scales)
                     {
-                        const auto sm = static_cast<float>(sm_tile.get_thread_buffer()[dst]);
-                        const auto sn = static_cast<float>(sn_tile.get_thread_buffer()[dst]);
-                        v             = static_cast<AccDataType>(v * sm * sn);
+                        // same linear index mapping on the permuted distribution
+                        const auto s_m = static_cast<float>(sm_tile.get_thread_buffer()[out_idx]);
+                        const auto s_n = static_cast<float>(sn_tile.get_thread_buffer()[out_idx]);
+                        v              = static_cast<AccDataType>(v * s_m * s_n);
                     }
-                    c_out_tensor.get_thread_buffer()[dst] = type_convert<ODataType>(v);
-                });
+
+                    c_out_tensor.get_thread_buffer()[out_idx] = type_convert<ODataType>(v);
+                };
+
+                // Your current packing pattern (rows 0..3, spaced by NRepeat)
+                emit(n_idx + 0 * NRepeat, 0);
+                emit(n_idx + 1 * NRepeat, 1);
+                emit(n_idx + 2 * NRepeat, 2);
+                emit(n_idx + 3 * NRepeat, 3);
             });
 
             // store/update

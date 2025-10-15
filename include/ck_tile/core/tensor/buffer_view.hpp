@@ -247,7 +247,7 @@ struct buffer_view<address_space_enum::global,
         : p_data_{p_data},
           buffer_size_{buffer_size / PackedSize},
           cached_buf_res_{0},
-          invalid_element_value_{0}
+          invalid_element_value_{}
     {
     }
 
@@ -631,14 +631,24 @@ struct buffer_view<address_space_enum::global,
         bool constexpr use_amd_buffer_addressing =
             std::is_same_v<remove_cvref_t<scalar_t>, int32_t> ||
             std::is_same_v<remove_cvref_t<scalar_t>, float> ||
-            (std::is_same_v<remove_cvref_t<scalar_t>, half_t> && scalar_per_x_vector % 2 == 0);
+            (std::is_same_v<remove_cvref_t<scalar_t>, half_t> && scalar_per_x_vector % 2 == 0)
+#if defined(__gfx950__) // only gfx950 support atomic_pk_add_bf16
+            ||
+            (std::is_same_v<remove_cvref_t<scalar_t>, bfloat16_t> && scalar_per_x_vector % 2 == 0)
+#endif
+            ;
 #elif CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER && (!CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT)
         bool constexpr use_amd_buffer_addressing =
             std::is_same_v<remove_cvref_t<scalar_t>, int32_t>;
 #elif(!CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_INTEGER) && CK_TILE_USE_AMD_BUFFER_ATOMIC_ADD_FLOAT
         bool constexpr use_amd_buffer_addressing =
             std::is_same_v<remove_cvref_t<scalar_t>, float> ||
-            (std::is_same_v<remove_cvref_t<scalar_t>, half_t> && scalar_per_x_vector % 2 == 0);
+            (std::is_same_v<remove_cvref_t<scalar_t>, half_t> && scalar_per_x_vector % 2 == 0)
+#if defined(__gfx950__) // only gfx950 support atomic_pk_add_bf16
+            ||
+            (std::is_same_v<remove_cvref_t<scalar_t>, bfloat16_t> && scalar_per_x_vector % 2 == 0)
+#endif
+            ;
 #else
         bool constexpr use_amd_buffer_addressing = false;
 #endif
@@ -875,9 +885,10 @@ struct buffer_view<address_space_enum::lds,
         if(is_valid_element)
         {
 #if defined(__gfx950__)
-            constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
-            return amd_transpose_load_to_vgpr<remove_cvref_t<T>, t_per_x>(p_data_ + i +
-                                                                          linear_offset);
+            constexpr index_t t_per_x               = scalar_per_x_vector / scalar_per_t_vector;
+            constexpr address_space_enum addr_space = get_address_space();
+            return amd_transpose_load_to_vgpr<remove_cvref_t<T>, t_per_x, addr_space>(
+                p_data_ + i + linear_offset);
 #else
             return X{numeric<remove_cvref_t<T>>::zero()};
 #endif
