@@ -44,16 +44,9 @@ endif()
 set(DEVICE_INSTANCES "")
 
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1[12]")
-  list(APPEND DEVICE_INSTANCES device_grouped_convnd_bwd_weight_instance)
-  list(APPEND DEVICE_INSTANCES device_grouped_conv1d_bwd_weight_instance)
-  list(APPEND DEVICE_INSTANCES device_grouped_conv2d_bwd_weight_instance)
-  list(APPEND DEVICE_INSTANCES device_grouped_conv3d_bwd_weight_instance)
 endif()
 
 if(DL_KERNELS)
-  list(APPEND DEVICE_INSTANCES device_grouped_conv1d_bwd_weight_instance)
-  list(APPEND DEVICE_INSTANCES device_grouped_conv2d_bwd_weight_instance)
-  list(APPEND DEVICE_INSTANCES device_grouped_conv3d_bwd_weight_instance)
 endif()
 
 set(PROFILER_LIBS utility getopt::getopt)
