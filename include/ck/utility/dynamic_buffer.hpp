@@ -12,6 +12,7 @@
 #else
 #include "amd_buffer_addressing.hpp"
 #endif
+#include "amd_transpose_load.hpp"
 #include "generic_memory_space_atomic.hpp"
 
 namespace ck {
