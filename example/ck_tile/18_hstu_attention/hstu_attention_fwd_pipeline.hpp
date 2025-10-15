@@ -442,8 +442,8 @@ struct HstuAttentionFwdPipelineQRKSVS
                         const auto col = seqlen_k_curr + tile_idx.at(number<1>{});
                         constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
-                        pcomp_tile(i_j_idx) *=
-                            static_cast<CompDataType>(mask.IsTokenPairInsideMask(row, col));
+                        if(!mask.IsTokenPairInsideMask(row, col))
+                            pcomp_tile(i_j_idx) = static_cast<CompDataType>(0.0f);
                     });
                 });
             }
