@@ -170,7 +170,9 @@ struct GroupedConvolutionBackwardWeightInvoker :
 
     std::string GetName() const override
     {
-        return Kernel::GetName();
+        std::stringstream min_occupancy;
+        min_occupancy << "_blk_per_cu_" << kBlockPerCu;
+        return Kernel::GetName() + min_occupancy.str();
     };
 
     GroupedConvolutionBackwardWeightInvoker() = default;
