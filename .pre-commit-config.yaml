@@ -4,6 +4,20 @@ repos:
     hooks:
     -   id: clang-format
         types_or: [c++, inc]
+-   repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.0
+    hooks:
+    -   id: ruff-check
+        args: [ --fix ]
+        exclude: |
+            (?x)^(
+                docs/conf.py
+            )$
+    -   id: ruff-format
+        exclude: |
+            (?x)^(
+                docs/conf.py
+            )$
 -   repo: local
     hooks:
     # -   id: copyright-year-checker
@@ -18,26 +32,6 @@ repos:
         language: script
         types_or: [c++, text]
         verbose: true
-    -   id: ruff-check
-        name: Ruff Linter
-        entry: ruff check --fix
-        language: python
-        types: [python]
-        additional_dependencies: [ruff]
-        exclude: |
-            (?x)^(
-                docs/conf.py
-            )$
-    -   id: ruff-format
-        name: Ruff Formatter
-        entry: ruff format
-        language: python
-        types: [python]
-        additional_dependencies: [ruff]
-        exclude: |
-            (?x)^(
-                docs/conf.py
-            )$
     -   id: run-remod-if-ck-tile-changed
         name: Run remod.py if ck_tile files changed
         entry: script/remod_for_ck_tile.sh
