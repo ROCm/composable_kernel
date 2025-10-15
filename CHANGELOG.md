@@ -5,10 +5,12 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ## Composable Kernel 1.2.0 for ROCm 7.0.0
 
 ### Added
+* Added a compute async pipeline in the CK TILE universal GEMM on gfx950
 * Added support for B Tensor type pk_int4_t in the CK TILE weight preshuffle GEMM.
 * Added the new api to load different memory sizes to SGPR.
 * Added support for B Tensor Preshuffle in CK TILE Grouped GEMM.
 * Added a basic copy kernel example and supporting documentation for new CK Tile developers.
+* Added support for grouped_gemm kernels to perform multi_d elementwise operation.
 * Added support for bf16, f32, and f16 for 2D and 3D NGCHW grouped convolution backward data
 * Added a fully asynchronous HOST (CPU) arguments copy flow for CK grouped GEMM kernels.
 * Added support GKCYX layout for grouped convolution forward (NGCHW/GKCYX/NGKHW, number of instances in instance factory for NGCHW/GKYXC/NGKHW has been reduced).
@@ -34,6 +36,8 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added the row-wise column-wise quantization for CK_TILE GEMM & CK_TILE Grouped GEMM.
 * Added support for f32 to FMHA (fwd/bwd).
 * Added tensor-wise quantization for CK_TILE GEMM.
+* Added support for batched contraction kernel.
+* Added pooling kernel in CK_TILE
 
 ### Optimized
 

@@ -34,7 +34,8 @@ bool profile_max_pool2d_bwd_impl(int do_verification,
                                  std::vector<index_t> window_strides,
                                  std::vector<index_t> window_dilations,
                                  std::vector<index_t> input_left_pads,
-                                 std::vector<index_t> input_right_pads)
+                                 std::vector<index_t> input_right_pads,
+                                 index_t instance_index = -1)
 {
     // AtomicAdd only support f32 for now. ComputeDataType must be float32
     using ComputeDataType = float;
@@ -199,6 +200,11 @@ bool profile_max_pool2d_bwd_impl(int do_verification,
         {
             ++num_kernel;
             instance_found = true;
+            if((instance_index != -1) && (instance_index + 1 != num_kernel))
+            {
+                // skip test if instance_index is specified
+                continue;
+            }
         }
         else
         {
@@ -289,7 +295,11 @@ bool profile_max_pool2d_bwd_impl(int do_verification,
         std::cout << "Error: No kernel is applicable" << std::endl;
         return false;
     }
-
+    if(instance_index != -1)
+    {
+        std::cout << "max_pool2d_bwd_instance (" << instance_index << "/" << num_kernel
+                  << "): Passed" << std::endl;
+    }
     return pass && instance_found;
 }
 
