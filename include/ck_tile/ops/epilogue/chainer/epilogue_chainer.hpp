@@ -12,17 +12,15 @@ namespace ck_tile {
 ///
 /// @par Overview
 ///     EpilogueChainer provides an interface for processing epilogue operations
-///     through schedules. The chainer uses decomposed
-///     epilogue operations, these are
+///     through schedules. The chainer uses decomposed epilogue operations, these are
 ///     scheduled/sequenced by a Scheduler to form operation graphs.
 ///
 /// @tparam Scheduler The schedule provider that defines epilogue operation graphs
 template <typename Scheduler>
 struct EpilogueChainer
 {
-    using SelectScheduler = Scheduler;
-    using Problem         = typename Scheduler::ProblemType;
-    using BaseOp          = typename Scheduler::BaseOp;
+    using Problem = typename Scheduler::ProblemType;
+    using BaseOp  = typename Scheduler::BaseOp;
 
     using ODataType                       = typename BaseOp::ODataType;
     using DsDataType                      = typename BaseOp::DsDataType;

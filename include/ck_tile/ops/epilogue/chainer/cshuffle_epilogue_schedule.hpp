@@ -34,7 +34,6 @@ struct CshuffleEpilogueSchedule
 {
     using ProblemType = Problem;
     using BaseOp      = CShuffleEpilogueChainBaseOp<Problem>;
-    using Tag         = ScheduleTag;
 
     static constexpr index_t NumAccess = BaseOp::SFC::get_num_of_access();
 

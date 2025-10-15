@@ -155,7 +155,6 @@ struct CShuffleEpilogueChainBaseOp
         {
             static_assert(false, "Unsupported DLayout!");
         }
-        return max_vector_size / sizeof(DiDataType);
     }
     /**
      * @brief Shuffle tile configuration parameters
