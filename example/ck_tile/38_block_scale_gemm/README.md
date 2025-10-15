@@ -7,6 +7,15 @@ This folder contains examples of quant GEMMs using the ck_tile tile-programming 
 - Row and Column-wise scaled: All of the rowwise elements in A Matrix and columwise elements in B Matrix will share the same quantization element and the elementwisde operation will complete in epilogue.
 - Tensor-wise scaled: Share the same scalar scale across the whole tensor of A or B
 
+## Quantization Mode Comparison
+
+| Quant Mode | A Matrix Organization | A Scale Shape | B Matrix Organization | B Scale Shape |
+|------------|----------------------|---------------|----------------------|---------------|
+| **AQuant** | Blocks along K dimension<br/>Each M×GroupSize block shares one scale | `[M, K/GroupSize]` | Not quantized | N/A |
+| **BQuant** | Not quantized | N/A | Blocks along K dimension<br/>Each GroupSize×N block shares one scale | `[K/GroupSize, N]` |
+| **RowColQuant** | Per-row quantization<br/>All K elements in each row share one scale | `[M, 1]` | Per-column quantization<br/>All K elements in each column share one scale | `[1, N]` |
+| **TensorQuant** | Tensor-wise quantization<br/>All M×K elements share one scale | `[1]` | Tensor-wise quantization<br/>All K×N elements share one scale | `[1]` |
+
 ---
 
 ## Features
