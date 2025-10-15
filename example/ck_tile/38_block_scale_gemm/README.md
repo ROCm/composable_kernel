@@ -4,8 +4,18 @@ This folder contains examples of quant GEMMs using the ck_tile tile-programming 
 
 - AQuant kernel with blocks of A matrix sharing scales: custom GEMM pipeline
 - BQuant kernel with blocks of B matrix sharing scales: custom GEMM pipeline
-- Row and Column-wise scaled: scaling implemented in Epilogue
-- Tensor-wise scaled: scaling implemented in Epilogue
+- Row and Column-wise scaled: All of the rowwise elements in A Matrix and columwise elements in B Matrix will share the same quantization element and the elementwisde operation will complete in epilogue.
+- Tensor-wise scaled: Share the same scalar scale across the whole tensor of A or B
+
+---
+
+## Features
+
+- **Preshuffled GEMM**: Shuffle the GEMM of B (weight) matrix in the warp layout and bypass the shared memory to do the GEMM calculation. Best performance solution for GEMM.
+- **TransposeC**: Transpose the C Matrix Output layout to have the best coalesced scale reading
+- **Preshuffled Quant**: Preshuffle the input matrix to load multiple Quant warp blocks along the selected dimension.
+- **Precision**: Supports fp16, bf16, fp8, bf8, int4 (for B Matrix).
+- **Validation**: CPU/GPU validation and error tolerance options.
 
 ## build
 ```
