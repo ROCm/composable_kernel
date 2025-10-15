@@ -33,6 +33,7 @@
 #include <ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp>
 #include <ck/tensor_operation/gpu/device/impl/device_grouped_conv_bwd_data_multiple_d_xdl_cshuffle_v1.hpp>
 #include <ck_tile/builder/conv_signature.hpp>
+#include <ck_tile/builder/conv_algorithm.hpp>
 #include <ck_tile/builder/conv_algorithm_types.hpp>
 #include <ck_tile/builder/builder_utils.hpp>
 #include <ck_tile/builder/types.hpp>
@@ -406,6 +407,10 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
     static constexpr auto C_BLOCK_TRANSFER   = factory_internal::SetCBlockTransfer<SIGNATURE, ALGORITHM>();
     static constexpr auto PIPELINE_SCHEDULER = ck::BlockGemmPipelineScheduler::Intrawave;
     static constexpr auto PIPELINE_VERSION   = factory_internal::SetBlockGemmPipelineVersion<ALGORITHM>();
+
+    // Preconditions
+    static_assert(ValidVectorTransferC<C_BLOCK_TRANSFER>);
+
     // The forward convolution kernel class instance.
     using Instance =
         ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3< //

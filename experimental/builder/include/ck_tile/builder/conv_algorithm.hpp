@@ -86,12 +86,19 @@ concept VectorTransferDescriptorAB = requires(T t) {
 };
 
 // Concept for the C tensor vectors transfer details.
+template <auto Value>
+concept ValidVectorTransferC = requires {
+    requires Value.scaler_per_vector > 0 &&
+             Value.m_xdl_per_wave_per_shuffle > 0 &&
+             Value.n_xdl_per_wave_per_shuffle > 0 ;
+};
+
 template <typename T>
 concept VectorTransferDescriptorC = requires(T t) {
     { t.m_xdl_per_wave_per_shuffle } -> std::convertible_to<size_t>;
     { t.n_xdl_per_wave_per_shuffle } -> std::convertible_to<size_t>;
-    { t.scaler_per_vector } -> std::convertible_to<size_t>;
-};
+    { t.scaler_per_vector } -> std::convertible_to<size_t>; 
+}; 
 
 // Concept to check if a struct specifies A Block tranfer info.
 template <typename T>
