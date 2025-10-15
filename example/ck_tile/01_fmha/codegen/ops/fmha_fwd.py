@@ -244,14 +244,14 @@ class FmhaFwdApiTrait:
         if self.pipeline_tag in ['qr_async', 'qr_async_trload']:
             if self.spad == 't' : return 'true' # always support
             else :                return 'true'
-        elif self.pipeline_tag in ['qr', 'qs']:
+        elif self.pipeline_tag in ['qr', 'qs','qr_wholek_prefetch']:
             if self.spad == 't' : return f'true /*a.seqlen_q % {self.bm0} != 0*/'  # TODO: order of get_pipelines() matters! (ugly)
             else :                return f'a.seqlen_q % {self.bm0} == 0'
         else: assert False
 
     @property
     def seqtune(self) -> str:
-        if self.bm0 == 128: return 'true/*fall back to largest tile*/'                  # group mode only generate spad/skpad == true
+        if self.bm0 == 128 or self.bm0 == 64: return 'true/*fall back to largest tile*/'                  # group mode only generate spad/skpad == true
         else:
             return f'a.seqlen_q <= {self.bm0}'
 
@@ -261,7 +261,7 @@ class FmhaFwdApiTrait:
         if self.pipeline_tag == 'qr_async':
             if self.skpad == 't' : return f'(a.cu_seqlen_kv_ptr != nullptr) || (a.seqlen_k == 0 || a.seqlen_k % {self.bn0} != 0)'
             else :                 return f'(a.cu_seqlen_kv_ptr == nullptr) && (a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0)'
-        elif self.pipeline_tag in ['qr', 'qs']:
+        elif self.pipeline_tag in ['qr', 'qs','qr_wholek_prefetch']:
             if self.skpad == 't' : return f'true /*a.seqlen_k % {self.bn0} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
             else :                 return f'(a.cu_seqlen_kv_ptr == nullptr) && (a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0)'
         elif self.pipeline_tag == 'qr_async_trload':
@@ -275,7 +275,7 @@ class FmhaFwdApiTrait:
             vec = int((32 * 4) / DTYPE_BITS[self.dtype])
             if self.dpad == 't': return f'a.hdim_q % {vec} == 0'
             else :               assert False
-        elif self.pipeline_tag in ['qr', 'qs', 'qr_async_trload']:
+        elif self.pipeline_tag in ['qr', 'qs', 'qr_async_trload','qr_wholek_prefetch']:
             bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
             if self.dpad == 't': return f'true /*a.hdim_q % {bk0submax} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
             else :               return f'a.hdim_q % {bk0submax} == 0'
@@ -287,7 +287,7 @@ class FmhaFwdApiTrait:
             vec = int((32 * 4) / DTYPE_BITS[self.dtype])
             if self.dvpad == 't': return f'a.hdim_v % {vec} == 0'
             else :                assert False
-        elif self.pipeline_tag in ['qr', 'qs', 'qr_async_trload']:
+        elif self.pipeline_tag in ['qr', 'qs', 'qr_async_trload','qr_wholek_prefetch']:
             bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
             if self.dvpad == 't': return f'true /*a.hdim_v % {bk0submax} != 0*/' # TODO: order of get_pipelines() matters! (ugly)
             else :                return f'a.hdim_v % {bk0submax} == 0'
@@ -543,6 +543,7 @@ class KernelComponentFactory:
                 (96, 128) : [FmhaFwdTileSize(128, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 (128,128) : [FmhaFwdTileSize(16, 32, 64, 128, 32,  128,  1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
                              FmhaFwdTileSize(32, 32, 128, 128, 32,  128,  1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                             FmhaFwdTileSize(64, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 16,  -1,CppConstraint('get_num_blocks(128) < num_cus * min_cu_util_rate')),
                              FmhaFwdTileSize(128, 64, 32, 128, 16,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
                              FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 # (160,160) : [FmhaFwdTileSize(128, 128, 32, 160, 32,  160,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,   1)],
@@ -591,6 +592,9 @@ class KernelComponentFactory:
                         if (hdim, hdim_v) in [(64, 64), (128, 128)] and logits == "f" and bias == "no" and dropout == "f" and lse == "f" and skip == "f":
                             pipelines.append(FmhaFwdPipeline('qr_async_trload', 'row', 'f', 'f', 'f', 'f', logits, bias, lse, dropout, squant, mask, skip, 't'))
                             pipelines.append(FmhaFwdPipeline('qr_async_trload', 'row', 'f', 'f', 't', 't', logits, bias, lse, dropout, squant, mask, skip, 't'))
+                        if (hdim, hdim_v) == (128, 128) and logits == "f" and bias == "no" and dropout == "f":
+                            pipelines.append(FmhaFwdPipeline('qr_wholek_prefetch', 'row', 'f', 'f', 'f', 'f', logits, bias, lse, dropout, squant, mask, skip, 'f'))
+                            pipelines.append(FmhaFwdPipeline('qr_wholek_prefetch', 'row', 'f', 't', 'f', 'f', logits, bias, lse, dropout, squant, mask, skip, 'f'))
                     if receipt == 1 and bias != "bias":
                         pipelines.append(FmhaFwdPipeline('qr', 'row', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask, skip, 'f')) # TODO: cover arbitraty hdim
         elif dtype in ['fp8', 'fp8bf16', 'fp8fp32']:
@@ -628,7 +632,8 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
         for ((hdim, hdim_v), tiles), mode in itertools.product(d.items(), MODE_MAP.keys()):
             for tile, pipeline in itertools.product(tiles, factory.get_pipelines(dtype, hdim, hdim_v, receipt, mask_impl)):
                 if mode == "group":
-                    if pipeline.F_spad != 't' or pipeline.F_skpad != 't':
+                    # if pipeline.F_spad != 't' or pipeline.F_skpad != 't':
+                    if pipeline.tag != 'qr_wholek_prefetch' and (pipeline.F_spad != 't' or pipeline.F_skpad != 't'):
                         # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
                         continue
                 if (hdim, hdim_v) == (192, 128):
@@ -640,6 +645,10 @@ def get_fwd_blobs(kernel_filter : Optional[str], receipt, optdim_list, mask_impl
                     # non qr_async only support kn0=128 tile size when hdim is 128
                     continue
                 if pipeline.tag == 'qr_async_trload' and (((hdim, hdim_v) == (128, 128) and tile.F_bn0 == 128) or ((hdim, hdim_v) not in [(64, 64), (128, 128)])):
+                    continue
+                if pipeline.tag == 'qr_wholek_prefetch' and (((hdim, hdim_v) == (128, 128) and tile.F_bm0 == 128)):
+                    continue
+                if pipeline.tag in ['qr_async','qr','qr_async_trload'] and (((hdim, hdim_v) == (128, 128) and tile.F_bm0 == 64)):
                     continue
                 # logits_soft_cap is only allowed if no bias
                 if not ((pipeline.F_logits == 't' and pipeline.F_bias == 'no') or pipeline.F_logits == 'f'):
