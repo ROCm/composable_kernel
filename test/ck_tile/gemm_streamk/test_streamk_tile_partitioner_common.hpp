@@ -45,9 +45,7 @@ struct KernelWrapper
 // Specialized derived class to support unique operator() functions. There is one template
 // specialization per member in the StreamKTilePartitionerBaseMethodId enum.
 template <typename TilePartitioner, StreamKTilePartitionerBaseMethodId Id>
-struct KernelWrapperSpecialized : public KernelWrapper<>
-{
-};
+struct KernelWrapperSpecialized;
 
 template <typename TilePartitioner>
 struct KernelWrapperSpecialized<TilePartitioner, StreamKTilePartitionerBaseMethodId::GET_LOCAL_ITER>
