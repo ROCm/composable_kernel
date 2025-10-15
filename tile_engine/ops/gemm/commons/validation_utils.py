@@ -377,8 +377,6 @@ def is_tile_config_valid(
         )
         return False
     
-    print("-----------------------------------------------------00000-------------------------------------------------------------------------------")
-
     # Validate LDS capacity
     lds_valid, lds_error = validate_lds_capacity(
         tile_m, tile_n, tile_k, a_datatype, b_datatype, pipeline
@@ -386,9 +384,7 @@ def is_tile_config_valid(
     if not lds_valid:
         logging.debug(f"LDS validation failed: {lds_error}")
         return False
-    
-    print("-----------------------------------------------------111111-------------------------------------------------------------------------------")
-        
+            
     # Validate whole workgroup cover configuration
     m0_m1_m2_valid, m0_m1_m2_error = validate_whole_wg_cover_configuration(
         tile_m, tile_k, warp_m, warp_n, warp_k, a_datatype, vector_load_size=16, warp_size=64
@@ -397,8 +393,6 @@ def is_tile_config_valid(
         logging.debug(f"M0/M1/M2 configuration validation failed: {m0_m1_m2_error}")
         return False 
     
-    print("-----------------------------------------------------22222-------------------------------------------------------------------------------")
-
     # Validate warp tile combination
     warp_tile_valid, warp_tile_error = validate_warp_tile_combination(
         warp_tile_m, warp_tile_n, warp_tile_k, a_datatype, b_datatype, c_datatype
@@ -451,23 +445,11 @@ def validate_whole_wg_cover_configuration(
     vector_load_size: int = 16,
     warp_size: int = 64
 ) -> Tuple[bool, str]:
-    
-    print("Inside validate_whole_wg_cover_configuration")
-
-    
+        
     YPerTile = tile_m
     XPerTile = tile_k
-
-    NumWarps = (warp_m * warp_n * warp_k)
-    print("NumWarps: ", NumWarps)
-    
+    NumWarps = (warp_m * warp_n * warp_k)    
     BlockSize = NumWarps * warp_size
-    print("BlockSize: ", BlockSize)
-
-    print("XPerTile: ", XPerTile)
-
-    print("YPerTile: ", YPerTile)
-
 
     if(XPerTile % vector_load_size != 0):
         return False
@@ -476,15 +458,9 @@ def validate_whole_wg_cover_configuration(
     LargestVec = (XPerTile * YPerTile) / (num_warps * warp_size)
     X1 = LargestVec if vector_load_size > LargestVec else vector_load_size
     X0         = XPerTile / X1; 
-
     Y1 = warp_size // X0
 
-    print(f"YPerTile: {YPerTile}, XPerTile: {XPerTile}, NumWarps: {NumWarps}, BlockSize: {BlockSize}, num_warps: {num_warps}, LargestVec: {LargestVec}, X1: {X1}, X0: {X0}, Y1: {Y1}")
-    print(f"X0 * Y1: {X0 * Y1}, warp_size: {warp_size}")
-
     if(X0 * Y1 != warp_size):
-        print("==================FALSE=======================")
         return False, ""
     
-    print("==================TRUE=======================")
     return True, ""
