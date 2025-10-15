@@ -251,7 +251,7 @@ class FmhaFwdApiTrait:
         else: assert False
     
     @property
-    def seqtune(self) -> str:
+    def seqtune(self, max_bm0 : int) -> str:
         if self.bm0 in [128, 64]: return 'true/*fall back to largest tile*/'                  # group mode only generate spad/skpad == true
         else: 
             return f'a.seqlen_q <= {self.bm0}'
