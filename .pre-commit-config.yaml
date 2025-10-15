@@ -36,5 +36,5 @@ repos:
         name: Run remod.py if ck_tile files changed
         entry: script/remod_for_ck_tile.sh
         language: script
-        always_run: true
+        files: '^(include|example)/ck_tile/.*$'
         pass_filenames: false
