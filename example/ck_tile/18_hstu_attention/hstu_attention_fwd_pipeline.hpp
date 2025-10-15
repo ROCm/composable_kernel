@@ -450,6 +450,9 @@ struct HstuAttentionFwdPipelineQRKSVS
 
             tile_elementwise_inout(f_silu, pcomp_tile);
 
+            tile_elementwise_inout([&](auto& x) { x = x * type_convert<CompDataType>(scale_p); },
+                                   pcomp_tile);
+
             seqlen_k_curr += kN0;
 
             if constexpr(kHasDropout)
@@ -506,9 +509,6 @@ struct HstuAttentionFwdPipelineQRKSVS
                 __builtin_amdgcn_s_barrier();
             };
         } while(seqlen_k_curr < seqlen_k_end);
-
-        tile_elementwise_inout([&](auto& x) { x = x * type_convert<GemmAccDataType>(scale_p); },
-                               o_acc);
 
         o_acc = tile_elementwise_in(o_acc_element_func, o_acc);
 
