@@ -32,7 +32,7 @@ struct GroupedConvolutionBackwardWeightBaseInvoker
 {
     virtual bool IsSupportedArgument(const ck_tile::GroupedConvBwdWeightHostArgs& args) const = 0; 
     virtual float Run(const ck_tile::GroupedConvBwdWeightHostArgs& args, bool time_kernel) = 0;
-    virtual std::string GetName() const = 0;
+    virtual std::string GetName(const ck_tile::GroupedConvBwdWeightHostArgs& args) const = 0;
     GroupedConvolutionBackwardWeightBaseInvoker() = default;
     GroupedConvolutionBackwardWeightBaseInvoker(const GroupedConvolutionBackwardWeightBaseInvoker&) = default;
     GroupedConvolutionBackwardWeightBaseInvoker& operator=(const GroupedConvolutionBackwardWeightBaseInvoker&) = default;
@@ -64,8 +64,7 @@ template <
     ck_tile::index_t K_Warp_Tile,
     ck_tile::index_t VectorSizeA,
     ck_tile::index_t VectorSizeB,
-    ck_tile::index_t VectorSizeC,
-    bool UseSplitK>
+    ck_tile::index_t VectorSizeC>
 struct GroupedConvolutionBackwardWeightInvoker : 
     public GroupedConvolutionBackwardWeightBaseInvoker<NDimSpatial,
                                                         InLayout,
@@ -114,12 +113,7 @@ struct GroupedConvolutionBackwardWeightInvoker :
 
     using CodegenPipeline_ = ck_tile::GemmPipelineAGmemBGmemCRegV1<CodegenPipelineProblem_>;
 
-    using MemOp = std::conditional_t<UseSplitK,
-                                     ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                                  ck_tile::memory_operation_enum::atomic_add>,
-                                     ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                                  ck_tile::memory_operation_enum::set>>;
-    using ConvEpilogue_ = ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
+    using ConvEpilogueAtomicAdd_ = ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
                 InDataType,
                 WeiDataType,
                 ck_tile::tuple<>, // = DsDataType,
@@ -136,22 +130,54 @@ struct GroupedConvolutionBackwardWeightInvoker :
                 N_Warp_Tile,
                 K_Warp_Tile,
                 CodegenPipelineProblem_::TransposeC,
-                MemOp{}.value,
+                ck_tile::memory_operation_enum::atomic_add,
                 1,
                 true,
                 GroupedConvTraitsType_::VectorSizeC>>;
 
-    using Kernel = ck_tile::GroupedConvolutionBackwardWeightKernel<GroupedConvTraitsType_,
+    using ConvEpilogueSet_ = ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
+                InDataType,
+                WeiDataType,
+                ck_tile::tuple<>, // = DsDataType,
+                AccDataType,
+                OutDataType,
+                typename GroupedConvTraitsType_::ImplicitGemmDsLayout,
+                ck_tile::tensor_layout::gemm::RowMajor,
+                CDEElementWise,
+                TilePartitioner_::MPerBlock,
+                TilePartitioner_::NPerBlock,
+                M_Warp,
+                N_Warp,
+                M_Warp_Tile,
+                N_Warp_Tile,
+                K_Warp_Tile,
+                CodegenPipelineProblem_::TransposeC,
+                ck_tile::memory_operation_enum::set,
+                1,
+                true,
+                GroupedConvTraitsType_::VectorSizeC>>;
+
+    using KernelSplitK = ck_tile::GroupedConvolutionBackwardWeightKernel<GroupedConvTraitsType_,
                                                                            TilePartitioner_,
                                                                            CodegenPipeline_,
-                                                                           ConvEpilogue_>;
+                                                                           ConvEpilogueAtomicAdd_>;
+
+    using KernelNonSplitK = ck_tile::GroupedConvolutionBackwardWeightKernel<GroupedConvTraitsType_,
+                                                                           TilePartitioner_,
+                                                                           CodegenPipeline_,
+                                                                           ConvEpilogueSet_>;
 
     bool IsSupportedArgument(const ck_tile::GroupedConvBwdWeightHostArgs& args) const override
     {
-        return Kernel::IsSupportedArgument(Kernel::MakeKernelArgs(args));
+        if (args.k_batch == 1)
+        {
+            return KernelNonSplitK::IsSupportedArgument(KernelNonSplitK::MakeKernelArgs(args));
+        }
+        return KernelSplitK::IsSupportedArgument(KernelSplitK::MakeKernelArgs(args));
     };
 
-    float Run(const ck_tile::GroupedConvBwdWeightHostArgs& args, bool time_kernel) override
+    template <typename Kernel>
+    float RunImpl(const ck_tile::GroupedConvBwdWeightHostArgs& args, bool time_kernel)
     {
         auto kargs        = Kernel::MakeKernelArgs(args);
         const dim3 grids  = Kernel::GridSize(kargs);
@@ -168,11 +194,27 @@ struct GroupedConvolutionBackwardWeightInvoker :
         return avg_time;
     };
 
-    std::string GetName() const override
+    float Run(const ck_tile::GroupedConvBwdWeightHostArgs& args, bool time_kernel) override
+    {
+        if (args.k_batch == 1)
+        {
+            return RunImpl<KernelNonSplitK>(args, time_kernel);
+        }
+        else
+        {
+            return RunImpl<KernelSplitK>(args, time_kernel);
+        }
+    };
+
+    std::string GetName(const ck_tile::GroupedConvBwdWeightHostArgs& args) const override
     {
         std::stringstream min_occupancy;
         min_occupancy << "_blk_per_cu_" << kBlockPerCu;
-        return Kernel::GetName() + min_occupancy.str();
+        if (args.k_batch == 1)
+        {
+            return KernelNonSplitK::GetName() + min_occupancy.str();
+        }
+        return KernelSplitK::GetName() + min_occupancy.str();
     };
 
     GroupedConvolutionBackwardWeightInvoker() = default;

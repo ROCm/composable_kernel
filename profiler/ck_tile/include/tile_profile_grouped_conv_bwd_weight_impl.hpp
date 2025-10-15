@@ -171,8 +171,8 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                     continue;
                 }
 
-                std::string op_name = op->GetName();
-                std::cout << op->GetName() << ", SplitK " << split_k_param_str << " is profiled..." << std::endl;
+                std::string op_name = op->GetName(args);
+                std::cout << op_name << ", SplitK " << split_k_param_str << " is profiled..." << std::endl;
 
                 float avg_time = op->Run(args, time_kernel);
 
@@ -231,7 +231,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
             }
             else 
             {
-                std::cout << op->GetName() << ", SplitK " << split_k_param_str
+                std::cout << op->GetName(args) << ", SplitK " << split_k_param_str
                           << " does not support this problem." << std::endl;
             }
         }
