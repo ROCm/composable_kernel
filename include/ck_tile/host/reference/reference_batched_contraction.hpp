@@ -9,6 +9,17 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/host_tensor.hpp"
 
+// Helper function to Calculate total elements from multi-dimensional vector
+ck_tile::index_t calculate_total_elements(const std::vector<ck_tile::index_t>& dims)
+{
+    ck_tile::index_t total = 1;
+    for(auto dim : dims)
+    {
+        total *= dim;
+    }
+    return total;
+}
+
 namespace ck_tile {
 
 template <typename ADataType,
