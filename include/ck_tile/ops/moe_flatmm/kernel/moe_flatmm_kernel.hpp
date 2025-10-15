@@ -996,12 +996,12 @@ struct MoeFlatmmKernel
                     kargs.scale_n.ptr + expert_id * kargs.N,
                     make_tuple(1, kargs.N),
                     make_tuple(0, scale_stride_n),
-                    number<ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1>{},
+                    number < ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1 > {},
                     number<1>{}), // MXF4_Pipeline does't use scale_n, so there is no need to
                                   // permute as n_pack
                 make_tuple(number<TilePartitioner::MPerBlock>{},
-                           number<IsGateUp ? TilePartitioner::NPerBlock / 2
-                                           : TilePartitioner::NPerBlock>{}),
+                           number < IsGateUp ? TilePartitioner::NPerBlock / 2
+                                             : TilePartitioner::NPerBlock > {}),
                 {0, IsGateUp ? coord_n / 2 : coord_n},
                 output_acc_tile_distr);
 
@@ -1010,7 +1010,7 @@ struct MoeFlatmmKernel
                     kargs.scale_n.ptr + expert_id * kargs.N + kargs.N / 2,
                     make_tuple(1, kargs.N),
                     make_tuple(0, scale_stride_n),
-                    number<ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1>{},
+                    number < ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1 > {},
                     number<1>{}),
                 make_tuple(number<TilePartitioner::MPerBlock>{},
                            number<TilePartitioner::NPerBlock / 2>{}),
@@ -1027,8 +1027,8 @@ struct MoeFlatmmKernel
             auto exp_bias_window = make_tile_window(
                 permute_tensor_view(exp_bias_view, number<(MXFP4_Pipeline && !IsInputGemm)>{}),
                 make_tuple(number<TilePartitioner::MPerBlock>{},
-                           number<IsGateUp ? TilePartitioner::NPerBlock / 2
-                                           : TilePartitioner::NPerBlock>{}),
+                           number < IsGateUp ? TilePartitioner::NPerBlock / 2
+                                             : TilePartitioner::NPerBlock > {}),
                 {0, IsGateUp ? coord_n / 2 : coord_n},
                 output_acc_tile_distr);
 
@@ -1312,7 +1312,7 @@ struct MoeFlatmmKernel
                     constexpr auto step = SFC::get_forward_step(iAccess);
                     // row_offset of out windows has been included in scatter offset
                     move_tile_window(c_block_window,
-                                     {0, step.at(number<1>{}) / number<IsGateUp ? 2 : 1>{}});
+                                     {0, step.at(number<1>{}) / number < IsGateUp ? 2 : 1 > {}});
                 }
             });
         }

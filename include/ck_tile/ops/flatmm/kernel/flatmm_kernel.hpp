@@ -257,7 +257,7 @@ struct FlatmmKernel
     using ELayout          = remove_cvref_t<typename FlatmmPipeline::CLayout>;
     using DsLayout         = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
     using DsDataType       = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
-    static constexpr index_t KernelBlockSize  = FlatmmPipeline::BlockSize;
+    static constexpr index_t kBlockSize       = FlatmmPipeline::BlockSize;
     static constexpr bool UsePersistentKernel = FlatmmPipeline::UsePersistentKernel;
 
     using ADataType = remove_cvref_t<typename FlatmmPipeline::ADataType>;
@@ -307,9 +307,9 @@ struct FlatmmKernel
             e = hipOccupancyMaxActiveBlocksPerMultiprocessor(
                 &maxActiveBlocksPerCU,
                 reinterpret_cast<void*>(
-                    kentry2<block_size,
-                            FlatmmKernel,
-                            FlatmmKernelArgs<ScaleM, ScaleN, DsDataType::size()>>),
+                    kentry<1,
+                           FlatmmKernel,
+                           FlatmmKernelArgs<ScaleM, ScaleN, DsDataType::size()>>),
                 block_size,
                 dync_smem_size);
 
@@ -329,7 +329,7 @@ struct FlatmmKernel
         }
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(KernelBlockSize); }
+    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
 
     template <class ScaleM, class ScaleN>
     CK_TILE_HOST static constexpr FlatmmKernelArgs<ScaleM, ScaleN, DsDataType::size()>
@@ -661,22 +661,22 @@ struct FlatmmKernel
                       "only support per-tensor or per-row scaling");
         static_assert(ScaleGranularityN == 0 || ScaleGranularityN == 1 || ScaleGranularityN == -1,
                       "only support per-tensor or per-column scaling");
-
+        
         const auto scale_m_view = make_naive_tensor_view<address_space_enum::global>(
             kargs.scale_m_ptr.ptr,
             make_tuple(
                 kargs.M / ScaleGranularityM,
                 ScaleGranularityKA == 0 ? 1 : splitk_batch_offset.splitted_k / ScaleGranularityKA),
             make_tuple(scale_stride_m, 0),
-            number<ScaleGranularityM == 1 ? FlatmmPipeline::GetVectorSizeA() : 1>{},
+            number < ScaleGranularityM == 1 ? FlatmmPipeline::GetVectorSizeA() : 1 > {},
             number<1>{});
         const auto scale_n_view = make_naive_tensor_view<address_space_enum::global>(
             kargs.scale_n_ptr.ptr,
             make_tuple(
-                ScaleGranularityKB == 0 ? 1 : splitk_batch_offset.splitted_k / ScaleGranularityKB,
+                ScaleGranularityKB == 0 ? 1 : (splitk_batch_offset.splitted_k / ScaleGranularityKB),
                 kargs.N / ScaleGranularityN),
             make_tuple(0, scale_stride_n),
-            number<ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1>{},
+            number < ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1 > {},
             number<1>{});
 
         return make_tuple(a_tensor_view,
@@ -818,18 +818,18 @@ struct FlatmmKernel
         constexpr int ScaleGranularityKA = 0; // decltype(kargs.scale_m_ptr)::GranularityK;
         constexpr int ScaleGranularityKB = 0; // decltype(kargs.scale_n_ptr)::GranularityK;
 
-        auto scale_m_window = make_tile_window(
-            views.at(number<4>{}),
-            make_tuple(number<TilePartitioner::MPerBlock>{},
-                       number<ScaleGranularityKA == 0 ? TilePartitioner::NPerBlock
-                                                      : TilePartitioner::KPerBlock>{}),
-            {i_m, 0});
-        auto scale_n_window = make_tile_window(
-            views.at(number<5>{}),
-            make_tuple(number<ScaleGranularityKB == 0 ? TilePartitioner::MPerBlock
-                                                      : TilePartitioner::KPerBlock>{},
-                       number<TilePartitioner::NPerBlock>{}),
-            {0, i_n});
+        auto scale_m_window = make_tile_window(views.at(number<4>{}),
+                                               make_tuple(number<TilePartitioner::MPerBlock>{},
+                                                          number < ScaleGranularityKA == 0
+                                                              ? TilePartitioner::NPerBlock
+                                                              : TilePartitioner::KPerBlock > {}),
+                                               {i_m, 0});
+        auto scale_n_window = make_tile_window(views.at(number<5>{}),
+                                               make_tuple(number < ScaleGranularityKB == 0
+                                                              ? TilePartitioner::MPerBlock
+                                                              : TilePartitioner::KPerBlock > {},
+                                                          number<TilePartitioner::NPerBlock>{}),
+                                               {0, i_n});
 
         return make_tuple(a_block_window,
                           b_flat_block_window,

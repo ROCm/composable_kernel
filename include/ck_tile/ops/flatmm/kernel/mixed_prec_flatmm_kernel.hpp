@@ -76,9 +76,9 @@ struct F16xMXF4FlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Ep
             e = hipOccupancyMaxActiveBlocksPerMultiprocessor(
                 &maxActiveBlocksPerCU,
                 reinterpret_cast<void*>(
-                    kentry2<block_size,
-                            F16xMXF4FlatmmKernel,
-                            FlatmmKernelArgs<ScaleM, ScaleN, DsDataType::size()>>),
+                    kentry<1,
+                           F16xMXF4FlatmmKernel,
+                           FlatmmKernelArgs<ScaleM, ScaleN, DsDataType::size()>>),
                 block_size,
                 dync_smem_size);
 
