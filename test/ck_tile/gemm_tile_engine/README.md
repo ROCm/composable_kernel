@@ -45,25 +45,28 @@ The key idea: **Unit tests that use tile_engine's exact kernel generation and ve
 - **Purpose**: Optimized for fp8/fp16/bf16 data types
 - **Config**: 128x128x32, warp 2x2x1, warp_tile 32x32x16  
 - **Traits**: compv3 pipeline only
-- **Coverage**: ~1 kernel per datatype/layout
+- **Coverage**: 
+  - fp16, bf16: All 4 layouts (rcr, rrr, ccr, crr)
+  - fp8: RCR layout only (other layouts not approved)
 
 ### 3. **Large Datatype** (`large_datatype_config.json`)
-- **Purpose**: Optimized for fp32 (fp64 not supported by hardware)
+- **Purpose**: Optimized for fp32
 - **Config**: 64x64x16, warp 2x2x1, warp_tile 16x16x16
 - **Traits**: compv3 pipeline only
-- **Coverage**: ~1 kernel per datatype/layout
+- **Coverage**: RCR layout only (other layouts not approved)
 
 ### 4. **Tile Size Coverage** (Quick or Comprehensive)
-- **Purpose**: Test different tile dimensions
-- **Quick** (`tile_size_quick_config.json`): 48 kernels
+- **Purpose**: Test different tile dimensions and warp configurations
+- **Quick** (`tile_size_quick_config.json`): Less than 100 kernels
   - tile_m/n: [32, 64, 128, 256], tile_k: [16, 32, 64]
   - warp config: 2×2×1, warp_tile 16×16×16
-  - Total: 4×4×3 = 48 kernels
-- **Comprehensive** (`tile_size_comprehensive_config.json`): 1,728 kernels
-  - tile_m/n: [16, 32, 48, 64, 80, 96, 112, 128, 144, 160, 176, 192, 208, 224, 240, 256]
+  - Focused set for fast validation
+- **Comprehensive** (`tile_size_comprehensive_config.json`): More than 1000 kernels
+  - tile_m/n: [16-256 step 16]
   - tile_k: [16, 32, 64]
-  - warp configs: (1,1), (1,2), (2,1), (2,2) - enables ALL tile sizes including 16
-  - Total: 16×16×3×4_warp_configs = 1,728 kernels (after validation filtering)
+  - warp_m/n: [1, 2, 4], warp_tile_m/n: [16, 32], warp_tile_k: [16, 32]
+  - Extensive coverage across multiple warp configurations and MFMA tile sizes
+  - Exact count varies based on validation filtering
 - **Traits**: compv3 pipeline only
 - **Note**: Use CMake option `-DTILE_SIZE_LEVEL=comprehensive` to enable comprehensive testing (default is quick)
 
@@ -74,12 +77,15 @@ The key idea: **Unit tests that use tile_engine's exact kernel generation and ve
 - **Coverage**: 24 kernels per datatype/layout
 
 ### 6. **Padding Coverage** (`padding_coverage_config.json`)
-- **Purpose**: Test padding behavior (pad_m, pad_n, pad_k)
-- **Config**: Fixed 64x64x32
-- **Traits**: All padding combinations
-- **Coverage**: 8 kernels per datatype/layout
+- **Purpose**: Test padding behavior with all padding flags enabled
+- **Config**: Fixed 64x64x32, warp 2x2x1, warp_tile 32x32x16
+- **Padding**: All enabled (pad_m=true, pad_n=true, pad_k=true)
+- **Problem sizes**: Vector-aligned but not tile-aligned (104×104×56, 200×152×80, 152×200×64)
+- **Coverage**: 1 kernel configuration testing padding with irregular sizes
 
 ## Data Type Support
-- ✅ **fp16, bf16, fp8, fp32**: Fully supported
+- ✅ **fp16, bf16**: Fully supported - all layouts (rcr, rrr, ccr, crr)
+- 🟡 **fp8**: Supported - RCR layout only (other layouts not approved)
+- 🟡 **fp32**: Supported - RCR layout only (other layouts not approved)
 - ❌ **fp64**: Not supported (hardware MFMA limitation)
 - ⏳ **pk-int4-t, bf8**: Not yet supported by gemm_instance_builder (will be added later)
