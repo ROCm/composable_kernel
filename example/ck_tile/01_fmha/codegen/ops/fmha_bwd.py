@@ -370,7 +370,14 @@ class FmhaBwdDQDKDVKernel:
 # TODO: design a more practical way to do it
 # this is current supported tile size.
 def get_dq_dk_dv_tiles(dtype : str, tr_load: str) -> List[FmhaBwdDQDKDVTileSize]:
-    if (dtype == 'fp16' or dtype == 'bf16') and tr_load == 'f':
+    if dtype == 'fp32' and tr_load == 'f':
+        return [
+            #                     bm0, bn0, bk0, bk1, bk2, bk3, bk4, bhdq, bhdv,
+            FmhaBwdDQDKDVTileSize( 32, 128,  32,  32,  32,  32,  64,   32,   32, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 16, 16, 16, 16, 1),
+            FmhaBwdDQDKDVTileSize( 16,  64,  64,  16,  64,  16,  16,   64,   64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 16, 16, 16, 16, 1),
+            FmhaBwdDQDKDVTileSize( 16,  64, 128,  16, 128,  16,  16,  128,  128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 16, 16, 16, 16, 1),
+        ]
+    elif (dtype == 'fp16' or dtype == 'bf16') and tr_load == 'f':
         return [
             FmhaBwdDQDKDVTileSize( 32, 128,  32, 32,  32, 32, 64,  32,  32, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 32, 16, 16, 16, 1),
             FmhaBwdDQDKDVTileSize( 32, 128,  64, 32,  64, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
@@ -381,8 +388,12 @@ def get_dq_dk_dv_tiles(dtype : str, tr_load: str) -> List[FmhaBwdDQDKDVTileSize]
         ]
     elif (dtype == 'fp16' or dtype == 'bf16') and tr_load == 't':
         return [
+                FmhaBwdDQDKDVTileSize( 32, 128,  64, 32,  64, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 32, 1),
                 FmhaBwdDQDKDVTileSize( 32, 128, 128, 32, 128, 32, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 32, 1),
                 FmhaBwdDQDKDVTileSize( 16, 192, 128, 16, 128, 16, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
+
+                # FmhaBwdDQDKDVTileSize( 32,  32,  64, 32,  64, 32, 32,  64,  64, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 32, 1, 32),
+                FmhaBwdDQDKDVTileSize( 32,  16,  64, 32,  64, 32, 16,  64,  64, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 16, 2, 32),
                 # FmhaBwdDQDKDVTileSize( 16, 32, 128, 16, 128, 16, 32, 128, 128, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 16, 1, 16),
                 FmhaBwdDQDKDVTileSize( 16,  16, 128, 16, 128, 16, 16, 128, 128, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 16, 2, 16),
         ]
@@ -805,7 +816,9 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
             if ("wg32" in dropout):
                 continue
             if tr_load == "t":
-                continue  # tr_load cannot work with dpad or dvpad
+                # tr_load can only work with 8 pad
+                if dpad != dvpad or dpad == 1:
+                    continue
             else: # tr_load == "f"
                 # do not generate instance with only 1 of dpad/dvpad being 8
                 if dpad != dvpad and dpad == 8:
@@ -865,6 +878,30 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
                 cond = dtype in ['fp16', 'bf16']
                 if not cond:
                     continue
+
+            # fp32 only, all variations
+            if receipt == 800:
+                cond = dtype == 'fp32'
+                cond &= dpad == dvpad
+                if not cond:
+                    continue
+            # fp32 only, minimal set of parameters
+            elif receipt == 801:
+                cond = dtype == 'fp32'
+                cond &= hdim in [64, 128]
+                cond &= dpad == dvpad
+                cond &= mode == 'batch'
+                cond &= bias == 'no'
+                cond &= dropout == 'no'
+                cond &= mask == 's_no'
+                cond &= deterministic == "f"
+                if not cond:
+                    continue
+            else:
+                # Don't build fp32 by default
+                if dtype == 'fp32':
+                    continue
+
             gen_dot_do_o[t.dot_do_o_kernel] = True
             gen_dq_dk_dv[t.dq_dk_dv_kernel] = True
             if not t.convert_dq_kernel.disabled:

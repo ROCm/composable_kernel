@@ -82,6 +82,7 @@ struct FmhaBwdDQDKDVKernel
 
     // clang-format off
     template <typename T> struct t2s;
+    template <> struct t2s<float> { static constexpr const char * name = "fp32"; };
     template <> struct t2s<ck_tile::fp16_t> { static constexpr const char * name = "fp16"; };
     template <> struct t2s<ck_tile::bf16_t> { static constexpr const char * name = "bf16"; };
     // clang-format on
@@ -1187,6 +1188,7 @@ struct FmhaBwdOGradDotOKernel
 
     // clang-format off
     template <typename T> struct t2s;
+    template <> struct t2s<float> { static constexpr const char * name = "fp32"; };
     template <> struct t2s<ck_tile::fp16_t> { static constexpr const char * name = "fp16"; };
     template <> struct t2s<ck_tile::bf16_t> { static constexpr const char * name = "bf16"; };
     // clang-format on
@@ -1443,6 +1445,7 @@ struct FmhaBwdConvertQGradKernel
 
     // clang-format off
     template <typename T> struct t2s;
+    template <> struct t2s<float> { static constexpr const char * name = "fp32"; };
     template <> struct t2s<ck_tile::fp16_t> { static constexpr const char * name = "fp16"; };
     template <> struct t2s<ck_tile::bf16_t> { static constexpr const char * name = "bf16"; };
     // clang-format on

@@ -15,9 +15,6 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
     using Base::I1;
     using Base::I2;
 
-    using Base::ATileAccessPattern;
-    using Base::BTileAccessPattern;
-
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeAQ()
     {

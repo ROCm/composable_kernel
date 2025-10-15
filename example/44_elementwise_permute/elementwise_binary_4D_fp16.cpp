@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <cstdlib>
@@ -51,6 +51,8 @@ int main(int argc, char* argv[])
     bool do_verification = true;
     bool time_kernel     = true;
 
+    std::vector<std::size_t> nchw = {16, 128, 32, 64};
+
     if(argc == 1)
     {
         // use default
@@ -60,14 +62,23 @@ int main(int argc, char* argv[])
         do_verification = std::stoi(argv[1]);
         time_kernel     = std::stoi(argv[2]);
     }
+    else if(argc == 7)
+    {
+        do_verification = std::stoi(argv[1]);
+        time_kernel     = std::stoi(argv[2]);
+        nchw[0]         = std::stoi(argv[3]);
+        nchw[1]         = std::stoi(argv[4]);
+        nchw[2]         = std::stoi(argv[5]);
+        nchw[3]         = std::stoi(argv[6]);
+    }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: time kernel (0=no, 1=yes)\n");
-        exit(0);
+        printf("arg3-6: N, C, H, W (default 16, 128, 32, 64)\n");
+        exit(1);
     }
 
-    std::vector<std::size_t> nchw = {16, 128, 32, 64};
     std::array<ck::index_t, 4> ab_lengths;
     std::array<ck::index_t, 4> ab_strides = {static_cast<int>(nchw[1] * nchw[2] * nchw[3]),
                                              static_cast<int>(nchw[2] * nchw[3]),
