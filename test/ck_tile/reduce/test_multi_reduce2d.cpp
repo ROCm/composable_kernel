@@ -30,14 +30,14 @@ class TestCkTileMultiReduce : public ::testing::Test
         ck_tile::Reduce2dShape<BlockWarps_, BlockTile_, WarpTile_, ThreadTile_>;
 
     template <std::size_t InputDim, typename KeptDimSeq, typename ReduceDimSeq>
-    void RunGenericTest([[maybe_unused]] const std::vector<ck_tile::index_t>& input_shape,
-                        [[maybe_unused]] const std::vector<ck_tile::index_t>& input_strides,
-                        [[maybe_unused]] const std::vector<ck_tile::index_t>& output_shape,
-                        [[maybe_unused]] const std::vector<ck_tile::index_t>& output_strides,
-                        [[maybe_unused]] ck_tile::index_t kept_dim_len_prod,
-                        [[maybe_unused]] ck_tile::index_t total_reduce_elements,
-                        [[maybe_unused]] KeptDimSeq kept_dims,
-                        [[maybe_unused]] ReduceDimSeq reduce_dims)
+    void RunGenericTest(const std::vector<ck_tile::index_t>& input_shape,
+                        const std::vector<ck_tile::index_t>& input_strides,
+                        const std::vector<ck_tile::index_t>& output_shape,
+                        const std::vector<ck_tile::index_t>& output_strides,
+                        ck_tile::index_t kept_dim_len_prod,
+                        ck_tile::index_t total_reduce_elements,
+                        KeptDimSeq kept_dims,
+                        ReduceDimSeq reduce_dims)
     {
         const auto number_operations = ReduceOpsType::size();
         
@@ -79,7 +79,7 @@ class TestCkTileMultiReduce : public ::testing::Test
         using Problem = ck_tile::
             Reduce2dProblem<XDataType, ComputeDataType, YDataType, TestReduce2dShape, ReduceOpsType>;
 
-        using Kernel = ck_tile::MultiReduce<Problem>;
+        using Kernel = ck_tile::MultiReduceThreadWise<Problem>;
 
         // Launch configuration
         constexpr ck_tile::index_t kBlockSize  = 256;

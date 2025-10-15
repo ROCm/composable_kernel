@@ -106,7 +106,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using Problem =
         ck_tile::Reduce2dProblem<XDataType, ComputeDataType, YDataType, Shape, ReduceOps>;
 
-    using Kernel                      = ck_tile::MultiReduce<Problem>;
+    using Kernel                      = ck_tile::MultiReduceThreadWise<Problem>;
     const ck_tile::index_t kBlockSize = Kernel::BlockSize();
 
     // Create input tensor shape and strides
