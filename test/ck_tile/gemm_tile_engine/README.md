@@ -89,3 +89,12 @@ The key idea: **Unit tests that use tile_engine's exact kernel generation and ve
 - 🟡 **fp32**: Supported - RCR layout only (other layouts not approved)
 - ❌ **fp64**: Not supported (hardware MFMA limitation)
 - ⏳ **pk-int4-t, bf8**: Not yet supported by gemm_instance_builder (will be added later)
+
+## Test Result Behavior
+
+Tests automatically handle unsupported configurations through runtime validation:
+- **PASSED**: Kernel executed correctly with results within error thresholds ✅
+- **SKIPPED**: Kernel validation returned "Arguments not supported" (expected for certain problem sizes/configurations) ⚠️
+- **FAILED**: Actual error or incorrect computation results ❌
+
+When a kernel's `IsSupportedArgument()` check fails (e.g., due to vector alignment requirements, dimension constraints, or padding limitations), the test is automatically skipped rather than failed. This allows comprehensive testing across various problem sizes while gracefully handling configurations that don't meet specific kernel requirements.
