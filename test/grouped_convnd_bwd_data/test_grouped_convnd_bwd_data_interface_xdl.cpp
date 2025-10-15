@@ -51,6 +51,7 @@ class TestGroupedConvndBwdData : public ::testing::Test
     // clang-format on
 
     ck::utils::conv::ConvParam conv_param;
+    ck::index_t split_k{1};
 
     template <ck::index_t NDimSpatial>
     bool Run()
@@ -112,7 +113,8 @@ class TestGroupedConvndBwdData : public ::testing::Test
                                           input_right_pads,
                                           Pass{},
                                           Pass{},
-                                          Pass{});
+                                          Pass{},
+                                          split_k);
         return conv.IsSupportedArgument(argument);
     }
 };
@@ -174,5 +176,19 @@ TYPED_TEST(TestGroupedConvndBwdDataDefault, VectorLoadCheck)
     // vector load for B, E, Ds
     this->conv_param = {2, 2, 128, 128, 257, {1, 1}, {7, 7}, {2, 2}, {1, 1}, {0, 0}, {0, 0}};
     is_supported     = this->template Run<2>();
+    EXPECT_FALSE(is_supported);
+}
+
+TYPED_TEST(TestGroupedConvndBwdDataDefault, SplitK)
+{
+    // SplitK > 1
+    this->conv_param  = {2, 2, 4, 192, 192, {1, 1}, {28, 28}, {1, 1}, {1, 1}, {0, 0}, {0, 0}};
+    this->split_k     = 2;
+    bool is_supported = this->template Run<2>();
+    EXPECT_TRUE(is_supported);
+
+    // Split-K autodeduce
+    this->split_k     = -1;
+    is_supported = this->template Run<2>();
     EXPECT_FALSE(is_supported);
 }
