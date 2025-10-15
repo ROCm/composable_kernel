@@ -4,21 +4,12 @@
 #pragma once
 
 #include <cstdlib>
+#include <functional>
+#include <numeric>
 #include <thread>
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/host_tensor.hpp"
-
-// Helper function to Calculate total elements from multi-dimensional vector
-ck_tile::index_t calculate_total_elements(const std::vector<ck_tile::index_t>& dims)
-{
-    ck_tile::index_t total = 1;
-    for(auto dim : dims)
-    {
-        total *= dim;
-    }
-    return total;
-}
 
 namespace ck_tile {
 
@@ -165,6 +156,10 @@ void calculate_reference_multi_dimensional(
     a_idx.reserve(A_dims.size());
     b_idx.reserve(B_dims.size());
     e_idx.reserve(E_dims.size());
+
+    auto calculate_total_elements = [](const std::vector<ck_tile::index_t>& dims) {
+        return std::accumulate(dims.begin(), dims.end(), 1, std::multiplies<ck_tile::index_t>());
+    };
 
     for(ck_tile::index_t g_flat = 0; g_flat < calculate_total_elements(G_dims); ++g_flat)
     {
