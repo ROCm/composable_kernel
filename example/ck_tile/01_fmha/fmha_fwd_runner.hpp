@@ -42,6 +42,14 @@ auto get_elimit(std::string /*init_method*/)
 }
 
 template <>
+auto get_elimit<FmhaFwdFp32>(std::string /*init_method*/)
+{
+    double rtol = 1e-5;
+    double atol = 1e-5;
+    return ck_tile::make_tuple(rtol, atol);
+}
+
+template <>
 auto get_elimit<FmhaFwdBf16>(std::string /*init_method*/)
 {
     double rtol = 1e-2;
@@ -50,20 +58,30 @@ auto get_elimit<FmhaFwdBf16>(std::string /*init_method*/)
 }
 
 template <>
-auto get_elimit<FmhaFwdFp8>(std::string init_method)
+auto get_elimit<FmhaFwdFp8>(std::string /*init_method*/)
 {
-    if(init_method == "ui" || init_method == "ni")
-    {
-        unsigned max_rounding_point_distance = 0;
-        double atol                          = 2e-3;
-        return ck_tile::make_tuple(max_rounding_point_distance, atol);
-    }
-    else
-    {
-        unsigned max_rounding_point_distance = 1;
-        double atol                          = 0.0625;
-        return ck_tile::make_tuple(max_rounding_point_distance, atol);
-    }
+    using TypeConfig  = FmhaFwdTypeConfig<FmhaFwdFp8>;
+    using ODataType   = typename TypeConfig::ODataType;
+    float o_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<ODataType>::max());
+    double rtol       = 0;
+    double atol       = 16 * (o_dtype_max > 240 ? 2 : 1);
+    return ck_tile::make_tuple(rtol, atol);
+}
+
+template <>
+auto get_elimit<FmhaFwdFp8Bf16>(std::string /*init_method*/)
+{
+    double rtol = 1e-2;
+    double atol = 1.8e-1;
+    return ck_tile::make_tuple(rtol, atol);
+}
+
+template <>
+auto get_elimit<FmhaFwdFp8Fp32>(std::string /*init_method*/)
+{
+    double rtol = 1e-2;
+    double atol = 1.8e-1;
+    return ck_tile::make_tuple(rtol, atol);
 }
 
 int num_splits_heuristic(int batch_nhead_mblocks, int num_SMs, int max_splits)
@@ -141,7 +159,10 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         ck_tile::index_t hdim_q,
                         ck_tile::index_t hdim_v,
                         ck_tile::index_t seqlen_knew,
+                        std::vector<ck_tile::index_t> seqlen_qpads,
                         std::vector<ck_tile::index_t> seqlen_kpads,
+                        std::vector<ck_tile::index_t> q_eff_lens_per_batch,
+                        std::vector<ck_tile::index_t> kv_eff_lens_per_batch,
                         ck_tile::index_t rotary_dim,
                         bool i_perm,
                         bool o_perm,
@@ -157,11 +178,6 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         uint64_t drop_offset,
                         bool drop_prefs,
                         std::string mask_str,
-                        float range_q,
-                        float range_k,
-                        float range_v,
-                        float range_p,
-                        float range_o,
                         bool squant,
                         bool is_rotary_interleaved,
                         ck_tile::index_t num_splits,
@@ -172,7 +188,9 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         std::optional<std::string> json = std::nullopt)
 {
     const std::string data_type = []() {
-        if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp16>)
+        if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp32>)
+            return "fp32";
+        else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp16>)
             return "fp16";
         else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdBf16>)
             return "bf16";
@@ -180,6 +198,10 @@ fwd_result fmha_fwd_run(mode_enum mode,
             return "fp8";
         else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdBf8>)
             return "bf8";
+        else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8Bf16>)
+            return "fp8bf16";
+        else if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8Fp32>)
+            return "fp8fp32";
         else
             static_assert(false);
     }();
@@ -290,6 +312,24 @@ fwd_result fmha_fwd_run(mode_enum mode,
 #endif
     const bool use_kvcache = (need_append_kvcache || use_cache_batch_idx || 0 < page_block_size);
 
+    // Reject unsupported padding usage in special pipelines (appendkv / splitkv / pagedkv)
+    const bool has_group_padding =
+        (mode == mode_enum::group && (!seqlen_qpads.empty() && seqlen_qpads[0] != -1)) ||
+        (mode == mode_enum::group && (seqlen_kpads[0] >= 0));
+    const bool has_batch_efflens = (mode == mode_enum::batch && (!q_eff_lens_per_batch.empty() ||
+                                                                 !kv_eff_lens_per_batch.empty()));
+    const bool using_appendkv    = (0 < seqlen_knew || 0 < rotary_dim);
+    const bool using_pagedkv     = (0 < page_block_size);
+    const bool using_splitkv     = (num_splits > 1) || use_cache_batch_idx;
+    if((using_appendkv || using_pagedkv || using_splitkv) &&
+       (has_group_padding || has_batch_efflens))
+    {
+        std::cerr << "Padding (physical or effective lengths) is not supported with "
+                     "appendkv/splitkv/pagedkv pipelines"
+                  << std::endl;
+        return fwd_result::invalid_args;
+    }
+
     std::tie(seqlen_qs, seqlen_ks, seqlen_kpads) =
         generate_missing_seqlens(mode,
                                  batch,
@@ -353,6 +393,44 @@ fwd_result fmha_fwd_run(mode_enum mode,
     const auto seqstart_k_host              = to_seqstarts(seqlen_ks);
     const auto seqstart_k_with_padding_host = to_seqstarts(seqlen_kpads);
 
+    // Optional padded Q seqstarts (group-mode only)
+    std::vector<int32_t> seqstart_q_with_padding_host;
+    if(mode == mode_enum::group && !seqlen_qpads.empty() && seqlen_qpads[0] != -1)
+    {
+        if(seqlen_qpads.size() < static_cast<size_t>(batch))
+        {
+            seqlen_qpads.resize(batch, seqlen_qpads.back());
+        }
+        if(seqlen_qpads.size() == static_cast<size_t>(batch))
+        {
+            seqstart_q_with_padding_host = to_seqstarts(
+                ck_tile::span<const int32_t>(seqlen_qpads.data(), seqlen_qpads.size()));
+        }
+    }
+
+    // Optional batch-mode cumulative seqlen overrides
+    std::vector<ck_tile::index_t> cuq_cum, cukv_cum;
+    if(mode == mode_enum::batch)
+    {
+        auto calculate_cumulative = [&](std::vector<ck_tile::index_t>& per_batch_vec,
+                                        std::vector<ck_tile::index_t>& cum_vec) {
+            if(!per_batch_vec.empty() && per_batch_vec[0] != -1)
+            {
+                if(per_batch_vec.size() < static_cast<size_t>(batch))
+                {
+                    per_batch_vec.resize(batch, per_batch_vec.back());
+                }
+                cum_vec.resize(batch + 1);
+                cum_vec[0] = 0;
+                for(int i = 0; i < batch; ++i)
+                    cum_vec[i + 1] = cum_vec[i] + per_batch_vec[i];
+            }
+        };
+
+        calculate_cumulative(q_eff_lens_per_batch, cuq_cum);
+        calculate_cumulative(kv_eff_lens_per_batch, cukv_cum);
+    }
+
     using TypeConfig = FmhaFwdTypeConfig<DataTypeConfig>;
 
     using QDataType             = typename TypeConfig::QDataType;
@@ -366,22 +444,6 @@ fwd_result fmha_fwd_run(mode_enum mode,
     using PDataType             = typename TypeConfig::PDataType;
     using OaccDataType          = typename TypeConfig::OaccDataType;
     using ODataType             = typename TypeConfig::ODataType;
-
-    float q_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<QDataType>::max());
-    float k_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<KDataType>::max());
-    float v_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<VDataType>::max());
-    float p_dtype_max = v_dtype_max; // assume p and v is the same type
-    float o_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<ODataType>::max());
-
-    float scale_p = 1.f;
-    float scale_o = 1.f;
-
-    if(squant)
-    {
-        scale_s = scale_s * (range_q / q_dtype_max) * (range_k / k_dtype_max);
-        scale_p = p_dtype_max / range_p;
-        scale_o = (o_dtype_max / range_o) * (range_p / p_dtype_max) * (range_v / v_dtype_max);
-    }
 
     // accumulation numbers for performance evaluation
     std::size_t flop = 0, num_byte = 0;
@@ -452,8 +514,15 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
     // host memory for storing all the tensor elements
     const ck_tile::index_t shape_batch = (mode == mode_enum::batch ? batch : 1);
-    const ck_tile::index_t shape_seqlen_q =
+    // logical(unpadded) total seqlen_q for group; batch uses fixed seqlen
+    const ck_tile::index_t shape_seqlen_q_lse =
         (mode == mode_enum::batch ? seqlen_qs[0] : seqstart_q_host.back());
+    // physical(padded) total seqlen_q for group when s_qpad is provided; else use logical
+    const ck_tile::index_t shape_seqlen_q =
+        (mode == mode_enum::batch
+             ? seqlen_qs[0]
+             : (seqstart_q_with_padding_host.empty() ? seqstart_q_host.back()
+                                                     : seqstart_q_with_padding_host.back()));
     const ck_tile::index_t shape_seqlen_k =
         (mode == mode_enum::batch ? seqlen_ks[0]
                                   : (seqlen_kpads[0] < 0 ? seqstart_k_host.back()
@@ -511,7 +580,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
     // batch mode of lse data layout is [batch, nhead, seqlen_q]
     // group mode of lse data layout is [nhead, total_seqlen_q]
     ck_tile::HostTensor<LSEDataType> lse_host(
-        lse ? std::array<ck_tile::index_t, 3>{shape_batch, nhead, shape_seqlen_q}
+        lse ? std::array<ck_tile::index_t, 3>{shape_batch, nhead, shape_seqlen_q_lse}
             : std::array<ck_tile::index_t, 3>{1, 1, 1} /* dummy shape for simplifying code */);
 
     ck_tile::HostTensor<ODataType> o_host(
@@ -528,7 +597,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
     ck_tile::HostTensor<int32_t> cache_batch_idx_host(use_cache_batch_idx
                                                           ? std::array<ck_tile::index_t, 1>{batch}
                                                           : std::array<ck_tile::index_t, 1>{1});
-
+    float max_o = 5.0;
     if(init_method == "ui" || init_method == "0")
     {
         ck_tile::FillUniformDistributionIntegerValue<QDataType>{-3.f, 3.f, next_seed()}(q_host);
@@ -576,32 +645,6 @@ fwd_result fmha_fwd_run(mode_enum mode,
         ck_tile::FillTrigValue<VDataType>{}(vnew_host);
         ck_tile::FillTrigValue<BiasDataType>{}(bias_host);
     }
-    else if(init_method == "ufq" || init_method == "uf:q" || init_method == "3")
-    {
-        // suitable for fp8 quantization
-        if(!squant)
-        {
-            std::cerr << "init method " << init_method << " can not be used without quantization"
-                      << std::endl;
-            return fwd_result::invalid_args;
-        }
-        ck_tile::FillUniformDistribution<QDataType>{0.f, q_dtype_max, next_seed()}(q_host);
-        ck_tile::FillUniformDistribution<KDataType>{0.f, k_dtype_max, next_seed()}(k_host);
-        ck_tile::FillUniformDistribution<KDataType>{0.f, k_dtype_max, next_seed()}(knew_host);
-        ck_tile::FillUniformDistribution<VDataType>{0.f, v_dtype_max, next_seed()}(v_host);
-        ck_tile::FillUniformDistribution<VDataType>{0.f, v_dtype_max, next_seed()}(vnew_host);
-
-        // bias_fp8 = qscale_bias * bias_fp32
-        float qscale_bias = (q_dtype_max / range_q) * (k_dtype_max / range_k);
-        // Assume bias is in [0.f, 1.f] in original fp32
-        ck_tile::FillUniformDistribution<BiasDataType>{0.f, qscale_bias, next_seed()}(bias_host);
-    }
-    else
-    {
-        std::cerr << "Unknown value for init argument: " << init_method << std::endl;
-        return fwd_result::invalid_args;
-    }
-
     if(bias.type == bias_enum::alibi)
     {
         auto slopes = ck_tile::get_alibi_slopes<SaccDataType>(nhead);
@@ -625,8 +668,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
     ck_tile::DeviceMem q_buf(q_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem k_buf(k_host.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem knew_buf(knew_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem v_buf(v_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem knew_buf(knew_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem vnew_buf(vnew_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem bias_buf(bias_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem lse_acc_buf(lse_acc_host.get_element_space_size_in_bytes());
@@ -635,6 +678,16 @@ fwd_result fmha_fwd_run(mode_enum mode,
     ck_tile::DeviceMem o_buf(o_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
+    ck_tile::DeviceMem seqstart_q_padded_buf(seqstart_q_with_padding_host.empty()
+                                                 ? 0
+                                                 : seqstart_q_with_padding_host.size() *
+                                                       sizeof(int32_t));
+    ck_tile::DeviceMem seqstart_k_padded_buf(
+        seqlen_kpads[0] < 0 ? 0 : seqstart_k_with_padding_host.size() * sizeof(int32_t));
+    ck_tile::DeviceMem cu_seqlen_q_buf(cuq_cum.empty() ? 0
+                                                       : cuq_cum.size() * sizeof(ck_tile::index_t));
+    ck_tile::DeviceMem cu_seqlen_kv_buf(
+        cukv_cum.empty() ? 0 : cukv_cum.size() * sizeof(ck_tile::index_t));
     ck_tile::DeviceMem seqlen_k_buf((mode == mode_enum::batch && use_kvcache) ||
                                             0 <= seqlen_kpads[0]
                                         ? seqlen_ks.size() * sizeof(int32_t)
@@ -650,15 +703,90 @@ fwd_result fmha_fwd_run(mode_enum mode,
     ck_tile::DeviceMem block_table_buf(block_table_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem cache_batch_idx_buf(cache_batch_idx_host.get_element_space_size_in_bytes());
 
+    float scale_p = 1.f;
+    float scale_o = 1.f;
+    if(squant)
+    {
+        float q_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<QDataType>::max());
+        float k_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<KDataType>::max());
+        float v_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<VDataType>::max());
+        float p_dtype_max = v_dtype_max; // assume p and v is the same type
+        // Q tensor
+        {
+            float max_value = ck_tile::type_convert<float>(ck_tile::numeric<QDataType>::min());
+            q_host.ForEach([&](auto& self, auto idx) {
+                float val = ck_tile::type_convert<float>(self(idx));
+                if(val > max_value)
+                    max_value = val;
+            });
+
+            float scale = q_dtype_max / max_value;
+
+            q_host.ForEach([&](auto& self, auto idx) {
+                float val = ck_tile::type_convert<float>(self(idx));
+                self(idx) = ck_tile::type_convert<QDataType>(val * scale);
+            });
+            scale_s = scale_s / scale;
+        }
+
+        // K tensor
+        {
+            float max_value = ck_tile::type_convert<float>(ck_tile::numeric<KDataType>::min());
+            k_host.ForEach([&](auto& self, auto idx) {
+                float val = ck_tile::type_convert<float>(self(idx));
+                if(val > max_value)
+                    max_value = val;
+            });
+            float scale = k_dtype_max / max_value;
+            k_host.ForEach([&](auto& self, auto idx) {
+                float val = ck_tile::type_convert<float>(self(idx));
+                self(idx) = ck_tile::type_convert<KDataType>(val * scale);
+            });
+            scale_s = scale_s / scale;
+        }
+
+        // V tensor
+        {
+            float max_value = ck_tile::type_convert<float>(ck_tile::numeric<VDataType>::min());
+            v_host.ForEach([&](auto& self, auto idx) {
+                float val = ck_tile::type_convert<float>(self(idx));
+                if(val > max_value)
+                    max_value = val;
+            });
+
+            float scale = k_dtype_max / max_value;
+            v_host.ForEach([&](auto& self, auto idx) {
+                float val = ck_tile::type_convert<float>(self(idx));
+                self(idx) = ck_tile::type_convert<VDataType>(val * scale);
+            });
+
+            scale_o = (1.0 / p_dtype_max) / scale;
+        }
+
+        scale_p = p_dtype_max;
+
+        if constexpr(std::is_same_v<DataTypeConfig, FmhaFwdFp8>)
+        {
+            float o_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<ODataType>::max());
+            scale_o           = scale_o * o_dtype_max / max_o;
+        }
+    }
+
     q_buf.ToDevice(q_host.data());
     k_buf.ToDevice(k_host.data());
-    knew_buf.ToDevice(knew_host.data());
     v_buf.ToDevice(v_host.data());
+    knew_buf.ToDevice(knew_host.data());
     vnew_buf.ToDevice(vnew_host.data());
     bias_buf.ToDevice(bias_host.data());
     seqstart_q.ToDevice(seqstart_q_host.data());
-    seqstart_k.ToDevice(seqlen_kpads[0] < 0 ? seqstart_k_host.data()
-                                            : seqstart_k_with_padding_host.data());
+    // Keep logical starts in seqstart_k; pass padded K via separate pointer
+    seqstart_k.ToDevice(seqstart_k_host.data());
+    seqstart_q_padded_buf.ToDevice(
+        seqstart_q_with_padding_host.empty() ? nullptr : seqstart_q_with_padding_host.data());
+    seqstart_k_padded_buf.ToDevice(seqlen_kpads[0] < 0 ? nullptr
+                                                       : seqstart_k_with_padding_host.data());
+    cu_seqlen_q_buf.ToDevice(cuq_cum.empty() ? nullptr : cuq_cum.data());
+    cu_seqlen_kv_buf.ToDevice(cukv_cum.empty() ? nullptr : cukv_cum.data());
     seqlen_k_buf.ToDevice((mode == mode_enum::batch && use_kvcache) || 0 <= seqlen_kpads[0]
                               ? seqlen_ks.data()
                               : nullptr);
@@ -711,6 +839,54 @@ fwd_result fmha_fwd_run(mode_enum mode,
         std::cout << ", cache_batch_idx:" << use_cache_batch_idx;
     }
 #endif
+    // Padding / effective length diagnostic logging
+    auto print_vec = [&](const char* label, const std::vector<int>& v) {
+        if(v.empty())
+            return;
+        std::cout << ", " << label << ":[";
+        for(std::size_t i = 0; i < v.size(); ++i)
+        {
+            if(i)
+                std::cout << ",";
+            std::cout << v[i];
+        }
+        std::cout << "]";
+    };
+
+    if(has_group_padding)
+    {
+        bool has_qpad = !seqstart_q_with_padding_host.empty();
+        bool has_kpad = (seqlen_kpads[0] >= 0);
+        if(has_qpad)
+        {
+            print_vec("q_logical", seqlen_qs);
+            print_vec("q_padded", seqlen_qpads);
+        }
+        if(has_kpad)
+        {
+            print_vec("k_logical", seqlen_ks);
+            print_vec("k_padded", seqlen_kpads);
+        }
+    }
+    else if(has_batch_efflens)
+    {
+        // derive effective lengths from cumulative arrays if present
+        if(!cuq_cum.empty())
+        {
+            std::vector<int> eff_q(batch);
+            for(int b_i = 0; b_i < batch; ++b_i)
+                eff_q[b_i] = static_cast<int>(cuq_cum[b_i + 1] - cuq_cum[b_i]);
+            print_vec("q_eff", eff_q);
+        }
+        if(!cukv_cum.empty())
+        {
+            std::vector<int> eff_kv(batch);
+            for(int b_i = 0; b_i < batch; ++b_i)
+                eff_kv[b_i] = static_cast<int>(cukv_cum[b_i + 1] - cukv_cum[b_i]);
+            print_vec("kv_eff", eff_kv);
+        }
+    }
+
     std::cout << std::flush;
 
     const auto init_traits = [&](auto& traits) {
@@ -794,8 +970,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
         const ck_tile::index_t nhead_stride_bias =
             (i_perm ? 0 * shape_seqlen_q * max_seqlen_k : 0 * max_seqlen_k);
         const ck_tile::index_t nhead_stride_randval = (shape_seqlen_q * max_seqlen_k);
-        const ck_tile::index_t nhead_stride_lse     = shape_seqlen_q;
-        const ck_tile::index_t nhead_stride_lse_acc = (num_splits * shape_seqlen_q);
+        const ck_tile::index_t nhead_stride_lse     = shape_seqlen_q_lse;
+        const ck_tile::index_t nhead_stride_lse_acc = (num_splits * shape_seqlen_q_lse);
         const ck_tile::index_t nhead_stride_o_acc   = (num_splits * shape_seqlen_q * hdim_v);
         const ck_tile::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
         // setup batch_stride_* arguments
@@ -810,8 +986,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
         const ck_tile::index_t batch_stride_vnew    = (nhead_k * hdim_v * seqlen_knew);
         const ck_tile::index_t batch_stride_bias    = (0 * nhead * shape_seqlen_q * max_seqlen_k);
         const ck_tile::index_t batch_stride_randval = (nhead * shape_seqlen_q * max_seqlen_k);
-        const ck_tile::index_t batch_stride_lse     = (nhead * shape_seqlen_q);
-        const ck_tile::index_t batch_stride_lse_acc = (nhead * num_splits * shape_seqlen_q);
+        const ck_tile::index_t batch_stride_lse     = (nhead * shape_seqlen_q_lse);
+        const ck_tile::index_t batch_stride_lse_acc = (nhead * num_splits * shape_seqlen_q_lse);
         const ck_tile::index_t batch_stride_o_acc = (nhead * num_splits * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_o     = (nhead * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_block_table = (max_num_page_blocks / batch);
@@ -925,6 +1101,29 @@ fwd_result fmha_fwd_run(mode_enum mode,
                 {
                     args.drop_seed_offset = std::make_pair(drop_seed, drop_offset);
                 }
+
+                // Group-mode: optional physical padded starts for Q/K
+                if(mode == mode_enum::group)
+                {
+                    args.seqstart_padded_q_ptr = (seqstart_q_with_padding_host.empty()
+                                                      ? nullptr
+                                                      : seqstart_q_padded_buf.GetDeviceBuffer());
+                    args.seqstart_padded_k_ptr =
+                        (seqlen_kpads[0] < 0 ? nullptr : seqstart_k_padded_buf.GetDeviceBuffer());
+                }
+
+                // Batch-mode: optional cumulative effective seqlen overrides
+                if(mode == mode_enum::batch)
+                {
+                    args.cu_seqlen_q_ptr  = cuq_cum.empty()
+                                                ? nullptr
+                                                : reinterpret_cast<const ck_tile::index_t*>(
+                                                     cu_seqlen_q_buf.GetDeviceBuffer());
+                    args.cu_seqlen_kv_ptr = cukv_cum.empty()
+                                                ? nullptr
+                                                : reinterpret_cast<const ck_tile::index_t*>(
+                                                      cu_seqlen_kv_buf.GetDeviceBuffer());
+                }
             }
             else if constexpr(std::is_same_v<fmha_fwd_splitkv_args, std::decay_t<decltype(args)>>)
             {
@@ -964,7 +1163,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
         }
     };
 
-    const float appendkv_ave_time = [&] {
+    auto run_appendkv = [&](const ck_tile::stream_config& sc) {
 #if CK_TILE_FMHA_FWD_APPENDKV_API
         if(need_append_kvcache)
         {
@@ -974,18 +1173,19 @@ fwd_result fmha_fwd_run(mode_enum mode,
             fmha_fwd_appendkv_args fwd_appendkv_args;
             init_args(fwd_appendkv_args);
 
-            return fmha_fwd_appendkv(fwd_appendkv_traits, fwd_appendkv_args, stream_config);
+            return fmha_fwd_appendkv(fwd_appendkv_traits, fwd_appendkv_args, sc);
         }
 #endif
         return 0.0f;
-    }();
+    };
+    const float appendkv_ave_time = run_appendkv(stream_config);
     if(appendkv_ave_time < 0.0f)
     {
         std::cout << ", not supported yet" << std::flush << std::endl;
         return fwd_result::no_instance;
     }
 
-    const float fwd_ave_time = [&] {
+    auto run_fwd = [&](const ck_tile::stream_config& sc) {
 #if CK_TILE_FMHA_FWD_PAGEDKV_API
         if(1 == num_splits && use_kvcache)
         {
@@ -995,8 +1195,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
             fmha_fwd_pagedkv_args fmha_pagedkv_args;
             init_args(fmha_pagedkv_args);
 
-            const float ave_time =
-                fmha_fwd_pagedkv(fmha_pagedkv_traits, fmha_pagedkv_args, stream_config);
+            const float ave_time = fmha_fwd_pagedkv(fmha_pagedkv_traits, fmha_pagedkv_args, sc);
 #if CK_TILE_FMHA_FWD_SPLITKV_API
             // If there is no instance for these args, fallback to fmha_fwd_splitkv
             if(ave_time >= 0.0f)
@@ -1015,7 +1214,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
             fmha_fwd_splitkv_args fmha_splitkv_args;
             init_args(fmha_splitkv_args);
 
-            return fmha_fwd_splitkv(fmha_splitkv_traits, fmha_splitkv_args, stream_config);
+            return fmha_fwd_splitkv(fmha_splitkv_traits, fmha_splitkv_args, sc);
         }
 #endif // CK_TILE_FMHA_FWD_SPLITKV_API
         fmha_fwd_traits fmha_traits;
@@ -1024,8 +1223,9 @@ fwd_result fmha_fwd_run(mode_enum mode,
         fmha_fwd_args fmha_args;
         init_args(fmha_args);
 
-        return fmha_fwd(fmha_traits, fmha_args, stream_config);
-    }();
+        return fmha_fwd(fmha_traits, fmha_args, sc);
+    };
+    const float fwd_ave_time = run_fwd(stream_config);
     if(fwd_ave_time < 0.0f)
     {
         std::cout << ", not supported yet" << std::flush << std::endl;
@@ -1099,11 +1299,24 @@ fwd_result fmha_fwd_run(mode_enum mode,
     }
     else
     {
+#if CK_TILE_FMHA_FWD_APPENDKV_API
+        // When rotary embedding is used, the appendkv kernel modifies the q tensor (multiple times
+        // when time_kernel_ is set). We need to reset the q buffer and rerun all kernels.
+        if(0 < rotary_dim && stream_config.time_kernel_)
+        {
+            const ck_tile::stream_config stream_config2{stream_config.stream_id_, false, 0};
+            q_buf.ToDevice(q_host.data());
+            run_appendkv(stream_config2);
+            run_fwd(stream_config2);
+        }
+#endif
         o_buf.FromDevice(o_host.data());
         lse_buf.FromDevice(lse_host.data());
         randval_buf.FromDevice(randval_host.data());
 
-        constexpr bool supports_squant = std::is_same_v<DataTypeConfig, FmhaFwdFp8>;
+        constexpr bool supports_squant = std::is_same_v<DataTypeConfig, FmhaFwdFp8> ||
+                                         std::is_same_v<DataTypeConfig, FmhaFwdFp8Bf16> ||
+                                         std::is_same_v<DataTypeConfig, FmhaFwdFp8Fp32>;
 
         auto p_compute_element_func = [&]() {
             if constexpr(supports_squant)
@@ -1113,9 +1326,11 @@ fwd_result fmha_fwd_run(mode_enum mode,
         }();
 
         auto oacc_element_func = [&]() {
-            if constexpr(supports_squant)
+            if constexpr(std::is_same_v<ODataType, ck_tile::fp8_t> && supports_squant)
                 return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
                                          ck_tile::scales{scale_o});
+            else if constexpr(supports_squant)
+                return ck_tile::scales{scale_o};
             else
                 return ck_tile::identity{};
         }();
@@ -1127,15 +1342,29 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
         for(ck_tile::index_t wb = 0; wb < batch; ++wb)
         {
-            const ck_tile::index_t real_seqlen_q = seqstart_q_host[wb + 1] - seqstart_q_host[wb];
-            const ck_tile::index_t real_seqlen_k = seqstart_k_host[wb + 1] - seqstart_k_host[wb];
+            ck_tile::index_t real_seqlen_q = seqstart_q_host[wb + 1] - seqstart_q_host[wb];
+            ck_tile::index_t real_seqlen_k = seqstart_k_host[wb + 1] - seqstart_k_host[wb];
+            if(mode == mode_enum::batch)
+            {
+                if(!cuq_cum.empty())
+                {
+                    real_seqlen_q = cuq_cum[wb + 1] - cuq_cum[wb];
+                }
+                if(!cukv_cum.empty())
+                {
+                    real_seqlen_k = cukv_cum[wb + 1] - cukv_cum[wb];
+                }
+            }
 
             // adjust matrix index according to the mode
             const ck_tile::index_t b_idx = (mode == mode_enum::batch ? wb : 0);
             const ck_tile::index_t cache_b_idx =
                 (use_cache_batch_idx ? cache_batch_idx_host(b_idx) : b_idx);
             const ck_tile::index_t query_offset =
-                (mode == mode_enum::batch ? 0 : seqstart_q_host[wb]);
+                (mode == mode_enum::batch
+                     ? 0
+                     : (seqstart_q_with_padding_host.empty() ? seqstart_q_host[wb]
+                                                             : seqstart_q_with_padding_host[wb]));
             const ck_tile::index_t key_offset =
                 (mode == mode_enum::batch
                      ? 0
@@ -1498,8 +1727,10 @@ fwd_result fmha_fwd_run(mode_enum mode,
             if(lse)
             {
                 ck_tile::HostTensor<SMPLComputeDataType> lse_host_result({nhead, real_seqlen_q});
+                const ck_tile::index_t query_offset_lse =
+                    (mode == mode_enum::batch ? 0 : seqstart_q_host[wb]);
                 lse_host_result.ForEach([&](auto& self, auto idx) {
-                    self(idx) = lse_host(b_idx, idx[0], idx[1] + query_offset);
+                    self(idx) = lse_host(b_idx, idx[0], idx[1] + query_offset_lse);
                 });
 
                 cur_pass = ck_tile::check_err(lse_host_result,

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -34,7 +34,13 @@ struct transpose_vectors
         constexpr auto I3 = number<3>{};
         constexpr auto I4 = number<4>{};
 
-        if constexpr(sizeof(S) == 2)
+        if constexpr(sizeof(S) == 4)
+        {
+            static_for<0, NY, 1>{}([&](auto iy) {
+                static_for<0, NX, 1>{}([&](auto ix) { vy_tuple(iy)(ix) = vx_tuple[ix][iy]; });
+            });
+        }
+        else if constexpr(sizeof(S) == 2)
         {
             static_assert((NX % 2 == 0 && NY % 2 == 0), "wrong!");
 

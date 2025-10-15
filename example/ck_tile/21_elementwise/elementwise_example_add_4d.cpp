@@ -84,8 +84,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     for(auto d : problem_shape)
         total_elements *= d;
 
-    constexpr ck_tile::index_t kBlockSize =
-        ck_tile::get_warp_size() * BlockWarps::at(ck_tile::number<0>{});
+    const ck_tile::index_t kBlockSize = Kernel::BlockSize();
 
     constexpr ck_tile::index_t kBlockPerCu = 2;
 
@@ -158,7 +157,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
 int main(int argc, char* argv[])
 {
-    auto [result, arg_parser] = create_args(argc, argv);
+    bool result = true;
+    ck_tile::ArgParser arg_parser;
+    std::tie(result, arg_parser) = create_args(argc, argv);
     if(!result)
         return -1;
 

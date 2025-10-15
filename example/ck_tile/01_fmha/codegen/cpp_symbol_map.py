@@ -1,16 +1,19 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 # generate kernel instances to speed up compilation
 
 FWD_DTYPE_MAP = {
+    "fp32"   : "FmhaFwdFp32",
     "fp16"   : "FmhaFwdFp16",
     "bf16"   : "FmhaFwdBf16",
     "fp8"    : "FmhaFwdFp8",
     "fp8fp16": "FmhaFwdFp8Fp16",
-    "fp8bf16": "FmhaFwdFp8Bf16"
+    "fp8bf16": "FmhaFwdFp8Bf16",
+    "fp8fp32": "FmhaFwdFp8Fp32"
 }
 
 BWD_DTYPE_MAP = {
+    "fp32": "FmhaBwdFp32",
     "fp16": "FmhaBwdFp16",
     "bf16": "FmhaBwdBf16"
 }

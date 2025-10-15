@@ -553,6 +553,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                 conv_ngchw_to_nhwgc_transformer.TransposeWeiStrides(e_g_k_c_xs_lengths,
                                                                     e_g_k_c_xs_strides);
 
+#if !DISABLE_SPLIT_K_AUTODEDUCE_FOR_ONE_STAGE_KERNELS
             if(split_k < 0)
             {
                 ck::index_t gemmM, gemmN;
@@ -565,6 +566,7 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                                                             grid_size);
             }
             else
+#endif
             {
                 k_batch_ = split_k;
             }
@@ -934,6 +936,12 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+#if DISABLE_SPLIT_K_AUTODEDUCE_FOR_ONE_STAGE_KERNELS
+        if(arg.k_batch_ < 0)
+        {
+            return false;
+        }
+#endif
         if(!ck::is_xdl_wmma_supported<ComputeTypeA, ComputeTypeB, MPerXDL, NPerXDL>())
         {
             return false;
@@ -941,6 +949,22 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
         if(!is_bf16_atomic_supported() && std::is_same_v<CDataType, ck::bhalf_t>)
         {
             return false;
+        }
+        if constexpr(is_same_v<ComputeTypeA, ck::tf32_t> || is_same_v<ComputeTypeB, ck::tf32_t>)
+        {
+            if(!is_tf32_supported())
+            {
+                return false;
+            }
+            if constexpr(!is_same_v<ComputeTypeA, ComputeTypeB>)
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "ComputeDataType for A and B should be same while using TF32"
+                              << std::endl;
+                }
+                return false;
+            }
         }
         if constexpr(NDimSpatial == 1)
         {

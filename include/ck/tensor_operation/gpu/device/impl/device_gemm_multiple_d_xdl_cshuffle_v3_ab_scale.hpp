@@ -311,6 +311,12 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
         }
     };
 
+    void SetKBatch(BaseArgument* base_arg, int KBatch) const override
+    {
+        auto& arg  = *dynamic_cast<Argument*>(base_arg);
+        arg.KBatch = KBatch;
+    }
+
     static constexpr bool IsValidCompilationParameter()
     {
         // TODO: properly implement this check

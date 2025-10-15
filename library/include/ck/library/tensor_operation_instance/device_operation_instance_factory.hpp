@@ -16,6 +16,7 @@ namespace instance {
 // aliasing, for commonly used data type
 using F64  = double;
 using F32  = float;
+using TF32 = ck::tf32_t;
 using F16  = ck::half_t;
 using BF16 = ck::bhalf_t;
 using I8   = int8_t;
@@ -46,6 +47,9 @@ using I8_Tuple      = ck::Tuple<I8>;
 using BF16_Tuple    = ck::Tuple<BF16>;
 
 using F32_F32_Tuple = ck::Tuple<F32, F32>;
+
+// Generic layouts
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
 // GEMM layout
 using Row  = ck::tensor_layout::gemm::RowMajor;

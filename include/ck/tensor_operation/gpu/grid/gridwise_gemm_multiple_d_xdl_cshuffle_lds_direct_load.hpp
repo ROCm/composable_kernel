@@ -144,7 +144,7 @@ template <typename ALayout,
           index_t CDEShuffleBlockTransferScalarPerVector_NPerBlock,
           LoopScheduler LoopSched,
           PipelineVersion PipelineVer = PipelineVersion::v4,
-          typename BComputeDataType   = AComputeDataType_>
+          typename BComputeDataType_  = AComputeDataType_>
 struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
@@ -172,7 +172,10 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
     using AComputeDataType =
         conditional_t<is_same_v<AComputeDataType_, ck::half_t>, ck::bhalf_t, AComputeDataType_>;
 #else
-    using AComputeDataType = AComputeDataType_;
+    using AComputeDataType =
+        conditional_t<is_same_v<AComputeDataType_, ck::tf32_t>, float, AComputeDataType_>;
+    using BComputeDataType =
+        conditional_t<is_same_v<BComputeDataType_, ck::tf32_t>, float, BComputeDataType_>;
 #endif
 
     __host__ __device__ static constexpr auto GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1()
@@ -573,7 +576,6 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
         // This forces m/n_block_data_idx_on_grid into SGPR.
         const index_t m_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I0] * MPerBlock);
-
         const index_t n_block_data_idx_on_grid =
             __builtin_amdgcn_readfirstlane(block_work_idx[I1] * NPerBlock);
 
@@ -640,10 +642,10 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
         constexpr auto is_scale_mfma = false;
 
         constexpr index_t KPack = math::max(lcm_AK1_BK1,
-                                            MfmaSelector<AComputeDataType,
+                                            MfmaSelector<AComputeDataType_,
                                                          MPerXdl,
                                                          NPerXdl,
-                                                         BComputeDataType,
+                                                         BComputeDataType_,
                                                          is_single_rate_mfma,
                                                          is_scale_mfma>::selected_mfma.k_per_blk);
 
@@ -659,7 +661,9 @@ struct GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
             MXdlPerWave,
             NXdlPerWave,
             KPack,
-            LoopSched>();
+            LoopSched,
+            AComputeDataType_,
+            BComputeDataType_>();
 
         auto c_thread_buf = blockwise_gemm.GetCThreadBuffer();
 
