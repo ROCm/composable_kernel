@@ -69,11 +69,6 @@ int run_mx_flatmm_with_layouts(int argc,
     ck_tile::HostTensor<ScaleType> scale_b(ck_tile::host_tensor_descriptor(
         K / ScaleGranularityK, N / ScaleGranularityN, scale_stride_B, is_row_major(b_layout)));
 
-    ck_tile::HostTensor<ScaleType> scale_a_shuffled(ck_tile::host_tensor_descriptor(
-        M / ScaleGranularityM, K / ScaleGranularityK, scale_stride_A, is_row_major(a_layout)));
-    ck_tile::HostTensor<ScaleType> scale_b_shuffled(ck_tile::host_tensor_descriptor(
-        K / ScaleGranularityK, N / ScaleGranularityN, scale_stride_B, is_row_major(b_layout)));
-
     if(init_method == 0)
     {
         ck_tile::FillUniformDistribution<ADataType>{0.0f, 1.0f}(a_host);
@@ -97,10 +92,8 @@ int run_mx_flatmm_with_layouts(int argc,
         ck_tile::host_tensor_descriptor(K, N, stride_B, is_row_major(b_layout)));
     preShuffleWeight<FlatmmConfig>(b_origin_host.begin(), b_shuffled_host.begin(), N, K);
 
-    preShuffleScale<FlatmmConfig, is_row_major(a_layout)>(
-        scale_a.begin(), scale_a_shuffled.begin(), M, K / ScaleGranularityK);
-    preShuffleScale<FlatmmConfig, !is_row_major(b_layout)>(
-        scale_b.begin(), scale_b_shuffled.begin(), N, K / ScaleGranularityK);
+    const auto scale_a_shuffled = preShuffleScale<FlatmmConfig, true>(scale_a);
+    const auto scale_b_shuffled = preShuffleScale<FlatmmConfig, false>(scale_b);
 
     ck_tile::DeviceMem a_dev_buf(a_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_shuffled_dev_buf(b_shuffled_host.get_element_space_size_in_bytes());

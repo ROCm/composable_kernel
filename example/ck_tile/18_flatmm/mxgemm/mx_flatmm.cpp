@@ -296,10 +296,10 @@ float invoke_mx_flatmm(ck_tile::DeviceMem& a_dev_buf,
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
-    std::cout << "Run MXFP4_Flatmm kernel " << " M =" << M << " N =" << N << " K =" << K
-              << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideC =" << stride_C
-              << " : " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << std::endl;
+    std::cout << "Run MXFP4_Flatmm kernel " //
+              << " M =" << M << " N =" << N << " K =" << K << " StrideA =" << stride_A
+              << " StrideB =" << stride_B << " StrideC =" << stride_C << " : " << ave_time
+              << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
 
     return ave_time;
 }
@@ -364,16 +364,24 @@ void preShuffleWeight(const IterSrc src, IterDst dst, int N, int K)
     }
 }
 
-template <class FlatmmConfig, bool KLast, class IterSrc, class IterDst>
-void preShuffleScale(const IterSrc src, IterDst dst, int MN, int K)
+template <class FlatmmConfig, bool KLast, typename Src>
+auto preShuffleScale(Src& src)
 {
-    int MNXdlPack = 2;
-    int KXdlPack  = 2;
+    using dtype      = typename Src::Data::value_type;
+    auto src_lengths = src.get_lengths();
+    const auto MN    = KLast ? src_lengths[0] : src_lengths[1];
+    const auto K     = KLast ? src_lengths[1] : src_lengths[0];
 
-    int XdlMNThread = FlatmmConfig::N_Warp_Tile; // 16
-    int XdlKThread  = 64 / XdlMNThread;
+    size_t MNXdlPack   = 2;
+    size_t KXdlPack    = 2;
+    size_t XdlMNThread = FlatmmConfig::N_Warp_Tile; // 16
+    size_t XdlKThread  = 64 / XdlMNThread;
 
-    int K0 = K / KXdlPack / XdlKThread; // KRepeat
+    const auto MN_Paded = ck_tile::integer_least_multiple(MN, XdlMNThread * MNXdlPack);
+
+    ck_tile::HostTensor<dtype> shuffled(ck_tile::HostTensorDescriptor({MN_Paded * K}, {1}));
+
+    size_t K0 = K / KXdlPack / XdlKThread; // KRepeat
 
     // The 4 16x128 building blocks will be packed into 1 32x256 for F4
     // The 8 16x16x128 mfma will be packed into 1 32x32x256 for F4
@@ -383,33 +391,32 @@ void preShuffleScale(const IterSrc src, IterDst dst, int MN, int K)
     // To XdlKThread-> XdlMNThread -> KXdlPack -> MNXdlPack
     // Then, MNRepeat->KRepeat
 
-    for(int n = 0; n < MN; ++n)
+    for(size_t n = 0; n < MN_Paded; ++n)
     {
-        for(int k = 0; k < K; ++k)
+        for(size_t k = 0; k < K; ++k)
         {
-            int n0    = n / (XdlMNThread * MNXdlPack); // i MNRepeat
-            int tempn = n % (XdlMNThread * MNXdlPack);
-            int n1    = tempn % XdlMNThread; // i XdlMNThread
-            int n2    = tempn / XdlMNThread; // i MNXdlPack
+            auto n0    = n / (XdlMNThread * MNXdlPack); // i MNRepeat
+            auto tempn = n % (XdlMNThread * MNXdlPack);
+            auto n1    = tempn % XdlMNThread; // i XdlMNThread
+            auto n2    = tempn / XdlMNThread; // i MNXdlPack
 
-            int k0    = k / (XdlKThread * KXdlPack); // i KRepeat
-            int tempk = k % (XdlKThread * KXdlPack);
-            int k1    = tempk % XdlKThread; // i XdlKThread
-            int k2    = tempk / XdlKThread; // i KXdlPack
+            auto k0    = k / (XdlKThread * KXdlPack); // i KRepeat
+            auto tempk = k % (XdlKThread * KXdlPack);
+            auto k1    = tempk % XdlKThread; // i XdlKThread
+            auto k2    = tempk / XdlKThread; // i KXdlPack
 
-            int outputIndex = n0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread * K0 +
-                              k0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread +
-                              k1 * MNXdlPack * KXdlPack * XdlMNThread + n1 * MNXdlPack * KXdlPack +
-                              k2 * MNXdlPack + n2;
-            // src[n * K + k] = ck::type_convert<ck::e8m0_bexp_t>(static_cast<float>(powf(2.0f,
-            // 2-k)));
+            auto outputIndex = n0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread * K0 +
+                               k0 * MNXdlPack * KXdlPack * XdlMNThread * XdlKThread +
+                               k1 * MNXdlPack * KXdlPack * XdlMNThread + n1 * MNXdlPack * KXdlPack +
+                               k2 * MNXdlPack + n2;
 
             if constexpr(KLast)
-                dst[outputIndex] = src[n * K + k];
+                shuffled(outputIndex) = n < MN ? src(n, k) : dtype{};
             else
-                dst[outputIndex] = src[k * MN + n];
+                shuffled(outputIndex) = n < MN ? src(k, n) : dtype{};
         }
     }
+    return shuffled;
 }
 
 #include "run_mx_flatmm.inc"

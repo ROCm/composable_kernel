@@ -206,22 +206,19 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
         auto scale_b = kargs.scale_n_ptr;
 
         static constexpr int BlockScaleSize = 32; // decltype(scale_n)::GranularityK;
+        const auto&& scale_packs_m = integer_divide_ceil(kargs.M, (MXdlPack * MThreadPerXdl));
+        const auto&& scale_packs_n = integer_divide_ceil(kargs.N, (NXdlPack * NThreadPerXdl));
+        const auto&& scale_packs_k = kargs.K / BlockScaleSize / (KXdlPack * KThreadPerXdl);
 
         // A scale tensor view
         const auto& scale_a_tensor_view = [&]() {
             // Pack 2x2 e8m0 over M/K dimension into 1 int32_t to trigger dword width load
             const auto scale_a_naive_desc = make_naive_tensor_descriptor_packed(
-                make_tuple(kargs.M / (MXdlPack * MThreadPerXdl),
-                           kargs.K / BlockScaleSize / (KXdlPack * KThreadPerXdl),
-                           KThreadPerXdl,
-                           MThreadPerXdl));
+                make_tuple(scale_packs_m, scale_packs_k, KThreadPerXdl, MThreadPerXdl));
             const auto scale_a_desc = transform_tensor_descriptor(
                 scale_a_naive_desc,
-                make_tuple(
-                    make_merge_transform(
-                        make_tuple(kargs.M / (MXdlPack * MThreadPerXdl), MThreadPerXdl)),
-                    make_merge_transform(make_tuple(
-                        kargs.K / BlockScaleSize / (KXdlPack * KThreadPerXdl), KThreadPerXdl))),
+                make_tuple(make_merge_transform(make_tuple(scale_packs_m, MThreadPerXdl)),
+                           make_merge_transform(make_tuple(scale_packs_k, KThreadPerXdl))),
                 make_tuple(sequence<0, 3>{}, sequence<1, 2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -232,17 +229,11 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
         // B scale tensor view
         const auto& scale_b_tensor_view = [&]() {
             const auto scale_b_navie_desc = make_naive_tensor_descriptor_packed(
-                make_tuple(kargs.N / (NXdlPack * NThreadPerXdl),
-                           kargs.K / BlockScaleSize / (KXdlPack * KThreadPerXdl),
-                           KThreadPerXdl,
-                           NThreadPerXdl));
+                make_tuple(scale_packs_n, scale_packs_k, KThreadPerXdl, NThreadPerXdl));
             const auto scale_b_desc = transform_tensor_descriptor(
                 scale_b_navie_desc,
-                make_tuple(
-                    make_merge_transform(
-                        make_tuple(kargs.N / (NXdlPack * NThreadPerXdl), NThreadPerXdl)),
-                    make_merge_transform(make_tuple(
-                        kargs.K / BlockScaleSize / (KXdlPack * KThreadPerXdl), KThreadPerXdl))),
+                make_tuple(make_merge_transform(make_tuple(scale_packs_n, NThreadPerXdl)),
+                           make_merge_transform(make_tuple(scale_packs_k, KThreadPerXdl))),
                 make_tuple(sequence<0, 3>{}, sequence<1, 2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
 
