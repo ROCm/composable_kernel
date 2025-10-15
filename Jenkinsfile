@@ -1190,7 +1190,6 @@ pipeline {
             when {
                 beforeAgent true
                 expression { env.SHOULD_RUN_CI.toBoolean() }
-                expression { params.RUN_CPPCHECK.toBoolean() }
             }
             parallel{
                 stage('Clang Format and Cppcheck') {

@@ -226,20 +226,20 @@ struct ConvTypeConfig;
 template <>
 struct ConvTypeConfig<ck_tile::half_t>
 {
-    using InDataType   = ck_tile::half_t;
-    using WeiDataType   = ck_tile::half_t;
+    using InDataType  = ck_tile::half_t;
+    using WeiDataType = ck_tile::half_t;
     using AccDataType = float;
-    using OutDataType   = ck_tile::half_t;
+    using OutDataType = ck_tile::half_t;
     // ToDo: Add more bias config to support different categories of GEMM.
 };
 
 template <>
 struct ConvTypeConfig<ck_tile::bf16_t, ck_tile::bf16_t, ck_tile::bf16_t>
 {
-    using InDataType   = ck_tile::bf16_t;
-    using WeiDataType   = ck_tile::bf16_t;
+    using InDataType  = ck_tile::bf16_t;
+    using WeiDataType = ck_tile::bf16_t;
     using AccDataType = float;
-    using OutDataType   = ck_tile::bf16_t;
+    using OutDataType = ck_tile::bf16_t;
 };
 
 template <typename T>
