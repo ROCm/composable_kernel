@@ -252,7 +252,7 @@ class FmhaFwdApiTrait:
     
     @property
     def seqtune(self, max_bm0 : int) -> str:
-        if self.bm0 in [128, 64]: return 'true/*fall back to largest tile*/'                  # group mode only generate spad/skpad == true
+        if self.bm0 == max_bm0 or self.bm0==64: return 'true/*fall back to largest tile*/'                  # group mode only generate spad/skpad == true
         else: 
             return f'a.seqlen_q <= {self.bm0}'
 
@@ -556,9 +556,9 @@ class KernelComponentFactory:
                              FmhaFwdTileSize(32, 32,  64, 64,  32,  64,   1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
                              FmhaFwdTileSize(128, 64,  32, 64,  32,  64,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 (96, 128) : [FmhaFwdTileSize(128, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
-                (128,128) : [FmhaFwdTileSize(64, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 16,  -1,CppConstraint('get_num_blocks(128) < num_cus * min_cu_util_rate')),
-                             FmhaFwdTileSize(16, 32, 64, 128, 32,  128,  1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
+                (128,128) : [FmhaFwdTileSize(16, 32, 64, 128, 32,  128,  1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
                              FmhaFwdTileSize(32, 32, 128, 128, 32,  128,  1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                             FmhaFwdTileSize(64, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  16, 16, 32,  16, 16, 16,  -1,CppConstraint('get_num_blocks(128) < num_cus * min_cu_util_rate')),
                              FmhaFwdTileSize(128, 64, 32, 128, 16,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
                             FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 # (160,160) : [FmhaFwdTileSize(128, 128, 32, 160, 32,  160,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,   1)],
