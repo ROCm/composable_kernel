@@ -86,20 +86,24 @@ TEST(StreamKTilePartitionerBaseGetLocalIter, GetLocalIter)
                                                      StreamKTilePartitionerBaseMethodId::GET_LOCAL_ITER>;
 
     // Test parameters
-    ck_tile::DeviceMem local_iter_dev(sizeof(ck_tile::index_t));
-    ck_tile::index_t iter      = 3;
-    ck_tile::index_t tile_iter = 2;
+    ck_tile::DeviceMem local_iter_start_dev(sizeof(ck_tile::index_t));
+    ck_tile::index_t iter_start      = 3;
+    ck_tile::index_t tile_iter_start = 2;
 
     // Launch kernel
-    auto kargs = Kernel::MakeKernelArgs(
-        iter, tile_iter, Config::UNUSED, local_iter_dev.GetDeviceBuffer(), nullptr, Config::UNUSED);
+    auto kargs = Kernel::MakeKernelArgs(iter_start,
+                                        tile_iter_start,
+                                        Config::UNUSED,
+                                        local_iter_start_dev.GetDeviceBuffer(),
+                                        nullptr,
+                                        Config::UNUSED);
     ck_tile::launch_kernel(ck_tile::stream_config{nullptr, false, 0, 0, 1},
                            ck_tile::make_kernel<1>(Kernel{}, 1, 1, 0, kargs));
 
     // Validate result
-    ck_tile::index_t local_iter;
-    local_iter_dev.FromDevice(&local_iter);
-    EXPECT_EQ(local_iter, iter - tile_iter);
+    ck_tile::index_t local_iter_start;
+    local_iter_start_dev.FromDevice(&local_iter_start);
+    EXPECT_EQ(local_iter_start, iter_start - tile_iter_start);
 }
 
 TEST(StreamKTilePartitionerBaseGetLocalIterEnd, MinIsTileIterEnd)
@@ -111,12 +115,12 @@ TEST(StreamKTilePartitionerBaseGetLocalIterEnd, MinIsTileIterEnd)
                                                      StreamKTilePartitionerBaseMethodId::GET_LOCAL_ITER_END>;
     // Test parameters
     ck_tile::DeviceMem local_iter_end_dev(sizeof(ck_tile::index_t));
-    ck_tile::index_t tile_iter     = 6;
-    ck_tile::index_t iter_end      = 9;
-    ck_tile::index_t tile_iter_end = 8;
+    ck_tile::index_t tile_iter_start = 6;
+    ck_tile::index_t iter_end        = 9;
+    ck_tile::index_t tile_iter_end   = 8;
 
     // Launch kernel
-    auto kargs = Kernel::MakeKernelArgs(tile_iter,
+    auto kargs = Kernel::MakeKernelArgs(tile_iter_start,
                                         iter_end,
                                         tile_iter_end,
                                         local_iter_end_dev.GetDeviceBuffer(),
@@ -128,13 +132,13 @@ TEST(StreamKTilePartitionerBaseGetLocalIterEnd, MinIsTileIterEnd)
     // Validate results
     ck_tile::index_t local_iter_end;
     local_iter_end_dev.FromDevice(&local_iter_end);
-    EXPECT_EQ(local_iter_end, tile_iter_end - tile_iter);
+    EXPECT_EQ(local_iter_end, tile_iter_end - tile_iter_start);
 }
 
 TEST(StreamKTilePartitionerBaseGetLocalIterEnd, MinIsIterEnd)
 {
     // Types
-    // Note: For this test, the Config is used for types only, the function get_locatl_iter_end is
+    // Note: For this test, the Config is used for types only, the function get_local_iter_end is
     // static; thus, the test parameters are independent of the Config in this case.
     using Config          = StreamKTilePartitionerBaseConfigDP2TileSK;
     using TilePartitioner = ck_tile::StreamKTilePartitionerBase<Config::GemmShape>;
@@ -142,12 +146,12 @@ TEST(StreamKTilePartitionerBaseGetLocalIterEnd, MinIsIterEnd)
                                                      StreamKTilePartitionerBaseMethodId::GET_LOCAL_ITER_END>;
     // Test parameters
     ck_tile::DeviceMem local_iter_end_dev(sizeof(ck_tile::index_t));
-    ck_tile::index_t tile_iter     = 12;
-    ck_tile::index_t iter_end      = 13;
-    ck_tile::index_t tile_iter_end = 14;
+    ck_tile::index_t tile_iter_start = 12;
+    ck_tile::index_t iter_end        = 13;
+    ck_tile::index_t tile_iter_end   = 14;
 
     // Launch kernel
-    auto kargs = Kernel::MakeKernelArgs(tile_iter,
+    auto kargs = Kernel::MakeKernelArgs(tile_iter_start,
                                         iter_end,
                                         tile_iter_end,
                                         local_iter_end_dev.GetDeviceBuffer(),
@@ -159,7 +163,7 @@ TEST(StreamKTilePartitionerBaseGetLocalIterEnd, MinIsIterEnd)
     // Validate results
     ck_tile::index_t local_iter_end;
     local_iter_end_dev.FromDevice(&local_iter_end);
-    EXPECT_EQ(local_iter_end, iter_end - tile_iter);
+    EXPECT_EQ(local_iter_end, iter_end - tile_iter_start);
 }
 
 TEST(StreamKTilePartitionerBaseGetTileBoundaries, GetTileBoundaries)
@@ -174,7 +178,7 @@ TEST(StreamKTilePartitionerBaseGetTileBoundaries, GetTileBoundaries)
     // Test parameters
     ck_tile::StreamKTilePartitionerBase<Config::GemmShape> tile_partitioner{
         Config::M, Config::N, Config::K, Config::GRID};
-    ck_tile::DeviceMem tile_iter_dev(sizeof(ck_tile::index_t));
+    ck_tile::DeviceMem tile_iter_start_dev(sizeof(ck_tile::index_t));
     ck_tile::DeviceMem tile_iter_end_dev(sizeof(ck_tile::index_t));
     ck_tile::index_t tile_idx = 1;
 
@@ -182,19 +186,19 @@ TEST(StreamKTilePartitionerBaseGetTileBoundaries, GetTileBoundaries)
     auto kargs = Kernel::MakeKernelArgs(Config::PLACEHOLDER,
                                         Config::PLACEHOLDER,
                                         tile_idx,
-                                        tile_iter_dev.GetDeviceBuffer(),
+                                        tile_iter_start_dev.GetDeviceBuffer(),
                                         tile_iter_end_dev.GetDeviceBuffer(),
                                         tile_partitioner);
     ck_tile::launch_kernel(ck_tile::stream_config{nullptr, false, 0, 0, 1},
                            ck_tile::make_kernel<1>(Kernel{}, 1, 1, 0, kargs));
 
     // Validate results
-    ck_tile::index_t tile_iter, tile_iter_end;
-    tile_iter_dev.FromDevice(&tile_iter);
+    ck_tile::index_t tile_iter_start, tile_iter_end;
+    tile_iter_start_dev.FromDevice(&tile_iter_start);
     tile_iter_end_dev.FromDevice(&tile_iter_end);
     // There are 2 iters per tile. Thus, for tile_idx 1, we expect 2 and 4 to be the start and end,
     // respectively.
-    EXPECT_EQ(tile_iter, 2);
+    EXPECT_EQ(tile_iter_start, 2);
     EXPECT_EQ(tile_iter_end, 4);
 }
 
@@ -210,10 +214,10 @@ TEST(StreamKTilePartitionerBaseGetTileIndex, GetTileIndex)
     ck_tile::StreamKTilePartitionerBase<Config::GemmShape> tile_partitioner{
         Config::M, Config::N, Config::K, Config::GRID};
     ck_tile::DeviceMem tile_idx_dev(sizeof(ck_tile::index_t));
-    ck_tile::index_t iter = 8;
+    ck_tile::index_t iter_start = 8;
 
     // Launch kernel
-    auto kargs = Kernel::MakeKernelArgs(iter,
+    auto kargs = Kernel::MakeKernelArgs(iter_start,
                                         Config::UNUSED,
                                         Config::UNUSED,
                                         tile_idx_dev.GetDeviceBuffer(),
@@ -241,7 +245,7 @@ TEST(StreamKTilePartitionerBaseGetIterBoundaries, ZeroExtraItersBeforeMe)
     // Test parameters
     ck_tile::StreamKTilePartitionerBase<Config::GemmShape> tile_partitioner{
         Config::M, Config::N, Config::K, Config::GRID};
-    ck_tile::DeviceMem iter_dev(sizeof(ck_tile::index_t));
+    ck_tile::DeviceMem iter_start_dev(sizeof(ck_tile::index_t));
     ck_tile::DeviceMem iter_end_dev(sizeof(ck_tile::index_t));
     ck_tile::index_t cta_idx = 0;
 
@@ -249,17 +253,17 @@ TEST(StreamKTilePartitionerBaseGetIterBoundaries, ZeroExtraItersBeforeMe)
     auto kargs = Kernel::MakeKernelArgs(Config::PLACEHOLDER,
                                         Config::PLACEHOLDER,
                                         cta_idx,
-                                        iter_dev.GetDeviceBuffer(),
+                                        iter_start_dev.GetDeviceBuffer(),
                                         iter_end_dev.GetDeviceBuffer(),
                                         tile_partitioner);
     ck_tile::launch_kernel(ck_tile::stream_config{nullptr, false, 0, 0, 1},
                            ck_tile::make_kernel<1>(Kernel{}, 1, 1, 0, kargs));
 
     // Validate results
-    ck_tile::index_t iter, iter_end;
-    iter_dev.FromDevice(&iter);
+    ck_tile::index_t iter_start, iter_end;
+    iter_start_dev.FromDevice(&iter_start);
     iter_end_dev.FromDevice(&iter_end);
-    EXPECT_EQ(iter, 6);
+    EXPECT_EQ(iter_start, 6);
     EXPECT_EQ(iter_end, 9);
 }
 
@@ -275,7 +279,7 @@ TEST(StreamKTilePartitionerBaseGetIterBoundaries, NonZeroExtraItersBeforeMe)
     // Test parameters
     ck_tile::StreamKTilePartitionerBase<Config::GemmShape> tile_partitioner{
         Config::M, Config::N, Config::K, Config::GRID};
-    ck_tile::DeviceMem iter_dev(sizeof(ck_tile::index_t));
+    ck_tile::DeviceMem iter_start_dev(sizeof(ck_tile::index_t));
     ck_tile::DeviceMem iter_end_dev(sizeof(ck_tile::index_t));
     ck_tile::index_t cta_idx = 1;
 
@@ -283,17 +287,17 @@ TEST(StreamKTilePartitionerBaseGetIterBoundaries, NonZeroExtraItersBeforeMe)
     auto kargs = Kernel::MakeKernelArgs(Config::PLACEHOLDER,
                                         Config::PLACEHOLDER,
                                         cta_idx,
-                                        iter_dev.GetDeviceBuffer(),
+                                        iter_start_dev.GetDeviceBuffer(),
                                         iter_end_dev.GetDeviceBuffer(),
                                         tile_partitioner);
     ck_tile::launch_kernel(ck_tile::stream_config{nullptr, false, 0, 0, 1},
                            ck_tile::make_kernel<1>(Kernel{}, 1, 1, 0, kargs));
 
     // Validate results
-    ck_tile::index_t iter, iter_end;
-    iter_dev.FromDevice(&iter);
+    ck_tile::index_t iter_start, iter_end;
+    iter_start_dev.FromDevice(&iter_start);
     iter_end_dev.FromDevice(&iter_end);
-    EXPECT_EQ(iter, 9);
+    EXPECT_EQ(iter_start, 9);
     EXPECT_EQ(iter_end, 12);
 }
 
@@ -309,7 +313,7 @@ TEST(StreamKTilePartitionerBaseGetIterBoundaries, MinIsExtraIters)
     // Test parameters
     ck_tile::StreamKTilePartitionerBase<Config::GemmShape> tile_partitioner{
         Config::M, Config::N, Config::K, Config::GRID};
-    ck_tile::DeviceMem iter_dev(sizeof(ck_tile::index_t));
+    ck_tile::DeviceMem iter_start_dev(sizeof(ck_tile::index_t));
     ck_tile::DeviceMem iter_end_dev(sizeof(ck_tile::index_t));
     ck_tile::index_t cta_idx = 2;
 
@@ -317,17 +321,17 @@ TEST(StreamKTilePartitionerBaseGetIterBoundaries, MinIsExtraIters)
     auto kargs = Kernel::MakeKernelArgs(Config::PLACEHOLDER,
                                         Config::PLACEHOLDER,
                                         cta_idx,
-                                        iter_dev.GetDeviceBuffer(),
+                                        iter_start_dev.GetDeviceBuffer(),
                                         iter_end_dev.GetDeviceBuffer(),
                                         tile_partitioner);
     ck_tile::launch_kernel(ck_tile::stream_config{nullptr, false, 0, 0, 1},
                            ck_tile::make_kernel<1>(Kernel{}, 1, 1, 0, kargs));
 
     // Validate results
-    ck_tile::index_t iter, iter_end;
-    iter_dev.FromDevice(&iter);
+    ck_tile::index_t iter_start, iter_end;
+    iter_start_dev.FromDevice(&iter_start);
     iter_end_dev.FromDevice(&iter_end);
-    EXPECT_EQ(iter, 12);
+    EXPECT_EQ(iter_start, 12);
     EXPECT_EQ(iter_end, 14);
 }
 
