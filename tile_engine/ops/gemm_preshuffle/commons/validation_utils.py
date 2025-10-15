@@ -147,6 +147,12 @@ def get_gpu_name_by_id(gpu_id: int = 0) -> str:
 
 def is_trait_combination_valid(pipeline: str, epilogue: str, scheduler: str) -> bool:
     """Check if a trait combination is valid."""
+    if pipeline not in ["preshufflev2"]:
+        raise ValueError("Accepted pipeline values are: ['preshufflev2']")
+    if epilogue not in ["default", "cshuffle"]:
+        return ValueError("Accepted epilogue values are: ['default', 'cshuffle']")
+    if scheduler not in ["default"]:
+        return ValueError("Accepted scheduler values are: ['default']")
     return (pipeline, epilogue, scheduler) not in TRAIT_UNSUPPORTED_COMBINATIONS
 
 

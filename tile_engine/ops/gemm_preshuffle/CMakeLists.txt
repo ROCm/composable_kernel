@@ -270,9 +270,9 @@ else()
 
     # Create trait-based collection targets
     # These are common trait components used across all GEMM Preshuffle kernels
-    set(GEMM_PRESHUFFLE_PIPELINES "preshufflev1;preshufflev2")
+    set(GEMM_PRESHUFFLE_PIPELINES "preshufflev2")
     set(GEMM_PRESHUFFLE_EPILOGUES "default;cshuffle")
-    set(GEMM_PRESHUFFLE_SCHEDULERS "intrawave;interwave;default") 
+    set(GEMM_PRESHUFFLE_SCHEDULERS "default") 
 
     foreach(pipeline IN LISTS GEMM_PRESHUFFLE_PIPELINES)
         add_custom_target(benchmark_gemm_preshuffle_${pipeline}_pipeline)

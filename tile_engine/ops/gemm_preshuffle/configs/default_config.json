@@ -61,7 +61,6 @@
   "trait_config": {
     "pipeline": {
       "values": [
-        "preshufflev1",
         "preshufflev2"
       ]
     },
@@ -99,5 +98,5 @@
     }
   },
   "k_block_per_cu": 1,
-  "permute_n": false
+  "permute_n": true
 }
