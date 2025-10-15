@@ -690,7 +690,7 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
         }
 
         // Split-K autodeduction is not supported
-        if (arg.k_batch_ < 1)
+        if(arg.k_batch_ < 1)
         {
             return false;
         }

@@ -188,7 +188,7 @@ TYPED_TEST(TestGroupedConvndBwdDataDefault, SplitK)
     EXPECT_TRUE(is_supported);
 
     // Split-K autodeduce
-    this->split_k     = -1;
-    is_supported = this->template Run<2>();
+    this->split_k = -1;
+    is_supported  = this->template Run<2>();
     EXPECT_FALSE(is_supported);
 }
