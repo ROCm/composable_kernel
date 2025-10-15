@@ -191,7 +191,7 @@ struct reference_hstu_attention
 
                     // SiLu element-wise
                     for(CompDataType& elem : locals)
-                        elem = silu(elem);
+                        elem = silu(elem) * ck_tile::type_convert<CompDataType>(scale_p);
 
                     // second Gemm
                     for(int k = 0; k < hdim_v; k++)
@@ -220,8 +220,6 @@ struct reference_hstu_attention
                                             ck_tile::type_convert<GemmAccDataType>(vreg);
                             };
                         };
-
-                        dot_prod = dot_prod * ck_tile::type_convert<GemmAccDataType>(scale_p);
 
                         if constexpr(kIsJagged)
                             o_batch_seq_nhead_hdim(0, seq_offsets[i_batch] + sq, i_head, k) =
