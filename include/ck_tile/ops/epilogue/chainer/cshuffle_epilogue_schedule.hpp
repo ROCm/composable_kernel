@@ -16,9 +16,12 @@ namespace ck_tile {
 struct DefaultScheduleTag
 {
 }; ///< Standard epilogue schedule: Slice → Cast → PrepC → ApplyD → Store → Move
-struct ScaleScheduleTag
+struct RowColQuantScheduleTag
 {
-}; ///< Scaling epilogue schedule: Slice → Scale → Cast → PrepC → ApplyD → Store → Move
+}; ///< RowCol quantization schedule: Slice → ScaleWindow → Cast → PrepC → ApplyD → Store → Move
+struct TensorQuantScheduleTag
+{
+}; ///< Tensor quantization schedule: Slice → ScaleScalar → Cast → PrepC → ApplyD → Store → Move
 
 /// @brief CShuffle epilogue scheduler providing pre-built schedules
 ///
@@ -69,11 +72,12 @@ struct CshuffleEpilogueSchedule
                 make_node<StoreToDramEpilogue<Problem::MemoryOperation>>(),
                 make_node<MoveWindowsEpilogue<typename BaseOp::SFC, Problem::NumDTensor>>());
         }
-        else if constexpr(std::is_same_v<ScheduleTag, ScaleScheduleTag>)
+        else if constexpr(std::is_same_v<ScheduleTag, RowColQuantScheduleTag>)
         {
-            // Scaling schedule
-            // Schedule: Slice -> Scale -> Cast -> PrepC -> ApplyD -> Store -> MoveWindows
-            static_assert(sizeof...(args) == 2, "ScaleSchedule requires exactly 2 scale arguments");
+            // RowCol quantization schedule with tensor windows
+            // Schedule: Slice -> ScaleWindow -> Cast -> PrepC -> ApplyD -> Store -> MoveWindows
+            static_assert(sizeof...(args) == 2,
+                          "RowColQuantSchedule requires exactly 2 scale tensor arguments");
             return make_graph<NumAccess>(
                 make_node<SliceEpilogue<typename BaseOp::SFC,
                                         typename BaseOp::CWarpDstr,
@@ -81,7 +85,27 @@ struct CshuffleEpilogueSchedule
                                         BaseOp::NumNXdlPerWavePerShuffle,
                                         BaseOp::MPerIterationShuffle,
                                         BaseOp::NPerIterationShuffle>>(),
-                make_node<ScaleEpilogue<typename BaseOp::SFC>>(std::forward<Args>(args)...),
+                make_node<ScaleWindowEpilogue<typename BaseOp::SFC>>(std::forward<Args>(args)...),
+                make_node<CastLdsEpilogue<typename BaseOp::ODataType>>(),
+                make_node<PrepCTensorEpilogue<typename BaseOp::TileEncodingPattern>>(),
+                make_node<ApplyDEpilogue<typename Problem::CDElementwise, Problem::NumDTensor>>(),
+                make_node<StoreToDramEpilogue<Problem::MemoryOperation>>(),
+                make_node<MoveWindowsEpilogue<typename BaseOp::SFC, Problem::NumDTensor>>());
+        }
+        else if constexpr(std::is_same_v<ScheduleTag, TensorQuantScheduleTag>)
+        {
+            // Tensor quantization schedule with scalar values
+            // Schedule: Slice -> ScaleScalar -> Cast -> PrepC -> ApplyD -> Store -> MoveWindows
+            static_assert(sizeof...(args) == 2,
+                          "TensorQuantSchedule requires exactly 2 scalar arguments");
+            return make_graph<NumAccess>(
+                make_node<SliceEpilogue<typename BaseOp::SFC,
+                                        typename BaseOp::CWarpDstr,
+                                        BaseOp::NumMXdlPerWavePerShuffle,
+                                        BaseOp::NumNXdlPerWavePerShuffle,
+                                        BaseOp::MPerIterationShuffle,
+                                        BaseOp::NPerIterationShuffle>>(),
+                make_node<ScaleScalarEpilogue<typename BaseOp::SFC>>(std::forward<Args>(args)...),
                 make_node<CastLdsEpilogue<typename BaseOp::ODataType>>(),
                 make_node<PrepCTensorEpilogue<typename BaseOp::TileEncodingPattern>>(),
                 make_node<ApplyDEpilogue<typename Problem::CDElementwise, Problem::NumDTensor>>(),

@@ -60,9 +60,33 @@ struct SliceEpilogue
 };
 
 template <typename SFC>
-struct ScaleEpilogue
+struct ScaleScalarEpilogue
 {
+    template <typename ODramWindow,
+              typename OAccTile,
+              typename DsDramWindows,
+              typename ContextType,
+              typename ScaleM,
+              typename ScaleN>
+    CK_TILE_DEVICE auto operator()([[maybe_unused]] ODramWindow& out_dram_window,
+                                   [[maybe_unused]] const OAccTile& o_acc_tile,
+                                   [[maybe_unused]] const DsDramWindows& ds_dram_windows,
+                                   [[maybe_unused]] void* p_smem,
+                                   [[maybe_unused]] auto iAccess,
+                                   ContextType& context,
+                                   const ScaleM& scale_m_scalar,
+                                   const ScaleN& scale_n_scalar)
+    {
+        // Apply scalar scaling
+        tile_elementwise_inout(
+            [&](auto& element) { element = element * scale_m_scalar * scale_n_scalar; },
+            context.lds_tile);
+    }
+};
 
+template <typename SFC>
+struct ScaleWindowEpilogue
+{
     template <typename ODramWindow,
               typename OAccTile,
               typename DsDramWindows,
@@ -78,26 +102,32 @@ struct ScaleEpilogue
                                    const ScaleM& scale_m_tensor,
                                    const ScaleN& scale_n_tensor)
     {
-        // Calculate offset for this iteration
-        constexpr auto step     = SFC::get_index(iAccess);
-        constexpr auto m_offset = step.at(number<0>{});
-        constexpr auto n_offset = step.at(number<1>{});
 
-        // Create windows with correct offset directly
-        auto scale_m_window = make_tile_window(
-            scale_m_tensor, {m_offset, n_offset}, context.lds_tile.get_tile_distribution());
-        auto scale_n_window = make_tile_window(
-            scale_n_tensor, {m_offset, n_offset}, context.lds_tile.get_tile_distribution());
+        auto scale_m_window =
+            make_tile_window(scale_m_tensor, context.lds_tile.get_tile_distribution());
+        auto scale_n_window =
+            make_tile_window(scale_n_tensor, context.lds_tile.get_tile_distribution());
 
-        // Load and apply scaling
+        // Load tiles
         const auto scale_m_tile = load_tile(scale_m_window);
         const auto scale_n_tile = load_tile(scale_n_window);
 
+        // Compute element-wise product in-place i.e. lds_tile = lds_tile * scale_m * scale_n
         tile_elementwise_inout(element_wise::MultiDMultiply{},
                                context.lds_tile,
                                context.lds_tile,
                                scale_m_tile,
                                scale_n_tile);
+
+        // Move scale windows
+        constexpr index_t num_access = SFC::get_num_of_access();
+        if constexpr(iAccess != num_access - 1)
+        {
+            constexpr auto step = SFC::get_forward_step(number<iAccess>{});
+
+            move_tile_window(scale_m_window, {step.at(number<0>{}), step.at(number<1>{})});
+            move_tile_window(scale_n_window, {step.at(number<0>{}), step.at(number<1>{})});
+        }
     }
 };
 

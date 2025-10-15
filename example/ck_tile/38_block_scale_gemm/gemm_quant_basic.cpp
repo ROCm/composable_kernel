@@ -10,6 +10,8 @@
 
 #include "ck_tile/core/config.hpp"
 #include "ck_tile/host.hpp"
+#include "ck_tile/ops/epilogue/chainer/epilogue_chainer.hpp"
+#include "ck_tile/ops/epilogue/chainer/cshuffle_epilogue_schedule.hpp"
 #include "gemm_utils.hpp"
 
 template <typename GemmConfig,
@@ -126,24 +128,57 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                    ck_tile::WPQuantBPipelineAgBgCrV2<PipelineProblem>,
                                    ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>>;
 
-        using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<typename TypeConfig::ADataType,
-                                             typename TypeConfig::BDataType,
-                                             ck_tile::tuple<>,
-                                             typename TypeConfig::AccDataType,
-                                             typename TypeConfig::CDataType,
-                                             ck_tile::tuple<>,
-                                             CLayout,
-                                             CDEElementWise,
-                                             TilePartitioner::MPerBlock,
-                                             TilePartitioner::NPerBlock,
-                                             GemmConfig::M_Warp,
-                                             GemmConfig::N_Warp,
-                                             GemmConfig::M_Warp_Tile,
-                                             GemmConfig::N_Warp_Tile,
-                                             GemmConfig::K_Warp_Tile,
-                                             transpose_c,
-                                             ck_tile::memory_operation_enum::set>>;
+        // Choose epilogue implementation based on UseChainer flag
+        constexpr bool UseChainer = false;
+        using GemmEpilogue        = std::conditional_t<
+                   UseChainer,
+                   // Chainer-based epilogue with schedule tag based on QuantMode
+                   ck_tile::EpilogueChainer<ck_tile::CshuffleEpilogueSchedule<
+                       ck_tile::CShuffleEpilogueChainProblem<typename TypeConfig::ADataType,
+                                                             typename TypeConfig::BDataType,
+                                                             ck_tile::tuple<>,
+                                                             typename TypeConfig::AccDataType,
+                                                             typename TypeConfig::CDataType,
+                                                             ck_tile::tuple<>,
+                                                             CLayout,
+                                                             CDEElementWise,
+                                                             TilePartitioner::MPerBlock,
+                                                             TilePartitioner::NPerBlock,
+                                                             GemmConfig::M_Warp,
+                                                             GemmConfig::N_Warp,
+                                                             GemmConfig::M_Warp_Tile,
+                                                             GemmConfig::N_Warp_Tile,
+                                                             GemmConfig::K_Warp_Tile,
+                                                             transpose_c,
+                                                             ck_tile::memory_operation_enum::set>,
+                       // Select schedule based on QuantMode:
+                       // - AQuantGrouped/BQuantGrouped: no scaling -> DefaultScheduleTag
+                       // - RowColQuant: tensor window scaling -> RowColQuantScheduleTag
+                       // - TensorQuant: scalar scaling -> TensorQuantScheduleTag
+                       std::conditional_t<QuantMode == ck_tile::QuantType::RowColQuant,
+                                          ck_tile::RowColQuantScheduleTag,
+                                          std::conditional_t<QuantMode == ck_tile::QuantType::TensorQuant,
+                                                             ck_tile::TensorQuantScheduleTag,
+                                                             ck_tile::DefaultScheduleTag>>>>,
+                   // Regular CShuffleEpilogue
+                   ck_tile::CShuffleEpilogue<
+                       ck_tile::CShuffleEpilogueProblem<typename TypeConfig::ADataType,
+                                                        typename TypeConfig::BDataType,
+                                                        ck_tile::tuple<>,
+                                                        typename TypeConfig::AccDataType,
+                                                        typename TypeConfig::CDataType,
+                                                        ck_tile::tuple<>,
+                                                        CLayout,
+                                                        CDEElementWise,
+                                                        TilePartitioner::MPerBlock,
+                                                        TilePartitioner::NPerBlock,
+                                                        GemmConfig::M_Warp,
+                                                        GemmConfig::N_Warp,
+                                                        GemmConfig::M_Warp_Tile,
+                                                        GemmConfig::N_Warp_Tile,
+                                                        GemmConfig::K_Warp_Tile,
+                                                        transpose_c,
+                                                        ck_tile::memory_operation_enum::set>>>;
         using Kernel =
             ck_tile::QuantGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue, QuantMode>;
 

@@ -28,7 +28,7 @@ __global__ void test_epilogue_chainer_kernel(typename Problem::ODataType* __rest
 {
     // Select scheduler based on whether we need scaling
     using Scheduler = std::conditional_t<UseScale,
-                                         CshuffleEpilogueSchedule<Problem, ScaleScheduleTag>,
+                                         CshuffleEpilogueSchedule<Problem, RowColQuantScheduleTag>,
                                          CshuffleEpilogueSchedule<Problem, DefaultScheduleTag>>;
 
     static_assert(Problem::kMPerBlock <= M && Problem::kNPerBlock <= N,

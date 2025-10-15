@@ -26,13 +26,12 @@ The `EpilogueGraph` composes multiple nodes into sequential processing units tha
 
 **Schedule Tags:**
 - `DefaultScheduleTag` - Standard epilogue: Slice → Cast → PrepC → ApplyD → Store → Move
-- `ScaleScheduleTag` - Scaling epilogue: Slice → Scale → Cast → PrepC → ApplyD → Store → Move
+- `RowColQuantScheduleTag` - RowCol quantization: Slice → ScaleWindow → Cast → PrepC → ApplyD → Store → Move
+- `TensorQuantScheduleTag` - Tensor quantization: Slice → ScaleScalar → Cast → PrepC → ApplyD → Store → Move
 
 **Tag-Based Selection:**
 ```cpp
 using Scheduler = CshuffleEpilogueSchedule<Problem, DefaultScheduleTag>;
-
-using Scheduler = CshuffleEpilogueSchedule<Problem, ScaleScheduleTag>;
 ```
 
 ## Files
