@@ -4,8 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/unified_attention/pipeline/block_fmha_fwd_v3_pipeline_default_policy.hpp"
-#include "ck_tile/ops/unified_attention/pipeline/block_fmha_fwd_v3_pipeline_default_policy.hpp"
+#include "ck_tile/ops/unified_attention/pipeline/unified_attention_pipeline_default_policy.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
 
 #define ENABLE_ASM_MARKER 1
@@ -270,21 +269,15 @@ struct UnifiedAttentionPipeline
 
     static constexpr ck_tile::index_t kBlockSize = Problem::kBlockSize;
 
-    static constexpr ck_tile::index_t kM0           = UnifiedAttentionShape::kM0;
-    static constexpr ck_tile::index_t kN0           = UnifiedAttentionShape::kN0;
-    static constexpr ck_tile::index_t kK0           = UnifiedAttentionShape::kK0;
-    static constexpr ck_tile::index_t kN1           = UnifiedAttentionShape::kN1;
-    static constexpr ck_tile::index_t kK1           = UnifiedAttentionShape::kK1;
-    static constexpr ck_tile::index_t kQKHeaddim    = UnifiedAttentionShape::kQKHeaddim;
-    static constexpr ck_tile::index_t kSubQKHeaddim = UnifiedAttentionShape::kSubQKHeaddim;
+    static constexpr ck_tile::index_t BLOCK_Q           = UnifiedAttentionShape::BLOCK_Q;
+    static constexpr ck_tile::index_t BLOCK_SIZE           = UnifiedAttentionShape::BLOCK_SIZE;
+    static constexpr ck_tile::index_t HEAD_SIZE           = UnifiedAttentionShape::HEAD_SIZE;
+    static constexpr ck_tile::index_t HEAD_SIZE_PADDED           = UnifiedAttentionShape::HEAD_SIZE_PADDED;
 
-    static_assert(kSubQKHeaddim <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
+    static_assert(HEAD_SIZE_PADDED <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
 
-    static constexpr bool kIsGroupMode = Problem::kIsGroupMode;
     static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ = Problem::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
+    static constexpr bool kPadHeadDim = Problem::kPadHeadDim;
     static constexpr bool kStoreLSE    = Problem::kStoreLSE;
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
@@ -308,12 +301,12 @@ struct UnifiedAttentionPipeline
         }
     }();
 
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize(index_t num_queries_per_kv)
     {
         // create another LDS buffer for p
-        return ck_tile::max(kM0 * kN1 * sizeof(PDataType),
+        return ck_tile::max(BLOCK_Q * num_queries_per_kv * HEAD_SIZE_PADDED * sizeof(PDataType),
                             Policy::template GetSmemSize<Problem>() +
-                                kM0 * kN0 * sizeof(PDataType));
+                                BLOCK_Q * num_queries_per_kv * BLOCK_SIZE * sizeof(PDataType));
     }
 
     // for debug only
@@ -391,6 +384,7 @@ struct UnifiedAttentionPipeline
                                    [[maybe_unused]] const KElementFunction& k_element_func,
                                    const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
                                    [[maybe_unused]] const VElementFunction& v_element_func,
+                                   index_t num_queries_per_kv,
                                    const void* block_tables_ptr,
                                    index_t block_table_offset,
                                    LSEDramBlockWindowTmp& lse_dram_window_tmp, // M0*1 tile
@@ -411,39 +405,39 @@ struct UnifiedAttentionPipeline
                 std::is_same_v<VDataType, remove_cvref_t<typename VDramBlockWindowTmp::DataType>>,
             "wrong!");
 
-        static_assert(kM0 == QDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kN0 == KDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kK0 == KDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
-                          kK1 == VDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                          kN1 == VDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
+        static_assert(BLOCK_Q == QDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
+                          BLOCK_SIZE == KDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
+                          HEAD_SIZE_PADDED == KDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
+                          HEAD_SIZE_PADDED == VDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
+                          BLOCK_SIZE == VDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
 
-        static_assert(sizeof(SaccDataType) * kM0 * kN0 <= GetSmemSize());
+        static_assert(sizeof(SaccDataType) * BLOCK_Q * BLOCK_SIZE <= GetSmemSize(num_queries_per_kv));
         auto s_lds = make_tensor_view<address_space_enum::lds>(
             reinterpret_cast<SaccDataType*>(static_cast<char*>(smem_ptr)),
-            MakeSimpleLdsDesc<kM0, kN0>());
+            MakeSimpleLdsDesc<BLOCK_Q, BLOCK_SIZE>());
         [[maybe_unused]] auto s_lds_window =
-            make_tile_window(s_lds, make_tuple(number<kM0>{}, number<kN0>{}), {0, 0});
+            make_tile_window(s_lds, make_tuple(number<BLOCK_Q>{}, number<BLOCK_SIZE>{}), {0, 0});
 
         auto p_lds = make_tensor_view<address_space_enum::lds>(
             reinterpret_cast<PDataType*>(static_cast<char*>(smem_ptr) +
                                          Policy::template GetSmemSize<Problem>()),
-            MakeSimpleLdsDesc<kM0, kN0>());
+            MakeSimpleLdsDesc<BLOCK_Q, BLOCK_SIZE>());
         [[maybe_unused]] auto p_lds_window =
-            make_tile_window(p_lds, make_tuple(number<kM0>{}, number<kN0>{}), {0, 0});
+            make_tile_window(p_lds, make_tuple(number<BLOCK_Q>{}, number<BLOCK_SIZE>{}), {0, 0});
 
         auto o_lds = make_tensor_view<address_space_enum::lds>(
             reinterpret_cast<PDataType*>(static_cast<char*>(smem_ptr)),
-            MakeSimpleLdsDesc<kM0, kN1>());
+            MakeSimpleLdsDesc<BLOCK_Q, BLOCK_SIZE>());
         [[maybe_unused]] auto o_lds_window =
-            make_tile_window(o_lds, make_tuple(number<kM0>{}, number<kN1>{}), {0, 0});
+            make_tile_window(o_lds, make_tuple(number<BLOCK_Q>{}, number<BLOCK_SIZE>{}), {0, 0});
 
         auto m_lds = make_tensor_view<address_space_enum::lds>(
             reinterpret_cast<SMPLComputeDataType*>(static_cast<char*>(smem_ptr) +
                                                    Policy::template GetSmemSize<Problem>()),
-            MakeSimpleLdsDesc1D<kM0>());
+            MakeSimpleLdsDesc1D<BLOCK_Q>());
         [[maybe_unused]] auto m_lds_window =
-            make_tile_window(m_lds, make_tuple(number<kM0>{}), {0});
+            make_tile_window(m_lds, make_tuple(number<BLOCK_Q>{}), {0});
 
         const index_t warp_group_id = get_warp_id() / 4;
 
@@ -550,9 +544,9 @@ struct UnifiedAttentionPipeline
 
         const auto q_origin = q_dram_window.get_window_origin();
         const auto [seqlen_k_start, seqlen_k_end] =
-            mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
+            mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<BLOCK_Q>{}, number<BLOCK_SIZE>{});
 
-        const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, kN0);
+        const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, BLOCK_SIZE);
         index_t kv_token_start    = seqlen_k_start;
 
         // check early exit if no work to do
@@ -596,11 +590,11 @@ struct UnifiedAttentionPipeline
         v_dram_window.init_raw();
 
         // prefetch K tile
-        constexpr index_t k0_loops = kQKHeaddim / kK0;
-        constexpr index_t k1_loops = kN0 / kK1;
+        constexpr index_t k0_loops = 1;
+        constexpr index_t k1_loops = 1;
         static_assert(1 == k0_loops);
         static_assert(1 == k1_loops);
-        static_assert(kN0 == kK1);
+        // static_assert(BLOCK_SIZE == HEAD_SIZE_PADDED);
 
         constexpr index_t NumWarpGroups = Problem::kBlockSize / Policy::NumThreadPerWarpGroup;
         static_assert(NumWarpGroups == 2);
@@ -832,21 +826,21 @@ struct UnifiedAttentionPipeline
                 clear_tile(sp(sp_reg_idx).sp_compute); // initialize C
                 gemm_0(sp(sp_reg_idx).sp_compute,
                        get_slice_tile(q_tile,
-                                      sequence<0, (k0_loops - 1) * kK0>{},
-                                      sequence<kM0, k0_loops * kK0>{}),
+                                      sequence<0, (k0_loops - 1) * HEAD_SIZE_PADDED>{},
+                                      sequence<BLOCK_Q, k0_loops * HEAD_SIZE_PADDED>{}),
                        get_slice_tile(kv_tile.k_tile,
-                                      sequence<0, (k0_loops - 1) * kK0>{},
-                                      sequence<kN0, k0_loops * kK0>{}));
+                                      sequence<0, (k0_loops - 1) * HEAD_SIZE_PADDED>{},
+                                      sequence<BLOCK_SIZE, k0_loops * HEAD_SIZE_PADDED>{}));
             }
             else
             {
                 gemm_1(o_acc,
                        get_slice_tile(sp(sp_reg_idx).p,
-                                      sequence<0, (k1_loops - 1) * kK1>{},
-                                      sequence<kM0, k1_loops * kK1>{}),
+                                      sequence<0, (k1_loops - 1) * HEAD_SIZE_PADDED>{},
+                                      sequence<BLOCK_Q, k1_loops * HEAD_SIZE_PADDED>{}),
                        get_slice_tile(kv_tile.v_tile,
-                                      sequence<0, (k1_loops - 1) * kK1>{},
-                                      sequence<kN1, k1_loops * kK1>{}));
+                                      sequence<0, (k1_loops - 1) * HEAD_SIZE_PADDED>{},
+                                      sequence<BLOCK_SIZE, k1_loops * HEAD_SIZE_PADDED>{}));
             }
         };
 
@@ -856,21 +850,21 @@ struct UnifiedAttentionPipeline
                 clear_tile(sp(sp_reg_idx).sp_compute); // initialize C
                 gemm_0(sp(sp_reg_idx).sp_compute,
                        get_slice_tile(q_tile,
-                                      sequence<0, (k0_loops - 1) * kK0>{},
-                                      sequence<kM0, k0_loops * kK0>{}),
+                                      sequence<0, (k0_loops - 1) * HEAD_SIZE_PADDED>{},
+                                      sequence<BLOCK_Q, k0_loops * HEAD_SIZE_PADDED>{}),
                        get_slice_tile(kv_tile.k_tile,
-                                      sequence<0, (k0_loops - 1) * kK0>{},
-                                      sequence<kN0, k0_loops * kK0>{}));
+                                      sequence<0, (k0_loops - 1) * HEAD_SIZE_PADDED>{},
+                                      sequence<BLOCK_SIZE, k0_loops * HEAD_SIZE_PADDED>{}));
             }
             else
             {
                 gemm_1(o_acc,
                        get_slice_tile(sp(sp_reg_idx).p,
-                                      sequence<0, (k1_loops - 1) * kK1>{},
-                                      sequence<kM0, k1_loops * kK1>{}),
+                                      sequence<0, (k1_loops - 1) * HEAD_SIZE_PADDED>{},
+                                      sequence<BLOCK_Q, k1_loops * HEAD_SIZE_PADDED>{}),
                        get_slice_tile(kv_tile.v_tile,
-                                      sequence<0, (k1_loops - 1) * kK1>{},
-                                      sequence<kN1, k1_loops * kK1>{}));
+                                      sequence<0, (k1_loops - 1) * HEAD_SIZE_PADDED>{},
+                                      sequence<BLOCK_SIZE, k1_loops * HEAD_SIZE_PADDED>{}));
                 fmha_alu0(number<1>{} - sp_reg_idx);
             }
         };
@@ -915,7 +909,7 @@ struct UnifiedAttentionPipeline
             if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
             {
                 bool need_perpixel_check = mask.IsEdgeTile(
-                    q_origin.at(number<0>{}), kv_token_start, number<kM0>{}, number<kN0>{});
+                    q_origin.at(number<0>{}), kv_token_start, number<BLOCK_Q>{}, number<BLOCK_SIZE>{});
                 if(need_perpixel_check)
                 {
                     set_tile_if(sp(sp_reg_idx).sp_compute,
@@ -1026,7 +1020,7 @@ struct UnifiedAttentionPipeline
                     cl_load(memV, V_w0_lds_wr_idx, K_w0_lds_rd_idx);
 
                     Scheduler::schedule(cl_p, number<3>{});
-                    kv_token_start += kN0;
+                    kv_token_start += BLOCK_SIZE;
                     if(num_total_loop <= ++i_total_loops)
                     {
                         result = false;
@@ -1073,7 +1067,7 @@ struct UnifiedAttentionPipeline
                     Scheduler::schedule(cl_p, number<2>{});
                     fmha_mask(xdl_SP_p01_reg_idx);
 
-                    kv_token_start += kN0;
+                    kv_token_start += BLOCK_SIZE;
                     if(num_total_loop <= ++i_total_loops)
                     {
                         result = false;
@@ -1151,7 +1145,7 @@ struct UnifiedAttentionPipeline
             fmha_alu0(number<0>{});
             fmha_alu_D_upd();
 
-            kv_token_start += kN0;
+            kv_token_start += BLOCK_SIZE;
             ++i_total_loops;
             if(num_total_loop <= i_total_loops)
             {
