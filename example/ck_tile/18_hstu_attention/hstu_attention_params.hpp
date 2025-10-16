@@ -52,6 +52,8 @@ struct HstuAttentionFwdParams
     ck_tile::index_t contextual_seqlen;
     ck_tile::index_t min_full_attn_seqlen;
 
+    bool use_softmax;
+
     float p_drop;
     uint64_t philox_seed;
     uint64_t philox_offset;

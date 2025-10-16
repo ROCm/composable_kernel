@@ -156,6 +156,8 @@ struct HstuAttentionFwdPipelineQRKSVS
                           kN0 == BiasDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
 
+        constexpr bool kUseSoftmax = Problem::kUseSoftmax;
+
         constexpr index_t k1_loops = kN0 / kK1;
 
         constexpr auto NumKVLdsBuffers = Policy::template GetNumKVLdsBuffers<Problem>();
@@ -172,6 +174,16 @@ struct HstuAttentionFwdPipelineQRKSVS
 
         SaccBlockTileType sacc_tile;
         PcompBlockTileType pcomp_tile;
+
+        // reduction function for softmax
+        const auto f_max = [](auto e0, auto e1) { return max(e0, e1); };
+        const auto f_sum = [](auto e0, auto e1) { return e0 + e1; };
+
+        using MLBlockTileType = decltype(block_tile_reduce<CompDataType>(
+            PcompBlockTileType{}, sequence<1>{}, f_max, CompDataType{0}));
+
+        auto m = MLBlockTileType{};
+        auto l = MLBlockTileType{};
 
         using OaccBlockTileType = decltype(gemm_1.MakeCBlockTile());
         OaccBlockTileType o_acc;
@@ -279,15 +291,26 @@ struct HstuAttentionFwdPipelineQRKSVS
 
         // reduction function for softmax
         const auto f_silu = [&](CompDataType& x) {
-            const auto neg_one = ck_tile::type_convert<CompDataType>(-1.0f);
+            const auto one = ck_tile::type_convert<CompDataType>(1.0f);
 
             if constexpr(std::is_same_v<CompDataType, float>)
             {
-                x = x * __builtin_amdgcn_rcpf(neg_one - __expf(x));
+                x = x * __builtin_amdgcn_rcpf(one + __expf(-x));
             }
             else
             {
-                x = x / (neg_one - exp(x));
+                x = x / (one + exp(-x));
+            }
+        };
+
+        const auto f_exp = [&](CompDataType x) {
+            if constexpr(std::is_same_v<CompDataType, float>)
+            {
+                return __expf(x);
+            }
+            else
+            {
+                return exp(x);
             }
         };
 
@@ -353,6 +376,12 @@ struct HstuAttentionFwdPipelineQRKSVS
             });
 
             clear_tile(o_acc);
+
+            if constexpr(kUseSoftmax)
+            {
+                set_tile(m, -numeric<CompDataType>::infinity());
+                clear_tile(l);
+            };
         };
 
         q_tile = tile_elementwise_in(q_element_func, q_tile);
@@ -409,41 +438,141 @@ struct HstuAttentionFwdPipelineQRKSVS
 
                 tile_elementwise_inout(
                     [&scale_s, &bias_element_func](auto& x, const auto& y) {
-                        x = x * scale_s - type_convert<CompDataType>(bias_element_func(y));
+                        x = x * scale_s + type_convert<CompDataType>(bias_element_func(y));
                     },
                     pcomp_tile,
                     bias_tile);
 
-                move_tile_window(bias_dram_window, {0, kK1});
+                move_tile_window(bias_dram_window, {0, kN0});
             }
             else
             {
                 tile_elementwise_inout([&scale_s](auto& x) { x = x * scale_s; }, pcomp_tile);
             }
 
-            if(!mask.IsFullTileInsideMask(
-                   q_origin.at(number<0>{}), seqlen_k_curr, number<kN0>{}, number<kM0>{}))
+            if constexpr(!kUseSoftmax)
             {
-                constexpr auto p_spans = PcompBlockTileType::get_distributed_spans();
-                sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
-                    sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
-                        const auto tile_idx = get_x_indices_from_distributed_indices(
-                            pcomp_tile.get_tile_distribution(), make_tuple(idx0, idx1));
+                if(!mask.IsFullTileInsideMask(
+                       q_origin.at(number<0>{}), seqlen_k_curr, number<kN0>{}, number<kM0>{}))
+                {
+                    constexpr auto p_spans = PcompBlockTileType::get_distributed_spans();
+                    sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
+                        sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
+                            const auto tile_idx = get_x_indices_from_distributed_indices(
+                                pcomp_tile.get_tile_distribution(), make_tuple(idx0, idx1));
 
-                        const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
-                        const auto col = seqlen_k_curr + tile_idx.at(number<1>{});
-                        constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                            const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
+                            const auto col = seqlen_k_curr + tile_idx.at(number<1>{});
+                            constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
-                        if(!mask.IsTokenPairInsideMask(row, col))
-                            pcomp_tile(i_j_idx) = static_cast<CompDataType>(0.0f);
+                            if(!mask.IsTokenPairInsideMask(row, col))
+                            {
+                                pcomp_tile(i_j_idx) = type_convert<CompDataType>(0.0f);
+                            };
+                        });
                     });
-                });
+                }
+
+                tile_elementwise_inout(f_silu, pcomp_tile);
+
+                tile_elementwise_inout(
+                    [&](auto& x) { x = x * type_convert<CompDataType>(scale_p); }, pcomp_tile);
             }
+            else
+            {
+                if(!mask.IsFullTileInsideMask(
+                       q_origin.at(number<0>{}), seqlen_k_curr, number<kN0>{}, number<kM0>{}))
+                {
+                    constexpr auto p_spans = PcompBlockTileType::get_distributed_spans();
+                    sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
+                        sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
+                            const auto tile_idx = get_x_indices_from_distributed_indices(
+                                pcomp_tile.get_tile_distribution(), make_tuple(idx0, idx1));
 
-            tile_elementwise_inout(f_silu, pcomp_tile);
+                            const auto row = q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
+                            const auto col = seqlen_k_curr + tile_idx.at(number<1>{});
+                            constexpr auto i_j_idx = make_tuple(idx0, idx1);
 
-            tile_elementwise_inout([&](auto& x) { x = x * type_convert<CompDataType>(scale_p); },
-                                   pcomp_tile);
+                            if(!mask.IsTokenPairInsideMask(row, col) || col >= seqlen_k_end)
+                            {
+                                pcomp_tile(i_j_idx) = -numeric<CompDataType>::infinity();
+                            };
+                        });
+                    });
+                }
+                else
+                {
+                    constexpr auto p_spans = PcompBlockTileType::get_distributed_spans();
+                    sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
+                        sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
+                            const auto tile_idx = get_x_indices_from_distributed_indices(
+                                pcomp_tile.get_tile_distribution(), make_tuple(idx0, idx1));
+
+                            const auto col         = seqlen_k_curr + tile_idx.at(number<1>{});
+                            constexpr auto i_j_idx = make_tuple(idx0, idx1);
+
+                            if(col >= seqlen_k_end)
+                            {
+                                pcomp_tile(i_j_idx) = -numeric<CompDataType>::infinity();
+                            };
+                        });
+                    });
+                };
+
+                auto m_local = block_tile_reduce<CompDataType>(
+                    pcomp_tile, sequence<1>{}, f_max, -numeric<CompDataType>::infinity());
+                block_tile_reduce_sync(m_local, f_max, bool_constant<false>{});
+
+                const auto m_old = m;
+
+                tile_elementwise_inout(
+                    [](auto& e0, auto e1, auto e2) { e0 = max(e1, e2); }, m, m_old, m_local);
+
+                constexpr auto p_spans = decltype(pcomp_tile)::get_distributed_spans();
+                sweep_tile_span(p_spans[number<0>{}], [&](auto idx0) {
+                    constexpr auto i_idx = make_tuple(idx0);
+
+                    if(m[i_idx] == -numeric<CompDataType>::infinity())
+                    {
+                        sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
+                            constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                            pcomp_tile(i_j_idx)    = type_convert<CompDataType>(0.0f);
+                        });
+                    }
+                    else
+                    {
+                        sweep_tile_span(p_spans[number<1>{}], [&](auto idx1) {
+                            constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                            pcomp_tile(i_j_idx)    = f_exp(pcomp_tile[i_j_idx] - m[i_idx]);
+                        });
+                    }
+                });
+
+                auto rowsum_p = block_tile_reduce<CompDataType>(
+                    pcomp_tile, sequence<1>{}, f_sum, CompDataType{0});
+
+                block_tile_reduce_sync(rowsum_p, f_sum, bool_constant<false>{});
+
+                // adjust o_acc[] according to the update between m and m_old
+                constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
+                sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
+                    constexpr auto i_idx = make_tuple(idx0);
+
+                    if(m[i_idx] == -numeric<CompDataType>::infinity())
+                    {
+                        l(i_idx) = rowsum_p[i_idx];
+                    }
+                    else
+                    {
+                        const auto tmp = f_exp(m_old[i_idx] - m[i_idx]);
+                        l(i_idx)       = tmp * l[i_idx] + rowsum_p[i_idx];
+                        sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
+                            constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                            o_acc(i_j_idx) *= tmp;
+                        });
+                    }
+                });
+            };
 
             seqlen_k_curr += kN0;
 
@@ -501,6 +630,23 @@ struct HstuAttentionFwdPipelineQRKSVS
                 __builtin_amdgcn_s_barrier();
             };
         } while(seqlen_k_curr < seqlen_k_end);
+
+        if constexpr(kUseSoftmax)
+        {
+            constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
+
+            sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
+                constexpr auto i_idx = make_tuple(idx0);
+                sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
+                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
+
+                    if(m[i_idx] == -numeric<CompDataType>::infinity())
+                        o_acc(i_j_idx) = 0.0f;
+                    else
+                        o_acc(i_j_idx) *= 1.0f / l[i_idx];
+                });
+            });
+        };
 
         o_acc = tile_elementwise_in(o_acc_element_func, o_acc);
 

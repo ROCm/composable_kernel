@@ -48,6 +48,7 @@
         .insert("max_seqlen", "0", "max uih_seqlen, can be ignored, or else must be equal or bigger than the maximum of all uih seqlens")
         .insert("targets", "16", "sequence length at the end of query/key token sequence that should be excluded from attention")
         .insert("max_target", "0", "max target, can be ignored, or else must be equal of bigger than the maximum of all targets")
+        .insert("softmax", "0", "use softmax or not")
         .insert("causal", "1", "enable causal mask or not")
         .insert("local_len", "5", "length of the diagonal window for enabling masking, value 0 to disable")
         .insert("context_len", "6", "sequence length at the begin of the query sequence the should be included for attention")

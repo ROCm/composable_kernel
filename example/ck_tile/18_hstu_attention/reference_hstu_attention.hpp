@@ -29,6 +29,7 @@ template <typename InOutDataType,
           typename GemmAccDataType,
           typename CompDataType,
           bool kIsJagged,
+          bool kUseSoftmax,
           bool kUseCausal>
 struct reference_hstu_attention
 {
@@ -150,6 +151,11 @@ struct reference_hstu_attention
                 // for all rows in the batch
                 for(int sq = 0; sq < seqlen; sq++)
                 {
+                    CompDataType m =
+                        -ck_tile::numeric<CompDataType>::infinity(); // max value of the row
+                    CompDataType l =
+                        ck_tile::type_convert<CompDataType>(0.0f); // sum of exp(x-m) of the row
+                                                                   //
                     std::vector<CompDataType> locals;
 
                     // for all cols in the batch
@@ -186,12 +192,41 @@ struct reference_hstu_attention
                                              ck_tile::type_convert<CompDataType>(alpha));
                         }
                         else
-                            locals.push_back(ck_tile::type_convert<CompDataType>(0.0f));
+                        {
+                            if constexpr(!kUseSoftmax)
+                                locals.push_back(ck_tile::type_convert<CompDataType>(0.0f));
+                            else
+                                locals.push_back(-ck_tile::numeric<CompDataType>::infinity());
+                        };
                     };
 
-                    // SiLu element-wise
-                    for(CompDataType& elem : locals)
-                        elem = silu(elem) * ck_tile::type_convert<CompDataType>(scale_p);
+                    if constexpr(!kUseSoftmax)
+                    {
+                        // SiLu element-wise
+                        for(CompDataType& elem : locals)
+                            elem = silu(elem) * ck_tile::type_convert<CompDataType>(scale_p);
+                    }
+                    else
+                    {
+                        for(CompDataType elem : locals)
+                            m = ck_tile::max(m, elem);
+
+                        if(m == -ck_tile::numeric<CompDataType>::infinity())
+                        {
+                            for(CompDataType& elem : locals)
+                                elem = ck_tile::type_convert<CompDataType>(0.0f);
+                        }
+                        else
+                        {
+                            // stabalized sum of exp()
+                            for(CompDataType elem : locals)
+                                l += std::exp(elem - m);
+
+                            // normalization
+                            for(CompDataType& elem : locals)
+                                elem = std::exp(elem - m) / l;
+                        }
+                    };
 
                     // second Gemm
                     for(int k = 0; k < hdim_v; k++)
