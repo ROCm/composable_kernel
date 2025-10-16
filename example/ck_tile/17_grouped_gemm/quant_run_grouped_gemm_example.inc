@@ -156,7 +156,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
     };
 
     auto valid_input_data = [&](int group_count, const auto&... args) {
-        return !(args.empty() || ...) && group_count == (args.size() == ...);
+        return !(args.empty() || ...) && ((args.size() == static_cast<size_t>(group_count)) && ...);
     };
 
     const int group_count = arg_parser.get_int("group_count");
@@ -183,7 +183,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
 
     ck_tile::index_t AQK, BQK;
 
-    if(!valid_input_data(group_count, Ms, Ns, Ks, stride_As, stride_Bs, stride_Cs))
+    if(!valid_input_data(group_count, Ms, Ns, Ks, stride_As, stride_Bs, stride_Cs, stride_AQs, stride_BQs))
     {
         std::cout << "Please check the input data. Default values will be used." << std::endl;
 
@@ -245,20 +245,27 @@ int run_grouped_gemm_example_with_layouts(int argc,
         const ck_tile::index_t M = Ms[i];
         const ck_tile::index_t N = Ns[i];
         const ck_tile::index_t K = Ks[i];
-        if(QuantMode == ck_tile::QuantType::RowColQuant)
+        if constexpr(QuantMode == ck_tile::QuantType::RowColQuant ||
+                      QuantMode == ck_tile::QuantType::TensorQuant)
         {
-            AQK = 1; // Row quantization: tensor shape [M, 1].
-            BQK = N; // Column quantization: tensor shape [1, N].
+            AQK = 1; // Row quantization: tensor shape [M, 1] or [1]
+            BQK = 1; // Column quantization: tensor shape [1, N] or [1]
         }
-        else
-        {
-            AQK = 1;
-            BQK = 1;
-        }
+        
 
         stride_As[i] = ck_tile::get_default_stride(M, K, stride_As[i], is_row_major(a_layout));
         stride_Bs[i] = ck_tile::get_default_stride(K, N, stride_Bs[i], is_row_major(b_layout));
         stride_Cs[i] = ck_tile::get_default_stride(M, N, stride_Cs[i], is_row_major(CLayout{}));
+        if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
+        {
+            stride_AQs[i] = ck_tile::get_default_stride(M, 1, stride_AQs[i], is_row_major(aq_layout));
+            stride_BQs[i] = ck_tile::get_default_stride(1, N, stride_BQs[i], is_row_major(bq_layout));
+        }
+        else if constexpr(QuantMode == ck_tile::QuantType::TensorQuant)
+        {
+            stride_AQs[i] = 1; // Tensor quantization: tensor shape [1]
+            stride_AQs[i] = 1; // Tensor quantization: tensor shape [1]
+        }
 
         a_m_k_tensors.push_back(ck_tile::HostTensor<ADataType>(
             ck_tile::host_tensor_descriptor(M, K, stride_As[i], is_row_major(a_layout))));
@@ -267,22 +274,14 @@ int run_grouped_gemm_example_with_layouts(int argc,
         c_m_n_tensors.push_back(ck_tile::HostTensor<CDataType>(
             ck_tile::host_tensor_descriptor(M, N, stride_Cs[i], is_row_major(CLayout{}))));
         if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
-        {
-            stride_AQs[i] =
-                ck_tile::get_default_stride(M, AQK, stride_AQs[i], is_row_major(aq_layout));
-            stride_BQs[i] =
-                ck_tile::get_default_stride(1, N, stride_BQs[i], is_row_major(bq_layout));
+        {            
             aq_tensors.push_back(ck_tile::HostTensor<AQDataType>(
                 ck_tile::host_tensor_descriptor(M, AQK, stride_AQs[i], is_row_major(aq_layout))));
             bq_tensors.push_back(ck_tile::HostTensor<BQDataType>(
-                ck_tile::host_tensor_descriptor(1, N, stride_BQs[i], is_row_major(bq_layout))));
+                ck_tile::host_tensor_descriptor(BQK, N, stride_BQs[i], is_row_major(bq_layout))));
         }
         else if constexpr(QuantMode == ck_tile::QuantType::TensorQuant)
         {
-            stride_AQs[i] =
-                ck_tile::get_default_stride(1, 1, stride_AQs[i], is_row_major(aq_layout));
-            stride_BQs[i] =
-                ck_tile::get_default_stride(1, 1, stride_BQs[i], is_row_major(bq_layout));
             aq_tensors.push_back(ck_tile::HostTensor<AQDataType>(
                 ck_tile::host_tensor_descriptor(1, 1, stride_AQs[i], is_row_major(aq_layout))));
             bq_tensors.push_back(ck_tile::HostTensor<BQDataType>(
