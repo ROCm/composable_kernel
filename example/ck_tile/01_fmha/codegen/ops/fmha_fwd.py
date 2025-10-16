@@ -1430,6 +1430,7 @@ class KernelComponentFactory:
                             and logits == "f"
                             and bias == "no"
                             and dropout == "f"
+                            and lse == "f"
                             and skip == "f"
                         ):
                             pipelines.append(
@@ -1468,6 +1469,7 @@ class KernelComponentFactory:
                                     "t",
                                 )
                             )
+
                     if receipt == 1 and bias != "bias":
                         pipelines.append(
                             FmhaFwdPipeline(
