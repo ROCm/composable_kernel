@@ -85,22 +85,25 @@ struct GenericAttentionMask
 
     static constexpr const char* name = impl::MaskName<IsMasking, IsLocal>::name;
 
-    CK_TILE_HOST_DEVICE GenericAttentionMask(index_t y_total_, index_t x_total_)
-        : GenericAttentionMask(0, 0, y_total_, x_total_)
+    // New constructor accepting repeat_idx with default value 1
+    CK_TILE_HOST_DEVICE GenericAttentionMask(index_t y_total_, index_t x_total_, index_t repeat_idx = 1)
+        : GenericAttentionMask(0, 0, y_total_, x_total_, repeat_idx)
     {
     }
 
     CK_TILE_HOST_DEVICE
-    GenericAttentionMask(index_t y_, index_t x_, index_t y_total_, index_t x_total_)
-        : y(y_), x(x_), y_total(y_total_), x_total(x_total_)
+    GenericAttentionMask(index_t y_, index_t x_, index_t y_total_, index_t x_total_, index_t repeat_idx = 1)
+        : y(y_), x(x_), y_total(y_total_), x_total(x_total_), repeat_idx(repeat_idx)
     {
     }
+
     template <typename MaskCoordinates>
-    CK_TILE_HOST_DEVICE GenericAttentionMask(const MaskCoordinates& mask_coord)
+    CK_TILE_HOST_DEVICE GenericAttentionMask(const MaskCoordinates& mask_coord, index_t repeat_idx = 1)
         : y(mask_coord.at(number<0>{})),
           x(mask_coord.at(number<1>{})),
           y_total(mask_coord.at(number<2>{})),
-          x_total(mask_coord.at(number<3>{}))
+          x_total(mask_coord.at(number<3>{})),
+          repeat_idx(repeat_idx)
     {
     }
 
@@ -111,17 +114,20 @@ struct GenericAttentionMask
     CK_TILE_HOST_DEVICE constexpr auto
     GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
     {
+        // Transform the y index according to repeat_idx
+        index_t y_eff = i_y / repeat_idx;
+
         if constexpr(!IsMasking)
         {
             return ck_tile::make_tuple(0, x_total);
         }
         else
         {
-            // get the tile start/end range assum we loop over along X tile by tile
+            // get the tile start/end range assuming we loop over along X tile by tile
             index_t x_start = [&]() {
                 if constexpr(IsLocal)
                 {
-                    index_t tmp = max(-y + i_y + 1, 0);
+                    index_t tmp = max(-y + y_eff + 1, 0);
                     return (tmp / XTile) * XTile; // round to tile aligned
                 }
                 else
@@ -133,7 +139,7 @@ struct GenericAttentionMask
             // TODO: end could be negative, we ignore clamp here, and let caller to check
             //      ... in which case end-start is negative
             index_t x_end = [&]() {
-                index_t tmp = min(i_y + YTile - 1 + x, x_total);
+                index_t tmp = min(y_eff + YTile - 1 + x, x_total);
                 return ((tmp + XTile - 1) / XTile) * XTile;
             }();
 
@@ -143,7 +149,7 @@ struct GenericAttentionMask
 
     // to get the loop length along Y axis, return index:[start, end), end-start=length
     // use this if need loop over Y axis tile by tile (like q-seqlen loopover)
-    // TODO: y_end still could be negative, so end-start could be negative(need check)
+    // Note: this function does not take a dynamic y index so no transform is needed
     template <index_t YTile, index_t XTile>
     CK_TILE_HOST_DEVICE constexpr auto
     GetTileRangeAlongY(index_t i_x, number<YTile>, number<XTile>) const
@@ -154,7 +160,7 @@ struct GenericAttentionMask
         }
         else
         {
-            // get the tile start/end range assum we loop over along Y tile by tile
+            // get the tile start/end range assuming we loop over along Y tile by tile
             index_t y_start = [&]() {
                 index_t tmp = max(-x + i_x + 1, 0);
                 return (tmp / YTile) * YTile; // round to tile aligned
@@ -174,6 +180,9 @@ struct GenericAttentionMask
     // per-pixel check if out-of-bound, if true, need mask a value(like -INF)
     CK_TILE_HOST_DEVICE constexpr auto IsOutOfBound(index_t i_y, index_t i_x) const
     {
+        // Transform the y index according to repeat_idx
+        index_t y_eff = i_y / repeat_idx;
+
         if constexpr(!IsMasking)
         {
             return i_x >= x_total;
@@ -181,8 +190,8 @@ struct GenericAttentionMask
         else
         {
             // no need to do min/max here, since i_x will never be < 0 or >= x_total
-            index_t x_start = -y + i_y + 1;
-            index_t x_end   = min(i_y + x, x_total);
+            index_t x_start = -y + y_eff + 1;
+            index_t x_end   = min(y_eff + x, x_total);
 
             if constexpr(IsLocal)
             {
@@ -190,19 +199,22 @@ struct GenericAttentionMask
             }
             else
             {
-                return i_x >= x_end || i_y >= y_total;
+                return i_x >= x_end || y_eff >= y_total;
             }
         }
     }
 
     // if current tile is at the edge, means need per-pixel mask check.
     // otherwise no need to check per-pixel
-    // Attention! assume the idex passed in this function is with in range of GetTileRangeAlongX/Y()
+    // Attention! assume the index passed in this function is within range of GetTileRangeAlongX/Y()
     // can be used as a fast-path to decide if do per-pixel check or not
     template <index_t TileHeight, index_t TileWidth>
     CK_TILE_HOST_DEVICE constexpr auto
     IsEdgeTile(index_t i_tile_top, index_t i_tile_left, number<TileHeight>, number<TileWidth>) const
     {
+        // Transform the y index according to repeat_idx
+        index_t y_eff = i_tile_top / repeat_idx;
+
         if constexpr(!IsMasking)
         {
             // TODO: no need to check begin
@@ -212,12 +224,12 @@ struct GenericAttentionMask
         {
             if constexpr(IsLocal)
             {
-                // check top-right corner > x or left-borrom corner < x
+                // check top-right corner > x or left-bottom corner < x
                 index_t i_tile_right  = i_tile_left + TileWidth;
-                index_t i_tile_bottom = i_tile_top + TileHeight;
-                index_t x_end         = min(i_tile_top + x, x_total);
+                index_t i_tile_bottom = y_eff + TileHeight;
+                index_t x_end         = min(y_eff + x, x_total);
 
-                bool top_right_edge   = i_tile_right > (i_tile_top + x);
+                bool top_right_edge   = i_tile_right > (y_eff + x);
                 bool bottom_left_edge = i_tile_bottom > (i_tile_left + y);
                 bool is_partial_out_of_bound =
                     i_tile_right > x_end; // only consider right-pad for now
@@ -228,7 +240,7 @@ struct GenericAttentionMask
             {
                 // only need to check top-right corner > x
                 index_t i_tile_right = i_tile_left + TileWidth;
-                index_t x_end        = min(i_tile_top + x, x_total);
+                index_t x_end        = min(y_eff + x, x_total);
 
                 bool top_right_edge = i_tile_right > x_end;
                 return top_right_edge;
@@ -236,369 +248,12 @@ struct GenericAttentionMask
         }
     }
 
-    private:
+private:
     index_t y, x;
     index_t y_total, x_total;
+    index_t repeat_idx;
 };
 
-// clang-format off
-namespace impl {
-    template <bool IsMasking_> struct SimplifiedMaskName;
-    template<> struct SimplifiedMaskName<false> { static constexpr const char * name = "nomask"; };
-    template<> struct SimplifiedMaskName<true> { static constexpr const char * name = "mask"; };
-}
-// clang-format on
-
-// this version only have 2 variation: masking and non-masking
-// This is more friendly to codegen (e.g. need generate less kernel)
-// ... with the trade-off that may have more instruction in causal mode
-template <bool IsMasking_ = true>
-struct SimplifiedGenericAttentionMask
-{
-    static constexpr bool IsMasking = IsMasking_; // false will disable masking
-
-    static constexpr const char* name = impl::SimplifiedMaskName<IsMasking>::name;
-
-    CK_TILE_HOST_DEVICE SimplifiedGenericAttentionMask(index_t y_total_, index_t x_total_)
-        : SimplifiedGenericAttentionMask(0, 0, y_total_, x_total_)
-    {
-    }
-
-    CK_TILE_HOST_DEVICE
-    SimplifiedGenericAttentionMask(index_t y_, index_t x_, index_t y_total_, index_t x_total_)
-        : y(y_), x(x_), y_total(y_total_), x_total(x_total_)
-    {
-    }
-    template <typename MaskCoordinates>
-    CK_TILE_HOST_DEVICE SimplifiedGenericAttentionMask(const MaskCoordinates& mask_coord)
-        : y(mask_coord.at(number<0>{})),
-          x(mask_coord.at(number<1>{})),
-          y_total(mask_coord.at(number<2>{})),
-          x_total(mask_coord.at(number<3>{}))
-    {
-    }
-
-    // to get the loop length along X axis, return index:[start, end), end-start=length
-    // use this if need loop over X axis tile by tile (like k-seqlen loopover)
-    // TODO: x_end still could be negative, so end-start could be negative(need check)
-    template <index_t YTile, index_t XTile>
-    CK_TILE_HOST_DEVICE constexpr auto
-    GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
-    {
-        if constexpr(!IsMasking)
-        {
-            return ck_tile::make_tuple(0, x_total);
-        }
-        else
-        {
-            // get the tile start/end range assum we loop over along X tile by tile
-            index_t x_start = [&]() {
-                index_t tmp = max(-y + i_y + 1, 0);
-                return (tmp / XTile) * XTile; // round to tile aligned
-            }();
-
-            // TODO: end could be negative, we ignore clamp here, and let caller to check
-            //      ... in which case end-start is negative
-            index_t x_end = [&]() {
-                index_t tmp = min(i_y + YTile - 1 + x, x_total);
-                return ((tmp + XTile - 1) / XTile) * XTile;
-            }();
-
-            return ck_tile::make_tuple(x_start, x_end);
-        }
-    }
-
-    template <index_t TileHeight, index_t TileWidth>
-    CK_TILE_HOST_DEVICE constexpr auto GetTileRangeAlongX(index_t i_y,
-                                                          number<TileHeight> height,
-                                                          number<TileWidth> width,
-                                                          index_t num_splits,
-                                                          index_t i_split) const
-    {
-        auto [origin_start, origin_end] = GetTileRangeAlongX(i_y, height, width);
-
-        const index_t x_per_split = ck_tile::max(1, integer_divide_ceil(x_total, num_splits));
-        const index_t split_start = x_per_split * i_split;
-        const index_t split_end   = ck_tile::min(x_total, split_start + x_per_split);
-
-        return ck_tile::make_tuple(ck_tile::max(origin_start, split_start),
-                                   ck_tile::min(origin_end, split_end));
-    }
-
-    // to get the loop length along Y axis, return index:[start, end), end-start=length
-    // use this if need loop over Y axis tile by tile (like q-seqlen loopover)
-    // TODO: y_end still could be negative, so end-start could be negative(need check)
-    template <index_t YTile, index_t XTile>
-    CK_TILE_HOST_DEVICE constexpr auto
-    GetTileRangeAlongY(index_t i_x, number<YTile>, number<XTile>) const
-    {
-        if constexpr(!IsMasking)
-        {
-            return ck_tile::make_tuple(0, y_total);
-        }
-        else
-        {
-            // get the tile start/end range assum we loop over along Y tile by tile
-            index_t y_start = [&]() {
-                index_t tmp = max(-x + i_x + 1, 0);
-                return (tmp / YTile) * YTile; // round to tile aligned
-            }();
-
-            // TODO: end could be negative, we ignore clamp here, and let caller to check
-            //      ... in which case end-start is negative
-            index_t y_end = [&]() {
-                index_t tmp = min(i_x + XTile - 1 + y, y_total);
-                return ((tmp + YTile - 1) / YTile) * YTile;
-            }();
-
-            return ck_tile::make_tuple(y_start, y_end);
-        }
-    }
-
-    // per-pixel check if out-of-bound, if true, need mask a value(like -INF)
-    CK_TILE_HOST_DEVICE constexpr auto IsOutOfBound(index_t i_y, index_t i_x) const
-    {
-        if constexpr(!IsMasking)
-        {
-            // the only case that need do following compare is under kPadSeqLenK
-            // ... for non-masking kernel.
-            return i_x >= x_total;
-        }
-        else
-        {
-            index_t x_start = -y + i_y + 1;          // this could be negative, but it's fine
-            index_t x_end   = min(i_y + x, x_total); // need min in case x is padded
-
-            return i_x < x_start || i_x >= x_end || i_y >= y_total;
-        }
-    }
-
-    // if current tile is at the edge, means need per-pixel mask check.
-    // otherwise no need to check per-pixel
-    // Attention! assume the idex passed in this function is with in range of GetTileRangeAlongX/Y()
-    // can be used as a fast-path to decide if do per-pixel check or not
-    template <index_t TileHeight, index_t TileWidth>
-    CK_TILE_HOST_DEVICE constexpr auto
-    IsEdgeTile(index_t i_y, index_t i_x, number<TileHeight>, number<TileWidth>) const
-    {
-        if constexpr(!IsMasking)
-        {
-            // the only case that need do following compare is under kPadSeqLenK
-            // ... for non-masking kernel.
-            // return (i_x < x_total) && ((i_x + TileWidth) > x_total);
-
-            // TODO: no need to check begin
-            return (i_x + TileWidth) > x_total;
-        }
-        else
-        {
-            // check top-right corner > x or left-borrom corner < x
-            index_t i_x_end = i_x + TileWidth;
-            index_t i_y_end = i_y + TileHeight;
-            // index_t x_end    = min(i_y + x, x_total);
-
-            bool top_right_edge   = i_x_end > min(i_y + x, x_total); // consider right pad
-            bool bottom_left_edge = i_y_end > min(i_x + y, y_total); // consider bottom pad
-            // bool is_partial_out_of_bound = i_x_end > x_end; // only consider right-pad for now
-
-            return top_right_edge || bottom_left_edge;
-        }
-    }
-
-    private:
-    index_t y, x;
-    index_t y_total, x_total;
-};
-
-// clang-format off
-namespace impl {
-    template <bool IsMasking_> struct SimplifiedRatioMaskName;
-    template<> struct SimplifiedRatioMaskName<false> { static constexpr const char * name = "nomask"; };
-    template<> struct SimplifiedRatioMaskName<true> { static constexpr const char * name = "mask"; };
-}
-// clang-format on
-
-// this version is used for cases that the step length of y-direction changes greater than one. It
-// means that the mask is not a regular triangular matrix.
-
-// clang-format off
-/*  y_ratio is used to describe the step length of y-direction changes
-    in certain performance optimization scenarios like merging seqlen 
-    and qk_head_ratio, for example:
-
-    x=1/y=6/y_ratio=2(top-left)
-    1 * * * * * * * 
-    1 * * * * * * *
-    1 1 * * * * * * 
-    1 1 * * * * * *
-    1 1 1 * * * * *
-    1 1 1 * * * * *
-
-*/
-// clang-format on
-template <bool IsMasking_ = true>
-struct SimplifiedRatioAttentionMask
-{
-    static constexpr bool IsMasking = IsMasking_; // false will disable masking
-
-    static constexpr const char* name = impl::SimplifiedRatioMaskName<IsMasking>::name;
-
-    CK_TILE_HOST_DEVICE SimplifiedRatioAttentionMask(index_t y_total_, index_t x_total_)
-        : SimplifiedRatioAttentionMask(0, 0, y_total_, x_total_, 0, 1, mdiv{})
-    {
-    }
-
-    CK_TILE_HOST_DEVICE
-    SimplifiedRatioAttentionMask(
-        index_t y_real_, index_t x_, index_t y_total_, index_t x_total_, mdiv y_ratio_mdiv_)
-        : SimplifiedRatioAttentionMask(/*y_=*/y_real_ * static_cast<index_t>(y_ratio_mdiv_.get()),
-                                       /*x_=*/x_,
-                                       /*y_total_=*/y_total_,
-                                       /*x_total_=*/x_total_,
-                                       /*y_real_=*/y_real_,
-                                       /*y_ratio_=*/static_cast<index_t>(y_ratio_mdiv_.get()),
-                                       /*y_ratio_mdiv_=*/y_ratio_mdiv_)
-
-    {
-    }
-    CK_TILE_HOST_DEVICE
-    SimplifiedRatioAttentionMask(index_t y_,
-                                 index_t x_,
-                                 index_t y_total_,
-                                 index_t x_total_,
-                                 index_t y_real_,
-                                 index_t y_ratio_,
-                                 mdiv y_ratio_mdiv_)
-        : y(y_),
-          x(x_),
-          y_total(y_total_),
-          x_total(x_total_),
-          y_real(y_real_),
-          y_ratio(y_ratio_),
-          y_ratio_mdiv(y_ratio_mdiv_)
-    {
-    }
-
-    // to get the loop length along X axis, return index:[start, end), end-start=length
-    // use this if need loop over X axis tile by tile (like k-seqlen loopover)
-    // TODO: x_end still could be negative, so end-start could be negative(need check)
-    template <index_t YTile, index_t XTile>
-    CK_TILE_HOST_DEVICE constexpr auto
-    GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
-    {
-        if constexpr(!IsMasking)
-        {
-            return ck_tile::make_tuple(0, x_total);
-        }
-        else
-        {
-            // get the tile start/end range assum we loop over along X tile by tile
-            index_t x_start = [&]() {
-                index_t tmp = -y_real +
-                              static_cast<index_t>(y_ratio_mdiv.div(static_cast<uint32_t>(i_y))) +
-                              1;
-
-                return (tmp / XTile) * XTile; // round to tile aligned
-            }();
-
-            // TODO: end could be negative, we ignore clamp here, and let caller to check
-            //      ... in which case end-start is negative
-            index_t x_end = [&]() {
-                uint32_t y_offset = i_y + YTile - 1;
-                index_t tmp = min(static_cast<index_t>(y_ratio_mdiv.div(y_offset)) + x, x_total);
-                return ((tmp + XTile - 1) / XTile) * XTile;
-            }();
-
-            return ck_tile::make_tuple(x_start, x_end);
-        }
-    }
-
-    // to get the loop length along Y axis, return index:[start, end), end-start=length
-    // use this if need loop over Y axis tile by tile (like q-seqlen loopover)
-    // TODO: y_end still could be negative, so end-start could be negative(need check)
-    template <index_t YTile, index_t XTile>
-    CK_TILE_HOST_DEVICE constexpr auto
-    GetTileRangeAlongY(index_t i_x, number<YTile>, number<XTile>) const
-    {
-        if constexpr(!IsMasking)
-        {
-            return ck_tile::make_tuple(0, y_total);
-        }
-        else
-        {
-            // get the tile start/end range assum we loop over along Y tile by tile
-            index_t y_start = [&]() {
-                index_t tmp = max((-x + i_x + 1) * y_ratio, 0);
-                return (tmp / YTile) * YTile; // round to tile aligned
-            }();
-
-            // TODO: end could be negative, we ignore clamp here, and let caller to check
-            //      ... in which case end-start is negative
-            index_t y_end = [&]() {
-                index_t tmp = min((i_x + XTile - 1) * y_ratio + y, y_total);
-                return ((tmp + YTile - 1) / YTile) * YTile;
-            }();
-
-            return ck_tile::make_tuple(y_start, y_end);
-        }
-    }
-
-    // per-pixel check if out-of-bound, if true, need mask a value(like -INF)
-    CK_TILE_HOST_DEVICE constexpr auto IsOutOfBound(index_t i_y, index_t i_x) const
-    {
-        if constexpr(!IsMasking)
-        {
-            return i_x >= x_total;
-        }
-        else
-        {
-            index_t x_tmp   = static_cast<index_t>(y_ratio_mdiv.div(static_cast<uint32_t>(i_y)));
-            index_t x_start = -y_real + x_tmp + 1;
-            index_t x_end   = min(x_tmp + x,
-                                x_total); // need min in case x is padded
-            return i_x < x_start || i_x >= x_end || i_y >= y_total;
-        }
-    }
-
-    // if current tile is at the edge, means need per-pixel mask check.
-    // otherwise no need to check per-pixel
-    // Attention! assume the idex passed in this function is with in range of GetTileRangeAlongX/Y()
-    // can be used as a fast-path to decide if do per-pixel check or not
-    template <index_t TileHeight, index_t TileWidth>
-    CK_TILE_HOST_DEVICE constexpr auto
-    IsEdgeTile(index_t i_y, index_t i_x, number<TileHeight>, number<TileWidth>) const
-    {
-        if constexpr(!IsMasking)
-        {
-            // the only case that need do following compare is under kPadSeqLenK
-            // ... for non-masking kernel.
-            // return (i_x < x_total) && ((i_x + TileWidth) > x_total);
-
-            return (i_x + TileWidth) > x_total;
-        }
-        else
-        {
-            // check top-right corner > x or left-borrom corner < x
-            index_t i_x_end = i_x + TileWidth;
-            index_t i_y_end = i_y + TileHeight;
-            // index_t x_end    = min(i_y + x, x_total);
-            uint32_t y_tmp      = static_cast<uint32_t>(i_y);
-            bool top_right_edge = i_x_end > min(static_cast<index_t>(y_ratio_mdiv.div(y_tmp)) + x,
-                                                x_total); // consider right pad
-            bool bottom_left_edge =
-                i_y_end > min(i_x * y_ratio + y, y_total); // consider bottom pad
-            return top_right_edge || bottom_left_edge;
-        }
-    }
-
-    private:
-    index_t y, x;
-    index_t y_total, x_total;
-    // y_real is vertical axis before multiplying y_ratio. y_real * y_ratio = y
-    index_t y_real;
-    index_t y_ratio;
-    mdiv y_ratio_mdiv;
-};
 
 // TODO: prefer use this function in host code
 // can convert from the FA style left/right to our generic coordinate
@@ -633,10 +288,11 @@ make_generic_attention_mask_from_lr_window(index_t left_size,
                                            index_t right_size,
                                            index_t y_total,
                                            index_t x_total,
+                                           index_t repeat_idx = 1,
                                            bool is_top_left = true)
 {
     auto r = make_generic_attention_mask_coordinates_from_lr_window(
         left_size, right_size, y_total, x_total, is_top_left);
-    return MaskType{r.at(number<0>{}), r.at(number<1>{}), y_total, x_total};
+    return MaskType{r.at(number<0>{}), r.at(number<1>{}), y_total, x_total, repeat_idx};
 }
 } // namespace ck_tile
