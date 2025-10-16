@@ -23,30 +23,36 @@ pipeline {
     }
     post {
         success {
-            script {
-                withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
-                    sh """
-                        curl -X POST '${WEBHOOK_URL}' \
-                        -H 'Content-Type: application/json' \
-                        -d '{
-                            "subject": "✅ Build Success",
-                            "text": "successful build"
-                        }'
-                    """
+            node(rocmnode("nogpu")) {
+                script {
+                    withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
+                        sh """
+                            curl -X POST '${WEBHOOK_URL}' \
+                            -H 'Content-Type: application/json' \
+                            -d '{
+                                "subject": "✅ Build Success",
+                                "text": "successful build"
+                            }'
+                        """
+                    }
                 }
             }
         }
         failure {
-            withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
-                    sh """
-                        curl -X POST '${WEBHOOK_URL}' \
-                        -H 'Content-Type: application/json' \
-                        -d '{
-                            "subject": "❌ Build Failed",
-                            "text": "Failed to build"
-                        }'
-                    """
+            node(rocmnode("nogpu")) {
+                script {
+                    withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
+                        sh """
+                            curl -X POST '${WEBHOOK_URL}' \
+                            -H 'Content-Type: application/json' \
+                            -d '{
+                                "subject": "❌ Build Failed",
+                                "text": "Failed to build"
+                            }'
+                        """
+                    }
                 }
+            }
         }
     }
 }
