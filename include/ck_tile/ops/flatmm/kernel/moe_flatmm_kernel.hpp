@@ -200,7 +200,7 @@ struct MoeFlatmmKernel
     using ELayout          = remove_cvref_t<typename FlatmmPipeline::CLayout>;
     using DsLayout         = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
     using DsDataType       = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
-    static constexpr index_t KernelBlockSize  = FlatmmPipeline::BlockSize;
+    static constexpr index_t kBlockSize  = FlatmmPipeline::BlockSize;
     static constexpr bool UsePersistentKernel = FlatmmPipeline::UsePersistentKernel;
 
     using ADataType = remove_cvref_t<typename FlatmmPipeline::ADataType>;
@@ -224,7 +224,7 @@ struct MoeFlatmmKernel
     static constexpr bool IsInputGemm = kind != MoeFlatmmKind::kFFN_gemm2;
     static constexpr bool IsGateUp    = kind == MoeFlatmmKind::kFFN_gemm1_gate_up;
 
-    static constexpr index_t kBlockSize     = EpiloguePipeline::kBlockSize;
+    // static constexpr index_t kBlockSize     = EpiloguePipeline::kBlockSize;
     static constexpr index_t kMPerBlock     = EpiloguePipeline::kMPerBlock;
     static constexpr index_t kNPerBlock     = EpiloguePipeline::kNPerBlock;
     static constexpr index_t MWave          = EpiloguePipeline::MWave;
@@ -313,7 +313,7 @@ struct MoeFlatmmKernel
             '_', "moe_flatmm", gemm_prec_str<ADataType, BDataType>, FlatmmPipeline::GetName());
     }
 
-    static constexpr auto BlockSize() -> dim3 { return dim3(KernelBlockSize); }
+    static constexpr auto BlockSize() -> dim3 { return dim3(kBlockSize); }
 
     static constexpr auto GridSize(index_t M, index_t N, index_t KBatch)
     {
@@ -335,7 +335,7 @@ struct MoeFlatmmKernel
 
             e = hipOccupancyMaxActiveBlocksPerMultiprocessor(
                 &maxActiveBlocksPerCU,
-                reinterpret_cast<void*>(kentry2<block_size, MoeFlatmmKernel, MoeFlatmmKernelArgs>),
+                reinterpret_cast<void*>(kentry<1, MoeFlatmmKernel, MoeFlatmmKernelArgs>),
                 block_size,
                 dync_smem_size);
 
@@ -1069,10 +1069,7 @@ struct MoeFlatmmKernel
 
             if constexpr(!MXFP4_Pipeline)
             {
-                scale_m_window.load(scale_m_buffer, [](auto ys_coord) {
-                    return ys_coord.at(I0) * number<kM0 * kM2>{} + ys_coord.at(I2) * number<kM2>{} +
-                           ys_coord.at(I3);
-                });
+                scale_m_window.load(scale_m_buffer);
                 scale_n_buffer = load_tile(scale_n_window);
                 if constexpr(IsGateUp)
                     scale_n_up_buffer = load_tile(scale_n_up_window);
