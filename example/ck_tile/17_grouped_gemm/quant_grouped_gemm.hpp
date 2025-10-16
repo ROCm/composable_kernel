@@ -60,7 +60,6 @@ struct GemmConfigBase
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
     static constexpr ck_tile::index_t Pipeline      = CK_TILE_PIPELINE_COMPUTE_V3;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
-    static constexpr bool Preshuffle                = false;
 };
 
 template <typename PrecType>
@@ -104,7 +103,7 @@ auto create_args(int argc, char* argv[])
     arg_parser.insert("Ms", "", "M dimensions - empty by default.")
         .insert("Ns", "", "N dimensions - empty by default.")
         .insert("Ks", "", "K dimensions - empty by default.")
-        .insert("stride_As", "", "Tensor A strides - it is empty by default.")
+        .insert("stride_As", "", "Tensor A strides - it is empty by default.") // stride_As/stride_Bs/stride_Cs/stride_AQs/stride_BQs can be set to zero if Ms/Ns/Ks is not empty
         .insert("stride_Bs", "", "Tensor B strides - it is empty by default.")
         .insert("stride_Cs", "", "Tensor C strides - it is empty by default.")
         .insert("stride_AQs", "", "Tensor AQ strides - it is empty by default.")
