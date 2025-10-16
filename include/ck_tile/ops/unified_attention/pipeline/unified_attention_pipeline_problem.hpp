@@ -19,6 +19,7 @@ template <typename QDataType_,
           typename OaccDataType_,
           typename ODataType_,
           typename UnifiedAttentionShape_,
+        typename FmhaMask_,
           typename Traits_>
 struct UnifiedAttentionPipelineProblem
 {
@@ -39,6 +40,7 @@ struct UnifiedAttentionPipelineProblem
     using ODataType             = remove_cvref_t<ODataType_>;
     using UnifiedAttentionShape = remove_cvref_t<UnifiedAttentionShape_>;
     using Traits                = remove_cvref_t<Traits_>;
+    using FmhaMask              = remove_cvref_t<FmhaMask_>;
 
     static constexpr index_t kNumGemm0Warps = UnifiedAttentionShape::NumGemm0Warps;
     static constexpr index_t kNumGemm1Warps = UnifiedAttentionShape::NumGemm1Warps;
@@ -46,9 +48,7 @@ struct UnifiedAttentionPipelineProblem
 
     // attributes from traits
     static constexpr bool kPadSeqLenQ       = Traits::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK       = Traits::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ      = Traits::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV      = Traits::kPadHeadDimV;
+    static constexpr bool kPadHeadDim      = Traits::kPadHeadDim;
     static constexpr bool kHasLogitsSoftCap = Traits::kHasLogitsSoftCap;
     static constexpr bool kSkipMinSeqlenQ   = Traits::kSkipMinSeqlenQ;
     static constexpr auto BiasEnum          = Traits::BiasEnum;

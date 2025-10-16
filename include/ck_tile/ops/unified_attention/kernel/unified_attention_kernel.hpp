@@ -15,15 +15,16 @@
 
 namespace ck_tile {
 
-template <typename FmhaPipeline_, typename EpiloguePipeline_>
-struct FmhaFwdV3Kernel
+template <typename UnifiedAttentionPipeline_, typename EpiloguePipeline_>
+struct UnifiedAttentionKernel
 {
-    using FmhaPipeline                            = ck_tile::remove_cvref_t<FmhaPipeline_>;
+    using UnifiedAttentionPipeline                            = ck_tile::remove_cvref_t<UnifiedAttentionPipeline_>;
     using EpiloguePipeline                        = ck_tile::remove_cvref_t<EpiloguePipeline_>;
-    static constexpr ck_tile::index_t kBlockSize  = FmhaPipeline::kBlockSize;
-    static constexpr ck_tile::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
+    static constexpr ck_tile::index_t kBlockSize  = UnifiedAttentionPipeline::kBlockSize;
+    static constexpr ck_tile::index_t kBlockPerCu = UnifiedAttentionPipeline::kBlockPerCu;
     static_assert(kBlockPerCu > 0);
 
+<<<<<<< HEAD
     using QDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::QDataType>;
     using KDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::KDataType>;
     using VDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::VDataType>;
@@ -32,23 +33,28 @@ struct FmhaFwdV3Kernel
     
     using FmhaMask                 = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
     static constexpr bool kHasMask = FmhaMask::IsMasking;
+=======
+    using QDataType    = ck_tile::remove_cvref_t<typename UnifiedAttentionPipeline::QDataType>;
+    using KDataType    = ck_tile::remove_cvref_t<typename UnifiedAttentionPipeline::KDataType>;
+    using VDataType    = ck_tile::remove_cvref_t<typename UnifiedAttentionPipeline::VDataType>;
+    using ODataType    = ck_tile::remove_cvref_t<typename UnifiedAttentionPipeline::ODataType>;
+    using SaccDataType = ck_tile::remove_cvref_t<typename UnifiedAttentionPipeline::SaccDataType>;
+    using FmhaMask                 = ck_tile::remove_cvref_t<typename UnifiedAttentionPipeline::FmhaMask>;
+>>>>>>> 853fa21566f6a1fe4237289c61db772b1bbfeb3f
 
-    static constexpr bool kIsGroupMode = FmhaPipeline::kIsGroupMode;
-    static constexpr bool kPadSeqLenQ  = FmhaPipeline::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK  = FmhaPipeline::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ = FmhaPipeline::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV = FmhaPipeline::kPadHeadDimV;
+    static constexpr bool kPadSeqLenQ  = UnifiedAttentionPipeline::kPadSeqLenQ;
+    static constexpr bool kPadHeadDim = UnifiedAttentionPipeline::kPadHeadDim;
 
     // TODO add yjese 
-    static constexpr index_t HEAD_SIZE = FmhaPipeline::HEAD_SIZE;
-    static constexpr index_t HEAD_SIZE_PADDED = FmhaPipeline::HEAD_SIZE_PADDED;
+    static constexpr index_t HEAD_SIZE = UnifiedAttentionPipeline::HEAD_SIZE;
+    static constexpr index_t HEAD_SIZE_PADDED = UnifiedAttentionPipeline::HEAD_SIZE_PADDED;
     
     // BLOCK_Q = BLOCK_M // num_queries_per_kv
     // BLOCK_Q is the block size for q seqlen
-    static constexpr index_t BLOCK_Q = FmhaPipeline::BLOCK_Q;
-    // static constexpr index_t BLOCK_M = FmhaPipeline::BLOCK_M;
+    static constexpr index_t BLOCK_Q = UnifiedAttentionPipeline::BLOCK_Q;
+    // static constexpr index_t BLOCK_M = UnifiedAttentionPipeline::BLOCK_M;
     // BLOCK size for K seqlen
-    static constexpr index_t BLOCK_SIZE = FmhaPipeline::BLOCK_SIZE;
+    static constexpr index_t BLOCK_SIZE = UnifiedAttentionPipeline::BLOCK_SIZE;
 
 
     // kargs use aggregate initializer, so no constructor will provided
@@ -255,7 +261,7 @@ struct FmhaFwdV3Kernel
 
         ck_tile::index_t total_num_q_blocks = kargs.total_num_q_blocks;
         // const index_t num_tile_n1 = ck_tile::integer_divide_ceil(kargs.hdim_v,
-        // FmhaPipeline::kN1);
+        // UnifiedAttentionPipeline::kN1);
 
         const index_t i_tile_m = pid % total_num_q_blocks;  // Query block index
         const index_t i_tile_n = pid / total_num_q_blocks;  // Head index
@@ -263,9 +269,11 @@ struct FmhaFwdV3Kernel
         return ck_tile::make_tuple(i_tile_m, i_tile_n);
     }
 
+    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
+
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
-        return ck_tile::max(FmhaPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
+        return ck_tile::max(UnifiedAttentionPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
     }
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
@@ -352,7 +360,7 @@ struct FmhaFwdV3Kernel
                 q_ptr,
                 make_tuple(cur_batch_query_len, num_queries_per_kv, HEAD_SIZE),
                 make_tuple(kargs.query_stride_0, kargs.query_stride_1, 1),
-                number<FmhaPipeline::kAlignmentQ>{},
+                number<UnifiedAttentionPipeline::kAlignmentQ>{},
                 number<1>{});
 
             const auto q_dram_pad = pad_tensor_view( // aling seqlen with BLOCK_Q and head dim with HEAD_SIZE_PADDED
@@ -390,7 +398,7 @@ struct FmhaFwdV3Kernel
                 k_ptr,
                 make_tuple(kargs.num_blks, BLOCK_SIZE, HEAD_SIZE),
                 make_tuple(kargs.stride_k_cache_0, kargs.stride_k_cache_1, kargs.stride_k_cache_3),
-                number<FmhaPipeline::kAlignmentK>{},
+                number<UnifiedAttentionPipeline::kAlignmentK>{},
                 number<1>{});
 
             const auto k_dram_pad = pad_tensor_view(
@@ -423,7 +431,7 @@ struct FmhaFwdV3Kernel
                 v_ptr,
                 make_tuple(kargs.num_blks, BLOCK_SIZE, HEAD_SIZE),
                 make_tuple(kargs.stride_v_cache_0, kargs.stride_v_cache_1, kargs.stride_v_cache_3),
-                number<FmhaPipeline::kAlignmentV>{},
+                number<UnifiedAttentionPipeline::kAlignmentV>{},
                 number<1>{});
 
             const auto v_dram_pad = pad_tensor_view(
@@ -462,7 +470,7 @@ struct FmhaFwdV3Kernel
         }();
         
         auto o_acc_tile = [&]() {
-            return FmhaPipeline{}(q_dram_window,
+            return UnifiedAttentionPipeline{}(q_dram_window,
                                   k_dram_window,
                                   v_dram_window,
                                   block_tables_ptr,
@@ -479,7 +487,7 @@ struct FmhaFwdV3Kernel
                 o_ptr,
                 make_tuple(seq_len, num_queries_per_kv, HEAD_SIZE),
                 make_tuple(kargs.output_stride_0, kargs.output_stride_1, 1),
-                number<FmhaPipeline::kAlignmentO>{},
+                number<UnifiedAttentionPipeline::kAlignmentO>{},
                 number<1>{});
 
             const auto o_dram_pad = pad_tensor_view( // aling cu_seqlen with BLOCK_Q and head dim with HEAD_SIZE_PADDED
