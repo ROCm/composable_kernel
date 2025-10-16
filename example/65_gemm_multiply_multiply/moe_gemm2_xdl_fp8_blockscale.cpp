@@ -30,8 +30,9 @@ using F8   = ck::f8_t;
 using F32  = float;
 using I64  = int64_t;
 
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
+using Row    = ck::tensor_layout::gemm::RowMajor;
+using Col    = ck::tensor_layout::gemm::ColumnMajor;
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
 using A0DataType = F8;
 using A1DataType = F32;
@@ -305,7 +306,7 @@ int main(int argc, char* argv[])
         Col{}));
 
     Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}, Col{}));
-    Tensor<D2DataType> d2_e_n(HostTensorDescriptor({sorted_size, N}, {1, 0}));
+    Tensor<D2DataType> d2_e_n(HostTensorDescriptor({sorted_size, N}, {1, 0}, Bypass{}));
     Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({tokens, N}, {N, 1}));
     Tensor<EDataType> e_t_n_device_result(HostTensorDescriptor({tokens, N}, {N, 1}));
     e_t_n_device_result.SetZero();
