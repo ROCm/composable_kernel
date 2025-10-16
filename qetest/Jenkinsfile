@@ -1,0 +1,28 @@
+pipeline {
+    agent none
+    parameters {
+        booleanParam(
+            name: "FORCE_CI",
+            defaultValue: false,
+            description: "Force CI to run even when only non-relevant files are changed (default: OFF)")
+    }
+    stages{
+        stage("Determine CI Execution") {
+            agent{ label rocmnode("nogpu") }
+            steps {
+                script {
+                    env.SHOULD_RUN_CI = String.valueOf(params.FORCE_CI.toBoolean())
+                    echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
+                }
+            }
+        }
+    }
+    post {
+        success {
+            echo "test success!"
+        }
+        failure {
+            echo "test failure!"
+        }
+    }
+}
