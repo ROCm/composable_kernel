@@ -328,6 +328,7 @@ def is_tile_config_valid(
     b_datatype: str,
     c_datatype: str,
     pipeline: str,
+    layout: str,
     trait_name: str = None,
 ) -> bool:
     """
@@ -386,8 +387,12 @@ def is_tile_config_valid(
         return False
             
     # Validate whole workgroup cover configuration
+    
+    XPerTile = tile_k
+    YPerTile = tile_m
+
     m0_m1_m2_valid, m0_m1_m2_error = validate_whole_wg_cover_configuration(
-        tile_m, tile_k, warp_m, warp_n, warp_k, a_datatype, vector_load_size=16, warp_size=64
+        XPerTile, YPerTile, warp_m, warp_n, warp_k, a_datatype, vector_load_size=16, warp_size=64
     )
     if not m0_m1_m2_valid:
         logging.debug(f"M0/M1/M2 configuration validation failed: {m0_m1_m2_error}")
@@ -436,8 +441,8 @@ def get_abc_layouts(layout_code: str) -> Tuple[str, str, str]:
     return a_layout, b_layout, c_layout
 
 def validate_whole_wg_cover_configuration(
-    tile_m: int,
-    tile_k: int,
+    XPerTile: int,
+    YPerTile: int,
     warp_m: int, 
     warp_n: int,
     warp_k: int,
@@ -446,8 +451,6 @@ def validate_whole_wg_cover_configuration(
     warp_size: int = 64
 ) -> Tuple[bool, str]:
         
-    YPerTile = tile_m
-    XPerTile = tile_k
     NumWarps = (warp_m * warp_n * warp_k)    
     BlockSize = NumWarps * warp_size
 

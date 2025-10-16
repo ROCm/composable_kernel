@@ -217,6 +217,8 @@ class GemmKernelBuilder:
             b_datatype = self.datatype
             c_datatype = self.datatype
 
+            layout = self.layout
+
             # Special handling for certain data types
             if self.datatype in ["fp8", "bf8"]:
                 c_datatype = "fp16"
@@ -236,6 +238,7 @@ class GemmKernelBuilder:
                 b_datatype,
                 c_datatype,
                 pipeline,
+                layout
             )
 
     def _generate_trait_combinations(self):
