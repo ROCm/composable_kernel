@@ -12,6 +12,13 @@
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/core/numeric/math.hpp"
 
+template <typename Layout>
+static constexpr inline auto is_row_major(Layout layout_)
+{
+    return ck_tile::bool_constant<std::is_same_v<ck_tile::remove_cvref_t<decltype(layout_)>,
+                                                 ck_tile::tensor_layout::gemm::RowMajor>>{};
+}
+
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
 auto calculate_rtol_atol(const ck_tile::index_t K,
                          const ck_tile::index_t kbatch,
@@ -345,47 +352,19 @@ class TestCkTileGemmPipeline : public ::testing::Test
     {
         using namespace ck_tile::literals;
 
-        auto f_host_tensor_descriptor = [](std::size_t row,
-                                           std::size_t col,
-                                           std::size_t stride,
-                                           auto layout) {
-            if constexpr(std::is_same_v<decltype(layout), ck_tile::tensor_layout::gemm::RowMajor>)
-            {
-                return ck_tile::HostTensorDescriptor({row, col}, {stride, 1_uz});
-            }
-            else
-            {
-                return ck_tile::HostTensorDescriptor({row, col}, {1_uz, stride});
-            }
-        };
+        ck_tile::index_t stride_A =
+            ck_tile::get_default_stride(M, K, StrideA, is_row_major(ALayout{}));
+        ck_tile::index_t stride_B =
+            ck_tile::get_default_stride(K, N, StrideB, is_row_major(BLayout{}));
+        ck_tile::index_t stride_C =
+            ck_tile::get_default_stride(M, N, StrideC, is_row_major(CLayout{}));
 
-        auto f_get_default_stride =
-            [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-                if(stride == 0)
-                {
-                    // give a chance if stride is zero, return a default packed stride
-                    if constexpr(std::is_same_v<decltype(layout),
-                                                ck_tile::tensor_layout::gemm::RowMajor>)
-                    {
-                        return col;
-                    }
-                    else
-                    {
-                        return row;
-                    }
-                }
-                else
-                    return stride;
-            };
-
-        ck_tile::index_t stride_A = f_get_default_stride(M, K, StrideA, ALayout{});
-        ck_tile::index_t stride_B = f_get_default_stride(K, N, StrideB, BLayout{});
-        ck_tile::index_t stride_C = f_get_default_stride(M, N, StrideC, CLayout{});
-
-        ck_tile::HostTensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, stride_A, ALayout{}));
-        ck_tile::HostTensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, stride_B, BLayout{}));
+        ck_tile::HostTensor<ADataType> a_m_k(
+            ck_tile::host_tensor_descriptor(M, K, stride_A, is_row_major(ALayout{})));
+        ck_tile::HostTensor<BDataType> b_k_n(
+            ck_tile::host_tensor_descriptor(K, N, stride_B, is_row_major(BLayout{})));
         ck_tile::HostTensor<CDataType> c_m_n_dev_result(
-            f_host_tensor_descriptor(M, N, stride_C, CLayout{}));
+            ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
         ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5, 5, 11939}(a_m_k);
         ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5, 5, 11940}(b_k_n);
@@ -416,7 +395,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
         bool pass = true;
 
         ck_tile::HostTensor<CDataType> c_m_n_host_ref(
-            f_host_tensor_descriptor(M, N, stride_C, CLayout{}));
+            ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
         c_m_n_host_ref.SetZero();
 
         ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
