@@ -236,11 +236,9 @@ struct BlockGemmARegBSmemCRegV2Hack_0
         return make_static_tile_distribution(a_block_dstr_encode);
     }
 
+    template <index_t MPerBlock = BlockGemmShape::kM, index_t NPerBlock = BlockGemmShape::kN>
     CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
     {
-        constexpr index_t MPerBlock = BlockGemmShape::kM;
-        constexpr index_t NPerBlock = BlockGemmShape::kN;
-
         constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
 
         using WG = remove_cvref_t<decltype(config.template at<0>())>;

@@ -69,19 +69,13 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
     };
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakePRegTileDistribution()
+    CK_TILE_HOST_DEVICE static constexpr auto MakeBiasDramTileDistribution()
     {
         using BlockGemm = remove_cvref_t<decltype(GetKVBlockGemm<Problem>())>;
 
         return BlockGemm::template MakeABlockTileDistribution<
             Problem::HstuAttentionTileSetting::kM0,
             Problem::HstuAttentionTileSetting::kN0>();
-    }
-
-    template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeBiasDramTileDistribution()
-    {
-        return MakePRegTileDistribution<Problem>();
     }
 
     template <typename Problem>
