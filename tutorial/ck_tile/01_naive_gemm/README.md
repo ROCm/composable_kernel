@@ -113,7 +113,7 @@ int main()
 {
     // 1. Define data types and problem sizes
     using ADataType = ck_tile::half_t;
-    ck_tile::index_t M = 512, N = 2048, K = 2048;
+    ck_tile::index_t M = 2048, N = 1024, K = 512;
 
     // 2. Create host tensors and initialize
     ck_tile::HostTensor<ADataType> a_host(a_lengths, a_strides);
