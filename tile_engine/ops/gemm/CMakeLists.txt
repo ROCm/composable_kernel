@@ -1,5 +1,5 @@
-set(GEMM_DATATYPE "fp8;fp16;bf8;bf16" CACHE STRING "List of datatypes for GEMM (semicolon-separated)")
-set(GEMM_LAYOUT "rcr;rrr;ccr;crr" CACHE STRING "List of layout for GEMM (semicolon-separated)")
+set(GEMM_DATATYPE "fp16;bf16" CACHE STRING "List of datatypes for GEMM (semicolon-separated)")
+set(GEMM_LAYOUT "rcr" CACHE STRING "List of layout for GEMM (semicolon-separated)")
 set(GEMM_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
 option(ENABLE_CCACHE_GEMM "Enable ccache for GEMM ops compilation" OFF)
 
