@@ -1304,9 +1304,9 @@ CK_TILE_DEVICE_EXTERN fp16x2_t llvm_amdgcn_raw_buffer_atomic_add_fp16x2(
     index_t glc_slc) __asm("llvm.amdgcn.raw.buffer.atomic.fadd.v2f16");
 
 // buffer atomic-add bf16
-// TODO: Replace with bf16x2_t, but llvm builins only accept cktile_llvm_bf16x2_t now.
-CK_TILE_DEVICE_EXTERN llvm_bf16x2_t llvm_amdgcn_raw_buffer_atomic_add_bf16x2(
-    llvm_bf16x2_t vdata,
+// TODO: Replace with bf16x2_t, but llvm builins only accept cktile_bf16x2_t now.
+CK_TILE_DEVICE_EXTERN bf16x2_t llvm_amdgcn_raw_buffer_atomic_add_bf16x2(
+    bf16x2_t vdata,
     int32x4_t rsrc,
     index_t voffset,
     index_t soffset,
@@ -2372,7 +2372,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
     {
         if constexpr(N == 2)
         {
-            llvm_amdgcn_raw_buffer_atomic_add_bf16x2(bit_cast<llvm_bf16x2_t>(src_thread_data),
+            llvm_amdgcn_raw_buffer_atomic_add_bf16x2(bit_cast<bf16x2_t>(src_thread_data),
                                                      dst_wave_buffer_resource,
                                                      dst_thread_addr_offset,
                                                      dst_wave_addr_offset,
@@ -2382,7 +2382,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
         {
             static_for<0, 2, 1>{}([&](auto i) {
                 llvm_amdgcn_raw_buffer_atomic_add_bf16x2(
-                    src_thread_data.template get_as<llvm_bf16x2_t>()[i],
+                    src_thread_data.template get_as<bf16x2_t>()[i],
                     dst_wave_buffer_resource,
                     dst_thread_addr_offset,
                     dst_wave_addr_offset + i * sizeof(bf16x2_t),
@@ -2393,7 +2393,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
         {
             static_for<0, 4, 1>{}([&](auto i) {
                 llvm_amdgcn_raw_buffer_atomic_add_bf16x2(
-                    src_thread_data.template get_as<llvm_bf16x2_t>()[i],
+                    src_thread_data.template get_as<bf16x2_t>()[i],
                     dst_wave_buffer_resource,
                     dst_thread_addr_offset,
                     dst_wave_addr_offset + i * sizeof(bf16x2_t),

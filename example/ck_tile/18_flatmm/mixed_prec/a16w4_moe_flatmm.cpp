@@ -250,17 +250,17 @@ float a16w4_moe_gemm(const MoeFlatmmHostArgs& args, const ck_tile::stream_config
                                        args.NumTokens * args.TopK * outputN * sizeof(CDataType),
                                        s.stream_id_));
             };
-            ave_time = ck_tile::launch_kernel_preprocess(
+            ave_time = ck_tile::launch_kernel_time_mask(
                 s,
                 run_flush_cache,
-                ck_tile::make_kernel<blocks.x, FlatmmConfig::kBlockPerCu>(
+                ck_tile::make_kernel<FlatmmConfig::kBlockPerCu>(
                     Kernel{}, grids, blocks, 0, kargs));
         }
         else
         {
             ave_time =
                 ck_tile::launch_kernel(s,
-                                       ck_tile::make_kernel<blocks.x, FlatmmConfig::kBlockPerCu>(
+                                       ck_tile::make_kernel<FlatmmConfig::kBlockPerCu>(
                                            Kernel{}, grids, blocks, 0, kargs));
         }
         return ave_time;

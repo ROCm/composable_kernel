@@ -1032,4 +1032,29 @@ CK_TILE_DEVICE constexpr auto make_tile_scatter_gather(
                                     number<HsGatherDim>{});
 }
 
+template <typename NewTensorView_,
+          typename OldTensorView_,
+          typename WindowLengths_,
+          typename StaticTileDistribution_,
+          typename StaticPageIndexArray_,
+          typename StaticValidArray_,
+          index_t HsGatherDim = 0,
+          index_t NumCoord    = 1>
+CK_TILE_DEVICE auto replace_bottom_tensor_view(const NewTensorView_& new_tensor_view,
+                                               const tile_scatter_gather<OldTensorView_,
+                                                                         WindowLengths_,
+                                                                         StaticTileDistribution_,
+                                                                         StaticPageIndexArray_,
+                                                                         StaticValidArray_,
+                                                                         HsGatherDim,
+                                                                         NumCoord>& tile_window)
+{
+    return make_tile_scatter_gather(new_tensor_view,
+                                    tile_window.window_lengths_,
+                                    tile_window.window_origin_,
+                                    tile_window.tile_dstr_,
+                                    tile_window.page_idx_,
+                                    tile_window.valids_);
+}
+
 } // namespace ck_tile
