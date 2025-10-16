@@ -104,9 +104,9 @@ ck_tile::HostTensor<CDataType> c_host_dev(c_lengths, c_strides);
 bool pass = ck_tile::check_err(c_host_dev, c_host_ref);
 ```
 
-### Execution Flow
+### Runtime Flow
 
-The main program (`practice_gemm.cpp`) orchestrates the complete workflow:
+The main program (`practice_gemm.cpp`) is the entry point for the runtime flow:
 
 ```cpp
 int main()
