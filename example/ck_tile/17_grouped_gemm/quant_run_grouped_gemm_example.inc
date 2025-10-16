@@ -246,8 +246,18 @@ int run_grouped_gemm_example_with_layouts(int argc,
         const ck_tile::index_t M = Ms[i];
         const ck_tile::index_t N = Ns[i];
         const ck_tile::index_t K = Ks[i];
-        if constexpr(QuantMode == ck_tile::QuantType::RowColQuant ||
-                     QuantMode == ck_tile::QuantType::TensorQuant)
+        if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
+        {
+            constexpr ck_tile::index_t QuantGroupSize = 128;
+            if(K % QuantGroupSize != 0)
+            {
+                throw std::runtime_error("K must be aligned with QuantGroupSize=128 for BQuant");
+            }
+            AQK = 0;                  // No A quantization
+            BQK = K / QuantGroupSize; // Group quantization: BQK = K / GroupSize
+        }
+        else if constexpr(QuantMode == ck_tile::QuantType::RowColQuant ||
+                          QuantMode == ck_tile::QuantType::TensorQuant)
         {
             AQK = 1; // Row quantization: tensor shape [M, 1] or [1]
             BQK = 1; // Column quantization: tensor shape [1, N] or [1]
@@ -256,7 +266,13 @@ int run_grouped_gemm_example_with_layouts(int argc,
         stride_As[i] = ck_tile::get_default_stride(M, K, stride_As[i], is_row_major(a_layout));
         stride_Bs[i] = ck_tile::get_default_stride(K, N, stride_Bs[i], is_row_major(b_layout));
         stride_Cs[i] = ck_tile::get_default_stride(M, N, stride_Cs[i], is_row_major(CLayout{}));
-        if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
+        if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
+        {
+            stride_AQs[i] = 0; // No A quantization
+            stride_BQs[i] =
+                ck_tile::get_default_stride(BQK, N, stride_BQs[i], is_row_major(bq_layout));
+        }
+        else if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
         {
             stride_AQs[i] =
                 ck_tile::get_default_stride(M, 1, stride_AQs[i], is_row_major(aq_layout));
@@ -266,7 +282,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
         else if constexpr(QuantMode == ck_tile::QuantType::TensorQuant)
         {
             stride_AQs[i] = 1; // Tensor quantization: tensor shape [1]
-            stride_AQs[i] = 1; // Tensor quantization: tensor shape [1]
+            stride_BQs[i] = 1; // Tensor quantization: tensor shape [1]
         }
 
         a_m_k_tensors.push_back(ck_tile::HostTensor<ADataType>(
@@ -275,7 +291,13 @@ int run_grouped_gemm_example_with_layouts(int argc,
             ck_tile::host_tensor_descriptor(K, N, stride_Bs[i], is_row_major(b_layout))));
         c_m_n_tensors.push_back(ck_tile::HostTensor<CDataType>(
             ck_tile::host_tensor_descriptor(M, N, stride_Cs[i], is_row_major(CLayout{}))));
-        if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
+        if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
+        {
+            // No AQ tensor for BQuant
+            bq_tensors.push_back(ck_tile::HostTensor<BQDataType>(
+                ck_tile::host_tensor_descriptor(BQK, N, stride_BQs[i], is_row_major(bq_layout))));
+        }
+        else if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
         {
             aq_tensors.push_back(ck_tile::HostTensor<AQDataType>(
                 ck_tile::host_tensor_descriptor(M, AQK, stride_AQs[i], is_row_major(aq_layout))));
@@ -296,8 +318,16 @@ int run_grouped_gemm_example_with_layouts(int argc,
 
         ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensors[i]);
         ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
-        ck_tile::FillUniformDistribution<AQDataType>{-1.f, 1.f}(aq_tensors[i]);
-        ck_tile::FillUniformDistribution<BQDataType>{-1.f, 1.f}(bq_tensors[i]);
+
+        if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
+        {
+            ck_tile::FillUniformDistribution<BQDataType>{-2.f, 2.f}(bq_tensors[i]);
+        }
+        else
+        {
+            ck_tile::FillUniformDistribution<AQDataType>{-1.f, 1.f}(aq_tensors[i]);
+            ck_tile::FillUniformDistribution<BQDataType>{-1.f, 1.f}(bq_tensors[i]);
+        }
 
         a_m_k_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
             a_m_k_tensors[i].get_element_space_size_in_bytes()));
@@ -368,7 +398,22 @@ int run_grouped_gemm_example_with_layouts(int argc,
             ck_tile::HostTensor<CDataType> c_m_n_host_ref(ck_tile::host_tensor_descriptor(
                 Ms[i], Ns[i], stride_Cs[i], is_row_major(CLayout{})));
             c_m_n_host_ref.SetZero();
-            if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
+            if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
+            {
+                constexpr ck_tile::index_t QuantGroupSize = 128;
+                ck_tile::reference_gemm_quant<ADataType,
+                                              AQDataType,
+                                              BDataType,
+                                              AccDataType,
+                                              CDataType,
+                                              QuantGroupSize,
+                                              false>( // false = BQuant, not AQuant
+                    a_m_k_tensors[i],
+                    bq_tensors[i],
+                    b_k_n_tensors[i],
+                    c_m_n_host_ref);
+            }
+            else if constexpr(QuantMode == ck_tile::QuantType::RowColQuant)
             {
                 ck_tile::reference_gemm_rowcol_quant<ADataType,
                                                      AQDataType,
@@ -513,9 +558,17 @@ int run_grouped_gemm_example(int argc, char* argv[])
                                               ck_tile::QuantType::RowColQuant>(
                 a_layout, b_layout, argc, argv);
         }
+        else if(quant_mode == "bquant")
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
+                                              ck_tile::fp8_t,
+                                              ck_tile::QuantType::BQuantGrouped>(
+                a_layout, b_layout, argc, argv);
+        }
         else
         {
-            throw std::runtime_error("Unsupported quantization mode!");
+            throw std::runtime_error(
+                "Unsupported quantization mode! Use 'tensor', 'rowcol', or 'bquant'");
         }
     }
     else

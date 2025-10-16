@@ -4,11 +4,42 @@
 #pragma once
 
 #include <string>
+#include <tuple>
+#include <cstdint>
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
+#include "ck_tile/ops/gemm_quant.hpp"
+#include "ck_tile/ops/gemm_quant/pipeline/gemm_quant_pipeline_problem.hpp"
+#include "ck_tile/ops/gemm_quant/pipeline/gemm_bquant_pipeline_ag_bg_cr_v3.hpp"
+#include "ck_tile/ops/gemm_quant/kernel/grouped_gemm_quant_kernel.hpp"
+#include "ck_tile/ops/gemm_quant/pipeline/tile_gemm_quant_traits.hpp"
+#include "ck_tile/ops/common/tensor_layout.hpp"
+
+namespace ck_tile {
+
+enum struct QuantType : std::uint16_t
+{
+    AQuantGrouped = 0,
+    BQuantGrouped = 1,
+    RowColQuant   = 2,
+    TensorQuant   = 3
+};
+
+inline std::string quant_type_to_string(QuantType quant_type)
+{
+    switch(quant_type)
+    {
+    case QuantType::AQuantGrouped: return "AQuantGrouped";
+    case QuantType::BQuantGrouped: return "BQuantGrouped";
+    case QuantType::RowColQuant: return "RowColQuant";
+    case QuantType::TensorQuant: return "TensorQuant";
+    default: return "Unknown";
+    }
+}
+
+} // namespace ck_tile
 
 #define CK_TILE_PIPELINE_COMPUTE_V3 1
 
@@ -95,7 +126,45 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V3>
     using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<PipelineProblem>;
 };
 
-using grouped_gemm_kargs = ck_tile::QuantGroupedGemmHostArgs;
+struct grouped_gemm_kargs
+{
+    const void* a_ptr;
+    const void* b_ptr;
+    void* c_ptr;
+    const void* aq_ptr;
+    const void* bq_ptr;
+    ck_tile::index_t k_batch;
+    ck_tile::index_t M;
+    ck_tile::index_t N;
+    ck_tile::index_t K;
+    ck_tile::index_t QK_A;
+    ck_tile::index_t QK_B;
+    ck_tile::index_t stride_A;
+    ck_tile::index_t stride_B;
+    ck_tile::index_t stride_C;
+    ck_tile::index_t stride_AQ;
+    ck_tile::index_t stride_BQ;
+};
+
+struct GemmTransKernelArg
+{
+    const void* a_ptr;
+    const void* b_ptr;
+    void* c_ptr;
+    const void* aq_ptr;
+    const void* bq_ptr;
+    ck_tile::index_t k_batch;
+    ck_tile::index_t M;
+    ck_tile::index_t N;
+    ck_tile::index_t K;
+    ck_tile::index_t QK_A;
+    ck_tile::index_t QK_B;
+    ck_tile::index_t stride_A;
+    ck_tile::index_t stride_B;
+    ck_tile::index_t stride_C;
+    ck_tile::index_t stride_AQ;
+    ck_tile::index_t stride_BQ;
+};
 
 auto create_args(int argc, char* argv[])
 {
@@ -122,7 +191,7 @@ auto create_args(int argc, char* argv[])
         .insert("repeat", "100", "number of iterations to benchmark the kernel.")
         .insert("group_count", "8", "group count.")
         .insert("kbatch", "1", "kbatch for SplitK")
-        .insert("quant_mode", "tensor", "Choose tensor (default), or rowcol");
+        .insert("quant_mode", "tensor", "Choose tensor (default), rowcol, or bquant");
     ;
 
     bool result = arg_parser.parse(argc, argv);
@@ -131,7 +200,7 @@ auto create_args(int argc, char* argv[])
 
 inline std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gemm_descs)
 {
-    return gemm_descs.size() * sizeof(ck_tile::QuantGemmTransKernelArg);
+    return gemm_descs.size() * sizeof(GemmTransKernelArg);
 }
 
 template <typename GemmConfig,
