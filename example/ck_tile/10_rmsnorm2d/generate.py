@@ -85,7 +85,7 @@ struct rmsnorm2d_fwd_traits_
         if constexpr(is_warp_per_row)
         {
             static_assert(ck_tile::get_warp_size() % ThreadPerBlock_N_ == 0);
-            return total_warps * (ck_tile::get_warp_size() / ThreadPerBlock_N_);
+            return total_warps;
         }
         else
         {
@@ -114,15 +114,11 @@ struct rmsnorm2d_fwd_traits_
     static constexpr ck_tile::index_t Block_M = Repeat_M_ * ThreadPerBlock_M_;
     static constexpr ck_tile::index_t Block_N = Repeat_N_ * ThreadPerBlock_N_ * Vector_N_;
 
-    static constexpr ck_tile::index_t Warp_M = ThreadPerBlock_M_ / BlockWarps_M;
-    static constexpr ck_tile::index_t Warp_N = ThreadPerBlock_N_ / BlockWarps_N * Vector_N_;
-
     using BlockTile  = ck_tile::sequence<Block_M, Block_N>;
-    using BlockWarps = ck_tile::sequence<BlockWarps_M, BlockWarps_N>;
-    using WarpTile   = ck_tile::sequence<Warp_M, Warp_N>;
     using Vector     = ck_tile::sequence<1, Vector_N_>;
-
-    using Shape = ck_tile::Generic2dBlockShape<BlockTile, BlockWarps, WarpTile, Vector>;
+    using ThreadPerBlock = ck_tile::sequence<ThreadPerBlock_M_, ThreadPerBlock_N_>;
+    
+    using Shape = ck_tile::Generic2dBlockShape<BlockTile, ThreadPerBlock, Vector>;
 
     static constexpr bool kPadN        = kPadN_;
     static constexpr bool kSaveInvRms  = kSaveInvRms_;
@@ -642,15 +638,15 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t,
                           h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1, 256, 4,  True,  False, False,    True,   0,    0,    1),
                           h_traits('x', 'y', 'xs', 'ys', 'uqy', 1, 12,  1, 256, 2,  True,  False, False,    True,   0,    0,    1),
                           h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1,1024, 1,  True,  False, False,    True,   0,    0,    1)]
-            } 
+            }
         }
-        
+
         total_blob = list()
 
         for model_sensitive_flag in [0, 1]: # 0: default; 1: model sensitive
             current_trait_dict = h_trait_dicts[model_sensitive_flag]
             for hs_key in current_trait_dict:
-                hs = current_trait_dict[hs_key]            
+                hs = current_trait_dict[hs_key]
                 current_n = hs_key
                 for dtype, scale_type, fused_add, fused_quant, save_unquant in itertools.product(dtype_list, scale_list, fused_add_list, fused_sweep_list, bool_list):
                     prec_i, prec_o = dtype.split(',')

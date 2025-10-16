@@ -23,7 +23,10 @@ struct GroupedConvBwdWeightKernelArgs
 
     using ConvToGemmTransformer =
         TransformConvBwdWeightToGemm<GroupedConvTraitsType_::NDimSpatial,
-                                     GroupedConvTraitsType_::ConvSpecialization>;
+                                     GroupedConvTraitsType_::ConvSpecialization,
+                                     GroupedConvTraitsType_::VectorSizeA,
+                                     GroupedConvTraitsType_::VectorSizeB,
+                                     GroupedConvTraitsType_::VectorSizeC>;
     static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
 
     template <
@@ -77,8 +80,8 @@ struct GroupedConvBwdWeightKernelArgs
             conv_to_gemm_transformer.template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<
                 GroupedConvTraitsType_::NDimSpatial>();
 
-        a_grid_desc_m_k = grid_descs.at(number<0>{});
-        b_grid_desc_n_k = grid_descs.at(number<1>{});
+        a_grid_desc_k_m = grid_descs.at(number<0>{});
+        b_grid_desc_k_n = grid_descs.at(number<1>{});
         c_grid_desc_m_n = grid_descs.at(number<2>{});
 
         group_stride_a = args.K_;            // A: Out NWGK
@@ -89,9 +92,9 @@ struct GroupedConvBwdWeightKernelArgs
                                          1,
                                          std::multiplies<index_t>());
 
-        GemmM     = a_grid_desc_m_k.get_length(number<0>{});
-        GemmN     = b_grid_desc_n_k.get_length(number<0>{});
-        GemmK     = a_grid_desc_m_k.get_length(number<1>{});
+        GemmM     = a_grid_desc_k_m.get_length(number<1>{});
+        GemmN     = b_grid_desc_k_n.get_length(number<1>{});
+        GemmK     = a_grid_desc_k_m.get_length(number<0>{});
         GemmBatch = args.G_;
     }
 
@@ -153,8 +156,8 @@ struct GroupedConvBwdWeightKernelArgs
             conv_to_gemm_transformer.template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<
                 GroupedConvTraitsType_::NDimSpatial>();
 
-        a_grid_desc_m_k = grid_descs.at(number<0>{});
-        b_grid_desc_n_k = grid_descs.at(number<1>{});
+        a_grid_desc_k_m = grid_descs.at(number<0>{});
+        b_grid_desc_k_n = grid_descs.at(number<1>{});
         c_grid_desc_m_n = grid_descs.at(number<2>{});
 
         group_stride_a = args.K_;            // A: Out NHWGK
@@ -165,9 +168,9 @@ struct GroupedConvBwdWeightKernelArgs
                                          1,
                                          std::multiplies<index_t>());
 
-        GemmM     = a_grid_desc_m_k.get_length(number<0>{});
-        GemmN     = b_grid_desc_n_k.get_length(number<0>{});
-        GemmK     = a_grid_desc_m_k.get_length(number<1>{});
+        GemmM     = a_grid_desc_k_m.get_length(number<1>{});
+        GemmN     = b_grid_desc_k_n.get_length(number<1>{});
+        GemmK     = a_grid_desc_k_m.get_length(number<0>{});
         GemmBatch = args.G_;
     }
 
@@ -236,8 +239,8 @@ struct GroupedConvBwdWeightKernelArgs
             conv_to_gemm_transformer.template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<
                 GroupedConvTraitsType_::NDimSpatial>();
 
-        a_grid_desc_m_k = grid_descs.at(number<0>{});
-        b_grid_desc_n_k = grid_descs.at(number<1>{});
+        a_grid_desc_k_m = grid_descs.at(number<0>{});
+        b_grid_desc_k_n = grid_descs.at(number<1>{});
         c_grid_desc_m_n = grid_descs.at(number<2>{});
 
         group_stride_a = args.K_;            // A: Out NDHWGK
@@ -248,18 +251,17 @@ struct GroupedConvBwdWeightKernelArgs
                                          1,
                                          std::multiplies<index_t>());
 
-        GemmM     = a_grid_desc_m_k.get_length(number<0>{});
-        GemmN     = b_grid_desc_n_k.get_length(number<0>{});
-        GemmK     = a_grid_desc_m_k.get_length(number<1>{});
+        GemmM     = a_grid_desc_k_m.get_length(number<1>{});
+        GemmN     = b_grid_desc_k_n.get_length(number<1>{});
+        GemmK     = a_grid_desc_k_m.get_length(number<0>{});
         GemmBatch = args.G_;
     }
 
-    using ABCGridDescs =
-        remove_cvref_t<decltype(ConvToGemmTransformer{}
-                                    .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N())>;
+    using ABCGridDescs = remove_cvref_t<
+        decltype(ConvToGemmTransformer{}.MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N())>;
 
-    using AGridDescMK = remove_cvref_t<decltype(ABCGridDescs{}[number<0>{}])>;
-    using BGridDescNK = remove_cvref_t<decltype(ABCGridDescs{}[number<1>{}])>;
+    using AGridDescKM = remove_cvref_t<decltype(ABCGridDescs{}[number<0>{}])>;
+    using BGridDescKN = remove_cvref_t<decltype(ABCGridDescs{}[number<1>{}])>;
     using CGridDescMN = remove_cvref_t<decltype(ABCGridDescs{}[number<2>{}])>;
 
     static constexpr index_t NonSpatialDims = 3;
@@ -283,8 +285,8 @@ struct GroupedConvBwdWeightKernelArgs
     std::array<const void*, NumDTensor> ds_ptr;
     void* wei_ptr;
 
-    AGridDescMK a_grid_desc_m_k;
-    BGridDescNK b_grid_desc_n_k;
+    AGridDescKM a_grid_desc_k_m;
+    BGridDescKN b_grid_desc_k_n;
     CGridDescMN c_grid_desc_m_n;
 
     long_index_t group_stride_a;
@@ -356,11 +358,10 @@ struct GroupedConvolutionBackwardWeightKernel
 
     static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
 
-    using InDataType  = remove_cvref_t<typename GemmPipeline::ADataType>;
-    using WeiDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
+    using OutDataType = remove_cvref_t<typename GemmPipeline::ADataType>;
+    using InDataType  = remove_cvref_t<typename GemmPipeline::BDataType>;
     using DsDataType  = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
-    // Below type is actually accumulation data type - the output of block GEMM.
-    using OutDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
+    using WeiDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
     using GroupedConvBwdWeightKernelArgsSpecialized =
         GroupedConvBwdWeightKernelArgs<GroupedConvTraitsType_>;
@@ -375,8 +376,8 @@ struct GroupedConvolutionBackwardWeightKernel
 
     static_assert(GemmPipeline::kPadM && GemmPipeline::kPadN && GemmPipeline::kPadK,
                   "Not supported!");
-    static_assert(std::is_same_v<GemmALayout, tensor_layout::gemm::RowMajor>, "Not supported!");
-    static_assert(std::is_same_v<GemmBLayout, tensor_layout::gemm::ColumnMajor>, "Not supported!");
+    static_assert(std::is_same_v<GemmALayout, tensor_layout::gemm::ColumnMajor>, "Not supported!");
+    static_assert(std::is_same_v<GemmBLayout, tensor_layout::gemm::RowMajor>, "Not supported!");
     static_assert(std::is_same_v<GemmCLayout, tensor_layout::gemm::RowMajor>, "Not supported!");
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
@@ -393,7 +394,10 @@ struct GroupedConvolutionBackwardWeightKernel
             TilePartitioner::GridSize(kargs.GemmM, kargs.GemmN), kargs.GemmBatch, kargs.k_batch);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
+    CK_TILE_HOST static constexpr auto BlockSize()
+    {
+        return is_wave32() ? dim3(kBlockSize / 2) : dim3(kBlockSize);
+    }
 
     CK_TILE_HOST static constexpr GroupedConvBwdWeightKernelArgsSpecialized
     MakeKernelArgs(const GroupedConvBwdWeightHostArgs& hostArgs)
@@ -411,22 +415,20 @@ struct GroupedConvolutionBackwardWeightKernel
         __device__ SplitKBatchOffset(const GroupedConvBwdWeightKernelArgsSpecialized& kargs,
                                      const std::size_t k_id = blockIdx.z)
         {
-            constexpr auto K1 = TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{});
-            const index_t K_t = __builtin_amdgcn_readfirstlane(kargs.k_batch * K1);
-            const index_t KRead =
-                __builtin_amdgcn_readfirstlane((kargs.GemmK + K_t - 1) / K_t * K1);
+            constexpr auto K1   = TilePartitioner::BlockGemmShape::WarpTile::at(number<2>{});
+            const index_t K_t   = amd_wave_read_first_lane(kargs.k_batch * K1);
+            const index_t KRead = amd_wave_read_first_lane((kargs.GemmK + K_t - 1) / K_t * K1);
 
-            a_k_split_offset = __builtin_amdgcn_readfirstlane(k_id * KRead);
-            b_k_split_offset = __builtin_amdgcn_readfirstlane(k_id * KRead);
+            a_k_split_offset = amd_wave_read_first_lane(k_id * KRead);
+            b_k_split_offset = amd_wave_read_first_lane(k_id * KRead);
 
             if(k_id < static_cast<uint32_t>(kargs.k_batch - 1))
             {
-                splitted_k = __builtin_amdgcn_readfirstlane(KRead);
+                splitted_k = amd_wave_read_first_lane(KRead);
             }
             else
             {
-                splitted_k =
-                    __builtin_amdgcn_readfirstlane(kargs.GemmK - KRead * (kargs.k_batch - 1));
+                splitted_k = amd_wave_read_first_lane(kargs.GemmK - KRead * (kargs.k_batch - 1));
             }
         }
 
@@ -451,8 +453,8 @@ struct GroupedConvolutionBackwardWeightKernel
     CK_TILE_HOST static bool
     IsSupportedArgument(const GroupedConvBwdWeightKernelArgsSpecialized& kargs)
     {
-        if constexpr((EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
-                      is_any_of<OutDataType, fp16_t, bf16_t>::value) ||
+        if constexpr((GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
+                      is_any_of<WeiDataType, fp16_t, bf16_t>::value) ||
                      !IsSplitKSupported)
         {
             if(kargs.k_batch != 1)
@@ -523,7 +525,7 @@ struct GroupedConvolutionBackwardWeightKernel
                      std::is_same_v<InLayout, ctc::NDHWGC>)
         {
             // Check access per C
-            if(ConvC % GemmPipeline::GetVectorSizeB() != 0)
+            if(ConvC % GroupedConvTraitsType_::VectorSizeB != 0)
             {
                 CK_TILE_ERROR("Conv C is not a multiple of vector load size for input image!");
                 return false;
@@ -535,13 +537,11 @@ struct GroupedConvolutionBackwardWeightKernel
             return false;
         }
 
-        // check vector access of B
-        // FIXME: layout
         if constexpr(std::is_same_v<WeiLayout, ctc::GKXC> ||
                      std::is_same_v<WeiLayout, ctc::GKYXC> ||
                      std::is_same_v<WeiLayout, ctc::GKZYXC>)
         {
-            if(ConvC % EpiloguePipeline::GetVectorSizeC() != 0)
+            if(ConvC % GroupedConvTraitsType_::VectorSizeC != 0)
             {
                 CK_TILE_ERROR("Conv C is not a multiple of vector load size for weight!");
                 return false;
@@ -553,12 +553,11 @@ struct GroupedConvolutionBackwardWeightKernel
             return false;
         }
 
-        // check vector access of E
         if constexpr(std::is_same_v<OutLayout, ctc::NWGK> ||
                      std::is_same_v<OutLayout, ctc::NHWGK> ||
                      std::is_same_v<OutLayout, ctc::NDHWGK>)
         {
-            if(ConvK % GemmPipeline::GetVectorSizeA() != 0)
+            if(ConvK % GroupedConvTraitsType_::VectorSizeA != 0)
             {
                 CK_TILE_ERROR("Conv K is not a multiple of vector store size for output image!");
                 return false;
@@ -585,18 +584,17 @@ struct GroupedConvolutionBackwardWeightKernel
         static_assert(!TilePartitioner::BlockGemmShape::PermuteB, "Not implemented!");
         const auto& a_tensor_view = [&]() {
             return make_tensor_view<address_space_enum::global>(a_ptr,
-                                                                kargs.a_grid_desc_m_k); // A: out
+                                                                kargs.a_grid_desc_k_m); // A: out
         }();
 
         const auto& b_tensor_view = [&]() {
             return make_tensor_view<address_space_enum::global>(b_ptr,
-                                                                kargs.b_grid_desc_n_k); // B: in
+                                                                kargs.b_grid_desc_k_n); // B: in
         }();
 
         const auto& c_tensor_view = [&]() {
-            return make_tensor_view<address_space_enum::global, DstInMemOp>(
-                c_ptr,
-                kargs.c_grid_desc_m_n); // B: in
+            return make_tensor_view<address_space_enum::global, DstInMemOp>(c_ptr,
+                                                                            kargs.c_grid_desc_m_n);
         }();
 
         const auto& ds_tensor_view = generate_tuple(
@@ -605,11 +603,11 @@ struct GroupedConvolutionBackwardWeightKernel
                               "Not supported!");
                 static_assert(std::is_same_v<GemmCLayout, tensor_layout::gemm::RowMajor>,
                               "Not supported!");
-                static_assert(std::is_same_v<std::tuple_element_t<i, DsDataType>, OutDataType>,
+                static_assert(std::is_same_v<std::tuple_element_t<i, DsDataType>, WeiDataType>,
                               "Not supported!");
 
                 return make_tensor_view<address_space_enum::global>(
-                    static_cast<OutDataType*>(ds_ptr[i]), kargs.c_grid_desc_m_n);
+                    static_cast<WeiDataType*>(ds_ptr[i]), kargs.c_grid_desc_m_n);
             },
             number<NumDTensor>{});
 
@@ -622,16 +620,16 @@ struct GroupedConvolutionBackwardWeightKernel
         const auto& a_pad_view = [&]() {
             const auto& a_tensor_view = views.at(I0);
             return pad_tensor_view(a_tensor_view,
-                                   make_tuple(number<TilePartitioner::MPerBlock>{},
-                                              number<TilePartitioner::KPerBlock>{} * k_batch),
+                                   make_tuple(number<TilePartitioner::KPerBlock>{} * k_batch,
+                                              number<TilePartitioner::MPerBlock>{}),
                                    sequence<true, true>{});
         }();
 
         const auto& b_pad_view = [&]() {
             const auto& b_tensor_view = views.at(I1);
             return pad_tensor_view(b_tensor_view,
-                                   make_tuple(number<TilePartitioner::NPerBlock>{},
-                                              number<TilePartitioner::KPerBlock>{} * k_batch),
+                                   make_tuple(number<TilePartitioner::KPerBlock>{} * k_batch,
+                                              number<TilePartitioner::NPerBlock>{}),
                                    sequence<true, true>{});
         }();
 
@@ -669,16 +667,16 @@ struct GroupedConvolutionBackwardWeightKernel
 
         const auto& a_block_window = [&]() {
             return make_tile_window(a_pad_view,
-                                    make_tuple(number<TilePartitioner::MPerBlock>{},
-                                               number<TilePartitioner::KPerBlock>{}),
-                                    {i_m, i_k});
+                                    make_tuple(number<TilePartitioner::KPerBlock>{},
+                                               number<TilePartitioner::MPerBlock>{}),
+                                    {i_k, i_m});
         }();
 
         const auto& b_block_window = [&]() {
             return make_tile_window(b_pad_view,
-                                    make_tuple(number<TilePartitioner::NPerBlock>{},
-                                               number<TilePartitioner::KPerBlock>{}),
-                                    {i_n, i_k});
+                                    make_tuple(number<TilePartitioner::KPerBlock>{},
+                                               number<TilePartitioner::NPerBlock>{}),
+                                    {i_k, i_n});
         }();
 
         const auto ds_block_window = generate_tuple(
@@ -797,22 +795,22 @@ struct GroupedConvolutionBackwardWeightKernel
 
     CK_TILE_DEVICE void operator()(GroupedConvBwdWeightKernelArgsSpecialized kargs) const
     {
-        const auto blockIdX = __builtin_amdgcn_readfirstlane(blockIdx.x);
+        const auto blockIdX = amd_wave_read_first_lane(blockIdx.x);
         const auto [iM, iN] =
             TilePartitioner{kargs.GemmM, kargs.GemmN}.GetOutputTileIndex(blockIdX);
-        const index_t i_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
-        const index_t i_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
+        const index_t i_m = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
+        const index_t i_n = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
 
-        const auto blockIdZ    = __builtin_amdgcn_readfirstlane(blockIdx.z);
-        const index_t num_loop = __builtin_amdgcn_readfirstlane(
+        const auto blockIdZ    = amd_wave_read_first_lane(blockIdx.z);
+        const index_t num_loop = amd_wave_read_first_lane(
             ck_tile::integer_divide_ceil(kargs.GemmK, kargs.k_batch * TilePartitioner::KPerBlock));
         const index_t i_k =
-            __builtin_amdgcn_readfirstlane(blockIdZ * num_loop * TilePartitioner::KPerBlock);
+            amd_wave_read_first_lane(blockIdZ * num_loop * TilePartitioner::KPerBlock);
 
-        const auto blockIdY       = __builtin_amdgcn_readfirstlane(blockIdx.y);
-        const auto group_offset_a = __builtin_amdgcn_readfirstlane(kargs.group_stride_a * blockIdY);
-        const auto group_offset_b = __builtin_amdgcn_readfirstlane(kargs.group_stride_b * blockIdY);
-        const auto group_offset_c = __builtin_amdgcn_readfirstlane(kargs.group_stride_c * blockIdY);
+        const auto blockIdY       = amd_wave_read_first_lane(blockIdx.y);
+        const auto group_offset_a = amd_wave_read_first_lane(kargs.group_stride_a * blockIdY);
+        const auto group_offset_b = amd_wave_read_first_lane(kargs.group_stride_b * blockIdY);
+        const auto group_offset_c = amd_wave_read_first_lane(kargs.group_stride_c * blockIdY);
 
         // options
         // conv_bwd_weight = Out * In = Weight
@@ -827,8 +825,8 @@ struct GroupedConvolutionBackwardWeightKernel
         {
             __shared__ char smem_ptr_1[GetSmemSize()];
             if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
-                           EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
-                           is_any_of<OutDataType, fp16_t, bf16_t>::value))
+                           GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
+                           is_any_of<WeiDataType, fp16_t, bf16_t>::value))
             {
                 RunGemm2LDS(a_ptr,
                             b_ptr,
@@ -846,8 +844,8 @@ struct GroupedConvolutionBackwardWeightKernel
         else
         {
             if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
-                           EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
-                           is_any_of<OutDataType, fp16_t, bf16_t>::value))
+                           GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
+                           is_any_of<WeiDataType, fp16_t, bf16_t>::value))
             {
                 RunGemm(
                     a_ptr, b_ptr, kargs.ds_ptr, c_ptr, smem_ptr_0, kargs, num_loop, i_m, i_n, i_k);

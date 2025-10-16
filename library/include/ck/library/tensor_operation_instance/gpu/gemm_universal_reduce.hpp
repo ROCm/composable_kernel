@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -8,6 +8,7 @@
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle_v3r1.hpp"
+#include "ck/tensor_operation/gpu/device/impl/device_gemm_wmma_cshuffle_v3r1.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
 #include "ck/library/tensor_operation_instance/device_operation_instance_factory.hpp"
@@ -20,6 +21,7 @@ namespace instance {
 using DsLayout   = ck::Tuple<>;
 using DsDataType = ck::Tuple<>;
 
+#ifdef CK_USE_XDL
 #ifdef CK_ENABLE_FP16
 void add_device_gemm_xdl_universal_reduce_f16_f16_f16_mk_kn_mn_comp_default_instances(
     std::vector<std::unique_ptr<DeviceGemmV2R1<Row,
@@ -326,7 +328,54 @@ void add_device_gemm_xdl_universal_reduce_bf16_bf16_bf16_mk_kn_mn_mem_v2_mnkpadd
                                                PassThrough,
                                                PassThrough,
                                                PassThrough>>>& instances);
+#endif
+#endif
 
+#ifdef CK_USE_WMMA
+#if defined(CK_ENABLE_FP16)
+void add_device_gemm_wmma_universal_reduce_f16_f16_f16_mk_kn_mn_comp_default_instances(
+    std::vector<std::unique_ptr<DeviceGemmV2R1<Row,
+                                               Row,
+                                               DsLayout,
+                                               Row,
+                                               F16,
+                                               F16,
+                                               DsDataType,
+                                               F16,
+                                               PassThrough,
+                                               PassThrough,
+                                               PassThrough>>>& instances);
+#endif
+
+#if(defined(CK_ENABLE_BF16) || defined(CK_ENABLE_INT8))
+void add_device_gemm_wmma_universal_reduce_bf16_i8_bf16_mk_kn_mn_comp_default_instances(
+    std::vector<std::unique_ptr<DeviceGemmV2R1<Row,
+                                               Row,
+                                               DsLayout,
+                                               Row,
+                                               BF16,
+                                               I8,
+                                               DsDataType,
+                                               BF16,
+                                               PassThrough,
+                                               PassThrough,
+                                               PassThrough>>>& instances);
+#endif
+
+#if defined(CK_ENABLE_BF16)
+void add_device_gemm_wmma_universal_reduce_bf16_bf16_bf16_mk_kn_mn_comp_default_instances(
+    std::vector<std::unique_ptr<DeviceGemmV2R1<Row,
+                                               Row,
+                                               DsLayout,
+                                               Row,
+                                               BF16,
+                                               BF16,
+                                               DsDataType,
+                                               BF16,
+                                               PassThrough,
+                                               PassThrough,
+                                               PassThrough>>>& instances);
+#endif
 #endif
 
 template <typename ADataType,
@@ -373,6 +422,7 @@ struct DeviceOperationInstanceFactory<
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<CLayout, Row>)
             {
+#ifdef CK_USE_XDL
                 add_device_gemm_xdl_universal_reduce_f16_f16_f16_mk_kn_mn_comp_default_instances(
                     op_ptrs);
                 add_device_gemm_xdl_universal_reduce_f16_f16_f16_mk_kn_mn_comp_kpadding_instances(
@@ -395,6 +445,12 @@ struct DeviceOperationInstanceFactory<
                     op_ptrs);
                 add_device_gemm_xdl_universal_reduce_f16_f16_f16_mk_kn_mn_mem_v2_mnkpadding_instances(
                     op_ptrs);
+#endif
+
+#ifdef CK_USE_WMMA
+                add_device_gemm_wmma_universal_reduce_f16_f16_f16_mk_kn_mn_comp_default_instances(
+                    op_ptrs);
+#endif
             }
         }
 #endif
@@ -406,6 +462,7 @@ struct DeviceOperationInstanceFactory<
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<CLayout, Row>)
             {
+#ifdef CK_USE_XDL
                 add_device_gemm_xdl_universal_reduce_bf16_i8_bf16_mk_kn_mn_comp_default_instances(
                     op_ptrs);
                 add_device_gemm_xdl_universal_reduce_bf16_i8_bf16_mk_kn_mn_comp_kpadding_instances(
@@ -420,6 +477,12 @@ struct DeviceOperationInstanceFactory<
                     op_ptrs);
                 add_device_gemm_xdl_universal_reduce_bf16_i8_bf16_mk_kn_mn_mem_v2_mnkpadding_instances(
                     op_ptrs);
+#endif
+
+#ifdef CK_USE_WMMA
+                add_device_gemm_wmma_universal_reduce_bf16_i8_bf16_mk_kn_mn_comp_default_instances(
+                    op_ptrs);
+#endif
             }
         }
 #endif
@@ -430,6 +493,7 @@ struct DeviceOperationInstanceFactory<
             if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
                          is_same_v<CLayout, Row>)
             {
+#ifdef CK_USE_XDL
                 add_device_gemm_xdl_universal_reduce_bf16_bf16_bf16_mk_kn_mn_comp_default_instances(
                     op_ptrs);
                 add_device_gemm_xdl_universal_reduce_bf16_bf16_bf16_mk_kn_mn_comp_kpadding_instances(
@@ -444,6 +508,12 @@ struct DeviceOperationInstanceFactory<
                     op_ptrs);
                 add_device_gemm_xdl_universal_reduce_bf16_bf16_bf16_mk_kn_mn_mem_v2_mnkpadding_instances(
                     op_ptrs);
+#endif
+
+#ifdef CK_USE_WMMA
+                add_device_gemm_wmma_universal_reduce_bf16_bf16_bf16_mk_kn_mn_comp_default_instances(
+                    op_ptrs);
+#endif
             }
         }
 #endif

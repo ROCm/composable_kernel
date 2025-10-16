@@ -4,18 +4,21 @@
 #pragma once
 
 #include <string>
+#include <variant>
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
+#include "ck_tile/utility/json_dump.hpp"
 
 #define CK_TILE_PIPELINE_COMPUTE_V3 1
 #define CK_TILE_PIPELINE_MEMORY 2
 #define CK_TILE_PIPELINE_COMPUTE_V4 3
 #define CK_TILE_PIPELINE_COMPUTE_V5 4
-#define CK_TILE_PIPELINE_PRESHUFFLE_V1 5
-#define CK_TILE_PIPELINE_PRESHUFFLE_V2 6
+#define CK_TILE_PIPELINE_COMPUTE_V6 5
+#define CK_TILE_PIPELINE_PRESHUFFLE_V1 6
+#define CK_TILE_PIPELINE_PRESHUFFLE_V2 7
 
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()
@@ -70,6 +73,7 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t Pipeline      = CK_TILE_PIPELINE_COMPUTE_V3;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
     static constexpr bool Preshuffle                = false;
+    static constexpr bool TiledMMAPermuteN          = false;
 };
 
 template <typename PrecType>
@@ -248,9 +252,29 @@ struct GemmConfigComputeV5 : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
 
-    static constexpr bool DoubleSmemBuffer               = false;
-    static constexpr ck_tile::index_t Pipeline           = CK_TILE_PIPELINE_COMPUTE_V5;
-    static constexpr ck_tile::index_t NumWaNumWaveGroups = 2;
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::index_t Pipeline      = CK_TILE_PIPELINE_COMPUTE_V5;
+    static constexpr ck_tile::index_t NumWaveGroups = 2;
+};
+
+template <typename PrecType>
+struct GemmConfigComputeV6 : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 256;
+    static constexpr ck_tile::index_t N_Tile = 256;
+    static constexpr ck_tile::index_t K_Tile = 32;
+
+    static constexpr ck_tile::index_t M_Warp = 2;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 32;
+    static constexpr ck_tile::index_t N_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::index_t Pipeline      = CK_TILE_PIPELINE_COMPUTE_V6;
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
 };
 
 template <typename PrecType>
@@ -273,6 +297,8 @@ struct GemmConfigPreshuffleDecode : public GemmConfigBase
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
     static constexpr bool Preshuffle           = true;
     static constexpr bool DoubleSmemBuffer     = true;
+    static constexpr int N_Repeat              = N_Tile / N_Warp_Tile / N_Warp;
+    static constexpr bool TiledMMAPermuteN     = N_Repeat % 2 == 0;
 };
 
 template <typename PrecType>
@@ -295,6 +321,16 @@ struct GemmConfigPreshufflePrefill : public GemmConfigBase
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
     static constexpr bool Preshuffle           = true;
     static constexpr bool DoubleSmemBuffer     = true;
+    static constexpr int N_Repeat              = N_Tile / N_Warp_Tile / N_Warp;
+    static constexpr bool TiledMMAPermuteN     = N_Repeat % 2 == 0;
+};
+
+template <typename PrecType>
+struct GemmConfigPreshufflePrefill_Wmma : public GemmConfigPreshufflePrefill<PrecType>
+{
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
 };
 
 template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>
@@ -333,6 +369,24 @@ struct GemmTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>
 {
     using ADataType   = ck_tile::bf8_t;
     using BDataType   = ck_tile::bf8_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::half_t;
+};
+
+template <>
+struct GemmTypeConfig<ck_tile::fp8_t, ck_tile::pk_int4_t, ck_tile::half_t>
+{
+    using ADataType   = ck_tile::fp8_t;
+    using BDataType   = ck_tile::pk_int4_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::half_t;
+};
+
+template <>
+struct GemmTypeConfig<ck_tile::bf8_t, ck_tile::pk_int4_t, ck_tile::half_t>
+{
+    using ADataType   = ck_tile::bf8_t;
+    using BDataType   = ck_tile::pk_int4_t;
     using AccDataType = float;
     using CDataType   = ck_tile::half_t;
 };
@@ -452,6 +506,15 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V5>
 };
 
 template <>
+struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V6>
+{
+    template <typename PipelineProblem>
+    using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV6<PipelineProblem>;
+    template <typename PipelineProblem>
+    using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV6<PipelineProblem>;
+};
+
+template <>
 struct PipelineTypeTraits<CK_TILE_PIPELINE_PRESHUFFLE_V1>
 {
     template <typename PipelineProblem>
@@ -471,7 +534,7 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_PRESHUFFLE_V2>
         ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<PipelineProblem>;
 };
 
-auto create_args(int argc, char* argv[])
+auto create_args()
 {
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("m", "3840", "m dimension")
@@ -484,18 +547,18 @@ auto create_args(int argc, char* argv[])
         .insert("stride_b", "0", "Tensor B stride")
         .insert("stride_c", "0", "Tensor C stride")
         .insert("v", "2", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
-        .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
+        .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8/pk_int4_t")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("split_k", "1", "splitK value")
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
         .insert("persistent", "0", "0:non-persistent, 1:persistent")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "gemm.json", "json file name to dump results")
         .insert("flush_cache", "true", "flush cache before running the kernel, defaults to true")
         .insert("rotating_count", "1000", "rotating count, defaults to 1000");
-
-    bool result = arg_parser.parse(argc, argv);
-    return std::make_tuple(result, arg_parser);
+    return arg_parser;
 }
 
 // Type aliases for memory operation integral constants

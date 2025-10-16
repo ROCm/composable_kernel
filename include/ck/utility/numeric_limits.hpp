@@ -522,8 +522,6 @@ struct NumericLimits<bf6_t>
     }
 };
 
-#endif
-
 template <>
 struct NumericLimits<e8m0_bexp_t>
 {
@@ -551,5 +549,6 @@ struct NumericLimits<e8m0_bexp_t>
         return e8m0_bexp_t(binary_142);
     }
 };
+#endif
 
 } // namespace ck

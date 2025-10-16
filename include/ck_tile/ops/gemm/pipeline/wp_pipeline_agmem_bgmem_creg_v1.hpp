@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/common/load_interleaved_pk_type.hpp"
 #include "ck_tile/host/concat.hpp"
 #include "ck_tile/ops/gemm/pipeline/wp_pipeline_agmem_bgmem_creg_base_policy.hpp"
 
@@ -37,15 +38,24 @@ template <typename Problem, typename PipelinePolicy = UniversalWeightPreshuffleP
 struct WeightPreshufflePipelineAGmemBGmemCRegV1
     : public BaseWeightPreshufflePipelineAGmemBGmemCRegV1<Problem>
 {
-    using Base           = BaseWeightPreshufflePipelineAGmemBGmemCRegV1<Problem>;
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using CDataType      = remove_cvref_t<typename Problem::CDataType>;
+    using Base       = BaseWeightPreshufflePipelineAGmemBGmemCRegV1<Problem>;
+    using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
+    using BsDataType = remove_cvref_t<typename Problem::BsDataTypeTuple>;
+    using CDataType  = remove_cvref_t<typename Problem::CDataType>;
+
+    using AElementWise   = remove_cvref_t<typename Problem::AElementWise>;
+    using BElementWise   = remove_cvref_t<typename Problem::BElementWise>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
-    using ALayout = remove_cvref_t<typename Problem::ALayout>;
-    using BLayout = remove_cvref_t<typename Problem::BLayout>;
-    using CLayout = remove_cvref_t<typename Problem::CLayout>;
+    using AsLayout = remove_cvref_t<typename Problem::AsLayoutTuple>;
+    using BsLayout = remove_cvref_t<typename Problem::BsLayoutTuple>;
+    using CLayout  = remove_cvref_t<typename Problem::CLayout>;
+
+    using ALayout = remove_cvref_t<std::tuple_element_t<0, AsLayout>>;
+    using BLayout = remove_cvref_t<std::tuple_element_t<0, BsLayout>>;
+
+    using ADataType = remove_cvref_t<std::tuple_element_t<0, AsDataType>>;
+    using BDataType = remove_cvref_t<std::tuple_element_t<0, BsDataType>>;
 
     using BlockWeightPreshuffle =
         remove_cvref_t<decltype(PipelinePolicy::template GetBlockWeightPreshuffle<Problem>())>;
@@ -188,12 +198,18 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
         }
     }
 
-    template <typename ADramBlockWindowTmp, typename BFlatBlockWindowTmp, typename AElementFunction>
-    CK_TILE_HOST_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
-                                        const AElementFunction& a_element_func,
-                                        const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
-                                        index_t num_loop,
-                                        void* p_smem) const
+    template <typename ADramBlockWindowTmp,
+              typename BFlatBlockWindowTmp,
+              typename AElementFunction,
+              typename std::enable_if_t<!is_detected<is_tuple, ADramBlockWindowTmp>::value &&
+                                            !is_detected<is_tuple, BFlatBlockWindowTmp>::value,
+                                        bool>* = nullptr,
+              index_t UnaryOpSize_             = 8>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const AElementFunction& a_element_func,
+                                   const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                   index_t num_loop,
+                                   void* p_smem) const
     {
         static_assert(
             std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
@@ -296,14 +312,14 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
             NIterPerWarp>
             b_flat_dram_windows;
 
-        statically_indexed_array<
-            statically_indexed_array<decltype(load_tile(b_flat_dram_window)), KIterPerWarp>,
-            NIterPerWarp>
+        using BTypeToUse =
+            std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;
+        using BTileType = decltype(make_static_distributed_tensor<BTypeToUse>(b_flat_distribution));
+
+        statically_indexed_array<statically_indexed_array<BTileType, KIterPerWarp>, NIterPerWarp>
             b_warp_tensor;
 
-        statically_indexed_array<
-            statically_indexed_array<decltype(load_tile(b_flat_dram_window)), KIterPerWarp>,
-            NIterPerWarp>
+        statically_indexed_array<statically_indexed_array<BTileType, KIterPerWarp>, NIterPerWarp>
             b_warp_tensor_2;
 
         static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
@@ -313,7 +329,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
                 move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                  {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                b_warp_tensor(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                load_int4_tile<BDataType, ADataType, UnaryOpSize_>(
+                    b_warp_tensor(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
             });
         });
 
@@ -361,7 +378,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
                     move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                      {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                    b_warp_tensor_2(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                    load_int4_tile<BDataType, ADataType, UnaryOpSize_>(
+                        b_warp_tensor_2(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
                 });
             });
 
@@ -394,7 +412,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
                     move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                      {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                    b_warp_tensor(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                    load_int4_tile<BDataType, ADataType, UnaryOpSize_>(
+                        b_warp_tensor(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
                 });
             });
 
@@ -431,7 +450,8 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
                     move_tile_window(b_flat_dram_windows(nIter)(kIter),
                                      {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
 
-                    b_warp_tensor_2(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
+                    load_int4_tile<BDataType, ADataType, UnaryOpSize_>(
+                        b_warp_tensor_2(nIter)(kIter), b_flat_dram_windows(nIter)(kIter));
                 });
             });
 
@@ -455,7 +475,33 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
         return c_block_tile;
     }
 
-    template <typename ADramBlockWindowTmp, typename BFlatBlockWindowTmp>
+    template <typename ADramBlockWindowTmp,
+              typename BFlatBlockWindowTmp,
+              typename AElementFunction,
+              typename BElementFunction,
+              typename std::enable_if_t<is_detected<is_tuple, ADramBlockWindowTmp>::value &&
+                                            is_detected<is_tuple, BFlatBlockWindowTmp>::value,
+                                        bool>* = nullptr>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   [[maybe_unused]] const AElementFunction& a_element_func,
+                                   const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                   [[maybe_unused]] const BElementFunction& b_element_func,
+                                   index_t num_loop,
+                                   void* p_smem) const
+    {
+        return operator()(
+            a_dram_block_window_tmp[number<0>{}],
+            [](const ADataType & a) { return a; },
+            b_flat_dram_block_window_tmp[number<0>{}],
+            num_loop,
+            p_smem);
+    }
+
+    template <typename ADramBlockWindowTmp,
+              typename BFlatBlockWindowTmp,
+              typename std::enable_if_t<!is_detected<is_tuple, ADramBlockWindowTmp>::value &&
+                                            !is_detected<is_tuple, BFlatBlockWindowTmp>::value,
+                                        bool>* = nullptr>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                    index_t num_loop,
@@ -463,7 +509,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV1
     {
         return operator()(
             a_dram_block_window_tmp,
-            [](const ADataType & a) { return a; },
+            [](auto& e, const ADataType & a) { e = a; },
             b_flat_dram_block_window_tmp,
             num_loop,
             p_smem);
