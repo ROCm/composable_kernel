@@ -121,7 +121,6 @@ int main()
 
     // 3. Allocate device memory and transfer data
     ck_tile::DeviceMem a_device(a_host);
-    a_device.ToDevice(a_host.data());
 
     // 4. Configure tile shapes
     using BlockTile = ck_tile::sequence<256, 128, 32>;
