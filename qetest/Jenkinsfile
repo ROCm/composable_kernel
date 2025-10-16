@@ -29,8 +29,8 @@ pipeline {
                         curl -X POST '${WEBHOOK_URL}' \
                         -H 'Content-Type: application/json' \
                         -d '{
-                            "subject": "✅ Build Success - ${JOB_NAME}",
-                            "text": "Build ${BUILD_NUMBER} completed successfully on branch ${BRANCH_NAME}"
+                            "subject": "✅ Build Success",
+                            "text": "successful build"
                         }'
                     """
                 }
@@ -42,8 +42,8 @@ pipeline {
                         curl -X POST '${WEBHOOK_URL}' \
                         -H 'Content-Type: application/json' \
                         -d '{
-                            "subject": "❌ Build Failed - ${JOB_NAME}",
-                            "text": "Build ${BUILD_NUMBER} failed on branch ${BRANCH_NAME}"
+                            "subject": "❌ Build Failed",
+                            "text": "Failed to build"
                         }'
                     """
                 }
