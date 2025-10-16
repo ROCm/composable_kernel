@@ -23,10 +23,30 @@ pipeline {
     }
     post {
         success {
-            echo "test success!"
+            script {
+                withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
+                    sh """
+                        curl -X POST '${WEBHOOK_URL}' \
+                        -H 'Content-Type: application/json' \
+                        -d '{
+                            "subject": "✅ Build Success - ${JOB_NAME}",
+                            "text": "Build ${BUILD_NUMBER} completed successfully on branch ${BRANCH_NAME}"
+                        }'
+                    """
+                }
+            }
         }
         failure {
-            echo "test failure!"
+            withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
+                    sh """
+                        curl -X POST '${WEBHOOK_URL}' \
+                        -H 'Content-Type: application/json' \
+                        -d '{
+                            "subject": "❌ Build Failed - ${JOB_NAME}",
+                            "text": "Build ${BUILD_NUMBER} failed on branch ${BRANCH_NAME}"
+                        }'
+                    """
+                }
         }
     }
 }
