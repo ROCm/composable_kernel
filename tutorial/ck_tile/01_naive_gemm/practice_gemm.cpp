@@ -1,9 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
-#include <string>
 #include <iostream>
-#include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
 #include "practice_gemm.hpp"
 #include "reference_gemm.hpp"
@@ -40,8 +38,8 @@ int main()
     ck_tile::HostTensor<CDataType> c_host(c_lengths, c_strides);
 
     // initialize tensors
-    ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5.f, 5.f}(a_host);
-    ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5.f, 5.f}(b_host);
+    ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_host);
+    ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_host);
     c_host.SetZero();
 
     // Print the tensors using the new print_first_n member function
@@ -93,21 +91,21 @@ int main()
     using gemm_kernel =
         ck_tile::PracticeGemmKernel<PracticeGemmHostProblem, PracticeGemmHostPolicy>;
 
-    float ave_time = ck_tile::launch_kernel(ck_tile::stream_config{nullptr, true, 0, 0, 1},
-                                            ck_tile::make_kernel<kBlockSize, kBlockPerCU>(
-                                                gemm_kernel{},
-                                                kGridSize,
-                                                kBlockSize,
-                                                0,
-                                                static_cast<ADataType*>(a_device.GetDeviceBuffer()),
-                                                static_cast<BDataType*>(b_device.GetDeviceBuffer()),
-                                                static_cast<CDataType*>(c_device.GetDeviceBuffer()),
-                                                M,
-                                                N,
-                                                K,
-                                                stride_a,
-                                                stride_b,
-                                                stride_c));
+    float ave_time = ck_tile::launch_kernel(
+        ck_tile::stream_config{nullptr, true, 0, 0, 1},
+        ck_tile::make_kernel<kBlockPerCU>(gemm_kernel{},
+                                          kGridSize,
+                                          kBlockSize,
+                                          0,
+                                          static_cast<ADataType*>(a_device.GetDeviceBuffer()),
+                                          static_cast<BDataType*>(b_device.GetDeviceBuffer()),
+                                          static_cast<CDataType*>(c_device.GetDeviceBuffer()),
+                                          M,
+                                          N,
+                                          K,
+                                          stride_a,
+                                          stride_b,
+                                          stride_c));
 
     auto pass = true;
 
@@ -118,8 +116,8 @@ int main()
         reference_basic_gemm<ADataType, BDataType, AccDataType, CDataType>(
             a_host, b_host, c_host_ref);
         ck_tile::HostTensor<CDataType> c_host_dev(c_lengths, c_strides);
-        c_device.FromDevice(c_host_dev.data());
-        pass &= ck_tile::check_err(c_host_dev, c_host_ref);
+        c_device.FromDevice(c_host_dev.mData.data());
+        pass &= ck_tile::check_err(c_host_dev, c_host_ref, "Error: Incorrect results!", 1e-3, 1e-3);
         std::cout << "valid:" << (pass ? "y" : "n") << std::endl;
     }
 

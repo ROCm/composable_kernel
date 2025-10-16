@@ -3,9 +3,8 @@
 
 #pragma once
 
+#include <string>
 #include "ck_tile/core.hpp"
-#include "ck_tile/host.hpp"
-
 #include "host_level/practice_gemm_host_policy_agmem_bgmem_creg.hpp"
 #include "host_level/practice_gemm_host_pipeline_agmem_bgmem_creg.hpp"
 
@@ -40,6 +39,8 @@ struct PracticeGemmKernel
 {
     using Problem = remove_cvref_t<Problem_>;
     using Policy  = remove_cvref_t<Policy_>;
+
+    static constexpr index_t kBlockSize = 256;
 
     CK_TILE_DEVICE void operator()(const typename Problem::ADataType* p_a,
                                    const typename Problem::BDataType* p_b,

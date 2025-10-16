@@ -718,40 +718,6 @@ struct HostTensor
     }
 
     /**
-     * @brief Print only the first N elements of the tensor
-     *
-     * @param os Output stream to write to
-     * @param n Number of elements to print (default: 5)
-     * @return std::ostream& Reference to the output stream
-     */
-    std::ostream& print_first_n(std::ostream& os, std::size_t n = 5) const
-    {
-        os << mDesc;
-        os << "[";
-        for(typename Data::size_type idx = 0; idx < std::min(n, mData.size()); ++idx)
-        {
-            if(0 < idx)
-            {
-                os << ", ";
-            }
-            if constexpr(std::is_same_v<T, bf16_t> || std::is_same_v<T, fp16_t>)
-            {
-                os << type_convert<float>(mData[idx]) << " #### ";
-            }
-            else
-            {
-                os << mData[idx];
-            }
-        }
-        if(mData.size() > n)
-        {
-            os << ", ...";
-        }
-        os << "]";
-        return os;
-    }
-
-    /**
      * @brief Print only the first N elements of the tensor to std::cout
      *
      * @param n Number of elements to print (default: 5)
