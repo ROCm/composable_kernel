@@ -388,8 +388,12 @@ def get_dq_dk_dv_tiles(dtype : str, tr_load: str) -> List[FmhaBwdDQDKDVTileSize]
         ]
     elif (dtype == 'fp16' or dtype == 'bf16') and tr_load == 't':
         return [
+                FmhaBwdDQDKDVTileSize( 32, 128,  64, 32,  64, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 32, 1),
                 FmhaBwdDQDKDVTileSize( 32, 128, 128, 32, 128, 32, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 32, 1),
                 FmhaBwdDQDKDVTileSize( 16, 192, 128, 16, 128, 16, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
+
+                # FmhaBwdDQDKDVTileSize( 32,  32,  64, 32,  64, 32, 32,  64,  64, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 32, 1, 32),
+                FmhaBwdDQDKDVTileSize( 32,  16,  64, 32,  64, 32, 16,  64,  64, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 16, 2, 32),
                 # FmhaBwdDQDKDVTileSize( 16, 32, 128, 16, 128, 16, 32, 128, 128, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 16, 1, 16),
                 FmhaBwdDQDKDVTileSize( 16,  16, 128, 16, 128, 16, 16, 128, 128, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 16, 2, 16),
         ]
@@ -812,7 +816,9 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
             if ("wg32" in dropout):
                 continue
             if tr_load == "t":
-                continue  # tr_load cannot work with dpad or dvpad
+                # tr_load can only work with 8 pad
+                if dpad != dvpad or dpad == 1:
+                    continue
             else: # tr_load == "f"
                 # do not generate instance with only 1 of dpad/dvpad being 8
                 if dpad != dvpad and dpad == 8:
