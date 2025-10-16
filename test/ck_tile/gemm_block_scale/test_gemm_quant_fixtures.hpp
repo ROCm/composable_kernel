@@ -383,7 +383,8 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         const ck_tile::index_t stride_B = K;
         const ck_tile::index_t stride_C = M;
 
-        // BQuant uses grouped quantization for B matrix
+        // BQuant uses block/grouped quantization for B matrix
+        const ck_tile::index_t BQN       = ck_tile::integer_divide_ceil(N, QuantGroupSize::kN);
         const ck_tile::index_t BQK       = ck_tile::integer_divide_ceil(K, QuantGroupSize::kK);
         const ck_tile::index_t stride_BQ = BQK;
 
@@ -392,18 +393,17 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
             ck_tile::host_tensor_descriptor(M, K, stride_A, this->is_row_major(ALayout{})));
         ck_tile::HostTensor<BDataType> b_k_n(
             ck_tile::host_tensor_descriptor(K, N, stride_B, this->is_row_major(BLayout{})));
-        ck_tile::HostTensor<QDataType> bq_bqk_n(
-            ck_tile::host_tensor_descriptor(BQK, N, stride_BQ, this->is_row_major(BLayout{})));
+        ck_tile::HostTensor<QDataType> bq_bqk_bqn(
+            ck_tile::host_tensor_descriptor(BQK, BQN, stride_BQ, this->is_row_major(BLayout{})));
 
         // Initialize data with random values
         ck_tile::FillUniformDistribution<ADataType>{-0.5f, 0.5f}(a_m_k);
         ck_tile::FillUniformDistribution<BDataType>{0.f, 1.f}(b_k_n);
-        ck_tile::FillUniformDistribution<QDataType>{0.001f, 0.01f}(bq_bqk_n);
-
+        ck_tile::FillUniformDistribution<QDataType>{0.001f, 0.01f}(bq_bqk_bqn);
         // Allocate device memory
         ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size() * sizeof(ADataType));
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size() * sizeof(BDataType));
-        ck_tile::DeviceMem bq_bqk_n_dev_buf(bq_bqk_n.get_element_space_size() * sizeof(QDataType));
+        ck_tile::DeviceMem bq_bqk_bqn_dev_buf(bq_bqk_bqn.get_element_space_size() * sizeof(QDataType));
         ck_tile::DeviceMem c_m_n_dev_buf(M * N * sizeof(CDataType));
 
         // Copy to device
@@ -426,7 +426,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
             }
             b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
         }
-        bq_bqk_n_dev_buf.ToDevice(bq_bqk_n.data());
+        bq_bqk_bqn_dev_buf.ToDevice(bq_bqk_bqn.data());
 
         // Create args for kernel execution
         ck_tile::QuantGemmHostArgs args{
@@ -434,7 +434,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
             b_k_n_dev_buf.GetDeviceBuffer(),    // b_ptr
             c_m_n_dev_buf.GetDeviceBuffer(),    // c_ptr
             nullptr,                            // aq_ptr (not used for BQuant)
-            bq_bqk_n_dev_buf.GetDeviceBuffer(), // bq_ptr (scales)
+            bq_bqk_bqn_dev_buf.GetDeviceBuffer(), // bq_ptr (scales)
             1,                                  // k_batch
             M,
             N,
@@ -464,7 +464,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
                                       AccDataType,
                                       CDataType,
                                       QuantGroupSize,
-                                      false>(a_m_k, bq_bqk_n, b_k_n, c_m_n_host_ref);
+                                      false>(a_m_k, bq_bqk_bqn, b_k_n, c_m_n_host_ref);
 
         // Get device result
         ck_tile::HostTensor<CDataType> c_m_n_dev_result(

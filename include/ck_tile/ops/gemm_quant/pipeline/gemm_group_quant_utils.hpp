@@ -171,10 +171,10 @@ template <typename BlockGemmShape,
           index_t BlockSize,
           index_t YPerTile,
           index_t XPerTile,
+          index_t YPerQ,
           index_t VecSize>
 struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding_pattern
 {
-    // TODO: make pattern where below condition does not need to hold - GGemmMultiDSplitk!
     static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
     static constexpr index_t warp_size = get_warp_size();
     static constexpr index_t num_warps = BlockSize / get_warp_size();
@@ -186,36 +186,49 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
     static constexpr index_t NIterPerWarp = BlockGemmShape::kN / (NWarps * WarpGemm::kN);
 
     static_assert(num_warps == MWarps * NWarps * KWarps);
-
-    // KWarps > 1 isn't supported
     static_assert(KWarps == 1);
-
-    // # of elements per thread
-    static constexpr index_t X  = XPerTile;
-    static constexpr index_t XR = 2;
-
-    // Number of iters per warp
-    // MIters are indexed using (Y0, Y1)
-    // TODO: does this need to change? X/Y-PerTile are already the smaller size. Is NIterPerWarp good for group size N>1?
-    // TODO: should we split it so that one of the dims is the number of scales within the block? -> we should have less data per thread
-    static constexpr index_t Y0 = NIterPerWarp;
-
-    // # of warps in Y dim
-    static constexpr index_t Y1 = NWarps;
-
-    static constexpr index_t Y2 = WarpGemm::kN;
-
-    static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover the blocktile along Y.");
 
     CK_TILE_HOST_DEVICE static constexpr auto make_2d_static_tile_distribution()
     {
-        return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<MWarps, XR>,
-                                       tuple<sequence<Y0, Y1, Y2>, sequence<X>>,
-                                       tuple<sequence<0, 1>, sequence<0, 1>>,
-                                       tuple<sequence<0, 1>, sequence<1, 2>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 0>>{});
+        if constexpr(YPerQ == 1)
+        {
+            // YPerQ == 1 implementation
+            constexpr index_t X  = XPerTile;
+            constexpr index_t XR = 2;
+            constexpr index_t Y0 = NIterPerWarp;
+            constexpr index_t Y1 = NWarps;
+            constexpr index_t Y2 = WarpGemm::kN;
+            
+            static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover the blocktile along Y.");
+            
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<MWarps, XR>,
+                                           tuple<sequence<Y0, Y1, Y2>, sequence<X>>,
+                                           tuple<sequence<0, 1>, sequence<0, 1>>,
+                                           tuple<sequence<0, 1>, sequence<1, 2>>,
+                                           sequence<1, 2>,
+                                           sequence<0, 0>>{});
+        }
+        else
+        {
+            // YPerQ > 1 implementation
+            // TODO: do not repeat everything to all threads
+            
+            // return make_static_tile_distribution(
+            //     tile_distribution_encoding<sequence<MWarps, 2, NWarps>,
+            //                                tuple<sequence<YPerTile, 1>, sequence<XPerTile>>,
+            //                                tuple<sequence<0, 0>, sequence<0, 1>>,
+            //                                tuple<sequence<0, 2>, sequence<1, 1>>,
+            //                                sequence<1, 2>,
+            //                                sequence<0, 0>>{});
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<1>,
+                                           tuple<sequence<YPerTile>, sequence<XPerTile>>,
+                                           tuple<sequence<0>, sequence<0>>,
+                                           tuple<sequence<0>, sequence<0>>,
+                                           sequence<1, 2>,
+                                           sequence<0, 0>>{});
+        }
     }
 };
 

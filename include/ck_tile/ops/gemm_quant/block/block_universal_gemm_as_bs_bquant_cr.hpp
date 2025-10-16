@@ -76,6 +76,7 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
         static constexpr index_t NPerBlock = BlockGemmShape::kN;
         static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
+        static constexpr index_t NQPerBlock = NPerBlock / QuantGroupSize::kN;
         static constexpr index_t BQPerBlock = KPerBlock / QuantGroupSize::kK;
 
         static constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
@@ -340,23 +341,32 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
                             }
                         });
 
-                        // Need to multiply bquant with accumulated C
-                        //
-                        // The accumulated C tile has the standard distribution. For example
-                        // lane 0 holds elements [0,0], [1,0], [2,0], [3,0], [8,0], [9,0],
-                        // [10,0], [11,0], [16,0], [17,0], [18,0], [19,0], [24,0], [25,0],
-                        // [26,0], [27,0].
-                        //
-                        // These elements are in different rows, need to get the scale value
-                        // for the corresponding row.
-                        // Based on bquant's tile distribution, it can be inferred which
-                        // lane holds the relevant scale. For example, the scales corresponding
-                        // to the 16 elements held by lane 0 are held by lanes 0, 1, 2, 3, 8, 9,
-                        // 10, 11, 16, 17, 18, 19, 24, 25, 26, 27 respectively.
-                        //
-                        // These scales can be obtained using __builtin_amdgcn_ds_bpermute.
-
-                        constexpr index_t reg_offset = nIter * Traits::BQPerBlock + kQScale;
+                        // Multiply bquant with accumulated C
+                        const index_t reg_offset = [&]() {
+                            if constexpr(Traits::NQPerBlock == Traits::NPerBlock)
+                            {
+                                // Each row of B has a separate scale, each thread has its own single element
+                                // of the scale matrix for the current nIter/kQScale
+                                return nIter * Traits::BQPerBlock + kQScale;
+                            }
+                            else
+                            {
+                                // FIXME: temporarily the tile distribution replicates all block's scales
+                                // to all threads - need to figure out the index manually here
+                                // from nIter and warp id
+                                const index_t n_idx_of_warp = nIter * WarpGemm::kN * NWarp +
+                                                                get_warp_id() * WarpGemm::kN;
+                                const index_t row_index = n_idx_of_warp / Traits::QuantGroupSize::kN;
+                                if (threadIdx.x == 0)
+                                {
+                                    printf("n_idx_of_warp: %d, row_index: %d, kQScale: %d\n",
+                                           n_idx_of_warp,
+                                           row_index,
+                                           kQScale.value);
+                                }
+                                return row_index * Traits::BQPerBlock + kQScale;
+                            }
+                        }();
 
                         constexpr auto tbuf_offset =
                             number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
