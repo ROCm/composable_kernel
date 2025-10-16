@@ -29,7 +29,7 @@ struct TestConfigs<FmhaBwdFp32>
         std::array{std::tuple{32, -1}, std::tuple{64, -1}, std::tuple{128, -1}};
 };
 static auto HDimValues     = ValuesIn(TestConfigs<DataTypeConfig>::HDimValues);
-const auto ModeValues      = ValuesIn(std::vector{mode_enum::batch, mode_enum::group});
+const auto ModeValues      = ValuesIn(std::vector<mode_enum>{mode_enum::batch, mode_enum::group});
 constexpr auto init_method = "uf";
 
 // Random seed used for initializing input tensors. 0 for non-deterministic seed
