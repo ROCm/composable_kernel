@@ -17,22 +17,22 @@ template <typename Tuple>
 class TestCkTileGroupedGemmQuant : public ::testing::Test
 {
     protected:
-    using ALayout                   = std::tuple_element_t<0, Tuple>;
-    using BLayout                   = std::tuple_element_t<1, Tuple>;
-    using CLayout                   = std::tuple_element_t<2, Tuple>;
-    using ADataType                 = std::tuple_element_t<3, Tuple>;
-    using AQDataType                = std::tuple_element_t<4, Tuple>;
-    using BDataType                 = std::tuple_element_t<5, Tuple>;
-    using BQDataType                = std::tuple_element_t<6, Tuple>;
-    using AccDataType               = std::tuple_element_t<7, Tuple>;
-    using CDataType                 = std::tuple_element_t<8, Tuple>;
-    static constexpr auto QuantType = std::tuple_element_t<9, Tuple>::value;
-    using DsLayout    = ck_tile::tuple<>;
-    using DsDataType  = ck_tile::tuple<>;
-    using Row   = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col   = ck_tile::tensor_layout::gemm::ColumnMajor;
-    using AQLayout = Row;
-    using BQLayout = Col;
+    using ALayout                    = std::tuple_element_t<0, Tuple>;
+    using BLayout                    = std::tuple_element_t<1, Tuple>;
+    using CLayout                    = std::tuple_element_t<2, Tuple>;
+    using ADataType                  = std::tuple_element_t<3, Tuple>;
+    using AQDataType                 = std::tuple_element_t<4, Tuple>;
+    using BDataType                  = std::tuple_element_t<5, Tuple>;
+    using BQDataType                 = std::tuple_element_t<6, Tuple>;
+    using AccDataType                = std::tuple_element_t<7, Tuple>;
+    using CDataType                  = std::tuple_element_t<8, Tuple>;
+    static constexpr auto QuantType  = std::tuple_element_t<9, Tuple>::value;
+    using DsLayout                   = ck_tile::tuple<>;
+    using DsDataType                 = ck_tile::tuple<>;
+    using Row                        = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col                        = ck_tile::tensor_layout::gemm::ColumnMajor;
+    using AQLayout                   = Row;
+    using BQLayout                   = Col;
     static constexpr bool Persistent = true;
 
     struct GroupedGemKernelParam_Mfma
@@ -70,8 +70,8 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
     std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gemm_descs)
     {
         return gemm_descs.size() * sizeof(ck_tile::QuantGemmTransKernelArg);
-    }   
-    
+    }
+
     template <typename GroupedGemKernelParam, typename ALayout, typename BLayout, typename CLayout>
     void invoke_grouped_gemm_persistent(const ck_tile::stream_config& s,
                                         const ck_tile::index_t num_groups,
@@ -181,7 +181,7 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
     static constexpr inline auto is_row_major(Layout layout_)
     {
         return ck_tile::bool_constant<std::is_same_v<ck_tile::remove_cvref_t<decltype(layout_)>,
-                                                    ck_tile::tensor_layout::gemm::RowMajor>>{};
+                                                     ck_tile::tensor_layout::gemm::RowMajor>>{};
     }
 
     auto calculate_rtol_atol(const ck_tile::index_t K,
@@ -217,7 +217,7 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
     {
         ck_tile::index_t AQK, BQK;
         using namespace ck_tile::literals;
-        
+
         std::vector<ck_tile::HostTensor<ADataType>> a_m_k_tensors;
         std::vector<ck_tile::HostTensor<BDataType>> b_k_n_tensors;
         std::vector<ck_tile::HostTensor<CDataType>> c_m_n_tensors;
@@ -289,10 +289,12 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
             }
             else if constexpr(QuantType == ck_tile::QuantType::TensorQuant)
             {
-                aq_tensors.push_back(ck_tile::HostTensor<AQDataType>(
-                    ck_tile::host_tensor_descriptor(1, 1, stride_AQs[i], is_row_major(AQLayout{}))));
-                bq_tensors.push_back(ck_tile::HostTensor<BQDataType>(
-                    ck_tile::host_tensor_descriptor(1, 1, stride_BQs[i], is_row_major(BQLayout()))));
+                aq_tensors.push_back(
+                    ck_tile::HostTensor<AQDataType>(ck_tile::host_tensor_descriptor(
+                        1, 1, stride_AQs[i], is_row_major(AQLayout{}))));
+                bq_tensors.push_back(
+                    ck_tile::HostTensor<BQDataType>(ck_tile::host_tensor_descriptor(
+                        1, 1, stride_BQs[i], is_row_major(BQLayout()))));
             }
 
             std::cout << "gemm[" << i << "]" << " a_m_k: " << a_m_k_tensors[i].mDesc
@@ -354,7 +356,7 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
         {
             // Generate kernel arguments
             std::vector<ck_tile::QuantGemmTransKernelArg> kargs;
-            void* kargs_ptr   = gemm_workspace.GetDeviceBuffer();
+            void* kargs_ptr = gemm_workspace.GetDeviceBuffer();
             assert(gemm_descs[0].k_batch == 1);
             for(const auto& arg : gemm_descs)
             {
@@ -410,11 +412,11 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
             if constexpr(QuantType == ck_tile::QuantType::RowColQuant)
             {
                 ck_tile::reference_gemm_rowcol_quant<ADataType,
-                                                    AQDataType,
-                                                    BDataType,
-                                                    BQDataType,
-                                                    AccDataType,
-                                                    CDataType>(a_m_k_tensors[i],
+                                                     AQDataType,
+                                                     BDataType,
+                                                     BQDataType,
+                                                     AccDataType,
+                                                     CDataType>(a_m_k_tensors[i],
                                                                 aq_tensors[i],
                                                                 b_k_n_tensors[i],
                                                                 bq_tensors[i],
@@ -423,11 +425,11 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
             else if constexpr(QuantType == ck_tile::QuantType::TensorQuant)
             {
                 ck_tile::reference_gemm_tensor_quant<ADataType,
-                                                    AQDataType,
-                                                    BDataType,
-                                                    BQDataType,
-                                                    AccDataType,
-                                                    CDataType>(a_m_k_tensors[i],
+                                                     AQDataType,
+                                                     BDataType,
+                                                     BQDataType,
+                                                     AccDataType,
+                                                     CDataType>(a_m_k_tensors[i],
                                                                 aq_tensors[i],
                                                                 b_k_n_tensors[i],
                                                                 bq_tensors[i],
@@ -436,20 +438,19 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
 
             const float max_accumulated_value =
                 *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
-            const auto rtol_atol =
-                calculate_rtol_atol(Ks[i], 1, max_accumulated_value);
+            const auto rtol_atol = calculate_rtol_atol(Ks[i], 1, max_accumulated_value);
             pass &= ck_tile::check_err(c_m_n_tensors[i],
-                                    c_m_n_host_ref,
-                                    "Error: Incorrect results!",
-                                    rtol_atol.at(ck_tile::number<0>{}),
-                                    rtol_atol.at(ck_tile::number<1>{}));
+                                       c_m_n_host_ref,
+                                       "Error: Incorrect results!",
+                                       rtol_atol.at(ck_tile::number<0>{}),
+                                       rtol_atol.at(ck_tile::number<1>{}));
             std::cout << "gemm[" << i
-                    << "] Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
-                    << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
-                    << std::endl;
+                      << "] Relative error threshold: " << rtol_atol.at(ck_tile::number<0>{})
+                      << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
+                      << std::endl;
         }
         std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
-        
+
         EXPECT_TRUE(pass);
     }
 };
