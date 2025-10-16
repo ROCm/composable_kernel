@@ -3,6 +3,7 @@ set(GEMM_LAYOUT "rcr" CACHE STRING "List of layout for GEMM (semicolon-separated
 set(GEMM_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
 option(ENABLE_CCACHE_GEMM "Enable ccache for GEMM ops compilation" OFF)
 
+
 # Store the directory path for use in functions
 set(GEMM_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR})
 
