@@ -1430,7 +1430,6 @@ class KernelComponentFactory:
                             and logits == "f"
                             and bias == "no"
                             and dropout == "f"
-                            and lse == "f"
                             and skip == "f"
                         ):
                             pipelines.append(
