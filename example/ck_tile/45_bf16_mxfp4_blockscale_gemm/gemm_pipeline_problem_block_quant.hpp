@@ -24,12 +24,12 @@ struct GemmPipelineProblemBase_block_quant
 {
     using Traits = remove_cvref_t<Traits_>;
 
-    using AsDataType       = remove_cvref_t<AsDataType_>;
-    using BsDataType       = remove_cvref_t<BsDataType_>;
-    using BInDataType     = remove_cvref_t<BInDataType_>;
-    using CDataType       = remove_cvref_t<CDataType_>; // actually AccDataType
-    //using ComputeDataType = remove_cvref_t<ComputeDataType_>;
-    using ScaleDataType   = remove_cvref_t<ScaleDataType_>;
+    using AsDataType  = remove_cvref_t<AsDataType_>;
+    using BsDataType  = remove_cvref_t<BsDataType_>;
+    using BInDataType = remove_cvref_t<BInDataType_>;
+    using CDataType   = remove_cvref_t<CDataType_>; // actually AccDataType
+    // using ComputeDataType = remove_cvref_t<ComputeDataType_>;
+    using ScaleDataType = remove_cvref_t<ScaleDataType_>;
 
     static constexpr bool FixedVectorSize = FixedVectorSize_;
 
@@ -37,9 +37,9 @@ struct GemmPipelineProblemBase_block_quant
 
     using AsLayout = remove_cvref_t<typename Traits::AsLayout>;
     using BsLayout = remove_cvref_t<typename Traits::BsLayout>;
-    using CLayout = remove_cvref_t<typename Traits::CLayout>;
+    using CLayout  = remove_cvref_t<typename Traits::CLayout>;
 
-     static constexpr bool ComputeDataTypeIsTuple = is_detected<is_tuple, ComputeDataType_>::value;
+    static constexpr bool ComputeDataTypeIsTuple = is_detected<is_tuple, ComputeDataType_>::value;
     static constexpr bool ADataTypeIsTuple       = is_detected<is_tuple, AsDataType>::value;
     static constexpr bool BDataTypeIsTuple       = is_detected<is_tuple, BsDataType>::value;
 
@@ -67,12 +67,12 @@ struct GemmPipelineProblemBase_block_quant
     using ALayout         = remove_cvref_t<std::tuple_element_t<number<0>{}, AsLayoutTuple>>;
     using BDataType       = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataTypeTuple>>;
     using BLayout         = remove_cvref_t<std::tuple_element_t<number<0>{}, BsLayoutTuple>>;
-    
+
     static constexpr bool TransposeC            = Traits::TransposeC;
     static constexpr index_t NumWaveGroups      = Traits::NumWaveGroups;
     static constexpr bool UseStructuredSparsity = Traits::UseStructuredSparsity;
 
-    static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
+    static constexpr index_t kBlockSize     = BlockGemmShape::NumWarps * get_warp_size();
     static constexpr index_t ScaleBlockSize = BlockGemmShape::ScaleBlockSize;
 
     static constexpr bool kPadM = Traits::kPadM;
@@ -208,16 +208,16 @@ template <typename AsDataType_,
           index_t VectorSizeA_      = 1,
           index_t VectorSizeB_      = 1>
 using GemmPipelineProblem_block_quant = GemmPipelineProblemBase_block_quant<AsDataType_,
-                                                    BsDataType_,
-                                                    BInDataType_,
-                                                    CDataType_,
-                                                    ScaleDataType_,
-                                                    BlockGemmShape_,
-                                                    Traits_,
-                                                    ComputeDataType_,
-                                                    FixedVectorSize_,
-                                                    VectorSizeA_,
-                                                    VectorSizeB_>;
+                                                                            BsDataType_,
+                                                                            BInDataType_,
+                                                                            CDataType_,
+                                                                            ScaleDataType_,
+                                                                            BlockGemmShape_,
+                                                                            Traits_,
+                                                                            ComputeDataType_,
+                                                                            FixedVectorSize_,
+                                                                            VectorSizeA_,
+                                                                            VectorSizeB_>;
 
 template <typename AsDataType_,
           typename BsDataType_,
@@ -237,21 +237,21 @@ struct UniversalGemmPipelineProblem_block_quant
 {
     using Traits = remove_cvref_t<Traits_>;
 
-    using AsDataType       = remove_cvref_t<AsDataType_>;
-    using BsDataType       = remove_cvref_t<BsDataType_>;
-    using BInDataType     = remove_cvref_t<BInDataType_>;
-    using CDataType       = remove_cvref_t<CDataType_>; // actually AccDataType
-    //using ComputeDataType = remove_cvref_t<ComputeDataType_>;
-    using ScaleDataType   = remove_cvref_t<ScaleDataType_>;
+    using AsDataType  = remove_cvref_t<AsDataType_>;
+    using BsDataType  = remove_cvref_t<BsDataType_>;
+    using BInDataType = remove_cvref_t<BInDataType_>;
+    using CDataType   = remove_cvref_t<CDataType_>; // actually AccDataType
+    // using ComputeDataType = remove_cvref_t<ComputeDataType_>;
+    using ScaleDataType = remove_cvref_t<ScaleDataType_>;
 
     static constexpr bool FixedVectorSize = FixedVectorSize_;
 
     using BlockGemmShape = remove_cvref_t<BlockGemmShape_>;
 
-    using AsLayout = remove_cvref_t<typename Traits::AsLayout>;
-    using BsLayout = remove_cvref_t<typename Traits::BsLayout>;
-    using CLayout = remove_cvref_t<typename Traits::CLayout>;
-     static constexpr bool ComputeDataTypeIsTuple = is_detected<is_tuple, ComputeDataType_>::value;
+    using AsLayout                               = remove_cvref_t<typename Traits::AsLayout>;
+    using BsLayout                               = remove_cvref_t<typename Traits::BsLayout>;
+    using CLayout                                = remove_cvref_t<typename Traits::CLayout>;
+    static constexpr bool ComputeDataTypeIsTuple = is_detected<is_tuple, ComputeDataType_>::value;
     static constexpr bool ADataTypeIsTuple       = is_detected<is_tuple, AsDataType>::value;
     static constexpr bool BDataTypeIsTuple       = is_detected<is_tuple, BsDataType>::value;
 
@@ -284,7 +284,7 @@ struct UniversalGemmPipelineProblem_block_quant
     static constexpr index_t NumWaveGroups      = Traits::NumWaveGroups;
     static constexpr bool UseStructuredSparsity = Traits::UseStructuredSparsity;
 
-    static constexpr index_t kBlockSize = BlockGemmShape::NumWarps * get_warp_size();
+    static constexpr index_t kBlockSize     = BlockGemmShape::NumWarps * get_warp_size();
     static constexpr index_t ScaleBlockSize = BlockGemmShape::ScaleBlockSize;
 
     static constexpr bool kPadM = Traits::kPadM;

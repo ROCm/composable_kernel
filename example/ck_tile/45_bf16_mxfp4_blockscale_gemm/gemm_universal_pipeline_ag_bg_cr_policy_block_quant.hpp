@@ -7,8 +7,8 @@
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 
-
-enum class DType {
+enum class DType
+{
     TypeA,
     TypeB_Fp4,
     TypeB_Dequant
@@ -109,10 +109,10 @@ struct UniversalGemmBasePolicy_block_quant
      * @tparam Problem  Gemm pipeline problem.
      * @return B tensor LDS block descriptor.
      */
-template <typename Problem>
-CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
-{
-        using BDataType = remove_cvref_t<typename Problem::BDataType>;
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
+    {
+        using BDataType             = remove_cvref_t<typename Problem::BDataType>;
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
 
@@ -313,8 +313,9 @@ CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     template <typename Problem, typename DataType, index_t MNPerBlock, index_t XPerTile, DType Type>
     CK_TILE_HOST_DEVICE static constexpr auto GetGlobalVectorLoadSize()
     {
-        constexpr index_t BlockSize           = Problem::kBlockSize;
-        constexpr int KPerBlock = (Type == DType::TypeB_Fp4) ? (Problem::BlockGemmShape::kK / 2) : Problem::BlockGemmShape::kK;
+        constexpr index_t BlockSize = Problem::kBlockSize;
+        constexpr int KPerBlock     = (Type == DType::TypeB_Fp4) ? (Problem::BlockGemmShape::kK / 2)
+                                                                 : Problem::BlockGemmShape::kK;
         // constexpr index_t KPerBlock           = Problem::BlockGemmShape::kK;
         constexpr index_t elements_per_thread = MNPerBlock * KPerBlock / BlockSize;
         constexpr index_t PackedSize =
@@ -364,11 +365,19 @@ CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
-            return GetGlobalVectorLoadSize<Problem, ADataType, MPerBlock, KPerBlock, DType::TypeA>();
+            return GetGlobalVectorLoadSize<Problem,
+                                           ADataType,
+                                           MPerBlock,
+                                           KPerBlock,
+                                           DType::TypeA>();
         }
         else
         {
-            return GetGlobalVectorLoadSize<Problem, ADataType, MPerBlock, MPerBlock, DType::TypeA>();
+            return GetGlobalVectorLoadSize<Problem,
+                                           ADataType,
+                                           MPerBlock,
+                                           MPerBlock,
+                                           DType::TypeA>();
         }
     }
 
@@ -380,17 +389,22 @@ CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
         using BInDataType           = remove_cvref_t<typename Problem::BInDataType>;
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-        if constexpr(Type == DType::TypeB_Fp4){
-            if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>) 
+        if constexpr(Type == DType::TypeB_Fp4)
+        {
+            if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
             {
                 return GetGlobalVectorLoadSize<Problem, BInDataType, NPerBlock, NPerBlock, Type>();
             }
             else
             {
-                return GetGlobalVectorLoadSize<Problem, BInDataType, NPerBlock, KPerBlock/2, Type>();
+                return GetGlobalVectorLoadSize<Problem,
+                                               BInDataType,
+                                               NPerBlock,
+                                               KPerBlock / 2,
+                                               Type>();
             }
         }
-        else if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)  
+        else if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
             return GetGlobalVectorLoadSize<Problem, BDataType, NPerBlock, NPerBlock, Type>();
         }
@@ -474,7 +488,7 @@ CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
         return Problem::TransposeC;
     }
 
-     template <typename Problem>
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeADramTileDistribution()
     {
         using ALayout = remove_cvref_t<typename Problem::ALayout>;
@@ -490,22 +504,22 @@ CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
             using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                          MPerBlock,
-                                                                          KPerBlock,
-                                                                          VecLoadSize,
-                                                                          ATileAccessPattern,
-                                                                          NumWaveGroups>;
+                                                                              MPerBlock,
+                                                                              KPerBlock,
+                                                                              VecLoadSize,
+                                                                              ATileAccessPattern,
+                                                                              NumWaveGroups>;
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }
         // Tile: KPerBlock X MPerBlock
         else
         {
             using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                          KPerBlock,
-                                                                          MPerBlock,
-                                                                          VecLoadSize,
-                                                                          ATileAccessPattern,
-                                                                          NumWaveGroups>;
+                                                                              KPerBlock,
+                                                                              MPerBlock,
+                                                                              VecLoadSize,
+                                                                              ATileAccessPattern,
+                                                                              NumWaveGroups>;
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }
     }
@@ -515,62 +529,61 @@ CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
         using BLayout = remove_cvref_t<typename Problem::BLayout>;
 
-        constexpr index_t BlockSize = Problem::kBlockSize;
-        constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
-        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK/2;
-        constexpr index_t VecLoadSize = 4; //Problem::FixedVectorSize ? Problem::VectorSizeB 
+        constexpr index_t BlockSize     = Problem::kBlockSize;
+        constexpr index_t NPerBlock     = Problem::BlockGemmShape::kN;
+        constexpr index_t KPerBlock     = Problem::BlockGemmShape::kK / 2;
+        constexpr index_t VecLoadSize   = 4; // Problem::FixedVectorSize ? Problem::VectorSizeB
         constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
         // Tile: KPerBlock X NPerBlock
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
             using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                          KPerBlock,
-                                                                          NPerBlock,
-                                                                          VecLoadSize,
-                                                                          BTileAccessPattern,
-                                                                          NumWaveGroups>;
+                                                                              KPerBlock,
+                                                                              NPerBlock,
+                                                                              VecLoadSize,
+                                                                              BTileAccessPattern,
+                                                                              NumWaveGroups>;
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }
         // Tile: NPerBlock X KPerBlock
         else
         {
             using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                          NPerBlock,
-                                                                          KPerBlock,
-                                                                          VecLoadSize,
-                                                                          BTileAccessPattern,
-                                                                          NumWaveGroups>;
+                                                                              NPerBlock,
+                                                                              KPerBlock,
+                                                                              VecLoadSize,
+                                                                              BTileAccessPattern,
+                                                                              NumWaveGroups>;
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }
     }
 
-   template <typename Problem>
-   __host__ __device__ static constexpr auto MakeBiasDramTileDistribution()
-   {
-       using BlockGemm = remove_cvref_t<decltype(Derived::template GetBlockGemm<Problem>())>;
-       using WG        = typename BlockGemm::WarpGemm;
+    template <typename Problem>
+    __host__ __device__ static constexpr auto MakeBiasDramTileDistribution()
+    {
+        using BlockGemm = remove_cvref_t<decltype(Derived::template GetBlockGemm<Problem>())>;
+        using WG        = typename BlockGemm::WarpGemm;
 
-       constexpr index_t MWarp = Problem::BlockGemmShape::w_M; 
-       constexpr index_t NWarp = Problem::BlockGemmShape::w_N; 
+        constexpr index_t MWarp = Problem::BlockGemmShape::w_M;
+        constexpr index_t NWarp = Problem::BlockGemmShape::w_N;
 
-       constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
-       
-       
-       constexpr index_t M1 = WG::WarpGemmAttribute::Impl::kCMLane;
-       constexpr index_t M0 = MWarp;
-      
-       constexpr index_t N3 = 1;
-       constexpr index_t N2 = WG::WarpGemmAttribute::Impl::kCNLane;
-       constexpr index_t N1 = NWarp;
-       constexpr index_t N0 = kNPerBlock / (N1 * WG::WarpGemmAttribute::Impl::kN);
+        constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
 
-       return make_static_tile_distribution(
-           tile_distribution_encoding<sequence<M0, M1>,
-                                      tuple<sequence< N0, N1, N2, N3>>,
-                                      tuple<sequence<0, 1>, sequence<0, 1>>,
-                                      tuple<sequence<0, 1>, sequence<1, 2>>,
-                                      sequence<1, 1>,
-                                      sequence<0, 3>>{});
+        constexpr index_t M1 = WG::WarpGemmAttribute::Impl::kCMLane;
+        constexpr index_t M0 = MWarp;
+
+        constexpr index_t N3 = 1;
+        constexpr index_t N2 = WG::WarpGemmAttribute::Impl::kCNLane;
+        constexpr index_t N1 = NWarp;
+        constexpr index_t N0 = kNPerBlock / (N1 * WG::WarpGemmAttribute::Impl::kN);
+
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<M0, M1>,
+                                       tuple<sequence<N0, N1, N2, N3>>,
+                                       tuple<sequence<0, 1>, sequence<0, 1>>,
+                                       tuple<sequence<0, 1>, sequence<1, 2>>,
+                                       sequence<1, 1>,
+                                       sequence<0, 3>>{});
     }
 
     template <typename Problem>
@@ -578,32 +591,33 @@ CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
         using BLayout = remove_cvref_t<typename Problem::BLayout>;
 
-        constexpr index_t BlockSize = Problem::kBlockSize;
-        constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
-        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-        constexpr index_t VecLoadSize =
-            Problem::FixedVectorSize ? Problem::VectorSizeB : GetVectorSizeB<Problem, DType::TypeB_Dequant>();
+        constexpr index_t BlockSize     = Problem::kBlockSize;
+        constexpr index_t NPerBlock     = Problem::BlockGemmShape::kN;
+        constexpr index_t KPerBlock     = Problem::BlockGemmShape::kK;
+        constexpr index_t VecLoadSize   = Problem::FixedVectorSize
+                                              ? Problem::VectorSizeB
+                                              : GetVectorSizeB<Problem, DType::TypeB_Dequant>();
         constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
         // Tile: KPerBlock X NPerBlock
         if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {
             using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                          KPerBlock,
-                                                                          NPerBlock,
-                                                                          VecLoadSize,
-                                                                          BTileAccessPattern,
-                                                                          NumWaveGroups>;
+                                                                              KPerBlock,
+                                                                              NPerBlock,
+                                                                              VecLoadSize,
+                                                                              BTileAccessPattern,
+                                                                              NumWaveGroups>;
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }
         // Tile: NPerBlock X KPerBlock
         else
         {
             using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                          NPerBlock,
-                                                                          KPerBlock,
-                                                                          VecLoadSize,
-                                                                          BTileAccessPattern,
-                                                                          NumWaveGroups>;
+                                                                              NPerBlock,
+                                                                              KPerBlock,
+                                                                              VecLoadSize,
+                                                                              BTileAccessPattern,
+                                                                              NumWaveGroups>;
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }
     }
@@ -620,11 +634,11 @@ CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
         constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
 
         using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                      KPerBlock,
-                                                                      MPerBlock,
-                                                                      VecLoadSize,
-                                                                      ATileAccessPattern,
-                                                                      NumWaveGroups>;
+                                                                          KPerBlock,
+                                                                          MPerBlock,
+                                                                          VecLoadSize,
+                                                                          ATileAccessPattern,
+                                                                          NumWaveGroups>;
         return TileEncodingPattern::make_shuffled_2d_static_tile_distribution();
     }
 
@@ -640,49 +654,50 @@ CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
         constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
 
         using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
-                                                                      KPerBlock,
-                                                                      NPerBlock,
-                                                                      VecLoadSize,
-                                                                      BTileAccessPattern,
-                                                                      NumWaveGroups>;
+                                                                          KPerBlock,
+                                                                          NPerBlock,
+                                                                          VecLoadSize,
+                                                                          BTileAccessPattern,
+                                                                          NumWaveGroups>;
         return TileEncodingPattern::make_shuffled_2d_static_tile_distribution();
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBScaleRegTileDistribution()
     {
-        //using BLayout = remove_cvref_t<typename Problem::BLayout>;
+        // using BLayout = remove_cvref_t<typename Problem::BLayout>;
 
-        constexpr index_t BlockSize = Problem::kBlockSize;
-        constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
-        constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-        constexpr index_t ScaleBlockSize = Problem::BlockGemmShape::ScaleBlockSize;  //32
-        constexpr index_t KScale    = KPerBlock / ScaleBlockSize;  //k_scale num  //2
-        constexpr index_t VecLoadSize =
-            Problem::FixedVectorSize ? Problem::VectorSizeB : GetVectorSizeB<Problem, DType::TypeB_Dequant>();
-        constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
-        
-        constexpr index_t warp_size  = get_warp_size(); //64
-        constexpr index_t num_warps  = BlockSize / get_warp_size(); //1
+        constexpr index_t BlockSize      = Problem::kBlockSize;
+        constexpr index_t NPerBlock      = Problem::BlockGemmShape::kN;
+        constexpr index_t KPerBlock      = Problem::BlockGemmShape::kK;
+        constexpr index_t ScaleBlockSize = Problem::BlockGemmShape::ScaleBlockSize; // 32
+        constexpr index_t KScale         = KPerBlock / ScaleBlockSize; // k_scale num  //2
+        constexpr index_t VecLoadSize    = Problem::FixedVectorSize
+                                               ? Problem::VectorSizeB
+                                               : GetVectorSizeB<Problem, DType::TypeB_Dequant>();
+        constexpr index_t NumWaveGroups  = Problem::NumWaveGroups;
+
+        constexpr index_t warp_size  = get_warp_size();             // 64
+        constexpr index_t num_warps  = BlockSize / get_warp_size(); // 1
         constexpr index_t LargestVec = (KPerBlock * NPerBlock) / (num_warps * warp_size);
-        constexpr index_t b_vec      = VecLoadSize > LargestVec ? LargestVec : VecLoadSize; //8 
-        constexpr index_t K0  = KPerBlock / b_vec; // # of threads in X dim  //8
-        constexpr index_t K1 = K0 / KScale; //repeat  //4,
-        constexpr index_t K3 = K0 / K1;
-        constexpr index_t K2 = 1;   // vec load 
+        constexpr index_t b_vec      = VecLoadSize > LargestVec ? LargestVec : VecLoadSize; // 8
+        constexpr index_t K0         = KPerBlock / b_vec; // # of threads in X dim  //8
+        constexpr index_t K1         = K0 / KScale;       // repeat  //4,
+        constexpr index_t K3         = K0 / K1;
+        constexpr index_t K2         = 1; // vec load
 
-        constexpr index_t N0 = num_warps / NumWaveGroups;  //n warp 
-        constexpr index_t N1 = warp_size / K0; ;  //n th
-        constexpr index_t N2 = NPerBlock / (N0 * N1);   //n loop
+        constexpr index_t N0 = num_warps / NumWaveGroups; // n warp
+        constexpr index_t N1 = warp_size / K0;
+        ;                                             // n th
+        constexpr index_t N2 = NPerBlock / (N0 * N1); // n loop
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<K1>,
-                                        tuple<sequence<N0, N1, N2>, sequence<K3, K2>>,
-                                        tuple<sequence<1>, sequence<1, 2, 0>>,
-                                        tuple<sequence<0>, sequence<1, 0, 0>>,
-                                        sequence<1, 2>,
-                                        sequence<2, 1>>{});
-        
+                                       tuple<sequence<N0, N1, N2>, sequence<K3, K2>>,
+                                       tuple<sequence<1>, sequence<1, 2, 0>>,
+                                       tuple<sequence<0>, sequence<1, 0, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<2, 1>>{});
     }
 
     template <typename Problem>
@@ -718,7 +733,7 @@ CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
             sizeof(typename Problem::BDataType) * b_lds_desc.get_element_space_size(), 16);
         return smem_size_b;
     }
-   
+
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
@@ -750,16 +765,16 @@ struct UniversalGemmPipelineAgBgCrPolicy_block_quant
                                                               : WGAttrNumAccessEnum::Invalid;
 
         using WarpGemm        = WarpGemmDispatcher<typename Problem::ComputeDataType,
-                                                       typename Problem::ComputeDataType,
-                                                       typename Problem::CDataType,
-                                                       //float,
-                                                       WarpTile::at(I0),
-                                                       WarpTile::at(I1),
-                                                       WarpTile::at(I2),
-                                                       Problem::TransposeC,
-                                                       false,
-                                                       Problem::UseStructuredSparsity,
-                                                       wg_attr_num_access>;
+                                                   typename Problem::ComputeDataType,
+                                                   typename Problem::CDataType,
+                                                   // float,
+                                                   WarpTile::at(I0),
+                                                   WarpTile::at(I1),
+                                                   WarpTile::at(I2),
+                                                   Problem::TransposeC,
+                                                   false,
+                                                   Problem::UseStructuredSparsity,
+                                                   wg_attr_num_access>;
         using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
                                                                       typename Problem::BDataType,
                                                                       typename Problem::CDataType,

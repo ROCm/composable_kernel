@@ -101,7 +101,8 @@ struct BaseGemmPipelineAgBgCrCompV3_block_quant
 // LocalPreFetchStages: 1
 // LocalSharedMemoryBuffer: 1
 template <typename Problem, typename Policy = UniversalGemmPipelineAgBgCrPolicy_block_quant>
-struct GemmPipelineAgBgCrCompV3_block_quant : public BaseGemmPipelineAgBgCrCompV3_block_quant<Problem>
+struct GemmPipelineAgBgCrCompV3_block_quant
+    : public BaseGemmPipelineAgBgCrCompV3_block_quant<Problem>
 {
     using Base             = BaseGemmPipelineAgBgCrCompV3_block_quant<Problem>;
     using PipelineImplBase = GemmPipelineAgBgCrImplBase<Problem, Policy>;
@@ -127,14 +128,17 @@ struct GemmPipelineAgBgCrCompV3_block_quant : public BaseGemmPipelineAgBgCrCompV
     using I1        = number<1>;
     using I2        = number<2>;
     using I3        = number<3>;
-    static constexpr index_t BlockSize = Problem::kBlockSize;
-    static constexpr index_t MPerBlock = BlockGemmShape::kM;
-    static constexpr index_t NPerBlock = BlockGemmShape::kN;
-    static constexpr index_t KPerBlock = BlockGemmShape::kK;
+    static constexpr index_t BlockSize      = Problem::kBlockSize;
+    static constexpr index_t MPerBlock      = BlockGemmShape::kM;
+    static constexpr index_t NPerBlock      = BlockGemmShape::kN;
+    static constexpr index_t KPerBlock      = BlockGemmShape::kK;
     static constexpr index_t ScaleBlockSize = BlockGemmShape::ScaleBlockSize;
 
     static constexpr index_t GetVectorSizeA() { return Policy::template GetVectorSizeA<Problem>(); }
-    static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem, DType::TypeB_Fp4>(); }
+    static constexpr index_t GetVectorSizeB()
+    {
+        return Policy::template GetVectorSizeB<Problem, DType::TypeB_Fp4>();
+    }
     static constexpr index_t GetVectorSizeC() { return Policy::template GetVectorSizeC<Problem>(); }
 
     static constexpr index_t GetSmemPackA() { return Policy::template GetSmemPackA<Problem>(); }
@@ -156,7 +160,6 @@ struct GemmPipelineAgBgCrCompV3_block_quant : public BaseGemmPipelineAgBgCrCompV
 
     static constexpr auto is_a_load_tr_v = bool_constant<PipelineImplBase::is_a_load_tr>{};
     static constexpr auto is_b_load_tr_v = bool_constant<PipelineImplBase::is_b_load_tr>{};
-
 
     using Base::PrefetchStages;
     using Base::UsePersistentKernel;
@@ -386,15 +389,16 @@ struct GemmPipelineAgBgCrCompV3_block_quant : public BaseGemmPipelineAgBgCrCompV
                   typename B_ScaleDramBlockWindowTmp,
                   typename AElementFunction,
                   typename BElementFunction>
-        CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
-                                       const AElementFunction& a_element_func,
-                                       const BDramBlockWindowTmp& b_dram_block_window_tmp,
-                                       const BElementFunction& b_element_func,
-                                       const BiasDramBlockWindowTmp& bias_dram_block_window_tmp,
-                                       const B_ScaleDramBlockWindowTmp& b_scale_dram_block_window_tmp,
-                                       index_t num_loop,                                      
-                                       void* p_smem) const
-        {              
+        CK_TILE_DEVICE auto
+        operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                   const AElementFunction& a_element_func,
+                   const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                   const BElementFunction& b_element_func,
+                   const BiasDramBlockWindowTmp& bias_dram_block_window_tmp,
+                   const B_ScaleDramBlockWindowTmp& b_scale_dram_block_window_tmp,
+                   index_t num_loop,
+                   void* p_smem) const
+        {
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
                     std::is_same_v<BInDataType,
@@ -412,12 +416,13 @@ struct GemmPipelineAgBgCrCompV3_block_quant : public BaseGemmPipelineAgBgCrCompV
                               : (MPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
                                  KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I1{}]),
                           "A block window has incorrect lengths for defined ALayout!");
-            static_assert(is_b_row_major
-                              ? (KPerBlock/2 == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
-                                 NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}])
-                              : (NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
-                                 KPerBlock/2 == BDramBlockWindowTmp{}.get_window_lengths()[I1{}]),
-                          "B block window has incorrect lengths for defined BLayout!");
+            static_assert(
+                is_b_row_major
+                    ? (KPerBlock / 2 == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                       NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}])
+                    : (NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                       KPerBlock / 2 == BDramBlockWindowTmp{}.get_window_lengths()[I1{}]),
+                "B block window has incorrect lengths for defined BLayout!");
 
             // ------------------------------------------------------------------------------------
             // Definitions of all needed tiles
@@ -442,46 +447,46 @@ struct GemmPipelineAgBgCrCompV3_block_quant : public BaseGemmPipelineAgBgCrCompV
             // B LDS tile for block GEMM
             auto&& [b_copy_dram_window, b_copy_lds_window, b_lds_gemm_window] =
                 Base::GetBWindows(b_dram_block_window_tmp, b_lds_block, b_lds_load_tile_distr);
-        
-            //Bias DRAM tile window for load
+
+            // Bias DRAM tile window for load
             auto bias_dram_window =
                 make_tile_window(bias_dram_block_window_tmp.get_bottom_tensor_view(),
-                                bias_dram_block_window_tmp.get_window_lengths(),
-                                bias_dram_block_window_tmp.get_window_origin(),
-                                Policy::template MakeBiasDramTileDistribution<Problem>());
+                                 bias_dram_block_window_tmp.get_window_lengths(),
+                                 bias_dram_block_window_tmp.get_window_origin(),
+                                 Policy::template MakeBiasDramTileDistribution<Problem>());
 
             // B scale DRAM tile window for load
             auto b_scale_copy_dram_window =
                 make_tile_window(b_scale_dram_block_window_tmp.get_bottom_tensor_view(),
-                                b_scale_dram_block_window_tmp.get_window_lengths(),
-                                b_scale_dram_block_window_tmp.get_window_origin(),
-                                Policy::template MakeBScaleRegTileDistribution<Problem>());
+                                 b_scale_dram_block_window_tmp.get_window_lengths(),
+                                 b_scale_dram_block_window_tmp.get_window_origin(),
+                                 Policy::template MakeBScaleRegTileDistribution<Problem>());
 
-            auto b_scale_block_tile  = decltype(load_tile(b_scale_copy_dram_window)){};
+            auto b_scale_block_tile = decltype(load_tile(b_scale_copy_dram_window)){};
 
             // Block GEMM
-            auto block_gemm      = BlockGemm();
-            auto c_block_tile    = block_gemm.MakeCBlockTile();
+            auto block_gemm       = BlockGemm();
+            auto c_block_tile     = block_gemm.MakeCBlockTile();
             using ABlockTileDistr = decltype(a_copy_dram_window.get_tile_distribution());
             // using BBlockTileDistr = decltype(b_copy_dram_window.get_tile_distribution());
             using BBlockTileDistr = decltype(b_copy_dram_window.get_tile_distribution());
-           
+
             using ABlockTile =
                 decltype(make_static_distributed_tensor<ADataType>(ABlockTileDistr{}));
             using BBlockTile =
                 decltype(make_static_distributed_tensor<BInDataType>(BBlockTileDistr{}));
-            
+
             ABlockTile a_block_tile;
             BBlockTile b_fp4_block_tile;
-           
+
             using ADramTileWindowStep = typename ADramBlockWindowTmp::BottomTensorIndex;
             using BDramTileWindowStep = typename BDramBlockWindowTmp::BottomTensorIndex;
-          
+
             constexpr ADramTileWindowStep a_dram_tile_window_step =
                 is_a_col_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
             constexpr BDramTileWindowStep b_dram_tile_window_step =
-                is_b_row_major ? make_array(KPerBlock/2, 0) : make_array(0, KPerBlock/2);
-            
+                is_b_row_major ? make_array(KPerBlock / 2, 0) : make_array(0, KPerBlock / 2);
+
             constexpr index_t b_scale_dram_tile_window_step = KPerBlock / ScaleBlockSize;
             // -----------------------------------------------------------------------------------------
             // Gemm pipeline start
@@ -491,9 +496,9 @@ struct GemmPipelineAgBgCrCompV3_block_quant : public BaseGemmPipelineAgBgCrCompV
             // auto a_scale_block_tile  = decltype(load_tile(a_scale_copy_dram_window)){};
             Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
             Base::GlobalPrefetch(b_fp4_block_tile, b_copy_dram_window, b_dram_tile_window_step);
-            //BDataType
+            // BDataType
             auto b_block_tile = make_static_distributed_tensor<bf16_t>(
-            Policy::template MakeBRegTileDistribution<Problem>());
+                Policy::template MakeBRegTileDistribution<Problem>());
 
             b_scale_block_tile = load_tile(b_scale_copy_dram_window);
             move_tile_window(b_scale_copy_dram_window, {0, b_scale_dram_tile_window_step});
@@ -502,23 +507,26 @@ struct GemmPipelineAgBgCrCompV3_block_quant : public BaseGemmPipelineAgBgCrCompV
             constexpr auto b_block = decltype(b_fp4_block_tile)::get_distributed_spans();
             sweep_tile_span(b_block[number<0>{}], [&](auto idx0) {
                 sweep_tile_span(b_block[number<1>{}], [&](auto idx1) {
-                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                    constexpr auto i_j_idx       = make_tuple(idx0, idx1);
                     constexpr auto i_j_idx_scale = make_tuple(idx0, idx1_js);
-                    auto b_scale_uint = type_convert<int32_t>(b_scale_block_tile(i_j_idx_scale)) - 127;
-                    auto b_scale  = type_convert<float>(std::pow(2.0f, b_scale_uint));
-                    constexpr auto idx1_lo = tile_distributed_index<idx1.impl_.at(0)*2>{};
-                    constexpr auto idx1_hi = tile_distributed_index<idx1.impl_.at(0)*2+1>{};
+                    auto b_scale_uint =
+                        type_convert<int32_t>(b_scale_block_tile(i_j_idx_scale)) - 127;
+                    auto b_scale              = type_convert<float>(std::pow(2.0f, b_scale_uint));
+                    constexpr auto idx1_lo    = tile_distributed_index<idx1.impl_.at(0) * 2>{};
+                    constexpr auto idx1_hi    = tile_distributed_index<idx1.impl_.at(0) * 2 + 1>{};
                     constexpr auto i_j_idx_lo = make_tuple(idx0, idx1_lo);
                     constexpr auto i_j_idx_hi = make_tuple(idx0, idx1_hi);
 
-                    auto b_pack = type_convert<pk_fp4_t>(b_fp4_block_tile(i_j_idx));
-                    auto b_f4_lo           = type_convert<pk_fp4_t>(b_pack.unpack(number<0>{}));
-                    auto b_f4_hi           = type_convert<pk_fp4_t>(b_pack.unpack(number<1>{}));
-                    b_block_tile(i_j_idx_lo) = type_convert<bf16_t>(type_convert<float>(b_f4_lo) * b_scale);
-                    b_block_tile(i_j_idx_hi) = type_convert<bf16_t>(type_convert<float>(b_f4_hi) * b_scale);
+                    auto b_pack  = type_convert<pk_fp4_t>(b_fp4_block_tile(i_j_idx));
+                    auto b_f4_lo = type_convert<pk_fp4_t>(b_pack.unpack(number<0>{}));
+                    auto b_f4_hi = type_convert<pk_fp4_t>(b_pack.unpack(number<1>{}));
+                    b_block_tile(i_j_idx_lo) =
+                        type_convert<bf16_t>(type_convert<float>(b_f4_lo) * b_scale);
+                    b_block_tile(i_j_idx_hi) =
+                        type_convert<bf16_t>(type_convert<float>(b_f4_hi) * b_scale);
                 });
             });
-            
+
             auto bias = load_tile(bias_dram_window);
             // initialize C
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
@@ -542,7 +550,7 @@ struct GemmPipelineAgBgCrCompV3_block_quant : public BaseGemmPipelineAgBgCrCompV
             {
                 Base::LocalPrefill(a_copy_lds_window, a_block_tile, a_element_func);
             }
-           
+
             if constexpr(is_b_row_major && !is_b_load_tr_v())
             {
                 auto b_shuffle_tmp = make_static_distributed_tensor<BDataType>(
@@ -564,25 +572,26 @@ struct GemmPipelineAgBgCrCompV3_block_quant : public BaseGemmPipelineAgBgCrCompV
 
             sweep_tile_span(b_block[number<0>{}], [&](auto idx0) {
                 sweep_tile_span(b_block[number<1>{}], [&](auto idx1) {
-                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                    constexpr auto i_j_idx       = make_tuple(idx0, idx1);
                     constexpr auto i_j_idx_scale = make_tuple(idx0, idx1_js);
 
-                    auto b_scale_uint = type_convert<int32_t>(b_scale_block_tile(i_j_idx_scale)) - 127;
-                    auto b_scale  = type_convert<float>(std::pow(2.0f, b_scale_uint));
-                    constexpr auto idx1_lo = tile_distributed_index<idx1.impl_.at(0)*2>{};
-                    constexpr auto idx1_hi = tile_distributed_index<idx1.impl_.at(0)*2+1>{};
+                    auto b_scale_uint =
+                        type_convert<int32_t>(b_scale_block_tile(i_j_idx_scale)) - 127;
+                    auto b_scale              = type_convert<float>(std::pow(2.0f, b_scale_uint));
+                    constexpr auto idx1_lo    = tile_distributed_index<idx1.impl_.at(0) * 2>{};
+                    constexpr auto idx1_hi    = tile_distributed_index<idx1.impl_.at(0) * 2 + 1>{};
                     constexpr auto i_j_idx_lo = make_tuple(idx0, idx1_lo);
                     constexpr auto i_j_idx_hi = make_tuple(idx0, idx1_hi);
 
-                    auto b_pack = type_convert<pk_fp4_t>(b_fp4_block_tile(i_j_idx));
-                    auto b_f4_lo           = type_convert<pk_fp4_t>(b_pack.unpack(number<0>{}));
-                    auto b_f4_hi           = type_convert<pk_fp4_t>(b_pack.unpack(number<1>{}));
-                    b_block_tile(i_j_idx_lo) = type_convert<bf16_t>(type_convert<float>(b_f4_lo) * b_scale);
-                    b_block_tile(i_j_idx_hi) = type_convert<bf16_t>(type_convert<float>(b_f4_hi) * b_scale);
-
+                    auto b_pack  = type_convert<pk_fp4_t>(b_fp4_block_tile(i_j_idx));
+                    auto b_f4_lo = type_convert<pk_fp4_t>(b_pack.unpack(number<0>{}));
+                    auto b_f4_hi = type_convert<pk_fp4_t>(b_pack.unpack(number<1>{}));
+                    b_block_tile(i_j_idx_lo) =
+                        type_convert<bf16_t>(type_convert<float>(b_f4_lo) * b_scale);
+                    b_block_tile(i_j_idx_hi) =
+                        type_convert<bf16_t>(type_convert<float>(b_f4_hi) * b_scale);
                 });
             });
-
 
             block_sync_lds();
             block_gemm.LocalPrefetch(
@@ -622,29 +631,33 @@ struct GemmPipelineAgBgCrCompV3_block_quant : public BaseGemmPipelineAgBgCrCompV
                     }
 
                     Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
-                    Base::GlobalPrefetch(b_fp4_block_tile, b_copy_dram_window, b_dram_tile_window_step);
+                    Base::GlobalPrefetch(
+                        b_fp4_block_tile, b_copy_dram_window, b_dram_tile_window_step);
 
                     b_scale_block_tile = load_tile(b_scale_copy_dram_window);
                     move_tile_window(b_scale_copy_dram_window, {0, b_scale_dram_tile_window_step});
 
                     sweep_tile_span(b_block[number<0>{}], [&](auto idx0) {
                         sweep_tile_span(b_block[number<1>{}], [&](auto idx1) {
-                            constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                            constexpr auto i_j_idx       = make_tuple(idx0, idx1);
                             constexpr auto i_j_idx_scale = make_tuple(idx0, idx1_js);
- 
+
                             auto b_scale_uint =
                                 type_convert<int32_t>(b_scale_block_tile(i_j_idx_scale)) - 127;
                             auto b_scale = type_convert<float>(std::pow(2.0f, b_scale_uint));
                             constexpr auto idx1_lo = tile_distributed_index<idx1.impl_.at(0) * 2>{};
-                            constexpr auto idx1_hi = tile_distributed_index<idx1.impl_.at(0) * 2 + 1>{};
+                            constexpr auto idx1_hi =
+                                tile_distributed_index<idx1.impl_.at(0) * 2 + 1>{};
                             constexpr auto i_j_idx_lo = make_tuple(idx0, idx1_lo);
                             constexpr auto i_j_idx_hi = make_tuple(idx0, idx1_hi);
 
-                            auto b_pack = type_convert<pk_fp4_t>(b_fp4_block_tile(i_j_idx));
-                            auto b_f4_lo           = type_convert<pk_fp4_t>(b_pack.unpack(number<0>{}));
-                            auto b_f4_hi           = type_convert<pk_fp4_t>(b_pack.unpack(number<1>{}));
-                            b_block_tile(i_j_idx_lo) = type_convert<bf16_t>(type_convert<float>(b_f4_lo) * b_scale);
-                            b_block_tile(i_j_idx_hi) = type_convert<bf16_t>(type_convert<float>(b_f4_hi) * b_scale);
+                            auto b_pack  = type_convert<pk_fp4_t>(b_fp4_block_tile(i_j_idx));
+                            auto b_f4_lo = type_convert<pk_fp4_t>(b_pack.unpack(number<0>{}));
+                            auto b_f4_hi = type_convert<pk_fp4_t>(b_pack.unpack(number<1>{}));
+                            b_block_tile(i_j_idx_lo) =
+                                type_convert<bf16_t>(type_convert<float>(b_f4_lo) * b_scale);
+                            b_block_tile(i_j_idx_hi) =
+                                type_convert<bf16_t>(type_convert<float>(b_f4_hi) * b_scale);
                         });
                     });
 
@@ -667,10 +680,9 @@ struct GemmPipelineAgBgCrCompV3_block_quant : public BaseGemmPipelineAgBgCrCompV
                 // Leak last MFMA block to epilogue region, cover the potential lds-shuffle
                 // latency
                 block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
-               
             }
             else
-            {   
+            {
                 block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
                 block_sync_lds();
 
@@ -697,15 +709,13 @@ struct GemmPipelineAgBgCrCompV3_block_quant : public BaseGemmPipelineAgBgCrCompV
                     Base::LocalPrefill(b_copy_lds_window, b_block_tile, b_element_func);
                 }
 
-
                 block_sync_lds();
                 block_gemm.LocalPrefetch(
                     a_lds_gemm_window, b_lds_gemm_window, is_a_load_tr_v, is_b_load_tr_v);
 
                 block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
                 block_sync_lds();
-              
-            }          
+            }
             __builtin_amdgcn_sched_barrier(0);
             return c_block_tile;
         }
@@ -767,14 +777,17 @@ struct GemmPipelineAgBgCrCompV3_block_quant : public BaseGemmPipelineAgBgCrCompV
      * @note This is used by the kernel variants that are able to determine
      *       hot loop and tail number on the host side, e.g. non-persistent gemm kernel.
      */
-    template <typename ADramBlockWindowTmp, typename BDramBlockWindowTmp, typename BiasDramBlockWindowTmp, typename B_ScaleDramBlockWindowTmp>
+    template <typename ADramBlockWindowTmp,
+              typename BDramBlockWindowTmp,
+              typename BiasDramBlockWindowTmp,
+              typename B_ScaleDramBlockWindowTmp>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                    const BiasDramBlockWindowTmp& bias_dram_block_window_tmp,
                                    const B_ScaleDramBlockWindowTmp& b_scale_dram_block_window_tmp,
                                    index_t num_loop,
                                    void* p_smem) const
-    {   
+    {
         // (void)a_scale_dram_block_window_tmp;
         // (void)b_scale_dram_block_window_tmp;
         return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(

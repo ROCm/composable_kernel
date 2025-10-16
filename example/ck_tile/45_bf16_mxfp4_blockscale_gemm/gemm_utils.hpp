@@ -119,7 +119,7 @@ struct GemmConfigMemoryIntrawave : public GemmConfigBase
 template <typename PrecType>
 struct GemmConfigComputeV3 : public GemmConfigBase
 {
-     // Compute V3 only support Intrawave scheduler
+    // Compute V3 only support Intrawave scheduler
     static constexpr ck_tile::index_t M_Tile = 16;
     static constexpr ck_tile::index_t N_Tile = 64;
     static constexpr ck_tile::index_t K_Tile = 256 / sizeof(PrecType);
@@ -340,41 +340,41 @@ struct GemmTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::bf16_t>
 template <>
 struct GemmTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>
 {
-    using ADataType   = ck_tile::bf8_t;
-    using BDataType   = ck_tile::bf8_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
+    using ADataType     = ck_tile::bf8_t;
+    using BDataType     = ck_tile::bf8_t;
+    using AccDataType   = float;
+    using CDataType     = ck_tile::half_t;
     using ScaleDataType = float;
 };
 
 template <>
 struct GemmTypeConfig<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>
 {
-    using ADataType   = ck_tile::half_t;
-    using BDataType   = ck_tile::pk_int4_t;
-    using AccDataType = float;
-    using CDataType   = ck_tile::half_t;
+    using ADataType     = ck_tile::half_t;
+    using BDataType     = ck_tile::pk_int4_t;
+    using AccDataType   = float;
+    using CDataType     = ck_tile::half_t;
     using ScaleDataType = float;
 };
 
 template <>
 struct GemmTypeConfig<ck_tile::bf16_t, uint8_t, ck_tile::bf16_t>
 {
-    using ADataType        = ck_tile::bf16_t;
-    using BDataType        = ck_tile::bf16_t;
-    using BInDataType      = uint8_t;
-    using AccDataType      = float;
-    using CDataType        = ck_tile::bf16_t;
-    using ScaleDataType    = uint8_t;
+    using ADataType     = ck_tile::bf16_t;
+    using BDataType     = ck_tile::bf16_t;
+    using BInDataType   = uint8_t;
+    using AccDataType   = float;
+    using CDataType     = ck_tile::bf16_t;
+    using ScaleDataType = uint8_t;
 };
 
 template <>
 struct GemmTypeConfig<ck_tile::int8_t, ck_tile::int8_t, int32_t>
 {
-    using ADataType   = ck_tile::int8_t;
-    using BDataType   = ck_tile::int8_t;
-    using AccDataType = int32_t;
-    using CDataType   = int32_t;
+    using ADataType     = ck_tile::int8_t;
+    using BDataType     = ck_tile::int8_t;
+    using AccDataType   = int32_t;
+    using CDataType     = int32_t;
     using ScaleDataType = float;
 };
 
@@ -459,7 +459,8 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V3>
     template <typename PipelineProblem>
     using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3_block_quant<PipelineProblem>;
     template <typename PipelineProblem>
-    using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3_block_quant<PipelineProblem>;
+    using UniversalGemmPipeline =
+        ck_tile::BaseGemmPipelineAgBgCrCompV3_block_quant<PipelineProblem>;
 };
 
 template <>
@@ -524,7 +525,7 @@ auto create_args()
         .insert("jsonfile", "gemm.json", "json file name to dump results")
         .insert("flush_cache", "true", "flush cache before running the kernel, defaults to true")
         .insert("rotating_count", "1000", "rotating count, defaults to 1000");
-return arg_parser;
+    return arg_parser;
 }
 
 // Type aliases for memory operation integral constants

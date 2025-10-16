@@ -18,20 +18,21 @@
 struct UniversalInvoker
 {
     template <typename GemmConfig,
-            typename ADataType,
-            typename BDataType,
-            typename BInDataType,
-            typename DsDataType,
-            typename AccDataType,
-            typename CDataType,
-            typename ScaleDataType,
-            typename ALayout,
-            typename BLayout,
-            typename DsLayout,
-            typename ELayout,
-            bool Persistent,
-            typename CDEElementWise>
-    static float gemm(const ck_tile::Block_quant_GemmHostArgs& args, const ck_tile::stream_config& s)
+              typename ADataType,
+              typename BDataType,
+              typename BInDataType,
+              typename DsDataType,
+              typename AccDataType,
+              typename CDataType,
+              typename ScaleDataType,
+              typename ALayout,
+              typename BLayout,
+              typename DsLayout,
+              typename ELayout,
+              bool Persistent,
+              typename CDEElementWise>
+    static float gemm(const ck_tile::Block_quant_GemmHostArgs& args,
+                      const ck_tile::stream_config& s)
 
     {
         using GemmShape = ck_tile::TileGemmShape_block_quant<
@@ -45,31 +46,37 @@ struct UniversalInvoker
 
         using TilePartitioner =
             ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
-                                                    GemmConfig::TileParitionerGroupNum,
-                                                    GemmConfig::TileParitionerM01>;
+                                                       GemmConfig::TileParitionerGroupNum,
+                                                       GemmConfig::TileParitionerM01>;
 
         using Traits = ck_tile::TileGemmTraits<GemmConfig::kPadM,
-                                            GemmConfig::kPadN,
-                                            GemmConfig::kPadK,
-                                            ALayout,
-                                            BLayout,
-                                            ELayout,
-                                            GemmConfig::NumWaveGroups>;
+                                               GemmConfig::kPadN,
+                                               GemmConfig::kPadK,
+                                               ALayout,
+                                               BLayout,
+                                               ELayout,
+                                               GemmConfig::NumWaveGroups>;
 
-        using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
-                                                                    GemmConfig::kPadN,
-                                                                    GemmConfig::kPadK,
-                                                                    GemmConfig::DoubleSmemBuffer,
-                                                                    ALayout,
-                                                                    BLayout,
-                                                                    ELayout,
-                                                                    GemmConfig::TransposeC,
-                                                                    GemmConfig::UseStructuredSparsity,
-                                                                    Persistent,
-                                                                    GemmConfig::NumWaveGroups,
-                                                                    GemmConfig::Preshuffle>;
-        using GemmPipelineProblem =
-            ck_tile::GemmPipelineProblem_block_quant<ADataType, BDataType, BInDataType, AccDataType, ScaleDataType, GemmShape, Traits>;
+        using GemmUniversalTraits =
+            ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
+                                             GemmConfig::kPadN,
+                                             GemmConfig::kPadK,
+                                             GemmConfig::DoubleSmemBuffer,
+                                             ALayout,
+                                             BLayout,
+                                             ELayout,
+                                             GemmConfig::TransposeC,
+                                             GemmConfig::UseStructuredSparsity,
+                                             Persistent,
+                                             GemmConfig::NumWaveGroups,
+                                             GemmConfig::Preshuffle>;
+        using GemmPipelineProblem = ck_tile::GemmPipelineProblem_block_quant<ADataType,
+                                                                             BDataType,
+                                                                             BInDataType,
+                                                                             AccDataType,
+                                                                             ScaleDataType,
+                                                                             GemmShape,
+                                                                             Traits>;
 
         using BaseGemmPipeline = typename PipelineTypeTraits<
             GemmConfig::Pipeline>::template UniversalGemmPipeline<GemmPipelineProblem>;
@@ -82,8 +89,8 @@ struct UniversalInvoker
         float ave_time{0};
 
         const auto Run = [&](const auto has_hot_loop_,
-                            const auto tail_number_,
-                            const auto memory_operation_) {
+                             const auto tail_number_,
+                             const auto memory_operation_) {
             constexpr bool has_hot_loop_v   = has_hot_loop_.value;
             constexpr auto tail_number_v    = tail_number_.value;
             constexpr auto scheduler        = GemmConfig::Scheduler;
@@ -91,41 +98,42 @@ struct UniversalInvoker
 
             using UniversalGemmProblem =
                 ck_tile::UniversalGemmPipelineProblem_block_quant<ADataType,
-                                                                BDataType,
-                                                                BInDataType,
-                                                                AccDataType,
-                                                                ScaleDataType,
-                                                                GemmShape,
-                                                                GemmUniversalTraits,
-                                                                scheduler,
-                                                                has_hot_loop_v,
-                                                                tail_number_v>;
+                                                                  BDataType,
+                                                                  BInDataType,
+                                                                  AccDataType,
+                                                                  ScaleDataType,
+                                                                  GemmShape,
+                                                                  GemmUniversalTraits,
+                                                                  scheduler,
+                                                                  has_hot_loop_v,
+                                                                  tail_number_v>;
 
             using GemmPipeline = typename PipelineTypeTraits<
                 GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
 
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                BDataType,
-                                                DsDataType,
-                                                AccDataType,
-                                                CDataType,
-                                                DsLayout,
-                                                ELayout,
-                                                CDEElementWise,
-                                                TilePartitioner::MPerBlock,
-                                                TilePartitioner::NPerBlock,
-                                                GemmConfig::M_Warp,
-                                                GemmConfig::N_Warp,
-                                                GemmConfig::M_Warp_Tile,
-                                                GemmConfig::N_Warp_Tile,
-                                                GemmConfig::K_Warp_Tile,
-                                                UniversalGemmProblem::TransposeC,
-                                                memory_operation,
-                                                GemmConfig::NumWaveGroups>>;
+                                                 BDataType,
+                                                 DsDataType,
+                                                 AccDataType,
+                                                 CDataType,
+                                                 DsLayout,
+                                                 ELayout,
+                                                 CDEElementWise,
+                                                 TilePartitioner::MPerBlock,
+                                                 TilePartitioner::NPerBlock,
+                                                 GemmConfig::M_Warp,
+                                                 GemmConfig::N_Warp,
+                                                 GemmConfig::M_Warp_Tile,
+                                                 GemmConfig::N_Warp_Tile,
+                                                 GemmConfig::K_Warp_Tile,
+                                                 UniversalGemmProblem::TransposeC,
+                                                 memory_operation,
+                                                 GemmConfig::NumWaveGroups>>;
 
-            using Kernel = ck_tile::Block_quant_GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
-            auto kargs   = Kernel::MakeKernelArgs(args);
+            using Kernel =
+                ck_tile::Block_quant_GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+            auto kargs = Kernel::MakeKernelArgs(args);
 
             dim3 grids;
             if constexpr(Persistent)
@@ -146,12 +154,12 @@ struct UniversalInvoker
             if(s.log_level_ > 0)
             {
                 std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
-                        << "shape: " << GemmShape::GetName() << '\n'
-                        << "problem: " << UniversalGemmProblem::GetName() << '\n'
-                        << "pipeline: " << GemmPipeline::GetName() << '\n'
-                        << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                        << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
-                        << std::endl;
+                          << "shape: " << GemmShape::GetName() << '\n'
+                          << "problem: " << UniversalGemmProblem::GetName() << '\n'
+                          << "pipeline: " << GemmPipeline::GetName() << '\n'
+                          << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+                          << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
+                          << "}" << std::endl;
             }
 
             // Declare rotating_mem_ptr here so it stays in scope until it is needed
@@ -175,7 +183,7 @@ struct UniversalInvoker
 
                 auto size_a_buffer = a_m.get_element_space_size_in_bytes();
                 auto size_b_buffer = b_n.get_element_space_size_in_bytes();
-                                       
+
                 rotating_mem_ptr =
                     std::make_unique<ck_tile::RotatingMemWrapper<ADataType, BInDataType>>(
                         kargs.as_ptr[0],
@@ -183,14 +191,13 @@ struct UniversalInvoker
                         s.rotating_count_,
                         size_a_buffer,
                         size_b_buffer);
-                rotating_mem_ptr->Print();  
-                
+                rotating_mem_ptr->Print();
+
                 preprocess = [&]() {
                     ck_tile::flush_icache();
                     rotating_mem_ptr->Next();
                     clear_gemm_output();
                 };
-
             }
             else
             {
@@ -224,11 +231,13 @@ template <typename GemmConfig,
           typename APrecType,
           typename BPrecType = APrecType,
           typename CPrecType = APrecType>
-int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, ck_tile::ArgParser& arg_parser)
+int run_gemm_example_prec_type(std::string a_layout,
+                               std::string b_layout,
+                               ck_tile::ArgParser& arg_parser)
 {
-    using Row                 = ck_tile::tensor_layout::gemm::RowMajor;
-    using Col                 = ck_tile::tensor_layout::gemm::ColumnMajor;
-    bool preshuffle           = GemmConfig::Preshuffle;
+    using Row       = ck_tile::tensor_layout::gemm::RowMajor;
+    using Col       = ck_tile::tensor_layout::gemm::ColumnMajor;
+    bool preshuffle = GemmConfig::Preshuffle;
 
     if(preshuffle && std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
     {
@@ -241,17 +250,24 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, ck_ti
             "Preshuffle is supported only for A(Row major), B(column major) input matrices!");
     }
 
-    if constexpr(std::is_same_v<BPrecType, ck_tile::pk_int4_t> || std::is_same_v<BPrecType, uint8_t>)
+    if constexpr(std::is_same_v<BPrecType, ck_tile::pk_int4_t> ||
+                 std::is_same_v<BPrecType, uint8_t>)
     {
         if(a_layout == "R" && b_layout == "C")
         {
-            return run_gemm_example_with_layouts<GemmConfig, Invoker, APrecType, BPrecType, CPrecType>(
-                arg_parser, Row{}, Col{}, Row{});
+            return run_gemm_example_with_layouts<GemmConfig,
+                                                 Invoker,
+                                                 APrecType,
+                                                 BPrecType,
+                                                 CPrecType>(arg_parser, Row{}, Col{}, Row{});
         }
         else if(a_layout == "C" && b_layout == "C")
         {
-            return run_gemm_example_with_layouts<GemmConfig, Invoker, APrecType, BPrecType, CPrecType>(
-                arg_parser, Col{}, Col{}, Row{});
+            return run_gemm_example_with_layouts<GemmConfig,
+                                                 Invoker,
+                                                 APrecType,
+                                                 BPrecType,
+                                                 CPrecType>(arg_parser, Col{}, Col{}, Row{});
         }
         else
         {
@@ -263,23 +279,35 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, ck_ti
     {
         if(a_layout == "R" && b_layout == "R")
         {
-            return run_gemm_example_with_layouts<GemmConfig, Invoker, APrecType, BPrecType, CPrecType>(
-                arg_parser, Row{}, Row{}, Row{});
+            return run_gemm_example_with_layouts<GemmConfig,
+                                                 Invoker,
+                                                 APrecType,
+                                                 BPrecType,
+                                                 CPrecType>(arg_parser, Row{}, Row{}, Row{});
         }
         else if(a_layout == "R" && b_layout == "C")
         {
-            return run_gemm_example_with_layouts<GemmConfig, Invoker, APrecType, BPrecType, CPrecType>(
-                arg_parser, Row{}, Col{}, Row{});
+            return run_gemm_example_with_layouts<GemmConfig,
+                                                 Invoker,
+                                                 APrecType,
+                                                 BPrecType,
+                                                 CPrecType>(arg_parser, Row{}, Col{}, Row{});
         }
         else if(a_layout == "C" && b_layout == "R")
         {
-            return run_gemm_example_with_layouts<GemmConfig, Invoker, APrecType, BPrecType, CPrecType>(
-                arg_parser, Col{}, Row{}, Row{});
+            return run_gemm_example_with_layouts<GemmConfig,
+                                                 Invoker,
+                                                 APrecType,
+                                                 BPrecType,
+                                                 CPrecType>(arg_parser, Col{}, Row{}, Row{});
         }
         else if(a_layout == "C" && b_layout == "C")
         {
-            return run_gemm_example_with_layouts<GemmConfig, Invoker, APrecType, BPrecType, CPrecType>(
-                arg_parser, Col{}, Col{}, Row{});
+            return run_gemm_example_with_layouts<GemmConfig,
+                                                 Invoker,
+                                                 APrecType,
+                                                 BPrecType,
+                                                 CPrecType>(arg_parser, Col{}, Col{}, Row{});
         }
         else
         {

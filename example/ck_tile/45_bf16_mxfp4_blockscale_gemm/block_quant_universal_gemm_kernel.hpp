@@ -30,24 +30,24 @@ namespace ck_tile {
 template <index_t NumATensor = 1, index_t NumBTensor = 1, index_t NumDTensor = 0>
 struct Block_quant_UniversalGemmHostArgs
 {
-    CK_TILE_HOST Block_quant_UniversalGemmHostArgs(const std::array<const void*, 
-                                       NumATensor>& as_ptr_,
-                                       const std::array<const void*, NumBTensor>& bs_ptr_,
-                                       const std::array<const void*, NumDTensor>& ds_ptr_,
-                                       void* e_ptr_,
-                                       const void* bias_ptr_,
-                                       const void* b_scale_ptr_,
-                                       index_t k_batch_,
-                                       index_t M_,
-                                       index_t N_,
-                                       index_t K_,
-                                       const std::array<index_t, NumATensor>& stride_As_,
-                                       const std::array<index_t, NumBTensor>& stride_Bs_,
-                                       const std::array<index_t, NumDTensor>& stride_Ds_,
-                                       index_t stride_E_,
-                                       index_t stride_A_,
-                                       index_t stride_B_Scale_,
-                                       index_t ScaleBlockSize_)
+    CK_TILE_HOST
+    Block_quant_UniversalGemmHostArgs(const std::array<const void*, NumATensor>& as_ptr_,
+                                      const std::array<const void*, NumBTensor>& bs_ptr_,
+                                      const std::array<const void*, NumDTensor>& ds_ptr_,
+                                      void* e_ptr_,
+                                      const void* bias_ptr_,
+                                      const void* b_scale_ptr_,
+                                      index_t k_batch_,
+                                      index_t M_,
+                                      index_t N_,
+                                      index_t K_,
+                                      const std::array<index_t, NumATensor>& stride_As_,
+                                      const std::array<index_t, NumBTensor>& stride_Bs_,
+                                      const std::array<index_t, NumDTensor>& stride_Ds_,
+                                      index_t stride_E_,
+                                      index_t stride_A_,
+                                      index_t stride_B_Scale_,
+                                      index_t ScaleBlockSize_)
         : as_ptr(as_ptr_),
           bs_ptr(bs_ptr_),
           ds_ptr(ds_ptr_),
@@ -204,9 +204,10 @@ struct Block_quant_UniversalGemmKernel
                                           remove_cvref_t<typename GemmPipeline::ADataType>,
                                           remove_cvref_t<tuple<typename GemmPipeline::ADataType>>>;
 
-    using BsDataType = std::conditional_t<BDataTypeIsTuple,
-                                          remove_cvref_t<typename GemmPipeline::BInDataType>,
-                                          remove_cvref_t<tuple<typename GemmPipeline::BInDataType>>>;
+    using BsDataType =
+        std::conditional_t<BDataTypeIsTuple,
+                           remove_cvref_t<typename GemmPipeline::BInDataType>,
+                           remove_cvref_t<tuple<typename GemmPipeline::BInDataType>>>;
 
     using DsDataType =
         std::conditional_t<DDataTypeIsTuple,
@@ -218,7 +219,7 @@ struct Block_quant_UniversalGemmKernel
     using ScaleDataType = remove_cvref_t<typename GemmPipeline::ScaleDataType>;
     using CDataType     = remove_cvref_t<typename GemmPipeline::CDataType>;
 
-    static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
+    static constexpr index_t kBlockSize     = GemmPipeline::BlockSize;
     static constexpr index_t ScaleBlockSize = GemmPipeline::ScaleBlockSize;
 
     // Get the persistent kernel if the pipeline has it available
@@ -282,7 +283,8 @@ struct Block_quant_UniversalGemmKernel
      */
     CK_TILE_HOST static auto MaxOccupancyGridSize(const stream_config& s) -> dim3
     {
-        using Kernel      = Block_quant_UniversalGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline>;
+        using Kernel =
+            Block_quant_UniversalGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline>;
         const auto kernel = kentry<1, Kernel, KernelArgs>;
         int occupancy;
         hip_check_error(
@@ -304,8 +306,8 @@ struct Block_quant_UniversalGemmKernel
         }
     }
 
-    CK_TILE_HOST static constexpr KernelArgs
-    MakeKernelArgs(const Block_quant_UniversalGemmHostArgs<NumATensor, NumBTensor, NumDTensor>& hostArgs)
+    CK_TILE_HOST static constexpr KernelArgs MakeKernelArgs(
+        const Block_quant_UniversalGemmHostArgs<NumATensor, NumBTensor, NumDTensor>& hostArgs)
     {
         return KernelArgs{hostArgs.as_ptr,
                           hostArgs.bs_ptr,
@@ -646,7 +648,7 @@ struct Block_quant_UniversalGemmKernel
                             static_cast<const BiDataType*>(bs_ptr[i]), b_n_k_desc);
                     }
                     else
-                    { 
+                    {
                         return make_naive_tensor_view<address_space_enum::global>(
                             bs_ptr[i],
                             make_tuple(splitk_batch_offset.splitted_k, kargs.N),
@@ -698,7 +700,7 @@ struct Block_quant_UniversalGemmKernel
                         {
                             return make_naive_tensor_view<address_space_enum::global>(
                                 bs_ptr[i],
-                                make_tuple(kargs.N, splitk_batch_offset.splitted_k/2),
+                                make_tuple(kargs.N, splitk_batch_offset.splitted_k / 2),
                                 make_tuple(kargs.stride_Bs[i], 1),
                                 number<GemmPipeline::GetVectorSizeB()>{},
                                 number<1>{});
@@ -769,7 +771,9 @@ struct Block_quant_UniversalGemmKernel
             {
                 return make_naive_tensor_view<address_space_enum::global>(
                     static_cast<const ScaleDataType*>(b_scale_ptr),
-                    make_tuple((splitk_batch_offset.splitted_k + kargs.ScaleBlockSize -1) / kargs.ScaleBlockSize, kargs.N),
+                    make_tuple((splitk_batch_offset.splitted_k + kargs.ScaleBlockSize - 1) /
+                                   kargs.ScaleBlockSize,
+                               kargs.N),
                     make_tuple(kargs.stride_B_Scale, 1),
                     number<EpiloguePipeline::GetVectorSizeC()>{},
                     number<1>{});
@@ -778,14 +782,21 @@ struct Block_quant_UniversalGemmKernel
             {
                 return make_naive_tensor_view<address_space_enum::global>(
                     static_cast<const ScaleDataType*>(b_scale_ptr),
-                    make_tuple(kargs.N, (splitk_batch_offset.splitted_k + kargs.ScaleBlockSize -1) / kargs.ScaleBlockSize),
+                    make_tuple(kargs.N,
+                               (splitk_batch_offset.splitted_k + kargs.ScaleBlockSize - 1) /
+                                   kargs.ScaleBlockSize),
                     make_tuple(kargs.stride_B_Scale, 1),
                     number<1>{},
                     number<1>{});
             }
         }();
 
-        return make_tuple(as_tensor_view, bs_tensor_view, ds_tensor_view, e_tensor_view, bias_tensor_view, b_scale_tensor_view);
+        return make_tuple(as_tensor_view,
+                          bs_tensor_view,
+                          ds_tensor_view,
+                          e_tensor_view,
+                          bias_tensor_view,
+                          b_scale_tensor_view);
     }
 
     template <typename TensorView>
@@ -822,7 +833,7 @@ struct Block_quant_UniversalGemmKernel
                 {
                     return pad_tensor_view(b_tensor_view[i],
                                            make_tuple(number<TilePartitioner::NPerBlock>{},
-                                                      number<TilePartitioner::KPerBlock/2>{}),
+                                                      number<TilePartitioner::KPerBlock / 2>{}),
                                            sequence<false, GemmPipeline::kPadK>{});
                 }
                 else
@@ -879,36 +890,46 @@ struct Block_quant_UniversalGemmKernel
             const auto& bias_tensor_view = views.at(I4);
 
             return pad_tensor_view(bias_tensor_view,
-                                    make_tuple(number<TilePartitioner::NPerBlock>{}),
-                                    sequence<false>{});
+                                   make_tuple(number<TilePartitioner::NPerBlock>{}),
+                                   sequence<false>{});
         }();
 
         const auto& b_scale_pad_view = [&]() {
             const auto& b_scale_tensor_view = views.at(I5);
             if constexpr(std::is_same_v<AsLayout, tensor_layout::gemm::RowMajor>)
             {
-                return pad_tensor_view(b_scale_tensor_view,
-                                       make_tuple(number<(TilePartitioner::KPerBlock + ScaleBlockSize -1) / ScaleBlockSize>{},
-                                                  number<TilePartitioner::NPerBlock>{}),
-                                       sequence<false, false>{});
+                return pad_tensor_view(
+                    b_scale_tensor_view,
+                    make_tuple(number<(TilePartitioner::KPerBlock + ScaleBlockSize - 1) /
+                                      ScaleBlockSize>{},
+                               number<TilePartitioner::NPerBlock>{}),
+                    sequence<false, false>{});
             }
             else
             {
-                return pad_tensor_view(b_scale_tensor_view,
-                                       make_tuple(number<TilePartitioner::NPerBlock>{},
-                                                  number<(TilePartitioner::KPerBlock + ScaleBlockSize -1) / ScaleBlockSize>{}),
-                                       sequence<false, false>{});
+                return pad_tensor_view(
+                    b_scale_tensor_view,
+                    make_tuple(number<TilePartitioner::NPerBlock>{},
+                               number<(TilePartitioner::KPerBlock + ScaleBlockSize - 1) /
+                                      ScaleBlockSize>{}),
+                    sequence<false, false>{});
             }
         }();
 
         if constexpr(GemmPipeline::Preshuffle)
         {
             // For flatmm, we need to use the flat B tensor view
-            return make_tuple(as_pad_view, b_flat_pad_view, ds_pad_view, e_pad_view, bias_pad_view, b_scale_pad_view);
+            return make_tuple(as_pad_view,
+                              b_flat_pad_view,
+                              ds_pad_view,
+                              e_pad_view,
+                              bias_pad_view,
+                              b_scale_pad_view);
         }
         else
         {
-            return make_tuple(as_pad_view, bs_pad_view, ds_pad_view, e_pad_view, bias_pad_view, b_scale_pad_view);
+            return make_tuple(
+                as_pad_view, bs_pad_view, ds_pad_view, e_pad_view, bias_pad_view, b_scale_pad_view);
         }
     }
 
@@ -916,11 +937,11 @@ struct Block_quant_UniversalGemmKernel
     CK_TILE_DEVICE static auto
     MakeGemmTileWindows(const PadView& views, const index_t i_m, const index_t i_n)
     {
-        const auto& as_pad_view = views.at(I0);
-        const auto& bs_pad_view = views.at(I1);
-        const auto& ds_pad_view = views.at(I2);
-        const auto& e_pad_view  = views.at(I3);
-        const auto& bias_pad_view = views.at(I4);
+        const auto& as_pad_view      = views.at(I0);
+        const auto& bs_pad_view      = views.at(I1);
+        const auto& ds_pad_view      = views.at(I2);
+        const auto& e_pad_view       = views.at(I3);
+        const auto& bias_pad_view    = views.at(I4);
         const auto& b_scale_pad_view = views.at(I5);
 
         const auto& as_block_window = generate_tuple(
@@ -959,10 +980,11 @@ struct Block_quant_UniversalGemmKernel
                 {
                     if constexpr(std::is_same_v<BiLayout, tensor_layout::gemm::ColumnMajor>)
                     {
-                        return make_tile_window(bs_pad_view[i],
-                                                make_tuple(number<TilePartitioner::NPerBlock>{},
-                                                           number<TilePartitioner::KPerBlock/2>{}),
-                                                {i_n, 0});
+                        return make_tile_window(
+                            bs_pad_view[i],
+                            make_tuple(number<TilePartitioner::NPerBlock>{},
+                                       number<TilePartitioner::KPerBlock / 2>{}),
+                            {i_n, 0});
                     }
                     else
                     {
@@ -1000,31 +1022,38 @@ struct Block_quant_UniversalGemmKernel
             make_tuple(number<TilePartitioner::MPerBlock>{}, number<TilePartitioner::NPerBlock>{}),
             {i_m, i_n});
 
-        const auto& bias_block_window =
-            [&]() {
-                return make_tile_window(bias_pad_view,
-                                        make_tuple(number<TilePartitioner::NPerBlock>{}),
-                                        {i_n});
-            }();
+        const auto& bias_block_window = [&]() {
+            return make_tile_window(
+                bias_pad_view, make_tuple(number<TilePartitioner::NPerBlock>{}), {i_n});
+        }();
 
         const auto& b_scale_block_window = [&]() {
             if constexpr(std::is_same_v<AsLayout, tensor_layout::gemm::RowMajor>)
             {
-                return make_tile_window(b_scale_pad_view,
-                                        make_tuple(number<(TilePartitioner::KPerBlock + ScaleBlockSize -1) / ScaleBlockSize>{},
-                                                   number<TilePartitioner::NPerBlock>{}),
-                                        {0, i_n});
+                return make_tile_window(
+                    b_scale_pad_view,
+                    make_tuple(number<(TilePartitioner::KPerBlock + ScaleBlockSize - 1) /
+                                      ScaleBlockSize>{},
+                               number<TilePartitioner::NPerBlock>{}),
+                    {0, i_n});
             }
             else
             {
-                return make_tile_window(b_scale_pad_view,
-                                        make_tuple(number<TilePartitioner::NPerBlock>{},
-                                                   number<(TilePartitioner::KPerBlock + ScaleBlockSize -1) / ScaleBlockSize>{}),
-                                        {i_n, 0});
+                return make_tile_window(
+                    b_scale_pad_view,
+                    make_tuple(number<TilePartitioner::NPerBlock>{},
+                               number<(TilePartitioner::KPerBlock + ScaleBlockSize - 1) /
+                                      ScaleBlockSize>{}),
+                    {i_n, 0});
             }
         }();
 
-        return make_tuple(as_block_window, bs_block_window, ds_block_window, e_block_window, bias_block_window, b_scale_block_window);
+        return make_tuple(as_block_window,
+                          bs_block_window,
+                          ds_block_window,
+                          e_block_window,
+                          bias_block_window,
+                          b_scale_block_window);
     }
 
     /**
@@ -1066,15 +1095,19 @@ struct Block_quant_UniversalGemmKernel
             TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
 
         // Run GEMM cooperatively by whole workgroup.
-        const auto& as_block_window = gemm_tile_windows.at(I0);
-        const auto& bs_block_window = gemm_tile_windows.at(I1);
-        const auto& ds_block_window = gemm_tile_windows.at(I2);
-        const auto& bias_block_window = gemm_tile_windows.at(I4);
+        const auto& as_block_window      = gemm_tile_windows.at(I0);
+        const auto& bs_block_window      = gemm_tile_windows.at(I1);
+        const auto& ds_block_window      = gemm_tile_windows.at(I2);
+        const auto& bias_block_window    = gemm_tile_windows.at(I4);
         const auto& b_scale_block_window = gemm_tile_windows.at(I5);
 
-        const auto& c_block_tile = GemmPipeline{}.template operator()(
-            as_block_window[I0], bs_block_window[I0], bias_block_window, b_scale_block_window, num_loop, smem_ptr_0);
-        ck_tile::ignore = c_block_tile;
+        const auto& c_block_tile = GemmPipeline{}.template operator()(as_block_window[I0],
+                                                                      bs_block_window[I0],
+                                                                      bias_block_window,
+                                                                      b_scale_block_window,
+                                                                      num_loop,
+                                                                      smem_ptr_0);
+        ck_tile::ignore          = c_block_tile;
         if(UseDefaultScheduler || (get_warp_id() == 0))
         {
             // Run Epilogue Pipeline
@@ -1200,9 +1233,9 @@ struct Block_quant_UniversalGemmKernel
                                         bs_ptr,
                                         kargs.ds_ptr,
                                         e_ptr,
-                                        static_cast<const float*>(kargs.bias_ptr), 
-                                        static_cast<const ScaleDataType*>(kargs.b_scale_ptr), 
-                                        //kargs.b_scale_ptr,
+                                        static_cast<const float*>(kargs.bias_ptr),
+                                        static_cast<const ScaleDataType*>(kargs.b_scale_ptr),
+                                        // kargs.b_scale_ptr,
                                         smem_ptr_0,
                                         kargs,
                                         splitk_batch_offset,
@@ -1282,8 +1315,8 @@ struct Block_quant_UniversalGemmKernel
                             bs_ptr,
                             kargs.ds_ptr,
                             e_ptr,
-                            static_cast<const float*>(kargs.bias_ptr), 
-                            static_cast<const ScaleDataType*>(kargs.b_scale_ptr), 
+                            static_cast<const float*>(kargs.bias_ptr),
+                            static_cast<const ScaleDataType*>(kargs.b_scale_ptr),
                             smem_ptr_0,
                             kargs,
                             splitk_batch_offset,

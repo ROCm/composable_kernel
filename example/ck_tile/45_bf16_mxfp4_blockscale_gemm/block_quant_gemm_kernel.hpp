@@ -29,19 +29,19 @@ struct Block_quant_GemmHostArgs
 {
     CK_TILE_HOST Block_quant_GemmHostArgs() = default;
     CK_TILE_HOST Block_quant_GemmHostArgs(const void* a_ptr_,
-                              const void* b_ptr_,
-                              void* e_ptr_,
-                              const void* a_scale_ptr_,
-                              const void* b_scale_ptr_,
-                              index_t k_batch_,
-                              index_t M_,
-                              index_t N_,
-                              index_t K_,
-                              index_t stride_A_,
-                              index_t stride_B_,
-                              index_t stride_E_,
-                              index_t stride_B_scale_,
-                              index_t ScaleBlockSize_)
+                                          const void* b_ptr_,
+                                          void* e_ptr_,
+                                          const void* a_scale_ptr_,
+                                          const void* b_scale_ptr_,
+                                          index_t k_batch_,
+                                          index_t M_,
+                                          index_t N_,
+                                          index_t K_,
+                                          index_t stride_A_,
+                                          index_t stride_B_,
+                                          index_t stride_E_,
+                                          index_t stride_B_scale_,
+                                          index_t ScaleBlockSize_)
         : a_ptr(a_ptr_),
           b_ptr(b_ptr_),
           e_ptr(e_ptr_),
@@ -124,7 +124,7 @@ struct Block_quant_GemmKernel
     static constexpr index_t NumATensor = 1;
     static constexpr index_t NumBTensor = 1;
     static constexpr index_t kBlockSize = UniversalGemmKernel::kBlockSize;
-    
+
     CK_TILE_HOST static auto GetName() -> const std::string
     {
         return UniversalGemmKernel::GetName();
@@ -152,23 +152,23 @@ struct Block_quant_GemmKernel
         /// matrices A, B.
         return UniversalGemmKernel::MakeKernelArgs(
             Block_quant_UniversalGemmHostArgs<NumATensor, NumBTensor /*NumDTensor = 0 */>(
-                        {hostArgs.a_ptr},
-                        {hostArgs.b_ptr},
-                        {},
-                        hostArgs.e_ptr,
-                        hostArgs.a_scale_ptr,
-                        hostArgs.b_scale_ptr,
-                        hostArgs.k_batch,
-                        hostArgs.M,
-                        hostArgs.N,
-                        hostArgs.K,
-                        {hostArgs.stride_A},
-                        {hostArgs.stride_B},
-                        {/*hostArgs.stride_Ds*/},
-                        hostArgs.stride_E,
-                        hostArgs.stride_A,
-                        hostArgs.stride_B_scale,
-                        hostArgs.ScaleBlockSize));
+                {hostArgs.a_ptr},
+                {hostArgs.b_ptr},
+                {},
+                hostArgs.e_ptr,
+                hostArgs.a_scale_ptr,
+                hostArgs.b_scale_ptr,
+                hostArgs.k_batch,
+                hostArgs.M,
+                hostArgs.N,
+                hostArgs.K,
+                {hostArgs.stride_A},
+                {hostArgs.stride_B},
+                {/*hostArgs.stride_Ds*/},
+                hostArgs.stride_E,
+                hostArgs.stride_A,
+                hostArgs.stride_B_scale,
+                hostArgs.ScaleBlockSize));
     }
 
     CK_TILE_HOST static auto

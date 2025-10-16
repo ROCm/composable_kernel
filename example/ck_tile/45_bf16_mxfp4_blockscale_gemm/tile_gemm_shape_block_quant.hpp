@@ -22,11 +22,11 @@ struct TileGemmShape_block_quant
 
     static constexpr index_t NumWarps = reduce_on_sequence(BlockWarps{}, multiplies{}, number<1>{});
 
-    static constexpr index_t kM   = BlockTile::at(number<0>{});
-    static constexpr index_t kN   = BlockTile::at(number<1>{});
-    static constexpr index_t kK   = BlockTile::at(number<2>{});
-    static constexpr index_t w_M  = BlockWarps::at(number<0>{});
-    static constexpr index_t w_N  = BlockWarps::at(number<1>{});
+    static constexpr index_t kM             = BlockTile::at(number<0>{});
+    static constexpr index_t kN             = BlockTile::at(number<1>{});
+    static constexpr index_t kK             = BlockTile::at(number<2>{});
+    static constexpr index_t w_M            = BlockWarps::at(number<0>{});
+    static constexpr index_t w_N            = BlockWarps::at(number<1>{});
     static constexpr index_t ScaleBlockSize = ScaleBlockSize_;
     static constexpr bool PermuteA          = PermuteA_;
     static constexpr bool PermuteB          = PermuteB_;

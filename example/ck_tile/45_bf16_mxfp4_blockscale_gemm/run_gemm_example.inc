@@ -181,37 +181,37 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   int rotating_count)
 {
     ck_tile::Block_quant_GemmHostArgs args = {a_m_k_dev_buf.GetDeviceBuffer(),
-                                            b_k_n_dev_buf.GetDeviceBuffer(),
-                                            c_m_n_dev_buf.GetDeviceBuffer(),
-                                            bias_dev_buf.GetDeviceBuffer(),
-                                            b_k_n_scale_dev_buf.GetDeviceBuffer(),
-                                            kbatch,
-                                            M,
-                                            N,
-                                            K,
-                                            stride_A,
-                                            stride_B,
-                                            stride_C,
-                                            stride_B_scale,
-                                            ScaleBlockSize};
+                                              b_k_n_dev_buf.GetDeviceBuffer(),
+                                              c_m_n_dev_buf.GetDeviceBuffer(),
+                                              bias_dev_buf.GetDeviceBuffer(),
+                                              b_k_n_scale_dev_buf.GetDeviceBuffer(),
+                                              kbatch,
+                                              M,
+                                              N,
+                                              K,
+                                              stride_A,
+                                              stride_B,
+                                              stride_C,
+                                              stride_B_scale,
+                                              ScaleBlockSize};
 
     float ave_time;
     if(persistent)
     {
         ave_time = Invoker::template gemm<GemmConfig,
-                        ADataType,
-                        BDataType,
-                        BInDataType,
-                        DsDataType,
-                        AccDataType,
-                        CDataType,
-                        ScaleDataType,
-                        ALayout,
-                        BLayout,
-                        DsLayout,
-                        CLayout,
-                        true,
-                        CDEElementWise>(
+                                          ADataType,
+                                          BDataType,
+                                          BInDataType,
+                                          DsDataType,
+                                          AccDataType,
+                                          CDataType,
+                                          ScaleDataType,
+                                          ALayout,
+                                          BLayout,
+                                          DsLayout,
+                                          CLayout,
+                                          true,
+                                          CDEElementWise>(
             args,
             ck_tile::stream_config{
                 nullptr, true, 1, n_warmup, n_repeat, true, flush_cache, rotating_count});
@@ -219,19 +219,19 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     else
     {
         ave_time = Invoker::template gemm<GemmConfig,
-                        ADataType,
-                        BDataType,
-                        BInDataType,
-                        DsDataType,
-                        AccDataType,
-                        CDataType,
-                        ScaleDataType,
-                        ALayout,
-                        BLayout,
-                        DsLayout,
-                        CLayout,
-                        false,
-                        CDEElementWise>(
+                                          ADataType,
+                                          BDataType,
+                                          BInDataType,
+                                          DsDataType,
+                                          AccDataType,
+                                          CDataType,
+                                          ScaleDataType,
+                                          ALayout,
+                                          BLayout,
+                                          DsLayout,
+                                          CLayout,
+                                          false,
+                                          CDEElementWise>(
             args,
             ck_tile::stream_config{
                 nullptr, true, 1, n_warmup, n_repeat, true, flush_cache, rotating_count});
@@ -300,34 +300,36 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
     ck_tile::index_t stride_B = arg_parser.get_int("stride_b");
     ck_tile::index_t stride_C = arg_parser.get_int("stride_c");
 
-    ck_tile::index_t kbatch      = arg_parser.get_int("split_k");
-    int n_warmup                 = arg_parser.get_int("warmup");
-    int n_repeat                 = arg_parser.get_int("repeat");
-    ck_tile::index_t init_method = arg_parser.get_int("init");
-    bool persistent              = arg_parser.get_int("persistent");
-    bool flush_cache             = arg_parser.get_bool("flush_cache");
-    int rotating_count           = arg_parser.get_int("rotating_count");
+    ck_tile::index_t kbatch         = arg_parser.get_int("split_k");
+    int n_warmup                    = arg_parser.get_int("warmup");
+    int n_repeat                    = arg_parser.get_int("repeat");
+    ck_tile::index_t init_method    = arg_parser.get_int("init");
+    bool persistent                 = arg_parser.get_int("persistent");
+    bool flush_cache                = arg_parser.get_bool("flush_cache");
+    int rotating_count              = arg_parser.get_int("rotating_count");
     ck_tile::index_t stride_A_scale = 0;
     ck_tile::index_t stride_B_scale = 0;
 
-    const bool preshuffle     = GemmConfig::Preshuffle;
+    const bool preshuffle    = GemmConfig::Preshuffle;
     const int ScaleBlockSize = GemmConfig::ScaleBlockSize;
 
-    stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
-    stride_B = ck_tile::get_default_stride(K/2, N, stride_B, is_row_major(b_layout));
-    stride_C = ck_tile::get_default_stride(M, N, stride_C, is_row_major(CLayout{}));
-    stride_A_scale = ck_tile::get_default_stride(M, (K+ScaleBlockSize-1)/ScaleBlockSize, stride_A_scale, is_row_major(a_layout));
-    stride_B_scale = ck_tile::get_default_stride((K+ScaleBlockSize-1)/ScaleBlockSize, N, stride_B_scale, is_row_major(b_layout));
+    stride_A       = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
+    stride_B       = ck_tile::get_default_stride(K / 2, N, stride_B, is_row_major(b_layout));
+    stride_C       = ck_tile::get_default_stride(M, N, stride_C, is_row_major(CLayout{}));
+    stride_A_scale = ck_tile::get_default_stride(
+        M, (K + ScaleBlockSize - 1) / ScaleBlockSize, stride_A_scale, is_row_major(a_layout));
+    stride_B_scale = ck_tile::get_default_stride(
+        (K + ScaleBlockSize - 1) / ScaleBlockSize, N, stride_B_scale, is_row_major(b_layout));
 
     ck_tile::HostTensor<ADataType> a_m_k(
         ck_tile::host_tensor_descriptor(M, K, stride_A, is_row_major(a_layout)));
     ck_tile::HostTensor<BInDataType> b_k_n(
-        ck_tile::host_tensor_descriptor(K/2, N, stride_B, is_row_major(b_layout)));
+        ck_tile::host_tensor_descriptor(K / 2, N, stride_B, is_row_major(b_layout)));
     ck_tile::HostTensor<CDataType> c_m_n_dev_result(
-        ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));     
+        ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
     ck_tile::HostTensor<AccDataType> bias({N});
-    ck_tile::HostTensor<ScaleDataType> b_k_n_scale(
-        ck_tile::host_tensor_descriptor((K+ScaleBlockSize-1)/ScaleBlockSize, N, stride_B_scale, is_row_major(b_layout)));  
+    ck_tile::HostTensor<ScaleDataType> b_k_n_scale(ck_tile::host_tensor_descriptor(
+        (K + ScaleBlockSize - 1) / ScaleBlockSize, N, stride_B_scale, is_row_major(b_layout)));
 
     if(init_method == 0)
     {
@@ -344,7 +346,6 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
             ck_tile::FillUniformDistribution<BInDataType>{-5, 5}(b_k_n);
             ck_tile::FillUniformDistribution<AccDataType>{-.5f, .5f}(bias);
             ck_tile::FillUniformDistribution<ScaleDataType>{125.f, 130.f}(b_k_n_scale);
-
         }
     }
     else if(init_method == 1)
@@ -400,7 +401,7 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
                                  decltype(b_k_n_dev),
                                  ADataType,
                                  BInDataType,
-                                 //BDequantDataType,
+                                 // BDequantDataType,
                                  AccDataType,
                                  CDataType,
                                  ALayout,
@@ -428,36 +429,36 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
     c_m_n_dev_result.SetZero();
 
     float ave_time = invoke_gemm<GemmConfig,
-                                Invoker,
-                                ADataType,
-                                BDataType,
-                                BInDataType,
-                                ck_tile::tuple<>,
-                                AccDataType,
-                                CDataType,
-                                ScaleDataType,
-                                ALayout,
-                                BLayout,
-                                ck_tile::tuple<>,
-                                CLayout>(a_m_k_dev_buf,
-                                        b_k_n_dev_buf,
-                                        c_m_n_dev_buf,
-                                        bias_dev_buf,
-                                        b_k_n_scale_dev_buf,
-                                        M,
-                                        N,
-                                        K,
-                                        stride_A,
-                                        stride_B,
-                                        stride_C,
-                                        stride_B_scale,
-                                        ScaleBlockSize,
-                                        kbatch,
-                                        n_warmup,
-                                        n_repeat,
-                                        persistent,
-                                        flush_cache,
-                                        rotating_count);
+                                 Invoker,
+                                 ADataType,
+                                 BDataType,
+                                 BInDataType,
+                                 ck_tile::tuple<>,
+                                 AccDataType,
+                                 CDataType,
+                                 ScaleDataType,
+                                 ALayout,
+                                 BLayout,
+                                 ck_tile::tuple<>,
+                                 CLayout>(a_m_k_dev_buf,
+                                          b_k_n_dev_buf,
+                                          c_m_n_dev_buf,
+                                          bias_dev_buf,
+                                          b_k_n_scale_dev_buf,
+                                          M,
+                                          N,
+                                          K,
+                                          stride_A,
+                                          stride_B,
+                                          stride_C,
+                                          stride_B_scale,
+                                          ScaleBlockSize,
+                                          kbatch,
+                                          n_warmup,
+                                          n_repeat,
+                                          persistent,
+                                          flush_cache,
+                                          rotating_count);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
 
@@ -474,8 +475,8 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
               << " B_Type=" << DataTypeTraits<BDataType>::name
               << " C_Type=" << DataTypeTraits<CDataType>::name
               << " StructuredSparsity=" << (GemmConfig::UseStructuredSparsity ? "on" : "off")
-              << " Persistent=" << (persistent ? "on" : "off") << " : " << (ave_time * 1000) << " us, "
-              << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
+              << " Persistent=" << (persistent ? "on" : "off") << " : " << (ave_time * 1000)
+              << " us, " << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
 
     bool pass = true;
 
@@ -488,15 +489,15 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
     {
         if constexpr(std::is_same_v<BInDataType, uint8_t>)
         {
-            ck_tile::reference_gemm_block_quant_fp4<ADataType, BInDataType, AccDataType, CDataType>(a_m_k, b_k_n, c_m_n_ref,bias,b_k_n_scale);
+            ck_tile::reference_gemm_block_quant_fp4<ADataType, BInDataType, AccDataType, CDataType>(
+                a_m_k, b_k_n, c_m_n_ref, bias, b_k_n_scale);
             const float max_accumulated_value =
-            *std::max_element(c_m_n_ref.mData.begin(), c_m_n_ref.mData.end());
-            const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
-            K, kbatch, max_accumulated_value);
-            pass = do_verify(c_m_n_dev_result, c_m_n_ref, rtol_atol, "CPU");        
+                *std::max_element(c_m_n_ref.mData.begin(), c_m_n_ref.mData.end());
+            const auto rtol_atol =
+                calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+                    K, kbatch, max_accumulated_value);
+            pass = do_verify(c_m_n_dev_result, c_m_n_ref, rtol_atol, "CPU");
         }
-         
-
     }
     return pass;
 }
