@@ -220,7 +220,10 @@ rocm_check_target_ids(SUPPORTED_GPU_TARGETS
 
 message(STATUS "Building CK for the following targets: ${SUPPORTED_GPU_TARGETS}")
 
-if (SUPPORTED_GPU_TARGETS MATCHES "gfx9")
+# Cache SUPPORTED_GPU_TARGETS for debug
+set(SUPPORTED_GPU_TARGETS "${SUPPORTED_GPU_TARGETS}" CACHE STRING "List of supported GPU targets")
+
+if (SUPPORTED_GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
     message(STATUS "Enabling XDL instances")
     add_definitions(-DCK_USE_XDL)
     set(CK_USE_XDL "ON")
@@ -339,6 +342,7 @@ endif()
 option(USE_BITINT_EXTENSION_INT4 "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
 option(USE_OPT_GFX11 "Whether to enable LDS cumode and Wavefront32 mode for GFX11 silicons." OFF)
 option(ENABLE_ASM_DUMP "Whether to enable assembly dump for kernels." OFF)
+option(ENABLE_JSON_DUMP "Whether to enable json dump for examples." OFF)
 
 if(USE_BITINT_EXTENSION_INT4)
     add_compile_definitions(CK_EXPERIMENTAL_BIT_INT_EXTENSION_INT4)
@@ -350,6 +354,11 @@ if(ENABLE_ASM_DUMP)
     add_compile_options(--save-temps) 
     add_compile_options(-Wno-gnu-line-marker)
     message("CK compiled with ENABLE_ASM_DUMP set to ${ENABLE_ASM_DUMP}")
+endif()
+
+if (ENABLE_JSON_DUMP)
+    add_compile_definitions(CK_ENABLE_JSON_DUMP)
+    message("CK compiled with ENABLE_JSON_DUMP set to ${ENABLE_JSON_DUMP}")
 endif()
 
 ## Threads

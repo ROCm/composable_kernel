@@ -2,7 +2,7 @@
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-
+#include <stdint.h>
 #include "ck/utility/amd_ck_fp8.hpp"
 #include "ck/utility/e8m0.hpp"
 #include "ck/utility/statically_indexed_array.hpp"
@@ -26,6 +26,7 @@ using byte = unsigned char;
 using std::byte;
 #endif
 
+using tf32_t  = _BitInt(19); // 1 sign bit, 8 exponent bits, 10 mantissa bits
 using bhalf_t = ushort;
 using half_t  = _Float16;
 using int4_t  = _BitInt(4);
@@ -204,7 +205,7 @@ inline constexpr bool is_native_type()
     return is_same<T, double>::value || is_same<T, float>::value || is_same<T, half_t>::value ||
            is_same<T, bhalf_t>::value || is_same<T, int32_t>::value ||
            is_same<T, uint32_t>::value || is_same<T, int8_t>::value || is_same<T, uint8_t>::value ||
-           is_same<T, f8_fnuz_t>::value || is_same<T, bf8_fnuz_t>::value || is_same<T, bool>::value;
+           is_same_v<T, _BitInt(8)> || is_same_v<T, unsigned _BitInt(8)> || is_same<T, bool>::value;
 }
 
 // scalar_type
@@ -299,14 +300,14 @@ struct scalar_type<pk_i4_t>
 template <>
 struct scalar_type<f8_fnuz_t>
 {
-    using type                           = f8_fnuz_t;
+    using type                           = f8_fnuz_t::data_type;
     static constexpr index_t vector_size = 1;
 };
 
 template <>
 struct scalar_type<bf8_fnuz_t>
 {
-    using type                           = bf8_fnuz_t;
+    using type                           = bf8_fnuz_t::data_type;
     static constexpr index_t vector_size = 1;
 };
 
@@ -324,12 +325,14 @@ struct scalar_type<bf8_ocp_t>
     static constexpr index_t vector_size = 1;
 };
 
+#ifndef CK_CODE_GEN_RTC
 template <>
 struct scalar_type<e8m0_bexp_t>
 {
     using type                           = e8m0_bexp_t::type;
     static constexpr index_t vector_size = 1;
 };
+#endif
 
 template <>
 struct scalar_type<f4x2_pk_t>
@@ -460,5 +463,41 @@ using int64_t = long long;
 #else
 using int64_t = long;
 #endif
+
+template <typename T>
+inline const char* get_type_name()
+{
+    if constexpr(is_same_v<T, half_t>)
+        return "fp16";
+    else if constexpr(is_same_v<T, bhalf_t>)
+        return "bf16";
+    else if constexpr(is_same_v<T, tf32_t>)
+        return "tf32";
+    else if constexpr(is_same_v<T, int4_t>)
+        return "int4";
+    else if constexpr(is_same_v<T, f4_t>)
+        return "f4";
+    else if constexpr(is_same_v<T, f6_t>)
+        return "f6";
+    else if constexpr(is_same_v<T, bf6_t>)
+        return "bf6";
+    else if constexpr(is_same_v<T, f8_t>)
+        return "f8";
+    else if constexpr(is_same_v<T, bf8_t>)
+        return "bf8";
+#ifndef CK_CODE_GEN_RTC
+    else if constexpr(is_same_v<T, e8m0_bexp_t>)
+        return "e8m0";
+#endif
+    else if constexpr(is_same_v<T, float>)
+        return "fp32";
+#if defined(__HIPCC_RTC__) || defined(CK_CODE_GEN_RTC)
+    else
+        return "unknown";
+#else
+    else
+        return typeid(T).name();
+#endif
+}
 
 } // namespace ck

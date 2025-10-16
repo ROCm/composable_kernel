@@ -880,8 +880,8 @@ struct FmhaFwdPagedKVKernel
         // divide problem
         const auto [i_tile_m, i_tile_n, i_nhead, i_batch] = GetTileIndex(kargs);
 
-        const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * FmhaPipeline::kM0);
-        const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN1);
+        const index_t i_m0 = amd_wave_read_first_lane(i_tile_m * FmhaPipeline::kM0);
+        const index_t i_n1 = amd_wave_read_first_lane(i_tile_n * FmhaPipeline::kN1);
 
         long_index_t batch_offset_q    = 0;
         long_index_t batch_offset_k    = 0;

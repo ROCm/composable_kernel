@@ -4,7 +4,27 @@ This folder contains examples of quant GEMMs using the ck_tile tile-programming 
 
 - AQuant kernel with blocks of A matrix sharing scales: custom GEMM pipeline
 - BQuant kernel with blocks of B matrix sharing scales: custom GEMM pipeline
-- Row and Column-wise scaled: scaling implemented in Epilogue
+- Row and Column-wise scaled: All of the row-wise elements in A Matrix and column-wise elements in B Matrix will share the same quantization element and the element-wise operation will complete in epilogue.
+- Tensor-wise scaled: Share the same scalar scale across the whole tensor of A or B
+
+## Quantization Mode Comparison
+
+| Quant Mode | A Matrix Organization | A Scale Shape | B Matrix Organization | B Scale Shape |
+|------------|----------------------|---------------|----------------------|---------------|
+| **AQuant** | Blocks along K dimension<br/>Each M×GroupSize block shares one scale | `[M, K/GroupSize]` | Not quantized | N/A |
+| **BQuant** | Not quantized | N/A | Blocks along K dimension<br/>Each GroupSize×N block shares one scale | `[K/GroupSize, N]` |
+| **RowColQuant** | Per-row quantization<br/>All K elements in each row share one scale | `[M, 1]` | Per-column quantization<br/>All K elements in each column share one scale | `[1, N]` |
+| **TensorQuant** | Tensor-wise quantization<br/>All M×K elements share one scale | `[1]` | Tensor-wise quantization<br/>All K×N elements share one scale | `[1]` |
+
+---
+
+## Features
+
+- **Preshuffled GEMM**: Shuffle the GEMM of B (weight) matrix in the warp layout and bypass the shared memory to do the GEMM calculation. Best performance solution for GEMM.
+- **TransposeC**: Transpose the C Matrix Output layout to have the best coalesced scale reading
+- **Preshuffled Quant**: Preshuffle the input matrix to load multiple Quant warp blocks along the selected dimension.
+- **Precision**: Supports fp16, bf16, fp8, bf8, int4 (for B Matrix).
+- **Validation**: CPU/GPU validation and error tolerance options.
 
 ## build
 ```
@@ -14,7 +34,6 @@ mkdir build && cd build
 ../script/cmake-ck-dev.sh  ../ <arch>
 # Compile the quant kernels
 make tile_example_gemm_quant_basic -j
-make tile_example_gemm_bquant_basic -j
 ```
 This will result in an executable `build/bin/tile_example_gemm_quant_basic`
 
@@ -37,7 +56,7 @@ args:
      -warmup    number of iterations before benchmark the kernel (default:10)
      -repeat    number of iterations to benchmark the kernel (default:100)
       -timer    gpu:gpu timer, cpu:cpu timer (default:gpu)
- -quant_mode    Which quant method to use (aquant, rowcol)
+ -quant_mode    Which quant method to use (aquant, bquant, tensor, rowcol)
 ```
 
 User need to select correct mapping of config for each quant mode:
@@ -47,5 +66,6 @@ User need to select correct mapping of config for each quant mode:
 | For selecting AQuant  | aquant  | GemmConfigQuant    |
 | For selecting Aquant with Preshuffle   | aquant  | GemmConfigPreshuffleQuant    |
 | For selecting BQuant  | bquant  | GemmConfigQuant    |
+| For selecting PreShuffle Weight matrix with Bquant | bquant | GemmConfigPreshuffleB_Bquant_decode (or) GemmConfigPreshuffleB_Bquant_prefill
 | For selecting RowCol quant  | rowcolquant  | GemmConfigRowColQuant    |
 

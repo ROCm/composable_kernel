@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <cstdlib>
@@ -124,10 +124,28 @@ int main(int argc, char* argv[])
     ck::index_t M = 1024;
     ck::index_t K = 1024;
 
-    if(argc == 3)
+    if(argc == 1)
     {
-        M = std::stoi(argv[1]);
-        K = std::stoi(argv[2]);
+        // use default
+    }
+    else if(argc == 3)
+    {
+        do_verification = std::stoi(argv[1]);
+        time_kernel     = std::stoi(argv[2]);
+    }
+    else if(argc == 5)
+    {
+        do_verification = std::stoi(argv[1]);
+        time_kernel     = std::stoi(argv[2]);
+        M               = std::stoi(argv[3]);
+        K               = std::stoi(argv[4]);
+    }
+    else
+    {
+        printf("arg1: verification (0=no, 1=yes)\n");
+        printf("arg2: time kernel (0=no, 1=yes)\n");
+        printf("arg3-4: M(default=1024), K(default=1024)\n");
+        exit(1);
     }
 
     std::array<ck::index_t, 2> dims        = {M, K};

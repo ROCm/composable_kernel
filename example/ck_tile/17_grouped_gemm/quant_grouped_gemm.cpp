@@ -13,7 +13,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "ck_tile/ops/gemm_group_quant.hpp"
+#include "ck_tile/ops/gemm_quant.hpp"
 #include "ck_tile/host.hpp"
 #include "quant_grouped_gemm.hpp"
 
@@ -65,15 +65,15 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
         constexpr auto memory_operation = memory_operation_.value;
         constexpr bool transpose_c      = false;
 
-        using QuantGemmProblem = ck_tile::GemmRowColQuantPipelineProblem<ADataType,
-                                                                         BDataType,
-                                                                         AccDataType,
-                                                                         AccDataType,
-                                                                         GemmShape,
-                                                                         GemmUniversalTraits,
-                                                                         transpose_c,
-                                                                         BDataType,
-                                                                         scheduler>;
+        using QuantGemmProblem = ck_tile::GemmRowColTensorQuantPipelineProblem<ADataType,
+                                                                               BDataType,
+                                                                               AccDataType,
+                                                                               AccDataType,
+                                                                               GemmShape,
+                                                                               GemmUniversalTraits,
+                                                                               transpose_c,
+                                                                               BDataType,
+                                                                               scheduler>;
 
         using GemmPipeline = typename PipelineTypeTraits<
             GemmConfig::Pipeline>::template GemmPipeline<QuantGemmProblem>;
@@ -109,23 +109,19 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                       << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
         }
 
-        ave_time =
-            ck_tile::launch_kernel(s,
-                                   ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
-                                       Kernel{},
-                                       grids,
-                                       blocks,
-                                       0,
-                                       ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
-                                       num_groups));
-
-        return ave_time;
+        return ave_time = ck_tile::launch_kernel(
+                   s,
+                   ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
+                       Kernel{},
+                       grids,
+                       blocks,
+                       0,
+                       ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
+                       num_groups));
     };
 
-    Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                   ck_tile::memory_operation_enum::set>{});
-
-    return ave_time;
+    return ave_time = Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                                     ck_tile::memory_operation_enum::set>{});
 }
 
 #include "quant_run_grouped_gemm_example.inc"
