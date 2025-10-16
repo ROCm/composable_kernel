@@ -186,15 +186,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                           << " TFlops, " << gb_per_sec << " GB/s, " << op_name << ", SplitK "
                           << split_k_param_str << std::endl;
 
-                if(tflops > best_tflops)
-                {
-                    best_op_name    = op_name;
-                    best_tflops     = tflops;
-                    best_avg_time   = avg_time;
-                    best_gb_per_sec = gb_per_sec;
-                    best_split_k    = split_k_param_str;
-                }
-
+                bool pass = false; 
                 if(do_verification)
                 {
                     weight_dev_buf.FromDevice(weight.data());
@@ -215,7 +207,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                     const auto rtol_atol =
                         calculate_rtol_atol<InDataType, WeiDataType, AccDataType, OutDataType>(
                             GemmK, split_k_value, max_accumulated_value);
-                    bool pass = ck_tile::check_err(weight,
+                    pass = ck_tile::check_err(weight,
                                             weight_host_ref,
                                             "Error: Incorrect results!",
                                             rtol_atol.at(ck_tile::number<0>{}),
@@ -227,6 +219,17 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                     std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
 
                     all_pass &= pass;
+                }
+
+                bool is_valid = do_verification ? pass : true;
+
+                if(tflops > best_tflops && is_valid)
+                {
+                    best_op_name    = op_name;
+                    best_tflops     = tflops;
+                    best_avg_time   = avg_time;
+                    best_gb_per_sec = gb_per_sec;
+                    best_split_k    = split_k_param_str;
                 }
             }
             else 
