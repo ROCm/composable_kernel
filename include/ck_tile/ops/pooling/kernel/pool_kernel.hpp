@@ -433,7 +433,7 @@ struct PoolKernel
 
             auto y_index_tile =
                 block_reduce2d.template MakeYIndexBlockTile<XTensorTile, IndexDataType>();
-            set_tile(y_index_tile, IndexDataType(-1));
+            set_tile(y_index_tile, IndexDataType(0));
 
             // Main reduction loop - with index tracking
             for(int k_tile = amd_wave_read_first_lane(0); k_tile < num_k_tiles; ++k_tile)

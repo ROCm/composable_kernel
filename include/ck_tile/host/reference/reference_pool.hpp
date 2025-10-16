@@ -166,12 +166,6 @@ CK_TILE_HOST bool validate_pool_indices(const HostTensor<InDataType>& input,
         auto kernel_idx = output_index.mData[out_pos];
         auto output_val = static_cast<float>(output.mData[out_pos]);
 
-        if(kernel_idx == -1)
-        {
-            // Padding case - skip validation
-            continue;
-        }
-
         // Validate that index is within bounds
         if(kernel_idx >= 0 && kernel_idx < static_cast<int>(input_size))
         {
