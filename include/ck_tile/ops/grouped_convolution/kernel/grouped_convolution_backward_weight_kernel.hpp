@@ -338,10 +338,6 @@ template <typename GroupedConvTraitsType_,
           typename EpiloguePipeline_>
 struct GroupedConvolutionBackwardWeightKernel
 {
-    // Todo: Enable Vector Load Size > 1
-    static_assert(GroupedConvTraitsType_::VectorSizeA == 1 &&
-                  GroupedConvTraitsType_::VectorSizeB == 1);
-
     static constexpr index_t NDimSpatial = GroupedConvTraitsType_::NDimSpatial_;
     static constexpr ConvolutionSpecialization ConvSpecialization =
         GroupedConvTraitsType_::ConvSpecialization;
