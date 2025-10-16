@@ -10,6 +10,11 @@
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
+#define CK_TILE_PIPELINE_COMPUTE_V3 1
+#define CK_TILE_PIPELINE_MEMORY 2
+#define CK_TILE_PIPELINE_COMPUTE_V4 3
+#define CK_TILE_PIPELINE_COMPUTE_V5 4
+
 namespace ck_tile {
 namespace ops {
 

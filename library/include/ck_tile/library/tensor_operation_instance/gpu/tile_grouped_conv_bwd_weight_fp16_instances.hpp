@@ -17,21 +17,14 @@ template <ck_tile::index_t NDimSpatial,
           typename BLayout,
           typename ELayout>
 using tile_grouped_conv_bwd_weight_f16_instances = std::tuple<
-    // clang-format off
-        //#####################################|       Num|  InLayout| WeiLayout| OutLayout| InData| WeiData| OutData|           In|         Wei|         Out|  K-block|  M-tile| N-tile | K-tile | M-warp| N-warp| K-warp| M-warp| N-warp| K-warp| Vector| Vector| Vector|
-        //#####################################|       Dim|          |          |          |   Type|    Type|    Type|  Elementwise| Elementwise| Elementwise|      per|        |        |        |       |       |       |   tile|   tile|   tile|   size|   size|   size|
-        //#####################################|   Spatial|          |          |          |       |        |        |    Operation|   Operation|   Operation|       CU|        |        |        |       |       |       |   size|   size|   size|      A|      B|      C|
-        //#####################################|          |          |          |          |       |        |        |             |            |            |                    
-        GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,    F16,     F16,     F16,  PassThrough, PassThrough, PassThrough,        1,      64,      64,      64,      2,      2,      1,     32,     32,     16,      1,     1,       8>,
-        GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,    F16,     F16,     F16,  PassThrough, PassThrough, PassThrough,        1,      64,      64,      64,      2,      2,      1,     32,     32,     16,      1,     1,       2>,
-        GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,    F16,     F16,     F16,  PassThrough, PassThrough, PassThrough,        1,      64,      64,      64,      2,      2,      1,     32,     32,     16,      1,     1,       4>,
-        GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,    F16,     F16,     F16,  PassThrough, PassThrough, PassThrough,        1,      64,      64,      64,      2,      2,      1,     32,     32,     16,      1,     1,       8>,
-        GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,    F16,     F16,     F16,  PassThrough, PassThrough, PassThrough,        2,      64,      64,      64,      2,      2,      1,     32,     32,     16,      1,     1,       8>,
-        GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,    F16,     F16,     F16,  PassThrough, PassThrough, PassThrough,        2,      64,      64,      64,      2,      2,      1,     32,     32,     16,      1,     1,       2>,
-        GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,    F16,     F16,     F16,  PassThrough, PassThrough, PassThrough,        2,      64,      64,      64,      2,      2,      1,     32,     32,     16,      1,     1,       4>,
-        GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,    F16,     F16,     F16,  PassThrough, PassThrough, PassThrough,        2,      64,      64,      64,      2,      2,      1,     32,     32,     16,      1,     1,       8>
-    // clang-format on
-    >;
+// clang-format off
+    //#####################################|       Num|  InLayout| WeiLayout| OutLayout| InData| WeiData| OutData|           In|         Wei|         Out|  K-block|  M-tile| N-tile | K-tile | M-warp| N-warp| K-warp| M-warp| N-warp| K-warp| Vector| Vector| Vector|    Double|                         GEMM|
+    //#####################################|       Dim|          |          |          |   Type|    Type|    Type|  Elementwise| Elementwise| Elementwise|      per|        |        |        |       |       |       |   tile|   tile|   tile|   size|   size|   size|      smem|                     pipeline|
+    //#####################################|   Spatial|          |          |          |       |        |        |    Operation|   Operation|   Operation|       CU|        |        |        |       |       |       |   size|   size|   size|      A|      B|      C|    buffer|                      version|            |                    
+    GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,    F16,     F16,     F16,  PassThrough, PassThrough, PassThrough,        2,      64,      64,      64,      2,      2,      1,     32,     32,     16,      2,     4,       2,   false,  CK_TILE_PIPELINE_COMPUTE_V3>,
+    GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,    F16,     F16,     F16,  PassThrough, PassThrough, PassThrough,        2,      64,      64,      64,      2,      2,      1,     32,     32,      8,      2,     4,       2,   false,  CK_TILE_PIPELINE_COMPUTE_V3>
+// clang-format on
+>;
 
 } // namespace ops
 } // namespace ck_tile
