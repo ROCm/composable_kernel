@@ -156,7 +156,7 @@ struct Reduce
         const auto merged_reduce_len =
             transformed_x_tensor.get_tensor_descriptor().get_lengths().at(number<1>{});
         index_t num_n_tile_iteration =
-            __builtin_amdgcn_readfirstlane(integer_divide_ceil(merged_reduce_len, S::Block_N));
+            amd_wave_read_first_lane(integer_divide_ceil(merged_reduce_len, S::Block_N));
 
         auto block_reduce2d      = Policy::template GetBlockReduce2d<Problem>();
         auto block_reduce2d_sync = Policy::template GetBlockReduce2dSync<Problem>();
@@ -167,7 +167,7 @@ struct Reduce
         auto y_compute    = block_reduce2d.template MakeYBlockTile<XTensorType>();
         set_tile(y_compute, reduce_func.template GetIdentityValue<ComputeDataType>());
 
-        for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
+        for(int iN = amd_wave_read_first_lane(0); iN < num_n_tile_iteration; ++iN)
         {
             const auto x = load_tile(x_window);
             block_reduce2d(x, y_compute, reduce_func);
