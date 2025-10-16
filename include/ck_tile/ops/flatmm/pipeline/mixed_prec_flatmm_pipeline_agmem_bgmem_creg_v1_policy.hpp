@@ -211,11 +211,11 @@ struct F16xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
 
         constexpr index_t BlockSize = Problem::kBlockSize;
         constexpr index_t WaveSize  = get_warp_size();
-        constexpr index_t WaveNum   = BlockSize / WaveSize;
+        [[maybe_unused]] constexpr index_t WaveNum   = BlockSize / WaveSize;
 
         constexpr index_t N_Warp = TileShape::BlockWarps::at(number<1>{});
 
-        constexpr index_t XDLPerBlock = TileShape::kK / TileShape::WarpTile::at(I2);
+        [[maybe_unused]] constexpr index_t XDLPerBlock = TileShape::kK / TileShape::WarpTile::at(I2);
         constexpr index_t K_Lane      = 64 / TileShape::WarpTile::at(I1);
         constexpr index_t N_Lane      = TileShape::WarpTile::at(I1);
 
