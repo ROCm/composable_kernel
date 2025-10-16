@@ -103,7 +103,10 @@ auto create_args(int argc, char* argv[])
     arg_parser.insert("Ms", "", "M dimensions - empty by default.")
         .insert("Ns", "", "N dimensions - empty by default.")
         .insert("Ks", "", "K dimensions - empty by default.")
-        .insert("stride_As", "", "Tensor A strides - it is empty by default.") // stride_As/stride_Bs/stride_Cs/stride_AQs/stride_BQs can be set to zero if Ms/Ns/Ks is not empty
+        .insert(
+            "stride_As", "", "Tensor A strides - it is empty by default.") // stride_As/stride_Bs/stride_Cs/stride_AQs/stride_BQs
+                                                                           // can be set to zero if
+                                                                           // Ms/Ns/Ks is not empty
         .insert("stride_Bs", "", "Tensor B strides - it is empty by default.")
         .insert("stride_Cs", "", "Tensor C strides - it is empty by default.")
         .insert("stride_AQs", "", "Tensor AQ strides - it is empty by default.")
