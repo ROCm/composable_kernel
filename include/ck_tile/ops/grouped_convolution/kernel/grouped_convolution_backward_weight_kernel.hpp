@@ -466,7 +466,7 @@ struct GroupedConvolutionBackwardWeightKernel
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
                 {
-                    CK_TILE_ERROR("Conditions not met for Kbatch >1 !");
+                    CK_TILE_ERROR("Conditions not met for Kbatch > 1!");
                 }
                 return false;
             }
