@@ -48,30 +48,34 @@ void print_help(const char* program_name)
     std::cout << "Batched Tensor Contraction with element-wise fusion\n";
     std::cout << "E[G,M,N] = element_wise_op(contraction(A[G,M,K], B[G,N,K]), D0, D1, ...)\n";
     std::cout << "(Supports multiple D tensors with configurable element-wise operations)\n\n";
-    
+
     std::cout << "Usage: " << program_name << " [OPTIONS]\n\n";
-    
+
     std::cout << "Dimension Arguments (comma-separated, no spaces):\n";
     std::cout << "  -g_dims=<dims>   Batch dimensions      (default: \"1,2\")\n";
     std::cout << "  -m_dims=<dims>   M (row) dimensions    (default: \"4,256\")\n";
     std::cout << "  -n_dims=<dims>   N (column) dimensions (default: \"16,128\")\n";
     std::cout << "  -k_dims=<dims>   K (contract) dims     (default: \"64\")\n\n";
-    
+
     std::cout << "Layout Arguments:\n";
-    std::cout << "  -a_layout=<R|C>  A tensor layout (R=Row-major, C=Column-major, default: \"R\")\n";
+    std::cout
+        << "  -a_layout=<R|C>  A tensor layout (R=Row-major, C=Column-major, default: \"R\")\n";
     std::cout << "  -b_layout=<R|C>  B tensor layout (default: \"C\")\n";
     std::cout << "  -e_layout=<R|C>  E tensor layout (default: \"R\")\n\n";
-    
+
     std::cout << "Examples:\n";
     std::cout << "  Single batch (12 batches of 256×128):\n";
-    std::cout << "    " << program_name << " -g_dims=\"12\" -m_dims=\"256\" -n_dims=\"128\" -k_dims=\"64\"\n\n";
-    
+    std::cout << "    " << program_name
+              << " -g_dims=\"12\" -m_dims=\"256\" -n_dims=\"128\" -k_dims=\"64\"\n\n";
+
     std::cout << "  2D batch grid (2×3=6 batches):\n";
-    std::cout << "    " << program_name << " -g_dims=\"2,3\" -m_dims=\"128\" -n_dims=\"128\" -k_dims=\"64\"\n\n";
-    
+    std::cout << "    " << program_name
+              << " -g_dims=\"2,3\" -m_dims=\"128\" -n_dims=\"128\" -k_dims=\"64\"\n\n";
+
     std::cout << "  Multi-dimensional (flattened to M=128, N=128, K=128):\n";
-    std::cout << "    " << program_name << " -g_dims=\"4\" -m_dims=\"8,16\" -n_dims=\"32,4\" -k_dims=\"16,8\"\n\n";
-    
+    std::cout << "    " << program_name
+              << " -g_dims=\"4\" -m_dims=\"8,16\" -n_dims=\"32,4\" -k_dims=\"16,8\"\n\n";
+
     std::cout << "Other Options:\n";
     std::cout << "  -v=<0|1>         Validation (0=off, 1=on, default: 1)\n";
     std::cout << "  -split_k=<int>   Split-K value (default: 1)\n";
@@ -93,7 +97,7 @@ auto create_args(int argc, char* argv[])
             std::exit(0);
         }
     }
-    
+
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("m_dims", "4,256", "M dimensions separated by comma (e.g., '16,32' for 2D M)")
         .insert("n_dims", "16,128", "N dimensions separated by comma (e.g., '32,32' for 2D N)")

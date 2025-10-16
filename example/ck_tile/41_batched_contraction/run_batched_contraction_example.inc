@@ -201,11 +201,14 @@ int run_batched_contraction_example_with_layouts(
     ck_tile::HostTensor<::BDataType> b_full_dims_host(b_desc);
     ck_tile::HostTensor<::EDataType> e_full_dims_host(e_desc);
 
-    std::vector<ck_tile::HostTensor<::DDataType>> ds_full_dims_host;
-    for(int d = 0; d < NumDTensor; ++d)
-    {
-        ds_full_dims_host.emplace_back(ck_tile::HostTensor<::DDataType>(ds_descs[d]));
-    }
+    // Helper to construct array of HostTensors using index_sequence
+    auto make_ds_host_tensors = []<std::size_t... Is>(const auto& descs,
+                                                      std::index_sequence<Is...>) {
+        return std::array<ck_tile::HostTensor<::DDataType>, sizeof...(Is)>{
+            ck_tile::HostTensor<::DDataType>(descs[Is])...};
+    };
+
+    auto ds_full_dims_host = make_ds_host_tensors(ds_descs, std::make_index_sequence<NumDTensor>{});
 
     ck_tile::FillUniformDistribution<::ADataType>{-5.f, 5.f, std::nullopt}(a_full_dims_host);
     ck_tile::FillUniformDistribution<::BDataType>{-5.f, 5.f, std::nullopt}(b_full_dims_host);
@@ -316,12 +319,13 @@ int run_batched_contraction_example_with_layouts(
 
         auto start_time = std::chrono::high_resolution_clock::now();
 
-        calculate_reference_flat_indexing<ADataType,
-                                          BDataType,
-                                          DDataType,
-                                          EDataType,
-                                          AccDataType,
-                                          CDEElementWise>(a_full_dims_host,
+        compute_reference_batched_contraction<ADataType,
+                                              BDataType,
+                                              DDataType,
+                                              EDataType,
+                                              AccDataType,
+                                              CDEElementWise,
+                                              NumDTensor>(a_full_dims_host,
                                                           b_full_dims_host,
                                                           ds_full_dims_host,
                                                           e_full_dims_host_ref,
@@ -329,7 +333,11 @@ int run_batched_contraction_example_with_layouts(
                                                           M_total,
                                                           N_total,
                                                           K_total,
-                                                          CDEElementWise{});
+                                                          CDEElementWise{},
+                                                          G_dims,
+                                                          M_dims,
+                                                          N_dims,
+                                                          K_dims);
 
         auto end_time = std::chrono::high_resolution_clock::now();
         auto duration =
