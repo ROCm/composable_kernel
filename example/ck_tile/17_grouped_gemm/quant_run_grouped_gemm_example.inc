@@ -449,7 +449,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
                                                      CDataType,
                                                      AccDataType,
                                                      QuantMode>(
-            argc, argv, Row{}, Row{}, Row{}, Row{}, Row{});
+            argc, argv, Row{}, Row{}, Row{}, Col{}, Row{});
     }
     else if(a_layout == "C" && b_layout == "R")
     {
