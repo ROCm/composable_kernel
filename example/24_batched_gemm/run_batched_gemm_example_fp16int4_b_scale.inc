@@ -116,6 +116,7 @@ inline __host__ __device__ constexpr double get_atol()
 bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& config)
 {
     using namespace ck::literals;
+    using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
     auto& [M,
            N,
@@ -138,12 +139,12 @@ bool run_batched_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
         {
             return HostTensorDescriptor(
-                {batch_count_, row, col}, {batch_stride, stride, 1_uz}, layout);
+                {batch_count_, row, col}, {batch_stride, stride, 1_uz}, Bypass{});
         }
         else
         {
             return HostTensorDescriptor(
-                {batch_count_, row, col}, {batch_stride, 1_uz, stride}, layout);
+                {batch_count_, row, col}, {batch_stride, 1_uz, stride}, Bypass{});
         }
     };
 
