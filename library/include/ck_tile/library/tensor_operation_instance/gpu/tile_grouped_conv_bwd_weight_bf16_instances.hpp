@@ -9,8 +9,6 @@ namespace ck_tile {
 namespace ops {
 
 using BF16 = ck_tile::bfloat16_t;
-using F16  = ck_tile::half_t;
-using F32  = float;
 
 template <ck_tile::index_t NDimSpatial,
           typename ALayout,
@@ -24,12 +22,19 @@ using tile_grouped_conv_bwd_weight_bf16_instances = std::tuple<
     GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        2,      64,      64,      64,      2,      2,      1,     32,     32,     16,      2,     4,       2,   false,  CK_TILE_PIPELINE_COMPUTE_V3>,
     GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        2,      64,      64,      64,      2,      2,      1,     32,     32,      8,      2,     4,       2,   false,  CK_TILE_PIPELINE_COMPUTE_V3>,
     GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        2,      64,      64,      64,      2,      2,      1,     16,     16,     32,      2,     4,       2,   false,  CK_TILE_PIPELINE_COMPUTE_V3>,
-    // GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        2,       8,     128,      64,      2,      2,      1,      4,     64,     16,      2,     4,       2,   false,  CK_TILE_PIPELINE_COMPUTE_V3>,
-    // GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        2,     128,       8,      64,      2,      2,      1,     64,      4,     16,      2,     4,       2,   false,  CK_TILE_PIPELINE_COMPUTE_V3>,
+    GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        2,      64,      64,      64,      2,      2,      1,     16,     16,     32,      4,     4,       4,   false,  CK_TILE_PIPELINE_COMPUTE_V3>,
+    GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        2,      64,      64,      64,      2,      2,      1,     16,     16,     32,      8,     8,       8,   false,  CK_TILE_PIPELINE_COMPUTE_V3>,
     GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        1,      64,      64,      64,      1,      1,      1,     32,     32,      8,      2,     2,       2,   false,  CK_TILE_PIPELINE_COMPUTE_V3>,
     GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        1,      64,      64,      64,      1,      1,      1,     32,     32,     16,      2,     2,       2,   false,  CK_TILE_PIPELINE_COMPUTE_V3>,
-    GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        1,      64,      64,      64,      1,      1,      1,     16,     16,     32,      2,     2,       2,   false,  CK_TILE_PIPELINE_COMPUTE_V3>
-// clang-format on
+    GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        1,      64,      64,      64,      1,      1,      1,     16,     16,     32,      2,     2,       2,   false,  CK_TILE_PIPELINE_COMPUTE_V3>,
+
+    GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        1,      16,      16,      64,      1,      1,      1,     16,     16,     32,      8,     8,       2,   false,  CK_TILE_PIPELINE_COMPUTE_V3>,
+    GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        2,      16,      16,      64,      1,      1,      1,     16,     16,     32,      8,     8,       2,   false,  CK_TILE_PIPELINE_COMPUTE_V3>,
+    GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        1,      16,      16,      64,      1,      1,      1,     16,     16,     32,      4,     4,       2,   false,  CK_TILE_PIPELINE_COMPUTE_V3>,
+    GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        2,      16,      16,      64,      1,      1,      1,     16,     16,     32,      4,     4,       2,   false,  CK_TILE_PIPELINE_COMPUTE_V3>,
+    GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        1,      16,      16,      64,      1,      1,      1,     16,     16,     32,      4,     4,       4,   false,  CK_TILE_PIPELINE_COMPUTE_V3>,
+    GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        2,      16,      16,      64,      1,      1,      1,     16,     16,     32,      4,     4,       4,   false,  CK_TILE_PIPELINE_COMPUTE_V3>
+    // clang-format on
 >;
 
 } // namespace ops

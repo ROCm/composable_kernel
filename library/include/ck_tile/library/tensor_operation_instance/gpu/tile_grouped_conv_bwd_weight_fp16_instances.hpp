@@ -8,9 +8,7 @@
 namespace ck_tile {
 namespace ops {
 
-using BF16 = ck_tile::bfloat16_t;
 using F16  = ck_tile::half_t;
-using F32  = float;
 
 template <ck_tile::index_t NDimSpatial,
           typename ALayout,
