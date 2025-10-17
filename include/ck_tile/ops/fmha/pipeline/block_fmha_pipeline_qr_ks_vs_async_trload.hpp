@@ -211,10 +211,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
 
                     set_tile(lse_acc, -numeric<SMPLComputeDataType>::infinity());
 
-                    if(get_thread_local_1d_id() < kM0)
-                    {
-                        store_tile(lse_acc_dram_window_tmp, lse_acc);
-                    }
+                    store_tile(lse_acc_dram_window_tmp, lse_acc);
                 }
 
                 // Note: here occ are all cleard, return it
@@ -602,10 +599,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
                 }
             });
 
-            if(get_thread_local_1d_id() < kM0)
-            {
-                store_tile(lse_acc_dram_window_tmp, lse_acc);
-            }
+            store_tile(lse_acc_dram_window_tmp, lse_acc);
         }
 
         // finally, O
@@ -717,10 +711,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
 
                     set_tile(lse_acc, -numeric<SMPLComputeDataType>::infinity());
 
-                    if(get_thread_local_1d_id() < kM0)
-                    {
-                        store_tile(lse_acc_dram_window_tmp, lse_acc);
-                    }
+                    store_tile(lse_acc_dram_window_tmp, lse_acc);
                 }
 
                 // Note: here occ are all cleard, return it
@@ -1146,10 +1137,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
                 }
             });
 
-            if(get_thread_local_1d_id() < kM0)
-            {
-                store_tile(lse_acc_dram_window_tmp, lse_acc);
-            }
+            store_tile(lse_acc_dram_window_tmp, lse_acc);
         }
 
         // finally, O
