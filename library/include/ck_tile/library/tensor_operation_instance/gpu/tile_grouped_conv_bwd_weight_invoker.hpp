@@ -32,7 +32,7 @@ template <ck_tile::index_t NDimSpatial,
 struct GroupedConvolutionBackwardWeightBaseInvoker
 {
     virtual bool IsSupportedArgument(const ck_tile::GroupedConvBwdWeightHostArgs& args) const = 0; 
-    virtual float Run(const ck_tile::GroupedConvBwdWeightHostArgs& args, bool time_kernel) const = 0;
+    virtual float Run(const ck_tile::GroupedConvBwdWeightHostArgs& args, bool time_kernel, int n_warmup, int n_repeat) const = 0;
     virtual std::string GetName(const ck_tile::GroupedConvBwdWeightHostArgs& args) const = 0;
     GroupedConvolutionBackwardWeightBaseInvoker() = default;
     GroupedConvolutionBackwardWeightBaseInvoker(const GroupedConvolutionBackwardWeightBaseInvoker&) = default;
@@ -197,7 +197,7 @@ struct GroupedConvolutionBackwardWeightInvoker :
         return Kernel::IsSupportedArgument(args);
     };
 
-    float Run(const ck_tile::GroupedConvBwdWeightHostArgs& args, bool time_kernel) const override
+    float Run(const ck_tile::GroupedConvBwdWeightHostArgs& args, bool time_kernel, int n_warmup=5, int n_repeat=50) const override
     {
         const ck_tile::index_t gemm_k =
             args.N_ * std::accumulate(args.output_spatial_lengths_.begin(),
@@ -226,8 +226,6 @@ struct GroupedConvolutionBackwardWeightInvoker :
             const dim3 grids  = Kernel::GridSize(args);
             const dim3 blocks = Kernel::BlockSize();
                    
-            constexpr int n_warmup = 5;
-            constexpr int n_repeat = 50;
             ck_tile::stream_config s {nullptr, time_kernel, 1, n_warmup, n_repeat};
 
             ave_time = ck_tile::launch_kernel(

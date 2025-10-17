@@ -49,7 +49,7 @@ using tile_grouped_conv_bwd_weight_bf16_instances = std::tuple<
     // GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        1,      16,      16,      64,      1,      1,      1,     16,     16,     32,      4,     4,       2,    true,  CK_TILE_PIPELINE_COMPUTE_V4>,
     // GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        2,      16,      16,      64,      1,      1,      1,     16,     16,     32,      4,     4,       2,    true,  CK_TILE_PIPELINE_COMPUTE_V4>,
     // GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        1,      16,      16,      64,      1,      1,      1,     16,     16,     32,      4,     4,       4,    true,  CK_TILE_PIPELINE_COMPUTE_V4>,
-    GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        2,      16,      16,      64,      1,      1,      1,     16,     16,     32,      4,     4,       4,    true,  CK_TILE_PIPELINE_COMPUTE_V4>
+    GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        2,      16,      16,      64,      1,      1,      1,     16,     16,     32,      2,     2,       2,    true,  CK_TILE_PIPELINE_COMPUTE_V4>
     // clang-format on
 >;
 
