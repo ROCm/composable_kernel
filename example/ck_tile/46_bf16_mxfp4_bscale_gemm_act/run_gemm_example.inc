@@ -509,7 +509,7 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
                 calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
                     K, kbatch, max_accumulated_value);
             ck_tile::ignore = rtol_atol;
-            pass = do_verify(c_m_n_dev_result,
+            pass            = do_verify(c_m_n_dev_result,
                              c_m_n_act_ref,
                              ck_tile::make_tuple(0.01, 0.01),
                              /*rtol_atol*/ "CPU");
