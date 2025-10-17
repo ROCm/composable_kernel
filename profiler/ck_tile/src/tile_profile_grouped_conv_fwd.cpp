@@ -17,22 +17,18 @@ namespace {
 
 enum struct ConvLayout
 {
-    GNCHW_GKCYX_GNKHW, // 0
-    GNHWC_GKYXC_GNHWK, // 1
-    NHWGC_GKYXC_NHWGK, // 2
-    NGCHW_GKYXC_NGKHW, // 3
-    NGCHW_GKCYX_NGKHW, // 4
+    GNHWC_GKYXC_GNHWK, // 0
+    NHWGC_GKYXC_NHWGK, // 1
+    NGCHW_GKYXC_NGKHW, // 2
+    NGCHW_GKCYX_NGKHW, // 3
 };
 
 enum struct ConvDataType
 {
     F32_F32_F32,        // 0
     F16_F16_F16,        // 1
-    BF16_F32_BF16,      // 2
-    F16_F16_F16_BF8_F8, // 3
-    I8_I8_I8,           // 4
-    BF16_BF16_BF16,     // 5
-    F32_F32_F32_TF32,   // 6
+    BF16_BF16_BF16,     // 2
+    I8_I8_I8,           // 3
 };
 
 #define OP_NAME "grouped_conv_fwd"
@@ -111,11 +107,6 @@ int tile_profile_grouped_conv_fwd(int argc, char* argv[])
     using F32  = float;
     using F16  = ck_tile::half_t;
     using BF16 = ck_tile::bfloat16_t;
-    using F8   = ck_tile::fp8_t;
-    using BF8  = ck_tile::bf8_t;
-#if defined(__gfx942__)
-    using TF32 = ck::tf32_t;
-#endif
 
     using NHWGC  = ck_tile::tensor_layout::convolution::NHWGC;
     using NDHWGC = ck_tile::tensor_layout::convolution::NDHWGC;
@@ -175,20 +166,9 @@ int tile_profile_grouped_conv_fwd(int argc, char* argv[])
         {
             return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, F16{}, F16{}, F16{}, F16{}, F16{});
         }
-        if(data_type == ConvDataType::BF16_F32_BF16)
-        {
-            // fp32 atomic add is used for weight tensor in bf16 kernel
-            return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, BF16{}, F32{}, BF16{}, BF16{}, BF16{});
-        }
         if(data_type == ConvDataType::BF16_BF16_BF16)
         {
             return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
-        }
-        else if(data_type == ConvDataType::F32_F32_F32_TF32)
-        {
-#if defined(__gfx942__)
-            return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
-#endif
         }
     }
     
@@ -202,30 +182,15 @@ int tile_profile_grouped_conv_fwd(int argc, char* argv[])
         {
             return profile(I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F16{}, F16{}, F16{}, F16{}, F16{});
         }
-        if(data_type == ConvDataType::BF16_F32_BF16)
-        {
-            // fp32 atomic add is used for weight tensor in bf16 kernel
-            return profile(I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, BF16{}, F32{}, BF16{}, BF16{}, BF16{});
-        }
         if(data_type == ConvDataType::BF16_BF16_BF16)
         {
             return profile(
                 I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
         }
-        if(data_type == ConvDataType::F16_F16_F16_BF8_F8)
-        {
-            return profile(I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F16{}, F16{}, F16{}, BF8{}, F8{});
-        }
         else if(data_type == ConvDataType::I8_I8_I8)
         {
             return profile(
                 I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, int8_t{}, int8_t{}, int8_t{}, int8_t{}, int8_t{});
-        }
-        else if(data_type == ConvDataType::F32_F32_F32_TF32)
-        {
-#if defined(__gfx942__)
-            return profile(I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
-#endif
         }
     }
 

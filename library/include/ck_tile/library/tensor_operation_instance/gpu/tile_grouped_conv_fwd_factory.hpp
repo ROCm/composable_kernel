@@ -68,7 +68,7 @@ struct DeviceOperationInstanceFactory<GroupedConvolutionForwardBaseInvoker<
                 {
                     add_grouped_conv2d_fwd_f16_instances(op_ptrs);
                 }
-                if constexpr(std::is_same_v<InDataType, ck_tile::bfloat16_t> &&
+                else if constexpr(std::is_same_v<InDataType, ck_tile::bfloat16_t> &&
                              std::is_same_v<WeiDataType, ck_tile::bfloat16_t> &&
                              std::is_same_v<OutDataType, ck_tile::bfloat16_t> &&
                              std::is_same_v<ComputeTypeA, ck_tile::bfloat16_t> &&
@@ -76,6 +76,14 @@ struct DeviceOperationInstanceFactory<GroupedConvolutionForwardBaseInvoker<
                 {
                     add_grouped_conv2d_fwd_bf16_instances(op_ptrs);
                 }
+                else
+                {
+                    std::cout << "Unsupported data type combination for GroupedConv2dFwd\n";
+                }
+            }
+            else
+            {
+                std::cout << "Unsupported layout combination for GroupedConv2dFwd\n";
             }
         }
 
