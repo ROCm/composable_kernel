@@ -652,7 +652,7 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
  * @brief Check errors between pk_fp4_t ranges
  *
  * Compares two ranges of pk_fp4_t without tolerance.
- * This specialization handles ck_tile::pk_fp4_t type. 
+ * This specialization handles ck_tile::pk_fp4_t type.
  *
  * @tparam Range Type of output range
  * @tparam RefRange Type of reference range
@@ -663,7 +663,8 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
  */
 template <typename Range, typename RefRange>
 std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
-                  std::is_same_v<ranges::range_value_t<Range>, pk_fp4_t>), bool>
+                  std::is_same_v<ranges::range_value_t<Range>, pk_fp4_t>),
+                 bool>
     CK_TILE_HOST check_err(const Range& out,
                            const RefRange& ref,
                            const std::string& msg = "Error: Incorrect results!",
@@ -673,14 +674,14 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
     if(check_size_mismatch(out, ref, msg))
         return false;
 
-    int err_count   = 0;
+    int err_count = 0;
 
     auto update_err = [&](pk_fp4_raw_t o, pk_fp4_raw_t r, std::size_t index) {
         if(o != r)
         {
-            std::cerr << msg << " out[" << index << "] != ref[" << index << "]: " 
-                      << type_convert<float>(pk_fp4_t{o}) << " != " << type_convert<float>(pk_fp4_t{r})
-                      << std::endl;
+            std::cerr << msg << " out[" << index << "] != ref[" << index
+                      << "]: " << type_convert<float>(pk_fp4_t{o})
+                      << " != " << type_convert<float>(pk_fp4_t{r}) << std::endl;
             ++err_count;
         }
     };
@@ -689,8 +690,8 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
     {
         const pk_fp4_t o = *std::next(std::begin(out), i);
         const pk_fp4_t r = *std::next(std::begin(ref), i);
-        update_err(o._unpack(number<0>{}), r._unpack(number<0>{}), i*2);
-        update_err(o._unpack(number<1>{}), r._unpack(number<1>{}), i*2 + 1);
+        update_err(o._unpack(number<0>{}), r._unpack(number<0>{}), i * 2);
+        update_err(o._unpack(number<1>{}), r._unpack(number<1>{}), i * 2 + 1);
     }
     if(err_count > 0)
     {
