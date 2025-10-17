@@ -1735,8 +1735,9 @@ fwd_result fmha_fwd_run(mode_enum mode,
                 lse_host_result.ForEach([&](auto& self, auto idx) {
                     self(idx) = lse_host(b_idx, idx[0], idx[1] + query_offset);
                 });
-                std::cout << "lse_host_result shape: " << shape_batch << ", " << nhead << ", " << shape_seqlen_q << std::endl;
-                
+                std::cout << "lse_host_result shape: " << shape_batch << ", " << nhead << ", "
+                          << shape_seqlen_q << std::endl;
+
                 cur_pass = ck_tile::check_err(lse_host_result,
                                               lse_host_ref,
                                               "LSE Error: Incorrect results!",
