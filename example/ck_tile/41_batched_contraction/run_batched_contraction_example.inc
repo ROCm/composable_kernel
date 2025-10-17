@@ -150,13 +150,105 @@ int run_batched_contraction_example_with_layouts(
         return converted;
     };
 
-    ck_tile::HostTensorDescriptor a_desc(A_dims);
-    ck_tile::HostTensorDescriptor b_desc(B_dims);
-    ck_tile::HostTensorDescriptor e_desc(E_dims);
-    std::array<ck_tile::HostTensorDescriptor, NumDTensor> ds_descs;
-    for(ck_tile::index_t d = 0; d < NumDTensor; ++d)
+    // Get custom stride arguments
+    std::string strides_a_str  = arg_parser.get_str("strides_a");
+    std::string strides_b_str  = arg_parser.get_str("strides_b");
+    std::string strides_e_str  = arg_parser.get_str("strides_e");
+    std::string strides_ds_str = arg_parser.get_str("strides_ds");
+
+    // Create A descriptor with custom or default strides
+    ck_tile::HostTensorDescriptor a_desc;
+    if(!strides_a_str.empty())
     {
-        ds_descs[d] = ck_tile::HostTensorDescriptor(Ds_dims[d], e_desc.get_strides());
+        std::vector<ck_tile::index_t> custom_a_strides = parse_dimensions(strides_a_str);
+        if(custom_a_strides.size() != A_dims.size())
+        {
+            throw std::runtime_error("strides_a size must match A_dims size");
+        }
+        std::vector<std::size_t> a_strides_size_t(custom_a_strides.begin(), custom_a_strides.end());
+        a_desc = ck_tile::HostTensorDescriptor(A_dims, a_strides_size_t);
+        std::cout << "Using custom strides for A (non-contiguous)" << std::endl;
+    }
+    else
+    {
+        a_desc = ck_tile::HostTensorDescriptor(A_dims);
+    }
+
+    // Create B descriptor with custom or default strides
+    ck_tile::HostTensorDescriptor b_desc;
+    if(!strides_b_str.empty())
+    {
+        std::vector<ck_tile::index_t> custom_b_strides = parse_dimensions(strides_b_str);
+        if(custom_b_strides.size() != B_dims.size())
+        {
+            throw std::runtime_error("strides_b size must match B_dims size");
+        }
+        std::vector<std::size_t> b_strides_size_t(custom_b_strides.begin(), custom_b_strides.end());
+        b_desc = ck_tile::HostTensorDescriptor(B_dims, b_strides_size_t);
+        std::cout << "Using custom strides for B (non-contiguous)" << std::endl;
+    }
+    else
+    {
+        b_desc = ck_tile::HostTensorDescriptor(B_dims);
+    }
+
+    // Create E descriptor with custom or default strides
+    ck_tile::HostTensorDescriptor e_desc;
+    if(!strides_e_str.empty())
+    {
+        std::vector<ck_tile::index_t> custom_e_strides = parse_dimensions(strides_e_str);
+        if(custom_e_strides.size() != E_dims.size())
+        {
+            throw std::runtime_error("strides_e size must match E_dims size");
+        }
+        std::vector<std::size_t> e_strides_size_t(custom_e_strides.begin(), custom_e_strides.end());
+        e_desc = ck_tile::HostTensorDescriptor(E_dims, e_strides_size_t);
+        std::cout << "Using custom strides for E (non-contiguous)" << std::endl;
+    }
+    else
+    {
+        e_desc = ck_tile::HostTensorDescriptor(E_dims);
+    }
+    // Create D descriptors with custom or default strides (default = same as E)
+    std::array<ck_tile::HostTensorDescriptor, NumDTensor> ds_descs;
+    if(!strides_ds_str.empty())
+    {
+        // Parse semicolon-separated stride vectors for multiple D tensors
+        std::vector<std::vector<ck_tile::index_t>> all_ds_strides;
+        std::stringstream ss(strides_ds_str);
+        std::string d_stride_str;
+
+        while(std::getline(ss, d_stride_str, ';'))
+        {
+            all_ds_strides.push_back(parse_dimensions(d_stride_str));
+        }
+
+        if(all_ds_strides.size() != NumDTensor)
+        {
+            throw std::runtime_error("Number of D stride vectors must match num_d=" +
+                                     std::to_string(NumDTensor));
+        }
+
+        std::cout << "Using custom strides for D tensors (non-contiguous)" << std::endl;
+        for(ck_tile::index_t d = 0; d < NumDTensor; ++d)
+        {
+            if(all_ds_strides[d].size() != E_dims.size())
+            {
+                throw std::runtime_error("D tensor " + std::to_string(d) +
+                                         " stride size must match E_dims size");
+            }
+            std::vector<std::size_t> d_strides_size_t(all_ds_strides[d].begin(),
+                                                      all_ds_strides[d].end());
+            ds_descs[d] = ck_tile::HostTensorDescriptor(Ds_dims[d], d_strides_size_t);
+        }
+    }
+    else
+    {
+        // Default: use same strides as E
+        for(ck_tile::index_t d = 0; d < NumDTensor; ++d)
+        {
+            ds_descs[d] = ck_tile::HostTensorDescriptor(Ds_dims[d], e_desc.get_strides());
+        }
     }
 
     std::vector<ck_tile::index_t> A_strides = convert_strides(a_desc.get_strides());

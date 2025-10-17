@@ -58,6 +58,13 @@ void print_help(const char* program_name)
     std::cout << "  -k_dims=<dims>   K (contract) dims     (default: \"64\")\n";
     std::cout << "  -num_d=<int>     Number of D tensors   (default: 2, range: 0-4)\n\n";
 
+    std::cout << "Custom Stride Arguments (for testing non-contiguous tensors):\n";
+    std::cout << "  -strides_a=<s>   A tensor strides (comma-separated, empty = auto)\n";
+    std::cout << "  -strides_b=<s>   B tensor strides (comma-separated, empty = auto)\n";
+    std::cout << "  -strides_e=<s>   E tensor strides (comma-separated, empty = auto)\n";
+    std::cout << "  -strides_ds=<s>  D tensors strides (semicolon-separated, empty = same as E)\n";
+    std::cout << "  Example: -strides_a=\"32768,128,1\" -strides_ds=\"512,2,1;1024,4,1\"\n\n";
+
     std::cout << "Layout Arguments:\n";
     std::cout
         << "  -a_layout=<R|C>  A tensor layout (R=Row-major, C=Column-major, default: \"R\")\n";
@@ -106,9 +113,12 @@ auto create_args(int argc, char* argv[])
         .insert(
             "g_dims", "1,2", "G dimensions separated by comma (e.g., '4,2' for 2D, '2,3,4' for 3D)")
         .insert("num_d", "2", "Number of D (auxiliary input) tensors")
-        .insert("stride_a", "0", "Custom A tensor leading dimension stride (0 = auto)")
-        .insert("stride_b", "0", "Custom B tensor leading dimension stride (0 = auto)")
-        .insert("stride_e", "0", "Custom E tensor leading dimension stride (0 = auto)")
+        .insert("strides_a", "", "A tensor strides (comma-separated, empty = auto/contiguous)")
+        .insert("strides_b", "", "B tensor strides (comma-separated, empty = auto/contiguous)")
+        .insert("strides_e", "", "E tensor strides (comma-separated, empty = auto/contiguous)")
+        .insert("strides_ds",
+                "",
+                "D tensors strides (semicolon-separated for multiple, empty = same as E)")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
         .insert("b_layout", "C", "B tensor data layout - Col by default")
         .insert("e_layout", "R", "E tensor data layout - Row by default")
