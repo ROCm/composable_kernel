@@ -20,22 +20,31 @@
 #include "fmha_fwd_v3.hpp"
 #include "mask.hpp"
 
-#define INST_UNIFIED_ATTENTION_V3_DISPATCH(kernel_traits)                                               \
+#define INST_FMHA_FWD_V3_DISPATCH(kernel_traits)                                               \
     template <>                                                                                \
-    std::pair<bool, float> unified_attention_kernel_dispatch<kernel_traits>(                         \
-        const unified_attention_args& args, const stream_config& config)                             \
+    std::pair<bool, float> fmha_fwd_v3_kernel_dispatch<kernel_traits>(                         \
+        const fmha_fwd_v3_args& args, const stream_config& config)                             \
     {                                                                                          \
         return std::make_pair(true,                                                            \
-                              unified_attention_kernel_launch<kernel_traits::kernel>(args, config)); \
+                              fmha_fwd_v3_kernel_launch<kernel_traits::kernel>(args, config)); \
     }
 
 namespace ck_tile {
 
-template <unified_attention_args::data_type_enum DataType>
-struct unified_attention_problem_traits;
+template <fmha_fwd_v3_args::data_type_enum DataType>
+struct fmha_fwd_v3_problem_traits;
 
 template <>
-struct unified_attention_problem_traits<unified_attention_args::data_type_enum::bf16>
+struct fmha_fwd_v3_problem_traits<fmha_fwd_v3_args::data_type_enum::fp16>
+{
+    using qkvp_dtype = ck_tile::half_t;
+    using acc_dtype  = float;
+    using o_dtype    = ck_tile::half_t;
+    using lse_dtype  = float;
+};
+
+template <>
+struct fmha_fwd_v3_problem_traits<fmha_fwd_v3_args::data_type_enum::bf16>
 {
     using qkvp_dtype = ck_tile::bf16_t;
     using acc_dtype  = float;
@@ -43,14 +52,13 @@ struct unified_attention_problem_traits<unified_attention_args::data_type_enum::
     using lse_dtype  = float;
 };
 
-template <unified_attention_args::data_type_enum DataType, bool IsVariableSeqlen, bool IsMasking>
-struct unified_attention_kernel_traits
+template <fmha_fwd_v3_args::data_type_enum DataType, bool IsVariableSeqlen, bool IsMasking>
+struct fmha_fwd_v3_kernel_traits
 {
     static constexpr auto date_type          = DataType;
     static constexpr bool is_variable_seqlen = IsVariableSeqlen;
-    static constexpr bool is_masking         = IsMasking;
-
-    //                                    M0   N0  K0   N1   K1
+    static constexpr bool is_masking         = IsMasking
+    //                                     M0   N0  K0   N1   K1
     using fmha_block_tile      = sequence<256, 32, 128, 128, 32, 128>;
     using fmha_warp_gemm_shape = sequence<32, 32, 16>;
     using fmha_block_warps     = sequence<8, 1, 1>;

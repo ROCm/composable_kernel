@@ -24,6 +24,7 @@ struct unified_attention_args
     index_t mask_type; // should be 0 for no mask; or 2 for causal mask (window_size_left < 0 and
                        // window_size_right == 0).
 
+    index_t num_tokens; // total number of tokens in query
     index_t num_blks;
     index_t num_head_q;
     index_t num_queries_per_kv;

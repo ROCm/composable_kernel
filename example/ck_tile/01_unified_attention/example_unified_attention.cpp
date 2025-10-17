@@ -320,8 +320,8 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
 
     args.data_type     = problem.data_type;
     args.num_seqs         = problem.batch;
-    args.seqlen_q      = problem.seqlen_q;
-    args.seqlen_k      = problem.seqlen_k;
+    // args.seqlen_q      = problem.seqlen_q;
+    // args.seqlen_k      = problem.seqlen_k;
     args.num_head_q       = problem.nhead_q;
     args.num_queries_per_kv       = problem.nhead_q / problem.nhead_kv;
     args.mask_type = 2;
@@ -332,7 +332,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
 
     // args.query_lens = problem.query_lens
     // args.kv_lens = problem.kv_lens
-
+    args.num_tokens = problem.batch * problem.seqlen_q;
     args.q_ptr = q_buf.GetDeviceBuffer();
     args.query_stride_0 = problem.hdim * problem.nhead_q;
     args.query_stride_0 = problem.hdim;
@@ -385,7 +385,6 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
         for(std::size_t i = 0; i < per_batch_vec.size(); ++i)
             cum_vec[i + 1] = cum_vec[i] + per_batch_vec[i];
     };
-mask_type
     calculate_cumulative(eff_query_lens, cu_query_lens);
 
     ck_tile::DeviceMem seq_lens_buf(kv_lens.size());

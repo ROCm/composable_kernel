@@ -58,16 +58,16 @@ struct unified_attention_kernel_traits
     static constexpr auto date_type          = DataType;
     static constexpr bool is_masking         = IsMasking;
 
-    //                                    BLOCK_Q   BLOCK_SIZE  HEAD_SIZE   N1   K1
+    //                                    BLOCK_Q   BLOCK_SIZE  HEAD_SIZE
     using unified_attention_block_tile      = sequence<128, 128, 128>;
     using unified_attention_warp_gemm_shape = sequence<32, 32, 16>;
     using unified_attention_block_warps     = sequence<8, 1, 1>;
 
     using unified_attention_shape = TileUnifiedAttentionShape<unified_attention_block_tile,
                                      unified_attention_block_warps,
-                                     funified_attention_warp_gemm_shape,
-                                     funified_attention_block_warps,
-                                     funified_attention_warp_gemm_shape,
+                                     unified_attention_warp_gemm_shape,
+                                     unified_attention_block_warps,
+                                     unified_attention_warp_gemm_shape,
                                      true // IsVLayoutRowMajor
                                      >;
 
@@ -77,9 +77,9 @@ struct unified_attention_kernel_traits
                                             -1     // kBlockPerCu
                                             >;
 
-    using funified_attention_mask = GenericAttentionMask<IsMasking, /*IsLocal=*/false>;
+    using unified_attention_mask = GenericAttentionMask<IsMasking, /*IsLocal=*/false>;
 
-    using funified_attention_pipeline_problem =
+    using unified_attention_pipeline_problem =
         UnifiedAttentionPipelineProblem<typename unified_attention_problem_traits<date_type>::qkvp_dtype,
                                       typename unified_attention_problem_traits<date_type>::qkvp_dtype,
                                       typename unified_attention_problem_traits<date_type>::qkvp_dtype,
@@ -89,11 +89,11 @@ struct unified_attention_kernel_traits
                                       typename unified_attention_problem_traits<date_type>::qkvp_dtype,
                                       typename unified_attention_problem_traits<date_type>::acc_dtype,
                                       typename unified_attention_problem_traits<date_type>::o_dtype,
-                                      funified_attention_shape,
-                                      funified_attention_mask,
-                                      funified_attention_traits>;
+                                      unified_attention_shape,
+                                      unified_attention_mask,
+                                      unified_attention_traits>;
 
-    using funified_attention_pipeline = BlockFunified_attentionFwdV3Pipeline<funified_attention_pipeline_problem>;
+    using unified_attention_pipeline = Blockunified_attentionFwdV3Pipeline<unified_attention_pipeline_problem>;
 
     using epilogue = Default2DEpilogue<
         Default2DEpilogueProblem<typename unified_attention_problem_traits<date_type>::acc_dtype,
@@ -103,7 +103,7 @@ struct unified_attention_kernel_traits
                                  true  // UseRawStore
                                  >>;
 
-    using kernel = UnifiedAttentionKernel<funified_attention_pipeline, epilogue>;
+    using kernel = UnifiedAttentionKernel<unified_attention_pipeline, epilogue>;
 };
 
 template <typename Kernel>
@@ -140,7 +140,10 @@ float unified_attention_kernel_launch(const unified_attention_args& args, const 
                                     args.num_seqs   
                                 );
 
-    dim3 grids            = Kernel::GridSize2D(args.num_head_q / args.num_queries_per_kv, args.total_num_q_blocks);
+    index_t total_num_q_blocks = args.num_tokens / Kernel::BLOCK_Q + args.num_seqs
+
+
+    dim3 grids            = Kernel::GridSize2D(args.num_head_q / args.num_queries_per_kv, total_num_q_blocks);
     constexpr dim3 blocks = Kernel::BlockSize();
     constexpr index_t kBlockPerCu = Kernel::kBlockPerCu;
 
