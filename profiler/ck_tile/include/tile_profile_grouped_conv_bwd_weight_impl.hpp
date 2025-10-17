@@ -251,9 +251,12 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
         }
     }
 
-    std::cout << "Best configuration parameters:" << "\nname: " << best_op_name
+    std::cout << "\n********************************" 
+              << "\nBest configuration parameters:" 
+              << "\n********************************" 
+              << "\nname: " << best_op_name
               << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops
-              << "\nGB/s: " << best_gb_per_sec << ", SplitK " << best_split_k << std::endl;
+              << "\nGB/s: " << best_gb_per_sec << std::endl;
 
     if(instance_index != -1)
     {
