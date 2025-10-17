@@ -7,9 +7,6 @@ Validation utilities for GEMM kernel generation.
 Extracted from tile_engine_develop for consistency.
 """
 
-import subprocess
-import re
-from functools import lru_cache
 import logging
 from typing import Tuple, List
 
@@ -152,34 +149,6 @@ def element_size(data_type: str) -> float:
     return ELEMENT_SIZE_MAP[data_type]
 
 
-GPU_NAME_PATTERN = re.compile(r"Name:\s*(gfx\d+\w*)")
-
-
-@lru_cache(maxsize=1)
-def get_gpu_name_by_id(gpu_id: int = 0) -> str:
-    """Retrieve GPU name (e.g. gfx90a) by device ID"""
-    try:
-        output = subprocess.check_output(
-            ["rocminfo"], text=True, stderr=subprocess.PIPE, timeout=5
-        )
-        if matches := GPU_NAME_PATTERN.finditer(output):
-            gpu_list = [m.group(1) for m in matches]
-            return gpu_list[gpu_id] if gpu_id < len(gpu_list) else ""
-
-        return ""
-
-    except subprocess.CalledProcessError as e:
-        logging.debug(f"GPU query failed (exit {e.returncode}): {e.stderr.strip()}")
-    except FileNotFoundError:
-        logging.debug("ROCm tools not installed (requires rocminfo)")
-    except subprocess.TimeoutExpired:
-        logging.debug("GPU query timeout (5s)")
-    except Exception as e:
-        logging.debug(f"GPU detection error: {str(e)}")
-
-    return ""
-
-
 def is_trait_combination_valid(pipeline: str, epilogue: str, scheduler: str) -> bool:
     """Check if a trait combination is valid."""
     return (pipeline, epilogue, scheduler) not in TRAIT_UNSUPPORTED_COMBINATIONS
@@ -189,11 +158,9 @@ def validate_warp_configuration(
     warp_m: int,
     warp_n: int,
     warp_k: int,
-    gpu_name: str = None,
+    gpu_name: str,
 ) -> bool:
     """Validate warp configuration."""
-    if gpu_name is None:
-        gpu_name = get_gpu_name_by_id(0)
 
     current_combination = [warp_m, warp_n, warp_k]
 
@@ -274,11 +241,9 @@ def validate_warp_tile_combination(
     a_datatype: str,
     b_datatype: str,
     c_datatype: str,
-    gpu_name: str = None,
+    gpu_name: str,
 ) -> Tuple[bool, str]:
     """Validate warp tile combination against GPU-specific supported combinations."""
-    if gpu_name is None:
-        gpu_name = get_gpu_name_by_id(0)
 
     # Construct the key for looking up supported combinations
     warp_tile_key = f"{a_datatype}_{b_datatype}_{c_datatype}"
@@ -325,6 +290,7 @@ def is_tile_config_valid(
     b_datatype: str,
     c_datatype: str,
     pipeline: str,
+    gpu_target: str,
     trait_name: str = None,
 ) -> bool:
     """
@@ -348,7 +314,7 @@ def is_tile_config_valid(
         return False
 
     # Validate warp configuration
-    if not validate_warp_configuration(warp_m, warp_n, warp_k):
+    if not validate_warp_configuration(warp_m, warp_n, warp_k, gpu_target):
         logging.debug(
             f"Invalid warp configuration: warp_m({warp_m}), warp_n({warp_n}), warp_k({warp_k})"
         )
@@ -384,7 +350,13 @@ def is_tile_config_valid(
 
     # Validate warp tile combination
     warp_tile_valid, warp_tile_error = validate_warp_tile_combination(
-        warp_tile_m, warp_tile_n, warp_tile_k, a_datatype, b_datatype, c_datatype
+        warp_tile_m,
+        warp_tile_n,
+        warp_tile_k,
+        a_datatype,
+        b_datatype,
+        c_datatype,
+        gpu_target,
     )
     if not warp_tile_valid:
         logging.debug(f"Warp tile validation failed: {warp_tile_error}")
