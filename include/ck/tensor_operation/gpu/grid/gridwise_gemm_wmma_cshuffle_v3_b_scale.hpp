@@ -122,7 +122,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_b_scale
           ComputeTypeA,
           ComputeTypeB,
           PermuteA,
-          PermuteB>
+          PermuteB,
+          true>
 {
     using Base = GridwiseGemm_wmma_cshuffle_v3_base<
         ALayout,
@@ -174,7 +175,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_b_scale
         ComputeTypeA,
         ComputeTypeB,
         PermuteA,
-        PermuteB>;
+        PermuteB,
+        true>;
 
     using Base::I0;
     using Base::I1;
@@ -212,9 +214,6 @@ struct GridwiseGemm_wmma_cshuffle_v3_b_scale
     using Base::MakeDEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock;
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
-
-    using Base::GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1;
-    using Base::GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1;
 
     using Base::NumATensor;
     using Base::NumBTensor;
