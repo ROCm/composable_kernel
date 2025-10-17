@@ -9,14 +9,12 @@
 #include <type_traits>
 
 #include "ck_tile/library/tensor_operation_instance/gpu/tile_grouped_conv_instance_factory.hpp"
-#include "ck_tile/library/tensor_operation_instance/gpu/tile_grouped_conv_bwd_weight_invoker.hpp"
-#include "ck_tile/library/tensor_operation_instance/gpu/tile_grouped_conv_bwd_weight_instances.hpp"
+#include "ck_tile/library/tensor_operation_instance/gpu/tile_grouped_conv_fwd_invoker.hpp"
+#include "ck_tile/library/tensor_operation_instance/gpu/tile_grouped_conv_fwd_instances.hpp"
 
 namespace ck_tile {
 namespace ops {
 
-template <typename DeviceOp>
-struct DeviceOperationInstanceFactory;
 template <ck_tile::index_t NumDimSpatial,
           typename InLayout,
           typename WeiLayout,
@@ -26,7 +24,7 @@ template <ck_tile::index_t NumDimSpatial,
           typename OutDataType,
           typename ComputeTypeA,
           typename ComputeTypeB>
-struct DeviceOperationInstanceFactory<GroupedConvolutionBackwardWeightBaseInvoker<
+struct DeviceOperationInstanceFactory<GroupedConvolutionForwardBaseInvoker<
     NumDimSpatial,
     InLayout,
     WeiLayout,
@@ -40,7 +38,7 @@ struct DeviceOperationInstanceFactory<GroupedConvolutionBackwardWeightBaseInvoke
     ComputeTypeA,
     ComputeTypeB>>
 {
-    using DeviceOp = GroupedConvolutionBackwardWeightBaseInvoker<NumDimSpatial,
+    using DeviceOp = GroupedConvolutionForwardBaseInvoker<NumDimSpatial,
                                                 InLayout,
                                                 WeiLayout,
                                                 OutLayout,
@@ -68,7 +66,7 @@ struct DeviceOperationInstanceFactory<GroupedConvolutionBackwardWeightBaseInvoke
                              std::is_same_v<ComputeTypeA, ck_tile::half_t> &&
                              std::is_same_v<ComputeTypeB, ck_tile::half_t>)
                 {
-                    add_grouped_conv2d_bwd_weight_f16_instances(op_ptrs);
+                    add_grouped_conv2d_fwd_f16_instances(op_ptrs);
                 }
                 if constexpr(std::is_same_v<InDataType, ck_tile::bfloat16_t> &&
                              std::is_same_v<WeiDataType, ck_tile::bfloat16_t> &&
@@ -76,7 +74,7 @@ struct DeviceOperationInstanceFactory<GroupedConvolutionBackwardWeightBaseInvoke
                              std::is_same_v<ComputeTypeA, ck_tile::bfloat16_t> &&
                              std::is_same_v<ComputeTypeB, ck_tile::bfloat16_t>)
                 {
-                    add_grouped_conv2d_bwd_weight_bf16_instances(op_ptrs);
+                    add_grouped_conv2d_fwd_bf16_instances(op_ptrs);
                 }
             }
         }

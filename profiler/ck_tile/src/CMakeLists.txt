@@ -12,10 +12,7 @@ message(STATUS "CK_PROFILER_INSTANCE_FILTER: ${CK_PROFILER_INSTANCE_FILTER}")
 
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1[12]")
   list(APPEND PROFILER_OPS tile_profile_grouped_conv_bwd_weight.cpp)
-endif()
-
-if(DL_KERNELS)
-  list(APPEND PROFILER_OPS tile_profile_grouped_conv_bwd_weight.cpp)
+  list(APPEND PROFILER_OPS tile_profile_grouped_conv_fwd.cpp)
 endif()
 
 set(PROFILER_SOURCES tile_profiler.cpp)
@@ -33,7 +30,6 @@ message(VERBOSE "ckTileProfiler sources: ${PROFILER_SOURCES}")
 set(PROFILER_EXECUTABLE ckTileProfiler)
 
 add_executable(${PROFILER_EXECUTABLE} ${PROFILER_SOURCES})
-#target_include_directories(${PROFILER_EXECUTABLE} PRIVATE ${CMAKE_PROJECT_DIR}/include)
 target_compile_options(${PROFILER_EXECUTABLE} PRIVATE -Wno-global-constructors)
 # flags to compress the library
 if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
