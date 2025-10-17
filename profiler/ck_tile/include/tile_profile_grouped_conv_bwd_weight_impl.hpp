@@ -137,6 +137,22 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
         }
     }
 
+    // First, calculate the reference result if verification is needed.
+    ck_tile::HostTensor<WeiDataType> weight_host_ref(wei_g_k_c_xs_desc);
+    weight_host_ref.SetZero();
+    if (do_verification)
+    {
+        ck_tile::reference_grouped_conv_bwd_weight<NDimSpatial, InDataType, WeiDataType, OutDataType>(
+                            input,
+                            weight_host_ref,
+                            output,
+                            conv_param.conv_filter_strides_,
+                            conv_param.conv_filter_dilations_,
+                            conv_param.input_left_pads_,
+                            conv_param.input_right_pads_);
+    }
+
+
     index_t num_kernel = 0;
     bool all_pass = true;
     for(auto& op : ops)
@@ -184,23 +200,13 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                     op->Run(args, false, n_warmup, n_repeat);
                     weight_dev_buf.FromDevice(weight.data());
 
-                    ck_tile::HostTensor<WeiDataType> weight_host_ref(wei_g_k_c_xs_desc);
-                    weight_host_ref.SetZero();
-
-                    ck_tile::reference_grouped_conv_bwd_weight<NDimSpatial, InDataType, WeiDataType, OutDataType>(
-                            input,
-                            weight_host_ref,
-                            output,
-                            conv_param.conv_filter_strides_,
-                            conv_param.conv_filter_dilations_,
-                            conv_param.input_left_pads_,
-                            conv_param.input_right_pads_);
                     const ck_tile::index_t GemmK = weight.get_element_size() / (conv_param.G_ * conv_param.K_);
                     const float max_accumulated_value =
                         *std::max_element(weight_host_ref.mData.begin(), weight_host_ref.mData.end());
                     const auto rtol_atol =
                         calculate_rtol_atol<InDataType, WeiDataType, AccDataType, OutDataType>(
                             GemmK, split_k_value, max_accumulated_value);
+
                     pass = ck_tile::check_err(weight,
                                             weight_host_ref,
                                             "Error: Incorrect results!",
@@ -256,7 +262,9 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
               << "\n********************************" 
               << "\nname: " << best_op_name
               << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops
-              << "\nGB/s: " << best_gb_per_sec << std::endl;
+              << "\nGB/s: " << best_gb_per_sec 
+              << "\nSplitK: " << best_split_k
+              << std::endl;
 
     if(instance_index != -1)
     {
