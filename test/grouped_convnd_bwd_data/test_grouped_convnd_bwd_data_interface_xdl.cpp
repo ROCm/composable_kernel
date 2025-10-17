@@ -181,7 +181,7 @@ TYPED_TEST(TestGroupedConvndBwdDataDefault, VectorLoadCheck)
 
 TYPED_TEST(TestGroupedConvndBwdDataDefault, SplitK)
 {
-    if (ck::is_xdl_supported())
+    if(ck::is_xdl_supported())
     {
         // SplitK = 1
         this->conv_param  = {2, 2, 4, 192, 192, {1, 1}, {28, 28}, {1, 1}, {1, 1}, {0, 0}, {0, 0}};
@@ -194,7 +194,7 @@ TYPED_TEST(TestGroupedConvndBwdDataDefault, SplitK)
         is_supported  = this->template Run<2>();
         EXPECT_FALSE(is_supported);
     }
-    else 
+    else
     {
         GTEST_SKIP() << "XDL ops not supported on this device";
     }
