@@ -24,23 +24,12 @@ struct UnifiedAttentionKernel
     static constexpr ck_tile::index_t kBlockPerCu = UnifiedAttentionPipeline::kBlockPerCu;
     static_assert(kBlockPerCu > 0);
 
-<<<<<<< HEAD
-    using QDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::QDataType>;
-    using KDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::KDataType>;
-    using VDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::VDataType>;
-    using ODataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::ODataType>;
-    using SaccDataType = ck_tile::remove_cvref_t<typename FmhaPipeline::SaccDataType>;
-    
-    using FmhaMask                 = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
-    static constexpr bool kHasMask = FmhaMask::IsMasking;
-=======
     using QDataType    = ck_tile::remove_cvref_t<typename UnifiedAttentionPipeline::QDataType>;
     using KDataType    = ck_tile::remove_cvref_t<typename UnifiedAttentionPipeline::KDataType>;
     using VDataType    = ck_tile::remove_cvref_t<typename UnifiedAttentionPipeline::VDataType>;
     using ODataType    = ck_tile::remove_cvref_t<typename UnifiedAttentionPipeline::ODataType>;
     using SaccDataType = ck_tile::remove_cvref_t<typename UnifiedAttentionPipeline::SaccDataType>;
     using FmhaMask                 = ck_tile::remove_cvref_t<typename UnifiedAttentionPipeline::FmhaMask>;
->>>>>>> 853fa21566f6a1fe4237289c61db772b1bbfeb3f
 
     static constexpr bool kPadSeqLenQ  = UnifiedAttentionPipeline::kPadSeqLenQ;
     static constexpr bool kPadHeadDim = UnifiedAttentionPipeline::kPadHeadDim;

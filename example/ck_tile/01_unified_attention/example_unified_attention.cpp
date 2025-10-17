@@ -30,16 +30,23 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
 {
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("prec", "fp16", "data type. fp16/bf16")
-        .insert("b", "2", "batch size")
+        .insert("b", "3", "batch size")
         .insert("h", "8", "num of head, for q")
         .insert("h_k",
                 "-1",
                 "num of head, for k/v, -1 means equal to h\n"
                 "if not equal to h, then this is GQA/MQA case")
-        .insert("s", "3328", "seqlen_q")
-        .insert("s_k", "-1", "seqlen_k, -1 means equal to s")
+        .insert("s", "1024", "max_seqlen_q")
+        .insert("nb", "1024", "num_blks")
+        .insert("bs", "128", "BLOCK_SIZE for kv")
+        .insert("s_k", "2048", "max_context_len")
         .insert("d", "128", "head dim for q & k")
         .insert("scale_s", "0", "scale factor of S. 0 means equal to 1/sqrt(hdim)")
+        // TODO scale factors
+        .insert("scale", "1", "")
+        .insert("scale_k", "1", "")
+        .insert("scale_v", "1", "")
+        .insert("scale_out", "1", "")
         .insert("iperm",
                 "0",
                 "permute input\n"
@@ -54,12 +61,12 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
         .insert("warmup", "5", "number of iterations before benchmark the kernel")
         .insert("repeat", "30", "number of iterations to benchmark the kernel")
         // Optional effective seqlen override (exclude PAD) for batch mode
-        .insert("q_eff_lens",
-                "",
+        .insert("query_lens",
+                "1, 5, 129",
                 "Batch-mode only: per-batch effective seqlen for Q (exclude PAD).\n"
                 "Comma-separated list of length 'b'. If empty, no override.")
-        .insert("kv_eff_lens",
-                "",
+        .insert("kv_lens",
+                "1328, 18, 463",
                 "Batch-mode only: per-batch effective seqlen for KV (exclude PAD).\n"
                 "Comma-separated list of length 'b'. If empty, no override.");
 
@@ -91,100 +98,66 @@ struct Problem
                         ? ck_tile::fmha_fwd_v3_args::data_type_enum::fp16
                         : ck_tile::fmha_fwd_v3_args::data_type_enum::bf16;
         batch     = args.get_int("b");
-        seqlen_q  = args.get_int("s");
-        seqlen_k  = args.get_int("s_k");
-        if(seqlen_k < 0)
-        {
-            seqlen_k = seqlen_q;
-        }
+        max_seqlen_q = args.get_int("s");
+        max_context_len = args.get_int("s_k");
+        num_blks  = args.get_int("nb");
+        BLOCK_SIZE = args.get_int("bs");
         nhead_q  = args.get_int("h");
         nhead_kv = args.get_int("h_k");
-        if(nhead_kv < 0)
-        {
-            nhead_kv = nhead_q;
-        }
+
         hdim          = args.get_int("d");
-        softmax_scale = args.get_float("scale_s");
-        if(softmax_scale == .0f)
-            softmax_scale = 1.0 / ck_tile::sqrt(static_cast<float>(hdim));
+        query_lens = args.get_int_vec("query_lens");
+        kv_lens = args.get_int_vec("kv_lens");
+        // softmax_scale = args.get_float("scale_s");
+        // if(softmax_scale == .0f)
+        //     softmax_scale = 1.0 / ck_tile::sqrt(static_cast<float>(hdim));
 
-        const auto is_causal = args.get_bool("causal");
-        if(is_causal)
-        {
-            mask = mask_info::decode("b:-1,0", seqlen_q, seqlen_k);
-        }
-        else
-        {
-            mask = mask_info::decode("0", seqlen_q, seqlen_k);
-        }
 
-        input_layout  = args.get_int("iperm") == 1 ? TensorLayout::bhsd : TensorLayout::bshd;
-        output_layout = args.get_int("operm") == 1 ? TensorLayout::bhsd : TensorLayout::bshd;
-        q_eff_lens    = args.get_int_vec("q_eff_lens");
-        kv_eff_lens   = args.get_int_vec("kv_eff_lens");
+        // TODO 
+        // mask = mask_info::decode("b:-1,0", seqlen_q, seqlen_k);
+
+        // q_eff_lens    = args.get_int_vec("q_eff_lens");
+        // kv_eff_lens   = args.get_int_vec("kv_eff_lens");
     }
 
     std::vector<ck_tile::index_t> get_query_shape() const
     {
-        if(input_layout == TensorLayout::bhsd)
-        {
-            return {batch, nhead_q, seqlen_q, hdim};
-        }
-        else
-        {
-            return {batch, seqlen_q, nhead_q, hdim};
-        }
+        return {batch * seqlen_q, nhead_q, hdim};
     }
 
     std::vector<ck_tile::index_t> get_key_shape() const
     {
-        if(input_layout == TensorLayout::bhsd)
-        {
-            return {batch, nhead_kv, seqlen_k, hdim};
-        }
-        else
-        {
-            return {batch, seqlen_k, nhead_kv, hdim};
-        }
+        return {num_blks, BLOCK_SIZE, nhead_kv, hdim};
     }
 
     std::vector<ck_tile::index_t> get_value_shape() const
     {
-        if(input_layout == TensorLayout::bhsd)
-        {
-            return {batch, nhead_kv, seqlen_k, hdim};
-        }
-        else
-        {
-            return {batch, seqlen_k, nhead_kv, hdim};
-        }
+        return {num_blks, BLOCK_SIZE, nhead_kv, hdim};
     }
 
     std::vector<ck_tile::index_t> get_output_shape() const
     {
-        if(output_layout == TensorLayout::bhsd)
-        {
-            return {batch, nhead_q, seqlen_q, hdim};
-        }
-        else
-        {
-            return {batch, seqlen_q, nhead_q, hdim};
-        }
+        return {batch * seqlen_q, nhead_q, hdim};
+
     }
 
     ck_tile::fmha_fwd_v3_args::data_type_enum data_type;
     ck_tile::index_t batch;
-    ck_tile::index_t seqlen_q;
-    ck_tile::index_t seqlen_k;
+    ck_tile::index_t num_blks;
+    ck_tile::index_t BLOCK_SIZE;
+    ck_tile::index_t max_seqlen_q; // sequal seq len, in thd format
+    ck_tile::index_t max_context_len;
     ck_tile::index_t nhead_q;
     ck_tile::index_t nhead_kv;
     ck_tile::index_t hdim;
-    float softmax_scale;
+    float scale_s;
+    float scale;
+    float scale_k;
+    float scale_v;
     mask_info mask;
-    TensorLayout input_layout;
     TensorLayout output_layout;
-    std::vector<int> q_eff_lens;
-    std::vector<int> kv_eff_lens;
+    std::vector<int> query_lens;
+    std::vector<int> kv_lens;
 };
 
 struct RunConfig
@@ -225,6 +198,7 @@ auto generate_qkv(const Problem& problem,
 
     return std::make_tuple(q, k, v);
 }
+
 
 namespace host {
 template <typename AccDataType,
@@ -342,63 +316,45 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     // Ensure output buffer is zero-initialized so padded regions compare cleanly
     o_buf.SetZero();
 
-    ck_tile::fmha_fwd_v3_args args{};
+    ck_tile::unified_attention_args args{};
 
     args.data_type     = problem.data_type;
-    args.batch         = problem.batch;
+    args.num_seqs         = problem.batch;
     args.seqlen_q      = problem.seqlen_q;
     args.seqlen_k      = problem.seqlen_k;
-    args.nhead_q       = problem.nhead_q;
-    args.nhead_kv      = problem.nhead_kv;
-    args.hdim_qk       = problem.hdim;
-    args.hdim_v        = problem.hdim;
-    args.softmax_scale = problem.softmax_scale;
+    args.num_head_q       = problem.nhead_q;
+    args.num_queries_per_kv       = problem.nhead_q / problem.nhead_kv;
+    args.mask_type = 2;
+    args.hdim       = problem.hdim;
 
-    args.window_size_left  = problem.mask.left;
-    args.window_size_right = problem.mask.right;
-    args.mask_type         = static_cast<ck_tile::index_t>(problem.mask.type);
+    args.BLOCK_SIZE = problem.BLOCK_SIZE;
+    args.num_blks = problem.num_blks;
 
-    // bshd: (batch, seqlen_q, nhead_q, hdim)
-    // bhsd: (batch, nhead_q, seqlen_q, hdim)
+    // args.query_lens = problem.query_lens
+    // args.kv_lens = problem.kv_lens
+
     args.q_ptr = q_buf.GetDeviceBuffer();
-    args.stride_q =
-        problem.input_layout == TensorLayout::bshd ? problem.nhead_q * problem.hdim : problem.hdim;
-    args.nhead_stride_q =
-        problem.input_layout == TensorLayout::bshd ? problem.hdim : problem.seqlen_q * problem.hdim;
-    args.batch_stride_q = problem.seqlen_q * problem.nhead_q * problem.hdim;
+    args.query_stride_0 = problem.hdim * problem.nhead_q;
+    args.query_stride_0 = problem.hdim;
 
-    // bshd: (batch, seqlen_k, nhead_kv, hdim)
-    // bhsd: (batch, nhead_kv, seqlen_k, hdim)
     args.k_ptr = k_buf.GetDeviceBuffer();
-    args.stride_k =
-        problem.input_layout == TensorLayout::bshd ? problem.nhead_kv * problem.hdim : problem.hdim;
-    args.nhead_stride_k =
-        problem.input_layout == TensorLayout::bshd ? problem.hdim : problem.seqlen_k * problem.hdim;
-    args.batch_stride_k = problem.seqlen_k * problem.nhead_kv * problem.hdim;
 
-    // bshd: (batch, seqlen_k, nhead_kv, hdim)
-    // bhsd: (batch, nhead_kv, seqlen_k, hdim)
+    args.stride_k_cache_0 = problem.hdim * problem.nhead_kv * problem.BLOCK_SIZE;
+    args.stride_k_cache_1 = problem.hdim * problem.nhead_kv;
+    args.stride_k_cache_2 = problem.hdim;
+    args.stride_k_cache_3 = 1;
+
     args.v_ptr = v_buf.GetDeviceBuffer();
-    args.stride_v =
-        problem.input_layout == TensorLayout::bshd ? problem.nhead_kv * problem.hdim : problem.hdim;
-    args.nhead_stride_v =
-        problem.input_layout == TensorLayout::bshd ? problem.hdim : problem.seqlen_k * problem.hdim;
-    args.batch_stride_v = problem.seqlen_k * problem.nhead_kv * problem.hdim;
+    args.stride_v_cache_0 = args.stride_k_cache_0;
+    args.stride_v_cache_1 = args.stride_k_cache_1;
+    args.stride_v_cache_2 = args.stride_k_cache_2;
+    args.stride_v_cache_3 = args.stride_k_cache_3;
 
-    // bshd: (batch, seqlen_q, nhead_q, hdim)
-    // bhsd: (batch, nhead_q, seqlen_q, hdim)
     args.o_ptr = o_buf.GetDeviceBuffer();
-    args.stride_o =
-        problem.output_layout == TensorLayout::bshd ? problem.nhead_q * problem.hdim : problem.hdim;
-    args.nhead_stride_o = problem.output_layout == TensorLayout::bshd
-                              ? problem.hdim
-                              : problem.seqlen_q * problem.hdim;
-    args.batch_stride_o = problem.seqlen_q * problem.nhead_q * problem.hdim;
+    args.output_stride_0 = query_stride_0;
+    args.output_stride_1 = query_stride_1;
 
     // Optional cumulative seqlen overrides (exclude PAD)
-    const bool has_varlen_q = !problem.q_eff_lens.empty() && problem.q_eff_lens[0] != -1;
-    const bool has_varlen_k = !problem.kv_eff_lens.empty() && problem.kv_eff_lens[0] != -1;
-
     auto make_effective_vec = [&](const std::vector<int>& opt_vec, ck_tile::index_t fallback) {
         std::vector<ck_tile::index_t> eff;
         if(!opt_vec.empty() && opt_vec[0] != -1)
@@ -416,11 +372,12 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
         return eff;
     };
 
-    const auto eff_q_vec  = make_effective_vec(problem.q_eff_lens, problem.seqlen_q);
-    const auto eff_kv_vec = make_effective_vec(problem.kv_eff_lens, problem.seqlen_k);
+    const auto eff_query_lens  = make_effective_vec(problem.query_lens, 1024);
+    const auto eff_kv_lens = make_effective_vec(problem.kv_lens, 1024);
 
     // Calculate cumulative sums for kernel arguments if varlen is used
-    std::vector<ck_tile::index_t> cuq_cum, cukv_cum;
+    std::vector<ck_tile::index_t> cu_query_lens ;
+
     auto calculate_cumulative = [&](const std::vector<ck_tile::index_t>& per_batch_vec,
                                     std::vector<ck_tile::index_t>& cum_vec) {
         cum_vec.resize(per_batch_vec.size() + 1);
@@ -428,26 +385,42 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
         for(std::size_t i = 0; i < per_batch_vec.size(); ++i)
             cum_vec[i + 1] = cum_vec[i] + per_batch_vec[i];
     };
+mask_type
+    calculate_cumulative(eff_query_lens, cu_query_lens);
 
-    if(has_varlen_q)
-    {
-        calculate_cumulative(eff_q_vec, cuq_cum);
-    }
-    if(has_varlen_k)
-    {
-        calculate_cumulative(eff_kv_vec, cukv_cum);
+    ck_tile::DeviceMem seq_lens_buf(kv_lens.size());
+    ck_tile::DeviceMem query_start_len_buf(cu_query_lens.size());
+
+    seq_lens_buf.ToDevice(kv_lens.data());
+    query_start_len_buf.ToDevice(cu_query_lens.data());
+
+    args.seq_lens_ptr =reinterpret_cast<const ck_tile::index_t*>(seq_lens_buf.GetDeviceBuffer());
+    args.query_start_len_ptr =reinterpret_cast<const ck_tile::index_t*>(query_start_len_buf.GetDeviceBuffer());
+
+
+    auto max_kv_len = std::max_element(problem.kv_lens.begin(), problem.kv_lens.end());
+
+    index_t max_num_blocks_per_seq =  (max_kv_len + problem.BLOCK_SIZE - 1) / problem.BLOCK_SIZE
+
+    // Create block_tables
+    ck_tile::DeviceMem block_tables_buf(problem.batch * max_num_blocks_per_seq * sizeof(ck_tile::index_t));
+
+    // Allocate host memory for block_tables
+    std::vector<ck_tile::index_t> block_tables_host(problem.batch * max_num_blocks_per_seq);
+
+    // Fill block_tables with random integers between 0 and num_blocks-1
+    std::mt19937 rng(run_config.seed ? *run_config.seed : std::random_device{}());
+    std::uniform_int_distribution<ck_tile::index_t> dist(0, problem.num_blks - 1);
+    for (size_t i = 0; i < block_tables_host.size(); ++i) {
+        block_tables_host[i] = dist(rng);
     }
 
-    ck_tile::DeviceMem cuq_buf(!cuq_cum.empty() ? cuq_cum.size() * sizeof(ck_tile::index_t) : 0);
-    ck_tile::DeviceMem cukv_buf(!cukv_cum.empty() ? cukv_cum.size() * sizeof(ck_tile::index_t) : 0);
-    cuq_buf.ToDevice(!cuq_cum.empty() ? cuq_cum.data() : nullptr);
-    cukv_buf.ToDevice(!cukv_cum.empty() ? cukv_cum.data() : nullptr);
-    args.cu_seqlen_q_ptr =
-        !cuq_cum.empty() ? reinterpret_cast<const ck_tile::index_t*>(cuq_buf.GetDeviceBuffer())
-                         : nullptr;
-    args.cu_seqlen_kv_ptr =
-        !cukv_cum.empty() ? reinterpret_cast<const ck_tile::index_t*>(cukv_buf.GetDeviceBuffer())
-                          : nullptr;
+    // Copy to device
+    block_tables_buf.ToDevice(block_tables_host.data());
+
+    // Set pointer in args
+    args.block_tables_ptr = reinterpret_cast<const ck_tile::index_t*>(block_tables_buf.GetDeviceBuffer());
+
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,
@@ -455,7 +428,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
                                          run_config.kernel_warmup,
                                          run_config.kernel_repeat};
 
-    auto [result, time] = ck_tile::fmha_fwd_v3(args, stream_config);
+    auto [result, time] = ck_tile::unified_attention(args, stream_config);
     if(!result)
     {
         std::cerr << "faild to run fmha_fwd_v3()" << std::endl;

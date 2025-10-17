@@ -122,7 +122,6 @@ float unified_attention_kernel_launch(const unified_attention_args& args, const 
                                    args.scale_k,
                                    args.scale_v,
                                    args.scale_out,
-                                   args.total_num_q_blocks,
                                    args.query_stride_0,
                                     args.query_stride_1,
                                     args.stride_k_cache_0,

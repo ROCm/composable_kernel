@@ -28,14 +28,13 @@ struct unified_attention_args
     index_t num_head_q;
     index_t num_queries_per_kv;
 
+    index_t hdim;
     // TODO window
     float scale_s;
     float scale;
     float scale_k;
     float scale_v;
     float scale_out;
-
-    index_t total_num_q_blocks;
 
     const void* q_ptr;
     index_t query_stride_0;
