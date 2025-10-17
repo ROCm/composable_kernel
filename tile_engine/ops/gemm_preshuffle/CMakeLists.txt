@@ -57,7 +57,7 @@ function(create_individual_gemm_preshuffle_target datatype layout trait tile_con
                 --kernel_name "gemm_preshuffle_${datatype}_${layout}_${trait}_${tile_config}"
                 --tile_config "${tile_config}"
                 --trait_combo "${trait}"
-                --gpu_target ${GEMM_GPU_TARGETS_INDIVIDUAL}
+                --gpu_target "${GEMM_GPU_TARGETS_INDIVIDUAL}"
         DEPENDS ${GEMM_PRESHUFFLE_SOURCE_DIR}/gemm_preshuffle_instance_builder.py ${config_json}
         COMMENT "Generating ${instance_header}"
     )
