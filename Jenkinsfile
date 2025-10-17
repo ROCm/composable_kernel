@@ -1545,6 +1545,43 @@ pipeline {
                         cleanWs()
                     }
                 }
+                stage("Run TILE_ENGINE_GEMM Tests on gfx950")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_TILE_ENGINE_GEMM_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx950") }
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                            -D CMAKE_CXX_COMPILER="${build_compiler()}" \
+                                            -D CMAKE_BUILD_TYPE=Release \
+                                            -D GPU_TARGETS="gfx950" \
+                                            -D GEMM_DATATYPE="fp16;bf16;fp8;bf8" \
+                                            -D GEMM_LAYOUT="rcr" \
+                                            -D GEMM_MULTI_D_DATATYPE="fp16" \
+                                            -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
+                                            -D GEMM_PRESHUFFLE_DATATYPE="fp8;fp16;bf8;bf16" \
+                                            -D GEMM_PRESHUFFLE_LAYOUT="rcr" \
+                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && \
+                                           ninja -j64 benchmark_gemm_all && \
+                                           python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" \
+                                           --warmup 5 --repeat 5 --verbose --json results.json && \
+                                           ninja -j64 benchmark_gemm_multi_d_fp16_rrrr && \
+                                           ./bin/benchmark_gemm_multi_d_fp16_rrrr && \
+                                           ninja -j64 benchmark_gemm_multi_d_fp16_ccrr && \
+                                           ./bin/benchmark_gemm_multi_d_fp16_ccrr && \
+                                           ninja -j64 benchmark_gemm_multi_d_fp16_crrr && \
+                                           ./bin/benchmark_gemm_multi_d_fp16_crrr && \
+                                           ninja -j64 benchmark_gemm_multi_d_fp16_rcrr && \
+                                           ./bin/benchmark_gemm_multi_d_fp16_rcrr """
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+                }
                 stage("Run TILE_ENGINE_GEMM Tests on gfx1201")
                 {
                     when {
