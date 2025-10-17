@@ -39,7 +39,7 @@ struct transpose_vectors
     {
     };
 
-    CK_TILE_DEVICE static void
+    CK_TILE_DEVICE static constexpr void
     apply_impl(const thread_buffer<VX, NX>& vx_tuple, thread_buffer<VY, NY>& vy_tuple, generic_tag)
     {
         static_for<0, NY, 1>{}([&](auto iy) {
@@ -47,9 +47,9 @@ struct transpose_vectors
         });
     }
 
-    CK_TILE_DEVICE static void apply_impl(const thread_buffer<VX, NX>& vx_tuple,
-                                          thread_buffer<VY, NY>& vy_tuple,
-                                          bytesize2_2x2_tag)
+    CK_TILE_DEVICE static constexpr void apply_impl(const thread_buffer<VX, NX>& vx_tuple,
+                                                    thread_buffer<VY, NY>& vy_tuple,
+                                                    bytesize2_2x2_tag)
     {
         static_assert(sizeof(S) == 2 && NX % 2 == 0 && NY % 2 == 0, "wrong!");
 
@@ -88,9 +88,9 @@ struct transpose_vectors
         });
     }
 
-    CK_TILE_DEVICE static void apply_impl(const thread_buffer<VX, NX>& vx_tuple,
-                                          thread_buffer<VY, NY>& vy_tuple,
-                                          bytesize1_4x4_tag)
+    CK_TILE_DEVICE static constexpr void apply_impl(const thread_buffer<VX, NX>& vx_tuple,
+                                                    thread_buffer<VY, NY>& vy_tuple,
+                                                    bytesize1_4x4_tag)
     {
         static_assert(sizeof(S) == 1 && NX % 4 == 0 && NY % 4 == 0, "wrong!");
 
@@ -149,9 +149,9 @@ struct transpose_vectors
         });
     }
 
-    CK_TILE_DEVICE static void apply_impl(const thread_buffer<VX, NX>& vx_tuple,
-                                          thread_buffer<VY, NY>& vy_tuple,
-                                          bytesize1_2x2_tag)
+    CK_TILE_DEVICE static constexpr void apply_impl(const thread_buffer<VX, NX>& vx_tuple,
+                                                    thread_buffer<VY, NY>& vy_tuple,
+                                                    bytesize1_2x2_tag)
     {
         static_assert(sizeof(S) == 1 && NX % 2 == 0 && NY % 2 == 0, "wrong!");
 
@@ -211,7 +211,7 @@ struct transpose_vectors
     CK_TILE_DEVICE void operator()(const thread_buffer<VX, NX>& vx_tuple,
                                    thread_buffer<VY, NY>& vy_tuple) const
     {
-        return apply_impl(vx_tuple, vy_tuple, tag_dispatch());
+        apply_impl(vx_tuple, vy_tuple, tag_dispatch());
     }
 };
 
