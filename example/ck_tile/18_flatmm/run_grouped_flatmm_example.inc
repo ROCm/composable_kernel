@@ -556,7 +556,6 @@ int run_contiguous_grouped_flatmm_example_with_layouts(
     ck_tile::FillUniformDistribution<AccDataType>{-1.f, 1.f}(per_token_scale);
     ck_tile::FillUniformDistribution<AccDataType>{-1.f, 1.f}(per_channel_scale);
 
-    constexpr int N_Warp_Tile = FlatmmConfig::N_Warp_Tile;
     assert(N % N_Warp_Tile == 0 &&
            "N must be divisible by N_Warp_Tile for contiguous grouped gemm");
     ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<FlatmmConfig, BDataType>(b_k_n_tensor);
@@ -755,7 +754,6 @@ int run_masked_grouped_flatmm_example_with_layouts(
     ck_tile::HostTensor<AccDataType> per_channel_scale(ck_tile::HostTensorDescriptor({group_count * N}, {1}));
 
     std::vector<ck_tile::index_t> m_indices(group_count);
-    int indices_fill_start = 0;
     for(int i = 0; i < group_count; ++i)
     {
         int group_m        = Ms[i];
@@ -763,7 +761,6 @@ int run_masked_grouped_flatmm_example_with_layouts(
         for(int j = 0; j < padded_group_m; j++)
         {
             m_indices[i] = group_m;
-            // m_indices[i] = padded_group_m; // -1 for padding
         }
     }
 
@@ -772,7 +769,6 @@ int run_masked_grouped_flatmm_example_with_layouts(
     ck_tile::FillUniformDistribution<AccDataType>{-1.f, 1.f}(per_token_scale);
     ck_tile::FillUniformDistribution<AccDataType>{-1.f, 1.f}(per_channel_scale);
 
-    constexpr int N_Warp_Tile = FlatmmConfig::N_Warp_Tile;
     assert(N % N_Warp_Tile == 0 &&
            "N must be divisible by N_Warp_Tile for contiguous grouped gemm");
     ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<FlatmmConfig, BDataType>(b_k_n_tensor);
@@ -860,7 +856,6 @@ int run_masked_grouped_flatmm_example_with_layouts(
 
         ck_tile::HostTensor<CDataType> c_gpu_ref_host(
             ck_tile::host_tensor_descriptor(group_count * M, N, stride_C, is_row_major(CLayout{})));
-        ck_tile::index_t acc_m = 0;
         for(int i = 0; i < group_count; ++i)
         {
             ck_tile::hip_check_error(hipMemcpy(d_B,

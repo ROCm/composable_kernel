@@ -23,9 +23,9 @@ static constexpr inline auto is_row_major(Layout layout_)
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("Ms", "512,256,1024", "m dimension")
-        .insert("Ns", "512,512,512", "n dimension")
-        .insert("Ks", "1024,1024,512", "k dimension")
+    arg_parser.insert("Ms", "1,1,1", "m dimension")
+        .insert("Ns", "5120,5120,5120", "n dimension")
+        .insert("Ks", "6144,6144,6144", "k dimension")
         .insert("group_count", "3", "group count")
         .insert("a_layout", "R", "A tensor data layout - Row by default")
         .insert("b_layout", "C", "B tensor data layout - Row by default")
@@ -35,7 +35,7 @@ auto create_args(int argc, char* argv[])
         .insert("stride_c", "0", "Tensor C stride")
         .insert("v", "1", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
         .insert("prec", "fp8", "data type. fp16/bf16/fp8/bf8")
-        .insert("mode", "general", "grouped gemm mode: [general | contiguous], general by default")
+        .insert("mode", "masked", "grouped gemm mode: [general | contiguous | masked], general by default")
         .insert("wave_tile", "16", "only support 16(16x16) or 32(32x32)")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
@@ -140,7 +140,6 @@ float grouped_flatmm(const KernelArguments& args, const ck_tile::stream_config& 
                                              DsLayout,
                                              ELayout,
                                              CDEElementWise,
-                                             CodegenPipelineProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
                                              FlatmmConfig::M_Warp,
@@ -207,7 +206,7 @@ float grouped_flatmm(const KernelArguments& args, const ck_tile::stream_config& 
         // {
         ave_time =
             ck_tile::launch_kernel(s,
-                                    ck_tile::make_kernel<blocks.x, FlatmmConfig::kBlockPerCu>(
+                                    ck_tile::make_kernel<FlatmmConfig::kBlockPerCu>(
                                         Kernel{}, grids, blocks, 0, kargs));
         // }
 
@@ -250,7 +249,6 @@ int run_grouped_flatmm_example(int argc, char* argv[])
     std::string mode      = arg_parser.get_str("mode");
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
-    int scale_opt         = arg_parser.get_int("scale");
 
     if(a_layout == "R" && b_layout == "C")
     {

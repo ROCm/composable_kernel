@@ -11,6 +11,7 @@
 #include "ck_tile/ops/flatmm/block/flatmm_uk_config.hpp"
 #include "ck_tile/ops/flatmm/kernel/flatmm_kernel.hpp"
 #include "ck_tile/ops/flatmm/kernel/mixed_prec_flatmm_kernel.hpp"
+#include "ck_tile/ops/flatmm/kernel/grouped_flatmm_kernel.hpp"
 #include "ck_tile/ops/flatmm/pipeline/flatmm_pipeline_agmem_bgmem_creg_v1.hpp"
 #include "ck_tile/ops/flatmm/pipeline/flatmm_pipeline_agmem_bgmem_creg_v1_policy.hpp"
 #include "ck_tile/ops/flatmm/pipeline/mixed_prec_flatmm_pipeline_agmem_bgmem_creg_v1.hpp"

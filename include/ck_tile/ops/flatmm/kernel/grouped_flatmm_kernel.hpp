@@ -248,7 +248,7 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
         e = hipOccupancyMaxActiveBlocksPerMultiprocessor(
             &maxActiveBlocksPerCU,
             reinterpret_cast<void*>(
-                kentry2<block_size, GroupedFlatmmKernel, GroupedFlatmmHostArgs<ScaleM, ScaleN, NumDTensor>>),
+                kentry<1, GroupedFlatmmKernel, GroupedFlatmmHostArgs<ScaleM, ScaleN, NumDTensor>>),
             block_size,
             dync_smem_size);
 
@@ -279,7 +279,7 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
         e = hipOccupancyMaxActiveBlocksPerMultiprocessor(
             &maxActiveBlocksPerCU,
             reinterpret_cast<void*>(
-                kentry2<block_size, GroupedFlatmmKernel, ContiguousGroupedFlatmmHostArgs<ScaleM, ScaleN, NumDTensor>>),
+                kentry<1, GroupedFlatmmKernel, ContiguousGroupedFlatmmHostArgs<ScaleM, ScaleN, NumDTensor>>),
             block_size,
             dync_smem_size);
 
@@ -312,7 +312,7 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
         e = hipOccupancyMaxActiveBlocksPerMultiprocessor(
             &maxActiveBlocksPerCU,
             reinterpret_cast<void*>(
-                kentry2<block_size, GroupedFlatmmKernel, MaskedGroupedFlatmmHostArgs<ScaleM, ScaleN, NumDTensor>>),
+                kentry<1, GroupedFlatmmKernel, MaskedGroupedFlatmmHostArgs<ScaleM, ScaleN, NumDTensor>>),
             block_size,
             dync_smem_size);
 
@@ -362,7 +362,7 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
             {
                 // Found the group this block belongs to
                 // create the kernel args for the underlying flatmm kernel
-                typename UnderlyingGemmKernel::template KernelArgs<ScaleM, ScaleN> impl_kargs{
+                FlatmmKernelArgs<ScaleM, ScaleN, NumDTensor> impl_kargs{
                     kargs.a_ptr[group_idx],
                     kargs.b_shuffle_ptr[group_idx],
                     kargs.ds_ptr,
@@ -403,7 +403,7 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
             // get the group index from the M_indices
             int group_idx = kargs.M_indices[block_m_idx * BlockGemmShape::kM];
 
-            typename UnderlyingGemmKernel::template KernelArgs<ScaleM, ScaleN> impl_kargs{
+            FlatmmKernelArgs<ScaleM, ScaleN, NumDTensor> impl_kargs{
                 kargs.a_ptr,
                 static_cast<const BDataType*>(kargs.b_shuffle_ptr) + group_idx * kargs.N * kargs.K,
                 kargs.ds_ptr,
@@ -444,7 +444,7 @@ struct GroupedFlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Epi
             {
                 // Found the group this block belongs to
                 // create the kernel args for the underlying flatmm kernel
-                typename UnderlyingGemmKernel::template KernelArgs<ScaleM, ScaleN> impl_kargs{
+                FlatmmKernelArgs<ScaleM, ScaleN, NumDTensor> impl_kargs{
                     static_cast<const ADataType*>(kargs.a_ptr) + group_idx * kargs.M * kargs.K,
                     static_cast<const BDataType*>(kargs.b_shuffle_ptr) + group_idx * kargs.N * kargs.K,
                     kargs.ds_ptr,
