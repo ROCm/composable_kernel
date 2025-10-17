@@ -31,9 +31,9 @@ TYPED_TEST(TestCkTileGroupedGemmPreshuffle, PreshufflePersistentVaried)
 {
     const int group_count = 3;
     const int kbatch      = 1;
-    std::vector<int> Ms = {64, 96, 128};
-    std::vector<int> Ns = {64, 128, 192};
-    std::vector<int> Ks = {128, 256, 384};
+    std::vector<int> Ms   = {64, 96, 128};
+    std::vector<int> Ns   = {64, 128, 192};
+    std::vector<int> Ks   = {128, 256, 384};
     std::vector<int> stride_As;
     std::vector<int> stride_Bs;
     std::vector<int> stride_Cs;
@@ -53,9 +53,9 @@ TYPED_TEST(TestCkTileGroupedGemmPreshuffle, PreshufflePersistentLarge)
 {
     const int group_count = 2;
     const int kbatch      = 1;
-    std::vector<int> Ms = {256, 512};
-    std::vector<int> Ns = {256, 512};
-    std::vector<int> Ks = {512, 1024};
+    std::vector<int> Ms   = {256, 512};
+    std::vector<int> Ns   = {256, 512};
+    std::vector<int> Ks   = {512, 1024};
     std::vector<int> stride_As;
     std::vector<int> stride_Bs;
     std::vector<int> stride_Cs;

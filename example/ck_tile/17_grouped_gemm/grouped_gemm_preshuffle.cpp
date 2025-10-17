@@ -42,12 +42,12 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                                                    GemmConfig::TileParitionerM01>;
 
     using Traits              = ck_tile::TileGemmTraits<GemmConfig::kPadM,
-                                                        GemmConfig::kPadN,
-                                                        GemmConfig::kPadK,
-                                                        ALayout,
-                                                        BLayout,
-                                                        CLayout,
-                                                        GemmConfig::NumWaveGroups>;
+                                           GemmConfig::kPadN,
+                                           GemmConfig::kPadK,
+                                           ALayout,
+                                           BLayout,
+                                           CLayout,
+                                           GemmConfig::NumWaveGroups>;
     using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
                                                                  GemmConfig::kPadN,
                                                                  GemmConfig::kPadK,
@@ -130,10 +130,10 @@ float grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
 
             if(s.log_level_ > 0)
             {
-                std::cout << "Launching kernel: " << Kernel::GetName()
-                          << " with args:" << " grid: {" << grids.x << ", " << grids.y << ", "
-                          << grids.z << "}" << ", blocks: {" << blocks.x << ", " << blocks.y << ", "
-                          << blocks.z << "}" << std::endl;
+                std::cout << "Launching kernel: " << Kernel::GetName() << " with args:"
+                          << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+                          << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
+                          << "}" << std::endl;
             }
 
             return ave_time = ck_tile::launch_kernel(
@@ -190,18 +190,20 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                                                    GemmConfig::TileParitionerGroupNum,
                                                    GemmConfig::TileParitionerM01>;
 
-    using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
-                                                                 GemmConfig::kPadN,
-                                                                 GemmConfig::kPadK,
-                                                                 GemmConfig::DoubleSmemBuffer,
-                                                                 ALayout,
-                                                                 BLayout,
-                                                                 CLayout,
-                                                                 GemmConfig::TransposeC,
-                                                                 GemmConfig::UseStructuredSparsity,
-                                                                 false,  // Persistent = false (not supported with preshuffle yet)
-                                                                 GemmConfig::NumWaveGroups,
-                                                                 GemmConfig::Preshuffle>;
+    using GemmUniversalTraits =
+        ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
+                                         GemmConfig::kPadN,
+                                         GemmConfig::kPadK,
+                                         GemmConfig::DoubleSmemBuffer,
+                                         ALayout,
+                                         BLayout,
+                                         CLayout,
+                                         GemmConfig::TransposeC,
+                                         GemmConfig::UseStructuredSparsity,
+                                         false, // Persistent = false (not supported with preshuffle
+                                                // yet)
+                                         GemmConfig::NumWaveGroups,
+                                         GemmConfig::Preshuffle>;
 
     float ave_time{0};
 
@@ -218,33 +220,34 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
 
         using GemmPipeline = typename PipelineTypeTraits<
             GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
-        using GemmEpilogue = ck_tile::CShuffleEpilogue<
-            ck_tile::CShuffleEpilogueProblem<ADataType,
-                                             BDataType,
-                                             ck_tile::tuple<>,  // DsDataType (empty for no D tensors)
-                                             AccDataType,
-                                             CDataType,
-                                             ck_tile::tuple<>,  // DsLayout (empty for no D tensors)
-                                             CLayout,
-                                             ck_tile::element_wise::PassThrough,
-                                             TilePartitioner::MPerBlock,
-                                             TilePartitioner::NPerBlock,
-                                             GemmConfig::M_Warp,
-                                             GemmConfig::N_Warp,
-                                             GemmConfig::M_Warp_Tile,
-                                             GemmConfig::N_Warp_Tile,
-                                             GemmConfig::K_Warp_Tile,
-                                             UniversalGemmProblem::TransposeC,
-                                             memory_operation>>;
+        using GemmEpilogue = ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
+            ADataType,
+            BDataType,
+            ck_tile::tuple<>, // DsDataType (empty for no D tensors)
+            AccDataType,
+            CDataType,
+            ck_tile::tuple<>, // DsLayout (empty for no D tensors)
+            CLayout,
+            ck_tile::element_wise::PassThrough,
+            TilePartitioner::MPerBlock,
+            TilePartitioner::NPerBlock,
+            GemmConfig::M_Warp,
+            GemmConfig::N_Warp,
+            GemmConfig::M_Warp_Tile,
+            GemmConfig::N_Warp_Tile,
+            GemmConfig::K_Warp_Tile,
+            UniversalGemmProblem::TransposeC,
+            memory_operation>>;
         using Kernel      = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
         const dim3 blocks = Kernel::BlockSize();
         const dim3 grids  = Kernel::MaxOccupancyGridSize(s);
 
         if(s.log_level_ > 0)
         {
-            std::cout << "Launching kernel: " << Kernel::GetName() << " with args:" << " grid: {"
-                      << grids.x << ", " << grids.y << ", " << grids.z << "}" << ", blocks: {"
-                      << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << std::endl;
+            std::cout << "Launching kernel: " << Kernel::GetName() << " with args:"
+                      << " grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+                      << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
+                      << std::endl;
         }
 
         ave_time =

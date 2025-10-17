@@ -384,13 +384,13 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
 
     // RunPersistent method that enables persistent mode
     void RunPersistent(const std::vector<int>& Ms,
-                      const std::vector<int>& Ns,
-                      const std::vector<int>& Ks,
-                      std::vector<int>& stride_As,
-                      std::vector<int>& stride_Bs,
-                      std::vector<int>& stride_Cs,
-                      const int kbatch      = 1,
-                      const int group_count = 16)
+                       const std::vector<int>& Ns,
+                       const std::vector<int>& Ks,
+                       std::vector<int>& stride_As,
+                       std::vector<int>& stride_Bs,
+                       std::vector<int>& stride_Cs,
+                       const int kbatch      = 1,
+                       const int group_count = 16)
     {
         using namespace ck_tile::literals;
         auto f_host_tensor_descriptor = [](std::size_t row,
@@ -490,9 +490,10 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
         ck_tile::DeviceMem gemm_workspace;
         gemm_workspace.Realloc(get_workspace_size(gemm_descs));
 
-        invoke_grouped_gemm_persistent<ALayout, BLayout, CLayout>(gemm_descs,
-                                                                  ck_tile::stream_config{nullptr, false, 1},
-                                                                  gemm_workspace.GetDeviceBuffer());
+        invoke_grouped_gemm_persistent<ALayout, BLayout, CLayout>(
+            gemm_descs,
+            ck_tile::stream_config{nullptr, false, 1},
+            gemm_workspace.GetDeviceBuffer());
 
         // Copy results back to host for validation
         for(int i = 0; i < group_count; i++)
@@ -522,7 +523,7 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
         EXPECT_TRUE(pass);
     }
 
-private:
+    private:
     template <typename ALayout, typename BLayout, typename CLayout>
     void invoke_grouped_gemm_persistent(const std::vector<grouped_gemm_kargs>& gemm_descs,
                                         const ck_tile::stream_config& s,
@@ -548,7 +549,7 @@ private:
                                              CLayout,
                                              TransposeC,
                                              /*UseStructuredSparsity*/ false,
-                                             /*Persistent*/ true,  // Enable persistent mode
+                                             /*Persistent*/ true, // Enable persistent mode
                                              /*NumWaveGroups*/ 1,
                                              /*Preshuffle*/ true>;
         using GemmPipelineProblem =
