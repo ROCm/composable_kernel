@@ -25,7 +25,7 @@ class ArgumentsNotSupportedException : public std::logic_error
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()
 {
-#if defined(__gfx950__)
+#if defined(CK_GFX950_SUPPORT)
     constexpr bool is_8bit_float =
         std::is_same_v<PrecType, ck_tile::fp8_t> || std::is_same_v<PrecType, ck_tile::bf8_t>;
     if constexpr(M_Warp_Tile == 32)
@@ -220,6 +220,27 @@ struct GemmConfigComputeV5 : public GemmConfigBase
     static constexpr ck_tile::index_t NumWaNumWaveGroups = 2;
 };
 
+template <typename PrecType>
+struct GemmConfigComputeV3_WMMA : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 64 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 4;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 16;
+
+    static constexpr bool DoubleSmemBuffer     = false;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
+
+    static constexpr int kBlockPerCu = 2;
+};
+
 template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>
 struct GemmTypeConfig;
 
@@ -243,6 +264,15 @@ struct GemmTypeConfig<ck_tile::bf16_t, ck_tile::bf16_t, ck_tile::bf16_t>
 };
 
 template <>
+struct GemmTypeConfig<ck_tile::bf16_t, ck_tile::pk_int4_t, ck_tile::bf16_t>
+{
+    using ADataType   = ck_tile::bf16_t;
+    using BDataType   = ck_tile::pk_int4_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::bf16_t;
+};
+
+template <>
 struct GemmTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>
 {
     using ADataType   = ck_tile::fp8_t;
@@ -261,9 +291,27 @@ struct GemmTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>
 };
 
 template <>
+struct GemmTypeConfig<ck_tile::bf8_t, ck_tile::pk_int4_t, ck_tile::half_t>
+{
+    using ADataType   = ck_tile::bf8_t;
+    using BDataType   = ck_tile::pk_int4_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::half_t;
+};
+
+template <>
 struct GemmTypeConfig<ck_tile::half_t, ck_tile::pk_int4_t, ck_tile::half_t>
 {
     using ADataType   = ck_tile::half_t;
+    using BDataType   = ck_tile::pk_int4_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::half_t;
+};
+
+template <>
+struct GemmTypeConfig<ck_tile::fp8_t, ck_tile::pk_int4_t, ck_tile::half_t>
+{
+    using ADataType   = ck_tile::fp8_t;
     using BDataType   = ck_tile::pk_int4_t;
     using AccDataType = float;
     using CDataType   = ck_tile::half_t;
@@ -411,4 +459,4 @@ template <typename ADataType,
           typename CLayout,
           bool Persistent = false,
           typename CDEElementWise>
-float gemm(const ck_tile::GemmHostArgs</*NumDTensor = 0*/>& args, const ck_tile::stream_config& s);
+float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -32,9 +32,9 @@ template <index_t BlockSize,
           index_t KPerXDL>
 struct BlockwiseGemmXdlops_pipeline_hotloop_inst
 {
-    static constexpr index_t WaveSize = 64;
     static constexpr index_t WaveNumM = MPerBlock / (MRepeat * MPerXDL);
     static constexpr index_t WaveNumN = NPerBlock / (NRepeat * NPerXDL);
+    static constexpr index_t WaveSize = BlockSize / (WaveNumM * WaveNumN);
 
     static constexpr index_t A_Buffer_Load_Inst_Num =
         MPerBlock * KPerBlock / (BlockSize * ABufferLoadWidth);
@@ -96,9 +96,9 @@ template <
     index_t KPack,
     bool TransposeC = false,
     index_t AMmaKStride =
-        KPack* XdlopsGemm<FloatAB, MPerXDL, NPerXDL, KPack, FloatAB, TransposeC>{}.K0PerXdlops,
+        KPack * XdlopsGemm<FloatAB, MPerXDL, NPerXDL, KPack, FloatAB, TransposeC>{}.K0PerXdlops,
     index_t BMmaKStride =
-        KPack* XdlopsGemm<FloatAB, MPerXDL, NPerXDL, KPack, FloatAB, TransposeC>{}.K0PerXdlops>
+        KPack * XdlopsGemm<FloatAB, MPerXDL, NPerXDL, KPack, FloatAB, TransposeC>{}.K0PerXdlops>
 struct BlockwiseGemmXdlops_pipeline_v4
 {
     static constexpr auto I0 = Number<0>{};
@@ -108,7 +108,9 @@ struct BlockwiseGemmXdlops_pipeline_v4
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
-    static constexpr index_t WaveSize = get_warp_size();
+    static constexpr index_t MWaves   = MPerBlock / (MRepeat * MPerXDL);
+    static constexpr index_t NWaves   = NPerBlock / (NRepeat * NPerXDL);
+    static constexpr index_t WaveSize = BlockSize / MWaves / NWaves;
 
     static constexpr index_t A_K0 = ATileDesc{}.GetLength(I0);
     static constexpr index_t B_K0 = BTileDesc{}.GetLength(I0);
@@ -120,9 +122,6 @@ struct BlockwiseGemmXdlops_pipeline_v4
 
     static constexpr index_t KPerThread = KPerBlock / xdlops_gemm.K0PerXdlops;
     static constexpr index_t KRepeat    = KPerThread / KPack;
-
-    static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
-    static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
 
     using HotLoopInstList = BlockwiseGemmXdlops_pipeline_hotloop_inst<BlockSize,
                                                                       MPerBlock,
@@ -188,7 +187,7 @@ struct BlockwiseGemmXdlops_pipeline_v4
 
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
     __device__ static auto
-        CalculateCThreadOriginDataIndex(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
+    CalculateCThreadOriginDataIndex(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
     {
         const auto wave_idx = GetWaveIdx();
 
@@ -217,7 +216,7 @@ struct BlockwiseGemmXdlops_pipeline_v4
 
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
     __device__ static auto
-        CalculateCThreadOriginDataIndex8D(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
+    CalculateCThreadOriginDataIndex8D(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
     {
         const auto wave_idx = GetWaveIdx();
 
@@ -237,6 +236,7 @@ struct BlockwiseGemmXdlops_pipeline_v4
                                     Tuple4 b_origin = CalculateBThreadOriginDataIndex())
         : a_thread_copy_(a_origin), b_thread_copy_(b_origin)
     {
+#if defined(__HIP_DEVICE_COMPILE__)
         static_assert(AMmaTileDesc::IsKnownAtCompileTime() && BMmaTileDesc::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
 
@@ -245,7 +245,7 @@ struct BlockwiseGemmXdlops_pipeline_v4
 
         static_assert(MPerBlock % (MPerXDL * MRepeat) == 0 && NPerBlock % (NPerXDL * NRepeat) == 0,
                       "wrong!");
-
+#endif
         // HotLoopInstList::Print();
     }
 

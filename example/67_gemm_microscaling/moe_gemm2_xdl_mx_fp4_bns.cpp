@@ -268,16 +268,18 @@ int main(int argc, char* argv[])
         }
     }
 
-    Tensor<A0DataType> a0_t_k_k(HostTensorDescriptor({tokens, topk, K}, {topk * K, K, 1}));
+    Tensor<A0DataType> a0_t_k_k(HostTensorDescriptor({tokens, topk, K}, {topk * K, K, 1}, Row{}));
     Tensor<XDataType> a1_t_k_k(
         HostTensorDescriptor({tokens, topk, (K + ScaleBlockSize - 1) / ScaleBlockSize},
-                             {(topk * Scale_Stride_AM), Scale_Stride_AM, 1}));
-    Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}));
+                             {(topk * Scale_Stride_AM), Scale_Stride_AM, 1},
+                             Row{}));
+    Tensor<B0DataType> b0_e_n_k(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}, Col{}));
     Tensor<XDataType> b1_e_n_k(
         HostTensorDescriptor({experts, (K + ScaleBlockSize - 1) / ScaleBlockSize, N},
-                             {(N * Scale_Stride_BN), 1, Scale_Stride_BN}));
+                             {(N * Scale_Stride_BN), 1, Scale_Stride_BN},
+                             Col{}));
     // B preshuffle
-    Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}));
+    Tensor<B0DataType> b0_preshuffled(HostTensorDescriptor({experts, K, N}, {N * K, 1, K}, Col{}));
 
     // A, B Scale preshuffle
     Tensor<XDataType> a_scale_sorted(HostTensorDescriptor(
@@ -286,7 +288,8 @@ int main(int argc, char* argv[])
         {sorted_size, (K + ScaleBlockSize - 1) / ScaleBlockSize}, {Scale_Stride_AM, 1}));
     Tensor<XDataType> b_scale_preshuffled(
         HostTensorDescriptor({experts, (K + ScaleBlockSize - 1) / ScaleBlockSize, N},
-                             {N * Scale_Stride_BN, 1, Scale_Stride_BN}));
+                             {N * Scale_Stride_BN, 1, Scale_Stride_BN},
+                             Col{}));
     Tensor<D2DataType> d2_e_n(HostTensorDescriptor({sorted_size, N}, {1, 0}));
     Tensor<EDataType> e_t_n_host_result(HostTensorDescriptor({tokens, N}, {N, 1}));
     Tensor<EDataType> e_t_n_device_result(HostTensorDescriptor({tokens, N}, {N, 1}));

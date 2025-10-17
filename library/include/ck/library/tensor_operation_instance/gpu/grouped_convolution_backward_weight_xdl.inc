@@ -522,6 +522,20 @@ void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f32_instances(
                                                            PassThrough,
                                                            PassThrough>>>& instances);
 
+void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f32_tf32_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
+                                                           NHWGC,
+                                                           GKYXC,
+                                                           NHWGK,
+                                                           F32,
+                                                           F32,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           TF32,
+                                                           TF32>>>& instances);
+
 void add_device_grouped_conv2d_bwd_weight_xdl_ngchw_gkyxc_ngkhw_f32_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
                                                            NGCHW,
@@ -558,6 +572,20 @@ void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f32_default_pipe
                                                            PassThrough,
                                                            PassThrough>>>& instances);
 
+void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f32_tf32_default_pipev2_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
+                                                           NHWGC,
+                                                           GKYXC,
+                                                           NHWGK,
+                                                           F32,
+                                                           F32,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           TF32,
+                                                           TF32>>>& instances);
+
 void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f32_default_pipev5_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
                                                            NHWGC,
@@ -569,6 +597,20 @@ void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f32_default_pipe
                                                            PassThrough,
                                                            PassThrough,
                                                            PassThrough>>>& instances);
+
+void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f32_tf32_default_pipev5_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
+                                                           NHWGC,
+                                                           GKYXC,
+                                                           NHWGK,
+                                                           F32,
+                                                           F32,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           TF32,
+                                                           TF32>>>& instances);
 
 void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f32_pad0_pipev2_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
@@ -582,6 +624,20 @@ void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f32_pad0_pipev2_
                                                            PassThrough,
                                                            PassThrough>>>& instances);
 
+void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f32_tf32_pad0_pipev2_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
+                                                           NHWGC,
+                                                           GKYXC,
+                                                           NHWGK,
+                                                           F32,
+                                                           F32,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           TF32,
+                                                           TF32>>>& instances);
+
 void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f32_pad0_pipev5_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
                                                            NHWGC,
@@ -593,6 +649,20 @@ void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f32_pad0_pipev5_
                                                            PassThrough,
                                                            PassThrough,
                                                            PassThrough>>>& instances);
+
+void add_device_grouped_conv2d_bwd_weight_xdl_nhwgc_gkyxc_nhwgk_f32_tf32_pad0_pipev5_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<2,
+                                                           NHWGC,
+                                                           GKYXC,
+                                                           NHWGK,
+                                                           F32,
+                                                           F32,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           TF32,
+                                                           TF32>>>& instances);
 #endif
 // conv3d backward weight
 #ifdef CK_ENABLE_BF16
@@ -1081,7 +1151,7 @@ void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f32_pad0_pipe
                                                            PassThrough,
                                                            PassThrough>>>& instances);
 
-void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f32_pad0_pipev2_instances(
+void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f32_pad0_pipev5_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
                                                            NDHWGC,
                                                            GKZYXC,
@@ -1092,6 +1162,76 @@ void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f32_pad0_pipe
                                                            PassThrough,
                                                            PassThrough,
                                                            PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f32_tf32_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           NDHWGC,
+                                                           GKZYXC,
+                                                           NDHWGK,
+                                                           F32,
+                                                           F32,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           TF32,
+                                                           TF32>>>& instances);
+
+void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f32_tf32_default_pipev2_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           NDHWGC,
+                                                           GKZYXC,
+                                                           NDHWGK,
+                                                           F32,
+                                                           F32,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           TF32,
+                                                           TF32>>>& instances);
+
+void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f32_tf32_default_pipev5_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           NDHWGC,
+                                                           GKZYXC,
+                                                           NDHWGK,
+                                                           F32,
+                                                           F32,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           TF32,
+                                                           TF32>>>& instances);
+
+void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f32_tf32_pad0_pipev2_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           NDHWGC,
+                                                           GKZYXC,
+                                                           NDHWGK,
+                                                           F32,
+                                                           F32,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           TF32,
+                                                           TF32>>>& instances);
+
+void add_device_grouped_conv3d_bwd_weight_xdl_ndhwgc_gkzyxc_ndhwgk_f32_tf32_pad0_pipev5_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdWeight<3,
+                                                           NDHWGC,
+                                                           GKZYXC,
+                                                           NDHWGK,
+                                                           F32,
+                                                           F32,
+                                                           F32,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           PassThrough,
+                                                           TF32,
+                                                           TF32>>>& instances);
 #endif
 
 } // namespace instance

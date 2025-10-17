@@ -2,6 +2,8 @@
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 
+#include "ck_tile/host/permute_pk_int4.hpp"
+
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
 {
@@ -91,61 +93,6 @@ void permute_tensor_b(Tensor& tensor)
     }
 }
 
-template <typename Tensor>
-void permute_vectors_i4x4_b(Tensor& tensor)
-{
-    const ck_tile::index_t K = tensor.get_length(0);
-    const ck_tile::index_t N = tensor.get_length(1);
-    // vector pk_i4x4 permute
-    for(int i = 0; i < N; i++)
-    {
-        for(int j = 0; j < K; j += 8)
-        {
-            int8_t input[8];
-
-            for(int k = 0; k < 4; k++)
-            {
-                int8_t i4x2      = tensor(j + k * 2, i).data;
-                input[k * 2 + 0] = (i4x2 >> 4) & 0xf;
-                input[k * 2 + 1] = (i4x2 >> 0) & 0xf;
-            }
-
-            // permute 01234567->20643175
-            {
-                int8_t hi   = input[2];
-                int8_t lo   = input[0];
-                int8_t i4x2 = (hi << 4) | lo;
-
-                tensor(j + 0, i) = i4x2;
-            }
-
-            {
-                int8_t hi   = input[6];
-                int8_t lo   = input[4];
-                int8_t i4x2 = (hi << 4) | lo;
-
-                tensor(j + 2, i) = i4x2;
-            }
-
-            {
-                int8_t hi   = input[3];
-                int8_t lo   = input[1];
-                int8_t i4x2 = (hi << 4) | lo;
-
-                tensor(j + 4, i) = i4x2;
-            }
-
-            {
-                int8_t hi   = input[7];
-                int8_t lo   = input[5];
-                int8_t i4x2 = (hi << 4) | lo;
-
-                tensor(j + 6, i) = i4x2;
-            }
-        }
-    }
-}
-
 template <typename GemmConfig,
           typename ADataType,
           typename BDataType,
@@ -158,7 +105,7 @@ template <typename GemmConfig,
           typename CLayout,
           bool Persistent,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
-float gemm(const ck_tile::GemmHostArgs<>& args, const ck_tile::stream_config& s);
+float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s);
 
 template <typename GemmConfig,
           typename ADataType,
@@ -185,18 +132,16 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                   int n_repeat,
                   bool persistent)
 {
-    ck_tile::GemmHostArgs</*NumDTensor = 0*/> args = {a_m_k_dev_buf.GetDeviceBuffer(),
-                                                      b_k_n_dev_buf.GetDeviceBuffer(),
-                                                      {},
-                                                      c_m_n_dev_buf.GetDeviceBuffer(),
-                                                      kbatch,
-                                                      M,
-                                                      N,
-                                                      K,
-                                                      stride_A,
-                                                      stride_B,
-                                                      {},
-                                                      stride_C};
+    ck_tile::GemmHostArgs args = {a_m_k_dev_buf.GetDeviceBuffer(),
+                                  b_k_n_dev_buf.GetDeviceBuffer(),
+                                  c_m_n_dev_buf.GetDeviceBuffer(),
+                                  kbatch,
+                                  M,
+                                  N,
+                                  K,
+                                  stride_A,
+                                  stride_B,
+                                  stride_C};
 
     float ave_time;
     if(persistent)
@@ -258,16 +203,11 @@ template <typename GemmConfig,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-bool run_gemm_test_with_layouts(int argc,
-                                char* argv[],
+bool run_gemm_test_with_layouts(ck_tile::ArgParser& arg_parser,
                                 const ALayout a_layout                  = ALayout{},
                                 const BLayout b_layout                  = BLayout{},
                                 [[maybe_unused]] const CLayout c_layout = CLayout{})
 {
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-        return false;
-
     using AccDataType = typename GemmTypeConfig<ADataType, BDataType, CDataType>::AccDataType;
 
     ck_tile::index_t M = arg_parser.get_int("m");

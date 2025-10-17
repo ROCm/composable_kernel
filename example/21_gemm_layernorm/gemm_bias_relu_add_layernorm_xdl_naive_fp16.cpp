@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -80,7 +80,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleDMultip
 //######|        |        |        |      Type|      Type|            Type|         DataType|       Type|      Type|              Type|       Type| Elementwise| Elementwise|  Elementwise| Elementwise| Elementwise|           Reduce|           Reduce| Spacialization| Prefetch|  Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MXdlPerWave| NXdlPerWave|       ClusterLengths| ReduceThreadTransfer| DstScalarPerVector|
 //######|        |        |        |          |          |                |                 |           |          |                  |           |   Operation|   Operation|    Operation|   Operation|   Operation|        Operation|        Operation|               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle| _MPerBlock_NPerBlock|      ScalarPerVector|         _MPerBlock|
 //######|        |        |        |          |          |                |                 |           |          |                  |           |            |            |             |            |            |                 |                 |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                     |           _NPerBlock|                   |
-        < ALayout, BLayout, ELayout, ADataType, BDataType, GemmAccDataType, CShuffleDataType, DsDataType, EDataType, ReduceAccDataType, RsDataType,  AElementOp,  BElementOp, CDEElementOp, QsElementOp, RsElementOp, RsThreadReduceOp, RsGlobalReduceOp,    GemmDefault,        1,   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,             S<64, 4>,                    4,                  1>;
+        < ALayout, BLayout, ELayout, ADataType, BDataType, GemmAccDataType, CShuffleDataType, DsDataType, EDataType, ReduceAccDataType, RsDataType,  AElementOp,  BElementOp, CDEElementOp, QsElementOp, RsElementOp, RsThreadReduceOp, RsGlobalReduceOp,    GemmDefault,        1,   256,   256,   128,    32,   8,   8,   16,   16,    8,    4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,             S<32, 8>,                    4,                  1>;
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
@@ -236,7 +236,7 @@ void DumpGemmLayerNormPerf(float gemm_reduce_time, float normalize_time, int M, 
               << " GB/s, " << std::endl;
 }
 
-int main()
+int main(int argc, char* argv[])
 {
     // GEMM shape
     ck::index_t M = 1024;
@@ -248,6 +248,25 @@ int main()
     ck::index_t StrideD0 = 0;
     ck::index_t StrideD1 = 1024;
     ck::index_t StrideE  = 1024;
+
+    bool do_verification = true;
+    bool time_kernel     = false;
+
+    if(argc == 1)
+    {
+        // use default
+    }
+    else if(argc == 3)
+    {
+        do_verification = std::stoi(argv[1]);
+        time_kernel     = static_cast<bool>(std::stoi(argv[2]));
+    }
+    else
+    {
+        printf("arg1: verification (0=no, 1=yes)\n");
+        printf("arg2: time kernel (0=no, 1=yes)\n");
+        exit(0);
+    }
 
     Tensor<ADataType> a_m_k(f_host_tensor_descriptor2d(M, K, StrideA, ALayout{}));
     Tensor<BDataType> b_k_n(f_host_tensor_descriptor2d(K, N, StrideB, BLayout{}));
@@ -357,6 +376,7 @@ int main()
     normalize_invoker.Run(normalize_argument_ptr.get(), StreamConfig{nullptr, false});
 
     bool pass = true;
+    if(do_verification)
     {
         // verification
         Tensor<LayerNormOutDataType> host_layerNorm_m_n(
@@ -383,27 +403,25 @@ int main()
                                      1e-2);
     }
 
+    if(time_kernel)
     {
         // evaluate kernel perf
-        bool time_kernel = true;
-
         float gemm_reduce_mean_reduce_square_mean_ave_time =
-            gemmReduce_invoker.Run(gemmReduce_argument, StreamConfig{nullptr, time_kernel});
+            gemmReduce_invoker.Run(gemmReduce_argument, StreamConfig{nullptr, true});
         float normalize_ave_time =
-            normalize_invoker.Run(normalize_argument_ptr.get(), StreamConfig{nullptr, time_kernel});
+            normalize_invoker.Run(normalize_argument_ptr.get(), StreamConfig{nullptr, true});
 
-        if(time_kernel)
-            DumpGemmLayerNormPerf<ADataType,
-                                  BDataType,
-                                  EDataType,
-                                  D0DataType,
-                                  D1DataType,
-                                  R0DataType,
-                                  R1DataType,
-                                  GammaDataType,
-                                  BetaDataType,
-                                  LayerNormOutDataType>(
-                gemm_reduce_mean_reduce_square_mean_ave_time, normalize_ave_time, M, N, K);
+        DumpGemmLayerNormPerf<ADataType,
+                              BDataType,
+                              EDataType,
+                              D0DataType,
+                              D1DataType,
+                              R0DataType,
+                              R1DataType,
+                              GammaDataType,
+                              BetaDataType,
+                              LayerNormOutDataType>(
+            gemm_reduce_mean_reduce_square_mean_ave_time, normalize_ave_time, M, N, K);
     }
 
     return pass ? 0 : 1;

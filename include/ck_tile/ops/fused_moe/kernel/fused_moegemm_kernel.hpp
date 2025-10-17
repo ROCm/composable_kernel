@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -130,7 +130,7 @@ struct FusedMoeGemmKernel
     // static_assert(kBlockPerCu > 0);
 
     using BlockShape = typename Pipeline::BlockShape; // this is FusedMoeGemmShape
-    static constexpr index_t BlockSize_ = BlockShape::BlockSize;
+    static constexpr index_t kBlockSize = BlockShape::BlockSize;
 
     using ADataType            = typename Pipeline::Problem::ADataType;
     using GDataType            = typename Pipeline::Problem::GDataType;
@@ -231,7 +231,7 @@ struct FusedMoeGemmKernel
         return Partitioner::GridSize(max_num_tokens_padded, hargs.intermediate_size);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(BlockSize_); }
+    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return Pipeline::GetSmemSize(); }
 
@@ -240,7 +240,7 @@ struct FusedMoeGemmKernel
         if constexpr(UseUK)
         {
             __shared__ CK_TILE_LDS_ADDR char smem[GetSmemSize()];
-            IndexDataType num_sorted_tiles = __builtin_amdgcn_readfirstlane(
+            IndexDataType num_sorted_tiles = amd_wave_read_first_lane(
                 *reinterpret_cast<const IndexDataType*>(kargs.num_sorted_tiles_ptr));
 
             num_sorted_tiles = num_sorted_tiles / BlockShape::Block_M0;
@@ -261,7 +261,7 @@ struct FusedMoeGemmKernel
         {
             // allocate LDS
             // __shared__ char smem_ptr[GetSmemSize()];
-            IndexDataType num_sorted_tiles = __builtin_amdgcn_readfirstlane(
+            IndexDataType num_sorted_tiles = amd_wave_read_first_lane(
                 *reinterpret_cast<const IndexDataType*>(kargs.num_sorted_tiles_ptr));
             constexpr index_t hidden_radio_0 = IsGateOnly ? 1 : 2;
 
@@ -283,14 +283,14 @@ struct FusedMoeGemmKernel
                 return;
 
             const IndexDataType expert_id =
-                __builtin_amdgcn_readfirstlane(reinterpret_cast<const IndexDataType*>(
+                amd_wave_read_first_lane(reinterpret_cast<const IndexDataType*>(
                     kargs.sorted_expert_ids_ptr)[sorted_tile_id]);
 
             // index along intermediate_size
             // index_t hidden_idx = __builtin_amdgcn_readfirstlane(intermediate_tile_id *
             // BlockShape::Block_N0);
             index_t interm_idx_nr =
-                __builtin_amdgcn_readfirstlane(intermediate_tile_id * BlockShape::Block_Nr0);
+                amd_wave_read_first_lane(intermediate_tile_id * BlockShape::Block_Nr0);
 
             const auto a_coord = Pipeline::GetACoord(); // 2d thread offset, [i_row, i_col]
             const auto sorted_token_id =
@@ -385,7 +385,7 @@ struct FusedMoeGemmKernel
             auto o_window = [&]() {
                 ODataType* o_ptr = reinterpret_cast<ODataType*>(kargs.o_ptr);
                 auto o_view_     = make_naive_tensor_view<address_space_enum::global,
-                                                      memory_operation_enum::atomic_add>(
+                                                          memory_operation_enum::atomic_add>(
                     o_ptr,
                     make_tuple(kargs.num_tokens, kargs.hidden_size),
                     make_tuple(kargs.stride_token, 1),

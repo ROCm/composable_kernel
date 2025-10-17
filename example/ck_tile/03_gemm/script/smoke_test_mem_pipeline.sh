@@ -5,7 +5,7 @@ KNAME=1
 export CK_WARMUP=0
 export CK_REPEAT=1
 
-COMMON_ARGS='-v=2 -warmup=0 -repeat=1'
+COMMON_ARGS='-v=1 -warmup=0 -repeat=1'
 
 run_tests() {
     for m in 512 1024; do
@@ -32,5 +32,8 @@ run_tests "fp16"
 run_tests "bf16"
 run_tests "fp8"
 run_tests "bf8"
+run_tests "fp16i4"
+run_tests "fp8i4"
+run_tests "bf8i4"
 
 set +x

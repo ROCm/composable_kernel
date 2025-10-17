@@ -14,6 +14,7 @@ struct batched_transpose_trait
 {
     std::string type;
     std::string layout;
+    std::string pipeline;
 };
 
 struct batched_transpose_kargs : public ck_tile::BatchedTransposeHostArgs

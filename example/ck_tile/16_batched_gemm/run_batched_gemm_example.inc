@@ -2,7 +2,6 @@
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-
 auto calculate_rtol_atol(const ck_tile::index_t K,
                          const ck_tile::index_t kbatch,
                          const float max_accumulated_value)
@@ -23,7 +22,8 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
-template <typename ADataType,
+template <typename GemmConfig,
+          typename ADataType,
           typename BDataType,
           typename DsDataType,
           typename AccDataType,
@@ -50,23 +50,23 @@ float invoke_batched_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                           int n_warmup,
                           int n_repeat)
 {
-    ck_tile::BatchedGemmHostArgs args;
-    args.a_ptr          = a_m_k_dev_buf.GetDeviceBuffer();
-    args.b_ptr          = b_k_n_dev_buf.GetDeviceBuffer();
-    args.e_ptr          = c_m_n_dev_buf.GetDeviceBuffer();
-    args.k_batch        = kbatch;
-    args.M              = M;
-    args.N              = N;
-    args.K              = K;
-    args.stride_A       = stride_A;
-    args.stride_B       = stride_B;
-    args.stride_E       = stride_C;
-    args.batch_stride_A = batch_stride_A;
-    args.batch_stride_B = batch_stride_B;
-    args.batch_stride_E = batch_stride_C;
-    args.batch_count    = batch_count;
+    ck_tile::BatchedGemmHostArgs args{a_m_k_dev_buf.GetDeviceBuffer(),
+                                      b_k_n_dev_buf.GetDeviceBuffer(),
+                                      c_m_n_dev_buf.GetDeviceBuffer(),
+                                      kbatch,
+                                      M,
+                                      N,
+                                      K,
+                                      stride_A,
+                                      stride_B,
+                                      stride_C,
+                                      batch_stride_A,
+                                      batch_stride_B,
+                                      batch_stride_C,
+                                      batch_count};
 
-    float ave_time = batched_gemm<ADataType,
+    float ave_time = batched_gemm<GemmConfig,
+                                  ADataType,
                                   BDataType,
                                   DsDataType,
                                   AccDataType,
@@ -78,25 +78,10 @@ float invoke_batched_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                   CDEElementWise>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
-    std::string op_name{"Batched Gemm"};
-    std::size_t flop     = std::size_t(2) * batch_count * M * N * K;
-    std::size_t num_byte = sizeof(ADataType) * batch_count * M * K +
-                           sizeof(BDataType) * batch_count * N * K +
-                           sizeof(CDataType) * batch_count * M * N;
-    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
-    float gb_per_sec = num_byte / 1.E6 / ave_time;
-
-    std::cout << "Run " << op_name << "kernel with M =" << M << " N =" << N << " K =" << K
-              << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideC =" << stride_C
-              << " batch_stride_A =" << batch_stride_A << " batch_stride_B =" << batch_stride_B
-              << " batch_stride_C =" << batch_stride_C << " batch_count =" << batch_count << " : "
-              << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << std::endl;
-
     return ave_time;
 }
 
-template <typename ALayout, typename BLayout, typename CLayout>
+template <typename GemmConfig, typename ALayout, typename BLayout, typename CLayout>
 int run_batched_gemm_example_with_layouts(int argc,
                                           char* argv[],
                                           const ALayout a_layout                  = ALayout{},
@@ -187,31 +172,48 @@ int run_batched_gemm_example_with_layouts(int argc,
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
-    invoke_batched_gemm<ADataType,
-                        BDataType,
-                        ck_tile::tuple<>,
-                        AccDataType,
-                        CDataType,
-                        ALayout,
-                        BLayout,
-                        ck_tile::tuple<>,
-                        CLayout>(a_m_k_dev_buf,
-                                 b_k_n_dev_buf,
-                                 c_m_n_dev_buf,
-                                 M,
-                                 N,
-                                 K,
-                                 stride_A,
-                                 stride_B,
-                                 stride_C,
-                                 batch_stride_A,
-                                 batch_stride_B,
-                                 batch_stride_C,
-                                 batch_count,
-                                 kbatch,
-                                 n_warmup,
-                                 n_repeat);
+    float ave_time = invoke_batched_gemm<GemmConfig,
+                                         ADataType,
+                                         BDataType,
+                                         ck_tile::tuple<>,
+                                         AccDataType,
+                                         CDataType,
+                                         ALayout,
+                                         BLayout,
+                                         ck_tile::tuple<>,
+                                         CLayout>(a_m_k_dev_buf,
+                                                  b_k_n_dev_buf,
+                                                  c_m_n_dev_buf,
+                                                  M,
+                                                  N,
+                                                  K,
+                                                  stride_A,
+                                                  stride_B,
+                                                  stride_C,
+                                                  batch_stride_A,
+                                                  batch_stride_B,
+                                                  batch_stride_C,
+                                                  batch_count,
+                                                  kbatch,
+                                                  n_warmup,
+                                                  n_repeat);
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
+
+    std::string op_name{"Batched Gemm"};
+    std::size_t flop     = std::size_t(2) * batch_count * M * N * K;
+    std::size_t num_byte = sizeof(ADataType) * batch_count * M * K +
+                           sizeof(BDataType) * batch_count * N * K +
+                           sizeof(CDataType) * batch_count * M * N;
+    float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
+    float gb_per_sec = num_byte / 1.E6 / ave_time;
+
+    std::cout << "Run " << op_name << "kernel with M =" << M << " N =" << N << " K =" << K
+              << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideC =" << stride_C
+              << " batch_stride_A =" << batch_stride_A << " batch_stride_B =" << batch_stride_B
+              << " batch_stride_C =" << batch_stride_C << " batch_count =" << batch_count << " : "
+              << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+              << std::endl;
+
     bool pass = true;
 
     if(arg_parser.get_int("v") == 1)
@@ -247,23 +249,9 @@ int run_batched_gemm_example_with_layouts(int argc,
         c_m_n_gpu_ref.SetZero();
         c_m_n_gpu_buf_ref.SetZero();
 
-        ADataType* d_A;
-        BDataType* d_B;
-        CDataType* d_C;
-
-        ck_tile::hip_check_error(hipMalloc(&d_A, batch_count * M * K * sizeof(ADataType)));
-        ck_tile::hip_check_error(hipMalloc(&d_B, batch_count * N * K * sizeof(BDataType)));
-        ck_tile::hip_check_error(hipMalloc(&d_C, batch_count * M * N * sizeof(CDataType)));
-
-        ck_tile::hip_check_error(hipMemcpy(d_A,
-                                           a_m_k_dev_buf.GetDeviceBuffer(),
-                                           batch_count * M * K * sizeof(ADataType),
-                                           hipMemcpyHostToDevice));
-
-        ck_tile::hip_check_error(hipMemcpy(d_B,
-                                           b_k_n_dev_buf.GetDeviceBuffer(),
-                                           batch_count * N * K * sizeof(BDataType),
-                                           hipMemcpyHostToDevice));
+        ADataType* d_A = static_cast<ADataType*>(a_m_k_dev_buf.GetDeviceBuffer());
+        BDataType* d_B = static_cast<BDataType*>(b_k_n_dev_buf.GetDeviceBuffer());
+        CDataType* d_C = static_cast<CDataType*>(c_m_n_gpu_buf_ref.GetDeviceBuffer());
 
         ck_tile::reference_batched_gemm_gpu<ADataType,
                                             BDataType,
@@ -285,15 +273,6 @@ int run_batched_gemm_example_with_layouts(int argc,
                                                      batch_stride_C,
                                                      batch_count);
 
-        ck_tile::hip_check_error(hipMemcpy(c_m_n_gpu_buf_ref.GetDeviceBuffer(),
-                                           d_C,
-                                           batch_count * M * N * sizeof(CDataType),
-                                           hipMemcpyDeviceToHost));
-
-        ck_tile::hip_check_error(hipFree(d_A));
-        ck_tile::hip_check_error(hipFree(d_B));
-        ck_tile::hip_check_error(hipFree(d_C));
-
         c_m_n_gpu_buf_ref.FromDevice(c_m_n_gpu_ref.data());
         const float max_accumulated_value =
             *std::max_element(c_m_n_gpu_ref.mData.begin(), c_m_n_gpu_ref.mData.end());
@@ -311,9 +290,31 @@ int run_batched_gemm_example_with_layouts(int argc,
         std::cout << "The GPU verification result is: " << (pass ? "correct" : "fail") << std::endl;
     }
 
+    if(arg_parser.get_int("json") == 1)
+    {
+        dump_batched_gemm_json_results(arg_parser.get_str("jsonfile"),
+                                       op_name,
+                                       M,
+                                       N,
+                                       K,
+                                       stride_A,
+                                       stride_B,
+                                       stride_C,
+                                       batch_stride_A,
+                                       batch_stride_B,
+                                       batch_stride_C,
+                                       batch_count,
+                                       pass,
+                                       ave_time,
+                                       tflops,
+                                       gb_per_sec,
+                                       "batched_gemm");
+    }
+
     return pass;
 }
 
+template <typename GemmConfig>
 int run_batched_gemm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -332,7 +333,7 @@ int run_batched_gemm_example(int argc, char* argv[])
     // }
     if(a_layout == "R" && b_layout == "C")
     {
-        return run_batched_gemm_example_with_layouts(argc, argv, Row{}, Col{}, Row{});
+        return run_batched_gemm_example_with_layouts<GemmConfig>(argc, argv, Row{}, Col{}, Row{});
     }
     // TODO: Fixme: with latest changes to GemmPipelineAGmemBGmemCRegV1DefaultPolicy below do not
     // work else if(a_layout == "C" && b_layout == "C")

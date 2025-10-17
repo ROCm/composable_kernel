@@ -342,8 +342,8 @@ struct sequence_reverse
 
     using seq_split = sequence_split<Seq, NSize / 2>;
     using type      = typename sequence_merge<
-        typename sequence_reverse<typename seq_split::right_type>::type,
-        typename sequence_reverse<typename seq_split::left_type>::type>::type;
+             typename sequence_reverse<typename seq_split::right_type>::type,
+             typename sequence_reverse<typename seq_split::left_type>::type>::type;
 };
 
 template <index_t I>

@@ -101,7 +101,6 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
                                              DsLayout,
                                              ELayout,
                                              CDEElementWise,
-                                             CodegenPipelineProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
                                              FlatmmConfig::M_Warp,
@@ -119,8 +118,8 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
 
         auto kargs = Kernel::MakeKernelArgs(args);
 
-        const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
-        constexpr dim3 blocks = Kernel::BlockSize();
+        const dim3 grids  = Kernel::GridSize(args.M, args.N, args.k_batch);
+        const dim3 blocks = Kernel::BlockSize();
 
         if(!Kernel::IsSupportedArgument(kargs))
         {
@@ -168,40 +167,38 @@ float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_c
                     hipGetErrorString(hipMemsetAsync(
                         args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
             };
-            ave_time = ck_tile::launch_kernel_preprocess(
-                s,
-                run_flush_cache,
-                ck_tile::make_kernel<blocks.x, FlatmmConfig::kBlockPerCu>(
-                    Kernel{}, grids, blocks, 0, kargs));
+            return ave_time = ck_tile::launch_kernel_time_mask(
+                       s,
+                       run_flush_cache,
+                       ck_tile::make_kernel<FlatmmConfig::kBlockPerCu>(
+                           Kernel{}, grids, blocks, 0, kargs));
         }
         else
         {
-            ave_time =
-                ck_tile::launch_kernel(s,
-                                       ck_tile::make_kernel<blocks.x, FlatmmConfig::kBlockPerCu>(
-                                           Kernel{}, grids, blocks, 0, kargs));
+            return ave_time =
+                       ck_tile::launch_kernel(s,
+                                              ck_tile::make_kernel<FlatmmConfig::kBlockPerCu>(
+                                                  Kernel{}, grids, blocks, 0, kargs));
         }
-        return ave_time;
     };
 
     const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
         if(args.k_batch == 1)
         {
-            Run(has_hot_loop_,
-                tail_number_,
-                ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::set>{});
+            return Run(has_hot_loop_,
+                       tail_number_,
+                       ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                                  ck_tile::memory_operation_enum::set>{});
         }
         else
         {
-            Run(has_hot_loop_,
-                tail_number_,
-                ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                           ck_tile::memory_operation_enum::atomic_add>{});
+            return Run(has_hot_loop_,
+                       tail_number_,
+                       ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                                  ck_tile::memory_operation_enum::atomic_add>{});
         }
     };
-    BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
-    return ave_time;
+    return ave_time = BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
 }
 
 template <template <typename PreType> typename FlatmmConfig>
@@ -217,8 +214,20 @@ int run_flatmm_example(int argc, char* argv[])
     std::string data_type = arg_parser.get_str("prec");
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
+
+    int k        = arg_parser.get_int("k");
+    int stride_b = arg_parser.get_int("stride_b");
+
+    if(b_layout == "C" && stride_b > k)
+    {
+        throw std::runtime_error(
+            "For ColumnMajor layout, StrideB must be smaller than or equal to K (" +
+            std::to_string(k) + ")");
+    }
+
     if(a_layout == "R" && b_layout == "C")
     {
+
         if(data_type == "fp16")
         {
             run_flatmm_example_with_layouts<ck_tile::half_t, FlatmmConfig<ck_tile::half_t>>(
@@ -259,6 +268,9 @@ int main(int argc, char* argv[])
 
     try
     {
+#if defined(CK_TILE_USE_WMMA)
+        return !run_flatmm_example<FlatmmConfig16_Wmma>(argc, argv);
+#else
         int warp_tile = arg_parser.get_int("warp_tile");
         if(warp_tile == 0)
         {
@@ -276,6 +288,7 @@ int main(int argc, char* argv[])
         {
             return !run_flatmm_example<FlatmmConfig32_950>(argc, argv);
         }
+#endif
     }
     catch(const std::runtime_error& e)
     {

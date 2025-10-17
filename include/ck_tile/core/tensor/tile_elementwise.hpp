@@ -231,7 +231,7 @@ CK_TILE_DEVICE auto cast_tile_pk_fp8_fp32(const InTensor& in_dstr_tensors)
 template <typename OutDataType, typename InTensor>
 CK_TILE_DEVICE auto cast_tile_pk_fp16_fp32(const InTensor& in_dstr_tensors)
 {
-#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__)
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx942__)
     // This API is designed to use the _pk_ serious of function
     constexpr auto in_tile_dstr = InTensor::get_tile_distribution();
 
@@ -327,9 +327,8 @@ CK_TILE_DEVICE auto cast_tile_opt_subdword(const InTensor& in_dstr_tensors)
 template <typename DstType, typename SrcTensor>
 CK_TILE_DEVICE auto cast_tile(const SrcTensor& src_tensor)
 {
-    if constexpr((std::is_same_v<DstType, fp8_t> ||
-                  std::is_same_v<DstType, bf8_t>)&&std::is_same_v<typename SrcTensor::DataType,
-                                                                  float> &&
+    if constexpr((std::is_same_v<DstType, fp8_t> || std::is_same_v<DstType, bf8_t>) &&
+                 std::is_same_v<typename SrcTensor::DataType, float> &&
                  (SrcTensor::get_thread_buffer_size() % 4 == 0))
     {
         return impl::cast_tile_pk_fp8_fp32<DstType, SrcTensor>(src_tensor);

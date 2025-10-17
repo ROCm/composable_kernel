@@ -5,10 +5,14 @@
 
 EXE=./build/bin/tile_example_batched_transpose
 
+for C in "64" "256" "1024" "4096" "16384"; do
+for W in "64" "256" "1024" "4096" "16384"; do
 for pr in "fp8" "fp16" "bf16"; do
-$EXE -pr=$pr -N=1 -C=64 -H=1 -W=64 -layout_in='NCHW' -layout_out='NHWC'
-$EXE -pr=$pr -N=1 -C=1024 -H=1 -W=1024 -layout_in='NCHW' -layout_out='NHWC'
-$EXE -pr=$pr -N=1 -C=1024 -H=1 -W=2048 -layout_in='NCHW' -layout_out='NHWC'
-$EXE -pr=$pr -N=1 -C=4096 -H=1 -W=2048 -layout_in='NCHW' -layout_out='NHWC'
+for pipeline in "0" "1"; do
 
+$EXE -pipeline=$pipeline -pr=$pr -N=1 -C=$C -H=1 -W=$W -layout_in='NCHW' -layout_out='NHWC'
+
+done
+done
+done
 done

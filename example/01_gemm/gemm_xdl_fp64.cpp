@@ -31,15 +31,10 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceGemmXdl
 #else
          < ADataType, BDataType, CDataType, AccDataType, ALayout, BLayout, CLayout,  AElementOp,  BElementOp,  CElementOp,   GemmDefault,   256,   128,   128,     4,  2,   16,   16,    4,    4,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              2,              2,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              2,              2,      true,               7,               1>;
 #endif
-    // clang-format on
+// clang-format on
 
-    using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
-                                                                            BDataType,
-                                                                            CDataType,
-                                                                            AccDataType,
-                                                                            AElementOp,
-                                                                            BElementOp,
-                                                                            CElementOp>;
+using ReferenceGemmInstance = ck::tensor_operation::host::
+    ReferenceGemm<ADataType, BDataType, CDataType, AccDataType, AElementOp, BElementOp, CElementOp>;
 
 using ReferenceGemmInstanceGPU = ck::tensor_operation::device::ReferenceGemm<ALayout,
                                                                              BLayout,

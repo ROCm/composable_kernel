@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -88,10 +88,9 @@ struct matrix_core_swizzle_kernel
     using karg = matrix_core_swizzle_host_args;
     using harg = matrix_core_swizzle_host_args;
 
-    static constexpr int BLOCK_SIZE      = BLOCK_SIZE_;
-    static constexpr int WavesPerBlock_N = 4;
-    static constexpr int WavesPerBlock_K = 1;
-    static_assert(WavesPerBlock_N * WavesPerBlock_K * 64 == BLOCK_SIZE);
+    static constexpr int BLOCK_SIZE                   = BLOCK_SIZE_;
+    static constexpr int WavesPerBlock_N              = BLOCK_SIZE / ck_tile::get_warp_size();
+    static constexpr int WavesPerBlock_K              = 1;
     static constexpr int NPerBlock                    = NPerBlock_;
     static constexpr int KPerBlock                    = KPerBlock_;
     static constexpr matrix_core_permute_style pstyle = pstyle_;
@@ -115,11 +114,12 @@ struct matrix_core_swizzle_kernel
 
     __host__ void operator()(const ck_tile::stream_config& s) const
     {
-        ck_tile::kentry<BLOCK_SIZE, 1, kernel><<<grids, BLOCK_SIZE, 0, s.stream_id_>>>(a);
+        ck_tile::kentry<1, kernel><<<grids, BLOCK_SIZE, 0, s.stream_id_>>>(a);
     }
 
     struct kernel
     {
+        static constexpr int kBlockSize = BLOCK_SIZE;
         __device__ static constexpr auto get_src_dist()
         {
             using namespace ck_tile;
@@ -333,12 +333,12 @@ struct matrix_core_swizzle_kernel
                     return tmp_1;
 #else
                     // b_nr_kr_waveflatten = b_nr_kr_kw_nw_kv,
-                    constexpr index_t kv = Alignment;
-                    constexpr index_t nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
-                    constexpr index_t kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
+                    constexpr index_t kv          = Alignment;
+                    constexpr index_t nw          = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
+                    constexpr index_t kw          = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
                     constexpr index_t waveflatten = kw * nw * kv;
-                    const index_t kr = a_.k / (k1 * k2);
-                    const index_t nr = a_.n / nw;
+                    const index_t kr              = a_.k / (k1 * k2);
+                    const index_t nr              = a_.n / nw;
                     auto tmp = make_naive_tensor_view_packed<address_space_enum::global>(
                         p_dst,
                         make_tuple(nr, kr, waveflatten),
@@ -387,8 +387,8 @@ struct matrix_core_swizzle_kernel
                     constexpr index_t nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
                     constexpr index_t kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
                     constexpr index_t waveflatten_tile = kw * nw * kv;
-                    constexpr index_t nr_tile = NPerBlock / nw;
-                    constexpr index_t kr_tile = KPerBlock / (kw * kv);
+                    constexpr index_t nr_tile          = NPerBlock / nw;
+                    constexpr index_t kr_tile          = KPerBlock / (kw * kv);
                     return make_tile_window(dst_view,
                                             make_tuple(number<nr_tile>{},
                                                        number<kr_tile>{},

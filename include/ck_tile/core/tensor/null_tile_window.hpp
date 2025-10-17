@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -54,9 +54,12 @@ struct is_null_tile_window<null_tile_window<T>> : public std::true_type
 } // namespace impl
 
 template <typename T>
+constexpr bool is_null_tile_window_v = impl::is_null_tile_window<remove_cvref_t<T>>::value;
+
+template <typename T>
 CK_TILE_DEVICE constexpr auto is_null_tile_window(const T&)
 {
-    return impl::is_null_tile_window<remove_cvref_t<T>>::value;
+    return is_null_tile_window_v<remove_cvref_t<T>>;
 }
 
 template <typename WindowLengths>

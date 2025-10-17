@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -92,10 +92,14 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
                                          BElementwiseOperation,
                                          CElementwiseOperation>
 {
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
     static constexpr index_t NumDTensor = DsDataType::Size();
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseGemmMultiD_ABScale_xdl_cshuffle_v3<
         ALayout,
         BLayout,
         DsLayout,
@@ -122,7 +126,7 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
         MPerXDL,
         NPerXDL,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -140,7 +144,7 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
         false,
         BBlockLdsExtraN,
         CShuffleMXdlPerWavePerShuffle,
-        CShuffleNXdlPerWavePerShuffle,
+        math::min(CShuffleNXdlPerWavePerShuffle, NXdlPerWave_),
         CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
         CDEShuffleBlockTransferScalarPerVectors,
         BlkGemmPipeSched,
@@ -149,13 +153,17 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
         ComputeTypeB,
         LDSTypeA,
         LDSTypeB>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<math::max(NXdlPerWave32, 1)>;
 
-    using Argument = typename GridwiseGemm::Argument;
+    using Argument = typename GridwiseGemm64::Argument;
 
     // Invoker
     struct Invoker : public BaseInvoker
     {
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             if(stream_config.log_level_ > 0)
             {
@@ -180,7 +188,7 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
             const auto Run = [&](const auto& kernel) {
                 if(stream_config.flush_cache)
                 {
-                    Argument arg_ = arg;
+                    auto arg_ = arg;
 
                     const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(
                         arg_.M, arg_.MPadded, arg_.K, arg_.KPadded, arg_.StrideA, arg_.AK0);
@@ -192,7 +200,7 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
                     auto size_b_buffer =
                         b_grid_desc_bk0_n_bk1.GetElementSpaceSize() * sizeof(BDataType);
 
-                    ck::utility::RotatingMemWrapper<Argument> rotating_mem(
+                    ck::utility::RotatingMemWrapper<typename GridwiseGemm::Argument> rotating_mem(
                         arg_, stream_config.rotating_count, size_a_buffer, size_b_buffer);
                     rotating_mem.Print();
 
@@ -231,11 +239,22 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
                 }
             };
 
-            constexpr index_t minimum_occupancy =
-                (BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave &&
-                 MPerBlock * NPerBlock / BlockSize > 64)
-                    ? 1
-                    : 2;
+            constexpr index_t minimum_occupancy = [&]() {
+                if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, ALayout> &&
+                             is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
+                {
+                    // FIXME: many instances have many spills with occupancy > 1, a better solution
+                    // needed to get best performance
+                    return 1;
+                }
+                else
+                {
+                    return (BlkGemmPipeSched == BlockGemmPipelineScheduler::Intrawave &&
+                            MPerBlock * NPerBlock / BlockSize > 64)
+                               ? 1
+                               : 2;
+                }
+            }();
 
             if(has_main_k_block_loop)
             {
@@ -282,6 +301,8 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
             return ave_time;
         }
 
+        INVOKER_RUN3_IMPL
+
         // polymorphic
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override
@@ -289,6 +310,12 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
             return Run(*dynamic_cast<const Argument*>(p_arg), stream_config);
         }
     };
+
+    void SetKBatch(BaseArgument* base_arg, int KBatch) const override
+    {
+        auto& arg  = *dynamic_cast<Argument*>(base_arg);
+        arg.KBatch = KBatch;
+    }
 
     static constexpr bool IsValidCompilationParameter()
     {
@@ -298,7 +325,7 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_xdl_supported())
+        if(!ck::is_xdl_wmma_supported<ComputeTypeA, ComputeTypeB, MPerXDL, NPerXDL>())
         {
             return false;
         }
@@ -317,7 +344,22 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
             return false;
         }
 
-        return GridwiseGemm::CheckValidity(arg);
+        if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                return GridwiseGemm64::CheckValidity(arg);
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                return GridwiseGemm32::CheckValidity(
+                    reinterpret_cast<const typename GridwiseGemm32::Argument&>(arg));
+            }
+        }
+        return false;
     }
 
     // polymorphic
@@ -445,7 +487,7 @@ struct DeviceGemmMultiD_ABScale_Xdl_CShuffle_V3
             << "BlkGemmPipelineVersion: "
             << BlkGemmPipelineVersionToString[BlkGemmPipelineVer] << ", "
             << "BlkGemmPipelinePrefetchStages: "
-            << GridwiseGemm::BlockwiseGemmPipe::PrefetchStages;
+            << GridwiseGemm64::BlockwiseGemmPipe::PrefetchStages;
         // clang-format on
 
         return str.str();

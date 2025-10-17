@@ -16,7 +16,7 @@ struct tmp_dir
 
     void execute(const std::string& cmd) const;
 
-    tmp_dir(tmp_dir const&) = delete;
+    tmp_dir(tmp_dir const&)            = delete;
     tmp_dir& operator=(tmp_dir const&) = delete;
 
     ~tmp_dir();

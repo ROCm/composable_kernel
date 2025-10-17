@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -22,6 +22,9 @@
 #include "ck/utility/tuple.hpp"
 #include "ck/utility/number.hpp"
 #include "profiler/profile_grouped_gemm_impl.hpp"
+
+extern ck::index_t param_mask;
+extern ck::index_t instance_index;
 
 namespace ck {
 namespace test {
@@ -109,8 +112,16 @@ class TestGroupedGemm : public testing::Test
         {
             SetStrides<ELayout>(stride_cs, Ms, Ns);
         }
+        std::vector<int> k_batches;
+        for(size_t i = 0; i < k_batches_.size(); i++)
+        {
+            if(param_mask & (1 << i))
+            {
+                k_batches.push_back(k_batches_[i]);
+            }
+        }
 
-        RunSingle(Ms, Ns, Ks, stride_as, stride_bs, stride_cs, k_batches_);
+        RunSingle(Ms, Ns, Ks, stride_as, stride_bs, stride_cs, k_batches);
     }
 
     void RunSingle(const std::vector<int>& Ms,
@@ -139,7 +150,8 @@ class TestGroupedGemm : public testing::Test
                                                                      StrideCs,
                                                                      kbatches,
                                                                      n_warmup_,
-                                                                     n_iter_);
+                                                                     n_iter_,
+                                                                     instance_index);
         EXPECT_TRUE(pass);
     }
 };
@@ -210,10 +222,10 @@ struct DeviceGroupedGemmSplitkInstanceWrapper
             KPerBlock,
             K1,
             K1,
-            32,
-            32,
+            16,
+            16,
+            8,
             4,
-            2,
             S<1, 4, 16, 1>,
             ABlockTransferThreadClusterArrageOrder,
             ABlockTransferSrcAccessOrder,
@@ -303,12 +315,19 @@ struct DeviceGroupedGemmSplitkInstanceWrapper
         {
             ggemm_instance.SetKBatchSize(&argument, kbatch);
         }
-
-        EXPECT_TRUE(ggemm_instance.IsSupportedArgument(argument));
-        auto invoker = ggemm_instance.MakeInvoker();
-        DeviceMem dev_gemm_kargs(ggemm_instance.GetDeviceKernelArgSize(&argument));
-        ggemm_instance.SetDeviceKernelArgs(&argument, dev_gemm_kargs.GetDeviceBuffer());
-        return invoker.Run(argument, StreamConfig{nullptr, false});
+        if(kbatch > 1 && ck::is_gfx11_supported())
+        {
+            EXPECT_FALSE(ggemm_instance.IsSupportedArgument(argument));
+            return 0;
+        }
+        else
+        {
+            EXPECT_TRUE(ggemm_instance.IsSupportedArgument(argument));
+            auto invoker = ggemm_instance.MakeInvoker();
+            DeviceMem dev_gemm_kargs(ggemm_instance.GetDeviceKernelArgSize(&argument));
+            ggemm_instance.SetDeviceKernelArgs(&argument, dev_gemm_kargs.GetDeviceBuffer());
+            return invoker.Run(argument, StreamConfig{nullptr, false});
+        }
     }
 };
 

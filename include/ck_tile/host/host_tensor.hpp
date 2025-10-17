@@ -378,7 +378,7 @@ struct HostTensor
     ~HostTensor() = default;
 
     HostTensor& operator=(const HostTensor&) = default;
-    HostTensor& operator=(HostTensor&&) = default;
+    HostTensor& operator=(HostTensor&&)      = default;
 
     template <typename FromT>
     explicit HostTensor(const HostTensor<FromT>& other) : HostTensor(other.template CopyAsType<T>())
@@ -409,7 +409,13 @@ struct HostTensor
     }
 
     // void SetZero() { ck_tile::ranges::fill<T>(mData, 0); }
-    void SetZero() { std::fill(mData.begin(), mData.end(), 0); }
+    void SetZero()
+    {
+        if constexpr(std::is_same_v<T, e8m0_t>)
+            std::fill(mData.begin(), mData.end(), e8m0_t{1.f});
+        else
+            std::fill(mData.begin(), mData.end(), 0);
+    }
 
     template <typename F>
     void ForEach_impl(F&& f, std::vector<size_t>& idx, size_t rank)
@@ -636,6 +642,51 @@ struct HostTensor
                                       size() * FromSize / ToSize};
     }
 
+    /**
+     * @brief Print only the first N elements of the tensor
+     *
+     * @param os Output stream to write to
+     * @param n Number of elements to print (default: 5)
+     * @return std::ostream& Reference to the output stream
+     */
+    std::ostream& print_first_n(std::ostream& os, std::size_t n = 5) const
+    {
+        os << mDesc;
+        os << "[";
+        for(typename Data::size_type idx = 0; idx < std::min(n, mData.size()); ++idx)
+        {
+            if(0 < idx)
+            {
+                os << ", ";
+            }
+            if constexpr(std::is_same_v<T, bf16_t> || std::is_same_v<T, fp16_t> ||
+                         std::is_same_v<T, fp8_t> || std::is_same_v<T, bf8_t>)
+            {
+                os << type_convert<float>(mData[idx]) << " #### ";
+            }
+            else if constexpr(std::is_same_v<T, ck_tile::pk_int4_t>)
+            {
+                auto unpacked = pk_int4_t_to_int8x2_t(mData[idx]);
+                os << "pk(" << static_cast<int>(unpacked[0]) << ", "
+                   << static_cast<int>(unpacked[1]) << ") #### ";
+            }
+            else if constexpr(std::is_same_v<T, int8_t>)
+            {
+                os << static_cast<int>(mData[idx]);
+            }
+            else
+            {
+                os << mData[idx];
+            }
+        }
+        if(mData.size() > n)
+        {
+            os << ", ...";
+        }
+        os << "]";
+        return os;
+    }
+
     friend std::ostream& operator<<(std::ostream& os, const HostTensor<T>& t)
     {
         os << t.mDesc;
@@ -646,9 +697,16 @@ struct HostTensor
             {
                 os << ", ";
             }
-            if constexpr(std::is_same_v<T, bf16_t> || std::is_same_v<T, fp16_t>)
+            if constexpr(std::is_same_v<T, bf16_t> || std::is_same_v<T, fp16_t> ||
+                         std::is_same_v<T, fp8_t> || std::is_same_v<T, bf8_t>)
             {
                 os << type_convert<float>(t.mData[idx]) << " #### ";
+            }
+            else if constexpr(std::is_same_v<T, ck_tile::pk_int4_t>)
+            {
+                auto unpacked = pk_int4_t_to_int8x2_t(t.mData[idx]);
+                os << "pk(" << static_cast<int>(unpacked[0]) << ", "
+                   << static_cast<int>(unpacked[1]) << ") #### ";
             }
             else
             {

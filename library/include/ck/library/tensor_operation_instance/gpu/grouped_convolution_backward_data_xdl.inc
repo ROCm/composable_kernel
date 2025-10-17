@@ -83,6 +83,20 @@ void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f16_16_16_instance
                                                                   PassThrough,
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
+
+void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f16_optimized_loads_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
+                                                                  NHWGK,
+                                                                  GKYXC,
+                                                                  Empty_Tuple,
+                                                                  NHWGC,
+                                                                  F16,
+                                                                  F16,
+                                                                  Empty_Tuple,
+                                                                  F16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
 #endif
 #ifdef CK_ENABLE_FP32
 void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_instances(
@@ -112,6 +126,68 @@ void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_16_16_instance
                                                                   PassThrough,
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
+
+void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_tf32_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
+                                                                  NHWGK,
+                                                                  GKYXC,
+                                                                  Empty_Tuple,
+                                                                  NHWGC,
+                                                                  F32,
+                                                                  F32,
+                                                                  Empty_Tuple,
+                                                                  F32,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  TF32,
+                                                                  TF32>>>& instances);
+
+void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_tf32_16_16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
+                                                                  NHWGK,
+                                                                  GKYXC,
+                                                                  Empty_Tuple,
+                                                                  NHWGC,
+                                                                  F32,
+                                                                  F32,
+                                                                  Empty_Tuple,
+                                                                  F32,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  TF32,
+                                                                  TF32>>>& instances);
+
+void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_optimized_loads_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
+                                                                  NHWGK,
+                                                                  GKYXC,
+                                                                  Empty_Tuple,
+                                                                  NHWGC,
+                                                                  F32,
+                                                                  F32,
+                                                                  Empty_Tuple,
+                                                                  F32,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
+void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_f32_tf32_optimized_loads_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
+                                                                  NHWGK,
+                                                                  GKYXC,
+                                                                  Empty_Tuple,
+                                                                  NHWGC,
+                                                                  F32,
+                                                                  F32,
+                                                                  Empty_Tuple,
+                                                                  F32,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  TF32,
+                                                                  TF32>>>& instances);
 #endif
 #ifdef CK_ENABLE_BF16
 void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_bf16_instances(
@@ -129,6 +205,20 @@ void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_bf16_instances(
                                                                   PassThrough>>>& instances);
 
 void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_bf16_16_16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
+                                                                  NHWGK,
+                                                                  GKYXC,
+                                                                  Empty_Tuple,
+                                                                  NHWGC,
+                                                                  BF16,
+                                                                  BF16,
+                                                                  Empty_Tuple,
+                                                                  BF16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
+void add_device_grouped_conv2d_bwd_data_xdl_nhwgk_gkyxc_nhwgc_bf16_optimized_loads_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<2,
                                                                   NHWGK,
                                                                   GKYXC,
@@ -393,6 +483,20 @@ void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f16_16_16_insta
                                                                   PassThrough,
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f16_optimized_loads_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NDHWGK,
+                                                                  GKZYXC,
+                                                                  Empty_Tuple,
+                                                                  NDHWGC,
+                                                                  F16,
+                                                                  F16,
+                                                                  Empty_Tuple,
+                                                                  F16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
 #endif
 #ifdef CK_ENABLE_FP32
 void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_instances(
@@ -422,6 +526,68 @@ void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_16_16_insta
                                                                   PassThrough,
                                                                   PassThrough,
                                                                   PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_tf32_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NDHWGK,
+                                                                  GKZYXC,
+                                                                  Empty_Tuple,
+                                                                  NDHWGC,
+                                                                  F32,
+                                                                  F32,
+                                                                  Empty_Tuple,
+                                                                  F32,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  TF32,
+                                                                  TF32>>>& instances);
+
+void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_tf32_16_16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NDHWGK,
+                                                                  GKZYXC,
+                                                                  Empty_Tuple,
+                                                                  NDHWGC,
+                                                                  F32,
+                                                                  F32,
+                                                                  Empty_Tuple,
+                                                                  F32,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  TF32,
+                                                                  TF32>>>& instances);
+
+void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_optimized_loads_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NDHWGK,
+                                                                  GKZYXC,
+                                                                  Empty_Tuple,
+                                                                  NDHWGC,
+                                                                  F32,
+                                                                  F32,
+                                                                  Empty_Tuple,
+                                                                  F32,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_f32_tf32_optimized_loads_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NDHWGK,
+                                                                  GKZYXC,
+                                                                  Empty_Tuple,
+                                                                  NDHWGC,
+                                                                  F32,
+                                                                  F32,
+                                                                  Empty_Tuple,
+                                                                  F32,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  TF32,
+                                                                  TF32>>>& instances);
 #endif
 #ifdef CK_ENABLE_BF16
 void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_bf16_instances(
@@ -439,6 +605,20 @@ void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_bf16_instances(
                                                                   PassThrough>>>& instances);
 
 void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_bf16_16_16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NDHWGK,
+                                                                  GKZYXC,
+                                                                  Empty_Tuple,
+                                                                  NDHWGC,
+                                                                  BF16,
+                                                                  BF16,
+                                                                  Empty_Tuple,
+                                                                  BF16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  PassThrough>>>& instances);
+
+void add_device_grouped_conv3d_bwd_data_xdl_ndhwgk_gkzyxc_ndhwgc_bf16_optimized_loads_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
                                                                   NDHWGK,
                                                                   GKZYXC,

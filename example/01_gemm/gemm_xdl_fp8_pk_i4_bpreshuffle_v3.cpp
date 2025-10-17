@@ -28,7 +28,7 @@ static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecializa
 
 static constexpr bool PermuteA = false;
 static constexpr bool PermuteB = false;
-
+static constexpr int KPack     = 32; // int4 -> 32, fp8 -> 16, fp16 -> 8
 // clang-format off
 #if 0
 using DeviceGemmV2Instance = 
@@ -56,14 +56,14 @@ using DeviceGemmV2Instance =
         AElementOp, BElementOp, CElementOp, GemmDefault, 
         256,
         256, 256,
-        128, 16, 32,
-        32,   32,
-        4,    4,
+        128, 16, KPack,
+        16,   16,
+        8,    8,
         S<8, 32, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 16, 16, 0,
         S<4, 64, 1>,  S<1, 0, 2>,  S<1, 0, 2>,
         2, 32, 32, 0,
-        1, 1, S<1, 32, 1, 8>, 8,
+        1, 1, S<1, 32, 1, 8>, 4,
         ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, F8, F8, PermuteA, PermuteB>;
 
 #endif
@@ -160,7 +160,6 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     auto gemm = DeviceGemmV2Instance{};
 
     // weight pre-shuffle
-    int KPack = 32; // int4 -> 32, fp8 -> 16, fp16 -> 8
     int NLane = gemm.GetPreShuffleParameters();
     int KLane = 64 / NLane;
 
@@ -269,9 +268,10 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         return true;
     }
 
-    if(!(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950"))
+    if(!(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950" ||
+         ck::is_gfx12_supported()))
     {
-        std::cout << "This kernel support gfx942 and gfx950 only" << std::endl;
+        std::cout << "This kernel support gfx942, gfx950 and gfx12 only" << std::endl;
 
         return true;
     }
