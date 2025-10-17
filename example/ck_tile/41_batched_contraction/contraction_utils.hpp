@@ -55,7 +55,8 @@ void print_help(const char* program_name)
     std::cout << "  -g_dims=<dims>   Batch dimensions      (default: \"1,2\")\n";
     std::cout << "  -m_dims=<dims>   M (row) dimensions    (default: \"4,256\")\n";
     std::cout << "  -n_dims=<dims>   N (column) dimensions (default: \"16,128\")\n";
-    std::cout << "  -k_dims=<dims>   K (contract) dims     (default: \"64\")\n\n";
+    std::cout << "  -k_dims=<dims>   K (contract) dims     (default: \"64\")\n";
+    std::cout << "  -num_d=<int>     Number of D tensors   (default: 2, range: 0-4)\n\n";
 
     std::cout << "Layout Arguments:\n";
     std::cout
@@ -104,6 +105,7 @@ auto create_args(int argc, char* argv[])
         .insert("k_dims", "64", "K dimensions separated by comma (e.g., '64,32' for 2D K)")
         .insert(
             "g_dims", "1,2", "G dimensions separated by comma (e.g., '4,2' for 2D, '2,3,4' for 3D)")
+        .insert("num_d", "2", "Number of D (auxiliary input) tensors")
         .insert("stride_a", "0", "Custom A tensor leading dimension stride (0 = auto)")
         .insert("stride_b", "0", "Custom B tensor leading dimension stride (0 = auto)")
         .insert("stride_e", "0", "Custom E tensor leading dimension stride (0 = auto)")

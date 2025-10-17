@@ -104,7 +104,11 @@ float invoke_batched_contraction_kernel(
     return ave_time;
 }
 
-template <typename ALayout, typename BLayout, typename DLayout, typename ELayout>
+template <typename ALayout,
+          typename BLayout,
+          typename DLayout,
+          typename ELayout,
+          ck_tile::index_t NumDTensor>
 int run_batched_contraction_example_with_layouts(
     int argc,
     char* argv[],
@@ -121,8 +125,6 @@ int run_batched_contraction_example_with_layouts(
     std::vector<ck_tile::index_t> M_dims = parse_dimensions(arg_parser.get_str("m_dims"));
     std::vector<ck_tile::index_t> N_dims = parse_dimensions(arg_parser.get_str("n_dims"));
     std::vector<ck_tile::index_t> K_dims = parse_dimensions(arg_parser.get_str("k_dims"));
-
-    constexpr ck_tile::index_t NumDTensor = 2;
 
     ck_tile::index_t G_total = calculate_total_elements(G_dims);
     ck_tile::index_t M_total = calculate_total_elements(M_dims);
@@ -395,15 +397,45 @@ int run_batched_contraction_example(int argc, char* argv[])
     if(!result)
         return -1;
 
+    // Get NumDTensor to dispatch at runtime
+    const int num_d = arg_parser.get_int("num_d");
+
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
     std::string a_layout = arg_parser.get_str("a_layout");
     std::string b_layout = arg_parser.get_str("b_layout");
 
+    // Runtime dispatch based on num_d value
     if(a_layout == "R" && b_layout == "C")
     {
-        return run_batched_contraction_example_with_layouts(argc, argv, Row{}, Col{}, Row{}, Row{});
+        // Dispatch to appropriate template instantiation based on runtime num_d
+        switch(num_d)
+        {
+        case 0:
+            std::cout << "Running with 0 D tensors" << std::endl;
+            return run_batched_contraction_example_with_layouts<Row, Col, Row, Row, 0>(
+                argc, argv, Row{}, Col{}, Row{}, Row{});
+        case 1:
+            std::cout << "Running with 1 D tensor" << std::endl;
+            return run_batched_contraction_example_with_layouts<Row, Col, Row, Row, 1>(
+                argc, argv, Row{}, Col{}, Row{}, Row{});
+        case 2:
+            std::cout << "Running with 2 D tensors" << std::endl;
+            return run_batched_contraction_example_with_layouts<Row, Col, Row, Row, 2>(
+                argc, argv, Row{}, Col{}, Row{}, Row{});
+        case 3:
+            std::cout << "Running with 3 D tensors" << std::endl;
+            return run_batched_contraction_example_with_layouts<Row, Col, Row, Row, 3>(
+                argc, argv, Row{}, Col{}, Row{}, Row{});
+        case 4:
+            std::cout << "Running with 4 D tensors" << std::endl;
+            return run_batched_contraction_example_with_layouts<Row, Col, Row, Row, 4>(
+                argc, argv, Row{}, Col{}, Row{}, Row{});
+        default:
+            throw std::runtime_error("num_d must be between 0 and 4, got: " +
+                                     std::to_string(num_d));
+        }
     }
     else
     {
