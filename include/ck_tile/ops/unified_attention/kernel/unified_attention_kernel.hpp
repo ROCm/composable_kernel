@@ -449,10 +449,10 @@ struct UnifiedAttentionKernel
         FmhaMask mask = [&]() {
             if constexpr(kHasMask)
                 return ck_tile::make_generic_attention_mask_from_lr_window<FmhaMask>(
-                    cur_batch_query_len, // x (i.e. extend)
                     seq_len - cur_batch_query_len, // y (i.e. context)
-                    cur_batch_query_len, // x_total 
+                    cur_batch_query_len, // x (i.e. extend)
                     seq_len, // y_total (x + y)
+                    cur_batch_query_len, // x_total 
                     num_queries_per_kv, // the same sequence index is repeated num_queries_per_kv times along x dim of the tile
                     kargs.mask_type == GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT);
             else
