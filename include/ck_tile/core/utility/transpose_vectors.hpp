@@ -138,26 +138,27 @@ struct transpose_vectors
                 static_for<0, NY, 2>{}([&](auto iy) {
                     static_for<0, NX, 2>{}([&](auto ix) {
                         // read A0.B0
-                        const uint16_t x_s2_0 =
-                            bit_cast<uint16_t>(vx_tuple[ix].template get_as<S2>()[iy / I2]);
+                        const S2 x_s2_0 = vx_tuple[ix].template get_as<S2>(iy / I2);
                         // read A1.B1
-                        const uint16_t x_s2_1 =
-                            bit_cast<uint16_t>(vx_tuple[ix + I1].template get_as<S2>()[iy / I2]);
+                        const S2 x_s2_1 = vx_tuple[ix + I1].template get_as<S2>(iy / I2);
 
-                        // 16-bit x_s2_{0,1} are implicitly padded to 32-bit;
-                        // 16 most significant bits of amdgcn.perm are discarded
-                        // in implicit downcast from int32 to uint16.
-                        // (PAD.PAD.A0.B0.PAD.PAD.A1.B1)[clear, clear, 0, 4] = (00.00.B1.B0)
-                        const uint16_t y_s2_0 =
-                            __builtin_amdgcn_perm(x_s2_0, x_s2_1, 0x0C'0C'00'04);
-                        // (PAD.PAD.A0.B0.PAD.PAD.A1.B1)[clear, clear, 1, 5] = (00.00.A1.A0)
-                        const uint16_t y_s2_1 =
-                            __builtin_amdgcn_perm(x_s2_0, x_s2_1, 0x0C'0C'01'05);
+                        // v_perm_b32: pick 4 bytes from 8 bytes in (input0.input1) using the mask
+                        const S2 y_s2_0 = bit_cast<S2>(static_cast<uint16_t>(__builtin_amdgcn_perm(
+                            static_cast<uint32_t>(bit_cast<uint16_t>(x_s2_0)),
+                            static_cast<uint32_t>(bit_cast<uint16_t>(x_s2_1)),
+                            // (XX.XX.A0.B0.XX.XX.A1.B1)[clear, clear, 0, 4] = (00.00.B1.B0)
+                            0x0C'0C'00'04)));
+
+                        const S2 y_s2_1 = bit_cast<S2>(static_cast<uint16_t>(__builtin_amdgcn_perm(
+                            static_cast<uint32_t>(bit_cast<uint16_t>(x_s2_0)),
+                            static_cast<uint32_t>(bit_cast<uint16_t>(x_s2_1)),
+                            // (XX.XX.A0.B0.XX.XX.A1.B1)[clear, clear, 1, 5] = (00.00.A1.A0)
+                            0x0C'0C'01'05)));
 
                         // write (B1.B0)
-                        vy_tuple(iy).template get_as<S2>()[ix / I2] = bit_cast<S2>(y_s2_0);
+                        vy_tuple(iy).set_as(ix / I2, y_s2_0);
                         // write (A1.A0)
-                        vy_tuple(iy + I1).template get_as<S2>()[ix / I2] = bit_cast<S2>(y_s2_1);
+                        vy_tuple(iy + I1).set_as(ix / I2, y_s2_1);
                     });
                 });
             }
