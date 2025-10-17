@@ -147,8 +147,6 @@ struct F16xMXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     CK_TILE_HOST_DEVICE static constexpr auto MakeF16xF4_ALDS_TileDistribution()
     {
         using TileShape = typename Problem::BlockGemmShape;
-        using ADataType = remove_cvref_t<typename Problem::ADataType>;
-        using ALayout   = remove_cvref_t<typename Problem::ALayout>;
 
         static_assert(TileShape::WarpTile::at(I1) == 16, "requires XDL_N == 16");
         static_assert(TileShape::BlockWarps::at(I0) == 1, "requires Wave_M == 1");

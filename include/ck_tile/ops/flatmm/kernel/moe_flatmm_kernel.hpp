@@ -566,7 +566,7 @@ struct MoeFlatmmKernel
     CK_TILE_DEVICE static auto MakeGemmTensorViews(const ADataType* a_ptr,
                                                    const BDataType* b_flat_ptr,
                                                    EDataType* e_ptr,
-                                                   const AccDataType* exp_weight_ptr,
+                                                   [[maybe_unused]]const AccDataType* exp_weight_ptr,
                                                    const int expert_id,
                                                    const KernelArgs& kargs,
                                                    const SplitKBatchOffset& splitk_batch_offset)
@@ -880,11 +880,12 @@ struct MoeFlatmmKernel
             constexpr index_t MPerIterationShuffle     = EpiloguePipeline::MPerIterationShuffle;
             constexpr index_t NPerIterationShuffle     = EpiloguePipeline::NPerIterationShuffle;
 
-            constexpr index_t EpiVectorSizeC      = EpiloguePipeline::GetVectorSizeC();
             constexpr index_t MRepeat             = EpiloguePipeline::MRepeat;
             constexpr index_t NRepeat             = EpiloguePipeline::NRepeat;
             constexpr index_t OutputNRepeat       = IsGateUp ? NRepeat / 2 : NRepeat;
-            constexpr index_t BlockedXDLN_PerWarp = EpiloguePipeline::BlockedXDLN_PerWarp;
+        
+            [[maybe_unused]] constexpr index_t EpiVectorSizeC      = EpiloguePipeline::GetVectorSizeC();
+            [[maybe_unused]] constexpr index_t BlockedXDLN_PerWarp = EpiloguePipeline::BlockedXDLN_PerWarp;
 
             static_assert(!IsGateUp || NumNXdlPerWavePerShuffle % 2 == 0);
 

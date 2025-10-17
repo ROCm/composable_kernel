@@ -337,8 +337,6 @@ int run_a16w4_moe_gemm_example_with_layouts(int argc,
             static_cast<float*>(scale_b_float_dev_buf.GetDeviceBuffer()),
             static_cast<float*>(expert_bias_dev.GetDeviceBuffer()));
 
-        const float max_accumulated_value =
-            *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
         c_m_n_ref_buf->FromDevice(c_m_n_host_ref.data());
 
         const float rtol = std::is_same_v<ADataType, ck_tile::half_t> && IsInputGemm ? 1e-3 : 1e-2;
