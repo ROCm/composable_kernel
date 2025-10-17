@@ -100,14 +100,6 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         weight.SetZero();
     }
 
-    ck_tile::DeviceMem input_dev_buf(input.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem weight_dev_buf(weight.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem output_dev_buf(output.get_element_space_size_in_bytes());
-
-    input_dev_buf.ToDevice(input.data());
-    weight_dev_buf.ToDevice(output.data());
-    output_dev_buf.SetZero();
-
     using DeviceOp = ops::GroupedConvolutionForwardBaseInvoker<
                                                         NDimSpatial,
                                                         InLayout,
@@ -136,6 +128,14 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     bool all_pass = true;
     for(auto& op : ops)
     {
+        ck_tile::DeviceMem input_dev_buf(input.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem weight_dev_buf(weight.get_element_space_size_in_bytes());
+        ck_tile::DeviceMem output_dev_buf(output.get_element_space_size_in_bytes());
+
+        input_dev_buf.ToDevice(input.data());
+        weight_dev_buf.ToDevice(output.data());
+        output_dev_buf.SetZero();
+
         ck_tile::GroupedConvFwdHostArgs args(conv_param,
                                             input_dev_buf.GetDeviceBuffer(),
                                             weight_dev_buf.GetDeviceBuffer(),
@@ -155,20 +155,14 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
             std::string op_name = op->GetName(args);
             std::cout << op_name << " is profiled..." << std::endl;
 
-            float avg_time = op->Run(args, time_kernel);
-
-            std::size_t flop      = conv_param.GetFlops();
-            std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
-
-            float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
-            float gb_per_sec = num_btype / 1.E6 / avg_time;
-
-            std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << tflops
-                        << " TFlops, " << gb_per_sec << " GB/s, " << op_name << std::endl;
-
+            // Run verification first. If it doesn't pass, no need to do performance measurement.
             bool pass = false; 
             if(do_verification)
             {
+                constexpr int n_warmup = 0;
+                constexpr int n_repeat = 1;
+
+                op->Run(args, false, n_warmup, n_repeat);
                 output_dev_buf.FromDevice(output.data());
 
                 ck_tile::HostTensor<OutDataType> output_host_ref(out_g_n_k_wos_desc);
@@ -202,13 +196,28 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
             }
 
             bool is_valid = do_verification ? pass : true;
-
-            if(tflops > best_tflops && is_valid)
+            if (is_valid)
             {
-                best_op_name    = op_name;
-                best_tflops     = tflops;
-                best_avg_time   = avg_time;
-                best_gb_per_sec = gb_per_sec;
+                constexpr int n_warmup = 5;
+                constexpr int n_repeat = 50;
+                float avg_time = op->Run(args, time_kernel, n_warmup, n_repeat);
+
+                std::size_t flop      = conv_param.GetFlops();
+                std::size_t num_btype = conv_param.GetByte<InDataType, WeiDataType, OutDataType>();
+
+                float tflops     = static_cast<float>(flop) / 1.E9 / avg_time;
+                float gb_per_sec = num_btype / 1.E6 / avg_time;
+
+                std::cout << "Perf: " << std::setw(10) << avg_time << " ms, " << tflops
+                            << " TFlops, " << gb_per_sec << " GB/s, " << op_name << std::endl;
+
+                if(tflops > best_tflops)
+                {
+                    best_op_name    = op_name;
+                    best_tflops     = tflops;
+                    best_avg_time   = avg_time;
+                    best_gb_per_sec = gb_per_sec;
+                }
             }
         }
         else 
