@@ -563,7 +563,7 @@ struct GroupedConvolutionBackwardDataKernel
     CK_TILE_HOST static auto GridSize(const GroupedConvBwdDataKernelArgsSpecialized& kargs)
     {
         // enable batched grouped gemm
-        return dim3(kargs.grid_size_, kargs.GemmBatch, kargs.n_splits);
+        return dim3(kargs.grid_size_, kargs.GemmBatch, kargs.n_splits * kargs.k_batch);
     }
 
     CK_TILE_HOST static constexpr auto BlockSize()
@@ -597,17 +597,6 @@ struct GroupedConvolutionBackwardDataKernel
                 }
                 return false;
             }
-        }
-
-        // Check Split-K and Split-N conflict (both use blockIdx.z)
-        if(kargs.k_batch > 1 && kargs.n_splits > 1)
-        {
-            if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
-            {
-                CK_TILE_ERROR(
-                    "Cannot use both Split-K and Split-N simultaneously (both use blockIdx.z)!");
-            }
-            return false;
         }
 
         if(kargs.gemm_count > MaxGroupedGemmGroupsNum)
@@ -990,15 +979,23 @@ struct GroupedConvolutionBackwardDataKernel
         const auto group_offset_b = amd_wave_read_first_lane(kargs.group_stride_b * blockIdY);
         const auto group_offset_c = amd_wave_read_first_lane(kargs.group_stride_c * blockIdY);
 
+        const auto blockIdZ = amd_wave_read_first_lane(blockIdx.z);
+
         // SplitN
-        const auto blockIdZ        = amd_wave_read_first_lane(blockIdx.z);
-        const index_t batch_offset = __builtin_amdgcn_readfirstlane(blockIdZ * kargs.n_per_split);
+        const index_t split_n_idx = __builtin_amdgcn_readfirstlane(blockIdZ / kargs.k_batch);
+        const index_t split_n_offset =
+            __builtin_amdgcn_readfirstlane(split_n_idx * kargs.n_per_split);
 
         const long_index_t output_batch_offset =
-            static_cast<long_index_t>(batch_offset) *
+            static_cast<long_index_t>(split_n_offset) *
             static_cast<long_index_t>(kargs.output_batch_stride);
-        const long_index_t input_batch_offset = static_cast<long_index_t>(batch_offset) *
+        const long_index_t input_batch_offset = static_cast<long_index_t>(split_n_offset) *
                                                 static_cast<long_index_t>(kargs.input_batch_stride);
+
+        // SplitK
+        // TODO: Implement SplitK support
+        // const index_t split_k_idx =
+        //     __builtin_amdgcn_readfirstlane(blockIdZ - split_n_idx * kargs.k_batch);
 
         // options
         // conv_bwd_data = Out * Weight = In
