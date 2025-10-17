@@ -13,7 +13,7 @@
 #include "ck_tile/host/convolution_parameter.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/grouped_convolution_utils.hpp"
-#include "ck_tile/library/tensor_operation_instance/gpu/tile_grouped_conv_factory.hpp"
+#include "ck_tile/library/tensor_operation_instance/gpu/tile_grouped_conv_bwd_weight_factory.hpp"
 #include "ck_tile/ops/grouped_convolution/kernel/grouped_convolution_backward_weight_kernel.hpp"
 #include "ck_tile/host/reference/reference_grouped_conv_bwd_weight.hpp"
 namespace ck_tile {
@@ -130,7 +130,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     float best_gb_per_sec = 0;
     std::string best_split_k("1");
 
-    std::vector<ck_tile::index_t> split_k_list = {/*auto deduce value*/ -1, 1, 2, 4, 8, 16, 32, 64, 128};
+    std::vector<ck_tile::index_t> split_k_list = {1, 2, 4, 8, 16, 32, 64, 128};
     if(split_k != "all")
     {
         try
