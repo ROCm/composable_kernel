@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "ck_tile/host/concat.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common/utils.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
