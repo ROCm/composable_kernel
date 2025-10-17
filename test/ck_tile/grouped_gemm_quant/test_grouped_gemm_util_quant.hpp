@@ -379,7 +379,7 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
         }
         else
         {
-            throw std::runtime_error("Non-persistent kernel not implemented yet");
+            GTEST_FAIL() << "Non-persistent kernel not implemented yet";
         }
 
         // Copy results back to host for validation
