@@ -10,8 +10,18 @@ from pathlib import Path
 from typing import List, Tuple, Dict, Literal, Any
 from collections import defaultdict
 
-from codegen.cmake_config import *
-from codegen.cpp_symbol_map import *
+from codegen.cmake_config import GEN_DIR
+from codegen.cpp_symbol_map import (
+    get_mask_check_map,
+    BIAS_CHECK_MAP,
+    DROPOUT_CHECK_MAP,
+    MODE_MAP,
+    get_mask_map,
+    BIAS_MAP,
+    DROPOUT_MAP,
+    BWD_DTYPE_MAP,
+    BOOL_MAP,
+)
 from codegen.utils import update_file
 
 
@@ -21,7 +31,7 @@ FMHA_BWD_KERNEL_HEADER = """// SPDX-License-Identifier: MIT
 #include "fmha_bwd.hpp"
 """
 
-FMHA_BWD_DQ_DK_DV_KERNEL_BODY="""
+FMHA_BWD_DQ_DK_DV_KERNEL_BODY = """
 using fmha_dtype_{F_idx} = {F_dtype};
 
 using fmha_block_tile_{F_idx} = ck_tile::
@@ -164,8 +174,8 @@ std::string fmha_bwd_dq_dk_dv_get_name_<dq_dk_dv_trait_{F_idx}>()
 }}
 """
 
-FMHA_BWD_API_FILENAME="fmha_bwd_api.cpp"
-FMHA_BWD_API="""
+FMHA_BWD_API_FILENAME = "fmha_bwd_api.cpp"
+FMHA_BWD_API = """
 #include <iostream>
 
 template <typename dot_do_o_trait_, typename dq_dk_dv_trait_, typename convert_dq_trait_>
@@ -201,17 +211,18 @@ float fmha_bwd<2>(fmha_bwd_traits t, fmha_bwd_args a, const ck_tile::stream_conf
 }}
 """
 
-def FMHA_BWD_API_COND_STATEMENT(F_cond: str, F_body: str, *, indent=0, if_ = 0) -> str:
+
+def FMHA_BWD_API_COND_STATEMENT(F_cond: str, F_body: str, *, indent=0, if_=0) -> str:
     lines = [
         f"{'if' if if_ == 0 else 'else if'}({F_cond})",
         "{",
-        *['    ' + line for line in F_body.split('\n') if line.strip() != ''],
+        *["    " + line for line in F_body.split("\n") if line.strip() != ""],
         "}",
     ]
-    return '\n'.join(' ' * indent + line for line in lines) + '\n'
+    return "\n".join(" " * indent + line for line in lines) + "\n"
 
 
-FMHA_BWD_API_INNER_DISPATCH="""
+FMHA_BWD_API_INNER_DISPATCH = """
 {F_if}((t.is_group_mode == {F_mode}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_dbias == {F_dbias}) && ({F_dropout_check}) &&
         ({F_scheck}) && ({F_dcheck}) && ({F_dvcheck}) && (t.is_deterministic == {F_deterministic}){F_cond_extra}) {{
     using dot_do_o_trait_ = fmha_bwd_dot_do_o_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_spad1d}, ({F_dvpad} > 0)>;
@@ -225,6 +236,7 @@ FMHA_BWD_API_INNER_DISPATCH="""
 # M0 size for 1d kernels (dot/convert)
 M0_1D = 64
 
+
 # GEMM0: Q@K=S^T
 # GEMM1: P^T@dO^T=dV(This was chosen as G1 to match fwd, but N1 must be equal to headdim_v)
 # GEMM2: dO@V=dP^T(This was chosen as G2 because of the calculation order)
@@ -233,174 +245,537 @@ M0_1D = 64
 # Is it necessary to distinguish between K0~K4?
 @dataclass(frozen=True)
 class FmhaBwdDQDKDVTileSize:
-    F_bm0       : int  # tile size along q seqlen (block size)
-    F_bn0       : int  # tile size along k seqlen
-    F_bk0       : int  # tile size along gemm0 unroll(F_bhdq)
-    F_bk1       : int  # tile size along gemm1 unroll(F_bm0)
-    F_bk2       : int  # tile size along gemm2 unroll(F_bhdv)
-    F_bk3       : int  # tile size along gemm3 unroll(F_bm0)
-    F_bk4       : int  # tile size along gemm4 unroll(F_bn0)
-    F_bhdq      : int  # q head_dim
-    F_bhdv      : int  # v head_dim
-    F_rm0       : int  # number of warps along q seqlen (block warps) in gemm0/gemm2
-    F_rn0       : int  # number of warps along k seqlen (block warps) in gemm0/gemm2
-    F_rk0       : int  # number of warps along headdim_qk/v (not used) in gemm0/gemm2
-    F_rm1       : int  # number of warps along k seqlen (block warps) in gemm1/gemm3
-    F_rn1       : int  # number of warps along headdim_qk/v (block warps) in gemm1/gemm3
-    F_rk1       : int  # number of warps along q seqlen (not used) in gemm1/gemm3
-    F_rm2       : int  # number of warps along q seqlen (block warps) in gemm4
-    F_rn2       : int  # number of warps along headdim_qk (block warps) in gemm4
-    F_rk2       : int  # number of warps along k seqlen (not used) in gemm4
-    F_wm0       : int  # warp size along m in gemm0/gemm2/gemm4
-    F_wn0       : int  # warp size along n in gemm0/gemm2/gemm4
-    F_wk0       : int  # warp size along k in gemm0/gemm2/gemm4
-    F_wm1       : int  # warp size along m in gemm1/gemm3
-    F_wn1       : int  # warp size along n in gemm1/gemm3
-    F_wk1       : int  # warp size along k in gemm1/gemm3
-    F_occupancy : int  # occupancy
-    max_seq_q   : int = 0
+    F_bm0: int  # tile size along q seqlen (block size)
+    F_bn0: int  # tile size along k seqlen
+    F_bk0: int  # tile size along gemm0 unroll(F_bhdq)
+    F_bk1: int  # tile size along gemm1 unroll(F_bm0)
+    F_bk2: int  # tile size along gemm2 unroll(F_bhdv)
+    F_bk3: int  # tile size along gemm3 unroll(F_bm0)
+    F_bk4: int  # tile size along gemm4 unroll(F_bn0)
+    F_bhdq: int  # q head_dim
+    F_bhdv: int  # v head_dim
+    F_rm0: int  # number of warps along q seqlen (block warps) in gemm0/gemm2
+    F_rn0: int  # number of warps along k seqlen (block warps) in gemm0/gemm2
+    F_rk0: int  # number of warps along headdim_qk/v (not used) in gemm0/gemm2
+    F_rm1: int  # number of warps along k seqlen (block warps) in gemm1/gemm3
+    F_rn1: int  # number of warps along headdim_qk/v (block warps) in gemm1/gemm3
+    F_rk1: int  # number of warps along q seqlen (not used) in gemm1/gemm3
+    F_rm2: int  # number of warps along q seqlen (block warps) in gemm4
+    F_rn2: int  # number of warps along headdim_qk (block warps) in gemm4
+    F_rk2: int  # number of warps along k seqlen (not used) in gemm4
+    F_wm0: int  # warp size along m in gemm0/gemm2/gemm4
+    F_wn0: int  # warp size along n in gemm0/gemm2/gemm4
+    F_wk0: int  # warp size along k in gemm0/gemm2/gemm4
+    F_wm1: int  # warp size along m in gemm1/gemm3
+    F_wn1: int  # warp size along n in gemm1/gemm3
+    F_wk1: int  # warp size along k in gemm1/gemm3
+    F_occupancy: int  # occupancy
+    max_seq_q: int = 0
 
     @property
     def name(self) -> str:
-        return f"b{self.F_bm0}x{self.F_bn0}x{self.F_bk0}x{self.F_bk1}x{self.F_bk2}x{self.F_bk3}x{self.F_bk4}x{self.F_bhdq}x{self.F_bhdv}" +\
-        f"_r{self.F_rm0}x{self.F_rn0}x{self.F_rk0}_r{self.F_rm1}x{self.F_rn1}x{self.F_rk1}_r{self.F_rm2}x{self.F_rn2}x{self.F_rk2}" +\
-        f"_w{self.F_wm0}x{self.F_wn0}x{self.F_wk0}_w{self.F_wm1}x{self.F_wn1}x{self.F_wk1}_o{self.F_occupancy}_maxq{self.max_seq_q}"
+        return (
+            f"b{self.F_bm0}x{self.F_bn0}x{self.F_bk0}x{self.F_bk1}x{self.F_bk2}x{self.F_bk3}x{self.F_bk4}x{self.F_bhdq}x{self.F_bhdv}"
+            + f"_r{self.F_rm0}x{self.F_rn0}x{self.F_rk0}_r{self.F_rm1}x{self.F_rn1}x{self.F_rk1}_r{self.F_rm2}x{self.F_rn2}x{self.F_rk2}"
+            + f"_w{self.F_wm0}x{self.F_wn0}x{self.F_wk0}_w{self.F_wm1}x{self.F_wn1}x{self.F_wk1}_o{self.F_occupancy}_maxq{self.max_seq_q}"
+        )
+
 
 @dataclass(frozen=True)
 class FmhaBwdDQDKDVKernel:
-    F_idx           : int  # this is not a tunable, but a counter to differentiate symbol
-    F_hdim          : int  # hdim
-    F_dtype         : str  # data type
-    F_tile          : FmhaBwdDQDKDVTileSize
-    F_dpad          : Literal[0, 8 ,1]
-    F_dvpad         : Literal[0, 8 ,1]
-    F_bias          : str  #
-    F_dbias         : str  #
-    F_dropout       : str  #
-    F_mask          : str  # value from MASK_MAP
-    F_mode          : str  # value from MODE_MAP
-    F_deterministic : str  #
-    mask_impl       : str  #
-    F_trload       : str  #
+    F_idx: int  # this is not a tunable, but a counter to differentiate symbol
+    F_hdim: int  # hdim
+    F_dtype: str  # data type
+    F_tile: FmhaBwdDQDKDVTileSize
+    F_dpad: Literal[0, 8, 1]
+    F_dvpad: Literal[0, 8, 1]
+    F_bias: str  #
+    F_dbias: str  #
+    F_dropout: str  #
+    F_mask: str  # value from MASK_MAP
+    F_mode: str  # value from MODE_MAP
+    F_deterministic: str  #
+    mask_impl: str  #
+    F_trload: str  #
 
     @property
     def template(self) -> str:
-        return FMHA_BWD_KERNEL_HEADER + \
-            FMHA_BWD_DQ_DK_DV_KERNEL_BODY.format(
-                F_idx           = self.F_idx,
-                F_hdim          = self.F_hdim,
-                F_dtype         = BWD_DTYPE_MAP[self.F_dtype],
-                F_bm0           = self.F_tile.F_bm0,
-                F_bn0           = self.F_tile.F_bn0,
-                F_bk0           = self.F_tile.F_bk0,
-                F_bk1           = self.F_tile.F_bk1,
-                F_bk2           = self.F_tile.F_bk2,
-                F_bk3           = self.F_tile.F_bk3,
-                F_bk4           = self.F_tile.F_bk4,
-                F_bhdq          = self.F_tile.F_bhdq,
-                F_bhdv          = self.F_tile.F_bhdv,
-                F_rm0           = self.F_tile.F_rm0,
-                F_rn0           = self.F_tile.F_rn0,
-                F_rk0           = self.F_tile.F_rk0,
-                F_rm1           = self.F_tile.F_rm1,
-                F_rn1           = self.F_tile.F_rn1,
-                F_rk1           = self.F_tile.F_rk1,
-                F_rm2           = self.F_tile.F_rm2,
-                F_rn2           = self.F_tile.F_rn2,
-                F_rk2           = self.F_tile.F_rk2,
-                F_wm0           = self.F_tile.F_wm0,
-                F_wn0           = self.F_tile.F_wn0,
-                F_wk0           = self.F_tile.F_wk0,
-                F_wm1           = self.F_tile.F_wm1,
-                F_wn1           = self.F_tile.F_wn1,
-                F_wk1           = self.F_tile.F_wk1,
-                F_dpad          = self.F_dpad,
-                F_dvpad         = self.F_dvpad,
-                F_bias          = BIAS_MAP[self.F_bias],
-                F_dbias         = BOOL_MAP[self.F_dbias],
-                F_dropout       = DROPOUT_MAP[self.F_dropout],
-                F_occupancy     = self.F_tile.F_occupancy,
-                F_mask          = get_mask_map(self.mask_impl)[self.F_mask],
-                F_mode          = MODE_MAP[self.F_mode],
-                F_deterministic = BOOL_MAP[self.F_deterministic],
-                F_trload        = BOOL_MAP[self.F_trload],
-                F_maxq          = self.F_tile.max_seq_q
-            )
+        return FMHA_BWD_KERNEL_HEADER + FMHA_BWD_DQ_DK_DV_KERNEL_BODY.format(
+            F_idx=self.F_idx,
+            F_hdim=self.F_hdim,
+            F_dtype=BWD_DTYPE_MAP[self.F_dtype],
+            F_bm0=self.F_tile.F_bm0,
+            F_bn0=self.F_tile.F_bn0,
+            F_bk0=self.F_tile.F_bk0,
+            F_bk1=self.F_tile.F_bk1,
+            F_bk2=self.F_tile.F_bk2,
+            F_bk3=self.F_tile.F_bk3,
+            F_bk4=self.F_tile.F_bk4,
+            F_bhdq=self.F_tile.F_bhdq,
+            F_bhdv=self.F_tile.F_bhdv,
+            F_rm0=self.F_tile.F_rm0,
+            F_rn0=self.F_tile.F_rn0,
+            F_rk0=self.F_tile.F_rk0,
+            F_rm1=self.F_tile.F_rm1,
+            F_rn1=self.F_tile.F_rn1,
+            F_rk1=self.F_tile.F_rk1,
+            F_rm2=self.F_tile.F_rm2,
+            F_rn2=self.F_tile.F_rn2,
+            F_rk2=self.F_tile.F_rk2,
+            F_wm0=self.F_tile.F_wm0,
+            F_wn0=self.F_tile.F_wn0,
+            F_wk0=self.F_tile.F_wk0,
+            F_wm1=self.F_tile.F_wm1,
+            F_wn1=self.F_tile.F_wn1,
+            F_wk1=self.F_tile.F_wk1,
+            F_dpad=self.F_dpad,
+            F_dvpad=self.F_dvpad,
+            F_bias=BIAS_MAP[self.F_bias],
+            F_dbias=BOOL_MAP[self.F_dbias],
+            F_dropout=DROPOUT_MAP[self.F_dropout],
+            F_occupancy=self.F_tile.F_occupancy,
+            F_mask=get_mask_map(self.mask_impl)[self.F_mask],
+            F_mode=MODE_MAP[self.F_mode],
+            F_deterministic=BOOL_MAP[self.F_deterministic],
+            F_trload=BOOL_MAP[self.F_trload],
+            F_maxq=self.F_tile.max_seq_q,
+        )
 
     @property
     def name(self) -> str:
         def pad_name() -> str:
-            n = ''
-            if self.F_dpad : n += f'd{self.F_dpad}'
-            if self.F_dvpad : n += f'dv{self.F_dvpad}'
-            if n != '' : n = 'p' + n
+            n = ""
+            if self.F_dpad:
+                n += f"d{self.F_dpad}"
+            if self.F_dvpad:
+                n += f"dv{self.F_dvpad}"
+            if n != "":
+                n = "p" + n
             return n
+
         pn = pad_name()
         n = f"fmha_bwd_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_" + self.F_tile.name
-        if pn != '' : n += f'_{pn}'
-        else: n += '_npad'
-
-        if self.F_bias != 'no' : n += f'_{self.F_bias}'
-        else: n += '_nbias'
-
-        if self.F_dbias == 't' : n += '_dbias'
-        else: n += '_ndbias'
-
-        if self.F_mask[0:2] == 's_':
-            if self.F_mask == 's_mask': n += f'_mask'
-            else: n += '_nmask'
+        if pn != "":
+            n += f"_{pn}"
         else:
-            if self.F_mask != 'no' : n += f'_m{self.F_mask[0]}'
-            else: n += '_nmask'
+            n += "_npad"
 
-        if self.F_dropout != 'no' : n += f'_{self.F_dropout}'
-        else: n += '_ndropout'
+        if self.F_bias != "no":
+            n += f"_{self.F_bias}"
+        else:
+            n += "_nbias"
 
-        if self.F_deterministic == 't' : n += '_deterministic'
-        else: n += '_ndeterministic'
+        if self.F_dbias == "t":
+            n += "_dbias"
+        else:
+            n += "_ndbias"
 
-        if self.F_trload == 't' : n += '_trload'
-        else: n += '_ntrload'
+        if self.F_mask[0:2] == "s_":
+            if self.F_mask == "s_mask":
+                n += "_mask"
+            else:
+                n += "_nmask"
+        else:
+            if self.F_mask != "no":
+                n += f"_m{self.F_mask[0]}"
+            else:
+                n += "_nmask"
+
+        if self.F_dropout != "no":
+            n += f"_{self.F_dropout}"
+        else:
+            n += "_ndropout"
+
+        if self.F_deterministic == "t":
+            n += "_deterministic"
+        else:
+            n += "_ndeterministic"
+
+        if self.F_trload == "t":
+            n += "_trload"
+        else:
+            n += "_ntrload"
         return n
 
     @property
     def filename(self) -> str:
         return self.name + ".cpp"
 
+
 # TODO: design a more practical way to do it
 # this is current supported tile size.
-def get_dq_dk_dv_tiles(dtype : str, tr_load: str) -> List[FmhaBwdDQDKDVTileSize]:
-    if dtype == 'fp32' and tr_load == 'f':
+def get_dq_dk_dv_tiles(dtype: str, tr_load: str) -> List[FmhaBwdDQDKDVTileSize]:
+    if dtype == "fp32" and tr_load == "f":
         return [
             #                     bm0, bn0, bk0, bk1, bk2, bk3, bk4, bhdq, bhdv,
-            FmhaBwdDQDKDVTileSize( 32, 128,  32,  32,  32,  32,  64,   32,   32, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 16, 16, 16, 16, 1),
-            FmhaBwdDQDKDVTileSize( 16,  64,  64,  16,  64,  16,  16,   64,   64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 16, 16, 16, 16, 1),
-            FmhaBwdDQDKDVTileSize( 16,  64, 128,  16, 128,  16,  16,  128,  128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 16, 16, 16, 16, 1),
+            FmhaBwdDQDKDVTileSize(
+                32,
+                128,
+                32,
+                32,
+                32,
+                32,
+                64,
+                32,
+                32,
+                1,
+                4,
+                1,
+                4,
+                1,
+                1,
+                2,
+                2,
+                1,
+                16,
+                16,
+                16,
+                16,
+                16,
+                16,
+                1,
+            ),
+            FmhaBwdDQDKDVTileSize(
+                16,
+                64,
+                64,
+                16,
+                64,
+                16,
+                16,
+                64,
+                64,
+                1,
+                4,
+                1,
+                4,
+                1,
+                1,
+                1,
+                4,
+                1,
+                16,
+                16,
+                16,
+                16,
+                16,
+                16,
+                1,
+            ),
+            FmhaBwdDQDKDVTileSize(
+                16,
+                64,
+                128,
+                16,
+                128,
+                16,
+                16,
+                128,
+                128,
+                1,
+                4,
+                1,
+                4,
+                1,
+                1,
+                1,
+                4,
+                1,
+                16,
+                16,
+                16,
+                16,
+                16,
+                16,
+                1,
+            ),
         ]
-    elif (dtype == 'fp16' or dtype == 'bf16') and tr_load == 'f':
+    elif (dtype == "fp16" or dtype == "bf16") and tr_load == "f":
         return [
-            FmhaBwdDQDKDVTileSize( 32, 128,  32, 32,  32, 32, 64,  32,  32, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 32, 16, 16, 16, 1),
-            FmhaBwdDQDKDVTileSize( 32, 128,  64, 32,  64, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
-            FmhaBwdDQDKDVTileSize( 32, 128,  96, 32,  96, 32, 32,  96,  96, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 32, 16, 16, 16, 1),
-            FmhaBwdDQDKDVTileSize( 16, 128, 128, 16, 128, 16, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
+            FmhaBwdDQDKDVTileSize(
+                32,
+                128,
+                32,
+                32,
+                32,
+                32,
+                64,
+                32,
+                32,
+                1,
+                4,
+                1,
+                4,
+                1,
+                1,
+                2,
+                2,
+                1,
+                16,
+                16,
+                32,
+                16,
+                16,
+                16,
+                1,
+            ),
+            FmhaBwdDQDKDVTileSize(
+                32,
+                128,
+                64,
+                32,
+                64,
+                32,
+                32,
+                64,
+                64,
+                1,
+                4,
+                1,
+                4,
+                1,
+                1,
+                1,
+                4,
+                1,
+                16,
+                16,
+                32,
+                16,
+                16,
+                16,
+                1,
+            ),
+            FmhaBwdDQDKDVTileSize(
+                32,
+                128,
+                96,
+                32,
+                96,
+                32,
+                32,
+                96,
+                96,
+                1,
+                4,
+                1,
+                4,
+                1,
+                1,
+                2,
+                2,
+                1,
+                16,
+                16,
+                32,
+                16,
+                16,
+                16,
+                1,
+            ),
+            FmhaBwdDQDKDVTileSize(
+                16,
+                128,
+                128,
+                16,
+                128,
+                16,
+                32,
+                128,
+                128,
+                1,
+                4,
+                1,
+                4,
+                1,
+                1,
+                1,
+                4,
+                1,
+                16,
+                16,
+                32,
+                16,
+                16,
+                16,
+                1,
+            ),
             # FmhaBwdDQDKDVTileSize( 32, 64, 160, 32, 160, 32, 32, 160, 160, 1, 4, 1, 4, 1, 1, 2, 2, 1, 16, 16, 32, 16, 16, 16, 1),
-            FmhaBwdDQDKDVTileSize( 16,  64, 256, 16, 256, 16, 32, 256, 256, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
+            FmhaBwdDQDKDVTileSize(
+                16,
+                64,
+                256,
+                16,
+                256,
+                16,
+                32,
+                256,
+                256,
+                1,
+                4,
+                1,
+                4,
+                1,
+                1,
+                1,
+                4,
+                1,
+                16,
+                16,
+                32,
+                16,
+                16,
+                16,
+                1,
+            ),
         ]
-    elif (dtype == 'fp16' or dtype == 'bf16') and tr_load == 't':
+    elif (dtype == "fp16" or dtype == "bf16") and tr_load == "t":
         return [
-                FmhaBwdDQDKDVTileSize( 32, 128,  64, 32,  64, 32, 32,  64,  64, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 32, 1),
-                FmhaBwdDQDKDVTileSize( 32, 128, 128, 32, 128, 32, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 32, 1),
-                FmhaBwdDQDKDVTileSize( 16, 192, 128, 16, 128, 16, 32, 128, 128, 1, 4, 1, 4, 1, 1, 1, 4, 1, 16, 16, 32, 16, 16, 16, 1),
-
-                # FmhaBwdDQDKDVTileSize( 32,  32,  64, 32,  64, 32, 32,  64,  64, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 32, 1, 32),
-                FmhaBwdDQDKDVTileSize( 32,  16,  64, 32,  64, 32, 16,  64,  64, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 16, 2, 32),
-                # FmhaBwdDQDKDVTileSize( 16, 32, 128, 16, 128, 16, 32, 128, 128, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 16, 1, 16),
-                FmhaBwdDQDKDVTileSize( 16,  16, 128, 16, 128, 16, 16, 128, 128, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 16, 2, 16),
+            FmhaBwdDQDKDVTileSize(
+                32,
+                128,
+                64,
+                32,
+                64,
+                32,
+                32,
+                64,
+                64,
+                1,
+                4,
+                1,
+                4,
+                1,
+                1,
+                1,
+                4,
+                1,
+                16,
+                16,
+                32,
+                16,
+                16,
+                32,
+                1,
+            ),
+            FmhaBwdDQDKDVTileSize(
+                32,
+                128,
+                128,
+                32,
+                128,
+                32,
+                32,
+                128,
+                128,
+                1,
+                4,
+                1,
+                4,
+                1,
+                1,
+                1,
+                4,
+                1,
+                16,
+                16,
+                32,
+                16,
+                16,
+                32,
+                1,
+            ),
+            FmhaBwdDQDKDVTileSize(
+                16,
+                192,
+                128,
+                16,
+                128,
+                16,
+                32,
+                128,
+                128,
+                1,
+                4,
+                1,
+                4,
+                1,
+                1,
+                1,
+                4,
+                1,
+                16,
+                16,
+                32,
+                16,
+                16,
+                16,
+                1,
+            ),
+            # FmhaBwdDQDKDVTileSize( 32,  32,  64, 32,  64, 32, 32,  64,  64, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 32, 1, 32),
+            FmhaBwdDQDKDVTileSize(
+                32,
+                16,
+                64,
+                32,
+                64,
+                32,
+                16,
+                64,
+                64,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                16,
+                16,
+                32,
+                16,
+                16,
+                16,
+                2,
+                32,
+            ),
+            # FmhaBwdDQDKDVTileSize( 16, 32, 128, 16, 128, 16, 32, 128, 128, 1, 1, 1, 1, 1, 1, 1, 1, 1, 16, 16, 32, 16, 16, 16, 1, 16),
+            FmhaBwdDQDKDVTileSize(
+                16,
+                16,
+                128,
+                16,
+                128,
+                16,
+                16,
+                128,
+                128,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                1,
+                16,
+                16,
+                32,
+                16,
+                16,
+                16,
+                2,
+                16,
+            ),
         ]
     else:
         return []
 
-FMHA_BWD_DOT_DO_O_KERNEL_BODY="""
+
+FMHA_BWD_DOT_DO_O_KERNEL_BODY = """
 using fmha_dtype_{F_idx} = {F_dtype};
 
 using fmha_bwd_dot_do_o_trait_{F_idx} =
@@ -458,47 +833,55 @@ std::string fmha_bwd_dot_do_o_get_name_<dot_do_o_trait_{F_idx}>()
 }}
 """
 
+
 @dataclass(frozen=True)
 class FmhaBwdOGradDotOKernel:
-    F_idx       : int  # this is not a tunable, but a counter to differentiate symbol
-    F_hdim      : int  # hdim
-    F_dtype     : str  # data type
-    F_spad      : str  # true/false
-    F_dvpad     : str  #
-    F_mode      : str  # value from MODE_MAP
-    F_occupancy : int
+    F_idx: int  # this is not a tunable, but a counter to differentiate symbol
+    F_hdim: int  # hdim
+    F_dtype: str  # data type
+    F_spad: str  # true/false
+    F_dvpad: str  #
+    F_mode: str  # value from MODE_MAP
+    F_occupancy: int
 
     @property
     def template(self) -> str:
-        return FMHA_BWD_KERNEL_HEADER + \
-            FMHA_BWD_DOT_DO_O_KERNEL_BODY.format(
-                F_idx       = self.F_idx,
-                F_hdim      = self.F_hdim,
-                F_dtype     = BWD_DTYPE_MAP[self.F_dtype],
-                F_spad      = BOOL_MAP[self.F_spad],
-                F_dvpad     = BOOL_MAP[self.F_dvpad],
-                F_mode      = MODE_MAP[self.F_mode],
-                F_occupancy = self.F_occupancy)
+        return FMHA_BWD_KERNEL_HEADER + FMHA_BWD_DOT_DO_O_KERNEL_BODY.format(
+            F_idx=self.F_idx,
+            F_hdim=self.F_hdim,
+            F_dtype=BWD_DTYPE_MAP[self.F_dtype],
+            F_spad=BOOL_MAP[self.F_spad],
+            F_dvpad=BOOL_MAP[self.F_dvpad],
+            F_mode=MODE_MAP[self.F_mode],
+            F_occupancy=self.F_occupancy,
+        )
 
     @property
     def name(self) -> str:
         def pad_name() -> str:
-            n = ''
-            if self.F_spad == 't': n += 's'
-            if self.F_dvpad == 't' : n += 'dv'
-            if n != '' : n = 'p' + n
+            n = ""
+            if self.F_spad == "t":
+                n += "s"
+            if self.F_dvpad == "t":
+                n += "dv"
+            if n != "":
+                n = "p" + n
             return n
+
         pn = pad_name()
         n = f"fmha_bwd_dot_do_o_d{self.F_hdim}_{self.F_dtype}_{self.F_mode}_o{self.F_occupancy}"
-        if pn != '' : n += f'_{pn}'
-        else: n += '_npad'
+        if pn != "":
+            n += f"_{pn}"
+        else:
+            n += "_npad"
         return n
 
     @property
     def filename(self) -> str:
         return self.name + ".cpp"
 
-FMHA_BWD_CONVERT_DQ_KERNEL_BODY="""
+
+FMHA_BWD_CONVERT_DQ_KERNEL_BODY = """
 using fmha_dtype_{F_idx} = {F_dtype};
 
 using fmha_bwd_convert_dq_trait_{F_idx} =
@@ -565,116 +948,133 @@ std::string fmha_bwd_convert_dq_get_name_<convert_dq_trait_{F_idx}>()
 }}
 """
 
+
 @dataclass(frozen=True)
 class FmhaBwdConvertQGradKernel:
-    F_idx           : int  # this is not a tunable, but a counter to differentiate symbol
-    F_hdim          : int  # hdim
-    F_dtype         : str  # data type
-    F_bm0           : int  # tile size along q seqlen (block size)
-    F_bn0           : int  # tile size along k seqlen
-    F_spad          : str  # true/false
-    F_dpad          : str  #
-    F_mode          : str  # value from MODE_MAP
-    F_occupancy     : int  #
-    F_deterministic : str  #
-    disabled        : bool # sometimes this kernel is not used
+    F_idx: int  # this is not a tunable, but a counter to differentiate symbol
+    F_hdim: int  # hdim
+    F_dtype: str  # data type
+    F_bm0: int  # tile size along q seqlen (block size)
+    F_bn0: int  # tile size along k seqlen
+    F_spad: str  # true/false
+    F_dpad: str  #
+    F_mode: str  # value from MODE_MAP
+    F_occupancy: int  #
+    F_deterministic: str  #
+    disabled: bool  # sometimes this kernel is not used
 
     @property
     def template(self) -> str:
-        return FMHA_BWD_KERNEL_HEADER + \
-            FMHA_BWD_CONVERT_DQ_KERNEL_BODY.format(
-                F_idx           = self.F_idx,
-                F_hdim          = self.F_hdim,
-                F_dtype         = BWD_DTYPE_MAP[self.F_dtype],
-                F_bm0           = self.F_bm0,
-                F_bn0           = self.F_bn0,
-                F_spad          = BOOL_MAP[self.F_spad],
-                F_dpad          = BOOL_MAP[self.F_dpad],
-                F_mode          = MODE_MAP[self.F_mode],
-                F_occupancy     = self.F_occupancy,
-                F_deterministic = BOOL_MAP[self.F_deterministic])
+        return FMHA_BWD_KERNEL_HEADER + FMHA_BWD_CONVERT_DQ_KERNEL_BODY.format(
+            F_idx=self.F_idx,
+            F_hdim=self.F_hdim,
+            F_dtype=BWD_DTYPE_MAP[self.F_dtype],
+            F_bm0=self.F_bm0,
+            F_bn0=self.F_bn0,
+            F_spad=BOOL_MAP[self.F_spad],
+            F_dpad=BOOL_MAP[self.F_dpad],
+            F_mode=MODE_MAP[self.F_mode],
+            F_occupancy=self.F_occupancy,
+            F_deterministic=BOOL_MAP[self.F_deterministic],
+        )
 
     @property
     def name(self) -> str:
         def pad_name() -> str:
-            n = ''
-            if self.F_spad == 't': n += 's'
-            if self.F_dpad == 't' : n += 'd'
-            if n != '' : n = 'p' + n
+            n = ""
+            if self.F_spad == "t":
+                n += "s"
+            if self.F_dpad == "t":
+                n += "d"
+            if n != "":
+                n = "p" + n
             return n
+
         pn = pad_name()
         n = f"fmha_bwd_convert_dq_d{self.F_hdim}_{self.F_dtype}_b{self.F_bm0}x{self.F_bn0}_{self.F_mode}_o{self.F_occupancy}"
-        if pn != '' : n += f'_{pn}'
-        else: n += '_npad'
-        if self.F_deterministic == 't' : n += '_deterministic'
-        else: n += '_ndeterministic'
+        if pn != "":
+            n += f"_{pn}"
+        else:
+            n += "_npad"
+        if self.F_deterministic == "t":
+            n += "_deterministic"
+        else:
+            n += "_ndeterministic"
         return n
 
     @property
     def filename(self) -> str:
         return self.name + ".cpp"
 
+
 @dataclass(frozen=True)
 class FmhaBwdApiTrait:
-    idx           : int  # this is not a tunable, but a counter to differentiate symbol
+    idx: int  # this is not a tunable, but a counter to differentiate symbol
     # sync with fmha_bwd_traits<>, to generate fallback calls
-    hdim          : int
-    dtype         : str  # data type
-    mode          : str  # value from MODE_MAP
-    tile          : FmhaBwdDQDKDVTileSize
-    mask          : str
-    bias          : str
-    dbias         : str
-    dropout       : str
-    spad1d        : str # spad for 1d kernels (dot/convert)
-    dpad          : Literal[0, 1, 8]
-    dvpad         : Literal[0, 1, 8]
-    deterministic : str
-    mask_impl     : str
-    tr_load       : str
+    hdim: int
+    dtype: str  # data type
+    mode: str  # value from MODE_MAP
+    tile: FmhaBwdDQDKDVTileSize
+    mask: str
+    bias: str
+    dbias: str
+    dropout: str
+    spad1d: str  # spad for 1d kernels (dot/convert)
+    dpad: Literal[0, 1, 8]
+    dvpad: Literal[0, 1, 8]
+    deterministic: str
+    mask_impl: str
+    tr_load: str
 
     @property
     def bm0(self) -> int:
         return self.tile.F_bm0
+
     @property
     def bn0(self) -> int:
         return self.tile.F_bn0
+
     @property
     def bhdq(self) -> int:
         return self.tile.F_bhdq
+
     @property
     def bhdv(self) -> int:
         return self.tile.F_bhdv
 
     @property
     def scheck(self) -> str:
-        if self.mode == 'group':
-            return 'true' # always support
-        elif self.spad1d == 't':
-            return f'a.seqlen_q % {M0_1D} != 0'
-        else: # self.spad1d == 'f'
-            return f'a.seqlen_q % {M0_1D} == 0'
+        if self.mode == "group":
+            return "true"  # always support
+        elif self.spad1d == "t":
+            return f"a.seqlen_q % {M0_1D} != 0"
+        else:  # self.spad1d == 'f'
+            return f"a.seqlen_q % {M0_1D} == 0"
 
     @property
     def dcheck(self) -> str:
-        if self.dpad == 0: return f'a.hdim_q % {self.bhdq} == 0'
-        else:              return f'a.hdim_q % {self.dpad} == 0'
+        if self.dpad == 0:
+            return f"a.hdim_q % {self.bhdq} == 0"
+        else:
+            return f"a.hdim_q % {self.dpad} == 0"
 
     @property
     def dvcheck(self) -> str:
-        if self.dvpad == 0: return f'a.hdim_v % {self.bhdv} == 0'
-        else:               return f'a.hdim_v % {self.dvpad} == 0'
+        if self.dvpad == 0:
+            return f"a.hdim_v % {self.bhdv} == 0"
+        else:
+            return f"a.hdim_v % {self.dvpad} == 0"
 
     @property
     def extra_cond(self) -> str:
-        if self.tr_load == 't' and self.tile.max_seq_q == 0 and self.tile.F_bn0 == 128:
+        if self.tr_load == "t" and self.tile.max_seq_q == 0 and self.tile.F_bn0 == 128:
             return "&& (a.seqlen_k <= 256)"
         else:
             return ""
-    
+
     @property
     def convert_dq_bn0(self) -> int:
-        return self.tile.F_bn0 if self.deterministic == 't' else 0
+        return self.tile.F_bn0 if self.deterministic == "t" else 0
 
     @property
     def dot_do_o_kernel(self) -> FmhaBwdOGradDotOKernel:
@@ -683,15 +1083,35 @@ class FmhaBwdApiTrait:
         def get_occupancy(dtype, hdim):
             return 2
 
-        F_dvpad = 't' if self.dvpad else 'f'
-        return FmhaBwdOGradDotOKernel(F_idx=self.idx, F_hdim=self.hdim, F_dtype=self.dtype, F_spad=self.spad1d,
-            F_dvpad=F_dvpad, F_mode=self.mode, F_occupancy=get_occupancy(self.dtype, self.hdim))
+        F_dvpad = "t" if self.dvpad else "f"
+        return FmhaBwdOGradDotOKernel(
+            F_idx=self.idx,
+            F_hdim=self.hdim,
+            F_dtype=self.dtype,
+            F_spad=self.spad1d,
+            F_dvpad=F_dvpad,
+            F_mode=self.mode,
+            F_occupancy=get_occupancy(self.dtype, self.hdim),
+        )
 
     @property
     def dq_dk_dv_kernel(self) -> FmhaBwdDQDKDVKernel:
-        return FmhaBwdDQDKDVKernel(F_idx=self.idx, F_hdim=self.hdim, F_dtype=self.dtype, F_tile=self.tile,
-            F_dpad=self.dpad, F_dvpad=self.dvpad, F_bias=self.bias, F_dbias=self.dbias, F_dropout=self.dropout,
-            F_mask=self.mask, F_mode=self.mode, F_deterministic=self.deterministic, mask_impl=self.mask_impl, F_trload=self.tr_load)
+        return FmhaBwdDQDKDVKernel(
+            F_idx=self.idx,
+            F_hdim=self.hdim,
+            F_dtype=self.dtype,
+            F_tile=self.tile,
+            F_dpad=self.dpad,
+            F_dvpad=self.dvpad,
+            F_bias=self.bias,
+            F_dbias=self.dbias,
+            F_dropout=self.dropout,
+            F_mask=self.mask,
+            F_mode=self.mode,
+            F_deterministic=self.deterministic,
+            mask_impl=self.mask_impl,
+            F_trload=self.tr_load,
+        )
 
     @property
     def convert_dq_kernel(self) -> FmhaBwdConvertQGradKernel:
@@ -700,44 +1120,76 @@ class FmhaBwdApiTrait:
         def get_occupancy(dtype, hdim):
             return 2
 
-        F_dpad = 't' if self.dpad else 'f'
-        return FmhaBwdConvertQGradKernel(F_idx=self.idx, F_hdim=self.hdim, F_dtype=self.dtype,
-            F_bm0=M0_1D, F_bn0=self.convert_dq_bn0, F_spad=self.spad1d, F_dpad=F_dpad,
-            F_mode=self.mode, F_occupancy=get_occupancy(self.dtype, self.hdim),
-            F_deterministic=self.deterministic, disabled=self.tile.max_seq_q != 0)
+        F_dpad = "t" if self.dpad else "f"
+        return FmhaBwdConvertQGradKernel(
+            F_idx=self.idx,
+            F_hdim=self.hdim,
+            F_dtype=self.dtype,
+            F_bm0=M0_1D,
+            F_bn0=self.convert_dq_bn0,
+            F_spad=self.spad1d,
+            F_dpad=F_dpad,
+            F_mode=self.mode,
+            F_occupancy=get_occupancy(self.dtype, self.hdim),
+            F_deterministic=self.deterministic,
+            disabled=self.tile.max_seq_q != 0,
+        )
+
 
 class FmhaBwdApiPool:
     def __init__(self, mask_impl):
-        self.dq_dk_dv_pool = defaultdict(lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list))))
-        
+        self.dq_dk_dv_pool = defaultdict(
+            lambda: defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+        )
+
         self.mask_impl = mask_impl
 
-    def register_dq_dk_dv_traits(self, trait : FmhaBwdApiTrait) -> None:
+    def register_dq_dk_dv_traits(self, trait: FmhaBwdApiTrait) -> None:
         # TODO: do we need to check duplication?
-        self.dq_dk_dv_pool[trait.tr_load][trait.tile.max_seq_q][trait.dtype][trait.hdim].append(copy.copy(trait))
+        self.dq_dk_dv_pool[trait.tr_load][trait.tile.max_seq_q][trait.dtype][
+            trait.hdim
+        ].append(copy.copy(trait))
 
     @staticmethod
     def if_(i: int) -> str:
-        return 'if' if i == 0 else 'else if'
+        return "if" if i == 0 else "else if"
 
     def _api_innders(self, traits: List[FmhaBwdApiTrait]) -> str:
         inners = ""
-        i = 0 
+        i = 0
         for trait in traits:
-            inners += FMHA_BWD_API_INNER_DISPATCH.format(F_if=self.if_(i), F_mode=MODE_MAP[trait.mode],
-                F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask], F_mask=get_mask_map(self.mask_impl)[trait.mask], F_bias_check=BIAS_CHECK_MAP[trait.bias],
-                F_bias=BIAS_MAP[trait.bias], F_dbias=BOOL_MAP[trait.dbias], F_dropout_check=DROPOUT_CHECK_MAP[trait.dropout], F_dropout=DROPOUT_MAP[trait.dropout],
-                F_scheck=trait.scheck, F_dcheck=trait.dcheck, F_dvcheck=trait.dvcheck, F_hdim=trait.hdim, F_dtype=BWD_DTYPE_MAP[trait.dtype],
-                F_spad1d=BOOL_MAP[trait.spad1d], F_dpad=trait.dpad, F_dvpad=trait.dvpad,
-                F_deterministic=BOOL_MAP[trait.deterministic], F_trload=BOOL_MAP[trait.tr_load], F_maxq=trait.tile.max_seq_q,
-                F_convert_dq_enabled=BOOL_MAP[not trait.convert_dq_kernel.disabled], F_bn0=trait.tile.F_bn0, F_cond_extra=trait.extra_cond,
-                F_convert_dq_bn0=trait.convert_dq_bn0)
+            inners += FMHA_BWD_API_INNER_DISPATCH.format(
+                F_if=self.if_(i),
+                F_mode=MODE_MAP[trait.mode],
+                F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask],
+                F_mask=get_mask_map(self.mask_impl)[trait.mask],
+                F_bias_check=BIAS_CHECK_MAP[trait.bias],
+                F_bias=BIAS_MAP[trait.bias],
+                F_dbias=BOOL_MAP[trait.dbias],
+                F_dropout_check=DROPOUT_CHECK_MAP[trait.dropout],
+                F_dropout=DROPOUT_MAP[trait.dropout],
+                F_scheck=trait.scheck,
+                F_dcheck=trait.dcheck,
+                F_dvcheck=trait.dvcheck,
+                F_hdim=trait.hdim,
+                F_dtype=BWD_DTYPE_MAP[trait.dtype],
+                F_spad1d=BOOL_MAP[trait.spad1d],
+                F_dpad=trait.dpad,
+                F_dvpad=trait.dvpad,
+                F_deterministic=BOOL_MAP[trait.deterministic],
+                F_trload=BOOL_MAP[trait.tr_load],
+                F_maxq=trait.tile.max_seq_q,
+                F_convert_dq_enabled=BOOL_MAP[not trait.convert_dq_kernel.disabled],
+                F_bn0=trait.tile.F_bn0,
+                F_cond_extra=trait.extra_cond,
+                F_convert_dq_bn0=trait.convert_dq_bn0,
+            )
             i += 1
         return inners
 
     @staticmethod
     def trload_sort_key(tf):
-        return 0 if tf == 't' else 1  # sort 't' before 'f'
+        return 0 if tf == "t" else 1  # sort 't' before 'f'
 
     @staticmethod
     def max_seq_q_sort_key(max_seq_q):
@@ -746,9 +1198,9 @@ class FmhaBwdApiPool:
     @staticmethod
     def max_seq_q_cond(max_seq_q: int) -> str:
         if max_seq_q == 0:
-            return 'true /* no seqlen_q limit */'
+            return "true /* no seqlen_q limit */"
         else:
-            return f'a.seqlen_q <= {max_seq_q}'
+            return f"a.seqlen_q <= {max_seq_q}"
 
     @staticmethod
     def dtype_cond(dtype: str) -> str:
@@ -756,39 +1208,56 @@ class FmhaBwdApiPool:
 
     @staticmethod
     def hdim_cond(hdim: int) -> str:
-        return f't.hdim_q <= {hdim} && t.hdim_v <= {hdim}'
+        return f"t.hdim_q <= {hdim} && t.hdim_v <= {hdim}"
 
     @property
     def api(self) -> str:
-        tr_load_cond_map = {
-            "t": "has_load_tr",
-            "f": "true /* no trload requirement */"
-        }
-        per_tr_load = ''
+        tr_load_cond_map = {"t": "has_load_tr", "f": "true /* no trload requirement */"}
+        per_tr_load = ""
         for tr_load in sorted(self.dq_dk_dv_pool.keys(), key=self.trload_sort_key):
-            per_max_seq_q = ''
-            for max_seq_q in sorted(self.dq_dk_dv_pool[tr_load].keys(), key=self.max_seq_q_sort_key):
-                per_dtypes = ''
+            per_max_seq_q = ""
+            for max_seq_q in sorted(
+                self.dq_dk_dv_pool[tr_load].keys(), key=self.max_seq_q_sort_key
+            ):
+                per_dtypes = ""
                 for j, dtype in enumerate(self.dq_dk_dv_pool[tr_load][max_seq_q]):
-                    per_hdim_case = ''
-                    for k, hdim in enumerate(self.dq_dk_dv_pool[tr_load][max_seq_q][dtype]):
+                    per_hdim_case = ""
+                    for k, hdim in enumerate(
+                        self.dq_dk_dv_pool[tr_load][max_seq_q][dtype]
+                    ):
                         traits = self.dq_dk_dv_pool[tr_load][max_seq_q][dtype][hdim]
                         inners = self._api_innders(traits)
-                        per_hdim_case += FMHA_BWD_API_COND_STATEMENT(if_=k, F_cond=self.hdim_cond(hdim), F_body=inners)
-                    per_dtypes += FMHA_BWD_API_COND_STATEMENT(if_=j, F_cond=self.dtype_cond(dtype), F_body=per_hdim_case)
-                per_max_seq_q += FMHA_BWD_API_COND_STATEMENT(F_cond=self.max_seq_q_cond(max_seq_q), F_body=per_dtypes)
-            per_tr_load += FMHA_BWD_API_COND_STATEMENT(F_cond=tr_load_cond_map[tr_load], F_body=per_max_seq_q, indent=4)
+                        per_hdim_case += FMHA_BWD_API_COND_STATEMENT(
+                            if_=k, F_cond=self.hdim_cond(hdim), F_body=inners
+                        )
+                    per_dtypes += FMHA_BWD_API_COND_STATEMENT(
+                        if_=j, F_cond=self.dtype_cond(dtype), F_body=per_hdim_case
+                    )
+                per_max_seq_q += FMHA_BWD_API_COND_STATEMENT(
+                    F_cond=self.max_seq_q_cond(max_seq_q), F_body=per_dtypes
+                )
+            per_tr_load += FMHA_BWD_API_COND_STATEMENT(
+                F_cond=tr_load_cond_map[tr_load], F_body=per_max_seq_q, indent=4
+            )
         if not per_tr_load:
             # empty string we add some ignore to suppress warning in api
-            per_tr_load += '    (void)t ; (void)s ; (void)a; (void)has_load_tr;'
-        result = FMHA_BWD_KERNEL_HEADER + FMHA_BWD_API.format(F_dispatch = per_tr_load)
-        return result.replace('\n\n', '\n')
+            per_tr_load += "    (void)t ; (void)s ; (void)a; (void)has_load_tr;"
+        result = FMHA_BWD_KERNEL_HEADER + FMHA_BWD_API.format(F_dispatch=per_tr_load)
+        return result.replace("\n\n", "\n")
 
-def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[FmhaBwdApiPool, List[FmhaBwdOGradDotOKernel], List[FmhaBwdDQDKDVKernel], List[FmhaBwdConvertQGradKernel]]:
-    if filter_list == '':
-        filter_list = '*@*@*'
-    filters = filter_list.split('@')
-    filters.extend(['*'] * (3 - len(filters)))
+
+def get_bwd_blobs(
+    filter_list: str, receipt, mask_impl, optdim_list
+) -> Tuple[
+    FmhaBwdApiPool,
+    List[FmhaBwdOGradDotOKernel],
+    List[FmhaBwdDQDKDVKernel],
+    List[FmhaBwdConvertQGradKernel],
+]:
+    if filter_list == "":
+        filter_list = "*@*@*"
+    filters = filter_list.split("@")
+    filters.extend(["*"] * (3 - len(filters)))
     filter_dot_do_o = filters[0]
     filter_convert_dq = filters[1]
     filter_dq_dk_dv = filters[2]
@@ -803,30 +1272,60 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
         tiles: Any = get_dq_dk_dv_tiles(dtype, tr_load)
         dpad_options = itertools.product(*([[0, 8, 1]] * 2))
         tf = ["t", "f"]
-        for tile, mode, mask, bias, dbias, dropout, spad1d, (dpad, dvpad), deterministic in itertools.product(
-                tiles, MODE_MAP.keys(), get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), tf, DROPOUT_MAP.keys(), tf, dpad_options, tf):
-            assert isinstance(tile, FmhaBwdDQDKDVTileSize), "tile must be FmhaBwdDQDKDVTileSize"
+        for tile, mode, mask, bias, dbias, dropout, spad1d, (
+            dpad,
+            dvpad,
+        ), deterministic in itertools.product(
+            tiles,
+            MODE_MAP.keys(),
+            get_mask_map(mask_impl).keys(),
+            BIAS_MAP.keys(),
+            tf,
+            DROPOUT_MAP.keys(),
+            tf,
+            dpad_options,
+            tf,
+        ):
+            assert isinstance(tile, FmhaBwdDQDKDVTileSize), (
+                "tile must be FmhaBwdDQDKDVTileSize"
+            )
             hdim = tile.F_bhdq
             if (mode == "group") and (spad1d == "f"):
                 continue
-            if (mode == "group" or ('no' not in mask)) and tile.max_seq_q != 0:
+            if (mode == "group" or ("no" not in mask)) and tile.max_seq_q != 0:
                 continue
-            if ((bias == "no" or bias == "alibi") and dbias == "t"):
+            if (bias == "no" or bias == "alibi") and dbias == "t":
                 continue
-            if ("wg32" in dropout):
+            if "wg32" in dropout:
                 continue
             if tr_load == "t":
                 # tr_load can only work with 8 pad
                 if dpad != dvpad or dpad == 1:
                     continue
-            else: # tr_load == "f"
+            else:  # tr_load == "f"
                 # do not generate instance with only 1 of dpad/dvpad being 8
                 if dpad != dvpad and dpad == 8:
                     continue
             if optdim_list != [-1]:
                 if hdim not in optdim_list:
                     continue
-            t = FmhaBwdApiTrait(idx=0, hdim=hdim, dtype=dtype, mode=mode,tile=tile,mask=mask, bias=bias, dbias=dbias, dropout=dropout, spad1d=spad1d, dpad=dpad, dvpad=dvpad, deterministic=deterministic, mask_impl=mask_impl, tr_load=tr_load)
+            t = FmhaBwdApiTrait(
+                idx=0,
+                hdim=hdim,
+                dtype=dtype,
+                mode=mode,
+                tile=tile,
+                mask=mask,
+                bias=bias,
+                dbias=dbias,
+                dropout=dropout,
+                spad1d=spad1d,
+                dpad=dpad,
+                dvpad=dvpad,
+                deterministic=deterministic,
+                mask_impl=mask_impl,
+                tr_load=tr_load,
+            )
 
             if not fnmatch.fnmatch(t.dot_do_o_kernel.name, filter_dot_do_o):
                 continue
@@ -837,69 +1336,69 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
 
             # Flash attention integration
             if receipt == 2:
-                cond = dtype in ['fp16', 'bf16']
-                cond &= bias in ['no', 'alibi']
-                cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
+                cond = dtype in ["fp16", "bf16"]
+                cond &= bias in ["no", "alibi"]
+                cond &= dropout in ["no", "dropout_wg32", "dropout_wg16"]
                 cond &= dpad == dvpad
                 if not cond:
                     continue
             elif receipt == 3:
-                cond = dtype in ['fp16', 'bf16']
-                cond &= bias in ['no', 'alibi']
+                cond = dtype in ["fp16", "bf16"]
+                cond &= bias in ["no", "alibi"]
                 cond &= dpad == dvpad
                 cond &= deterministic == "f"
                 if not cond:
                     continue
             # PyTorch integration
             elif receipt == 4:
-                cond = dtype in ['fp16', 'bf16']
-                cond &= bias in ['no', 'bias']
-                cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
+                cond = dtype in ["fp16", "bf16"]
+                cond &= bias in ["no", "bias"]
+                cond &= dropout in ["no", "dropout_wg32", "dropout_wg16"]
                 cond &= dpad == dvpad
                 cond &= deterministic == "f"
                 if not cond:
                     continue
             # Aiter (mha_bwd) integration
             elif receipt == 300:
-                cond = dtype in ['fp16', 'bf16']
+                cond = dtype in ["fp16", "bf16"]
                 cond &= mode == "batch"
-                cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
+                cond &= dropout in ["no", "dropout_wg32", "dropout_wg16"]
                 if not cond:
                     continue
             # Aiter (mha_varlen_bwd) integration
             elif receipt == 400:
-                cond = dtype in ['fp16', 'bf16']
+                cond = dtype in ["fp16", "bf16"]
                 cond &= mode == "group"
-                cond &= dropout in ['no', 'dropout_wg32',  'dropout_wg16']
+                cond &= dropout in ["no", "dropout_wg32", "dropout_wg16"]
                 if not cond:
                     continue
             # aiter::mha_bwd C++ api integration
             elif receipt == 600:
-                cond = dtype in ['fp16', 'bf16']
+                cond = dtype in ["fp16", "bf16"]
                 if not cond:
                     continue
 
             # fp32 only, all variations
             if receipt == 800:
-                cond = dtype == 'fp32'
+                cond = dtype == "fp32"
                 cond &= dpad == dvpad
                 if not cond:
                     continue
             # fp32 only, minimal set of parameters
             elif receipt == 801:
-                cond = dtype == 'fp32'
+                cond = dtype == "fp32"
                 cond &= hdim in [64, 128]
                 cond &= dpad == dvpad
-                cond &= mode == 'batch'
-                cond &= bias == 'no'
-                cond &= dropout == 'no'
-                cond &= mask == 's_no'
+                cond &= mode == "batch"
+                cond &= bias == "no"
+                cond &= dropout == "no"
+                cond &= mask == "s_no"
                 cond &= deterministic == "f"
                 if not cond:
                     continue
             else:
                 # Don't build fp32 by default
-                if dtype == 'fp32':
+                if dtype == "fp32":
                     continue
 
             gen_dot_do_o[t.dot_do_o_kernel] = True
@@ -908,10 +1407,20 @@ def get_bwd_blobs(filter_list: str, receipt, mask_impl, optdim_list) -> Tuple[Fm
                 gen_convert_dq[t.convert_dq_kernel] = True
             api_pool.register_dq_dk_dv_traits(t)
 
-    return api_pool, list(gen_dot_do_o.keys()), list(gen_dq_dk_dv.keys()), list(gen_convert_dq.keys())
+    return (
+        api_pool,
+        list(gen_dot_do_o.keys()),
+        list(gen_dq_dk_dv.keys()),
+        list(gen_convert_dq.keys()),
+    )
 
-def write_blobs(output_dir : Path, filter_list : str, receipt, optdim_list, mask_impl) -> None:
-    api_pool, kernels_dot_do_o,  kernels_dq_dk_dv,  kernels_convert_dq = get_bwd_blobs(filter_list, receipt, mask_impl, optdim_list)
+
+def write_blobs(
+    output_dir: Path, filter_list: str, receipt, optdim_list, mask_impl
+) -> None:
+    api_pool, kernels_dot_do_o, kernels_dq_dk_dv, kernels_convert_dq = get_bwd_blobs(
+        filter_list, receipt, mask_impl, optdim_list
+    )
     update_file(output_dir / FMHA_BWD_API_FILENAME, api_pool.api)
     for k in kernels_dot_do_o:
         update_file(output_dir / k.filename, k.template)
@@ -921,7 +1430,9 @@ def write_blobs(output_dir : Path, filter_list : str, receipt, optdim_list, mask
         update_file(output_dir / k.filename, k.template)
 
 
-def list_blobs(file_path: Path, filter_list: str, receipt, optdim_list, mask_impl) -> None:
+def list_blobs(
+    file_path: Path, filter_list: str, receipt, optdim_list, mask_impl
+) -> None:
     _, kernels_dot_do_o, kernels_dq_dk_dv, kernels_convert_dq = get_bwd_blobs(
         filter_list, receipt, mask_impl, optdim_list
     )
