@@ -24,6 +24,22 @@ auto shuffle_aq(const ck_tile::HostTensor<T>* t, int block_aq_k)
     return ck_tile::reference_permute(t_view, {1, 0, 2});
 }
 
+template <typename GemmConfig, typename T>
+auto shuffle_b(const ck_tile::HostTensor<T>& t)
+{
+    assert(t.get_lengths().size() == 2);
+    int n_                = t.get_lengths()[1];
+    int k_                = t.get_lengths()[0];
+    constexpr int divisor = GemmConfig::N_Warp_Tile == 32 ? 2 : 4;
+    ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
+                                   GemmConfig::N_Warp_Tile,
+                                   k_ / GemmConfig::K_Warp_Tile,
+                                   divisor,
+                                   GemmConfig::K_Warp_Tile / divisor});
+    std::copy(t.begin(), t.end(), t_view.begin());
+    return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
+}
+
 template <typename GemmConfig,
           typename TypeConfig,
           typename ALayout,
@@ -121,6 +137,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
               << " C_Type = " << DataTypeTraits<typename TypeConfig::CDataType>::name
               << " QuantMode = " << quant_type_to_string(QuantMode)
               << " PreshuffleQuant = " << (GemmConfig::PreshuffleQuant ? "true" : "false") << " : "
+              << " PreshuffleB = " << (GemmConfig::PreshuffleB ? "true" : "false") << " : "
               << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
               << std::endl;
 
@@ -393,17 +410,27 @@ int run_gemm_example_with_layouts(int argc,
     {
         a_m_k_dev_buf.ToDevice(a_m_k.data());
     }
+
+    ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
     if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
     {
-        // Permute vector pk_i4x4 data for device implementation
-        ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
+
+        if constexpr(GemmConfig::PreshuffleB)
+        {
+            b_k_n_dev = shuffle_b<GemmConfig>(b_k_n);
+        }
         ck_tile::permute_vectors_i4x4_b(b_k_n_dev);
         b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
     }
     else
     {
-        b_k_n_dev_buf.ToDevice(b_k_n.data());
+        if constexpr(GemmConfig::PreshuffleB)
+        {
+            b_k_n_dev = shuffle_b<GemmConfig>(b_k_n);
+        }
+        b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
     }
+
     c_m_n_dev_buf.SetZero();
     c_m_n_dev_result.SetZero();
 
@@ -509,7 +536,7 @@ int run_gemm_example_with_layouts(int argc,
                       << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                       << std::endl;
         }
-        std::cout << "CPU verification " << (pass ? "Passed!" : "Failed ...") << std::endl;
+        std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
     }
     else if(arg_parser.get_int("v") == 2)
     {
