@@ -483,8 +483,18 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
             const void* p_b = b_k_n_dev_buf[i]->GetDeviceBuffer();
             void* p_c       = c_m_n_dev_buf[i]->GetDeviceBuffer();
 
-            gemm_descs.push_back(
-                {p_a, p_b, p_c, kbatch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
+            gemm_descs.push_back({p_a,
+                                  p_b,
+                                  {/*ds_ptr*/},
+                                  p_c,
+                                  kbatch,
+                                  M,
+                                  N,
+                                  K,
+                                  stride_As[i],
+                                  stride_Bs[i],
+                                  {/*stride_Ds*/},
+                                  stride_Cs[i]});
         }
 
         ck_tile::DeviceMem gemm_workspace;
