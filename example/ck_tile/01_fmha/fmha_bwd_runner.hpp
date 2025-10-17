@@ -346,9 +346,9 @@ bwd_result fmha_bwd_run(mode_enum mode,
     ck_tile::DeviceMem dbias_buf(dbias_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem seqstart_q(seqstart_q_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqlen_q_dev(mode == mode_enum::batch ? 0
-                                                            : seqlen_qs.size() * sizeof(int32_t));
+                                                             : seqlen_qs.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqlen_k_dev(mode == mode_enum::batch ? 0
-                                                            : seqlen_ks.size() * sizeof(int32_t));                                                             
+                                                             : seqlen_ks.size() * sizeof(int32_t));
     ck_tile::DeviceMem seqstart_k(seqstart_k_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem drop_seed_buf(drop_prefs ? sizeof(uint64_t) : 0);
     ck_tile::DeviceMem drop_offset_buf(drop_prefs ? sizeof(uint64_t) : 0);
@@ -467,7 +467,7 @@ bwd_result fmha_bwd_run(mode_enum mode,
                              k_buf.GetDeviceBuffer(),
                              v_buf.GetDeviceBuffer(),
                              bias.type == bias_enum::alibi ? alibi_slope_buf.GetDeviceBuffer()
-                                                           : bias_buf.GetDeviceBuffer(),
+                                                             : bias_buf.GetDeviceBuffer(),
                              o_buf.GetDeviceBuffer(),
                              lse_buf.GetDeviceBuffer(),
                              do_buf.GetDeviceBuffer(),
@@ -496,7 +496,7 @@ bwd_result fmha_bwd_run(mode_enum mode,
                              stride_k,
                              stride_v,
                              bias.type == bias_enum::alibi ? (bias.rank_info == 0 ? 0 : nhead)
-                                                           : stride_bias,
+                                                             : stride_bias,
                              stride_o,
                              stride_randval,
                              stride_do,
