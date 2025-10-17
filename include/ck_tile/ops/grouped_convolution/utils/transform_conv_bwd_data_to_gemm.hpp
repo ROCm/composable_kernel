@@ -44,24 +44,26 @@ struct TransformConvBwdDataToGemm
     }
 
     template <typename ConvDimsType>
-    static IndexType GetSplitedNSize(const ConvDimsType& a_g_n_c_wis_lengths,
-                                     const ConvDimsType& c_g_n_k_wos_lengths)
+    static IndexType GetSplitedNSize(const ConvDimsType& c_g_n_k_wos_lengths,
+                                     const ConvDimsType& a_g_n_c_wis_lengths)
     {
 
         // Calculate strides internally assuming contiguous memory layout
-        ConvDimsType a_g_n_c_wis_strides, c_g_n_k_wos_strides;
-        const index_t num_dims = a_g_n_c_wis_lengths.size();
+        ConvDimsType c_g_n_k_wos_strides, a_g_n_c_wis_strides;
+        const index_t num_dims = c_g_n_k_wos_strides.size();
 
-        // Calculate strides for input tensor (innermost to outermost)
+        // Calculate strides for input tensor (innermost to outermost),
+        // Don't include outermost dimension G since it's gemm batch.
         a_g_n_c_wis_strides[num_dims - 1] = 1;
-        for(index_t i = num_dims - 2; i >= 0; i--)
+        for(index_t i = num_dims - 2; i >= 1; i--)
         {
             a_g_n_c_wis_strides[i] = a_g_n_c_wis_strides[i + 1] * a_g_n_c_wis_lengths[i + 1];
         }
 
-        // Calculate strides for output tensor
+        // Calculate strides for output tensor,
+        // Don't include outermost dimension G since it's gemm batch.
         c_g_n_k_wos_strides[num_dims - 1] = 1;
-        for(index_t i = num_dims - 2; i >= 0; i--)
+        for(index_t i = num_dims - 2; i >= 1; i--)
         {
             c_g_n_k_wos_strides[i] = c_g_n_k_wos_strides[i + 1] * c_g_n_k_wos_lengths[i + 1];
         }
@@ -75,7 +77,7 @@ struct TransformConvBwdDataToGemm
 
         constexpr long_index_t TwoGB = (long_index_t{1} << 31);
 
-        const IndexType N = a_g_n_c_wis_lengths[I1];
+        const IndexType N = c_g_n_k_wos_lengths[I1];
 
         if(element_space_size > TwoGB)
         {
@@ -192,14 +194,17 @@ struct TransformConvBwdDataToGemm
           IdxYTilde_{I1},
           IdxXTilde_{tildes[I0]}
     {
-        original_N_ = c_g_n_k_wos_lengths[I1];
+
+        // Store original N
+        original_N_ = a_g_n_c_wis_lengths[I1];
+
         if constexpr(SplitN)
         {
-            N_ = GetSplitedNSize(a_g_n_c_wis_lengths, c_g_n_k_wos_lengths);
+            N_ = GetSplitedNSize(c_g_n_k_wos_lengths, a_g_n_c_wis_lengths);
         }
         else
         {
-            N_ = c_g_n_k_wos_lengths[I1];
+            N_ = a_g_n_c_wis_lengths[I1];
         }
 
         GcdStrideDilationW_ = gcd(ConvStrideW_, ConvDilationW_);
@@ -251,15 +256,15 @@ struct TransformConvBwdDataToGemm
     {
 
         // Store original N
-        original_N_ = c_g_n_k_wos_lengths[I1];
+        original_N_ = a_g_n_c_wis_lengths[I1];
 
         if constexpr(SplitN)
         {
-            N_ = GetSplitedNSize(a_g_n_c_wis_lengths, c_g_n_k_wos_lengths);
+            N_ = GetSplitedNSize(c_g_n_k_wos_lengths, a_g_n_c_wis_lengths);
         }
         else
         {
-            N_ = c_g_n_k_wos_lengths[I1];
+            N_ = a_g_n_c_wis_lengths[I1];
         }
 
         GcdStrideDilationW_ = gcd(ConvStrideW_, ConvDilationW_);
@@ -315,15 +320,15 @@ struct TransformConvBwdDataToGemm
     {
 
         // Store original N
-        original_N_ = c_g_n_k_wos_lengths[I1];
+        original_N_ = a_g_n_c_wis_lengths[I1];
 
         if constexpr(SplitN)
         {
-            N_ = GetSplitedNSize(a_g_n_c_wis_lengths, c_g_n_k_wos_lengths);
+            N_ = GetSplitedNSize(c_g_n_k_wos_lengths, a_g_n_c_wis_lengths);
         }
         else
         {
-            N_ = c_g_n_k_wos_lengths[I1];
+            N_ = a_g_n_c_wis_lengths[I1];
         }
 
         GcdStrideDilationW_ = gcd(ConvStrideW_, ConvDilationW_);
