@@ -2,29 +2,6 @@
 // SPDX-License-Identifier:  MIT
 #pragma once
 
-// Estimate the number of WGs contributing to the same macro tile in C
-template <ck_tile::StreamKReductionStrategy ReductionStrategy, typename TilePartitioner>
-int estimate_num_wgs_per_tile(const TilePartitioner& tile_partitioner)
-{
-    // In the case of non-atomic reduction or DP only, there will always be 1 WG contributing to a
-    // macro time in C
-    int num_wgs_per_tile = 1;
-
-    // Otherwise, for atomics, multiple WGs may be contributing to the same macro tile in C
-    if(tile_partitioner.sk_num_blocks > 0 &&
-       ReductionStrategy == ck_tile::StreamKReductionStrategy::Atomic)
-    {
-        // Determine the number of iterations per WG for a given macro tile in C
-        uint32_t k_iters_per_block = tile_partitioner.k_iters_per_big_block - 1;
-
-        // Estimate the number of WGs per macro tile
-        num_wgs_per_tile = (tile_partitioner.k_iters_per_tile.get() / (k_iters_per_block)) +
-                           ((tile_partitioner.k_iters_per_tile.get() % k_iters_per_block) != 0);
-    }
-
-    return std::max(num_wgs_per_tile, 1);
-}
-
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout)
 {
@@ -65,7 +42,8 @@ template <typename GemmConfig,
           typename CLayout,
           typename CDEElementWise = ck_tile::element_wise::PassThrough,
           ck_tile::StreamKReductionStrategy ReductionStrategy>
-std::tuple<float, int> gemm(const ck_tile::StreamKHostArgs& args, const ck_tile::stream_config& s);
+std::tuple<float, ck_tile::index_t> gemm(const ck_tile::StreamKHostArgs& args,
+                                         const ck_tile::stream_config& s);
 
 template <typename GemmConfig,
           typename ADataType,
@@ -78,20 +56,21 @@ template <typename GemmConfig,
           typename DsLayout,
           typename CLayout,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
-std::tuple<float, int> invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
-                                   ck_tile::DeviceMem& b_k_n_dev_buf,
-                                   ck_tile::DeviceMem& c_m_n_dev_buf,
-                                   ck_tile::index_t M,
-                                   ck_tile::index_t N,
-                                   ck_tile::index_t K,
-                                   ck_tile::index_t stride_A,
-                                   ck_tile::index_t stride_B,
-                                   ck_tile::index_t stride_C,
-                                   int n_warmup,
-                                   int n_repeat,
-                                   bool flush_cache,
-                                   ck_tile::StreamKReductionStrategy reduction_strategy,
-                                   uint32_t num_sk_blocks)
+std::tuple<float, ck_tile::index_t>
+invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
+            ck_tile::DeviceMem& b_k_n_dev_buf,
+            ck_tile::DeviceMem& c_m_n_dev_buf,
+            ck_tile::index_t M,
+            ck_tile::index_t N,
+            ck_tile::index_t K,
+            ck_tile::index_t stride_A,
+            ck_tile::index_t stride_B,
+            ck_tile::index_t stride_C,
+            int n_warmup,
+            int n_repeat,
+            bool flush_cache,
+            ck_tile::StreamKReductionStrategy reduction_strategy,
+            uint32_t num_sk_blocks)
 {
     ck_tile::StreamKHostArgs args{a_m_k_dev_buf.GetDeviceBuffer(),
                                   b_k_n_dev_buf.GetDeviceBuffer(),
@@ -105,7 +84,7 @@ std::tuple<float, int> invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                   reduction_strategy,
                                   num_sk_blocks};
 
-    std::tuple<float, int> ave_time_and_batch;
+    std::tuple<float, ck_tile::index_t> ave_time_and_batch;
 
     if(args.reduction_strategy == ck_tile::StreamKReductionStrategy::Atomic)
     {
