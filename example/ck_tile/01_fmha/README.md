@@ -6,7 +6,7 @@ This folder contains example for fmha(fused multi-head attention) using ck_tile 
 ```
 # 1. In the root of composable_kernel project, create the build directory.
 [~/composable_kernel] mkdir build && cd build
-# 2. In the build directory, run the CMake wrapper script to generate the build system files.
+# 2. In the build directory, run the CMake wrapper script to generate the build system files. Replace <arch> with the gfx architectures string.
 [~/composable_kernel/build] ../script/cmake-ck-dev.sh .. <arch> -G Ninja
 # 3. In the build directory, run the build system recipe.
 [~/composable_kernel/build] ninja tile_example_fmha_fwd
