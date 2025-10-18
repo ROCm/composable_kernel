@@ -1417,6 +1417,14 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
             return false;
         }
 
+        constexpr long_index_t TwoGB = (long_index_t{1} << 31);
+        if(!(arg.a_grid_desc_kbatch_k0_m_k1_.GetElementSpaceSize() * sizeof(ADataType) <= TwoGB &&
+             arg.b_grid_desc_kbatch_k0_n_k1_.GetElementSpaceSize() * sizeof(BDataType) <= TwoGB &&
+             arg.c_grid_desc_m_n_.GetElementSpaceSize() * sizeof(CDataType) <= TwoGB))
+        {
+            return false;
+        }
+
         // Gridwise GEMM size
         return true;
     }
