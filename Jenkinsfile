@@ -1484,8 +1484,8 @@ pipeline {
                                             -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx90a" \
-                                            -D GEMM_DATATYPE="fp8;fp16" \
-                                            -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
+                                            -D GEMM_DATATYPE="fp16" \
+                                            -D GEMM_LAYOUT="rcr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
                                             -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8" \
@@ -1524,8 +1524,8 @@ pipeline {
                                             -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx942" \
-                                            -D GEMM_DATATYPE="fp8;fp16" \
-                                            -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
+                                            -D GEMM_DATATYPE="fp16" \
+                                            -D GEMM_LAYOUT="rcr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
                                             -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8" \
@@ -1564,8 +1564,8 @@ pipeline {
                                             -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx950" \
-                                            -D GEMM_DATATYPE="fp8;fp16" \
-                                            -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
+                                            -D GEMM_DATATYPE="fp16" \
+                                            -D GEMM_LAYOUT="rcr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
                                             -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8" \
@@ -1605,7 +1605,7 @@ pipeline {
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx1201" \
                                             -D GEMM_DATATYPE="fp16" \
-                                            -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
+                                            -D GEMM_LAYOUT="rcr" \
                                             -DGEMM_CONFIG_FILE=gfx120x_config.json \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_all && \
