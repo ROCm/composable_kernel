@@ -367,7 +367,6 @@ struct GroupedConvFwdKernelArgs
     struct SplitImageInfo
     {
         // Common dimensions (same for all pieces)
-        index_t piece_d = 1, piece_h = 1, piece_w = 1;      // Piece dimensions
         index_t total_d = 1, total_h = 1, total_w = 1;      // Total tensor dimensions
         index_t num_d_pieces = 1, num_h_pieces = 1, num_w_pieces = 1;  // Split factors
 

@@ -126,6 +126,112 @@ struct TransformConvFwdToGemm
     }
 
     public:
+    // Structure to hold split-image decision and factors
+    struct SplitImageInfo
+    {
+        bool should_split;
+        index_t num_d_pieces;
+        index_t num_h_pieces;
+        index_t num_w_pieces;
+    };
+
+    // Calculate split-image factors AFTER considering split-N
+    // Returns: should_split flag and optimal split factors for D, H, W dimensions
+    // Strategy: Hierarchical splitting with priority order D → H → W
+    // Dynamically increases split factors until memory fits below threshold
+    static SplitImageInfo GetSplitImageInfo(index_t G, index_t N, index_t C, index_t K,
+                                             index_t D_out, index_t H_out, index_t W_out)
+    {
+        SplitImageInfo info{false, 1, 1, 1};
+
+        // Estimate memory (simplified calculation)
+        // Use max of input and output tensor sizes
+        const long_index_t input_elements = N * D_out * H_out * W_out * C * G;
+        const long_index_t output_elements = N * D_out * H_out * W_out * K * G;
+        const long_index_t input_bytes = input_elements * sizeof(ADataType);
+        const long_index_t output_bytes = output_elements * sizeof(CDataType);
+        const long_index_t max_tensor_bytes = (input_bytes > output_bytes) ? input_bytes : output_bytes;
+
+        // Calculate effective N after split-N (simplified - assume worst case N=1)
+        index_t effective_N = 1;
+        if(max_tensor_bytes > TwoGB && N > 1) {
+            // Split-N will reduce to approximately N=1 per launch
+            effective_N = 1;
+        } else {
+            effective_N = N;
+        }
+
+        // Check if split-image is needed
+        auto calc_memory = [&](index_t d_split, index_t h_split, index_t w_split) -> long_index_t {
+            index_t d_piece = D_out / d_split;
+            index_t h_piece = H_out / h_split;
+            index_t w_piece = W_out / w_split;
+            return effective_N * d_piece * h_piece * w_piece * K * G * sizeof(CDataType);
+        };
+
+        // Calculate memory after split-N with no spatial split
+        const long_index_t memory_after_split_n = calc_memory(1, 1, 1);
+
+        // Check if split-image is needed
+        if(memory_after_split_n <= TwoGB)
+        {
+            info.should_split = false;
+            return info;
+        }
+
+        // Split-image is needed - use hierarchical priority: D → H → W
+        info.should_split = true;
+
+        // Hierarchical splitting strategy:
+        // 1D: Split W until below threshold
+        // 2D: Split H first, if still too large then split W
+        // 3D: Split D first, then H, then W
+
+        // Start with no split
+        info.num_d_pieces = 1;
+        info.num_h_pieces = 1;
+        info.num_w_pieces = 1;
+
+        // Try splitting D first (for 3D)
+        if(D_out > 1) {
+            for(index_t d_split = 2; d_split <= D_out; d_split++) {
+                info.num_d_pieces = d_split;
+                if(calc_memory(d_split, 1, 1) <= TwoGB) {
+                    return info;  // D split alone is sufficient
+                }
+            }
+            // D split maxed out, try H next
+        }
+
+        // Try splitting H (for 2D/3D)
+        if(H_out > 1) {
+            for(index_t h_split = 2; h_split <= H_out; h_split++) {
+                info.num_h_pieces = h_split;
+                if(calc_memory(info.num_d_pieces, h_split, 1) <= TwoGB) {
+                    return info;  // D+H split is sufficient
+                }
+            }
+            // H split maxed out, try W next
+        }
+
+        // Try splitting W (for 1D/2D/3D)
+        for(index_t w_split = 2; w_split <= W_out; w_split++) {
+            info.num_w_pieces = w_split;
+            if(calc_memory(info.num_d_pieces, info.num_h_pieces, w_split) <= TwoGB) {
+                return info;  // D+H+W split is sufficient
+            }
+        }
+
+        // If we reach here, even maximum split doesn't fit
+        // Use maximum split as best effort
+        info.num_d_pieces = D_out;
+        info.num_h_pieces = H_out;
+        info.num_w_pieces = W_out;
+
+        return info;
+    }
+
+    public:
     // Public getter methods for Split-N support
     CK_TILE_HOST constexpr IndexType GetN() const { return N_; }
     CK_TILE_HOST constexpr IndexType GetOriginalN() const { return original_N_; }

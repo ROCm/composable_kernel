@@ -91,50 +91,7 @@ struct GroupedConvolutionForwardInvoker
                                       1,
                                       std::multiplies<ck_tile::index_t>());
 
-            // using Kernel = ck_tile::GroupedConvolutionForwardKernel<GroupedConvTraitsType,
-            //                                                         TilePartitioner,
-            //                                                         CodegenPipeline,
-            //                                                         ConvEpilogue>;
-
-            // float ave_time = 0.0f;
-
-            // // Create kargs and check if split-image is needed
-            // auto kargs = Kernel::MakeKernelArgs(args);
-
-            // // Check if split-image is needed (uses unified threshold internally)
-            // auto split_info = kargs.GetSplitImageInfo();
-
-            // if(!split_info.should_split)
-            // {
-            //     // No split-image needed - use kargs directly (may have Split-N)
-            //     if(s.log_level_ > 0)
-            //     {
-            //         std::cout << "[INVOKER] No split-image needed - launching with kargs"
-            //                   << std::endl;
-            //     }
-            //     const dim3 grids  = Kernel::GridSize(kargs);
-            //     const dim3 blocks = Kernel::BlockSize();
-
-            //     if(!Kernel::IsSupportedArgument(kargs))
-            //     {
-            //         throw std::runtime_error("Wrong! Arguments not supported! Skipping conv!\n");
-            //     }
-
-            //     ave_time = ck_tile::launch_kernel(
-            //         s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
-            //     return ave_time;
-            // }
-
-            // // RECURSIVE split-image path - delegate to transformer helper
-            // ave_time = decltype(kargs.transformer_)::template LaunchWithRecursiveSplit<Kernel,
-            //                                                                            kBlockPerCu>(
-            //     args, s, kargs);
-
-            // return ave_time;
-
-        // =====================================================================
         // Split-K parameters
-        // =====================================================================
         const ck_tile::index_t k_grain     = args.k_batch * GemmConfig::K_Tile;
         const ck_tile::index_t K_split     = (gemm_k + k_grain - 1) / k_grain * GemmConfig::K_Tile;
         const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
@@ -142,52 +99,33 @@ struct GroupedConvolutionForwardInvoker
         const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
         float ave_time{0};
 
-        // =====================================================================
-        // Split-Image: Calculate number of pieces with independent split factors
-        // =====================================================================
+        // Split-Image: Use transform helper to calculate split factors
+        // Extract output spatial dimensions
         const ck_tile::index_t total_d = (NDimSpatial == 3) ? args.output_spatial_lengths_[NDimSpatial - 3] : 1;
         const ck_tile::index_t total_h = (NDimSpatial >= 2) ? args.output_spatial_lengths_[NDimSpatial - 2] : 1;
         const ck_tile::index_t total_w = args.output_spatial_lengths_[NDimSpatial - 1];
 
-        // Independent split factor selection for each dimension
-        // Considerations:
-        // 1. Each dimension must divide evenly (avoid non-uniform pieces)
-        // 2. Prefer factors where piece_size aligns with MPerBlock=16 (performance)
+        // Use transform helper to calculate split-image info
+        // This considers both split-N threshold and optimal spatial splitting
+        using TransformType = ck_tile::TransformConvFwdToGemm<NDimSpatial,
+                                                               ck_tile::ConvolutionSpecialization::Default,
+                                                               VectorSizeA,
+                                                               VectorSizeB,
+                                                               VectorSizeC,
+                                                               false,  // SplitN handled separately
+                                                               InDataType,
+                                                               OutDataType>;
 
-        // Try factors in order: 4, 2, 8, 16, 3, 6, 5, 1
-        // Prefer 4 (balanced grid), then powers of 2, then others
-        const ck_tile::index_t candidate_factors[] = {4, 2, 8, 16, 3, 6, 5, 1};
+        auto split_info = TransformType::GetSplitImageInfo(
+            args.G_, args.N_, args.C_, args.K_, total_d, total_h, total_w);
 
-        auto select_split_factor = [&](ck_tile::index_t total_size, const char* dim_name) -> ck_tile::index_t {
-            for(auto factor : candidate_factors) {
-                if(total_size % factor == 0) {
-                    ck_tile::index_t piece_size = total_size / factor;
-
-                    // Prefer if piece size is multiple of 16 (MPerBlock alignment)
-                    bool good_alignment = (piece_size % 16 == 0);
-
-                    if(s.log_level_ > 0) {
-                        std::cout << "[INVOKER] " << dim_name << ": total=" << total_size
-                                  << ", factor=" << factor << ", piece=" << piece_size
-                                  << ", align=" << (good_alignment ? "yes" : "no") << "\n";
-                    }
-
-                    // If alignment is good, use this factor; otherwise keep trying
-                    if(good_alignment || factor == 1) {
-                        return factor;
-                    }
-                }
-            }
-            return 1; // Fallback (should never reach here)
-        };
-
-        const ck_tile::index_t num_w_pieces = select_split_factor(total_w, "W");
-        const ck_tile::index_t num_h_pieces = (NDimSpatial >= 2) ? select_split_factor(total_h, "H") : 1;
-        const ck_tile::index_t num_d_pieces = (NDimSpatial == 3) ? select_split_factor(total_d, "D") : 1;
+        const ck_tile::index_t num_d_pieces = split_info.num_d_pieces;
+        const ck_tile::index_t num_h_pieces = split_info.num_h_pieces;
+        const ck_tile::index_t num_w_pieces = split_info.num_w_pieces;
         const ck_tile::index_t total_pieces = num_d_pieces * num_h_pieces * num_w_pieces;
 
-        // Temporarily enable split-image to test piece creation logic
-        constexpr bool enable_split_image = true;
+        // Enable split-image only when needed (based on GetSplitImageInfo result)
+        const bool enable_split_image = split_info.should_split;
 
         if(s.log_level_ > 0)
         {
@@ -308,7 +246,7 @@ struct GroupedConvolutionForwardInvoker
         // =====================================================================
         // Split-Image dispatch
         // =====================================================================
-        if constexpr (!enable_split_image)
+        if (!enable_split_image)
         {
             // ─────────────────────────────────────────────────────────────────
             // Path 1: NO Split-Image (current path - always taken for now)
@@ -468,9 +406,6 @@ struct GroupedConvolutionForwardInvoker
 
                     // Populate split-image info (common data stored once)
                     kargs.num_spatial_pieces = total_pieces;
-                    kargs.split_image.piece_d = base_piece_d;
-                    kargs.split_image.piece_h = base_piece_h;
-                    kargs.split_image.piece_w = base_piece_w;
                     kargs.split_image.total_d = total_d;
                     kargs.split_image.total_h = total_h;
                     kargs.split_image.total_w = total_w;
