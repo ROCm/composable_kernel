@@ -143,30 +143,47 @@ struct GroupedConvolutionForwardInvoker
         float ave_time{0};
 
         // =====================================================================
-        // Split-Image: Calculate number of pieces (temporary dynamic)
+        // Split-Image: Calculate number of pieces with independent split factors
         // =====================================================================
-        // TEMPORARY FIX: Choose split factor based on dimensions
+        const ck_tile::index_t total_d = (NDimSpatial == 3) ? args.output_spatial_lengths_[NDimSpatial - 3] : 1;
         const ck_tile::index_t total_h = (NDimSpatial >= 2) ? args.output_spatial_lengths_[NDimSpatial - 2] : 1;
         const ck_tile::index_t total_w = args.output_spatial_lengths_[NDimSpatial - 1];
 
-        // Temporary logic: choose split factor that aligns with MPerBlock=16
-        ck_tile::index_t SPLIT_FACTOR = 4;  // Default
-        if(NDimSpatial == 2) {
-            // Check common cases for alignment
-            if(total_h == 80 && total_w == 80) {
-                SPLIT_FACTOR = 5;  // 80/5 = 16 (aligns with MPerBlock)
-            } else if(total_h == 96 && total_w == 96) {
-                SPLIT_FACTOR = 6;  // 96/6 = 16 (aligns with MPerBlock)
-            } else if(total_h == 64 && total_w == 64) {
-                SPLIT_FACTOR = 4;  // 64/4 = 16 (aligns with MPerBlock)
-            } else if(total_h == 128 && total_w == 128) {
-                SPLIT_FACTOR = 4;  // 128/4 = 32 (aligns with MPerBlock)
-            }
-        }
+        // Independent split factor selection for each dimension
+        // Considerations:
+        // 1. Each dimension must divide evenly (avoid non-uniform pieces)
+        // 2. Prefer factors where piece_size aligns with MPerBlock=16 (performance)
 
-        const ck_tile::index_t num_w_pieces = SPLIT_FACTOR;
-        const ck_tile::index_t num_h_pieces = (NDimSpatial >= 2) ? SPLIT_FACTOR : 1;
-        const ck_tile::index_t num_d_pieces = (NDimSpatial == 3) ? SPLIT_FACTOR : 1;
+        // Try factors in order: 4, 2, 8, 16, 3, 6, 5, 1
+        // Prefer 4 (balanced grid), then powers of 2, then others
+        const ck_tile::index_t candidate_factors[] = {4, 2, 8, 16, 3, 6, 5, 1};
+
+        auto select_split_factor = [&](ck_tile::index_t total_size, const char* dim_name) -> ck_tile::index_t {
+            for(auto factor : candidate_factors) {
+                if(total_size % factor == 0) {
+                    ck_tile::index_t piece_size = total_size / factor;
+
+                    // Prefer if piece size is multiple of 16 (MPerBlock alignment)
+                    bool good_alignment = (piece_size % 16 == 0);
+
+                    if(s.log_level_ > 0) {
+                        std::cout << "[INVOKER] " << dim_name << ": total=" << total_size
+                                  << ", factor=" << factor << ", piece=" << piece_size
+                                  << ", align=" << (good_alignment ? "yes" : "no") << "\n";
+                    }
+
+                    // If alignment is good, use this factor; otherwise keep trying
+                    if(good_alignment || factor == 1) {
+                        return factor;
+                    }
+                }
+            }
+            return 1; // Fallback (should never reach here)
+        };
+
+        const ck_tile::index_t num_w_pieces = select_split_factor(total_w, "W");
+        const ck_tile::index_t num_h_pieces = (NDimSpatial >= 2) ? select_split_factor(total_h, "H") : 1;
+        const ck_tile::index_t num_d_pieces = (NDimSpatial == 3) ? select_split_factor(total_d, "D") : 1;
         const ck_tile::index_t total_pieces = num_d_pieces * num_h_pieces * num_w_pieces;
 
         // Temporarily enable split-image to test piece creation logic
@@ -174,11 +191,19 @@ struct GroupedConvolutionForwardInvoker
 
         if(s.log_level_ > 0)
         {
-            std::cout << "[INVOKER] Split-image: Using SPLIT_FACTOR=" << SPLIT_FACTOR
-                      << " for " << total_h << "×" << total_w << "\n";
-            std::cout << "[INVOKER] Split-image calculation: "
-                      << "D=" << num_d_pieces << " × H=" << num_h_pieces
-                      << " × W=" << num_w_pieces << " = " << total_pieces << " pieces\n";
+            std::cout << "[INVOKER] Split-image: Independent split factors per dimension\n";
+            if(NDimSpatial == 3) {
+                std::cout << "[INVOKER] Dimensions: D=" << total_d << " H=" << total_h << " W=" << total_w << "\n";
+                std::cout << "[INVOKER] Pieces: D=" << num_d_pieces << " × H=" << num_h_pieces
+                          << " × W=" << num_w_pieces << " = " << total_pieces << " total pieces\n";
+            } else if(NDimSpatial == 2) {
+                std::cout << "[INVOKER] Dimensions: H=" << total_h << " W=" << total_w << "\n";
+                std::cout << "[INVOKER] Pieces: H=" << num_h_pieces << " × W=" << num_w_pieces
+                          << " = " << total_pieces << " total pieces\n";
+            } else {
+                std::cout << "[INVOKER] Dimensions: W=" << total_w << "\n";
+                std::cout << "[INVOKER] Pieces: W=" << num_w_pieces << " = " << total_pieces << " total pieces\n";
+            }
         }
 
         // =====================================================================
@@ -302,10 +327,8 @@ struct GroupedConvolutionForwardInvoker
                 std::cout << "[INVOKER] Split-Image: Creating " << total_pieces << " pieces\n";
             }
 
-            // Calculate piece sizes for each dimension (reuse total_h, total_w from above)
-            const ck_tile::index_t total_d = (NDimSpatial == 3) ? args.output_spatial_lengths_[0] : 1;
-
             // Base piece size (non-overlapping division)
+            // Note: total_d, total_h, total_w already declared above
             const ck_tile::index_t base_piece_d = total_d / num_d_pieces;
             const ck_tile::index_t base_piece_h = total_h / num_h_pieces;
             const ck_tile::index_t base_piece_w = total_w / num_w_pieces;
@@ -366,13 +389,14 @@ struct GroupedConvolutionForwardInvoker
 
                 total_blocks += piece_grid;
 
-                if(s.log_level_ > 0 && piece < 4)
+                if(s.log_level_ > 0 && (piece < 2 || piece == 3 || piece == 4 || piece == 11 || piece == 12 || piece == total_pieces-1))
                 {
                     std::cout << "[SPLIT-IMAGE] Piece " << piece
                               << " (d=" << d_idx << ",h=" << h_idx << ",w=" << w_idx << ")"
                               << " output range: D=[" << d_start << "..." << (d_start+d_size-1) << "]"
                               << " H=[" << h_start << "..." << (h_start+h_size-1) << "]"
                               << " W=[" << w_start << "..." << (w_start+w_size-1) << "]"
+                              << " size: " << d_size << "x" << h_size << "x" << w_size
                               << ", blocks [" << temp_pieces[piece].block_start
                               << "," << temp_pieces[piece].block_end << ")\n";
                 }
