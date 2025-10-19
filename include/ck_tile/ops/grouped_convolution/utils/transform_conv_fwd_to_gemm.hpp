@@ -39,8 +39,8 @@ struct TransformConvFwdToGemm
     static constexpr auto I5 = number<5>{};
 
     // Unified 2GB limit constant for both Split-N and Split-Image
-    static constexpr long_index_t TwoGB = (long_index_t{10} << 20); // 10MB
-    // static constexpr long_index_t TwoGB = (long_index_t{1} << 31); // 2GB
+    // static constexpr long_index_t TwoGB = (long_index_t{10} << 20); // 10MB (for testing)
+    static constexpr long_index_t TwoGB = (long_index_t{1} << 31); // 2GB
 
     template <typename ConvDimsType>
     static long_index_t calculate_element_space_size_impl(const ConvDimsType& lengths,
@@ -139,25 +139,29 @@ struct TransformConvFwdToGemm
     // Returns: should_split flag and optimal split factors for D, H, W dimensions
     // Strategy: Hierarchical splitting with priority order D → H → W
     // Dynamically increases split factors until memory fits below threshold
-    static SplitImageInfo GetSplitImageInfo(index_t G, index_t N, index_t C, index_t K,
-                                             index_t D_out, index_t H_out, index_t W_out)
+    static SplitImageInfo GetSplitImageInfo(
+        index_t G, index_t N, index_t C, index_t K, index_t D_out, index_t H_out, index_t W_out)
     {
         SplitImageInfo info{false, 1, 1, 1};
 
         // Estimate memory (simplified calculation)
         // Use max of input and output tensor sizes
-        const long_index_t input_elements = N * D_out * H_out * W_out * C * G;
+        const long_index_t input_elements  = N * D_out * H_out * W_out * C * G;
         const long_index_t output_elements = N * D_out * H_out * W_out * K * G;
-        const long_index_t input_bytes = input_elements * sizeof(ADataType);
-        const long_index_t output_bytes = output_elements * sizeof(CDataType);
-        const long_index_t max_tensor_bytes = (input_bytes > output_bytes) ? input_bytes : output_bytes;
+        const long_index_t input_bytes     = input_elements * sizeof(ADataType);
+        const long_index_t output_bytes    = output_elements * sizeof(CDataType);
+        const long_index_t max_tensor_bytes =
+            (input_bytes > output_bytes) ? input_bytes : output_bytes;
 
         // Calculate effective N after split-N (simplified - assume worst case N=1)
         index_t effective_N = 1;
-        if(max_tensor_bytes > TwoGB && N > 1) {
+        if(max_tensor_bytes > TwoGB && N > 1)
+        {
             // Split-N will reduce to approximately N=1 per launch
             effective_N = 1;
-        } else {
+        }
+        else
+        {
             effective_N = N;
         }
 
@@ -193,32 +197,40 @@ struct TransformConvFwdToGemm
         info.num_w_pieces = 1;
 
         // Try splitting D first (for 3D)
-        if(D_out > 1) {
-            for(index_t d_split = 2; d_split <= D_out; d_split++) {
+        if(D_out > 1)
+        {
+            for(index_t d_split = 2; d_split <= D_out; d_split++)
+            {
                 info.num_d_pieces = d_split;
-                if(calc_memory(d_split, 1, 1) <= TwoGB) {
-                    return info;  // D split alone is sufficient
+                if(calc_memory(d_split, 1, 1) <= TwoGB)
+                {
+                    return info; // D split alone is sufficient
                 }
             }
             // D split maxed out, try H next
         }
 
         // Try splitting H (for 2D/3D)
-        if(H_out > 1) {
-            for(index_t h_split = 2; h_split <= H_out; h_split++) {
+        if(H_out > 1)
+        {
+            for(index_t h_split = 2; h_split <= H_out; h_split++)
+            {
                 info.num_h_pieces = h_split;
-                if(calc_memory(info.num_d_pieces, h_split, 1) <= TwoGB) {
-                    return info;  // D+H split is sufficient
+                if(calc_memory(info.num_d_pieces, h_split, 1) <= TwoGB)
+                {
+                    return info; // D+H split is sufficient
                 }
             }
             // H split maxed out, try W next
         }
 
         // Try splitting W (for 1D/2D/3D)
-        for(index_t w_split = 2; w_split <= W_out; w_split++) {
+        for(index_t w_split = 2; w_split <= W_out; w_split++)
+        {
             info.num_w_pieces = w_split;
-            if(calc_memory(info.num_d_pieces, info.num_h_pieces, w_split) <= TwoGB) {
-                return info;  // D+H+W split is sufficient
+            if(calc_memory(info.num_d_pieces, info.num_h_pieces, w_split) <= TwoGB)
+            {
+                return info; // D+H+W split is sufficient
             }
         }
 
@@ -1526,7 +1538,6 @@ struct TransformConvFwdToGemm
     // Current split-image implementation is in grouped_convolution_forward_invoker.hpp
 
     public:
-
     private:
     IndexType G_, N_, original_N_;
     IndexType Di_, Hi_, Wi_;

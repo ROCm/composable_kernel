@@ -101,20 +101,23 @@ struct GroupedConvolutionForwardInvoker
 
         // Split-Image: Use transform helper to calculate split factors
         // Extract output spatial dimensions
-        const ck_tile::index_t total_d = (NDimSpatial == 3) ? args.output_spatial_lengths_[NDimSpatial - 3] : 1;
-        const ck_tile::index_t total_h = (NDimSpatial >= 2) ? args.output_spatial_lengths_[NDimSpatial - 2] : 1;
+        const ck_tile::index_t total_d =
+            (NDimSpatial == 3) ? args.output_spatial_lengths_[NDimSpatial - 3] : 1;
+        const ck_tile::index_t total_h =
+            (NDimSpatial >= 2) ? args.output_spatial_lengths_[NDimSpatial - 2] : 1;
         const ck_tile::index_t total_w = args.output_spatial_lengths_[NDimSpatial - 1];
 
         // Use transform helper to calculate split-image info
         // This considers both split-N threshold and optimal spatial splitting
-        using TransformType = ck_tile::TransformConvFwdToGemm<NDimSpatial,
-                                                               ck_tile::ConvolutionSpecialization::Default,
-                                                               VectorSizeA,
-                                                               VectorSizeB,
-                                                               VectorSizeC,
-                                                               false,  // SplitN handled separately
-                                                               InDataType,
-                                                               OutDataType>;
+        using TransformType =
+            ck_tile::TransformConvFwdToGemm<NDimSpatial,
+                                            ck_tile::ConvolutionSpecialization::Default,
+                                            VectorSizeA,
+                                            VectorSizeB,
+                                            VectorSizeC,
+                                            false, // SplitN handled separately
+                                            InDataType,
+                                            OutDataType>;
 
         auto split_info = TransformType::GetSplitImageInfo(
             args.G_, args.N_, args.C_, args.K_, total_d, total_h, total_w);
@@ -130,17 +133,24 @@ struct GroupedConvolutionForwardInvoker
         if(s.log_level_ > 0)
         {
             std::cout << "[INVOKER] Split-image: Independent split factors per dimension\n";
-            if(NDimSpatial == 3) {
-                std::cout << "[INVOKER] Dimensions: D=" << total_d << " H=" << total_h << " W=" << total_w << "\n";
+            if(NDimSpatial == 3)
+            {
+                std::cout << "[INVOKER] Dimensions: D=" << total_d << " H=" << total_h
+                          << " W=" << total_w << "\n";
                 std::cout << "[INVOKER] Pieces: D=" << num_d_pieces << " × H=" << num_h_pieces
                           << " × W=" << num_w_pieces << " = " << total_pieces << " total pieces\n";
-            } else if(NDimSpatial == 2) {
+            }
+            else if(NDimSpatial == 2)
+            {
                 std::cout << "[INVOKER] Dimensions: H=" << total_h << " W=" << total_w << "\n";
                 std::cout << "[INVOKER] Pieces: H=" << num_h_pieces << " × W=" << num_w_pieces
                           << " = " << total_pieces << " total pieces\n";
-            } else {
+            }
+            else
+            {
                 std::cout << "[INVOKER] Dimensions: W=" << total_w << "\n";
-                std::cout << "[INVOKER] Pieces: W=" << num_w_pieces << " = " << total_pieces << " total pieces\n";
+                std::cout << "[INVOKER] Pieces: W=" << num_w_pieces << " = " << total_pieces
+                          << " total pieces\n";
             }
         }
 
@@ -246,7 +256,7 @@ struct GroupedConvolutionForwardInvoker
         // =====================================================================
         // Split-Image dispatch
         // =====================================================================
-        if (!enable_split_image)
+        if(!enable_split_image)
         {
             // ─────────────────────────────────────────────────────────────────
             // Path 1: NO Split-Image (when spatial dimensions fit in memory)
@@ -271,15 +281,9 @@ struct GroupedConvolutionForwardInvoker
             const ck_tile::index_t base_piece_h = total_h / num_h_pieces;
             const ck_tile::index_t base_piece_w = total_w / num_w_pieces;
 
-            if(s.log_level_ > 0)
-            {
-                std::cout << "[SPLIT-IMAGE] Total: D=" << total_d << " H=" << total_h << " W=" << total_w << "\n"
-                          << "[SPLIT-IMAGE] Base piece size: D=" << base_piece_d
-                          << " H=" << base_piece_h << " W=" << base_piece_w << "\n";
-            }
-
             // Store piece descriptors temporarily (will populate in final kargs)
-            struct TempPieceInfo {
+            struct TempPieceInfo
+            {
                 ck_tile::index_t block_start, block_end;
                 ck_tile::index_t d_start, h_start, w_start;
                 ck_tile::index_t d_size, h_size, w_size;
@@ -297,9 +301,12 @@ struct GroupedConvolutionForwardInvoker
                 const ck_tile::index_t h_start = h_idx * base_piece_h;
                 const ck_tile::index_t d_start = d_idx * base_piece_d;
 
-                const ck_tile::index_t w_size = (w_idx == num_w_pieces - 1) ? (total_w - w_start) : base_piece_w;
-                const ck_tile::index_t h_size = (h_idx == num_h_pieces - 1) ? (total_h - h_start) : base_piece_h;
-                const ck_tile::index_t d_size = (d_idx == num_d_pieces - 1) ? (total_d - d_start) : base_piece_d;
+                const ck_tile::index_t w_size =
+                    (w_idx == num_w_pieces - 1) ? (total_w - w_start) : base_piece_w;
+                const ck_tile::index_t h_size =
+                    (h_idx == num_h_pieces - 1) ? (total_h - h_start) : base_piece_h;
+                const ck_tile::index_t d_size =
+                    (d_idx == num_d_pieces - 1) ? (total_d - d_start) : base_piece_d;
 
                 const ck_tile::index_t piece_gemm_m = args.N_ * d_size * h_size * w_size;
                 const ck_tile::index_t piece_gemm_n = args.K_;
@@ -307,31 +314,21 @@ struct GroupedConvolutionForwardInvoker
                     ((piece_gemm_m + TilePartitioner::MPerBlock - 1) / TilePartitioner::MPerBlock) *
                     ((piece_gemm_n + TilePartitioner::NPerBlock - 1) / TilePartitioner::NPerBlock);
 
-                if(s.log_level_ > 0 && (piece_idx < 2 || piece_idx == 3 || piece_idx == 4 ||
-                   piece_idx == 11 || piece_idx == 12 || piece_idx == total_pieces - 1))
-                {
-                    std::cout << "[SPLIT-IMAGE] Piece " << piece_idx
-                              << " (d=" << d_idx << ",h=" << h_idx << ",w=" << w_idx << ")"
-                              << " output range: D=[" << d_start << "..." << (d_start + d_size - 1) << "]"
-                              << " H=[" << h_start << "..." << (h_start + h_size - 1) << "]"
-                              << " W=[" << w_start << "..." << (w_start + w_size - 1) << "]"
-                              << " size: " << d_size << "x" << h_size << "x" << w_size
-                              << ", blocks [" << total_blocks << "," << (total_blocks + piece_grid) << ")\n";
-                }
-
-                return {total_blocks, total_blocks + piece_grid, d_start, h_start, w_start, d_size, h_size, w_size};
+                return {total_blocks,
+                        total_blocks + piece_grid,
+                        d_start,
+                        h_start,
+                        w_start,
+                        d_size,
+                        h_size,
+                        w_size};
             };
 
             // Calculate piece info for all pieces
             for(ck_tile::index_t piece = 0; piece < total_pieces; piece++)
             {
                 temp_pieces[piece] = calculate_piece(piece);
-                total_blocks = temp_pieces[piece].block_end;
-            }
-
-            if(s.log_level_ > 0)
-            {
-                std::cout << "[SPLIT-IMAGE] Total blocks: " << total_blocks << "\n";
+                total_blocks       = temp_pieces[piece].block_end;
             }
 
             // ─────────────────────────────────────────────────────────────────
@@ -395,21 +392,24 @@ struct GroupedConvolutionForwardInvoker
 
                     // Helper: Populate split-image metadata
                     auto populate_split_image_kargs = [&]() {
-                        kargs.num_spatial_pieces = total_pieces;
-                        kargs.split_image.total_d = total_d;
-                        kargs.split_image.total_h = total_h;
-                        kargs.split_image.total_w = total_w;
+                        kargs.num_spatial_pieces       = total_pieces;
+                        kargs.split_image.total_d      = total_d;
+                        kargs.split_image.total_h      = total_h;
+                        kargs.split_image.total_w      = total_w;
                         kargs.split_image.num_d_pieces = num_d_pieces;
                         kargs.split_image.num_h_pieces = num_h_pieces;
                         kargs.split_image.num_w_pieces = num_w_pieces;
 
                         for(ck_tile::index_t i = 0; i < total_pieces; i++)
                         {
-                            kargs.split_image.pieces[i] = {
-                                temp_pieces[i].block_start, temp_pieces[i].block_end,
-                                temp_pieces[i].d_start, temp_pieces[i].h_start, temp_pieces[i].w_start,
-                                temp_pieces[i].d_size, temp_pieces[i].h_size, temp_pieces[i].w_size
-                            };
+                            kargs.split_image.pieces[i] = {temp_pieces[i].block_start,
+                                                           temp_pieces[i].block_end,
+                                                           temp_pieces[i].d_start,
+                                                           temp_pieces[i].h_start,
+                                                           temp_pieces[i].w_start,
+                                                           temp_pieces[i].d_size,
+                                                           temp_pieces[i].h_size,
+                                                           temp_pieces[i].w_size};
                         }
                     };
 
@@ -421,18 +421,8 @@ struct GroupedConvolutionForwardInvoker
 
                     if(!Kernel::IsSupportedArgument(kargs))
                     {
-                        throw std::runtime_error("Wrong! Arguments not supported! Skipping conv!\n");
-                    }
-
-                    if(s.log_level_ > 0)
-                    {
-                        std::cout << "[SPLIT-IMAGE] Launching kernel with args: " << Kernel::GetName() << '\n'
-                                  << "  shape: " << GemmShape::GetName() << '\n'
-                                  << "  problem: " << UniversalGemmProblem::GetName() << '\n'
-                                  << "  pipeline: " << GemmPipeline::GetName() << '\n'
-                                  << "  grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                                  << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}" << '\n'
-                                  << "  num_spatial_pieces: " << kargs.num_spatial_pieces << std::endl;
+                        throw std::runtime_error(
+                            "Wrong! Arguments not supported! Skipping conv!\n");
                     }
 
                     ave_time = ck_tile::launch_kernel(

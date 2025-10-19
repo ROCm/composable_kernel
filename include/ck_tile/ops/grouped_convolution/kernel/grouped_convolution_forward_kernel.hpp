@@ -41,13 +41,13 @@ struct GroupedConvFwdKernelArgs
     CK_TILE_HOST GroupedConvFwdKernelArgs(const GroupedConvFwdHostArgs& args)
     {
         in_g_n_c_wis_lengths  = {static_cast<index_t>(args.G_),
-                                static_cast<index_t>(args.N_),
-                                static_cast<index_t>(args.C_),
-                                static_cast<index_t>(args.input_spatial_lengths_[0])};
+                                 static_cast<index_t>(args.N_),
+                                 static_cast<index_t>(args.C_),
+                                 static_cast<index_t>(args.input_spatial_lengths_[0])};
         wei_g_k_c_xs_lengths  = {static_cast<index_t>(args.G_),
-                                static_cast<index_t>(args.K_),
-                                static_cast<index_t>(args.C_),
-                                static_cast<index_t>(args.filter_spatial_lengths_[0])};
+                                 static_cast<index_t>(args.K_),
+                                 static_cast<index_t>(args.C_),
+                                 static_cast<index_t>(args.filter_spatial_lengths_[0])};
         out_g_n_k_wos_lengths = {static_cast<index_t>(args.G_),
                                  static_cast<index_t>(args.N_),
                                  static_cast<index_t>(args.K_),
@@ -104,9 +104,9 @@ struct GroupedConvFwdKernelArgs
         n_splits    = ck_tile::integer_divide_ceil(original_n, n_per_split);
 
         // Calculate batch strides using the original argument dimensions.
-        // These are the original dimensions passed to the constructor, not modified by the invoker yet.
-        // (The invoker modifies args after calling MakeKernelArgs.)
-        // VERIFIED: G_ MUST be included - NHWGC layout has all groups within each batch
+        // These are the original dimensions passed to the constructor, not modified by the invoker
+        // yet. (The invoker modifies args after calling MakeKernelArgs.) VERIFIED: G_ MUST be
+        // included - NHWGC layout has all groups within each batch
         input_batch_stride  = args.G_ * args.C_ * args.input_spatial_lengths_[0];
         output_batch_stride = args.G_ * args.K_ * args.output_spatial_lengths_[0];
 
@@ -125,15 +125,15 @@ struct GroupedConvFwdKernelArgs
     CK_TILE_HOST GroupedConvFwdKernelArgs(const GroupedConvFwdHostArgs& args)
     {
         in_g_n_c_wis_lengths  = {static_cast<index_t>(args.G_),
-                                static_cast<index_t>(args.N_),
-                                static_cast<index_t>(args.C_),
-                                static_cast<index_t>(args.input_spatial_lengths_[0]),
-                                static_cast<index_t>(args.input_spatial_lengths_[1])};
+                                 static_cast<index_t>(args.N_),
+                                 static_cast<index_t>(args.C_),
+                                 static_cast<index_t>(args.input_spatial_lengths_[0]),
+                                 static_cast<index_t>(args.input_spatial_lengths_[1])};
         wei_g_k_c_xs_lengths  = {static_cast<index_t>(args.G_),
-                                static_cast<index_t>(args.K_),
-                                static_cast<index_t>(args.C_),
-                                static_cast<index_t>(args.filter_spatial_lengths_[0]),
-                                static_cast<index_t>(args.filter_spatial_lengths_[1])};
+                                 static_cast<index_t>(args.K_),
+                                 static_cast<index_t>(args.C_),
+                                 static_cast<index_t>(args.filter_spatial_lengths_[0]),
+                                 static_cast<index_t>(args.filter_spatial_lengths_[1])};
         out_g_n_k_wos_lengths = {static_cast<index_t>(args.G_),
                                  static_cast<index_t>(args.N_),
                                  static_cast<index_t>(args.K_),
@@ -141,13 +141,13 @@ struct GroupedConvFwdKernelArgs
                                  static_cast<index_t>(args.output_spatial_lengths_[1])};
 
         conv_filter_strides   = {static_cast<index_t>(args.conv_filter_strides_[0]),
-                               static_cast<index_t>(args.conv_filter_strides_[1])};
+                                 static_cast<index_t>(args.conv_filter_strides_[1])};
         conv_filter_dilations = {static_cast<index_t>(args.conv_filter_dilations_[0]),
                                  static_cast<index_t>(args.conv_filter_dilations_[1])};
         input_left_pads       = {static_cast<index_t>(args.input_left_pads_[0]),
-                           static_cast<index_t>(args.input_left_pads_[1])};
+                                 static_cast<index_t>(args.input_left_pads_[1])};
         input_right_pads      = {static_cast<index_t>(args.input_right_pads_[0]),
-                            static_cast<index_t>(args.input_right_pads_[1])};
+                                 static_cast<index_t>(args.input_right_pads_[1])};
 
         k_batch = args.k_batch;
 
@@ -216,17 +216,17 @@ struct GroupedConvFwdKernelArgs
     CK_TILE_HOST GroupedConvFwdKernelArgs(const GroupedConvFwdHostArgs& args)
     {
         in_g_n_c_wis_lengths  = {static_cast<index_t>(args.G_),
-                                static_cast<index_t>(args.N_),
-                                static_cast<index_t>(args.C_),
-                                static_cast<index_t>(args.input_spatial_lengths_[0]),
-                                static_cast<index_t>(args.input_spatial_lengths_[1]),
-                                static_cast<index_t>(args.input_spatial_lengths_[2])};
+                                 static_cast<index_t>(args.N_),
+                                 static_cast<index_t>(args.C_),
+                                 static_cast<index_t>(args.input_spatial_lengths_[0]),
+                                 static_cast<index_t>(args.input_spatial_lengths_[1]),
+                                 static_cast<index_t>(args.input_spatial_lengths_[2])};
         wei_g_k_c_xs_lengths  = {static_cast<index_t>(args.G_),
-                                static_cast<index_t>(args.K_),
-                                static_cast<index_t>(args.C_),
-                                static_cast<index_t>(args.filter_spatial_lengths_[0]),
-                                static_cast<index_t>(args.filter_spatial_lengths_[1]),
-                                static_cast<index_t>(args.filter_spatial_lengths_[2])};
+                                 static_cast<index_t>(args.K_),
+                                 static_cast<index_t>(args.C_),
+                                 static_cast<index_t>(args.filter_spatial_lengths_[0]),
+                                 static_cast<index_t>(args.filter_spatial_lengths_[1]),
+                                 static_cast<index_t>(args.filter_spatial_lengths_[2])};
         out_g_n_k_wos_lengths = {static_cast<index_t>(args.G_),
                                  static_cast<index_t>(args.N_),
                                  static_cast<index_t>(args.K_),
@@ -235,17 +235,17 @@ struct GroupedConvFwdKernelArgs
                                  static_cast<index_t>(args.output_spatial_lengths_[2])};
 
         conv_filter_strides   = {static_cast<index_t>(args.conv_filter_strides_[0]),
-                               static_cast<index_t>(args.conv_filter_strides_[1]),
-                               static_cast<index_t>(args.conv_filter_strides_[2])};
+                                 static_cast<index_t>(args.conv_filter_strides_[1]),
+                                 static_cast<index_t>(args.conv_filter_strides_[2])};
         conv_filter_dilations = {static_cast<index_t>(args.conv_filter_dilations_[0]),
                                  static_cast<index_t>(args.conv_filter_dilations_[1]),
                                  static_cast<index_t>(args.conv_filter_dilations_[2])};
         input_left_pads       = {static_cast<index_t>(args.input_left_pads_[0]),
-                           static_cast<index_t>(args.input_left_pads_[1]),
-                           static_cast<index_t>(args.input_left_pads_[2])};
+                                 static_cast<index_t>(args.input_left_pads_[1]),
+                                 static_cast<index_t>(args.input_left_pads_[2])};
         input_right_pads      = {static_cast<index_t>(args.input_right_pads_[0]),
-                            static_cast<index_t>(args.input_right_pads_[1]),
-                            static_cast<index_t>(args.input_right_pads_[2])};
+                                 static_cast<index_t>(args.input_right_pads_[1]),
+                                 static_cast<index_t>(args.input_right_pads_[2])};
 
         k_batch = args.k_batch;
 
@@ -305,15 +305,15 @@ struct GroupedConvFwdKernelArgs
                 args.output_spatial_lengths_[2];
     }
 
-    using AGridDescMK = remove_cvref_t<decltype(
-        ConvToGemmFwdTransformer{}
-            .template MakeADescriptor_M_K<typename GroupedConvTraitsType_::InLayout>())>;
-    using BGridDescNK = remove_cvref_t<decltype(
-        ConvToGemmFwdTransformer{}
-            .template MakeBDescriptor_N_K<typename GroupedConvTraitsType_::WeiLayout>())>;
-    using CGridDescMN = remove_cvref_t<decltype(
-        ConvToGemmFwdTransformer{}
-            .template MakeCDescriptor_M_N<typename GroupedConvTraitsType_::OutLayout>())>;
+    using AGridDescMK = remove_cvref_t<
+        decltype(ConvToGemmFwdTransformer{}
+                     .template MakeADescriptor_M_K<typename GroupedConvTraitsType_::InLayout>())>;
+    using BGridDescNK = remove_cvref_t<
+        decltype(ConvToGemmFwdTransformer{}
+                     .template MakeBDescriptor_N_K<typename GroupedConvTraitsType_::WeiLayout>())>;
+    using CGridDescMN = remove_cvref_t<
+        decltype(ConvToGemmFwdTransformer{}
+                     .template MakeCDescriptor_M_N<typename GroupedConvTraitsType_::OutLayout>())>;
 
     static constexpr index_t NonSpatialDims = 3;
     array<index_t, NonSpatialDims + GroupedConvTraitsType_::NDimSpatial> in_g_n_c_wis_lengths;
@@ -360,31 +360,31 @@ struct GroupedConvFwdKernelArgs
 
     // Forward declare descriptor types (will be defined after using declarations)
     using ConvToGemmFwdTransformer_t = ConvToGemmFwdTransformer;
-    using AGridDescMK_t = AGridDescMK;
-    using CGridDescMN_t = CGridDescMN;
+    using AGridDescMK_t              = AGridDescMK;
+    using CGridDescMN_t              = CGridDescMN;
 
     // Split-image support: Common data for all pieces
     struct SplitImageInfo
     {
         // Common dimensions (same for all pieces)
-        index_t total_d = 1, total_h = 1, total_w = 1;      // Total tensor dimensions
-        index_t num_d_pieces = 1, num_h_pieces = 1, num_w_pieces = 1;  // Split factors
+        index_t total_d = 1, total_h = 1, total_w = 1;                // Total tensor dimensions
+        index_t num_d_pieces = 1, num_h_pieces = 1, num_w_pieces = 1; // Split factors
 
         // Minimal per-piece data (only unique values)
         struct PieceInfo
         {
-            index_t block_start;     // Starting block index for this piece
-            index_t block_end;       // Ending block index (exclusive)
-            index_t d_start, h_start, w_start;  // Piece starting position in OUTPUT space
-            index_t d_size, h_size, w_size;     // Piece size in OUTPUT space
+            index_t block_start;               // Starting block index for this piece
+            index_t block_end;                 // Ending block index (exclusive)
+            index_t d_start, h_start, w_start; // Piece starting position in OUTPUT space
+            index_t d_size, h_size, w_size;    // Piece size in OUTPUT space
         };
 
         static constexpr index_t MaxPieces = 64; // Max pieces: 4 (1D), 16 (2D), 64 (3D)
         std::array<PieceInfo, MaxPieces> pieces; // Array of minimal piece descriptors
     };
 
-    index_t num_spatial_pieces = 1;  // Number of spatial pieces (1 = no split)
-    SplitImageInfo split_image;      // Nested structure with common + per-piece data
+    index_t num_spatial_pieces = 1; // Number of spatial pieces (1 = no split)
+    SplitImageInfo split_image;     // Nested structure with common + per-piece data
 };
 
 /// @brief The Grouped Convolution Forward kernel template.
@@ -626,7 +626,10 @@ struct GroupedConvolutionForwardKernel
         return true;
     }
 
-    template <memory_operation_enum DstInMemOp = memory_operation_enum::set, typename ADescType, typename BDescType, typename CDescType>
+    template <memory_operation_enum DstInMemOp = memory_operation_enum::set,
+              typename ADescType,
+              typename BDescType,
+              typename CDescType>
     CK_TILE_DEVICE static auto
     MakeGemmTensorViews(const InDataType* a_ptr,
                         const WeiDataType* b_ptr,
@@ -900,94 +903,99 @@ struct GroupedConvolutionForwardKernel
         index_t i_m             = 0;
         index_t i_n             = 0;
 
+        // Pre-calculate block_id (used in both split-image and non-split paths)
+        const index_t block_id = static_cast<index_t>(blockIdX);
+
         if(kargs.num_spatial_pieces > 1)
         {
-            // Find which piece this block belongs to
-            const index_t block_id = static_cast<index_t>(blockIdX);
-            index_t piece_id       = 0;
-
-            for(index_t i = 0; i < kargs.num_spatial_pieces; i++)
-            {
-                if(block_id >= kargs.split_image.pieces[i].block_start &&
-                   block_id < kargs.split_image.pieces[i].block_end)
+            // Helper: Find which piece owns this block
+            auto find_piece_id = [&]() -> index_t {
+                for(index_t i = 0; i < kargs.num_spatial_pieces; i++)
                 {
-                    piece_id = i;
-                    break;
+                    if(block_id >= kargs.split_image.pieces[i].block_start &&
+                       block_id < kargs.split_image.pieces[i].block_end)
+                    {
+                        return i;
+                    }
                 }
-            }
+                return 0; // Should never happen
+            };
 
-            const auto& piece = kargs.split_image.pieces[piece_id];
+            // Helper: Convert flat spatial index to (d,h,w) coordinates
+            auto unflatten_spatial = [](index_t flat, index_t h_size, index_t w_size) {
+                struct Coords
+                {
+                    index_t d, h, w;
+                };
+                if constexpr(NDimSpatial == 1)
+                {
+                    return Coords{0, 0, flat};
+                }
+                else if constexpr(NDimSpatial == 2)
+                {
+                    return Coords{0, flat / w_size, flat % w_size};
+                }
+                else // NDimSpatial == 3
+                {
+                    const index_t hw        = h_size * w_size;
+                    const index_t d         = flat / hw;
+                    const index_t remainder = flat % hw;
+                    return Coords{d, remainder / w_size, remainder % w_size};
+                }
+            };
+
+            // Helper: Convert (d,h,w) to flat spatial index
+            auto flatten_spatial =
+                [](index_t d, index_t h, index_t w, index_t total_h, index_t total_w) -> index_t {
+                if constexpr(NDimSpatial == 1)
+                {
+                    return w;
+                }
+                else if constexpr(NDimSpatial == 2)
+                {
+                    return h * total_w + w;
+                }
+                else // NDimSpatial == 3
+                {
+                    return (d * total_h + h) * total_w + w;
+                }
+            };
+
+            const index_t piece_id = find_piece_id();
+            const auto& piece      = kargs.split_image.pieces[piece_id];
             const auto& split_info = kargs.split_image;
 
-            // Calculate local block ID within this piece
+            // Calculate local block ID and tile indices
             const index_t local_block_id = block_id - piece.block_start;
-
-            // Map local block to local tile index using per-piece dimensions
-            const index_t local_gemm_m = kargs.n_per_split * piece.d_size * piece.h_size * piece.w_size;
+            const index_t local_gemm_m =
+                kargs.n_per_split * piece.d_size * piece.h_size * piece.w_size;
             const auto [local_tile_m, local_tile_n] =
                 TilePartitioner{local_gemm_m, kargs.GemmN}.GetOutputTileIndex(local_block_id);
 
-            // Calculate local element index (start of tile in piece-local space)
-            const index_t local_m_start = local_tile_m * TilePartitioner::MPerBlock;
+            // Extract batch and spatial coordinates from local tile
+            const index_t local_m_start      = local_tile_m * TilePartitioner::MPerBlock;
+            const index_t spatial_per_batch  = piece.d_size * piece.h_size * piece.w_size;
+            const index_t local_n            = local_m_start / spatial_per_batch;
+            const index_t local_spatial_flat = local_m_start % spatial_per_batch;
 
-            // CRITICAL: M dimension includes batch: M = N × spatial_size
-            // Need to extract (n, spatial_coords) from local_m_start
-            index_t local_n = 0;
-            index_t local_spatial_flat = 0;
-
-            // Use per-piece dimensions for M calculation
-            const index_t spatial_per_batch = piece.d_size * piece.h_size * piece.w_size;
-            local_n = local_m_start / spatial_per_batch;
-            local_spatial_flat = local_m_start % spatial_per_batch;
-
-            // Convert flattened spatial index to (d, h, w) coordinates
-            // Use per-piece dimensions since pieces can have different sizes
-            index_t local_d = 0, local_h = 0, local_w = 0;
-            if constexpr(NDimSpatial == 1)
-            {
-                local_w = local_spatial_flat; // spatial = W
-            }
-            else if constexpr(NDimSpatial == 2)
-            {
-                local_h = local_spatial_flat / piece.w_size;
-                local_w = local_spatial_flat % piece.w_size;
-            }
-            else // NDimSpatial == 3
-            {
-                const index_t hw = piece.h_size * piece.w_size;
-                local_d          = local_spatial_flat / hw;
-                const index_t remainder = local_spatial_flat % hw;
-                local_h                 = remainder / piece.w_size;
-                local_w                 = remainder % piece.w_size;
-            }
+            // Convert to local spatial coordinates
+            const auto local_coords =
+                unflatten_spatial(local_spatial_flat, piece.h_size, piece.w_size);
 
             // Convert to global spatial coordinates
-            const index_t global_n = local_n;  // Batch doesn't get offset
-            const index_t global_d = piece.d_start + local_d;
-            const index_t global_h = piece.h_start + local_h;
-            const index_t global_w = piece.w_start + local_w;
+            const index_t global_n = local_n;
+            const index_t global_d = piece.d_start + local_coords.d;
+            const index_t global_h = piece.h_start + local_coords.h;
+            const index_t global_w = piece.w_start + local_coords.w;
 
-            // Convert (n, d, h, w) to global M index: M = n × spatial_size + spatial_flat
-            index_t global_m = 0;
-            const index_t global_spatial_per_batch = split_info.total_d * split_info.total_h * split_info.total_w;
+            // Convert to global M index
+            const index_t global_spatial_per_batch =
+                split_info.total_d * split_info.total_h * split_info.total_w;
+            const index_t global_spatial_flat = flatten_spatial(
+                global_d, global_h, global_w, split_info.total_h, split_info.total_w);
+            const index_t global_m = global_n * global_spatial_per_batch + global_spatial_flat;
 
-            index_t global_spatial_flat = 0;
-            if constexpr(NDimSpatial == 1)
-            {
-                global_spatial_flat = global_w;
-            }
-            else if constexpr(NDimSpatial == 2)
-            {
-                global_spatial_flat = global_h * split_info.total_w + global_w;
-            }
-            else // NDimSpatial == 3
-            {
-                global_spatial_flat = (global_d * split_info.total_h + global_h) * split_info.total_w + global_w;
-            }
-
-            global_m = global_n * global_spatial_per_batch + global_spatial_flat;
-
-            // Calculate global tile index (element index → tile index)
+            // Set tile indices for GEMM operation
             i_m = amd_wave_read_first_lane(global_m);
             i_n = amd_wave_read_first_lane(local_tile_n * TilePartitioner::NPerBlock);
 
@@ -999,7 +1007,7 @@ struct GroupedConvolutionForwardKernel
         {
             // No split-image: use standard tile partitioning
             const auto [iM, iN] =
-                TilePartitioner{kargs.GemmM, kargs.GemmN}.GetOutputTileIndex(static_cast<index_t>(blockIdX));
+                TilePartitioner{kargs.GemmM, kargs.GemmN}.GetOutputTileIndex(block_id);
             i_m = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
             i_n = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
 
@@ -1022,9 +1030,18 @@ struct GroupedConvolutionForwardKernel
                            GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
                            is_any_of<OutDataType, fp16_t, bf16_t>::value))
             {
-                RunGemm2LDS(
-                    a_ptr, b_ptr, kargs.ds_ptr, c_ptr, smem_ptr_0, smem_ptr_1,
-                    a_desc, b_desc, c_desc, kargs.GemmK, i_m, i_n);
+                RunGemm2LDS(a_ptr,
+                            b_ptr,
+                            kargs.ds_ptr,
+                            c_ptr,
+                            smem_ptr_0,
+                            smem_ptr_1,
+                            a_desc,
+                            b_desc,
+                            c_desc,
+                            kargs.GemmK,
+                            i_m,
+                            i_n);
             }
         }
         else
@@ -1033,8 +1050,17 @@ struct GroupedConvolutionForwardKernel
                            GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
                            is_any_of<OutDataType, fp16_t, bf16_t>::value))
             {
-                RunGemm(a_ptr, b_ptr, kargs.ds_ptr, c_ptr, smem_ptr_0,
-                        a_desc, b_desc, c_desc, kargs.GemmK, i_m, i_n);
+                RunGemm(a_ptr,
+                        b_ptr,
+                        kargs.ds_ptr,
+                        c_ptr,
+                        smem_ptr_0,
+                        a_desc,
+                        b_desc,
+                        c_desc,
+                        kargs.GemmK,
+                        i_m,
+                        i_n);
             }
         }
     }
