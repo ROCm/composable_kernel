@@ -249,7 +249,7 @@ struct GroupedConvolutionForwardInvoker
         if (!enable_split_image)
         {
             // ─────────────────────────────────────────────────────────────────
-            // Path 1: NO Split-Image (current path - always taken for now)
+            // Path 1: NO Split-Image (when spatial dimensions fit in memory)
             // ─────────────────────────────────────────────────────────────────
             // May have: Split-N (grid.z > 1), Split-K (k_batch > 1)
             BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
@@ -280,64 +280,53 @@ struct GroupedConvolutionForwardInvoker
 
             // Store piece descriptors temporarily (will populate in final kargs)
             struct TempPieceInfo {
-                ck_tile::index_t block_start;
-                ck_tile::index_t block_end;
+                ck_tile::index_t block_start, block_end;
                 ck_tile::index_t d_start, h_start, w_start;
                 ck_tile::index_t d_size, h_size, w_size;
             };
             std::array<TempPieceInfo, 64> temp_pieces{};
             ck_tile::index_t total_blocks = 0;
 
+            // Helper: Calculate single piece information
+            auto calculate_piece = [&](ck_tile::index_t piece_idx) -> TempPieceInfo {
+                const ck_tile::index_t w_idx = piece_idx % num_w_pieces;
+                const ck_tile::index_t h_idx = (piece_idx / num_w_pieces) % num_h_pieces;
+                const ck_tile::index_t d_idx = piece_idx / (num_w_pieces * num_h_pieces);
+
+                const ck_tile::index_t w_start = w_idx * base_piece_w;
+                const ck_tile::index_t h_start = h_idx * base_piece_h;
+                const ck_tile::index_t d_start = d_idx * base_piece_d;
+
+                const ck_tile::index_t w_size = (w_idx == num_w_pieces - 1) ? (total_w - w_start) : base_piece_w;
+                const ck_tile::index_t h_size = (h_idx == num_h_pieces - 1) ? (total_h - h_start) : base_piece_h;
+                const ck_tile::index_t d_size = (d_idx == num_d_pieces - 1) ? (total_d - d_start) : base_piece_d;
+
+                const ck_tile::index_t piece_gemm_m = args.N_ * d_size * h_size * w_size;
+                const ck_tile::index_t piece_gemm_n = args.K_;
+                const ck_tile::index_t piece_grid =
+                    ((piece_gemm_m + TilePartitioner::MPerBlock - 1) / TilePartitioner::MPerBlock) *
+                    ((piece_gemm_n + TilePartitioner::NPerBlock - 1) / TilePartitioner::NPerBlock);
+
+                if(s.log_level_ > 0 && (piece_idx < 2 || piece_idx == 3 || piece_idx == 4 ||
+                   piece_idx == 11 || piece_idx == 12 || piece_idx == total_pieces - 1))
+                {
+                    std::cout << "[SPLIT-IMAGE] Piece " << piece_idx
+                              << " (d=" << d_idx << ",h=" << h_idx << ",w=" << w_idx << ")"
+                              << " output range: D=[" << d_start << "..." << (d_start + d_size - 1) << "]"
+                              << " H=[" << h_start << "..." << (h_start + h_size - 1) << "]"
+                              << " W=[" << w_start << "..." << (w_start + w_size - 1) << "]"
+                              << " size: " << d_size << "x" << h_size << "x" << w_size
+                              << ", blocks [" << total_blocks << "," << (total_blocks + piece_grid) << ")\n";
+                }
+
+                return {total_blocks, total_blocks + piece_grid, d_start, h_start, w_start, d_size, h_size, w_size};
+            };
+
             // Calculate piece info for all pieces
             for(ck_tile::index_t piece = 0; piece < total_pieces; piece++)
             {
-                // Calculate piece indices (d_idx, h_idx, w_idx)
-                ck_tile::index_t w_idx = piece % num_w_pieces;
-                ck_tile::index_t h_idx = (piece / num_w_pieces) % num_h_pieces;
-                ck_tile::index_t d_idx = piece / (num_w_pieces * num_h_pieces);
-
-                // Calculate piece position and size with NO overlap
-                // Each piece processes unique output elements
-                ck_tile::index_t w_start = w_idx * base_piece_w;
-                ck_tile::index_t h_start = h_idx * base_piece_h;
-                ck_tile::index_t d_start = d_idx * base_piece_d;
-
-                // Piece size (last piece may be larger to handle remainder)
-                ck_tile::index_t w_size = (w_idx == num_w_pieces - 1) ? (total_w - w_start) : base_piece_w;
-                ck_tile::index_t h_size = (h_idx == num_h_pieces - 1) ? (total_h - h_start) : base_piece_h;
-                ck_tile::index_t d_size = (d_idx == num_d_pieces - 1) ? (total_d - d_start) : base_piece_d;
-
-                // Calculate piece GEMM dimensions
-                ck_tile::index_t piece_gemm_m = args.N_ * d_size * h_size * w_size;
-                ck_tile::index_t piece_gemm_n = args.K_;
-
-                // Calculate grid size for this piece
-                ck_tile::index_t piece_grid = ((piece_gemm_m + TilePartitioner::MPerBlock - 1) / TilePartitioner::MPerBlock) *
-                                              ((piece_gemm_n + TilePartitioner::NPerBlock - 1) / TilePartitioner::NPerBlock);
-
-                // Store piece info
-                temp_pieces[piece].block_start = total_blocks;
-                temp_pieces[piece].block_end = total_blocks + piece_grid;
-                temp_pieces[piece].d_start = d_start;
-                temp_pieces[piece].h_start = h_start;
-                temp_pieces[piece].w_start = w_start;
-                temp_pieces[piece].d_size = d_size;
-                temp_pieces[piece].h_size = h_size;
-                temp_pieces[piece].w_size = w_size;
-
-                total_blocks += piece_grid;
-
-                if(s.log_level_ > 0 && (piece < 2 || piece == 3 || piece == 4 || piece == 11 || piece == 12 || piece == total_pieces-1))
-                {
-                    std::cout << "[SPLIT-IMAGE] Piece " << piece
-                              << " (d=" << d_idx << ",h=" << h_idx << ",w=" << w_idx << ")"
-                              << " output range: D=[" << d_start << "..." << (d_start+d_size-1) << "]"
-                              << " H=[" << h_start << "..." << (h_start+h_size-1) << "]"
-                              << " W=[" << w_start << "..." << (w_start+w_size-1) << "]"
-                              << " size: " << d_size << "x" << h_size << "x" << w_size
-                              << ", blocks [" << temp_pieces[piece].block_start
-                              << "," << temp_pieces[piece].block_end << ")\n";
-                }
+                temp_pieces[piece] = calculate_piece(piece);
+                total_blocks = temp_pieces[piece].block_end;
             }
 
             if(s.log_level_ > 0)
@@ -401,30 +390,30 @@ struct GroupedConvolutionForwardInvoker
                                                                             GemmPipeline,
                                                                             ConvEpilogue>;
 
-                    // Create kargs
+                    // Create kargs and populate split-image info
                     auto kargs = Kernel::MakeKernelArgs(args);
 
-                    // Populate split-image info (common data stored once)
-                    kargs.num_spatial_pieces = total_pieces;
-                    kargs.split_image.total_d = total_d;
-                    kargs.split_image.total_h = total_h;
-                    kargs.split_image.total_w = total_w;
-                    kargs.split_image.num_d_pieces = num_d_pieces;
-                    kargs.split_image.num_h_pieces = num_h_pieces;
-                    kargs.split_image.num_w_pieces = num_w_pieces;
+                    // Helper: Populate split-image metadata
+                    auto populate_split_image_kargs = [&]() {
+                        kargs.num_spatial_pieces = total_pieces;
+                        kargs.split_image.total_d = total_d;
+                        kargs.split_image.total_h = total_h;
+                        kargs.split_image.total_w = total_w;
+                        kargs.split_image.num_d_pieces = num_d_pieces;
+                        kargs.split_image.num_h_pieces = num_h_pieces;
+                        kargs.split_image.num_w_pieces = num_w_pieces;
 
-                    // Populate per-piece data from temp_pieces
-                    for(ck_tile::index_t i = 0; i < total_pieces; i++)
-                    {
-                        kargs.split_image.pieces[i].block_start = temp_pieces[i].block_start;
-                        kargs.split_image.pieces[i].block_end = temp_pieces[i].block_end;
-                        kargs.split_image.pieces[i].d_start = temp_pieces[i].d_start;
-                        kargs.split_image.pieces[i].h_start = temp_pieces[i].h_start;
-                        kargs.split_image.pieces[i].w_start = temp_pieces[i].w_start;
-                        kargs.split_image.pieces[i].d_size = temp_pieces[i].d_size;
-                        kargs.split_image.pieces[i].h_size = temp_pieces[i].h_size;
-                        kargs.split_image.pieces[i].w_size = temp_pieces[i].w_size;
-                    }
+                        for(ck_tile::index_t i = 0; i < total_pieces; i++)
+                        {
+                            kargs.split_image.pieces[i] = {
+                                temp_pieces[i].block_start, temp_pieces[i].block_end,
+                                temp_pieces[i].d_start, temp_pieces[i].h_start, temp_pieces[i].w_start,
+                                temp_pieces[i].d_size, temp_pieces[i].h_size, temp_pieces[i].w_size
+                            };
+                        }
+                    };
+
+                    populate_split_image_kargs();
 
                     // Calculate grid with total_blocks for ALL pieces
                     const dim3 grids(total_blocks, kargs.GemmBatch, kargs.n_splits);
