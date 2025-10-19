@@ -37,7 +37,6 @@ jobs:
 
       - name: Pull DVC files for rocm-libraries
         run: |
-          cd ${{ github.workspace }}/rocm-libraries
           if command -v dvc &> /dev/null; then
             echo "dvc detected, running dvc pull"
             LOGNAME=github-runner dvc pull -v
