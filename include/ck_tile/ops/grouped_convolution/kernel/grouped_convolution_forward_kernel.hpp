@@ -356,13 +356,7 @@ struct GroupedConvFwdKernelArgs
     long_index_t spatial_offset_out = 0; // Spatial offset for output (e.g., W/2 for 1D split)
 
     // Split-image support - transformer instance
-    // We store the transformer so invoker can call CalculateSplitImage()
-    // which uses N_ (after Split-N) for correct offset calculation
     ConvToGemmFwdTransformer transformer_;
-
-    // Method to get split-image information from transformer
-    // Uses unified TwoGB threshold internally
-    CK_TILE_HOST auto GetSplitImageInfo() const { return transformer_.CalculateSplitImage(); }
 
     // Forward declare descriptor types (will be defined after using declarations)
     using ConvToGemmFwdTransformer_t = ConvToGemmFwdTransformer;
@@ -382,7 +376,8 @@ struct GroupedConvFwdKernelArgs
         {
             index_t block_start;     // Starting block index for this piece
             index_t block_end;       // Ending block index (exclusive)
-            index_t d_start, h_start, w_start;  // Piece starting position
+            index_t d_start, h_start, w_start;  // Piece starting position in OUTPUT space
+            index_t d_size, h_size, w_size;     // Piece size in OUTPUT space
         };
 
         static constexpr index_t MaxPieces = 64; // Max pieces: 4 (1D), 16 (2D), 64 (3D)
@@ -928,8 +923,8 @@ struct GroupedConvolutionForwardKernel
             // Calculate local block ID within this piece
             const index_t local_block_id = block_id - piece.block_start;
 
-            // Map local block to local tile index using piece dimensions
-            const index_t local_gemm_m = kargs.n_per_split * split_info.piece_d * split_info.piece_h * split_info.piece_w;
+            // Map local block to local tile index using per-piece dimensions
+            const index_t local_gemm_m = kargs.n_per_split * piece.d_size * piece.h_size * piece.w_size;
             const auto [local_tile_m, local_tile_n] =
                 TilePartitioner{local_gemm_m, kargs.GemmN}.GetOutputTileIndex(local_block_id);
 
@@ -941,11 +936,13 @@ struct GroupedConvolutionForwardKernel
             index_t local_n = 0;
             index_t local_spatial_flat = 0;
 
-            const index_t spatial_per_batch = split_info.piece_d * split_info.piece_h * split_info.piece_w;
+            // Use per-piece dimensions for M calculation
+            const index_t spatial_per_batch = piece.d_size * piece.h_size * piece.w_size;
             local_n = local_m_start / spatial_per_batch;
             local_spatial_flat = local_m_start % spatial_per_batch;
 
             // Convert flattened spatial index to (d, h, w) coordinates
+            // Use per-piece dimensions since pieces can have different sizes
             index_t local_d = 0, local_h = 0, local_w = 0;
             if constexpr(NDimSpatial == 1)
             {
@@ -953,16 +950,16 @@ struct GroupedConvolutionForwardKernel
             }
             else if constexpr(NDimSpatial == 2)
             {
-                local_h = local_spatial_flat / split_info.piece_w;
-                local_w = local_spatial_flat % split_info.piece_w;
+                local_h = local_spatial_flat / piece.w_size;
+                local_w = local_spatial_flat % piece.w_size;
             }
             else // NDimSpatial == 3
             {
-                const index_t hw = split_info.piece_h * split_info.piece_w;
+                const index_t hw = piece.h_size * piece.w_size;
                 local_d          = local_spatial_flat / hw;
                 const index_t remainder = local_spatial_flat % hw;
-                local_h                 = remainder / split_info.piece_w;
-                local_w                 = remainder % split_info.piece_w;
+                local_h                 = remainder / piece.w_size;
+                local_w                 = remainder % piece.w_size;
             }
 
             // Convert to global spatial coordinates
