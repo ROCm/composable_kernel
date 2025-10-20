@@ -170,7 +170,8 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
     static constexpr index_t ScaleBload_num =
         kNPerBlock * kKPerBlock / NWarp / 32 / ScaleBload_K1 /
         WaveSize; // BlockN * BlockK / NWarp / ScalePerK / ScaleB_K1 / wavesize
-    static constexpr index_t Bload_total_num = Bload_num_perK * KIterPerWarp + ScaleBload_num + 0X3f0;
+    static constexpr index_t Bload_total_num =
+        Bload_num_perK * KIterPerWarp + ScaleBload_num + 0X3f0;
     static constexpr index_t KPerScaleLoad = KIterPerWarp / ScaleBload_num;
     static constexpr index_t HalfMIter     = (MIterPerWarp + 1) / 2;
     static constexpr index_t Bload_rep     = (Bload_num_perK + HalfMIter - 1) / HalfMIter;
@@ -614,11 +615,12 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
             PrefillAlways     = PrefillBeforeGemm | PrefillAfterGemm,
         };
 #if CKTILE_FLATMM_USE_BUFFER_LOAD_LDS
-        auto prefill_lds_a_stage1 = [&]([[maybe_unused]] auto lds_tile_a, auto dram_tile_a, auto prefill_location) {
-            // global -> lds
-            if constexpr(prefill_location & PrefillAfterGemm)
-                async_load_tile(lds_tile_a, dram_tile_a);
-        };
+        auto prefill_lds_a_stage1 =
+            [&]([[maybe_unused]] auto lds_tile_a, auto dram_tile_a, auto prefill_location) {
+                // global -> lds
+                if constexpr(prefill_location & PrefillAfterGemm)
+                    async_load_tile(lds_tile_a, dram_tile_a);
+            };
         auto prefill_lds_a_stage2 = [&](auto lds_tile_a) {
             // async_load_fence();
             // __builtin_amdgcn_s_waitcnt(0x03fc);
@@ -627,12 +629,13 @@ struct F16xMXF4FlatmmPipelineAGmemBGmemCRegV1
                           "buffer_load_lds don't support element func fot A before mfma");
         };
 #else
-        auto prefill_lds_a_stage1 = [&]([[maybe_unused]] auto lds_tile_a, auto dram_tile_a, auto prefill_location) {
-            // global -> vgpr
-            if constexpr(prefill_location & PrefillBeforeGemm)
-                a_block_tile = load_tile(dram_tile_a);
-        };
-        auto prefill_lds_a_stage2 = [&]([[maybe_unused]]auto lds_tile_a) {
+        auto prefill_lds_a_stage1 =
+            [&]([[maybe_unused]] auto lds_tile_a, auto dram_tile_a, auto prefill_location) {
+                // global -> vgpr
+                if constexpr(prefill_location & PrefillBeforeGemm)
+                    a_block_tile = load_tile(dram_tile_a);
+            };
+        auto prefill_lds_a_stage2 = [&]([[maybe_unused]] auto lds_tile_a) {
             // vgpr -> lds
             auto a_block_tile_transformed = tile_elementwise_in(a_element_func, a_block_tile);
             store_tile(lds_tile_a, a_block_tile_transformed);

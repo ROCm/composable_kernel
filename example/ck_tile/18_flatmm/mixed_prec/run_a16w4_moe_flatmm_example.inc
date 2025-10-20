@@ -142,8 +142,7 @@ int run_a16w4_moe_gemm_example_with_layouts(int argc,
         shuffle_mxfp4_scale<FlatmmConfig, kind>(scale_b, experts);
     ck_tile::DeviceMem scale_b_shuffle_dev_buf(scale_b_shuffle.get_element_space_size_in_bytes());
 
-    std::cout << "moe_flatmm:"
-              << "\n  num_experts: " << experts << "\n  num_tokens: " << num_tokens
+    std::cout << "moe_flatmm:" << "\n  num_experts: " << experts << "\n  num_tokens: " << num_tokens
               << "\n  topk: " << topk << "\n  sorted_tile_num: " << sorted_tile_num
               << "\n  problem_n: " << N << "\n  problem_k: " << K
               << "\n  a_m_k: " << a_m_k_tensor.mDesc << "\n  b_k_n: " << b_k_n_tensor.mDesc

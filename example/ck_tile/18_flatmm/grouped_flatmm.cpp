@@ -35,7 +35,9 @@ auto create_args(int argc, char* argv[])
         .insert("stride_c", "0", "Tensor C stride")
         .insert("v", "1", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
         .insert("prec", "fp8", "data type. fp16/bf16/fp8/bf8")
-        .insert("mode", "masked", "grouped gemm mode: [general | contiguous | masked], general by default")
+        .insert("mode",
+                "masked",
+                "grouped gemm mode: [general | contiguous | masked], general by default")
         .insert("wave_tile", "16", "only support 16(16x16) or 32(32x32)")
         .insert("warmup", "50", "number of iterations before benchmark the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
@@ -52,52 +54,52 @@ auto create_args(int argc, char* argv[])
 }
 
 template <typename FlatmmConfig,
-            typename ADataType,
-            typename BDataType,
-            typename DsDatatype,
-            typename AccDataType,
-            typename CDataType,
-            typename ALayout,
-            typename BLayout,
-            typename DsLayout,
-            typename ELayout,
-            bool persistent,
-            typename CDEElementWise,
-            typename KernelArguments>
+          typename ADataType,
+          typename BDataType,
+          typename DsDatatype,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename DsLayout,
+          typename ELayout,
+          bool persistent,
+          typename CDEElementWise,
+          typename KernelArguments>
 float grouped_flatmm(const KernelArguments& args, const ck_tile::stream_config& s)
 {
     using CodegenFlatmmShape = ck_tile::TileGemmShape<
         ck_tile::sequence<FlatmmConfig::M_Tile, FlatmmConfig::N_Tile, FlatmmConfig::K_Tile>,
         ck_tile::sequence<FlatmmConfig::M_Warp, FlatmmConfig::N_Warp, FlatmmConfig::K_Warp>,
         ck_tile::sequence<FlatmmConfig::M_Warp_Tile,
-                        FlatmmConfig::N_Warp_Tile,
-                        FlatmmConfig::K_Warp_Tile>>;
+                          FlatmmConfig::N_Warp_Tile,
+                          FlatmmConfig::K_Warp_Tile>>;
 
     using TilePartitioner =
         ck_tile::GemmSpatiallyLocalTilePartitioner<CodegenFlatmmShape,
-                                                FlatmmConfig::TileParitionerGroupNum,
-                                                FlatmmConfig::TileParitionerM01>;
+                                                   FlatmmConfig::TileParitionerGroupNum,
+                                                   FlatmmConfig::TileParitionerM01>;
 
     using Traits = ck_tile::TileGemmTraits<FlatmmConfig::kPadM,
-                                        FlatmmConfig::kPadN,
-                                        FlatmmConfig::kPadK,
-                                        ALayout,
-                                        BLayout,
-                                        ELayout,
-                                        FlatmmConfig::NumWaveGroups>;
+                                           FlatmmConfig::kPadN,
+                                           FlatmmConfig::kPadK,
+                                           ALayout,
+                                           BLayout,
+                                           ELayout,
+                                           FlatmmConfig::NumWaveGroups>;
 
     using CodegenGemmTraits = ck_tile::TileGemmUniversalTraits<FlatmmConfig::kPadM,
-                                                            FlatmmConfig::kPadN,
-                                                            FlatmmConfig::kPadK,
-                                                            FlatmmConfig::DoubleSmemBuffer,
-                                                            ALayout,
-                                                            BLayout,
-                                                            ELayout,
-                                                            FlatmmConfig::TransposeC,
-                                                            FlatmmConfig::UseStructuredSparsity,
-                                                            persistent,
-                                                            FlatmmConfig::NumWaveGroups,
-                                                            true>;
+                                                               FlatmmConfig::kPadN,
+                                                               FlatmmConfig::kPadK,
+                                                               FlatmmConfig::DoubleSmemBuffer,
+                                                               ALayout,
+                                                               BLayout,
+                                                               ELayout,
+                                                               FlatmmConfig::TransposeC,
+                                                               FlatmmConfig::UseStructuredSparsity,
+                                                               persistent,
+                                                               FlatmmConfig::NumWaveGroups,
+                                                               true>;
 
     using GemmPipelineProblem =
         ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, CodegenFlatmmShape, Traits>;
@@ -161,54 +163,55 @@ float grouped_flatmm(const KernelArguments& args, const ck_tile::stream_config& 
         const dim3 grids      = Kernel::GridSize(kargs);
         constexpr dim3 blocks = Kernel::BlockSize();
 
-        // if(!Kernel::IsSupportedArgument(kargs))
-        // {
-        //     throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
-        // }
+        if(!Kernel::IsSupportedArgument(kargs))
+        {
+            throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
+        }
 
-        // if(s.flush_cache_)
-        // {
-        //     std::cout << "Flushing cache..." << std::endl;
-        //     static constexpr ck_tile::index_t APackedSize =
-        //         std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
-        //     static constexpr ck_tile::index_t BPackedSize =
-        //         std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
+        if(s.flush_cache_)
+        {
+            std::cout << "Flushing cache..." << std::endl;
+            static constexpr ck_tile::index_t APackedSize =
+                std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
+            static constexpr ck_tile::index_t BPackedSize =
+                std::is_same_v<BDataType, ck_tile::pk_int4_t> ? 2 : 1;
 
-        //     ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
-        //         args.group_count * args.M, args.K, args.stride_A, is_row_major(ALayout{})));
-        //     ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
-        //         args.K, args.group_count * args.N, args.stride_B, is_row_major(BLayout{})));
+            ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
+                args.group_count * args.M, args.K, args.stride_A, is_row_major(ALayout{})));
+            ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
+                args.K, args.group_count * args.N, args.stride_B, is_row_major(BLayout{})));
 
-        //     auto size_a_buffer = a_m.get_element_space_size_in_bytes() / APackedSize;
-        //     auto size_b_buffer = b_n.get_element_space_size_in_bytes() / BPackedSize;
+            auto size_a_buffer = a_m.get_element_space_size_in_bytes() / APackedSize;
+            auto size_b_buffer = b_n.get_element_space_size_in_bytes() / BPackedSize;
 
-        //     ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
-        //         kargs.a_ptr, kargs.b_shuffle_ptr, s.rotating_count_, size_a_buffer, size_b_buffer);
-        //     rotating_mem.Print();
+            ck_tile::RotatingMemWrapper<ADataType, BDataType> rotating_mem(
+                kargs.a_ptr, kargs.b_shuffle_ptr, s.rotating_count_, size_a_buffer, size_b_buffer);
+            rotating_mem.Print();
 
-        //     auto run_flush_cache = [&]() {
-        //         // flush icache
-        //         ck_tile::flush_icache();
-        //         // rotating mem
-        //         rotating_mem.Next();
-        //         // clear c mem
-        //         if(args.k_batch > 1)
-        //             hipGetErrorString(hipMemsetAsync(
-        //                 args.e_ptr, 0, args.group_count * args.M * args.N * sizeof(CDataType), s.stream_id_));
-        //     };
-        //     ave_time = ck_tile::launch_kernel_preprocess(
-        //         s,
-        //         run_flush_cache,
-        //         ck_tile::make_kernel<blocks.x, FlatmmConfig::kBlockPerCu>(
-        //             Kernel{}, grids, blocks, 0, kargs));
-        // }
-        // else
-        // {
-        ave_time =
-            ck_tile::launch_kernel(s,
-                                    ck_tile::make_kernel<FlatmmConfig::kBlockPerCu>(
-                                        Kernel{}, grids, blocks, 0, kargs));
-        // }
+            auto run_flush_cache = [&]() {
+                // flush icache
+                ck_tile::flush_icache();
+                // rotating mem
+                rotating_mem.Next();
+                // clear c mem
+                if(args.k_batch > 1)
+                    hipGetErrorString(
+                        hipMemsetAsync(args.e_ptr,
+                                       0,
+                                       args.group_count * args.M * args.N * sizeof(CDataType),
+                                       s.stream_id_));
+            };
+            ave_time = ck_tile::launch_kernel_time_mask(
+                s,
+                run_flush_cache,
+                ck_tile::make_kernel<FlatmmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+        }
+        else
+        {
+            ave_time = ck_tile::launch_kernel(
+                s,
+                ck_tile::make_kernel<FlatmmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+        }
 
         return ave_time;
     };
@@ -235,7 +238,7 @@ float grouped_flatmm(const KernelArguments& args, const ck_tile::stream_config& 
 
 #include "run_grouped_flatmm_example.inc"
 
-template<template <typename PreType> typename FlatmmConfig>
+template <template <typename PreType> typename FlatmmConfig>
 int run_grouped_flatmm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -252,53 +255,30 @@ int run_grouped_flatmm_example(int argc, char* argv[])
 
     if(a_layout == "R" && b_layout == "C")
     {
-        if(mode == "general")
-        {
-            // if(data_type == "fp16")
-            // {
-            //     run_grouped_flatmm_example_with_layouts<ck_tile::half_t, FlatmmConfig<ck_tile::half_t>>(
-            //         argc, argv, Row{}, Col{}, Row{});
-            // }
-            // else if(data_type == "bf16")
-            // {
-            //     run_grouped_flatmm_example_with_layouts<ck_tile::bf16_t, FlatmmConfig<ck_tile::bf16_t>>(
-            //         argc, argv, Row{}, Col{}, Row{});
-            // }
-            // else if(data_type == "fp8")
-            // {
-            //     run_grouped_flatmm_example_with_layouts<ck_tile::fp8_t, FlatmmConfig<ck_tile::fp8_t>>(
-            //         argc, argv, Row{}, Col{}, Row{});
-            // }
-            // else if(data_type == "bf8")
-            // {
-            //     run_grouped_flatmm_example_with_layouts<ck_tile::bf8_t, FlatmmConfig<ck_tile::bf8_t>>(
-            //         argc, argv, Row{}, Col{}, Row{});
-            // }
-            // else
-            // {
-            //     throw std::runtime_error("Unsupported data_type!");
-            // }
-        }
-        else if(mode == "contiguous")
+        if(mode == "contiguous")
         {
             if(data_type == "fp16")
             {
-                run_contiguous_grouped_flatmm_example_with_layouts<ck_tile::half_t, FlatmmConfig<ck_tile::half_t>>(
+                run_contiguous_grouped_flatmm_example_with_layouts<ck_tile::half_t,
+                                                                   FlatmmConfig<ck_tile::half_t>>(
                     argc, argv, Row{}, Col{}, Row{});
             }
             else if(data_type == "bf16")
             {
-                run_contiguous_grouped_flatmm_example_with_layouts<ck_tile::bf16_t, FlatmmConfig<ck_tile::bf16_t>>(
+                run_contiguous_grouped_flatmm_example_with_layouts<ck_tile::bf16_t,
+                                                                   FlatmmConfig<ck_tile::bf16_t>>(
                     argc, argv, Row{}, Col{}, Row{});
             }
             else if(data_type == "fp8")
             {
-                run_contiguous_grouped_flatmm_example_with_layouts<ck_tile::fp8_t, FlatmmConfig<ck_tile::fp8_t>>(
+                run_contiguous_grouped_flatmm_example_with_layouts<ck_tile::fp8_t,
+                                                                   FlatmmConfig<ck_tile::fp8_t>>(
                     argc, argv, Row{}, Col{}, Row{});
             }
             else if(data_type == "bf8")
             {
-                run_contiguous_grouped_flatmm_example_with_layouts<ck_tile::bf8_t, FlatmmConfig<ck_tile::bf8_t>>(
+                run_contiguous_grouped_flatmm_example_with_layouts<ck_tile::bf8_t,
+                                                                   FlatmmConfig<ck_tile::bf8_t>>(
                     argc, argv, Row{}, Col{}, Row{});
             }
             else
@@ -308,25 +288,29 @@ int run_grouped_flatmm_example(int argc, char* argv[])
         }
         else if(mode == "masked")
         {
-            
+
             if(data_type == "fp16")
             {
-                run_masked_grouped_flatmm_example_with_layouts<ck_tile::half_t, FlatmmConfig<ck_tile::half_t>>(
+                run_masked_grouped_flatmm_example_with_layouts<ck_tile::half_t,
+                                                               FlatmmConfig<ck_tile::half_t>>(
                     argc, argv, Row{}, Col{}, Row{});
             }
             else if(data_type == "bf16")
             {
-                run_masked_grouped_flatmm_example_with_layouts<ck_tile::bf16_t, FlatmmConfig<ck_tile::bf16_t>>(
+                run_masked_grouped_flatmm_example_with_layouts<ck_tile::bf16_t,
+                                                               FlatmmConfig<ck_tile::bf16_t>>(
                     argc, argv, Row{}, Col{}, Row{});
             }
             else if(data_type == "fp8")
             {
-                run_masked_grouped_flatmm_example_with_layouts<ck_tile::fp8_t, FlatmmConfig<ck_tile::fp8_t>>(
+                run_masked_grouped_flatmm_example_with_layouts<ck_tile::fp8_t,
+                                                               FlatmmConfig<ck_tile::fp8_t>>(
                     argc, argv, Row{}, Col{}, Row{});
             }
             else if(data_type == "bf8")
             {
-                run_masked_grouped_flatmm_example_with_layouts<ck_tile::bf8_t, FlatmmConfig<ck_tile::bf8_t>>(
+                run_masked_grouped_flatmm_example_with_layouts<ck_tile::bf8_t,
+                                                               FlatmmConfig<ck_tile::bf8_t>>(
                     argc, argv, Row{}, Col{}, Row{});
             }
             else
@@ -346,8 +330,8 @@ int run_grouped_flatmm_example(int argc, char* argv[])
     return -1;
 }
 
-int main(int argc, char* argv[]) 
-{ 
+int main(int argc, char* argv[])
+{
     auto [result, arg_parser] = create_args(argc, argv);
     if(!result)
         return EXIT_FAILURE;

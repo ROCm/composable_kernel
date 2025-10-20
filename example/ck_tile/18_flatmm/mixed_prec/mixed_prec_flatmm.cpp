@@ -190,15 +190,13 @@ float mixed_prec_flatmm_calc(const ck_tile::ScaleFlatmmHostArgs<ScaleM, ScaleN>&
             ave_time = ck_tile::launch_kernel_time_mask(
                 s,
                 run_flush_cache,
-                ck_tile::make_kernel<FlatmmConfig::kBlockPerCu>(
-                    Kernel{}, grids, blocks, 0, kargs));
+                ck_tile::make_kernel<FlatmmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
         else
         {
-            ave_time =
-                ck_tile::launch_kernel(s,
-                                       ck_tile::make_kernel<FlatmmConfig::kBlockPerCu>(
-                                           Kernel{}, grids, blocks, 0, kargs));
+            ave_time = ck_tile::launch_kernel(
+                s,
+                ck_tile::make_kernel<FlatmmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
         }
         return ave_time;
     };
@@ -293,9 +291,9 @@ float invoke_mixed_prec_flatmm(ck_tile::DeviceMem& a_dev_buf,
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
     std::cout << "Run A16W4_Flatmm kernel " << " M =" << M << " N =" << N << " K =" << K
-            << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideC =" << stride_C
-            << " : " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-            << std::endl;
+              << " StrideA =" << stride_A << " StrideB =" << stride_B << " StrideC =" << stride_C
+              << " : " << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
+              << std::endl;
 
     return ave_time;
 }

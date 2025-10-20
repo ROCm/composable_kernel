@@ -251,13 +251,13 @@ struct FlatmmKernel
     using FlatmmPipeline  = remove_cvref_t<FlatmmPipeline_>;
     using BlockGemmShape =
         remove_cvref_t<typename FlatmmPipeline::BlockGemmShape>; // TileFlatmmShape
-    using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
-    using ALayout          = remove_cvref_t<typename FlatmmPipeline::ALayout>;
-    using BLayout          = remove_cvref_t<typename FlatmmPipeline::BLayout>;
-    using ELayout          = remove_cvref_t<typename FlatmmPipeline::CLayout>;
-    using DsLayout         = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
-    using DsDataType       = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
-    static constexpr index_t kBlockSize       = FlatmmPipeline::BlockSize;
+    using EpiloguePipeline              = remove_cvref_t<EpiloguePipeline_>;
+    using ALayout                       = remove_cvref_t<typename FlatmmPipeline::ALayout>;
+    using BLayout                       = remove_cvref_t<typename FlatmmPipeline::BLayout>;
+    using ELayout                       = remove_cvref_t<typename FlatmmPipeline::CLayout>;
+    using DsLayout                      = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
+    using DsDataType                    = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
+    static constexpr index_t kBlockSize = FlatmmPipeline::BlockSize;
     static constexpr bool UsePersistentKernel = FlatmmPipeline::UsePersistentKernel;
 
     using ADataType = remove_cvref_t<typename FlatmmPipeline::ADataType>;
@@ -307,9 +307,7 @@ struct FlatmmKernel
             e = hipOccupancyMaxActiveBlocksPerMultiprocessor(
                 &maxActiveBlocksPerCU,
                 reinterpret_cast<void*>(
-                    kentry<1,
-                           FlatmmKernel,
-                           FlatmmKernelArgs<ScaleM, ScaleN, DsDataType::size()>>),
+                    kentry<1, FlatmmKernel, FlatmmKernelArgs<ScaleM, ScaleN, DsDataType::size()>>),
                 block_size,
                 dync_smem_size);
 
@@ -661,7 +659,7 @@ struct FlatmmKernel
                       "only support per-tensor or per-row scaling");
         static_assert(ScaleGranularityN == 0 || ScaleGranularityN == 1 || ScaleGranularityN == -1,
                       "only support per-tensor or per-column scaling");
-        
+
         const auto scale_m_view = make_naive_tensor_view<address_space_enum::global>(
             kargs.scale_m_ptr.ptr,
             make_tuple(

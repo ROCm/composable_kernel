@@ -11,7 +11,7 @@
 
 namespace ck_tile {
 
-    template <typename ADataType,
+template <typename ADataType,
           typename QDataType,
           typename BDataType,
           typename AccDataType,

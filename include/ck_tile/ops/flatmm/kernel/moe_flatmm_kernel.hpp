@@ -194,13 +194,13 @@ struct MoeFlatmmKernel
     using FlatmmPipeline  = remove_cvref_t<FlatmmPipeline_>;
     using BlockGemmShape =
         remove_cvref_t<typename FlatmmPipeline::BlockGemmShape>; // TileFlatmmShape
-    using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
-    using ALayout          = remove_cvref_t<typename FlatmmPipeline::ALayout>;
-    using BLayout          = remove_cvref_t<typename FlatmmPipeline::BLayout>;
-    using ELayout          = remove_cvref_t<typename FlatmmPipeline::CLayout>;
-    using DsLayout         = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
-    using DsDataType       = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
-    static constexpr index_t kBlockSize  = FlatmmPipeline::BlockSize;
+    using EpiloguePipeline              = remove_cvref_t<EpiloguePipeline_>;
+    using ALayout                       = remove_cvref_t<typename FlatmmPipeline::ALayout>;
+    using BLayout                       = remove_cvref_t<typename FlatmmPipeline::BLayout>;
+    using ELayout                       = remove_cvref_t<typename FlatmmPipeline::CLayout>;
+    using DsLayout                      = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
+    using DsDataType                    = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
+    static constexpr index_t kBlockSize = FlatmmPipeline::BlockSize;
     static constexpr bool UsePersistentKernel = FlatmmPipeline::UsePersistentKernel;
 
     using ADataType = remove_cvref_t<typename FlatmmPipeline::ADataType>;
@@ -563,13 +563,14 @@ struct MoeFlatmmKernel
     template <memory_operation_enum DstInMemOp = IsInputGemm ? memory_operation_enum::set
                                                              : memory_operation_enum::atomic_add,
               typename KernelArgs>
-    CK_TILE_DEVICE static auto MakeGemmTensorViews(const ADataType* a_ptr,
-                                                   const BDataType* b_flat_ptr,
-                                                   EDataType* e_ptr,
-                                                   [[maybe_unused]]const AccDataType* exp_weight_ptr,
-                                                   const int expert_id,
-                                                   const KernelArgs& kargs,
-                                                   const SplitKBatchOffset& splitk_batch_offset)
+    CK_TILE_DEVICE static auto
+    MakeGemmTensorViews(const ADataType* a_ptr,
+                        const BDataType* b_flat_ptr,
+                        EDataType* e_ptr,
+                        [[maybe_unused]] const AccDataType* exp_weight_ptr,
+                        const int expert_id,
+                        const KernelArgs& kargs,
+                        const SplitKBatchOffset& splitk_batch_offset)
     {
         const auto& a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
@@ -880,12 +881,13 @@ struct MoeFlatmmKernel
             constexpr index_t MPerIterationShuffle     = EpiloguePipeline::MPerIterationShuffle;
             constexpr index_t NPerIterationShuffle     = EpiloguePipeline::NPerIterationShuffle;
 
-            constexpr index_t MRepeat             = EpiloguePipeline::MRepeat;
-            constexpr index_t NRepeat             = EpiloguePipeline::NRepeat;
-            constexpr index_t OutputNRepeat       = IsGateUp ? NRepeat / 2 : NRepeat;
-        
-            [[maybe_unused]] constexpr index_t EpiVectorSizeC      = EpiloguePipeline::GetVectorSizeC();
-            [[maybe_unused]] constexpr index_t BlockedXDLN_PerWarp = EpiloguePipeline::BlockedXDLN_PerWarp;
+            constexpr index_t MRepeat       = EpiloguePipeline::MRepeat;
+            constexpr index_t NRepeat       = EpiloguePipeline::NRepeat;
+            constexpr index_t OutputNRepeat = IsGateUp ? NRepeat / 2 : NRepeat;
+
+            [[maybe_unused]] constexpr index_t EpiVectorSizeC = EpiloguePipeline::GetVectorSizeC();
+            [[maybe_unused]] constexpr index_t BlockedXDLN_PerWarp =
+                EpiloguePipeline::BlockedXDLN_PerWarp;
 
             static_assert(!IsGateUp || NumNXdlPerWavePerShuffle % 2 == 0);
 
