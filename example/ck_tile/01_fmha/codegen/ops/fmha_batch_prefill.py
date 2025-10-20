@@ -575,7 +575,7 @@ class KernelComponentFactory:
     def get_hdim_tile_size_dict(dtype: str) -> Optional[dict]:
         if dtype == "fp16" or dtype == "bf16":
             return {
-                128 : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)], 
+                128 : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
             }  # fmt: skip
         else:
             return None
