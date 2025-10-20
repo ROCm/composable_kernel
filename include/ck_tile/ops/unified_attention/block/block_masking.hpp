@@ -86,24 +86,24 @@ struct GenericAttentionMask
     static constexpr const char* name = impl::MaskName<IsMasking, IsLocal>::name;
 
     // New constructor accepting repeat_idx with default value 1
-    CK_TILE_HOST_DEVICE GenericAttentionMask(index_t y_total_, index_t x_total_, index_t repeat_idx = 1)
-        : GenericAttentionMask(0, 0, y_total_, x_total_, repeat_idx)
+    CK_TILE_HOST_DEVICE GenericAttentionMask(index_t y_total_, index_t x_total_, index_t repeat_idx_ = 1)
+        : GenericAttentionMask(0, 0, y_total_, x_total_, repeat_idx_)
     {
     }
 
     CK_TILE_HOST_DEVICE
-    GenericAttentionMask(index_t y_, index_t x_, index_t y_total_, index_t x_total_, index_t repeat_idx = 1)
-        : y(y_), x(x_), y_total(y_total_), x_total(x_total_), repeat_idx(repeat_idx)
+    GenericAttentionMask(index_t y_, index_t x_, index_t y_total_, index_t x_total_, index_t repeat_idx_ = 1)
+        : y(y_), x(x_), y_total(y_total_), x_total(x_total_), repeat_idx(repeat_idx_)
     {
     }
 
     template <typename MaskCoordinates>
-    CK_TILE_HOST_DEVICE GenericAttentionMask(const MaskCoordinates& mask_coord, index_t repeat_idx = 1)
+    CK_TILE_HOST_DEVICE GenericAttentionMask(const MaskCoordinates& mask_coord, index_t repeat_idx_ = 1)
         : y(mask_coord.at(number<0>{})),
           x(mask_coord.at(number<1>{})),
           y_total(mask_coord.at(number<2>{})),
           x_total(mask_coord.at(number<3>{})),
-          repeat_idx(repeat_idx)
+          repeat_idx(repeat_idx_)
     {
     }
 

@@ -5,7 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common.hpp"
-#include "ck_tile/ops/fmha/block/block_masking.hpp"
+#include "ck_tile/ops/unified_attention/block/block_masking.hpp"
 #include "ck_tile/core/numeric/math.hpp"
 
 #include <string>
@@ -30,9 +30,12 @@ struct UnifiedAttentionKernel
     using ODataType    = ck_tile::remove_cvref_t<typename UnifiedAttentionPipeline::ODataType>;
     using SaccDataType = ck_tile::remove_cvref_t<typename UnifiedAttentionPipeline::SaccDataType>;
     using FmhaMask                 = ck_tile::remove_cvref_t<typename UnifiedAttentionPipeline::FmhaMask>;
-
+    static constexpr bool kHasMask = FmhaMask::IsMasking;
+    
+    static constexpr bool kPadSeqLenK  = UnifiedAttentionPipeline::kPadSeqLenK;
     static constexpr bool kPadSeqLenQ  = UnifiedAttentionPipeline::kPadSeqLenQ;
-    static constexpr bool kPadHeadDim = UnifiedAttentionPipeline::kPadHeadDim;
+    static constexpr bool kPadHeadDimQ = UnifiedAttentionPipeline::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV = UnifiedAttentionPipeline::kPadHeadDimV;
 
     // TODO add yjese 
     static constexpr index_t HEAD_SIZE = UnifiedAttentionPipeline::HEAD_SIZE;
@@ -181,7 +184,7 @@ struct UnifiedAttentionKernel
     find_seq_idx(const int32_t* query_start_len_ptr,
                  ck_tile::index_t target_idx,
                  ck_tile::index_t num_seqs,
-                 ck_tile::index_t BLOCK_Q,
+                 ck_tile::index_t block_q,
                  bool use_q_block_mode)
     {
         ck_tile::index_t left = 0;
@@ -191,7 +194,7 @@ struct UnifiedAttentionKernel
         {
             ck_tile::index_t mid = (left + right) / 2;
             ck_tile::index_t val = query_start_len_ptr[mid];
-            ck_tile::index_t mid_val = use_q_block_mode ? (val / BLOCK_Q + mid) : val;
+            ck_tile::index_t mid_val = use_q_block_mode ? (val / block_q + mid) : val;
             
             if (mid_val <= target_idx)
             {
@@ -276,9 +279,9 @@ struct UnifiedAttentionKernel
 
         const index_t BLOCK_M = BLOCK_Q * kargs.num_queries_per_kv;
         // for simplicity, batch stride we just modify the pointer
-        const index_t num_head_q = kargs.num_head_q;
+        // const index_t num_head_q = kargs.num_head_q;
         const index_t num_queries_per_kv = kargs.num_queries_per_kv;
-        const index_t num_head_k = num_head_q / num_queries_per_kv;
+        // const index_t num_head_k = num_head_q / num_queries_per_kv;
 
         pid = RemapTileIndices(pid, kargs);
 
@@ -311,14 +314,14 @@ struct UnifiedAttentionKernel
         const index_t query_pos = q_block_local_idx * BLOCK_Q;
         const index_t seq_len = kargs.seq_lens_ptr[seq_idx];
 
-        const index_t context_len = seq_len - cur_batch_query_len;
+        // const index_t context_len = seq_len - cur_batch_query_len;
 
-        const index_t max_seq_prefix_len = (
-            context_len
-            + q_block_local_idx * BLOCK_Q
-            + (BLOCK_M - 1) // num_queries_per_kv
-            + 1
-        );
+        // const index_t max_seq_prefix_len = (
+        //     context_len
+        //     + q_block_local_idx * BLOCK_Q
+        //     + (BLOCK_M - 1) // num_queries_per_kv
+        //     + 1
+        // );
 
 
         index_t kv_head_offset = kv_head_idx * kargs.stride_k_cache_2;
@@ -463,9 +466,8 @@ struct UnifiedAttentionKernel
             return UnifiedAttentionPipeline{}(q_dram_window,
                                   k_dram_window,
                                   v_dram_window,
-                                  block_tables_ptr,
+                                  kargs.block_tables_ptr,
                                   block_table_offset, 
-                                  lse_dram_window,
                                   mask,
                                   kargs.scale_s,
                                   smem_ptr);
@@ -484,7 +486,7 @@ struct UnifiedAttentionKernel
                 o_dram_base,
                 // block sizes
                 make_tuple(BLOCK_Q, 1, HEAD_SIZE_PADDED),
-                sequence<is_seq_len_aligned, false, kPadHeadDimQ>{}
+                sequence<is_query_len_padded, false, kPadHeadDimQ>{}
             ); // pads to (seq_len_padded, num_head_q, HEAD_SIZE_PADDED)
 
             const auto o_dram_merged = transform_tensor_view(

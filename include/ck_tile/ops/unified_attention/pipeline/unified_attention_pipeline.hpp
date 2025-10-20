@@ -277,8 +277,10 @@ struct UnifiedAttentionPipeline
     static_assert(HEAD_SIZE_PADDED <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
 
     static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
-    static constexpr bool kPadHeadDim = Problem::kPadHeadDim;
-    static constexpr bool kStoreLSE    = Problem::kStoreLSE;
+    static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQ = Problem::kPadHeadDimQ;
+    static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
+    // static constexpr bool kStoreLSE    = Problem::kStoreLSE;
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
@@ -387,7 +389,6 @@ struct UnifiedAttentionPipeline
                                    index_t num_queries_per_kv,
                                    const void* block_tables_ptr,
                                    index_t block_table_offset,
-                                   LSEDramBlockWindowTmp& lse_dram_window_tmp, // M0*1 tile
                                    const LSEElementFunction& lse_element_func,
                                    [[maybe_unused]] const SAccElementFunction& s_acc_element_func,
                                    const PComputeElementFunction& p_compute_element_func,
@@ -554,15 +555,7 @@ struct UnifiedAttentionPipeline
         {
             if(num_total_loop <= 0)
             {
-                if constexpr(kStoreLSE)
-                {
-                    auto lse =
-                        make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
-
-                    set_tile(lse, -numeric<SMPLComputeDataType>::infinity());
-
-                    store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
-                }
+                
 
                 // Note: here occ are all cleard, return it
                 // Note: q loaded but no fence, ignore it.
@@ -1193,19 +1186,6 @@ struct UnifiedAttentionPipeline
             fmha_post_process(number<0>{});
         }
 
-        // store lse
-        if constexpr(kStoreLSE)
-        {
-            auto lse = make_static_distributed_tensor<LSEDataType>(m.get_tile_distribution());
-
-            constexpr auto lse_spans = decltype(lse)::get_distributed_spans();
-            sweep_tile_span(lse_spans[number<0>{}], [&](auto idx0) {
-                constexpr auto i_idx = make_tuple(idx0);
-                lse(i_idx)           = m[i_idx] / C_LOG2E + log(l[i_idx]);
-            });
-
-            store_tile(lse_dram_window_tmp, tile_elementwise_in(lse_element_func, lse));
-        }
 
         // finally, O
         constexpr auto o_spans = decltype(o_acc)::get_distributed_spans();
