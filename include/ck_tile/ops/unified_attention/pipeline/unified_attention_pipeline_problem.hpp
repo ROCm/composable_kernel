@@ -51,8 +51,6 @@ struct UnifiedAttentionPipelineProblem
     static constexpr bool kPadHeadDim      = Traits::kPadHeadDim;
     static constexpr bool kHasLogitsSoftCap = Traits::kHasLogitsSoftCap;
     static constexpr bool kSkipMinSeqlenQ   = Traits::kSkipMinSeqlenQ;
-    static constexpr auto BiasEnum          = Traits::BiasEnum;
-    static constexpr bool kStoreLSE         = Traits::kStoreLSE;
     static constexpr bool kHasDropout       = Traits::kHasDropout;
     static constexpr bool kDoFp8StaticQuant = Traits::kDoFp8StaticQuant;
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;

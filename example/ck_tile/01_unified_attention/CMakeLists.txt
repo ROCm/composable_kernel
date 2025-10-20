@@ -178,6 +178,15 @@
 
 # --- Unified Attention target (kept) ---
 
+#
+set(INST_TARGETS ${SUPPORTED_GPU_TARGETS})
+# Currently only gfx9 archs are supported by FMHA
+list(FILTER INST_TARGETS INCLUDE REGEX "gfx9")
+if(NOT INST_TARGETS)
+  message(WARNING "Skipping Tile Engine FMHA compilation: No supported GPU targets (gfx9) found in SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
+  return()
+endif()
+
 set(EXAMPLE_FMHA_FWD_V3 "tile_example_unified_attention")
 message(DEBUG "adding example ${EXAMPLE_FMHA_FWD_V3}")
 

@@ -256,7 +256,6 @@ struct UnifiedAttentionPipeline
     using VDataType           = ck_tile::remove_cvref_t<typename Problem::VDataType>;
     using SaccDataType        = ck_tile::remove_cvref_t<typename Problem::SaccDataType>;
     using SMPLComputeDataType = ck_tile::remove_cvref_t<typename Problem::SMPLComputeDataType>;
-    using LSEDataType         = ck_tile::remove_cvref_t<typename Problem::LSEDataType>;
     using PDataType           = ck_tile::remove_cvref_t<typename Problem::PDataType>;
     using OaccDataType        = ck_tile::remove_cvref_t<typename Problem::OaccDataType>;
     using ODataType           = ck_tile::remove_cvref_t<typename Problem::ODataType>;
@@ -372,11 +371,9 @@ struct UnifiedAttentionPipeline
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
               typename VDramBlockWindowTmp,
-              typename LSEDramBlockWindowTmp,
               typename QElementFunction,
               typename KElementFunction,
               typename VElementFunction,
-              typename LSEElementFunction,
               typename SAccElementFunction,
               typename PComputeElementFunction,
               typename OAccElementFunction>
@@ -1206,14 +1203,12 @@ struct UnifiedAttentionPipeline
 
     template <typename QDramBlockWindowTmp,
               typename KDramBlockWindowTmp,
-              typename VDramBlockWindowTmp,
-              typename LSEDramBlockWindowTmp>
+              typename VDramBlockWindowTmp>
     CK_TILE_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                                    const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
                                    const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
                                    const void* block_tables_ptr,
                                    index_t block_table_offset,
-                                   LSEDramBlockWindowTmp& lse_dram_block_window_tmp,   // M0*1 tile
                                    FmhaMask mask,
                                    float scale_s,
                                    void* smem_ptr) const
@@ -1228,7 +1223,6 @@ struct UnifiedAttentionPipeline
                           identity{},
                           block_tables_ptr,
                           block_table_offset,
-                          lse_dram_block_window_tmp,
                           identity{},
                           identity{},
                           identity{},

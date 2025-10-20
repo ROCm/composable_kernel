@@ -20,7 +20,7 @@
 #include "unified_attention.hpp"
 #include "mask.hpp"
 
-#define INST_unified_attention_DISPATCH(kernel_traits)                                               \
+#define INST_UNIFIED_ATTENTION_DISPATCH(kernel_traits)                                               \
     template <>                                                                                \
     std::pair<bool, float> unified_attention_kernel_dispatch<kernel_traits>(                         \
         const unified_attention_args& args, const stream_config& config)                             \
@@ -73,7 +73,6 @@ struct unified_attention_kernel_traits
 
     using unified_attention_traits = TileUnifiedAttentionTraits<true,  // kPadSeqLenQ_
                                             false, // kPadHeadDimQ
-                                            false, // kStoreLSE_
                                             -1     // kBlockPerCu
                                             >;
 
@@ -110,6 +109,7 @@ struct unified_attention_kernel_traits
 template <typename Kernel>
 float unified_attention_kernel_launch(const unified_attention_args& args, const stream_config& config)
 {
+    index_t total_num_q_blocks = args.num_tokens / Kernel::BLOCK_Q + args.num_seqs;
 
     auto kargs = Kernel::MakeKargs(args.q_ptr,
                                    args.k_ptr,
@@ -123,6 +123,7 @@ float unified_attention_kernel_launch(const unified_attention_args& args, const 
                                    args.scale_k,
                                    args.scale_v,
                                    args.scale_out,
+                                   total_num_q_blocks,
                                    args.query_stride_0,
                                     args.query_stride_1,
                                     args.stride_k_cache_0,
@@ -140,9 +141,6 @@ float unified_attention_kernel_launch(const unified_attention_args& args, const 
                                     args.query_start_len_ptr,
                                     args.num_seqs   
                                 );
-
-    index_t total_num_q_blocks = args.num_tokens / Kernel::BLOCK_Q + args.num_seqs;
-
 
     dim3 grids            = Kernel::GridSize2D(args.num_head_q / args.num_queries_per_kv, total_num_q_blocks);
     constexpr dim3 blocks = Kernel::BlockSize();

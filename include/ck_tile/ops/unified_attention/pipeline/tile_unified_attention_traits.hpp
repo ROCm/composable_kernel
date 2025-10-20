@@ -12,13 +12,11 @@ namespace ck_tile {
 
 template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kPadHeadDim_ /* paddding for hdim_v */,
-          bool kStoreLSE_,
           index_t kBlockPerCu_ = -1 /* overwrite occupancy if not -1 */>
 struct TileUnifiedAttentionTraits
 {
     static constexpr bool kPadSeqLenQ    = kPadSeqLenQ_;
     static constexpr bool kPadHeadDim   = kPadHeadDim_;
-    static constexpr bool kStoreLSE      = kStoreLSE_;
     static constexpr index_t kBlockPerCu = kBlockPerCu_;
 };
 }

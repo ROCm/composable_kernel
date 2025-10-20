@@ -156,12 +156,11 @@ struct UnifiedAttentionKernel
                     stride_v_cache_3,
                     output_stride_0,
                     output_stride_1},
-                    {
                         block_tables_ptr,
                         seq_lens_ptr,
                         query_start_len_ptr,
                         num_seqs
-                    }};
+                    };
 
         return kargs;
     }
@@ -344,7 +343,7 @@ struct UnifiedAttentionKernel
         
 
         index_t query_len_padded = integer_divide_ceil(cur_batch_query_len, BLOCK_Q) * BLOCK_Q;
-        const bool is_query_len_padded = (cur_batch_query_len % BLOCK_Q == 0);
+        // const bool is_query_len_padded = (cur_batch_query_len % BLOCK_Q == 0);
 
         // Q/K/V DRAM and DRAM window
         const auto q_dram = [&]() {
@@ -359,7 +358,7 @@ struct UnifiedAttentionKernel
                 q_dram_base,
                 // block sizes
                 make_tuple(BLOCK_Q, 1, HEAD_SIZE_PADDED),
-                sequence<is_query_len_padded, false, kPadHeadDimQ>{}
+                sequence<true, false, kPadHeadDimQ>{}
             ); // pads to (seq_len_padded, num_head_q, HEAD_SIZE_PADDED)
 
             const auto q_dram_merged = transform_tensor_view(
@@ -486,7 +485,7 @@ struct UnifiedAttentionKernel
                 o_dram_base,
                 // block sizes
                 make_tuple(BLOCK_Q, 1, HEAD_SIZE_PADDED),
-                sequence<is_query_len_padded, false, kPadHeadDimQ>{}
+                sequence<true, false, kPadHeadDimQ>{}
             ); // pads to (seq_len_padded, num_head_q, HEAD_SIZE_PADDED)
 
             const auto o_dram_merged = transform_tensor_view(
