@@ -2065,6 +2065,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
     }
     else if constexpr(std::is_same<T, bf16_t>::value)
     {
+      /*
         if constexpr(N == 2)
         {
             llvm_amdgcn_raw_buffer_atomic_add_bf16x2(
@@ -2096,6 +2097,7 @@ CK_TILE_DEVICE void amd_buffer_atomic_add_impl(const thread_buffer<T, N>& src_th
                     0);
             });
         }
+        */
     }
     else if constexpr(std::is_same<T, int32_t>::value)
     {
