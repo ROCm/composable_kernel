@@ -384,9 +384,11 @@ struct F16xMXF4FlatmmKernel : FlatmmKernel<TilePartitioner_, FlatmmPipeline_, Ep
                                       a_block_window.get_window_origin(),
                                       FlatmmPipeline::GetADramTileDistribution());
         const auto& c_block_tile = FlatmmPipeline{}(a_block_window_with_distr,
+                                                    identity{},
                                                     b_flat_block_window,
                                                     scale_block_window,
                                                     num_loop,
+                                                    0,
                                                     smem_ptr_ping,
                                                     smem_ptr_pong);
 
