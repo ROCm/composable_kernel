@@ -13,6 +13,7 @@ template <typename InputType_,
           typename WeightType_,
           typename IndexType_,
           index_t Experts_,
+          bool ActivationIsSoftmax_ = true,  // false: sigmoid
           index_t IssuesPerCol_  = 2, // issue along col, to make sure block_reduce() OK
           index_t BytesPerIssue_ = sizeof(InputType_),
           index_t LaunchType_    = 0, // 0-streaming, >0, persistent #occupancy
@@ -30,6 +31,8 @@ struct TopkSoftmaxWarpPerRowProblem
     static constexpr index_t IssuesPerCol  = IssuesPerCol_;
     static constexpr index_t BlockSize     = BlockSize_;
     static constexpr index_t WarpSize      = get_warp_size();
+
+    static constexpr bool ActivationIsSoftmax = ActivationIsSoftmax_;
 
     static_assert(BytesPerIssue % sizeof(InputType) == 0);
     static constexpr index_t VectorSize = BytesPerIssue / sizeof(InputType);
