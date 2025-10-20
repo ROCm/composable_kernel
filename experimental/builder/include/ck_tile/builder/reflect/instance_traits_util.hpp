@@ -35,17 +35,17 @@ template <typename T>
 inline std::string type_name()
 {
     if constexpr(std::is_same_v<T, ck::half_t>)
-        return "half";
+        return "fp16";
     else if constexpr(std::is_same_v<T, float>)
-        return "float";
+        return "fp32";
     else if constexpr(std::is_same_v<T, double>)
-        return "double";
+        return "fp64";
     else if constexpr(std::is_same_v<T, int8_t>)
-        return "int8";
+        return "s8";
     else if constexpr(std::is_same_v<T, int32_t>)
-        return "int32";
+        return "s32";
     else if constexpr(std::is_same_v<T, ck::bhalf_t>)
-        return "bfloat16";
+        return "bf16";
     else if constexpr(std::is_same_v<T, ck::f8_t>)
         return "fp8";
     else if constexpr(std::is_same_v<T, ck::bf8_t>)

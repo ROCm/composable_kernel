@@ -225,12 +225,12 @@ TEST_F(InstanceTraitsTest, InstanceStringGeneration)
                                "_GKYXC"         // BLayout
                                "_EmptyTuple"    // DsLayout
                                "_GNHWK"         // ELayout
-                               "_half"          // ADataType
-                               "_half"          // BDataType
-                               "_float"         // AccDataType
-                               "_half"          // CShuffleDataType
+                               "_fp16"          // ADataType
+                               "_fp16"          // BDataType
+                               "_fp32"          // AccDataType
+                               "_fp16"          // CShuffleDataType
                                "_EmptyTuple"    // DsDataType
-                               "_half"          // EDataType
+                               "_fp16"          // EDataType
                                "_PassThrough"   // AElementwiseOperation
                                "_PassThrough"   // BElementwiseOperation
                                "_PassThrough"   // CDEElementwiseOperation
@@ -266,8 +266,8 @@ TEST_F(InstanceTraitsTest, InstanceStringGeneration)
                                "_8"             // CDEBlockTransferScalarPerVector_NPerBlock
                                "_Intrawave"     // BlkGemmPipeSched
                                "_v1"            // BlkGemmPipelineVer
-                               "_half"          // AComputeDataType
-                               "_half";         // BComputeDataType
+                               "_fp16"          // AComputeDataType
+                               "_fp16";         // BComputeDataType
 
     // Verify the generated string matches exactly
     EXPECT_EQ(instance_str, expected_str);
