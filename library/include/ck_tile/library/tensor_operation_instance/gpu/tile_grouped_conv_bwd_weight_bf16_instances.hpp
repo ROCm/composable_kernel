@@ -10,6 +10,19 @@ namespace ops {
 
 using BF16 = ck_tile::bfloat16_t;
 
+using DeviceOp2DBF16 = GroupedConvolutionBackwardWeightBaseInvoker<2,
+                                                 NHWGC,
+                                                 GKYXC,
+                                                 NHWGK,
+                                                 BF16,
+                                                 BF16,
+                                                 BF16,
+                                                 PassThrough,
+                                                 PassThrough,
+                                                 PassThrough,
+                                                 BF16,
+                                                 BF16>;
+
 template <ck_tile::index_t NDimSpatial,
           typename ALayout,
           typename BLayout,

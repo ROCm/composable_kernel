@@ -38,6 +38,12 @@ if(NOT WIN32 AND ${hip_VERSION_FLAT} GREATER 600241132)
 endif()
 
 set(DEVICE_INSTANCES "")
+if(SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1[12]")
+  list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_bwd_weight_fp16_instances)
+  list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_bwd_weight_bf16_instances)
+  list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_fwd_fp16_instances)
+  list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_fwd_bf16_instances)
+endif()
 
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1[12]")
 endif()
@@ -47,7 +53,12 @@ endif()
 
 set(PROFILER_LIBS utility getopt::getopt)
 foreach(LIB ${DEVICE_INSTANCES})
+  # Handle both traditional device_*_instance and ck_tile_*_instances patterns
   string(REGEX REPLACE "device_(.+)_instance" "\\1" INSTANCE_NAME ${LIB})
+  if (INSTANCE_NAME STREQUAL ${LIB})
+    # If no match, try ck_tile pattern
+    string(REGEX REPLACE "ck_tile_(.+)_instances" "\\1" INSTANCE_NAME ${LIB})
+  endif()
   if (INSTANCE_NAME STREQUAL "") 
     message(FATAL_ERROR "Unexpected kernel instance name: ${LIB}")
   endif()

@@ -10,10 +10,38 @@
 
 #include "ck_tile/library/tensor_operation_instance/gpu/tile_grouped_conv_instance_factory.hpp"
 #include "ck_tile/library/tensor_operation_instance/gpu/tile_grouped_conv_fwd_invoker.hpp"
-#include "ck_tile/library/tensor_operation_instance/gpu/tile_grouped_conv_fwd_instances.hpp"
 
 namespace ck_tile {
 namespace ops {
+
+using DeviceOpFwd2DBF16 = GroupedConvolutionForwardBaseInvoker<2,
+                                                 NHWGC,
+                                                 GKYXC,
+                                                 NHWGK,
+                                                 BF16,
+                                                 BF16,
+                                                 BF16,
+                                                 PassThrough,
+                                                 PassThrough,
+                                                 PassThrough,
+                                                 BF16,
+                                                 BF16>;
+
+using DeviceOpFwd2DF16 = GroupedConvolutionForwardBaseInvoker<2,
+                                                NHWGC,
+                                                GKYXC,
+                                                NHWGK,
+                                                F16,
+                                                F16,
+                                                F16,
+                                                PassThrough,
+                                                PassThrough,
+                                                PassThrough,
+                                                F16,
+                                                F16>;
+
+void add_grouped_conv2d_fwd_bf16_instances(std::vector<std::unique_ptr<DeviceOpFwd2DBF16>>& instances);
+void add_grouped_conv2d_fwd_f16_instances(std::vector<std::unique_ptr<DeviceOpFwd2DF16>>& instances);
 
 template <ck_tile::index_t NumDimSpatial,
           typename InLayout,
