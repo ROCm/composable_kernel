@@ -13,7 +13,7 @@ function(add_ck_builder_test test_name)
         -Wno-global-constructors
         -Wno-c++20-compat
     )
-    target_link_libraries(${test_name} PRIVATE GTest::gtest GTest::gtest_main GTest::gmock)
+    target_link_libraries(${test_name} PRIVATE GTest::gtest_main GTest::gmock)
 endfunction()
 
 add_ck_builder_test(test_conv_builder
