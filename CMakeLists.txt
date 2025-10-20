@@ -564,7 +564,7 @@ include_directories(BEFORE
     ${HIP_INCLUDE_DIRS}
 )
 
-SET(BUILD_DEV ON CACHE BOOL "BUILD_DEV")
+SET(BUILD_DEV OFF CACHE BOOL "BUILD_DEV")
 if(BUILD_DEV)
     add_compile_options(-Werror)
     add_compile_options(-Weverything)

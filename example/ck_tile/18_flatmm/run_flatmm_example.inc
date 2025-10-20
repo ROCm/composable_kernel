@@ -97,7 +97,10 @@ template <typename FlatmmConfig,
           typename BLayout,
           typename DsLayout,
           typename CLayout,
-          typename CDEElementWise = ck_tile::element_wise::PassThrough>
+          typename ScaleM,
+          typename ScaleN,
+          bool UsePersistentKernel = false,
+          typename CDEElementWise  = ck_tile::element_wise::PassThrough>
 float invoke_flatmm(ck_tile::DeviceMem& a_dev_buf,
                     ck_tile::DeviceMem& b_shuffle_dev_buf,
                     ck_tile::DeviceMem& c_dev_buf,
@@ -108,21 +111,25 @@ float invoke_flatmm(ck_tile::DeviceMem& a_dev_buf,
                     ck_tile::index_t stride_B,
                     ck_tile::index_t stride_C,
                     ck_tile::index_t kbatch,
+                    ScaleM scale_m,
+                    ScaleN scale_n,
                     int n_warmup,
                     int n_repeat)
 {
-    ck_tile::FlatmmHostArgs<> args = {a_dev_buf.GetDeviceBuffer(),
-                                      b_shuffle_dev_buf.GetDeviceBuffer(),
-                                      {},
-                                      c_dev_buf.GetDeviceBuffer(),
-                                      kbatch,
-                                      M,
-                                      N,
-                                      K,
-                                      stride_A,
-                                      stride_B,
-                                      {},
-                                      stride_C};
+    ck_tile::ScaleFlatmmHostArgs<ScaleM, ScaleN> args = {a_dev_buf.GetDeviceBuffer(),
+                                                         b_shuffle_dev_buf.GetDeviceBuffer(),
+                                                         {},
+                                                         c_dev_buf.GetDeviceBuffer(),
+                                                         kbatch,
+                                                         M,
+                                                         N,
+                                                         K,
+                                                         stride_A,
+                                                         stride_B,
+                                                         {},
+                                                         stride_C,
+                                                         scale_m,
+                                                         scale_n};
 
     float ave_time = flatmm_calc<FlatmmConfig,
                                  ADataType,
@@ -134,7 +141,9 @@ float invoke_flatmm(ck_tile::DeviceMem& a_dev_buf,
                                  BLayout,
                                  DsLayout,
                                  CLayout,
-                                 false,
+                                 ScaleM,
+                                 ScaleN,
+                                 UsePersistentKernel,
                                  CDEElementWise>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat, true, true, 50});
 
@@ -151,6 +160,7 @@ float invoke_flatmm(ck_tile::DeviceMem& a_dev_buf,
 
     return ave_time;
 }
+
 
 template <typename PrecType,
           typename FlatmmConfig,
