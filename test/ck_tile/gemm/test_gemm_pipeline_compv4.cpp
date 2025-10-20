@@ -9,6 +9,8 @@ template <typename T>
 class TestCkTileGemmPipelineCompV4
     : public TestCkTileGemmPipeline<T, TestCkTileGemmPipelineCompV4<T>>
 {
+    public:
+    static constexpr bool check_data_type() { return true; }
 };
 
 #define TEST_SUITE_NAME TestCkTileGemmPipelineCompV4

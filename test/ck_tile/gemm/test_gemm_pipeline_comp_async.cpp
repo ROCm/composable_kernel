@@ -7,8 +7,10 @@
 
 template <typename T>
 class TestCkTileGemmPipelineCompAsync
-    : public TestCkTileGemmPipeline<T, class TestCkTileGemmPipelineCompAsync<T>>
+    : public TestCkTileGemmPipeline<T, TestCkTileGemmPipelineCompAsync<T>>
 {
+    public:
+    static constexpr bool check_data_type() { return true; }
 };
 
 #define TEST_SUITE_NAME TestCkTileGemmPipelineCompAsync

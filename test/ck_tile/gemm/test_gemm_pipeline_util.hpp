@@ -273,45 +273,12 @@ class TestCkTileGemmPipeline : public ::testing::Test
         BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
     }
 
-    template <typename ADataType,
-              typename BDataType,
-              typename AccDataType,
-              ck_tile::index_t M_Warp_Tile,
-              ck_tile::index_t N_Warp_Tile,
-              ck_tile::index_t K_Warp_Tile>
-    bool check_data_type()
-    {
-        return static_cast<Derived*>(this)
-            ->template check_data_type_impl<ADataType,
-                                            BDataType,
-                                            AccDataType,
-                                            M_Warp_Tile,
-                                            N_Warp_Tile,
-                                            K_Warp_Tile>();
-    }
-
-    template <typename ADataType,
-              typename BDataType,
-              typename AccDataType,
-              ck_tile::index_t M_Warp_Tile,
-              ck_tile::index_t N_Warp_Tile,
-              ck_tile::index_t K_Warp_Tile>
-    bool check_data_type_impl()
-    {
-        return true;
-    }
-
     public:
     std::vector<int> k_batches_;
 
     void SetUp() override
     {
-        if(!check_data_type<ADataType,
-                            BDataType,
-                            AccDataType,
-                            M_Warp_Tile,
-                            N_Warp_Tile,
-                            K_Warp_Tile>())
+        if constexpr(!Derived::check_data_type())
         {
             GTEST_SKIP() << "Unsupported data type combination for gemm pipeline test.";
         }
@@ -335,9 +302,13 @@ class TestCkTileGemmPipeline : public ::testing::Test
              const int StrideB = 0,
              const int StrideC = 0)
     {
-        for(auto kb : k_batches_)
+        // Some unsupported tests don't compile, so we check here before attempting to.
+        if constexpr(Derived::check_data_type())
         {
-            RunSingle<PadM, PadN, PadK, Preshuffle>(M, N, K, StrideA, StrideB, StrideC, kb);
+            for(auto kb : k_batches_)
+            {
+                RunSingle<PadM, PadN, PadK, Preshuffle>(M, N, K, StrideA, StrideB, StrideC, kb);
+            }
         }
     }
 
