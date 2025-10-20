@@ -8,6 +8,7 @@
 #include <iostream>
 #include <iterator>
 #include <typeinfo>
+#include <sstream>
 
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/convolution_parameter.hpp"
@@ -257,14 +258,33 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
         }
     }
 
-    std::cout << "\n********************************" 
-              << "\nBest configuration parameters:" 
-              << "\n********************************" 
-              << "\nname: " << best_op_name
-              << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops
-              << "\nGB/s: " << best_gb_per_sec 
-              << "\nSplitK: " << best_split_k
-              << std::endl;
+    std::stringstream ss;
+    ss << "\n********************************" 
+       << "\nCK Tile best configuration parameters:" 
+       << "\n********************************" 
+       << "\nname: " << best_op_name
+       << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops
+       << "\nGB/s: " << best_gb_per_sec 
+       << "\nSplitK: " << best_split_k
+       << std::endl;
+
+    std::cout << ss.str();
+
+    const char* log_file = std::getenv("CK_TILE_PROFILER_LOG_FILE");
+    if(log_file != nullptr)
+    {
+        std::ofstream out(log_file, std::ios::app);
+        if(out.is_open())
+        {
+            std::stringstream out_ss;
+            out_ss << "CK Tile best configuration:" << std::endl
+                   << "name: " << best_op_name << std::endl
+                   << "avg_time: " << best_avg_time << std::endl
+                   << "SplitK: " << best_split_k << std::endl;
+            out << out_ss.str();
+            out.close();
+        }
+    }
 
     if(instance_index != -1)
     {
