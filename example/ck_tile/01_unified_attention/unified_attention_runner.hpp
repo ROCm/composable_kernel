@@ -5,7 +5,7 @@
 
 #include "ck_tile/host.hpp"
 #include "ck_tile/ref/naive_attention.hpp"
-#include "fmha_fwd.hpp"
+#include "unified_attention.hpp"
 #include "utils.hpp"
 #include "ck_tile/utility/json_dump.hpp"
 

@@ -22,8 +22,7 @@
 #include <ck_tile/host/reference/reference_batched_masking.hpp>
 #include <ck_tile/host/reference/reference_batched_softmax.hpp>
 
-#include "fmha_fwd.hpp"
-#include "fmha_fwd_v3.hpp"
+#include "unified_attention.hpp"
 #include "mask.hpp"
 
 auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParser>
