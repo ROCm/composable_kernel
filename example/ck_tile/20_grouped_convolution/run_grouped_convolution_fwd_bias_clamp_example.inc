@@ -99,11 +99,11 @@ int run_grouped_conv_fwd_example_with_layouts(
     int n_repeat                 = arg_parser.get_int("repeat");
     ck_tile::index_t init_method = arg_parser.get_int("init");
 
-    const float bias                   = 3.f;
-    const float lower                  = -100.f;
-    const float upper                  = 100.f;
-    std::vector<float> elfunc_args_vec = {bias, lower, upper};
-    const size_t num_elfunc_args       = elfunc_args_vec.size();
+    const float bias                       = 3.f;
+    const float lower                      = -100.f;
+    const float upper                      = 100.f;
+    std::vector<float> bias_clamp_args_vec = {bias, lower, upper};
+    const size_t num_bias_clamp_args       = bias_clamp_args_vec.size();
 
     const auto in_g_n_c_wis_desc =
         ck_tile::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(conv_param);
@@ -115,7 +115,7 @@ int run_grouped_conv_fwd_example_with_layouts(
     ck_tile::HostTensor<InDataType> input(in_g_n_c_wis_desc);
     ck_tile::HostTensor<WeiDataType> weight(wei_g_k_c_xs_desc);
     ck_tile::HostTensor<OutDataType> output(out_g_n_k_wos_desc);
-    ck_tile::HostTensor<float> elfunc_args({num_elfunc_args});
+    ck_tile::HostTensor<float> bias_clamp_args({num_bias_clamp_args});
 
     if(init_method == 0)
     {
@@ -138,18 +138,18 @@ int run_grouped_conv_fwd_example_with_layouts(
         weight.SetZero();
     }
 
-    for(size_t i = 0; i < num_elfunc_args; ++i)
-        elfunc_args(i) = elfunc_args_vec[i];
+    for(size_t i = 0; i < num_bias_clamp_args; ++i)
+        bias_clamp_args(i) = bias_clamp_args_vec[i];
 
     ck_tile::DeviceMem input_dev_buf(input.get_element_space_size_in_bytes());
     ck_tile::DeviceMem weight_dev_buf(weight.get_element_space_size_in_bytes());
     ck_tile::DeviceMem output_dev_buf(output.get_element_space_size_in_bytes());
-    ck_tile::DeviceMem elfunc_args_dev_buf(elfunc_args.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem bias_clamp_args_dev_buf(bias_clamp_args.get_element_space_size_in_bytes());
 
     input_dev_buf.ToDevice(input.data());
     weight_dev_buf.ToDevice(weight.data());
     output_dev_buf.SetZero();
-    elfunc_args_dev_buf.ToDevice(elfunc_args.data());
+    bias_clamp_args_dev_buf.ToDevice(bias_clamp_args.data());
 
     ck_tile::GroupedConvFwdHostArgs args(conv_param,
                                          input_dev_buf.GetDeviceBuffer(),
@@ -157,7 +157,7 @@ int run_grouped_conv_fwd_example_with_layouts(
                                          {},
                                          output_dev_buf.GetDeviceBuffer(),
                                          kbatch,
-                                         elfunc_args_dev_buf.GetDeviceBuffer());
+                                         bias_clamp_args_dev_buf.GetDeviceBuffer());
 
     std::cout << "Run Grouped Conv Fwd kernel with bias " << bias << " and clamp (" << lower << ", "
               << upper << ")." << std::endl;
@@ -184,7 +184,7 @@ int run_grouped_conv_fwd_example_with_layouts(
         ck_tile::HostTensor<OutDataType> output_host_ref(out_g_n_k_wos_desc);
         output_host_ref.SetZero();
 
-        BiasAndClamp elfunc = BiasAndClamp(bias, lower, upper);
+        BiasAndClamp bias_clamp_host = BiasAndClamp(bias, lower, upper);
         ck_tile::reference_grouped_conv_fwd<NDimSpatial, InDataType, WeiDataType, OutDataType>(
             input,
             weight,
@@ -193,7 +193,7 @@ int run_grouped_conv_fwd_example_with_layouts(
             conv_param.conv_filter_dilations_,
             conv_param.input_left_pads_,
             conv_param.input_right_pads_,
-            elfunc);
+            bias_clamp_host);
         const ck_tile::index_t GemmK = weight.get_element_size() / (conv_param.G_ * conv_param.K_);
         const float max_accumulated_value =
             *std::max_element(output_host_ref.mData.begin(), output_host_ref.mData.end());
