@@ -172,6 +172,12 @@ defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
     static constexpr index_t dswrite_mIter  = (DsWritePreIssue - 1) % MIterPerWarp;
     static constexpr index_t dswrite_kIter  = (DsWritePreIssue - 1) / MIterPerWarp;
 
+
+    if (threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0) {
+        printf("%s ds_read/write_num_perK %d/%d, WaveSize = %d, M/N Warp %d/%d M/N/KIterPerWarp %d/%d/%d \n", __FILE__, dsread_num_perK, dswrite_num_perK, WaveSize, MWarp, NWarp, MIterPerWarp, NIterPerWarp, KIterPerWarp);
+    }
+
+
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
