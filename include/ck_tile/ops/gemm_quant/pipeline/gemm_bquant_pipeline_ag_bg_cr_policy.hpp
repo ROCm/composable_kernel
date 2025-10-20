@@ -51,13 +51,14 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                                                            Problem::TransposeC>;
 
         static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
-        using TileEncodingPattern = tile_distribution_encoding_pattern_bq<BlockGemmShape,
-                                                                          WarpGemm,
-                                                                          BlockSize,
-                                                                          NPerBlockBQ,
-                                                                          KPerBlockBQ,
-                                                                          Problem::QuantGroupSize::kN,
-                                                                          VecLoadSize>;
+        using TileEncodingPattern =
+            tile_distribution_encoding_pattern_bq<BlockGemmShape,
+                                                  WarpGemm,
+                                                  BlockSize,
+                                                  NPerBlockBQ,
+                                                  KPerBlockBQ,
+                                                  Problem::QuantGroupSize::kN,
+                                                  VecLoadSize>;
 
         return TileEncodingPattern::make_2d_static_tile_distribution();
     }

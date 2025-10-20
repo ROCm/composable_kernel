@@ -198,9 +198,9 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
             constexpr index_t Y0 = NIterPerWarp;
             constexpr index_t Y1 = NWarps;
             constexpr index_t Y2 = WarpGemm::kN;
-            
+
             static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover the blocktile along Y.");
-            
+
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<MWarps, XR>,
                                            tuple<sequence<Y0, Y1, Y2>, sequence<X>>,
@@ -213,7 +213,7 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
         {
             // YPerQ > 1 implementation
             // TODO: do not repeat everything to all threads
-            
+
             // return make_static_tile_distribution(
             //     tile_distribution_encoding<sequence<MWarps, 2, NWarps>,
             //                                tuple<sequence<YPerTile, 1>, sequence<XPerTile>>,

@@ -403,7 +403,8 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         // Allocate device memory
         ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size() * sizeof(ADataType));
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size() * sizeof(BDataType));
-        ck_tile::DeviceMem bq_bqk_bqn_dev_buf(bq_bqk_bqn.get_element_space_size() * sizeof(QDataType));
+        ck_tile::DeviceMem bq_bqk_bqn_dev_buf(bq_bqk_bqn.get_element_space_size() *
+                                              sizeof(QDataType));
         ck_tile::DeviceMem c_m_n_dev_buf(M * N * sizeof(CDataType));
 
         // Copy to device
@@ -430,12 +431,12 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
 
         // Create args for kernel execution
         ck_tile::QuantGemmHostArgs args{
-            a_m_k_dev_buf.GetDeviceBuffer(),    // a_ptr
-            b_k_n_dev_buf.GetDeviceBuffer(),    // b_ptr
-            c_m_n_dev_buf.GetDeviceBuffer(),    // c_ptr
-            nullptr,                            // aq_ptr (not used for BQuant)
+            a_m_k_dev_buf.GetDeviceBuffer(),      // a_ptr
+            b_k_n_dev_buf.GetDeviceBuffer(),      // b_ptr
+            c_m_n_dev_buf.GetDeviceBuffer(),      // c_ptr
+            nullptr,                              // aq_ptr (not used for BQuant)
             bq_bqk_bqn_dev_buf.GetDeviceBuffer(), // bq_ptr (scales)
-            1,                                  // k_batch
+            1,                                    // k_batch
             M,
             N,
             K,   // M, N, K

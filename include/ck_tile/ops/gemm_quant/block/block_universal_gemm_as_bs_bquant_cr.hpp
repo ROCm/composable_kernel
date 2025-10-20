@@ -345,19 +345,20 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
                         const index_t reg_offset = [&]() {
                             if constexpr(Traits::NQPerBlock == Traits::NPerBlock)
                             {
-                                // Each row of B has a separate scale, each thread has its own single element
-                                // of the scale matrix for the current nIter/kQScale
+                                // Each row of B has a separate scale, each thread has its own
+                                // single element of the scale matrix for the current nIter/kQScale
                                 return nIter * Traits::BQPerBlock + kQScale;
                             }
                             else
                             {
-                                // FIXME: temporarily the tile distribution replicates all block's scales
-                                // to all threads - need to figure out the index manually here
-                                // from nIter and warp id
-                                const index_t n_idx_of_warp = nIter * WarpGemm::kN * NWarp +
-                                                                get_warp_id() * WarpGemm::kN;
-                                const index_t row_index = n_idx_of_warp / Traits::QuantGroupSize::kN;
-                                if (threadIdx.x == 0)
+                                // FIXME: temporarily the tile distribution replicates all block's
+                                // scales to all threads - need to figure out the index manually
+                                // here from nIter and warp id
+                                const index_t n_idx_of_warp =
+                                    nIter * WarpGemm::kN * NWarp + get_warp_id() * WarpGemm::kN;
+                                const index_t row_index =
+                                    n_idx_of_warp / Traits::QuantGroupSize::kN;
+                                if(threadIdx.x == 0)
                                 {
                                     printf("n_idx_of_warp: %d, row_index: %d, kQScale: %d\n",
                                            n_idx_of_warp,
