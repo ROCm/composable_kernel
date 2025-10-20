@@ -1,10 +1,10 @@
-set(CMAKE_CXX_STANDARD 20)
 
 include(gtest)
 
 # Helper function to create a gtest executable with common properties
 function(add_ck_builder_test test_name)
     add_executable(${test_name} ${ARGN})
+    target_compile_features(${test_name} PRIVATE cxx_std_20)
     target_include_directories(${test_name} PRIVATE
         "${PROJECT_SOURCE_DIR}/experimental/builder/include"
         "${PROJECT_SOURCE_DIR}/include"
