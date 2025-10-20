@@ -20,9 +20,9 @@ template <ck_tile::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout>
-float invoke_grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args,
-                              int n_warmup,
-                              int n_repeat)
+float invoke_grouped_conv_fwd_bias_clamp(const ck_tile::GroupedConvFwdHostArgs& args,
+                                         int n_warmup,
+                                         int n_repeat)
 {
     float ave_time = Invoker::template grouped_conv_fwd<NDimSpatial,
                                                         GemmWarpConfig,
@@ -58,7 +58,7 @@ template <ck_tile::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout>
-int run_grouped_conv_fwd_example_with_layouts(
+int run_grouped_conv_fwd_bias_clamp_example_with_layouts(
     int argc, char* argv[], const InLayout, const WeiLayout, const OutLayout)
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -165,16 +165,16 @@ int run_grouped_conv_fwd_example_with_layouts(
     std::cout << "weight: " << weight.mDesc << std::endl;
     std::cout << "output: " << output.mDesc << std::endl;
 
-    invoke_grouped_conv_fwd<NDimSpatial,
-                            GemmWarpConfig,
-                            Invoker,
-                            InDataType,
-                            WeiDataType,
-                            AccDataType,
-                            OutDataType,
-                            InLayout,
-                            WeiLayout,
-                            OutLayout>(args, n_warmup, n_repeat);
+    invoke_grouped_conv_fwd_bias_clamp<NDimSpatial,
+                                       GemmWarpConfig,
+                                       Invoker,
+                                       InDataType,
+                                       WeiDataType,
+                                       AccDataType,
+                                       OutDataType,
+                                       InLayout,
+                                       WeiLayout,
+                                       OutLayout>(args, n_warmup, n_repeat);
 
     output_dev_buf.FromDevice(output.data());
     bool pass = true;
@@ -224,7 +224,7 @@ template <typename Invoker,
           typename InPrecType,
           typename WeiPrecType = InPrecType,
           typename OutPrecType = InPrecType>
-int run_grouped_conv_fwd_example_prec_type(
+int run_grouped_conv_fwd_bias_clamp_example_prec_type(
     std::string in_layout, std::string wei_layout, std::string out_layout, int argc, char* argv[])
 {
     using NWGC   = ck_tile::tensor_layout::convolution::NWGC;
@@ -241,32 +241,32 @@ int run_grouped_conv_fwd_example_prec_type(
 
     if(in_layout == "NWGC" && wei_layout == "GKXC" && out_layout == "NWGK")
     {
-        return run_grouped_conv_fwd_example_with_layouts<ck_tile::number<1>{},
-                                                         GemmWarpConfig,
-                                                         Invoker,
-                                                         InPrecType,
-                                                         WeiPrecType,
-                                                         OutPrecType>(
+        return run_grouped_conv_fwd_bias_clamp_example_with_layouts<ck_tile::number<1>{},
+                                                                    GemmWarpConfig,
+                                                                    Invoker,
+                                                                    InPrecType,
+                                                                    WeiPrecType,
+                                                                    OutPrecType>(
             argc, argv, NWGC{}, GKXC{}, NWGK{});
     }
     else if(in_layout == "NHWGC" && wei_layout == "GKYXC" && out_layout == "NHWGK")
     {
-        return run_grouped_conv_fwd_example_with_layouts<ck_tile::number<2>{},
-                                                         GemmWarpConfig,
-                                                         Invoker,
-                                                         InPrecType,
-                                                         WeiPrecType,
-                                                         OutPrecType>(
+        return run_grouped_conv_fwd_bias_clamp_example_with_layouts<ck_tile::number<2>{},
+                                                                    GemmWarpConfig,
+                                                                    Invoker,
+                                                                    InPrecType,
+                                                                    WeiPrecType,
+                                                                    OutPrecType>(
             argc, argv, NHWGC{}, GKYXC{}, NHWGK{});
     }
     else if(in_layout == "NDHWGC" && wei_layout == "GKZYXC" && out_layout == "NDHWGK")
     {
-        return run_grouped_conv_fwd_example_with_layouts<ck_tile::number<3>{},
-                                                         GemmWarpConfig,
-                                                         Invoker,
-                                                         InPrecType,
-                                                         WeiPrecType,
-                                                         OutPrecType>(
+        return run_grouped_conv_fwd_bias_clamp_example_with_layouts<ck_tile::number<3>{},
+                                                                    GemmWarpConfig,
+                                                                    Invoker,
+                                                                    InPrecType,
+                                                                    WeiPrecType,
+                                                                    OutPrecType>(
             argc, argv, NDHWGC{}, GKZYXC{}, NDHWGK{});
     }
     else
