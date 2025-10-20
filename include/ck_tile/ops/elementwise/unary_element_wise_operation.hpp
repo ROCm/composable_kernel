@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/core/tensor/tile_elementwise.hpp"
 #include <cstdint>
 #include <type_traits>
 
@@ -349,6 +350,8 @@ CK_TILE_DEVICE bf8x4_t i4_to_bf8x4(int q)
 
 struct PassThroughPack8
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const;
 
@@ -388,6 +391,8 @@ struct PassThroughPack8
 
 struct DequantPack8
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename Y, typename X, typename Z>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x, const Z& z) const;
 
@@ -403,6 +408,8 @@ struct DequantPack8
 
 struct PassThroughPack2
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const;
 
@@ -429,6 +436,8 @@ struct PassThroughPack2
 
 struct PassThrough
 {
+    static constexpr index_t NumArgs = 0;
+
     template <class T>
     using raw_t = std::remove_cv_t<std::remove_reference_t<T>>;
 
@@ -465,6 +474,8 @@ struct PassThrough
 
 struct AddScale
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename E, typename... As>
     CK_TILE_HOST_DEVICE constexpr void operator()(E& a, const As&... as) const
     {
@@ -482,6 +493,8 @@ struct AddScale
 
 struct MultiDMultiply
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename E, typename C, typename... Ds>
     CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const Ds&... ds) const -> void
     {
@@ -497,6 +510,8 @@ struct MultiDMultiply
 
 struct MultiDAdd
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename E, typename C, typename... Ds>
     CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const Ds&... ds) const -> void
     {
@@ -524,6 +539,8 @@ struct UnaryConvert
 #if 0
 struct ConvertBF16RTN
 {
+    static constexpr index_t NumArgs = 0;
+
     // convert to bf16 using round to nearest (rtn)
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
@@ -541,6 +558,8 @@ struct ConvertBF16RTN
 
 struct ConvertF8SR
 {
+    static constexpr index_t NumArgs = 0;
+
     // convert to fp8 using stochastic rounding (SR)
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
@@ -559,6 +578,8 @@ struct ConvertF8SR
 
 struct ConvertF8RNE
 {
+    static constexpr index_t NumArgs = 0;
+
     // convert to fp8 using rounding to nearest even
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
@@ -1028,6 +1049,8 @@ struct Silu
 // we put the code here purposely if in the future ppl want to try
 struct SiluAsm
 {
+    static constexpr index_t NumArgs = 0;
+
     template <typename T>
     CK_TILE_HOST void operator()(T& y, T& x) const
     {
@@ -1530,7 +1553,7 @@ struct Bias
 {
     static constexpr index_t NumArgs = 1;
 
-    Bias(float bias = 0.0f) : bias_(bias){};
+    CK_TILE_HOST_DEVICE Bias(float bias = 0.0f) : bias_(bias) {};
 
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
@@ -1546,8 +1569,8 @@ struct Clamp
 {
     static constexpr index_t NumArgs = 2;
 
-    CK_TILE_HOST_DEVICE Clamp(const float lower = std::numeric_limits<float>::lowest(),
-                              const float upper = std::numeric_limits<float>::max())
+    CK_TILE_HOST_DEVICE Clamp(float lower = std::numeric_limits<float>::lowest(),
+                              float upper = std::numeric_limits<float>::max())
         : lower_(lower), upper_(upper) {};
 
     template <typename T>
@@ -1675,11 +1698,11 @@ struct Compose
      */
     template <typename... Args>
     CK_TILE_HOST_DEVICE Compose(Args... args)
-        : func_a(
-              init_func<FuncA, 0>({args...}, typename make_index_sequence<FuncA::NumArgs>::type())),
-          func_b(init_func<FuncB, FuncA::NumArgs>(
-              {args...}, typename make_index_sequence<FuncB::NumArgs>::type()))
+        : func_a(tile_elementwise_instantiate<FuncA>(std::array<float, NumArgs>{{args...}}.data())),
+          func_b(tile_elementwise_instantiate<FuncB>(std::array<float, NumArgs>{{args...}}.data() +
+                                                     FuncA::NumArgs))
     {
+        static_assert(NumArgs == sizeof...(Args), "Incorrect number of arguments.");
     }
 
     template <typename AIn, typename BOut, typename AOut = AIn>
@@ -1692,41 +1715,6 @@ struct Compose
 
     FuncA func_a;
     FuncB func_b;
-
-    // Plumbing necessary to split and index the parameter pack in the initializer.
-    private:
-    template <index_t... Is>
-    struct index_sequence
-    {
-    };
-
-    template <index_t N, index_t... Is>
-    struct make_index_sequence
-    {
-        typedef typename make_index_sequence<N - 1, N - 1, Is...>::type type;
-    };
-
-    template <index_t... Is>
-    struct make_index_sequence<0, Is...>
-    {
-        typedef index_sequence<Is...> type;
-    };
-
-    /**
-     * @brief Initialize an element-wise function with arguments.
-     *
-     * @tparam F Function to initialize.
-     * @tparam Offset Index in `args` at which arguments for `F` begin.
-     * @tparam Is Index sequence of length `F::NumArgs` to stop at the correct place in `args`.
-     * `args`.
-     *
-     * @param args Arguments for all composed functions.
-     */
-    template <typename F, index_t Offset, index_t... Is>
-    CK_TILE_HOST_DEVICE F init_func(const std::initializer_list<float> args, index_sequence<Is...>)
-    {
-        return F((*(args.begin() + Offset + Is))...);
-    }
 };
 
 // support fastconvert of int8 to fp16
@@ -1734,11 +1722,14 @@ struct Compose
 template <typename InputDataType, typename OutputDataType, index_t RegPackNumber>
 struct FastNumericArrayConverter
 {
+    static constexpr index_t NumArgs = 0;
 };
 
 template <>
 struct FastNumericArrayConverter<uint8_t, ck_tile::fp16_t, 4>
 {
+    static constexpr index_t NumArgs = 0;
+
     using InputArray  = vector_type<uint8_t, 4>;
     using OutputArray = vector_type<ck_tile::fp16_t, 4>;
 
@@ -1772,6 +1763,8 @@ struct FastNumericArrayConverter<uint8_t, ck_tile::fp16_t, 4>
 template <index_t N>
 struct FastNumericArrayConverter<uint8_t, ck_tile::fp16_t, N>
 {
+    static constexpr index_t NumArgs = 0;
+
     static constexpr int VEC_WIDTH = 4;
     static_assert(!(N % VEC_WIDTH), "N must be multiple of 4.");
 

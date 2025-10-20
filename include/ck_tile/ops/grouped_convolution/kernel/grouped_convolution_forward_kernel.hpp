@@ -29,8 +29,7 @@ struct GroupedConvFwdKernelArgs
                                GroupedConvTraitsType_::VectorSizeB,
                                GroupedConvTraitsType_::VectorSizeC,
                                true>; // Split N enabled
-    static constexpr index_t NumDTensor    = GroupedConvTraitsType_::NumDTensor;
-    static constexpr index_t NumElfuncArgs = GroupedConvTraitsType_::NumElfuncArgs;
+    static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
 
     template <
         typename InLay                      = typename GroupedConvTraitsType_::InLayout,
@@ -418,9 +417,8 @@ struct GroupedConvolutionForwardKernel
     using OutLayout = remove_cvref_t<typename GroupedConvTraitsType_::OutLayout>;
     using DsLayout  = remove_cvref_t<typename GroupedConvTraitsType_::DsLayout>;
 
-    using GemmDsLayout                     = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
-    static constexpr index_t NumDTensor    = GroupedConvTraitsType_::NumDTensor;
-    static constexpr index_t NumElfuncArgs = GroupedConvTraitsType_::NumElfuncArgs;
+    using GemmDsLayout                  = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
+    static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
 
     static constexpr index_t kBlockSize = GemmPipeline::BlockSize;
 
@@ -772,11 +770,10 @@ struct GroupedConvolutionForwardKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I3);
 
+        // FIXME: Instantiate and pass elfunc here.
         const float* elfunc_args_ptr = reinterpret_cast<const float*>(kargs.elfunc_args_ptr);
-        const auto& elfunc_args =
-            generate_tuple([&](auto idx) { return elfunc_args_ptr[idx]; }, number<NumElfuncArgs>{});
         EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-            c_block_window, c_block_tile, d_block_window, smem_ptr_0, {}, {}, elfunc_args);
+            c_block_window, c_block_tile, d_block_window, smem_ptr_0, {}, {}, elfunc_args_ptr);
     }
 
     /**

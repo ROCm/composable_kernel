@@ -35,8 +35,7 @@ float invoke_grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args,
                                                         OutLayout,
                                                         ck_tile::tuple<>,
                                                         ck_tile::tuple<>,
-                                                        BiasAndClamp,
-                                                        BiasAndClamp::NumArgs>(
+                                                        BiasAndClamp>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     std::size_t flop     = args.GetFlops();

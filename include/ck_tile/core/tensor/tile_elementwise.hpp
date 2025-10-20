@@ -59,33 +59,27 @@ CK_TILE_DEVICE auto tile_elementwise_in(const InElementFunc& in_element_func,
     return out_dstr_tensor;
 }
 
-/**
- * @brief  Template function that "unpacks" a tuple and instantiates a curried element-wise
- * operation.
- *
- * @param t                  Any container containing arguments to curry, with known size and
- * tuple-like semantic.
- * @return Element-wise function instantiated with currying.
- */
-template <typename ElementFunc, typename Tuple, size_t... I>
-CK_TILE_DEVICE ElementFunc tile_elementwise_instantiate(const Tuple& t, std::index_sequence<I...>)
+namespace detail {
+template <typename ElementFunc, size_t... I>
+CK_TILE_HOST_DEVICE ElementFunc tile_elementwise_instantiate_impl(const float* args,
+                                                                  std::index_sequence<I...>)
 {
-    return ElementFunc(t[number<I>{}]...);
+    return ElementFunc(args[I]...);
 }
+} // namespace detail
 
 /**
- * @brief  Template function that "unpacks" a tuple and instantiates a curried element-wise
- * operation.
+ * @brief  Template function that instantiates a curried element-wise operation.
  *
- * @param t                  Any container containing arguments to curry, with known size and
- * tuple-like semantic.
- * @return Calls the overloaded function, passing an index sequence.
+ * @tparam ElementFunc  Element-wise operation to instantiate. Must define `NumArgs`.
+ * @param args          Pointer to array of arguments.
+ * @return              The instantiated function.
  */
-template <typename ElementFunc, typename Tuple>
-CK_TILE_DEVICE ElementFunc tile_elementwise_instantiate(const Tuple& t)
+template <typename ElementFunc>
+CK_TILE_HOST_DEVICE ElementFunc tile_elementwise_instantiate(const float* args)
 {
-    static constexpr auto size = Tuple::size();
-    return tile_elementwise_instantiate<ElementFunc>(t, std::make_index_sequence<size>{});
+    return detail::tile_elementwise_instantiate_impl<ElementFunc>(
+        args, std::make_index_sequence<ElementFunc::NumArgs>{});
 }
 
 /**

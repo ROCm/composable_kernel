@@ -353,9 +353,9 @@ struct CShuffleEpilogue
         store_tile(in_lds_window, c_warptile_in_tensor_casted);
     }
 
-    template <typename DramWindows, typename COutTensor, typename Tuple>
+    template <typename DramWindows, typename COutTensor>
     CK_TILE_DEVICE void
-    apply_d_tensors(DramWindows& d_dram_windows, COutTensor& c_out_tensor, Tuple elfunc_args)
+    apply_d_tensors(DramWindows& d_dram_windows, COutTensor& c_out_tensor, const float* elfunc_args)
     {
         const auto ds_tensor = generate_tuple(
             [&](auto idx) { return load_tile(d_dram_windows[idx]); }, number<NumDTensor>{});
@@ -576,9 +576,9 @@ struct CShuffleEpilogue
                                    const OAccTile& o_acc_tile,
                                    const DsDramWindows& ds_dram_windows,
                                    void* p_smem,
-                                   const ScaleM& scale_m = {},
-                                   const ScaleN& scale_n = {},
-                                   Tuple elfunc_args     = {})
+                                   const ScaleM& scale_m    = {},
+                                   const ScaleN& scale_n    = {},
+                                   const float* elfunc_args = nullptr)
     {
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
 
