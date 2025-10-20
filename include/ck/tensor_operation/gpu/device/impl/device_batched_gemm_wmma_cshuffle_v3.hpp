@@ -60,7 +60,9 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         const long_index_t c_batch_offset =
             amd_wave_read_first_lane(compute_ptr_offset_of_batch.GetCPtrOffset(g_idx));
 
-        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
+            typename GridwiseGemm::EpilogueCShuffle>();
+        __shared__ char p_shared[LDS_size];
 
         auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
@@ -82,6 +84,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                  splitk_batch_offset.b_k_split_offset[i] + b_batch_offset;
         });
 
+        auto epilogue_args = typename GridwiseGemm::EpilogueCShuffle{};
+
         GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
             p_as_grid_shift,
             p_bs_grid_shift,
@@ -91,7 +95,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
             karg,
             karg.a_element_op,
             karg.b_element_op,
-            karg.cde_element_op);
+            karg.cde_element_op,
+            epilogue_args);
 #if defined(__gfx11__)
     }
 #endif
