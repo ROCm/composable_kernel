@@ -7,13 +7,11 @@ namespace ck_tile::builder {
 
 enum class DataType
 {
-    FP64,
     FP32,
     FP16,
     BF16,
-    S16,
-    S8,
-    S4,
+    FP8,
+    I8
 };
 
 // Memory layouts for convolution tensors, following PyTorch conventions.
