@@ -47,10 +47,11 @@ class TestGroupedConvndBwdData : public ::testing::Test
     // ######|            |          |          |           |         |        Type|        Type|        Type|         DataType|         Type|       Type|    Operation|    Operation|      Operation|  DataSpecialization| GemmM| GemmN| PrefetchStage|  Size| Block| Block| Block|    |    |  XDL|  XDL| PerWave| PerWave|     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN|      PerWave|      PerWave|  _MBlock_MPerBlock|  ScalarPerVector|
     // ######|            |          |          |           |         |            |            |            |                 |             |           |             |             |               |                    |      |      |              |      |      |      |      |    |    |     |     |        |        | Lengths_AK0_M_AK1|   ArrangeOrder|               |               |      PerVector|  PerVector_AK1|          | Lengths_BK0_N_BK1|   ArrangeOrder|               |               |      PerVector|  PerVector_BK1|          |   PerShuffle|   PerShuffle|  _NBlock_NPerBlock|       _NPerBlock|
     // ######|            |          |          |           |         |            |            |            |                 |             |           |             |             |               |                    |      |      |              |      |      |      |      |    |    |     |     |        |        |                  |               |               |               |               |               |          |                  |               |               |               |               |               |          |             |             |                   |                 |
-    < NDimSpatial, OutLayout, WeiLayout, ck::Tuple<>, InLayout, DataType, DataType, AccDataType, DataType,   ck::Tuple<>, DataType, Pass, Pass,    Pass,  ConvSpec,  true,  true,             1,   256,   128,   256,    32,   8,   2,   16,   16,       4,       8,       S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,       S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              2,         0,            1,            1,     S<1, 32, 1, 8>,                4>;
+              < NDimSpatial, OutLayout, WeiLayout, ck::Tuple<>, InLayout, DataType, DataType, AccDataType, DataType,   ck::Tuple<>, DataType, Pass, Pass,    Pass,  ConvSpec,  true,  true,             1,   256,   128,   256,    32,   8,   2,   16,   16,       4,       8,       S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,       S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              4,              2,         0,            1,            1,     S<1, 32, 1, 8>,                4>;
     // clang-format on
 
     ck::utils::conv::ConvParam conv_param;
+    ck::index_t split_k{1};
 
     template <ck::index_t NDimSpatial>
     bool Run()
@@ -112,7 +113,8 @@ class TestGroupedConvndBwdData : public ::testing::Test
                                           input_right_pads,
                                           Pass{},
                                           Pass{},
-                                          Pass{});
+                                          Pass{},
+                                          split_k);
         return conv.IsSupportedArgument(argument);
     }
 };
@@ -175,4 +177,25 @@ TYPED_TEST(TestGroupedConvndBwdDataDefault, VectorLoadCheck)
     this->conv_param = {2, 2, 128, 128, 257, {1, 1}, {7, 7}, {2, 2}, {1, 1}, {0, 0}, {0, 0}};
     is_supported     = this->template Run<2>();
     EXPECT_FALSE(is_supported);
+}
+
+TYPED_TEST(TestGroupedConvndBwdDataDefault, SplitK)
+{
+    if(ck::is_xdl_supported())
+    {
+        // SplitK = 1
+        this->conv_param  = {2, 2, 4, 192, 192, {1, 1}, {28, 28}, {1, 1}, {1, 1}, {0, 0}, {0, 0}};
+        this->split_k     = 1;
+        bool is_supported = this->template Run<2>();
+        EXPECT_TRUE(is_supported);
+
+        // Split-K autodeduce
+        this->split_k = -1;
+        is_supported  = this->template Run<2>();
+        EXPECT_FALSE(is_supported);
+    }
+    else
+    {
+        GTEST_SKIP() << "XDL ops not supported on this device";
+    }
 }
