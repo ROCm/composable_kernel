@@ -2,7 +2,7 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck_tile/host.hpp"
-#include "ck_tile/ops/pool.hpp"
+#include "ck_tile/ops/pooling.hpp"
 #include "ck_tile/host/reference/reference_pool.hpp"
 #include <cstring>
 

@@ -24,6 +24,7 @@ set(REGRESSION_TESTS
     test_batched_gemm_softmax_gemm_permute_bf16
     test_batched_gemm_bias_softmax_gemm_permute_bf16
     test_grouped_gemm_splitk
+    test_batched_gemm_b_scale_wmma
     test_reduce_no_index
     test_reduce_with_index
     test_convnd_fwd
@@ -257,6 +258,7 @@ add_subdirectory(batched_gemm_reduce)
 add_subdirectory(batched_gemm_gemm)
 add_subdirectory(batched_gemm_softmax_gemm)
 add_subdirectory(batched_gemm_softmax_gemm_permute)
+add_subdirectory(batched_gemm_b_scale)
 add_subdirectory(grouped_gemm)
 add_subdirectory(reduce)
 add_subdirectory(convnd_fwd)
