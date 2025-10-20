@@ -15,7 +15,7 @@ class TestCkTileGemmPipelineCompV6
 
 #define TEST_SUITE_NAME TestCkTileGemmPipelineCompV6
 
-TYPED_TEST_SUITE(TestCkTileGemmPipelineCompV6, KernelTypesCompV6);
+TYPED_TEST_SUITE(TEST_SUITE_NAME, KernelTypesCompV6);
 
 #include "test_gemm_pipeline_ut_cases.inc"
 

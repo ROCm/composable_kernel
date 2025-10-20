@@ -15,7 +15,7 @@ class TestCkTileGemmPipelineCompV3
 
 #define TEST_SUITE_NAME TestCkTileGemmPipelineCompV3
 
-TYPED_TEST_SUITE(TestCkTileGemmPipelineCompV3, KernelTypesCompV3);
+TYPED_TEST_SUITE(TEST_SUITE_NAME, KernelTypesCompV3);
 
 #include "test_gemm_pipeline_ut_cases.inc"
 

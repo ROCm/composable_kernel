@@ -15,7 +15,7 @@ class TestCkTileGemmPipelineCompAsync
 
 #define TEST_SUITE_NAME TestCkTileGemmPipelineCompAsync
 
-TYPED_TEST_SUITE(TestCkTileGemmPipelineCompAsync, KernelTypesCompAsync);
+TYPED_TEST_SUITE(TEST_SUITE_NAME, KernelTypesCompAsync);
 
 #include "test_gemm_pipeline_ut_cases.inc"
 
