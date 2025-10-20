@@ -559,29 +559,28 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
             Number<NumDTensor>{});
     }
 
-    using BlockwiseGemmPipe = remove_cvref_t<
-        decltype(BlockGemmPipeline_Selector<
-                 BlkGemmPipelineVer,
-                 BlkGemmPipeSched,
-                 BlockSize,
-                 LDSTypeA,
-                 LDSTypeB,
-                 ComputeTypeA,
-                 ComputeTypeB,
-                 AccDataType,
-                 decltype(MakeAWmmaTileDescriptor()),
-                 decltype(MakeBWmmaTileDescriptor()),
-                 ABlockTransferSrcScalarPerVector,
-                 BBlockTransferSrcScalarPerVector,
-                 MPerBlock,
-                 NPerBlock,
-                 KPerBlock,
-                 MPerWmma,
-                 NPerWmma,
-                 MRepeat,
-                 NRepeat,
-                 KPack,
-                 KInner>())>;
+    using BlockwiseGemmPipe =
+        remove_cvref_t<decltype(BlockGemmPipeline_Selector<BlkGemmPipelineVer,
+                                                           BlkGemmPipeSched,
+                                                           BlockSize,
+                                                           LDSTypeA,
+                                                           LDSTypeB,
+                                                           ComputeTypeA,
+                                                           ComputeTypeB,
+                                                           AccDataType,
+                                                           decltype(MakeAWmmaTileDescriptor()),
+                                                           decltype(MakeBWmmaTileDescriptor()),
+                                                           ABlockTransferSrcScalarPerVector,
+                                                           BBlockTransferSrcScalarPerVector,
+                                                           MPerBlock,
+                                                           NPerBlock,
+                                                           KPerBlock,
+                                                           MPerWmma,
+                                                           NPerWmma,
+                                                           MRepeat,
+                                                           NRepeat,
+                                                           KPack,
+                                                           KInner>())>;
 
     // Used to create obj in global function and pass it to Run method
     using EpilogueCShuffle =

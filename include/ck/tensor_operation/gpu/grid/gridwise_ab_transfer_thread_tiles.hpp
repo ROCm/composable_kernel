@@ -406,11 +406,12 @@ struct ABTransferThreadTiles
                 // KPack / KRow / K1 - MNRepeat - K0 / KRow - MNWaves - KRow - MNPerWmma - K1
                 return transform_tensor_descriptor(
                     BlockDesc{},
-                    make_tuple(make_unmerge_transform(make_tuple(
-                                   Number<ABK0 / (KPack / ABK1)>{}, KRow, Number<KPack / KRow / ABK1>{})),
-                               make_unmerge_transform(make_tuple(
-                                   Number<MNRepeat>{}, Number<MNWaves>{}, Number<MNPerWmma>{})),
-                               make_pass_through_transform(Number<ABK1>{})),
+                    make_tuple(
+                        make_unmerge_transform(make_tuple(
+                            Number<ABK0 / (KPack / ABK1)>{}, KRow, Number<KPack / KRow / ABK1>{})),
+                        make_unmerge_transform(
+                            make_tuple(Number<MNRepeat>{}, Number<MNWaves>{}, Number<MNPerWmma>{})),
+                        make_pass_through_transform(Number<ABK1>{})),
                     make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
                     make_tuple(Sequence<2, 4, 0>{}, Sequence<1, 3, 5>{}, Sequence<6>{}));
             }
@@ -439,13 +440,14 @@ struct ABTransferThreadTiles
 
                 return transform_tensor_descriptor(
                     desc1,
-                    make_tuple(make_pass_through_transform(Number<KPack / KPerWmmaBlk / KRow>{}),
-                               make_pass_through_transform(Number<MNRepeat>{}),
-                               make_merge_transform(make_tuple(Number<ABK0>{}, Number<ABK1 / KPack>{})),
-                               make_pass_through_transform(Number<MNWaves>{}),
-                               make_pass_through_transform(Number<KRow>{}),
-                               make_pass_through_transform(Number<MNPerWmma>{}),
-                               make_pass_through_transform(Number<KPerWmmaBlk>{})),
+                    make_tuple(
+                        make_pass_through_transform(Number<KPack / KPerWmmaBlk / KRow>{}),
+                        make_pass_through_transform(Number<MNRepeat>{}),
+                        make_merge_transform(make_tuple(Number<ABK0>{}, Number<ABK1 / KPack>{})),
+                        make_pass_through_transform(Number<MNWaves>{}),
+                        make_pass_through_transform(Number<KRow>{}),
+                        make_pass_through_transform(Number<MNPerWmma>{}),
+                        make_pass_through_transform(Number<KPerWmmaBlk>{})),
                     make_tuple(Sequence<0>{},
                                Sequence<1>{},
                                Sequence<2, 3>{},
