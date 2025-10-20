@@ -26,6 +26,7 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     const auto atol = ck_tile::get_absolute_threshold<ComputeType, CDataType, AccDataType>(
         max_accumulated_value / kbatch, ck_tile::integer_divide_ceil(K, kbatch));
     // Calculate error due to split_k accumulation
+    std::cout << "-------SPLIT K-------\n";
     const auto rtol_split_k =
         ck_tile::get_relative_threshold<CDataType, CDataType, CDataType>(kbatch);
     const auto atol_split_k = ck_tile::get_absolute_threshold<CDataType, CDataType, CDataType>(
@@ -35,19 +36,24 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
 }
 
 template <typename Type>
-void print_tensor(int M, int N, ck_tile::HostTensor<Type>& tensor, std::string label)
+void print_tensor(int M,
+                  int N,
+                  ck_tile::HostTensor<Type>& tensor,
+                  std::string label,
+                  bool use_type_convert = false)
 {
-    int i = 0;
+    int i     = 0;
+    int width = 7;
     std::cout << "----------" << label << "----------\n";
     for(int col = 0; col < N; ++col)
     {
-        std::cout << std::setw(5) << col;
+        std::cout << std::setw(width) << col;
     }
     std::cout << std::endl;
 
     for(int col = 0; col < N; ++col)
     {
-        std::cout << std::setw(5) << "-----";
+        std::cout << std::setw(width) << "-----";
     }
     std::cout << std::endl;
 
@@ -55,8 +61,18 @@ void print_tensor(int M, int N, ck_tile::HostTensor<Type>& tensor, std::string l
     {
         for(int col = 0; col < N; ++col)
         {
-            const double r = ck_tile::type_convert<float>(*std::next(std::begin(tensor), i));
-            std::cout << std::setw(5) << r;
+            float r;
+
+            if(use_type_convert)
+            {
+                r = ck_tile::type_convert<float>(*std::next(std::begin(tensor), i));
+            }
+            else
+            {
+                r = (*std::next(std::begin(tensor), i));
+            }
+
+            std::cout << std::setw(width) << r;
             ++i;
         }
         std::cout << std::endl;
@@ -443,14 +459,23 @@ class TestCkTileGemmPipeline : public ::testing::Test
         ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
             a_m_k, b_k_n, c_m_n_host_ref);
 
-        print_tensor<CDataType>(M, N, c_m_n_host_ref, std::string{"REFERENCE"});
+        print_tensor<CDataType>(
+            M, N, c_m_n_host_ref, std::string{"REFERENCE: WITHOUT type_convert"});
         std::cout << "\n\n\n";
-        print_tensor<CDataType>(M, N, c_m_n_dev_result, std::string{"GPU RESULT"});
+        print_tensor<CDataType>(
+            M, N, c_m_n_host_ref, std::string{"REFERENCE: WITH type_convert"}, true);
+        std::cout << "\n\n\n";
+        print_tensor<CDataType>(M, N, c_m_n_dev_result, std::string{"GPU RESULTS"});
 
         const float max_accumulated_value =
             *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
+
+        std::cout << "max_accumulated_value: " << max_accumulated_value << std::endl;
+
         const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
             K, kbatch, max_accumulated_value);
+        std::cout << "rtol: " << rtol_atol.at(ck_tile::number<0>{}) << std::endl;
+        std::cout << "atol: " << rtol_atol.at(ck_tile::number<1>{}) << std::endl;
         pass = ck_tile::check_err(c_m_n_dev_result,
                                   c_m_n_host_ref,
                                   "Error: Incorrect results!",
