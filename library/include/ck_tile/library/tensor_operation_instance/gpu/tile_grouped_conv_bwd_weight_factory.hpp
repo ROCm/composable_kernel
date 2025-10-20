@@ -56,6 +56,7 @@ using DeviceOp2DF32 = GroupedConvolutionBackwardWeightBaseInvoker<2,
 // Forward declarations for instance factory functions
 void add_grouped_conv2d_bwd_weight_f16_instances(std::vector<std::unique_ptr<DeviceOp2DF16>>& instances);
 void add_grouped_conv2d_bwd_weight_bf16_instances(std::vector<std::unique_ptr<DeviceOp2DBF16>>& instances);
+void add_grouped_conv2d_bwd_weight_bf16_instances_opt(std::vector<std::unique_ptr<DeviceOp2DBF16>>& instances);
 
 template <ck_tile::index_t NumDimSpatial,
           typename InLayout,
@@ -117,6 +118,7 @@ struct DeviceOperationInstanceFactory<GroupedConvolutionBackwardWeightBaseInvoke
                              std::is_same_v<ComputeTypeB, ck_tile::bfloat16_t>)
                 {
                     add_grouped_conv2d_bwd_weight_bf16_instances(op_ptrs);
+                    add_grouped_conv2d_bwd_weight_bf16_instances_opt(op_ptrs);
                 }
             }
         }
