@@ -124,7 +124,7 @@ CK_TILE_HOST double get_absolute_threshold(const double max_possible_num,
 {
 
     static_assert(
-        is_any_of<ComputeDataType, F8, BF8, F16, BF16, F32, pk_int4_t, I8, I32, uint8_t, int>::
+        is_any_of<ComputeDataType, F8, BF8, F16, BF16, F32, pk_int4_t, I8, I32, pk_fp4_raw_t, int>::
             value,
         "Warning: Unhandled ComputeDataType for setting up the absolute threshold!");
 
