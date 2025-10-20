@@ -293,8 +293,7 @@ int run_gemm_combinations(std::string const& data_type)
         {"-t=333", "-e=99", "-k=13", "-st_i=191", "-st_o=17"},
         {"-t=20", "-e=5", "-k=2", "-activation=sigmoid"},
         {"-t=220", "-e=9", "-k=3", "-activation=sigmoid"},
-        {"-t=500", "-e=21", "-k=13", "-activation=sigmoid"}
-    };
+        {"-t=500", "-e=21", "-k=13", "-activation=sigmoid"}};
 
     bool result      = true;
     std::string pr_i = "-pr_i=" + data_type;

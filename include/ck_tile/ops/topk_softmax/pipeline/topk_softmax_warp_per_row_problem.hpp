@@ -13,11 +13,11 @@ template <typename InputType_,
           typename WeightType_,
           typename IndexType_,
           index_t Experts_,
-          bool ActivationIsSoftmax_ = true,  // false: sigmoid
-          index_t IssuesPerCol_  = 2, // issue along col, to make sure block_reduce() OK
-          index_t BytesPerIssue_ = sizeof(InputType_),
-          index_t LaunchType_    = 0, // 0-streaming, >0, persistent #occupancy
-          index_t BlockSize_     = 256>
+          bool ActivationIsSoftmax_ = true, // false: sigmoid
+          index_t IssuesPerCol_     = 2,    // issue along col, to make sure block_reduce() OK
+          index_t BytesPerIssue_    = sizeof(InputType_),
+          index_t LaunchType_       = 0, // 0-streaming, >0, persistent #occupancy
+          index_t BlockSize_        = 256>
 struct TopkSoftmaxWarpPerRowProblem
 {
     // TODO: this kernel only support warp per row

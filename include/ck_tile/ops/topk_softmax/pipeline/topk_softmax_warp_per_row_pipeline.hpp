@@ -112,7 +112,6 @@ struct TopkSoftmaxWarpPerRowPipeline
                 // sigmoid was already pre-computed above, so only do topk now
                 topk(w, out_win, idx_win, k);
             }
-            
 
             // check exit
             if constexpr(Problem::LaunchType == 0)
