@@ -116,7 +116,7 @@ int run_moe_gemm_example_with_layouts(int argc,
 
     auto b_shuffle_host = shuffle_b<FlatmmConfig>(b_k_n_tensor);
 
-    std::cout << "moe_flatmm:"
+    std::cout << "moe_flatmm:" //
               << "\n  num_experts: " << experts << "\n  num_tokens: " << num_tokens
               << "\n  topk: " << topk << "\n  sorted_tile_num: " << sorted_tile_num
               << "\n  a_m_k: " << a_m_k_tensor.mDesc << "\n  b_k_n: " << b_k_n_tensor.mDesc
