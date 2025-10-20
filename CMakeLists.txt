@@ -749,3 +749,11 @@ rocm_create_package(
     LDCONFIG
     HEADER_ONLY
 )
+
+# Add documentation support
+option(BUILD_DOCS "Build documentation" ON)
+
+if(BUILD_DOCS)
+    include(cmake/SetupDocs.cmake)
+    setup_documentation()
+endif()
