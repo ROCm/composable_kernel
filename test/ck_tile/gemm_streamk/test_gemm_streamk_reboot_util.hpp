@@ -37,20 +37,25 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
     return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
 }
 
+ck_tile::index_t get_cu_count();
+
 template <typename Tuple>
 class TestCkTileStreamKReboot : public ::testing::Test
 {
     protected:
-    using ALayout                    = std::tuple_element_t<0, Tuple>;
-    using BLayout                    = std::tuple_element_t<1, Tuple>;
-    using CLayout                    = std::tuple_element_t<2, Tuple>;
-    using ADataType                  = std::tuple_element_t<3, Tuple>;
-    using BDataType                  = std::tuple_element_t<4, Tuple>;
-    using AccDataType                = std::tuple_element_t<5, Tuple>;
-    using CDataType                  = std::tuple_element_t<6, Tuple>;
-    using DsLayout                   = ck_tile::tuple<>;
-    using DsDataType                 = ck_tile::tuple<>;
-    static constexpr bool Persistent = std::tuple_element_t<7, Tuple>::value;
+    using ALayout                            = std::tuple_element_t<0, Tuple>;
+    using BLayout                            = std::tuple_element_t<1, Tuple>;
+    using CLayout                            = std::tuple_element_t<2, Tuple>;
+    using ADataType                          = std::tuple_element_t<3, Tuple>;
+    using BDataType                          = std::tuple_element_t<4, Tuple>;
+    using AccDataType                        = std::tuple_element_t<5, Tuple>;
+    using CDataType                          = std::tuple_element_t<6, Tuple>;
+    using DsLayout                           = ck_tile::tuple<>;
+    using DsDataType                         = ck_tile::tuple<>;
+    static constexpr ck_tile::index_t M_Tile = std::tuple_element_t<7, Tuple>::value;
+    static constexpr ck_tile::index_t N_Tile = std::tuple_element_t<8, Tuple>::value;
+    static constexpr ck_tile::index_t K_Tile = std::tuple_element_t<9, Tuple>::value;
+    static constexpr bool Persistent         = std::tuple_element_t<10, Tuple>::value;
 
     template <ck_tile::StreamKReductionStrategy ReductionStrategy,
               bool PadM       = true,
@@ -59,15 +64,8 @@ class TestCkTileStreamKReboot : public ::testing::Test
               bool Preshuffle = false,
               bool TransposeC = false>
     ck_tile::index_t invoke_streamk(const ck_tile::reboot::StreamKHostArgs& args,
-                                    const ck_tile::stream_config& s,
-                                    int num_cu,
-                                    int occupancy)
+                                    const ck_tile::stream_config& s)
     {
-
-        constexpr ck_tile::index_t M_Tile = 256;
-        constexpr ck_tile::index_t N_Tile = 256;
-        constexpr ck_tile::index_t K_Tile = 32;
-
         constexpr ck_tile::index_t M_Warp = 2;
         constexpr ck_tile::index_t N_Warp = 2;
         constexpr ck_tile::index_t K_Warp = 1;
@@ -147,7 +145,7 @@ class TestCkTileStreamKReboot : public ::testing::Test
             using Kernel =
                 ck_tile::reboot::StreamKKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 
-            auto kargs = Kernel::MakeKernelArgs(args, num_cu, occupancy);
+            auto kargs = Kernel::MakeKernelArgs(args);
 
             if(!Kernel::IsSupportedArgument(kargs))
             {
@@ -172,19 +170,18 @@ class TestCkTileStreamKReboot : public ::testing::Test
     }
 
     public:
-    // Since Stream-K is build on gfx9, the lower bound for CUs is 104. Thus, we default num_cu to
-    // 104 and occupancy to 1 to ensure tests are reproducible on different architectures.
     void Run(ck_tile::index_t M,
              ck_tile::index_t N,
              ck_tile::index_t K,
              ck_tile::StreamKReductionStrategy reduction_strategy =
                  ck_tile::StreamKReductionStrategy::Atomic,
-             int occupancy             = 1,
-             int num_cu                = 104,
              ck_tile::index_t stride_A = 0,
              ck_tile::index_t stride_B = 0,
              ck_tile::index_t stride_C = 0)
     {
+        // Since M, N, and K will vary depending on the number of CUs, we print it here to
+        // facilitate test output reability.
+        std::cout << "M: " << M << ", N: " << N << ", K: " << K << std::endl;
 
         using namespace ck_tile::literals;
 
@@ -259,7 +256,7 @@ class TestCkTileStreamKReboot : public ::testing::Test
 
         ck_tile::index_t num_accumulations_per_tile =
             invoke_streamk<ck_tile::StreamKReductionStrategy::Atomic>(
-                args, ck_tile::stream_config{nullptr, false, 0, 0, 1}, num_cu, occupancy);
+                args, ck_tile::stream_config{nullptr, false, 0, 0, 1});
 
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
 

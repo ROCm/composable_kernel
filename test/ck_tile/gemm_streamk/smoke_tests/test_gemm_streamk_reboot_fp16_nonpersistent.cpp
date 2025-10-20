@@ -1,7 +1,7 @@
 // Copyright © Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier:  MIT
 
-#include "test_gemm_streamk_reboot_types_nonpersistent.hpp"
+#include "test_gemm_streamk_reboot_types.hpp"
 #include "test_gemm_streamk_reboot_util.hpp"
 #include "gtest/gtest.h"
 
@@ -14,6 +14,6 @@ class TestCkTileStreamKRebootFp16NonPersistent : public TestCkTileStreamKReboot<
 
 TYPED_TEST_SUITE(TestCkTileStreamKRebootFp16NonPersistent, KernelTypesStreamKFp16NonPersistent);
 
-#include "test_gemm_streamk_reboot_cases.inc"
+#include "test_gemm_streamk_reboot_smoke_cases.inc"
 
 #undef TEST_SUITE_NAME
