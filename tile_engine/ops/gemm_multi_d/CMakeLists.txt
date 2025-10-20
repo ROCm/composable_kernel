@@ -43,6 +43,7 @@ function(build_gemm_multi_d_for_datatype_layout datatype layout)
                 --elementwise_function ${GEMM_MULTI_D_ELEMENTWISE_FUNCTION}
                 --config_json ${json_blob}
                 --list_blobs
+                --gpu_target ${GEMM_GPU_TARGETS}
         RESULT_VARIABLE ret
     )
     if(NOT ret EQUAL 0)
@@ -62,6 +63,7 @@ function(build_gemm_multi_d_for_datatype_layout datatype layout)
                 --elementwise_function ${GEMM_MULTI_D_ELEMENTWISE_FUNCTION}
                 --config_json "${json_blob}"
                 --gen_blobs
+                --gpu_target ${GEMM_GPU_TARGETS}
         COMMENT "Generating GEMM Multi D instance sources for ${datatype} ${layout}"
     )
     add_custom_target(gemm_multi_d_gen_${datatype}_${layout} DEPENDS ${codegen_blobs})
