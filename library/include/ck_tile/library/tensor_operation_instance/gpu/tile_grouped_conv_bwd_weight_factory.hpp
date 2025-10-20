@@ -10,10 +10,52 @@
 
 #include "ck_tile/library/tensor_operation_instance/gpu/tile_grouped_conv_instance_factory.hpp"
 #include "ck_tile/library/tensor_operation_instance/gpu/tile_grouped_conv_bwd_weight_invoker.hpp"
-#include "ck_tile/library/tensor_operation_instance/gpu/tile_grouped_conv_bwd_weight_instances.hpp"
 
 namespace ck_tile {
 namespace ops {
+
+using DeviceOp2DF16 = GroupedConvolutionBackwardWeightBaseInvoker<2,
+                                                NHWGC,
+                                                GKYXC,
+                                                NHWGK,
+                                                ck_tile::half_t,
+                                                ck_tile::half_t,
+                                                ck_tile::half_t,
+                                                ck_tile::element_wise::PassThrough,
+                                                ck_tile::element_wise::PassThrough,
+                                                ck_tile::element_wise::PassThrough,
+                                                ck_tile::half_t,
+                                                ck_tile::half_t>;
+
+using DeviceOp2DBF16 = GroupedConvolutionBackwardWeightBaseInvoker<2,
+                                                 NHWGC,
+                                                 GKYXC,
+                                                 NHWGK,
+                                                 ck_tile::bfloat16_t,
+                                                 ck_tile::bfloat16_t,
+                                                 ck_tile::bfloat16_t,
+                                                 ck_tile::element_wise::PassThrough,
+                                                 ck_tile::element_wise::PassThrough,
+                                                 ck_tile::element_wise::PassThrough,
+                                                 ck_tile::bfloat16_t,
+                                                 ck_tile::bfloat16_t>;
+
+using DeviceOp2DF32 = GroupedConvolutionBackwardWeightBaseInvoker<2,
+                                                NHWGC,
+                                                GKYXC,
+                                                NHWGK,
+                                                float,
+                                                float,
+                                                float,
+                                                ck_tile::element_wise::PassThrough,
+                                                ck_tile::element_wise::PassThrough,
+                                                ck_tile::element_wise::PassThrough,
+                                                float,
+                                                float>;
+
+// Forward declarations for instance factory functions
+void add_grouped_conv2d_bwd_weight_f16_instances(std::vector<std::unique_ptr<DeviceOp2DF16>>& instances);
+void add_grouped_conv2d_bwd_weight_bf16_instances(std::vector<std::unique_ptr<DeviceOp2DBF16>>& instances);
 
 template <ck_tile::index_t NumDimSpatial,
           typename InLayout,
