@@ -85,6 +85,7 @@ struct unified_attention_kernel_traits
                                       typename unified_attention_problem_traits<date_type>::qkvp_dtype,
                                       typename unified_attention_problem_traits<date_type>::acc_dtype,
                                       typename unified_attention_problem_traits<date_type>::acc_dtype,
+                                      typename unified_attention_problem_traits<date_type>::acc_dtype,
                                       typename unified_attention_problem_traits<date_type>::lse_dtype,
                                       typename unified_attention_problem_traits<date_type>::qkvp_dtype,
                                       typename unified_attention_problem_traits<date_type>::acc_dtype,
@@ -93,7 +94,7 @@ struct unified_attention_kernel_traits
                                       unified_attention_mask,
                                       unified_attention_traits>;
 
-    using unified_attention_pipeline = Blockunified_attentionFwdV3Pipeline<unified_attention_pipeline_problem>;
+    using unified_attention_pipeline = UnifiedAttentionPipeline<unified_attention_pipeline_problem>;
 
     using epilogue = Default2DEpilogue<
         Default2DEpilogueProblem<typename unified_attention_problem_traits<date_type>::acc_dtype,
@@ -140,7 +141,7 @@ float unified_attention_kernel_launch(const unified_attention_args& args, const 
                                     args.num_seqs   
                                 );
 
-    index_t total_num_q_blocks = args.num_tokens / Kernel::BLOCK_Q + args.num_seqs
+    index_t total_num_q_blocks = args.num_tokens / Kernel::BLOCK_Q + args.num_seqs;
 
 
     dim3 grids            = Kernel::GridSize2D(args.num_head_q / args.num_queries_per_kv, total_num_q_blocks);

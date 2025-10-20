@@ -389,7 +389,6 @@ struct UnifiedAttentionPipeline
                                    index_t num_queries_per_kv,
                                    const void* block_tables_ptr,
                                    index_t block_table_offset,
-                                   const LSEElementFunction& lse_element_func,
                                    [[maybe_unused]] const SAccElementFunction& s_acc_element_func,
                                    const PComputeElementFunction& p_compute_element_func,
                                    const OAccElementFunction& o_acc_element_func,
@@ -564,7 +563,8 @@ struct UnifiedAttentionPipeline
         }
 
         index_t i_total_loops      = 0;
-        index_t kv_blk_idx = block_tables_ptr[block_table_offset + i_total_loops]; 
+        const ck_tile::index_t* block_tables_ptr_ = reinterpret_cast<const ck_tile::index_t*>(block_tables_ptr);
+        index_t kv_blk_idx = block_tables_ptr_[block_table_offset + i_total_loops]; 
         index_t kv_blk_idx_prev = 0; 
 
 
@@ -674,11 +674,7 @@ struct UnifiedAttentionPipeline
             async_load_tile_raw(k_lds_window_store(k_lds_write_idx), k_dram_window);
             // TODO maybe needs i_total_loops as argument. Or maybe needs to use the k_lds_write_idx as the index
             /// FIXME: use the future-predicting method to move the window
-            // move K tile windows
-            auto k_dram_window = make_tile_window(k_dram_window.get_bottom_tensor_view(),
-                             k_dram_window.get_window_lengths(),
-                             {(block_tables_ptr[block_table_offset + i_total_loops]) * BLOCK_SIZE, 0},
-                             Policy::template MakeVDramTileDistribution<Problem>());        
+            k_dram_window.set_window_origin({kv_blk_idx * BLOCK_SIZE, 0});     
         };
 
         auto K_lds_load = [&](auto k_lds_read_idx) {
@@ -687,12 +683,9 @@ struct UnifiedAttentionPipeline
 
         auto V_mem_load = [&](auto v_lds_write_idx) {
             async_load_tile_raw(v_lds_window_store(v_lds_write_idx), v_dram_window);
-
-            /// FIXME: use the future-predicting method to move the window
-            auto v_dram_window = make_tile_window(v_dram_window.get_bottom_tensor_view(),
-                             v_dram_window.get_window_lengths(),
-                             {(block_tables_ptr[block_table_offset + i_total_loops]) * BLOCK_SIZE, 0},
-                             Policy::template MakeVDramTileDistribution<Problem>());    
+            // kv_blk_idx = block_tables_ptr_[block_table_offset + i_total_loops]; 
+            /// FIXME: use the future-predicting method to move the window 
+            v_dram_window.set_window_origin({kv_blk_idx * BLOCK_SIZE, 0}); 
         };
 
         auto V_lds_load = [&](auto v_lds_read_idx) {

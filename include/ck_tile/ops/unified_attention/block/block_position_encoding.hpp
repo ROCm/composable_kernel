@@ -4,7 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/ops/fmha/block/block_masking.hpp"
+#include "ck_tile/ops/unified_attention/block/block_masking.hpp"
 #include <cmath>
 #include <vector>
 
