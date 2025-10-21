@@ -7,7 +7,6 @@ from validation_utils import (
     is_tile_config_valid,
     is_trait_combination_valid,
     validate_warp_tile_combination,
-    get_gpu_name_by_id,
 )
 
 
@@ -16,8 +15,7 @@ def test_warp_tile_validation():
     print("Testing warp tile combination validation...")
 
     # Get GPU name
-    gpu_name = get_gpu_name_by_id(0)
-    print(f"Detected GPU: {gpu_name}")
+    gpu_name = "gfx90a"
 
     # Test cases for fp16
     test_cases = [
