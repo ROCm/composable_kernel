@@ -52,7 +52,8 @@ consteval std::string_view type_name()
         return "fp8";
     else if constexpr(std::is_same_v<T, ck::bf8_t>)
         return "bf8";
-    static_assert(false, "unknown_type");
+    else
+        static_assert(false, "unknown_type");
 }
 
 // Convert layout types to string names
@@ -78,7 +79,8 @@ constexpr std::string_view layout_name()
         return "KYXGC";
     else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::NHWGK>)
         return "NHWGK";
-    static_assert(false, "unknown_layout");
+    else
+        static_assert(false, "unknown_layout");
 }
 
 // Convert element-wise operation types to string names
@@ -97,7 +99,8 @@ constexpr std::string_view elementwise_op_name()
         return "AddRelu";
     else if constexpr(std::is_same_v<T, ck::tensor_operation::element_wise::Relu>)
         return "Relu";
-    static_assert(false, "unknown_op");
+    else
+        static_assert(false, "unknown_op");
 }
 
 // Convert ConvolutionForwardSpecialization enum to string
@@ -113,7 +116,6 @@ conv_fwd_spec_name(ck::tensor_operation::device::ConvolutionForwardSpecializatio
     case ConvolutionForwardSpecialization::Filter3x3: return "Filter3x3";
     case ConvolutionForwardSpecialization::OddC: return "OddC";
     }
-    static_assert(false, "unknown_conv_spec");
 }
 
 // Convert GemmSpecialization enum to string
@@ -139,7 +141,6 @@ constexpr std::string_view gemm_spec_name(ck::tensor_operation::device::GemmSpec
     case GemmSpecialization::NKOPadding: return "NKOPadding";
     case GemmSpecialization::MNKOPadding: return "MNKOPadding";
     }
-    static_assert(false, "unknown_gemm_spec");
 }
 
 // Convert BlockGemmPipelineScheduler enum to string
@@ -151,7 +152,6 @@ constexpr std::string_view pipeline_scheduler_name(ck::BlockGemmPipelineSchedule
     case BlockGemmPipelineScheduler::Intrawave: return "Intrawave";
     case BlockGemmPipelineScheduler::Interwave: return "Interwave";
     }
-    static_assert(false, "unknown_scheduler");
 }
 
 // Convert BlockGemmPipelineVersion enum to string
@@ -166,7 +166,6 @@ constexpr std::string_view pipeline_version_name(ck::BlockGemmPipelineVersion ve
     case BlockGemmPipelineVersion::v4: return "v4";
     case BlockGemmPipelineVersion::v5: return "v5";
     }
-    static_assert(false, "unknown_version");
 }
 
 // Convert std::array to string
