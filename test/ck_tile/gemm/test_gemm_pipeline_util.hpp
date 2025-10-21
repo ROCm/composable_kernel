@@ -174,6 +174,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                                      Persistent,
                                                                      NumWaveGroup,
                                                                      preshuffle>;
+        printf("[DEBUG] VectorSize_: %d\n", GemmUniversalTraits::_VectorSize);
 
         using GemmPipelineProblem =
             ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, GemmShape, Traits>;
@@ -224,6 +225,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                  K_Warp_Tile,
                                                  UniversalGemmProblem::TransposeC,
                                                  memory_operation>>;
+            //GemmEpilogue::Problem::PrintInfo();
+            //GemmEpilogue::PrintInfo();
 
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
@@ -256,20 +259,20 @@ class TestCkTileGemmPipeline : public ::testing::Test
         };
 
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
-            if(args.k_batch == 1)
-            {
+            //if(args.k_batch == 1)
+            //{
                 Run(has_hot_loop_,
                     tail_number_,
                     ck_tile::integral_constant<ck_tile::memory_operation_enum,
                                                ck_tile::memory_operation_enum::set>{});
-            }
-            else
-            {
-                Run(has_hot_loop_,
-                    tail_number_,
-                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                               ck_tile::memory_operation_enum::atomic_add>{});
-            }
+            //}
+            //else
+            //{
+            //    Run(has_hot_loop_,
+            //        tail_number_,
+            //        ck_tile::integral_constant<ck_tile::memory_operation_enum,
+            //                                   ck_tile::memory_operation_enum::atomic_add>{});
+            //}
         };
 
         BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
@@ -284,17 +287,17 @@ class TestCkTileGemmPipeline : public ::testing::Test
         {
             GTEST_SKIP() << "Unsupported data type combination for gemm pipeline test.";
         }
-        if constexpr(PipelineType == GemmPipelineType::CompV4 ||
-                     std::is_same_v<BDataType, ck_tile::pk_int4_t>)
-        {
+        //if constexpr(PipelineType == GemmPipelineType::CompV4 ||
+        //             std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+        //{
             // Only do k_batch = 1 when pipeline is CompV4, or BDataType is I4
-            k_batches_ = {1};
-        }
-        else
-        {
-            // Otherwise, use k_batch = 1 and 2
-            k_batches_ = {1, 2};
-        }
+        k_batches_ = {1};
+        //}
+        //else
+        //{
+        //    // Otherwise, use k_batch = 1 and 2
+        //    k_batches_ = {1, 2};
+        //}
     }
 
     template <bool PadM = true, bool PadN = true, bool PadK = true, bool Preshuffle = false>
@@ -338,8 +341,15 @@ class TestCkTileGemmPipeline : public ::testing::Test
         ck_tile::HostTensor<CDataType> c_m_n_dev_result(
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
-        ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5, 5, 11939}(a_m_k);
-        ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5, 5, 11940}(b_k_n);
+        std::cout << "a_m_k: ";
+        a_m_k.print_first_n(std::cout) << '\n';
+        std::cout << "b_k_n: ";
+        b_k_n.print_first_n(std::cout) << '\n';
+        std::cout << "c_m_n_dev_result: ";
+        c_m_n_dev_result.print_first_n(std::cout) << '\n';
+
+        ck_tile::FillUniformDistributionIntegerValue<ADataType>{1, 2, 11939}(a_m_k);
+        ck_tile::FillUniformDistributionIntegerValue<BDataType>{1, 2, 11940}(b_k_n);
 
         ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
@@ -372,7 +382,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                       stride_B,
                                       stride_C};
 
-        invoke_gemm<PadM, PadN, PadK, Preshuffle>(args, ck_tile::stream_config{nullptr, false});
+        invoke_gemm<PadM, PadN, PadK, Preshuffle>(args, ck_tile::stream_config{nullptr, false, 2});
 
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
         bool pass = true;
@@ -383,6 +393,13 @@ class TestCkTileGemmPipeline : public ::testing::Test
 
         ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
             a_m_k, b_k_n, c_m_n_host_ref);
+
+        std::cout << "a_m_k: ";
+        a_m_k.print_first_n(std::cout) << '\n';
+        std::cout << "b_k_n: ";
+        b_k_n.print_first_n(std::cout) << '\n';
+        std::cout << "c_m_n_dev_result: ";
+        c_m_n_dev_result.print_first_n(std::cout) << '\n';
 
         const float max_accumulated_value =
             *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());

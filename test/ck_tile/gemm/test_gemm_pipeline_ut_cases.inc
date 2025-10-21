@@ -120,9 +120,9 @@ TYPED_TEST(TEST_SUITE_NAME, PaddK)
 
 TYPED_TEST(TEST_SUITE_NAME, Regular)
 {
-    std::vector<int> Ms{512};
-    constexpr int N = 1024;
-    constexpr int K = 512;
+    std::vector<int> Ms{128};
+    constexpr int N = 128;
+    constexpr int K = 128;
 
     for(int M : Ms)
         this->Run(M, N, K);

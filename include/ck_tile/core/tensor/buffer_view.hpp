@@ -615,9 +615,9 @@ struct buffer_view<address_space_enum::global,
         using scalar_t = typename vector_traits<remove_cvref_t<T>>::scalar_type;
 
         // X contains multiple T
-        constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size;
+        constexpr index_t scalar_per_t_vector = vector_traits<remove_cvref_t<T>>::vector_size; // 1
 
-        constexpr index_t scalar_per_x_vector = vector_traits<remove_cvref_t<X>>::vector_size;
+        constexpr index_t scalar_per_x_vector = vector_traits<remove_cvref_t<X>>::vector_size; // 8
 
         static_assert(scalar_per_x_vector % scalar_per_t_vector == 0,
                       "wrong! X should contain multiple T");
@@ -650,7 +650,15 @@ struct buffer_view<address_space_enum::global,
         bool constexpr use_amd_buffer_addressing = false;
 #endif
 
-        constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
+        constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector; // 8
+        //static_assert(scalar_per_x_vector > scalar_per_t_vector, "Condition not met: (( scalar_per_x_vector > scalar_per_t_vector ))");
+        //if(threadIdx.x == 0)
+        //{   
+        //    printf("[DEBUG]: BufferView: t_per_x: %d\n",t_per_x);
+        //    printf("[DEBUG]: BufferView: scalar_per_x_vector: %d\n",scalar_per_x_vector);
+        //    printf("[DEBUG]: BufferView: scalar_per_t_vector: %d\n",scalar_per_t_vector);
+        //    printf("[DEBUG]: BufferView: x.size(): %d\n",x.size());
+        //}
 
         if constexpr(use_amd_buffer_addressing)
         {
