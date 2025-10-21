@@ -356,15 +356,7 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
                                 // here from nIter and warp id
                                 const index_t n_idx_of_warp =
                                     nIter * WarpGemm::kN * NWarp + get_warp_id() * WarpGemm::kN;
-                                const index_t row_index =
-                                    n_idx_of_warp / Traits::QuantGroupSize::kN;
-                                if(threadIdx.x == 0)
-                                {
-                                    printf("n_idx_of_warp: %d, row_index: %d, kQScale: %d\n",
-                                           n_idx_of_warp,
-                                           row_index,
-                                           kQScale.value);
-                                }
+                                const index_t row_index = n_idx_of_warp / Traits::QuantGroupSize::kN;
                                 return row_index * Traits::BQPerBlock + kQScale;
                             }
                         }();
@@ -377,6 +369,16 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
 
                         auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
                         float scale_reg_f = Base::cvt_scale_to_fp32(scale_reg);
+                        // if(threadIdx.x % 64 == 0 && blockIdx.x == 0)
+                        // {
+                        //     printf("warp_id: %d, mIter: %d, nIter: %d, kQScale: %d, reg_offset: %d, scale_reg_f: %f\n",
+                        //            get_warp_id(),
+                        //            mIter.value,
+                        //            nIter.value,
+                        //            kQScale.value,
+                        //            reg_offset,
+                        //            scale_reg_f);
+                        // }
                         static_for<0, WarpGemm::kM / 2, 1>{}([&](auto c_row) {
                             c_block_tensor.get_thread_buffer()[tbuf_offset + c_row] +=
                                 (c_warp_tensor.get_thread_buffer()[c_row] * scale_reg_f);

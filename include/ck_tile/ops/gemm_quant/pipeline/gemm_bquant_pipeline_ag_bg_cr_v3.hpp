@@ -120,6 +120,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
+    static constexpr index_t NPerBlockBQ = BlockGemmShape::kN / QuantGroupSize::kN;
     static constexpr index_t KPerBlockBQ = BlockGemmShape::kK / QuantGroupSize::kK;
 
     static constexpr index_t GetVectorSizeA() { return Policy::template GetVectorSizeA<Problem>(); }
@@ -258,7 +259,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
             constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
 
             static_assert(is_bq_col_major, "Bq must be col major (row major not supported yet)");
-            static_assert(NPerBlock == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+            static_assert(NPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
                               KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}],
                           "Bq block window has incorrect lengths for defined BqLayout!");
 
@@ -396,6 +397,10 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                                          bq_copy_dram_window,
                                          bq_dram_tile_window_step);
 
+                    // if(threadIdx.x == 0 && blockIdx.x == 0)
+                    // {
+                    //     printf("---- pipeline loop %d ----\n", i);
+                    // }
                     block_gemm(
                         c_block_tile, bq_block_tile[currIdx], a_lds_gemm_window, b_lds_gemm_window);
 

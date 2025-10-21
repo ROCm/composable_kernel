@@ -222,10 +222,10 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
             //                                sequence<1, 2>,
             //                                sequence<0, 0>>{});
             return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<1>,
+                tile_distribution_encoding<sequence<MWarps, NWarps, 64>,
                                            tuple<sequence<YPerTile>, sequence<XPerTile>>,
-                                           tuple<sequence<0>, sequence<0>>,
-                                           tuple<sequence<0>, sequence<0>>,
+                                           tuple<sequence<0, 0>, sequence<0>>,
+                                           tuple<sequence<0, 1>, sequence<2>>,
                                            sequence<1, 2>,
                                            sequence<0, 0>>{});
         }
