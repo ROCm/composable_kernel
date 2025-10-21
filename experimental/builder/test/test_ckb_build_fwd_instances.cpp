@@ -10,7 +10,7 @@ class FwdConvBuilderTest : public ::testing::Test
 {
 };
 
-TEST_F(FwdConvBuilderTest, CreateInvoker)
+TEST_F(FwdConvBuilderTest, Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance)
 {
     using namespace ck_tile::builder;
     using namespace ck_tile::builder::test;
@@ -66,14 +66,15 @@ TEST_F(FwdConvBuilderTest, CreateInvoker)
     };
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
-    //const auto kernel_string = Builder::Instance::GetTypeString();
-    //std::cout << "Generated kernel: " << kernel_string << std::endl;
-
-    // The invoker is the entrypoint to launch the kernel.
-    // Creating the invoker triggers the validation of the builder configuration,
-    // that is, the combination of all builder parameters is checked at compile time.
-    auto invoker = Builder::Instance::MakeInvoker();
     
-    // TODO: Prepare actual data and launch the kernel.
-    (void)invoker;
+    auto instance = Builder::Instance{};
+    
+    const auto kernel_string = instance.GetTypeString();
+    std::cout << "Generated kernel: " << kernel_string << std::endl;
+    EXPECT_GT(kernel_string.size(), 0);
+
+    EXPECT_TRUE(kernel_string.starts_with("DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3"));
+    
+    const auto invoker_ptr = instance.MakeInvokerPointer();
+    EXPECT_NE(invoker_ptr, nullptr);
 }
