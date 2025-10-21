@@ -1549,22 +1549,6 @@ struct Logistic
     const float alpha_;
 };
 
-struct Bias
-{
-    static constexpr index_t NumArgs = 1;
-
-    CK_TILE_HOST_DEVICE Bias(float bias = 0.0f) : bias_(bias) {};
-
-    template <typename T>
-    CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
-    {
-        T bias = ck_tile::type_convert<T>(bias_);
-        y      = x + bias;
-    }
-
-    float bias_;
-};
-
 struct Clamp
 {
     static constexpr index_t NumArgs = 2;
@@ -1679,13 +1663,22 @@ struct Cast
  * @note Both functions should have a `static constexpr index_t NumArgs` defined,
  * defining how many arguments should be passed to the initializer.
  *
- * @tparam FuncA The first function to be applied.
- * @tparam FuncB The second function to be applied.
+ * @note The Ds tensor can be used by at most one of the composed functions.
+ * This holds even if compositions are chained:
+ * In `Compose<FA, Compose<FB, FC>>`, only one of `FA`, `FB`, or `FC` can use
+ * the Ds tensor.
+ *
+ * @tparam FuncA    The first function to be applied.
+ * @tparam FuncB    The second function to be applied.
+ * @tparam FuncADs  Whether `FuncA` uses the Ds tensor.
+ * @tparam FuncBDs  Whether `FuncB` uses the Ds tensor.
  */
-template <typename FuncA, typename FuncB>
+template <typename FuncA, typename FuncB, bool FuncADs = false, bool FuncBDs = false>
 struct Compose
 {
     static constexpr index_t NumArgs = FuncA::NumArgs + FuncB::NumArgs;
+
+    static_assert(!(FuncADs && FuncBDs), "Only one composed function may use the Ds tensor.");
 
     /**
      * @brief Initializer that passes arguments to initializers of `FuncA` and `FuncB`.
@@ -1705,12 +1698,25 @@ struct Compose
         static_assert(NumArgs == sizeof...(Args), "Incorrect number of arguments.");
     }
 
-    template <typename AIn, typename BOut, typename AOut = AIn>
-    CK_TILE_HOST_DEVICE constexpr void operator()(BOut& y, const AIn& x) const
+    template <typename AIn, typename BOut, typename AOut = AIn, typename... ADs>
+    CK_TILE_HOST_DEVICE constexpr void operator()(BOut& y, const AIn& x, const ADs&... ds) const
     {
         AOut tmp;
-        func_a(tmp, x);
-        func_b(y, tmp);
+        if constexpr(FuncADs)
+        {
+            func_a(tmp, x, ds...);
+            func_b(y, tmp);
+        }
+        else if constexpr(FuncBDs)
+        {
+            func_a(tmp, x);
+            func_b(y, tmp, ds...);
+        }
+        else
+        {
+            func_a(tmp, x);
+            func_b(y, tmp);
+        }
     }
 
     FuncA func_a;

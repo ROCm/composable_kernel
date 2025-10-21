@@ -114,7 +114,7 @@ struct CShuffleEpilogue
     static constexpr index_t MRepeat                       = kMPerBlock / (MPerXdl * MWave);
     static constexpr index_t NRepeat                       = kNPerBlock / (NPerXdl * NWave);
 
-    const CDElementwise elfunc;
+    CDElementwise elfunc;
 
     CK_TILE_DEVICE CShuffleEpilogue(CDElementwise elfunc_ = CDElementwise{}) : elfunc(elfunc_) {};
 

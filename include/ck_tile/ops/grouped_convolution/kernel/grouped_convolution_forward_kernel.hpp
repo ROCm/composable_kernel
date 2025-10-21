@@ -642,7 +642,7 @@ struct GroupedConvolutionForwardKernel
                               "Not supported!");
 
                 return make_tensor_view<address_space_enum::global>(
-                    static_cast<OutDataType*>(ds_ptr[i]), kargs.c_grid_desc_m_n);
+                    static_cast<OutDataType*>(const_cast<void*>(ds_ptr[i])), kargs.c_grid_desc_m_n);
             },
             number<NumDTensor>{});
 

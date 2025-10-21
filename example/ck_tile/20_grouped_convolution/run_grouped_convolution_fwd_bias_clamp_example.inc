@@ -8,7 +8,7 @@
 #endif
 
 namespace el       = ck_tile::element_wise;
-using BiasAndClamp = el::Compose<el::Bias, el::Clamp>;
+using BiasAndClamp = el::Compose<el::MultiDAdd, el::Clamp, true>;
 
 template <ck_tile::index_t NDimSpatial,
           typename GemmWarpConfig,
@@ -33,8 +33,8 @@ float invoke_grouped_conv_fwd_bias_clamp(const ck_tile::GroupedConvFwdHostArgs& 
                                                         InLayout,
                                                         WeiLayout,
                                                         OutLayout,
-                                                        ck_tile::tuple<>,
-                                                        ck_tile::tuple<>,
+                                                        ck_tile::tuple<OutDataType>,
+                                                        ck_tile::tuple<OutLayout>,
                                                         BiasAndClamp>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
@@ -99,10 +99,10 @@ int run_grouped_conv_fwd_bias_clamp_example_with_layouts(
     int n_repeat                 = arg_parser.get_int("repeat");
     ck_tile::index_t init_method = arg_parser.get_int("init");
 
-    const float bias                       = 3.f;
+    const float bias_value                 = 3.f;
     const float lower                      = -100.f;
     const float upper                      = 100.f;
-    std::vector<float> bias_clamp_args_vec = {bias, lower, upper};
+    std::vector<float> bias_clamp_args_vec = {lower, upper};
     const size_t num_bias_clamp_args       = bias_clamp_args_vec.size();
 
     const auto in_g_n_c_wis_desc =
@@ -115,6 +115,7 @@ int run_grouped_conv_fwd_bias_clamp_example_with_layouts(
     ck_tile::HostTensor<InDataType> input(in_g_n_c_wis_desc);
     ck_tile::HostTensor<WeiDataType> weight(wei_g_k_c_xs_desc);
     ck_tile::HostTensor<OutDataType> output(out_g_n_k_wos_desc);
+    ck_tile::HostTensor<OutDataType> bias(out_g_n_k_wos_desc);
     ck_tile::HostTensor<float> bias_clamp_args({num_bias_clamp_args});
 
     if(init_method == 0)
@@ -137,6 +138,7 @@ int run_grouped_conv_fwd_bias_clamp_example_with_layouts(
         input.SetZero();
         weight.SetZero();
     }
+    ck_tile::FillUniformDistribution<OutDataType>{bias_value, bias_value}(bias);
 
     for(size_t i = 0; i < num_bias_clamp_args; ++i)
         bias_clamp_args(i) = bias_clamp_args_vec[i];
@@ -144,23 +146,25 @@ int run_grouped_conv_fwd_bias_clamp_example_with_layouts(
     ck_tile::DeviceMem input_dev_buf(input.get_element_space_size_in_bytes());
     ck_tile::DeviceMem weight_dev_buf(weight.get_element_space_size_in_bytes());
     ck_tile::DeviceMem output_dev_buf(output.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem bias_dev_buf(bias.get_element_space_size_in_bytes());
     ck_tile::DeviceMem bias_clamp_args_dev_buf(bias_clamp_args.get_element_space_size_in_bytes());
 
     input_dev_buf.ToDevice(input.data());
     weight_dev_buf.ToDevice(weight.data());
     output_dev_buf.SetZero();
+    bias_dev_buf.ToDevice(bias.data());
     bias_clamp_args_dev_buf.ToDevice(bias_clamp_args.data());
 
     ck_tile::GroupedConvFwdHostArgs args(conv_param,
                                          input_dev_buf.GetDeviceBuffer(),
                                          weight_dev_buf.GetDeviceBuffer(),
-                                         {},
+                                         {bias_dev_buf.GetDeviceBuffer()},
                                          output_dev_buf.GetDeviceBuffer(),
                                          kbatch,
                                          bias_clamp_args_dev_buf.GetDeviceBuffer());
 
-    std::cout << "Run Grouped Conv Fwd kernel with bias " << bias << " and clamp (" << lower << ", "
-              << upper << ")." << std::endl;
+    std::cout << "Run Grouped Conv Fwd kernel with bias " << bias_value << " and clamp (" << lower
+              << ", " << upper << ")." << std::endl;
     std::cout << "input: " << input.mDesc << std::endl;
     std::cout << "weight: " << weight.mDesc << std::endl;
     std::cout << "output: " << output.mDesc << std::endl;
@@ -184,7 +188,15 @@ int run_grouped_conv_fwd_bias_clamp_example_with_layouts(
         ck_tile::HostTensor<OutDataType> output_host_ref(out_g_n_k_wos_desc);
         output_host_ref.SetZero();
 
-        BiasAndClamp bias_clamp_host = BiasAndClamp(bias, lower, upper);
+        auto bias_clamp_host = [bias_value, lower, upper](float& y, const float& x) {
+            float x_float = ck_tile::type_convert<float>(x);
+            x_float += bias_value;
+            if(x_float < lower)
+                x_float = lower;
+            else if(x_float > upper)
+                x_float = upper;
+            y = x_float;
+        };
         ck_tile::reference_grouped_conv_fwd<NDimSpatial, InDataType, WeiDataType, OutDataType>(
             input,
             weight,
