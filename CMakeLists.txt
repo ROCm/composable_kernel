@@ -37,6 +37,7 @@ include(CTest)
 
 option(ENABLE_CLANG_CPP_CHECKS "Enables clang tidy, cppcheck" ON)
 option(MIOPEN_REQ_LIBS_ONLY "Build only the MIOpen required libraries" OFF)
+option(CK_EXPERIMENTAL_BUILDER "Enable experimental builder" OFF)
 option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
 
 # Usage: for customized Python location cmake -DCK_USE_ALTERNATIVE_PYTHON="/opt/Python-3.8.13/bin/python3.8"
@@ -690,6 +691,10 @@ if (NOT MIOPEN_REQ_LIBS_ONLY)
         PACKAGE_NAME ckprofiler
     )
     add_subdirectory(profiler)
+endif()
+
+if (CK_EXPERIMENTAL_BUILDER)
+  add_subdirectory(experimental/builder)
 endif()
 
 if(CK_USE_CODEGEN AND (SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR GPU_ARCHS))
