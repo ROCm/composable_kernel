@@ -6,8 +6,7 @@
 #include "ck/utility/sequence.hpp"
 #include "ck_tile/builder/types.hpp"
 
-namespace ck_tile::builder 
-{
+namespace ck_tile::builder {
 
 // Convert a static array to a sequence
 // Usage example:
@@ -42,15 +41,21 @@ using to_sequence_v = typename to_sequence_t<std::remove_cvref_t<decltype(Arr)>,
 
 // Wrapper function to make constexpr strings a structural type for NTTP.
 template <size_t N>
-struct StringLiteral {
+struct StringLiteral
+{
     char data[N];
-    constexpr StringLiteral(const char (&str)[N]) {
-        for (size_t i = 0; i < N; ++i) data[i] = str[i];
+    constexpr StringLiteral(const char (&str)[N])
+    {
+        for(size_t i = 0; i < N; ++i)
+            data[i] = str[i];
     }
 
-    constexpr bool operator==(const StringLiteral<N>& other) const {
-        for (size_t i = 0; i < N; ++i) {
-            if (data[i] != other.data[i]) {
+    constexpr bool operator==(const StringLiteral<N>& other) const
+    {
+        for(size_t i = 0; i < N; ++i)
+        {
+            if(data[i] != other.data[i])
+            {
                 return false;
             }
         }

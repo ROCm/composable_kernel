@@ -7,7 +7,7 @@
 
 namespace ck_tile::builder {
 
-struct ConvSignature 
+struct ConvSignature
 {
     int spatial_dim;
     ConvDirection direction;

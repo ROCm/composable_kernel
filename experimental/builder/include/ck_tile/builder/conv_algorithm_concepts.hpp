@@ -9,8 +9,7 @@
 
 #include "ck_tile/builder/types.hpp"
 
-namespace ck_tile::builder 
-{
+namespace ck_tile::builder {
 
 /********************************************************************/
 /* Descriptors for individual elements of the algorithm description */
@@ -19,10 +18,10 @@ namespace ck_tile::builder
 // Concept for thread block dimensions for a GEMM problem.
 template <typename T>
 concept ThreadBlockDescriptor = requires(T t) {
-  { t.block_size }  -> std::convertible_to<size_t>;
-  { t.tile_size.m } -> std::convertible_to<size_t>;
-  { t.tile_size.n } -> std::convertible_to<size_t>;
-  { t.tile_size.k } -> std::convertible_to<size_t>;
+    { t.block_size } -> std::convertible_to<size_t>;
+    { t.tile_size.m } -> std::convertible_to<size_t>;
+    { t.tile_size.n } -> std::convertible_to<size_t>;
+    { t.tile_size.k } -> std::convertible_to<size_t>;
 };
 
 // Concept for parameters that describe a gridwise GEMM problem.
@@ -67,8 +66,8 @@ template <typename T>
 concept OutputVectorTransferDescriptor = requires(T t) {
     { t.m_xdl_per_wave_per_shuffle } -> std::convertible_to<size_t>;
     { t.n_xdl_per_wave_per_shuffle } -> std::convertible_to<size_t>;
-    { t.scalar_per_vector } -> std::convertible_to<size_t>; 
-}; 
+    { t.scalar_per_vector } -> std::convertible_to<size_t>;
+};
 
 // Concept for the thread cluster access order
 template <typename T>

@@ -5,8 +5,7 @@
 
 #include "ck_tile/builder/conv_algorithm_concepts.hpp"
 
-namespace ck_tile::builder::test 
-{
+namespace ck_tile::builder::test {
 
 namespace ckb = ck_tile::builder;
 
@@ -66,7 +65,7 @@ struct InputVectorTransfer
     size_t src_vector_dim;
     size_t src_scalar_per_vector;
     size_t dest_scalar_per_vector_k1;
-    bool add_extra; 
+    bool add_extra;
 };
 static_assert(InputVectorTransferDescriptor<InputVectorTransfer>);
 

@@ -22,8 +22,7 @@
 
 #include "ck_tile/builder/types.hpp"
 
-namespace ck_tile::builder 
-{
+namespace ck_tile::builder {
 
 // Constrains convolution to 1D, 2D, or 3D spatial dimensions.
 template <auto N>
@@ -31,7 +30,8 @@ concept ConvSpatialDim = std::is_integral_v<decltype(N)> && (N == 1 || N == 2 ||
 
 // Constrains convolution data types to common floating-point types.
 template <DataType T>
-concept ConvDataType = (T == DataType::FP32) || (T == DataType::FP16) || (T == DataType::BF16) || (T == DataType::FP8) || (T == DataType::I8);
+concept ConvDataType = (T == DataType::FP32) || (T == DataType::FP16) || (T == DataType::BF16) ||
+                       (T == DataType::FP8) || (T == DataType::I8);
 
 // Concept for a type that defines a convolution's operational signature.
 template <typename T>
