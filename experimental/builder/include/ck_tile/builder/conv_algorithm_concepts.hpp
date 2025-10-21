@@ -102,8 +102,15 @@ concept AccessOrderDescriptor = requires(T t) {
 // Concept to check if a struct specifies thread cluster access order info.
 template <typename T>
 concept SpecifiesThreadClusterAccessOrder = requires(T t) {
-    { T::block_transfer.a_thread_cluster_access_order } -> AccessOrderDescriptor;
-    { T::block_transfer.b_thread_cluster_access_order } -> AccessOrderDescriptor;
+    { T::block_transfer.thread_cluster_access_order_a } -> AccessOrderDescriptor;
+    { T::block_transfer.thread_cluster_access_order_b } -> AccessOrderDescriptor;
+};
+
+// Concept to check if a struct specifies source access order info.
+template <typename T>
+concept SpecifiesSourceAccessOrder = requires(T t) {
+    { T::block_transfer.src_access_order_a } -> AccessOrderDescriptor;
+    { T::block_transfer.src_access_order_b } -> AccessOrderDescriptor;
 };
 
 // Concept to check if struct specifies block_gemm_pipeline_version.
