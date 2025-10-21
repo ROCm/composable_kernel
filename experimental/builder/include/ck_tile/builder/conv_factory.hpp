@@ -149,9 +149,6 @@ struct ConvPassThroughOps
 template <typename CONV_ENUM>
     requires(
         std::is_same_v<CONV_ENUM, ck::tensor_operation::device::ConvolutionForwardSpecialization> 
-        // ||
-        // std::is_same_v<CONV_ENUM,
-        //                ck::tensor_operation::device::ConvolutionBackwardDataSpecialization>
                     )
 struct ConvSpec
 {
