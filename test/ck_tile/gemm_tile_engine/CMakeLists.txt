@@ -40,6 +40,7 @@ function(create_individual_gemm_test_target datatype layout config_name trait ti
         OUTPUT ${test_header}
         COMMAND ${Python3_EXECUTABLE} ${TILE_ENGINE_GEMM_DIR}/gemm_instance_builder.py
                 --working_path ${working_path}
+                --gpu_target "${GEMM_TEST_GPU_TARGETS}"
                 --datatype ${datatype}
                 --layout ${layout}
                 --config_json ${config_json}
@@ -125,6 +126,7 @@ function(build_gemm_test_targets datatype layout config_name)
                 --layout ${layout}
                 --config_json ${json_blob}
                 --list_kernels
+                --gpu_target "${GEMM_TEST_GPU_TARGETS}"
         WORKING_DIRECTORY ${TILE_ENGINE_GEMM_DIR}
         RESULT_VARIABLE ret
         OUTPUT_VARIABLE list_output

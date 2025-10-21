@@ -1,8 +1,28 @@
-# FLATMM Matrix Multiplication
+# FLATMM Matrix Multiplication with CK Tile
 
-This folder contains example for FLATMM using ck_tile tile-programming implementation. Currently, it only supports the basic feature of the CK Tile FLATMM, but creates the placeholders for the future support on different FLATMM pipeline and different FLATMM modules. In the near future, we will gradually migrate all the FLATMM features from old CK to CK Tile.
+This example demonstrates FLATMM (flattened matrix multiplication) using the CK Tile programming model. FLATMM is a variant of GEMM optimized for certain memory layouts and batch processing patterns. Currently, it only supports the basic feature of the CK Tile FLATMM, but creates the placeholders for the future support on different FLATMM pipeline and different FLATMM modules. In the near future, we will gradually migrate all the FLATMM features from old CK to CK Tile.
 
-## build
+---
+
+## Algorithm and Math
+
+Given:
+- $A$: $[\text{batch}, M, K]$
+- $B$: $[\text{batch}, K, N]$
+- $C$: $[\text{batch}, M, N]$
+
+For each batch $b$:
+$$
+C^{(b)} = A^{(b)} \times B^{(b)}
+$$
+
+- **FLATMM**: An alternative solution as the Preshuffled GEMM in /03_gemm
+
+
+---
+
+## Build & Run
+
 ```
 # in the root of ck_tile
 mkdir build && cd build
@@ -13,7 +33,7 @@ make tile_example_flatmm_basic -j
 ```
 This will result in an executable `build/bin/tile_example_flatmm_basic`
 
-## example
+### Arguments
 ```
 args:
           -m    m dimension (default:256)
@@ -36,3 +56,24 @@ args:
        -json    0: No Json, 1: Dump Results in Json format (default:0)
    -jsonfile    json file name to dump results (default:flatmm_basic.json)
 ```
+
+---
+
+## Source Structure
+
+- **Kernel**: [`flatmm_basic.hpp`](flatmm_basic.hpp) (tile-programming kernel template)
+- **Executable**: [`flatmm_basic.cpp`](flatmm_basic.cpp)
+- **Build**: `CMakeLists.txt`, `run_flatmm_example.inc`, `script/`
+
+---
+
+## Related CK Tile Examples
+
+- [16_batched_gemm](../16_batched_gemm/README.md): Batched GEMM with tiles
+- [03_gemm](../03_gemm/README.md): Single GEMM with tiles
+- [17_grouped_gemm](../17_grouped_gemm/README.md): Grouped GEMM with tiles
+
+For distribution, see [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
+
+---
+[Back to CK Tile Examples](../README.md)
