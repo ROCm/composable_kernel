@@ -198,6 +198,7 @@ struct MoeSortingHostArgs
 #else
     long_index_t moe_buf_bytes;  // byte size of p_moe_buf
 #endif
+    bool clear_workspace_in_p0; // flag to enable workspace clearing in P0_v1 kernel
     
 };
 
@@ -1572,10 +1573,14 @@ struct MoeSortingMultiPhaseKernel_P0_v1
         const void* p_topk_ids;     // [tokens, topk]
         const void* p_local_tokens; // [1], if not nullptr, use this as actual tokens
         void* p_expert_mesh;        // [expert, tokens]
+        void* p_sync_counter; //Synchronization counter
+
         index_t tokens; // if p_local_tokens is not nullptr, this indicate the max possible tokens
                         // used for ws/LDS calculation
         index_t num_experts;
         index_t mesh_stride; // mesh_stride for p_expert_mesh
+        index_t mesh_byte_size; // byte size per mesh element (for clearing)
+        bool clear_workspace;   // flag to enable workspace clearing
         mdiv topk_mdiv;
     };
 
@@ -1594,13 +1599,16 @@ struct MoeSortingMultiPhaseKernel_P0_v1
     CK_TILE_HOST static constexpr auto MakeKargs(const Hargs& h)
     {
         Kargs k;
-        k.p_topk_ids     = h.p_topk_ids;
-        k.p_local_tokens = h.p_local_tokens;
-        k.p_expert_mesh  = h.p_ws;
-        k.tokens         = h.tokens;
-        k.num_experts    = h.num_experts;
-        k.mesh_stride    = impl::moe_sorting_mp_mesh_stride(h.tokens);
-        k.topk_mdiv      = mdiv{static_cast<uint32_t>(h.topk)};
+        k.p_topk_ids      = h.p_topk_ids;
+        k.p_local_tokens  = h.p_local_tokens;
+        k.p_expert_mesh   = h.p_ws;
+        k.p_sync_counter  = reinterpret_cast<uint32_t*>(reinterpret_cast<char*>(h.p_ws) + impl::moe_sorting_mp_mesh_smem_size(h.tokens, h.num_experts, h.topk));
+        k.tokens          = h.tokens;
+        k.num_experts     = h.num_experts;
+        k.mesh_stride     = impl::moe_sorting_mp_mesh_stride(h.tokens);
+        k.mesh_byte_size  = impl::moe_sorting_mesh_byte_size(h.tokens, h.num_experts, h.topk);
+        k.clear_workspace = h.clear_workspace_in_p0;
+        k.topk_mdiv       = mdiv{static_cast<uint32_t>(h.topk)};
         return k;
     }
 
@@ -1617,6 +1625,13 @@ struct MoeSortingMultiPhaseKernel_P0_v1
 
         const topk_id_t* p_topk_ids = reinterpret_cast<const topk_id_t*>(kargs.p_topk_ids);
         MeshType* p_expert_mesh     = reinterpret_cast<MeshType*>(kargs.p_expert_mesh);
+
+        if(blockIdx.x == 0 && threadIdx.x == 0)
+        {
+            *reinterpret_cast<uint32_t*>(kargs.p_sync_counter) = 0;
+        }
+        __syncthreads();
+
         index_t tokens              = [&]() {
             if constexpr(Problem::LocalToken)
             {
@@ -1646,6 +1661,32 @@ struct MoeSortingMultiPhaseKernel_P0_v1
                 return kargs.mesh_stride;
             }
         }();
+        
+        // WORKSPACE CLEARING PHASE (if enabled)
+        if(kargs.clear_workspace)
+        {
+            ck_tile::workgroup_barrier wb{reinterpret_cast<uint32_t*>(kargs.p_sync_counter)};
+
+            index_t row_size    = mesh_stride;
+            index_t pixels      = kargs.num_experts * row_size;
+            index_t total_bytes = pixels * kargs.mesh_byte_size;
+            index_t clear_total_elems = total_bytes / 16; // always use dwordx4
+
+            using vector_type = ext_vector_t<index_t, 4>;
+            vector_type* p_expert_mesh_clear = reinterpret_cast<vector_type*>(kargs.p_expert_mesh);
+            auto zero_ = vector_type{0};
+
+            for(index_t i = blockIdx.x * kBlockSize + threadIdx.x; i < clear_total_elems;
+                i += gridDim.x * kBlockSize)
+            {
+                p_expert_mesh_clear[i] = zero_;
+            }
+
+            wb.inc();
+            wb.wait_eq(gridDim.x);
+
+        }
+
         index_t total_elem = rounded_tokens * kargs.topk_mdiv.divisor / Problem::SubTokenTile;
 
 #pragma unroll Problem::SubTokenTile

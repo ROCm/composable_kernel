@@ -248,10 +248,11 @@ bool test_moe_sorting(ck_tile::ArgParser args)
                           topk,
 #if MOE_SORTING_FMOE_2D_BUF
                           moe_buf_interm_dim,
-                          moe_buf_elem_bytes
+                          moe_buf_elem_bytes,
 #else
-                          static_cast<ck_tile::long_index_t>(moe_buf_size * sizeof(float))
+                          static_cast<ck_tile::long_index_t>(moe_buf_size * sizeof(float)),
 #endif
+                          false  // clear_workspace_in_p0 - will be set by API if needed
     };
 
     ck_tile::stream_config sc{nullptr,
