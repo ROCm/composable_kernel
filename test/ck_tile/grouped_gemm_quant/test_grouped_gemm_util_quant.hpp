@@ -373,7 +373,6 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                                     kargs.size() * sizeof(ck_tile::QuantGemmTransKernelArg),
                                     hipMemcpyHostToDevice,
                                     stream.stream_id_));
-
             invoke_grouped_gemm_persistent<GroupedGemKernelParam_Mfma, ALayout, BLayout, CLayout>(
                 stream, group_count, kargs_ptr);
         }
