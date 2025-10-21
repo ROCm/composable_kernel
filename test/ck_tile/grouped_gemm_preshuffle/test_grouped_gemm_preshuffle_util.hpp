@@ -540,9 +540,9 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
 
         // Enable persistent mode for preshuffle
         using GemmUniversalTraits =
-            ck_tile::TileGemmUniversalTraits<kPadM,
-                                             kPadN,
-                                             kPadK,
+            ck_tile::TileGemmUniversalTraits</*kPadM*/ true,
+                                             /*kPadN*/ true,
+                                             /*kPadK*/ true,
                                              DoubleSmemBuffer,
                                              ALayout,
                                              BLayout,
