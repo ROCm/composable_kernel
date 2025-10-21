@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "<ck_tile/builder/conv_algorithm_concepts.hpp>"
+#include "ck_tile/builder/conv_algorithm_concepts.hpp"
 
 namespace ck_tile::builder::test 
 {
@@ -25,7 +25,7 @@ struct ThreadBlock
     // Thread block size.
     int block_size;
     // Size of the submatrix problem in a thread block.
-    MNK<int> submatrix;
+    MNK<int> tile_size;
 };
 static_assert(ckb::ThreadBlockDescriptor<ThreadBlock>);
 
@@ -64,8 +64,8 @@ static_assert(OutputBlockTransferDescriptor<OutputBlockTransferLengths>);
 struct InputVectorTransfer
 {
     size_t src_vector_dim;
-    size_t src_scaler_per_vector;
-    size_t dest_scaler_per_vector_k1;
+    size_t src_scalar_per_vector;
+    size_t dest_scalar_per_vector_k1;
     bool add_extra; 
 };
 static_assert(InputVectorTransferDescriptor<InputVectorTransfer>);
@@ -95,8 +95,8 @@ struct BlockTransfer
     OutputVectorTransfer vector_transfer_c;
     AccessOrder thread_cluster_access_order_a;
     AccessOrder thread_cluster_access_order_b;
-    AccessOrder a_source_access_order;
-    AccessOrder b_source_access_order;
+    AccessOrder src_access_order_a;
+    AccessOrder src_access_order_b;
 };
 
 struct ConvAlgorithm
