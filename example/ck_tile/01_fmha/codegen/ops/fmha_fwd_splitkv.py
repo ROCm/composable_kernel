@@ -738,32 +738,18 @@ class FmhaFwdSplitKVCombineKernel:
 def get_fmha_fwd_tile_dict_from_dtype(dtype: str) -> Optional[dict]:
     if dtype == "fp16" or dtype == "bf16":
         return {
-            "32": FmhaFwdTileSize(
-                32, 64, 16, 32, 32, 32, 2, 1, 1, 2, 1, 1, 16, 16, 16, 16, 16, 16, -1
-            ),
-            "64": FmhaFwdTileSize(
-                64, 64, 32, 64, 32, 64, 4, 1, 1, 4, 1, 1, 16, 16, 16, 16, 16, 16, -1
-            ),
-            "96": FmhaFwdTileSize(
-                64, 128, 32, 128, 32, 96, 4, 1, 1, 4, 1, 1, 16, 16, 16, 16, 16, 16, -1
-            ),
-            "128": FmhaFwdTileSize(
-                64, 128, 32, 128, 32, 128, 4, 1, 1, 4, 1, 1, 16, 16, 16, 16, 16, 16, -1
-            ),
-            # '160' : FmhaFwdTileSize(64, 128, 32, 160, 32,  160,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
-            "256": FmhaFwdTileSize(
-                64, 128, 32, 256, 32, 256, 4, 1, 1, 4, 1, 1, 16, 16, 16, 16, 16, 16, -1
-            ),
-        }
+            "32" : FmhaFwdTileSize( 32,  64, 16,  32, 32,  32, 2, 1, 1, 2, 1, 1, 16, 16, 16, 16, 16, 16, -1),
+            "64" : FmhaFwdTileSize( 64,  64, 32,  64, 32,  64, 4, 1, 1, 4, 1, 1, 16, 16, 16, 16, 16, 16, -1),
+            "96" : FmhaFwdTileSize( 64, 128, 32, 128, 32,  96, 4, 1, 1, 4, 1, 1, 16, 16, 16, 16, 16, 16, -1),
+            "128": FmhaFwdTileSize( 64, 128, 32, 128, 32, 128, 4, 1, 1, 4, 1, 1, 16, 16, 16, 16, 16, 16, -1),
+            # "160" : FmhaFwdTileSize(64, 128, 32, 160, 32, 160, 4, 1, 1, 4, 1, 1, 16, 16, 16, 16, 16, 16, -1),
+            "256": FmhaFwdTileSize( 64, 128, 32, 256, 32, 256, 4, 1, 1, 4, 1, 1, 16, 16, 16, 16, 16, 16, -1),
+        }  # fmt: skip
     elif dtype == "fp8" or dtype == "bf8":
         return {
-            "64": FmhaFwdTileSize(
-                128, 64, 32, 64, 32, 64, 2, 1, 1, 2, 1, 1, 32, 32, 32, 32, 32, 32, -1
-            ),
-            "128": FmhaFwdTileSize(
-                128, 128, 32, 128, 32, 128, 4, 1, 1, 4, 1, 1, 32, 32, 32, 32, 32, 32, -1
-            ),
-        }
+            "64" : FmhaFwdTileSize(128,  64, 32,  64, 32,  64, 2, 1, 1, 2, 1, 1, 32, 32, 32, 32, 32, 32, -1),
+            "128": FmhaFwdTileSize(128, 128, 32, 128, 32, 128, 4, 1, 1, 4, 1, 1, 32, 32, 32, 32, 32, 32, -1),
+        }  # fmt: skip
     else:
         return None
 
@@ -807,157 +793,22 @@ def get_fwd_splitkv_blobs(
             for logits, mask, bias, pagedkv in itertools.product(
                 ["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"]
             ):
-                pipelines.append(
-                    Pipeline(
-                        "qr",
-                        "row",
-                        "f",
-                        "t",
-                        "f",
-                        "f",
-                        logits,
-                        bias,
-                        "t",
-                        squant,
-                        pagedkv,
-                        mask,
-                    )
-                )
-                pipelines.append(
-                    Pipeline(
-                        "qr",
-                        "col",
-                        "f",
-                        "t",
-                        "f",
-                        "f",
-                        logits,
-                        bias,
-                        "t",
-                        squant,
-                        pagedkv,
-                        mask,
-                    )
-                )
+                pipelines.append(Pipeline( "qr", "row", "f", "t", "f", "f", logits, bias, "t", squant, pagedkv, mask))  # fmt: skip
+                pipelines.append(Pipeline( "qr", "col", "f", "t", "f", "f", logits, bias, "t", squant, pagedkv, mask))  # fmt: skip
 
-                pipelines.append(
-                    Pipeline(
-                        "qr",
-                        "row",
-                        "t",
-                        "f",
-                        "f",
-                        "f",
-                        logits,
-                        bias,
-                        "t",
-                        squant,
-                        pagedkv,
-                        mask,
-                    )
-                )
-                pipelines.append(
-                    Pipeline(
-                        "qr",
-                        "col",
-                        "t",
-                        "f",
-                        "f",
-                        "f",
-                        logits,
-                        bias,
-                        "t",
-                        squant,
-                        pagedkv,
-                        mask,
-                    )
-                )
+                pipelines.append(Pipeline( "qr", "row", "t", "f", "f", "f", logits, bias, "t", squant, pagedkv, mask))  # fmt: skip
+                pipelines.append(Pipeline( "qr", "col", "t", "f", "f", "f", logits, bias, "t", squant, pagedkv, mask))  # fmt: skip
 
-                pipelines.append(
-                    Pipeline(
-                        "qr",
-                        "row",
-                        "t",
-                        "t",
-                        "f",
-                        "f",
-                        logits,
-                        bias,
-                        "t",
-                        squant,
-                        pagedkv,
-                        mask,
-                    )
-                )
-                pipelines.append(
-                    Pipeline(
-                        "qr",
-                        "col",
-                        "t",
-                        "t",
-                        "f",
-                        "f",
-                        logits,
-                        bias,
-                        "t",
-                        squant,
-                        pagedkv,
-                        mask,
-                    )
-                )
+                pipelines.append(Pipeline( "qr", "row", "t", "t", "f", "f", logits, bias, "t", squant, pagedkv, mask))  # fmt: skip
+                pipelines.append(Pipeline( "qr", "col", "t", "t", "f", "f", logits, bias, "t", squant, pagedkv, mask))  # fmt: skip
 
-                pipelines.append(
-                    Pipeline(
-                        "qr",
-                        "row",
-                        "t",
-                        "t",
-                        "t",
-                        "t",
-                        logits,
-                        bias,
-                        "t",
-                        squant,
-                        pagedkv,
-                        mask,
-                    )
-                )
-                pipelines.append(
-                    Pipeline(
-                        "qr",
-                        "col",
-                        "t",
-                        "t",
-                        "t",
-                        "t",
-                        logits,
-                        bias,
-                        "t",
-                        squant,
-                        pagedkv,
-                        mask,
-                    )
-                )
+                pipelines.append(Pipeline( "qr", "row", "t", "t", "t", "t", logits, bias, "t", squant, pagedkv, mask))  # fmt: skip
+                pipelines.append(Pipeline( "qr", "col", "t", "t", "t", "t", logits, bias, "t", squant, pagedkv, mask))  # fmt: skip
         elif dtype in ["fp8", "bf8"]:
             for logits, mask, bias in itertools.product(
                 ["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()
             ):
-                pipelines.append(
-                    Pipeline(
-                        "qr",
-                        "col",
-                        "f",
-                        "f",
-                        "f",
-                        "f",
-                        logits,
-                        bias,
-                        "t",
-                        squant,
-                        "f",
-                        mask,
-                    )
-                )
+                pipelines.append(Pipeline( "qr", "col", "f", "f", "f", "f", logits, bias, "t", squant, "f", mask))  # fmt: skip
         elif dtype in ["fp8fp16", "fp8bf16"]:
             # TODO
             None

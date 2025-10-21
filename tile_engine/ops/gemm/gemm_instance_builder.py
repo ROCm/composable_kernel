@@ -15,8 +15,9 @@ logging.basicConfig(level=logging.INFO)
 
 
 class GemmKernelBuilder:
-    def __init__(self, working_path, datatype, layout, config_json=None):
+    def __init__(self, working_path, gpu_target, datatype, layout, config_json=None):
         self.working_path = Path(working_path)
+        self.gpu_target = gpu_target
         self.datatype = datatype
         self.layout = layout
         self.config_json = config_json
@@ -231,6 +232,7 @@ class GemmKernelBuilder:
                 b_datatype,
                 c_datatype,
                 pipeline,
+                self.gpu_target,
             )
 
     def _generate_trait_combinations(self):
@@ -823,6 +825,11 @@ def main():
     )
     parser.add_argument("--working_path", required=True, help="Working directory path")
     parser.add_argument(
+        "--gpu_target",
+        required=True,
+        help="GPU target architecture",
+    )
+    parser.add_argument(
         "--datatype",
         required=True,
         choices=["fp16", "fp8", "bf16", "fp32", "fp64"],
@@ -861,7 +868,7 @@ def main():
 
     # Create builder
     builder = GemmKernelBuilder(
-        args.working_path, args.datatype, args.layout, args.config_json
+        args.working_path, args.gpu_target, args.datatype, args.layout, args.config_json
     )
 
     if args.list_kernels:
