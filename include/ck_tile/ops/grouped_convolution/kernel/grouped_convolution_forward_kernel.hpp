@@ -7,6 +7,7 @@
 #include <string>
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/core/tensor/tile_elementwise.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/host/concat.hpp"
 #include "ck_tile/core/utility/env.hpp"
@@ -770,10 +771,11 @@ struct GroupedConvolutionForwardKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I3);
 
-        // FIXME: Instantiate and pass elfunc here.
-        const float* elfunc_args_ptr = reinterpret_cast<const float*>(kargs.elfunc_args_ptr);
-        EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-            c_block_window, c_block_tile, d_block_window, smem_ptr_0, {}, {}, elfunc_args_ptr);
+        auto elfunc = tile_elementwise_instantiate<typename EpiloguePipeline::CDElementwise>(
+            kargs.elfunc_args_ptr);
+        EpiloguePipeline{elfunc}
+            .template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+                c_block_window, c_block_tile, d_block_window, smem_ptr_0);
     }
 
     /**

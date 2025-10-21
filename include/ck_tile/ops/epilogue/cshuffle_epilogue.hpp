@@ -114,6 +114,10 @@ struct CShuffleEpilogue
     static constexpr index_t MRepeat                       = kMPerBlock / (MPerXdl * MWave);
     static constexpr index_t NRepeat                       = kNPerBlock / (NPerXdl * NWave);
 
+    const CDElementwise elfunc;
+
+    CK_TILE_DEVICE CShuffleEpilogue(CDElementwise elfunc_ = CDElementwise{}) : elfunc(elfunc_) {};
+
     static_assert(NumDTensor == DsLayout::size(),
                   "The size of DsDataType and DsLayout should be the same");
     /**
@@ -354,8 +358,7 @@ struct CShuffleEpilogue
     }
 
     template <typename DramWindows, typename COutTensor>
-    CK_TILE_DEVICE void
-    apply_d_tensors(DramWindows& d_dram_windows, COutTensor& c_out_tensor, const float* elfunc_args)
+    CK_TILE_DEVICE void apply_d_tensors(DramWindows& d_dram_windows, COutTensor& c_out_tensor)
     {
         const auto ds_tensor = generate_tuple(
             [&](auto idx) { return load_tile(d_dram_windows[idx]); }, number<NumDTensor>{});
@@ -365,8 +368,6 @@ struct CShuffleEpilogue
             generate_tie([&](auto idx) -> const auto& { return ds_tensor[idx]; },
                          number<NumDTensor>{}));
 
-        typename Problem::CDElementwise elfunc =
-            tile_elementwise_instantiate<typename Problem::CDElementwise>(elfunc_args);
         tile_elementwise_inout_unpack(elfunc, c_ds_tiles);
     }
 
@@ -434,9 +435,8 @@ struct CShuffleEpilogue
                                    const OAccTile& o_acc_tile,
                                    const DsDramWindows& ds_dram_windows,
                                    void* /* p_smem */,
-                                   const ScaleM& scale_m              = {},
-                                   const ScaleN& scale_n              = {},
-                                   [[maybe_unused]] Tuple elfunc_args = {})
+                                   const ScaleM& scale_m = {},
+                                   const ScaleN& scale_n = {})
     {
         static constexpr int RowsPerLane = CWarpTensor::get_thread_buffer_size();
 
@@ -576,9 +576,8 @@ struct CShuffleEpilogue
                                    const OAccTile& o_acc_tile,
                                    const DsDramWindows& ds_dram_windows,
                                    void* p_smem,
-                                   const ScaleM& scale_m    = {},
-                                   const ScaleN& scale_n    = {},
-                                   const float* elfunc_args = nullptr)
+                                   const ScaleM& scale_m = {},
+                                   const ScaleN& scale_n = {})
     {
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
 
@@ -667,7 +666,7 @@ struct CShuffleEpilogue
 
             auto c_out_tensor = load_tile(make_tile_window(out_lds_window, dram_tile_distribution));
 
-            apply_d_tensors(d_dram_windows, c_out_tensor, elfunc_args);
+            apply_d_tensors(d_dram_windows, c_out_tensor);
             store_to_dram(out_dram_window, c_out_tensor);
             move_windows<iAccess>(out_dram_window, d_dram_windows);
         });
