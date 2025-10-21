@@ -1,4 +1,10 @@
-# Currently ck_tile is only built on gfx9
-if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
-    add_gtest_executable(test_ck_tile_grouped_gemm_quant test_grouped_gemm_quant.cpp)
+set(EXAMPLE_GEMM_COMPILE_OPTIONS)
+if(CK_USE_OCP_FP8)
+    list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
 endif()
+
+if(GPU_TARGETS MATCHES "gfx94|gfx95")
+    add_gtest_executable(test_ck_tile_grouped_gemm_quant test_grouped_gemm_quant.cpp)
+    target_compile_options(test_ck_tile_grouped_gemm_quant PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+endif()
+
