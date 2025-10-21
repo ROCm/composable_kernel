@@ -38,6 +38,25 @@ namespace ck_tile::reflect {
 template <typename Instance>
 struct InstanceTraits;
 
+// SFINAE-based helper to detect if InstanceTraits<T> is specialized
+// (i.e., has the instance_string() member function).
+// This can be used for an informative static_assert in the device-op GetInstanceString in case the
+// instance_string() template is broken.
+template <typename T, typename = void>
+struct has_instance_traits : std::false_type
+{
+};
+
+template <typename T>
+struct has_instance_traits<T, std::void_t<decltype(InstanceTraits<T>::instance_string())>>
+    : std::true_type
+{
+};
+
+// Helper variable template for convenience
+template <typename T>
+inline constexpr bool has_instance_traits_v = has_instance_traits<T>::value;
+
 // Free function that delegates to InstanceTraits static member function.
 // Each InstanceTraits specialization provides its own instance_string() implementation.
 template <typename T>

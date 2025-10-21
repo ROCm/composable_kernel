@@ -42,6 +42,7 @@ option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
 
 if(CK_EXPERIMENTAL_BUILDER)
     add_definitions(-DCK_EXPERIMENTAL_BUILDER)
+    include_directories(${PROJECT_SOURCE_DIR}/experimental/builder/include)  
 endif()
 
 # Usage: for customized Python location cmake -DCK_USE_ALTERNATIVE_PYTHON="/opt/Python-3.8.13/bin/python3.8"
