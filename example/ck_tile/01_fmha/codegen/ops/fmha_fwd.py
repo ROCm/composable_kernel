@@ -635,578 +635,42 @@ class KernelComponentFactory:
         if dtype == "fp32":
             return {
                 #                             bm0, bn0, bk0, bn1, bk1,
-                (32, 32): [
-                    FmhaFwdTileSize(
-                        64,
-                        64,
-                        16,
-                        32,
-                        32,
-                        32,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        -1,
-                    )
-                ],
-                (48, 48): [
-                    FmhaFwdTileSize(
-                        32,
-                        128,
-                        16,
-                        48,
-                        16,
-                        48,
-                        2,
-                        1,
-                        1,
-                        2,
-                        1,
-                        1,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        -1,
-                    ),
-                    FmhaFwdTileSize(
-                        128,
-                        64,
-                        16,
-                        48,
-                        32,
-                        48,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        -1,
-                    ),
-                ],
-                (64, 64): [
-                    FmhaFwdTileSize(
-                        64,
-                        64,
-                        32,
-                        64,
-                        32,
-                        64,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        -1,
-                    )
-                ],
-                (96, 128): [
-                    FmhaFwdTileSize(
-                        128,
-                        64,
-                        32,
-                        128,
-                        32,
-                        96,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        -1,
-                    )
-                ],
-                (128, 128): [
-                    FmhaFwdTileSize(
-                        32,
-                        128,
-                        32,
-                        128,
-                        16,
-                        128,
-                        2,
-                        1,
-                        1,
-                        2,
-                        1,
-                        1,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        -1,
-                    ),
-                    FmhaFwdTileSize(
-                        128,
-                        64,
-                        32,
-                        128,
-                        32,
-                        128,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        -1,
-                    ),
-                ],
-                (192, 192): [
-                    FmhaFwdTileSize(
-                        64,
-                        64,
-                        32,
-                        192,
-                        32,
-                        192,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        -1,
-                    )
-                ],
-                (256, 256): [
-                    FmhaFwdTileSize(
-                        64,
-                        64,
-                        32,
-                        256,
-                        32,
-                        256,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        -1,
-                    )
-                ],
-            }
+                ( 32,  32) : [FmhaFwdTileSize( 64,  64,  16,  32,  32,  32,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+                ( 48,  48) : [FmhaFwdTileSize( 32, 128,  16,  48,  16,  48,  2, 1, 1,  2, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+                              FmhaFwdTileSize(128,  64,  16,  48,  32,  48,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+                ( 64,  64) : [FmhaFwdTileSize( 64,  64,  32,  64,  32,  64,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+                ( 96, 128) : [FmhaFwdTileSize(128,  64,  32, 128,  32,  96,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+                (128, 128) : [FmhaFwdTileSize( 32, 128,  32, 128,  16, 128,  2, 1, 1,  2, 1, 1,  16, 16, 16,  16, 16, 16,  -1),
+                              FmhaFwdTileSize(128,  64,  32, 128,  32, 128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+                (192, 192) : [FmhaFwdTileSize( 64,  64,  32, 192,  32, 192,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+                (256, 256) : [FmhaFwdTileSize( 64,  64,  32, 256,  32, 256,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1)],
+            }  # fmt: skip
         elif dtype == "fp16" or dtype == "bf16":
             return {
-                (32, 32): [
-                    FmhaFwdTileSize(
-                        128,
-                        64,
-                        16,
-                        32,
-                        32,
-                        32,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        32,
-                        32,
-                        16,
-                        32,
-                        32,
-                        16,
-                        -1,
-                    )
-                ],
-                (64, 64): [
-                    FmhaFwdTileSize(
-                        16,
-                        32,
-                        64,
-                        64,
-                        32,
-                        64,
-                        1,
-                        1,
-                        1,
-                        1,
-                        1,
-                        1,
-                        16,
-                        16,
-                        32,
-                        16,
-                        16,
-                        32,
-                        -1,
-                    ),
-                    FmhaFwdTileSize(
-                        32,
-                        32,
-                        64,
-                        64,
-                        32,
-                        64,
-                        1,
-                        1,
-                        1,
-                        1,
-                        1,
-                        1,
-                        32,
-                        32,
-                        16,
-                        32,
-                        32,
-                        16,
-                        -1,
-                    ),
-                    FmhaFwdTileSize(
-                        128,
-                        64,
-                        32,
-                        64,
-                        32,
-                        64,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        32,
-                        32,
-                        16,
-                        32,
-                        32,
-                        16,
-                        -1,
-                    ),
-                ],
-                (96, 128): [
-                    FmhaFwdTileSize(
-                        128,
-                        128,
-                        32,
-                        128,
-                        32,
-                        96,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        32,
-                        32,
-                        16,
-                        32,
-                        32,
-                        16,
-                        -1,
-                    )
-                ],
-                (128, 128): [
-                    FmhaFwdTileSize(
-                        16,
-                        32,
-                        64,
-                        128,
-                        32,
-                        128,
-                        1,
-                        1,
-                        1,
-                        1,
-                        1,
-                        1,
-                        16,
-                        16,
-                        32,
-                        16,
-                        16,
-                        32,
-                        -1,
-                    ),
-                    FmhaFwdTileSize(
-                        32,
-                        32,
-                        128,
-                        128,
-                        32,
-                        128,
-                        1,
-                        1,
-                        1,
-                        1,
-                        1,
-                        1,
-                        32,
-                        32,
-                        16,
-                        32,
-                        32,
-                        16,
-                        -1,
-                    ),
-                    FmhaFwdTileSize(
-                        128,
-                        64,
-                        32,
-                        128,
-                        16,
-                        128,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        32,
-                        32,
-                        16,
-                        32,
-                        32,
-                        16,
-                        -1,
-                    ),
-                    FmhaFwdTileSize(
-                        128,
-                        128,
-                        32,
-                        128,
-                        32,
-                        128,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        32,
-                        32,
-                        16,
-                        32,
-                        32,
-                        16,
-                        -1,
-                    ),
-                ],
-                # (160,160) : [FmhaFwdTileSize(128, 128, 32, 160, 32,  160,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,   1)],
-                (192, 128): [
-                    FmhaFwdTileSize(
-                        128,
-                        128,
-                        32,
-                        128,
-                        32,
-                        192,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        32,
-                        32,
-                        16,
-                        32,
-                        32,
-                        16,
-                        -1,
-                    )
-                ],
-                (192, 192): [
-                    FmhaFwdTileSize(
-                        128,
-                        128,
-                        32,
-                        192,
-                        32,
-                        192,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        32,
-                        32,
-                        16,
-                        32,
-                        32,
-                        16,
-                        1,
-                    )
-                ],
-                (256, 256): [
-                    FmhaFwdTileSize(
-                        128,
-                        128,
-                        32,
-                        256,
-                        32,
-                        256,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        32,
-                        32,
-                        16,
-                        32,
-                        32,
-                        16,
-                        -1,
-                    )
-                ],
-            }
+                ( 32, 32)  : [FmhaFwdTileSize(128,  64,  16,  32,  32,  32,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
+                ( 64, 64)  : [FmhaFwdTileSize( 16,  32,  64,  64,  32,  64,  1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
+                              FmhaFwdTileSize( 32,  32,  64,  64,  32,  64,  1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                              FmhaFwdTileSize(128,  64,  32,  64,  32,  64,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
+                ( 96, 128) : [FmhaFwdTileSize(128, 128,  32, 128,  32,  96,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
+                (128, 128) : [FmhaFwdTileSize( 16,  32,  64, 128,  32, 128,  1, 1, 1,  1, 1, 1,  16, 16, 32,  16, 16, 32,  -1),
+                              FmhaFwdTileSize( 32,  32, 128, 128,  32, 128,  1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                              FmhaFwdTileSize(128,  64,  32, 128,  16, 128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+                              FmhaFwdTileSize(128, 128,  32, 128,  32, 128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
+                # (160, 160) : [FmhaFwdTileSize(128, 128 , 32, 160,  32, 160,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,   1)],
+                (192, 128) : [FmhaFwdTileSize(128, 128,  32, 128,  32, 192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
+                (192, 192) : [FmhaFwdTileSize(128, 128,  32, 192,  32, 192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,   1)],
+                (256, 256) : [FmhaFwdTileSize(128, 128,  32, 256,  32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
+            }  # fmt: skip
         elif dtype == "fp8" or dtype == "fp8bf16":
             return {
-                (64, 64): [
-                    FmhaFwdTileSize(
-                        128,
-                        64,
-                        32,
-                        64,
-                        32,
-                        64,
-                        2,
-                        1,
-                        1,
-                        2,
-                        1,
-                        1,
-                        32,
-                        32,
-                        32,
-                        32,
-                        32,
-                        32,
-                        -1,
-                    )
-                ],
-                (128, 128): [
-                    FmhaFwdTileSize(
-                        128,
-                        128,
-                        32,
-                        128,
-                        32,
-                        128,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        32,
-                        32,
-                        32,
-                        32,
-                        32,
-                        32,
-                        -1,
-                    )
-                ],
-                (256, 256): [
-                    FmhaFwdTileSize(
-                        128,
-                        128,
-                        32,
-                        256,
-                        32,
-                        256,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        32,
-                        32,
-                        32,
-                        32,
-                        32,
-                        32,
-                        -1,
-                    )
-                ],
-            }
+                ( 64,  64) : [FmhaFwdTileSize(128,  64,  32,  64,  32,  64,  2, 1, 1,  2, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
+                (128, 128) : [FmhaFwdTileSize(128, 128,  32, 128,  32, 128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
+                (256, 256) : [FmhaFwdTileSize(128, 128,  32, 256,  32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
+            }  # fmt: skip
         elif dtype == "fp8fp32":
             return {
-                (128, 128): [
-                    FmhaFwdTileSize(
-                        128,
-                        128,
-                        32,
-                        128,
-                        32,
-                        128,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        32,
-                        32,
-                        32,
-                        32,
-                        32,
-                        32,
-                        -1,
-                    )
-                ],
-            }
+                (128, 128) : [FmhaFwdTileSize(128, 128,  32, 128,  32, 128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1)],
+            }  # fmt: skip
         else:
             return None
 
@@ -1229,60 +693,9 @@ class KernelComponentFactory:
                 ["t", "f"],
                 ["t", "f"],
             ):
-                pipelines.append(
-                    FmhaFwdPipeline(
-                        "qr",
-                        "row",
-                        "f",
-                        "f",
-                        "f",
-                        "f",
-                        logits,
-                        bias,
-                        lse,
-                        dropout,
-                        squant,
-                        mask,
-                        skip,
-                        "f",
-                    )
-                )
-                pipelines.append(
-                    FmhaFwdPipeline(
-                        "qr",
-                        "row",
-                        "f",
-                        "t",
-                        "f",
-                        "f",
-                        logits,
-                        bias,
-                        lse,
-                        dropout,
-                        squant,
-                        mask,
-                        skip,
-                        "f",
-                    )
-                )
-                pipelines.append(
-                    FmhaFwdPipeline(
-                        "qr",
-                        "row",
-                        "t",
-                        "t",
-                        "t",
-                        "t",
-                        logits,
-                        bias,
-                        lse,
-                        dropout,
-                        squant,
-                        mask,
-                        skip,
-                        "f",
-                    )
-                )
+                pipelines.append(FmhaFwdPipeline("qr", "row", "f", "f", "f", "f", logits, bias, lse, dropout, squant, mask, skip, "f"))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr", "row", "f", "t", "f", "f", logits, bias, lse, dropout, squant, mask, skip, "f"))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, lse, dropout, squant, mask, skip, "f"))  # fmt: skip
         elif dtype in ["fp16", "bf16"]:
             squant = "f"
             for logits, mask, bias, lse, dropout, skip in itertools.product(
@@ -1294,137 +707,18 @@ class KernelComponentFactory:
                 ["t", "f"],
             ):
                 if hdim == 256 and hdim_v == 256:
-                    pipelines.append(
-                        FmhaFwdPipeline(
-                            "qr",
-                            "row",
-                            "f",
-                            "f",
-                            "f",
-                            "f",
-                            logits,
-                            bias,
-                            lse,
-                            dropout,
-                            squant,
-                            mask,
-                            skip,
-                            "f",
-                        )
-                    )
+                    pipelines.append(FmhaFwdPipeline("qr", "row", "f", "f", "f", "f", logits, bias, lse, dropout, squant, mask, skip, "f"))  # fmt: skip
                     # the below two is used for hdim vectorize load
-                    pipelines.append(
-                        FmhaFwdPipeline(
-                            "qr",
-                            "row",
-                            "t",
-                            "t",
-                            "f",
-                            "f",
-                            logits,
-                            bias,
-                            lse,
-                            dropout,
-                            squant,
-                            mask,
-                            skip,
-                            "f",
-                        )
-                    )
-                    pipelines.append(
-                        FmhaFwdPipeline(
-                            "qr",
-                            "row",
-                            "t",
-                            "t",
-                            "t",
-                            "t",
-                            logits,
-                            bias,
-                            lse,
-                            dropout,
-                            squant,
-                            mask,
-                            skip,
-                            "f",
-                        )
-                    )
+                    pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "f", "f", logits, bias, lse, dropout, squant, mask, skip, "f"))  # fmt: skip
+                    pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, lse, dropout, squant, mask, skip, "f"))  # fmt: skip
                 else:
                     if bias == "bias":
                         # TODO: rocm 6.2 compiler problem if using qr_async for bias case
-                        pipelines.append(
-                            FmhaFwdPipeline(
-                                "qr",
-                                "row",
-                                "f",
-                                "f",
-                                "f",
-                                "f",
-                                logits,
-                                bias,
-                                lse,
-                                dropout,
-                                squant,
-                                mask,
-                                skip,
-                                "f",
-                            )
-                        )
-                        pipelines.append(
-                            FmhaFwdPipeline(
-                                "qr",
-                                "row",
-                                "t",
-                                "t",
-                                "t",
-                                "t",
-                                logits,
-                                bias,
-                                lse,
-                                dropout,
-                                squant,
-                                mask,
-                                skip,
-                                "f",
-                            )
-                        )
+                        pipelines.append(FmhaFwdPipeline("qr", "row", "f", "f", "f", "f", logits, bias, lse, dropout, squant, mask, skip, "f"))  # fmt: skip
+                        pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, lse, dropout, squant, mask, skip, "f"))  # fmt: skip
                     else:
-                        pipelines.append(
-                            FmhaFwdPipeline(
-                                "qr_async",
-                                "row",
-                                "t",
-                                "f",
-                                "t",
-                                "t",
-                                logits,
-                                bias,
-                                lse,
-                                dropout,
-                                squant,
-                                mask,
-                                skip,
-                                "f",
-                            )
-                        )
-                        pipelines.append(
-                            FmhaFwdPipeline(
-                                "qr_async",
-                                "row",
-                                "t",
-                                "t",
-                                "t",
-                                "t",
-                                logits,
-                                bias,
-                                lse,
-                                dropout,
-                                squant,
-                                mask,
-                                skip,
-                                "f",
-                            )
-                        )
+                        pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "f", "t", "t", logits, bias, lse, dropout, squant, mask, skip, "f"))  # fmt: skip
+                        pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, lse, dropout, squant, mask, skip, "f"))  # fmt: skip
                         if (
                             (hdim, hdim_v) in [(64, 64), (128, 128)]
                             and logits == "f"
@@ -1433,103 +727,18 @@ class KernelComponentFactory:
                             and lse == "f"
                             and skip == "f"
                         ):
-                            pipelines.append(
-                                FmhaFwdPipeline(
-                                    "qr_async_trload",
-                                    "row",
-                                    "f",
-                                    "f",
-                                    "f",
-                                    "f",
-                                    logits,
-                                    bias,
-                                    lse,
-                                    dropout,
-                                    squant,
-                                    mask,
-                                    skip,
-                                    "t",
-                                )
-                            )
-                            pipelines.append(
-                                FmhaFwdPipeline(
-                                    "qr_async_trload",
-                                    "row",
-                                    "f",
-                                    "f",
-                                    "t",
-                                    "t",
-                                    logits,
-                                    bias,
-                                    lse,
-                                    dropout,
-                                    squant,
-                                    mask,
-                                    skip,
-                                    "t",
-                                )
-                            )
+                            pipelines.append(FmhaFwdPipeline("qr_async_trload", "row", "f", "f", "f", "f", logits, bias, lse, dropout, squant, mask, skip, "t"))  # fmt: skip
+                            pipelines.append(FmhaFwdPipeline("qr_async_trload", "row", "f", "f", "t", "t", logits, bias, lse, dropout, squant, mask, skip, "t"))  # fmt: skip
 
                     if receipt == 1 and bias != "bias":
-                        pipelines.append(
-                            FmhaFwdPipeline(
-                                "qr",
-                                "row",
-                                "t",
-                                "t",
-                                "t",
-                                "t",
-                                logits,
-                                bias,
-                                lse,
-                                dropout,
-                                squant,
-                                mask,
-                                skip,
-                                "f",
-                            )
-                        )  # TODO: cover arbitraty hdim
+                        pipelines.append(FmhaFwdPipeline( "qr", "row", "t", "t", "t", "t", logits, bias, lse, dropout, squant, mask, skip, "f"))  # fmt: skip # TODO: cover arbitraty hdim
         elif dtype in ["fp8", "fp8bf16", "fp8fp32"]:
             # no need lse/dropout kernels
             for logits, squant, mask, bias in itertools.product(
                 ["f"], ["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()
             ):
-                pipelines.append(
-                    FmhaFwdPipeline(
-                        "qr",
-                        "row",
-                        "f",
-                        "f",
-                        "f",
-                        "f",
-                        logits,
-                        bias,
-                        "f",
-                        "f",
-                        squant,
-                        mask,
-                        "f",
-                        "f",
-                    )
-                )
-                pipelines.append(
-                    FmhaFwdPipeline(
-                        "qr",
-                        "row",
-                        "t",
-                        "t",
-                        "f",
-                        "f",
-                        logits,
-                        bias,
-                        "f",
-                        "f",
-                        squant,
-                        mask,
-                        "f",
-                        "f",
-                    )
-                )
+                pipelines.append(FmhaFwdPipeline("qr", "row", "f", "f", "f", "f", logits, bias, "f", "f", squant, mask, "f", "f"))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "f", "f", logits, bias, "f", "f", squant, mask, "f", "f"))  # fmt: skip
         elif dtype in ["fp8fp16", "bf8"]:
             # TODO
             None
@@ -1544,33 +753,7 @@ class CustomFactory(KernelComponentFactory):
         result = KernelComponentFactory.get_hdim_tile_size_dict(dtype)
         if dtype == "fp16" or dtype == "bf16":
             if (128, 128) in result.keys():
-                result[(128, 128)].insert(
-                    0,
-                    FmhaFwdTileSize(
-                        64,
-                        128,
-                        64,
-                        128,
-                        64,
-                        128,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        -1,
-                        CppConstraint(
-                            "get_num_blocks(128) < num_cus * min_cu_util_rate"
-                        ),
-                    ),
-                )
+                result[(128, 128)].insert(0, FmhaFwdTileSize( 64, 128, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1, CppConstraint("get_num_blocks(128) < num_cus * min_cu_util_rate")))  # fmt: skip
         return result
 
 
