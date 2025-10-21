@@ -210,6 +210,10 @@ defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
         index_t sum_data_inst   = dsread_perM + load_perM + dswrite_perM;
         index_t round_data_inst = (sum_data_inst + mfma_perM_perK - 1) / mfma_perM_perK;
 
+        if (threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0) {
+            printf("%s %d schedule: dsread: %d dswrite: %d load: %d, mfma: %d\n", __FILE__, __LINE__, dsread_perM, dswrite_perM, load_perM, mfma_perM_perK);
+        }
+
         index_t inst_order[NIterPerWarp * 10];
 #pragma unroll
         for(int idx = 0; idx < NIterPerWarp * 10; idx++)
