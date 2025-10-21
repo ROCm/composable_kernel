@@ -36,6 +36,9 @@ float load_store_tile(const ck_tile::AsyncLSKernelArgs& args, const ck_tile::str
     float ave_time = ck_tile::launch_kernel(
         s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, args));
 
+    std::cout << "Run Load_Store_Tile with kernel " << M_Tile << "x" << N_Tile << ", input "
+              << args.M << "x" << args.N << ": " << ave_time << " ms, \n";
+
     return ave_time;
 }
 
@@ -50,17 +53,14 @@ float invoke_load_store_tile(ck_tile::DeviceMem& a_dev_buf,
     auto sc        = ck_tile::stream_config{nullptr, true, 1, 0, 1, true, true, 1};
     float ave_time = load_store_tile<DataType>(args, sc);
 
-    std::cout << "Run Load_Store_Tile kernel with M=" << M << " N=" << N << " : " << ave_time
-              << " ms, \n";
-
     return ave_time;
 }
 
 template <typename DataType>
 bool run_load_store_tile()
 {
-    constexpr size_t m = 32;
-    constexpr size_t n = 256;
+    constexpr size_t m = 64;
+    constexpr size_t n = 512;
     constexpr size_t s = 1;
 
     ck_tile::HostTensor<DataType> a_m_n({m, n}, {n, s});

@@ -679,10 +679,12 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
     auto update_err = [&](pk_fp4_raw_t o, pk_fp4_raw_t r, std::size_t index) {
         if(o != r)
         {
-            std::cerr << msg << " out[" << index << "] != ref[" << index
-                      << "]: " << type_convert<float>(pk_fp4_t{o})
-                      << " != " << type_convert<float>(pk_fp4_t{r}) << std::endl;
-            ++err_count;
+            if(err_count++ < ERROR_DETAIL_LIMIT)
+            {
+                std::cerr << msg << " out[" << index << "] != ref[" << index
+                          << "]: " << type_convert<float>(pk_fp4_t{o})
+                          << " != " << type_convert<float>(pk_fp4_t{r}) << std::endl;
+            }
         }
     };
 

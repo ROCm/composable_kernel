@@ -151,7 +151,7 @@ struct AsyncLSKernel
         auto lds_0_window =
             make_tile_window(lds_0_tensor_view,
                              make_tuple(number<Policy::kMPerBlock>{}, number<Policy::kNPerBlock>{}),
-                             {i_m, i_n},
+                             {0, 0},
                              Policy::MakeDRAMDistribution());
 #if 0
         auto dram_tile = load_tile(a_block_window);
