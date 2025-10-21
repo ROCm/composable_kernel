@@ -8,18 +8,14 @@ class FwdConvBuilderTest : public ::testing::Test
 {
 };
 
-TEST_F(FwdConvBuilderTest, Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance)
+template <
+    ck_tile::builder::test::ConvSignature FwdConvSignature, 
+    ck_tile::builder::test::ThreadBlock FwdThreadBlock,
+    ck_tile::builder::ConvFwdSpecialization FwdConvSpecialization>
+constexpr void run_test()
 {
     using namespace ck_tile::builder;
     using namespace ck_tile::builder::test;
-
-    constexpr ConvSignature FwdConvSignature{.spatial_dim = 2,
-                                             .direction   = ConvDirection::FORWARD,
-                                             .layout      = GroupConvLayout::CHANNELS_LAST,
-                                             .data_type   = DataType::BF16};
-
-    constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
-                                         .tile_size  = {.m = 256, .n = 256, .k = 32}};
 
     constexpr ConvTuningParams FwdTuningParams{.ak1            = 8,
                                                .bk1            = 8,
@@ -56,11 +52,12 @@ TEST_F(FwdConvBuilderTest, Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V
         .tuning_params    = FwdTuningParams,
         .block_transfer   = FwdBlockTransfer,
         .pipeline_version = BlockGemmPipelineVersion::V4,
+        .fwd_specialization = FwdConvSpecialization
     };
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
 
-    auto instance = Builder::Instance{};
+    auto instance = typename Builder::Instance{};
 
     const auto kernel_string = instance.GetTypeString();
     std::cout << "Generated kernel: " << kernel_string << std::endl;
@@ -70,4 +67,36 @@ TEST_F(FwdConvBuilderTest, Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V
 
     const auto invoker_ptr = instance.MakeInvokerPointer();
     EXPECT_NE(invoker_ptr, nullptr);
+}
+
+TEST_F(FwdConvBuilderTest, Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_2D_BF16_ChannelsLast)
+{
+    using namespace ck_tile::builder;
+    using namespace ck_tile::builder::test;
+    
+    constexpr ConvSignature FwdConvSignature{.spatial_dim = 2,
+                                             .direction   = ConvDirection::FORWARD,
+                                             .layout      = GroupConvLayout::CHANNELS_LAST,
+                                             .data_type   = DataType::BF16};
+
+    constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
+                                         .tile_size  = {.m = 256, .n = 256, .k = 32}};
+
+    run_test<FwdConvSignature, FwdThreadBlock, ConvFwdSpecialization::DEFAULT>();
+}
+
+TEST_F(FwdConvBuilderTest, Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_3D_FP32_ChannelsFirst)
+{
+    using namespace ck_tile::builder;
+    using namespace ck_tile::builder::test;
+    
+    constexpr ConvSignature FwdConvSignature{.spatial_dim = 3,
+                                             .direction   = ConvDirection::FORWARD,
+                                             .layout      = GroupConvLayout::CHANNELS_FIRST,
+                                             .data_type   = DataType::FP32};
+
+    constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
+                                         .tile_size  = {.m = 128, .n = 128, .k = 32}};
+
+    run_test<FwdConvSignature, FwdThreadBlock, ConvFwdSpecialization::FILTER_1X1_PAD0>();
 }

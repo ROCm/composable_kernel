@@ -131,4 +131,9 @@ concept SpecifiesGemmPipelineVersion = requires {
     { T::pipeline_version } -> std::convertible_to<BlockGemmPipelineVersion>;
 };
 
+template <typename T>
+concept SpecifiesFwdConcSpecialization = requires {
+    { T::fwd_specialization } -> std::convertible_to<ConvFwdSpecialization>;
+};
+
 } // namespace ck_tile::builder

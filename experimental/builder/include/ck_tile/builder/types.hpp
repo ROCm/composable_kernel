@@ -49,4 +49,14 @@ enum class BlockGemmPipelineVersion
     V5
 };
 
+// Enums for the forward convolution specialization.
+enum class ConvFwdSpecialization
+{
+    DEFAULT,
+    FILTER_1X1_PAD0,
+    FILTER_1X1_STRIDE1_PAD0,
+    ODD_C,
+    FILTER_3x3
+};
+
 } // namespace ck_tile::builder

@@ -293,6 +293,20 @@ constexpr ck::BlockGemmPipelineVersion SetBlockGemmPipelineVersion()
     }
 }
 
+template <ConvAlgorithmDescriptor auto ALGORITHM>
+constexpr ck::tensor_operation::device::ConvolutionForwardSpecialization SetFwdConvSpecialization()
+{
+    switch(ALGORITHM.fwd_specialization)
+    {
+    case ConvFwdSpecialization::FILTER_1X1_PAD0: return ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0;
+    case ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0: return ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0;
+    case ConvFwdSpecialization::ODD_C: return ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC;
+    case ConvFwdSpecialization::FILTER_3x3: return ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter3x3;
+    case ConvFwdSpecialization::DEFAULT:
+    default: return ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
+    }
+}
+
 } // namespace ck_tile::builder::factory_internal
 
 namespace ck_tile::builder {
@@ -335,9 +349,13 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
                   "The convolution algorithm descriptor must specify source access order info.");
     static_assert(SpecifiesGemmPipelineVersion<AlgorithmType>,
                   "The convolution algorithm descriptor must specify block gemm pipeline version.");
+    static_assert(SpecifiesFwdConcSpecialization<AlgorithmType>,
+                  "The convolution algorithm descriptor must specify forward convolution "
+                  "specialization.");
 
+    static constexpr auto FWD_CONV_SPECIALIZATION = factory_internal::SetFwdConvSpecialization<ALGORITHM>();
     static constexpr factory_internal::ConvSpec SPECIALIZATION{
-        .conv_spec = ck::tensor_operation::device::ConvolutionForwardSpecialization::Default,
+        .conv_spec = FWD_CONV_SPECIALIZATION,
         .gemm_spec = ck::tensor_operation::device::GemmSpecialization::MNKPadding,
     };
     static constexpr auto BLOCK  = factory_internal::SetThreadBlockInfo<ALGORITHM>();

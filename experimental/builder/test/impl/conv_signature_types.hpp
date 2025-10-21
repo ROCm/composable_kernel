@@ -5,7 +5,7 @@
 
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 
-namespace ck_tile::builder {
+namespace ck_tile::builder::test {
 
 struct ConvSignature
 {

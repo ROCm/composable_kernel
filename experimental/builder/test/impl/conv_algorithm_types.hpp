@@ -103,6 +103,7 @@ struct ConvAlgorithm
     ConvTuningParams tuning_params;
     InputOutputBlockTransfer block_transfer;
     BlockGemmPipelineVersion pipeline_version;
+    ConvFwdSpecialization fwd_specialization;
 };
 static_assert(ckb::ConvAlgorithmDescriptor<ConvAlgorithm>);
 static_assert(ckb::SpecifiesThreadBlock<ConvAlgorithm>);
@@ -112,5 +113,6 @@ static_assert(ckb::SpecifiesBlockTransfer<ConvAlgorithm>);
 static_assert(ckb::SpecifiesBlockVectorTransfer<ConvAlgorithm>);
 static_assert(ckb::SpecifiesThreadClusterAccessOrder<ConvAlgorithm>);
 static_assert(ckb::SpecifiesSourceAccessOrder<ConvAlgorithm>);
+static_assert(ckb::SpecifiesFwdConcSpecialization<ConvAlgorithm>);
 
 } // namespace ck_tile::builder::test
