@@ -5,11 +5,12 @@
 //
 // CRITICAL MAINTENANCE NOTE:
 // This InstanceTraits file MUST be kept strictly in sync with the device implementation header:
-//   composable_kernel/include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp
+//   ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp
 // "In sync" means that the template parameter order, names, and types in the declaration below
 // MUST EXACTLY MATCH those in the device implementation. If these diverge, you may encounter
 // compilation errors, subtle template instantiation mismatches, or silent runtime bugs that are
 // difficult to diagnose. Always update both files together and review changes carefully.
+// ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp
 
 #pragma once
 
@@ -264,77 +265,78 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultiple
         oss << "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3";
 
         // Template parameters in exact order matching InstanceTraits member order
-        oss << "_" << kSpatialDim;                           // 1. NDimSpatial
-        oss << "_" << detail::layout_name<ALayout>();        // 2. ALayout
-        oss << "_" << detail::layout_name<BLayout>();        // 3. BLayout
-        oss << "_" << detail::tuple_name<DsLayout>();        // 4. DsLayout
-        oss << "_" << detail::layout_name<ELayout>();        // 5. ELayout
-        oss << "_" << detail::type_name<ADataType>();        // 6. ADataType
-        oss << "_" << detail::type_name<BDataType>();        // 7. BDataType
-        oss << "_" << detail::type_name<AccDataType>();      // 8. AccDataType
-        oss << "_" << detail::type_name<CShuffleDataType>(); // 9. CShuffleDataType
-        oss << "_" << detail::tuple_name<DsDataType>();      // 10. DsDataType
-        oss << "_" << detail::type_name<EDataType>();        // 11. EDataType
-        oss << "_"
+        oss << "<" << kSpatialDim;                           // 1. NDimSpatial
+        oss << "," << detail::layout_name<ALayout>();        // 2. ALayout
+        oss << "," << detail::layout_name<BLayout>();        // 3. BLayout
+        oss << "," << detail::tuple_name<DsLayout>();        // 4. DsLayout
+        oss << "," << detail::layout_name<ELayout>();        // 5. ELayout
+        oss << "," << detail::type_name<ADataType>();        // 6. ADataType
+        oss << "," << detail::type_name<BDataType>();        // 7. BDataType
+        oss << "," << detail::type_name<AccDataType>();      // 8. AccDataType
+        oss << "," << detail::type_name<CShuffleDataType>(); // 9. CShuffleDataType
+        oss << "," << detail::tuple_name<DsDataType>();      // 10. DsDataType
+        oss << "," << detail::type_name<EDataType>();        // 11. EDataType
+        oss << ","
             << detail::elementwise_op_name<AElementwiseOperation>(); // 12. AElementwiseOperation
-        oss << "_"
+        oss << ","
             << detail::elementwise_op_name<BElementwiseOperation>(); // 13. BElementwiseOperation
-        oss << "_"
+        oss << ","
             << detail::elementwise_op_name<CDEElementwiseOperation>(); // 14.
                                                                        // CDEElementwiseOperation
-        oss << "_"
+        oss << ","
             << detail::conv_fwd_spec_name(
                    kConvForwardSpecialization);                    // 15. ConvForwardSpecialization
-        oss << "_" << detail::gemm_spec_name(kGemmSpecialization); // 16. GemmSpec
-        oss << "_" << kBlockSize;                                  // 17. BlockSize
-        oss << "_" << kMPerBlock;                                  // 18. MPerBlock
-        oss << "_" << kNPerBlock;                                  // 19. NPerBlock
-        oss << "_" << kKPerBlock;                                  // 20. KPerBlock
-        oss << "_" << kAK1;                                        // 21. AK1
-        oss << "_" << kBK1;                                        // 22. BK1
-        oss << "_" << kMPerXDL;                                    // 23. MPerXDL
-        oss << "_" << kNPerXDL;                                    // 24. NPerXDL
-        oss << "_" << kMXdlPerWave;                                // 25. MXdlPerWave
-        oss << "_" << kNXdlPerWave;                                // 26. NXdlPerWave
-        oss << "_"
+        oss << "," << detail::gemm_spec_name(kGemmSpecialization); // 16. GemmSpec
+        oss << "," << kBlockSize;                                  // 17. BlockSize
+        oss << "," << kMPerBlock;                                  // 18. MPerBlock
+        oss << "," << kNPerBlock;                                  // 19. NPerBlock
+        oss << "," << kKPerBlock;                                  // 20. KPerBlock
+        oss << "," << kAK1;                                        // 21. AK1
+        oss << "," << kBK1;                                        // 22. BK1
+        oss << "," << kMPerXDL;                                    // 23. MPerXDL
+        oss << "," << kNPerXDL;                                    // 24. NPerXDL
+        oss << "," << kMXdlPerWave;                                // 25. MXdlPerWave
+        oss << "," << kNXdlPerWave;                                // 26. NXdlPerWave
+        oss << ","
             << detail::array_to_string(
                    kAThreadClusterLengths); // 27. ABlockTransferThreadClusterLengths
-        oss << "_"
+        oss << ","
             << detail::array_to_string(
                    kAThreadClusterArrangeOrder); // 28. ABlockTransferThreadClusterArrangeOrder
-        oss << "_"
+        oss << ","
             << detail::array_to_string(
                    kABlockTransferSrcAccessOrder);       // 29. ABlockTransferSrcAccessOrder
-        oss << "_" << kABlockTransferSrcVectorDim;       // 30. ABlockTransferSrcVectorDim
-        oss << "_" << kABlockTransferSrcScalarPerVector; // 31. ABlockTransferSrcScalarPerVector
-        oss << "_"
+        oss << "," << kABlockTransferSrcVectorDim;       // 30. ABlockTransferSrcVectorDim
+        oss << "," << kABlockTransferSrcScalarPerVector; // 31. ABlockTransferSrcScalarPerVector
+        oss << ","
             << kABlockTransferDstScalarPerVectorK1; // 32. ABlockTransferDstScalarPerVector_AK1
-        oss << "_" << kABlockLdsExtraM;             // 33. ABlockLdsExtraM
-        oss << "_"
+        oss << "," << kABlockLdsExtraM;             // 33. ABlockLdsExtraM
+        oss << ","
             << detail::array_to_string(
                    kBThreadClusterLengths); // 34. BBlockTransferThreadClusterLengths
-        oss << "_"
+        oss << ","
             << detail::array_to_string(
                    kBThreadClusterArrangeOrder); // 35. BBlockTransferThreadClusterArrangeOrder
-        oss << "_"
+        oss << ","
             << detail::array_to_string(
                    kBBlockTransferSrcAccessOrder);       // 36. BBlockTransferSrcAccessOrder
-        oss << "_" << kBBlockTransferSrcVectorDim;       // 37. BBlockTransferSrcVectorDim
-        oss << "_" << kBBlockTransferSrcScalarPerVector; // 38. BBlockTransferSrcScalarPerVector
-        oss << "_"
+        oss << "," << kBBlockTransferSrcVectorDim;       // 37. BBlockTransferSrcVectorDim
+        oss << "," << kBBlockTransferSrcScalarPerVector; // 38. BBlockTransferSrcScalarPerVector
+        oss << ","
             << kBBlockTransferDstScalarPerVectorK1;   // 39. BBlockTransferDstScalarPerVector_BK1
-        oss << "_" << kBBlockLdsExtraN;               // 40. BBlockLdsExtraN
-        oss << "_" << kCShuffleMXdlPerWavePerShuffle; // 41. CShuffleMXdlPerWavePerShuffle
-        oss << "_" << kCShuffleNXdlPerWavePerShuffle; // 42. CShuffleNXdlPerWavePerShuffle
-        oss << "_"
+        oss << "," << kBBlockLdsExtraN;               // 40. BBlockLdsExtraN
+        oss << "," << kCShuffleMXdlPerWavePerShuffle; // 41. CShuffleMXdlPerWavePerShuffle
+        oss << "," << kCShuffleNXdlPerWavePerShuffle; // 42. CShuffleNXdlPerWavePerShuffle
+        oss << ","
             << detail::array_to_string(
                    kCThreadClusterLengths); // 43. CDEBlockTransferClusterLengths
-        oss << "_"
+        oss << ","
             << kCBlockTransferScalarPerVector; // 44. CDEBlockTransferScalarPerVector_NPerBlock
-        oss << "_" << detail::pipeline_scheduler_name(kPipelineScheduler); // 45. BlkGemmPipeSched
-        oss << "_" << detail::pipeline_version_name(kPipelineVersion);     // 46. BlkGemmPipelineVer
-        oss << "_" << detail::type_name<AComputeDataType>();               // 47. AComputeDataType
-        oss << "_" << detail::type_name<BComputeDataType>();               // 48. BComputeDataType
+        oss << "," << detail::pipeline_scheduler_name(kPipelineScheduler); // 45. BlkGemmPipeSched
+        oss << "," << detail::pipeline_version_name(kPipelineVersion);     // 46. BlkGemmPipelineVer
+        oss << "," << detail::type_name<AComputeDataType>();               // 47. AComputeDataType
+        oss << "," << detail::type_name<BComputeDataType>();               // 48. BComputeDataType
+        oss << ">";
 
         return oss.str();
     }

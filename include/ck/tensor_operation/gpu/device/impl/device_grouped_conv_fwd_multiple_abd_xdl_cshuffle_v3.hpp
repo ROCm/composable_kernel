@@ -2000,11 +2000,14 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
 #ifdef CK_EXPERIMENTAL_BUILDER
     std::string GetInstanceString() const override
     {
-        static_assert(ck_tile::reflect::has_instance_traits_v<DeviceOp>,
-                      "Specialization of instance_traits for kernel type DeviceOp ("
-                      __PRETTY_FUNCTION__ ") not found. Please check that a specialization exists in file "
-                      "ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp "
-                      "for the given template parameters.");
+        static_assert(ck_tile::reflect::HasInstanceTraits<DeviceOp>,
+                      "Specialization of instance_traits for kernel type DeviceOp "
+                      "(" __PRETTY_FUNCTION__ ") not found. Please check that a specialization "
+                                              "exists in file "
+                                              "ck_tile/builder/reflect/"
+                                              "instance_traits_device_grouped_conv_fwd_multiple_"
+                                              "abd_xdl_cshuffle_v3.hpp "
+                                              "for the given template parameters.");
         return ck_tile::reflect::instance_string<DeviceOp>();
     }
 #endif
