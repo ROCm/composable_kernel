@@ -25,4 +25,15 @@ concept OutputVectorTransferLimits = requires {
              Value.n_xdl_per_wave_per_shuffle > 0 ;
 };
 
+// Limits for access order. Must be a permutation of {0, 1, 2}.
+template <auto Value>
+concept AccessOrderLimits = requires {
+    requires ((Value.order[0] != Value.order[1]) &&
+              (Value.order[0] != Value.order[2]) &&
+              (Value.order[1] != Value.order[2]) &&
+              (Value.order[0] >= 0 && Value.order[0] < 3) &&
+              (Value.order[1] >= 0 && Value.order[1] < 3) &&
+              (Value.order[2] >= 0 && Value.order[2] < 3));
+};
+
 } // namespace ck_tile::builder

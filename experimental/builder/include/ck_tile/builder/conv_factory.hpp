@@ -358,6 +358,10 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
     static_assert(InputVectorTransferLimits<A_BLOCK_TRANSFER>);
     static_assert(InputVectorTransferLimits<B_BLOCK_TRANSFER>);
     static_assert(OutputVectorTransferLimits<C_BLOCK_TRANSFER>);
+    static_assert(AccessOrderLimits<A_BLOCK_TRANSFER.thread_cluster_order>);
+    static_assert(AccessOrderLimits<B_BLOCK_TRANSFER.thread_cluster_order>);
+    static_assert(AccessOrderLimits<A_BLOCK_TRANSFER.src_access_order>);
+    static_assert(AccessOrderLimits<B_BLOCK_TRANSFER.src_access_order>);
 
     // The forward convolution kernel class instance.
     using Instance =

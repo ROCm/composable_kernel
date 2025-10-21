@@ -11,6 +11,10 @@
 namespace ck_tile::builder 
 {
 
+/********************************************************************/
+/* Descriptors for individual elements of the algorithm description */
+/********************************************************************/
+
 // Concept for thread block dimensions for a GEMM problem.
 template <typename T>
 concept ThreadBlockDescriptor = requires(T t) {
@@ -18,12 +22,6 @@ concept ThreadBlockDescriptor = requires(T t) {
   { t.tile_size.m } -> std::convertible_to<size_t>;
   { t.tile_size.n } -> std::convertible_to<size_t>;
   { t.tile_size.k } -> std::convertible_to<size_t>;
-};
-
-// Concept to check if struct specifies thread block info.
-template <typename T>
-concept SpecifiesThreadBlock = requires {
-    { T::thread_block } -> ThreadBlockDescriptor;
 };
 
 // Concept for parameters that describe a gridwise GEMM problem.
@@ -35,12 +33,6 @@ concept GridwiseGemmDescriptor = requires(T t) {
     { t.n_per_xdl } -> std::convertible_to<size_t>;
     { t.m_xdl_per_wave } -> std::convertible_to<size_t>;
     { t.n_xdl_per_wave } -> std::convertible_to<size_t>;
-};
-
-// Concept to check if a struct specifies gridwise GEMM info.
-template <typename T>
-concept SpecifiesGridwiseGemm = requires {
-    { T::tuning_params } -> GridwiseGemmDescriptor;
 };
 
 // Concept for convolution input block transfer.
@@ -60,14 +52,6 @@ concept OutputBlockTransferDescriptor = requires(T t) {
     { t.n_wave_per_xdl } -> std::convertible_to<size_t>;
 };
 
-// Concept to check if a struct specifies convolution input and output block transfer info.
-template <typename T>
-concept SpecifiesBlockTransfer = requires(T t) {
-    { T::block_transfer.thread_cluster_dims_a } -> InputBlockTransferDescriptor;
-    { T::block_transfer.thread_cluster_dims_b } -> InputBlockTransferDescriptor;
-    { T::block_transfer.thread_cluster_dims_c } -> OutputBlockTransferDescriptor;
-};
-
 // Concept for the convolution input vector transfer.
 template <typename T>
 concept InputVectorTransferDescriptor = requires(T t) {
@@ -85,18 +69,46 @@ concept OutputVectorTransferDescriptor = requires(T t) {
     { t.scalar_per_vector } -> std::convertible_to<size_t>; 
 }; 
 
+// Concept for the thread cluster access order
+template <typename T>
+concept AccessOrderDescriptor = requires(T t) {
+    { t.order } -> std::convertible_to<std::array<int, 3>>;
+};
+
+// No requirements yet for a ConvAlogorithm concept.
+template <typename T>
+concept ConvAlgorithmDescriptor = std::is_class_v<T>;
+
+/******************************************** */
+/* Requirements for the algorithm description */
+/******************************************** */
+
+// Concept to check if struct specifies thread block info.
+template <typename T>
+concept SpecifiesThreadBlock = requires {
+    { T::thread_block } -> ThreadBlockDescriptor;
+};
+
+// Concept to check if a struct specifies gridwise GEMM info.
+template <typename T>
+concept SpecifiesGridwiseGemm = requires {
+    { T::tuning_params } -> GridwiseGemmDescriptor;
+};
+
+// Concept to check if a struct specifies convolution input and output block transfer info.
+template <typename T>
+concept SpecifiesBlockTransfer = requires(T t) {
+    { T::block_transfer.thread_cluster_dims_a } -> InputBlockTransferDescriptor;
+    { T::block_transfer.thread_cluster_dims_b } -> InputBlockTransferDescriptor;
+    { T::block_transfer.thread_cluster_dims_c } -> OutputBlockTransferDescriptor;
+};
+
 // Concept to check if a struct specifies block vector transfer info.
 template <typename T>
 concept SpecifiesBlockVectorTransfer = requires(T t) {
     { T::block_transfer.vector_transfer_a } -> InputVectorTransferDescriptor;
     { T::block_transfer.vector_transfer_b } -> InputVectorTransferDescriptor;
     { T::block_transfer.vector_transfer_c } -> OutputVectorTransferDescriptor;
-};
-
-// Concept for the thread cluster access order
-template <typename T>
-concept AccessOrderDescriptor = requires(T t) {
-    { t.order } -> std::convertible_to<std::array<int, 3>>;
 };
 
 // Concept to check if a struct specifies thread cluster access order info.
@@ -118,9 +130,5 @@ template <typename T>
 concept SpecifiesGemmPipelineVersion = requires {
     { T::pipeline_version } -> std::convertible_to<BlockGemmPipelineVersion>;
 };
-
-// No requirements yet for a ConvAlogorithm concept.
-template <typename T>
-concept ConvAlgorithmDescriptor = std::is_class_v<T>;
 
 } // namespace ck_tile::builder
