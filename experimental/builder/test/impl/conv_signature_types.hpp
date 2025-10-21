@@ -16,4 +16,4 @@ struct ConvSignature
 };
 static_assert(ConvSignatureDescriptor<ConvSignature>);
 
-} // namespace ck_tile::builder
+} // namespace ck_tile::builder::test
