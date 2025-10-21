@@ -3,8 +3,13 @@
 
 // InstanceTraits specialization for DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
 //
-// THIS INSTANCE TRAITS FILE MUST BE KEPT IN SYNC WITH THE DEVICE IMPLEMENTATION HEADER
-// composable_kernel/include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp
+// CRITICAL MAINTENANCE NOTE:
+// This InstanceTraits file MUST be kept strictly in sync with the device implementation header:
+//   composable_kernel/include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp
+// "In sync" means that the template parameter order, names, and types in the declaration below
+// MUST EXACTLY MATCH those in the device implementation. If these diverge, you may encounter
+// compilation errors, subtle template instantiation mismatches, or silent runtime bugs that are
+// difficult to diagnose. Always update both files together and review changes carefully.
 
 #pragma once
 

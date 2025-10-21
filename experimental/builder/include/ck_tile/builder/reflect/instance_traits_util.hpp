@@ -3,7 +3,7 @@
 
 // Utility functions and helpers for instance_traits.hpp
 // Contains helper functions to convert types, enums, and sequences to string representations.
-// The helper function are consteval so that unknown cases cause compile-tme errors.
+// The helper function are consteval so that unknown cases cause compile-time errors.
 
 #pragma once
 
@@ -116,7 +116,7 @@ conv_fwd_spec_name(ck::tensor_operation::device::ConvolutionForwardSpecializatio
     case ConvolutionForwardSpecialization::Filter3x3: return "Filter3x3";
     case ConvolutionForwardSpecialization::OddC: return "OddC";
     }
-    throw "unknown_conv_spec";
+    static_assert(false, "unknown_conv_spec");
 }
 
 // Convert GemmSpecialization enum to string
