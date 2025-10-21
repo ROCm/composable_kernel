@@ -73,41 +73,4 @@ struct UnsupportedEnumValue
 {
 };
 
-// Helper functions to convert enums to strings
-constexpr std::string_view ConvDirectionToString(ConvDirection dir)
-{
-    switch(dir)
-    {
-    case ConvDirection::FORWARD: return "Forward";
-    case ConvDirection::BACKWARD_DATA: return "Backward Data";
-    case ConvDirection::BACKWARD_WEIGHT: return "Backward Weight";
-    default: return "Unknown";
-    }
-}
-
-constexpr std::string_view DataTypeToString(DataType dt)
-{
-    switch(dt)
-    {
-    case DataType::FP16: return "FP16";
-    case DataType::FP32: return "FP32";
-    case DataType::FP64: return "FP64";
-    case DataType::BF16: return "BF16";
-    case DataType::S16: return "S16";
-    case DataType::S8: return "S8";
-    case DataType::S4: return "S4";
-    default: return "Unknown";
-    }
-}
-
-constexpr std::string_view LayoutToString(GroupConvLayout layout)
-{
-    switch(layout)
-    {
-    case GroupConvLayout::CHANNELS_FIRST: return "Channels-first (NCHW)";
-    case GroupConvLayout::CHANNELS_LAST: return "Channels-last (NHWC)";
-    default: return "Unknown";
-    }
-}
-
 } // namespace ck_tile::builder
