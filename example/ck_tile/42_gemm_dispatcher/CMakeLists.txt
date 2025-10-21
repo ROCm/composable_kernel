@@ -1,0 +1,1 @@
+add_executable(tile_example_gemm_dispatcher EXCLUDE_FROM_ALL gemm_dispatcher.cpp)
