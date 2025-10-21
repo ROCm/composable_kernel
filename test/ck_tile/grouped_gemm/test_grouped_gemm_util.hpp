@@ -14,7 +14,7 @@
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 template <typename Tuple>
-class TestCkTileGroupedGemmQuant : public ::testing::Test
+class TestCkTileGroupedGemm : public ::testing::Test
 {
     protected:
     using ALayout     = std::tuple_element_t<0, Tuple>;
