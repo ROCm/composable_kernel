@@ -6,30 +6,33 @@
 // This file translates a semantic description of a convolution operation
 // (`ConvSignatureDescriptor` and `ConvAlgorithmDescriptor`) into specific, 
 // low-level template arguments required by the underlying CK device-level 
-// kernel implementations. This abstraction also enables more complex build
+// kernel implementations. This abstraction enables more complex build
 // time logic and simplifies the kernel specification.
 //
 // Key Components:
 //
 // Template Metaprogram:
 //  - ConvFactory: The main factory, with specializations for different
-//                 convolution directions.
+//                 convolution directions (currently only forward).
 //
 // Template Metaprogram Helpers:
-//  - ConvTensorLayouts: Maps layout enums to CK layout types.
-//  - ConvTensorTypes:   Maps data type enums to C++ types used by CK.
+//  - ConvTensorLayouts: Maps layout enums to CK layout types for different
+//                       spatial dimensions (2D/3D) and directions.
+//  - ConvTensorTypes:   Maps data type enums (FP16, BF16, FP32) to C++ types used by CK.
 //  - ConvPassThroughOps: Hard-coded pass-through element-wise operations.
+//  - ConvSpec:          Encapsulates convolution and GEMM specialization enums.
 //
 // `constexpr` Helper Functions:
-//  - SetThreadBlockInfo:      Determines thread block dimensions from the algorithm
-//                             descriptor or provides defaults.
-//  - SetConvTuningInfo:       Sets low-level tuning parameters.
-//  - Set*BlockTransfer:       Configures tensor data movement parameters for
-//                             tensors A, B, and C.
-//  - SetBlockGemmPipelineVersion: Selects the GEMM pipeline version.
+//  - SetThreadBlockInfo:           Determines thread block dimensions and tile sizes.
+//  - SetConvTuningInfo:            Sets XDL and AK1/BK1 tuning parameters.
+//  - SetFwdConvABlockTransfer:     Configures A tensor block transfer parameters.
+//  - SetFwdConvBBlockTransfer:     Configures B tensor block transfer parameters.
+//  - SetCBlockTransfer:            Configures C tensor block transfer parameters.
+//  - SetBlockGemmPipelineVersion:  Maps pipeline version enum to CK types.
 //
-// The primary entry point is the `ConvFactory` struct, which is specialized
-// for forward and backward-data convolutions.
+// The primary entry point is the `ConvFactory` struct, which is currently
+// specialized for forward convolutions and produces instances of
+// DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3.
 
 #pragma once
 
@@ -358,13 +361,13 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 
     // Check limits for the algorithm parameters.
     // TODO: Add more limits checks as needed.
-    // static_assert(InputVectorTransferLimits<A_BLOCK_TRANSFER>);
-    // static_assert(InputVectorTransferLimits<B_BLOCK_TRANSFER>);
-    // static_assert(OutputVectorTransferLimits<C_BLOCK_TRANSFER>);
-    // static_assert(AccessOrderLimits<A_BLOCK_TRANSFER.thread_cluster_order>);
-    // static_assert(AccessOrderLimits<B_BLOCK_TRANSFER.thread_cluster_order>);
-    // static_assert(AccessOrderLimits<A_BLOCK_TRANSFER.src_access_order>);
-    // static_assert(AccessOrderLimits<B_BLOCK_TRANSFER.src_access_order>);
+    static_assert(InputVectorTransferLimits<A_BLOCK_TRANSFER>);
+    static_assert(InputVectorTransferLimits<B_BLOCK_TRANSFER>);
+    static_assert(OutputVectorTransferLimits<C_BLOCK_TRANSFER>);
+    static_assert(AccessOrderLimits<A_BLOCK_TRANSFER.thread_cluster_order>);
+    static_assert(AccessOrderLimits<B_BLOCK_TRANSFER.thread_cluster_order>);
+    static_assert(AccessOrderLimits<A_BLOCK_TRANSFER.src_access_order>);
+    static_assert(AccessOrderLimits<B_BLOCK_TRANSFER.src_access_order>);
 
     // The forward convolution kernel class instance.
     using Instance =
