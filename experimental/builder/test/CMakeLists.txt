@@ -1,4 +1,3 @@
-
 include(gtest)
 
 # Helper function to create a gtest executable with common properties

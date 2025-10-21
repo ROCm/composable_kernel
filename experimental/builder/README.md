@@ -23,9 +23,6 @@ This project is a prototype for a more general builder pattern for all of compos
 
 To enable the experimental builder, configure your build with:
 
-<!-- ```sh
-cmake -D CK_EXPERIMENTAL_BUILDER=ON -DCMAKE_CXX_STANDARD=20 ..
-``` -->
 ```bash
 cmake                                                                                             \
   -D CMAKE_PREFIX_PATH=/opt/rocm                                                                  \
