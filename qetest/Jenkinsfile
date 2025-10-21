@@ -29,12 +29,12 @@ pipeline {
                 }
             }
         }
-        stage("Unauthorized Failure Example") {
+        stage("Checkout Failure Example") {
             agent{ label rocmnode("nogpu") }
             steps {
                 script {
-                    echo "Unable to locate image"
-                    echo "login attempt to https://some.docker.io/v2 failed with status: 401 Unauthorized"
+                    echo "Checkout failure example"
+                    echo "Checkout failure ..."
                 }
             }
         }
@@ -43,7 +43,7 @@ pipeline {
         success {
             node(rocmnode("nogpu")) {
                 script {
-                    def buildLog = sh('wget -q --no-check-certificate -O build.log ' + BUILD_URL + 'consoleText')
+                    def buildLog = sh(script: 'wget -q --no-check-certificate -O - ' + BUILD_URL + 'consoleText', returnStdout: true)
                     echo "log: ${buildLog}"
                     withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
                         sh """
