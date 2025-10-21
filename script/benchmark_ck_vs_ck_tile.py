@@ -45,7 +45,7 @@ def run_ck_profiler_cmd(cmd_args, profiler_type, bin_path, results_file, log_to_
       subprocess.run(cmd) 
     else:
       with open(os.devnull, 'w') as devnull:
-        timeoutInSec = 300
+        timeoutInSec = 15 * 60 # 15 minutes timeout
         try:
           subprocess.run(cmd, stdout=devnull, stderr=devnull, timeout=timeoutInSec, env=env)
         except subprocess.TimeoutExpired:
@@ -247,6 +247,10 @@ def main():
         with open(results_file, 'a') as f:
           f.write(cmd_concatenated_str + "\n")
         run_ck_profiler_cmd(cmd, ProfilerType.CK_TILE, args.bin_path, results_file, args.log_to_stdout)
+
+        # For the old CK, we don't want to run verification. We assume CK already works correctly.
+        cmd[3] = '0'  # Set verification flag to 0 (no verification)
+
         run_ck_profiler_cmd(cmd, ProfilerType.CK, args.bin_path, results_file, args.log_to_stdout)
   
 if __name__ == "__main__":
