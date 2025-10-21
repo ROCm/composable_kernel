@@ -158,8 +158,8 @@ struct AsyncLSKernel
         store_tile(lds_0_window, dram_tile);
 #else
         async_load_tile(lds_0_window, a_block_window);
-#endif
         block_sync_lds();
+#endif
         auto lds_tile = load_tile(lds_0_window);
         store_tile(b_block_window, lds_tile);
     }
