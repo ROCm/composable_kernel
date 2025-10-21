@@ -6,7 +6,8 @@
 #include <type_traits>
 #include <concepts>
 #include <array>
-#include "types.hpp"
+
+#include "ck_tile/builder/types.hpp"
 
 namespace ck_tile::builder 
 {

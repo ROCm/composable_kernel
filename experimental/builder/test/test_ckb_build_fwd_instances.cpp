@@ -3,8 +3,6 @@
 #include "impl/conv_algorithm_types.hpp"
 #include "impl/conv_signature_types.hpp"
 #include "ck_tile/builder/conv_builder.hpp"
-#include "ck_tile/builder/conv_algorithm_concepts.hpp"
-#include "ck_tile/builder/conv_signature_concepts.hpp"
 
 class FwdConvBuilderTest : public ::testing::Test
 {

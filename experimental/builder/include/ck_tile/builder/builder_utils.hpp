@@ -2,8 +2,9 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
-#include <ck/utility/sequence.hpp>
-#include <ck_tile/builder/types.hpp>
+
+#include "ck/utility/sequence.hpp"
+#include "ck_tile/builder/types.hpp"
 
 namespace ck_tile::builder 
 {

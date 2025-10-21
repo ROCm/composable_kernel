@@ -20,7 +20,7 @@
 #include <concepts>
 #include <type_traits>
 
-#include <ck_tile/builder/types.hpp>
+#include "ck_tile/builder/types.hpp"
 
 namespace ck_tile::builder 
 {

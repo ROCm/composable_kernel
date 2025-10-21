@@ -3,7 +3,7 @@
 #include <concepts>
 #include <string_view>
 
-#include <ck_tile/builder/builder_utils.hpp>
+#include "ck_tile/builder/builder_utils.hpp"
 
 namespace ck_tile::builder {
 

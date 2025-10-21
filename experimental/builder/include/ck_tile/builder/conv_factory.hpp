@@ -33,13 +33,13 @@
 
 #pragma once
 
-#include <ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp>
-#include <ck_tile/builder/conv_signature_concepts.hpp>
-#include <ck_tile/builder/conv_algorithm_concepts.hpp>
-#include <ck_tile/builder/conv_algorithm_limits.hpp>
-#include <ck_tile/builder/builder_utils.hpp>
-#include <ck_tile/builder/types.hpp>
-#include <ck_tile/builder/versions.hpp>
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp"
+#include "ck_tile/builder/conv_signature_concepts.hpp"
+#include "ck_tile/builder/conv_algorithm_concepts.hpp"
+#include "ck_tile/builder/conv_algorithm_limits.hpp"
+#include "ck_tile/builder/builder_utils.hpp"
+#include "ck_tile/builder/types.hpp"
+#include "ck_tile/builder/versions.hpp"
 
 namespace ck_tile::builder::factory_internal {
 
