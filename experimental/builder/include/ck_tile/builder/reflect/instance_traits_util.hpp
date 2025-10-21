@@ -2,12 +2,14 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 // Utility functions and helpers for instance_traits.hpp
-// Contains helper functions to convert types, enums, and sequences to string representations
+// Contains helper functions to convert types, enums, and sequences to string representations.
+// The helper function are consteval so that unknown cases cause compile-tme errors.
 
 #pragma once
 
 #include <array>
 #include <string>
+#include <string_view>
 #include <sstream>
 #include <type_traits>
 #include <ck/utility/data_type.hpp>
@@ -32,7 +34,7 @@ struct SequenceToArray<ck::Sequence<Is...>>
 
 // Convert data types to string names
 template <typename T>
-inline std::string type_name()
+consteval std::string_view type_name()
 {
     if constexpr(std::is_same_v<T, ck::half_t>)
         return "fp16";
@@ -51,12 +53,12 @@ inline std::string type_name()
     else if constexpr(std::is_same_v<T, ck::bf8_t>)
         return "bf8";
     else
-        return "unknown_type";
+        throw "unknown_type";
 }
 
 // Convert layout types to string names
 template <typename T>
-inline std::string layout_name()
+constexpr std::string_view layout_name()
 {
     // Convolution layouts
     if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GNHWC>)
@@ -78,12 +80,12 @@ inline std::string layout_name()
     else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::NHWGK>)
         return "NHWGK";
     else
-        return "unknown_layout";
+        throw "unknown_layout";
 }
 
 // Convert element-wise operation types to string names
 template <typename T>
-inline std::string elementwise_op_name()
+constexpr std::string_view elementwise_op_name()
 {
     if constexpr(std::is_same_v<T, ck::tensor_operation::element_wise::PassThrough>)
         return "PassThrough";
@@ -98,74 +100,75 @@ inline std::string elementwise_op_name()
     else if constexpr(std::is_same_v<T, ck::tensor_operation::element_wise::Relu>)
         return "Relu";
     else
-        return "unknown_op";
+        throw "unknown_op";
 }
 
 // Convert ConvolutionForwardSpecialization enum to string
-inline std::string
+constexpr std::string_view
 conv_fwd_spec_name(ck::tensor_operation::device::ConvolutionForwardSpecialization spec)
 {
+    using ck::tensor_operation::device::ConvolutionForwardSpecialization;
     switch(spec)
     {
-    case ck::tensor_operation::device::ConvolutionForwardSpecialization::Default: return "Default";
-    case ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0:
-        return "Filter1x1Stride1Pad0";
-    case ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0:
-        return "Filter1x1Pad0";
-    case ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter3x3:
-        return "Filter3x3";
-    case ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC: return "OddC";
+    case ConvolutionForwardSpecialization::Default: return "Default";
+    case ConvolutionForwardSpecialization::Filter1x1Stride1Pad0: return "Filter1x1Stride1Pad0";
+    case ConvolutionForwardSpecialization::Filter1x1Pad0: return "Filter1x1Pad0";
+    case ConvolutionForwardSpecialization::Filter3x3: return "Filter3x3";
+    case ConvolutionForwardSpecialization::OddC: return "OddC";
     }
-    return "unknown_conv_spec";
+    throw "unknown_conv_spec";
 }
 
 // Convert GemmSpecialization enum to string
-inline std::string gemm_spec_name(ck::tensor_operation::device::GemmSpecialization spec)
+constexpr std::string_view gemm_spec_name(ck::tensor_operation::device::GemmSpecialization spec)
 {
+    using ck::tensor_operation::device::GemmSpecialization;
     switch(spec)
     {
-    case ck::tensor_operation::device::GemmSpecialization::Default: return "Default";
-    case ck::tensor_operation::device::GemmSpecialization::MPadding: return "MPadding";
-    case ck::tensor_operation::device::GemmSpecialization::NPadding: return "NPadding";
-    case ck::tensor_operation::device::GemmSpecialization::KPadding: return "KPadding";
-    case ck::tensor_operation::device::GemmSpecialization::MNPadding: return "MNPadding";
-    case ck::tensor_operation::device::GemmSpecialization::MKPadding: return "MKPadding";
-    case ck::tensor_operation::device::GemmSpecialization::NKPadding: return "NKPadding";
-    case ck::tensor_operation::device::GemmSpecialization::MNKPadding: return "MNKPadding";
-    case ck::tensor_operation::device::GemmSpecialization::OPadding: return "OPadding";
-    case ck::tensor_operation::device::GemmSpecialization::MOPadding: return "MOPadding";
-    case ck::tensor_operation::device::GemmSpecialization::NOPadding: return "NOPadding";
-    case ck::tensor_operation::device::GemmSpecialization::KOPadding: return "KOPadding";
-    case ck::tensor_operation::device::GemmSpecialization::MNOPadding: return "MNOPadding";
-    case ck::tensor_operation::device::GemmSpecialization::MKOPadding: return "MKOPadding";
-    case ck::tensor_operation::device::GemmSpecialization::NKOPadding: return "NKOPadding";
-    case ck::tensor_operation::device::GemmSpecialization::MNKOPadding: return "MNKOPadding";
+    case GemmSpecialization::Default: return "Default";
+    case GemmSpecialization::MPadding: return "MPadding";
+    case GemmSpecialization::NPadding: return "NPadding";
+    case GemmSpecialization::KPadding: return "KPadding";
+    case GemmSpecialization::MNPadding: return "MNPadding";
+    case GemmSpecialization::MKPadding: return "MKPadding";
+    case GemmSpecialization::NKPadding: return "NKPadding";
+    case GemmSpecialization::MNKPadding: return "MNKPadding";
+    case GemmSpecialization::OPadding: return "OPadding";
+    case GemmSpecialization::MOPadding: return "MOPadding";
+    case GemmSpecialization::NOPadding: return "NOPadding";
+    case GemmSpecialization::KOPadding: return "KOPadding";
+    case GemmSpecialization::MNOPadding: return "MNOPadding";
+    case GemmSpecialization::MKOPadding: return "MKOPadding";
+    case GemmSpecialization::NKOPadding: return "NKOPadding";
+    case GemmSpecialization::MNKOPadding: return "MNKOPadding";
     }
-    return "unknown_gemm_spec";
+    throw "unknown_gemm_spec";
 }
 
 // Convert BlockGemmPipelineScheduler enum to string
-inline std::string pipeline_scheduler_name(ck::BlockGemmPipelineScheduler sched)
+constexpr std::string_view pipeline_scheduler_name(ck::BlockGemmPipelineScheduler sched)
 {
+    using ck::BlockGemmPipelineScheduler;
     switch(sched)
     {
-    case ck::BlockGemmPipelineScheduler::Intrawave: return "Intrawave";
-    case ck::BlockGemmPipelineScheduler::Interwave: return "Interwave";
-    default: return "unknown_scheduler";
+    case BlockGemmPipelineScheduler::Intrawave: return "Intrawave";
+    case BlockGemmPipelineScheduler::Interwave: return "Interwave";
     }
+    throw "unknown_scheduler";
 }
 
 // Convert BlockGemmPipelineVersion enum to string
-inline std::string pipeline_version_name(ck::BlockGemmPipelineVersion ver)
+constexpr std::string_view pipeline_version_name(ck::BlockGemmPipelineVersion ver)
 {
+    using ck::BlockGemmPipelineVersion;
     switch(ver)
     {
-    case ck::BlockGemmPipelineVersion::v1: return "v1";
-    case ck::BlockGemmPipelineVersion::v2: return "v2";
-    case ck::BlockGemmPipelineVersion::v3: return "v3";
-    case ck::BlockGemmPipelineVersion::v4: return "v4";
-    case ck::BlockGemmPipelineVersion::v5: return "v5";
-    default: return "unknown_version";
+    case BlockGemmPipelineVersion::v1: return "v1";
+    case BlockGemmPipelineVersion::v2: return "v2";
+    case BlockGemmPipelineVersion::v3: return "v3";
+    case BlockGemmPipelineVersion::v4: return "v4";
+    case BlockGemmPipelineVersion::v5: return "v5";
+    default: throw "unknown_version";
     }
 }
 
@@ -187,7 +190,7 @@ inline std::string array_to_string(const std::array<T, N>& arr)
 
 // Handle ck::Tuple (empty tuple for DsLayout/DsDataType)
 template <typename T>
-inline std::string tuple_name()
+constexpr std::string_view tuple_name()
 {
     // For now, just check if it's an empty tuple
     return "EmptyTuple";

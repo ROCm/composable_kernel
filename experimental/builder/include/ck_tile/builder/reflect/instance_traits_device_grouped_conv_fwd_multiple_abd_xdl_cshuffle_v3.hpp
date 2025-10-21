@@ -2,6 +2,9 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 // InstanceTraits specialization for DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
+//
+// THIS INSTANCE TRAITS FILE MUST BE KEPT IN SYNC WITH THE DEVICE IMPLEMENTATION HEADER
+// composable_kernel/include/ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp
 
 #pragma once
 
