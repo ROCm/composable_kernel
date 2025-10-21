@@ -279,7 +279,7 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
             else if constexpr(QuantType == ck_tile::QuantType::TensorQuant)
             {
                 stride_AQs[i] = 1; // Tensor quantization: tensor shape [1]
-                stride_AQs[i] = 1; // Tensor quantization: tensor shape [1]
+                stride_BQs[i] = 1; // Tensor quantization: tensor shape [1]
             }
             else if constexpr(QuantType == ck_tile::QuantType::BQuantGrouped)
             {
