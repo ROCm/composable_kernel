@@ -43,7 +43,7 @@ pipeline {
         success {
             node(rocmnode("nogpu")) {
                 script {
-                    def buildLog = currentBuild.rawBuild.logFile.text
+                    def buildLog = sh('wget -q --no-check-certificate -O build.log ' + BUILD_URL + 'consoleText')
                     echo "log: ${buildLog}"
                     withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
                         sh """
