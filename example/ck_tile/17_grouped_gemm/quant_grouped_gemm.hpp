@@ -107,7 +107,6 @@ auto create_args(int argc, char* argv[])
         .insert("group_count", "8", "group count.")
         .insert("kbatch", "1", "kbatch for SplitK")
         .insert("quant_mode", "bquant", "Choose bquant (default), tensor, or rowcol");
-    ;
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
