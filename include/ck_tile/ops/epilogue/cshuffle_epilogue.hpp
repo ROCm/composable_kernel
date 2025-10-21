@@ -66,22 +66,26 @@ struct CShuffleEpilogueProblem
     static_assert(NumDTensor == DsLayout::size(),
                   "The size of DsDataType and DsLayout should be the same");
 
-    CK_TILE_HOST static void PrintInfo() {
-        printf("[DEBUG]: CShuffleEpilogueProblem: kBlockSize: %d\n",kBlockSize);
-        printf("[DEBUG]: CShuffleEpilogueProblem: kMPerBlock: %d\n",kMPerBlock);
-        printf("[DEBUG]: CShuffleEpilogueProblem: kNPerBlock: %d\n",kNPerBlock);
-        printf("[DEBUG]: CShuffleEpilogueProblem: MWave: %d\n",MWave);
-        printf("[DEBUG]: CShuffleEpilogueProblem: NWave: %d\n",NWave);
-        printf("[DEBUG]: CShuffleEpilogueProblem: MPerXdl: %d\n",MPerXdl);
-        printf("[DEBUG]: CShuffleEpilogueProblem: NPerXdl: %d\n",NPerXdl);
-        printf("[DEBUG]: CShuffleEpilogueProblem: KPerXdl: %d\n",KPerXdl);
-        printf("[DEBUG]: CShuffleEpilogueProblem: isCTransposed: %d\n",isCTransposed);
-        printf("[DEBUG]: CShuffleEpilogueProblem: MemoryOperation: %d\n",static_cast<int>(MemoryOperation));
-        printf("[DEBUG]: CShuffleEpilogueProblem: FixedVectorSize: %d\n",static_cast<int>(FixedVectorSize));
-        printf("[DEBUG]: CShuffleEpilogueProblem: VectorSizeC: %d\n",VectorSizeC);
-        printf("[DEBUG]: CShuffleEpilogueProblem: TiledMMAPermuteN: %d\n",static_cast<int>(TiledMMAPermuteN));
-        printf("[DEBUG]: CShuffleEpilogueProblem: kNumWaveGroups: %d\n",kNumWaveGroups);
-        printf("[DEBUG]: CShuffleEpilogueProblem: NumDTensor: %d\n",NumDTensor);
+    CK_TILE_HOST static void PrintInfo()
+    {
+        printf("[DEBUG]: CShuffleEpilogueProblem: kBlockSize: %d\n", kBlockSize);
+        printf("[DEBUG]: CShuffleEpilogueProblem: kMPerBlock: %d\n", kMPerBlock);
+        printf("[DEBUG]: CShuffleEpilogueProblem: kNPerBlock: %d\n", kNPerBlock);
+        printf("[DEBUG]: CShuffleEpilogueProblem: MWave: %d\n", MWave);
+        printf("[DEBUG]: CShuffleEpilogueProblem: NWave: %d\n", NWave);
+        printf("[DEBUG]: CShuffleEpilogueProblem: MPerXdl: %d\n", MPerXdl);
+        printf("[DEBUG]: CShuffleEpilogueProblem: NPerXdl: %d\n", NPerXdl);
+        printf("[DEBUG]: CShuffleEpilogueProblem: KPerXdl: %d\n", KPerXdl);
+        printf("[DEBUG]: CShuffleEpilogueProblem: isCTransposed: %d\n", isCTransposed);
+        printf("[DEBUG]: CShuffleEpilogueProblem: MemoryOperation: %d\n",
+               static_cast<int>(MemoryOperation));
+        printf("[DEBUG]: CShuffleEpilogueProblem: FixedVectorSize: %d\n",
+               static_cast<int>(FixedVectorSize));
+        printf("[DEBUG]: CShuffleEpilogueProblem: VectorSizeC: %d\n", VectorSizeC);
+        printf("[DEBUG]: CShuffleEpilogueProblem: TiledMMAPermuteN: %d\n",
+               static_cast<int>(TiledMMAPermuteN));
+        printf("[DEBUG]: CShuffleEpilogueProblem: kNumWaveGroups: %d\n", kNumWaveGroups);
+        printf("[DEBUG]: CShuffleEpilogueProblem: NumDTensor: %d\n", NumDTensor);
     }
 };
 
@@ -143,15 +147,16 @@ struct CShuffleEpilogue
     static constexpr bool IsERowMajor =
         std::is_same_v<ELayout, tensor_layout::gemm::RowMajor> ? true : false;
 
-    CK_TILE_HOST static void PrintInfo() {
-        printf("[DEBUG]: CShuffleEpilogue: MPerIteration: %d\n",MPerIteration);
-        printf("[DEBUG]: CShuffleEpilogue: NPerIteration: %d\n",NPerIteration);
-        printf("[DEBUG]: CShuffleEpilogue: MRepeat: %d\n",MRepeat);
-        printf("[DEBUG]: CShuffleEpilogue: NRepeat: %d\n",NRepeat);
-        printf("[DEBUG]: CShuffleEpilogue: GetVectorSizeC: %d\n",GetVectorSizeC());
-        printf("[DEBUG]: CShuffleEpilogue: get_warp_size: %d\n",get_warp_size());
-        printf("[DEBUG]: CShuffleEpilogue: MPerIterationShuffle: %d\n",MPerIterationShuffle);
-        printf("[DEBUG]: CShuffleEpilogue: NPerIterationShuffle: %d\n",NPerIterationShuffle);
+    CK_TILE_HOST static void PrintInfo()
+    {
+        printf("[DEBUG]: CShuffleEpilogue: MPerIteration: %d\n", MPerIteration);
+        printf("[DEBUG]: CShuffleEpilogue: NPerIteration: %d\n", NPerIteration);
+        printf("[DEBUG]: CShuffleEpilogue: MRepeat: %d\n", MRepeat);
+        printf("[DEBUG]: CShuffleEpilogue: NRepeat: %d\n", NRepeat);
+        printf("[DEBUG]: CShuffleEpilogue: GetVectorSizeC: %d\n", GetVectorSizeC());
+        printf("[DEBUG]: CShuffleEpilogue: get_warp_size: %d\n", get_warp_size());
+        printf("[DEBUG]: CShuffleEpilogue: MPerIterationShuffle: %d\n", MPerIterationShuffle);
+        printf("[DEBUG]: CShuffleEpilogue: NPerIterationShuffle: %d\n", NPerIterationShuffle);
     }
 
     static_assert(NumDTensor == DsLayout::size(),
@@ -673,49 +678,49 @@ struct CShuffleEpilogue
             if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
             {
                 return make_tile_window(
-                            o_lds_block,
-                            make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
-                            {0, 0},
-                            LdsTileDistr);
+                    o_lds_block,
+                    make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
+                    {0, 0},
+                    LdsTileDistr);
             }
             else if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::ColumnMajor>)
             {
                 return make_tile_window(
-                            o_lds_block,
-                            make_tuple(number<NPerIterationShuffle>{}, number<MPerIterationShuffle>{}),
-                            {0, 0},
-                            LdsTileDistr);
+                    o_lds_block,
+                    make_tuple(number<NPerIterationShuffle>{}, number<MPerIterationShuffle>{}),
+                    {0, 0},
+                    LdsTileDistr);
             }
             else
             {
                 static_assert(false, "Unsupported ELayout!");
             }
         }();
-        //auto in_lds_window = make_tile_window(
-        //    o_lds_block,
-        //    make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
-        //    {0, 0},
-        //    LdsTileDistr);
+        // auto in_lds_window = make_tile_window(
+        //     o_lds_block,
+        //     make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
+        //     {0, 0},
+        //     LdsTileDistr);
 
-        //auto out_lds_window = make_tile_window(
-        //    o_lds_block,
-        //    make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
-        //    {0, 0});
+        // auto out_lds_window = make_tile_window(
+        //     o_lds_block,
+        //     make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
+        //     {0, 0});
 
         auto out_lds_window = [&o_lds_block] {
             if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
             {
                 return make_tile_window(
-                            o_lds_block,
-                            make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
-                            {0, 0});
+                    o_lds_block,
+                    make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
+                    {0, 0});
             }
             else if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::ColumnMajor>)
             {
-               return make_tile_window(
-                            o_lds_block,
-                            make_tuple(number<NPerIterationShuffle>{}, number<MPerIterationShuffle>{}),
-                            {0, 0});
+                return make_tile_window(
+                    o_lds_block,
+                    make_tuple(number<NPerIterationShuffle>{}, number<MPerIterationShuffle>{}),
+                    {0, 0});
             }
             else
             {
@@ -725,8 +730,9 @@ struct CShuffleEpilogue
 
         constexpr index_t num_access = SFC::get_num_of_access();
         // TODO: Add support for Col Major Output Layout - CShuffle Epilogue
-        //static_assert(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
-        //              "Currently, the CShuffle Epilogue only supports the Row Major Output layout");
+        // static_assert(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
+        //              "Currently, the CShuffle Epilogue only supports the Row Major Output
+        //              layout");
         static_assert(GetVectorSizeC() > 1, "VectorSizeC is not greater than 1!");
         using TileEncodingPattern =
             tile_distribution_encoding_pattern_2d<kBlockSize,

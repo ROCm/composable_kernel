@@ -929,25 +929,22 @@ struct UniversalGemmKernel
             },
             number<NumDTensor>{});
 
-
-
-        const auto e_block_window = [&] () {
+        const auto e_block_window = [&]() {
             if constexpr(std::is_same_v<CLayout, tensor_layout::gemm::RowMajor>)
             {
                 return make_tile_window(e_pad_view,
                                         make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                    number<TilePartitioner::NPerBlock>{}),
+                                                   number<TilePartitioner::NPerBlock>{}),
                                         {i_m, i_n});
             }
             else
             {
                 return make_tile_window(e_pad_view,
                                         make_tuple(number<TilePartitioner::NPerBlock>{},
-                                                    number<TilePartitioner::MPerBlock>{}),
+                                                   number<TilePartitioner::MPerBlock>{}),
                                         {i_n, i_m});
             }
         }();
-
 
         return make_tuple(as_block_window, bs_block_window, ds_block_window, e_block_window);
     }
@@ -1001,19 +998,19 @@ struct UniversalGemmKernel
             // Run Epilogue Pipeline
             auto& c_block_window = gemm_tile_windows.at(I3);
 
-            //if(threadIdx.x == 0)
-            //{  
-            //    printf("CShuffleEpilogue operator() called! Before\n");
-            //    c_block_window.template print_tile_window_range<EDataType>(0, 4, 0, 8, "A");
-            //}
+            // if(threadIdx.x == 0)
+            //{
+            //     printf("CShuffleEpilogue operator() called! Before\n");
+            //     c_block_window.template print_tile_window_range<EDataType>(0, 4, 0, 8, "A");
+            // }
 
             EpiloguePipeline{}(c_block_window, c_block_tile, ds_block_window, smem_ptr_0);
 
-            //if(threadIdx.x == 0)
-            //{  
-            //    printf("CShuffleEpilogue operator() called! After\n");
-            //    c_block_window.template print_tile_window_range<EDataType>(0, 4, 0, 8, "A");
-           // }
+            // if(threadIdx.x == 0)
+            //{
+            //     printf("CShuffleEpilogue operator() called! After\n");
+            //     c_block_window.template print_tile_window_range<EDataType>(0, 4, 0, 8, "A");
+            // }
         }
     }
 

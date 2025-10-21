@@ -651,14 +651,14 @@ struct buffer_view<address_space_enum::global,
 #endif
 
         constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector; // 8
-        //static_assert(scalar_per_x_vector > scalar_per_t_vector, "Condition not met: (( scalar_per_x_vector > scalar_per_t_vector ))");
-        //if(threadIdx.x == 0)
-        //{   
-        //    printf("[DEBUG]: BufferView: t_per_x: %d\n",t_per_x);
-        //    printf("[DEBUG]: BufferView: scalar_per_x_vector: %d\n",scalar_per_x_vector);
-        //    printf("[DEBUG]: BufferView: scalar_per_t_vector: %d\n",scalar_per_t_vector);
-        //    printf("[DEBUG]: BufferView: x.size(): %d\n",x.size());
-        //}
+        // static_assert(scalar_per_x_vector > scalar_per_t_vector, "Condition not met: ((
+        // scalar_per_x_vector > scalar_per_t_vector ))"); if(threadIdx.x == 0)
+        //{
+        //     printf("[DEBUG]: BufferView: t_per_x: %d\n",t_per_x);
+        //     printf("[DEBUG]: BufferView: scalar_per_x_vector: %d\n",scalar_per_x_vector);
+        //     printf("[DEBUG]: BufferView: scalar_per_t_vector: %d\n",scalar_per_t_vector);
+        //     printf("[DEBUG]: BufferView: x.size(): %d\n",x.size());
+        // }
 
         if constexpr(use_amd_buffer_addressing)
         {

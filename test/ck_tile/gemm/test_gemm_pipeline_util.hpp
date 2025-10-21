@@ -225,8 +225,8 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                                  K_Warp_Tile,
                                                  UniversalGemmProblem::TransposeC,
                                                  memory_operation>>;
-            //GemmEpilogue::Problem::PrintInfo();
-            //GemmEpilogue::PrintInfo();
+            // GemmEpilogue::Problem::PrintInfo();
+            // GemmEpilogue::PrintInfo();
 
             using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
@@ -259,14 +259,14 @@ class TestCkTileGemmPipeline : public ::testing::Test
         };
 
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
-            //if(args.k_batch == 1)
+            // if(args.k_batch == 1)
             //{
-                Run(has_hot_loop_,
-                    tail_number_,
-                    ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                               ck_tile::memory_operation_enum::set>{});
+            Run(has_hot_loop_,
+                tail_number_,
+                ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                           ck_tile::memory_operation_enum::set>{});
             //}
-            //else
+            // else
             //{
             //    Run(has_hot_loop_,
             //        tail_number_,
@@ -293,7 +293,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
             // Only do k_batch = 1 when pipeline is CompV4, or BDataType is I4
         k_batches_ = {1};
         //}
-        //else
+        // else
         //{
         //    // Otherwise, use k_batch = 1 and 2
         //    k_batches_ = {1, 2};
