@@ -3,7 +3,7 @@
 
 #pragma once
 #include <ck/utility/sequence.hpp>
-#include <builder/types.hpp>
+#include <ck_tile/builder/types.hpp>
 
 namespace ck_tile::builder 
 {

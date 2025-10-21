@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "<ck_tile/builder/conv_signature_concepts.hpp>"
+#include "ck_tile/builder/conv_signature_concepts.hpp"
 
 namespace ck_tile::builder {
 

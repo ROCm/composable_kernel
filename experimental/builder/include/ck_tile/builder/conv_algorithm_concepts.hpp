@@ -39,7 +39,7 @@ concept GridwiseGemmDescriptor = requires(T t) {
 template <typename T>
 concept InputBlockTransferDescriptor = requires(T t) {
     { t.k0 } -> std::convertible_to<size_t>;
-    { t.m } -> std::convertible_to<size_t>;
+    { t.m_n } -> std::convertible_to<size_t>;
     { t.k1 } -> std::convertible_to<size_t>;
 };
 
@@ -72,7 +72,7 @@ concept OutputVectorTransferDescriptor = requires(T t) {
 // Concept for the thread cluster access order
 template <typename T>
 concept AccessOrderDescriptor = requires(T t) {
-    { t.order } -> std::convertible_to<std::array<int, 3>>;
+    { t.order } -> std::convertible_to<std::array<size_t, 3>>;
 };
 
 // No requirements yet for a ConvAlogorithm concept.
