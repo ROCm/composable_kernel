@@ -20,11 +20,31 @@ pipeline {
                 }
             }
         }
+        stage("Locate Image Failure Example") {
+            agent{ label rocmnode("nogpu") }
+            steps {
+                script {
+                    echo "Unable to locate image"
+                    echo "login attempt to https://some.docker.io/v2 failed with status: 401 Unauthorized"
+                }
+            }
+        }
+        stage("Unauthorized Failure Example") {
+            agent{ label rocmnode("nogpu") }
+            steps {
+                script {
+                    echo "Unable to locate image"
+                    echo "login attempt to https://some.docker.io/v2 failed with status: 401 Unauthorized"
+                }
+            }
+        }
     }
     post {
         success {
             node(rocmnode("nogpu")) {
                 script {
+                    def buildLog = currentBuild.rawBuild.logFile.text
+                    echo "log: ${buildLog}"
                     withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
                         sh """
                             curl -X POST '${WEBHOOK_URL}' \
