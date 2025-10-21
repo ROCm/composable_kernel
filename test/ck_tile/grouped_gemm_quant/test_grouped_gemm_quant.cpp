@@ -18,6 +18,7 @@ using True        = ck_tile::bool_constant<true>;
 using False       = ck_tile::bool_constant<false>;
 using RowColQuant = std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::RowColQuant>;
 using TensorQuant = std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::TensorQuant>;
+using BQuant      = std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::BQuantGrouped>;
 
 // clang-format off
 using KernelTypes = ::testing::Types<
@@ -40,7 +41,9 @@ using KernelTypes = ::testing::Types<
     std::tuple<    Row,     Col,     Row,       BF8,        F32,       BF8,        F32,         F32,       F16, TensorQuant>,
     std::tuple<    Col,     Col,     Row,       BF8,        F32,       BF8,        F32,         F32,       F16, TensorQuant>,
     std::tuple<    Row,     Row,     Row,       BF8,        F32,       BF8,        F32,         F32,       F16, TensorQuant>,
-    std::tuple<    Col,     Row,     Row,       BF8,        F32,       BF8,        F32,         F32,       F16, TensorQuant>
+    std::tuple<    Col,     Row,     Row,       BF8,        F32,       BF8,        F32,         F32,       F16, TensorQuant>,
+    std::tuple<    Row,     Col,     Row,       FP8,        F32,       FP8,        F32,         F32,       F16, BQuant>,
+    std::tuple<    Row,     Col,     Row,       BF8,        F32,       BF8,        F32,         F32,       F16, BQuant>
     >;
 // clang-format on
 
