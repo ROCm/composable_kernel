@@ -69,9 +69,9 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
 
         using QuantGemmProblem = typename std::conditional<
             QuantMode == ck_tile::QuantType::BQuantGrouped,
-            ck_tile::GemmBQuantPipelineProblem<ck_tile::fp8_t,
-                                               ck_tile::fp8_t,
-                                               BQDataType, // Qdatatype
+            ck_tile::GemmBQuantPipelineProblem<ADataType,
+                                               BDataType,
+                                               BQDataType,
                                                AccDataType,
                                                GemmShape,
                                                GemmUniversalTraits,

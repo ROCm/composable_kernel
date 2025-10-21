@@ -520,6 +520,34 @@ int run_grouped_gemm_example(int argc, char* argv[])
             throw std::runtime_error("Unsupported quantization mode!");
         }
     }
+    if(data_type == "bf8")
+    {
+        if(quant_mode == "tensor")
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
+                                              ck_tile::bf8_t,
+                                              ck_tile::QuantType::TensorQuant>(
+                a_layout, b_layout, argc, argv);
+        }
+        else if(quant_mode == "rowcol")
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
+                                              ck_tile::bf8_t,
+                                              ck_tile::QuantType::RowColQuant>(
+                a_layout, b_layout, argc, argv);
+        }
+        else if(quant_mode == "bquant")
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
+                                              ck_tile::bf8_t,
+                                              ck_tile::QuantType::BQuantGrouped>(
+                a_layout, b_layout, argc, argv);
+        }
+        else
+        {
+            throw std::runtime_error("Unsupported quantization mode!");
+        }
+    }
     else
     {
         throw std::runtime_error("Unsupported data type configuration.");
