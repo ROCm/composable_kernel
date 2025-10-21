@@ -37,7 +37,7 @@ using tile_grouped_conv_bwd_weight_bf16_instances_opt = std::tuple<
     GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        2,     128,     128,      64,      2,      2,      1,    32,     32,     16,      8,      8,       8,   false,  CK_TILE_PIPELINE_COMPUTE_V3>,
     GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        2,     128,     128,      64,      2,      2,      1,    32,     32,     16,      8,      8,       8,    true,  CK_TILE_PIPELINE_COMPUTE_V4>,
 
-    // Skinny kernels.
+    // Skinny GEMM-K kernels.
     GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        2,     128,     128,       16,      2,      2,      1,    32,     32,     16,      8,      8,       4,   false,  CK_TILE_PIPELINE_COMPUTE_V3>,
     GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        2,     128,     128,       16,      2,      2,      1,    32,     32,     16,      8,      8,       4,    true,  CK_TILE_PIPELINE_COMPUTE_V4>,
     GroupedConvolutionBackwardWeightInvoker<NDimSpatial,   ALayout,   BLayout,   ELayout,   BF16,    BF16,    BF16,  PassThrough, PassThrough, PassThrough,        1,     128,     128,       16,      2,      2,      1,    32,     32,     16,      8,      8,       4,   false,  CK_TILE_PIPELINE_COMPUTE_V3>,

@@ -234,6 +234,9 @@ def main():
     profiler_commands = get_profiler_commands(args.input_file)
     print(f"Got {len(profiler_commands)} unique commands to run.")
 
+    if not os.path.exists(args.results_path):
+        os.makedirs(args.results_path)
+
     results_file = os.path.join(args.results_path, f"ck_vs_ck_tile_results_{os.getpid()}.txt")
 
     for i, cmd in enumerate(profiler_commands):
