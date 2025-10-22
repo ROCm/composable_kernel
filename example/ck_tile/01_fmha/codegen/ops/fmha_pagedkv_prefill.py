@@ -524,27 +524,19 @@ class FmhaFwdKernel:
 def get_fmha_fwd_tile_dict_from_dtype(dtype: str) -> Optional[dict]:
     if dtype == "fp16" or dtype == "bf16":
         return {
-            # '32'  : FmhaFwdTileSize(128, 64,  16, 32,  32,  32,   2, 1, 1,  2, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-            # '64'  : FmhaFwdTileSize(128, 64,  32, 64,  32,  64,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-            ### '96'  : FmhaFwdTileSize(128, 128, 32, 128, 32,  96,   4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-            "128": FmhaFwdTileSize(
-                128, 128, 32, 128, 32, 128, 4, 1, 1, 4, 1, 1, 32, 32, 16, 32, 32, 16, -1
-            ),
-            # '192' : FmhaFwdTileSize(128, 128, 32, 128, 32,  192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-            # '256' : FmhaFwdTileSize(128, 128, 32, 256, 32,  256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
-        }
+            # "32":  FmhaFwdTileSize(128,  64, 16,  32, 32,  32,  2, 1, 1,  2, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+            # "64":  FmhaFwdTileSize(128,  64, 32,  64, 32,  64,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+            # "96":  FmhaFwdTileSize(128, 128, 32, 128, 32,  96,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+            "128": FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+            # "192": FmhaFwdTileSize(128, 128, 32, 128, 32, 192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+            # "256": FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
+        }  # fmt: skip
     elif dtype == "fp8" or dtype == "bf8":
         return {
-            "64": FmhaFwdTileSize(
-                128, 64, 32, 64, 32, 64, 2, 1, 1, 2, 1, 1, 32, 32, 32, 32, 32, 32, -1
-            ),
-            "128": FmhaFwdTileSize(
-                128, 128, 32, 128, 32, 128, 4, 1, 1, 4, 1, 1, 32, 32, 32, 32, 32, 32, -1
-            ),
-            "256": FmhaFwdTileSize(
-                128, 128, 32, 256, 32, 256, 4, 1, 1, 4, 1, 1, 32, 32, 32, 32, 32, 32, -1
-            ),
-        }
+            "64":  FmhaFwdTileSize(128,  64, 32, 64,  32,  64,  2, 1, 1,  2, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
+            "128": FmhaFwdTileSize(128, 128, 32, 128, 32, 128,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
+            "256": FmhaFwdTileSize(128, 128, 32, 256, 32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 32,  32, 32, 32,  -1),
+        }  # fmt: skip
     else:
         return None
 
@@ -569,82 +561,17 @@ def get_fwd_blobs(
                 ["t"],
                 ["f"],
             ):
-                pipelines.append(
-                    FmhaFwdPipeline(
-                        "qr_pagedkv",
-                        "row",
-                        "t",
-                        "f",
-                        "f",
-                        "f",
-                        logits,
-                        bias,
-                        "f",
-                        pagedkv,
-                        squant,
-                        mask,
-                        skip,
-                    )
-                )
-                pipelines.append(
-                    FmhaFwdPipeline(
-                        "qr_pagedkv",
-                        "row",
-                        "t",
-                        "t",
-                        "f",
-                        "f",
-                        logits,
-                        bias,
-                        "f",
-                        pagedkv,
-                        squant,
-                        mask,
-                        skip,
-                    )
-                )
+                pipelines.append(FmhaFwdPipeline("qr_pagedkv", "row", "t", "f", "f", "f", logits, bias, "f", pagedkv, squant, mask, skip))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr_pagedkv", "row", "t", "t", "f", "f", logits, bias, "f", pagedkv, squant, mask, skip))  # fmt: skip
         elif dtype in ["fp8", "bf8"]:
             # no need lse/dropout kernels
             for logits, mask, bias in itertools.product(
                 ["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()
             ):
-                pipelines.append(
-                    FmhaFwdPipeline(
-                        "qr_pagedkv",
-                        "row",
-                        "f",
-                        "f",
-                        "f",
-                        "f",
-                        logits,
-                        bias,
-                        "f",
-                        "t",
-                        squant,
-                        mask,
-                        "f",
-                    )
-                )
-                pipelines.append(
-                    FmhaFwdPipeline(
-                        "qr_pagedkv",
-                        "row",
-                        "t",
-                        "t",
-                        "f",
-                        "f",
-                        logits,
-                        bias,
-                        "f",
-                        "t",
-                        squant,
-                        mask,
-                        "f",
-                    )
-                )
+                pipelines.append(FmhaFwdPipeline("qr_pagedkv", "row", "f", "f", "f", "f", logits, bias, "f", "t", squant, mask, "f"))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr_pagedkv", "row", "t", "t", "f", "f", logits, bias, "f", "t", squant, mask, "f"))  # fmt: skip
         elif dtype in ["fp8fp16", "fp8bf16"]:
-            # TODO
-            None
+            pass  # TODO
         else:
             assert False
         return pipelines
