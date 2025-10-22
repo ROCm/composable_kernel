@@ -61,7 +61,7 @@ pipeline {
             steps {
                 script {
                     echo "... Checkout failure ..."
-                    return false;
+                    sh 'false';
                 }
             }
         }
@@ -70,8 +70,6 @@ pipeline {
         always {
             node(rocmnode("nogpu")) {
                 script {
-                    echo "branch name: ${env.BRANCH_NAME}"
-                    echo "git branch: ${env.GIT_BRANCH}"
                     def buildStatus = currentBuild.result ?: 'SUCCESS'
                     def statusEmoji = buildStatus == 'SUCCESS' ? '⚠️' : '❌'
                     def subjectPrefix = buildStatus == 'SUCCESS' ? 'Warning - Issues Detected' : 'Build Failed'
