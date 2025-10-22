@@ -156,7 +156,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
     };
 
     auto valid_input_data = [&](int group_count, const auto&... args) {
-        return !(args.empty() || ...) && ((args.size() == static_cast<size_t>(group_count)) && ...);
+        return group_count != 0 && ((args.size() == static_cast<size_t>(group_count)) && ...);
     };
 
     const int group_count = arg_parser.get_int("group_count");
@@ -266,7 +266,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
         else if constexpr(QuantMode == ck_tile::QuantType::TensorQuant)
         {
             stride_AQs[i] = 1; // Tensor quantization: tensor shape [1]
-            stride_AQs[i] = 1; // Tensor quantization: tensor shape [1]
+            stride_BQs[i] = 1; // Tensor quantization: tensor shape [1]
         }
 
         a_m_k_tensors.push_back(ck_tile::HostTensor<ADataType>(
