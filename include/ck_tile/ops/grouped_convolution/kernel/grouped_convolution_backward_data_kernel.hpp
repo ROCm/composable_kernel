@@ -27,7 +27,8 @@ struct GroupedConvBwdDataKernelArgs
                                    GroupedConvTraitsType_::ConvSpecialization,
                                    GroupedConvTraitsType_::VectorSizeA,
                                    GroupedConvTraitsType_::VectorSizeB,
-                                   GroupedConvTraitsType_::VectorSizeC>;
+                                   GroupedConvTraitsType_::VectorSizeC,
+                                   true>; // Split N enabled
     static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
 
     static constexpr auto I0 = number<0>();
@@ -44,13 +45,13 @@ struct GroupedConvBwdDataKernelArgs
     CK_TILE_HOST GroupedConvBwdDataKernelArgs(const GroupedConvBwdDataHostArgs& args)
     {
         in_g_n_c_wis_lengths  = {static_cast<index_t>(args.G_),
-                                static_cast<index_t>(args.N_),
-                                static_cast<index_t>(args.C_),
-                                static_cast<index_t>(args.input_spatial_lengths_[0])};
+                                 static_cast<index_t>(args.N_),
+                                 static_cast<index_t>(args.C_),
+                                 static_cast<index_t>(args.input_spatial_lengths_[0])};
         wei_g_k_c_xs_lengths  = {static_cast<index_t>(args.G_),
-                                static_cast<index_t>(args.K_),
-                                static_cast<index_t>(args.C_),
-                                static_cast<index_t>(args.filter_spatial_lengths_[0])};
+                                 static_cast<index_t>(args.K_),
+                                 static_cast<index_t>(args.C_),
+                                 static_cast<index_t>(args.filter_spatial_lengths_[0])};
         out_g_n_k_wos_lengths = {static_cast<index_t>(args.G_),
                                  static_cast<index_t>(args.N_),
                                  static_cast<index_t>(args.K_),
@@ -121,6 +122,11 @@ struct GroupedConvBwdDataKernelArgs
 
             grid_size_ += grid_size_grp;
 
+            // Get the actual split N from transformer
+            n_per_split = conv_to_gemm_transformer.GetN();
+            original_n  = conv_to_gemm_transformer.GetOriginalN();
+            n_splits    = ck_tile::integer_divide_ceil(original_n, n_per_split);
+
             ++gemm_count;
         }
         group_stride_a = args.K_; // A: Out NWGK
@@ -130,6 +136,9 @@ struct GroupedConvBwdDataKernelArgs
                                          1,
                                          std::multiplies<index_t>()); // B: Wei GKXC
         group_stride_c = args.C_;                                     // C: In  NWGC
+
+        input_batch_stride  = args.C_ * args.G_ * args.input_spatial_lengths_[0];
+        output_batch_stride = args.K_ * args.G_ * args.output_spatial_lengths_[0];
 
         GemmBatch = args.G_;
     }
@@ -145,15 +154,15 @@ struct GroupedConvBwdDataKernelArgs
     CK_TILE_HOST GroupedConvBwdDataKernelArgs(const GroupedConvBwdDataHostArgs& args)
     {
         in_g_n_c_wis_lengths  = {static_cast<index_t>(args.G_),
-                                static_cast<index_t>(args.N_),
-                                static_cast<index_t>(args.C_),
-                                static_cast<index_t>(args.input_spatial_lengths_[0]),
-                                static_cast<index_t>(args.input_spatial_lengths_[1])};
+                                 static_cast<index_t>(args.N_),
+                                 static_cast<index_t>(args.C_),
+                                 static_cast<index_t>(args.input_spatial_lengths_[0]),
+                                 static_cast<index_t>(args.input_spatial_lengths_[1])};
         wei_g_k_c_xs_lengths  = {static_cast<index_t>(args.G_),
-                                static_cast<index_t>(args.K_),
-                                static_cast<index_t>(args.C_),
-                                static_cast<index_t>(args.filter_spatial_lengths_[0]),
-                                static_cast<index_t>(args.filter_spatial_lengths_[1])};
+                                 static_cast<index_t>(args.K_),
+                                 static_cast<index_t>(args.C_),
+                                 static_cast<index_t>(args.filter_spatial_lengths_[0]),
+                                 static_cast<index_t>(args.filter_spatial_lengths_[1])};
         out_g_n_k_wos_lengths = {static_cast<index_t>(args.G_),
                                  static_cast<index_t>(args.N_),
                                  static_cast<index_t>(args.K_),
@@ -161,13 +170,13 @@ struct GroupedConvBwdDataKernelArgs
                                  static_cast<index_t>(args.output_spatial_lengths_[1])};
 
         conv_filter_strides   = {static_cast<index_t>(args.conv_filter_strides_[0]),
-                               static_cast<index_t>(args.conv_filter_strides_[1])};
+                                 static_cast<index_t>(args.conv_filter_strides_[1])};
         conv_filter_dilations = {static_cast<index_t>(args.conv_filter_dilations_[0]),
                                  static_cast<index_t>(args.conv_filter_dilations_[1])};
         input_left_pads       = {static_cast<index_t>(args.input_left_pads_[0]),
-                           static_cast<index_t>(args.input_left_pads_[1])};
+                                 static_cast<index_t>(args.input_left_pads_[1])};
         input_right_pads      = {static_cast<index_t>(args.input_right_pads_[0]),
-                            static_cast<index_t>(args.input_right_pads_[1])};
+                                 static_cast<index_t>(args.input_right_pads_[1])};
 
         k_batch = args.k_batch;
 
@@ -237,6 +246,11 @@ struct GroupedConvBwdDataKernelArgs
 
                 grid_size_ += grid_size_grp;
 
+                // Get the actual split N from transformer
+                n_per_split = conv_to_gemm_transformer.GetN();
+                original_n  = conv_to_gemm_transformer.GetOriginalN();
+                n_splits    = ck_tile::integer_divide_ceil(original_n, n_per_split);
+
                 ++gemm_count;
             }
         }
@@ -247,6 +261,11 @@ struct GroupedConvBwdDataKernelArgs
                                          1,
                                          std::multiplies<index_t>()); // B: Wei GKXC
         group_stride_c = args.C_;                                     // C: In  NWGC
+
+        input_batch_stride =
+            args.C_ * args.G_ * args.input_spatial_lengths_[0] * args.input_spatial_lengths_[1];
+        output_batch_stride =
+            args.K_ * args.G_ * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1];
 
         GemmBatch = args.G_;
     }
@@ -262,17 +281,17 @@ struct GroupedConvBwdDataKernelArgs
     CK_TILE_HOST GroupedConvBwdDataKernelArgs(const GroupedConvBwdDataHostArgs& args)
     {
         in_g_n_c_wis_lengths  = {static_cast<index_t>(args.G_),
-                                static_cast<index_t>(args.N_),
-                                static_cast<index_t>(args.C_),
-                                static_cast<index_t>(args.input_spatial_lengths_[0]),
-                                static_cast<index_t>(args.input_spatial_lengths_[1]),
-                                static_cast<index_t>(args.input_spatial_lengths_[2])};
+                                 static_cast<index_t>(args.N_),
+                                 static_cast<index_t>(args.C_),
+                                 static_cast<index_t>(args.input_spatial_lengths_[0]),
+                                 static_cast<index_t>(args.input_spatial_lengths_[1]),
+                                 static_cast<index_t>(args.input_spatial_lengths_[2])};
         wei_g_k_c_xs_lengths  = {static_cast<index_t>(args.G_),
-                                static_cast<index_t>(args.K_),
-                                static_cast<index_t>(args.C_),
-                                static_cast<index_t>(args.filter_spatial_lengths_[0]),
-                                static_cast<index_t>(args.filter_spatial_lengths_[1]),
-                                static_cast<index_t>(args.filter_spatial_lengths_[2])};
+                                 static_cast<index_t>(args.K_),
+                                 static_cast<index_t>(args.C_),
+                                 static_cast<index_t>(args.filter_spatial_lengths_[0]),
+                                 static_cast<index_t>(args.filter_spatial_lengths_[1]),
+                                 static_cast<index_t>(args.filter_spatial_lengths_[2])};
         out_g_n_k_wos_lengths = {static_cast<index_t>(args.G_),
                                  static_cast<index_t>(args.N_),
                                  static_cast<index_t>(args.K_),
@@ -281,17 +300,17 @@ struct GroupedConvBwdDataKernelArgs
                                  static_cast<index_t>(args.output_spatial_lengths_[2])};
 
         conv_filter_strides   = {static_cast<index_t>(args.conv_filter_strides_[0]),
-                               static_cast<index_t>(args.conv_filter_strides_[1]),
-                               static_cast<index_t>(args.conv_filter_strides_[2])};
+                                 static_cast<index_t>(args.conv_filter_strides_[1]),
+                                 static_cast<index_t>(args.conv_filter_strides_[2])};
         conv_filter_dilations = {static_cast<index_t>(args.conv_filter_dilations_[0]),
                                  static_cast<index_t>(args.conv_filter_dilations_[1]),
                                  static_cast<index_t>(args.conv_filter_dilations_[2])};
         input_left_pads       = {static_cast<index_t>(args.input_left_pads_[0]),
-                           static_cast<index_t>(args.input_left_pads_[1]),
-                           static_cast<index_t>(args.input_left_pads_[2])};
+                                 static_cast<index_t>(args.input_left_pads_[1]),
+                                 static_cast<index_t>(args.input_left_pads_[2])};
         input_right_pads      = {static_cast<index_t>(args.input_right_pads_[0]),
-                            static_cast<index_t>(args.input_right_pads_[1]),
-                            static_cast<index_t>(args.input_right_pads_[2])};
+                                 static_cast<index_t>(args.input_right_pads_[1]),
+                                 static_cast<index_t>(args.input_right_pads_[2])};
 
         k_batch = args.k_batch;
 
@@ -369,6 +388,11 @@ struct GroupedConvBwdDataKernelArgs
 
                     grid_size_ += grid_size_grp;
 
+                    // Get the actual split N from transformer
+                    n_per_split = conv_to_gemm_transformer.GetN();
+                    original_n  = conv_to_gemm_transformer.GetOriginalN();
+                    n_splits    = ck_tile::integer_divide_ceil(original_n, n_per_split);
+
                     ++gemm_count;
                 }
             }
@@ -382,13 +406,18 @@ struct GroupedConvBwdDataKernelArgs
                                          std::multiplies<index_t>()); // B: Wei GKXC
         group_stride_c = args.C_;                                     // C: In  NWGC
 
+        input_batch_stride = args.C_ * args.G_ * args.input_spatial_lengths_[0] *
+                             args.input_spatial_lengths_[1] * args.input_spatial_lengths_[2];
+        output_batch_stride = args.K_ * args.G_ * args.output_spatial_lengths_[0] *
+                              args.output_spatial_lengths_[1] * args.output_spatial_lengths_[2];
+
         GemmBatch = args.G_; // C: In  NWGC
     }
 
     static constexpr index_t MaxGroupedGemmGroupsNum = 128;
 
-    using ABCGridDescs = remove_cvref_t<decltype(
-        ConvToGemmTransformer{}.MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(1))>;
+    using ABCGridDescs = remove_cvref_t<
+        decltype(ConvToGemmTransformer{}.MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N(1))>;
 
     using AGridDescMK = remove_cvref_t<decltype(ABCGridDescs{}[number<0>{}])>;
     using BGridDescNK = remove_cvref_t<decltype(ABCGridDescs{}[number<1>{}])>;
@@ -425,6 +454,13 @@ struct GroupedConvBwdDataKernelArgs
     long_index_t group_stride_a;
     long_index_t group_stride_b;
     long_index_t group_stride_c;
+
+    // Split-N support fields - initialize to safe defaults
+    index_t n_splits            = 1; // Number of batch splits (e.g., 2 for 128→64×2)
+    index_t n_per_split         = 1; // Batches per split (N_ from transformer)
+    index_t original_n          = 1; // Original batch size before splitting
+    index_t input_batch_stride  = 0; // Stride to next batch in input tensor
+    index_t output_batch_stride = 0; // Stride to next batch in output tensor
 };
 
 /// @brief The Grouped Convolution Backward Data kernel template.
@@ -527,7 +563,7 @@ struct GroupedConvolutionBackwardDataKernel
     CK_TILE_HOST static auto GridSize(const GroupedConvBwdDataKernelArgsSpecialized& kargs)
     {
         // enable batched grouped gemm
-        return dim3(kargs.grid_size_, kargs.GemmBatch, kargs.k_batch);
+        return dim3(kargs.grid_size_, kargs.GemmBatch, kargs.n_splits * kargs.k_batch);
     }
 
     CK_TILE_HOST static constexpr auto BlockSize()
@@ -943,11 +979,31 @@ struct GroupedConvolutionBackwardDataKernel
         const auto group_offset_b = amd_wave_read_first_lane(kargs.group_stride_b * blockIdY);
         const auto group_offset_c = amd_wave_read_first_lane(kargs.group_stride_c * blockIdY);
 
+        const auto blockIdZ = amd_wave_read_first_lane(blockIdx.z);
+
+        // SplitN
+        const index_t split_n_idx = __builtin_amdgcn_readfirstlane(blockIdZ / kargs.k_batch);
+        const index_t split_n_offset =
+            __builtin_amdgcn_readfirstlane(split_n_idx * kargs.n_per_split);
+
+        const long_index_t output_batch_offset =
+            static_cast<long_index_t>(split_n_offset) *
+            static_cast<long_index_t>(kargs.output_batch_stride);
+        const long_index_t input_batch_offset = static_cast<long_index_t>(split_n_offset) *
+                                                static_cast<long_index_t>(kargs.input_batch_stride);
+
+        // SplitK
+        // TODO: Implement SplitK support
+        // const index_t split_k_idx =
+        //     __builtin_amdgcn_readfirstlane(blockIdZ - split_n_idx * kargs.k_batch);
+
         // options
         // conv_bwd_data = Out * Weight = In
-        const OutDataType* a_ptr = static_cast<const OutDataType*>(kargs.out_ptr) + group_offset_a;
+        const OutDataType* a_ptr =
+            static_cast<const OutDataType*>(kargs.out_ptr) + group_offset_a + output_batch_offset;
         const WeiDataType* b_ptr = static_cast<const WeiDataType*>(kargs.wei_ptr) + group_offset_b;
-        InDataType* c_ptr        = static_cast<InDataType*>(kargs.in_ptr) + group_offset_c;
+        InDataType* c_ptr =
+            static_cast<InDataType*>(kargs.in_ptr) + group_offset_c + input_batch_offset;
 
         // allocate LDS
         __shared__ char smem_ptr_0[GetSmemSize()];
