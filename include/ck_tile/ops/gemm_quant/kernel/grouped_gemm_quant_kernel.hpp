@@ -396,15 +396,12 @@ struct QuantGroupedGemmKernel
             {
                 const auto& aq_block_window = gemm_tile_windows.at(Base::I1);
                 const auto& bq_block_window = gemm_tile_windows.at(Base::I3);
-                EpiloguePipeline{}
-                    .template operator()<decltype(c_block_window),
-                                         decltype(c_block_tile),
-                                         decltype(c_block_window)>(c_block_window,
-                                                                   c_block_tile,
-                                                                   c_block_window,
-                                                                   smem_ptr_0,
-                                                                   aq_block_window,
-                                                                   bq_block_window);
+                EpiloguePipeline{}(c_block_window,
+                                   c_block_tile,
+                                   c_block_window,
+                                   smem_ptr_0,
+                                   aq_block_window,
+                                   bq_block_window);
             }
             else if constexpr(kQuantType == QuantType::TensorQuant)
             {
