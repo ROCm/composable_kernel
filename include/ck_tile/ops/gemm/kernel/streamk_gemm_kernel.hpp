@@ -48,6 +48,17 @@ struct StreamKHostArgs : public ck_tile::UniversalGemmHostArgs<>
     ck_tile::StreamKReductionStrategy reduction_strategy;
 };
 
+/// @brief The Stream K GEMM kernel class.
+///
+/// @par Overview
+///      This class is responsible for the Stream-K kernel, making use of UniversalGemm.
+//	 The main kernel functions are the operator() functions. There is one for Persistent
+//	 and one for Non-Persistent data parallel sections of the Stream-K algorithm.
+//
+//	 Both the Non-Persistent and Persistent kernels make use of `BaseGemm()` and
+//	 `StreamKGemm()`. `BaseGemm()` computes offsets into the A,B,C tensors, then calls
+//	 `RunGemm()` which runs the GEMM pipeline and epilogue. `StreamKGemm()` performs the
+//	 main Stream-K algorithm. Each iteration of the Stream-K loop calls `BaseGemm()`.
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
 struct StreamKKernel
 {
@@ -59,41 +70,63 @@ struct StreamKKernel
     static constexpr index_t kBlockSize = UniversalGemmKernel::kBlockSize;
     static constexpr bool PersistentDP  = UniversalGemmKernel::PersistentKernel;
 
-    using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
-    using GemmPipeline     = remove_cvref_t<GemmPipeline_>;
-    using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
+    using TilePartitioner  = TilePartitioner_;
+    using GemmPipeline     = GemmPipeline_;
+    using EpiloguePipeline = EpiloguePipeline_;
 
     static_assert(
         TilePartitioner::PERSISTENT == PersistentDP,
         "Persistent flag from TilePartitioner must match Persistent flag from UniversalGemm.");
 
     /// @brief  Specify the layout configurations for A, B, and C
-    using ALayout = remove_cvref_t<typename GemmPipeline::ALayout>;
-    using BLayout = remove_cvref_t<typename GemmPipeline::BLayout>;
-    using CLayout = remove_cvref_t<typename GemmPipeline::CLayout>;
+    using ALayout = typename GemmPipeline::ALayout;
+    using BLayout = typename GemmPipeline::BLayout;
+    using CLayout = typename GemmPipeline::CLayout;
 
     /// @brief  Specify the data type configurations for A, B, and C
-    using ADataType = remove_cvref_t<typename GemmPipeline::ADataType>;
-    using BDataType = remove_cvref_t<typename GemmPipeline::BDataType>;
-    using CDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
+    using ADataType = typename GemmPipeline::ADataType;
+    using BDataType = typename GemmPipeline::BDataType;
+    using CDataType = typename EpiloguePipeline::ODataType;
+
+    template <typename T>
+    static constexpr bool is_tuple_v = is_detected<is_tuple, T>::value;
 
     /// @brief  ALayout and ADataType are expected to be scalars, not a tuple.
-    static_assert(!is_detected<is_tuple, ALayout>::value &&
-                      !is_detected<is_tuple, ADataType>::value,
+    static_assert(!is_tuple_v<ALayout> && !is_tuple_v<ADataType>,
                   "ALayout and ADataType must be scalars.");
 
     /// @brief  BLayout and BDataType are expected to be scalars, not a tuple.
-    static_assert(!is_detected<is_tuple, BLayout>::value &&
-                      !is_detected<is_tuple, BDataType>::value,
+    static_assert(!is_tuple_v<BLayout> && !is_tuple_v<BDataType>,
                   "BLayout and BDataType must be scalars.");
 
     /// @brief  CLayout and CDataType are expected to be scalars, not a tuple.
-    static_assert(!is_detected<is_tuple, CLayout>::value &&
-                      !is_detected<is_tuple, CDataType>::value,
+    static_assert(!is_tuple_v<CLayout> && !is_tuple_v<CDataType>,
                   "CLayout and CDataType must be scalars.");
 
     struct StreamKKernelArgs : ck_tile::UniversalGemmKernelArgs<>
     {
+        StreamKKernelArgs(const StreamKHostArgs& host_args, index_t grid)
+            : UniversalGemmKernelArgs{host_args.as_ptr,
+                                      host_args.bs_ptr,
+                                      host_args.ds_ptr,
+                                      host_args.e_ptr,
+                                      host_args.M,
+                                      host_args.N,
+                                      host_args.K,
+                                      host_args.stride_As,
+                                      host_args.stride_Bs,
+                                      host_args.stride_Ds,
+                                      host_args.stride_E,
+                                      host_args.k_batch},
+              reduction_strategy{host_args.reduction_strategy},
+              // The workspace pointer is set to nullptr because we must first
+              // instantiate the TilePartitioner to get the necessary size
+              workspace_ptr{nullptr},
+              tile_partitioner{TilePartitioner{host_args.M, host_args.N, host_args.K, grid}}
+
+        {
+        }
+
         /// @brief  The strategy used by work groups to compute final results in C tensor.
         StreamKReductionStrategy reduction_strategy;
         /// @brief  A pointer to a buffer in device memory for accumulating partial via reduction
@@ -155,23 +188,7 @@ struct StreamKKernel
     {
         const index_t grid = num_cu * occupancy;
 
-        return StreamKKernelArgs{{host_args.as_ptr,
-                                  host_args.bs_ptr,
-                                  host_args.ds_ptr,
-                                  host_args.e_ptr,
-                                  host_args.M,
-                                  host_args.N,
-                                  host_args.K,
-                                  host_args.stride_As,
-                                  host_args.stride_Bs,
-                                  host_args.stride_Ds,
-                                  host_args.stride_E,
-                                  host_args.k_batch},
-                                 host_args.reduction_strategy,
-                                 // The workspace pointer is set to nullptr because we must first
-                                 // instantiate the TilePartitioner to get the necessary size
-                                 /*workspace_ptr =*/nullptr,
-                                 TilePartitioner{host_args.M, host_args.N, host_args.K, grid}};
+        return StreamKKernelArgs{host_args, grid};
     }
 
     template <bool UseDefaultScheduler = true>
@@ -261,13 +278,13 @@ struct StreamKKernel
     /// @param k_size The portion of the K dimension this workgroup processes in the assigned
     /// `tile_idx`.
     /// @param smem_ptr_0 Pointer to LDS.
-    CK_TILE_DEVICE void GemmCommon(StreamKKernelArgs& kargs,
-                                   index_t tile_idx,
-                                   index_t num_loop,
-                                   index_t i_k_a,
-                                   index_t i_k_b,
-                                   index_t k_size,
-                                   void* smem_ptr_0) const
+    CK_TILE_DEVICE void BaseGemm(StreamKKernelArgs& kargs,
+                                 index_t tile_idx,
+                                 index_t num_loop,
+                                 index_t i_k_a,
+                                 index_t i_k_b,
+                                 index_t k_size,
+                                 void* smem_ptr_0) const
     {
         const auto c_macro_tile_idx = kargs.tile_partitioner.get_output_tile_index(tile_idx);
         index_t i_m = c_macro_tile_idx[UniversalGemmKernel::I0] * TilePartitioner::MPerBlock;
@@ -326,7 +343,7 @@ struct StreamKKernel
 
             if constexpr(TilePartitioner::ReductionStrategy == StreamKReductionStrategy::Atomic)
             {
-                GemmCommon(kargs, tile_idx, num_loop_sk, i_k_a, i_k_b, k_size, smem_ptr_0);
+                BaseGemm(kargs, tile_idx, num_loop_sk, i_k_a, i_k_b, k_size, smem_ptr_0);
             }
             else
             {
@@ -340,8 +357,14 @@ struct StreamKKernel
     }
 
     /// @brief Entry point for the Stream-K Kernel with non-persistent DP.
-    template <bool U = !PersistentDP, typename = std::enable_if_t<U>>
-    CK_TILE_DEVICE void operator()(StreamKKernelArgs kargs) const
+    ///
+    /// @par Overview
+    ///     For the Non-Persistent kernel, each data parallel workgroup will
+    ///     compute the results for their assigned macro-tile by calling `BaseGemm()`.
+    ///     The Stream-K workgroups will do their assigned work by calling
+    ///     `StreamKGemm()`, which calls `BaseGemm()` in the Stream-K loop.
+    template <bool U = PersistentDP>
+    CK_TILE_DEVICE typename std::enable_if_t<!U> operator()(StreamKKernelArgs kargs) const
     {
         // Allocate LDS
         __shared__ char smem_ptr_0[UniversalGemmKernel::GetSmemSize()];
@@ -354,7 +377,7 @@ struct StreamKKernel
         // Check if at the data parallel section
         if(is_dp_ctas)
         {
-            GemmCommon(kargs, block_idx, dp_num_loop, 0, 0, kargs.K, smem_ptr_0);
+            BaseGemm(kargs, block_idx, dp_num_loop, 0, 0, kargs.K, smem_ptr_0);
         }
         else
         {
@@ -364,8 +387,15 @@ struct StreamKKernel
     }
 
     /// @brief Entry point for the Stream-K Kernel with persistent DP.
-    template <bool U = PersistentDP, typename = std::enable_if_t<U>, typename = void>
-    CK_TILE_DEVICE void operator()(StreamKKernelArgs kargs) const
+    ///
+    /// @par Overview
+    ///     For the Persistent kernel, each workgroup will first compute their
+    ///     assigned data-parallel tiles. Each data parallel tile will be computed
+    ///     by calling `BaseGemm()`. Then the workgroups will proceed with the
+    ///     Stream-K portion by calling `StreamKGemm()`, which calls `BaseGemm()`
+    ///     in the Stream-K loop.
+    template <bool U = PersistentDP>
+    CK_TILE_DEVICE typename std::enable_if_t<U> operator()(StreamKKernelArgs kargs) const
     {
         // Allocate LDS
         __shared__ char smem_ptr_0[UniversalGemmKernel::GetSmemSize()];
@@ -377,7 +407,7 @@ struct StreamKKernel
         for(index_t tile_idx = block_idx; tile_idx < kargs.tile_partitioner.get_dp_tiles();
             tile_idx += kargs.tile_partitioner.get_grid())
         {
-            GemmCommon(kargs, tile_idx, dp_num_loop, 0, 0, kargs.K, smem_ptr_0);
+            BaseGemm(kargs, tile_idx, dp_num_loop, 0, 0, kargs.K, smem_ptr_0);
         }
 
         // Stream-K section
