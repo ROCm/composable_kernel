@@ -149,13 +149,6 @@ def run_analysis(results_file):
           label = f"Case_{i+1}"
       case_labels.append(label)
       
-      print(f"Case {i+1}: {label}")
-      print(f"  CK Time: {ck_time:.6f}s")
-      print(f"  CK Tile Time: {ck_tile_time:.6f}s")
-      print(f"  CK Tile Performance: {ratio:.1f}% of CK performance")
-      print(f"  CK Tile Kernel: {case.get('ck_tile_name', 'N/A')}")
-      print(f"  CK Kernel: {case.get('ck_name', 'N/A')}")
-      print()
   
   max_cases_to_detailed_plot = 10
   if len(test_cases) < max_cases_to_detailed_plot:
@@ -167,7 +160,6 @@ def run_analysis(results_file):
     colors = ['green' if ratio >= 100 else 'red' for ratio in performance_ratios]
     
     bars = ax1.bar(x_pos, performance_ratios, color=colors, alpha=0.7)
-    #ax1.axhline(y=100, color='black', linestyle='--', linewidth=2, label='Parity (100%)')
     ax1.set_xlabel('Test Cases')
     ax1.set_ylabel('CK Tile Performance (% of CK)')
     ax1.set_title('CK Tile vs CK Performance Comparison\n(>100% = CK Tile Faster, <100% = CK Faster)')
@@ -281,6 +273,57 @@ def run_analysis(results_file):
     plt.savefig(output_file, dpi=300, bbox_inches='tight')
     print(f"Performance analysis histogram saved to: {output_file}")
     plt.close()
+
+    # Collect aggregated statistics for cases where CK is faster
+    print("\n" + "="*80)
+    print("CK FASTER TEST CASES - AGGREGATED STATISTICS")
+    print("="*80)
+
+    ck_faster_cases = []
+    ck_faster_ratios = []
+    ck_faster_kernels = {}  # Track which CK kernels are winning
+    ck_tile_losing_kernels = {}  # Track which CK Tile kernels are losing
+
+    for i, case in enumerate(test_cases):
+        ratio = performance_ratios[i]
+        if ratio < 100:
+            ck_faster_cases.append(case)
+            ck_faster_ratios.append(ratio)
+            
+            # Count CK kernels that are winning
+            ck_kernel = case.get('ck_name', 'N/A')
+            if ck_kernel not in ck_faster_kernels:
+                    ck_faster_kernels[ck_kernel] = {'count': 0, 'ratios': []}
+            ck_faster_kernels[ck_kernel]['count'] += 1
+            ck_faster_kernels[ck_kernel]['ratios'].append(ratio)
+            
+            # Count CK Tile kernels that are losing
+            ck_tile_kernel = case.get('ck_tile_name', 'N/A')
+            if ck_tile_kernel not in ck_tile_losing_kernels:
+                    ck_tile_losing_kernels[ck_tile_kernel] = {'count': 0, 'ratios': []}
+            ck_tile_losing_kernels[ck_tile_kernel]['count'] += 1
+            ck_tile_losing_kernels[ck_tile_kernel]['ratios'].append(ratio)
+
+    if ck_faster_cases:
+        print(f"Number of cases where CK is faster: {len(ck_faster_cases)}/{len(test_cases)} ({len(ck_faster_cases)/len(test_cases)*100:.1f}%)")
+        print(f"Average CK performance advantage: {100 - np.mean(ck_faster_ratios):.1f}%")
+        print(f"Median CK performance advantage: {100 - np.median(ck_faster_ratios):.1f}%")
+        print(f"Best CK performance advantage: {100 - np.min(ck_faster_ratios):.1f}%")
+        print(f"Worst CK performance advantage: {100 - np.max(ck_faster_ratios):.1f}%")
+        
+        print(f"\nTop CK kernels that outperform CK Tile:")
+        sorted_ck_kernels = sorted(ck_faster_kernels.items(), key=lambda x: x[1]['count'], reverse=True)
+        for kernel, stats in sorted_ck_kernels[:5]:  # Show top 5
+                avg_advantage = 100 - np.mean(stats['ratios'])
+                print(f"  {kernel}: {stats['count']} wins, avg advantage: {avg_advantage:.1f}%")
+        
+        print(f"\nCK Tile kernels that lose most often:")
+        sorted_ck_tile_kernels = sorted(ck_tile_losing_kernels.items(), key=lambda x: x[1]['count'], reverse=True)
+        for kernel, stats in sorted_ck_tile_kernels[:5]:  # Show top 5
+                avg_disadvantage = np.mean(stats['ratios'])
+                print(f"  {kernel}: {stats['count']} losses, avg performance: {avg_disadvantage:.1f}% of CK")
+    else:
+        print("No cases found where CK is faster than CK Tile.")
 
 def main():
   args = parse_cli_args()
