@@ -88,12 +88,21 @@ pipeline {
                     }
                     
                     for (patternMap in foundPatterns) {
+                        def issueType = buildStatus == 'SUCCESS' ? 'Potential issue detected' : 'Build failure detected'
+                        def messageText = "${statusEmoji} **${subjectPrefix}**\n\n**${issueType}:** ${patternMap.description}\n\n**Log context:**\n```\n${patternMap.context}\n```\n\n**Job:** ${env.JOB_NAME}\n\n**Branch:** ${env.BRANCH_NAME ?: env.GIT_BRANCH ?: 'Unknown'}\n\n**Build:** #${env.BUILD_NUMBER}\n\n**URL:** ${env.BUILD_URL}"
+                        
+                        def jsonPayload = [
+                            text: messageText
+                        ]
+                        
+                        writeFile file: 'teams_message.json', text: groovy.json.JsonBuilder(jsonPayload).toPrettyString()
+                        
                         withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
-                        sh '''
-                            curl -X POST "${WEBHOOK_URL}" \
-                            -H 'Content-Type: application/json' \
-                            -d '{"text": "''' + statusEmoji + ' **' + subjectPrefix + '''**\\n\\n**''' + (buildStatus == 'SUCCESS' ? 'Potential issue detected' : 'Build failure detected') + ''':**\\n\\n**Build failure detected:** ''' + patternMap.description + '''\\n\\n**Log context:**\\n```\\n''' + patternMap.context.replace("'", "\\'") + '''\\n```\\n\\n**Job:** ''' + env.JOB_NAME + '''\\n\\n**Branch:** ''' + (env.BRANCH_NAME ?: env.GIT_BRANCH ?: 'Unknown') + '''\\n\\n**Build:** #''' + env.BUILD_NUMBER + '''\\n\\n**URL:** ''' + env.BUILD_URL + '''"}'
-                        '''
+                            sh '''
+                                curl -X POST "${WEBHOOK_URL}" \
+                                -H 'Content-Type: application/json' \
+                                -d @teams_message.json
+                            '''
                         }
                     }                    
                 }
