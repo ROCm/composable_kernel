@@ -119,6 +119,16 @@ struct GroupedConvolutionForwardInvoker
                                             InDataType,
                                             OutDataType>;
 
+        // Check if layout is supported for split-image
+        // Split-image requires specific memory layouts:
+        // 1D: NWGC (input), GKXC (weight), NWGK (output)
+        // 2D: NHWGC (input), GKYXC (weight), NHWGK (output)
+        // 3D: NDHWGC (input), GKZYXC (weight), NDHWGK (output)
+        constexpr bool is_supported_layout =
+            std::is_same<InLayout, ck_tile::tensor_layout::convolution::NWGC>::value ||
+            std::is_same<InLayout, ck_tile::tensor_layout::convolution::NHWGC>::value ||
+            std::is_same<InLayout, ck_tile::tensor_layout::convolution::NDHWGC>::value;
+
         auto split_info = TransformType::GetSplitImageInfo(
             args.G_, args.N_, args.C_, args.K_, total_d, total_h, total_w);
 
@@ -127,8 +137,16 @@ struct GroupedConvolutionForwardInvoker
         const ck_tile::index_t num_w_pieces = split_info.num_w_pieces;
         const ck_tile::index_t total_pieces = num_d_pieces * num_h_pieces * num_w_pieces;
 
-        // Enable split-image only when needed (based on GetSplitImageInfo result)
-        const bool enable_split_image = split_info.should_split;
+        // Enable split-image only when:
+        // 1. GetSplitImageInfo says we should split (memory-based decision)
+        // 2. Layout is supported
+        const bool enable_split_image = split_info.should_split && is_supported_layout;
+
+        if(split_info.should_split && !is_supported_layout && s.log_level_ > 0)
+        {
+            std::cout << "[INVOKER] WARNING: Split-image requested but layout not supported. "
+                      << "Falling back to non-split mode.\n";
+        }
 
         if(s.log_level_ > 0)
         {
@@ -282,53 +300,27 @@ struct GroupedConvolutionForwardInvoker
             const ck_tile::index_t base_piece_w = total_w / num_w_pieces;
 
             // Store piece descriptors temporarily (will populate in final kargs)
-            struct TempPieceInfo
-            {
-                ck_tile::index_t block_start, block_end;
-                ck_tile::index_t d_start, h_start, w_start;
-                ck_tile::index_t d_size, h_size, w_size;
-            };
-            std::array<TempPieceInfo, 64> temp_pieces{};
+            std::array<ck_tile::SplitImagePieceInfo, 64> temp_pieces{};
             ck_tile::index_t total_blocks = 0;
 
-            // Helper: Calculate single piece information
-            auto calculate_piece = [&](ck_tile::index_t piece_idx) -> TempPieceInfo {
-                const ck_tile::index_t w_idx = piece_idx % num_w_pieces;
-                const ck_tile::index_t h_idx = (piece_idx / num_w_pieces) % num_h_pieces;
-                const ck_tile::index_t d_idx = piece_idx / (num_w_pieces * num_h_pieces);
-
-                const ck_tile::index_t w_start = w_idx * base_piece_w;
-                const ck_tile::index_t h_start = h_idx * base_piece_h;
-                const ck_tile::index_t d_start = d_idx * base_piece_d;
-
-                const ck_tile::index_t w_size =
-                    (w_idx == num_w_pieces - 1) ? (total_w - w_start) : base_piece_w;
-                const ck_tile::index_t h_size =
-                    (h_idx == num_h_pieces - 1) ? (total_h - h_start) : base_piece_h;
-                const ck_tile::index_t d_size =
-                    (d_idx == num_d_pieces - 1) ? (total_d - d_start) : base_piece_d;
-
-                const ck_tile::index_t piece_gemm_m = args.N_ * d_size * h_size * w_size;
-                const ck_tile::index_t piece_gemm_n = args.K_;
-                const ck_tile::index_t piece_grid =
-                    ((piece_gemm_m + TilePartitioner::MPerBlock - 1) / TilePartitioner::MPerBlock) *
-                    ((piece_gemm_n + TilePartitioner::NPerBlock - 1) / TilePartitioner::NPerBlock);
-
-                return {total_blocks,
-                        total_blocks + piece_grid,
-                        d_start,
-                        h_start,
-                        w_start,
-                        d_size,
-                        h_size,
-                        w_size};
-            };
-
-            // Calculate piece info for all pieces
+            // Calculate piece info for all pieces using library utility function
             for(ck_tile::index_t piece = 0; piece < total_pieces; piece++)
             {
-                temp_pieces[piece] = calculate_piece(piece);
-                total_blocks       = temp_pieces[piece].block_end;
+                temp_pieces[piece] =
+                    ck_tile::calculate_spatial_piece<TilePartitioner>(piece,
+                                                                      num_d_pieces,
+                                                                      num_h_pieces,
+                                                                      num_w_pieces,
+                                                                      base_piece_d,
+                                                                      base_piece_h,
+                                                                      base_piece_w,
+                                                                      total_d,
+                                                                      total_h,
+                                                                      total_w,
+                                                                      args.N_,
+                                                                      args.K_,
+                                                                      total_blocks);
+                total_blocks = temp_pieces[piece].block_end;
             }
 
             // ─────────────────────────────────────────────────────────────────
