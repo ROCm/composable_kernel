@@ -5,7 +5,7 @@ def rocmnode(name) {
 // Given a pattern, check if the log contains the pattern.
 def checkForPattern(pattern, log) {
     // Regex check for a match in the log.
-    if (log ==~ pattern) {
+    if (log =~ pattern) {
         echo "Found match in log for ${pattern}"
         return true;
     } else {
