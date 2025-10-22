@@ -140,3 +140,33 @@ TEST_F(FwdConvBuilderTest,
 
     run_test<FwdConvSignature, FwdThreadBlock, ConvFwdSpecialization::DEFAULT>();
 }
+
+TEST_F(FwdConvBuilderTest,
+       Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_2D_BF16_NGCHW_ChannelsFirst)
+{
+    constexpr ConvSignature<GroupConvLayout2D> FwdConvSignature{
+        .spatial_dim = 2,
+        .direction   = ConvDirection::FORWARD,
+        .layout      = GroupConvLayout2D::NGCHW_GKYXC_NGKHW,
+        .data_type   = DataType::BF16};
+
+    constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
+                                         .tile_size  = {.m = 256, .n = 256, .k = 32}};
+
+    run_test<FwdConvSignature, FwdThreadBlock, ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0>();
+}
+
+TEST_F(FwdConvBuilderTest,
+       Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_3D_FP16_NDHWGC_ChannelsLast)
+{
+    constexpr ConvSignature<GroupConvLayout3D> FwdConvSignature{
+        .spatial_dim = 3,
+        .direction   = ConvDirection::FORWARD,
+        .layout      = GroupConvLayout3D::NDHWGC_GKZYXC_NDHWGK,
+        .data_type   = DataType::FP16};
+
+    constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
+                                         .tile_size  = {.m = 128, .n = 128, .k = 32}};
+
+    run_test<FwdConvSignature, FwdThreadBlock, ConvFwdSpecialization::DEFAULT>();
+}
