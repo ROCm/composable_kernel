@@ -82,7 +82,7 @@ struct Reduce2dDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeForIndices()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetIndicesSmemSize()
     {
         if constexpr(Problem::kNeedCrossWarpSync && Problem::kOutputIndex)
         {
@@ -99,7 +99,7 @@ struct Reduce2dDefaultPolicy
                 decltype(block_reduce2d::template MakeYIndexBlockTile<x_block_tile, index_t>());
 
             return GetBlockReduce2dCrossWarpSync<Problem>()
-                .template GetSmemSizeForIndices<y_index_block_tile>();
+                .template GetIndicesSmemSize<y_index_block_tile>();
         }
         else
         {

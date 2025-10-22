@@ -139,6 +139,28 @@ struct BlockReduce2d
                                            ReducePacksPerXDim{});
     }
 
+#if 0
+        constexpr auto I0 = number<0>{};
+        constexpr auto I1 = number<1>{};
+        constexpr auto spans = XDistributedTensor_::get_distributed_spans();
+
+        // FIXME: hard coded to reduce 2nd axis
+        sweep_tile_span(spans[I0], [&](auto dstr_idx_i0) {
+            constexpr auto y_dstr_idx = make_tuple(dstr_idx_i0);
+
+            auto y = y_tensor[y_dstr_idx];
+
+            sweep_tile_span(spans[I1], [&](auto dstr_idx_i1) {
+                constexpr auto in_dstr_idx = make_tuple(dstr_idx_i0, dstr_idx_i1);
+                const auto x = ck_tile::type_convert<ComputeDataType>(x_tensor[in_dstr_idx]);
+
+                y = reduce_func(y, x);
+            });
+
+            y_tensor(y_dstr_idx) = y;
+        });
+#endif
+
     template <typename XDistributedTensor_>
     CK_TILE_DEVICE static auto MakeYBlockTile()
     {
@@ -364,15 +386,39 @@ struct BlockReduce2dCrossWarpSync
         return num_warps * thread_buf_size * sizeof(DataType);
     }
 
-    template <typename YDistributedTensor_, typename ReduceFunc>
-    CK_TILE_DEVICE void
-    operator()(YDistributedTensor_& y_tensor, void* smem, const ReduceFunc& reduce_func)
+    // return in byte - separate shared memory size calculation for indices
+    template <typename YIndexDistributedTensor_>
+    CK_TILE_HOST_DEVICE static constexpr index_t GetIndicesSmemSize()
     {
-        using DataType = typename YDistributedTensor_::DataType;
+        using IndexDataType               = typename YIndexDistributedTensor_::DataType;
+        constexpr index_t thread_buf_size = YIndexDistributedTensor_::get_thread_buffer_size();
+        constexpr index_t num_warps       = BlockShape::BlockSize / get_warp_size();
+        return num_warps * thread_buf_size * sizeof(IndexDataType);
+    }
+
+    private:
+    template <bool kProcessIndex,
+              typename YDistributedTensor_,
+              typename YIndexDistributedTensor_,
+              typename ReduceFunc>
+    CK_TILE_DEVICE void reduce_impl(YDistributedTensor_& y_tensor,
+                                    YIndexDistributedTensor_& y_index_tensor,
+                                    void* smem,
+                                    void* smem_indices_ptr,
+                                    const ReduceFunc& reduce_func)
+    {
+        using DataType      = typename YDistributedTensor_::DataType;
+        using IndexDataType = typename YIndexDistributedTensor_::DataType;
 
         constexpr index_t thread_buf_size = YDistributedTensor_::get_thread_buffer_size();
 
-        DataType* smem_ptr    = reinterpret_cast<DataType*>(smem);
+        DataType* smem_ptr          = reinterpret_cast<DataType*>(smem);
+        IndexDataType* smem_indices = nullptr;
+        if constexpr(kProcessIndex)
+        {
+            smem_indices = reinterpret_cast<IndexDataType*>(smem_indices_ptr);
+        }
+
         const index_t lane_id = get_lane_id();
         const index_t warp_id = get_warp_id();
 
@@ -389,6 +435,11 @@ struct BlockReduce2dCrossWarpSync
             static_for<0, thread_buf_size, 1>{}([&](auto i) {
                 // Store the i-th element of this warp's thread_buffer into SMEM
                 smem_ptr[smem_offset + i * num_warps] = y_tensor.get_thread_buffer()[i];
+                if constexpr(kProcessIndex)
+                {
+                    smem_indices[smem_offset + i * num_warps] =
+                        y_index_tensor.get_thread_buffer()[i];
+                }
             });
         }
         block_sync_lds();
@@ -396,10 +447,18 @@ struct BlockReduce2dCrossWarpSync
         // We let each warp holds a duplication to do reduction.
         const index_t local_warp_id = warp_id / num_reduce_warps;
         const index_t local_smem_os = local_warp_id * num_reduce_warps;
+
         static_for<0, thread_buf_size, 1>{}([&](auto i) {
             DataType v[num_reduce_warps];
-            static_for<0, num_reduce_warps, 1>{}(
-                [&](auto idx) { v[idx] = smem_ptr[i * num_warps + local_smem_os + idx]; });
+            IndexDataType idx_v[num_reduce_warps];
+
+            static_for<0, num_reduce_warps, 1>{}([&](auto idx) {
+                v[idx] = smem_ptr[i * num_warps + local_smem_os + idx];
+                if constexpr(kProcessIndex)
+                {
+                    idx_v[idx] = smem_indices[i * num_warps + local_smem_os + idx];
+                }
+            });
 
             static_assert(is_power_of_two_integer(num_reduce_warps),
                           "wrong! only support power of 2 reduction");
@@ -413,13 +472,48 @@ struct BlockReduce2dCrossWarpSync
                     constexpr index_t i1 = idx_ + stride;
                     if constexpr(i1 < num_reduce_warps)
                     {
-                        v[i0] = reduce_func(v[i0], v[i1]);
+                        if constexpr(kProcessIndex)
+                        {
+                            bool changed = false;
+                            v[i0]        = reduce_func(v[i0], v[i1], changed);
+                            if(changed)
+                            {
+                                idx_v[i0] = idx_v[i1];
+                            }
+                        }
+                        else
+                        {
+                            v[i0] = reduce_func(v[i0], v[i1]);
+                        }
                     }
                 });
             });
 
             y_tensor.get_thread_buffer()(i) = v[0];
+            if constexpr(kProcessIndex)
+            {
+                y_index_tensor.get_thread_buffer()(i) = idx_v[0];
+            }
         });
+    }
+
+    public:
+    template <typename YDistributedTensor_, typename ReduceFunc>
+    CK_TILE_DEVICE void
+    operator()(YDistributedTensor_& y_tensor, void* smem, const ReduceFunc& reduce_func)
+    {
+        reduce_impl<false>(y_tensor, y_tensor, smem, nullptr, reduce_func);
+    }
+
+    template <typename YDistributedTensor_, typename YIndexDistributedTensor_, typename ReduceFunc>
+    CK_TILE_DEVICE void operator()(YDistributedTensor_& y_tensor,
+                                   YIndexDistributedTensor_& y_index_tensor,
+                                   void* smem,
+                                   void* smem_indices,
+                                   const ReduceFunc& reduce_func)
+    {
+        reduce_impl<Problem::kOutputIndex>(
+            y_tensor, y_index_tensor, smem, smem_indices, reduce_func);
     }
 };
 
@@ -480,7 +574,7 @@ struct BlockReduce2dLinearCrossWarpSync
 
     // return in byte - separate shared memory size calculation for indices
     template <typename YIndexDistributedTensor_>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeForIndices()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetIndicesSmemSize()
     {
         using IndexDataType               = typename YIndexDistributedTensor_::DataType;
         constexpr index_t thread_buf_size = YIndexDistributedTensor_::get_thread_buffer_size();

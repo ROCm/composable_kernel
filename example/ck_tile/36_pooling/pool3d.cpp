@@ -108,6 +108,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                              {Do * Ho * Wo * C, Ho * Wo * C, Wo * C, C, 1});
     ck_tile::HostTensor<IndexDataType> out_index({N, Do, Ho, Wo, C},
                                                  {Do * Ho * Wo * C, Ho * Wo * C, Wo * C, C, 1});
+    ck_tile::HostTensor<IndexDataType> out_ref_index({N, Do, Ho, Wo, C},
+                                                     {Do * Ho * Wo * C, Ho * Wo * C, Wo * C, C, 1});
 
     ck_tile::FillUniformDistribution<InDataType>{-5.f, 5.f}(in);
 
@@ -177,19 +179,28 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     if(do_validation)
     {
-        ck_tile::reference_pool3d<InDataType, ComputeDataType, OutDataType>(
-            in, out_ref, kernel_args, ReduceOp{});
         out_buf.FromDevice(out.mData.data());
-        pass = ck_tile::check_err(out, out_ref);
-        std::cout << "value_valid:" << (pass ? "y" : "n") << std::flush << std::endl;
+
+        ck_tile::reference_pool3d<InDataType,
+                                  ComputeDataType,
+                                  OutDataType,
+                                  IndexDataType,
+                                  ReduceOp,
+                                  decltype(input_shape),
+                                  decltype(window_spatial_lengths),
+                                  OutputIndex>(in, out_ref, out_ref_index, kernel_args, ReduceOp{});
 
         if constexpr(OutputIndex)
         {
             out_index_buf.FromDevice(out_index.mData.data());
-            pass = ck_tile::validate_pool_indices(in, out, out_index);
-
-            std::cout << "index_valid:" << (pass ? "y" : "n") << std::flush << std::endl;
+            pass = ck_tile::check_err(out, out_ref) && ck_tile::check_err(out_index, out_ref_index);
         }
+        else
+        {
+            pass = ck_tile::check_err(out, out_ref);
+        }
+
+        std::cout << "valid:" << (pass ? "y" : "n") << std::endl;
     }
 
     return pass;

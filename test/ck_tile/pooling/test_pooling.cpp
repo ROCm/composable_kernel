@@ -70,6 +70,7 @@ class TestCkTilePooling : public ::testing::Test
         ck_tile::HostTensor<OutDataType> h_out({config.N, Ho, Wo, config.C});
         ck_tile::HostTensor<OutDataType> h_out_ref({config.N, Ho, Wo, config.C});
         ck_tile::HostTensor<IndexDataType> h_out_index({config.N, Ho, Wo, config.C});
+        ck_tile::HostTensor<IndexDataType> h_out_ref_index({config.N, Ho, Wo, config.C});
 
         // Initialize input with random data
         ck_tile::FillUniformDistribution<InDataType>{-5.f, 5.f}(h_in);
@@ -139,23 +140,27 @@ class TestCkTilePooling : public ::testing::Test
             ck_tile::make_kernel<kBlockPerCu>(Kernel{}, kGridSize, kBlockSize, 0, kernel_args));
 
         // Run reference
-        ck_tile::reference_pool2d<InDataType, ComputeDataType, OutDataType>(
-            h_in, h_out_ref, kernel_args, ReduceOpType{});
+        ck_tile::reference_pool2d<InDataType,
+                                  ComputeDataType,
+                                  OutDataType,
+                                  IndexDataType,
+                                  ReduceOpType,
+                                  decltype(input_shape),
+                                  decltype(window_spatial_lengths),
+                                  true>(
+            h_in, h_out_ref, h_out_ref_index, kernel_args, ReduceOpType{});
 
         d_out_mem.FromDevice(h_out.data());
         d_out_index_mem.FromDevice(h_out_index.data());
 
         // Validate results
-        bool pass = ck_tile::check_err(h_out, h_out_ref, "Error: Incorrect results!", 1e-5, 1e-5);
+        bool pass_value =
+            ck_tile::check_err(h_out, h_out_ref, "Error: Incorrect values!", 1e-5, 1e-5);
+        bool pass_index = ck_tile::check_err(
+            h_out_index, h_out_ref_index, "Error: Incorrect indices!", 1e-5, 1e-5);
 
-        if(pass && !ck_tile::validate_pool_indices(h_in, h_out, h_out_index))
-        {
-            std::cout << "Invalid indices detected!" << std::endl;
-            pass = false;
-        }
-
-        std::cout << (pass ? "PASS" : "FAIL") << std::endl;
-        return pass;
+        std::cout << (pass_value && pass_index ? "PASS" : "FAIL") << std::endl;
+        return pass_value && pass_index;
     }
 
     bool RunPool3D(const Config3D& config)
@@ -205,6 +210,9 @@ class TestCkTilePooling : public ::testing::Test
             {config.N, Do, Ho, Wo, config.C},
             {Do * Ho * Wo * config.C, Ho * Wo * config.C, Wo * config.C, config.C, 1});
         ck_tile::HostTensor<IndexDataType> h_out_index(
+            {config.N, Do, Ho, Wo, config.C},
+            {Do * Ho * Wo * config.C, Ho * Wo * config.C, Wo * config.C, config.C, 1});
+        ck_tile::HostTensor<IndexDataType> h_out_ref_index(
             {config.N, Do, Ho, Wo, config.C},
             {Do * Ho * Wo * config.C, Ho * Wo * config.C, Wo * config.C, config.C, 1});
 
@@ -263,23 +271,27 @@ class TestCkTilePooling : public ::testing::Test
             ck_tile::make_kernel<kBlockPerCu>(Kernel{}, kGridSize, kBlockSize, 0, kernel_args));
 
         // Run reference implementation
-        ck_tile::reference_pool3d<InDataType, ComputeDataType, OutDataType>(
-            h_in, h_out_ref, kernel_args, ReduceOpType{});
+        ck_tile::reference_pool3d<InDataType,
+                                  ComputeDataType,
+                                  OutDataType,
+                                  IndexDataType,
+                                  ReduceOpType,
+                                  decltype(input_shape),
+                                  decltype(window_spatial_lengths),
+                                  true>(
+            h_in, h_out_ref, h_out_ref_index, kernel_args, ReduceOpType{});
 
         d_out_mem.FromDevice(h_out.data());
         d_out_index_mem.FromDevice(h_out_index.data());
 
         // Validate results
-        bool pass = ck_tile::check_err(h_out, h_out_ref, "Error: Incorrect results!", 1e-5, 1e-5);
+        bool pass_value =
+            ck_tile::check_err(h_out, h_out_ref, "Error: Incorrect values!", 1e-5, 1e-5);
+        bool pass_index = ck_tile::check_err(
+            h_out_index, h_out_ref_index, "Error: Incorrect indices!", 1e-5, 1e-5);
 
-        if(pass && !ck_tile::validate_pool_indices(h_in, h_out, h_out_index))
-        {
-            std::cout << "Invalid indices detected!" << std::endl;
-            pass = false;
-        }
-
-        std::cout << (pass ? "PASS" : "FAIL") << std::endl;
-        return pass;
+        std::cout << (pass_value && pass_index ? "PASS" : "FAIL") << std::endl;
+        return pass_value && pass_index;
     }
 };
 

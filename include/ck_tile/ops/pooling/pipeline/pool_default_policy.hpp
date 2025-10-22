@@ -82,30 +82,23 @@ struct PoolDefaultPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeForIndices()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetIndicesSmemSize()
     {
-        if constexpr(Problem::kNeedCrossWarpSync && Problem::kOutputIndex)
-        {
-            using P_ = BlockReduce2dProblem<typename Problem::InDataType,
-                                            typename Problem::ComputeDataType,
-                                            typename Problem::BlockShape,
-                                            Problem::kOutputIndex>;
 
-            using block_reduce2d = BlockReduce2d<P_>;
-            using x_block_tile =
-                decltype(make_static_distributed_tensor<typename Problem::InDataType>(
-                    MakeXBlockTileDistribution<Problem>()));
-            using y_index_block_tile = decltype(block_reduce2d::template MakeYIndexBlockTile<
-                                                x_block_tile,
-                                                typename Problem::IndexDataType>());
+        using P_ = BlockReduce2dProblem<typename Problem::InDataType,
+                                        typename Problem::ComputeDataType,
+                                        typename Problem::BlockShape,
+                                        Problem::kOutputIndex>;
 
-            return GetBlockReduce2dCrossWarpSync<Problem>()
-                .template GetSmemSizeForIndices<y_index_block_tile>();
-        }
-        else
-        {
-            return 1; // zero size arrays are an extension
-        }
+        using block_reduce2d = BlockReduce2d<P_>;
+        using x_block_tile = decltype(make_static_distributed_tensor<typename Problem::InDataType>(
+            MakeXBlockTileDistribution<Problem>()));
+        using y_index_block_tile = decltype(block_reduce2d::template MakeYIndexBlockTile<
+                                            x_block_tile,
+                                            typename Problem::IndexDataType>());
+
+        return GetBlockReduce2dCrossWarpSync<Problem>()
+            .template GetIndicesSmemSize<y_index_block_tile>();
     }
 };
 } // namespace ck_tile

@@ -426,8 +426,6 @@ struct PoolKernel
 
         if constexpr(Problem::kOutputIndex)
         {
-            __shared__ char smem_indices[Policy::template GetSmemSizeForIndices<Problem>()];
-
             auto y_index_window =
                 make_tile_window(out_index_tensor_padded, make_tuple(number<S::Block_M>{}), {iM});
 
@@ -452,7 +450,12 @@ struct PoolKernel
             }
 
             block_reduce2d_sync(y_tile, y_index_tile, reduce_op);
-            block_reduce2d_cross_warp(y_tile, y_index_tile, smem, smem_indices, reduce_op);
+            if constexpr(Problem::kNeedCrossWarpSync)
+            {
+                __shared__ char smem_indices[Policy::template GetIndicesSmemSize<Problem>()];
+
+                block_reduce2d_cross_warp(y_tile, y_index_tile, smem, smem_indices, reduce_op);
+            }
 
             store_tile(y_window, cast_tile<OutDataType>(y_tile));
             store_tile(y_index_window, cast_tile<IndexDataType>(y_index_tile));
