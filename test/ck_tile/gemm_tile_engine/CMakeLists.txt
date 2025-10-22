@@ -155,27 +155,51 @@ function(build_gemm_test_targets datatype layout config_name)
         return()
     endif()
 
-    #  STEP 2b: Parallel generation phase - generate all headers at once during cmake
+    # STEP 2b: Header generation phase - generate headers using --gen_single
     if(kernel_count GREATER 0)
-        message(STATUS "  Generating all headers in parallel...")
-        execute_process(
-            COMMAND ${Python3_EXECUTABLE} -u ${TILE_ENGINE_GEMM_DIR}/gemm_instance_builder.py
-                    --working_path ${working_path}
-                    --datatype ${datatype}
-                    --layout ${layout}
-                    --config_json ${json_blob}
-                    --gen_individual
-            WORKING_DIRECTORY ${TILE_ENGINE_GEMM_DIR}
-            RESULT_VARIABLE gen_ret
-            OUTPUT_VARIABLE gen_output
-            ERROR_VARIABLE gen_error
-        )
-
-        if(NOT gen_ret EQUAL 0)
-            message(WARNING "Failed to generate headers for ${datatype}_${layout}: ${gen_error}")
-            return()
+        message(STATUS "  Generating headers using --gen_single...")
+        
+        if(EXISTS ${working_path}/gemm_kernel_list.txt)
+            file(STRINGS ${working_path}/gemm_kernel_list.txt kernel_lines)
+            set(gen_count 0)
+            
+            foreach(line IN LISTS kernel_lines)
+                # Parse kernel specification format: kernel_name|tile_config|trait_combo
+                string(REPLACE "|" ";" parts "${line}")
+                list(LENGTH parts parts_len)
+                if(parts_len EQUAL 3)
+                    list(GET parts 0 kernel_name)
+                    list(GET parts 1 tile_config)
+                    list(GET parts 2 trait_combo)
+                    
+                    # Generate header using --gen_single
+                    execute_process(
+                        COMMAND ${Python3_EXECUTABLE} -u ${TILE_ENGINE_GEMM_DIR}/gemm_instance_builder.py
+                                --working_path ${working_path}
+                                --gpu_target "${GEMM_TEST_GPU_TARGETS}"
+                                --datatype ${datatype}
+                                --layout ${layout}
+                                --config_json ${json_blob}
+                                --gen_single
+                                --kernel_name "${kernel_name}"
+                                --tile_config "${tile_config}"
+                                --trait_combo "${trait_combo}"
+                        WORKING_DIRECTORY ${TILE_ENGINE_GEMM_DIR}
+                        RESULT_VARIABLE gen_ret
+                        OUTPUT_VARIABLE gen_output
+                        ERROR_VARIABLE gen_error
+                    )
+                    
+                    if(NOT gen_ret EQUAL 0)
+                        message(WARNING "Failed to generate header for ${kernel_name}: ${gen_error}")
+                    else()
+                        math(EXPR gen_count "${gen_count} + 1")
+                    endif()
+                endif()
+            endforeach()
+            
+            message(STATUS "  Generated ${gen_count} headers for ${datatype}_${layout}")
         endif()
-        message(STATUS "  All headers generated for ${datatype}_${layout}")
     endif()
 
     # STEP 3: Target creation phase - create test targets only if kernels were found
