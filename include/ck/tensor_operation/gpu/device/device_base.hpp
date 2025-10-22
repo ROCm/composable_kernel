@@ -227,6 +227,7 @@ struct BaseOperator
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
     virtual bool IsSupportedArgument(const BaseArgument*) { return false; }
     virtual std::string GetTypeString() const { return ""; }
+    virtual std::string GetInstanceString() const { return ""; }
 
     virtual std::string GetTypeIdName() const { return typeid(*this).name(); }
 
