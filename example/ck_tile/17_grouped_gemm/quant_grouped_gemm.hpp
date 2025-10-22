@@ -137,7 +137,7 @@ template <typename GemmConfig,
           typename BQDataType,
           typename AccDataType,
           typename CDataType,
-          ck_tile::QuantType QuantMode>
+          ck_tile::QuantType QuantMode = ck_tile::QuantType::BQuantGrouped>
 float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                             const ck_tile::index_t num_groups,
                             void* kargs_ptr);
