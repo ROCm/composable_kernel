@@ -35,6 +35,7 @@
 #include "ck_tile/host/reference/reference_grouped_conv_fwd.hpp"
 #include "ck_tile/host/reference/reference_im2col.hpp"
 #include "ck_tile/host/reference/reference_layernorm2d_fwd.hpp"
+#include "ck_tile/host/reference/reference_moe_gemm.hpp"
 #include "ck_tile/host/reference/reference_moe_sorting.hpp"
 #include "ck_tile/host/reference/reference_permute.hpp"
 #include "ck_tile/host/reference/reference_pool.hpp"
