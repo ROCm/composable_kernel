@@ -66,10 +66,14 @@ pipeline {
         }
     }
     post {
-        success {
+        always {
             node(rocmnode("nogpu")) {
                 script {
+                    def statusEmoji = buildStatus == 'SUCCESS' ? '⚠️' : '❌'
+                    def subjectPrefix = buildStatus == 'SUCCESS' ? 'Warning - Issues Detected' : 'Build Failed'
+                    // Get the build log.
                     def buildLog = sh(script: 'wget -q --no-check-certificate -O - ' + BUILD_URL + 'consoleText', returnStdout: true)
+                    // Check for patterns in the log
                     def foundPatterns = []
                     for (patternMap in failurePatterns) {
                         def result = checkForPattern(patternMap.pattern, buildLog)
@@ -81,7 +85,7 @@ pipeline {
                             ])
                         }
                     }
-                    echo "Found ${foundPatterns.size()} failure patterns: ${foundPatterns.collect { it.description }}"
+                    
                     for (patternMap in foundPatterns) {
                         withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
                         sh """
@@ -89,27 +93,11 @@ pipeline {
                             -H 'Content-Type: application/json' \
                             -d '{
                                 "subject": "❌ Failure Detected",
-                                "text": "Build failure detected: ${patternMap.description}\\n\\nLog context:\\n```\\n${patternMap.context}\\n```\\n\\nJob: ${env.JOB_NAME}\\nBuild: #${env.BUILD_NUMBER}\\nURL: ${env.BUILD_URL}"
+                                "text": "${statusEmoji} ${subjectPrefix}\\n\\n**${buildStatus == 'SUCCESS' ? 'Potential issue detected' : 'Build failure detected'}:**\\n\\n**Build failure detected:** ${patternMap.description}\\n\\n**Log context:**\\n```\\n${patternMap.context}\\n```\\n\\n**Job:** ${env.JOB_NAME}\\n\\n**Build:** #${env.BUILD_NUMBER}\\n\\n**URL:** ${env.BUILD_URL}"
                             }'
                         """
                         }
                     }                    
-                }
-            }
-        }
-        failure {
-            node(rocmnode("nogpu")) {
-                script {
-                    withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
-                        sh """
-                            curl -X POST '${WEBHOOK_URL}' \
-                            -H 'Content-Type: application/json' \
-                            -d '{
-                                "subject": "❌ Build Failed",
-                                "text": "Failed to build"
-                            }'
-                        """
-                    }
                 }
             }
         }
