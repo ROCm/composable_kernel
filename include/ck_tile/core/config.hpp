@@ -322,7 +322,8 @@
 #elif !CK_TILE_DEVICE_COMPILE
 #define CK_TILE_ARCH_HOST 1
 #else
-static_assert(0, "Unsupported architecture"); // TODO: Do we want to stop the build if we don't support the architecture?
+static_assert(0, "Unsupported architecture"); // TODO: Do we want to stop the build if we don't
+                                              // support the architecture?
 #endif
 
 #if !defined(CK_TILE_ARCH_GFX908)
@@ -359,7 +360,6 @@ static_assert(0, "Unsupported architecture"); // TODO: Do we want to stop the bu
 #define CK_TILE_ARCH_HOST 0
 #endif
 
-
 // Defines CK_TILE grouped architecture symbols
 // Guarantee the following symbols are defined to either 0 or 1:
 // CK_TILE_ARCH_GFX9
@@ -368,7 +368,8 @@ static_assert(0, "Unsupported architecture"); // TODO: Do we want to stop the bu
 // CK_TILE_WAVE64_MODE
 // CK_TILE_WAVE32_MODE
 // NOTE: Wave mode on the host MUST be determined with the HIP API @runtime.
-// TODO: Replace specific instances of __gfxXY__ with grouped architecture symbols CK_TILE_ARCH_GFXXY
+// TODO: Replace specific instances of __gfxXY__ with grouped architecture symbols
+// CK_TILE_ARCH_GFXXY
 #if CK_TILE_ARCH_GFX908 || CK_TILE_ARCH_GFX90A || CK_TILE_ARCH_GFX942 || CK_TILE_ARCH_GFX950
 #define CK_TILE_ARCH_GFX9 1
 #define CK_TILE_WAVE64_MODE 1

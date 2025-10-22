@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -127,6 +127,17 @@ struct is_any_of<CompareTo, FirstType, Rest...>
                                  is_any_of<CompareTo, Rest...>::value>
 {
 };
+
+// Utility to check if a value is contained in a list of values at compile time
+template <typename T, T Val, T... Vals>
+struct is_any_value_of
+    : public std::conditional_t<((Val == Vals) || ...), std::true_type, std::false_type>
+{
+    static_assert(sizeof...(Vals) >= 1u, "Value list must be >= 1");
+};
+
+template <typename T, T Val, T... Vals>
+static constexpr bool is_any_value_of_v = is_any_value_of<T, Val, Vals...>::value;
 
 // Helper to check if a type is a specialization of a given template
 template <typename Test, template <typename...> class RefTemplate>

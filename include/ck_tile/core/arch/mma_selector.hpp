@@ -2,68 +2,43 @@
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 
-namespace ck::tile::core::arch
-{
-    namespace detail
-    {
-        // Forward declaration of the main selector
-        template<typename InputTA,
-                typename InputTB,
-                typename ComputeT,
-                uint32_t BlockM,
-                uint32_t BlockN,
-                uint32_t BlockK,
-                uint32_t GfxTargetId = amdgcn_target_arch_id::CURRENT_ARCH_ID,
-                typename Enable = void>
-        struct MmaSelector;
+#include "arch.hpp"
 
-        // Select based on wmma
-        template<typename InputTA,
-                typename InputTB,
-                typename ComputeT,
-                uint32_t BlockM,
-                uint32_t BlockN,
-                uint32_t BlockK,
-                uint32_t GfxTargetId>
-        struct MmaSelector<InputTA,
-                          InputTB,
-                          ComputeT,
-                          BlockM,
-                          BlockN,
-                          BlockK,
-                          GfxTargetId,
-                          enable_gfx11_gfx12_t<GfxTargetId>> : public WmmaSelector<InputTA, InputTB, ComputeT, BlockM, BlockN, BlockKTest>
-        {
-        };
+namespace ck::tile::core::arch {
+/*! @struct MmaDefaultSelector
+ * @brief Implements a default mma selector strategy for the current target architecture.
+ * This is simply intended as a default selection strategy for mma instruction operations.
+ * Given the particular datatypes and block M and N sizes, the selector will attempt to
+ * select the instruction with the largest K dimension that is supported on the current target
+ * architecture.
+ * @tparam DataTypeA       Data type of matrix A
+ * @tparam DataTypeB       Data type of matrix B
+ * @tparam DataTypeAcc     Data type of the accumulator
+ * @tparam BlockM          Block M size of the MMA operation
+ * @tparam BlockN          Block N size of the MMA operation
+ * @tparam TestBlockK      Block K size to start testing for support on the current target
+ * architecture
+ * @tparam GfxTargetId     Target architecture id
+ * @tparam Enable          SFINAE enabler
+ */
+template <typename DataTypeA,
+          typename DataTypeB,
+          typename DataTypeAcc,
+          uint32_t BlockM,
+          uint32_t BlockN,
+          uint32_t TestBlockK  = 128u,
+          uint32_t GfxTargetId = get_target_arch_id(),
+          typename Enable      = void>
+struct MmaDefaultSelector;
 
-        // Select based on mfma
-        template<typename InputTA,
-                typename InputTB,
-                typename ComputeT,
-                uint32_t BlockM,
-                uint32_t BlockN,
-                uint32_t BlockK,
-                uint32_t GfxTargetId> // Current max possible K-value for backend instr (most efficient)
-        struct MmaSelector<InputTA,
-                          InputTB,
-                          ComputeT,
-                          BlockM,
-                          BlockN,
-                          BlockK,
-                          GfxTargetId,
-                          enable_gfx9_t<GfxTargetId>> : public MfmaSelector<InputTA, InputTB, ComputeT, BlockM, BlockN, BlockKTest>
-        {
-        };
-
-    } // namespace detail
-
-    template<typename InputTA,
-            typename InputTB,
-            typename ComputeT,
-            uint32_t BlockM,
-            uint32_t BlockN,
-            uint32_t BlockK>
-    struct MmaSelector : public detail::MmaSelector<InputTA, InputTB, ComputeT, BlockM, BlockN, BlockK>
-    {};
+/*! @concept MmaSelectorI
+ *  @brief  Expresses the required members for each MmaSelector class.
+ *  @tparam MmaSelector The MmaSelector to be tested.
+ */
+template <typename MmaSelector>
+concept MmaSelectorI = requires(MmaSelector op) {
+    // Selectors should have a resulting SelectedOp type
+    typename MmaSelector::SelectedOp;
+};
 
 } // namespace ck::tile::core::arch

@@ -39,60 +39,6 @@ struct safe_underlying_type<T, false>
 template <typename T>
 using safe_underlying_type_t = typename safe_underlying_type<T, std::is_enum<T>::value>::type;
 
-// Defines some constants for AMDGCN architecture target IDs
-struct amdgcn_target_arch_id
-{
-    static constexpr uint32_t GFX908  = 0x0908;
-    static constexpr uint32_t GFX90A  = 0x090A;
-    static constexpr uint32_t GFX942  = 0x0942;
-    static constexpr uint32_t GFX950  = 0x0950;
-    static constexpr uint32_t GFX1100 = 0x1100;
-    static constexpr uint32_t GFX1101 = 0x1101;
-    static constexpr uint32_t GFX1102 = 0x1102;
-    static constexpr uint32_t GFX1151 = 0x1151;
-    static constexpr uint32_t GFX1200 = 0x1200;
-    static constexpr uint32_t GFX1201 = 0x1201;
-    static constexpr uint32_t GFX1250 = 0x1250;
-    static constexpr uint32_t GFX1251 = 0x1251;
-    static constexpr uint32_t NONE    = 0x0000;
-
-#if CK_TILE_ARCH_GFX908
-        static constexpr uint32_t CURRENT_ARCH_ID = GFX908;
-#elif CK_TILE_ARCH_GFX90A
-        static constexpr uint32_t CURRENT_ARCH_ID = GFX90A;
-#elif CK_TILE_ARCH_GFX942
-        static constexpr uint32_t CURRENT_ARCH_ID = GFX942;
-#elif CK_TILE_ARCH_GFX950
-        static constexpr uint32_t CURRENT_ARCH_ID = GFX950;
-#elif CK_TILE_ARCH_GFX1100
-        static constexpr uint32_t CURRENT_ARCH_ID = GFX1100;
-#elif CK_TILE_ARCH_GFX1101
-        static constexpr uint32_t CURRENT_ARCH_ID = GFX1101;
-#elif CK_TILE_ARCH_GFX1102
-        static constexpr uint32_t CURRENT_ARCH_ID = GFX1102;
-#elif CK_TILE_ARCH_GFX1151
-        static constexpr uint32_t CURRENT_ARCH_ID = GFX1151;
-#elif CK_TILE_ARCH_GFX1200
-        static constexpr uint32_t CURRENT_ARCH_ID = GFX1200;
-#elif CK_TILE_ARCH_GFX1201
-        static constexpr uint32_t CURRENT_ARCH_ID = GFX1201;
-#elif CK_TILE_ARCH_GFX1250
-        static constexpr uint32_t CURRENT_ARCH_ID = GFX1250;
-#elif CK_TILE_ARCH_GFX1251
-        static constexpr uint32_t CURRENT_ARCH_ID = GFX1251;
-#else // Host default to NONE
-        static constexpr uint32_t CURRENT_ARCH_ID = NONE;
-#endif
-
-#if CK_TILE_WAVE64_MODE
-        static constexpr uint32_t WAVE_SIZE = 64u;
-#elif CK_TILE_WAVE32_MODE
-        static constexpr uint32_t WAVE_SIZE = 32u;
-#else // Host default to 0
-        static constexpr uint32_t WAVE_SIZE = 0u;
-#endif
-};
-
 enum struct address_space_enum : std::uint16_t
 {
     generic = 0,
@@ -111,13 +57,286 @@ enum struct memory_operation_enum : std::uint16_t
     add
 };
 
-CK_TILE_HOST_DEVICE constexpr index_t get_warp_size()
+/*! @struct amdgcn_target_arch_id
+ * @brief Defines constants for AMDGCN architecture target IDs
+ */
+struct amdgcn_target_arch_id
 {
-#if defined(__GFX9__) || !defined(__HIP_DEVICE_COMPILE__)
-    return 64;
-#else
-    return 32;
-#endif
+    static constexpr uint32_t GFX908  = 0x0908;
+    static constexpr uint32_t GFX90A  = 0x090A;
+    static constexpr uint32_t GFX942  = 0x0942;
+    static constexpr uint32_t GFX950  = 0x0950;
+    static constexpr uint32_t GFX1100 = 0x1100;
+    static constexpr uint32_t GFX1101 = 0x1101;
+    static constexpr uint32_t GFX1102 = 0x1102;
+    static constexpr uint32_t GFX1151 = 0x1151;
+    static constexpr uint32_t GFX1200 = 0x1200;
+    static constexpr uint32_t GFX1201 = 0x1201;
+    static constexpr uint32_t NONE    = 0x0000;
+};
+
+/*! @struct amdgcn_wave_size
+ * @brief Defines constants for AMDGCN architecture wave sizes
+ */
+struct amdgcn_wave_size
+{
+    static constexpr uint32_t WAVE32 = 32u;
+    static constexpr uint32_t WAVE64 = 64u;
+    static constexpr uint32_t NONE   = 0u;
+};
+
+/*! @struct is_cdna_arch_id
+ * @brief Detects if the TargetId is a CDNA architecture
+ */
+template <uint32_t TargetId>
+struct is_cdna_arch_id : contains_number<uint32_t,
+                                         TargetId,
+                                         amdgcn_target_arch_id::GFX908,
+                                         amdgcn_target_arch_id::GFX90A,
+                                         amdgcn_target_arch_id::GFX942,
+                                         amdgcn_target_arch_id::GFX950>
+{
+};
+
+/*!
+ * @brief Convenience evaluation of is_cdna_arch_id
+ * @tparam TargetId The target architecture ID to check
+ */
+template <uint32_t TargetId>
+static constexpr bool is_cdna_arch_id_v = is_cdna_arch_id<TargetId>::value;
+
+/*! @struct is_rdna_arch_id
+ * @brief Detects if the TargetId is a RDNA architecture
+ */
+template <uint32_t TargetId>
+struct is_rdna_arch_id : contains_number<uint32_t,
+                                         TargetId,
+                                         amdgcn_target_arch_id::GFX1100,
+                                         amdgcn_target_arch_id::GFX1101,
+                                         amdgcn_target_arch_id::GFX1102,
+                                         amdgcn_target_arch_id::GFX1200,
+                                         amdgcn_target_arch_id::GFX1201>
+{
+};
+
+/*!
+ * @brief Convenience evaluation of is_rdna_arch_id
+ * @tparam TargetId The target architecture ID to check
+ */
+template <uint32_t TargetId>
+static constexpr bool is_rdna_arch_id_v = is_rdna_arch_id<TargetId>::value;
+
+/*! @struct is_gfx9_arch_id
+ * @brief Detects if the TargetId is a gfx9 architecture
+ */
+template <uint32_t TargetId>
+struct is_gfx9_arch_id : contains_number<uint32_t,
+                                         TargetId,
+                                         amdgcn_target_arch_id::GFX908,
+                                         amdgcn_target_arch_id::GFX90A,
+                                         amdgcn_target_arch_id::GFX942,
+                                         amdgcn_target_arch_id::GFX950>
+{
+};
+
+/*!
+ * @brief Convenience evaluation of is_gfx9_arch_id
+ * @tparam TargetId The target architecture ID to check
+ */
+template <uint32_t TargetId>
+static constexpr bool is_gfx9_arch_id_v = is_gfx9_arch_id<TargetId>::value;
+
+/*! @struct is_gfx11_arch_id
+ * @brief Detects if the TargetId is a gfx11 architecture
+ */
+template <uint32_t TargetId>
+struct is_gfx11_arch_id : contains_number<uint32_t,
+                                          TargetId,
+                                          amdgcn_target_arch_id::GFX1100,
+                                          amdgcn_target_arch_id::GFX1101,
+                                          amdgcn_target_arch_id::GFX1102>
+{
+};
+
+/*!
+ * @brief Convenience evaluation of is_gfx11_arch_id
+ * @tparam TargetId The target architecture ID to check
+ */
+template <uint32_t TargetId>
+static constexpr bool is_gfx11_arch_id_v = is_gfx11_arch_id<TargetId>::value;
+
+/*! @struct is_gfx12_arch_id
+ * @brief Detects if the TargetId is a gfx12 architecture
+ */
+template <uint32_t TargetId>
+struct is_gfx12_arch_id : contains_number<uint32_t,
+                                          TargetId,
+                                          amdgcn_target_arch_id::GFX1200,
+                                          amdgcn_target_arch_id::GFX1201>
+{
+};
+
+/*!
+ * @brief Convenience evaluation of is_gfx12_arch_id
+ * @tparam TargetId The target architecture ID to check
+ */
+template <uint32_t TargetId>
+static constexpr bool is_gfx12_arch_id_v = is_gfx12_arch_id<TargetId>::value;
+
+/*! @struct is_wave32_arch_id
+ * @brief Detects if the TargetId is a wave32 architecture
+ */
+template <uint32_t TargetId>
+struct is_wave32_arch_id : is_rdna_arch_id<TargetId>
+{
+};
+
+/*!
+ * @brief Convenience evaluation of is_wave32_arch_id
+ * @tparam TargetId The target architecture ID to check
+ */
+template <uint32_t TargetId>
+static constexpr bool is_wave32_arch_id_v = is_wave32_arch_id<TargetId>::value;
+
+/*! @struct is_wave64_arch_id
+ * @brief Detects if the TargetId is a wave64 architecture
+ */
+template <uint32_t TargetId>
+struct is_wave64_arch_id : is_cdna_arch_id<TargetId>
+{
+};
+
+/*!
+ * @brief Convenience evaluation of is_wave64_arch_id
+ * @tparam TargetId The target architecture ID to check
+ */
+template <uint32_t TargetId>
+static constexpr bool is_wave64_arch_id_v = is_wave64_arch_id<TargetId>::value;
+
+/*!
+ * @brief SFINAE enabler for target architecture if it is in the list of supported architectures
+ * @tparam TargetId The target architecture ID to check
+ * @tparam SupportedArchs The list of supported architecture IDs
+ */
+template <uint32_t TargetId, uint32_t... SupportedArchs>
+using enable_if_target_arch_id_t =
+    std::enable_if_t<contains_number_v<uint32_t, TargetId, SupportedArchs...>>;
+
+/*!
+ * @brief SFINAE enabler for target architecture if it is CDNA arch
+ * @tparam TargetId The target architecture ID to check
+ */
+template <uint32_t TargetId>
+using enable_if_cdna_target_id_t = std::enable_if_t<is_cdna_arch_id_v<TargetId>>;
+
+/*!
+ * @brief SFINAE enabler for target architecture if it is CDNA arch
+ * @tparam TargetId The target architecture ID to check
+ */
+template <uint32_t TargetId>
+using enable_if_rdna_target_id_t = std::enable_if_t<is_rdna_arch_id_v<TargetId>>;
+
+/*!
+ * @brief SFINAE enabler for target architecture if it is gfx9
+ * @tparam TargetId The target architecture ID to check
+ */
+template <uint32_t TargetId>
+using enable_if_gfx9_target_id_t = std::enable_if_t<is_gfx9_arch_id_v<TargetId>>;
+
+/*!
+ * @brief SFINAE enabler for target architecture if it is gfx11
+ * @tparam TargetId The target architecture ID to check
+ */
+template <uint32_t TargetId>
+using enable_if_gfx11_target_id_t = std::enable_if_t<is_gfx11_arch_id_v<TargetId>>;
+
+/*!
+ * @brief SFINAE enabler for target architecture if it is gfx12
+ * @tparam TargetId The target architecture ID to check
+ */
+template <uint32_t TargetId>
+using enable_if_gfx12_target_id_t = std::enable_if_t<is_gfx12_arch_id_v<TargetId>>;
+
+/*!
+ * @brief SFINAE enabler for target architecture if it is wave32
+ * @tparam TargetId The target architecture ID to check
+ */
+template <uint32_t TargetId>
+using enable_if_wave32_target_id_t = std::enable_if_t<is_wave32_arch_id_v<TargetId>>;
+
+/*!
+ * @brief SFINAE enabler for target architecture if it is wave64
+ * @tparam TargetId The target architecture ID to check
+ */
+template <uint32_t TargetId>
+using enable_if_wave64_target_id_t = std::enable_if_t<is_wave64_arch_id_v<TargetId>>;
+
+/*! @brief Returns the amdgcn_target_arch_id of the current compiler pass
+ */
+CK_TILE_HOST_DEVICE constexpr auto get_target_arch_id()
+{
+    if constexpr(CK_TILE_ARCH_GFX908)
+    {
+        return amdgcn_target_arch_id::GFX908;
+    }
+    else if constexpr(CK_TILE_ARCH_GFX90A)
+    {
+        return amdgcn_target_arch_id::GFX90A;
+    }
+    else if constexpr(CK_TILE_ARCH_GFX942)
+    {
+        return amdgcn_target_arch_id::GFX942;
+    }
+    else if constexpr(CK_TILE_ARCH_GFX950)
+    {
+        return amdgcn_target_arch_id::GFX950;
+    }
+    else if constexpr(CK_TILE_ARCH_GFX1100)
+    {
+        return amdgcn_target_arch_id::GFX1100;
+    }
+    else if constexpr(CK_TILE_ARCH_GFX1101)
+    {
+        return amdgcn_target_arch_id::GFX1101;
+    }
+    else if constexpr(CK_TILE_ARCH_GFX1102)
+    {
+        return amdgcn_target_arch_id::GFX1102;
+    }
+    else if constexpr(CK_TILE_ARCH_GFX1151)
+    {
+        return amdgcn_target_arch_id::GFX1151;
+    }
+    else if constexpr(CK_TILE_ARCH_GFX1200)
+    {
+        return amdgcn_target_arch_id::GFX1200;
+    }
+    else if constexpr(CK_TILE_ARCH_GFX1201)
+    {
+        return amdgcn_target_arch_id::GFX1201;
+    }
+    else // Host default to NONE
+    {
+        return amdgcn_target_arch_id::NONE;
+    }
+}
+
+/*! @brief Returns the amdgcn_wave_size of the current compiler pass
+ */
+CK_TILE_HOST_DEVICE constexpr auto get_warp_size()
+{
+    if constexpr(CK_TILE_WAVE64_MODE)
+    {
+        return amdgcn_wave_size::WAVE64;
+    }
+    else if constexpr(CK_TILE_WAVE32_MODE)
+    {
+        return amdgcn_wave_size::WAVE32;
+    }
+    else // Host default to 0
+    {
+        return amdgcn_wave_size::NONE;
+    }
 }
 
 CK_TILE_DEVICE index_t get_grid_size() { return gridDim.x; }
