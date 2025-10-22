@@ -247,7 +247,7 @@ struct buffer_view<address_space_enum::global,
         : p_data_{p_data},
           buffer_size_{buffer_size / PackedSize},
           cached_buf_res_{0},
-          invalid_element_value_{}
+          invalid_element_value_{numeric<remove_cvref_t<T>>::zero()}
     {
     }
 

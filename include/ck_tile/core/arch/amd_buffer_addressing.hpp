@@ -634,7 +634,7 @@ struct buffer_store<1>
                                    index_t i_offset /*max 0xFFF*/,
                                    index_t /*flag*/ = 1)
     {
-        static_assert(sizeof(T) == 4);
+        static_assert(sizeof(T) == 1);
         using mbuf_t = uint8_t;
 #if HAS_RAW_BUFFER_BUILTINS
         index_t s_offset = i_offset;
