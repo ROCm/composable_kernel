@@ -12,13 +12,21 @@ list(APPEND EXAMPLE_REDUCE_COMPILE_OPTIONS -Wno-undefined-func-template -Wno-flo
 
 target_compile_options(${EXAMPLE_REDUCE} PRIVATE ${EXAMPLE_REDUCE_COMPILE_OPTIONS})
 
-# Multi Reduce Example
+# Multi Reduce Threadwise Example
 set(EXAMPLE_MULTI_REDUCE "tile_example_multi_reduce")
 add_executable(${EXAMPLE_MULTI_REDUCE} EXCLUDE_FROM_ALL multiple_reduce.cpp)
 target_include_directories(${EXAMPLE_MULTI_REDUCE} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 set(EXAMPLE_MULTI_REDUCE_COMPILE_OPTIONS)
-list(APPEND EXAMPLE_MULTI_REDUCE_COMPILE_OPTIONS -Wno-undefined-func-template -Wno-float-equal -Wno-unused-variable -Wno-unused-local-typedef)
+list(APPEND EXAMPLE_MULTI_REDUCE_COMPILE_OPTIONS -Wno-undefined-func-template -Wno-float-equal -Wno-unused-variable -Wno-unused-local-typedef) ## TODO: remove no unused-variable warning
 target_compile_options(${EXAMPLE_MULTI_REDUCE} PRIVATE ${EXAMPLE_MULTI_REDUCE_COMPILE_OPTIONS})
+
+# Multi Reduce Blockwise Example
+set(EXAMPLE_MULTI_REDUCE_BLOCKWISE "tile_example_multi_reduce_blockwise")
+add_executable(${EXAMPLE_MULTI_REDUCE_BLOCKWISE} EXCLUDE_FROM_ALL multiple_reduce_multiblock.cpp)
+target_include_directories(${EXAMPLE_MULTI_REDUCE_BLOCKWISE} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+set(EXAMPLE_MULTI_REDUCE_BLOCKWISE_COMPILE_OPTIONS)
+list(APPEND EXAMPLE_MULTI_REDUCE_BLOCKWISE_COMPILE_OPTIONS -Wno-undefined-func-template -Wno-float-equal -Wno-unused-variable -Wno-unused-local-typedef) ## TODO: remove no unused-variable warning
+target_compile_options(${EXAMPLE_MULTI_REDUCE_BLOCKWISE} PRIVATE ${EXAMPLE_MULTI_REDUCE_BLOCKWISE_COMPILE_OPTIONS})
 
 # TODO: we have to turn off this global prop, otherwise the progress bar generated
 # by cmake will print too many files, execvp: /bin/sh: Argument list too long

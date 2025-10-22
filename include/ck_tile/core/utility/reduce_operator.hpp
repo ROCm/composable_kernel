@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core/config.hpp"
+#include "ck_tile/core/arch/generic_memory_space_atomic.hpp"
 
 namespace ck_tile {
 
@@ -34,6 +35,14 @@ struct Add
         float x_ = type_convert<float>(x);
 
         return type_convert<T>(y_ + x_);
+    }
+
+    template <typename Elem, index_t N>
+    CK_TILE_HOST_DEVICE static constexpr auto GetAtomic()
+    {
+        return [](Elem* addr, const thread_buffer<Elem, N>& val) {
+            ck_tile::atomic_add_g<Elem, N>(addr, val);
+        };
     }
 };
 

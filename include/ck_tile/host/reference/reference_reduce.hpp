@@ -5,6 +5,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/host_tensor.hpp"
+#include "ck_tile/ops/elementwise.hpp"
 #include <thread>
 
 namespace ck_tile {
@@ -116,14 +117,16 @@ template <typename XDataType,
           typename ReduceOps, // Expected type: ck_tile::tuple<...> containing reduce operations
           typename KeptDim, // Expected type: ck_tile::sequence<...> containing dimension indices to
                             // keep
-          typename ReduceDims // Expected type: ck_tile::sequence<...> containing dimension indices
+          typename ReduceDims, // Expected type: ck_tile::sequence<...> containing dimension indices
                               // to reduce
+          typename ElementWiseOp = ck_tile::element_wise::PassThrough
           >
 CK_TILE_HOST void reference_multiple_reduce(const HostTensor<XDataType>& x_tensor,
                                             YRefTuple& y_tensor_tuple,
                                             ReduceOps reduce_ops,
                                             KeptDim kept_dim,
-                                            ReduceDims reduce_dims)
+                                            ReduceDims reduce_dims,
+                                            ElementWiseOp elementwise_op = ElementWiseOp{})
 {
     const auto& x_lengths = x_tensor.mDesc.get_lengths();
 
@@ -177,7 +180,12 @@ CK_TILE_HOST void reference_multiple_reduce(const HostTensor<XDataType>& x_tenso
                 [&](auto i) { full_indices[reduce_dims.at(i)] = reduce_indices[i]; });
 
             // Access input tensor element
-            const auto v_a = type_convert<ComputeDataType>(x_tensor(full_indices));
+            auto v_a = type_convert<ComputeDataType>(x_tensor(full_indices));
+
+            if constexpr (!std::is_same<ElementWiseOp, ck_tile::element_wise::PassThrough>::value) {
+                // Apply element-wise operation before reduction
+                elementwise_op(v_a);
+            }
 
             // Apply each reduction operation
             static_for<0, reduce_ops.size(), 1>{}([&](auto i) {
