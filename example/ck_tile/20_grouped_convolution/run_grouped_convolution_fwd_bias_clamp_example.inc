@@ -7,8 +7,8 @@
 #include "grouped_convolution_utils.hpp"
 #endif
 
-namespace el       = ck_tile::element_wise;
-using BiasAndClamp = el::Compose<el::MultiDAdd, el::Clamp, true>;
+using BiasAndClamp = ck_tile::element_wise::
+    Compose<ck_tile::element_wise::MultiDAdd, ck_tile::element_wise::Clamp, true>;
 
 template <ck_tile::index_t NDimSpatial,
           typename GemmWarpConfig,
