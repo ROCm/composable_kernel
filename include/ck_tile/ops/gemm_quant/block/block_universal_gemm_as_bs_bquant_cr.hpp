@@ -356,7 +356,8 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
                                 // here from nIter and warp id
                                 const index_t n_idx_of_warp =
                                     nIter * WarpGemm::kN * NWarp + get_warp_id() * WarpGemm::kN;
-                                const index_t row_index = n_idx_of_warp / Traits::QuantGroupSize::kN;
+                                const index_t row_index =
+                                    n_idx_of_warp / Traits::QuantGroupSize::kN;
                                 return row_index * Traits::BQPerBlock + kQScale;
                             }
                         }();

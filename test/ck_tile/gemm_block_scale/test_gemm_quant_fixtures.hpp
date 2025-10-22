@@ -400,7 +400,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         ck_tile::FillUniformDistribution<ADataType>{-0.5f, 0.5f}(a_m_k);
         ck_tile::FillUniformDistribution<BDataType>{0.f, 1.f}(b_k_n);
         // ck_tile::FillUniformDistribution<QDataType>{0.001f, 0.01f}(bq_bqk_bqn);
-        for (size_t i = 0; i < bq_bqk_bqn.size(); ++i)
+        for(size_t i = 0; i < bq_bqk_bqn.size(); ++i)
         {
             bq_bqk_bqn.mData[i] = static_cast<QDataType>(0.0001f + 0.0001f * static_cast<float>(i));
         }
