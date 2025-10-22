@@ -115,9 +115,6 @@ int tile_profile_grouped_conv_bwd_weight(int argc, char* argv[])
     using BF16 = ck_tile::bfloat16_t;
     using F8   = ck_tile::fp8_t;
     using BF8  = ck_tile::bf8_t;
-#if defined(__gfx942__)
-    using TF32 = ck::tf32_t;
-#endif
 
     using NHWGC  = ck_tile::tensor_layout::convolution::NHWGC;
     using NDHWGC = ck_tile::tensor_layout::convolution::NDHWGC;
@@ -186,12 +183,6 @@ int tile_profile_grouped_conv_bwd_weight(int argc, char* argv[])
         {
             return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, BF16{}, BF16{}, BF16{}, BF16{}, BF16{});
         }
-        else if(data_type == ConvDataType::F32_F32_F32_TF32)
-        {
-#if defined(__gfx942__)
-            return profile(I2, NHWGC{}, GKYXC{}, NHWGK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
-#endif
-        }
     }
     
     if(num_dim_spatial == 3 && layout == ConvLayout::NHWGC_GKYXC_NHWGK)
@@ -222,12 +213,6 @@ int tile_profile_grouped_conv_bwd_weight(int argc, char* argv[])
         {
             return profile(
                 I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, int8_t{}, int8_t{}, int8_t{}, int8_t{}, int8_t{});
-        }
-        else if(data_type == ConvDataType::F32_F32_F32_TF32)
-        {
-#if defined(__gfx942__)
-            return profile(I3, NDHWGC{}, GKZYXC{}, NDHWGK{}, F32{}, F32{}, F32{}, TF32{}, TF32{});
-#endif
         }
     }
 
