@@ -43,8 +43,8 @@ template <typename GemmConfig,
           typename BLayout,
           typename BQLayout,
           typename CLayout,
-          ck_tile::QuantType QuantMode,
-          typename CDEElementWise = ck_tile::element_wise::PassThrough>
+          ck_tile::QuantType QuantMode = ck_tile::QuantType::BQuantGrouped,
+          typename CDEElementWise      = ck_tile::element_wise::PassThrough>
 float invoke_gemm(int n_warmup,
                   int n_repeat,
                   int group_count,
