@@ -10,14 +10,14 @@ def failurePatterns = [
     [pattern: /cat: .* No such file or directory/, description: "Show Node Info - No such file or directory"],
 ]
 
-// Given a pattern, check if the log contains the pattern and return context.
+// Given a pattern, check if the log contains the pattern and return the context.
 def checkForPattern(pattern, log) {
     def lines = log.split('\n')
     for (int i = 0; i < lines.size(); i++) {
         if (lines[i] =~ pattern) {
             echo "Found pattern match in log for ${pattern}"
             
-            // Get context lines (2 before and 2 after)
+            // Get the two lines before and after failure.
             def contextStart = Math.max(0, i - 2)
             def contextEnd = Math.min(lines.size() - 1, i + 2)
             def contextLines = []
@@ -109,7 +109,7 @@ pipeline {
                     def subjectPrefix = buildStatus == 'SUCCESS' ? 'Warning - Issues Detected' : 'Build Failed'
                     // Get the build log.
                     def buildLog = sh(script: 'wget -q --no-check-certificate -O - ' + BUILD_URL + 'consoleText', returnStdout: true)
-                    // Check for patterns in the log
+                    // Check for patterns in the log.
                     def foundPatterns = []
                     for (patternMap in failurePatterns) {
                         def result = checkForPattern(patternMap.pattern, buildLog)
@@ -121,6 +121,7 @@ pipeline {
                             ])
                         }
                     }
+                    // Send a notification for each pattern matched failure.
                     for (patternMap in foundPatterns) {
                         withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
                         sh '''
