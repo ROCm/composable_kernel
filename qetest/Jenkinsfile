@@ -2,6 +2,18 @@ def rocmnode(name) {
     return '(rocmtest || miopen) && (' + name + ')'
 }
 
+// Given a pattern, check if the log contains the pattern.
+def checkForPattern(pattern, log) {
+    // Regex check for a match in the log.
+    if (log ==~ pattern) {
+        echo "Found match in log for ${pattern}"
+        return true;
+    } else {
+        echo "No match found in log for ${pattern}"
+        return false;
+    }
+}
+
 pipeline {
     agent none
     parameters {
@@ -44,7 +56,8 @@ pipeline {
             node(rocmnode("nogpu")) {
                 script {
                     def buildLog = sh(script: 'wget -q --no-check-certificate -O - ' + BUILD_URL + 'consoleText', returnStdout: true)
-                    echo "log: ${buildLog}"
+                    def matchFound = checkForPattern("Checkout failure", buildLog)
+                    echo "Match found? ${matchFound}"
                     withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
                         sh """
                             curl -X POST '${WEBHOOK_URL}' \
