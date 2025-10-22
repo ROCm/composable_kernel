@@ -1,37 +1,29 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
 #include "ck/ck.hpp"
 #include "profiler/profile_gemm_add_fastgelu_impl.hpp"
-#include "test_gemm_add_xdl.hpp"
+#include "test_gemm_common.hpp"
 
 template <typename Tuple>
-class TestGemmAddFastgelu : public TestGemmAdd<Tuple>
+class TestGemmAddFastgelu : public TestGemmD0Common<Tuple>
 {
-    private:
-    using ADataType   = std::tuple_element_t<0, Tuple>;
-    using BDataType   = std::tuple_element_t<1, Tuple>;
-    using AccDataType = std::tuple_element_t<2, Tuple>;
-    using D0DataType  = std::tuple_element_t<3, Tuple>;
-    using EDataType   = std::tuple_element_t<4, Tuple>;
-    using ALayout     = std::tuple_element_t<5, Tuple>;
-    using BLayout     = std::tuple_element_t<6, Tuple>;
-    using D0Layout    = std::tuple_element_t<7, Tuple>;
-    using ELayout     = std::tuple_element_t<8, Tuple>;
+    using ProfileCall = typename TestGemmD0Common<Tuple>::ProfileCall;
 
-    constexpr static auto ProfileGemmAddFastgeluImpl =
-        ck::profiler::profile_gemm_add_fastgelu_impl<ADataType,
-                                                     BDataType,
-                                                     AccDataType,
-                                                     D0DataType,
-                                                     EDataType,
-                                                     ALayout,
-                                                     BLayout,
-                                                     D0Layout,
-                                                     ELayout>;
-
-    decltype(ProfileGemmAddFastgeluImpl) GetImpl() override { return ProfileGemmAddFastgeluImpl; }
+    ProfileCall GetImpl() override
+    {
+        return ck::profiler::profile_gemm_add_fastgelu_impl<
+            typename TestGemmD0Common<Tuple>::ADataType,
+            typename TestGemmD0Common<Tuple>::BDataType,
+            typename TestGemmD0Common<Tuple>::AccDataType,
+            typename TestGemmD0Common<Tuple>::D0DataType,
+            typename TestGemmD0Common<Tuple>::EDataType,
+            typename TestGemmD0Common<Tuple>::ALayout,
+            typename TestGemmD0Common<Tuple>::BLayout,
+            typename TestGemmD0Common<Tuple>::D0Layout,
+            typename TestGemmD0Common<Tuple>::ELayout>;
+    }
 };
 
 using KernelTypes = ::testing::Types<std::tuple<F16, I8, F32, F16, F16, Row, Row, Row, Row>,

@@ -19,13 +19,35 @@ done
 done
 done
 
-for perm in 0 1 ; do
+#Padding Benchmarks: batch mode (baseline vs low/med/high pad)
+prec="fp16"
+base_batch_args="-prec=$prec -mode=0 -b=4 -h=16 -h_k=16 -d=128 -s=1024 -bias=n -mask=0 -lse=0 -iperm=0 -operm=0 -vlayout=r -kname=1 -v=$VALID"
 
-$EXE -prec=fp8 -squant=1 -b=32 -h=16 -d=128 -s=512   -iperm=$perm -operm=$perm -vlayout=c -range_q=240 -range_k=240 -range_v=240 -range_p=240 -range_o=240 -kname=1 -v=$VALID ; sleep 3
-$EXE -prec=fp8 -squant=1 -b=16 -h=16 -d=128 -s=1024  -iperm=$perm -operm=$perm -vlayout=c -range_q=240 -range_k=240 -range_v=240 -range_p=240 -range_o=240 -kname=1 -v=$VALID ; sleep 3
-$EXE -prec=fp8 -squant=1 -b=8  -h=16 -d=128 -s=2048  -iperm=$perm -operm=$perm -vlayout=c -range_q=240 -range_k=240 -range_v=240 -range_p=240 -range_o=240 -kname=1 -v=$VALID ; sleep 3
-$EXE -prec=fp8 -squant=1 -b=4  -h=16 -d=128 -s=4096  -iperm=$perm -operm=$perm -vlayout=c -range_q=240 -range_k=240 -range_v=240 -range_p=240 -range_o=240 -kname=1 -v=$VALID ; sleep 3
-$EXE -prec=fp8 -squant=1 -b=2  -h=16 -d=128 -s=8192  -iperm=$perm -operm=$perm -vlayout=c -range_q=240 -range_k=240 -range_v=240 -range_p=240 -range_o=240 -kname=1 -v=$VALID ; sleep 3
-$EXE -prec=fp8 -squant=1 -b=1  -h=16 -d=128 -s=16384 -iperm=$perm -operm=$perm -vlayout=c -range_q=240 -range_k=240 -range_v=240 -range_p=240 -range_o=240 -kname=1 -v=$VALID ; sleep 3
+# baseline (no pad)
+$EXE $base_batch_args
 
-done
+# low pad (≈90–95% effective)
+$EXE $base_batch_args -q_eff_lens=1024,960,992,896 -kv_eff_lens=1024,960,992,896
+
+# medium pad (≈60–75% effective)
+$EXE $base_batch_args -q_eff_lens=896,768,512,640 -kv_eff_lens=896,768,512,640
+
+# high pad (≈30–40% effective)
+$EXE $base_batch_args -q_eff_lens=512,384,256,320 -kv_eff_lens=512,384,256,320
+
+# Padding Benchmarks: group mode (baseline vs low/med/high physical pad)
+seqlens_q="1024,768,512,256"
+seqlens_k="1024,768,512,256"
+base_group_args="-prec=$prec -mode=1 -b=4 -h=16 -h_k=16 -d=128 -s=$seqlens_q -s_k=$seqlens_k -bias=n -mask=0 -lse=0 -iperm=0 -operm=0 -vlayout=r -kname=1 -v=$VALID"
+
+# baseline (no physical pad)
+$EXE $base_group_args
+
+# low physical pad
+$EXE $base_group_args -s_qpad=1152,896,576,320 -s_kpad=1152,896,576,320
+
+# medium physical pad
+$EXE $base_group_args -s_qpad=1536,1152,768,384 -s_kpad=1536,1152,768,384
+
+# high physical pad
+$EXE $base_group_args -s_qpad=2048,1536,1024,512 -s_kpad=2048,1536,1024,512

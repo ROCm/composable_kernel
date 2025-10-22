@@ -10,7 +10,7 @@
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
+#include "ck_tile/ops/gemm/kernel/gemm_multi_d_kernel.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 struct ElementWiseAddAdd
@@ -70,22 +70,44 @@ template <typename Tuple>
 class TestCkTileGemmMultiD : public ::testing::Test
 {
     protected:
-    using ALayout         = std::tuple_element_t<0, Tuple>;
-    using BLayout         = std::tuple_element_t<1, Tuple>;
-    using D0Layout        = std::tuple_element_t<2, Tuple>;
-    using D1Layout        = std::tuple_element_t<3, Tuple>;
-    using ELayout         = std::tuple_element_t<4, Tuple>;
-    using ADataType       = std::tuple_element_t<5, Tuple>;
-    using BDataType       = std::tuple_element_t<6, Tuple>;
-    using D0DataType      = std::tuple_element_t<7, Tuple>;
-    using D1DataType      = std::tuple_element_t<8, Tuple>;
-    using AccDataType     = std::tuple_element_t<9, Tuple>;
-    using EDataType       = std::tuple_element_t<10, Tuple>;
-    using CDElementWiseFn = std::tuple_element_t<11, Tuple>;
-    using DsLayout        = ck_tile::tuple<D0Layout, D1Layout>;
-    using DsDataType      = ck_tile::tuple<D0DataType, D1DataType>;
+    using ALayout           = std::tuple_element_t<0, Tuple>;
+    using BLayout           = std::tuple_element_t<1, Tuple>;
+    using D0Layout          = std::tuple_element_t<2, Tuple>;
+    using D1Layout          = std::tuple_element_t<3, Tuple>;
+    using ELayout           = std::tuple_element_t<4, Tuple>;
+    using ADataType         = std::tuple_element_t<5, Tuple>;
+    using BDataType         = std::tuple_element_t<6, Tuple>;
+    using D0DataType        = std::tuple_element_t<7, Tuple>;
+    using D1DataType        = std::tuple_element_t<8, Tuple>;
+    using AccDataType       = std::tuple_element_t<9, Tuple>;
+    using EDataType         = std::tuple_element_t<10, Tuple>;
+    using CDElementWiseFn   = std::tuple_element_t<11, Tuple>;
+    using UseCshuffleEpilog = std::tuple_element_t<12, Tuple>;
+    using DsLayout          = ck_tile::tuple<D0Layout, D1Layout>;
+    using DsDataType        = ck_tile::tuple<D0DataType, D1DataType>;
 
-    template <typename ADataType,
+    struct GemmWarpConfig_Mfma
+    {
+        static constexpr ck_tile::index_t M_Tile      = 256;
+        static constexpr ck_tile::index_t N_Tile      = 256;
+        static constexpr ck_tile::index_t K_Tile      = 64;
+        static constexpr ck_tile::index_t M_Warp_Tile = 32;
+        static constexpr ck_tile::index_t N_Warp_Tile = 32;
+        static constexpr ck_tile::index_t K_Warp_Tile = 16;
+    };
+
+    struct GemmWarpConfig_Wmma
+    {
+        static constexpr ck_tile::index_t M_Tile      = 128;
+        static constexpr ck_tile::index_t N_Tile      = 128;
+        static constexpr ck_tile::index_t K_Tile      = 64;
+        static constexpr ck_tile::index_t M_Warp_Tile = 16;
+        static constexpr ck_tile::index_t N_Warp_Tile = 16;
+        static constexpr ck_tile::index_t K_Warp_Tile = 16;
+    };
+
+    template <typename GemmWarpConfig,
+              typename ADataType,
               typename BDataType,
               typename DsDataType,
               typename AccDataType,
@@ -95,20 +117,20 @@ class TestCkTileGemmMultiD : public ::testing::Test
               typename DsLayout,
               typename ELayout,
               typename CDEElementWise = ck_tile::element_wise::PassThrough>
-    void invoke_gemm_multi_d(const ck_tile::GemmHostArgs<DsDataType::size()>& args,
+    void invoke_gemm_multi_d(const ck_tile::GemmMultiDHostArgs<DsDataType::size()>& args,
                              const ck_tile::stream_config& s)
     {
-        constexpr ck_tile::index_t M_Tile = 256;
-        constexpr ck_tile::index_t N_Tile = 256;
-        constexpr ck_tile::index_t K_Tile = 64;
+        constexpr ck_tile::index_t M_Tile = GemmWarpConfig::M_Tile;
+        constexpr ck_tile::index_t N_Tile = GemmWarpConfig::N_Tile;
+        constexpr ck_tile::index_t K_Tile = GemmWarpConfig::K_Tile;
 
         constexpr ck_tile::index_t M_Warp = 2;
         constexpr ck_tile::index_t N_Warp = 2;
         constexpr ck_tile::index_t K_Warp = 1;
 
-        constexpr ck_tile::index_t M_Warp_Tile = 32;
-        constexpr ck_tile::index_t N_Warp_Tile = 32;
-        constexpr ck_tile::index_t K_Warp_Tile = 16;
+        constexpr ck_tile::index_t M_Warp_Tile = GemmWarpConfig::M_Warp_Tile;
+        constexpr ck_tile::index_t N_Warp_Tile = GemmWarpConfig::N_Warp_Tile;
+        constexpr ck_tile::index_t K_Warp_Tile = GemmWarpConfig::K_Warp_Tile;
 
         constexpr bool DoubleSmemBuffer = false;
 
@@ -169,7 +191,28 @@ class TestCkTileGemmMultiD : public ::testing::Test
                                                                                tail_number_v>;
 
             using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
-            using GemmEpilogue = ck_tile::CShuffleEpilogue<
+
+            using DefaultGemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
+                ck_tile::DefaultGemm2DEpilogueProblem<ADataType,
+                                                      BDataType,
+                                                      DsDataType,
+                                                      AccDataType,
+                                                      EDataType,
+                                                      DsLayout,
+                                                      ELayout,
+                                                      CDEElementWise,
+                                                      TilePartitioner::MPerBlock,
+                                                      TilePartitioner::NPerBlock,
+                                                      kPadM,
+                                                      kPadN,
+                                                      M_Warp_Tile,
+                                                      N_Warp_Tile,
+                                                      K_Warp_Tile,
+                                                      UniversalGemmProblem::TransposeC,
+                                                      true,
+                                                      memory_operation>>;
+
+            using CShuffleGemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,
                                                  DsDataType,
@@ -178,7 +221,6 @@ class TestCkTileGemmMultiD : public ::testing::Test
                                                  DsLayout,
                                                  ELayout,
                                                  CDEElementWise,
-                                                 GemmPipelineProblem::kBlockSize,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
                                                  M_Warp,
@@ -189,11 +231,14 @@ class TestCkTileGemmMultiD : public ::testing::Test
                                                  UniversalGemmProblem::TransposeC,
                                                  memory_operation>>;
 
-            using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+            using GemmEpilogue = std::
+                conditional_t<UseCshuffleEpilog::value, CShuffleGemmEpilogue, DefaultGemmEpilogue>;
+
+            using Kernel = ck_tile::GemmKernelMultiD<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 
-            const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
-            constexpr dim3 blocks = Kernel::BlockSize();
+            const dim3 grids  = Kernel::GridSize(args.M, args.N, args.k_batch);
+            const dim3 blocks = Kernel::BlockSize();
 
             if(!Kernel::IsSupportedArgument(kargs))
             {
@@ -212,13 +257,14 @@ class TestCkTileGemmMultiD : public ::testing::Test
             }
 
             ave_time = ck_tile::launch_kernel(
-                s, ck_tile::make_kernel<blocks.x, kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+                s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
             return ave_time;
         };
 
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
             if(args.k_batch == 1)
             {
+                std::cout << "Run without SplitK" << std::endl;
                 Run(has_hot_loop_,
                     tail_number_,
                     ck_tile::integral_constant<ck_tile::memory_operation_enum,
@@ -226,42 +272,19 @@ class TestCkTileGemmMultiD : public ::testing::Test
             }
             else
             {
+                std::cout << "Run using SplitK" << std::endl;
                 Run(has_hot_loop_,
                     tail_number_,
                     ck_tile::integral_constant<ck_tile::memory_operation_enum,
                                                ck_tile::memory_operation_enum::atomic_add>{});
             }
         };
-        if(has_hot_loop)
-        {
-            if(tail_num == ck_tile::TailNumber::Full)
-            {
-                RunSplitk(
-                    ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-            }
-            else
-            {
-                std::ostringstream err;
-                err << "For compute pipeline tail number should always be Full, but have \""
-                    << tail_num << "\" which is not supported! PrefetchStages: "
-                    << BaseGemmPipeline::PrefetchStages << "\n File: " << __FILE__ << ":"
-                    << __LINE__ << ", in function: " << __func__;
-                throw std::runtime_error(err.str());
-            }
-        }
-        else
-        {
-            std::ostringstream err;
-            err << "Num K loop must be larger than number of prefetech stages."
-                << "\n PrefetchStages: " << BaseGemmPipeline::PrefetchStages
-                << "\n File: " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
-            throw std::runtime_error(err.str());
-        }
+
+        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
     }
 
     public:
-    void Run(const int M,
+    bool Run(const int M,
              const int N,
              const int K,
              const int k_batch,
@@ -345,20 +368,21 @@ class TestCkTileGemmMultiD : public ::testing::Test
                                                                   d1_m_n_dev_buf.GetDeviceBuffer()};
         std::array<ck_tile::index_t, DsDataType::size()> stridesDs = {StrideD0, StrideD1};
 
-        ck_tile::GemmHostArgs<DsDataType::size()> args({a_m_k_dev_buf.GetDeviceBuffer(),
-                                                        b_k_n_dev_buf.GetDeviceBuffer(),
-                                                        ds_ptr_buf,
-                                                        e_m_n_dev_buf.GetDeviceBuffer(),
-                                                        k_batch,
-                                                        M,
-                                                        N,
-                                                        K,
-                                                        StrideA,
-                                                        StrideB,
-                                                        stridesDs,
-                                                        StrideE});
-
-        invoke_gemm_multi_d<ADataType,
+        ck_tile::GemmMultiDHostArgs<DsDataType::size()> args({a_m_k_dev_buf.GetDeviceBuffer(),
+                                                              b_k_n_dev_buf.GetDeviceBuffer(),
+                                                              ds_ptr_buf,
+                                                              e_m_n_dev_buf.GetDeviceBuffer(),
+                                                              k_batch,
+                                                              M,
+                                                              N,
+                                                              K,
+                                                              StrideA,
+                                                              StrideB,
+                                                              stridesDs,
+                                                              StrideE});
+#if CK_TILE_USE_WMMA
+        invoke_gemm_multi_d<GemmWarpConfig_Wmma,
+                            ADataType,
                             BDataType,
                             DsDataType,
                             AccDataType,
@@ -368,6 +392,19 @@ class TestCkTileGemmMultiD : public ::testing::Test
                             DsLayout,
                             ELayout,
                             CDElementWiseFn>(args, ck_tile::stream_config{nullptr, false});
+#else
+        invoke_gemm_multi_d<GemmWarpConfig_Mfma,
+                            ADataType,
+                            BDataType,
+                            DsDataType,
+                            AccDataType,
+                            EDataType,
+                            ALayout,
+                            BLayout,
+                            DsLayout,
+                            ELayout,
+                            CDElementWiseFn>(args, ck_tile::stream_config{nullptr, false});
+#endif
 
         std::cout << "Run kernel with M =" << M << " N =" << N << " K =" << K
                   << " StrideA =" << StrideA << " StrideB =" << StrideB << " StrideE =" << StrideE
@@ -402,6 +439,6 @@ class TestCkTileGemmMultiD : public ::testing::Test
                   << " Absolute error threshold: " << rtol_atol.at(ck_tile::number<1>{})
                   << std::endl;
 
-        EXPECT_TRUE(pass);
+        return pass;
     }
 };

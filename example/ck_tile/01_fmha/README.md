@@ -4,13 +4,28 @@ This folder contains example for fmha(fused multi-head attention) using ck_tile 
 
 ## build
 ```
-# in the root of ck_tile
-mkdir build && cd build
-# you can replace <arch> with the appropriate architecture (for example gfx90a or gfx942) or leave it blank
-sh ../script/cmake-ck-dev.sh  ../ <arch>
-make tile_example_fmha_fwd -j
+# 1. In the root of composable_kernel project, create the build directory.
+[~/composable_kernel] mkdir build && cd build
+# 2. In the build directory, run the CMake wrapper script to generate the build system files. Replace <arch> with the gfx architectures string.
+[~/composable_kernel/build] ../script/cmake-ck-dev.sh .. <arch> -G Ninja
+# 3. In the build directory, run the build system recipe.
+[~/composable_kernel/build] ninja tile_example_fmha_fwd
 ```
-This will result in an executable `build/bin/tile_example_fmha_fwd`
+Running the build recipe will produce the executable `tile_example_fmha_fwd`.
+
+The executables reside in `bin` subdirectory of the build directory.
+
+This example provides recipes for `tile_example_fmha_fwd`, `tile_example_fmha_bwd`, `tile_example_fmha_fwd_v3`.
+
+> [!NOTE] 
+> `cmake-ck-dev.sh` is a CMake wrapper. 
+>
+> The first argument is the path to composable_kernel sources.
+>
+> The second argument is the gfx architectures string (e.g. "gfx950" or "gfx90a;gfx942"). 
+>
+> The remaining arguments are optional and are passed through to CMake.
+> E.g. `-G Ninja` specifies ninja as the build system.
 
 ## kernel
 The kernel template is `fmha_fwd_kernel.hpp`, this is the grid-wise op in old ck_tile's terminology. We put it here purposely, to demonstrate one can construct a kernel by using various internal component from ck_tile. We may still have an implementation under ck_tile's include path (in the future) for the kernel template.
@@ -36,6 +51,13 @@ args:
                 total_seqlen_q = seqlen_q * batch, and seqlen_q per batch may vary
                 also with "-s=s0,s1,s2..." comma seperated int to set per batch seqlen(group-mode)
         -s_k    seqlen_k (including new key/value), -1 means equal to s (default:-1)
+                also with "-s_k=s0,s1,s2..." comma-separated ints to set seqlen per batch (group mode)
+     -s_qpad    seqlen_q stride between 2 batches (group-mode optional) (default:-1)
+                Provide positive strides per-batch to simulate physical padding on Q
+     -s_kpad    seqlen_k stride between 2 batches, currently used in group-mode only  (default:-1)
+                for kv-cache case, each batch [1,s,h,d]/[1,h,s,d] can have a stride
+                along seqlen, instead of packed, same as xformer kv_padding,
+                must be greater than or equal to s_k
           -d    head dim for q, k (default:128)
         -d_v    head dim for v, -1 means equal to d (default:-1)
     -scale_s    scale factor of S. 0 means equal to 1/sqrt(hdim). (default:0)
@@ -74,10 +96,21 @@ args:
  -num_splits    number of splits for key/value. 0 to determine actual number by heuristic (default:1)
      -warmup    number of iterations before benchmark the kernel (default:5)
      -repeat    number of iterations to benchmark the kernel (default:20)
+       -json    0: No Json, 1: Dump Results in Json format (default:0)
+   -jsonfile    json file name to dump results (default:fmha_fwd.json)
+ -q_eff_lens    Batch-mode only: per-batch effective seqlen for Q (exclude PAD) (default:"")
+                Comma-separated list of length 'b'. If empty, no override
+-kv_eff_lens    Batch-mode only: per-batch effective seqlen for KV (exclude PAD) (default:"")
+                Comma-separated list of length 'b'. If empty, no override
 ```
 Example 1: `./bin/tile_example_fmha_fwd -b=1 -h=16 -s=16384 -d=128` will run a fmha case with batch=1, nhead=16, sequence length=16384, hdim=128, fp16 case.
 Example 2: `./bin/tile_example_fmha_fwd -b=1 -h=8 -s=16384 -d=64 -drop_prefs=1 -drop_seed=10 -drop_offset=1234` will run a fmha case with 
   batch=1, nhead=8, sequence length=16384, hdim=64, drop_seed=0 (in GPU memory), drop_offset=1234 (in GPU memory) fp16 case
+
+## Padding Examples
+Example 3 (Group mode with padding): `./bin/tile_example_fmha_fwd -mode=1 -b=2 -h=8 -s=1024,2048 -s_k=1024,2048 -s_qpad=1536,3072 -s_kpad=1536,3072 -d=128` will run group mode with 2 batches having different sequence lengths (1024, 2048) but physically padded to (1536, 3072) respectively.
+
+Example 4 (Batch mode with effective lengths): `./bin/tile_example_fmha_fwd -mode=0 -b=2 -h=8 -s=2048 -s_k=2048 -d=128 -q_eff_lens=1024,1536 -kv_eff_lens=1024,1536` will run batch mode where all batches use 2048 as physical sequence length but have effective lengths of (1024, 1536) for Q and KV respectively.
 
 ## support features
 Currently we are still in rapid development stage, so more features/optimizations will be coming soon.
@@ -126,7 +159,16 @@ Note FA use bottom-right by default to express swa case, here we require you exp
 ### dropout
 TBD
 
+### sequence padding and variable length support
+We support sequence padding and variable-length processing in both batch and group modes fmha forward to handle real-world scenarios where sequences have different lengths.
+
+**Group Mode Padding**: Use `-s_qpad` and `-s_kpad` to specify physical stride between batches, enabling padded layouts. Each batch can have different logical sequence lengths (`-s`, `-s_k`) but use larger physical strides for memory alignment.
+
+**Batch Mode Variable Length**: Use `-q_eff_lens` and `-kv_eff_lens` to specify effective sequence lengths per batch. All batches share the same physical sequence length, but the kernel processes only the effective portions. This enables efficient variable-length attention without memory waste.
+
+Both approaches optimize memory access patterns while supporting flexible sequence length requirements commonly found in transformer inference scenarios.
+
 ## FP8 experimental support
 As described in [this blog](https://blog.hippoml.com/8bit-hippoattention-up-to-3x-faster-compared-to-flashattentionv2-8f9def90b482), we have an experimental support for fp8 fmha kernels, you can evaluate the performance by setting the arg `-prec=fp8` to the `tile_example_fmha_fwd`, on a gfx942 machine and ROCm 6.0+.
 
-Currently we only support `-vlayout=c`( `hdim*seqlen` for V matrix) and `-squant=1`(static quantization) with `hdim=128` for fp8 now. Full feature support will come later.
+Currently we only support `-vlayout=r`( `seqlen*hdim` for V matrix)  for fp8 and fp8bf16 now. Full feature support will come later.

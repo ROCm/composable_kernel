@@ -91,6 +91,9 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                                      CDEElementwiseOperation>
 {
     using DeviceOp = DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage;
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
 
     static constexpr index_t NumDTensor = DsDataType::Size();
 
@@ -105,7 +108,8 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
     using WorkspaceDataType = float;
 
     // First stage GridwiseGEMM kernel.
-    using GridwiseGemm = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_v2r4r2<
         BlockSize,
         ADataType,
         BDataType,
@@ -126,7 +130,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         NPerXDL,
         AK1,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_KBatch_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -150,7 +154,8 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         LoopSched,
         PipelineVer,
         ComputeDataType>;
-
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
     template <typename ELay>
     static auto MakeEGridDescriptor_M_N(index_t M, index_t N, index_t StrideE)
     {
@@ -220,8 +225,8 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
             Number<NumDTensor + 1>{});
     }
 
-    using CGridDesc_M_N  = typename GridwiseGemm::CGridDesc_M_N;
-    using EGridDesc_M_N  = typename GridwiseGemm::CGridDesc_M_N;
+    using CGridDesc_M_N  = typename GridwiseGemm64::CGridDesc_M_N;
+    using EGridDesc_M_N  = typename GridwiseGemm64::CGridDesc_M_N;
     using DsGridDesc_M_N = decltype(MakeDsGridDescriptor_M_N({}, {}, {}));
     using DsGridPointer  = decltype(MakeDsGridPointer());
     using CDGridDesc_M_N = decltype(concat_tuple(ck::Tuple<CGridDesc_M_N>{}, DsGridDesc_M_N{}));
@@ -258,7 +263,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
     // Block2CTileMap configuration parameter.
     static constexpr index_t B2E_M01 = 8;
     using GroupedGemmBlock2ETileMap  = OffsettedBlockToCTileMap<Block2ETileMapKSplit>;
-    using GemmKernelArgument         = typename GridwiseGemm::Argument;
+    using GemmKernelArgument         = typename GridwiseGemm64::Argument;
 
     struct GemmTransKernelArg
     {
@@ -355,12 +360,13 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                 const index_t stride_b = gemm_descs[i].stride_B_;
                 const index_t stride_e = gemm_descs[i].stride_C_;
 
-                const index_t m_padded  = GridwiseGemm::CalculateMPadded(M);
-                const index_t n_padded  = GridwiseGemm::CalculateNPadded(N);
-                const index_t k_padded  = GridwiseGemm::CalculateKPadded(K, K_BATCH);
-                const index_t k0_padded = GridwiseGemm::CalculateK0Padded(K, K_BATCH);
+                const index_t m_padded  = GridwiseGemm64::CalculateMPadded(M);
+                const index_t n_padded  = GridwiseGemm64::CalculateNPadded(N);
+                const index_t k_padded  = GridwiseGemm64::CalculateKPadded(K, K_BATCH);
+                const index_t k0_padded = GridwiseGemm64::CalculateK0Padded(K, K_BATCH);
 
-                const auto c_grid_desc_m_n = GridwiseGemm::MakeCGridDescriptor_M_N(M, N, stride_e);
+                const auto c_grid_desc_m_n =
+                    GridwiseGemm64::MakeCGridDescriptor_M_N(M, N, stride_e);
 
                 DsGridDesc_M_N ds_grid_desc_m_n;
                 DsGridPointer p_ds_grid;
@@ -441,11 +447,11 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
             {
                 auto& karg = gemm_kernel_args_[i].karg_;
 
-                const index_t k_padded  = GridwiseGemm::CalculateKPadded(karg.K, K_BATCH);
-                const index_t k0_padded = GridwiseGemm::CalculateK0Padded(karg.K, K_BATCH);
+                const index_t k_padded  = GridwiseGemm64::CalculateKPadded(karg.K, K_BATCH);
+                const index_t k0_padded = GridwiseGemm64::CalculateK0Padded(karg.K, K_BATCH);
 
                 const auto c_grid_desc_m_n =
-                    GridwiseGemm::MakeCGridDescriptor_M_N(karg.M, karg.N, karg.StrideC);
+                    GridwiseGemm64::MakeCGridDescriptor_M_N(karg.M, karg.N, karg.StrideC);
 
                 const auto local_b2c_tile_map =
                     Block2ETileMapKSplit{c_grid_desc_m_n, B2E_M01, K_BATCH};
@@ -565,27 +571,28 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         ///
         /// @return     The average kernel execution time (if time measurement is enabled.)
         ///
+        template <typename GridwiseGemm>
         float Run(const Argument& arg,
                   void* dev_gemm_args,
                   void* dev_gemm_workspace,
                   const StreamConfig& stream_config = StreamConfig{})
         {
             auto [all_have_kbatch_gt_one, all_have_main_k_block_loop] =
-                CheckArgument(arg, stream_config);
+                CheckArgument<GridwiseGemm>(arg, stream_config);
 
             if(dev_gemm_args == nullptr)
             {
                 std::ostringstream err;
-                err << "The gemm arguments device buffer is not allocated!"
-                    << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+                err << "The gemm arguments device buffer is not allocated!" << " In " << __FILE__
+                    << ":" << __LINE__ << ", in function: " << __func__;
                 throw std::runtime_error(err.str());
             }
 
             if(dev_gemm_workspace == nullptr)
             {
                 std::ostringstream err;
-                err << "The gemm workspace buffer is not allocated!"
-                    << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+                err << "The gemm workspace buffer is not allocated!" << " In " << __FILE__ << ":"
+                    << __LINE__ << ", in function: " << __func__;
                 throw std::runtime_error(err.str());
             }
 
@@ -593,13 +600,13 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
 
             if(all_have_main_k_block_loop)
             {
-                ave_time =
-                    DispatchKernel<true>(arg, dev_gemm_args, dev_gemm_workspace, stream_config);
+                ave_time = DispatchKernel<GridwiseGemm, true>(
+                    arg, dev_gemm_args, dev_gemm_workspace, stream_config);
             }
             else
             {
-                ave_time =
-                    DispatchKernel<false>(arg, dev_gemm_args, dev_gemm_workspace, stream_config);
+                ave_time = DispatchKernel<GridwiseGemm, false>(
+                    arg, dev_gemm_args, dev_gemm_workspace, stream_config);
             }
 
             return ave_time;
@@ -619,26 +626,29 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         ///
         /// @return     The average kernel execution time (if time measurement is enabled.)
         ///
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             if(arg.p_dev_gemm_kargs_ == nullptr)
             {
                 std::ostringstream err;
-                err << "The gemm arguments device buffer is not allocated!"
-                    << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+                err << "The gemm arguments device buffer is not allocated!" << " In " << __FILE__
+                    << ":" << __LINE__ << ", in function: " << __func__;
                 throw std::runtime_error(err.str());
             }
 
             if(arg.p_workspace_ == nullptr)
             {
                 std::ostringstream err;
-                err << "The gemm workspace buffer is not allocated!"
-                    << " In " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__;
+                err << "The gemm workspace buffer is not allocated!" << " In " << __FILE__ << ":"
+                    << __LINE__ << ", in function: " << __func__;
                 throw std::runtime_error(err.str());
             }
 
-            return Run(arg, arg.p_dev_gemm_kargs_, arg.p_workspace_, stream_config);
+            return Run<GridwiseGemm>(arg, arg.p_dev_gemm_kargs_, arg.p_workspace_, stream_config);
         }
+
+        INVOKER_RUN_IMPL
 
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override
@@ -647,6 +657,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         }
 
         private:
+        template <typename GridwiseGemm>
         auto CheckArgument(const Argument& arg, const StreamConfig& stream_config) const
         {
             bool all_have_kbatch_gt_one, all_have_main_k_block_loop;
@@ -670,7 +681,8 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
 
             for(std::size_t i = 0; i < arg.gemm_kernel_args_.size(); ++i)
             {
-                const auto& gemm_arg = arg.gemm_kernel_args_[i].karg_;
+                const auto& gemm_arg = reinterpret_cast<const typename GridwiseGemm::Argument&>(
+                    arg.gemm_kernel_args_[i].karg_);
                 if(stream_config.log_level_ > 0)
                 {
                     gemm_arg.Print();
@@ -711,8 +723,8 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
                 if(not_all_have_kbatch_value_same)
                 {
                     std::ostringstream err;
-                    err << "Not all gemms have same kbatch value (=1 or >1)! "
-                        << "group [" << i << "], kbatch: " << gemm_arg.k_batch
+                    err << "Not all gemms have same kbatch value (=1 or >1)! " << "group [" << i
+                        << "], kbatch: " << gemm_arg.k_batch
                         << ", group [0], kbatch: " << gemm_arg.k_batch << " in " << __FILE__ << ":"
                         << __LINE__ << ", in function: " << __func__;
                     throw std::runtime_error(err.str());
@@ -721,7 +733,7 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
             return std::make_tuple(all_have_kbatch_gt_one, all_have_main_k_block_loop);
         }
 
-        template <bool HasMainKBlockLoop>
+        template <typename GridwiseGemm, bool HasMainKBlockLoop>
         float DispatchKernel(const Argument& arg,
                              void* dev_gemm_kargs,
                              void* dev_gemm_workspace,
@@ -818,11 +830,10 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_xdl_supported())
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
         {
             return false;
         }
-
         if((ck::type_convert<ck::index_t>(arg.gemm_kernel_args_.size()) +
             arg.skipped_group_count_) != arg.group_count_)
         {
@@ -836,11 +847,27 @@ struct DeviceGroupedGemmMultipleDSplitKXdlCShuffleTwoStage
         }
 
         bool supported = true;
+        bool isWave64  = get_warp_size() == 64;
         for(std::size_t i = 0; i < arg.gemm_kernel_args_.size(); ++i)
         {
             const auto& gemm_arg = arg.gemm_kernel_args_[i].karg_;
+            bool group_arg_valid = false;
+            if(isWave64)
+            {
+                if constexpr(NXdlPerWave64 > 0)
+                {
+                    group_arg_valid = GridwiseGemm64::CheckValidity(gemm_arg);
+                }
+            }
+            else
+            {
+                if constexpr(NXdlPerWave32 > 0)
+                {
+                    group_arg_valid = GridwiseGemm32::CheckValidity(
+                        reinterpret_cast<const typename GridwiseGemm32::Argument&>(gemm_arg));
+                }
+            }
 
-            bool group_arg_valid = GridwiseGemm::CheckValidity(gemm_arg);
             if(not group_arg_valid)
             {
                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))

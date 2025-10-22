@@ -9,7 +9,7 @@
 namespace ck_tile {
 
 #define MOE_SORTING_MOCK_ID(token_id_, topk_id_) \
-    static_cast<uint32_t>(((token_id_)&0x00ffffff) | (((topk_id_)&0xff) << 24))
+    static_cast<uint32_t>(((token_id_) & 0x00ffffff) | (((topk_id_) & 0xff) << 24))
 
 template <typename WeightType, typename IndexType = index_t>
 CK_TILE_HOST void reference_moe_sorting(const HostTensor<IndexType>& topk_ids,

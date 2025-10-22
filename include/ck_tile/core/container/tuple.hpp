@@ -262,12 +262,18 @@ struct tuple : impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>
         return flag;
     }
 
+    CK_TILE_HOST_DEVICE static constexpr bool IsTuple() { return true; }
+
 #define TP_COM_() static_assert(I < size(), "wrong! out of range")
     // clang-format off
-    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get() const          { TP_COM_(); return impl::getv<I>(*this); }
-    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get(number<I>) const { TP_COM_(); return get<I>(); }
-    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get()                      { TP_COM_(); return impl::getv<I>(*this); }
-    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get(number<I>)             { TP_COM_(); return get<I>(); }
+    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get() const &          { TP_COM_(); return impl::getv<I>(*this); }
+    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get(number<I>) const & { TP_COM_(); return get<I>(); }
+    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get() &                { TP_COM_(); return impl::getv<I>(*this); }
+    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get(number<I>) &       { TP_COM_(); return get<I>(); }
+    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get() &&               { TP_COM_(); return impl::getv<I>(std::move(*this)); }
+    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get(number<I>) &&      { TP_COM_(); return std::move(*this).template get<I>(); }
+    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get() const &&         { TP_COM_(); return impl::getv<I>(std::move(*this)); }
+    template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) get(number<I>) const &&{ TP_COM_(); return std::move(*this).template get<I>(); }
 
     template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) at() const          { TP_COM_(); return impl::getv<I>(*this); }
     template<index_t I> CK_TILE_HOST_DEVICE constexpr decltype(auto) at(number<I>) const { TP_COM_(); return get<I>(); }
@@ -294,12 +300,29 @@ struct tuple : impl::tuple_base<make_index_sequence<sizeof...(T)>, T...>
 #undef TP_COM_
 };
 
-template <typename, typename = void>
+template <typename... T>
+CK_TILE_HOST_DEVICE void print(const tuple<T...>& t)
+{
+    printf("tuple<");
+    if constexpr(sizeof...(T) > 0)
+    {
+        bool first = true;
+        static_for<0, sizeof...(T), 1>{}([&t, &first](auto i) {
+            if(!first)
+                printf(", ");
+            print(t.get(i));
+            first = false;
+        });
+    }
+    printf(">");
+}
+
+template <typename, typename>
 struct vector_traits;
 
 // specialization for array
 template <typename... T>
-struct vector_traits<tuple<T...>>
+struct vector_traits<tuple<T...>, void>
 {
     using scalar_type                    = __type_pack_element<0, T...>;
     static constexpr index_t vector_size = sizeof...(T);
@@ -470,6 +493,12 @@ transform_tuples_impl(F f, const X& x, const Y& y, const Z& z, sequence<Is...>)
     return make_tuple(f(x.at(number<Is>{}), y.at(number<Is>{}), z.at(number<Is>{}))...);
 }
 
+template <typename F, typename Tuple, index_t... Is>
+constexpr decltype(auto) apply_impl(F&& f, Tuple&& t, sequence<Is...>)
+{
+    return std::forward<F>(f)(std::forward<Tuple>(t).get(number<Is>{})...);
+}
+
 } // namespace detail
 
 template <typename F, typename X>
@@ -491,6 +520,13 @@ CK_TILE_HOST_DEVICE constexpr auto transform_tuples(F f, const X& x, const Y& y,
 {
     return detail::transform_tuples_impl(
         f, x, y, z, typename arithmetic_sequence_gen<0, X::size(), 1>::type{});
+}
+
+template <typename F, typename Tuple>
+constexpr decltype(auto) apply(F&& f, Tuple&& t)
+{
+    constexpr index_t N = std::decay_t<Tuple>::size();
+    return detail::apply_impl(std::forward<F>(f), std::forward<Tuple>(t), make_index_sequence<N>{});
 }
 
 namespace detail {

@@ -160,7 +160,7 @@ struct Rmsnorm2dFwdPipelineOnePass
         }
         else
         {
-            Epilogue{}(y_window_, rmsn);
+            Epilogue{}(y_window_, rmsn, nullptr);
         }
     }
 };

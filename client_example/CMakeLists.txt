@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
 project(ck_app)
-add_compile_options(-std=c++17)
+add_compile_options(-std=c++20)
 
 if (DTYPES)
     add_definitions(-DDTYPES)
@@ -48,7 +48,7 @@ else()
 endif()
 
 if (GPU_TARGETS)
-    if (GPU_TARGETS MATCHES "gfx9")
+    if (GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
         add_definitions(-DCK_USE_XDL)
         set(CK_USE_XDL "ON")
     endif()

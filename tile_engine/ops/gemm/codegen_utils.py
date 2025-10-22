@@ -7,10 +7,6 @@
 Mappings and utility functions for kernel code generation.
 """
 
-import subprocess
-import re
-from functools import lru_cache
-
 DATA_TYPE_MAP = {
     "fp32": "float",
     "fp16": "ck_tile::half_t",
@@ -31,9 +27,14 @@ DEFAULT_EPILOGUE = """
             using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<
                                 ck_tile::DefaultGemm2DEpilogueProblem<ADataType,
                                                                       BDataType,
+                                                                      ck_tile::tuple<>,
                                                                       AccDataType,
                                                                       CDataType,
+                                                                      ck_tile::tuple<>,
                                                                       CLayout,
+                                                                      ck_tile::element_wise::PassThrough,
+                                                                      TilePartitioner::MPerBlock,
+                                                                      TilePartitioner::NPerBlock,
                                                                       kPadM,
                                                                       kPadN,
                                                                       WarpTileM,
@@ -54,7 +55,6 @@ CSHUFFLE_EPILOGUE = """
                                                              ck_tile::tuple<>,
                                                              CLayout,
                                                              ck_tile::element_wise::PassThrough,
-                                                             GemmPipelineProblem::kBlockSize,
                                                              TilePartitioner::MPerBlock,
                                                              TilePartitioner::NPerBlock,
                                                              WarpM,
@@ -65,93 +65,6 @@ CSHUFFLE_EPILOGUE = """
                                                              UniversalGemmProblem::TransposeC,
                                                              memory_operation>>;
 """
-HOT_LOOP_FALSE = """
-            if(tail_num == ck_tile::TailNumber::Full)
-            {
-                RunSplitk(ck_tile::bool_constant<false>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-            }
-            else if(tail_num == ck_tile::TailNumber::Odd)
-            {
-                RunSplitk(ck_tile::bool_constant<false>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
-            }
-            else if(tail_num == ck_tile::TailNumber::Even)
-            {
-                RunSplitk(ck_tile::bool_constant<false>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
-            }
-            else
-            {
-                throw std::runtime_error("Num K loop must be larger than number of prefetech stages.");
-            }
-"""
-RUN_MEM = """
-            // Handle One and Full cases directly
-            if (tail_num == ck_tile::TailNumber::One) {
-                RunSplitk(ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::One>{});
-            } else if (tail_num == ck_tile::TailNumber::Full) {
-                RunSplitk(ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-            }
-            
-            auto check_tail = [&](auto... TNs) {
-                ([&]{
-                    if constexpr(BaseGemmPipeline::PrefetchStages > static_cast<int>(decltype(TNs)::value)) {
-                        if(tail_num == decltype(TNs)::value) {
-                            RunSplitk(ck_tile::bool_constant<true>{},
-                                    ck_tile::integral_constant<ck_tile::TailNumber, decltype(TNs)::value>{});
-                        }
-                    }
-                }(), ...);
-            };
-
-            check_tail(
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Four>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Five>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Six>{},
-                ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Seven>{}
-            );
-"""
-
-RUN_COMPV3 = """
-            if(tail_num == ck_tile::TailNumber::Full)
-            {
-                RunSplitk(ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{});
-            }
-            else if(tail_num == ck_tile::TailNumber::Odd)
-            {
-                RunSplitk(ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
-            }
-            else if(tail_num == ck_tile::TailNumber::Even)
-            {
-                RunSplitk(ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
-            }
-            else
-            {
-                throw std::runtime_error("The tail number is wrong. It should be Full, Odd, or Even.");
-            }
-"""
-
-RUN_COMPV4 = """
-            if(tail_num == ck_tile::TailNumber::Three)
-            {
-                RunSplitk(ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Three>{});
-            }
-            else
-            {
-                RunSplitk(ck_tile::bool_constant<true>{},
-                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Two>{});
-            }
-"""
-
 
 PIPELINE_MAP = {
     "mem": ["ck_tile::BaseGemmPipelineAgBgCrMem", "ck_tile::GemmPipelineAgBgCrMem"],
@@ -171,8 +84,6 @@ SCHEDULER_MAP = {
 }
 
 EPILOGUE_MAP = {"default": DEFAULT_EPILOGUE, "cshuffle": CSHUFFLE_EPILOGUE}
-
-HOT_LOOP_TRUE = {"mem": RUN_MEM, "compv3": RUN_COMPV3, "compv4": RUN_COMPV4}
 
 
 def BOOL_MAP(b_):
@@ -255,6 +166,19 @@ warp_tile_supported_combinations = {
             [16, 16, 128],
             [32, 32, 64],
         ],
+        "fp8_bf8_fp16": [
+            [16, 16, 128],
+            [32, 32, 64],
+        ],
+        "bf8_fp8_fp16": [
+            [16, 16, 128],
+            [32, 32, 64],
+        ],
+    },
+    "gfx1201": {
+        "fp16_fp16_fp16": [
+            [16, 16, 16],
+        ],
     },
 }
 
@@ -284,31 +208,3 @@ def element_size(data_type: str) -> float:
     if data_type not in ELEMENT_SIZE_MAP:
         raise ValueError(f"Unsupported data type: {data_type}")
     return ELEMENT_SIZE_MAP[data_type]
-
-
-GPU_NAME_PATTERN = re.compile(r"Name:\s*(gfx\d+\w*)")
-
-
-@lru_cache(maxsize=1)
-def get_gpu_name_by_id(gpu_id: int = 0) -> str:
-    """Retrieve GPU name (e.g. gfx90a) by device ID"""
-    try:
-        output = subprocess.check_output(
-            ["rocminfo"], text=True, stderr=subprocess.PIPE, timeout=5
-        )
-        if matches := GPU_NAME_PATTERN.finditer(output):
-            gpu_list = [m.group(1) for m in matches]
-            return gpu_list[gpu_id] if gpu_id < len(gpu_list) else ""
-
-        return ""
-
-    except subprocess.CalledProcessError as e:
-        print(f"GPU query failed (exit {e.returncode}): {e.stderr.strip()}")
-    except FileNotFoundError:
-        print("ROCm tools not installed (requires rocminfo)")
-    except subprocess.TimeoutExpired:
-        print("GPU query timeout (5s)")
-    except Exception as e:
-        print(f"GPU detection error: {str(e)}")
-
-    return ""

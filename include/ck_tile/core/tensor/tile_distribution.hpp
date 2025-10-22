@@ -202,7 +202,7 @@ struct tile_distribution
     // FIXME: it's hacky to get Y index from Distributed-Index
     template <typename DistributedIndices>
     CK_TILE_HOST_DEVICE static constexpr auto
-        get_y_indices_from_distributed_indices(DistributedIndices)
+    get_y_indices_from_distributed_indices(DistributedIndices)
     {
         constexpr auto ys_idx_arr = [] {
             array<index_t, NDimY> ys_idx;
@@ -228,24 +228,6 @@ struct tile_distribution
     {
         return PsYs2XsAdaptor::is_static() && Ys2DDescriptor::is_static();
     }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("tile_distribution{");
-        //
-        printf("tile_distribution_encoding: ");
-        print(DstrEncode{});
-        printf(", ");
-        //
-        printf("ps_ys_to_xs_: ");
-        print(ps_ys_to_xs_);
-        printf(", ");
-        //
-        printf("ys_to_d_: ");
-        print(ys_to_d_);
-        //
-        printf("}");
-    }
 };
 
 namespace detail {
@@ -266,7 +248,7 @@ CK_TILE_HOST_DEVICE constexpr auto make_sequential_index(index_t ibegin, index_t
 // this returns a constexpr encoding of tile_distribution
 template <typename StaticTileDistributionEncoding_>
 CK_TILE_HOST_DEVICE constexpr auto
-    make_adaptor_encoding_for_tile_distribution(StaticTileDistributionEncoding_)
+make_adaptor_encoding_for_tile_distribution(StaticTileDistributionEncoding_)
 {
     using RsLengths    = typename StaticTileDistributionEncoding_::RsLengths;
     using HsLengthss   = typename StaticTileDistributionEncoding_::HsLengthss;
@@ -614,8 +596,7 @@ CK_TILE_HOST_DEVICE constexpr auto slice_distribution_from_x(
     constexpr auto src_y_maps       = src_y_info[number<1>{}];
     constexpr auto src_y_prefix_sum = src_y_info[number<2>{}];
 
-    constexpr auto sliced_hlen_yidx_ylen = [&]() constexpr
-    {
+    constexpr auto sliced_hlen_yidx_ylen = [&]() constexpr {
         auto y_slice_sorted_origins = make_zero_multi_index<Encoding::NDimY>();
         auto y_slice_lengths        = Encoding::detail::ys_lengths_;
         constexpr auto y_to_h_masks = Encoding::detail::get_y_to_h_masks();
@@ -685,8 +666,7 @@ CK_TILE_HOST_DEVICE constexpr auto slice_distribution_from_x(
         auto y_slice_origins = container_reorder_given_old2new(y_slice_sorted_origins, src_y_maps);
 
         return make_tuple(new_h_lengths, y_slice_origins, y_slice_lengths);
-    }
-    ();
+    }();
 
     constexpr auto sliced_h_lengths       = sliced_hlen_yidx_ylen[number<0>{}];
     constexpr auto sliced_y_origins_array = sliced_hlen_yidx_ylen[number<1>{}];
@@ -712,4 +692,27 @@ CK_TILE_HOST_DEVICE constexpr auto slice_distribution_from_x(
 }
 
 } // namespace detail
+
+// Free print function for tile_distribution
+template <typename PsYs2XsAdaptor_,
+          typename Ys2DDescriptor_,
+          typename StaticTileDistributionEncoding_,
+          typename TileDistributionDetail_>
+CK_TILE_HOST_DEVICE void print(const tile_distribution<PsYs2XsAdaptor_,
+                                                       Ys2DDescriptor_,
+                                                       StaticTileDistributionEncoding_,
+                                                       TileDistributionDetail_>& distribution)
+{
+    printf("tile_distribution{");
+    printf("tile_distribution_encoding: ");
+    print(StaticTileDistributionEncoding_{});
+    printf(", ");
+    printf("ps_ys_to_xs_: ");
+    print(distribution.ps_ys_to_xs_);
+    printf(", ");
+    printf("ys_to_d_: ");
+    print(distribution.ys_to_d_);
+    printf("}\n");
+}
+
 } // namespace ck_tile

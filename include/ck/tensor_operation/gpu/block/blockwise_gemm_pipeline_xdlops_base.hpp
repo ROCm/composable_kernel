@@ -41,7 +41,9 @@ struct BlockwiseGemmXdlops_pipeline_base
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
     // Hardcode to 64, as HIP-provided "WarpSize" would return 32 on RDNA GPUs.
-    static constexpr index_t WaveSize = 64;
+    static constexpr index_t MWaves   = MPerBlock / (MRepeat * MPerXDL);
+    static constexpr index_t NWaves   = NPerBlock / (NRepeat * NPerXDL);
+    static constexpr index_t WaveSize = BlockSize / MWaves / NWaves;
 
     static constexpr index_t A_K0 = ATileDesc{}.GetLength(I0);
     static constexpr index_t B_K0 = BTileDesc{}.GetLength(I0);
@@ -51,6 +53,9 @@ struct BlockwiseGemmXdlops_pipeline_base
 
     static constexpr auto xdlops_gemm =
         XdlopsGemm<ComputeDataType, MPerXDL, NPerXDL, KPack, ComputeDataType, TransposeC>{};
+
+    using ComputeDataTypeBuf =
+        conditional_t<std::is_same<ComputeDataType, ck::tf32_t>::value, float, ComputeDataType>;
 
     static constexpr index_t AMmaKStride = KPack;
     static constexpr index_t BMmaKStride = KPack;
@@ -74,9 +79,6 @@ struct BlockwiseGemmXdlops_pipeline_base
             return 1;
     }();
 
-    static constexpr index_t MWaves = MPerBlock / (MRepeat * MPerXDL);
-    static constexpr index_t NWaves = NPerBlock / (NRepeat * NPerXDL);
-
     using HotLoopInstList =
         ck::BlockwiseGemmXdlops_pipeline_hotloop_inst<BlockSize,
                                                       MPerBlock,
@@ -94,8 +96,10 @@ struct BlockwiseGemmXdlops_pipeline_base
                                                       NPerXDL,
                                                       xdlops_gemm.KPerXdlops>;
 
+#if defined(__HIP_DEVICE_COMPILE__)
     static_assert(KPerThread % KPack == 0,
                   "Wrong KPack setting; try increasing KPerThread or decreasing KPack");
+#endif
 
     StaticBufferTupleOfVector<AddressSpaceEnum::Vgpr,
                               AccDataType,
@@ -153,7 +157,7 @@ struct BlockwiseGemmXdlops_pipeline_base
 
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
     __device__ static auto
-        CalculateCThreadOriginDataIndex(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
+    CalculateCThreadOriginDataIndex(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
     {
         const auto wave_idx = GetWaveIdx();
 
@@ -182,7 +186,7 @@ struct BlockwiseGemmXdlops_pipeline_base
 
     template <index_t m0, index_t n0, index_t xdlops_i, index_t blk_i>
     __device__ static auto
-        CalculateCThreadOriginDataIndex8D(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
+    CalculateCThreadOriginDataIndex8D(Number<m0>, Number<n0>, Number<xdlops_i>, Number<blk_i>)
     {
         const auto wave_idx = GetWaveIdx();
 
@@ -219,6 +223,7 @@ struct BlockwiseGemmXdlops_pipeline_base
                                       Tuple4 b_origin = CalculateBThreadOriginDataIndex())
         : a_thread_copy_(a_origin), b_thread_copy_(b_origin)
     {
+#if defined(__HIP_DEVICE_COMPILE__)
         static_assert(AMmaTileDesc::IsKnownAtCompileTime() && BMmaTileDesc::IsKnownAtCompileTime(),
                       "wrong! Desc should be known at compile-time");
 
@@ -227,6 +232,7 @@ struct BlockwiseGemmXdlops_pipeline_base
 
         static_assert(MPerBlock % (MPerXDL * MRepeat) == 0 && NPerBlock % (NPerXDL * NRepeat) == 0,
                       "wrong!");
+#endif
     }
 
     // transposed XDL output supporting C_xdl' = B_xdl' * A_xdl'
@@ -373,7 +379,7 @@ struct BlockwiseGemmXdlops_pipeline_base
         make_tuple(Number<MRepeat>{}, Number<NRepeat>{}, xdlops_gemm.GetRegSizePerXdlops()));
 
     using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<ADataType,
-                                                         ComputeDataType,
+                                                         ComputeDataTypeBuf,
                                                          decltype(a_block_desc_m0_m1_m2_k),
                                                          decltype(a_thread_desc_),
                                                          Sequence<1, 1, 1, KPack>,
@@ -383,7 +389,7 @@ struct BlockwiseGemmXdlops_pipeline_base
                                                          A_K1>;
 
     using BThreadCopy = ThreadwiseTensorSliceTransfer_v4<BDataType,
-                                                         ComputeDataType,
+                                                         ComputeDataTypeBuf,
                                                          decltype(b_block_desc_n0_n1_n2_k),
                                                          decltype(b_thread_desc_),
                                                          Sequence<1, 1, 1, KPack>,
