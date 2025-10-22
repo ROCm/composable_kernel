@@ -344,6 +344,20 @@ class TestCkTileGemmPipeline : public ::testing::Test
             }
             else
             {
+                return ck_tile::HostTensorDescriptor({row, col}, {1_uz, stride});
+            }
+        };
+
+        auto f_host_tensor_descriptor_out = [](std::size_t row,
+                                               std::size_t col,
+                                               std::size_t stride,
+                                               auto layout) {
+            if constexpr(std::is_same_v<decltype(layout), ck_tile::tensor_layout::gemm::RowMajor>)
+            {
+                return ck_tile::HostTensorDescriptor({row, col}, {stride, 1_uz});
+            }
+            else
+            {
                 return ck_tile::HostTensorDescriptor({col, row}, {stride, 1_uz});
             }
         };
@@ -386,9 +400,6 @@ class TestCkTileGemmPipeline : public ::testing::Test
         ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5, 5, 11939}(a_m_k);
         ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5, 5, 11940}(b_k_n);
 
-        //ck_tile::FillConstant<ADataType>{1}(a_m_k);
-        //ck_tile::FillConstant<BDataType>{2}(b_k_n);
-            // FillConstant
         ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
         ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
