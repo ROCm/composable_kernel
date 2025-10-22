@@ -235,9 +235,7 @@ def run_analysis(results_file):
     # Extend range to ensure we capture all data
     bin_start = int(min_ratio // bin_width) * bin_width
     bin_end = int(max_ratio // bin_width) * bin_width
-
-    # Create bin edges with 5% width, positioned so 100% falls between bins
-    bin_edges = np.arange(bin_start, bin_end + bin_width, bin_width)
+    bin_edges = np.arange(bin_start, bin_end, bin_width)
 
     # Create the histogram data
     counts, bins = np.histogram(performance_ratios, bins=bin_edges)
@@ -252,11 +250,8 @@ def run_analysis(results_file):
             colors.append('green')
 
     # Plot the histogram with custom colors
-    plt.bar(bin_edges[:-1], counts, width=4.5, color=colors, edgecolor='black', 
+    plt.bar(bin_edges[:-1], counts, width=bin_width, color=colors, edgecolor='black', 
             alpha=0.7, align='edge')
-
-    # Add parity line at 100%
-    #plt.axvline(x=100, color='black', linestyle='--', linewidth=2, label='Parity (100%)')
 
     plt.xlabel('CK Tile Performance (% of CK)')
     plt.ylabel('Number of Test Cases')
@@ -266,8 +261,7 @@ def run_analysis(results_file):
     from matplotlib.patches import Patch
     legend_elements = [
         Patch(facecolor='red', alpha=0.7, label='CK Faster (<100%)'),
-        Patch(facecolor='green', alpha=0.7, label='CK Tile Faster (>100%)'),
-        plt.Line2D([0], [0], color='black', linestyle='--', label='Parity (100%)')
+        Patch(facecolor='green', alpha=0.7, label='CK Tile Faster (>100%)')
     ]
     plt.legend(handles=legend_elements)
 
