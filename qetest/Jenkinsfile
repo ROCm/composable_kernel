@@ -3,20 +3,30 @@ def rocmnode(name) {
 }
 
 def failurePatterns = [
-    [pattern: /Error response from daemon: login attempt to .* failed with status: 401 Unauthorized/, description: "Docker registry authentication failed"],
+    [pattern: /login attempt to .* failed with status: 401 Unauthorized/, description: "Docker registry authentication failed"],
     [pattern: /Unable to locate image/, description: "Docker image not found or inaccessible"],
 ]
 
-// Given a pattern, check if the log contains the pattern.
+// Given a pattern, check if the log contains the pattern and return context.
 def checkForPattern(pattern, log) {
-    // Regex check for a match in the log.
-    if (log =~ pattern) {
-        echo "Found match in log for ${pattern}"
-        return true;
-    } else {
-        echo "No match found in log for ${pattern}"
-        return false;
+    def lines = log.split('\n')
+    for (int i = 0; i < lines.size(); i++) {
+        if (lines[i] =~ pattern) {
+            echo "Found pattern match in log for ${pattern}"
+            
+            // Get context lines (2 before and 2 after)
+            def contextStart = Math.max(0, i - 2)
+            def contextEnd = Math.min(lines.size() - 1, i + 2)
+            def contextLines = []
+            for (int j = contextStart; j <= contextEnd; j++) {
+                contextLines.add(lines[j])
+            }
+            
+            return [found: true, matchedLine: lines[i], context: contextLines.join('\n')]
+        }
     }
+    echo "No pattern match found in log for ${pattern}"
+    return [found: false, matchedLine: "", context: ""]
 }
 
 pipeline {
@@ -62,8 +72,13 @@ pipeline {
                     def buildLog = sh(script: 'wget -q --no-check-certificate -O - ' + BUILD_URL + 'consoleText', returnStdout: true)
                     def foundPatterns = []
                     for (patternMap in failurePatterns) {
-                        if (checkForPattern(patternMap.pattern, buildLog)) {
-                            foundPatterns.add(patternMap)
+                        def result = checkForPattern(patternMap.pattern, buildLog)
+                        if (result.found) {
+                            foundPatterns.add([
+                                description: patternMap.description,
+                                matchedLine: result.matchedLine,
+                                context: result.context
+                            ])
                         }
                     }
                     echo "Found ${foundPatterns.size()} failure patterns: ${foundPatterns.collect { it.description }}"
@@ -74,10 +89,10 @@ pipeline {
                             -H 'Content-Type: application/json' \
                             -d '{
                                 "subject": "❌ Failure Detected",
-                                "text": "Build failure detected: ${patternMap.description}\\n\\nJob: ${env.JOB_NAME}\\nBuild: #${env.BUILD_NUMBER}\\nURL: ${env.BUILD_URL}"
+                                "text": "Build failure detected: ${patternMap.description}\\n\\nLog context:\\n```\\n${patternMap.context}\\n```\\n\\nJob: ${env.JOB_NAME}\\nBuild: #${env.BUILD_NUMBER}\\nURL: ${env.BUILD_URL}"
                             }'
                         """
-                    }
+                        }
                     }                    
                 }
             }
