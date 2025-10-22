@@ -116,6 +116,7 @@ function(build_gemm_test_targets datatype layout config_name)
                 --layout ${layout}
                 --config_json ${json_blob}
                 --list_kernels
+                --gpu_target "${GEMM_TEST_GPU_TARGETS}"
         WORKING_DIRECTORY ${TILE_ENGINE_GEMM_DIR}
         RESULT_VARIABLE ret
         OUTPUT_VARIABLE list_output
@@ -330,7 +331,7 @@ else()
 endif()
 
 # 5. TILE SIZE COVERAGE: Test different tile sizes with fixed fp16/rcr configuration
-#    Two levels: quick (less than 100 kernels) or comprehensive (mor than 1000 kernels after validation)
+#    Two levels: quick (less than 100 kernels) or comprehensive (more than 1000 kernels after validation)
 set(TILE_SIZE_LEVEL "quick" CACHE STRING "Tile size coverage level: quick or comprehensive")
 set_property(CACHE TILE_SIZE_LEVEL PROPERTY STRINGS "quick" "comprehensive")
 
