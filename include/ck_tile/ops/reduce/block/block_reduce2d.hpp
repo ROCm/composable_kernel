@@ -450,7 +450,8 @@ struct BlockReduce2dCrossWarpSync
 
         static_for<0, thread_buf_size, 1>{}([&](auto i) {
             DataType v[num_reduce_warps];
-            IndexDataType idx_v[num_reduce_warps];
+            [[maybe_unused]] std::
+                conditional_t<kProcessIndex, IndexDataType[num_reduce_warps], IndexDataType> idx_v;
 
             static_for<0, num_reduce_warps, 1>{}([&](auto idx) {
                 v[idx] = smem_ptr[i * num_warps + local_smem_os + idx];
@@ -634,7 +635,9 @@ struct BlockReduce2dLinearCrossWarpSync
         index_t local_smem_os = local_warp_id * num_reduce_warps;
 
         DataType all_scratch[thread_buf_size * num_reduce_warps];
-        IndexDataType all_indices[kProcessIndex ? thread_buf_size * num_reduce_warps : 1];
+        [[maybe_unused]] std::conditional_t<kProcessIndex,
+                                            IndexDataType[thread_buf_size * num_reduce_warps],
+                                            IndexDataType> all_indices;
 
         // Load data from shared memory
         static_for<0, thread_buf_size, 1>{}([&](auto i_0) {
