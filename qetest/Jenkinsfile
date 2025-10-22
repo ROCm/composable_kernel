@@ -61,6 +61,7 @@ pipeline {
             steps {
                 script {
                     echo "... Checkout failure ..."
+                    return false;
                 }
             }
         }
