@@ -2,6 +2,11 @@ def rocmnode(name) {
     return '(rocmtest || miopen) && (' + name + ')'
 }
 
+def failurePatterns = [
+    [pattern: /Error response from daemon: login attempt to .* failed with status: 401 Unauthorized/, description: "Docker registry authentication failed"],
+    [pattern: /Unable to locate image/, description: "Docker image not found or inaccessible"],
+]
+
 // Given a pattern, check if the log contains the pattern.
 def checkForPattern(pattern, log) {
     // Regex check for a match in the log.
@@ -45,8 +50,7 @@ pipeline {
             agent{ label rocmnode("nogpu") }
             steps {
                 script {
-                    echo "Checkout failure example"
-                    echo "Checkout failure ..."
+                    echo "... Checkout failure ..."
                 }
             }
         }
@@ -56,18 +60,25 @@ pipeline {
             node(rocmnode("nogpu")) {
                 script {
                     def buildLog = sh(script: 'wget -q --no-check-certificate -O - ' + BUILD_URL + 'consoleText', returnStdout: true)
-                    def matchFound = checkForPattern("Checkout failure", buildLog)
-                    echo "Match found? ${matchFound}"
-                    withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
+                    def foundPatterns = []
+                    for (patternMap in failurePatterns) {
+                        if (checkForPattern(patternMap.pattern, buildLog)) {
+                            foundPatterns.add(patternMap)
+                        }
+                    }
+                    echo "Found ${foundPatterns.size()} failure patterns: ${foundPatterns.collect { it.description }}"
+                    for (patternMap in foundPatterns) {
+                        withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
                         sh """
                             curl -X POST '${WEBHOOK_URL}' \
                             -H 'Content-Type: application/json' \
                             -d '{
-                                "subject": "✅ Build Success",
-                                "text": "successful build"
+                                "subject": "❌ Failure Detected",
+                                "text": "Build failure detected: ${patternMap.description}\\n\\nJob: ${env.JOB_NAME}\\nBuild: #${env.BUILD_NUMBER}\\nURL: ${env.BUILD_URL}"
                             }'
                         """
                     }
+                    }                    
                 }
             }
         }
