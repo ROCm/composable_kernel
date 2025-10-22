@@ -69,6 +69,7 @@ pipeline {
         always {
             node(rocmnode("nogpu")) {
                 script {
+                    def buildStatus = currentBuild.result ?: 'SUCCESS'
                     def statusEmoji = buildStatus == 'SUCCESS' ? '⚠️' : '❌'
                     def subjectPrefix = buildStatus == 'SUCCESS' ? 'Warning - Issues Detected' : 'Build Failed'
                     // Get the build log.
