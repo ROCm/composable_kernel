@@ -124,19 +124,17 @@ function(build_gemm_test_targets datatype layout config_name)
     )
 
     if(NOT ret EQUAL 0)
-        message(WARNING "Failed to list kernels for ${datatype}_${layout}: ${list_error}")
+        message(WARNING "Failed to list kernels for ${datatype}_${layout}_${config_name}: ${list_error}")
         return()
     endif()
 
-    # Check kernel count
-    set(kernel_count 0)
-    if(EXISTS ${working_path}/gemm_kernel_count.txt)
-        file(READ ${working_path}/gemm_kernel_count.txt kernel_count)
-        string(STRIP "${kernel_count}" kernel_count)
+    # Verify kernel list file was generated
+    if(NOT EXISTS ${working_path}/gemm_kernel_list.txt)
+        message(STATUS "No kernels found for ${datatype}_${layout}_${config_name} (validation filtered out all combinations)")
+        return()
     endif()
 
     message(STATUS "Building tests for ${datatype}_${layout}_${config_name}")
-    message(STATUS "  Found ${kernel_count} test configurations for ${datatype}_${layout}")
 
     # STEP 2a: Extract test parameters from config
     set(test_params_file "${working_path}/test_params.hpp")
@@ -156,14 +154,12 @@ function(build_gemm_test_targets datatype layout config_name)
     endif()
 
     # STEP 2b: Header generation phase - generate headers using --gen_single
-    if(kernel_count GREATER 0)
-        message(STATUS "  Generating headers using --gen_single...")
-        
-        if(EXISTS ${working_path}/gemm_kernel_list.txt)
-            file(STRINGS ${working_path}/gemm_kernel_list.txt kernel_lines)
-            set(gen_count 0)
-            
-            foreach(line IN LISTS kernel_lines)
+    message(STATUS "  Generating headers using --gen_single...")
+    
+    file(STRINGS ${working_path}/gemm_kernel_list.txt kernel_lines)
+    set(gen_count 0)
+    
+    foreach(line IN LISTS kernel_lines)
                 # Parse kernel specification format: kernel_name|tile_config|trait_combo
                 string(REPLACE "|" ";" parts "${line}")
                 list(LENGTH parts parts_len)
@@ -193,21 +189,18 @@ function(build_gemm_test_targets datatype layout config_name)
                     if(NOT gen_ret EQUAL 0)
                         message(WARNING "Failed to generate header for ${kernel_name}: ${gen_error}")
                     else()
-                        math(EXPR gen_count "${gen_count} + 1")
-                    endif()
+                    math(EXPR gen_count "${gen_count} + 1")
                 endif()
-            endforeach()
-            
-            message(STATUS "  Generated ${gen_count} headers for ${datatype}_${layout}")
-        endif()
-    endif()
+            endif()
+        endforeach()
+        
+        message(STATUS "  Generated ${gen_count} headers for ${datatype}_${layout}")
 
-    # STEP 3: Target creation phase - create test targets only if kernels were found
-    if(kernel_count GREATER 0)
-        if(EXISTS ${working_path}/gemm_kernel_list.txt)
-            file(STRINGS ${working_path}/gemm_kernel_list.txt kernel_lines)
-            set(test_count 0)
-            foreach(line IN LISTS kernel_lines)
+    # STEP 3: Target creation phase - create test targets
+    message(STATUS "  Creating test targets...")
+    file(STRINGS ${working_path}/gemm_kernel_list.txt kernel_lines)
+    set(test_count 0)
+    foreach(line IN LISTS kernel_lines)
                 # Parse kernel specification format: kernel_name|tile_config|trait_combo
                 string(REPLACE "|" ";" parts "${line}")
                 list(LENGTH parts parts_len)
@@ -216,21 +209,13 @@ function(build_gemm_test_targets datatype layout config_name)
                     list(GET parts 1 tile_config)
                     list(GET parts 2 trait_combo)
 
-                    # Generate test target for this kernel configuration
-                    create_individual_gemm_test_target("${datatype}" "${layout}" "${config_name}" "${trait_combo}" "${tile_config}" "${json_blob}")
-                    math(EXPR test_count "${test_count} + 1")
-                endif()
-            endforeach()
-            message(STATUS "  Created ${test_count} test targets for ${datatype}_${layout}")
-        else()
-            message(WARNING "Kernel list file not found for ${datatype}_${layout}")
-        endif()
-    else()
-        message(STATUS "  No test targets created (automatic validation filtered out invalid combinations)")
-    endif()
-endfunction()
-
-# ============================================================================
+                # Generate test target for this kernel configuration
+                create_individual_gemm_test_target("${datatype}" "${layout}" "${config_name}" "${trait_combo}" "${tile_config}" "${json_blob}")
+                math(EXPR test_count "${test_count} + 1")
+            endif()
+        endforeach()
+        message(STATUS "  Created ${test_count} test targets for ${datatype}_${layout}")
+endfunction()# ============================================================================
 # MAIN EXECUTION - Test Target Generation
 # ============================================================================
 
