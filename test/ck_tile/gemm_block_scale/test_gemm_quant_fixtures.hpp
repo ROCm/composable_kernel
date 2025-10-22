@@ -5,6 +5,7 @@
 
 #include "test_gemm_quant_base.hpp"
 #include "ck_tile/host/permute_pk_int4.hpp"
+#include "ck_tile/host/shuffle_utils.hpp"
 
 struct GemmConfigBase
 {
@@ -98,8 +99,8 @@ struct GemmConfigPreshuffleBPrefill : public GemmConfigBase
 
 struct GemmConfigPreshuffleBPrefillTiledPermuteN : public GemmConfigPreshuffleBPrefill
 {
-    static constexpr int N_Repeat              = N_Tile / N_Warp_Tile / N_Warp;
-    static constexpr bool TiledMMAPermuteN     = N_Repeat % 2 == 0;
+    static constexpr int N_Repeat          = N_Tile / N_Warp_Tile / N_Warp;
+    static constexpr bool TiledMMAPermuteN = N_Repeat % 2 == 0;
 };
 
 template <typename Tuple>
@@ -125,24 +126,6 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     protected:
     void SetUpQuantTypeSpecific() {}
     void TearDownQuantTypeSpecific() {}
-
-    template <typename T>
-    auto shuffle_aq(const ck_tile::HostTensor<T>* t, int block_aq_k)
-    {
-        if(t->get_lengths().size() != 2)
-        {
-            throw std::runtime_error("Host tensor is not rank 2 tensor.");
-        }
-        int m_   = t->get_lengths()[0];
-        int aqk_ = t->get_lengths()[1];
-        if(aqk_ % block_aq_k != 0)
-        {
-            throw std::runtime_error("shuffle_aq needs a aqk of multiple times of block_aq_k.");
-        }
-        ck_tile::HostTensor<T> t_view({m_, aqk_ / block_aq_k, block_aq_k});
-        std::copy(t->begin(), t->end(), t_view.begin());
-        return ck_tile::reference_permute(t_view, {1, 0, 2});
-    }
 
     // AQuant-specific data generation
     void run_test_with_validation(ck_tile::index_t M, ck_tile::index_t N, ck_tile::index_t K)
@@ -198,7 +181,7 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         if constexpr(Base::GemmConfig::PreshuffleQuant)
         {
             ck_tile::HostTensor<QDataType> aq_shuffle_host =
-                shuffle_aq(&aq_m_aqk, Base::GemmConfig::K_Tile / QuantGroupSize);
+                ck_tile::shuffle_aq(&aq_m_aqk, Base::GemmConfig::K_Tile / QuantGroupSize);
             aq_m_aqk_dev_buf.ToDevice(aq_shuffle_host.data());
         }
         else
@@ -374,6 +357,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     using typename Base::CDataType;
     using typename Base::CLayout;
     using typename Base::ComputeDataType;
+    using typename Base::GemmConfig;
     using typename Base::QDataType;
 
     static constexpr auto QuantType          = Base::QuantType;
@@ -422,12 +406,12 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
             if constexpr(TiledMMAPermuteN)
             {
                 printf("PreshuffleB with TiledMMAPermuteN\n");
-                b_k_n_dev = this->shuffle_b_permuteN(b_k_n);
+                b_k_n_dev = ck_tile::shuffle_b_permuteN<GemmConfig>(b_k_n);
             }
             else
             {
                 printf("PreshuffleB without TiledMMAPermuteN\n");
-                b_k_n_dev = this->shuffle_b(b_k_n);
+                b_k_n_dev = ck_tile::shuffle_b<GemmConfig>(b_k_n);
             }
         }
         if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
@@ -441,7 +425,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         {
             printf("Preshuffle BQ with TiledMMAPermuteN \n");
             ck_tile::HostTensor<QDataType> bq_shuffle_host =
-                this->shuffle_bq_permuteN(bq_bqk_n);
+                ck_tile::shuffle_bq_permuteN<GemmConfig>(bq_bqk_n);
             bq_bqk_n_dev_buf.ToDevice(bq_shuffle_host.data());
         }
         else
