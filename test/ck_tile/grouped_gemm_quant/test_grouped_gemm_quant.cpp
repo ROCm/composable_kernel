@@ -32,12 +32,10 @@ using KernelTypes = ::testing::Types<
     std::tuple<    Col,     Col,     Row,       BF8,        F32,       BF8,        F32,         F32,       F16, RowColQuant>,
     std::tuple<    Row,     Row,     Row,       BF8,        F32,       BF8,        F32,         F32,       F16, RowColQuant>,
     std::tuple<    Col,     Row,     Row,       BF8,        F32,       BF8,        F32,         F32,       F16, RowColQuant>,
-
     std::tuple<    Row,     Col,     Row,       FP8,        F32,       FP8,        F32,         F32,       F16, TensorQuant>,
     std::tuple<    Col,     Col,     Row,       FP8,        F32,       FP8,        F32,         F32,       F16, TensorQuant>,
     std::tuple<    Row,     Row,     Row,       FP8,        F32,       FP8,        F32,         F32,       F16, TensorQuant>,
     std::tuple<    Col,     Row,     Row,       FP8,        F32,       FP8,        F32,         F32,       F16, TensorQuant>,
-
     std::tuple<    Row,     Col,     Row,       BF8,        F32,       BF8,        F32,         F32,       F16, TensorQuant>,
     std::tuple<    Col,     Col,     Row,       BF8,        F32,       BF8,        F32,         F32,       F16, TensorQuant>,
     std::tuple<    Row,     Row,     Row,       BF8,        F32,       BF8,        F32,         F32,       F16, TensorQuant>,
