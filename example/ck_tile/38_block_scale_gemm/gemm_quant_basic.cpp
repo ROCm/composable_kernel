@@ -47,6 +47,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                                     QuantMode,
                                                     ALayout, // for AQLayout
                                                     BLayout, // for BQLayout
+                                                    false,
                                                     GemmConfig::DoubleSmemBuffer>;
 
     using GemmPipelineProblem = ck_tile::GemmPipelineProblemBase<typename TypeConfig::ADataType,
@@ -450,4 +451,7 @@ int run_gemm_example(int argc, char* argv[])
     }
 }
 
-int main(int argc, char* argv[]) { return !run_gemm_example<GemmConfigQuant>(argc, argv); }
+int main(int argc, char* argv[])
+{
+    return !run_gemm_example<GemmConfigPreshuffleB_Bquant_prefill>(argc, argv);
+}
