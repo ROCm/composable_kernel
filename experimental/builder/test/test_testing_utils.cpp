@@ -7,7 +7,6 @@
 
 using ck_tile::test::InstanceMatcher;
 using ck_tile::test::InstanceSet;
-using ck_tile::test::StringEqWithDiff;
 
 TEST(InstanceSet, FromFactory)
 {
@@ -89,10 +88,10 @@ TEST(InstanceMatcher, ExplainMatchResult)
     EXPECT_TRUE(!ExplainMatchResult(InstancesMatch(expected), actual, &listener));
 
     EXPECT_THAT(listener.str(),
-                StringEqWithDiff("\n"
-                                 " Missing: 2\n"
-                                 "- adder\n"
-                                 "- rattlesnake\n"
-                                 "Unexpected: 1\n"
-                                 "- python\n"));
+                testing::StrEq("\n"
+                               " Missing: 2\n"
+                               "- adder\n"
+                               "- rattlesnake\n"
+                               "Unexpected: 1\n"
+                               "- python\n"));
 }
