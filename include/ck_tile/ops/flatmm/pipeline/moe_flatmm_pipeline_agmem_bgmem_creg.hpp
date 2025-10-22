@@ -1,49 +1,17 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/host/concat.hpp"
+#include "ck_tile/ops/common.hpp"
 #include "ck_tile/ops/flatmm/pipeline/flatmm_pipeline_agmem_bgmem_creg_v1_policy.hpp"
+#include <cwchar>
 
 namespace ck_tile {
 
-template <typename Problem>
-struct BaseFlatmmPipelineAGmemBGmemCRegV1
-{
-    static constexpr index_t PrefetchStages = 2;
-
-    CK_TILE_HOST static constexpr bool BlockHasHotloop(index_t num_loop)
-    {
-        return num_loop > PrefetchStages;
-    }
-
-    CK_TILE_HOST static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
-    {
-        return num_loop % 2 == 0 ? TailNumber::Even : TailNumber::Odd;
-    }
-    template <typename RunFunction>
-    CK_TILE_HOST_DEVICE static auto
-    TailHandler(const RunFunction& run_func, bool, TailNumber tail_num)
-    {
-        if(TailNumber::Even == tail_num)
-        {
-            return run_func(bool_constant<true>{},
-                            integral_constant<TailNumber, TailNumber::Even>{});
-        }
-        else if(TailNumber::Odd == tail_num)
-        {
-            return run_func(bool_constant<true>{},
-                            integral_constant<TailNumber, TailNumber::Odd>{});
-        }
-        // return run_func(bool_constant<true>{}, integral_constant<TailNumber,
-        // TailNumber::Empty>{});
-    }
-};
-
 template <typename Problem, typename PipelinePolicy = UniversalFlatmmPipelineAgBgCrPolicy>
-struct FlatmmPipelineAGmemBGmemCRegV1
+struct MoeFlatmmPipelineAGmemBGmemCRegV1
 {
     using ADataType      = remove_cvref_t<typename Problem::ADataType>;
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
@@ -110,7 +78,9 @@ struct FlatmmPipelineAGmemBGmemCRegV1
     static constexpr index_t MPerBlockPerIter = kMPerBlock / MIterPerWarp;
     static constexpr index_t KPerBlockPerIter = kKPerBlock / KIterPerWarp;
 
-    static constexpr index_t K1        = Problem::VectorLoadSize / sizeof(ADataType);
+    static constexpr int MXFP4PackedSize = 2;
+    static constexpr index_t AK1         = Problem::VectorLoadSize / sizeof(ADataType);
+    static constexpr index_t BK1 = Problem::VectorLoadSize / sizeof(BDataType) * MXFP4PackedSize;
     static constexpr index_t m_preload = (MIterPerWarp * KIterPerWarp >= DsReadPreload)
                                              ? DsReadPreload
                                              : MIterPerWarp * KIterPerWarp;
@@ -118,38 +88,6 @@ struct FlatmmPipelineAGmemBGmemCRegV1
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
 
-/*
-defined(USING_MFMA_16x16x32) && defined(ENABLE_FP8) // mi300 fp8 16c 0.5*K1
-defined(USING_MFMA_32x32x16) && defined(ENABLE_FP8) // mi300 fp8 32c 0.5*K1
-defined(USING_MFMA_16x16x16) && defined(ENABLE_FP16) // mi300 fp16 16c 0.5*K1
-defined(USING_MFMA_32x32x8) && defined(ENABLE_FP16) // mi300 fp16 32c 0.5*K1
-
-defined(USING_MFMA_16x16x128) && defined(ENABLE_FP8) // mi350 fp8 32c 2*K1
-defined(USING_MFMA_32x32x64) && defined(ENABLE_FP8) // mi350 fp8 64c 2*K1
-defined(USING_MFMA_16x16x32) && defined(ENABLE_FP16) // mi350 fp16 16c 1*K1
-defined(USING_MFMA_32x32x16) && defined(ENABLE_FP16) // mi350 fp16 32c 1*K1
-
-defined(USING_MFMA_16x16x128) && defined(ENABLE_FP4) // mi350 fp4 16c 1*K1
-defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
-*/
-
-// #if (defined(USING_MFMA_16x16x32_F8) ||  \
-//     defined(USING_MFMA_32x32x16_F8) ||  \
-//     defined(USING_MFMA_16x16x16_F16) || \
-//     defined(USING_MFMA_32x32x8_F16)) // K1 per Mfma = 0.5
-//     static constexpr auto mfma_per_wg = 2;
-//     static constexpr auto dsread_per_wg = 1;
-// #elif (defined(USING_MFMA_16x16x32_F16) || \
-//     defined(USING_MFMA_32x32x16_F16) ||   \
-//     defined(USING_MFMA_16x16x128_F4) ||   \
-//     defined(USING_MFMA_32x32x64_F4)) // K1 per Mfma = 1
-//     static constexpr auto mfma_per_wg = 1;
-//     static constexpr auto dsread_per_wg = 1;
-// #elif (defined(USING_MFMA_16x16x128_F8) || \
-//     defined(USING_MFMA_32x32x64_F8)) // K1 per Mfma = 2
-//     static constexpr auto mfma_per_wg = 1;
-//     static constexpr auto dsread_per_wg = 2;
-// #endif
 #ifdef __gfx942__
     static constexpr index_t mfma_per_wg = 2;
 #else
@@ -164,9 +102,14 @@ defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
     static constexpr index_t dswrite_rep    = (dswrite_num_perK + MIterPerWarp - 1) / MIterPerWarp;
     static constexpr index_t Aload_num_perK = dswrite_num_perK;
     static constexpr index_t Aload_rep      = dswrite_rep;
-    static constexpr index_t Bload_num_perK = kNPerBlock * WG::kK / NWarp / K1 / WaveSize;
-    static constexpr index_t HalfMIter      = (MIterPerWarp + 1) / 2;
-    static constexpr index_t Bload_rep      = (Bload_num_perK + HalfMIter - 1) / HalfMIter;
+    static constexpr index_t Bload_num_perK = kNPerBlock * WG::kK / NWarp / BK1 / WaveSize;
+    // static constexpr index_t ScaleBload_K1  = ContinuousScaleNPerThread *
+    // ContinuousScaleKPerThread; static constexpr index_t ScaleBload_num =
+    //     kNPerBlock * kKPerBlock / NWarp / 32 / ScaleBload_K1 /
+    //     WaveSize; // BlockN * BlockK / NWarp / ScalePerK / ScaleB_K1 / wavesize
+    // static constexpr index_t KPerScaleLoad = KIterPerWarp / ScaleBload_num;
+    static constexpr index_t HalfMIter = (MIterPerWarp + 1) / 2;
+    static constexpr index_t Bload_rep = (Bload_num_perK + HalfMIter - 1) / HalfMIter;
 
     static constexpr index_t mfma_perM_perK = NIterPerWarp * mfma_per_wg;
     static constexpr index_t dswrite_mIter  = (DsWritePreIssue - 1) % MIterPerWarp;
@@ -204,15 +147,10 @@ defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
         index_t round_data_inst = (sum_data_inst + mfma_perM_perK - 1) / mfma_perM_perK;
 
         index_t inst_order[NIterPerWarp * 10];
-#pragma unroll
-        for(int idx = 0; idx < NIterPerWarp * 10; idx++)
-        {
-            inst_order[idx] = 0;
-        }
+        _Pragma("unroll") for(int idx = 0; idx < NIterPerWarp * 10; idx++) { inst_order[idx] = 0; }
 
         index_t index = 0;
-#pragma unroll
-        for(int j = 0; j < max_data_inst; j++)
+        _Pragma("unroll") for(int j = 0; j < max_data_inst; j++)
         {
             if(dswrite_perM > j)
             {
@@ -231,9 +169,8 @@ defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
             }
         }
 
-// Schedule IGLP
-#pragma unroll
-        for(int j = 0; j < mfma_perM_perK; j++)
+        // Schedule IGLP
+        _Pragma("unroll") for(int j = 0; j < mfma_perM_perK; j++)
         {
             index_t inst_idx = 0;
             if(j == 0)
@@ -247,8 +184,7 @@ defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
 
             __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
 
-#pragma unroll
-            for(int r = 0; r < round_data_inst; r++)
+            _Pragma("unroll") for(int r = 0; r < round_data_inst; r++)
             {
                 if(r % 2 == 0)
                 {
@@ -361,11 +297,9 @@ defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
         //  0   M7N2:   63      -       -           8       -
         //  0   M7N3:   64      4       -           -       -
 
-#pragma unroll
-        for(int kIter = 0; kIter < KIterPerWarp; kIter++)
+        _Pragma("unroll") for(int kIter = 0; kIter < KIterPerWarp; kIter++)
         {
-#pragma unroll
-            for(int mIter = 0; mIter < MIterPerWarp; mIter++)
+            _Pragma("unroll") for(int mIter = 0; mIter < MIterPerWarp; mIter++)
             {
                 index_t dsread_perM  = 0;
                 index_t dswrite_perM = 0;
@@ -415,6 +349,10 @@ defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
                                     ? Aload_rep
                                     : 0;
                 }
+                // if((kIter % KPerScaleLoad == 0) && (mIter == 0))
+                // {
+                //     load_perM = load_perM + 1;
+                // }
                 SchedulerPerM(dsread_perM, dswrite_perM, load_perM);
             }
         }
@@ -426,11 +364,9 @@ defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
 
     CK_TILE_HOST_DEVICE static constexpr auto Last2ndHotLoopScheduler()
     {
-#pragma unroll
-        for(int kIter = 0; kIter < KIterPerWarp; kIter++)
+        _Pragma("unroll") for(int kIter = 0; kIter < KIterPerWarp; kIter++)
         {
-#pragma unroll
-            for(int mIter = 0; mIter < MIterPerWarp; mIter++)
+            _Pragma("unroll") for(int mIter = 0; mIter < MIterPerWarp; mIter++)
             {
                 index_t dsread_perM  = 0;
                 index_t dswrite_perM = 0;
@@ -480,11 +416,9 @@ defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
 
     CK_TILE_HOST_DEVICE static constexpr auto LastHotLoopScheduler()
     {
-#pragma unroll
-        for(int kIter = 0; kIter < KIterPerWarp; kIter++)
+        _Pragma("unroll") for(int kIter = 0; kIter < KIterPerWarp; kIter++)
         {
-#pragma unroll
-            for(int mIter = 0; mIter < MIterPerWarp; mIter++)
+            _Pragma("unroll") for(int mIter = 0; mIter < MIterPerWarp; mIter++)
             {
                 index_t dsread_perM  = 0;
                 index_t dswrite_perM = 0;
@@ -500,10 +434,19 @@ defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
         // __builtin_amdgcn_sched_barrier(0);
     }
 
-    template <typename ADramBlockWindowTmp, typename BFlatBlockWindowTmp, typename AElementFunction>
+    CK_TILE_HOST_DEVICE static constexpr auto GetADramTileDistribution()
+    {
+        return PipelinePolicy::template MakeADramTileDistribution<Problem>();
+    }
+
+    template <typename ADramBlockWindowTmp,
+              typename AElementFunction,
+              typename BFlatBlockWindowTmp,
+              int IsGateUpMode>
     CK_TILE_HOST_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                         const AElementFunction& a_element_func,
                                         const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                        number<IsGateUpMode>,
                                         index_t num_loop,
                                         void* p_smem_ping,
                                         void* p_smem_pong) const
@@ -541,12 +484,12 @@ defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
         auto a_lds_block_pong =
             make_tensor_view<address_space_enum::lds>(p_a_lds_pong, a_lds_block_desc);
 
-        // A DRAM tile window for load
-        auto a_copy_dram_window =
-            make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
-                             a_dram_block_window_tmp.get_window_origin(),
-                             PipelinePolicy::template MakeADramTileDistribution<Problem>());
+        auto a_copy_dram_window = ck_tile::make_tile_scatter_gather(
+            a_dram_block_window_tmp.get_bottom_tensor_view(),
+            make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}),
+            a_dram_block_window_tmp.get_window_origin(),
+            PipelinePolicy::template MakeADramTileDistribution<Problem>(),
+            a_dram_block_window_tmp.page_idx_); // K DRAM tile window for
 
         auto a_copy_lds_window_ping =
             make_tile_window(a_lds_block_ping,
@@ -586,10 +529,16 @@ defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
         static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 a_warp_windows_ping(mIter)(kIter) = a_warp_window_ping_tmp;
-                a_warp_windows_pong(mIter)(kIter) = a_warp_window_pong_tmp;
 
                 move_tile_window(a_warp_windows_ping(mIter)(kIter),
                                  {mIter * MPerBlockPerIter, kIter * KPerBlockPerIter});
+            });
+        });
+
+        static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+            static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
+                a_warp_windows_pong(mIter)(kIter) = a_warp_window_pong_tmp;
+
                 move_tile_window(a_warp_windows_pong(mIter)(kIter),
                                  {mIter * MPerBlockPerIter, kIter * KPerBlockPerIter});
             });
@@ -632,14 +581,32 @@ defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
         // move A window to next k
         move_tile_window(a_copy_dram_window, {0, kKPerBlock});
 
+        if constexpr(IsGateUpMode)
+            static_assert(NIterPerWarp % 2 == 0);
+        auto up_weight_stride = b_flat_dram_window.get_bottom_tensor_view()
+                                    .get_tensor_descriptor()
+                                    .get_lengths()[number<0>{}] /
+                                2;
+
         // prefetch B
         static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
             static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                 b_flat_dram_windows(nIter)(kIter) = b_flat_dram_window;
 
-                move_tile_window(b_flat_dram_windows(nIter)(kIter),
-                                 {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
-
+                if constexpr(!IsGateUpMode)
+                    move_tile_window(b_flat_dram_windows(nIter)(kIter),
+                                     {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
+                else
+                {
+                    if constexpr(nIter % 2 == 0)
+                        move_tile_window(
+                            b_flat_dram_windows(nIter)(kIter),
+                            {nIter / 2 * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
+                    else
+                        move_tile_window(b_flat_dram_windows(nIter)(kIter),
+                                         {nIter / 2 * NFlatPerBlockPerIter + up_weight_stride,
+                                          kIter * KFlatPerBlockPerIter});
+                }
                 b_warp_tensor_ping(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
             });
         });
@@ -682,8 +649,21 @@ defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                     b_flat_dram_windows(nIter)(kIter) = b_flat_dram_window;
 
-                    move_tile_window(b_flat_dram_windows(nIter)(kIter),
-                                     {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
+                    if constexpr(!IsGateUpMode)
+                        move_tile_window(
+                            b_flat_dram_windows(nIter)(kIter),
+                            {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
+                    else
+                    {
+                        if constexpr(nIter % 2 == 0)
+                            move_tile_window(
+                                b_flat_dram_windows(nIter)(kIter),
+                                {nIter / 2 * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
+                        else
+                            move_tile_window(b_flat_dram_windows(nIter)(kIter),
+                                             {nIter / 2 * NFlatPerBlockPerIter + up_weight_stride,
+                                              kIter * KFlatPerBlockPerIter});
+                    }
 
                     b_warp_tensor_pong(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
                 });
@@ -757,8 +737,21 @@ defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                     b_flat_dram_windows(nIter)(kIter) = b_flat_dram_window;
 
-                    move_tile_window(b_flat_dram_windows(nIter)(kIter),
-                                     {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
+                    if constexpr(!IsGateUpMode)
+                        move_tile_window(
+                            b_flat_dram_windows(nIter)(kIter),
+                            {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
+                    else
+                    {
+                        if constexpr(nIter % 2 == 0)
+                            move_tile_window(
+                                b_flat_dram_windows(nIter)(kIter),
+                                {nIter / 2 * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
+                        else
+                            move_tile_window(b_flat_dram_windows(nIter)(kIter),
+                                             {nIter / 2 * NFlatPerBlockPerIter + up_weight_stride,
+                                              kIter * KFlatPerBlockPerIter});
+                    }
 
                     b_warp_tensor_ping(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
                 });
@@ -835,8 +828,21 @@ defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
                 static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
                     b_flat_dram_windows(nIter)(kIter) = b_flat_dram_window;
 
-                    move_tile_window(b_flat_dram_windows(nIter)(kIter),
-                                     {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
+                    if constexpr(!IsGateUpMode)
+                        move_tile_window(
+                            b_flat_dram_windows(nIter)(kIter),
+                            {nIter * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
+                    else
+                    {
+                        if constexpr(nIter % 2 == 0)
+                            move_tile_window(
+                                b_flat_dram_windows(nIter)(kIter),
+                                {nIter / 2 * NFlatPerBlockPerIter, kIter * KFlatPerBlockPerIter});
+                        else
+                            move_tile_window(b_flat_dram_windows(nIter)(kIter),
+                                             {nIter / 2 * NFlatPerBlockPerIter + up_weight_stride,
+                                              kIter * KFlatPerBlockPerIter});
+                    }
 
                     b_warp_tensor_pong(nIter)(kIter) = load_tile(b_flat_dram_windows(nIter)(kIter));
                 });
@@ -984,9 +990,10 @@ defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
         return c_block_tile;
     }
 
-    template <typename ADramBlockWindowTmp, typename BFlatBlockWindowTmp>
+    template <typename ADramBlockWindowTmp, typename BFlatBlockWindowTmp, int IsGateUpMode>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                   number<IsGateUpMode> is_gate_up_mode,
                                    index_t num_loop,
                                    void* p_smem_ping,
                                    void* p_smem_pong) const
@@ -995,6 +1002,7 @@ defined(USING_MFMA_32x32x64) && defined(ENABLE_FP4) // mi350 fp4 32c 1*K1
             a_dram_block_window_tmp,
             [](const ADataType & a) { return a; },
             b_flat_dram_block_window_tmp,
+            is_gate_up_mode,
             num_loop,
             p_smem_ping,
             p_smem_pong);
