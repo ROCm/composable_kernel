@@ -192,7 +192,7 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
     {
         if constexpr(YPerQ == 1)
         {
-            // YPerQ == 1 implementation
+            // YPerQ == 1 implementation - each row of B has independent scale
             constexpr index_t X  = XPerTile;
             constexpr index_t XR = 2;
             constexpr index_t Y0 = NIterPerWarp;
@@ -211,18 +211,10 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
         }
         else
         {
-            // YPerQ > 1 implementation
+            // YPerQ > 1 implementation - each group of YPerQ rows share the same scale
             // TODO: do not repeat everything to all threads
-
-            // return make_static_tile_distribution(
-            //     tile_distribution_encoding<sequence<MWarps, 2, NWarps>,
-            //                                tuple<sequence<YPerTile, 1>, sequence<XPerTile>>,
-            //                                tuple<sequence<0, 0>, sequence<0, 1>>,
-            //                                tuple<sequence<0, 2>, sequence<1, 1>>,
-            //                                sequence<1, 2>,
-            //                                sequence<0, 0>>{});
             return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<MWarps, NWarps, 64>,
+                tile_distribution_encoding<sequence<MWarps, NWarps, get_warp_size()>,
                                            tuple<sequence<YPerTile>, sequence<XPerTile>>,
                                            tuple<sequence<0, 0>, sequence<0>>,
                                            tuple<sequence<0, 1>, sequence<2>>,

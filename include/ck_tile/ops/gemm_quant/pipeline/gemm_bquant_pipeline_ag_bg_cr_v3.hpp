@@ -397,10 +397,6 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                                          bq_copy_dram_window,
                                          bq_dram_tile_window_step);
 
-                    // if(threadIdx.x == 0 && blockIdx.x == 0)
-                    // {
-                    //     printf("---- pipeline loop %d ----\n", i);
-                    // }
                     block_gemm(
                         c_block_tile, bq_block_tile[currIdx], a_lds_gemm_window, b_lds_gemm_window);
 
