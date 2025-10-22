@@ -321,8 +321,6 @@ class TestCkTileGemmPipeline : public ::testing::Test
                    const int StrideC,
                    int kbatch = 1)
     {
-        using namespace ck_tile::literals;
-
         ck_tile::index_t stride_A =
             ck_tile::get_default_stride(M, K, StrideA, is_row_major(ALayout{}));
         ck_tile::index_t stride_B =
