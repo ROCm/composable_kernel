@@ -156,7 +156,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
     };
 
     auto valid_input_data = [&](int group_count, const auto&... args) {
-        return !(args.empty() || ...) && ((args.size() == static_cast<size_t>(group_count)) && ...);
+        return group_count != 0 && ((args.size() == static_cast<size_t>(group_count)) && ...);
     };
 
     const int group_count                 = arg_parser.get_int("group_count");
