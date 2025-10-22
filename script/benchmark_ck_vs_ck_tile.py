@@ -157,70 +157,136 @@ def run_analysis(results_file):
       print(f"  CK Kernel: {case.get('ck_name', 'N/A')}")
       print()
   
-  # Create performance comparison plots
-  fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 12))
-  
-  # Plot 1: Performance ratio bar chart
-  x_pos = np.arange(len(case_labels))
-  colors = ['green' if ratio >= 100 else 'red' for ratio in performance_ratios]
-  
-  bars = ax1.bar(x_pos, performance_ratios, color=colors, alpha=0.7)
-  #ax1.axhline(y=100, color='black', linestyle='--', linewidth=2, label='Parity (100%)')
-  ax1.set_xlabel('Test Cases')
-  ax1.set_ylabel('CK Tile Performance (% of CK)')
-  ax1.set_title('CK Tile vs CK Performance Comparison\n(>100% = CK Tile Faster, <100% = CK Faster)')
-  ax1.set_xticks(x_pos)
-  ax1.set_xticklabels(case_labels, rotation=45, ha='right')
-  ax1.legend()
-  ax1.grid(True, alpha=0.3)
-  
-  # Add value labels on bars
-  for bar, ratio in zip(bars, performance_ratios):
-      height = bar.get_height()
-      ax1.text(bar.get_x() + bar.get_width()/2., height + 1,
-              f'{ratio:.1f}%', ha='center', va='bottom', fontsize=8)
-  
-  # Plot 2: Absolute timing comparison
-  x_pos_offset = np.arange(len(case_labels))
-  width = 0.35
-  
-  bars1 = ax2.bar(x_pos_offset - width/2, ck_times, width, label='CK', color='blue', alpha=0.7)
-  bars2 = ax2.bar(x_pos_offset + width/2, ck_tile_times, width, label='CK Tile', color='orange', alpha=0.7)
-  
-  ax2.set_xlabel('Test Cases')
-  ax2.set_ylabel('Average Time (seconds)')
-  ax2.set_title('Absolute Performance Comparison: CK vs CK Tile')
-  ax2.set_xticks(x_pos_offset)
-  ax2.set_xticklabels(case_labels, rotation=45, ha='right')
-  ax2.legend()
-  ax2.grid(True, alpha=0.3)
-  ax2.set_yscale('log')  # Use log scale for better visualization
-  
-  plt.tight_layout()
-  
-  # Save the plot
-  output_file = results_file.replace('.txt', '_analysis.png')
-  plt.savefig(output_file, dpi=300, bbox_inches='tight')
-  print(f"Performance analysis plot saved to: {output_file}")
-  
-  # Print summary statistics
-  print("\n" + "="*80)
-  print("PERFORMANCE SUMMARY")
-  print("="*80)
-  
-  faster_count = sum(1 for ratio in performance_ratios if ratio > 100)
-  slower_count = len(performance_ratios) - faster_count
-  
-  print(f"Total test cases: {len(test_cases)}")
-  print(f"CK Tile faster: {faster_count} ({faster_count/len(test_cases)*100:.1f}%)")
-  print(f"CK faster: {slower_count} ({slower_count/len(test_cases)*100:.1f}%)")
-  print(f"Average CK Tile performance: {np.mean(performance_ratios):.1f}% of CK")
-  print(f"Median CK Tile performance: {np.median(performance_ratios):.1f}% of CK")
-  print(f"Best CK Tile performance: {np.max(performance_ratios):.1f}% of CK")
-  print(f"Worst CK Tile performance: {np.min(performance_ratios):.1f}% of CK")
-  
-  # Show the plot
-  plt.show()
+  max_cases_to_detailed_plot = 10
+  if len(test_cases) < max_cases_to_detailed_plot:
+    # Create performance comparison plots
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(15, 12))
+    
+    # Plot 1: Performance ratio bar chart
+    x_pos = np.arange(len(case_labels))
+    colors = ['green' if ratio >= 100 else 'red' for ratio in performance_ratios]
+    
+    bars = ax1.bar(x_pos, performance_ratios, color=colors, alpha=0.7)
+    #ax1.axhline(y=100, color='black', linestyle='--', linewidth=2, label='Parity (100%)')
+    ax1.set_xlabel('Test Cases')
+    ax1.set_ylabel('CK Tile Performance (% of CK)')
+    ax1.set_title('CK Tile vs CK Performance Comparison\n(>100% = CK Tile Faster, <100% = CK Faster)')
+    ax1.set_xticks(x_pos)
+    ax1.set_xticklabels(case_labels, rotation=45, ha='right')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+    
+    # Add value labels on bars
+    for bar, ratio in zip(bars, performance_ratios):
+        height = bar.get_height()
+        ax1.text(bar.get_x() + bar.get_width()/2., height + 1,
+                f'{ratio:.1f}%', ha='center', va='bottom', fontsize=8)
+    
+    # Plot 2: Absolute timing comparison
+    x_pos_offset = np.arange(len(case_labels))
+    width = 0.35
+    
+    bars1 = ax2.bar(x_pos_offset - width/2, ck_times, width, label='CK', color='blue', alpha=0.7)
+    bars2 = ax2.bar(x_pos_offset + width/2, ck_tile_times, width, label='CK Tile', color='orange', alpha=0.7)
+    
+    ax2.set_xlabel('Test Cases')
+    ax2.set_ylabel('Average Time (seconds)')
+    ax2.set_title('Absolute Performance Comparison: CK vs CK Tile')
+    ax2.set_xticks(x_pos_offset)
+    ax2.set_xticklabels(case_labels, rotation=45, ha='right')
+    ax2.legend()
+    ax2.grid(True, alpha=0.3)
+    ax2.set_yscale('log')  # Use log scale for better visualization
+    
+    plt.tight_layout()
+    
+    # Save the plot
+    output_file = results_file.replace('.txt', '_analysis.png')
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    print(f"Performance analysis plot saved to: {output_file}")
+    
+    # Print summary statistics
+    print("\n" + "="*80)
+    print("PERFORMANCE SUMMARY")
+    print("="*80)
+    
+    faster_count = sum(1 for ratio in performance_ratios if ratio > 100)
+    slower_count = len(performance_ratios) - faster_count
+    
+    print(f"Total test cases: {len(test_cases)}")
+    print(f"CK Tile faster: {faster_count} ({faster_count/len(test_cases)*100:.1f}%)")
+    print(f"CK faster: {slower_count} ({slower_count/len(test_cases)*100:.1f}%)")
+    print(f"Average CK Tile performance: {np.mean(performance_ratios):.1f}% of CK")
+    print(f"Median CK Tile performance: {np.median(performance_ratios):.1f}% of CK")
+    print(f"Best CK Tile performance: {np.max(performance_ratios):.1f}% of CK")
+    print(f"Worst CK Tile performance: {np.min(performance_ratios):.1f}% of CK")
+    
+    # Show the plot
+    plt.show()
+  else:
+    # Plot the histogram of the performance ratios
+    plt.figure(figsize=(10, 6))
+
+    min_ratio = min(performance_ratios)
+    max_ratio = max(performance_ratios)
+
+    bin_width = 5
+
+    # Extend range to ensure we capture all data
+    bin_start = int(min_ratio // bin_width) * bin_width
+    bin_end = int(max_ratio // bin_width) * bin_width
+
+    # Create bin edges with 5% width, positioned so 100% falls between bins
+    bin_edges = np.arange(bin_start, bin_end + bin_width, bin_width)
+
+    # Create the histogram data
+    counts, bins = np.histogram(performance_ratios, bins=bin_edges)
+
+    # Color bars based on whether they're above or below 100%
+    colors = []
+    for i in range(len(counts)):
+        bin_center = (bin_edges[i] + bin_edges[i+1]) / 2
+        if bin_center < 100:
+            colors.append('red')
+        else:
+            colors.append('green')
+
+    # Plot the histogram with custom colors
+    plt.bar(bin_edges[:-1], counts, width=4.5, color=colors, edgecolor='black', 
+            alpha=0.7, align='edge')
+
+    # Add parity line at 100%
+    #plt.axvline(x=100, color='black', linestyle='--', linewidth=2, label='Parity (100%)')
+
+    plt.xlabel('CK Tile Performance (% of CK)')
+    plt.ylabel('Number of Test Cases')
+    plt.title('CK Tile vs CK Performance Distribution\n(>100% = CK Tile Faster, <100% = CK Faster)')
+
+    # Create custom legend
+    from matplotlib.patches import Patch
+    legend_elements = [
+        Patch(facecolor='red', alpha=0.7, label='CK Faster (<100%)'),
+        Patch(facecolor='green', alpha=0.7, label='CK Tile Faster (>100%)'),
+        plt.Line2D([0], [0], color='black', linestyle='--', label='Parity (100%)')
+    ]
+    plt.legend(handles=legend_elements)
+
+    plt.grid(True, alpha=0.3)
+
+    # Set x-axis to show percentage marks at logical intervals
+    x_ticks = np.arange(int(min_ratio//10)*10, int(max_ratio//10)*10 + 20, 10)
+    plt.xticks(x_ticks)
+
+    # Set y-axis to integer positions only
+    max_count = max(counts) if len(counts) > 0 else 1
+    y_ticks = np.arange(0, max_count + 1, 2)
+    plt.yticks(y_ticks)
+
+    # Save the histogram
+    output_file = results_file.replace('.txt', '_analysis_histogram.png')
+    plt.savefig(output_file, dpi=300, bbox_inches='tight')
+    print(f"Performance analysis histogram saved to: {output_file}")
+    plt.close()
 
 def main():
   args = parse_cli_args()
