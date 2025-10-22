@@ -21,7 +21,7 @@ struct TileGemmTraits
     static constexpr bool kPadK = kPadK_;
 
     // TODO this can't be hardcoded here! Should be in policy!
-    static constexpr int _VectorSize = 16;
+    static constexpr int _VectorSize = 2;
 
     using AsLayout = AsLayout_;
     using BsLayout = BsLayout_;
@@ -49,7 +49,7 @@ struct TileGemmUniversalTraits
     static constexpr bool kPadM            = kPadM_;
     static constexpr bool kPadN            = kPadN_;
     static constexpr bool kPadK            = kPadK_;
-    static constexpr int _VectorSize       = 16;
+    static constexpr int _VectorSize       = 2;
     static constexpr bool DoubleSmemBuffer = DoubleSmemBuffer_;
 
     using AsLayout = AsLayout_;

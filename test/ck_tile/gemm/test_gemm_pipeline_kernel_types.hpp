@@ -29,6 +29,7 @@ using NonPersistent = std::false_type;
 using I16  = ck_tile::number<16>;
 using I32  = ck_tile::number<32>;
 using I64  = ck_tile::number<64>;
+using I128  = ck_tile::number<128>;
 using I256 = ck_tile::number<256>;
 
 // clang-format off
@@ -78,10 +79,21 @@ using KernelTypesMemWmma = ::testing::Types<
 >;
 
 using KernelTypesCompV3 = ::testing::Types<
+<<<<<<< HEAD
     std::tuple<    Row,     Row,     Col,       F16,       F16,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>
     //std::tuple<    Row,     Row,     Row,       F16,       I4,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     //std::tuple<    Row,     Row,     Row,       BF16,      BF16,        F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     //std::tuple<    Row,     Row,     Row,       BF16,      I4,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
+=======
+    std::tuple<    Row,     Row,     Col,       F16,       F16,         F32,       F16,        I128,        I128,         I64,        I32,        I32,        I16, Intrawave,        CompV3>//,
+    //std::tuple<    Row,     Row,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
+    //std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
+    //std::tuple<    Row,     Col,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
+    //std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
+    //std::tuple<    Col,     Row,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
+    //std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
+    //std::tuple<    Col,     Col,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
+>>>>>>> 0a9ceadca ([CK_TILE] working version)
     //std::tuple<    Row,     Row,     Row,       INT8,      INT8,        INT32,     INT32,      I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     //std::tuple<    Row,     Row,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     //std::tuple<    Row,     Row,     Row,       F8,        BF8,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,

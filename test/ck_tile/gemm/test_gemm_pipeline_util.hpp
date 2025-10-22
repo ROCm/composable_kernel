@@ -334,10 +334,45 @@ class TestCkTileGemmPipeline : public ::testing::Test
         ck_tile::index_t stride_C =
             ck_tile::get_default_stride(M, N, StrideC, is_row_major(CLayout{}));
 
-        ck_tile::HostTensor<ADataType> a_m_k(
-            ck_tile::host_tensor_descriptor(M, K, stride_A, is_row_major(ALayout{})));
-        ck_tile::HostTensor<BDataType> b_k_n(
-            ck_tile::host_tensor_descriptor(K, N, stride_B, is_row_major(BLayout{})));
+        auto f_host_tensor_descriptor = [](std::size_t row,
+                                           std::size_t col,
+                                           std::size_t stride,
+                                           auto layout) {
+            if constexpr(std::is_same_v<decltype(layout), ck_tile::tensor_layout::gemm::RowMajor>)
+            {
+                return ck_tile::HostTensorDescriptor({row, col}, {stride, 1_uz});
+            }
+            else
+            {
+                return ck_tile::HostTensorDescriptor({col, row}, {stride, 1_uz});
+            }
+        };
+
+        auto f_get_default_stride =
+            [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
+                if(stride == 0)
+                {
+                    // give a chance if stride is zero, return a default packed stride
+                    if constexpr(std::is_same_v<decltype(layout),
+                                                ck_tile::tensor_layout::gemm::RowMajor>)
+                    {
+                        return col;
+                    }
+                    else
+                    {
+                        return row;
+                    }
+                }
+                else
+                    return stride;
+            };
+
+        ck_tile::index_t stride_A = f_get_default_stride(M, K, StrideA, ALayout{});
+        ck_tile::index_t stride_B = f_get_default_stride(K, N, StrideB, BLayout{});
+        ck_tile::index_t stride_C = f_get_default_stride(M, N, StrideC, CLayout{});
+
+        ck_tile::HostTensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, stride_A, ALayout{}));
+        ck_tile::HostTensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, stride_B, BLayout{}));
         ck_tile::HostTensor<CDataType> c_m_n_dev_result(
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
@@ -348,9 +383,12 @@ class TestCkTileGemmPipeline : public ::testing::Test
         std::cout << "c_m_n_dev_result: ";
         c_m_n_dev_result.print_first_n(std::cout) << '\n';
 
-        ck_tile::FillUniformDistributionIntegerValue<ADataType>{1, 2, 11939}(a_m_k);
-        ck_tile::FillUniformDistributionIntegerValue<BDataType>{1, 2, 11940}(b_k_n);
+        ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5, 5, 11939}(a_m_k);
+        ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5, 5, 11940}(b_k_n);
 
+        //ck_tile::FillConstant<ADataType>{1}(a_m_k);
+        //ck_tile::FillConstant<BDataType>{2}(b_k_n);
+            // FillConstant
         ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
         ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());

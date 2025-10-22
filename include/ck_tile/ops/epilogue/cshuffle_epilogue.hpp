@@ -311,9 +311,9 @@ struct CShuffleEpilogue
     using CWarpDstr         = typename WG::CWarpDstr;
     using CWarpTensor       = typename WG::CWarpTensor;
     using CWarpDstrEncoding = typename WG::CWarpDstrEncoding;
-    using SFC               = space_filling_curve<sequence<kMPerBlock, kNPerBlock>,
-                                                  sequence<0, 1>,
-                                                  sequence<MPerIterationShuffle, NPerIterationShuffle>>;
+    using SFC               = space_filling_curve<sequence<kNPerBlock, kMPerBlock>,
+                                                  sequence<1, 0>,
+                                                  sequence<NPerIterationShuffle, MPerIterationShuffle>>;
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDescriptor()
@@ -667,7 +667,7 @@ struct CShuffleEpilogue
                                    const ScaleN& scale_n = {})
     {
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
-
+        //print(LdsTileDistr);
         auto lds_tile = make_static_distributed_tensor<AccDataType>(LdsTileDistr);
 
         constexpr auto lds_block_desc = MakeLdsBlockDescriptor<Problem>();
@@ -736,8 +736,8 @@ struct CShuffleEpilogue
         static_assert(GetVectorSizeC() > 1, "VectorSizeC is not greater than 1!");
         using TileEncodingPattern =
             tile_distribution_encoding_pattern_2d<kBlockSize,
-                                                  MPerIterationShuffle,
                                                   NPerIterationShuffle,
+                                                  MPerIterationShuffle,
                                                   GetVectorSizeC(),
                                                   tile_distribution_pattern::thread_raked,
                                                   Problem::kNumWaveGroups>;
