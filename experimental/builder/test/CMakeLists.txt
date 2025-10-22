@@ -1,4 +1,3 @@
-
 include(gtest)
 
 # Helper function to create a gtest executable with common properties
@@ -17,4 +16,8 @@ function(add_ck_builder_test test_name)
 endfunction()
 
 add_ck_builder_test(test_conv_builder
-    test_conv_builder.cpp)
+    test_conv_builder.cpp
+    test_instance_traits.cpp)
+
+add_ck_builder_test(test_get_instance_string
+    test_get_instance_string.cpp)
