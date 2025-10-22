@@ -8,14 +8,14 @@ class FwdConvBuilderTest : public ::testing::Test
 {
 };
 
-template <ck_tile::builder::test::ConvSignature FwdConvSignature,
-          ck_tile::builder::test::ThreadBlock FwdThreadBlock,
-          ck_tile::builder::ConvFwdSpecialization FwdConvSpecialization>
+using namespace ck_tile::builder;
+using namespace test;
+
+template <auto FwdConvSignature,
+          ThreadBlock FwdThreadBlock,
+          ConvFwdSpecialization FwdConvSpecialization>
 constexpr void run_test()
 {
-    using namespace ck_tile::builder;
-    using namespace ck_tile::builder::test;
-
     constexpr ConvTuningParams FwdTuningParams{.ak1            = 8,
                                                .bk1            = 8,
                                                .m_per_xdl      = 32,
@@ -69,13 +69,11 @@ constexpr void run_test()
 TEST_F(FwdConvBuilderTest,
        Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_2D_BF16_ChannelsLast)
 {
-    using namespace ck_tile::builder;
-    using namespace ck_tile::builder::test;
-
-    constexpr ConvSignature FwdConvSignature{.spatial_dim = 2,
-                                             .direction   = ConvDirection::FORWARD,
-                                             .layout      = GroupConvLayout::CHANNELS_LAST,
-                                             .data_type   = DataType::BF16};
+    constexpr ConvSignature<GroupConvLayout2D> FwdConvSignature{
+        .spatial_dim = 2,
+        .direction   = ConvDirection::FORWARD,
+        .layout      = GroupConvLayout2D::NHWGC_GKYXC_NHWGK,
+        .data_type   = DataType::BF16};
 
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 256, .n = 256, .k = 32}};
@@ -86,13 +84,11 @@ TEST_F(FwdConvBuilderTest,
 TEST_F(FwdConvBuilderTest,
        Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_3D_FP32_ChannelsFirst)
 {
-    using namespace ck_tile::builder;
-    using namespace ck_tile::builder::test;
-
-    constexpr ConvSignature FwdConvSignature{.spatial_dim = 3,
-                                             .direction   = ConvDirection::FORWARD,
-                                             .layout      = GroupConvLayout::CHANNELS_FIRST,
-                                             .data_type   = DataType::FP32};
+    constexpr ConvSignature<GroupConvLayout3D> FwdConvSignature{
+        .spatial_dim = 3,
+        .direction   = ConvDirection::FORWARD,
+        .layout      = GroupConvLayout3D::NGCDHW_GKCZYX_NGKDHW,
+        .data_type   = DataType::FP32};
 
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 128, .n = 128, .k = 32}};

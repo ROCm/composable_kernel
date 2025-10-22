@@ -14,11 +14,37 @@ enum class DataType
     I8
 };
 
-// Memory layouts for convolution tensors, following PyTorch conventions.
-enum class GroupConvLayout
+// Memory layouts for 1D convolution tensors.
+// G: Group, N: Batch, K: Output Channel, C: Input Channel, W: Width
+// Enum defines Input, Weight, and Output tensor layouts respectively.
+enum class GroupConvLayout1D
 {
-    CHANNELS_LAST, // e.g., NHWGC
-    CHANNELS_FIRST // e.g., NGCHW
+    GNWC_GKXC_GNWK,
+    NWGC_GKXC_NWGK,
+    NGCW_GKXC_NGKW,
+    NGCW_GKCX_NGKW
+};
+
+// Memory layouts for 2D convolution tensors.
+// G: Group, N: Batch, K: Output Channel, C: Input Channel, Y: Height, X: Width, H: Height
+// Enum defines Input, Weight, and Output tensor layouts respectively.
+enum class GroupConvLayout2D
+{
+    GNHWC_GKYXC_GNHWK,
+    NHWGC_GKYXC_NHWGK,
+    NGCHW_GKYXC_NGKHW,
+    NGCHW_GKCYX_NGKHW
+};
+
+// Memory layouts for 3D convolution tensors.
+// G: Group, N: Batch, K: Output Channel, C: Input Channel, Z: Depth, Y: Height, X: Width, D: Depth,
+// H: Height Enum defines Input, Weight, and Output tensor layouts respectively.
+enum class GroupConvLayout3D
+{
+    GNDHWC_GKZYXC_GNDHWK,
+    NDHWGC_GKZYXC_NDHWGK,
+    NGCDHW_GKZYXC_NGKDHW,
+    NGCDHW_GKCZYX_NGKDHW,
 };
 
 // Direction of the convolution operation.

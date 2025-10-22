@@ -7,6 +7,7 @@
 
 namespace ck_tile::builder::test {
 
+template <typename GroupConvLayout>
 struct ConvSignature
 {
     int spatial_dim;
@@ -14,6 +15,8 @@ struct ConvSignature
     GroupConvLayout layout;
     DataType data_type;
 };
-static_assert(ConvSignatureDescriptor<ConvSignature>);
+static_assert(ConvSignatureDescriptor<ConvSignature<GroupConvLayout1D>>);
+static_assert(ConvSignatureDescriptor<ConvSignature<GroupConvLayout2D>>);
+static_assert(ConvSignatureDescriptor<ConvSignature<GroupConvLayout3D>>);
 
 } // namespace ck_tile::builder::test

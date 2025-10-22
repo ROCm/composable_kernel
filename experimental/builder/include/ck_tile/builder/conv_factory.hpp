@@ -46,28 +46,29 @@
 
 namespace ck_tile::builder::factory_internal {
 
-// Type mappings from the builder GroupConvLayout enum class to the CK tensor data types.
-template <GroupConvLayout Layout, size_t SPATIAL_DIM, ConvDirection DIR>
-    requires(ConvSpatialDim<SPATIAL_DIM>)
+// Type mappings from the builder FwdGroupConvLayout enum classes to the CK tensor data types.
+template <auto LayoutValue, size_t SPATIAL_DIM, ConvDirection DIR>
+    requires(ConvSpatialDim<SPATIAL_DIM> && ValidConvLayoutForSpatialDim<LayoutValue, SPATIAL_DIM>)
 struct ConvTensorLayouts
 {
     // This will trigger if a specialization for the given layout is not found.
     // We should always catch this in an earlier validation check.
+    using Layout = decltype(LayoutValue);
     static_assert(sizeof(Layout) == 0,
                   "Internal error. Unsupported layout for convolution factory.");
 };
 
 template <>
-struct ConvTensorLayouts<GroupConvLayout::CHANNELS_FIRST, 2, ConvDirection::FORWARD>
+struct ConvTensorLayouts<GroupConvLayout2D::NGCHW_GKYXC_NGKHW, 2, ConvDirection::FORWARD>
 {
-    using ALayout  = ck::tensor_layout::convolution::NHWGC;
-    using BLayout  = ck::tensor_layout::convolution::GKCYX;
+    using ALayout  = ck::tensor_layout::convolution::NGCHW;
+    using BLayout  = ck::tensor_layout::convolution::GKYXC;
     using DsLayout = ck::Tuple<>;
     using ELayout  = ck::tensor_layout::convolution::NGKHW;
 };
 
 template <>
-struct ConvTensorLayouts<GroupConvLayout::CHANNELS_LAST, 2, ConvDirection::FORWARD>
+struct ConvTensorLayouts<GroupConvLayout2D::NHWGC_GKYXC_NHWGK, 2, ConvDirection::FORWARD>
 {
     using ALayout  = ck::tensor_layout::convolution::NHWGC;
     using BLayout  = ck::tensor_layout::convolution::GKYXC;
@@ -76,22 +77,24 @@ struct ConvTensorLayouts<GroupConvLayout::CHANNELS_LAST, 2, ConvDirection::FORWA
 };
 
 template <>
-struct ConvTensorLayouts<GroupConvLayout::CHANNELS_FIRST, 3, ConvDirection::FORWARD>
+struct ConvTensorLayouts<GroupConvLayout3D::NGCDHW_GKCZYX_NGKDHW, 3, ConvDirection::FORWARD>
 {
-    using ALayout  = ck::tensor_layout::convolution::NDHWGC;
+    using ALayout  = ck::tensor_layout::convolution::NGCDHW;
     using BLayout  = ck::tensor_layout::convolution::GKCZYX;
     using DsLayout = ck::Tuple<>;
     using ELayout  = ck::tensor_layout::convolution::NGKDHW;
 };
 
 template <>
-struct ConvTensorLayouts<GroupConvLayout::CHANNELS_LAST, 3, ConvDirection::FORWARD>
+struct ConvTensorLayouts<GroupConvLayout3D::NDHWGC_GKZYXC_NDHWGK, 3, ConvDirection::FORWARD>
 {
     using ALayout  = ck::tensor_layout::convolution::NDHWGC;
     using BLayout  = ck::tensor_layout::convolution::GKZYXC;
     using DsLayout = ck::Tuple<>;
     using ELayout  = ck::tensor_layout::convolution::NDHWGK;
 };
+
+// TODO: Implement rest of the valid combinations.
 
 // Type mappings from builder convolution data type to CK tensor types.
 template <DataType T>

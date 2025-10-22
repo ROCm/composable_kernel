@@ -28,6 +28,13 @@ namespace ck_tile::builder {
 template <auto N>
 concept ConvSpatialDim = std::is_integral_v<decltype(N)> && (N == 1 || N == 2 || N == 3);
 
+// Constraints for forward convolution layouts.
+template <auto LayoutValue, size_t SpatialDim>
+concept ValidConvLayoutForSpatialDim =
+    (SpatialDim == 1 && std::same_as<decltype(LayoutValue), GroupConvLayout1D>) ||
+    (SpatialDim == 2 && std::same_as<decltype(LayoutValue), GroupConvLayout2D>) ||
+    (SpatialDim == 3 && std::same_as<decltype(LayoutValue), GroupConvLayout3D>);
+
 // Constrains convolution data types to common floating-point types.
 template <DataType T>
 concept ConvDataType = (T == DataType::FP32) || (T == DataType::FP16) || (T == DataType::BF16) ||
@@ -38,7 +45,9 @@ template <typename T>
 concept ConvSignatureDescriptor = requires(T t) {
     { t.spatial_dim } -> std::convertible_to<unsigned int>;
     { t.direction } -> std::convertible_to<ConvDirection>;
-    { t.layout } -> std::convertible_to<GroupConvLayout>;
+    requires std::convertible_to<decltype(t.layout), GroupConvLayout1D> ||
+                 std::convertible_to<decltype(t.layout), GroupConvLayout2D> ||
+                 std::convertible_to<decltype(t.layout), GroupConvLayout3D>;
     { t.data_type } -> std::convertible_to<DataType>;
 };
 
