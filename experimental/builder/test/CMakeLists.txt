@@ -2,7 +2,7 @@ include(gtest)
 
 # Helper function to create a gtest executable with common properties
 function(add_ck_builder_test test_name)
-    add_executable(${test_name} ${ARGN})
+    add_executable(${test_name} ${ARGN} testing_utils.cpp)
     target_compile_features(${test_name} PRIVATE cxx_std_20)
     target_include_directories(${test_name} PRIVATE
         "${PROJECT_SOURCE_DIR}/experimental/builder/include"
@@ -20,9 +20,17 @@ endfunction()
 add_ck_builder_test(test_conv_builder
     test_conv_builder.cpp
     test_instance_traits.cpp
-    test_instance_traits_util.cpp
-    testing_utils.cpp)
+    test_instance_traits_util.cpp)
 
 # Testing the virtual GetInstanceString methods requires kernel compilation.
 add_ck_builder_test(test_get_instance_string
     test_get_instance_string.cpp)
+
+add_ck_builder_test(test_inline_diff test_inline_diff.cpp)
+
+function(add_ck_factory_test test_name)
+    add_ck_builder_test(${test_name} ${ARGN})
+    target_link_libraries(${test_name} PRIVATE composablekernels::device_conv_operations)
+endfunction()
+
+add_ck_factory_test(test_testing_utils test_testing_utils.cpp)
