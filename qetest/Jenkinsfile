@@ -74,7 +74,7 @@ pipeline {
                 }
             }
         }
-        stage("Docker login failed") {
+        stage("Archive Not Found Failure") {
             agent{ label rocmnode("nogpu") }
             steps {
                 script {
