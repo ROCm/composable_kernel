@@ -11,6 +11,7 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/core/numeric/math.hpp"
+#include "ck_tile/host/permute_pk_int4.hpp"
 
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
@@ -282,9 +283,10 @@ class TestCkTileGemmPipeline : public ::testing::Test
         {
             GTEST_SKIP() << "Unsupported data type combination for gemm pipeline test.";
         }
-        if constexpr(PipelineType == GemmPipelineType::CompV4)
+        if constexpr(PipelineType == GemmPipelineType::CompV4 ||
+                     std::is_same_v<BDataType, ck_tile::pk_int4_t>)
         {
-            // Only do k_batch = 1 when pipeline is CompV4
+            // Only do k_batch = 1 when pipeline is CompV4, or BDataType is I4
             k_batches_ = {1};
         }
         else
@@ -342,8 +344,19 @@ class TestCkTileGemmPipeline : public ::testing::Test
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
         ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
 
+        if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+        {
+            // Permute vector pk_i4x4 data for device implementation
+            ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
+            permute_vectors_i4x4_b(b_k_n_dev);
+            b_k_n_dev_buf.ToDevice(b_k_n_dev.data());
+        }
+        else
+        {
+            b_k_n_dev_buf.ToDevice(b_k_n.data());
+        }
+
         a_m_k_dev_buf.ToDevice(a_m_k.data());
-        b_k_n_dev_buf.ToDevice(b_k_n.data());
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 

@@ -18,6 +18,12 @@ class TestCkTileGemmPipelineCompV3
         {
             return false;
         }
+        else if constexpr(std::is_same_v<typename Base::BLayout, Row> &&
+                          std::is_same_v<typename Base::BDataType, I4>)
+        {
+            return false;
+        }
+
         return true;
     }
 };

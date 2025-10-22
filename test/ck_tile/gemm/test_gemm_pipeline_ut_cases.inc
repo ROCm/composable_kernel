@@ -82,7 +82,16 @@ TYPED_TEST(TEST_SUITE_NAME, PaddK)
     constexpr int K = 432;
 
     for(int M : Ms)
-        this->Run(M, N, K);
+    {
+        if constexpr(std::is_same_v<typename TestFixture::BDataType, ck_tile::pk_int4_t>)
+        {
+            EXPECT_THROW(this->Run(M, N, K), std::runtime_error);
+        }
+        else
+        {
+            this->Run(M, N, K);
+        }
+    }
 }
 
 TYPED_TEST(TEST_SUITE_NAME, Regular)
