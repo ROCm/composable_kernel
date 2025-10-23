@@ -1,7 +1,19 @@
 #!/bin/bash
 
+set +x
+
 BUILD=build
-EXE=$BUILD/bin/tile_example_hstu_attention
+
+USE_SOFTMAX=0
+if [ $# -ge 1 ]; then
+    USE_SOFTMAX=$1
+fi
+
+if [ $USE_SOFTMAX -eq 1 ]; then
+    EXE="$BUILD/bin/tile_example_hstu_attention -softmax=1"
+else
+    EXE="$BUILD/bin/tile_example_hstu_attention"
+fi
 
 for dtype in "fp16" "bf16"; do
     for seqlen in 512 1024 3072; do
