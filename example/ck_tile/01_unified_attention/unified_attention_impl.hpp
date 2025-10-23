@@ -140,6 +140,7 @@ float unified_attention_kernel_launch(const unified_attention_args& args, const 
                                     args.output_stride_0,
                                     args.output_stride_1,
                                     args.block_tables_ptr,
+                                    args.block_table_stride,
                                     args.seq_lens_ptr,
                                     args.query_start_len_ptr,
                                     args.num_seqs   

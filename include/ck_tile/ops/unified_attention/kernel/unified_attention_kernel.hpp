@@ -91,6 +91,7 @@ struct UnifiedAttentionKernel
     struct UnifiedAttentionVarlenKargs: UnifiedAttentionCommonKargs
     {
         const int32_t* block_tables_ptr;
+        ck_tile::index_t block_table_stride;
         const int32_t* seq_lens_ptr; // seq len in each batch
         const int32_t* query_start_len_ptr; // [num_seqs+1]
 

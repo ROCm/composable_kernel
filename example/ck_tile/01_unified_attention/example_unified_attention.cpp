@@ -428,6 +428,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
 
     // Set pointer in args
     args.block_tables_ptr = reinterpret_cast<const ck_tile::index_t*>(block_tables_buf.GetDeviceBuffer());
+    args.block_table_stride = max_num_blocks_per_seq;
 
 
     ck_tile::stream_config stream_config{nullptr,
