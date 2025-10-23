@@ -350,8 +350,6 @@ CK_TILE_DEVICE bf8x4_t i4_to_bf8x4(int q)
 
 struct PassThroughPack8
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const;
 
@@ -391,8 +389,6 @@ struct PassThroughPack8
 
 struct DequantPack8
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename Y, typename X, typename Z>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x, const Z& z) const;
 
@@ -408,8 +404,6 @@ struct DequantPack8
 
 struct PassThroughPack2
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const;
 
@@ -436,8 +430,6 @@ struct PassThroughPack2
 
 struct PassThrough
 {
-    static constexpr index_t NumArgs = 0;
-
     template <class T>
     using raw_t = std::remove_cv_t<std::remove_reference_t<T>>;
 
@@ -474,8 +466,6 @@ struct PassThrough
 
 struct AddScale
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename E, typename... As>
     CK_TILE_HOST_DEVICE constexpr void operator()(E& a, const As&... as) const
     {
@@ -493,8 +483,6 @@ struct AddScale
 
 struct MultiDMultiply
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename E, typename C, typename... Ds>
     CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const Ds&... ds) const -> void
     {
@@ -510,8 +498,6 @@ struct MultiDMultiply
 
 struct MultiDAdd
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename E, typename C, typename... Ds>
     CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const Ds&... ds) const -> void
     {
@@ -527,8 +513,6 @@ struct MultiDAdd
 
 struct UnaryConvert
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
     {
@@ -539,8 +523,6 @@ struct UnaryConvert
 #if 0
 struct ConvertBF16RTN
 {
-    static constexpr index_t NumArgs = 0;
-
     // convert to bf16 using round to nearest (rtn)
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
@@ -558,8 +540,6 @@ struct ConvertBF16RTN
 
 struct ConvertF8SR
 {
-    static constexpr index_t NumArgs = 0;
-
     // convert to fp8 using stochastic rounding (SR)
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
@@ -578,8 +558,6 @@ struct ConvertF8SR
 
 struct ConvertF8RNE
 {
-    static constexpr index_t NumArgs = 0;
-
     // convert to fp8 using rounding to nearest even
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
@@ -599,8 +577,6 @@ struct ConvertF8RNE
 
 struct Scale
 {
-    static constexpr index_t NumArgs = 1;
-
     CK_TILE_HOST_DEVICE Scale(float scale = 1.f) : scale_(scale) {}
 
     template <typename Y, typename X>
@@ -648,8 +624,6 @@ struct Scale
 
 struct ScaleAndResetNaNToMinusInfinity
 {
-    static constexpr index_t NumArgs = 1;
-
     CK_TILE_HOST_DEVICE ScaleAndResetNaNToMinusInfinity(float scale) : scale_(scale) {}
 
     template <typename Y, typename X>
@@ -666,8 +640,6 @@ struct ScaleAndResetNaNToMinusInfinity
 
 struct UnaryDivide
 {
-    static constexpr index_t NumArgs = 1;
-
     CK_TILE_HOST_DEVICE UnaryDivide(const int32_t divider = 1) : divider_(divider) {}
 
     template <typename T>
@@ -685,8 +657,6 @@ struct UnaryDivide
 
 struct UnarySquare
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
     {
@@ -704,8 +674,6 @@ struct UnarySquare
 
 struct UnaryAbs
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -720,8 +688,6 @@ struct UnaryAbs
 
 struct UnarySqrt
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -734,8 +700,6 @@ struct UnarySqrt
 
 struct Relu
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -762,8 +726,6 @@ struct Relu
 // gpu code use lower accuracy "_ocml_exp_f32" and "rcp" function
 struct FastGelu
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename Y, typename X>
     CK_TILE_HOST void operator()(Y& y, const X& x) const;
 
@@ -881,8 +843,6 @@ struct FastGelu
 
 struct FastGeluAsm
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename Y, typename X>
     CK_TILE_HOST void operator()(Y& y, const X& x) const;
 
@@ -984,8 +944,6 @@ struct FastGeluAsm
 // y = 0.5*x*(1+erf(x/sqrt(2)))
 struct Gelu
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const;
 
@@ -1006,8 +964,6 @@ struct Gelu
 
 struct Sigmoid
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1022,8 +978,6 @@ struct Sigmoid
 
 struct Silu
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1049,8 +1003,6 @@ struct Silu
 // we put the code here purposely if in the future ppl want to try
 struct SiluAsm
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST void operator()(T& y, T& x) const
     {
@@ -1115,8 +1067,6 @@ struct SiluAsm
 
 struct TanH
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1131,8 +1081,6 @@ struct TanH
 
 struct ACos
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1147,8 +1095,6 @@ struct ACos
 
 struct Neg
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1163,8 +1109,6 @@ struct Neg
 
 struct ATan
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1179,8 +1123,6 @@ struct ATan
 
 struct Sin
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1195,8 +1137,6 @@ struct Sin
 
 struct ASinH
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1211,8 +1151,6 @@ struct ASinH
 
 struct Cos
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1227,8 +1165,6 @@ struct Cos
 
 struct ACosH
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1243,8 +1179,6 @@ struct ACosH
 
 struct Tan
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1259,8 +1193,6 @@ struct Tan
 
 struct ATanH
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1275,8 +1207,6 @@ struct ATanH
 
 struct SinH
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1291,8 +1221,6 @@ struct SinH
 
 struct Ceil
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1307,8 +1235,6 @@ struct Ceil
 
 struct Exp
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1323,8 +1249,6 @@ struct Exp
 
 struct CosH
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1339,8 +1263,6 @@ struct CosH
 
 struct Floor
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1355,8 +1277,6 @@ struct Floor
 
 struct Log
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1371,8 +1291,6 @@ struct Log
 
 struct ASin
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1387,8 +1305,6 @@ struct ASin
 
 struct Rcp
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1403,8 +1319,6 @@ struct Rcp
 
 struct Swish
 {
-    static constexpr index_t NumArgs = 1;
-
     Swish(float beta = 1.0f) : beta_(beta) {}
 
     template <typename Y, typename X>
@@ -1427,8 +1341,6 @@ struct Swish
 
 struct SoftRelu
 {
-    static constexpr index_t NumArgs = 1;
-
     SoftRelu(float alpha = 1.f) : alpha_(alpha){};
 
     template <typename T>
@@ -1447,8 +1359,6 @@ struct SoftRelu
 
 struct Power
 {
-    static constexpr index_t NumArgs = 3;
-
     Power(float alpha = 0.f, float beta = 1.f, float gamma = 2.f)
         : alpha_(alpha), beta_(beta), gamma_(gamma){};
 
@@ -1472,8 +1382,6 @@ struct Power
 
 struct ClippedRelu
 {
-    static constexpr index_t NumArgs = 2;
-
     ClippedRelu(float alpha = 0.f, float beta = 1.f) : alpha_(alpha), beta_(beta){};
 
     template <typename T>
@@ -1493,8 +1401,6 @@ struct ClippedRelu
 
 struct LeakyRelu
 {
-    static constexpr index_t NumArgs = 1;
-
     LeakyRelu(float alpha = 0.01f) : alpha_(alpha){};
 
     template <typename T>
@@ -1512,8 +1418,6 @@ struct LeakyRelu
 
 struct Elu
 {
-    static constexpr index_t NumArgs = 1;
-
     Elu(float alpha = 1.f) : alpha_(alpha){};
 
     template <typename T>
@@ -1531,8 +1435,6 @@ struct Elu
 
 struct Logistic
 {
-    static constexpr index_t NumArgs = 1;
-
     Logistic(float alpha = 1.f) : alpha_(alpha){};
 
     template <typename T>
@@ -1551,8 +1453,6 @@ struct Logistic
 
 struct Clamp
 {
-    static constexpr index_t NumArgs = 2;
-
     CK_TILE_HOST_DEVICE Clamp(float lower = std::numeric_limits<float>::lowest(),
                               float upper = std::numeric_limits<float>::max())
         : lower_(lower), upper_(upper) {};
@@ -1570,8 +1470,6 @@ struct Clamp
 
 struct ConvInvscale
 {
-    static constexpr index_t NumArgs = 3;
-
     CK_TILE_HOST_DEVICE
     ConvInvscale(float scale_in = 1.f, float scale_wei = 1.f, float scale_out = 1.f)
         : scale_in_(scale_in), scale_wei_(scale_wei), scale_out_(scale_out)
@@ -1595,8 +1493,6 @@ struct ConvInvscale
 
 struct ConvScale
 {
-    static constexpr index_t NumArgs = 3;
-
     CK_TILE_HOST_DEVICE
     ConvScale(float scale_in = 1.f, float scale_wei = 1.f, float scale_out = 1.f)
         : scale_in_(scale_in), scale_wei_(scale_wei), scale_out_(scale_out)
@@ -1620,8 +1516,6 @@ struct ConvScale
 
 struct ConvScaleRelu
 {
-    static constexpr index_t NumArgs = 3;
-
     CK_TILE_HOST_DEVICE
     ConvScaleRelu(float scale_in = 1.f, float scale_wei = 1.f, float scale_out = 1.f)
         : scale_in_(scale_in), scale_wei_(scale_wei), scale_out_(scale_out)
@@ -1648,8 +1542,6 @@ struct ConvScaleRelu
 template <typename DstType, typename SrcType>
 struct Cast
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(DstType& y, const SrcType& x) const
     {
@@ -1660,8 +1552,6 @@ struct Cast
 /**
  * @brief Compose two unary element-wise functions into one.
  *
- * @note Both functions should have a `static constexpr index_t NumArgs` defined,
- * defining how many arguments should be passed to the initializer.
  *
  * @note The Ds tensor can be used by at most one of the composed functions.
  * This holds even if compositions are chained:
@@ -1676,26 +1566,11 @@ struct Cast
 template <typename FuncA, typename FuncB, bool FuncADs = false, bool FuncBDs = false>
 struct Compose
 {
-    static constexpr index_t NumArgs = FuncA::NumArgs + FuncB::NumArgs;
-
     static_assert(!(FuncADs && FuncBDs), "Only one composed function may use the Ds tensor.");
 
-    /**
-     * @brief Initializer that passes arguments to initializers of `FuncA` and `FuncB`.
-     *
-     * @note Arguments at index above `FuncA::NumArgs + FuncB::NumArgs` are discarded.
-     *
-     * @param args Arguments to be passed to `FuncA` and `FuncB`. The first `FuncA::NumArgs`
-     * arguments are passed to `FuncA`, and the next `FuncB::NumArgs` arguments are passed to
-     * `FuncB`.
-     */
-    template <typename... Args>
-    CK_TILE_HOST_DEVICE Compose(Args... args)
-        : func_a(tile_elementwise_instantiate<FuncA>(std::array<float, NumArgs>{{args...}}.data())),
-          func_b(tile_elementwise_instantiate<FuncB>(std::array<float, NumArgs>{{args...}}.data() +
-                                                     FuncA::NumArgs))
+    CK_TILE_HOST_DEVICE Compose(FuncA func_a_ = FuncA{}, FuncB func_b_ = FuncB{})
+        : func_a(func_a_), func_b(func_b_)
     {
-        static_assert(NumArgs == sizeof...(Args), "Incorrect number of arguments.");
     }
 
     template <typename AIn, typename BOut, typename AOut = AIn, typename... ADs>
@@ -1719,8 +1594,8 @@ struct Compose
         }
     }
 
-    FuncA func_a;
-    FuncB func_b;
+    const FuncA func_a;
+    const FuncB func_b;
 };
 
 // support fastconvert of int8 to fp16
@@ -1728,14 +1603,11 @@ struct Compose
 template <typename InputDataType, typename OutputDataType, index_t RegPackNumber>
 struct FastNumericArrayConverter
 {
-    static constexpr index_t NumArgs = 0;
 };
 
 template <>
 struct FastNumericArrayConverter<uint8_t, ck_tile::fp16_t, 4>
 {
-    static constexpr index_t NumArgs = 0;
-
     using InputArray  = vector_type<uint8_t, 4>;
     using OutputArray = vector_type<ck_tile::fp16_t, 4>;
 
@@ -1769,8 +1641,6 @@ struct FastNumericArrayConverter<uint8_t, ck_tile::fp16_t, 4>
 template <index_t N>
 struct FastNumericArrayConverter<uint8_t, ck_tile::fp16_t, N>
 {
-    static constexpr index_t NumArgs = 0;
-
     static constexpr int VEC_WIDTH = 4;
     static_assert(!(N % VEC_WIDTH), "N must be multiple of 4.");
 

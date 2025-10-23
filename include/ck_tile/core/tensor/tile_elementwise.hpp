@@ -59,31 +59,6 @@ CK_TILE_DEVICE auto tile_elementwise_in(const InElementFunc& in_element_func,
     return out_dstr_tensor;
 }
 
-namespace detail {
-template <typename ElementFunc, size_t... I>
-CK_TILE_HOST_DEVICE ElementFunc tile_elementwise_instantiate_impl(const float* args,
-                                                                  std::index_sequence<I...>)
-{
-    return ElementFunc(args[I]...);
-}
-} // namespace detail
-
-/**
- * @brief  Template function that instantiates a curried element-wise operation.
- *
- * @tparam ElementFunc  Element-wise operation to instantiate. Must define `NumArgs`.
- * @tparam T            Type of array pointer. Must be castable to float.
- * @param args          Pointer to array of arguments.
- * @return              The instantiated function.
- */
-template <typename ElementFunc, typename T>
-CK_TILE_HOST_DEVICE ElementFunc tile_elementwise_instantiate(const T* args)
-{
-    const float* float_args = reinterpret_cast<const float*>(args);
-    return detail::tile_elementwise_instantiate_impl<ElementFunc>(
-        float_args, std::make_index_sequence<ElementFunc::NumArgs>{});
-}
-
 /**
  * @brief  Template function that "unpacks" a tuple and applies an element-wise operation.
  *

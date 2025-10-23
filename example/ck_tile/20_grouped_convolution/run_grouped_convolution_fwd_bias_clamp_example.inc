@@ -103,7 +103,9 @@ int run_grouped_conv_fwd_bias_clamp_example_with_layouts(
     const float floor      = -100.f;
     const float ceil       = 100.f;
 
-    const BiasAndClamp bias_clamp_op{floor, ceil};
+    const ck_tile::element_wise::MultiDAdd bias_op{};
+    const ck_tile::element_wise::Clamp clamp_op{floor, ceil};
+    const BiasAndClamp bias_clamp_op{bias_op, clamp_op};
 
     const auto in_g_n_c_wis_desc =
         ck_tile::conv::make_input_host_tensor_descriptor_g_n_c_wis_packed<InLayout>(conv_param);
