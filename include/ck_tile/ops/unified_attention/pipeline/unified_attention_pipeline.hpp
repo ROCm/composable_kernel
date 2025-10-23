@@ -1229,7 +1229,6 @@ struct UnifiedAttentionPipeline
                           identity{},
                           identity{},
                           identity{},
-                          identity{},
                           mask,
                           scale_s,
                           smem_ptr);
