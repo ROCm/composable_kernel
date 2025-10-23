@@ -8,9 +8,13 @@
 
 namespace ck_tile::test {
 
+static bool isTerminalOutput() { return isatty(fileno(stdout)) || isatty(fileno(stderr)); }
+
 // Returns a string highlighting differences between actual and expected.
 // Differences are enclosed in brackets with actual and expected parts separated by '|'.
-std::string inlineDiff(const std::string& actual, const std::string& expected);
+std::string inlineDiff(const std::string& actual,
+                       const std::string& expected,
+                       bool use_color = isTerminalOutput());
 
 // A convenience alias for inlineDiff to improve readability in test assertions.
 // Note that the function has O(n^2) complexity both in compute and in memory - do not use for very

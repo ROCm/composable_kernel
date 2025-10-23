@@ -14,15 +14,6 @@ namespace ck_tile::test {
 
 namespace {
 
-bool isTerminalOutput()
-{
-    return isatty(fileno(stdout)); // or stderr
-}
-
-const char* EXPECTED_COLOR = isTerminalOutput() ? "\033[36m" : ""; // Cyan
-const char* ACTUAL_COLOR   = isTerminalOutput() ? "\033[35m" : ""; // Magenta
-const char* RESET          = isTerminalOutput() ? "\033[0m" : "";
-
 } // namespace
 
 // Wagner-Fischer Algorithm for Computing Edit Distance and Inline Diff
@@ -49,8 +40,13 @@ const char* RESET          = isTerminalOutput() ? "\033[0m" : "";
 // - Wagner, R. A.; Fischer, M. J. (1974). "The String-to-String Correction Problem"
 // - Also known as: Levenshtein distance, edit distance, string alignment
 // - Similar to sequence alignment algorithms used in bioinformatics (Needleman-Wunsch)
-std::string inlineDiff(const std::string& actual, const std::string& expected)
+std::string inlineDiff(const std::string& actual, const std::string& expected, bool use_color)
 {
+
+    const char* EXPECTED_COLOR = use_color ? "\033[36m" : ""; // Cyan
+    const char* ACTUAL_COLOR   = use_color ? "\033[35m" : ""; // Magenta
+    const char* RESET          = use_color ? "\033[0m" : "";
+
     const size_t n = expected.length(); // Length of expected string
     const size_t m = actual.length();   // Length of actual string
 
