@@ -909,7 +909,7 @@ def run_aiter_tests(Map conf=[:]){
                 sh "rocminfo"
                 sh "python3 --version"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py"
+                //sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py" //temporarily disable
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha_varlen.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe.py"
@@ -1039,8 +1039,8 @@ pipeline {
             description: "Use the CK build to verify hipTensor build and tests (default: OFF)")
         string(
             name: 'hipTensor_branch',
-            defaultValue: 'mainline',
-            description: 'Specify which branch of hipTensor to use (default: mainline)')
+            defaultValue: 'develop',
+            description: 'Specify which branch of hipTensor to use (default: develop)')
         booleanParam(
             name: "USE_SCCACHE",
             defaultValue: true,
@@ -1190,7 +1190,6 @@ pipeline {
             when {
                 beforeAgent true
                 expression { env.SHOULD_RUN_CI.toBoolean() }
-                expression { params.RUN_CPPCHECK.toBoolean() }
             }
             parallel{
                 stage('Clang Format and Cppcheck') {

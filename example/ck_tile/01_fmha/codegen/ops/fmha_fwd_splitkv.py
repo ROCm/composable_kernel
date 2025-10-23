@@ -891,7 +891,7 @@ def get_fwd_splitkv_blobs(
             for pipeline in factory.get_pipelines(dtype, hdim, mask_impl):
                 if mode == "group":
                     if pipeline.F_spad != "t" or pipeline.F_skpad != "t":
-                        # in group mode, spad/skpad must be true, since we can"t predict if seqlen of current batch need pad or not
+                        # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
                         continue
                 # logits_soft_cap is only allowed if no bias
                 if not (
@@ -986,7 +986,7 @@ def get_fwd_splitkv_combine_blobs(
             for pipeline in factory.get_combine_pipelines(dtype, hdim):
                 if mode == "group":
                     if pipeline.F_spad != "t":
-                        # in group mode, spad/skpad must be true, since we can"t predict if seqlen of current batch need pad or not
+                        # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
                         continue
                 k = Kernel(
                     F_arch=arch,

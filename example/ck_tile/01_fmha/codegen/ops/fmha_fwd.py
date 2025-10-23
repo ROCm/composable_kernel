@@ -731,7 +731,7 @@ class KernelComponentFactoryGfx9:
                         pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "f", "t", "t", logits, bias, lse, dropout, squant, mask, skip, "f"))  # fmt: skip
                         pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, lse, dropout, squant, mask, skip, "f"))  # fmt: skip
                     if receipt == 1 and bias != "bias":
-                        pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, lse, dropout, squant, mask, skip, "f"))  # TODO: cover arbitraty hdim# fmt: skip
+                        pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, lse, dropout, squant, mask, skip, "f"))  # fmt: skip # TODO: cover arbitraty hdim# fmt: skip
         elif dtype in ["fp8", "fp8bf16", "fp8fp32"]:
             # no need lse/dropout kernels
             for logits, squant, mask, bias in itertools.product(
@@ -770,7 +770,6 @@ class KernelComponentFactoryGfx950(KernelComponentFactoryGfx9):
                     and logits == "f"
                     and bias == "no"
                     and dropout == "f"
-                    and lse == "f"
                     and skip == "f"
                 ):
                     pipelines.append(FmhaFwdPipeline("qr_async_trload", "row", "f", "f", "f", "f", logits, bias, lse, dropout, squant, mask, skip, "t"))  # fmt: skip
@@ -894,7 +893,7 @@ def get_fwd_blobs(
             ):
                 if mode == "group":
                     if pipeline.F_spad != "t" or pipeline.F_skpad != "t":
-                        # in group mode, spad/skpad must be true, since we can"t predict if seqlen of current batch need pad or not
+                        # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
                         continue
                 if (hdim, hdim_v) == (192, 128):
                     # NOTE: this is used to speedup deepseek prefill case, we don't gen training

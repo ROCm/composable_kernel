@@ -559,8 +559,7 @@ class KernelComponentFactoryBase:
                 pipelines.append(FmhaFwdPipeline("qr_pagedkv", "row", "f", "f", "f", "f", logits, bias, "f", "t", squant, mask, "f"))  # fmt: skip
                 pipelines.append(FmhaFwdPipeline("qr_pagedkv", "row", "t", "t", "f", "f", logits, bias, "f", "t", squant, mask, "f"))  # fmt: skip
         elif dtype in ["fp8fp16", "fp8bf16"]:
-            # TODO
-            None
+            pass  # TODO
         else:
             assert False
         return pipelines
@@ -655,7 +654,7 @@ def get_fwd_blobs(
                 #     continue
                 if mode == "group":
                     if pipeline.F_spad != "t" or pipeline.F_skpad != "t":
-                        # in group mode, spad/skpad must be true, since we can"t predict if seqlen of current batch need pad or not
+                        # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
                         continue
                 if hdim == 192 and tile.F_bn1 == 128:
                     # NOTE: this is used to speedup deepseek prefill case, we don't gen training
