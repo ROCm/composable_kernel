@@ -126,6 +126,7 @@ struct UnifiedAttentionKernel
                 ck_tile::index_t output_stride_0,
                 ck_tile::index_t output_stride_1,
                 const int32_t* block_tables_ptr,
+                ck_tile::index_t block_table_stride,
                 const int32_t* seq_lens_ptr,
                 const int32_t* query_start_len_ptr,
                 ck_tile::index_t num_seqs
@@ -157,6 +158,7 @@ struct UnifiedAttentionKernel
                     output_stride_0,
                     output_stride_1},
                         block_tables_ptr,
+                        block_table_stride,
                         seq_lens_ptr,
                         query_start_len_ptr,
                         num_seqs
