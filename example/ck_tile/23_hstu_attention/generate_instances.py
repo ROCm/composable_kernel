@@ -75,6 +75,7 @@ MODE_NAME_MAP = {
     "jagged": "Jagged",
 }
 
+
 def create_forward_instances(instance_dir: Path, headdims: List) -> None:
     for mode in ["batched", "jagged"]:
         for dtype in ["fp16", "bf16"]:
@@ -146,6 +147,7 @@ def create_forward_instances_ref(instance_dir: Path, headdims: List) -> None:
                                     )
                                 )
                                 file.write(forward_instance)
+
 
 if __name__ == "__main__":
     headdims_fwd = [64, 128, 256]

@@ -1,6 +1,7 @@
 import torch
 from typing import Optional
 
+
 def get_valid_attn_mask(
     device: torch.device,
     causal: bool,
@@ -62,24 +63,42 @@ def get_valid_attn_mask(
         )
     return valid_attn_mask.to(torch.int8)
 
-def main():
-    N=64
-    contextual_seq_len=3
-    max_attn_len=4
-    causal=True
-    min_full_attn_seq_len=0
-    dev_type=torch.device("cpu")
-    seq_lengths=torch.tensor((56,60,64), device=dev_type, dtype=torch.int32)
-    num_targets=torch.tensor((4,5,6), device=dev_type, dtype=torch.int32)
 
-    valid_attn_mask=get_valid_attn_mask(dev_type,  causal, N, seq_lengths, num_targets, max_attn_len, contextual_seq_len, min_full_attn_seq_len)
+def main():
+    N = 64
+    contextual_seq_len = 3
+    max_attn_len = 4
+    causal = True
+    min_full_attn_seq_len = 0
+    dev_type = torch.device("cpu")
+    seq_lengths = torch.tensor((56, 60, 64), device=dev_type, dtype=torch.int32)
+    num_targets = torch.tensor((4, 5, 6), device=dev_type, dtype=torch.int32)
+
+    valid_attn_mask = get_valid_attn_mask(
+        dev_type,
+        causal,
+        N,
+        seq_lengths,
+        num_targets,
+        max_attn_len,
+        contextual_seq_len,
+        min_full_attn_seq_len,
+    )
     torch.save(valid_attn_mask, "torch_hstu_mask_0.pt")
 
-    min_full_attn_seq_len=6
-    valid_attn_mask=get_valid_attn_mask(dev_type,  causal, N, seq_lengths, num_targets, max_attn_len, contextual_seq_len, min_full_attn_seq_len)
+    min_full_attn_seq_len = 6
+    valid_attn_mask = get_valid_attn_mask(
+        dev_type,
+        causal,
+        N,
+        seq_lengths,
+        num_targets,
+        max_attn_len,
+        contextual_seq_len,
+        min_full_attn_seq_len,
+    )
     torch.save(valid_attn_mask, "torch_hstu_mask_1.pt")
+
 
 if __name__ == "__main__":
     main()
-
-
