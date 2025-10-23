@@ -13,6 +13,7 @@ using namespace test;
 
 template <auto FwdConvSignature,
           ThreadBlock FwdThreadBlock,
+          BlockGemmPipelineVersion FwdPipelineVersion,
           ConvFwdSpecialization FwdConvSpecialization>
 constexpr void run_test()
 {
@@ -49,7 +50,7 @@ constexpr void run_test()
     constexpr ConvAlgorithm FwdConvAlgorithm{.thread_block       = FwdThreadBlock,
                                              .tuning_params      = FwdTuningParams,
                                              .block_transfer     = FwdBlockTransfer,
-                                             .pipeline_version   = BlockGemmPipelineVersion::V4,
+                                             .pipeline_version   = FwdPipelineVersion,
                                              .fwd_specialization = FwdConvSpecialization};
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
@@ -62,10 +63,37 @@ constexpr void run_test()
 
     EXPECT_TRUE(kernel_string.starts_with("DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3"));
 
+    // Verify pipeline version is correct
+    if(FwdPipelineVersion == BlockGemmPipelineVersion::V1)
+        EXPECT_TRUE(kernel_string.find("BlkGemmPipelineVersion: v1") != std::string::npos);
+    else if(FwdPipelineVersion == BlockGemmPipelineVersion::V3)
+        EXPECT_TRUE(kernel_string.find("BlkGemmPipelineVersion: v3") != std::string::npos);
+    else if(FwdPipelineVersion == BlockGemmPipelineVersion::V4)
+        EXPECT_TRUE(kernel_string.find("BlkGemmPipelineVersion: v4") != std::string::npos);
+    else if(FwdPipelineVersion == BlockGemmPipelineVersion::V5)
+        EXPECT_TRUE(kernel_string.find("BlkGemmPipelineVersion: v5") != std::string::npos);
+
+    // Verify specialization is correct
+    if(FwdConvSpecialization == ConvFwdSpecialization::DEFAULT)
+        EXPECT_TRUE(kernel_string.find("Default") != std::string::npos);
+    else if(FwdConvSpecialization == ConvFwdSpecialization::FILTER_1X1_PAD0)
+        EXPECT_TRUE(kernel_string.find("Filter1x1Pad0") != std::string::npos);
+    else if(FwdConvSpecialization == ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0)
+        EXPECT_TRUE(kernel_string.find("Filter1x1Stride1Pad0") != std::string::npos);
+    else if(FwdConvSpecialization == ConvFwdSpecialization::FILTER_3x3)
+        EXPECT_TRUE(kernel_string.find("Filter3x3") != std::string::npos);
+    else if(FwdConvSpecialization == ConvFwdSpecialization::ODD_C)
+        EXPECT_TRUE(kernel_string.find("OddC") != std::string::npos);
+
     const auto invoker_ptr = instance.MakeInvokerPointer();
     EXPECT_NE(invoker_ptr, nullptr);
 }
 
+//==============================================================================
+// 2D Forward Convolution Tests
+//==============================================================================
+
+// Test 1: 2D BF16 NHWGC (channels-last) with Pipeline V1 and DEFAULT
 TEST_F(FwdConvBuilderTest,
        Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_2D_BF16_ChannelsLast)
 {
@@ -78,24 +106,10 @@ TEST_F(FwdConvBuilderTest,
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 256, .n = 256, .k = 32}};
 
-    run_test<FwdConvSignature, FwdThreadBlock, ConvFwdSpecialization::DEFAULT>();
+    run_test<FwdConvSignature, FwdThreadBlock, BlockGemmPipelineVersion::V1, ConvFwdSpecialization::DEFAULT>();
 }
 
-TEST_F(FwdConvBuilderTest,
-       Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_3D_FP32_ChannelsFirst)
-{
-    constexpr ConvSignature<GroupConvLayout3D> FwdConvSignature{
-        .spatial_dim = 3,
-        .direction   = ConvDirection::FORWARD,
-        .layout      = GroupConvLayout3D::NGCDHW_GKCZYX_NGKDHW,
-        .data_type   = DataType::FP32};
-
-    constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
-                                         .tile_size  = {.m = 128, .n = 128, .k = 32}};
-
-    run_test<FwdConvSignature, FwdThreadBlock, ConvFwdSpecialization::FILTER_1X1_PAD0>();
-}
-
+// Test 2: 2D FP16 GNHWC (group-first, channels-last) with Pipeline V3 and FILTER_1X1_PAD0
 TEST_F(FwdConvBuilderTest,
        Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_2D_FP16_GNHWC)
 {
@@ -108,9 +122,10 @@ TEST_F(FwdConvBuilderTest,
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 256, .n = 256, .k = 32}};
 
-    run_test<FwdConvSignature, FwdThreadBlock, ConvFwdSpecialization::DEFAULT>();
+    run_test<FwdConvSignature, FwdThreadBlock, BlockGemmPipelineVersion::V3, ConvFwdSpecialization::FILTER_1X1_PAD0>();
 }
 
+// Test 3: 2D FP32 NGCHW_GKCYX (channels-first, different weight layout) with Pipeline V4 and FILTER_1X1_STRIDE1_PAD0
 TEST_F(FwdConvBuilderTest,
        Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_2D_FP32_NGCHW_GKCYX)
 {
@@ -123,9 +138,46 @@ TEST_F(FwdConvBuilderTest,
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 128, .n = 128, .k = 32}};
 
-    run_test<FwdConvSignature, FwdThreadBlock, ConvFwdSpecialization::DEFAULT>();
+    run_test<FwdConvSignature, FwdThreadBlock, BlockGemmPipelineVersion::V4, ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0>();
 }
 
+// Test 4: 2D BF16 NHWGC (channels-last) with Pipeline V5 and FILTER_3x3
+TEST_F(FwdConvBuilderTest,
+       Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_2D_BF16_NHWGC_Filter3x3)
+{
+    constexpr ConvSignature<GroupConvLayout2D> FwdConvSignature{
+        .spatial_dim = 2,
+        .direction   = ConvDirection::FORWARD,
+        .layout      = GroupConvLayout2D::NHWGC_GKYXC_NHWGK,
+        .data_type   = DataType::BF16};
+
+    constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
+                                         .tile_size  = {.m = 256, .n = 256, .k = 32}};
+
+    run_test<FwdConvSignature, FwdThreadBlock, BlockGemmPipelineVersion::V5, ConvFwdSpecialization::FILTER_3x3>();
+}
+
+//==============================================================================
+// 3D Forward Convolution Tests
+//==============================================================================
+
+// Test 5: 3D FP32 NGCDHW (channels-first) with Pipeline V1 and FILTER_1X1_PAD0
+TEST_F(FwdConvBuilderTest,
+       Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_3D_FP32_ChannelsFirst)
+{
+    constexpr ConvSignature<GroupConvLayout3D> FwdConvSignature{
+        .spatial_dim = 3,
+        .direction   = ConvDirection::FORWARD,
+        .layout      = GroupConvLayout3D::NGCDHW_GKCZYX_NGKDHW,
+        .data_type   = DataType::FP32};
+
+    constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
+                                         .tile_size  = {.m = 128, .n = 128, .k = 32}};
+
+    run_test<FwdConvSignature, FwdThreadBlock, BlockGemmPipelineVersion::V1, ConvFwdSpecialization::FILTER_1X1_PAD0>();
+}
+
+// Test 6: 3D BF16 GNDHWC (group-first, channels-last) with Pipeline V3 and DEFAULT
 TEST_F(FwdConvBuilderTest,
        Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_3D_BF16_GNDHWC)
 {
@@ -138,24 +190,10 @@ TEST_F(FwdConvBuilderTest,
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 256, .n = 256, .k = 32}};
 
-    run_test<FwdConvSignature, FwdThreadBlock, ConvFwdSpecialization::DEFAULT>();
+    run_test<FwdConvSignature, FwdThreadBlock, BlockGemmPipelineVersion::V3, ConvFwdSpecialization::DEFAULT>();
 }
 
-TEST_F(FwdConvBuilderTest,
-       Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_2D_BF16_NGCHW_ChannelsFirst)
-{
-    constexpr ConvSignature<GroupConvLayout2D> FwdConvSignature{
-        .spatial_dim = 2,
-        .direction   = ConvDirection::FORWARD,
-        .layout      = GroupConvLayout2D::NGCHW_GKYXC_NGKHW,
-        .data_type   = DataType::BF16};
-
-    constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
-                                         .tile_size  = {.m = 256, .n = 256, .k = 32}};
-
-    run_test<FwdConvSignature, FwdThreadBlock, ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0>();
-}
-
+// Test 7: 3D FP16 NDHWGC (channels-last) with Pipeline V4 and FILTER_1X1_PAD0
 TEST_F(FwdConvBuilderTest,
        Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_3D_FP16_NDHWGC_ChannelsLast)
 {
@@ -168,5 +206,5 @@ TEST_F(FwdConvBuilderTest,
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 128, .n = 128, .k = 32}};
 
-    run_test<FwdConvSignature, FwdThreadBlock, ConvFwdSpecialization::DEFAULT>();
+    run_test<FwdConvSignature, FwdThreadBlock, BlockGemmPipelineVersion::V4, ConvFwdSpecialization::FILTER_1X1_PAD0>();
 }
