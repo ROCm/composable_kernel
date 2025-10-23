@@ -1,5 +1,4 @@
 #pragma once
-#include <ck/utility/sequence.hpp>
 
 namespace ck_tile::builder {
 
