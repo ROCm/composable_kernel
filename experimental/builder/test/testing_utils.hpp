@@ -13,6 +13,8 @@ namespace ck_tile::test {
 std::string inlineDiff(const std::string& actual, const std::string& expected);
 
 // A convenience alias for inlineDiff to improve readability in test assertions.
+// Note that the function has O(n^2) complexity both in compute and in memory - do not use for very
+// long strings
 std::string formatInlineDiff(const std::string& actual, const std::string& expected);
 
 // Gmock matcher for string equality with inline diff output on failure
