@@ -19,7 +19,7 @@ TYPED_TEST(TEST_SUITE_NAME, StreamK_DPOnly)
     constexpr ck_tile::index_t N_Tile = std::tuple_element_t<8, TypeParam>::value;
     constexpr ck_tile::index_t K_Tile = std::tuple_element_t<9, TypeParam>::value;
 
-    // For DP only, we ensure that the number of tiles in a multiple of the number of CUs. This
+    // For DP only, we ensure that the number of tiles is a multiple of the number of CUs. This
     // assumes tile sizes are large enough such that occupancy is 1.
     ck_tile::index_t M = M_Tile * num_cu;
     ck_tile::index_t N = N_Tile;

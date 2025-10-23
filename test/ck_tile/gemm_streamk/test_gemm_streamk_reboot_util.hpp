@@ -180,7 +180,7 @@ class TestCkTileStreamKReboot : public ::testing::Test
              ck_tile::index_t stride_C = 0)
     {
         // Since M, N, and K will vary depending on the number of CUs, we print it here to
-        // facilitate test output reability.
+        // facilitate test output readability.
         std::cout << "M: " << M << ", N: " << N << ", K: " << K << std::endl;
 
         using namespace ck_tile::literals;
