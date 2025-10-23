@@ -32,29 +32,29 @@
     },
     "warp_tile_m": {
       "values": [
-        16
+        32
       ]
     },
     "warp_tile_n": {
       "values": [
-        16
+        32
       ]
     },
     "warp_tile_k": {
       "values": [
-        32
+        8
       ]
     }
   },
   "trait_config": {
     "pipeline": {
       "values": [
-        "mem"
+        "compv4"
       ]
     },
     "scheduler": {
       "values": [
-        "interwave"
+        "intrawave"
       ]
     },
     "epilogue": {
