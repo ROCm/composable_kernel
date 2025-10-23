@@ -321,12 +321,6 @@ def cmake_build(Map conf=[:]){
     //cmake_env can overwrite default CXX variables.
     def cmake_envs = "CXX=${compiler} CXXFLAGS='-Werror' " + conf.get("cmake_ex_env","")
 
-    def package_build = (conf.get("package_build","") == "true")
-
-    if (package_build == true) {
-        config_targets = "package"
-    }
-
     if(conf.get("build_install","") == "true")
     {
         config_targets = 'install ' + config_targets
@@ -476,10 +470,10 @@ def cmake_build(Map conf=[:]){
                     }
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
-                    sh 'ninja -j64 package'
-                    def arch_name = check_arch_name()
-                    sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
-                    stash includes: "composablekernel-**.deb", name: "packages"
+                        sh 'ninja -j64 package'
+                        def arch_name = check_arch_name()
+                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
+                        stash includes: "composablekernel-**.deb", name: "packages"
                     }
                 }
                 if(params.BUILD_INSTANCES_ONLY){
@@ -499,15 +493,18 @@ def cmake_build(Map conf=[:]){
                     else{
                         sh "ninja check"
                     }
+                    if(params.BUILD_PACKAGES){
+                        echo "Build ckProfiler packages"
+                        sh 'ninja -j64 package'
+                        def arch_name = check_arch_name()
+                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
+                        stash includes: "composablekernel-**.deb", name: "packages"
+                    }
                 }
             }
         }
     }
 
-    // Only archive from develop
-    if (package_build == true && env.BRANCH_NAME == "develop") {
-        archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
-    }
     //check the node gpu architecture
     def arch = check_arch()
     if (params.RUN_CK_TILE_FMHA_TESTS){
@@ -845,7 +842,7 @@ def process_results(Map conf=[:]){
                             echo "could not locate the FMHA performance logs for gfx90a: ${err.getMessage()}."
                         }
                     }
-                    if (params.BUILD_INSTANCES_ONLY){
+                    if (params.BUILD_INSTANCES_ONLY || params.BUILD_PACKAGES){
                         // unstash deb packages
                         unstash "packages"
                         sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no composablekernel-*.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
