@@ -6,7 +6,7 @@
 #include "mfma/mfma_traits.hpp"
 #include "wmma/wmma_traits.hpp"
 
-namespace ck::tile::core::arch {
+namespace ck::tile::core::arch::mma {
 /*! @struct is_mma_op_supported
  * @brief Trait to check if MmaOp is supported
  * @tparam MmaOp The matrix multiply-accumulate operation type to check
@@ -149,4 +149,4 @@ struct MmaOpTraits : public MmaOpParams<MmaOp>
     constexpr static bool IsSupported = is_mma_op_supported_v<MmaOp>;
 };
 
-} // namespace ck::tile::core::arch
+} // namespace ck::tile::core::arch::mma

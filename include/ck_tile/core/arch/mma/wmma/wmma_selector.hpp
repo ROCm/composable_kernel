@@ -6,7 +6,7 @@
 #include "../arch.hpp"
 #include "mfma_traits.hpp"
 
-namespace ck_tile::core::arch::wmma {
+namespace ck_tile::core::arch::mma {
 /*! @struct DefaultWmmaFlags
  * @brief Generates default WMMA control flags based on data types.
  * @tparam DataTypeA Data type of matrix A
@@ -102,4 +102,4 @@ struct MmaDefaultSelector<DataTypeA,
         amdgcn_mma<DataTypeA, DataTypeB, DataTypeAcc, BlockM, BlockN, 0u, GfxTargetId>;
 };
 
-} // namespace ck_tile::core::arch::wmma
+} // namespace ck_tile::core::arch::mma

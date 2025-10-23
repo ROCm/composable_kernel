@@ -4,7 +4,7 @@
 
 #include "arch.hpp"
 
-namespace ck::tile::core::arch {
+namespace ck::tile::core::arch::mma {
 /*! @struct MmaDefaultSelector
  * @brief Implements a default mma selector strategy for the current target architecture.
  * This is simply intended as a default selection strategy for mma instruction operations.
@@ -41,4 +41,4 @@ concept MmaSelectorI = requires(MmaSelector op) {
     typename MmaSelector::SelectedOp;
 };
 
-} // namespace ck::tile::core::arch
+} // namespace ck::tile::core::arch::mma

@@ -5,7 +5,7 @@
 
 #include "wmma.hpp"
 
-namespace ck_tile::core::arch::wmma {
+namespace ck_tile::core::arch::mma {
 /** @struct is_mma_op_wmma
  * @brief Trait to check if MmaOp is an WMMA operation
  * @tparam MmaOp The matrix multiply-accumulate operation type to check
@@ -32,4 +32,4 @@ struct is_mma_op_wmma<MmaOp, std::enable_if_t<std::is_same_v<typename MmaOp::OpT
 template <typename MmaOp>
 static constexpr bool is_mma_op_wmma_v = is_mma_op_wmma<MmaOp>::value;
 
-} // namespace ck_tile::core::arch::wmma
+} // namespace ck_tile::core::arch::mma

@@ -7,7 +7,7 @@
 
 #include "mma_traits.hpp"
 
-namespace ck::tile::core::arch {
+namespace ck::tile::core::arch::mma {
 /*! @struct Unsupported
  *   @brief  Meta-tag to indicate unsupported amdgcn_mma instance.
  */
@@ -104,4 +104,4 @@ struct amdgcn_mma
     }
 };
 
-} // namespace ck::tile::core::arch
+} // namespace ck::tile::core::arch::mma

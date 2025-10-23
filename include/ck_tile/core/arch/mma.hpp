@@ -8,58 +8,9 @@
 #include "mma_traits.hpp"
 
 namespace ck::tile::core::arch {
-/*! @struct amdgcn_mma (to be used as a MmaOp policy)
- *  @brief  Light builtin wrapper for mfma / wmma instructions. This class's job is to
- *          provide a uniform interface to invoke the appropriate instruction
- *          based on the template parameters provided. This interface is to bridge
- *          the gap between the ck_tile API types and the native __builtin types.
- *  @tparam DataTypeTA Datatype of input A
- *  @tparam DataTypeTB Datatype of input B
- *  @tparam ComputeT Datatype of accumulator
- *  @tparam BlockM M-dimension of mma block
- *  @tparam BlockN N-dimension of mma block
- *  @tparam BlockK K-dimension of mma block
- *  @tparam CtrlFlags Control flags for mma operation
- *  @tparam GfxTarget The current gfx family target of interest being compiled
- *  @tparam TargetEnable Enabler for the current target if supported
- */
-template <typename DataTypeA,
-          typename DataTypeB,
-          typename ComputeT,
-          uint32_t BlockM,
-          uint32_t BlockN,
-          uint32_t BlockK,
-          typename CtrlFlags,
-          uint32_t GfxTargetId,
-          typename Enabler = void>
-struct amdgcn_mma
-{
-    // This is a pass-through implementation that isn't supported, and doesn't
-    // do anything practical. The following trait will allow us to identify
-    // unsupported instances, as we won't include it in the overloads to follow.
-    using Unsupported = Unsupported;
 
-    // Interface types for A, B, C vectors types
-    using AVecType = ext_vector_t<DataTypeA, BlockM * BlockK / get_warp_size()>;
-    using BVecType = ext_vector_t<DataTypeB, BlockN * BlockK / get_warp_size()>;
-    using CVecType = ext_vector_t<ComputeT, BlockM * BlockN / get_warp_size()>;
-
-    // Execute the wmma operation
-    CK_TILE_DEVICE static auto const&
-    exec(AVecType const& regsA, BVecType const& regsB, CVecType const& regsC)
-    {
-        return regsC; // No-op, just return C
-    }
-};
-
-enum struct MmaAccumPolicy : uint32_t
-{
-    ROW_MAJOR = 0u,
-    COL_MAJOR = 1u,
-};
-
-/*! \class Mma
- *   \brief Driver for the wave-tile Mma operation. Given a backend block-wise mma implementation
+/*! @class Mma
+ *  @brief Driver for the wave-tile Mma operation. Given a backend block-wise mma implementation
  * (e.g., mfma or wmma), this class performs block-wise decomposition to matrix-multiply input
  * fragments of (A: FragM x FragK) x (B: FragK x FragN) and accumulates results into output fragment
  * (C: FragM x FragN).

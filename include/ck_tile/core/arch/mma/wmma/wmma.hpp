@@ -6,7 +6,7 @@
 #include "../arch.hpp"
 #include "../mma_common.hpp"
 
-namespace ck_tile::core::arch::wmma {
+namespace ck_tile::core::arch::mma {
 /*! @struct WmmaOp
  * @brief Meta-tag for the WMMA operation. This will be used in the MmaOp struct to
  * identify the operation as an WMMA operation.
@@ -31,7 +31,7 @@ enum struct WmmaCtrlFlags : bool
     SIGNED   = true
 };
 
-} // namespace ck_tile::core::arch::wmma
+} // namespace ck_tile::core::arch::mma
 
 // Include the architecture-specific WMMA implementations and traits
 #include "wmma_gfx11.hpp"

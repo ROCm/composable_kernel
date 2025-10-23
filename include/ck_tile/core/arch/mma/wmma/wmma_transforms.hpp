@@ -7,7 +7,7 @@
 
 #include "mma_traits.hpp"
 
-namespace ck::tile::core::arch::wmma {
+namespace ck::tile::core::arch::mma {
 // GFX11 specific transform for WMMA op: duplicate input data in upper / lower 16 lanes
 struct DuplicateTransformGfx11
 {
@@ -41,4 +41,4 @@ struct UnpadTransformGfx11
     }
 };
 
-} // namespace ck::tile::core::arch::wmma
+} // namespace ck::tile::core::arch::mma

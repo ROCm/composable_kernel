@@ -7,7 +7,7 @@
 
 #include "mma_traits.hpp"
 
-namespace ck::tile::core::arch {
+namespace ck::tile::core::arch::mma {
 // Default no-op transform policy
 struct PassThroughTransform
 {
@@ -93,4 +93,4 @@ struct TransformSelector : public detail::TransformSelector<MmaOp>
 {
 };
 
-} // namespace ck::tile::core::arch
+} // namespace ck::tile::core::arch::mma
