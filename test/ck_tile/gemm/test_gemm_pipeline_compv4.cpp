@@ -10,7 +10,15 @@ class TestCkTileGemmPipelineCompV4
     : public TestCkTileGemmPipeline<T, TestCkTileGemmPipelineCompV4<T>>
 {
     public:
-    static constexpr bool check_data_type() { return true; }
+    static constexpr bool check_data_type()
+    {
+        using Base = TestCkTileGemmPipeline<T, TestCkTileGemmPipelineCompV4<T>>;
+        if constexpr(std::is_same_v<typename Base::BDataType, I4>)
+        {
+            return false;
+        }
+        return true;
+    }
 };
 
 #define TEST_SUITE_NAME TestCkTileGemmPipelineCompV4
