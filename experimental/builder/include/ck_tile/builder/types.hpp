@@ -11,7 +11,7 @@ enum class DataType
     FP16,
     BF16,
     FP8,
-    I8
+    S8
 };
 
 // Memory layouts for 1D convolution tensors.

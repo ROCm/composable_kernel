@@ -98,7 +98,7 @@ constexpr std::string_view DataTypeToString(DataType dt)
     case DataType::FP32: return "FP32";
     case DataType::BF16: return "BF16";
     case DataType::FP8: return "FP8";
-    case DataType::I8: return "I8";
+    case DataType::S8: return "S8";
     default: return "Unknown";
     }
 }
