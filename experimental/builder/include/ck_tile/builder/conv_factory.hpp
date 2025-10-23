@@ -58,6 +58,43 @@ struct ConvTensorLayouts
                   "Internal error. Unsupported layout for convolution factory.");
 };
 
+// 1D Forward Convolution Layout Specializations
+template <>
+struct ConvTensorLayouts<GroupConvLayout1D::NWGC_GKXC_NWGK, 1, ConvDirection::FORWARD>
+{
+    using ALayout  = ck::tensor_layout::convolution::NWGC;
+    using BLayout  = ck::tensor_layout::convolution::GKXC;
+    using DsLayout = ck::Tuple<>;
+    using ELayout  = ck::tensor_layout::convolution::NWGK;
+};
+
+template <>
+struct ConvTensorLayouts<GroupConvLayout1D::NGCW_GKXC_NGKW, 1, ConvDirection::FORWARD>
+{
+    using ALayout  = ck::tensor_layout::convolution::NGCW;
+    using BLayout  = ck::tensor_layout::convolution::GKXC;
+    using DsLayout = ck::Tuple<>;
+    using ELayout  = ck::tensor_layout::convolution::NGKW;
+};
+
+template <>
+struct ConvTensorLayouts<GroupConvLayout1D::GNWC_GKXC_GNWK, 1, ConvDirection::FORWARD>
+{
+    using ALayout  = ck::tensor_layout::convolution::GNWC;
+    using BLayout  = ck::tensor_layout::convolution::GKXC;
+    using DsLayout = ck::Tuple<>;
+    using ELayout  = ck::tensor_layout::convolution::GNWK;
+};
+
+template <>
+struct ConvTensorLayouts<GroupConvLayout1D::NGCW_GKCX_NGKW, 1, ConvDirection::FORWARD>
+{
+    using ALayout  = ck::tensor_layout::convolution::NGCW;
+    using BLayout  = ck::tensor_layout::convolution::GKCX;
+    using DsLayout = ck::Tuple<>;
+    using ELayout  = ck::tensor_layout::convolution::NGKW;
+};
+
 template <>
 struct ConvTensorLayouts<GroupConvLayout2D::NGCHW_GKYXC_NGKHW, 2, ConvDirection::FORWARD>
 {
@@ -74,6 +111,24 @@ struct ConvTensorLayouts<GroupConvLayout2D::NHWGC_GKYXC_NHWGK, 2, ConvDirection:
     using BLayout  = ck::tensor_layout::convolution::GKYXC;
     using DsLayout = ck::Tuple<>;
     using ELayout  = ck::tensor_layout::convolution::NHWGK;
+};
+
+template <>
+struct ConvTensorLayouts<GroupConvLayout2D::GNHWC_GKYXC_GNHWK, 2, ConvDirection::FORWARD>
+{
+    using ALayout  = ck::tensor_layout::convolution::GNHWC;
+    using BLayout  = ck::tensor_layout::convolution::GKYXC;
+    using DsLayout = ck::Tuple<>;
+    using ELayout  = ck::tensor_layout::convolution::GNHWK;
+};
+
+template <>
+struct ConvTensorLayouts<GroupConvLayout2D::NGCHW_GKCYX_NGKHW, 2, ConvDirection::FORWARD>
+{
+    using ALayout  = ck::tensor_layout::convolution::NGCHW;
+    using BLayout  = ck::tensor_layout::convolution::GKCYX;
+    using DsLayout = ck::Tuple<>;
+    using ELayout  = ck::tensor_layout::convolution::NGKHW;
 };
 
 template <>
@@ -94,7 +149,14 @@ struct ConvTensorLayouts<GroupConvLayout3D::NDHWGC_GKZYXC_NDHWGK, 3, ConvDirecti
     using ELayout  = ck::tensor_layout::convolution::NDHWGK;
 };
 
-// TODO: Implement rest of the valid combinations.
+template <>
+struct ConvTensorLayouts<GroupConvLayout3D::GNDHWC_GKZYXC_GNDHWK, 3, ConvDirection::FORWARD>
+{
+    using ALayout  = ck::tensor_layout::convolution::GNDHWC;
+    using BLayout  = ck::tensor_layout::convolution::GKZYXC;
+    using DsLayout = ck::Tuple<>;
+    using ELayout  = ck::tensor_layout::convolution::GNDHWK;
+};
 
 // Type mappings from builder convolution data type to CK tensor types.
 template <DataType T>
