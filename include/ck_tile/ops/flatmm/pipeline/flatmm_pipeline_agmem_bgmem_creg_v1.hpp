@@ -37,6 +37,7 @@ struct BaseFlatmmPipelineAGmemBGmemCRegV1
             return run_func(bool_constant<true>{},
                             integral_constant<TailNumber, TailNumber::Odd>{});
         }
+        throw std::runtime_error("Error: Unsupported TailNumber!");
         // return run_func(bool_constant<true>{}, integral_constant<TailNumber,
         // TailNumber::Empty>{});
     }
