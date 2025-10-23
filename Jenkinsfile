@@ -1484,7 +1484,7 @@ pipeline {
                                             -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx90a" \
-                                            -D GEMM_DATATYPE="fp16" \
+                                            -D GEMM_DATATYPE="fp8;fp16" \
                                             -D GEMM_LAYOUT="rcr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
@@ -1521,7 +1521,7 @@ pipeline {
                                             -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx942" \
-                                            -D GEMM_DATATYPE="fp16" \
+                                            -D GEMM_DATATYPE="fp8;fp16" \
                                             -D GEMM_LAYOUT="rcr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
@@ -1558,7 +1558,7 @@ pipeline {
                                             -D CMAKE_CXX_COMPILER="${build_compiler()}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx950" \
-                                            -D GEMM_DATATYPE="fp16" \
+                                            -D GEMM_DATATYPE="fp8;fp16" \
                                             -D GEMM_LAYOUT="rcr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
