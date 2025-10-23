@@ -18,7 +18,7 @@ struct GroupedConvolutionForwardInvoker
               typename DsDataType     = ck_tile::tuple<>,
               typename DsLayout       = ck_tile::tuple<>,
               typename CDEElementWise = ck_tile::element_wise::PassThrough>
-    static float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args,
+    static float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs<CDEElementWise>& args,
                                   const ck_tile::stream_config& s)
     {
         constexpr int kBlockPerCu = 1;

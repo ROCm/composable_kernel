@@ -19,7 +19,7 @@
 namespace ck_tile {
 
 /// @brief The Grouped Convolution kernel device arguments.
-template <typename GroupedConvTraitsType_>
+template <typename GroupedConvTraitsType_, typename CDElementwise>
 struct GroupedConvFwdKernelArgs
 {
 
@@ -40,7 +40,8 @@ struct GroupedConvFwdKernelArgs
                                     std::is_same_v<WeiLay, tensor_layout::convolution::GKXC> &&
                                     std::is_same_v<OutLay, tensor_layout::convolution::NWGK>,
                                 bool>::type = false>
-    CK_TILE_HOST GroupedConvFwdKernelArgs(const GroupedConvFwdHostArgs& args)
+    CK_TILE_HOST GroupedConvFwdKernelArgs(const GroupedConvFwdHostArgs<CDElementwise>& args)
+        : elfunc(args.elfunc)
     {
         in_g_n_c_wis_lengths  = {static_cast<index_t>(args.G_),
                                  static_cast<index_t>(args.N_),
@@ -73,8 +74,7 @@ struct GroupedConvFwdKernelArgs
         {
             ds_ptr[d] = args.ds_ptr[d];
         }
-        out_ptr         = args.out_ptr;
-        elfunc_args_ptr = args.elfunc_args_ptr;
+        out_ptr = args.out_ptr;
 
         ConvToGemmFwdTransformer conv_to_gemm_transformer{in_g_n_c_wis_lengths,
                                                           wei_g_k_c_xs_lengths,
@@ -124,7 +124,8 @@ struct GroupedConvFwdKernelArgs
                                     std::is_same_v<WeiLay, tensor_layout::convolution::GKYXC> &&
                                     std::is_same_v<OutLay, tensor_layout::convolution::NHWGK>,
                                 bool>::type = false>
-    CK_TILE_HOST GroupedConvFwdKernelArgs(const GroupedConvFwdHostArgs& args)
+    CK_TILE_HOST GroupedConvFwdKernelArgs(const GroupedConvFwdHostArgs<CDElementwise>& args)
+        : elfunc(args.elfunc)
     {
         in_g_n_c_wis_lengths  = {static_cast<index_t>(args.G_),
                                  static_cast<index_t>(args.N_),
@@ -164,8 +165,7 @@ struct GroupedConvFwdKernelArgs
         {
             ds_ptr[d] = args.ds_ptr[d];
         }
-        out_ptr         = args.out_ptr;
-        elfunc_args_ptr = args.elfunc_args_ptr;
+        out_ptr = args.out_ptr;
 
         ConvToGemmFwdTransformer conv_to_gemm_transformer{in_g_n_c_wis_lengths,
                                                           wei_g_k_c_xs_lengths,
@@ -217,7 +217,8 @@ struct GroupedConvFwdKernelArgs
                                     std::is_same_v<WeiLay, tensor_layout::convolution::GKZYXC> &&
                                     std::is_same_v<OutLay, tensor_layout::convolution::NDHWGK>,
                                 bool>::type = false>
-    CK_TILE_HOST GroupedConvFwdKernelArgs(const GroupedConvFwdHostArgs& args)
+    CK_TILE_HOST GroupedConvFwdKernelArgs(const GroupedConvFwdHostArgs<CDElementwise>& args)
+        : elfunc(args.elfunc)
     {
         in_g_n_c_wis_lengths  = {static_cast<index_t>(args.G_),
                                  static_cast<index_t>(args.N_),
@@ -265,8 +266,7 @@ struct GroupedConvFwdKernelArgs
         {
             ds_ptr[d] = args.ds_ptr[d];
         }
-        out_ptr         = args.out_ptr;
-        elfunc_args_ptr = args.elfunc_args_ptr;
+        out_ptr = args.out_ptr;
 
         ConvToGemmFwdTransformer conv_to_gemm_transformer{in_g_n_c_wis_lengths,
                                                           wei_g_k_c_xs_lengths,
@@ -340,7 +340,7 @@ struct GroupedConvFwdKernelArgs
     const void* in_ptr;
     const void* wei_ptr;
     std::array<const void*, NumDTensor> ds_ptr;
-    const void* elfunc_args_ptr;
+    const CDElementwise elfunc;
     void* out_ptr;
 
     AGridDescMK a_grid_desc_m_k;
@@ -429,7 +429,10 @@ struct GroupedConvolutionForwardKernel
     // Below type is actually accumulation data type - the output of block GEMM.
     using OutDataType = remove_cvref_t<typename EpiloguePipeline::ODataType>;
 
-    using GroupedConvFwdKernelArgsSpecialized = GroupedConvFwdKernelArgs<GroupedConvTraitsType_>;
+    using CDElementwise = typename EpiloguePipeline::CDElementwise;
+
+    using GroupedConvFwdKernelArgsSpecialized =
+        GroupedConvFwdKernelArgs<GroupedConvTraitsType_, CDElementwise>;
 
     // TODO: Enable this
     static constexpr bool IsSplitKSupported = false;
@@ -464,7 +467,7 @@ struct GroupedConvolutionForwardKernel
     }
 
     CK_TILE_HOST static constexpr GroupedConvFwdKernelArgsSpecialized
-    MakeKernelArgs(const GroupedConvFwdHostArgs& hostArgs)
+    MakeKernelArgs(const GroupedConvFwdHostArgs<CDElementwise>& hostArgs)
     {
         return GroupedConvFwdKernelArgsSpecialized(hostArgs);
     }
@@ -771,9 +774,7 @@ struct GroupedConvolutionForwardKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I3);
 
-        auto elfunc = tile_elementwise_instantiate<typename EpiloguePipeline::CDElementwise>(
-            kargs.elfunc_args_ptr);
-        EpiloguePipeline{elfunc}
+        EpiloguePipeline{kargs.elfunc}
             .template operator()<decltype(c_block_window), decltype(c_block_tile)>(
                 c_block_window, c_block_tile, d_block_window, smem_ptr_0);
     }
