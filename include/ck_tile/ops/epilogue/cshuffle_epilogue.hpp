@@ -6,9 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
-#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
-#include <optional>
 #include <type_traits>
 
 namespace ck_tile {
@@ -429,8 +427,7 @@ struct CShuffleEpilogue
               typename ScaleM                         = EmptyScale,
               typename ScaleN                         = EmptyScale,
               int EnablePermuateN_                    = TiledMMAPermuteN,
-              std::enable_if_t<EnablePermuateN_, int> = 0,
-              typename Tuple                          = tuple<>>
+              std::enable_if_t<EnablePermuateN_, int> = 0>
     CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
                                    const OAccTile& o_acc_tile,
                                    const DsDramWindows& ds_dram_windows,
@@ -570,8 +567,7 @@ struct CShuffleEpilogue
               typename ScaleM                          = EmptyScale,
               typename ScaleN                          = EmptyScale,
               int EnablePermuateN_                     = TiledMMAPermuteN,
-              std::enable_if_t<!EnablePermuateN_, int> = 0,
-              typename Tuple                           = tuple<>>
+              std::enable_if_t<!EnablePermuateN_, int> = 0>
     CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
                                    const OAccTile& o_acc_tile,
                                    const DsDramWindows& ds_dram_windows,

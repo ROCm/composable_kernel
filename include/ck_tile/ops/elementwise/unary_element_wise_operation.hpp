@@ -4,7 +4,6 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
-#include "ck_tile/core/tensor/tile_elementwise.hpp"
 #include <cstdint>
 #include <type_traits>
 

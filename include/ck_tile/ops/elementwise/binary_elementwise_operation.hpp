@@ -10,8 +10,6 @@ namespace element_wise {
 
 struct Add
 {
-    static constexpr index_t NumArgs = 0;
-
     template <typename Y, typename X0, typename X1>
     __host__ __device__ constexpr void operator()(Y& y, const X0& x0, const X1& x1) const;
 
