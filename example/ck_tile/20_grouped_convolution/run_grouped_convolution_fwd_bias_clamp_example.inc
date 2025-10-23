@@ -3,9 +3,6 @@
 #pragma once
 
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
-#ifdef CLANGD_COMPAT
-#include "grouped_convolution_utils.hpp"
-#endif
 
 using BiasAndClamp = ck_tile::element_wise::
     Compose<ck_tile::element_wise::MultiDAdd, ck_tile::element_wise::Clamp, true>;
