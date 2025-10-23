@@ -186,6 +186,33 @@ def check_arch(){
     return arch_type
 }
 
+def check_arch_name(){
+    def arch_name = ""
+    sh 'rocminfo | tee rocminfo.log'
+    if ( runShell('grep -n "gfx90a" rocminfo.log') ){
+        arch_name = "gfx90a"
+    }
+    else if ( runShell('grep -n "gfx942" rocminfo.log') ) {
+        arch_name = "gfx942"
+    }
+    else if ( runShell('grep -n "gfx10" rocminfo.log') ) {
+        arch_name = "gfx10"
+    }
+    else if ( runShell('grep -n "gfx11" rocminfo.log') ) {
+        arch_name = "gfx11"
+    }
+    else if ( runShell('grep -n "gfx12" rocminfo.log') ) {
+        arch_name = "gfx12"
+    }
+    else if ( runShell('grep -n "gfx908" rocminfo.log') ) {
+        arch_name = "gfx908"
+    }
+    else if ( runShell('grep -n "gfx950" rocminfo.log') ) {
+        arch_name = "gfx950"
+    }
+    return arch_name
+}
+
 def getDockerImage(Map conf=[:]){
     env.DOCKER_BUILDKIT=1
     def prefixpath = conf.get("prefixpath", "/opt/rocm")
@@ -447,15 +474,20 @@ def cmake_build(Map conf=[:]){
                     else{
                         sh "ninja check"
                     }
+                    if(params.BUILD_PACKAGES){
+                        echo "Build ckProfiler packages"
+                    sh 'ninja -j64 package'
+                    def arch_name = check_arch_name()
+                    sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
+                    stash includes: "composablekernel-**.deb", name: "packages"
+                    }
                 }
                 if(params.BUILD_INSTANCES_ONLY){
                     // build deb packages
-                    echo "Build packages"
+                    echo "Build library package"
                     sh 'ninja -j64 package'
-                    archiveArtifacts artifacts: 'composablekernel-dev*.deb'
                     sh 'mv composablekernel-dev_*.deb composablekernel-dev_all_targets_1.2.0_amd64.deb'
-                    sh 'mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64.deb'
-                    stash includes: "composablekernel-**.deb", name: "packages"
+                    stash includes: "composablekernel-dev**.deb", name: "packages"
                 }
             }
             else{
@@ -1077,6 +1109,10 @@ pipeline {
             name: "BUILD_INSTANCES_ONLY",
             defaultValue: false,
             description: "Test building instances for various architectures simultaneously (default: OFF)")
+        booleanParam(
+            name: "BUILD_PACKAGES",
+            defaultValue: false,
+            description: "Build packages for the libraries and/or ckProfiler (default: OFF)")
         booleanParam(
             name: "BUILD_GFX908",
             defaultValue: false,
