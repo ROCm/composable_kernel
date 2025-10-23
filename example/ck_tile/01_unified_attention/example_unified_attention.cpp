@@ -406,7 +406,18 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     args.seq_lens_ptr =reinterpret_cast<const ck_tile::index_t*>(seq_lens_buf.GetDeviceBuffer());
     args.query_start_len_ptr =reinterpret_cast<const ck_tile::index_t*>(query_start_len_buf.GetDeviceBuffer());
 
-    int max_kv_len = std::max_element(eff_kv_lens.begin(), eff_kv_lens.end());
+
+    auto max_element = [&](const std::vector<ck_tile::index_t>& opt_vec) {
+        ck_tile::index_t max = opt_vec[0];
+        for (ck_tile::index_t i: opt_vec) {
+            if (i > max){
+                max = i;
+            }
+        }
+        return max;
+    };
+
+    ck_tile::index_t max_kv_len = max_element(eff_kv_lens);
 
     ck_tile::index_t max_num_blocks_per_seq =  (max_kv_len + problem.BLOCK_SIZE - 1) / problem.BLOCK_SIZE;
 
