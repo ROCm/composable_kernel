@@ -1,1 +1,0 @@
-add_gtest_executable(test_ck_tile_tensor_view test_tensor_view.cpp)

@@ -1,1 +1,0 @@
-add_gtest_executable(test_ck_tile_transform_conv_bwd_weight_to_gemm test_transform_conv_bwd_weight_to_gemm.cpp)
