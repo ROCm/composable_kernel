@@ -470,7 +470,6 @@ struct UnifiedAttentionKernel
             return UnifiedAttentionPipeline{}(q_dram_window,
                                   k_dram_window,
                                   v_dram_window,
-                                  num_queries_per_kv,
                                   kargs.block_tables_ptr,
                                   block_table_offset, 
                                   mask,
