@@ -388,7 +388,6 @@ using device_grouped_conv_fwd_xdl_f32_tf32_16x16_instances = std::tuple<
     // clang-format on
     >;
 
-
 template <index_t NDimSpatial,
           typename ALayout,
           typename BLayout,
