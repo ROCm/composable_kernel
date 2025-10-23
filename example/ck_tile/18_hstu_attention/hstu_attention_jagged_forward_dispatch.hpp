@@ -27,7 +27,10 @@ template <typename InOutDataType,
           ck_tile::index_t MaxK>
 struct jagged_forward_causal_softmax_bias_dropout_dispatch
 {
-    using HstuAttentionTileSetting = typename HstuAttentionFwdTileSetting<MaxK>::Type;
+    using HstuAttentionTileSetting =
+        typename std::conditional_t<kUseSoftmax,
+                                    HstuAttentionWithSoftmaxFwdTileSetting<MaxK>,
+                                    HstuAttentionNoSoftmaxFwdTileSetting<MaxK>>::Type;
 
     template <typename HstuTraits>
     using HstuPipelineProblemTemp = ck_tile::HstuAttentionFwdPipelineProblem<
