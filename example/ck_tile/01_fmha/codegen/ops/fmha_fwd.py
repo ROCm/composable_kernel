@@ -724,7 +724,6 @@ class KernelComponentFactory:
                             and logits == "f"
                             and bias == "no"
                             and dropout == "f"
-                            and lse == "f"
                             and skip == "f"
                         ):
                             pipelines.append(FmhaFwdPipeline("qr_async_trload", "row", "f", "f", "f", "f", logits, bias, lse, dropout, squant, mask, skip, "t"))  # fmt: skip
