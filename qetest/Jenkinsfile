@@ -101,12 +101,9 @@ pipeline {
         }
     }
     post {
-        always {
+        failure {
             node(rocmnode("nogpu")) {
                 script {
-                    def buildStatus = currentBuild.result ?: 'SUCCESS'
-                    def statusEmoji = buildStatus == 'SUCCESS' ? '⚠️' : '❌'
-                    def subjectPrefix = buildStatus == 'SUCCESS' ? 'Warning - Issues Detected' : 'Build Failed'
                     // Get the build log.
                     def buildLog = sh(script: 'wget -q --no-check-certificate -O - ' + BUILD_URL + 'consoleText', returnStdout: true)
                     // Check for patterns in the log.
@@ -121,13 +118,13 @@ pipeline {
                             ])
                         }
                     }
-                    // Send a notification for each pattern matched failure.
+                    // Send a notification for each matched failure pattern.
                     for (patternMap in foundPatterns) {
                         withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
                         sh '''
                             curl -X POST "${WEBHOOK_URL}" \
                             -H 'Content-Type: application/json' \
-                            -d '{"text": "''' + statusEmoji + ' ' + subjectPrefix + '''\\n\\n**Build failure detected:** ''' + patternMap.description + '''\\n\\n**Log context:**\\n```\\n''' + patternMap.context.replace("'", "\\'") + '''\\n```\\n\\n**Job:** ''' + env.JOB_NAME + '''\\n\\n**Build:** #''' + env.BUILD_NUMBER + '''\\n\\n**URL:** ''' + env.BUILD_URL + '''"}'
+                            -d '{"text": "❌ **Build Failed**\\n\\n**Issues detected:** ''' + patternMap.description + '''\\n\\n**Log context:**\\n```\\n''' + patternMap.context.replace("'", "\\'") + '''\\n```\\n\\n**Job:** ''' + env.JOB_NAME + '''\\n\\n**Build:** #''' + env.BUILD_NUMBER + '''\\n\\n**URL:** ''' + env.BUILD_URL + '''"}'
                         '''
                         }
                     }                    
