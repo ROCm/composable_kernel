@@ -128,8 +128,12 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
             karg.b_element_op,
             karg.c_element_op,
             block_2_ctile_map,
-            a_grid_desc_ak0_m_ak1,
-            b_grid_desc_bk0_n_bk1,
+            GridwiseGemm::template TransformGrid<decltype(a_grid_desc_ak0_m_ak1),
+                                                 GridwiseGemm::AK0Number,
+                                                 GridwiseGemm::AK1Number>(a_grid_desc_ak0_m_ak1),
+            GridwiseGemm::template TransformGrid<decltype(b_grid_desc_bk0_n_bk1),
+                                                 GridwiseGemm::BK0Number,
+                                                 GridwiseGemm::BK1Number>(b_grid_desc_bk0_n_bk1),
             ds_grid_desc_m_n,
             c_grid_desc_m_n);
     }
@@ -217,8 +221,12 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
             karg.b_element_op,
             karg.c_element_op,
             block_2_ctile_map,
-            a_grid_desc_ak0_m_ak1,
-            b_grid_desc_bk0_n_bk1,
+            GridwiseGemm::template TransformGrid<decltype(a_grid_desc_ak0_m_ak1),
+                                                 GridwiseGemm::AK0Number,
+                                                 GridwiseGemm::AK1Number>(a_grid_desc_ak0_m_ak1),
+            GridwiseGemm::template TransformGrid<decltype(b_grid_desc_bk0_n_bk1),
+                                                 GridwiseGemm::BK0Number,
+                                                 GridwiseGemm::BK1Number>(b_grid_desc_bk0_n_bk1),
             ds_grid_desc_m_n,
             c_grid_desc_m_n);
     }
@@ -306,7 +314,8 @@ template <index_t NDimSpatial,
                                       ADataType>()), // ComputeType is InputType by default (first
                                                      // in tuple for MultiAB), unpack if tuple was
                                                      // passed
-          typename BComputeDataType = AComputeDataType>
+          typename BComputeDataType = AComputeDataType,
+          bool DirectLoad           = false>
 struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
     : public DeviceGroupedConvFwdMultipleABD<NDimSpatial,
                                              ALayout,
@@ -477,6 +486,15 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
     using DsGridDesc_M_N =
         remove_cvref_t<decltype(MakeDsGridDescriptor_M_N(dummy_conv_to_gemm_transformer))>;
 
+    static constexpr index_t ABlockTransferSrcScalarPerVectorAligned =
+        ABlockTransferSrcScalarPerVector * sizeof(ADataType) == 8
+            ? 4 / sizeof(ADataType)
+            : ABlockTransferSrcScalarPerVector;
+    static constexpr index_t BBlockTransferSrcScalarPerVectorAligned =
+        BBlockTransferSrcScalarPerVector * sizeof(BDataType) == 8
+            ? 4 / sizeof(BDataType)
+            : BBlockTransferSrcScalarPerVector;
+
     // Use appropriate gridwise gemm
     template <index_t NXdlPerWave_>
     using GridwiseGemmBase = GridwiseGemmMultiD_xdl_cshuffle_v3<
@@ -508,7 +526,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
         ABlockTransferSrcVectorDim,
-        ABlockTransferSrcScalarPerVector,
+        DirectLoad ? ABlockTransferSrcScalarPerVectorAligned : ABlockTransferSrcScalarPerVector,
         ABlockTransferDstScalarPerVector_AK1,
         false,
         ABlockLdsExtraM,
@@ -516,7 +534,7 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         BBlockTransferThreadClusterArrangeOrder,
         BBlockTransferSrcAccessOrder,
         BBlockTransferSrcVectorDim,
-        BBlockTransferSrcScalarPerVector,
+        DirectLoad ? BBlockTransferSrcScalarPerVectorAligned : BBlockTransferSrcScalarPerVector,
         BBlockTransferDstScalarPerVector_BK1,
         false,
         BBlockLdsExtraN,
@@ -530,7 +548,8 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         BComputeDataType,
         ADataType,
         BDataType,
-        DoElementwiseBeforeCShuffle>;
+        DoElementwiseBeforeCShuffle,
+        DirectLoad>;
     using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
     using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
@@ -1949,8 +1968,13 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
             {BlockGemmPipelineVersion::v5, "v5"}};
 
         // clang-format off
-        str << "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3"
-            << "<"
+        str << "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3";
+
+        if constexpr(DirectLoad) {
+            str << "_DirectLoad";
+        }
+
+        str << "<"
             << BlockSize << ", "
             << MPerBlock << ", "
             << NPerBlock << ", "
