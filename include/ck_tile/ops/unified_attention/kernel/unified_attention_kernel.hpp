@@ -460,8 +460,8 @@ struct UnifiedAttentionKernel
                     cur_batch_query_len, // x (i.e. extend)
                     seq_len, // y_total (x + y)
                     cur_batch_query_len, // x_total 
-                    num_queries_per_kv, // the same sequence index is repeated num_queries_per_kv times along x dim of the tile
-                    kargs.mask_type == GenericAttentionMaskEnum::MASK_FROM_TOP_LEFT);
+                    num_queries_per_kv // the same sequence index is repeated num_queries_per_kv times along x dim of the tile
+                );
             else
                 return FmhaMask{cur_batch_query_len, seq_len};
         }();
@@ -470,6 +470,7 @@ struct UnifiedAttentionKernel
             return UnifiedAttentionPipeline{}(q_dram_window,
                                   k_dram_window,
                                   v_dram_window,
+                                  num_queries_per_kv,
                                   kargs.block_tables_ptr,
                                   block_table_offset, 
                                   mask,

@@ -278,8 +278,8 @@ struct UnifiedAttentionPipeline
 
     static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
     static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ = Problem::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV = Problem::kPadHeadDimV;
+    static constexpr bool kPadHeadDimQ = Problem::kPadHeadDim;
+    static constexpr bool kPadHeadDimV = Problem::kPadHeadDim;
     // static constexpr bool kStoreLSE    = Problem::kStoreLSE;
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
@@ -1208,6 +1208,7 @@ struct UnifiedAttentionPipeline
     CK_TILE_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                                    const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
                                    const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
+                                   index_t num_queries_per_kv,
                                    const void* block_tables_ptr,
                                    index_t block_table_offset,
                                    FmhaMask mask,
@@ -1216,12 +1217,29 @@ struct UnifiedAttentionPipeline
     {
         using namespace ck_tile;
 
+           CK_TILE_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
+                                   const QElementFunction& q_element_func,
+                                   const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
+                                   [[maybe_unused]] const KElementFunction& k_element_func,
+                                   const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
+                                   [[maybe_unused]] const VElementFunction& v_element_func,
+                                   index_t num_queries_per_kv,
+                                   const void* block_tables_ptr,
+                                   index_t block_table_offset,
+                                   [[maybe_unused]] const SAccElementFunction& s_acc_element_func,
+                                   const PComputeElementFunction& p_compute_element_func,
+                                   const OAccElementFunction& o_acc_element_func,
+                                   FmhaMask mask,
+                                   float scale_s,
+                                   void* smem_ptr) const
+
         return operator()(q_dram_block_window_tmp,
                           identity{},
                           k_dram_block_window_tmp,
                           identity{},
                           v_dram_block_window_tmp,
                           identity{},
+                          num_queries_per_kv,
                           block_tables_ptr,
                           block_table_offset,
                           identity{},
