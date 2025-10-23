@@ -1499,10 +1499,34 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
         {
             return false;
         }
+        if constexpr(is_same_v<AComputeType, ck::tf32_t> || is_same_v<BComputeType, ck::tf32_t>)
+        {
+            if(!is_tf32_supported())
+            {
+                return false;
+            }
+            if constexpr(!is_same_v<AComputeType, BComputeType>)
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "ComputeDataType for A and B should be same while using TF32"
+                              << std::endl;
+                }
+                return false;
+            }
+        }
 
         if constexpr(!IsSplitKSupported)
         {
             if(arg.k_batch_ != 1)
+            {
+                return false;
+            }
+        }
+        else
+        {
+            // Split-K autodeduction is not supported.
+            if(arg.k_batch_ < 1)
             {
                 return false;
             }

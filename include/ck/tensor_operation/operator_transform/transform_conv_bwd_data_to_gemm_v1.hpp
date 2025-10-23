@@ -814,7 +814,7 @@ struct TransformConvBwdDataToGemm_v1
                                                                 IWTildeSliceBegin,
                                                                 GcdStrideDilationH_,
                                                                 GcdStrideDilationW_,
-                                                                AK0,
+                                                                AK0 * batch_k_,
                                                                 AK1,
                                                                 GemmMPerBlock,
                                                                 GemmKPerBlock)),
