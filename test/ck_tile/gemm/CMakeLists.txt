@@ -77,7 +77,16 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
     endif()
 
     if(GPU_TARGETS MATCHES "gfx11|gfx12")
-    # On Radeon devices, build the WMMA version instead
+        # On Radeon devices, build the WMMA version instead
+        # Define architecture macros for compile-time detection
+        if(GPU_TARGETS MATCHES "gfx12")
+            list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -DARCH_GFX12)
+            list(APPEND EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS -DARCH_GFX12)
+        elseif(GPU_TARGETS MATCHES "gfx11")
+            list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -DARCH_GFX11)
+            list(APPEND EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS -DARCH_GFX11)
+        endif()
+
         add_gtest_executable(test_ck_tile_gemm_pipeline_mem_wmma test_gemm_pipeline_mem_wmma.cpp)
         add_gtest_executable(test_ck_tile_gemm_pipeline_compv3_wmma test_gemm_pipeline_compv3_wmma.cpp)
         add_gtest_executable(test_ck_tile_gemm_pipeline_compv4_wmma test_gemm_pipeline_compv4_wmma.cpp)

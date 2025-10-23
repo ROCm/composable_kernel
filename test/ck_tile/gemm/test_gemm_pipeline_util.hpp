@@ -101,7 +101,7 @@ struct GemmPipelineTypeSelector<GemmPipelineType::CompAsync, Problem>
 template <typename Tuple, typename Derived>
 class TestCkTileGemmPipeline : public ::testing::Test
 {
-    protected:
+    public:
     using ALayout                      = std::tuple_element_t<0, Tuple>;
     using BLayout                      = std::tuple_element_t<1, Tuple>;
     using CLayout                      = std::tuple_element_t<2, Tuple>;
@@ -126,6 +126,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
     static constexpr bool Persistent =
         ck_tile::tuple_element_or_default_t<Tuple, 15, std::false_type>::value;
 
+    protected:
     template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
     void invoke_gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     {
