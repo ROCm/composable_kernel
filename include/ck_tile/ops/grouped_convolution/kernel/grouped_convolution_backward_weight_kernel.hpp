@@ -571,11 +571,9 @@ struct GroupedConvolutionBackwardWeightKernel
                      std::is_same_v<InLayout, ctc::NDHWGC>)
         {
             // Check access per C
-            if((GroupedConvTraitsType_::NumGroupsToMerge * ConvC) %
-                   GroupedConvTraitsType_::VectorSizeB !=
-               0)
+            if(ConvC % GroupedConvTraitsType_::VectorSizeB != 0)
             {
-                CK_TILE_ERROR("NumGroupsToMerge * Conv C is not a multiple of vector load size for "
+                CK_TILE_ERROR("Conv C is not a multiple of vector load size for "
                               "input image!");
                 return false;
             }
@@ -590,12 +588,9 @@ struct GroupedConvolutionBackwardWeightKernel
                      std::is_same_v<WeiLayout, ctc::GKYXC> ||
                      std::is_same_v<WeiLayout, ctc::GKZYXC>)
         {
-            if((GroupedConvTraitsType_::NumGroupsToMerge * ConvC) %
-                   GroupedConvTraitsType_::VectorSizeC !=
-               0)
+            if(ConvC % GroupedConvTraitsType_::VectorSizeC != 0)
             {
-                CK_TILE_ERROR(
-                    "NumGroupsToMerge * Conv C is not a multiple of vector load size for weight!");
+                CK_TILE_ERROR("Conv C is not a multiple of vector load size for weight!");
                 return false;
             }
         }
@@ -609,11 +604,9 @@ struct GroupedConvolutionBackwardWeightKernel
                      std::is_same_v<OutLayout, ctc::NHWGK> ||
                      std::is_same_v<OutLayout, ctc::NDHWGK>)
         {
-            if((GroupedConvTraitsType_::NumGroupsToMerge * ConvK) %
-                   GroupedConvTraitsType_::VectorSizeA !=
-               0)
+            if(ConvK % GroupedConvTraitsType_::VectorSizeA != 0)
             {
-                CK_TILE_ERROR("NumGroupsToMerge * Conv K is not a multiple of vector store size "
+                CK_TILE_ERROR("Conv K is not a multiple of vector store size "
                               "for output image!");
                 return false;
             }
