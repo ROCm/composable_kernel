@@ -54,7 +54,7 @@ pipeline {
             agent{ label rocmnode("nogpu") }
             steps {
                 script {
-                    echo "login attempt to https://some.docker.io/v2 failed with status: 401 Unauthorized"
+                    //echo "login attempt to https://some.docker.io/v2 failed with status: 401 Unauthorized"
                 }
             }
         }
@@ -62,7 +62,7 @@ pipeline {
             agent{ label rocmnode("nogpu") }
             steps {
                 script {
-                    echo "there was a f a i l u r e, docker login failed."
+                    //echo "there was a f a i l u r e, docker login failed."
                 }
             }
         }
@@ -70,7 +70,7 @@ pipeline {
             agent{ label rocmnode("nogpu") }
             steps {
                 script {
-                    echo "Unable to locate image xyz.docker-123"
+                    //echo "Unable to locate image xyz.docker-123"
                 }
             }
         }
@@ -78,7 +78,7 @@ pipeline {
             agent{ label rocmnode("nogpu") }
             steps {
                 script {
-                    echo "HTTP request sent to github.com/my/repo 404 Not Found"
+                    //echo "HTTP request sent to github.com/my/repo 404 Not Found"
                 }
             }
         }
@@ -86,7 +86,7 @@ pipeline {
             agent{ label rocmnode("nogpu") }
             steps {
                 script {
-                    echo "cat: /sys/module/amdgpu/version: No such file or directory"
+                    //echo "cat: /sys/module/amdgpu/version: No such file or directory"
                 }
             }
         }
@@ -94,7 +94,7 @@ pipeline {
             agent{ label rocmnode("nogpu") }
             steps {
                 script {
-                    echo "... Checkout failure ..."
+                    //echo "... Checkout failure ..."
                     sh 'false';
                 }
             }
