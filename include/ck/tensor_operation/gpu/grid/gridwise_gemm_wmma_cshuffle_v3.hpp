@@ -176,7 +176,7 @@ template <typename ALayout,
           typename ComputeTypeB,
           bool PermuteA,
           bool PermuteB,
-          bool ForceThreadTileTransfer = false>
+          bool ForceThreadTileTransfer = true>
 struct GridwiseGemm_wmma_cshuffle_v3
     : GridwiseGemm_wmma_cshuffle_v3_base<
           ALayout,
