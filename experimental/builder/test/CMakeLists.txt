@@ -18,5 +18,8 @@ endfunction()
 add_ck_builder_test(test_conv_builder
     test_conv_builder.cpp)
 
+add_ck_builder_test(test_get_instance_string
+    test_get_instance_string.cpp)
+
 add_ck_builder_test(test_ckb_build_fwd_instances
     test_ckb_build_fwd_instances.cpp)
