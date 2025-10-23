@@ -444,6 +444,14 @@ struct QuantGroupedGemmKernel
         const auto& a_block_window = gemm_tile_windows.at(Base::I0);
         const auto& b_block_window = gemm_tile_windows.at(Base::I2);
 
+        if(get_thread_id() == 0 && get_block_id() == 0)
+        {
+            a_block_window.template print_tile_window_range<ADataType>(
+                0, 4, 0, 4, "a_block_window");
+            b_block_window.template print_tile_window_range<BDataType>(
+                0, 4, 0, 4, "b_block_window");
+        }
+
         // Get hot-loop and tail configuration
         const index_t num_loop = __builtin_amdgcn_readfirstlane(
             TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
@@ -464,8 +472,21 @@ struct QuantGroupedGemmKernel
 
             auto& c_block_window = gemm_tile_windows.at(Base::I4);
 
+            if(get_thread_id() == 0 && get_block_id() == 0)
+            {
+                printf("Before EpiloguePipeline: c_block_window after gemm_tile_window: \n");
+                c_block_window.template print_tile_window_range<CDataType>(
+                    0, 4, 0, 4, "c_block_window");
+            }
+
             // Run Epilogue Pipeline
             EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
+            if(get_thread_id() == 0 && get_block_id() == 0)
+            {
+                printf("After EpiloguePipeline: c_block_window after gemm_tile_window: \n");
+                c_block_window.template print_tile_window_range<CDataType>(
+                    0, 4, 0, 4, "c_block_window");
+            }
         }
         else
         {
