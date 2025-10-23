@@ -268,7 +268,8 @@ struct UnifiedAttentionPipeline
 
     static constexpr ck_tile::index_t kBlockSize = Problem::kBlockSize;
 
-    static constexpr ck_tile::index_t BLOCK_Q           = UnifiedAttentionShape::BLOCK_Q;
+    static constexpr ck_tile::index_t BLOCK_M           = UnifiedAttentionShape::BLOCK_M;
+    
     static constexpr ck_tile::index_t BLOCK_SIZE           = UnifiedAttentionShape::BLOCK_SIZE;
     static constexpr ck_tile::index_t HEAD_SIZE           = UnifiedAttentionShape::HEAD_SIZE;
     static constexpr ck_tile::index_t HEAD_SIZE_PADDED           = UnifiedAttentionShape::HEAD_SIZE_PADDED;
@@ -302,12 +303,12 @@ struct UnifiedAttentionPipeline
         }
     }();
 
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize(index_t num_queries_per_kv)
+    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         // create another LDS buffer for p
-        return ck_tile::max(BLOCK_Q * num_queries_per_kv * HEAD_SIZE_PADDED * sizeof(PDataType),
+        return ck_tile::max(BLOCK_M * HEAD_SIZE_PADDED * sizeof(PDataType),
                             Policy::template GetSmemSize<Problem>() +
-                                BLOCK_Q * num_queries_per_kv * BLOCK_SIZE * sizeof(PDataType));
+                                BLOCK_M * BLOCK_SIZE * sizeof(PDataType));
     }
 
     // for debug only
@@ -394,7 +395,7 @@ struct UnifiedAttentionPipeline
                                    void* smem_ptr) const
     {
         using namespace ck_tile;
-
+        index_t BLOCK_Q = BLOCK_M / num_queries_per_kv;
 
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -409,7 +410,7 @@ struct UnifiedAttentionPipeline
                           BLOCK_SIZE == VDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
 
-        static_assert(sizeof(SaccDataType) * BLOCK_Q * BLOCK_SIZE <= GetSmemSize(num_queries_per_kv));
+        static_assert(sizeof(SaccDataType) * BLOCK_Q * BLOCK_SIZE <= GetSmemSize());
         auto s_lds = make_tensor_view<address_space_enum::lds>(
             reinterpret_cast<SaccDataType*>(static_cast<char*>(smem_ptr)),
             MakeSimpleLdsDesc<BLOCK_Q, BLOCK_SIZE>());
