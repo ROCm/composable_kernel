@@ -391,9 +391,6 @@ def is_tile_config_valid(
         warp_m,
         warp_n,
         warp_k,
-        warp_tile_m,
-        warp_tile_n,
-        warp_tile_k,
         layout,
         a_datatype,
         b_datatype,
@@ -454,9 +451,6 @@ def validate_whole_wg_cover_configuration(
     warp_m,
     warp_n,
     warp_k,
-    warp_tile_m,
-    warp_tile_n,
-    warp_tile_k,
     layout,
     a_datatype,
     b_datatype,
@@ -481,12 +475,27 @@ def validate_whole_wg_cover_configuration(
         )
 
     elif layout[0] == "c":
-        XPerTile = tile_m
-        YPerTile = tile_k
-
         vector_load_size = get_global_vector_load_size(
             BlockSize, tile_k, a_datatype, tile_m, tile_m
         )
+
+        # #Validate distribution
+        # XPerTile = tile_k
+        # YPerTile = tile_m
+
+        # wg_cover_core_valid, wg_cover_core_error = wg_cover_core_validation(
+        #     XPerTile, YPerTile, BlockSize, vector_load_size, warp_size
+        # )
+
+        # if not wg_cover_core_valid:
+        #     print("I am here 1")
+        #     logging.debug(
+        #         f"whole workgroup cover failed for Matrix A distribution: {wg_cover_core_error}"
+        #     )
+        #     return False, wg_cover_core_error
+
+        XPerTile = tile_m
+        YPerTile = tile_k
 
     wg_cover_core_valid, wg_cover_core_error = wg_cover_core_validation(
         XPerTile, YPerTile, BlockSize, vector_load_size, warp_size
@@ -499,15 +508,30 @@ def validate_whole_wg_cover_configuration(
         return False, wg_cover_core_error
 
     # B matrix validation
-    if layout[0] == "r":
-        XPerTile = tile_n
-        YPerTile = tile_k
-
+    if layout[1] == "r":
         vector_load_size = get_global_vector_load_size(
             BlockSize, tile_k, b_datatype, tile_n, tile_n
         )
 
-    elif layout[0] == "c":
+        # #Validate distribution
+        # XPerTile = tile_k
+        # YPerTile = tile_n
+
+        # wg_cover_core_valid, wg_cover_core_error = wg_cover_core_validation(
+        #     XPerTile, YPerTile, BlockSize, vector_load_size, warp_size
+        # )
+
+        # if not wg_cover_core_valid:
+        #     print("I am here 3")
+        #     logging.debug(
+        #         f"whole workgroup cover failed for Matrix A distribution: {wg_cover_core_error}"
+        #     )
+        #     return False, wg_cover_core_error
+
+        XPerTile = tile_n
+        YPerTile = tile_k
+
+    elif layout[1] == "c":
         XPerTile = tile_k
         YPerTile = tile_n
 
@@ -519,6 +543,7 @@ def validate_whole_wg_cover_configuration(
         XPerTile, YPerTile, BlockSize, vector_load_size, warp_size
     )
     if not wg_cover_core_valid:
+        print("I am here 4")
         logging.debug(
             f"whole workgroup cover failed for Matrix B: {wg_cover_core_error}"
         )
@@ -534,32 +559,15 @@ def wg_cover_core_validation(
     vector_load_size: int,
     warp_size: int,
 ) -> Tuple[bool, str]:
-    print(
-        "--------------------------------------------------------------------------------------------------------------------------"
-    )
-
-    print("XPerTile:", XPerTile)
-    print("YPerTile:", YPerTile)
-    print("BlockSize:", BlockSize)
-    print("vector_load_size:", vector_load_size)
-    print("warp_size:", warp_size)
-
     if XPerTile % vector_load_size != 0:
         return False
 
     num_warps = BlockSize / warp_size
     LargestVec = (XPerTile * YPerTile) / (num_warps * warp_size)
 
-    print("num_warps:", num_warps)
-    print("LargestVec:", LargestVec)
-
     X1 = LargestVec if vector_load_size > LargestVec else vector_load_size
     X0 = XPerTile / X1
     Y1 = warp_size // X0
-
-    print("X1:", X1)
-    print("X0:", X0)
-    print("Y1:", Y1)
 
     if X0 * Y1 != warp_size:
         return False, ""
