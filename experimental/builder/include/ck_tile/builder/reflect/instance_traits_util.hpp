@@ -60,27 +60,66 @@ consteval std::string_view type_name()
 template <typename T>
 constexpr std::string_view layout_name()
 {
-    // Convolution layouts
-    if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GNHWC>)
+    // 1D Convolution layouts
+    if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GNWC>)
+        return "GNWC";
+    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GKXC>)
+        return "GKXC";
+    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GNWK>)
+        return "GNWK";
+    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::NWGC>)
+        return "NWGC";
+    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::NWGK>)
+        return "NWGK";
+    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::NGCW>)
+        return "NGCW";
+    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::NGKW>)
+        return "NGKW";
+    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GKCX>)
+        return "GKCX";
+    
+    // 2D Convolution layouts
+    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GNHWC>)
         return "GNHWC";
     else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GKYXC>)
         return "GKYXC";
     else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GNHWK>)
         return "GNHWK";
-    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GKZYXC>)
-        return "GKZYXC";
-    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GNDHWC>)
-        return "GNDHWC";
-    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GNDHWK>)
-        return "GNDHWK";
     else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::NHWGC>)
         return "NHWGC";
     else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::KYXGC>)
         return "KYXGC";
     else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::NHWGK>)
         return "NHWGK";
+    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::NGCHW>)
+        return "NGCHW";
+    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::NGKHW>)
+        return "NGKHW";
+    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GKCYX>)
+        return "GKCYX";
+    
+    // 3D Convolution layouts
+    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GKZYXC>)
+        return "GKZYXC";
+    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GNDHWC>)
+        return "GNDHWC";
+    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GNDHWK>)
+        return "GNDHWK";
+    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::NDHWGK>)
+        return "NDHWGK";
+    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::NDHWGC>)
+        return "NDHWGC";
+    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::NGKDHW>)
+        return "NGKDHW";
+    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GKCZYX>)
+        return "GKCZYX";
+    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::NGCDHW>)
+        return "NGCDHW";
+    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::KZYXGC>)
+        return "KZYXGC";
     else
-        static_assert(false, "unknown_layout");
+        // This provide a compile-time error message containing the type of the unrecognized layout.
+        static_assert(std::is_same_v<T, ck::tensor_layout::convolution::BaseConvolutionLayout>, "unknown_layout");
 }
 
 // Convert element-wise operation types to string names
