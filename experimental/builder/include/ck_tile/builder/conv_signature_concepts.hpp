@@ -38,7 +38,7 @@ concept ValidConvLayoutForSpatialDim =
 // Constrains convolution data types to common floating-point types.
 template <DataType T>
 concept ConvDataType = (T == DataType::FP32) || (T == DataType::FP16) || (T == DataType::BF16) ||
-                       (T == DataType::FP8) || (T == DataType::I8);
+                       (T == DataType::FP8) || (T == DataType::S8);
 
 // Concept for a type that defines a convolution's operational signature.
 template <typename T>
