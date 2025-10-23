@@ -1523,6 +1523,14 @@ struct DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
                 return false;
             }
         }
+        else
+        {
+            // Split-K autodeduction is not supported.
+            if(arg.k_batch_ < 1)
+            {
+                return false;
+            }
+        }
 
         const index_t ConvG               = arg.b_g_k_c_xs_lengths_[0];
         const index_t ConvK               = arg.b_g_k_c_xs_lengths_[1];
