@@ -77,7 +77,7 @@ constexpr std::string_view layout_name()
         return "NGKW";
     else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GKCX>)
         return "GKCX";
-    
+
     // 2D Convolution layouts
     else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GNHWC>)
         return "GNHWC";
@@ -97,7 +97,7 @@ constexpr std::string_view layout_name()
         return "NGKHW";
     else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GKCYX>)
         return "GKCYX";
-    
+
     // 3D Convolution layouts
     else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GKZYXC>)
         return "GKZYXC";
@@ -119,7 +119,8 @@ constexpr std::string_view layout_name()
         return "KZYXGC";
     else
         // This provide a compile-time error message containing the type of the unrecognized layout.
-        static_assert(std::is_same_v<T, ck::tensor_layout::convolution::BaseConvolutionLayout>, "unknown_layout");
+        static_assert(std::is_same_v<T, ck::tensor_layout::convolution::BaseConvolutionLayout>,
+                      "unknown_layout");
 }
 
 // Convert element-wise operation types to string names

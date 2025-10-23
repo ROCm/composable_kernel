@@ -106,7 +106,10 @@ TEST_F(FwdConvBuilderTest,
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 256, .n = 256, .k = 32}};
 
-    run_test<FwdConvSignature, FwdThreadBlock, BlockGemmPipelineVersion::V1, ConvFwdSpecialization::DEFAULT>();
+    run_test<FwdConvSignature,
+             FwdThreadBlock,
+             BlockGemmPipelineVersion::V1,
+             ConvFwdSpecialization::DEFAULT>();
 }
 
 // Test 2: 2D FP16 GNHWC (group-first, channels-last) with Pipeline V3 and FILTER_1X1_PAD0
@@ -122,10 +125,14 @@ TEST_F(FwdConvBuilderTest,
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 256, .n = 256, .k = 32}};
 
-    run_test<FwdConvSignature, FwdThreadBlock, BlockGemmPipelineVersion::V3, ConvFwdSpecialization::FILTER_1X1_PAD0>();
+    run_test<FwdConvSignature,
+             FwdThreadBlock,
+             BlockGemmPipelineVersion::V3,
+             ConvFwdSpecialization::FILTER_1X1_PAD0>();
 }
 
-// Test 3: 2D FP32 NGCHW_GKCYX (channels-first, different weight layout) with Pipeline V4 and FILTER_1X1_STRIDE1_PAD0
+// Test 3: 2D FP32 NGCHW_GKCYX (channels-first, different weight layout) with Pipeline V4 and
+// FILTER_1X1_STRIDE1_PAD0
 TEST_F(FwdConvBuilderTest,
        Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_2D_FP32_NGCHW_GKCYX)
 {
@@ -138,7 +145,10 @@ TEST_F(FwdConvBuilderTest,
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 128, .n = 128, .k = 32}};
 
-    run_test<FwdConvSignature, FwdThreadBlock, BlockGemmPipelineVersion::V4, ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0>();
+    run_test<FwdConvSignature,
+             FwdThreadBlock,
+             BlockGemmPipelineVersion::V4,
+             ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0>();
 }
 
 // Test 4: 2D BF16 NHWGC (channels-last) with Pipeline V5 and FILTER_3x3
@@ -154,7 +164,10 @@ TEST_F(FwdConvBuilderTest,
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 256, .n = 256, .k = 32}};
 
-    run_test<FwdConvSignature, FwdThreadBlock, BlockGemmPipelineVersion::V5, ConvFwdSpecialization::FILTER_3x3>();
+    run_test<FwdConvSignature,
+             FwdThreadBlock,
+             BlockGemmPipelineVersion::V5,
+             ConvFwdSpecialization::FILTER_3x3>();
 }
 
 //==============================================================================
@@ -174,7 +187,10 @@ TEST_F(FwdConvBuilderTest,
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 128, .n = 128, .k = 32}};
 
-    run_test<FwdConvSignature, FwdThreadBlock, BlockGemmPipelineVersion::V1, ConvFwdSpecialization::FILTER_1X1_PAD0>();
+    run_test<FwdConvSignature,
+             FwdThreadBlock,
+             BlockGemmPipelineVersion::V1,
+             ConvFwdSpecialization::FILTER_1X1_PAD0>();
 }
 
 // Test 6: 3D BF16 GNDHWC (group-first, channels-last) with Pipeline V3 and DEFAULT
@@ -190,7 +206,10 @@ TEST_F(FwdConvBuilderTest,
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 256, .n = 256, .k = 32}};
 
-    run_test<FwdConvSignature, FwdThreadBlock, BlockGemmPipelineVersion::V3, ConvFwdSpecialization::DEFAULT>();
+    run_test<FwdConvSignature,
+             FwdThreadBlock,
+             BlockGemmPipelineVersion::V3,
+             ConvFwdSpecialization::DEFAULT>();
 }
 
 // Test 7: 3D FP16 NDHWGC (channels-last) with Pipeline V4 and FILTER_1X1_PAD0
@@ -206,5 +225,8 @@ TEST_F(FwdConvBuilderTest,
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 128, .n = 128, .k = 32}};
 
-    run_test<FwdConvSignature, FwdThreadBlock, BlockGemmPipelineVersion::V4, ConvFwdSpecialization::FILTER_1X1_PAD0>();
+    run_test<FwdConvSignature,
+             FwdThreadBlock,
+             BlockGemmPipelineVersion::V4,
+             ConvFwdSpecialization::FILTER_1X1_PAD0>();
 }

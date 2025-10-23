@@ -350,15 +350,24 @@ consteval ck::BlockGemmPipelineVersion SetBlockGemmPipelineVersion()
 {
     constexpr auto version = ALGORITHM.pipeline_version;
 
-    if constexpr (version == BlockGemmPipelineVersion::V1) {
+    if constexpr(version == BlockGemmPipelineVersion::V1)
+    {
         return ck::BlockGemmPipelineVersion::v1;
-    } else if constexpr (version == BlockGemmPipelineVersion::V3) {
+    }
+    else if constexpr(version == BlockGemmPipelineVersion::V3)
+    {
         return ck::BlockGemmPipelineVersion::v3;
-    } else if constexpr (version == BlockGemmPipelineVersion::V4) {
+    }
+    else if constexpr(version == BlockGemmPipelineVersion::V4)
+    {
         return ck::BlockGemmPipelineVersion::v4;
-    } else if constexpr (version == BlockGemmPipelineVersion::V5) {
+    }
+    else if constexpr(version == BlockGemmPipelineVersion::V5)
+    {
         return ck::BlockGemmPipelineVersion::v5;
-    } else {
+    }
+    else
+    {
         static_assert(false, "Unknown BlockGemmPipelineVersion");
     }
 }
@@ -368,17 +377,28 @@ consteval ck::tensor_operation::device::ConvolutionForwardSpecialization SetFwdC
 {
     constexpr auto specialization = ALGORITHM.fwd_specialization;
 
-    if constexpr (specialization == ConvFwdSpecialization::DEFAULT) {
+    if constexpr(specialization == ConvFwdSpecialization::DEFAULT)
+    {
         return ck::tensor_operation::device::ConvolutionForwardSpecialization::Default;
-    } else if constexpr (specialization == ConvFwdSpecialization::FILTER_1X1_PAD0) {
+    }
+    else if constexpr(specialization == ConvFwdSpecialization::FILTER_1X1_PAD0)
+    {
         return ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Pad0;
-    } else if constexpr (specialization == ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0) {
+    }
+    else if constexpr(specialization == ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0)
+    {
         return ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0;
-    } else if constexpr (specialization == ConvFwdSpecialization::ODD_C) {
+    }
+    else if constexpr(specialization == ConvFwdSpecialization::ODD_C)
+    {
         return ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC;
-    } else if constexpr (specialization == ConvFwdSpecialization::FILTER_3x3) {
+    }
+    else if constexpr(specialization == ConvFwdSpecialization::FILTER_3x3)
+    {
         return ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter3x3;
-    } else {
+    }
+    else
+    {
         static_assert(false, "Unknown ConvFwdSpecialization");
     }
 }
