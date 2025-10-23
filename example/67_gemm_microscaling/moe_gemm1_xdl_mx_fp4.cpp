@@ -31,8 +31,9 @@ using F32             = float;
 using XDataType       = ck::e8m0_bexp_t;
 using XPackedDataType = int32_t; // 4 packed e8m0_bexp_t
 
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
+using Row    = ck::tensor_layout::gemm::RowMajor;
+using Col    = ck::tensor_layout::gemm::ColumnMajor;
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
 using A0DataType       = F4;
 using A1DataType       = XPackedDataType;
@@ -285,7 +286,7 @@ int main(int argc, char* argv[])
         HostTensorDescriptor({experts, (K + ScaleBlockSize - 1) / ScaleBlockSize, N * 2},
                              {N * 2 * Scale_Stride_BN, 1, Scale_Stride_BN},
                              Col{}));
-    Tensor<D2DataType> d2_e_n(HostTensorDescriptor({sorted_size, N}, {1, 0}));
+    Tensor<D2DataType> d2_e_n(HostTensorDescriptor({sorted_size, N}, {1, 0}, Bypass{}));
     Tensor<EDataType> e_t_k_n_host_result(
         HostTensorDescriptor({tokens, topk, N}, {topk * N, N, 1}, Row{}));
     Tensor<EDataType> e_t_k_n_device_result(
