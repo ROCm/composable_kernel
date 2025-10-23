@@ -47,6 +47,8 @@ consteval std::string_view type_name_impl()
         return "fp8";
     else if constexpr(std::is_same_v<T, ck::bf8_t>)
         return "bf8";
+    else if constexpr(std::is_same_v<T, ck::tf32_t>)
+        return "tf32";
     else
         return std::string_view{}; // Return empty for supported types
 }
