@@ -25,7 +25,7 @@ add_custom_command(
 
 set(TILE_RMSNORM2D_FWD "tile_rmsnorm2d_fwd")
 
-message("adding ${TILE_RMSNORM2D_FWD}")
+message(DEBUG "adding ${TILE_RMSNORM2D_FWD}")
 add_executable(${TILE_RMSNORM2D_FWD} EXCLUDE_FROM_ALL rmsnorm2d_fwd.cpp)
 target_include_directories(${TILE_RMSNORM2D_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${TILE_RMSNORM2D_FWD} PRIVATE ${RMSNORM2D_FWD_GEN_BLOBS})

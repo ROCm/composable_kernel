@@ -222,13 +222,13 @@ bool run_grouped_conv_fwd_convscale_reduce(
                                         ck::tensor_operation::element_wise::Scale{scale_wei},
                                         {}};
     auto conv_ok        = ConvolutionScale<InDataType,
-                                    WeiDataType,
-                                    ConvOutDataType,
-                                    ConvElementOp,
-                                    InLayout,
-                                    WeiLayout,
-                                    OutLayout,
-                                    NumDimSpatial>(in,
+                                           WeiDataType,
+                                           ConvOutDataType,
+                                           ConvElementOp,
+                                           InLayout,
+                                           WeiLayout,
+                                           OutLayout,
+                                           NumDimSpatial>(in,
                                                    wei,
                                                    conv_out,
                                                    elementwise_op,
@@ -717,15 +717,15 @@ bool TensorFullReduction(SimpleDeviceMem& tensor,
     {
         std::cout << "\nReduction of spatial dimensions:" << std::endl;
         using DeviceOp     = ck::tensor_operation::device::DeviceReduce<OutDataType,
-                                                                    OutDataType,
-                                                                    OutDataType,
-                                                                    NumDimSpatial,
-                                                                    NumDimSpatial,
-                                                                    ReduceOperation,
-                                                                    PassThrough,
-                                                                    AccElementwiseOperation,
-                                                                    true,   // PropagateNan
-                                                                    false>; // OutputIndex
+                                                                        OutDataType,
+                                                                        OutDataType,
+                                                                        NumDimSpatial,
+                                                                        NumDimSpatial,
+                                                                        ReduceOperation,
+                                                                        PassThrough,
+                                                                        AccElementwiseOperation,
+                                                                        true,   // PropagateNan
+                                                                        false>; // OutputIndex
         const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
             DeviceOp>::GetInstances();
 

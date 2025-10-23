@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -90,8 +90,8 @@ int profile_gemm_universal_streamk(int argc, char* argv[])
     const int Streamk_sel = std::stoi(argv[14]);
     const int Grid_size   = std::stoi(argv[15]);
 
-    int n_warmup      = 20;
-    int n_iter        = 50;
+    int n_warmup      = 1;
+    int n_iter        = 10;
     uint64_t rotating = 0;
     if(argc == 19)
     {

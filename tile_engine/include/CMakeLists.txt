@@ -1,1 +1,1 @@
-message("Add include directory")
+message(STATUS "Add include directory")

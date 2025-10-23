@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
-#include <vector>
-#include <iostream>
-#include <numeric>
 #include <cassert>
 #include <cstdlib>
-#include <iostream>
-#include <time.h>
+#include <ctime>
 #include <unordered_set>
 
 #include "ck_tile/core.hpp"
@@ -144,8 +140,8 @@ union pixel
 {
     struct __attribute__((packed))
     {
-        unsigned int r : 6;
-        unsigned int c : 10;
+        ushort r : 6;
+        ushort c : 10;
     };
     ushort data;
 };

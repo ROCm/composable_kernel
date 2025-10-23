@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -33,6 +33,8 @@ struct TopkSoftmaxKernel
     using InputType  = typename Problem::InputType;
     using WeightType = typename Problem::WeightType;
     using IndexType  = typename Problem::IndexType;
+
+    static constexpr index_t kBlockSize = Problem::BlockSize;
 
     struct TopkSoftmaxKargs
     {
@@ -94,9 +96,9 @@ struct TopkSoftmaxKernel
         if(block_row_id > kargs.num_rows)
             return;
 
-        index_t block_os_inp = __builtin_amdgcn_readfirstlane(block_row_id * kargs.stride_input);
-        index_t block_os_out = __builtin_amdgcn_readfirstlane(block_row_id * kargs.stride_output);
-        index_t num_rows_rem = __builtin_amdgcn_readfirstlane(kargs.num_rows - block_row_id);
+        index_t block_os_inp = amd_wave_read_first_lane(block_row_id * kargs.stride_input);
+        index_t block_os_out = amd_wave_read_first_lane(block_row_id * kargs.stride_output);
+        index_t num_rows_rem = amd_wave_read_first_lane(kargs.num_rows - block_row_id);
 
         const auto input_window = [&]() {
             const InputType* p_input =

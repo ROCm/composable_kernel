@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -37,55 +37,57 @@ template <typename GridwiseGemmWelford,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_multiple_d_welford_first_half_xdl_cshuffle(
-            const ABDataType* __restrict__ p_a_grid,
-            const ABDataType* __restrict__ p_b_grid,
-            DsPointer p_ds_grid,
-            EMeanVarDataType* __restrict__ p_e_grid,
-            EMeanVarDataType* __restrict__ p_welford_mean_grid,
-            EMeanVarDataType* __restrict__ p_welford_var_grid,
-            int32_t* __restrict__ p_welford_count_grid,
-            const AElementwiseOperation a_element_op,
-            const BElementwiseOperation b_element_op,
-            const CDEElementwiseOperation cde_element_op,
-            const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
-            const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
-            const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                ds_grid_desc_mblock_mperblock_nblock_nperblock,
-            const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                e_grid_desc_mblock_mperblock_nblock_nperblock,
-            const MeanVarGridDescriptor_MBlock_MPerBlock_NBlock
-                mean_var_grid_desc_mblock_mperblock_nblock,
-            const CountGridDescriptor_MBlock_MPerBlock_NBlock
-                count_grid_desc_mblock_mperblock_nblock,
-            const Block2ETileMap block_2_etile_map,
-            index_t NRaw)
+    kernel_gemm_multiple_d_welford_first_half_xdl_cshuffle(
+        const ABDataType* __restrict__ p_a_grid,
+        const ABDataType* __restrict__ p_b_grid,
+        DsPointer p_ds_grid,
+        EMeanVarDataType* __restrict__ p_e_grid,
+        EMeanVarDataType* __restrict__ p_welford_mean_grid,
+        EMeanVarDataType* __restrict__ p_welford_var_grid,
+        int32_t* __restrict__ p_welford_count_grid,
+        const AElementwiseOperation a_element_op,
+        const BElementwiseOperation b_element_op,
+        const CDEElementwiseOperation cde_element_op,
+        const AGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1,
+        const BGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1,
+        const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+            ds_grid_desc_mblock_mperblock_nblock_nperblock,
+        const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+            e_grid_desc_mblock_mperblock_nblock_nperblock,
+        const MeanVarGridDescriptor_MBlock_MPerBlock_NBlock
+            mean_var_grid_desc_mblock_mperblock_nblock,
+        const CountGridDescriptor_MBlock_MPerBlock_NBlock count_grid_desc_mblock_mperblock_nblock,
+        const Block2ETileMap block_2_etile_map,
+        index_t NRaw)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
-    __shared__ char p_shared[GridwiseGemmWelford::GetSharedMemoryNumberOfByte()];
+#if defined(__gfx9__) || defined(__gfx12__)
+    if constexpr(GridwiseGemmWelford::template IsValidCompilationParameter<>())
+    {
+        __shared__ char p_shared[GridwiseGemmWelford::GetSharedMemoryNumberOfByte()];
 
-    GridwiseGemmWelford::template Run<HasMainKBlockLoop>(
-        p_a_grid,
-        p_b_grid,
-        p_ds_grid,
-        p_e_grid,
-        p_welford_mean_grid,
-        p_welford_var_grid,
-        p_welford_count_grid,
-        p_shared,
-        a_element_op,
-        b_element_op,
-        cde_element_op,
-        a_grid_desc_ak0_m_ak1,
-        b_grid_desc_bk0_n_bk1,
-        ds_grid_desc_mblock_mperblock_nblock_nperblock,
-        e_grid_desc_mblock_mperblock_nblock_nperblock,
-        mean_var_grid_desc_mblock_mperblock_nblock,
-        count_grid_desc_mblock_mperblock_nblock,
-        block_2_etile_map,
-        NRaw);
+        GridwiseGemmWelford::template Run<HasMainKBlockLoop>(
+            p_a_grid,
+            p_b_grid,
+            p_ds_grid,
+            p_e_grid,
+            p_welford_mean_grid,
+            p_welford_var_grid,
+            p_welford_count_grid,
+            p_shared,
+            a_element_op,
+            b_element_op,
+            cde_element_op,
+            a_grid_desc_ak0_m_ak1,
+            b_grid_desc_bk0_n_bk1,
+            ds_grid_desc_mblock_mperblock_nblock_nperblock,
+            e_grid_desc_mblock_mperblock_nblock_nperblock,
+            mean_var_grid_desc_mblock_mperblock_nblock,
+            count_grid_desc_mblock_mperblock_nblock,
+            block_2_etile_map,
+            NRaw);
+    }
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -121,26 +123,26 @@ template <typename GridwiseWelfordLayernorm,
           typename HElementwiseOperation>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_welford_layernorm2d_second_half(
-            const EMeanVarDataType* __restrict__ p_e_grid,
-            const EMeanVarDataType* __restrict__ p_in_welford_mean_grid,
-            const EMeanVarDataType* __restrict__ p_in_welford_var_grid,
-            const int32_t* __restrict__ p_in_welford_count_grid,
-            const GammaDataType* __restrict__ p_gamma_grid,
-            const BetaDataType* __restrict__ p_beta_grid,
-            HDataType* __restrict__ p_h_grid,
-            const EHGridDesc_M_N e_grid_desc_m_n,
-            const EHGridDesc_M_N h_grid_desc_m_n,
-            const LayernormMeanVarGridDesc_M_NBlock mean_var_grid_desc_m_nblock,
-            const LayernormCountGridDesc_M_NBlock count_grid_desc_m_nblock,
-            const GammaBetaGridDesc_N gamma_grid_desc_n,
-            const GammaBetaGridDesc_N beta_grid_desc_n,
-            index_t numMeanVarCountBlockTileIteration_N,
-            index_t NBlockClusterLength,
-            ComputeDataType epsilon,
-            HElementwiseOperation h_element_op)
+    kernel_welford_layernorm2d_second_half(
+        const EMeanVarDataType* __restrict__ p_e_grid,
+        const EMeanVarDataType* __restrict__ p_in_welford_mean_grid,
+        const EMeanVarDataType* __restrict__ p_in_welford_var_grid,
+        const int32_t* __restrict__ p_in_welford_count_grid,
+        const GammaDataType* __restrict__ p_gamma_grid,
+        const BetaDataType* __restrict__ p_beta_grid,
+        HDataType* __restrict__ p_h_grid,
+        const EHGridDesc_M_N e_grid_desc_m_n,
+        const EHGridDesc_M_N h_grid_desc_m_n,
+        const LayernormMeanVarGridDesc_M_NBlock mean_var_grid_desc_m_nblock,
+        const LayernormCountGridDesc_M_NBlock count_grid_desc_m_nblock,
+        const GammaBetaGridDesc_N gamma_grid_desc_n,
+        const GammaBetaGridDesc_N beta_grid_desc_n,
+        index_t numMeanVarCountBlockTileIteration_N,
+        index_t NBlockClusterLength,
+        ComputeDataType epsilon,
+        HElementwiseOperation h_element_op)
 {
     GridwiseWelfordLayernorm::Run(p_e_grid,
                                   p_in_welford_mean_grid,
@@ -199,9 +201,9 @@ template <typename ALayout,
           GemmSpecialization GemmSpec,
           index_t NumGemmKPrefetchStage,
           index_t BlockSize,
-          index_t GemmMPerBlock,
-          index_t GemmNPerBlock,
-          index_t GemmKPerBlock,
+          index_t MPerBlock,
+          index_t NPerBlock,
+          index_t KPerBlock,
           index_t AK1,
           index_t BK1,
           index_t MPerXDL,
@@ -255,6 +257,10 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
     using DeviceOp = DeviceGemmMultipleDLayernorm_Xdl_CShuffle;
     using ELayout  = HLayout;
 
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
+
     static constexpr index_t NumDTensor                  = DsDataType::Size();
     static constexpr index_t LayernormHDstVectorSize     = PostShuffleScalarPerVector;
     static constexpr index_t LayernormGammaSrcVectorSize = PostShuffleScalarPerVector;
@@ -269,8 +275,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
     static constexpr auto I1 = Number<1>{};
     static constexpr auto I2 = Number<2>{};
 
-    static constexpr auto matrix_padder = MatrixPadder<GemmSpec, index_t, index_t, index_t>{
-        GemmMPerBlock, GemmNPerBlock, GemmKPerBlock};
+    static constexpr auto matrix_padder =
+        MatrixPadder<GemmSpec, index_t, index_t, index_t>{MPerBlock, NPerBlock, KPerBlock};
 
     static auto MakeAGridDescriptor_M_K(index_t MRaw, index_t KRaw, index_t StrideA)
     {
@@ -327,7 +333,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
                 static_assert(is_same<tensor_layout::gemm::RowMajor, DLayout>::value);
 
                 return DeviceOp::
-                    MakeEHGridDescriptor_M_N<Sequence<true, true>, GemmMPerBlock, GemmNPerBlock>(
+                    MakeEHGridDescriptor_M_N<Sequence<true, true>, MPerBlock, NPerBlock>(
                         MRaws[i], NRaws[i], DsStride[i]);
             },
             Number<NumDTensor>{});
@@ -364,12 +370,10 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
     // We have to separate mean var descriptor for gemm and layernorm bacause of different grid
     // layout(different padding)
     using GemmMeanVarGridDesc_M_NBlock =
-        decltype(MakeMeanVarDescriptor_M_N<Sequence<true, false>, GemmMPerBlock, GemmNPerBlock>(1,
-                                                                                                1));
+        decltype(MakeMeanVarDescriptor_M_N<Sequence<true, false>, MPerBlock, NPerBlock>(1, 1));
 
     using GemmCountGridDesc_M_NBlock =
-        decltype(MakeCountDescriptor_M_N<Sequence<true, false>, GemmMPerBlock, GemmNPerBlock>(1,
-                                                                                              1));
+        decltype(MakeCountDescriptor_M_N<Sequence<true, false>, MPerBlock, NPerBlock>(1, 1));
 
     using LayernormMeanVarGridDesc_M_NBlock =
         decltype(MakeMeanVarDescriptor_M_N<Sequence<true, true>,
@@ -384,7 +388,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
     using GammaBetaGridDesc_N = decltype(MakeDescriptor_X<LayernormBlockTileSize_M_N::At(1)>(1));
     using EHGridDesc_M_N = decltype(MakeEHGridDescriptor_M_N<Sequence<true, true>, 1, 1>(1, 1, 1));
 
-    using GridwiseGemmWelford = GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmWelfordBase = GridwiseGemmMultipleDWelfordFirstHalf_xdl_cshuffle<
         ADataType, // TODO: distinguish A/B datatype
         AccDataType,
         CShuffleDataType,
@@ -402,15 +407,15 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
         GemmCountGridDesc_M_NBlock,
         NumGemmKPrefetchStage,
         BlockSize,
-        GemmMPerBlock,
-        GemmNPerBlock,
-        GemmKPerBlock,
+        MPerBlock,
+        NPerBlock,
+        KPerBlock,
         AK1,
         BK1,
         MPerXDL,
         NPerXDL,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -433,8 +438,10 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
         PostShuffleScalarPerVector,
         LoopSched,
         PipelineVer>;
+    using GridwiseGemmWelford64 = GridwiseGemmWelfordBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemmWelford32 = GridwiseGemmWelfordBase<NXdlPerWave32>;
 
-    using Block2ETileMap = typename GridwiseGemmWelford::DefaultBlock2ETileMap;
+    using Block2ETileMap = typename GridwiseGemmWelford64::DefaultBlock2ETileMap;
 
     using GridwiseWelfordLayernorm =
         GridwiseWelfordSecondHalfLayernorm2d<EMeanVarDataType,
@@ -492,9 +499,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
               b_grid_desc_n_k_{DeviceOp::MakeBGridDescriptor_N_K(KRaw, NRaw, StrideB)},
               ds_grid_desc_m_n_{},
               gemm_e_grid_desc_m_n_{
-                  DeviceOp::MakeEHGridDescriptor_M_N<Sequence<true, true>,
-                                                     GemmMPerBlock,
-                                                     GemmNPerBlock>(MRaw, NRaw, StrideH)},
+                  DeviceOp::MakeEHGridDescriptor_M_N<Sequence<true, true>, MPerBlock, NPerBlock>(
+                      MRaw, NRaw, StrideH)},
               layernorm_e_grid_desc_m_n_{
                   DeviceOp::MakeEHGridDescriptor_M_N<Sequence<true, true>,
                                                      LayernormBlockTileSize_M_N::At(0),
@@ -514,11 +520,11 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
                                                      LayernormBlockTileSize_M_N::At(1)>(
                       MRaw, NRaw, StrideH)},
               a_grid_desc_ak0_m_ak1_{
-                  GridwiseGemmWelford::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_)},
+                  GridwiseGemmWelford64::MakeDefaultAGridDescriptor_AK0_M_AK1(a_grid_desc_m_k_)},
               b_grid_desc_bk0_n_bk1_{
-                  GridwiseGemmWelford::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k_)},
+                  GridwiseGemmWelford64::MakeDefaultBGridDescriptor_BK0_N_BK1(b_grid_desc_n_k_)},
               block_2_etile_map_{
-                  GridwiseGemmWelford::MakeDefaultBlock2ETileMap(gemm_e_grid_desc_m_n_)},
+                  GridwiseGemmWelford64::MakeDefaultBlock2ETileMap(gemm_e_grid_desc_m_n_)},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               cde_element_op_{cde_element_op},
@@ -526,16 +532,16 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
               MRaw_{MRaw},
               NRaw_{NRaw},
               KRaw_{KRaw},
-              gemm_nblock_{math::integer_divide_ceil(NRaw, GemmNPerBlock)},
+              gemm_nblock_{math::integer_divide_ceil(NRaw, NPerBlock)},
               epsilon_{static_cast<AccDataType>(epsilon)}
         {
             // We don't need to pad in N dimension in gemm for mean/var/count. Set NPerTile 1.
             gemm_mean_var_grid_desc_m_nblock_ =
-                DeviceOp::MakeMeanVarDescriptor_M_N<Sequence<true, false>, GemmMPerBlock, 1>(
+                DeviceOp::MakeMeanVarDescriptor_M_N<Sequence<true, false>, MPerBlock, 1>(
                     MRaw, gemm_nblock_);
 
             gemm_count_grid_desc_m_nblock_ =
-                DeviceOp::MakeCountDescriptor_M_N<Sequence<true, false>, GemmMPerBlock, 1>(
+                DeviceOp::MakeCountDescriptor_M_N<Sequence<true, false>, MPerBlock, 1>(
                     MRaw, gemm_nblock_);
 
             layernorm_mean_var_grid_desc_m_nblock_ =
@@ -559,33 +565,66 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
 
                 // D desc
                 ds_grid_desc_m_n_(i) =
-                    DeviceOp::MakeEHGridDescriptor_M_N<Sequence<true, true>,
-                                                       GemmMPerBlock,
-                                                       GemmNPerBlock>(MRaw, NRaw, StrideDs[i]);
+                    DeviceOp::MakeEHGridDescriptor_M_N<Sequence<true, true>, MPerBlock, NPerBlock>(
+                        MRaw, NRaw, StrideDs[i]);
             });
 
             // populate desc for Ds/E/mean/var/count
-            if(GridwiseGemmWelford::CheckValidity(a_grid_desc_m_k_,
-                                                  b_grid_desc_n_k_,
-                                                  ds_grid_desc_m_n_,
-                                                  gemm_e_grid_desc_m_n_,
-                                                  block_2_etile_map_))
+            if(get_warp_size() == 64)
             {
-                ds_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                    GridwiseGemmWelford::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                        ds_grid_desc_m_n_);
+                if constexpr(NXdlPerWave64 > 0)
+                {
+                    if(GridwiseGemmWelford64::CheckValidity(a_grid_desc_m_k_,
+                                                            b_grid_desc_n_k_,
+                                                            ds_grid_desc_m_n_,
+                                                            gemm_e_grid_desc_m_n_,
+                                                            block_2_etile_map_))
+                    {
+                        ds_grid_desc_mblock_mperblock_nblock_nperblock_ = GridwiseGemmWelford64::
+                            MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                ds_grid_desc_m_n_);
 
-                e_grid_desc_mblock_mperblock_nblock_nperblock_ =
-                    GridwiseGemmWelford::MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
-                        gemm_e_grid_desc_m_n_);
+                        e_grid_desc_mblock_mperblock_nblock_nperblock_ = GridwiseGemmWelford64::
+                            MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                gemm_e_grid_desc_m_n_);
 
-                gemm_mean_var_grid_desc_mblock_mperblock_nblock_ =
-                    GridwiseGemmWelford::MakeMeanVarCountGridDescriptor_MBlock_MPerBlock_NBlock(
-                        gemm_mean_var_grid_desc_m_nblock_);
+                        gemm_mean_var_grid_desc_mblock_mperblock_nblock_ = GridwiseGemmWelford64::
+                            MakeMeanVarCountGridDescriptor_MBlock_MPerBlock_NBlock(
+                                gemm_mean_var_grid_desc_m_nblock_);
 
-                gemm_count_grid_desc_mblock_mperblock_nblock_ =
-                    GridwiseGemmWelford::MakeMeanVarCountGridDescriptor_MBlock_MPerBlock_NBlock(
-                        gemm_count_grid_desc_m_nblock_);
+                        gemm_count_grid_desc_mblock_mperblock_nblock_ = GridwiseGemmWelford64::
+                            MakeMeanVarCountGridDescriptor_MBlock_MPerBlock_NBlock(
+                                gemm_count_grid_desc_m_nblock_);
+                    }
+                }
+            }
+            else
+            {
+                if constexpr(NXdlPerWave32 > 0)
+                {
+                    if(GridwiseGemmWelford32::CheckValidity(a_grid_desc_m_k_,
+                                                            b_grid_desc_n_k_,
+                                                            ds_grid_desc_m_n_,
+                                                            gemm_e_grid_desc_m_n_,
+                                                            block_2_etile_map_))
+                    {
+                        ds_grid_desc_mblock_mperblock_nblock_nperblock_ = GridwiseGemmWelford32::
+                            MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                ds_grid_desc_m_n_);
+
+                        e_grid_desc_mblock_mperblock_nblock_nperblock_ = GridwiseGemmWelford32::
+                            MakeEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
+                                gemm_e_grid_desc_m_n_);
+
+                        gemm_mean_var_grid_desc_mblock_mperblock_nblock_ = GridwiseGemmWelford32::
+                            MakeMeanVarCountGridDescriptor_MBlock_MPerBlock_NBlock(
+                                gemm_mean_var_grid_desc_m_nblock_);
+
+                        gemm_count_grid_desc_mblock_mperblock_nblock_ = GridwiseGemmWelford32::
+                            MakeMeanVarCountGridDescriptor_MBlock_MPerBlock_NBlock(
+                                gemm_count_grid_desc_m_nblock_);
+                    }
+                }
             }
         }
 
@@ -603,7 +642,7 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
         // pointers
         const ADataType* p_a_grid_;
         const BDataType* p_b_grid_;
-        typename GridwiseGemmWelford::DsGridPointer p_ds_grid_;
+        typename GridwiseGemmWelford64::DsGridPointer p_ds_grid_;
         void* p_workspace_e_grid_;
         void* p_workspace_mean_;
         void* p_workspace_var_;
@@ -627,15 +666,15 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
         EHGridDesc_M_N h_grid_desc_m_n_;
 
         // tensor descriptors for block/thread-wise copy
-        typename GridwiseGemmWelford::DefaultAGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
-        typename GridwiseGemmWelford::DefaultBGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
-        typename GridwiseGemmWelford::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+        typename GridwiseGemmWelford64::DefaultAGridDesc_AK0_M_AK1 a_grid_desc_ak0_m_ak1_;
+        typename GridwiseGemmWelford64::DefaultBGridDesc_BK0_N_BK1 b_grid_desc_bk0_n_bk1_;
+        typename GridwiseGemmWelford64::DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             ds_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseGemmWelford::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+        typename GridwiseGemmWelford64::EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
             e_grid_desc_mblock_mperblock_nblock_nperblock_;
-        typename GridwiseGemmWelford::MeanVarGridDescriptor_MBlock_MPerBlock_NBlock
+        typename GridwiseGemmWelford64::MeanVarGridDescriptor_MBlock_MPerBlock_NBlock
             gemm_mean_var_grid_desc_mblock_mperblock_nblock_;
-        typename GridwiseGemmWelford::CountGridDescriptor_MBlock_MPerBlock_NBlock
+        typename GridwiseGemmWelford64::CountGridDescriptor_MBlock_MPerBlock_NBlock
             gemm_count_grid_desc_mblock_mperblock_nblock_;
 
         // block-to-e-tile map
@@ -658,8 +697,8 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
     struct Invoker : public BaseInvoker
     {
         using Argument = DeviceOp::Argument;
-
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemmWelford>
+        float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             float avg_time = 0;
 
@@ -788,7 +827,9 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
                 return launch_kernel(integral_constant<bool, false>{});
             }
         }
-
+        using GridwiseGemm32 = GridwiseGemmWelford32;
+        using GridwiseGemm64 = GridwiseGemmWelford64;
+        INVOKER_RUN_IMPL
         // polymorphic
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override
@@ -858,11 +899,10 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_xdl_supported())
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
         {
             return false;
         }
-
         // check vector load/store
         {
             using Row = ck::tensor_layout::gemm::RowMajor;
@@ -945,12 +985,36 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
                 return false;
             }
         }
-
-        return GridwiseGemmWelford::CheckValidity(arg.a_grid_desc_m_k_,
-                                                  arg.b_grid_desc_n_k_,
-                                                  arg.ds_grid_desc_m_n_,
-                                                  arg.gemm_e_grid_desc_m_n_,
-                                                  arg.block_2_etile_map_);
+        if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                return GridwiseGemmWelford64::CheckValidity(arg.a_grid_desc_m_k_,
+                                                            arg.b_grid_desc_n_k_,
+                                                            arg.ds_grid_desc_m_n_,
+                                                            arg.gemm_e_grid_desc_m_n_,
+                                                            arg.block_2_etile_map_);
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                return GridwiseGemmWelford32::CheckValidity(arg.a_grid_desc_m_k_,
+                                                            arg.b_grid_desc_n_k_,
+                                                            arg.ds_grid_desc_m_n_,
+                                                            arg.gemm_e_grid_desc_m_n_,
+                                                            arg.block_2_etile_map_);
+            }
+            else
+            {
+                return false;
+            }
+        }
     }
 
     // polymorphic
@@ -1061,9 +1125,9 @@ struct DeviceGemmMultipleDLayernorm_Xdl_CShuffle
         str << "DeviceGemmMultipleDLayernorm_Xdl_CShuffle"
             << "<"
             << BlockSize << ", "
-            << GemmMPerBlock << ", "
-            << GemmNPerBlock << ", "
-            << GemmKPerBlock << ", "
+            << MPerBlock << ", "
+            << NPerBlock << ", "
+            << KPerBlock << ", "
             << AK1 << ", "
             << BK1 << ", "
             << getGemmSpecializationString(GemmSpec) << ", "

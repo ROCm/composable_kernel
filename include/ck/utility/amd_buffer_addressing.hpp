@@ -430,7 +430,9 @@ __device__ typename vector_type<T, N>::type amd_buffer_load_impl(int32x4_t src_w
             (is_same<T, bf8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (is_same<T, int8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
             (is_same<T, uint8_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
-            (is_same<T, pk_i4_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)),
+            (is_same<T, pk_i4_t>::value && (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)) ||
+            (is_same<T, f4x2_pk_t::type>::value &&
+             (N == 1 || N == 2 || N == 4 || N == 8 || N == 16)),
         "wrong! not implemented");
 
     using r_t     = typename vector_type<T, N>::type;
@@ -1018,18 +1020,18 @@ __device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
                                               const index_t src_element_space_size)
 {
     // Direct loads require that each thread reads and writes exactly a single DWORD.
-    constexpr auto dword_bytes      = 4;
     constexpr auto bytes_per_thread = sizeof(T) * NumElemsPerThread;
+#if defined(__gfx950__)
+    constexpr auto dword_bytes = 4;
+    static_assert(bytes_per_thread == dword_bytes || bytes_per_thread == dword_bytes * 3 ||
+                  bytes_per_thread == dword_bytes * 4);
+#elif defined(__gfx942__)
+    constexpr auto dword_bytes = 4;
     static_assert(bytes_per_thread == dword_bytes);
-
-#ifndef CK_CODE_GEN_RTC
-    const uint32_t* global_ptr =
-        reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(global_base_ptr));
-#else
-    const uint32_t* global_ptr =
-        reinterpret_cast<uint32_t*>(reinterpret_cast<size_t>(global_base_ptr));
 #endif
-    const int32x4_t src_resource = make_wave_buffer_resource(global_ptr, src_element_space_size);
+
+    const int32x4_t src_resource =
+        make_wave_buffer_resource(global_base_ptr, src_element_space_size);
     const index_t global_offset_bytes = is_valid ? global_offset * sizeof(T) : 0x80000000;
 
 #if CK_USE_AMD_LDS_DIRECT_LOAD_INLINE_ASM
@@ -1057,7 +1059,7 @@ __device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
 #endif
 
     llvm_amdgcn_raw_buffer_load_lds(
-        src_resource, lds_ptr, sizeof(uint32_t), global_offset_bytes, 0, 0, 0);
+        src_resource, lds_ptr, bytes_per_thread, global_offset_bytes, 0, 0, 0);
 #endif
 }
 #endif

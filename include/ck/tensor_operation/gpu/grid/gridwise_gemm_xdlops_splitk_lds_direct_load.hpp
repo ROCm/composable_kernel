@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -30,21 +30,24 @@ template <typename GridwiseGemm,
           typename CElementwiseOperation>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdlops_splitk_lds_direct_load(typename GridwiseGemm::Argument karg,
-                                                  const Block2CTileMap& b2c_map,
-                                                  const AElementwiseOperation a_element_op,
-                                                  const BElementwiseOperation b_element_op,
-                                                  const CElementwiseOperation c_element_op)
+    kernel_gemm_xdlops_splitk_lds_direct_load(typename GridwiseGemm::Argument karg,
+                                              const Block2CTileMap& b2c_map,
+                                              const AElementwiseOperation a_element_op,
+                                              const BElementwiseOperation b_element_op,
+                                              const CElementwiseOperation c_element_op)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
-    constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
+#if defined(__gfx9__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<CGlobalMemoryDataOperation>())
+    {
+        constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
 
-    __shared__ uint8_t p_shared[shared_size];
+        __shared__ uint8_t p_shared[shared_size];
 
-    GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation>(
-        karg, static_cast<void*>(p_shared), b2c_map, a_element_op, b_element_op, c_element_op);
+        GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation>(
+            karg, static_cast<void*>(p_shared), b2c_map, a_element_op, b_element_op, c_element_op);
+    }
 #else
     ignore = karg;
     ignore = b2c_map;
@@ -70,16 +73,18 @@ template <index_t BlockSize,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t K0PerBlock,
-          index_t MPerXDL,
-          index_t NPerXDL,
+          index_t MPerXdl,
+          index_t NPerXdl,
           index_t K1Value,
           index_t MRepeat,
           index_t NRepeat,
           typename ABlockTransferThreadClusterLengths_K0_M_K1,
+          typename ABlockTransferSrcAccessOrder,
           index_t ABlockTransferSrcVectorDim,
           index_t ABlockTransferSrcScalarPerVector,
           bool ABlockLdsExtraM,
           typename BBlockTransferThreadClusterLengths_K0_N_K1,
+          typename BBlockTransferSrcAccessOrder,
           index_t BBlockTransferSrcVectorDim,
           index_t BBlockTransferSrcScalarPerVector,
           bool BBlockLdsExtraN,
@@ -102,9 +107,10 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
     static constexpr auto I7 = Number<7>{};
 
     // K1 should be Number<...>
-    static constexpr auto K1  = Number<K1Value>{};
-    static constexpr auto M01 = 1;
-    static constexpr auto N01 = 1;
+    static constexpr auto K1        = Number<K1Value>{};
+    static constexpr auto KPerBlock = Number<K1Value * K0PerBlock>{};
+    static constexpr auto M01       = 1;
+    static constexpr auto N01       = 1;
 
     static constexpr auto gemm_padder =
         tensor_operation::device::GemmPadder<GemmSpec, index_t, index_t, index_t>{
@@ -165,17 +171,10 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
 
         void Print() const
         {
-            std::cout << "arg {"
-                      << "M:" << M << ", "
-                      << "N:" << N << ", "
-                      << "K:" << K << ", "
-                      << "SA:" << StrideA << ", "
-                      << "SB:" << StrideB << ", "
-                      << "SC:" << StrideC << ", "
-                      << "MP:" << MPadded << ", "
-                      << "NP:" << NPadded << ", "
-                      << "KP:" << KPadded << ", "
-                      << "K0Padded:" << K0Padded << ", "
+            std::cout << "arg {" << "M:" << M << ", " << "N:" << N << ", " << "K:" << K << ", "
+                      << "SA:" << StrideA << ", " << "SB:" << StrideB << ", " << "SC:" << StrideC
+                      << ", " << "MP:" << MPadded << ", " << "NP:" << NPadded << ", "
+                      << "KP:" << KPadded << ", " << "K0Padded:" << K0Padded << ", "
                       << "KB:" << k_batch << "}" << std::endl;
         }
     };
@@ -398,6 +397,10 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
                          c_block_size * sizeof(FloatC));
     }
 
+    static constexpr index_t MXdlPerWave = MRepeat;
+    static constexpr index_t NXdlPerWave = NRepeat;
+    IS_VALID_COMPILATION_PARAMETER_IMPL(FloatC)
+
     __host__ __device__ static constexpr bool CheckValidity(const Argument& karg)
     {
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
@@ -524,14 +527,14 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
     __host__ __device__ static constexpr auto
     GetCBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock()
     {
-        constexpr index_t MWave = MPerBlock / (MRepeat * MPerXDL);
-        constexpr index_t NWave = NPerBlock / (NRepeat * NPerXDL);
+        constexpr index_t MWave = MPerBlock / (MRepeat * MPerXdl);
+        constexpr index_t NWave = NPerBlock / (NRepeat * NPerXdl);
 
         return make_naive_tensor_descriptor_packed(
             make_tuple(I1,
-                       Number<CShuffleMRepeatPerShuffle * MWave * MPerXDL>{},
+                       Number<CShuffleMRepeatPerShuffle * MWave * MPerXdl>{},
                        I1,
-                       Number<CShuffleNRepeatPerShuffle * NWave * NPerXDL>{}));
+                       Number<CShuffleNRepeatPerShuffle * NWave * NPerXdl>{}));
     }
 
     // return block_id to C matrix tile idx (m0, n0, k_split) mapping
@@ -613,8 +616,9 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
             }
             else
             {
-                return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1), max_lds_align);
+                return make_naive_tensor_descriptor(
+                    make_tuple(Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
+                    make_tuple(K1, Number<KPerBlock>{}, I1));
             }
         }();
 
@@ -630,9 +634,10 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
             }
             else
             {
-                return make_naive_tensor_descriptor_aligned(
+                return make_naive_tensor_descriptor(
                     make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<MPerBlock>{}, K1),
-                    max_lds_align);
+                    make_tuple(
+                        Number<KPerBlock>{} * Number<MPerBlock>{}, K1, Number<KPerBlock>{}, I1));
             }
         }();
         // B matrix in LDS memory, dst of blockwise copy
@@ -645,8 +650,9 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
             }
             else
             {
-                return make_naive_tensor_descriptor_aligned(
-                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1), max_lds_align);
+                return make_naive_tensor_descriptor(
+                    make_tuple(Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
+                    make_tuple(K1, Number<KPerBlock>{}, I1));
             }
         }();
 
@@ -662,9 +668,10 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
             }
             else
             {
-                return make_naive_tensor_descriptor_aligned(
+                return make_naive_tensor_descriptor(
                     make_tuple(Number<1>{}, Number<K0PerBlock>{}, Number<NPerBlock>{}, K1),
-                    max_lds_align);
+                    make_tuple(
+                        Number<KPerBlock>{} * Number<NPerBlock>{}, K1, Number<KPerBlock>{}, I1));
             }
         }();
 
@@ -672,10 +679,12 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
             ThreadGroupTensorSliceTransfer_DirectLoad<ThisThreadBlock,
                                                       Sequence<1, K0PerBlock, MPerBlock, K1>,
                                                       ABlockTransferThreadClusterLengths_K0_M_K1,
+                                                      ABlockTransferSrcAccessOrder,
                                                       FloatA,
                                                       ComputeType,
                                                       decltype(a_b_k0_m_k1_grid_desc),
                                                       decltype(a_b_k0_m_k1_block_desc),
+                                                      ABlockTransferSrcAccessOrder,
                                                       ABlockTransferSrcVectorDim,
                                                       3,
                                                       ABlockTransferSrcScalarPerVector>(
@@ -688,10 +697,12 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
             ThreadGroupTensorSliceTransfer_DirectLoad<ThisThreadBlock,
                                                       Sequence<1, K0PerBlock, NPerBlock, K1>,
                                                       BBlockTransferThreadClusterLengths_K0_N_K1,
+                                                      BBlockTransferSrcAccessOrder,
                                                       FloatB,
                                                       ComputeType,
                                                       decltype(b_b_k0_n_k1_grid_desc),
                                                       decltype(b_b_k0_n_k1_block_desc),
+                                                      BBlockTransferSrcAccessOrder,
                                                       BBlockTransferSrcVectorDim,
                                                       3,
                                                       BBlockTransferSrcScalarPerVector>(
@@ -707,8 +718,8 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
             FloatAcc,
             decltype(a_k0_m_k1_block_desc),
             decltype(b_k0_n_k1_block_desc),
-            MPerXDL,
-            NPerXDL,
+            MPerXdl,
+            NPerXdl,
             MRepeat,
             NRepeat,
             K1,
@@ -762,8 +773,8 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
 
         // output: register to global memory
         {
-            constexpr index_t MWave = MPerBlock / (MRepeat * MPerXDL);
-            constexpr index_t NWave = NPerBlock / (NRepeat * NPerXDL);
+            constexpr index_t MWave = MPerBlock / (MRepeat * MPerXdl);
+            constexpr index_t NWave = NPerBlock / (NRepeat * NPerXdl);
 
             constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc =
                 blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
@@ -795,11 +806,11 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
                                                       M1,
                                                       M2,
                                                       M3,
-                                                      M4)), // M1 = MWave, M2 * M3 * M4 = MPerXDL
+                                                      M4)), // M1 = MWave, M2 * M3 * M4 = MPerXdl
                     make_freeze_transform(I0),              // freeze nblock
                     make_unmerge_transform(make_tuple(CShuffleNRepeatPerShuffle,
                                                       N1,
-                                                      N2))), // M1 = MWave, M2 * M3 * M4 = MPerXDL
+                                                      N2))), // M1 = MWave, M2 * M3 * M4 = MPerXdl
                 make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                 make_tuple(
                     Sequence<>{}, Sequence<0, 2, 4, 5, 6>{}, Sequence<>{}, Sequence<1, 3, 7>{}));
@@ -870,9 +881,9 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
                 CElementwiseOperation,      // ElementwiseOperation,
                 CGlobalMemoryDataOperation, // DstInMemOp,
                 Sequence<1,
-                         CShuffleMRepeatPerShuffle * MWave * MPerXDL,
+                         CShuffleMRepeatPerShuffle * MWave * MPerXdl,
                          1,
-                         CShuffleNRepeatPerShuffle * NWave * NPerXDL>, // BlockSliceLengths,
+                         CShuffleNRepeatPerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
                 CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
                 Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
                 FloatC,               // typename SrcData,
@@ -891,11 +902,11 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
                  c_element_op};
 
             constexpr auto mxdlperwave_forward_step =
-                make_multi_index(0, CShuffleMRepeatPerShuffle * MWave * MPerXDL, 0, 0);
+                make_multi_index(0, CShuffleMRepeatPerShuffle * MWave * MPerXdl, 0, 0);
             constexpr auto nxdlperwave_forward_step =
-                make_multi_index(0, 0, 0, CShuffleNRepeatPerShuffle * NWave * NPerXDL);
+                make_multi_index(0, 0, 0, CShuffleNRepeatPerShuffle * NWave * NPerXdl);
             constexpr auto nxdlperwave_backward_step =
-                make_multi_index(0, 0, 0, -CShuffleNRepeatPerShuffle * NWave * NPerXDL);
+                make_multi_index(0, 0, 0, -CShuffleNRepeatPerShuffle * NWave * NPerXdl);
 
             static_for<0, MRepeat, CShuffleMRepeatPerShuffle>{}([&](auto mxdlperwave_iter) {
                 constexpr auto mxdlperwave = mxdlperwave_iter;

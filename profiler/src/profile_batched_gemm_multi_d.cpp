@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstdint>
 #include <iostream>
@@ -138,12 +138,12 @@ int profile_batched_gemm_multi_d(int argc, char* argv[])
                                                                           M,
                                                                           N,
                                                                           K,
-                                                                          BatchStrideA_,
-                                                                          BatchStrideB_,
-                                                                          BatchStrideC_,
                                                                           StrideA_,
                                                                           StrideB_,
                                                                           StrideC_,
+                                                                          BatchStrideA_,
+                                                                          BatchStrideB_,
+                                                                          BatchStrideC_,
                                                                           BatchCount);
 
             return pass ? 0 : 1;

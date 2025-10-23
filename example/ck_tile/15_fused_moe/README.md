@@ -1,5 +1,59 @@
-# fused-moe
-Implementing the fused-moe block operator using ck-tile. This is a scatter/gather-group-gemm based solution, similiar to that of [vllm moe](https://github.com/vllm-project/vllm/blob/main/benchmarks/kernels/benchmark_moe.py), but we introduce more kernel fusion to boost performance
+# Fused-MoE with CK Tile
+
+This example implements a highly optimized fused Mixture-of-Experts (MoE) block using the CK Tile programming model. The design fuses MoE sorting, group-GEMM, activation, and top-k weighting into a single kernel, minimizing memory traffic and maximizing throughput for large language models.
+
+---
+
+## Algorithm and Math
+
+### MoE Block Structure
+
+Given:
+- **Input**: $X$ of shape $[\text{tokens}, \text{hidden}]$
+- **TopK indices/weights**: $I, W$ from gating (shape $[\text{tokens}, \text{topk}]$)
+- **Expert weights**: $[\text{experts}, \text{hidden}, \text{hidden}]$
+
+**Steps:**
+1. **MoE Sorting**: Rearrange tokens so each expert receives its assigned tokens in contiguous blocks (see [13_moe_sorting](../13_moe_sorting/README.md)).
+2. **Group-GEMM**: For each expert, perform GEMM on its assigned tokens:
+   $$
+   Y^{(e)} = X^{(e)} W^{(e)}
+   $$
+3. **Activation + TopK Weighting**: Apply activation (e.g., GELU) and multiply by top-k weights.
+4. **Scatter/Gather**: Write results back to the original token order.
+
+### Technical Details
+
+- **Scatter/Gather Group-GEMM**: Uses indirect indexing to map tokens to experts and back.
+- **Block Partitioning**: Tokens are partitioned into slices per expert, with padding for alignment.
+- **Atomic Accumulation**: Second GEMM uses atomics for accumulation to support overlapping tokens.
+- **Buffer Zeroing**: Output buffer is zeroed in the sorting step, eliminating extra kernels.
+- **Pre-shuffled Weights**: Expert weights are pre-shuffled for coalesced memory access.
+- **Micro-kernel Pipeline**: Uses block-inline-asm micro-kernels for peak performance, while retaining composability.
+
+
+## Build & Run
+
+```bash
+mkdir build && cd build
+sh ../script/cmake-ck-dev.sh ../ <arch>
+make tile_example_fused_moe -j
+./bin/tile_example_fused_moe -?
+```
+
+---
+
+## Source Structure
+
+- **Kernel**: [`fused_moe.hpp`](fused_moe.hpp), [`fused_moegemm.hpp`](fused_moegemm.hpp), [`fused_moesorting.hpp`](fused_moesorting.hpp)
+- **Executable**: [`main.cpp`](main.cpp)
+- **Build**: `CMakeLists.txt`, `instances/`, `misc/`
+
+---
+
+## Technical Notes
+
+ This is a scatter/gather-group-gemm based solution, similiar to that of [vllm moe](https://github.com/vllm-project/vllm/blob/main/benchmarks/kernels/benchmark_moe.py), but we introduce more kernel fusion to boost performance
 ![](misc/moe-0.png)
 
 The benifit of this fused-moe:
@@ -70,3 +124,51 @@ summary of the key design of this fused-moe operator:
 //
 //   max_num_tokens_padded: opk_ids.numel() + num_experts * (block_size - 1)
 ```
+
+## example
+```
+args:
+          -t    number of input tokens. (default:128)
+                If "local_t" presents, this value indicates global concurrency of all ranks.
+    -local_t    Number of local input tokens for curent rank. (default:-1)
+                This value must be within range "[0, t)", or "-1"(no such feature)
+                This feature is to simulate EP case where where each rank has different tokens.
+                Besides, this value will be stored in a GPU buffer, which is friendly for CUDA graph.
+          -e    num of experts (default:32)
+          -k    topk (default:5)
+          -h    hidden_size of this model (default:8192)
+          -i    intermediate_size between 2 gemms of FFN (default:8192)
+     -stride    stride per row, if -1 then equal to hidden_size (default:-1)
+         -bm    blocking factor for sorted tokens (default:32)
+         -tp    tensor parallel size (default:8)
+          -v    cpu validation or not (default:1)
+      -kname    print kernel name or not (default:1)
+     -prec_i    input precision (default:bf16)
+     -prec_w    weight precision (default:bf16)
+     -prec_o    output precision (default:bf16)
+    -prec_st    token scale data type. auto will set to fp32 (default:auto)
+    -prec_sw    weight scale data type. auto will set to fp32 (default:auto)
+    -prec_sq    (dynamic) smooth quant data type. auto will set to fp32 (default:auto)
+    -prec_kw    topk-weight data type. auto will set to fp32 (default:auto)
+     -fquant    fused-quant, 0:no, 1:smooth-dynamic-quant, 2:dynamic-quant (default:0)
+  -gate_only    w0(gate/up) style, 0:gate+up will double interm size, 1:only gate (default:1)
+        -api    benchmark api set: 0:fused-moe(moe-gemm+moe-sorting), 1:moe-gemm (default:0)
+        -act    activation after first gemm. 0:gelu, 1:silu (default:0)
+    -balance    if set to 1, will try balance the expert in topk-ids(convenient for testing) (default:0)
+       -init    init method. 0:random stepped float(fast). 1: random uniform[-0.5, 0.5], 2:rand normalized[0, 1]normalized(slow) (default:1)
+       -seed    seed used to do random (default:11939)
+     -warmup    cold iter (default:5)
+     -repeat    hot iter (default:20)
+       -json    0: No Json, 1: Dump Results in Json format (default:0)
+   -jsonfile    json file name to dump results (default:fused_moe.json)
+```
+## Related CK Tile Examples
+
+- [13_moe_sorting](../13_moe_sorting/README.md): MoE sorting for expert dispatch
+- [09_topk_softmax](../09_topk_softmax/README.md): TopK-Softmax for MoE gating
+- [03_gemm](../03_gemm/README.md): GEMM with tiles
+
+For distribution, see [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
+
+---
+[Back to CK Tile Examples](../README.md)

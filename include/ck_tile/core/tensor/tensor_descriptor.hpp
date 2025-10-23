@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -133,31 +133,50 @@ struct tensor_descriptor : public tensor_adaptor<Transforms,
 
     CK_TILE_HOST_DEVICE static constexpr bool is_known_at_compile_time() { return is_static(); }
 
+    template <index_t Internal = 0>
     CK_TILE_HOST_DEVICE static constexpr auto get_top_dimension_safe_vector_length_strides()
     {
-        return Base::get_top_dimension_safe_vector_length_strides(
+        return Base::template get_top_dimension_safe_vector_length_strides<Internal>(
             to_array<index_t, ndim_hidden_>(GuaranteedVectorLengths{}),
             to_array<index_t, ndim_hidden_>(GuaranteedVectorStrides{}));
-    }
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("tensor_descriptor{");
-
-        // tensor_adaptor
-        Base::print();
-        printf(", ");
-
-        // element_space_size_
-        printf("element_space_size_: ");
-        print(element_space_size_);
-
-        printf("}");
     }
 
     // TODO make these private
     ElementSpaceSize element_space_size_;
 };
+
+template <typename Transforms,
+          typename LowerDimensionHiddenIdss,
+          typename UpperDimensionHiddenIdss,
+          typename TopDimensionHiddenIds,
+          typename ElementSpaceSize,
+          typename GuaranteedVectorLengths,
+          typename GuaranteedVectorStrides>
+CK_TILE_HOST_DEVICE static void print(const tensor_descriptor<Transforms,
+                                                              LowerDimensionHiddenIdss,
+                                                              UpperDimensionHiddenIdss,
+                                                              TopDimensionHiddenIds,
+                                                              ElementSpaceSize,
+                                                              GuaranteedVectorLengths,
+                                                              GuaranteedVectorStrides>& descriptor)
+{
+    printf("tensor_descriptor{\n");
+    // first print the tensor adaptor part of the descriptor using the base class print
+    using Base = typename tensor_descriptor<Transforms,
+                                            LowerDimensionHiddenIdss,
+                                            UpperDimensionHiddenIdss,
+                                            TopDimensionHiddenIds,
+                                            ElementSpaceSize,
+                                            GuaranteedVectorLengths,
+                                            GuaranteedVectorStrides>::Base;
+    print(static_cast<const Base&>(descriptor));
+    printf("element_space_size_: %ld,\n", static_cast<long>(descriptor.get_element_space_size()));
+    printf("guaranteed_vector_lengths: ");
+    print(GuaranteedVectorLengths{});
+    printf(",\nguaranteed_vector_strides: ");
+    print(GuaranteedVectorStrides{});
+    printf("}\n}\n");
+}
 
 template <typename Adaptor, typename ElementSpaceSize>
 CK_TILE_HOST_DEVICE constexpr auto
@@ -365,12 +384,29 @@ make_naive_tensor_descriptor_packed(const tuple<Lengths...>& lengths,
 
     const auto element_space_size = container_reduce(lengths, multiplies{}, long_number<1>{});
 
+    constexpr index_t first_dim_length = []() {
+        if constexpr(is_constant_v<remove_cvref_t<decltype(element_space_size)>>)
+            return decltype(element_space_size)::value;
+        else
+            return -1;
+    }();
+    using last_t                      = remove_cvref_t<decltype(lengths.template get<N - 1>())>;
+    constexpr index_t last_dim_length = []() {
+        if constexpr(is_constant_v<last_t>)
+            return std::max(last_t::value, GuaranteedLastDimensionVectorLength);
+        else
+            return -1;
+    }();
+
     using GuaranteedVectorLengths =
-        typename sequence_merge<typename uniform_sequence_gen<N, -1>::type,
-                                sequence<GuaranteedLastDimensionVectorLength>>::type;
+        typename sequence_merge<sequence<first_dim_length>,
+                                typename uniform_sequence_gen<N - 1, -1>::type,
+                                sequence<last_dim_length>>::type;
 
     using GuaranteedVectorStrides =
-        typename sequence_merge<typename uniform_sequence_gen<N, -1>::type, sequence<1>>::type;
+        typename sequence_merge<sequence<1>,
+                                typename uniform_sequence_gen<N - 1, -1>::type,
+                                sequence<1>>::type;
 
     return tensor_descriptor<remove_cv_t<decltype(transforms)>,
                              remove_cv_t<decltype(low_dim_hidden_idss)>,

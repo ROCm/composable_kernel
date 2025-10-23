@@ -6,9 +6,11 @@
 #include "gtest/gtest.h"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "test_gemm_universal_util.hpp"
-
-using BF16 = ck::bhalf_t;
-using F32  = float;
+ck::index_t param_mask     = 0xffff;
+ck::index_t instance_index = -1;
+using I4                   = ck::pk_i4_t;
+using BF16                 = ck::bhalf_t;
+using F32                  = float;
 
 using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
@@ -58,6 +60,9 @@ using KernelTypes_MK_KN = ::testing::Types<
 
 using KernelTypes_MK_NK = ::testing::Types<
     //         ADataType, BDataType, ComputeDataType, CDataType
+#if defined(CK_ENABLE_FP8)
+    std::tuple<     BF16,        I4,            BF16,      BF16>,
+#endif
     std::tuple<     BF16,      BF16,            BF16,      BF16>
     >;
 
@@ -68,6 +73,9 @@ using KernelTypes_KM_KN = ::testing::Types<
 
 using KernelTypes_KM_NK = ::testing::Types<
     //         ADataType, BDataType, ComputeDataType, CDataType
+#if defined(CK_ENABLE_FP8)
+    std::tuple<     BF16,        I4,            BF16,      BF16>,
+#endif
     std::tuple<     BF16,      BF16,            BF16,      BF16>
     >;
 // clang-format on
@@ -78,3 +86,19 @@ TYPED_TEST_SUITE(TestGemmUniversal_BF16_KM_KN, KernelTypes_KM_KN);
 TYPED_TEST_SUITE(TestGemmUniversal_BF16_KM_NK, KernelTypes_KM_NK);
 
 #include "test_gemm_universal_ut_cases_bf16.inc"
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 3)
+    {
+        param_mask     = strtol(argv[1], nullptr, 0);
+        instance_index = atoi(argv[2]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1,2: param_mask instance_index(-1 means all)" << std::endl;
+    }
+    return RUN_ALL_TESTS();
+}

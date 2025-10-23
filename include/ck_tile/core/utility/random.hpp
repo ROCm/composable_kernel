@@ -24,7 +24,7 @@ struct prand_generator_t<float, seed_>
 {
     CK_TILE_HOST_DEVICE uint32_t operator()(int id, float val, uint32_t seed = seed_)
     {
-        uint32_t x         = *(reinterpret_cast<uint32_t*>(&val));
+        uint32_t x         = bit_cast<uint32_t>(val);
         uint32_t drop_bits = uint32_t(x) & 0xFFFFu;
         drop_bits ^= x >> 16;
         drop_bits = ((drop_bits & 31) << 11) | (drop_bits >> 5);
@@ -43,7 +43,7 @@ struct prand_generator_t<half_t, seed_>
 {
     CK_TILE_HOST_DEVICE uint32_t operator()(int id, half_t val, uint32_t seed = seed_)
     {
-        uint16_t x         = *(reinterpret_cast<uint16_t*>(&val));
+        uint16_t x         = bit_cast<uint16_t>(val);
         uint32_t drop_bits = uint32_t(x) & 0xFFFFu;
         drop_bits          = ((drop_bits & 31) << 11) | (drop_bits >> 5);
         drop_bits *= 0x7000149;

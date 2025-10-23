@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -27,6 +27,7 @@ template <typename QDataType_,
           bool kIsDeterministic_,
           typename FmhaMask_,
           typename FmhaDropout_,
+          bool kUseTrLoad_,
           typename Traits_>
 struct BlockFmhaBwdPipelineProblem
 {
@@ -53,15 +54,14 @@ struct BlockFmhaBwdPipelineProblem
     static constexpr index_t kBlockSize    = BlockFmhaShape::NumWarps * get_warp_size();
     static constexpr bool kIsGroupMode     = kIsGroupMode_;
     static constexpr bool kIsDeterministic = kIsDeterministic_;
+    static constexpr bool kUseTrLoad       = kUseTrLoad_;
 
     // attributes from traits
-    static constexpr bool kPadSeqLenQ    = Traits::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK    = Traits::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQ   = Traits::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV   = Traits::kPadHeadDimV;
-    static constexpr auto BiasEnum       = Traits::BiasEnum;
-    static constexpr bool kHasBiasGrad   = Traits::kHasBiasGrad;
-    static constexpr index_t kBlockPerCu = Traits::kBlockPerCu;
+    static constexpr index_t kPadHeadDimQ = Traits::kPadHeadDimQ;
+    static constexpr index_t kPadHeadDimV = Traits::kPadHeadDimV;
+    static constexpr auto BiasEnum        = Traits::BiasEnum;
+    static constexpr bool kHasBiasGrad    = Traits::kHasBiasGrad;
+    static constexpr index_t kBlockPerCu  = Traits::kBlockPerCu;
 };
 
 template <typename ODataType_,

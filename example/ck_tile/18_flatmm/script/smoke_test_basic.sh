@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# Copyright © Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier:  MIT
+
 EXE="$(find . -name tile_example_flatmm_basic -type f | head -n 1)"
 KNAME=1
 

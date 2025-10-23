@@ -32,7 +32,9 @@ struct BatchedTransposeKernel
     using Pipeline                        = remove_cvref_t<Pipeline_>;
     using Problem                         = remove_cvref_t<typename Pipeline::Problem>;
 
-    using Type = typename Problem::InputType;
+    using Type = typename Problem::DataType;
+
+    static constexpr index_t kBlockSize = Problem::kBlockSize;
 
     struct BatchedTransposeKargs
     {
@@ -49,9 +51,11 @@ struct BatchedTransposeKernel
 
     CK_TILE_HOST static constexpr auto GridSize(const Hargs& host_args)
     {
-        size_t grid_size_x = (host_args.height + host_args.dim_block_h - 1) / host_args.dim_block_h;
-        size_t grid_size_y = (host_args.width + host_args.dim_block_w - 1) / host_args.dim_block_w;
-        size_t grid_size_z = host_args.batch;
+        const size_t grid_size_x =
+            ck_tile::integer_divide_ceil(host_args.height, host_args.dim_block_h);
+        const size_t grid_size_y =
+            ck_tile::integer_divide_ceil(host_args.width, host_args.dim_block_w);
+        const size_t grid_size_z = host_args.batch;
         return dim3(grid_size_x, grid_size_y, grid_size_z);
     }
 
@@ -67,45 +71,47 @@ struct BatchedTransposeKernel
         return k;
     }
 
-    CK_TILE_HOST_DEVICE static constexpr auto BlockSize() { return Problem::kBlockSize; }
+    CK_TILE_HOST static constexpr auto BlockSize() { return Problem::kBlockSize; }
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
-        static constexpr ck_tile::index_t kMPerBlock       = Problem::kMPerBlock;
-        static constexpr ck_tile::index_t kNPerBlock       = Problem::kNPerBlock;
-        static constexpr bool kPadM                        = Problem::kPadM;
-        static constexpr bool kPadN                        = Problem::kPadN;
-        static constexpr ck_tile::index_t VectorSizeInput  = Problem::VectorSizeInput;
-        static constexpr ck_tile::index_t VectorSizeOutput = Problem::VectorSizeOutput;
+        static constexpr ck_tile::index_t kMPerBlock         = Problem::kMPerBlock;
+        static constexpr ck_tile::index_t kNPerBlock         = Problem::kNPerBlock;
+        static constexpr bool kPadM                          = Problem::kPadM;
+        static constexpr bool kPadN                          = Problem::kPadN;
+        static constexpr ck_tile::index_t VectorSizeInput    = Problem::VectorSizeInput;
+        static constexpr ck_tile::index_t VectorStrideInput  = 1;
+        static constexpr ck_tile::index_t VectorSizeOutput   = Problem::VectorSizeOutput;
+        static constexpr ck_tile::index_t VectorStrideOutput = 1;
 
-        const auto iM   = __builtin_amdgcn_readfirstlane(blockIdx.x * kMPerBlock);
-        const auto iN   = __builtin_amdgcn_readfirstlane(blockIdx.y * kNPerBlock);
-        const auto iDim = blockIdx.z;
+        const auto iM     = amd_wave_read_first_lane(blockIdx.x * kMPerBlock);
+        const auto iN     = amd_wave_read_first_lane(blockIdx.y * kNPerBlock);
+        const auto offset = amd_wave_read_first_lane(blockIdx.z * kargs.height * kargs.width);
 
         const auto x_m_n = [&]() {
             const auto x_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                static_cast<const Type*>(kargs.p_input) + iDim * kargs.dim_stride,
+                static_cast<const Type*>(kargs.p_input) + offset,
                 make_tuple(kargs.height, kargs.width),
                 make_tuple(kargs.width, 1),
                 number<VectorSizeInput>{},
-                number<1>{});
+                number<VectorStrideInput>{});
 
             return pad_tensor_view(x_dram_naive,
                                    make_tuple(number<kMPerBlock>{}, number<kNPerBlock>{}),
-                                   sequence<kPadN, kPadM>{});
+                                   sequence<kPadM, kPadN>{});
         }();
 
         const auto y_n_m = [&]() {
             const auto y_dram_naive = make_naive_tensor_view<address_space_enum::global>(
-                static_cast<Type*>(kargs.p_output) + iDim * kargs.dim_stride,
+                static_cast<Type*>(kargs.p_output) + offset,
                 make_tuple(kargs.width, kargs.height),
                 make_tuple(kargs.height, 1),
                 number<VectorSizeOutput>{},
-                number<1>{});
+                number<VectorStrideOutput>{});
 
             return pad_tensor_view(y_dram_naive,
                                    make_tuple(number<kNPerBlock>{}, number<kMPerBlock>{}),
-                                   sequence<kPadM, kPadN>{});
+                                   sequence<kPadN, kPadM>{});
         }();
 
         auto x_block_window = make_tile_window(

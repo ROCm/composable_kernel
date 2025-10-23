@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -46,6 +46,11 @@ struct tile_distribution_encoding
     static constexpr auto ps_to_rhss_minor_ = Ps2RHssMinor{};
     static constexpr auto ys_to_rhs_major_  = Ys2RHsMajor{};
     static constexpr auto ys_to_rhs_minor_  = Ys2RHsMinor{};
+
+#if !CK_TILE_ENC_SUPPORT_Y_TO_R
+    static_assert(container_find(ys_to_rhs_major_, 0) == NDimY,
+                  "do not support Y dim pointed to R dim");
+#endif
 
     // redundant but useful info
     // TODO: really bad code, should be over-hauled
@@ -255,38 +260,151 @@ struct tile_distribution_encoding
             }
         }();
 
-        // e.g. tuple<seq<1, 4, 32>, seq<4, 1, 4, 2, 4>> --> seq<3, 5> --> seq<0, 3, 8>
-        CK_TILE_HOST_DEVICE static constexpr auto get_h_dim_lengths_prefix_sum()
+        CK_TILE_HOST_DEVICE static constexpr auto get_uniformed_h_dim_lengths()
         {
-            // <len_d0, len_d1, ...>
             // e.g. tuple<seq<1, 4, 32>, seq<4, 1, 4, 2, 4>> --> seq<3, 5>
             constexpr auto uniformed_h_dim_lengths = generate_sequence_v2(
                 [&](auto i) {
-                    constexpr index_t size = HsLengthss{}[i].size();
-                    return number<size>{};
+                    constexpr index_t size_ = HsLengthss{}[i].size();
+                    return number<size_>{};
                 },
                 number<NDimX>{});
+            return uniformed_h_dim_lengths;
+        }
 
+        // note: this function only count the p dim length along h, not r
+        CK_TILE_HOST_DEVICE static constexpr auto get_uniformed_p_dim_lengths_over_h()
+        {
+            // e.g. tuple<seq<1, 4, 32>, seq<1, 2, 8, 4, 4>>
+            //                Y  P  Y        Y  P  Y  P  Y
+            //                   |              |     |
+            //                   v              v     v
+            // return :      seq<4,             2  *  4> => seq<4, 8>
+            constexpr auto uniformed_ps_to_rhss_major_ =
+                unpack([](auto... xs_) { return merge_sequences(xs_...); }, ps_to_rhss_major_);
+            constexpr auto uniformed_ps_to_rhss_minor_ =
+                unpack([](auto... xs_) { return merge_sequences(xs_...); }, ps_to_rhss_minor_);
+
+            constexpr auto p_len_ = [&]() {
+                array<index_t, NDimX> len_{1};
+                static_for<0, NDimX, 1>{}([&](auto idim_x_) {
+                    constexpr auto major_ = number<idim_x_ + 1>{}; // RDim
+                    static_for<0, uniformed_ps_to_rhss_major_.size(), 1>{}([&](auto idim_u_) {
+                        if constexpr(major_.value == uniformed_ps_to_rhss_major_[idim_u_])
+                        {
+                            constexpr auto minor_    = uniformed_ps_to_rhss_minor_[idim_u_];
+                            constexpr auto h_length_ = hs_lengthss_[idim_x_][minor_];
+                            len_[idim_x_] *= h_length_;
+                        }
+                    });
+                });
+                return len_;
+            }();
+            constexpr auto p_len_over_h_seq_ = TO_SEQUENCE(p_len_, NDimX);
+            return p_len_over_h_seq_;
+        }
+
+        //
+        // R: seq<3>, H: tuple<seq<1, 4, 32>, seq<4, 1, 4, 2, 4>>
+        //  => return seq<1, 3, 5>
+        // R: seq<>, H: tuple<seq<2, 4>, seq<16, 8, 8>>
+        //  => return seq<0, 2, 3>
+        CK_TILE_HOST_DEVICE static constexpr auto get_uniformed_rh_dim_lengths()
+        {
+            constexpr auto uniformed_rh_dim_lengths =
+                merge_sequences(sequence<NDimR>{} /*for R dims*/, get_uniformed_h_dim_lengths());
+
+            return uniformed_rh_dim_lengths;
+        }
+
+        // e.g. tuple<seq<1, 4, 32>, seq<4, 1, 4, 2, 4>> --> seq<3, 5> --> seq<0, 3, 8>
+        CK_TILE_HOST_DEVICE static constexpr auto get_h_dim_lengths_prefix_sum()
+        {
             // <0, len_d0, len_d0+len_d1, ...>
             // e.g. seq<3, 5> --> seq<0, 3, 8>
-            constexpr auto h_dim_prefix_sum = prefix_sum_sequence(uniformed_h_dim_lengths);
+            constexpr auto h_dim_prefix_sum = prefix_sum_sequence(get_uniformed_h_dim_lengths());
 
             return h_dim_prefix_sum;
         }
 
-        CK_TILE_HOST_DEVICE static constexpr auto get_uniformed_idx_y_to_h()
+        CK_TILE_HOST_DEVICE static constexpr auto get_rh_dim_lengths_prefix_sum()
+        {
+            // <0, len_d0, len_d0+len_d1, ...>
+            // e.g. seq<3, 5> --> seq<0, 3, 8>
+            constexpr auto rh_dim_prefix_sum = prefix_sum_sequence(get_uniformed_rh_dim_lengths());
+
+            return rh_dim_prefix_sum;
+        }
+
+        CK_TILE_HOST_DEVICE static constexpr auto get_uniformed_idx_p_to_h()
+        {
+            // tuple<seq<xx..>, seq<yy..>> -> seq<xx..yy..>
+            constexpr auto uniformed_ps_to_rhss_major_ =
+                unpack([](auto... xs_) { return merge_sequences(xs_...); }, ps_to_rhss_major_);
+            constexpr auto uniformed_ps_to_rhss_minor_ =
+                unpack([](auto... xs_) { return merge_sequences(xs_...); }, ps_to_rhss_minor_);
+
+            constexpr auto all_ps_2_rhss = transform_sequences(
+                [](auto major, auto minor) constexpr {
+                    constexpr auto rh_dim_prefix_sum = get_rh_dim_lengths_prefix_sum();
+                    return rh_dim_prefix_sum.at(major) + minor;
+                },
+                uniformed_ps_to_rhss_major_,
+                uniformed_ps_to_rhss_minor_);
+
+            return all_ps_2_rhss;
+        }
+
+        CK_TILE_HOST_DEVICE static constexpr auto get_uniformed_idx_y_to_rh()
         {
             constexpr auto all_ys_2_rhss = transform_sequences(
                 [](auto major, auto minor) constexpr {
-                    // <0, 0, len_d0, len_d0+len_d1, ...>
-                    constexpr auto x_dim_prefix_sum = merge_sequences(
-                        sequence<0>{} /*for R dims*/, get_h_dim_lengths_prefix_sum());
-                    return x_dim_prefix_sum.at(major) + minor;
+                    constexpr auto rh_dim_prefix_sum = get_rh_dim_lengths_prefix_sum();
+                    return rh_dim_prefix_sum.at(major) + minor;
                 },
                 Ys2RHsMajor{},
                 Ys2RHsMinor{});
 
             return all_ys_2_rhss;
+        }
+
+        CK_TILE_HOST_DEVICE static constexpr auto get_uniformed_idx_y_to_h()
+        {
+            // TODO: Y can't point to R
+            constexpr auto all_ys_2_rhss = transform_sequences(
+                [](auto major, auto minor) constexpr {
+                    constexpr auto rh_dim_prefix_sum = get_rh_dim_lengths_prefix_sum();
+                    return rh_dim_prefix_sum.at(major) + minor - NDimR;
+                },
+                Ys2RHsMajor{},
+                Ys2RHsMinor{});
+
+            return all_ys_2_rhss;
+        }
+
+        // return tuple of seq
+        CK_TILE_HOST_DEVICE static constexpr auto get_y_to_h_masks()
+        {
+            constexpr auto masks_ = generate_tuple(
+                [&](auto i) {
+                    constexpr auto size_                = HsLengthss{}[i].size();
+                    constexpr auto current_y_to_h_mask_ = [&]() {
+                        array<index_t, size_> m_{0};
+                        // TODO: we loop over all y for each h dim
+                        for(auto j = 0; j < NDimY; j++)
+                        {
+                            if(Ys2RHsMajor{}[j] == (i + 1) /*RDim need plus 1*/)
+                            {
+                                m_[Ys2RHsMinor{}[j]] = 1;
+                            }
+                        }
+                        return m_;
+                    }();
+
+                    return TO_SEQUENCE(current_y_to_h_mask_, size_);
+                },
+                number<NDimX>{});
+            return masks_;
         }
 
         // return tuple<sorted_dims, sorted_maps, sorted_prefix_sum>
@@ -305,114 +423,33 @@ struct tile_distribution_encoding
             return make_tuple(sorted_dims, sorted_maps, sorted_prefix_sum);
         }
 
-        CK_TILE_HOST_DEVICE static constexpr auto get_sorted_y_info()
+        // Note here y_to_h does not count R dim!
+        CK_TILE_HOST_DEVICE static constexpr auto get_sorted_y_to_h_info()
         {
             return get_sorted_info(get_uniformed_idx_y_to_h(), get_h_dim_lengths_prefix_sum());
         }
-
-        CK_TILE_HOST_DEVICE void print() const
-        {
-            printf("tile_distribution_encoding::detail{");
-            //
-            printf("ndim_rh_major_: ");
-            print(ndim_rh_major_);
-            printf(", ");
-            //
-            printf("ndim_span_major_: ");
-            print(ndim_span_major_);
-            printf(", ");
-            //
-            printf("ndims_rhs_minor_: ");
-            print(ndims_rhs_minor_);
-            printf(", ");
-            //
-            printf("ndim_rh_major_: ");
-            print(ndim_rh_major_);
-            printf(", ");
-            //
-            printf("max_ndim_rh_minor_: ");
-            print(max_ndim_rh_minor_);
-            printf(", ");
-            //
-            printf("rhs_lengthss_: ");
-            print(rhs_lengthss_);
-            printf(", ");
-            //
-            printf("ys_lengths_: ");
-            print(ys_lengths_);
-            printf(", ");
-            //
-            printf("rhs_major_minor_to_ys_: ");
-            print(rhs_major_minor_to_ys_);
-            printf(", ");
-            //
-            printf("ndims_span_minor_: ");
-            print(ndims_span_minor_);
-            printf(", ");
-            //
-            printf("max_ndim_span_minor_: ");
-            print(max_ndim_span_minor_);
-            printf(", ");
-            //
-            printf("ys_to_span_major_: ");
-            print(ys_to_span_major_);
-            printf(", ");
-            //
-            printf("ys_to_span_minor_: ");
-            print(ys_to_span_minor_);
-            printf(", ");
-            //
-            printf("distributed_spans_lengthss_: ");
-            print(distributed_spans_lengthss_);
-            printf(", ");
-            //
-            printf("ndims_distributed_spans_minor_: ");
-            print(ndims_distributed_spans_minor_);
-            printf(", ");
-            //
-            printf("ps_over_rs_derivative_: ");
-            print(ps_over_rs_derivative_);
-            //
-            printf("}");
-        }
     };
-
-    CK_TILE_HOST_DEVICE void print() const
-    {
-        printf("tile_distribution_encoding{");
-        //
-        printf("NDimX: %d, NDimP: %d, NDimY: %d, ", NDimX, NDimP, NDimY);
-        //
-        printf("rs_lengths_: ");
-        print(rs_lengths_);
-        printf(", ");
-        //
-        printf("hs_lengthss_: ");
-        print(hs_lengthss_);
-        printf(", ");
-        //
-        printf("ps_to_rhss_major_: ");
-        print(ps_to_rhss_major_);
-        printf(", ");
-        //
-        printf("ps_to_rhss_minor_: ");
-        print(ps_to_rhss_minor_);
-        printf(", ");
-        //
-        printf("ys_to_rhs_major_: ");
-        print(ys_to_rhs_major_);
-        printf(", ");
-        //
-        printf("ys_to_rhs_minor_: ");
-        print(ys_to_rhs_minor_);
-        printf(", ");
-        //
-        printf("detail: ");
-        print(detail{});
-        //
-        printf("}");
-    }
 };
+
+template <typename encoding, typename shuffle>
+class tile_distribution_encoding_shuffle;
+template <typename encoding, index_t... shuffle>
+class tile_distribution_encoding_shuffle<encoding, sequence<shuffle...>>
+{
+    template <typename Ys2RHs>
+    using shuffled = sequence<(Ys2RHs::template get<shuffle>())...>;
+
+    public:
+    using type = tile_distribution_encoding<typename encoding::RsLengths,
+                                            typename encoding::HsLengthss,
+                                            typename encoding::Ps2RHssMajor,
+                                            typename encoding::Ps2RHssMinor,
+                                            shuffled<typename encoding::Ys2RHsMajor>,
+                                            shuffled<typename encoding::Ys2RHsMinor>>;
+};
+template <typename encoding, typename shuffle>
+using tile_distribution_encoding_shuffle_t =
+    typename tile_distribution_encoding_shuffle<encoding, shuffle>::type;
 
 namespace detail {
 
@@ -757,4 +794,106 @@ make_reduce_tile_distribution_encoding(InDstr, sequence<InReduceDimXs...> reduce
 }
 
 } // namespace detail
+
+// Free print function for tile_distribution_encoding::detail
+template <typename RsLengths_,
+          typename HsLengthss_,
+          typename Ps2RHssMajor_,
+          typename Ps2RHssMinor_,
+          typename Ys2RHsMajor_,
+          typename Ys2RHsMinor_>
+CK_TILE_HOST_DEVICE void
+print(const typename tile_distribution_encoding<RsLengths_,
+                                                HsLengthss_,
+                                                Ps2RHssMajor_,
+                                                Ps2RHssMinor_,
+                                                Ys2RHsMajor_,
+                                                Ys2RHsMinor_>::detail& detail_obj)
+{
+    printf("tile_distribution_encoding::detail{");
+    printf("ndim_rh_major_: ");
+    print(detail_obj.ndim_rh_major_);
+    printf(", ");
+    printf("ndim_span_major_: ");
+    print(detail_obj.ndim_span_major_);
+    printf(", ");
+    printf("ndims_rhs_minor_: ");
+    print(detail_obj.ndims_rhs_minor_);
+    printf(", ");
+    printf("ndim_rh_major_: ");
+    print(detail_obj.ndim_rh_major_);
+    printf(", ");
+    printf("max_ndim_rh_minor_: ");
+    print(detail_obj.max_ndim_rh_minor_);
+    printf(", ");
+    printf("rhs_lengthss_: ");
+    print(detail_obj.rhs_lengthss_);
+    printf(", ");
+    printf("ys_lengths_: ");
+    print(detail_obj.ys_lengths_);
+    printf(", ");
+    printf("rhs_major_minor_to_ys_: ");
+    print(detail_obj.rhs_major_minor_to_ys_);
+    printf(", ");
+    printf("ndims_span_minor_: ");
+    print(detail_obj.ndims_span_minor_);
+    printf(", ");
+    printf("max_ndim_span_minor_: ");
+    print(detail_obj.max_ndim_span_minor_);
+    printf(", ");
+    printf("ys_to_span_major_: ");
+    print(detail_obj.ys_to_span_major_);
+    printf(", ");
+    printf("ys_to_span_minor_: ");
+    print(detail_obj.ys_to_span_minor_);
+    printf(", ");
+    printf("distributed_spans_lengthss_: ");
+    print(detail_obj.distributed_spans_lengthss_);
+    printf(", ");
+    printf("ndims_distributed_spans_minor_: ");
+    print(detail_obj.ndims_distributed_spans_minor_);
+    printf(", ");
+    printf("ps_over_rs_derivative_: ");
+    print(detail_obj.ps_over_rs_derivative_);
+    printf("}");
+}
+
+// Free print function for tile_distribution_encoding
+template <typename RsLengths_,
+          typename HsLengthss_,
+          typename Ps2RHssMajor_,
+          typename Ps2RHssMinor_,
+          typename Ys2RHsMajor_,
+          typename Ys2RHsMinor_>
+CK_TILE_HOST_DEVICE void print(const tile_distribution_encoding<RsLengths_,
+                                                                HsLengthss_,
+                                                                Ps2RHssMajor_,
+                                                                Ps2RHssMinor_,
+                                                                Ys2RHsMajor_,
+                                                                Ys2RHsMinor_>& encoding)
+{
+    printf("tile_distribution_encoding{");
+
+    printf("NDimX: %d, NDimP: %d, NDimY: %d, ", encoding.NDimX, encoding.NDimP, encoding.NDimY);
+    printf("rs_lengths_: ");
+    print(encoding.rs_lengths_);
+    printf(", ");
+    printf("hs_lengthss_: ");
+    print(encoding.hs_lengthss_);
+    printf(", ");
+    printf("ps_to_rhss_major_: ");
+    print(encoding.ps_to_rhss_major_);
+    printf(", ");
+    printf("ps_to_rhss_minor_: ");
+    print(encoding.ps_to_rhss_minor_);
+    printf(", ");
+    printf("ys_to_rhs_major_: ");
+    print(encoding.ys_to_rhs_major_);
+    printf(", ");
+    printf("ys_to_rhs_minor_: ");
+    print(encoding.ys_to_rhs_minor_);
+    printf(", ");
+    printf("}");
+}
+
 } // namespace ck_tile

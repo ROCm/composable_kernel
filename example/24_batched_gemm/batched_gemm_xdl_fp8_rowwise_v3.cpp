@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #include <iostream>
 #include <numeric>
 #include <initializer_list>
@@ -71,31 +71,31 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmMultiD
     256,            // BlockSize
     256,            // MPerBlock
     128,            // NPerBlock
-    32,             // KPerBlock
-    8,              // AK1
-    8,              // BK1
-    32,             // MPerXDL
-    32,             // NPerXDL
-    4,              // MXdlPerWave
-    2,              // NXdlPerWave
+    64,             // KPerBlock
+    16,             // AK1
+    16,             // BK1
+    16,             // MPerXDL
+    16,             // NPerXDL
+    8,              // MXdlPerWave
+    4,              // NXdlPerWave
     S<4, 64, 1>,    // ABlockTransferThreadClusterLengths_AK0_M_AK1
     S<1, 0, 2>,     // ABlockTransferThreadClusterArrangeOrder
     S<1, 0, 2>,     // ABlockTransferSrcAccessOrder
     2,              // ABlockTransferSrcVectorDim
     8,              // ABlockTransferSrcScalarPerVector
     8,              // ABlockTransferDstScalarPerVector_AK1
-    1,              // ABlockLdsExtraM
+    0,              // ABlockLdsExtraM
     S<4, 64, 1>,    // BBlockTransferThreadClusterLengths_BK0_N_BK1
     S<1, 0, 2>,     // BBlockTransferThreadClusterArrangeOrder
     S<1, 0, 2>,     // BBlockTransferSrcAccessOrder
     2,              // BBlockTransferSrcVectorDim
     8,              // BBlockTransferSrcScalarPerVector
     8,              // BBlockTransferDstScalarPerVector_BK1
-    1,              // BBlockLdsExtraN
+    0,              // BBlockLdsExtraN
     1,              // CShuffleMXdlPerWavePerShuffle
     1,              // CShuffleNXdlPerWavePerShuffle
     S<1, 32, 1, 8>, // CShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
-    S<8, 8, 1>,     // CDEShuffleBlockTransferScalarPerVectors
+    S<4, 4, 1>,     // CDEShuffleBlockTransferScalarPerVectors
     ck::BlockGemmPipelineScheduler::Interwave, // BlockGemmPipelineScheduler
     ck::BlockGemmPipelineVersion::v1,          // BlockGemmPipelineVersion
     F8                                         // ComputeTypeA
@@ -103,4 +103,4 @@ using DeviceGemmInstance = ck::tensor_operation::device::DeviceBatchedGemmMultiD
 
 #include "run_batched_gemm_example_rowwise.inc"
 
-int main(int argc, char* argv[]) { return !run_batched_gemm_rowwise_example(argc, argv); }
+int main(int argc, char* argv[]) { return run_batched_gemm_rowwise_example(argc, argv); }

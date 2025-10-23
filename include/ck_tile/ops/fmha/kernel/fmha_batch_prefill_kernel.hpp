@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -24,9 +24,10 @@ namespace ck_tile {
 template <typename FmhaPipeline_, typename EpiloguePipeline_>
 struct FmhaBatchPrefillWithPagedKVCacheKernel
 {
-    using FmhaPipeline                            = ck_tile::remove_cvref_t<FmhaPipeline_>;
-    using EpiloguePipeline                        = ck_tile::remove_cvref_t<EpiloguePipeline_>;
-    static constexpr ck_tile::index_t kBlockSize  = FmhaPipeline::kBlockSize;
+    using FmhaPipeline                           = ck_tile::remove_cvref_t<FmhaPipeline_>;
+    using EpiloguePipeline                       = ck_tile::remove_cvref_t<EpiloguePipeline_>;
+    static constexpr ck_tile::index_t kBlockSize = FmhaPipeline::kBlockSize;
+
     static constexpr ck_tile::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
     static_assert(kBlockPerCu > 0);
     static constexpr ck_tile::index_t kBlockPerCuInput = FmhaPipeline::Problem::kBlockPerCu;
@@ -316,56 +317,56 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
 
     template <bool Cond = !kIsGroupMode>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
-    MakeKargsImpl(const void* q_ptr,
-                  const void* k_ptr,
-                  const void* v_ptr,
-                  const void* bias_ptr,
-                  void* rand_val_ptr,
-                  void* lse_ptr,
-                  void* o_ptr,
-                  ck_tile::index_t seqlen_q,
-                  ck_tile::index_t hdim_q,
-                  ck_tile::index_t hdim_v,
-                  ck_tile::index_t num_head_q,
-                  ck_tile::index_t nhead_ratio_qk,
-                  int32_t num_total_pages,
-                  const void* kv_indptr,
-                  const void* kv_page_indices,
+    MakeKargs(const void* q_ptr,
+              const void* k_ptr,
+              const void* v_ptr,
+              const void* bias_ptr,
+              void* rand_val_ptr,
+              void* lse_ptr,
+              void* o_ptr,
+              ck_tile::index_t seqlen_q,
+              ck_tile::index_t hdim_q,
+              ck_tile::index_t hdim_v,
+              ck_tile::index_t num_head_q,
+              ck_tile::index_t nhead_ratio_qk,
+              int32_t num_total_pages,
+              const void* kv_indptr,
+              const void* kv_page_indices,
 #if 0 // we assume page_block_size=1 for now
               const void* kv_last_page_lens,
               ck_tile::index_t page_block_size,
 #endif
-                  float scale_s,
-                  float scale_p,
-                  float scale_o,
-                  float logits_soft_cap,
-                  ck_tile::index_t stride_q,
-                  ck_tile::index_t stride_k,
-                  ck_tile::index_t stride_v,
-                  ck_tile::index_t stride_bias,
-                  ck_tile::index_t stride_randval,
-                  ck_tile::index_t stride_o,
-                  ck_tile::index_t nhead_stride_q,
-                  ck_tile::index_t nhead_stride_k,
-                  ck_tile::index_t nhead_stride_v,
-                  ck_tile::index_t nhead_stride_bias,
-                  ck_tile::index_t nhead_stride_randval,
-                  ck_tile::index_t nhead_stride_lse,
-                  ck_tile::index_t nhead_stride_o,
-                  ck_tile::index_t batch_stride_q,
-                  ck_tile::index_t batch_stride_k,
-                  ck_tile::index_t batch_stride_v,
-                  ck_tile::index_t batch_stride_bias,
-                  ck_tile::index_t batch_stride_randval,
-                  ck_tile::index_t batch_stride_lse,
-                  ck_tile::index_t batch_stride_o,
-                  ck_tile::index_t window_size_left,
-                  ck_tile::index_t window_size_right,
-                  ck_tile::index_t mask_type,
-                  float p_drop,
-                  bool s_randval,
-                  std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
-                      drop_seed_offset)
+              float scale_s,
+              float scale_p,
+              float scale_o,
+              float logits_soft_cap,
+              ck_tile::index_t stride_q,
+              ck_tile::index_t stride_k,
+              ck_tile::index_t stride_v,
+              ck_tile::index_t stride_bias,
+              ck_tile::index_t stride_randval,
+              ck_tile::index_t stride_o,
+              ck_tile::index_t nhead_stride_q,
+              ck_tile::index_t nhead_stride_k,
+              ck_tile::index_t nhead_stride_v,
+              ck_tile::index_t nhead_stride_bias,
+              ck_tile::index_t nhead_stride_randval,
+              ck_tile::index_t nhead_stride_lse,
+              ck_tile::index_t nhead_stride_o,
+              ck_tile::index_t batch_stride_q,
+              ck_tile::index_t batch_stride_k,
+              ck_tile::index_t batch_stride_v,
+              ck_tile::index_t batch_stride_bias,
+              ck_tile::index_t batch_stride_randval,
+              ck_tile::index_t batch_stride_lse,
+              ck_tile::index_t batch_stride_o,
+              ck_tile::index_t window_size_left,
+              ck_tile::index_t window_size_right,
+              ck_tile::index_t mask_type,
+              float p_drop,
+              bool s_randval,
+              std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
+                  drop_seed_offset)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -468,51 +469,51 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
 
     template <bool Cond = kIsGroupMode>
     CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
-    MakeKargsImpl(const void* q_ptr,
-                  const void* k_ptr,
-                  const void* v_ptr,
-                  const void* bias_ptr,
-                  void* rand_val_ptr,
-                  void* lse_ptr,
-                  void* o_ptr,
-                  const void* seqstart_q_ptr,
-                  ck_tile::index_t hdim_q,
-                  ck_tile::index_t hdim_v,
-                  ck_tile::index_t num_head_q,
-                  ck_tile::index_t nhead_ratio_qk,
-                  int32_t num_total_pages,
-                  const void* kv_indptr,
-                  const void* kv_page_indices,
+    MakeKargs(const void* q_ptr,
+              const void* k_ptr,
+              const void* v_ptr,
+              const void* bias_ptr,
+              void* rand_val_ptr,
+              void* lse_ptr,
+              void* o_ptr,
+              const void* seqstart_q_ptr,
+              ck_tile::index_t hdim_q,
+              ck_tile::index_t hdim_v,
+              ck_tile::index_t num_head_q,
+              ck_tile::index_t nhead_ratio_qk,
+              int32_t num_total_pages,
+              const void* kv_indptr,
+              const void* kv_page_indices,
 #if 0 // we assume page_block_size=1 for now
               const void* kv_last_page_lens,
               ck_tile::index_t page_block_size,
 #endif
-                  float scale_s,
-                  float scale_p,
-                  float scale_o,
-                  float logits_soft_cap,
-                  ck_tile::index_t stride_q,
-                  ck_tile::index_t stride_k,
-                  ck_tile::index_t stride_v,
-                  ck_tile::index_t stride_bias,
-                  ck_tile::index_t stride_randval,
-                  ck_tile::index_t stride_o,
-                  ck_tile::index_t nhead_stride_q,
-                  ck_tile::index_t nhead_stride_k,
-                  ck_tile::index_t nhead_stride_v,
-                  ck_tile::index_t nhead_stride_bias,
-                  ck_tile::index_t nhead_stride_randval,
-                  ck_tile::index_t nhead_stride_lse,
-                  ck_tile::index_t nhead_stride_o,
-                  ck_tile::index_t batch_stride_k,
-                  ck_tile::index_t batch_stride_v,
-                  ck_tile::index_t window_size_left,
-                  ck_tile::index_t window_size_right,
-                  ck_tile::index_t mask_type,
-                  float p_drop,
-                  bool s_randval,
-                  std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
-                      drop_seed_offset)
+              float scale_s,
+              float scale_p,
+              float scale_o,
+              float logits_soft_cap,
+              ck_tile::index_t stride_q,
+              ck_tile::index_t stride_k,
+              ck_tile::index_t stride_v,
+              ck_tile::index_t stride_bias,
+              ck_tile::index_t stride_randval,
+              ck_tile::index_t stride_o,
+              ck_tile::index_t nhead_stride_q,
+              ck_tile::index_t nhead_stride_k,
+              ck_tile::index_t nhead_stride_v,
+              ck_tile::index_t nhead_stride_bias,
+              ck_tile::index_t nhead_stride_randval,
+              ck_tile::index_t nhead_stride_lse,
+              ck_tile::index_t nhead_stride_o,
+              ck_tile::index_t batch_stride_k,
+              ck_tile::index_t batch_stride_v,
+              ck_tile::index_t window_size_left,
+              ck_tile::index_t window_size_right,
+              ck_tile::index_t mask_type,
+              float p_drop,
+              bool s_randval,
+              std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
+                  drop_seed_offset)
     {
         Kargs kargs{{q_ptr,
                      k_ptr,
@@ -706,8 +707,8 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
         // divide problem
         const auto [i_tile_m, i_tile_n, i_nhead, i_batch] = GetTileIndex(kargs);
 
-        const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * FmhaPipeline::kM0);
-        const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN1);
+        const index_t i_m0 = amd_wave_read_first_lane(i_tile_m * FmhaPipeline::kM0);
+        const index_t i_n1 = amd_wave_read_first_lane(i_tile_n * FmhaPipeline::kN1);
 
         long_index_t batch_offset_q       = 0;
         long_index_t batch_offset_bias    = 0;
@@ -1142,7 +1143,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                              make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
                              {i_m0, i_n1});
 
-        EpiloguePipeline{}(o_dram_window, o_acc_tile);
+        EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr);
     }
 };
 

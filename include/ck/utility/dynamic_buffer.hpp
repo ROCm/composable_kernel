@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -7,11 +7,12 @@
 #include "ck/utility/data_type.hpp"
 #include "enable_if.hpp"
 #include "c_style_pointer_cast.hpp"
-#if __clang_major__ == 20
+#if __clang_major__ >= 20
 #include "amd_buffer_addressing_builtins.hpp"
 #else
 #include "amd_buffer_addressing.hpp"
 #endif
+#include "amd_transpose_load.hpp"
 #include "generic_memory_space_atomic.hpp"
 
 namespace ck {
@@ -34,6 +35,10 @@ struct DynamicBuffer
     ElementSpaceSize element_space_size_;
     T invalid_element_value_ = T{0};
 
+    // XXX: PackedSize semantics for pk_i4_t is different from the other packed types.
+    // Objects of f4x2_pk_t and f6_pk_t are counted as 1 element, while
+    // objects of pk_i4_t are counted as 2 elements. Therefore, element_space_size_ for pk_i4_t must
+    // be divided by 2 to correctly represent the number of addressable elements.
     static constexpr index_t PackedSize = []() {
         if constexpr(is_same_v<remove_cvref_t<T>, pk_i4_t>)
             return 2;
@@ -65,6 +70,7 @@ struct DynamicBuffer
     __host__ __device__ constexpr T& operator()(IndexType i) { return p_data_[i]; }
 
     template <typename X,
+              bool DoTranspose               = false,
               typename enable_if<is_same<typename scalar_type<remove_cvref_t<X>>::type,
                                          typename scalar_type<remove_cvref_t<T>>::type>::value ||
                                      !is_native_type<X>(),
@@ -85,7 +91,8 @@ struct DynamicBuffer
         bool constexpr use_amd_buffer_addressing = false;
 #endif
 
-        if constexpr(GetAddressSpace() == AddressSpaceEnum::Global && use_amd_buffer_addressing)
+        if constexpr(GetAddressSpace() == AddressSpaceEnum::Global && use_amd_buffer_addressing &&
+                     !DoTranspose)
         {
             constexpr index_t t_per_x = scalar_per_x_vector / scalar_per_t_vector;
 
@@ -107,6 +114,14 @@ struct DynamicBuffer
                     element_space_size_ / PackedSize,
                     invalid_element_value_);
             }
+        }
+        else if constexpr(GetAddressSpace() == AddressSpaceEnum::Global && DoTranspose)
+        {
+#ifdef __gfx12__
+            return amd_global_load_transpose_to_vgpr(p_data_ + i);
+#else
+            static_assert(!DoTranspose, "load-with-transpose only supported on gfx12+");
+#endif
         }
         else
         {
@@ -228,7 +243,7 @@ struct DynamicBuffer
 #if CK_USE_AMD_BUFFER_LOAD
         bool constexpr use_amd_buffer_addressing = sizeof(IndexType) <= sizeof(int32_t);
 #else
-        bool constexpr use_amd_buffer_addressing      = false;
+        bool constexpr use_amd_buffer_addressing = false;
 #endif
 
 #if CK_WORKAROUND_SWDEV_XXXXXX_INT8_DS_WRITE_ISSUE

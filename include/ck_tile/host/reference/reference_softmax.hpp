@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -14,7 +14,7 @@ CK_TILE_HOST void
 reference_softmax(const HostTensor<InputType>& x, HostTensor<OutputType>& y, index_t dim = -1)
 {
     index_t rank = x.get_num_of_dimension();
-    assert(rank == y.get_num_of_dimension());
+    assert(static_cast<std::size_t>(rank) == y.get_num_of_dimension());
     assert(dim == -1 || dim < rank);
 
     index_t target_dim  = dim == -1 ? (rank - 1) : dim;

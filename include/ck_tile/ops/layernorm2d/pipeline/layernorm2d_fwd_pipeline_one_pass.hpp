@@ -193,7 +193,7 @@ struct Layernorm2dFwdPipelineOnePass
             Epilogue{}(y_window_, sm_scale_window_, y_scale_window, ln, smem);
         }
         else
-            Epilogue{}(y_window_, ln);
+            Epilogue{}(y_window_, ln, nullptr);
     }
 };
 } // namespace ck_tile

@@ -13,7 +13,7 @@ template <typename T, typename Enable = void>
 struct PrintAsType;
 
 template <typename T>
-struct PrintAsType<T, typename std::enable_if<std::is_floating_point<T>::value>::type>
+struct PrintAsType<T, typename enable_if<is_floating_point<T>::value>::type>
 {
     using type = float;
     __host__ __device__ static void Print(const T& p) { printf("%.3f ", static_cast<type>(p)); }
@@ -30,7 +30,7 @@ struct PrintAsType<ck::half_t, void>
 };
 
 template <typename T>
-struct PrintAsType<T, typename std::enable_if<std::is_integral<T>::value>::type>
+struct PrintAsType<T, typename enable_if<is_integral<T>::value>::type>
 {
     using type = int;
     __host__ __device__ static void Print(const T& p) { printf("%d ", static_cast<type>(p)); }
@@ -85,6 +85,19 @@ __device__ static bool is_thread_local_1d_id_idx()
 {
     const auto tid = get_thread_local_1d_id();
     return ((tid == Ids) || ...);
+}
+
+// Use `CK_PRINT<T1, T2, ...>()` to inspect values of type T1, T2, ...
+// Use `CK_PRINT<v1, v2, ...>()` to inspect constexpr values of val1, val2, ... of the same type
+// In a non-evaluated context, you can use `using _dummy = decltype(CK_PRINT<...>());`
+// Set BUILD_DEV to OFF to avoid enabling Werror
+template <auto... val>
+[[deprecated("Help function to print value")]] inline constexpr void CK_PRINT()
+{
+}
+template <typename... type>
+[[deprecated("Help function to print value")]] inline constexpr void CK_PRINT()
+{
 }
 
 } // namespace debug

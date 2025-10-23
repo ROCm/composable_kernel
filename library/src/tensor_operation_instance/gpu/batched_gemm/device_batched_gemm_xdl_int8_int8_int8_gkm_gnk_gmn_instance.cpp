@@ -28,8 +28,9 @@ using AccData = int32_t;
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 // Compilation parameters for a[m, k] * b[n, k] = c[m, n]
-using device_batched_gemm_xdl_int8_int8_int8_gkm_gnk_gmn_instances = std::tuple<
-    // clang-format off
+using device_batched_gemm_xdl_int8_int8_int8_gkm_gnk_gmn_instances =
+    std::tuple<
+        // clang-format off
         //##########|          AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer|
         //##########|           Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| SrcDstVectorDim|       DstScalar|
         //##########|               |      |      |        |        |        |        |   Operation|   Operation|   Operation|      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |                |       PerVector|
@@ -55,8 +56,8 @@ using device_batched_gemm_xdl_int8_int8_int8_gkm_gnk_gmn_instances = std::tuple<
         DeviceBatchedGemmXdl<  AData, BData, CData, AccData,     Col,     Col,     Row, PassThrough, PassThrough, PassThrough,   128,    64,   128,     4,  16,   32,   32,    2,    2,     S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              2,               16,      true,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              16,              16,      true,               7,               1>,
         DeviceBatchedGemmXdl<  AData, BData, CData, AccData,     Col,     Col,     Row, PassThrough, PassThrough, PassThrough,   256,   128,    64,     4,  16,   32,   32,    2,    1,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              2,               16,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              16,              16,      true,               7,               1>,
         DeviceBatchedGemmXdl<  AData, BData, CData, AccData,     Col,     Col,     Row, PassThrough, PassThrough, PassThrough,   256,    64,   128,     4,  16,   32,   32,    1,    2,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,               16,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              16,              16,      true,               7,               1>
-    // clang-format on
-    >;
+        // clang-format on
+        >;
 
 void add_device_batched_gemm_xdl_int8_int8_int8_gkm_gnk_gmn_instances(
     std::vector<std::unique_ptr<DeviceBatchedGemm<Col,

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -59,6 +59,7 @@ template <ck::index_t NDimSpatial,
           ck::index_t NumAElementwiseTensor                                         = 0,
           ck::index_t NumBElementwiseTensor                                         = 0,
           ck::index_t NumDElementwiseTensor                                         = 0,
+          typename ComputeDataType                                                  = InDataType,
           typename std::enable_if<NDimSpatial >= 1 && NDimSpatial <= 3, bool>::type = false>
 struct ReferenceConvFwd : public device::BaseOperator
 {
@@ -163,8 +164,18 @@ struct ReferenceConvFwd : public device::BaseOperator
                                                      k,
                                                      c,
                                                      x);
-                                v_acc +=
-                                    ck::type_convert<float>(v_in) * ck::type_convert<float>(v_wei);
+                                if constexpr(is_same_v<ComputeDataType, ck::tf32_t>)
+                                {
+                                    v_acc += ck::type_convert<float>(
+                                                 ck::type_convert<ComputeDataType>(v_in)) *
+                                             ck::type_convert<float>(
+                                                 ck::type_convert<ComputeDataType>(v_wei));
+                                }
+                                else
+                                {
+                                    v_acc += ck::type_convert<float>(v_in) *
+                                             ck::type_convert<float>(v_wei);
+                                }
                             }
                         }
                     }
@@ -238,8 +249,18 @@ struct ReferenceConvFwd : public device::BaseOperator
                                                          c,
                                                          y,
                                                          x);
-                                    v_acc += ck::type_convert<float>(v_in) *
-                                             ck::type_convert<float>(v_wei);
+                                    if constexpr(is_same_v<ComputeDataType, ck::tf32_t>)
+                                    {
+                                        v_acc += ck::type_convert<float>(
+                                                     ck::type_convert<ComputeDataType>(v_in)) *
+                                                 ck::type_convert<float>(
+                                                     ck::type_convert<ComputeDataType>(v_wei));
+                                    }
+                                    else
+                                    {
+                                        v_acc += ck::type_convert<float>(v_in) *
+                                                 ck::type_convert<float>(v_wei);
+                                    }
                                 }
                             }
                         }
@@ -327,8 +348,18 @@ struct ReferenceConvFwd : public device::BaseOperator
                                                              z,
                                                              y,
                                                              x);
-                                        v_acc += ck::type_convert<float>(v_in) *
-                                                 ck::type_convert<float>(v_wei);
+                                        if constexpr(is_same_v<ComputeDataType, ck::tf32_t>)
+                                        {
+                                            v_acc += ck::type_convert<float>(
+                                                         ck::type_convert<ComputeDataType>(v_in)) *
+                                                     ck::type_convert<float>(
+                                                         ck::type_convert<ComputeDataType>(v_wei));
+                                        }
+                                        else
+                                        {
+                                            v_acc += ck::type_convert<float>(v_in) *
+                                                     ck::type_convert<float>(v_wei);
+                                        }
                                     }
                                 }
                             }
@@ -383,22 +414,29 @@ struct ReferenceConvFwd : public device::BaseOperator
                                      const T& x,
                                      Args... dims)
     {
+        float y_f32;
         if constexpr(NumTensor::value == 0)
         {
-            elementwise_op(y, x);
+            elementwise_op(y_f32, ck::type_convert<float>(x));
         }
         else if constexpr(NumTensor::value == 1)
         {
-            elementwise_op(y, x, elementwise_tensors[0](dims...));
+            elementwise_op(y_f32,
+                           ck::type_convert<float>(x),
+                           ck::type_convert<float>(elementwise_tensors[0](dims...)));
         }
         else if constexpr(NumTensor::value == 2)
         {
-            elementwise_op(y, x, elementwise_tensors[0](dims...), elementwise_tensors[1](dims...));
+            elementwise_op(y_f32,
+                           ck::type_convert<float>(x),
+                           ck::type_convert<float>(elementwise_tensors[0](dims...)),
+                           ck::type_convert<float>(elementwise_tensors[1](dims...)));
         }
         else
         {
             throw std::runtime_error("ElementOp not supported in reference.");
         }
+        y = ck::type_convert<T>(y_f32);
     }
 
     static constexpr bool IsValidCompilationParameter()
