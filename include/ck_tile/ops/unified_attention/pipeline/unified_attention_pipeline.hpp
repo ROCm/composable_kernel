@@ -395,7 +395,8 @@ struct UnifiedAttentionPipeline
                                    void* smem_ptr) const
     {
         using namespace ck_tile;
-        constexpr index_t BLOCK_Q = BLOCK_M / num_queries_per_kv;
+        // TODO do we make the num_queries_per_kv and num_head conexpr???
+        const index_t BLOCK_Q = BLOCK_M / num_queries_per_kv;
 
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
