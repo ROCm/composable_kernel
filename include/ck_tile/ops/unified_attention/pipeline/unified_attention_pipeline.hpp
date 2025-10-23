@@ -395,7 +395,7 @@ struct UnifiedAttentionPipeline
                                    void* smem_ptr) const
     {
         using namespace ck_tile;
-        index_t BLOCK_Q = BLOCK_M / num_queries_per_kv;
+        constexpr index_t BLOCK_Q = BLOCK_M / num_queries_per_kv;
 
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -410,7 +410,7 @@ struct UnifiedAttentionPipeline
                           BLOCK_SIZE == VDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
                       "wrong!");
 
-        static_assert(sizeof(SaccDataType) * BLOCK_Q * BLOCK_SIZE <= GetSmemSize());
+        static_assert(sizeof(SaccDataType) * BLOCK_SIZE <= GetSmemSize());
         auto s_lds = make_tensor_view<address_space_enum::lds>(
             reinterpret_cast<SaccDataType*>(static_cast<char*>(smem_ptr)),
             MakeSimpleLdsDesc<BLOCK_Q, BLOCK_SIZE>());

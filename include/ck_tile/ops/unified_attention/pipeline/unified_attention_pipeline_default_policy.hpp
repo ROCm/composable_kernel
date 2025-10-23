@@ -92,8 +92,8 @@ struct UnifiedAttentionPipelineDefaultPolicy
     {
         using namespace ck_tile;
 
-        constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::kN0;
-        constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::kK0;
+        constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::BLOCK_SIZE;
+        constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::HEAD_SIZE;
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t NumWarps   = Problem::UnifiedAttentionShape::NumWarps;
         constexpr index_t WarpSize   = ck_tile::get_warp_size();
@@ -126,8 +126,8 @@ struct UnifiedAttentionPipelineDefaultPolicy
     {
         using namespace ck_tile;
 
-        constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::kK1;
-        constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::kN1;
+        constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::BLOCK_SIZE;
+        constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::HEAD_SIZE;
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t NumWarps   = Problem::UnifiedAttentionShape::NumWarps;
         constexpr index_t WarpSize   = ck_tile::get_warp_size();
@@ -197,8 +197,8 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t MWarp = Problem::UnifiedAttentionShape::Gemm1BlockWarps::at(number<0>{});
         constexpr index_t NWarp = Problem::UnifiedAttentionShape::Gemm1BlockWarps::at(number<1>{});
 
-        constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::kN1;
-        constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::kK1;
+        constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::HEAD_SIZE;
+        constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::BLOCK_SIZE;
 
         constexpr index_t NIterPerWarp = kNPerBlock / (NWarp * WarpGemm::kN);
         constexpr index_t KIterPerWarp = kKPerBlock / WarpGemm::kK;
@@ -233,9 +233,9 @@ struct UnifiedAttentionPipelineDefaultPolicy
                              typename Problem::KDataType,
                              typename Problem::SaccDataType,
                              Problem::kBlockSize,
-                             TileGemmShape<sequence<Problem::UnifiedAttentionShape::kM0,
-                                                    Problem::UnifiedAttentionShape::kN0,
-                                                    Problem::UnifiedAttentionShape::kK0>,
+                             TileGemmShape<sequence<Problem::UnifiedAttentionShape::BLOCK_M,
+                                                    Problem::UnifiedAttentionShape::BLOCK_SIZE,
+                                                    Problem::UnifiedAttentionShape::HEAD_SIZE>,
                                            typename Problem::UnifiedAttentionShape::Gemm0BlockWarps,
                                            typename Problem::UnifiedAttentionShape::Gemm0WarpTile>>;
 
@@ -279,9 +279,9 @@ struct UnifiedAttentionPipelineDefaultPolicy
                              typename Problem::VDataType,
                              typename Problem::OaccDataType,
                              Problem::kBlockSize,
-                             TileGemmShape<sequence<Problem::UnifiedAttentionShape::kM0,
-                                                    Problem::UnifiedAttentionShape::kN1,
-                                                    Problem::UnifiedAttentionShape::kK1>,
+                             TileGemmShape<sequence<Problem::UnifiedAttentionShape::BLOCK_M,
+                                                    Problem::UnifiedAttentionShape::HEAD_SIZE,
+                                                    Problem::UnifiedAttentionShape::BLOCK_SIZE>,
                                            typename Problem::UnifiedAttentionShape::Gemm1BlockWarps,
                                            typename Problem::UnifiedAttentionShape::Gemm1WarpTile>>;
         /// NOTICE: in order to use load_tile_transpose() later for V tiles, we have to pass
@@ -317,8 +317,8 @@ struct UnifiedAttentionPipelineDefaultPolicy
         using namespace ck_tile;
 
         // K is always k-major, we use async-copy to load into LDS
-        constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::kN0;
-        constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::kK0;
+        constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::BLOCK_SIZE;
+        constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::HEAD_SIZE;
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t NumWarps   = Problem::UnifiedAttentionShape::NumWarps;
         constexpr index_t WarpSize   = ck_tile::get_warp_size();
@@ -374,8 +374,8 @@ struct UnifiedAttentionPipelineDefaultPolicy
         using namespace ck_tile;
 
         // K is always k-major, we use async-copy to load into LDS
-        constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::kN0;
-        constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::kK0;
+        constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::BLOCK_SIZE;
+        constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::HEAD_SIZE;
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t NumWarps   = Problem::UnifiedAttentionShape::NumWarps;
         constexpr index_t WarpSize   = ck_tile::get_warp_size();
@@ -423,8 +423,8 @@ struct UnifiedAttentionPipelineDefaultPolicy
     {
         // this function assume K/V can share smem
         constexpr index_t SingleKSize = [&]() {
-            constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::kN0;
-            constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::kK1;
+            constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::BLOCK_SIZE;
+            constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::BLOCK_SIZE;
             constexpr index_t NumWarps   = Problem::UnifiedAttentionShape::NumWarps;
             constexpr index_t WarpSize   = ck_tile::get_warp_size();
 
@@ -447,8 +447,8 @@ struct UnifiedAttentionPipelineDefaultPolicy
             constexpr index_t kKPack       = GetSmemKPackK<Problem>();
             static_assert(PixelsPerRow % kKPack == 0);
             constexpr index_t NPerRow    = PixelsPerRow / kKPack;
-            constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::kN1;
-            constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::kK1;
+            constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::HEAD_SIZE;
+            constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::BLOCK_SIZE;
             static_assert(kNPerBlock % NPerRow == 0);
             static_assert(kKPerBlock % kKPack == 0);
 
@@ -465,8 +465,8 @@ struct UnifiedAttentionPipelineDefaultPolicy
         using namespace ck_tile;
 
         /// FIXME: rename the kNPerBlock & kKPerBlock since the kN1 is congtigous dimension
-        constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::kK1;
-        constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::kN1;
+        constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::BLOCK_SIZE;
+        constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::HEAD_SIZE;
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t NumWarps   = Problem::UnifiedAttentionShape::NumWarps;
         constexpr index_t WarpSize   = ck_tile::get_warp_size();
@@ -522,8 +522,8 @@ struct UnifiedAttentionPipelineDefaultPolicy
         using namespace ck_tile;
 
         /// FIXME: rename the kNPerBlock & kKPerBlock since the kN1 is congtigous dimension
-        constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::kK1;
-        constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::kN1;
+        constexpr index_t kNPerBlock = Problem::UnifiedAttentionShape::BLOCK_SIZE;
+        constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::HEAD_SIZE;
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t NumWarps   = Problem::UnifiedAttentionShape::NumWarps;
         constexpr index_t WarpSize   = ck_tile::get_warp_size();

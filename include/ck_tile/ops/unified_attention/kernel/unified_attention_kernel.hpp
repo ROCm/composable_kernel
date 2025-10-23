@@ -43,8 +43,8 @@ struct UnifiedAttentionKernel
     
     // BLOCK_Q = BLOCK_M // num_queries_per_kv
     // BLOCK_Q is the block size for q seqlen
-    static constexpr index_t BLOCK_Q = UnifiedAttentionPipeline::BLOCK_Q;
-    // static constexpr index_t BLOCK_M = UnifiedAttentionPipeline::BLOCK_M;
+    /// static constexpr index_t BLOCK_Q = UnifiedAttentionPipeline::BLOCK_Q;
+    static constexpr index_t BLOCK_M = UnifiedAttentionPipeline::BLOCK_M;
     // BLOCK size for K seqlen
     static constexpr index_t BLOCK_SIZE = UnifiedAttentionPipeline::BLOCK_SIZE;
 
@@ -276,10 +276,12 @@ struct UnifiedAttentionKernel
 
         ck_tile::index_t pid = blockIdx.x;
 
-        const index_t BLOCK_M = BLOCK_Q * kargs.num_queries_per_kv;
+        const index_t num_queries_per_kv = kargs.num_queries_per_kv;
+
+        const index_t BLOCK_Q = BLOCK_M / num_queries_per_kv;
         // for simplicity, batch stride we just modify the pointer
         // const index_t num_head_q = kargs.num_head_q;
-        const index_t num_queries_per_kv = kargs.num_queries_per_kv;
+        
         // const index_t num_head_k = num_head_q / num_queries_per_kv;
 
         pid = RemapTileIndices(pid, kargs);
