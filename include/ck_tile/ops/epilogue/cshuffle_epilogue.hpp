@@ -421,10 +421,11 @@ struct CShuffleEpilogue
     template <index_t iAccess, typename OAccTile, typename LdsTile>
     CK_TILE_DEVICE void slice_acc_tile(const OAccTile& o_acc_tile, LdsTile& lds_tile)
     {
-        constexpr auto idx_y_start = SFC::get_index(number<iAccess>{});
+        constexpr auto idx_start = SFC::get_index(number<iAccess>{});
 
-        constexpr auto mIter = number<idx_y_start.at(number<0>{}) / (MPerIterationShuffle)>{};
-        constexpr auto nIter = number<idx_y_start.at(number<1>{}) / (NPerIterationShuffle)>{};
+        // SFC with (N,M) dims and (1,0) access order returns indices in (M, N) iteration order
+        constexpr auto mIter = number<idx_start.at(number<0>{}) / (MPerIterationShuffle)>{};
+        constexpr auto nIter = number<idx_start.at(number<1>{}) / (NPerIterationShuffle)>{};
         constexpr auto c_warp_y_lengths =
             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
@@ -736,8 +737,8 @@ struct CShuffleEpilogue
         static_assert(GetVectorSizeC() > 1, "VectorSizeC is not greater than 1!");
         using TileEncodingPattern =
             tile_distribution_encoding_pattern_2d<kBlockSize,
-                                                  NPerIterationShuffle,
-                                                  MPerIterationShuffle,
+                                                  YPerIterationShuffle,
+                                                  XPerIterationShuffle,
                                                   GetVectorSizeC(),
                                                   tile_distribution_pattern::thread_raked,
                                                   Problem::kNumWaveGroups>;
