@@ -55,6 +55,7 @@ pipeline {
             steps {
                 script {
                     //echo "login attempt to https://some.docker.io/v2 failed with status: 401 Unauthorized"
+                    echo "lgtm"
                 }
             }
         }
@@ -63,6 +64,7 @@ pipeline {
             steps {
                 script {
                     //echo "there was a f a i l u r e, docker login failed."
+                    echo "lgtm"
                 }
             }
         }
@@ -71,6 +73,7 @@ pipeline {
             steps {
                 script {
                     //echo "Unable to locate image xyz.docker-123"
+                    echo "lgtm"
                 }
             }
         }
@@ -79,6 +82,7 @@ pipeline {
             steps {
                 script {
                     //echo "HTTP request sent to github.com/my/repo 404 Not Found"
+                    echo "lgtm"
                 }
             }
         }
@@ -87,6 +91,7 @@ pipeline {
             steps {
                 script {
                     //echo "cat: /sys/module/amdgpu/version: No such file or directory"
+                    echo "lgtm"
                 }
             }
         }
