@@ -317,13 +317,134 @@ struct QuantGroupedGemmKernel
         const BQDataType* bq_ptr = static_cast<const BQDataType*>(kargs.bq_ptr);
         CDataType* c_ptr         = static_cast<CDataType*>(kargs.c_ptr);
 
-        static_assert(GemmPipeline::DoubleSmemBuffer == false,
-                      "DoubleSmemBuffer needs to be false");
+        // static_assert(GemmPipeline::DoubleSmemBuffer == false,
+        //               "DoubleSmemBuffer needs to be false");
         // allocate LDS
         __shared__ char smem_ptr_0[GetSmemSize()];
 
-        RunGemmWithPipelineSelection(
-            a_ptr, b_ptr, aq_ptr, bq_ptr, c_ptr, smem_ptr_0, kargs, splitk_batch_offset, i_m, i_n);
+        if constexpr(GemmPipeline::DoubleSmemBuffer == true &&
+                     kQuantType == QuantType::BQuantGrouped)
+        {
+            if(get_thread_id() == 0 && get_block_id() == 0)
+            {
+                printf("DoubleSmemBuffer is true\n");
+                __shared__ char smem_ptr_1[GetSmemSize()];
+                RunGemmWithPipelineSelection2LDS(a_ptr,
+                                                 b_ptr,
+                                                 aq_ptr,
+                                                 bq_ptr,
+                                                 c_ptr,
+                                                 smem_ptr_0,
+                                                 smem_ptr_1,
+                                                 kargs,
+                                                 splitk_batch_offset,
+                                                 i_m,
+                                                 i_n);
+            }
+        }
+        else
+        {
+            if(get_thread_id() == 0 && get_block_id() == 0)
+            {
+                printf("DoubleSmemBuffer is false\n");
+            }
+            RunGemmWithPipelineSelection(a_ptr,
+                                         b_ptr,
+                                         aq_ptr,
+                                         bq_ptr,
+                                         c_ptr,
+                                         smem_ptr_0,
+                                         kargs,
+                                         splitk_batch_offset,
+                                         i_m,
+                                         i_n);
+        }
+    }
+
+    template <memory_operation_enum DstInMemOp = memory_operation_enum::set>
+    CK_TILE_DEVICE static void
+    RunGemmWithPipelineSelection2LDS(const ADataType* a_ptr,
+                                     const BDataType* b_ptr,
+                                     const AQDataType* aq_ptr,
+                                     const BQDataType* bq_ptr,
+                                     CDataType* c_ptr,
+                                     void* smem_ptr_0,
+                                     void* smem_ptr_1,
+                                     const QuantGroupedGemmKernelArgs& kargs,
+                                     const typename Base::SplitKBatchOffset& splitk_batch_offset,
+                                     const index_t block_idx_m,
+                                     const index_t block_idx_n)
+    {
+        static_assert(kQuantType == QuantType::BQuantGrouped, "kQuantType must be BQuantGrouped");
+        if(get_thread_id() == 0 && get_block_id() == 0)
+        {
+            printf("RunGemmWithPipelineSelection2LDS\n");
+            printf("PreshuffleB: %d\n", GemmPipeline::PreshuffleB);
+        }
+        // Create Gemm tensor views, pad views and tile windows
+        const auto& gemm_tensor_views_tuple =
+            Base::template MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
+                a_ptr, b_ptr, aq_ptr, bq_ptr, c_ptr, kargs, splitk_batch_offset);
+
+        const auto& gemm_pad_views = Base::MakeGemmPadViews(gemm_tensor_views_tuple);
+        auto gemm_tile_windows =
+            Base::MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
+
+        const index_t num_loop = __builtin_amdgcn_readfirstlane(
+            TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
+        const bool has_hot_loop   = GemmPipeline::BlockHasHotloop(num_loop);
+        const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
+
+        // Run GEMM cooperatively by whole workgroup.
+        const auto& a_block_window = gemm_tile_windows.at(Base::I0);
+        const auto& b_block_window = gemm_tile_windows.at(Base::I2);
+
+        if(get_thread_id() == 0 && get_block_id() == 0)
+        {
+            printf(" RunGemmWithPipelineSelection2LDS num_loop: %d\n", num_loop);
+            a_block_window.template print_tile_window_range<ADataType>(
+                0, 4, 0, 4, "a_block_window");
+            b_block_window.template print_tile_window_range<BDataType>(
+                0, 4, 0, 4, "b_block_window");
+            printf("has_hot_loop: %d\n", has_hot_loop);
+            printf("tail_num: %d\n", static_cast<int>(tail_num));
+        }
+
+        const auto& c_block_tile = [&]() {
+            if constexpr(kQuantType == QuantType::BQuantGrouped)
+            {
+                const auto& bq_block_window = gemm_tile_windows.at(Base::I3);
+                return GemmPipeline{}.template operator()(a_block_window,
+                                                          b_block_window,
+                                                          bq_block_window,
+                                                          num_loop,
+                                                          tail_num,
+                                                          smem_ptr_0,
+                                                          smem_ptr_1);
+            }
+            else
+            {
+                return nullptr;
+            }
+        }();
+
+        // Run Epilogue Pipeline
+        auto& c_block_window = gemm_tile_windows.at(Base::I4);
+        (void)c_block_window;
+        if(get_thread_id() == 0 && get_block_id() == 0)
+        {
+            printf("Before EpiloguePipeline: c_block_window after gemm_tile_window: \n");
+            c_block_window.template print_tile_window_range<CDataType>(
+                0, 4, 0, 4, "c_block_window");
+        }
+
+        EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
+        if(get_thread_id() == 0 && get_block_id() == 0)
+        {
+            printf("After EpiloguePipeline: c_block_window after gemm_tile_window: \n");
+            c_block_window.template print_tile_window_range<CDataType>(
+                0, 4, 0, 4, "c_block_window");
+        }
     }
 
     /**
@@ -369,6 +490,14 @@ struct QuantGroupedGemmKernel
         const auto& a_block_window = gemm_tile_windows.at(Base::I0);
         const auto& b_block_window = gemm_tile_windows.at(Base::I2);
 
+        if(get_thread_id() == 0 && get_block_id() == 0)
+        {
+            a_block_window.template print_tile_window_range<ADataType>(
+                0, 4, 0, 4, "a_block_window");
+            b_block_window.template print_tile_window_range<BDataType>(
+                0, 4, 0, 4, "b_block_window");
+        }
+
         // Get hot-loop and tail configuration
         const index_t num_loop = __builtin_amdgcn_readfirstlane(
             TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
@@ -389,8 +518,21 @@ struct QuantGroupedGemmKernel
 
             auto& c_block_window = gemm_tile_windows.at(Base::I4);
 
+            if(get_thread_id() == 0 && get_block_id() == 0)
+            {
+                printf("Before EpiloguePipeline: c_block_window after gemm_tile_window: \n");
+                c_block_window.template print_tile_window_range<CDataType>(
+                    0, 4, 0, 4, "c_block_window");
+            }
+
             // Run Epilogue Pipeline
             EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
+            if(get_thread_id() == 0 && get_block_id() == 0)
+            {
+                printf("After EpiloguePipeline: c_block_window after gemm_tile_window: \n");
+                c_block_window.template print_tile_window_range<CDataType>(
+                    0, 4, 0, 4, "c_block_window");
+            }
         }
         else
         {

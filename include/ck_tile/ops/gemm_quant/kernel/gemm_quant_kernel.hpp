@@ -483,6 +483,12 @@ struct QuantGemmKernel
                                                    const QuantGemmKernelArgs& kargs,
                                                    const SplitKBatchOffset& splitk_batch_offset)
     {
+        if(get_thread_id() == 0 && get_block_id() == 0)
+        {
+            printf("MakeGemmTensorViews\n");
+            // print is PreshuffleB true or false
+            printf("PreshuffleB: %d\n", PreshuffleB);
+        }
         static_assert(!TilePartitioner::BlockGemmShape::PermuteA, "Not implemented!");
         const auto& a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
@@ -790,6 +796,10 @@ struct QuantGemmKernel
         }();
         if constexpr(PreshuffleB)
         {
+            if(get_thread_id() == 0 && get_block_id() == 0)
+            {
+                printf("Preshuffle B is true when MakeGemmPadViews\n");
+            }
             return make_tuple(a_pad_view, aq_pad_view, b_flat_view, bq_pad_view, c_pad_view);
         }
         else
@@ -802,6 +812,10 @@ struct QuantGemmKernel
     CK_TILE_DEVICE static auto
     MakeGemmTileWindows(const PadView& views, const index_t i_m, const index_t i_n)
     {
+        if(get_thread_id() == 0 && get_block_id() == 0)
+        {
+            printf("MakeGemmTileWindows\n");
+        }
         const auto& a_pad_view     = views.at(I0);
         const auto& aq_pad_view    = views.at(I1);
         const auto& b_pad_view     = views.at(I2);
@@ -867,6 +881,10 @@ struct QuantGemmKernel
         const auto& b_block_window = [&]() {
             if constexpr(PreshuffleB)
             {
+                if(get_thread_id() == 0 && get_block_id() == 0)
+                {
+                    printf("Preshuffle B is true when MakeGemmTileWindows\n");
+                }
                 return make_tile_window(
                     b_pad_view,
                     make_tuple(number<GemmPipeline::flatNPerWarp>{},
