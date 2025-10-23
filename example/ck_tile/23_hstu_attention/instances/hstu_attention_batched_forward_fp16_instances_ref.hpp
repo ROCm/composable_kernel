@@ -9,170 +9,98 @@
 #include <ck_tile/core/numeric/bfloat16.hpp>
 #include "hstu_attention_batched_forward_dispatch.hpp"
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    true,
-    true,
-    true,
-    64>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, true, true, true, 64>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    false,
-    true,
-    true,
-    64>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, false, true, true, 64>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    true,
-    true,
-    false,
-    64>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, true, true, false, 64>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    false,
-    true,
-    false,
-    64>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, false, true, false, 64>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    true,
-    false,
-    true,
-    64>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, true, false, true, 64>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    false,
-    false,
-    true,
-    64>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, false, false, true, 64>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    true,
-    false,
-    false,
-    64>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, true, false, false, 64>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    false,
-    false,
-    false,
-    64>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, false, false, false, 64>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    true,
-    true,
-    true,
-    128>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, true, true, true, 128>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    false,
-    true,
-    true,
-    128>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, false, true, true, 128>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    true,
-    true,
-    false,
-    128>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, true, true, false, 128>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    false,
-    true,
-    false,
-    128>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, false, true, false, 128>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    true,
-    false,
-    true,
-    128>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, true, false, true, 128>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    false,
-    false,
-    true,
-    128>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, false, false, true, 128>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    true,
-    false,
-    false,
-    128>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, true, false, false, 128>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    false,
-    false,
-    false,
-    128>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, false, false, false, 128>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    true,
-    true,
-    true,
-    256>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, true, true, true, 256>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    false,
-    true,
-    true,
-    256>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, false, true, true, 256>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    true,
-    true,
-    false,
-    256>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, true, true, false, 256>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    false,
-    true,
-    false,
-    256>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, false, true, false, 256>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    true,
-    false,
-    true,
-    256>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, true, false, true, 256>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    false,
-    false,
-    true,
-    256>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, false, false, true, 256>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    true,
-    false,
-    false,
-    256>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, true, false, false, 256>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
 
-extern template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    false,
-    false,
-    false,
-    256>(HstuAttentionFwdParams& param, hipStream_t stream);
+extern template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, false, false, false, 256>(
+    HstuAttentionFwdParams& param, hipStream_t stream);

@@ -9,9 +9,6 @@
 #include <ck_tile/core/numeric/bfloat16.hpp>
 #include "hstu_attention_jagged_forward_dispatch.hpp"
 
-template void run_jagged_forward_causal_bias_dropout_dispatch<
-    ck_tile::fp16_t,
-    false,
-    true,
-    false,
-    256>(HstuAttentionFwdParams& param, hipStream_t stream);
+template void
+run_jagged_forward_causal_bias_dropout_dispatch<ck_tile::fp16_t, false, true, false, 256>(
+    HstuAttentionFwdParams& param, hipStream_t stream);

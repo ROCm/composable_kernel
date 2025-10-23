@@ -9,9 +9,6 @@
 #include <ck_tile/core/numeric/half.hpp>
 #include "hstu_attention_batched_forward_dispatch.hpp"
 
-template void run_batched_forward_causal_bias_dropout_dispatch<
-    ck_tile::bf16_t,
-    false,
-    true,
-    false,
-    64>(HstuAttentionFwdParams& param, hipStream_t stream);
+template void
+run_batched_forward_causal_bias_dropout_dispatch<ck_tile::bf16_t, false, true, false, 64>(
+    HstuAttentionFwdParams& param, hipStream_t stream);
