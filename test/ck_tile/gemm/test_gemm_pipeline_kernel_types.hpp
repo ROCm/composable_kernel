@@ -82,6 +82,7 @@ using KernelTypesCompV3 = ::testing::Types<
     std::tuple<    Row,     Row,     Row,       F16,       I4,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     std::tuple<    Row,     Row,     Row,       BF16,      BF16,        F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     std::tuple<    Row,     Row,     Row,       BF16,      I4,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
+    std::tuple<    Row,     Row,     Row,       INT8,      INT8,        INT32,     INT32,      I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     std::tuple<    Row,     Row,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     std::tuple<    Row,     Row,     Row,       F8,        BF8,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     std::tuple<    Row,     Row,     Row,       F8,        I4,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
@@ -91,6 +92,7 @@ using KernelTypesCompV3 = ::testing::Types<
     std::tuple<    Row,     Col,     Row,       F16,       I4,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     std::tuple<    Row,     Col,     Row,       BF16,      I4,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
+    std::tuple<    Row,     Col,     Row,       INT8,      INT8,        INT32,     INT32,      I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     std::tuple<    Row,     Col,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     std::tuple<    Row,     Col,     Row,       F8,        BF8,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     std::tuple<    Row,     Col,     Row,       F8,        I4,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
@@ -100,6 +102,7 @@ using KernelTypesCompV3 = ::testing::Types<
     std::tuple<    Col,     Row,     Row,       F16,       I4,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     std::tuple<    Col,     Row,     Row,       BF16,      BF16,        F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     std::tuple<    Col,     Row,     Row,       BF16,      I4,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
+    std::tuple<    Col,     Row,     Row,       INT8,      INT8,        INT32,     INT32,      I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     std::tuple<    Col,     Row,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     std::tuple<    Col,     Row,     Row,       F8,        BF8,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     std::tuple<    Col,     Row,     Row,       F8,        I4,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
@@ -109,15 +112,12 @@ using KernelTypesCompV3 = ::testing::Types<
     std::tuple<    Col,     Col,     Row,       F16,       I4,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     std::tuple<    Col,     Col,     Row,       BF16,      BF16,        F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     std::tuple<    Col,     Col,     Row,       BF16,      I4,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
+    std::tuple<    Col,     Col,     Row,       INT8,      INT8,        INT32,     INT32,      I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     std::tuple<    Col,     Col,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     std::tuple<    Col,     Col,     Row,       F8,        BF8,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     std::tuple<    Col,     Col,     Row,       F8,        I4,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
     std::tuple<    Col,     Col,     Row,       BF8,       BF8,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
-    std::tuple<    Col,     Col,     Row,       BF8,       I4,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
-    std::tuple<    Row,     Row,     Row,       INT8,      INT8,        INT32,     INT32,      I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
-    std::tuple<    Row,     Col,     Row,       INT8,      INT8,        INT32,     INT32,      I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
-    std::tuple<    Col,     Row,     Row,       INT8,      INT8,        INT32,     INT32,      I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>,
-    std::tuple<    Col,     Col,     Row,       INT8,      INT8,        INT32,     INT32,      I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>
+    std::tuple<    Col,     Col,     Row,       BF8,       I4,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV3>
 >;
 
 using KernelTypesCompV3Wmma = ::testing::Types<
@@ -148,6 +148,7 @@ using KernelTypesCompV4 = ::testing::Types<
     std::tuple<    Row,     Row,     Row,       F16,       I4,          F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Row,     Row,     Row,       BF16,      BF16,        F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Row,     Row,     Row,       BF16,      I4,          F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
+    std::tuple<    Row,     Row,     Row,       INT8,      INT8,        INT32,     INT32,      I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Row,     Row,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Row,     Row,     Row,       F8,        BF8,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Row,     Row,     Row,       F8,        I4,          F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
@@ -157,6 +158,7 @@ using KernelTypesCompV4 = ::testing::Types<
     std::tuple<    Row,     Col,     Row,       F16,       I4,          F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Row,     Col,     Row,       BF16,      BF16,        F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Row,     Col,     Row,       BF16,      I4,          F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
+    std::tuple<    Row,     Col,     Row,       INT8,      INT8,        INT32,     INT32,      I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Row,     Col,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Row,     Col,     Row,       F8,        BF8,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Row,     Col,     Row,       F8,        I4,          F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
@@ -166,6 +168,7 @@ using KernelTypesCompV4 = ::testing::Types<
     std::tuple<    Col,     Row,     Row,       F16,       I4,          F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Col,     Row,     Row,       BF16,      BF16,        F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Col,     Row,     Row,       BF16,      I4,          F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
+    std::tuple<    Col,     Row,     Row,       INT8,      INT8,        INT32,     INT32,      I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Col,     Row,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Col,     Row,     Row,       F8,        BF8,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Col,     Row,     Row,       F8,        I4,          F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
@@ -175,15 +178,12 @@ using KernelTypesCompV4 = ::testing::Types<
     std::tuple<    Col,     Col,     Row,       F16,       I4,          F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Col,     Col,     Row,       BF16,      BF16,        F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Col,     Col,     Row,       BF16,      I4,          F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
+    std::tuple<    Col,     Col,     Row,       INT8,      INT8,        INT32,     INT32,      I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Col,     Col,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Col,     Col,     Row,       F8,        BF8,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Col,     Col,     Row,       F8,        I4,          F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
     std::tuple<    Col,     Col,     Row,       BF8,       BF8,         F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
-    std::tuple<    Col,     Col,     Row,       BF8,       I4,          F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
-    std::tuple<    Row,     Row,     Row,       INT8,      INT8,        INT32,     INT32,      I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
-    std::tuple<    Row,     Col,     Row,       INT8,      INT8,        INT32,     INT32,      I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
-    std::tuple<    Col,     Row,     Row,       INT8,      INT8,        INT32,     INT32,      I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
-    std::tuple<    Col,     Col,     Row,       INT8,      INT8,        INT32,     INT32,      I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>
+    std::tuple<    Col,     Col,     Row,       BF8,       I4,          F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>
 >;
 
 // clang-format on
