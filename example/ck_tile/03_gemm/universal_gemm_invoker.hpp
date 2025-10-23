@@ -69,9 +69,9 @@ struct UniversalInvoker
         const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
         float ave_time{0};
 
-        const auto Run = [&](const auto has_hot_loop_,
-                             const auto tail_number_,
-                             const auto memory_operation_) {
+        const auto kernel_launch_visitor = [&](const auto has_hot_loop_,
+                                               const auto tail_number_,
+                                               const auto memory_operation_) {
             constexpr bool has_hot_loop_v   = has_hot_loop_.value;
             constexpr auto tail_number_v    = tail_number_.value;
             constexpr auto scheduler        = GemmConfig::Scheduler;
@@ -182,17 +182,76 @@ struct UniversalInvoker
             return ave_time;
         };
 
-        const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
-            if(args.k_batch == 1)
+        using KTrue  = ck_tile::integral_constant<bool, true>;
+        using KFalse = ck_tile::integral_constant<bool, false>;
+
+        using BoolVariant = std::variant<KTrue, KFalse>;
+
+        auto make_bool_variant = [](bool b) -> BoolVariant {
+            if(b)
             {
-                return Run(has_hot_loop_, tail_number_, MemoryOpSet{});
+                return KTrue{};
             }
             else
             {
-                return Run(has_hot_loop_, tail_number_, MemoryOpAtomicAdd{});
+                return KFalse{};
             }
         };
 
-        return ave_time = BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
+        using KTailNumOdd =
+            ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>;
+        using KTailNumEven =
+            ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>;
+        using KTailNumFull =
+            ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>;
+        using TailNumVariant = std::variant<KTailNumOdd, KTailNumEven, KTailNumFull>;
+
+        auto make_tailnum_variant = [](ck_tile::TailNumber tail_number) -> TailNumVariant {
+            switch(tail_number)
+            {
+            case ck_tile::TailNumber::Full: return KTailNumFull{};
+            case ck_tile::TailNumber::Odd: return KTailNumOdd{};
+            case ck_tile::TailNumber::Even: return KTailNumEven{};
+            case ck_tile::TailNumber::Empty:
+            case ck_tile::TailNumber::One:
+            case ck_tile::TailNumber::Two:
+            case ck_tile::TailNumber::Three:
+            case ck_tile::TailNumber::Four:
+            case ck_tile::TailNumber::Five:
+            case ck_tile::TailNumber::Six:
+            case ck_tile::TailNumber::Seven:
+            default: throw std::runtime_error("Case not handled");
+            }
+        };
+
+        using KSet    = ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                                   ck_tile::memory_operation_enum::set>;
+        using KAtomic = ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                                   ck_tile::memory_operation_enum::atomic_add>;
+
+        using MemoryOperationVariant = std::variant<KSet, KAtomic>;
+
+        auto make_memory_op_variant =
+            [](ck_tile::memory_operation_enum ev) -> MemoryOperationVariant {
+            if(ev == ck_tile::memory_operation_enum::set)
+            {
+                return KSet{};
+            }
+            else
+            {
+                return KAtomic{};
+            }
+        };
+
+        ave_time = std::visit(
+            kernel_launch_visitor,
+            make_bool_variant(has_hot_loop),
+            make_tailnum_variant(tail_num),
+            make_memory_op_variant(args.k_batch == 1 ? ck_tile::memory_operation_enum::set
+                                                     : ck_tile::memory_operation_enum::atomic_add)
+
+        );
+
+        return ave_time;
     }
 };
