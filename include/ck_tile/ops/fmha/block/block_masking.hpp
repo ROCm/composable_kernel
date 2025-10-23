@@ -411,14 +411,20 @@ struct SimplifiedGenericAttentionMask
                                                               index_t num_splits,
                                                               index_t i_split) const
     {
-        auto [sink_seq_end, origin_start, origin_end] = GetSinkTileRangeAlongX(i_y, height, width);
-        const index_t x_per_split = ck_tile::max(1, integer_divide_ceil(x_total, num_splits));
-        const index_t split_start = x_per_split * i_split;
-        const index_t split_end   = ck_tile::min(x_total, split_start + x_per_split);
+        auto [origin_start, origin_end] = GetTileRangeAlongX(i_y, height, width);
+        const index_t x_per_split       = ck_tile::max(1, integer_divide_ceil(x_total, num_splits));
+        const index_t split_start       = x_per_split * i_split;                            // 128
+        const index_t split_end         = ck_tile::min(x_total, split_start + x_per_split); // 256
+        const index_t sink_seq_end      = sink > 0 ? ((sink + width - 1) / width) * width : 0;
+        const index_t start             = ck_tile::max(origin_start, split_start);
+        const index_t end               = ck_tile::min(origin_end, split_end);
+        const bool is_first_intersecting_split =
+            (split_start <= origin_start && split_end >= origin_start);
+        const bool sink_in_range = (sink_seq_end <= start);
 
-        return ck_tile::make_tuple(sink_seq_end,
-                                   ck_tile::max(origin_start, split_start),
-                                   ck_tile::min(origin_end, split_end));
+        const index_t sink_offset =
+            (is_first_intersecting_split && sink_in_range) ? sink_seq_end : 0;
+        return ck_tile::make_tuple(sink_offset, start, end);
     }
 
     // to get the loop length along Y axis, return index:[start, end), end-start=length

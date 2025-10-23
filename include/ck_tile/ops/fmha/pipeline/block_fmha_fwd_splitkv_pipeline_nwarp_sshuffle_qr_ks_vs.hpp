@@ -516,7 +516,6 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
 #endif
                 }
             }
-
             move_tile_window(bias_dram_window,
                              {0, is_sink ? logical_seqlen_k_start - sink_seq_end + kN0 : kN0});
 
@@ -529,7 +528,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                     s_acc,
                     -numeric<SMPLComputeDataType>::infinity(),
                     [&,
-                     physical_seqlen_k_start_ = physical_seqlen_k_start,
+                     physical_seqlen_k_start_ = is_sink ? sink_seq_start : physical_seqlen_k_start,
                      physical_seqlen_k_end_   = physical_seqlen_k_end](auto tile_idx) {
                         const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
                         if constexpr(kIsPagedKV)
@@ -572,7 +571,7 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                 i_page_block_k = k_page_block_navigator.move_tile_window(
                     i_page_block_k,
                     k_dram_block_window,
-                    {is_sink ? logical_seqlen_k_start - sink_seq_end + kN0 : 0, 0});
+                    {is_sink ? logical_seqlen_k_start - sink_seq_end + kN0 : kN0, 0});
 
                 k_dram_window = make_tile_window(
                     k_dram_block_window,
@@ -767,15 +766,11 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
                 // store the first tile for next iteration to LDS
                 // moving k_dram_window is an in-page-block operation, so there is
                 // no need to invoke k_page_block_navigator.move_tile_window() here.
-                // move_tile_window(k_dram_window, {0, kK0});
+                move_tile_window(k_dram_window, {0, kK0});
                 i_page_block_v = v_page_block_navigator.move_tile_window(
                     i_page_block_v,
                     v_dram_window,
                     {0, is_sink ? logical_seqlen_k_start - sink_seq_end : 0});
-                move_tile_window(k_dram_block_window,
-                                 {is_sink ? logical_seqlen_k_start - sink_seq_end + kN0 : kN0, 0});
-                move_tile_window(v_dram_window,
-                                 {0, is_sink ? logical_seqlen_k_start - sink_seq_end : 0});
                 store_tile(k_lds_window, tile_elementwise_in(k_element_func, k_block_tile));
             }
         } while(++i_total_loops < num_total_loop);

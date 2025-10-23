@@ -256,7 +256,6 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
                 return o_acc;
             }
         }
-
         // k_dram_block_window
         const index_t physical_seqlen_k_start = logical_seqlen_k_start + kv_l2p_offset;
         const index_t physical_seqlen_k_end   = logical_seqlen_k_end + kv_l2p_offset;

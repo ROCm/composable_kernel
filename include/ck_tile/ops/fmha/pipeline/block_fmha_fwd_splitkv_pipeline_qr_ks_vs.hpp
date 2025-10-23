@@ -180,6 +180,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                       "wrong!");
 
         // K tile in LDS
+
         KDataType* k_lds_ptr = static_cast<KDataType*>(static_cast<void*>(
             static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeQ<Problem>()));
         auto k_lds           = make_tensor_view<address_space_enum::lds>(
@@ -234,9 +235,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         const auto [sink_seq_end, logical_seqlen_k_start, logical_seqlen_k_end] =
             mask.GetSinkTileRangeAlongX(
                 q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{}, num_splits, i_split);
-        // const auto kv_load_start =
-        //     (sink_seq_end == 0 && logical_seqlen_k_start > 0) ? logical_seqlen_k_start : 0;
-
         const bool is_sink_tile  = (sink_seq_end > sink_seq_start);
         const auto num_sink_loop = integer_divide_ceil(sink_seq_end - sink_seq_start, kN0);
 
@@ -267,7 +265,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         const index_t physical_seqlen_k_start = logical_seqlen_k_start + kv_l2p_offset;
         const index_t physical_seqlen_k_end   = logical_seqlen_k_end + kv_l2p_offset;
         const index_t physical_sink_start     = sink_seq_start + kv_l2p_offset;
-        // const index_t physical_sink_end =  sink_seq_end + kv_l2p_offset;
         // make sure the first tile is completely located in page-block (page-block size should be
         // divisible by kN0)
         // relationship between each *_start variables: aligned_physical_seqlen_k_start <=
@@ -296,6 +293,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         const index_t num_total_loop =
             integer_divide_ceil(physical_seqlen_k_end - aligned_physical_seqlen_k_start, kN0) +
             num_sink_loop;
+
         auto [i_page_block_k, k_dram_block_window] = k_page_block_navigator.make_tile_window(
             k_dram_block_window_lengths,
             {is_sink_tile ? aligned_sink_start : aligned_physical_seqlen_k_start, 0});
@@ -305,10 +303,9 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
             bias_dram_block_window_tmp.get_bottom_tensor_view(),
             bias_dram_block_window_tmp.get_window_lengths(),
             {bias_origin.at(number<0>{}),
-             is_sink_tile
-                  ? sink_seq_start - (physical_sink_start - aligned_sink_start)
-                  : logical_seqlen_k_start -
-                       (physical_seqlen_k_start - aligned_physical_seqlen_k_start)}, // M/N maybe<0
+             is_sink_tile ? sink_seq_start - (physical_sink_start - aligned_sink_start)
+                           : logical_seqlen_k_start -
+                                (physical_seqlen_k_start - aligned_physical_seqlen_k_start)}, // M/N
             Policy::template MakeBiasDramTileDistribution<decltype(gemm_0)>());
 
         auto [i_page_block_v, v_dram_window] = v_page_block_navigator.make_tile_window(
@@ -480,7 +477,7 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                     s_acc,
                     -numeric<SMPLComputeDataType>::infinity(),
                     [&,
-                     physical_seqlen_k_start_ = physical_seqlen_k_start,
+                     physical_seqlen_k_start_ = is_sink ? sink_seq_start : physical_seqlen_k_start,
                      physical_seqlen_k_end_   = physical_seqlen_k_end](auto tile_idx) {
                         const auto col = k_origin.at(number<0>{}) + tile_idx.at(number<1>{});
                         if constexpr(kIsPagedKV)
@@ -689,7 +686,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                 v_dram_window,
                 {0, is_sink ? logical_seqlen_k_start - sink_seq_end : 0},
                 physical_next_block_id_v);
-
             // tail
             {
                 block_sync_lds();
