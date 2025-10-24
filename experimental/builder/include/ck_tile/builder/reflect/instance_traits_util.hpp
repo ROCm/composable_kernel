@@ -60,12 +60,13 @@ consteval std::string_view type_name()
 template <typename T>
 constexpr std::string_view layout_name()
 {
-    if constexpr(requires {
+    if constexpr(std::is_base_of_v<ck_tile::tensor_layout::BaseTensorLayout, T> && requires {
                      { T::name } -> std::convertible_to<std::string_view>;
                  })
         return T::name;
     else
-        static_assert(false, "layout type is missing name attribute");
+        static_assert(false,
+                      "Layout type must derive from BaseTensorLayout and have name attribute");
 }
 
 // Convert element-wise operation types to string names
