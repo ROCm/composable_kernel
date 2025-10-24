@@ -192,7 +192,7 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
 
     // # of elements per thread
     static constexpr index_t Y  = YPerTile;
-    static constexpr index_t YR = 2;
+    static constexpr index_t YR = 1;
 
     // Number of iters per warp
     // MIters are indexed using (Y0, Y1)
