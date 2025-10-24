@@ -71,7 +71,7 @@ def tuples(filename):
             try:
                 m, n, k = map(int, line)
                 lines.append((m, n, k))
-            except:
+            except Exception:
                 pass
     return lines
 
@@ -163,19 +163,19 @@ def run_shape(shape, profiler_bin, op_name, dtype, layout):
     m, n, k = shape
     try:
         op = OPs[op_name]
-    except:
+    except KeyError:
         raise AssertionError(f"Invalid operator {op_name}")
     name_arg = op.name
     op_wrapper = op.value()
 
     try:
         dtype_arg = str(op_wrapper.dtype[dtype].value)
-    except:
+    except KeyError:
         raise AssertionError(f"Invalid dtype for {op_name}: {dtype}")
 
     try:
         layout_wrapper = op_wrapper.layout[layout]
-    except:
+    except KeyError:
         raise AssertionError(f"Invalid layout for {op_name}: {layout}")
     layout_arg = str(layout_wrapper.value)
     # verification: no, initialization: decimal, print tensor: no, time kernel: yes
@@ -286,7 +286,9 @@ def main():
     try:
         from tqdm import tqdm as iterate
     except ImportError:
-        iterate = lambda x: x
+
+        def iterate(x):
+            return x
 
     for s in iterate(shapes):
         run_shape_stdout_lines = run_shape(
