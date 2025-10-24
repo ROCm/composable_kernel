@@ -96,9 +96,8 @@ int run_grouped_conv_fwd_bias_clamp_example_with_layouts(
     int n_repeat                 = arg_parser.get_int("repeat");
     ck_tile::index_t init_method = arg_parser.get_int("init");
 
-    const float bias_value = 3.f;
-    const float floor      = -100.f;
-    const float ceil       = 100.f;
+    const float floor = -100.f;
+    const float ceil  = 100.f;
 
     const ck_tile::element_wise::MultiDAdd bias_op{};
     const ck_tile::element_wise::Clamp clamp_op{floor, ceil};
@@ -116,27 +115,34 @@ int run_grouped_conv_fwd_bias_clamp_example_with_layouts(
     ck_tile::HostTensor<OutDataType> output(out_g_n_k_wos_desc);
     ck_tile::HostTensor<OutDataType> bias(out_g_n_k_wos_desc);
 
+    std::string bias_str = "";
     if(init_method == 0)
     {
         ck_tile::FillUniformDistribution<InDataType>{-5.f, 5.f}(input);
         ck_tile::FillUniformDistribution<WeiDataType>{-5.f, 5.f}(weight);
+        ck_tile::FillUniformDistribution<OutDataType>{-5.f, 5.f}(bias);
+        bias_str = " (Uniform(-5,5))";
     }
     else if(init_method == 1)
     {
         ck_tile::FillMonotonicSeq<InDataType>{}(input);
         ck_tile::FillMonotonicSeq<WeiDataType>{}(weight);
+        ck_tile::FillMonotonicSeq<OutDataType>{}(bias);
+        bias_str = " (Monotonic)";
     }
     else if(init_method == 2)
     {
         ck_tile::FillUniformDistribution<InDataType>{1.f, 1.f}(input);
         ck_tile::FillUniformDistribution<WeiDataType>{1.f, 1.f}(weight);
+        ck_tile::FillUniformDistribution<OutDataType>{1.f, 1.f}(bias);
+        bias_str = " (Constant 1)";
     }
     else
     {
         input.SetZero();
         weight.SetZero();
+        bias.SetZero();
     }
-    ck_tile::FillUniformDistribution<OutDataType>{bias_value, bias_value}(bias);
 
     ck_tile::DeviceMem input_dev_buf(input.get_element_space_size_in_bytes());
     ck_tile::DeviceMem weight_dev_buf(weight.get_element_space_size_in_bytes());
@@ -156,7 +162,7 @@ int run_grouped_conv_fwd_bias_clamp_example_with_layouts(
                                                        kbatch,
                                                        bias_clamp_op);
 
-    std::cout << "Run Grouped Conv Fwd kernel with bias " << bias_value << " and clamp (" << floor
+    std::cout << "Run Grouped Conv Fwd kernel with bias" << bias_str << " and clamp (" << floor
               << ", " << ceil << ")." << std::endl;
     std::cout << "input: " << input.mDesc << std::endl;
     std::cout << "weight: " << weight.mDesc << std::endl;
@@ -181,16 +187,22 @@ int run_grouped_conv_fwd_bias_clamp_example_with_layouts(
         ck_tile::HostTensor<OutDataType> output_host_ref(out_g_n_k_wos_desc);
         output_host_ref.SetZero();
 
-        auto bias_clamp_host = [bias_value, floor, ceil](float& y, const float& x) {
+        auto bias_clamp_host = [floor,
+                                ceil](float& y, const float& x, const OutDataType& element_bias) {
             float x_float = ck_tile::type_convert<float>(x);
-            x_float += bias_value;
+            x_float += ck_tile::type_convert<float>(element_bias);
             if(x_float < floor)
                 x_float = floor;
             else if(x_float > ceil)
                 x_float = ceil;
             y = x_float;
         };
-        ck_tile::reference_grouped_conv_fwd<NDimSpatial, InDataType, WeiDataType, OutDataType>(
+        auto bias_tuple = ck_tile::make_tuple(bias);
+        ck_tile::reference_grouped_conv_fwd<NDimSpatial,
+                                            InDataType,
+                                            WeiDataType,
+                                            OutDataType,
+                                            decltype(bias_clamp_host)>(
             input,
             weight,
             output_host_ref,
@@ -198,7 +210,8 @@ int run_grouped_conv_fwd_bias_clamp_example_with_layouts(
             conv_param.conv_filter_dilations_,
             conv_param.input_left_pads_,
             conv_param.input_right_pads_,
-            bias_clamp_host);
+            bias_clamp_host,
+            bias_tuple);
         const ck_tile::index_t GemmK = weight.get_element_size() / (conv_param.G_ * conv_param.K_);
         const float max_accumulated_value =
             *std::max_element(output_host_ref.mData.begin(), output_host_ref.mData.end());
