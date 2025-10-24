@@ -168,7 +168,7 @@ set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_direct_load_instances
   TEMPLATE_FILE xdl/mem/device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_bf16_direct_load_instance.in
-  NUM_SHARDS 11
+  NUM_SHARDS 12
   SRC_LIST GROUPED_CONV2D_FWD_BIAS_BNORM_CLAMP
   OUTPUT_DIR ${GENERATED_DIR}/xdl/mem
 )
@@ -186,7 +186,7 @@ set(GENERATED_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated)
 generate_sharded_instantiations(
   INSTANCES_NAME device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_f16_direct_load_instances
   TEMPLATE_FILE xdl/mem/device_grouped_conv2d_fwd_bias_bn_clamp_xdl_nhwgc_gkyxc_nhwgk_f16_direct_load_instance.in
-  NUM_SHARDS 11
+  NUM_SHARDS 12
   SRC_LIST GROUPED_CONV2D_FWD_BIAS_BNORM_CLAMP
   OUTPUT_DIR ${GENERATED_DIR}/xdl/mem
 )
