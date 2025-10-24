@@ -6,19 +6,27 @@
 #include "mfma.hpp"
 
 namespace ck_tile::core::arch::mma {
-// NOTE: At this point forward, we are specializing for each target id as needed.
+
+// NOTE: At this point forward, we are specializing amdgcn_mma for each target id as needed.
 // This is because some built-ins are only available on certain target ids.
 // We can also do things such add some padding specializations for when we need to use
 // smaller values of K that aren't directly supported by the built-ins.
 // For flexibility, it is recommended that for each backend wrapper it supports at least
 // one packed register for each input to be able to process smaller K values by padding.
 
-// fp16
-
+/*! @struct amdgcn_mma
+ * @brief Specialization of amdgcn_mma for MFMA on GFX9 targets
+ *
+ * This specialization implements the MFMA instruction for fp16_t A and B
+ * matrices, and fp32_t accumulator matrix, with 16x16x16 block sizes.
+ *
+ * @tparam CtrlFlags Control flags for the MFMA operation
+ * @tparam GfxTargetId Target architecture ID
+ */
 template <typename CtrlFlags, uint32_t GfxTargetId>
-struct amdgcn_mma<float16_t,
-                  float16_t,
-                  float32_t,
+struct amdgcn_mma<fp16_t,
+                  fp16_t,
+                  fp32_t,
                   16u,
                   16u,
                   16u,
@@ -26,12 +34,13 @@ struct amdgcn_mma<float16_t,
                   GfxTargetId,
                   enable_if_gfx9_target_id_t<GfxTargetId>>
 {
+    // Mfma operation type
     using OpType = MfmaOp;
 
-    // Packed register types
-    using AVecType = ext_vector_t<float, 2>; // F16x4
-    using BVecType = ext_vector_t<float, 2>; // F16x4
-    using CVecType = ext_vector_t<float, 4>;
+    // Register types
+    using AVecType = ext_vector_t<fp16_t, 4>;
+    using BVecType = ext_vector_t<fp16_t, 4>;
+    using CVecType = ext_vector_t<fp32_t, 4>;
 
     // Layout constants
     static constexpr index_t kAMBlock = 1;
@@ -55,11 +64,19 @@ struct amdgcn_mma<float16_t,
     }
 };
 
-// NOTE: Example here for a specialization on a specific target id
+/*! @struct amdgcn_mma
+ * @brief Specialization of amdgcn_mma for MFMA on GFX950 targets
+ *
+ * This specialization implements the MFMA instruction for fp16_t A and B
+ * matrices, and fp32_t accumulator matrix, with 16x16x32 block sizes.
+ *
+ * @tparam CtrlFlags Control flags for the MFMA operation
+ * @tparam GfxTargetId Target architecture ID
+ */
 template <typename CtrlFlags, uint32_t GfxTargetId>
-struct amdgcn_mma<float16_t,
-                  float16_t,
-                  float32_t,
+struct amdgcn_mma<fp16_t,
+                  fp16_t,
+                  fp32_t,
                   16u,
                   16u,
                   32u,
@@ -70,9 +87,9 @@ struct amdgcn_mma<float16_t,
     using OpType = MfmaOp;
 
     // Packed register types
-    using AVecType = ext_vector_t<float, 4>; // F16x8
-    using BVecType = ext_vector_t<float, 4>; // F16x8
-    using CVecType = ext_vector_t<float, 4>;
+    using AVecType = ext_vector_t<fp16_t, 8>;
+    using BVecType = ext_vector_t<fp16_t, 8>;
+    using CVecType = ext_vector_t<fp32_t, 4>;
 
     // Layout constants
     static constexpr index_t kAMBlock = 1;

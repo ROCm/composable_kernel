@@ -6,6 +6,7 @@
 #include "wmma.hpp"
 
 namespace ck_tile::core::arch::mma {
+
 /** @struct is_mma_op_wmma
  * @brief Trait to check if MmaOp is an WMMA operation
  * @tparam MmaOp The matrix multiply-accumulate operation type to check

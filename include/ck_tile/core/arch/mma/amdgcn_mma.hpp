@@ -2,14 +2,12 @@
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 
-#include "mfma/mfma.hpp"
-#include "wmma/wmma.hpp"
-
-#include "mma_traits.hpp"
+#include "mma.hpp"
 
 namespace ck::tile::core::arch::mma {
+
 /*! @struct Unsupported
- *   @brief  Meta-tag to indicate unsupported amdgcn_mma instance.
+ *  @brief  Meta-tag to indicate unsupported amdgcn_mma instance.
  */
 struct Unsupported;
 
@@ -62,6 +60,7 @@ concept MmaOpI = requires(MmaOp op) {
  *  @tparam CtrlFlags Control flags for mma operation
  *  @tparam GfxTarget The current gfx family target of interest being compiled
  *  @tparam TargetEnable Enabler for the current target if supported
+ *  @tparam Enabler SFINAE enabler
  */
 template <typename DataTypeA,
           typename DataTypeB,

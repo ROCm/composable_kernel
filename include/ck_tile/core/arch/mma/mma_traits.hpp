@@ -2,10 +2,7 @@
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 
-#include "arch.hpp"
-#include "mfma/mfma_traits.hpp"
-#include "wmma/wmma_traits.hpp"
-
+#include "amdgcn_mma.hpp"
 namespace ck::tile::core::arch::mma {
 /*! @struct is_mma_op_supported
  * @brief Trait to check if MmaOp is supported
@@ -123,14 +120,14 @@ struct MmaOpParams<amdgcn_mma<DataTypeA_,
  * @brief Reflects the template parameters and static members of a given MmaOp.
  * @tparam MmaOp The matrix multiply-accumulate operation
  */
-template <typename MmaOp>
+template <MmaOpI MmaOp>
     requires MmaOpParamsI<MmaOpParams<MmaOp>>
 struct MmaOpTraits : public MmaOpParams<MmaOp>
 {
     // Capture internal MmaOp static members
-    using AVecType = typename WmmaOp::AVecType;
-    using BVecType = typename WmmaOp::BVecType;
-    using CVecType = typename WmmaOp::CVecType;
+    using VecTypeA = typename WmmaOp::VecTypeA;
+    using VecTypeB = typename WmmaOp::VecTypeB;
+    using VecTypeC = typename WmmaOp::VecTypeC;
 
     static constexpr index_t kAMBlock    = WmmaOp::kAMBlock;
     static constexpr index_t kBNBlock    = WmmaOp::kBNBlock;

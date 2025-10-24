@@ -23,18 +23,23 @@ namespace ck_tile::core::arch::mma {
 // already been completed. (e.g. option 2 above). These expect duplicated inputs and pre-shuffled
 // data in C.
 
-// NOTE: At this point forward, we are specializing for each target id as needed.
+// NOTE: At this point forward, we are specializing amdgcn_mma for each target id as needed.
 // This is because some built-ins are only available on certain target ids.
 // We can also do things, such add some padding specializations for when we need to use
 // smaller values of K that aren't directly supported by the built-ins.
 // For flexibility, it is recommended that for each backend wrapper it supports at least
 // one packed register for each input to be able to process smaller K values by padding.
 
-// fp16 inputs, f32 accumulation
+/*! @struct amdgcn_mma
+ * @brief Specialization of amdgcn_mma for fp16_t, fp16_t, fp32_t MMA operation on GFX11
+ * architecture.
+ * @tparam CtrlFlags Control flags for the WMMA operation
+ * @tparam GfxTargetId Graphics target identifier
+ */
 template <typename CtrlFlags, uint32_t GfxTargetId>
-struct amdgcn_mma<float16_t,
-                  float16_t,
-                  float32_t,
+struct amdgcn_mma<fp16_t,
+                  fp16_t,
+                  fp32_t,
                   16u,
                   16u,
                   16u,
@@ -42,12 +47,13 @@ struct amdgcn_mma<float16_t,
                   GfxTargetId,
                   enable_if_gfx11_target_id_t<GfxTargetId>>
 {
+    // Wmma operation type
     using OpType = WmmaOp;
 
-    // Packed register types (duplicated input / b32 accum)
-    using AVecType = ext_vector_t<float, 8>;
-    using BVecType = ext_vector_t<float, 8>;
-    using CVecType = ext_vector_t<float, 8>;
+    // Register types (duplicated input / b32 accum)
+    using AVecType = ext_vector_t<fp16_t, 16>;
+    using BVecType = ext_vector_t<fp16_t, 16>;
+    using CVecType = ext_vector_t<fp32_t, 8>;
 
     // Layout constants
     static constexpr index_t kAMBlock    = 1;

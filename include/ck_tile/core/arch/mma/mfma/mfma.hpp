@@ -3,12 +3,11 @@
 
 #pragma once
 
-#include "../arch.hpp"
-#include "../mma_common.hpp"
+#include "ck_tile/core/arch/mma/mma.hpp"
 
 namespace ck_tile::core::arch::mma {
 /*! @struct MfmaOp
- * @brief Meta-tag for the MFMA operation. This will be used in the MmaOp struct to
+ * @brief Meta-tag for the MFMA operation. This will be used in the MmaOp policies to
  * identify the operation as an MFMA operation.
  */
 struct MfmaOp;
@@ -19,3 +18,4 @@ struct MfmaOp;
 #include "mfma_gfx9.hpp"
 #include "mfma_traits.hpp"
 #include "mfma_selector.hpp"
+#include "mfma_transforms.hpp"

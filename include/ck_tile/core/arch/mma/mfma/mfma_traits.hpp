@@ -6,6 +6,7 @@
 #include "mfma.hpp"
 
 namespace ck_tile::core::arch::mma {
+
 /** @struct is_mma_op_mfma
  * @brief Trait to check if MmaOp is an MFMA operation
  * @tparam MmaOp The matrix multiply-accumulate operation type to check

@@ -3,18 +3,18 @@
 
 #pragma once
 
-#include "../arch.hpp"
-#include "../mma_common.hpp"
+#include "ck_tile/core/arch/mma/mma.hpp"
 
 namespace ck_tile::core::arch::mma {
+
 /*! @struct WmmaOp
- * @brief Meta-tag for the WMMA operation. This will be used in the MmaOp struct to
- * identify the operation as an WMMA operation.
+ *  @brief Meta-tag for the WMMA operation. This will be used in the MmaOp struct to
+ *  identify the operation as an WMMA operation.
  */
 struct WmmaOp;
 
 /*! @struct WmmaCtrlFlags
- * @brief Common wmma control flags for gfx11 and gfx12
+ *  @brief Common wmma control flags for gfx11 and gfx12
  */
 enum struct WmmaCtrlFlags : bool
 {
