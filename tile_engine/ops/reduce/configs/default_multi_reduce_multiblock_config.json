@@ -1,0 +1,65 @@
+{
+    "problem" : {
+        "shape" : {
+            "n" : {
+                "values" : [
+                    32
+                ]
+            },
+            "c" : {
+                "values" : [
+                    7,
+                    19
+                ],
+                "_comments" : "c = 7 only one block covers the reduction ; c = 19 two blocks needed to cover the reduction"
+            },
+            "h" : {
+                "values" : [
+                    7
+                ]
+            },
+            "w" : {
+                "values" : [
+                    512
+                ]
+            }
+        }
+    },
+
+    "tile_config" : {
+        "tile_m" : {
+            "values" : [
+                128
+            ]
+        },
+        "tile_n" : {
+            "values": [
+                128
+            ]
+        },
+
+        "warp_tile_m" : {
+            "values" : [
+                1, 
+                32
+            ]
+        },
+        "warp_tile_n" : {
+            "values" : [
+                128, 
+                512
+            ]
+        },
+        "thread_tile_m" : {
+            "values" : [
+                1, 
+                8
+            ]
+        },
+        "thread_tile_n" : {
+            "values" : [
+                8
+            ]
+        }
+    }
+}
