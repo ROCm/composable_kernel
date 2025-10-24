@@ -18,9 +18,9 @@ struct GroupedConvolutionBackwardWeightInvoker
               typename WeiLayout,
               typename OutLayout,
               ck_tile::index_t NumGroupsToMerge = 1,
-              typename DsDataType            = ck_tile::tuple<>,
-              typename DsLayout              = ck_tile::tuple<>,
-              typename CDEElementWise        = ck_tile::element_wise::PassThrough>
+              typename DsDataType               = ck_tile::tuple<>,
+              typename DsLayout                 = ck_tile::tuple<>,
+              typename CDEElementWise           = ck_tile::element_wise::PassThrough>
     static float grouped_conv_bwd_weight(const ck_tile::GroupedConvBwdWeightHostArgs& args,
                                          const ck_tile::stream_config& s)
     {
