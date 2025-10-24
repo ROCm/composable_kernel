@@ -25,7 +25,7 @@ __device__ void block_sync_lds()
     // s_waitcnt lgkmcnt(0) \n \
     // s_barrier \
     // " ::);
-    __builtin_amdgcn_s_waitcnt(0xc07f);
+    __builtin_amdgcn_s_waitcnt(0xfc07);
     __builtin_amdgcn_s_barrier();
 #endif
 #else
