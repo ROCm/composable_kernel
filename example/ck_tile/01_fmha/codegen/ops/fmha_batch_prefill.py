@@ -442,7 +442,7 @@ class FmhaFwdApiPool:
             )
         if not per_dtypes:
             # empty string we add some ignore to suppress warning in api
-            per_dtypes += "    (void)t ; (void)s ; (void)a;"
+            per_dtypes += "    (void)t; (void)s; (void)a;"
         return FMHA_FWD_KERNEL_HEADER + FMHA_FWD_API.format(F_dispatch=per_dtypes)
 
 

@@ -967,7 +967,7 @@ class FmhaBwdApiPool:
             )
         if not per_arch:
             # empty string we add some ignore to suppress warning in api
-            per_arch = "(void)t ; (void)s ; (void)a;"
+            per_arch = "(void)t; (void)s; (void)a;"
         result = FMHA_BWD_KERNEL_HEADER + FMHA_BWD_API.format(
             F_dispatch=indent(per_arch)
         )
