@@ -24,7 +24,9 @@ add_ck_builder_test(test_conv_builder
 
 # Testing the virtual GetInstanceString methods requires kernel compilation.
 add_ck_builder_test(test_get_instance_string
-    test_get_instance_string.cpp)
+    test_get_instance_string_fwd_grp_conv_v3.cpp
+    test_get_instance_string_fwd_grp_conv.cpp
+    test_get_instance_string_fwd_grp_conv_large_tensor.cpp)
 
 add_ck_builder_test(test_inline_diff test_inline_diff.cpp)
 

@@ -199,6 +199,14 @@ TEST(InstanceTraitsUtil, PipelineVersionNameReturnsCorrectStrings)
                 ElementsAre("v1", "v2", "v3", "v4", "v5"));
 }
 
+TEST(InstanceTraitsUtil, LoopSchedulerNameReturnsCorrectStrings)
+{
+    using enum ck::LoopScheduler;
+    EXPECT_THAT(std::vector<std::string_view> names = {loop_scheduler_name(Default),
+                                                       loop_scheduler_name(Interwave)},
+                ElementsAre("Default", "Interwave"));
+}
+
 TEST(InstanceTraitsUtil, TupleNameReturnsEmptyTupleForEmptyTuple)
 {
     EXPECT_EQ(tuple_name<ck::Tuple<>>(), "EmptyTuple");
