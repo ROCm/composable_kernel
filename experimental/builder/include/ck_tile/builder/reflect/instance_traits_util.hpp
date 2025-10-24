@@ -40,6 +40,8 @@ consteval std::string_view type_name()
         return "fp16";
     else if constexpr(std::is_same_v<T, float>)
         return "fp32";
+    else if constexpr(std::is_same_v<T, ck::tf32_t>)
+        return "tf32";
     else if constexpr(std::is_same_v<T, double>)
         return "fp64";
     else if constexpr(std::is_same_v<T, int8_t>)
