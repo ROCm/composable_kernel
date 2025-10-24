@@ -278,8 +278,9 @@ struct BlockTransfer
     ck::Array<size_t, 3> src_access_order     = {0, 0, 0};
     size_t src_vector_dim                     = 0;
     size_t src_scalar_per_vector              = 0;
-    size_t dest_scalar_per_vector_k1          = 0;
-    size_t add_extra                          = 0;
+    size_t lds_dst_scalar_per_vector          = 0;
+    bool is_direct_load                       = false;
+    bool lds_padding                          = false;
 };
 
 template <ConvAlgorithmDescriptor auto ALGORITHM>
@@ -288,15 +289,16 @@ constexpr BlockTransfer SetFwdConvABlockTransfer()
     constexpr auto& TCL = ALGORITHM.block_transfer.block_transfer_a;
     constexpr auto& TCO = ALGORITHM.block_transfer.block_transfer_access_order_a;
     constexpr auto& SAO = ALGORITHM.block_transfer.src_access_order_a;
-    constexpr auto& LDS = ALGORITHM.block_transfer.lds_padding_a;
+    constexpr auto& LDS = ALGORITHM.block_transfer.lds_transfer_a;
 
     BlockTransfer block_transfer{.thread_cluster_dims  = {TCL.k0, TCL.m_n, TCL.k1},
                                  .thread_cluster_order = {TCO.order[0], TCO.order[1], TCO.order[2]},
                                  .src_access_order     = {SAO.order[0], SAO.order[1], SAO.order[2]},
                                  .src_vector_dim       = LDS.src_vector_dim,
                                  .src_scalar_per_vector     = LDS.src_scalar_per_vector,
-                                 .dest_scalar_per_vector_k1 = LDS.dest_scalar_per_vector_k1,
-                                 .add_extra                 = LDS.add_extra};
+                                 .lds_dst_scalar_per_vector = LDS.lds_dst_scalar_per_vector,
+                                 .is_direct_load            = LDS.is_direct_load,
+                                 .lds_padding               = LDS.lds_padding};
     return block_transfer;
 }
 
@@ -306,15 +308,16 @@ constexpr BlockTransfer SetFwdConvBBlockTransfer()
     constexpr auto& TCL = ALGORITHM.block_transfer.block_transfer_b;
     constexpr auto& TCO = ALGORITHM.block_transfer.block_transfer_access_order_b;
     constexpr auto& SAO = ALGORITHM.block_transfer.src_access_order_b;
-    constexpr auto& LDS = ALGORITHM.block_transfer.lds_padding_b;
+    constexpr auto& LDS = ALGORITHM.block_transfer.lds_transfer_b;
 
     BlockTransfer block_transfer{.thread_cluster_dims  = {TCL.k0, TCL.m_n, TCL.k1},
                                  .thread_cluster_order = {TCO.order[0], TCO.order[1], TCO.order[2]},
                                  .src_access_order     = {SAO.order[0], SAO.order[1], SAO.order[2]},
                                  .src_vector_dim       = LDS.src_vector_dim,
                                  .src_scalar_per_vector     = LDS.src_scalar_per_vector,
-                                 .dest_scalar_per_vector_k1 = LDS.dest_scalar_per_vector_k1,
-                                 .add_extra                 = LDS.add_extra};
+                                 .lds_dst_scalar_per_vector = LDS.lds_dst_scalar_per_vector,
+                                 .is_direct_load            = LDS.is_direct_load,
+                                 .lds_padding               = LDS.lds_padding};
     return block_transfer;
 }
 
@@ -511,15 +514,15 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
             to_sequence_v<A_BLOCK_TRANSFER.src_access_order>,
             A_BLOCK_TRANSFER.src_vector_dim,
             A_BLOCK_TRANSFER.src_scalar_per_vector,
-            A_BLOCK_TRANSFER.dest_scalar_per_vector_k1,
-            A_BLOCK_TRANSFER.add_extra,
+            A_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
+            A_BLOCK_TRANSFER.lds_padding,
             to_sequence_v<B_BLOCK_TRANSFER.thread_cluster_dims>,
             to_sequence_v<B_BLOCK_TRANSFER.thread_cluster_order>,
             to_sequence_v<B_BLOCK_TRANSFER.src_access_order>,
             B_BLOCK_TRANSFER.src_vector_dim,
             B_BLOCK_TRANSFER.src_scalar_per_vector,
-            B_BLOCK_TRANSFER.dest_scalar_per_vector_k1,
-            B_BLOCK_TRANSFER.add_extra,
+            B_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
+            B_BLOCK_TRANSFER.lds_padding,
             C_BLOCK_TRANSFER.m_xdl_per_wave_per_shuffle,
             C_BLOCK_TRANSFER.n_xdl_per_wave_per_shuffle,
             to_sequence_v<C_BLOCK_TRANSFER.thread_cluster_dims>,

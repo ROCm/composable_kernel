@@ -52,13 +52,14 @@ concept ThreadClusterDescriptor = requires(T t) {
     { t.n_wave_per_xdl } -> std::convertible_to<size_t>;
 };
 
-// Concept for the LDS padding for the convolution input tensors.
+// Concept for the LDS transfer for the convolution input tensors.
 template <typename T>
-concept LdsPaddingDescriptor = requires(T t) {
+concept LdsTransferDescriptor = requires(T t) {
     { t.src_vector_dim } -> std::convertible_to<size_t>;
     { t.src_scalar_per_vector } -> std::convertible_to<size_t>;
-    { t.dest_scalar_per_vector_k1 } -> std::convertible_to<size_t>;
-    { t.add_extra } -> std::convertible_to<bool>;
+    { t.lds_dst_scalar_per_vector } -> std::convertible_to<size_t>;
+    { t.is_direct_load } -> std::convertible_to<bool>;
+    { t.lds_padding } -> std::convertible_to<bool>;
 };
 
 // Concept for the convolution output tensor epilogue (copy from registers to global memory via LDS).
@@ -103,11 +104,11 @@ concept SpecifiesBlockTransfer = requires(T t) {
     { T::block_transfer.thread_cluster_dims_c } -> ThreadClusterDescriptor;
 };
 
-// Concept to check if a struct specifies block vector transfer info.
+// Concept to check if a struct specifies LDS transfer info for tensors A, B, and C.
 template <typename T>
 concept SpecifiesLdsTransfer = requires(T t) {
-    { T::block_transfer.lds_padding_a } -> LdsPaddingDescriptor;
-    { T::block_transfer.lds_padding_b } -> LdsPaddingDescriptor;
+    { T::block_transfer.lds_transfer_a } -> LdsTransferDescriptor;
+    { T::block_transfer.lds_transfer_b } -> LdsTransferDescriptor;
     { T::block_transfer.epilogue_c }    -> EpilogueDescriptor;
 };
 

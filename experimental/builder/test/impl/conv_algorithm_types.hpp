@@ -60,14 +60,15 @@ struct ThreadCluster
 };
 static_assert(ThreadClusterDescriptor<ThreadCluster>);
 
-struct LdsPadding
+struct LdsTransfer
 {
     size_t src_vector_dim;
     size_t src_scalar_per_vector;
-    size_t dest_scalar_per_vector_k1;
-    bool add_extra;
+    size_t lds_dst_scalar_per_vector;
+    bool is_direct_load;
+    bool lds_padding;
 };
-static_assert(LdsPaddingDescriptor<LdsPadding>);
+static_assert(LdsTransferDescriptor<LdsTransfer>);
 
 struct Epilogue
 {
@@ -88,8 +89,8 @@ struct BlockTransferABC
     BlockTransfer block_transfer_a;
     BlockTransfer block_transfer_b;
     ThreadCluster thread_cluster_dims_c;
-    LdsPadding lds_padding_a;
-    LdsPadding lds_padding_b;
+    LdsTransfer lds_transfer_a;
+    LdsTransfer lds_transfer_b;
     Epilogue epilogue_c;
     AccessOrder block_transfer_access_order_a;
     AccessOrder block_transfer_access_order_b;
