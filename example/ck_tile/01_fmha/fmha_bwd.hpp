@@ -114,10 +114,51 @@ struct fmha_bwd_args
     void* dv_ptr;
     void* dbias_ptr;
     void* dq_acc_ptr;
-    const void* seqstart_q_ptr;
-    const void* seqstart_k_ptr;
-    const void* seqlen_q_ptr;
-    const void* seqlen_k_ptr;
+
+    // Usage notes for sequence length pointer parameters:
+    //
+    // [Note: Define "Group mode" vs "Batch mode" here if possible, e.g., "Group mode handles
+    // MQA/GQA..."]
+    //
+    // With padding:
+    //   Group mode:
+    //     - seqstart_q_ptr, seqstart_k_ptr: Record cumulative physical (including padding) sequence
+    //     lengths. [array size: batch + 1]
+    //     - seqlen_q_ptr/seqlen_k_ptr: Records logical (excluding padding) length for each
+    //     sequence. [array size: batch]
+    //     - cu_seqlen_q_ptr/cu_seqlen_k_ptr: Records cumulative logical (excluding padding)
+    //     sequence lengths. [array size: batch + 1]
+    //     - seqlen_q_ptr (per-sequence) and cu_seqlen_q_ptr (cumulative logical) are mutually
+    //     exclusive. Use one set, not both.
+    //
+    //   Batch mode:
+    //     - cu_seqlen_q_ptr/cu_seqlen_k_ptr: Records cumulative logical (excluding padding)
+    //     sequence lengths. [array size: batch + 1]
+    //     - seqstart_* and seqlen_* pointers must be nullptr.
+    //
+    // Without padding:
+    //   (Note: Physical length equals logical length)
+    //
+    //   Group mode:
+    //     - seqstart_q_ptr, seqstart_k_ptr: Record cumulative physical sequence lengths. [array
+    //     size: batch + 1]
+    //     - seqlen_q_ptr/seqlen_k_ptr and cu_seqlen_q_ptr/cu_seqlen_k_ptr must be nullptr.
+    //
+    //   Batch mode:
+    //     - All sequence length pointers (seqstart_*, seqlen_*, cu_seqlen_*) must be nullptr.
+    //
+    const void* seqstart_q_ptr =
+        nullptr; // Cumulative physical sequence length array [batch + 1]. (Used in Group mode)
+    const void* seqstart_k_ptr =
+        nullptr; // Cumulative physical sequence length array [batch + 1]. (Used in Group mode)
+    const void* seqlen_q_ptr = nullptr;    // Per-sequence logical (excluding padding) length array
+                                           // [batch]. (Used in Group mode with padding)
+    const void* seqlen_k_ptr = nullptr;    // Per-sequence logical (excluding padding) length array
+                                           // [batch]. (Used in Group mode with padding)
+    const void* cu_seqlen_q_ptr = nullptr; // Cumulative logical (excluding padding) sequence length
+                                           // array [batch + 1]. (Used with padding)
+    const void* cu_seqlen_k_ptr = nullptr; // Cumulative logical (excluding padding) sequence length
+                                           // array [batch + 1]. (Used with padding)
     ck_tile::index_t seqlen_q;
     ck_tile::index_t seqlen_k;
     ck_tile::index_t batch;
@@ -190,54 +231,57 @@ auto fmha_bwd_dq_dk_dv_create_kargs_and_grids(fmha_bwd_args args)
         // create group mode kernel arguments
         if constexpr(FmhaBwdDQDKDVKernel::kIsGroupMode)
         {
-            return FmhaBwdDQDKDVKernel::MakeKargsImpl(args.q_ptr,
-                                                      args.k_ptr,
-                                                      args.v_ptr,
-                                                      args.bias_ptr,
-                                                      args.lse_ptr,
-                                                      args.do_ptr,
-                                                      args.d_ptr,
-                                                      args.rand_val_ptr,
-                                                      args.dk_ptr,
-                                                      args.dv_ptr,
-                                                      args.dbias_ptr,
-                                                      dq_ptr,
-                                                      args.seqstart_q_ptr,
-                                                      args.seqstart_k_ptr,
-                                                      args.seqlen_q_ptr,
-                                                      args.seqlen_k_ptr,
-                                                      args.hdim_q,
-                                                      args.hdim_v,
-                                                      args.nhead_q,
-                                                      args.nhead_q / args.nhead_k,
-                                                      args.scale,
-                                                      args.stride_q,
-                                                      args.stride_k,
-                                                      args.stride_v,
-                                                      args.stride_bias,
-                                                      args.stride_randval,
-                                                      args.stride_do,
-                                                      stride_dq,
-                                                      args.stride_dk,
-                                                      args.stride_dv,
-                                                      args.stride_dbias,
-                                                      args.nhead_stride_q,
-                                                      args.nhead_stride_k,
-                                                      args.nhead_stride_v,
-                                                      args.nhead_stride_bias,
-                                                      args.nhead_stride_randval,
-                                                      args.nhead_stride_do,
-                                                      args.nhead_stride_lsed,
-                                                      nhead_stride_dq,
-                                                      args.nhead_stride_dk,
-                                                      args.nhead_stride_dv,
-                                                      args.nhead_stride_dbias,
-                                                      args.split_stride_dq_acc,
-                                                      args.window_size_left,
-                                                      args.window_size_right,
-                                                      args.mask_type,
-                                                      args.p_drop,
-                                                      args.drop_seed_offset);
+            return FmhaBwdDQDKDVKernel::MakeKargsImpl(
+                args.q_ptr,
+                args.k_ptr,
+                args.v_ptr,
+                args.bias_ptr,
+                args.lse_ptr,
+                args.do_ptr,
+                args.d_ptr,
+                args.rand_val_ptr,
+                args.dk_ptr,
+                args.dv_ptr,
+                args.dbias_ptr,
+                dq_ptr,
+                args.seqstart_q_ptr,
+                args.seqstart_k_ptr,
+                args.seqlen_q_ptr,
+                args.seqlen_k_ptr,
+                static_cast<const ck_tile::index_t*>(args.cu_seqlen_q_ptr),
+                static_cast<const ck_tile::index_t*>(args.cu_seqlen_k_ptr),
+                args.hdim_q,
+                args.hdim_v,
+                args.nhead_q,
+                args.nhead_q / args.nhead_k,
+                args.scale,
+                args.stride_q,
+                args.stride_k,
+                args.stride_v,
+                args.stride_bias,
+                args.stride_randval,
+                args.stride_do,
+                stride_dq,
+                args.stride_dk,
+                args.stride_dv,
+                args.stride_dbias,
+                args.nhead_stride_q,
+                args.nhead_stride_k,
+                args.nhead_stride_v,
+                args.nhead_stride_bias,
+                args.nhead_stride_randval,
+                args.nhead_stride_do,
+                args.nhead_stride_lsed,
+                nhead_stride_dq,
+                args.nhead_stride_dk,
+                args.nhead_stride_dv,
+                args.nhead_stride_dbias,
+                args.split_stride_dq_acc,
+                args.window_size_left,
+                args.window_size_right,
+                args.mask_type,
+                args.p_drop,
+                args.drop_seed_offset);
         }
         else
         { // create batch mode kernel arguments
@@ -318,6 +362,7 @@ auto fmha_bwd_dot_do_o_create_kargs_and_grids(fmha_bwd_args args)
                                                      args.p_undrop,
                                                      args.seqstart_q_ptr,
                                                      args.seqlen_q_ptr,
+                                                     args.cu_seqlen_q_ptr,
                                                      args.hdim_v,
                                                      args.stride_do,
                                                      args.stride_o,
@@ -361,6 +406,8 @@ auto fmha_bwd_convert_dq_create_kargs_and_grids(fmha_bwd_args args)
                                                         args.seqstart_k_ptr,
                                                         args.seqlen_q_ptr,
                                                         args.seqlen_k_ptr,
+                                                        args.cu_seqlen_q_ptr,
+                                                        args.cu_seqlen_k_ptr,
                                                         args.hdim_q,
                                                         args.stride_dq,
                                                         args.stride_dq_acc,
