@@ -23,4 +23,4 @@ add_ck_builder_test(test_conv_builder
 add_ck_builder_test(test_get_instance_string
     test_get_instance_string.cpp)
 
-add_ck_builder_test(test_builder_utils test_builder_utils.cpp testing_utils.cpp)
+add_ck_builder_test(test_inline_diff test_inline_diff.cpp testing_utils.cpp)
