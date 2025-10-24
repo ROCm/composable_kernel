@@ -19,6 +19,7 @@ using WeiLayout                     = ck::tensor_layout::convolution::GKZYXC;
 using OutLayout                     = ck::tensor_layout::convolution::NDHWGK;
 
 using ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD;
+using ck::tensor_operation::device::instance::CombConvScale;
 using ck::tensor_operation::device::instance::CombConvScaleRelu;
 using ck::tensor_operation::element_wise::ConvInvscale;
 using ck::tensor_operation::element_wise::ConvScale;
@@ -80,7 +81,7 @@ struct F8_ConvScale
     };
 };
 
-struct F8_comb1_ConvScale
+struct F8_BF8_comb1_ConvScale
 {
     using DeviceOp = ::DeviceOp<ck::Tuple<>,
                                 ck::Tuple<>,
@@ -98,7 +99,7 @@ struct F8_comb1_ConvScale
     };
 };
 
-struct F8_comb2_ConvScale
+struct F8_BF8_comb2_ConvScale
 {
     using DeviceOp = ::DeviceOp<ck::Tuple<>,
                                 ck::Tuple<>,
@@ -116,7 +117,7 @@ struct F8_comb2_ConvScale
     };
 };
 
-struct F8_comb3_ConvScale
+struct F8_BF8_comb3_ConvScale
 {
     using DeviceOp = ::DeviceOp<ck::Tuple<>,
                                 ck::Tuple<>,
@@ -125,6 +126,24 @@ struct F8_comb3_ConvScale
                                 ck::f8_t,
                                 ConvScale,
                                 ck::bf8_t,
+                                ck::f8_t>;
+
+    constexpr static auto expected = {
+        // clang-format off
+        ""
+        // clang-format on
+    };
+};
+
+struct F8_float_CombConvScale
+{
+    using DeviceOp = ::DeviceOp<ck::Tuple<>,
+                                ck::Tuple<>,
+                                ck::f8_t,
+                                ck::f8_t,
+                                float,
+                                CombConvScale,
+                                ck::f8_t,
                                 ck::f8_t>;
 
     constexpr static auto expected = {
@@ -201,9 +220,10 @@ struct F8_ConvInvscale
 
 using TestTypes =
     ::testing::Types<F8_ConvScale,
-                                   F8_comb1_ConvScale,
-                                   F8_comb2_ConvScale,
-                                   F8_comb3_ConvScale,
+                                   F8_BF8_comb1_ConvScale,
+                                   F8_BF8_comb2_ConvScale,
+                                   F8_BF8_comb3_ConvScale,
+                                   F8_float_CombConvScale,
                                    F8_ConvScaleRelu,
                                    F8_CombConvScaleRelu,
                                    F8_ConvScaleAdd, F8_ConvInvscale>;
