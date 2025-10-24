@@ -9,6 +9,8 @@ import logging
 from commons.validation_utils import (
     is_tile_config_valid,
     is_trait_combination_valid,
+    get_dtype_string,
+    get_abcd_layouts,
 )
 
 logging.basicConfig(level=logging.INFO)
@@ -284,7 +286,9 @@ class GemmMultiDKernelBuilder:
                 )
         return combinations
 
-    '''def _generate_kernel_instance(self, tile_config, trait_combo, k_block_per_cu, is_header=True):
+    def _generate_kernel_instance(
+        self, tile_config, trait_combo, k_block_per_cu, is_header=True
+    ):
         """Generate a single kernel instance"""
         (
             pipeline,
@@ -297,7 +301,7 @@ class GemmMultiDKernelBuilder:
         ) = trait_combo
 
         # Create kernel name with proper boolean capitalization
-        kernel_name = f"gemm_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}"
+        kernel_name = f"gemm_multi_d_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}"
 
         # Create tile configuration string
         tile_str = (
@@ -322,7 +326,7 @@ class GemmMultiDKernelBuilder:
             "mem": "ck_tile::BaseGemmPipelineAgBgCrMem",
             "compv3": "ck_tile::BaseGemmPipelineAgBgCrCompV3",
             "compv4": "ck_tile::BaseGemmPipelineAgBgCrCompV4",
-        }        
+        }
 
         # Map scheduler names to the correct enum values
         scheduler_type_map = {
@@ -340,7 +344,7 @@ class GemmMultiDKernelBuilder:
             c_type = "fp16"
 
         # Determine layouts based on self.layout
-        a_layout, b_layout, c_layout = get_abc_layouts(self.layout)
+        a_layout, b_layout, c_layout, ds_layout = get_abcd_layouts(self.layout)
 
         # Generate kernel instance code using the correct API
         pragma_line = "#pragma once\n" if is_header else ""
@@ -361,10 +365,18 @@ using ADataType = {get_dtype_string(self.datatype)};
 using BDataType = {get_dtype_string(self.datatype)};
 using AccDataType = {acc_type};
 using CDataType = {get_dtype_string(c_type)};
+using D0DataType = {get_dtype_string(self.datatype)};
+using D1DataType = {get_dtype_string(self.datatype)};
+using DsDataType = ck_tile::tuple<D0DataType, D1DataType>;
 
 using ALayout = {a_layout};
 using BLayout = {b_layout};
 using CLayout = {c_layout};
+using D0Layout = {ds_layout[0]};
+using D1Layout = {ds_layout[1]};
+using DsLayout = ck_tile::tuple<D0Layout, D1Layout>;
+
+sing ElementWiseFn = ck_tile::element_wise::{self.elementwise_function};
 
 // Kernel name for display
 constexpr const char* KERNEL_NAME = "{kernel_name}";
@@ -398,8 +410,7 @@ struct SelectedKernel {{
     using TileShape = ck_tile::TileGemmShape<
         ck_tile::sequence<TileM, TileN, TileK>,
         ck_tile::sequence<WarpPerBlock_M, WarpPerBlock_N, WarpPerBlock_K>,
-        ck_tile::sequence<WarpTileM, WarpTileN, WarpTileK>,
-        false, false>;
+        ck_tile::sequence<WarpTileM, WarpTileN, WarpTileK>>;
     
     // Tile partitioner
     using TilePartitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<TileShape, 8, 4>;
@@ -548,7 +559,7 @@ struct SelectedKernel {{
     }}
 }};
 """
-        return kernel_name, instance_code'''
+        return kernel_name, instance_code
 
     # def run(self, num_workers=None):
     #     """Run the builder to generate individual kernel files"""
@@ -769,7 +780,7 @@ def main():
     if args.list_kernels:
         builder.write_kernel_list()
     elif args.gen_single:
-        """# Generate a single kernel file
+        # Generate a single kernel file
         if not args.kernel_name or not args.tile_config or not args.trait_combo:
             parser.error(
                 "--gen_single requires --kernel_name, --tile_config, and --trait_combo"
@@ -806,6 +817,8 @@ def main():
         )
 
         k_block_per_cu = builder.config.get("k_block_per_cu")
+        if k_block_per_cu is None:
+            k_block_per_cu = 1
 
         # Generate the kernel
         kernel_name, instance_code = builder._generate_kernel_instance(
@@ -814,14 +827,16 @@ def main():
 
         # Write the file
         simplified_name = kernel_name
-        if simplified_name.startswith("gemm_"):
-            simplified_name = simplified_name[5:]
+        if simplified_name.startswith("gemm_multi_d_"):
+            simplified_name = simplified_name[13:]
 
-        header_file = builder.working_path / f"gemm_single_{simplified_name}.hpp"
+        header_file = (
+            builder.working_path / f"gemm_multi_d_single_{simplified_name}.hpp"
+        )
         with open(header_file, "w") as f:
             f.write(instance_code)
 
-        print(f"Generated {header_file}")"""
+        print(f"Generated {header_file}")
 
     elif args.gen_all_individual:
         """# Generate all individual kernel files

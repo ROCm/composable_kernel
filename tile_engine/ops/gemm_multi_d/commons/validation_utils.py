@@ -432,16 +432,18 @@ LAYOUT_MAP = {
 }
 
 
-def get_abc_layouts(layout_code: str) -> Tuple[str, str, str]:
+def get_abcd_layouts(layout_code: str) -> Tuple[str, str, str, List[str]]:
     """
-    Return (ALayout, BLayout, CLayout) from a 3-letter code like 'rcr', 'ccr', 'crr', 'rrr'.
+    Return (ALayout, BLayout, CLayout) from a 3-letter code like 'rcrr', 'ccrr', 'crrr', 'rrrr'.
     """
     code = str(layout_code).strip().lower()
 
     a_layout = LAYOUT_MAP[code[0]]
     b_layout = LAYOUT_MAP[code[1]]
     c_layout = LAYOUT_MAP[code[2]]
-    return a_layout, b_layout, c_layout
+    d0_layout = LAYOUT_MAP[code[3]]
+    d1_layout = LAYOUT_MAP[code[3]]
+    return a_layout, b_layout, c_layout, [d0_layout, d1_layout]
 
 
 def validate_whole_wg_cover_configuration(
