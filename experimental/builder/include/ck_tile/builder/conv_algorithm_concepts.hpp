@@ -35,35 +35,35 @@ concept GridwiseGemmDescriptor = requires(T t) {
     { t.n_xdl_per_wave } -> std::convertible_to<size_t>;
 };
 
-// Concept for convolution input block transfer.
+// Concept for vectorized data transfer for convolution input tensors.
 template <typename T>
-concept InputBlockTransferDescriptor = requires(T t) {
+concept BlockTransferDescriptor = requires(T t) {
     { t.k0 } -> std::convertible_to<size_t>;
     { t.m_n } -> std::convertible_to<size_t>;
     { t.k1 } -> std::convertible_to<size_t>;
 };
 
-// Concept for output block transfer.
+// Concept for thread cluster dimensions for GEMM output tensor.
 template <typename T>
-concept OutputBlockTransferDescriptor = requires(T t) {
+concept ThreadClusterDescriptor = requires(T t) {
     { t.m_block } -> std::convertible_to<size_t>;
     { t.m_wave_per_xdl } -> std::convertible_to<size_t>;
     { t.n_block } -> std::convertible_to<size_t>;
     { t.n_wave_per_xdl } -> std::convertible_to<size_t>;
 };
 
-// Concept for the convolution input vector transfer.
+// Concept for the LDS padding for the convolution input tensors.
 template <typename T>
-concept InputVectorTransferDescriptor = requires(T t) {
+concept LdsPaddingDescriptor = requires(T t) {
     { t.src_vector_dim } -> std::convertible_to<size_t>;
     { t.src_scalar_per_vector } -> std::convertible_to<size_t>;
     { t.dest_scalar_per_vector_k1 } -> std::convertible_to<size_t>;
     { t.add_extra } -> std::convertible_to<bool>;
 };
 
-// Concepts for the convolution output vector transfer.
+// Concept for the convolution output tensor epilogue (copy from registers to global memory via LDS).
 template <typename T>
-concept OutputVectorTransferDescriptor = requires(T t) {
+concept EpilogueDescriptor = requires(T t) {
     { t.m_xdl_per_wave_per_shuffle } -> std::convertible_to<size_t>;
     { t.n_xdl_per_wave_per_shuffle } -> std::convertible_to<size_t>;
     { t.scalar_per_vector } -> std::convertible_to<size_t>;
@@ -92,30 +92,30 @@ concept SpecifiesThreadBlock = requires {
 // Concept to check if a struct specifies gridwise GEMM info.
 template <typename T>
 concept SpecifiesGridwiseGemm = requires {
-    { T::tuning_params } -> GridwiseGemmDescriptor;
+    { T::gridwise_gemm } -> GridwiseGemmDescriptor;
 };
 
 // Concept to check if a struct specifies convolution input and output block transfer info.
 template <typename T>
 concept SpecifiesBlockTransfer = requires(T t) {
-    { T::block_transfer.thread_cluster_dims_a } -> InputBlockTransferDescriptor;
-    { T::block_transfer.thread_cluster_dims_b } -> InputBlockTransferDescriptor;
-    { T::block_transfer.thread_cluster_dims_c } -> OutputBlockTransferDescriptor;
+    { T::block_transfer.block_transfer_a }      -> BlockTransferDescriptor;
+    { T::block_transfer.block_transfer_b }      -> BlockTransferDescriptor;
+    { T::block_transfer.thread_cluster_dims_c } -> ThreadClusterDescriptor;
 };
 
 // Concept to check if a struct specifies block vector transfer info.
 template <typename T>
-concept SpecifiesBlockVectorTransfer = requires(T t) {
-    { T::block_transfer.vector_transfer_a } -> InputVectorTransferDescriptor;
-    { T::block_transfer.vector_transfer_b } -> InputVectorTransferDescriptor;
-    { T::block_transfer.vector_transfer_c } -> OutputVectorTransferDescriptor;
+concept SpecifiesLdsTransfer = requires(T t) {
+    { T::block_transfer.lds_padding_a } -> LdsPaddingDescriptor;
+    { T::block_transfer.lds_padding_b } -> LdsPaddingDescriptor;
+    { T::block_transfer.epilogue_c }    -> EpilogueDescriptor;
 };
 
 // Concept to check if a struct specifies thread cluster access order info.
 template <typename T>
 concept SpecifiesThreadClusterAccessOrder = requires(T t) {
-    { T::block_transfer.thread_cluster_access_order_a } -> AccessOrderDescriptor;
-    { T::block_transfer.thread_cluster_access_order_b } -> AccessOrderDescriptor;
+    { T::block_transfer.block_transfer_access_order_a } -> AccessOrderDescriptor;
+    { T::block_transfer.block_transfer_access_order_b } -> AccessOrderDescriptor;
 };
 
 // Concept to check if a struct specifies source access order info.

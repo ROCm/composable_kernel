@@ -28,8 +28,8 @@ struct ThreadBlock
 };
 static_assert(ckb::ThreadBlockDescriptor<ThreadBlock>);
 
-// Describe some convolution tuning parameters.
-struct ConvTuningParams
+// Describe gridwise GEMM parameters.
+struct GridwiseGemm
 {
     // NOTE: ak1 and bk1 are difficult to verify in the kernel instantiation!!!
     size_t ak1            = 0;
@@ -39,43 +39,43 @@ struct ConvTuningParams
     size_t m_xdl_per_wave = 0;
     size_t n_xdl_per_wave = 0;
 };
-static_assert(ckb::GridwiseGemmDescriptor<ConvTuningParams>);
+static_assert(ckb::GridwiseGemmDescriptor<GridwiseGemm>);
 
-// Describe A block transfer thread cluster lengths.
-struct InputBlockTransferLengths
+// Describe Aand B block transfer thread cluster lengths.
+struct BlockTransfer
 {
     size_t k0;
     size_t m_n;
     size_t k1;
 };
-static_assert(ckb::InputBlockTransferDescriptor<InputBlockTransferLengths>);
+static_assert(ckb::BlockTransferDescriptor<BlockTransfer>);
 
 // Describe C block transfer thread cluster lengths.
-struct OutputBlockTransferLengths
+struct ThreadCluster
 {
     size_t m_block;
     size_t m_wave_per_xdl;
     size_t n_block;
     size_t n_wave_per_xdl;
 };
-static_assert(OutputBlockTransferDescriptor<OutputBlockTransferLengths>);
+static_assert(ThreadClusterDescriptor<ThreadCluster>);
 
-struct InputVectorTransfer
+struct LdsPadding
 {
     size_t src_vector_dim;
     size_t src_scalar_per_vector;
     size_t dest_scalar_per_vector_k1;
     bool add_extra;
 };
-static_assert(InputVectorTransferDescriptor<InputVectorTransfer>);
+static_assert(LdsPaddingDescriptor<LdsPadding>);
 
-struct OutputVectorTransfer
+struct Epilogue
 {
     size_t m_xdl_per_wave_per_shuffle;
     size_t n_xdl_per_wave_per_shuffle;
     size_t scalar_per_vector;
 };
-static_assert(OutputVectorTransferDescriptor<OutputVectorTransfer>);
+static_assert(EpilogueDescriptor<Epilogue>);
 
 struct AccessOrder
 {
@@ -83,16 +83,16 @@ struct AccessOrder
 };
 static_assert(AccessOrderDescriptor<AccessOrder>);
 
-struct InputOutputBlockTransfer
+struct BlockTransferABC
 {
-    InputBlockTransferLengths thread_cluster_dims_a;
-    InputBlockTransferLengths thread_cluster_dims_b;
-    OutputBlockTransferLengths thread_cluster_dims_c;
-    InputVectorTransfer vector_transfer_a;
-    InputVectorTransfer vector_transfer_b;
-    OutputVectorTransfer vector_transfer_c;
-    AccessOrder thread_cluster_access_order_a;
-    AccessOrder thread_cluster_access_order_b;
+    BlockTransfer block_transfer_a;
+    BlockTransfer block_transfer_b;
+    ThreadCluster thread_cluster_dims_c;
+    LdsPadding lds_padding_a;
+    LdsPadding lds_padding_b;
+    Epilogue epilogue_c;
+    AccessOrder block_transfer_access_order_a;
+    AccessOrder block_transfer_access_order_b;
     AccessOrder src_access_order_a;
     AccessOrder src_access_order_b;
 };
@@ -100,19 +100,19 @@ struct InputOutputBlockTransfer
 struct ConvAlgorithm
 {
     ThreadBlock thread_block;
-    ConvTuningParams tuning_params;
-    InputOutputBlockTransfer block_transfer;
+    GridwiseGemm gridwise_gemm;
+    BlockTransferABC block_transfer;
     BlockGemmPipelineVersion pipeline_version;
     ConvFwdSpecialization fwd_specialization;
 };
 static_assert(ckb::ConvAlgorithmDescriptor<ConvAlgorithm>);
 static_assert(ckb::SpecifiesThreadBlock<ConvAlgorithm>);
 static_assert(ckb::SpecifiesGridwiseGemm<ConvAlgorithm>);
-static_assert(ckb::SpecifiesGemmPipelineVersion<ConvAlgorithm>);
 static_assert(ckb::SpecifiesBlockTransfer<ConvAlgorithm>);
-static_assert(ckb::SpecifiesBlockVectorTransfer<ConvAlgorithm>);
+static_assert(ckb::SpecifiesLdsTransfer<ConvAlgorithm>);
 static_assert(ckb::SpecifiesThreadClusterAccessOrder<ConvAlgorithm>);
 static_assert(ckb::SpecifiesSourceAccessOrder<ConvAlgorithm>);
+static_assert(ckb::SpecifiesGemmPipelineVersion<ConvAlgorithm>);
 static_assert(ckb::SpecifiesFwdConcSpecialization<ConvAlgorithm>);
 
 } // namespace ck_tile::builder::test

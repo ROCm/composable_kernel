@@ -246,7 +246,7 @@ constexpr ConvBlock SetThreadBlockInfo()
 }
 
 // Convolution tuning parameters.
-struct ConvTuning
+struct GridwiseGemm
 {
     size_t ak1            = 0;
     size_t bk1            = 0;
@@ -257,10 +257,10 @@ struct ConvTuning
 };
 
 template <ConvSignatureDescriptor auto SIGNATURE, ConvAlgorithmDescriptor auto ALGORITHM>
-constexpr ConvTuning SetConvTuningInfo()
+constexpr GridwiseGemm SetGridwiseGemmInfo()
 {
-    constexpr auto& TP = ALGORITHM.tuning_params;
-    return ConvTuning{
+    constexpr auto& TP = ALGORITHM.gridwise_gemm;
+    return GridwiseGemm{
         .ak1            = TP.ak1,
         .bk1            = TP.bk1,
         .m_per_xdl      = TP.m_per_xdl,
@@ -285,36 +285,36 @@ struct BlockTransfer
 template <ConvAlgorithmDescriptor auto ALGORITHM>
 constexpr BlockTransfer SetFwdConvABlockTransfer()
 {
-    constexpr auto& TCL = ALGORITHM.block_transfer.thread_cluster_dims_a;
-    constexpr auto& TCO = ALGORITHM.block_transfer.thread_cluster_access_order_a;
+    constexpr auto& TCL = ALGORITHM.block_transfer.block_transfer_a;
+    constexpr auto& TCO = ALGORITHM.block_transfer.block_transfer_access_order_a;
     constexpr auto& SAO = ALGORITHM.block_transfer.src_access_order_a;
-    constexpr auto& VTD = ALGORITHM.block_transfer.vector_transfer_a;
+    constexpr auto& LDS = ALGORITHM.block_transfer.lds_padding_a;
 
     BlockTransfer block_transfer{.thread_cluster_dims  = {TCL.k0, TCL.m_n, TCL.k1},
                                  .thread_cluster_order = {TCO.order[0], TCO.order[1], TCO.order[2]},
                                  .src_access_order     = {SAO.order[0], SAO.order[1], SAO.order[2]},
-                                 .src_vector_dim       = VTD.src_vector_dim,
-                                 .src_scalar_per_vector     = VTD.src_scalar_per_vector,
-                                 .dest_scalar_per_vector_k1 = VTD.dest_scalar_per_vector_k1,
-                                 .add_extra                 = VTD.add_extra};
+                                 .src_vector_dim       = LDS.src_vector_dim,
+                                 .src_scalar_per_vector     = LDS.src_scalar_per_vector,
+                                 .dest_scalar_per_vector_k1 = LDS.dest_scalar_per_vector_k1,
+                                 .add_extra                 = LDS.add_extra};
     return block_transfer;
 }
 
 template <ConvAlgorithmDescriptor auto ALGORITHM>
 constexpr BlockTransfer SetFwdConvBBlockTransfer()
 {
-    constexpr auto& TCL = ALGORITHM.block_transfer.thread_cluster_dims_b;
-    constexpr auto& TCO = ALGORITHM.block_transfer.thread_cluster_access_order_b;
+    constexpr auto& TCL = ALGORITHM.block_transfer.block_transfer_b;
+    constexpr auto& TCO = ALGORITHM.block_transfer.block_transfer_access_order_b;
     constexpr auto& SAO = ALGORITHM.block_transfer.src_access_order_b;
-    constexpr auto& VTD = ALGORITHM.block_transfer.vector_transfer_b;
+    constexpr auto& LDS = ALGORITHM.block_transfer.lds_padding_b;
 
     BlockTransfer block_transfer{.thread_cluster_dims  = {TCL.k0, TCL.m_n, TCL.k1},
                                  .thread_cluster_order = {TCO.order[0], TCO.order[1], TCO.order[2]},
                                  .src_access_order     = {SAO.order[0], SAO.order[1], SAO.order[2]},
-                                 .src_vector_dim       = VTD.src_vector_dim,
-                                 .src_scalar_per_vector     = VTD.src_scalar_per_vector,
-                                 .dest_scalar_per_vector_k1 = VTD.dest_scalar_per_vector_k1,
-                                 .add_extra                 = VTD.add_extra};
+                                 .src_vector_dim       = LDS.src_vector_dim,
+                                 .src_scalar_per_vector     = LDS.src_scalar_per_vector,
+                                 .dest_scalar_per_vector_k1 = LDS.dest_scalar_per_vector_k1,
+                                 .add_extra                 = LDS.add_extra};
     return block_transfer;
 }
 
@@ -331,9 +331,9 @@ template <ConvSignatureDescriptor auto SIGNATURE, ConvAlgorithmDescriptor auto A
 constexpr CBlockTransfer SetCBlockTransfer()
 {
     constexpr auto& TCL = ALGORITHM.block_transfer.thread_cluster_dims_c;
-    constexpr auto& VTC = ALGORITHM.block_transfer.vector_transfer_c;
-    CBlockTransfer block_transfer{.m_xdl_per_wave_per_shuffle = VTC.m_xdl_per_wave_per_shuffle,
-                                  .n_xdl_per_wave_per_shuffle = VTC.n_xdl_per_wave_per_shuffle,
+    constexpr auto& EPC = ALGORITHM.block_transfer.epilogue_c;
+    CBlockTransfer block_transfer{.m_xdl_per_wave_per_shuffle = EPC.m_xdl_per_wave_per_shuffle,
+                                  .n_xdl_per_wave_per_shuffle = EPC.n_xdl_per_wave_per_shuffle,
                                   .thread_cluster_dims =
                                       {
                                           TCL.m_block,
@@ -341,7 +341,7 @@ constexpr CBlockTransfer SetCBlockTransfer()
                                           TCL.n_block,
                                           TCL.n_wave_per_xdl,
                                       },
-                                  .scalar_per_vector = VTC.scalar_per_vector};
+                                  .scalar_per_vector = EPC.scalar_per_vector};
     return block_transfer;
 }
 
@@ -436,8 +436,8 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
                   "The convolution algorithm descriptor must specify gridwise GEMM info.");
     static_assert(SpecifiesBlockTransfer<AlgorithmType>,
                   "The convolution algorithm descriptor must specify block transfer info.");
-    static_assert(SpecifiesBlockVectorTransfer<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify block vector transfer info.");
+    static_assert(SpecifiesLdsTransfer<AlgorithmType>,
+                  "The convolution algorithm descriptor must specify LDS transfer info.");
     static_assert(
         SpecifiesThreadClusterAccessOrder<AlgorithmType>,
         "The convolution algorithm descriptor must specify thread cluster access order info.");
@@ -456,7 +456,7 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         .gemm_spec = ck::tensor_operation::device::GemmSpecialization::MNKPadding,
     };
     static constexpr auto BLOCK  = factory_internal::SetThreadBlockInfo<ALGORITHM>();
-    static constexpr auto TUNING = factory_internal::SetConvTuningInfo<SIGNATURE, ALGORITHM>();
+    static constexpr auto GRIDWISE_GEMM = factory_internal::SetGridwiseGemmInfo<SIGNATURE, ALGORITHM>();
     static constexpr auto A_BLOCK_TRANSFER =
         factory_internal::SetFwdConvABlockTransfer<ALGORITHM>();
     static constexpr auto B_BLOCK_TRANSFER =
@@ -500,12 +500,12 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
             BLOCK.per_block.m,
             BLOCK.per_block.n,
             BLOCK.per_block.k,
-            TUNING.ak1,
-            TUNING.bk1,
-            TUNING.m_per_xdl,
-            TUNING.n_per_xdl,
-            TUNING.m_xdl_per_wave,
-            TUNING.n_xdl_per_wave,
+            GRIDWISE_GEMM.ak1,
+            GRIDWISE_GEMM.bk1,
+            GRIDWISE_GEMM.m_per_xdl,
+            GRIDWISE_GEMM.n_per_xdl,
+            GRIDWISE_GEMM.m_xdl_per_wave,
+            GRIDWISE_GEMM.n_xdl_per_wave,
             to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_dims>,
             to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_order>,
             to_sequence_v<A_BLOCK_TRANSFER.src_access_order>,
