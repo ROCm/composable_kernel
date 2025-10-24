@@ -1,0 +1,5 @@
+trailPath/gemm_multi_d_common.hpp
+trailPath/gemm_multi_d_instances.hpp
+trailPath/gemm_multi_d_dispatcher.hpp
+trailPath/gemm_multi_d_compv3_cshuffle_intrawave_false_false_false.hpp
+trailPath/gemm_multi_d_compv3_cshuffle_intrawave_false_false_false_256x256x64_2x2x1.cpp
