@@ -71,7 +71,7 @@ def shouldRunCICheck() {
             '''
         ).trim().split('\n')
         
-        if (changedFiles.isEmpty() || (changedFiles.size() == 1 && changedFiles[0].trim().isEmpty())) {
+        if (changedFiles.size() == 1 && changedFiles[0] == '') {
             echo "No changed files detected - this might be a manual trigger or merge commit, running CI for safety"
             return true
         }
