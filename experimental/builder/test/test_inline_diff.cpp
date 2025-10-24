@@ -27,8 +27,7 @@ TEST(InlineDiff, noColorDiff)
     std::string str2{"hello"};
     std::string str3{"world"};
 
-    // some easy tests
-    // you can veryfy the ungodly strings are meaningful by running echo -e "<string>"
+    // some easy tests without color
     EXPECT_THAT(test::inlineDiff(str1, str2, false), "hello");
     EXPECT_THAT(test::inlineDiff(str1, str3, false), "[wor|hel]l[d|o]");
 }
