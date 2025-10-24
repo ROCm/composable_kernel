@@ -37,7 +37,13 @@ include(CTest)
 
 option(ENABLE_CLANG_CPP_CHECKS "Enables clang tidy, cppcheck" ON)
 option(MIOPEN_REQ_LIBS_ONLY "Build only the MIOpen required libraries" OFF)
+option(CK_EXPERIMENTAL_BUILDER "Enable experimental builder" OFF)
 option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
+
+if(CK_EXPERIMENTAL_BUILDER)
+    add_definitions(-DCK_EXPERIMENTAL_BUILDER)
+    include_directories(${PROJECT_SOURCE_DIR}/experimental/builder/include)  
+endif()
 
 # Usage: for customized Python location cmake -DCK_USE_ALTERNATIVE_PYTHON="/opt/Python-3.8.13/bin/python3.8"
 # CK Codegen requires dataclass which is added in Python 3.7
@@ -219,6 +225,9 @@ rocm_check_target_ids(SUPPORTED_GPU_TARGETS
         TARGETS ${CK_GPU_TARGETS})
 
 message(STATUS "Building CK for the following targets: ${SUPPORTED_GPU_TARGETS}")
+
+# Cache SUPPORTED_GPU_TARGETS for debug
+set(SUPPORTED_GPU_TARGETS "${SUPPORTED_GPU_TARGETS}" CACHE STRING "List of supported GPU targets")
 
 if (SUPPORTED_GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
     message(STATUS "Enabling XDL instances")
@@ -687,6 +696,10 @@ if (NOT MIOPEN_REQ_LIBS_ONLY)
         PACKAGE_NAME ckprofiler
     )
     add_subdirectory(profiler)
+endif()
+
+if (CK_EXPERIMENTAL_BUILDER)
+  add_subdirectory(experimental/builder)
 endif()
 
 if(CK_USE_CODEGEN AND (SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR GPU_ARCHS))

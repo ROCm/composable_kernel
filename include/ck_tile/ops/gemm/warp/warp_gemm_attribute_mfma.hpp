@@ -93,10 +93,33 @@ struct WarpGemmAttributeMfma
         Impl{}(c_vec, a_vec, b_vec, bool_constant<post_nop_>{});
     }
 
+    // c_vec += a_vec * b_vec
+    template <index_t opselA, index_t opselB, bool post_nop_ = false>
+    CK_TILE_DEVICE void operator()(CVecType& c_vec,
+                                   const AVecType& a_vec,
+                                   const int32_t& a_scale,
+                                   const BVecType& b_vec,
+                                   const int32_t& b_scale,
+                                   bool_constant<post_nop_> = {}) const
+    {
+        Impl{}.template operator()<opselA, opselB>(
+            c_vec, a_vec, a_scale, b_vec, b_scale, bool_constant<post_nop_>{});
+    }
+
     // c_vec = a_vec * b_vec
     CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
     {
         return Impl{}(a_vec, b_vec);
+    }
+
+    // c_vec = a_vec * b_vec
+    template <index_t opselA, index_t opselB>
+    CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec,
+                                       const int32_t& a_scale,
+                                       const BVecType& b_vec,
+                                       const int32_t& b_scale) const
+    {
+        auto c_vec = Impl{}.template operator()<opselA, opselB>(a_vec, a_scale, b_vec, b_scale);
     }
 };
 
@@ -125,6 +148,7 @@ struct WarpGemmAttributeMfmaIterateK
     static constexpr index_t kN          = Impl::kN;
     static constexpr index_t kK          = Impl::kK * kKIter;
     static constexpr index_t kKPerThread = Impl::kABKPerLane * kKIter;
+    static constexpr index_t kCMLane     = Impl::kCMLane;
 
     CK_TILE_HOST_DEVICE static constexpr auto get_num_of_access() { return kKIter; }
 

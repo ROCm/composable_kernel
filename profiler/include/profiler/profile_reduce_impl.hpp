@@ -144,7 +144,8 @@ bool profile_reduce_impl_impl(bool do_verification,
                               const std::vector<size_t>& inLengths,
                               const std::array<int, NumReduceDim>& reduceDims,
                               float alpha,
-                              float beta)
+                              float beta,
+                              index_t instance_index = -1)
 {
     using namespace ck::tensor_operation::device;
     using namespace ck::tensor_operation::device::instance;
@@ -373,7 +374,14 @@ bool profile_reduce_impl_impl(bool do_verification,
             if(!reduce_ptr->IsSupportedArgument(argument_ptr.get()))
                 continue;
             else
+            {
                 num_kernel++;
+                if((instance_index != -1) && (instance_index + 1 != num_kernel))
+                {
+                    // skip test if instance_index is specified
+                    continue;
+                }
+            }
 
             std::string reduce_name = reduce_ptr->GetTypeString();
 
@@ -452,7 +460,11 @@ bool profile_reduce_impl_impl(bool do_verification,
         std::cout << "Error: No kernel is applicable" << std::endl;
         return false;
     };
-
+    if(instance_index != -1)
+    {
+        std::cout << "reduce_instance (" << instance_index << "/" << num_kernel << "): Passed"
+                  << std::endl;
+    }
     return pass;
 };
 
@@ -467,7 +479,8 @@ bool profile_reduce_impl(bool do_verification,
                          bool PropagateNan,
                          bool UseIndex,
                          float alpha,
-                         float beta)
+                         float beta,
+                         index_t instance_index = -1)
 {
     bool matched = false;
     bool pass    = true;
@@ -505,7 +518,8 @@ bool profile_reduce_impl(bool do_verification,
                                                                      inLengths,
                                                                      arrReduceDims,
                                                                      alpha,
-                                                                     beta);
+                                                                     beta,
+                                                                     instance_index);
 
         matched = true;
     });

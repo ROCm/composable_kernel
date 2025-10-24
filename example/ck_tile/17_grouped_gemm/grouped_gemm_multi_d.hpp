@@ -15,14 +15,6 @@
 #define CK_TILE_PIPELINE_MEMORY 2
 #define CK_TILE_PIPELINE_COMPUTE_V4 3
 
-using ADataType   = ck_tile::half_t;
-using BDataType   = ck_tile::half_t;
-using D0DataType  = ck_tile::half_t;
-using D1DataType  = ck_tile::half_t;
-using EDataType   = ck_tile::half_t;
-using DsDataType  = ck_tile::tuple<D0DataType, D1DataType>;
-using AccDataType = float;
-
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()
 {
@@ -76,6 +68,7 @@ struct GemmConfigMemory : public GemmConfigBase
     static constexpr ck_tile::index_t K_Warp_Tile = 8;
 
     static constexpr bool DoubleSmemBuffer     = false;
+    static constexpr bool Persistent           = true;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_MEMORY;
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Interwave;
 };
@@ -95,6 +88,7 @@ struct GemmConfigV3 : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
+    static constexpr bool Persistent           = true;
     static constexpr bool DoubleSmemBuffer     = false;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
@@ -115,6 +109,7 @@ struct GemmConfigV4 : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
+    static constexpr bool Persistent           = true;
     static constexpr bool DoubleSmemBuffer     = true;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V4;
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Intrawave;
@@ -170,7 +165,38 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V4>
     using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV4<PipelineProblem>;
 };
 
-using grouped_gemm_multi_d_kargs = ck_tile::GroupedGemmHostArgs<2>;
+template <typename DataType>
+struct GemmMultiDTypeConfig;
+
+template <>
+struct GemmMultiDTypeConfig<ck_tile::half_t>
+{
+    using ADataType   = ck_tile::half_t;
+    using BDataType   = ck_tile::half_t;
+    using D0DataType  = ck_tile::half_t;
+    using D1DataType  = ck_tile::half_t;
+    using EDataType   = ck_tile::half_t;
+    using DsDataType  = ck_tile::tuple<D0DataType, D1DataType>;
+    using AccDataType = float;
+};
+
+template <>
+struct GemmMultiDTypeConfig<ck_tile::bf16_t>
+{
+    using ADataType   = ck_tile::bf16_t;
+    using BDataType   = ck_tile::bf16_t;
+    using D0DataType  = ck_tile::bf16_t;
+    using D1DataType  = ck_tile::bf16_t;
+    using EDataType   = ck_tile::bf16_t;
+    using DsDataType  = ck_tile::tuple<D0DataType, D1DataType>;
+    using AccDataType = float;
+};
+
+// Deduce the number of D tensors from the DsDataType tuple size
+// All precision configs have the same number of D tensors, so we can use any one
+constexpr std::size_t NumDTensor = GemmMultiDTypeConfig<ck_tile::bf16_t>::DsDataType::size();
+
+using grouped_gemm_multi_d_kargs = ck_tile::GroupedGemmHostArgs<NumDTensor>;
 
 std::pair<bool, ck_tile::ArgParser> create_args(int argc, char* argv[])
 {
@@ -187,7 +213,7 @@ std::pair<bool, ck_tile::ArgParser> create_args(int argc, char* argv[])
         .insert("ds_layout", "R", "Ds tensor data layout - Row by default.")
         .insert("e_layout", "R", "E tensor data layout - Row by default.")
         .insert("validate", "1", "0. No validation, 1. Validation on CPU.")
-        .insert("prec", "fp16", "data type. fp16")
+        .insert("prec", "bf16", "data type. fp16/bf16")
         .insert("warmup", "10", "number of iterations before benchmark the kernel.")
         .insert("repeat", "100", "number of iterations to benchmark the kernel.")
         .insert("group_count", "8", "group count.")
@@ -201,7 +227,7 @@ std::pair<bool, ck_tile::ArgParser> create_args(int argc, char* argv[])
 
 inline std::size_t get_workspace_size(const std::vector<grouped_gemm_multi_d_kargs>& gemm_descs)
 {
-    return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg<2>);
+    return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg<NumDTensor>);
 }
 
 template <typename GemmConfig,
