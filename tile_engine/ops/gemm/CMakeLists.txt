@@ -64,6 +64,7 @@ function(create_individual_gemm_target datatype layout trait tile_config config_
 
     # Create the executable
     add_executable(${target_name}
+        EXCLUDE_FROM_ALL
         ${GEMM_SOURCE_DIR}/benchmark_gemm_single.cpp
         ${instance_header}
     )
