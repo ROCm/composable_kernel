@@ -265,11 +265,16 @@ def is_tile_config_valid(
         return False
     if warp_k * warp_tile_k > tile_k:
         return False
-    
+
     # Validate vector load alignment
-    m_iter_per_warp = tile_m / (warp_m * warp_tile_m);
+    m_iter_per_warp = tile_m / (warp_m * warp_tile_m)
     vector_valid, vector_error = validate_vector_load_alignment(
-        warp_tile_m, warp_tile_k, a_datatype, m_iter_per_warp, wave_size=64, vector_load_size=16
+        warp_tile_m,
+        warp_tile_k,
+        a_datatype,
+        m_iter_per_warp,
+        wave_size=64,
+        vector_load_size=16,
     )
     if not vector_valid:
         logging.debug(f"Vector load alignment failed: {vector_error}")
@@ -277,11 +282,18 @@ def is_tile_config_valid(
 
     # Validate M0, M1, M2 configuration for matrix A row-major layout
     m0_m1_m2_valid, m0_m1_m2_error = validate_m0_m1_m2_configuration(
-        tile_m, tile_k, warp_m, warp_n, warp_k, a_datatype, vector_load_size=16, warp_size=64
+        tile_m,
+        tile_k,
+        warp_m,
+        warp_n,
+        warp_k,
+        a_datatype,
+        vector_load_size=16,
+        warp_size=64,
     )
     if not m0_m1_m2_valid:
         logging.debug(f"M0/M1/M2 configuration validation failed: {m0_m1_m2_error}")
-        return False                    
+        return False
 
     # Validate warp configuration
     if not validate_warp_configuration(warp_m, warp_n, warp_k):
@@ -334,20 +346,20 @@ def is_tile_config_valid(
 
     return True
 
+
 def validate_vector_load_alignment(
     wg_m: int,
     wg_k: int,
     a_datatype: str,
     m_iter_per_warp: int,
     wave_size: int,
-    vector_load_size: int
+    vector_load_size: int,
 ) -> Tuple[bool, str]:
-
     try:
         # Calculate the memory access pattern size
         a_element_size = element_size(a_datatype)
         access_size = (wg_m * wg_k * a_element_size * m_iter_per_warp) / wave_size
-        
+
         # Check if it's aligned to vector load size
         if access_size % vector_load_size != 0:
             error_msg = (
@@ -357,21 +369,22 @@ def validate_vector_load_alignment(
                 f"Access size: {access_size} bytes"
             )
             return False, error_msg
-            
+
         return True, ""
-        
+
     except Exception as e:
         return False, f"Error in vector load validation: {str(e)}"
+
 
 def validate_m0_m1_m2_configuration(
     tile_m: int,
     tile_k: int,
-    warp_m: int, 
+    warp_m: int,
     warp_n: int,
     warp_k: int,
     a_datatype: str,
     vector_load_size: int = 16,
-    warp_size: int = 64
+    warp_size: int = 64,
 ) -> Tuple[bool, str]:
     """
     Validate M0, M1, M2 configuration for matrix A row-major layout.
@@ -380,40 +393,46 @@ def validate_m0_m1_m2_configuration(
     try:
         # Validation for A as row-major
         MPerBlock = tile_m
-        
+
         # Calculate K1 using element size
         K1 = vector_load_size / element_size(a_datatype)
-        
+
         # Check if K1 is valid (must be integer)
         if K1 != int(K1):
-            return False, f"K1 = {K1} is not an integer. vector_load_size({vector_load_size}) must be divisible by element_size({a_element_size})"
+            return (
+                False,
+                f"K1 = {K1} is not an integer. vector_load_size({vector_load_size}) must be divisible by element_size({a_datatype})",
+            )
         K1 = int(K1)
-        
+
         # Calculate K0
         if tile_k % K1 != 0:
             return False, f"tile_k({tile_k}) must be divisible by K1({K1})"
         K0 = tile_k // K1
-        
+
         # Calculate M2
         if warp_size % K0 != 0:
             return False, f"warp_size({warp_size}) must be divisible by K0({K0})"
         M2 = warp_size // K0
-        
+
         # Calculate number of warps and block size
         NumWarps = warp_m * warp_n * warp_k
         BlockSize = NumWarps * warp_size
-        
+
         # Calculate M0 (assuming get_warp_size() returns warp_size)
         M0 = BlockSize // warp_size  # This should equal NumWarps
-        
+
         # Calculate M1
         if (M2 * M0) == 0:
             return False, f"M2({M2}) * M0({M0}) cannot be zero"
-        
+
         if MPerBlock % (M2 * M0) != 0:
-            return False, f"MPerBlock({MPerBlock}) must be divisible by M2({M2}) * M0({M0}) = {M2 * M0}"
+            return (
+                False,
+                f"MPerBlock({MPerBlock}) must be divisible by M2({M2}) * M0({M0}) = {M2 * M0}",
+            )
         M1 = MPerBlock // (M2 * M0)
-        
+
         # Validate the assertion: M0 * M1 * M2 == MPerBlock
         calculated_m_per_block = M0 * M1 * M2
         if calculated_m_per_block != MPerBlock:
@@ -423,13 +442,14 @@ def validate_m0_m1_m2_configuration(
                 f"Configuration: K0={K0}, K1={K1}, NumWarps={NumWarps}, BlockSize={BlockSize}"
             )
             return False, error_msg
-        
+
         return True, ""
-        
+
     except ZeroDivisionError as e:
         return False, f"Division by zero in M0/M1/M2 calculation: {str(e)}"
     except Exception as e:
         return False, f"Error in M0/M1/M2 validation: {str(e)}"
+
 
 # [TODO] Handle this while moving code to commons Add more datatype to this function if needed
 def get_dtype_string(datatype: str) -> str:
