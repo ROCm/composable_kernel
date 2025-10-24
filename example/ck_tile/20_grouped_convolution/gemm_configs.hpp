@@ -227,28 +227,16 @@ struct GemmConfigComputeV5 : public GemmConfigBase
 template <typename PrecType>
 struct GemmConfigComputeV3_merged_groups : public GemmConfigBase
 {
-    // static constexpr ck_tile::index_t M_Tile = 8;
-    // static constexpr ck_tile::index_t N_Tile = 128;
-    // static constexpr ck_tile::index_t K_Tile = 64;
-
-    // static constexpr ck_tile::index_t M_Warp = 2;
-    // static constexpr ck_tile::index_t N_Warp = 2;
-    // static constexpr ck_tile::index_t K_Warp = 1;
-
-    // static constexpr ck_tile::index_t M_Warp_Tile = 4;
-    // static constexpr ck_tile::index_t N_Warp_Tile = 64;
-    // static constexpr ck_tile::index_t K_Warp_Tile = 16;
-
     static constexpr ck_tile::index_t VectorSizeA = 4;
     static constexpr ck_tile::index_t VectorSizeB = 8;
     static constexpr ck_tile::index_t VectorSizeC = 8;
 
     static constexpr ck_tile::index_t M_Tile = 16;
-    static constexpr ck_tile::index_t N_Tile = 64;
-    static constexpr ck_tile::index_t K_Tile = 64;
+    static constexpr ck_tile::index_t N_Tile = 32;
+    static constexpr ck_tile::index_t K_Tile = 32;
 
     static constexpr ck_tile::index_t M_Warp = 1;
-    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t N_Warp = 2;
     static constexpr ck_tile::index_t K_Warp = 1;
 
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
