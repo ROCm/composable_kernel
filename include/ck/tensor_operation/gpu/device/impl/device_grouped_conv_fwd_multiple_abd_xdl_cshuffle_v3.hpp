@@ -120,6 +120,12 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         using Block2CTileMap         = typename GridwiseGemm::Block2CTileMapDefault;
         const auto block_2_ctile_map = Block2CTileMap{karg.M, karg.N, 4};
 
+        if constexpr(GridwiseGemm::DirectLoadEnabled)
+        {
+#if !defined(__gfx950__)
+            return;
+#endif
+        }
         GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
             karg.p_a_grid + a_group_offset + a_n_offset,
             karg.p_b_grid + b_group_offset,
@@ -212,6 +218,12 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         using Block2CTileMap         = typename GridwiseGemm::Block2CTileMapDefault;
         const auto block_2_ctile_map = Block2CTileMap{karg.M, karg.N, 4};
 
+        if constexpr(GridwiseGemm::DirectLoadEnabled)
+        {
+#if !defined(__gfx950__)
+            return;
+#endif
+        }
         GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
             karg.p_a_grid + a_group_offset + a_n_offset,
             karg.p_b_grid + b_group_offset,

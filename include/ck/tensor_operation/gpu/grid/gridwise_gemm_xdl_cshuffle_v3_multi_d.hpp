@@ -177,6 +177,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
     static constexpr auto AK1Number = Number<AK1Value>{};
     static constexpr auto BK1Number = Number<BK1Value>{};
 
+    static constexpr bool DirectLoadEnabled = DirectLoad;
+
     static constexpr index_t NumDTensor = DsDataType::Size();
 
     static constexpr auto MakeDsGridPointer()
