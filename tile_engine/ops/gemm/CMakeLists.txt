@@ -57,12 +57,14 @@ function(create_individual_gemm_target datatype layout trait tile_config config_
                 --kernel_name "gemm_${datatype}_${layout}_${trait}_${tile_config}"
                 --tile_config "${tile_config}"
                 --trait_combo "${trait}"
+                --gpu_target "${GEMM_GPU_TARGETS_INDIVIDUAL}"
         DEPENDS ${GEMM_SOURCE_DIR}/gemm_instance_builder.py ${config_json}
         COMMENT "Generating ${instance_header}"
     )
 
     # Create the executable
     add_executable(${target_name}
+        EXCLUDE_FROM_ALL
         ${GEMM_SOURCE_DIR}/benchmark_gemm_single.cpp
         ${instance_header}
     )
@@ -163,7 +165,8 @@ function(build_individual_gemm_targets datatype layout)
                 --datatype ${datatype}
                 --layout ${layout}
                 --config_json ${json_blob}
-                --list_kernels")
+                --gpu_target ${GEMM_GPU_TARGETS_INDIVIDUAL}
+                --list_kernels ")
 
     # First, just list the kernels (fast operation)
     message(STATUS "  Listing kernel configurations...")
@@ -173,7 +176,8 @@ function(build_individual_gemm_targets datatype layout)
                 --datatype ${datatype}
                 --layout ${layout}
                 --config_json ${json_blob}
-                --list_kernels
+                --gpu_target ${GEMM_GPU_TARGETS_INDIVIDUAL}
+                --list_kernels  
         WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
         RESULT_VARIABLE ret
         OUTPUT_VARIABLE list_output
