@@ -11,67 +11,11 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/grouped_convolution.hpp"
-
-struct GemmWarpConfig_Mfma_merged_groups
-{
-    static constexpr ck_tile::index_t M_Warp_Tile = 4;
-    static constexpr ck_tile::index_t N_Warp_Tile = 64;
-    static constexpr ck_tile::index_t K_Warp_Tile = 16;
-
-    static constexpr ck_tile::index_t M_Warp = 2;
-    static constexpr ck_tile::index_t N_Warp = 2;
-    static constexpr ck_tile::index_t K_Warp = 1;
-};
-
-struct GemmWarpConfig_Mfma
-{
-    static constexpr ck_tile::index_t M_Warp_Tile = 32;
-    static constexpr ck_tile::index_t N_Warp_Tile = 32;
-    static constexpr ck_tile::index_t K_Warp_Tile = 16;
-
-    static constexpr ck_tile::index_t M_Warp = 2;
-    static constexpr ck_tile::index_t N_Warp = 2;
-    static constexpr ck_tile::index_t K_Warp = 1;
-};
-
-struct GemmWarpConfig_Wmma
-{
-    static constexpr ck_tile::index_t M_Warp_Tile = 16;
-    static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = 16;
-
-    static constexpr ck_tile::index_t M_Warp = 2;
-    static constexpr ck_tile::index_t N_Warp = 2;
-    static constexpr ck_tile::index_t K_Warp = 1;
-};
-
-struct GemmTileConfig_merged_groups
-{
-    static constexpr ck_tile::index_t M_Tile = 8;
-    static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 64;
-};
-
-struct GemmTileConfig
-{
-    static constexpr ck_tile::index_t M_Tile = 64;
-    static constexpr ck_tile::index_t N_Tile = 64;
-    static constexpr ck_tile::index_t K_Tile = 64;
-};
-
-struct GemmVectorLoads_merged_groups
-{
-    static constexpr ck_tile::index_t VectorSizeA = 1;
-    static constexpr ck_tile::index_t VectorSizeB = 1;
-    static constexpr ck_tile::index_t VectorSizeC = 2;
-};
-
-struct GemmVectorLoads
-{
-    static constexpr ck_tile::index_t VectorSizeA = 1;
-    static constexpr ck_tile::index_t VectorSizeB = 1;
-    static constexpr ck_tile::index_t VectorSizeC = 8;
-};
+#include "gemm_configs.hpp"
+using MemoryOpSet =
+    std::integral_constant<ck_tile::memory_operation_enum, ck_tile::memory_operation_enum::set>;
+using MemoryOpAtomicAdd = std::integral_constant<ck_tile::memory_operation_enum,
+                                                 ck_tile::memory_operation_enum::atomic_add>;
 
 template <typename InDataType, typename WeiDataType, typename AccDataType, typename OutDataType>
 auto calculate_rtol_atol(const ck_tile::index_t GemmK,

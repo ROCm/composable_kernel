@@ -15,8 +15,9 @@ logging.basicConfig(level=logging.INFO)
 
 
 class GemmKernelBuilder:
-    def __init__(self, working_path, datatype, layout, config_json=None):
+    def __init__(self, working_path, gpu_target, datatype, layout, config_json=None):
         self.working_path = Path(working_path)
+        self.gpu_target = gpu_target
         self.datatype = datatype
         self.layout = layout
         self.config_json = config_json
@@ -231,6 +232,7 @@ class GemmKernelBuilder:
                 b_datatype,
                 c_datatype,
                 pipeline,
+                self.gpu_target,
             )
 
     def _generate_trait_combinations(self):
@@ -450,11 +452,11 @@ struct SelectedKernel {{
     static constexpr ck_tile::index_t WarpTileK = {tile_config["warp_tile_k"]};
 
     // Traits
-    static constexpr bool kPadM = {"true" if pad_m == "true" else "false"};
-    static constexpr bool kPadN = {"true" if pad_n == "true" else "false"};
-    static constexpr bool kPadK = {"true" if pad_k == "true" else "false"};
+    static constexpr bool kPadM = {"true" if pad_m in [True, "true"] else "false"};
+    static constexpr bool kPadN = {"true" if pad_n in [True, "true"] else "false"};
+    static constexpr bool kPadK = {"true" if pad_k in [True, "true"] else "false"};
     static constexpr bool TransposeC = false;
-    static constexpr bool UsePersistentKernel = {"true" if persistent == "true" else "false"};
+    static constexpr bool UsePersistentKernel = {"true" if persistent in [True, "true"] else "false"};
     static constexpr bool DoubleSmemBuffer = {"true" if pipeline == "compv4" else "false"};
     static constexpr bool UseStructuredSparsity = false;
     static constexpr bool Preshuffle = false;
@@ -576,7 +578,7 @@ struct SelectedKernel {{
             }}
             
             // Get grid and block sizes
-            const dim3 grids = {"GemmKernel::MaxOccupancyGridSize(stream)" if persistent == "true" else "GemmKernel::GridSize(args.M, args.N, args.k_batch)"};
+            const dim3 grids = {"GemmKernel::MaxOccupancyGridSize(stream)" if persistent in [True, "true"] else "GemmKernel::GridSize(args.M, args.N, args.k_batch)"};
             const dim3 blocks = GemmKernel::BlockSize();
             
             if(stream.log_level_ > 0) {{
@@ -823,6 +825,11 @@ def main():
     )
     parser.add_argument("--working_path", required=True, help="Working directory path")
     parser.add_argument(
+        "--gpu_target",
+        required=True,
+        help="GPU target architecture",
+    )
+    parser.add_argument(
         "--datatype",
         required=True,
         choices=["fp16", "fp8", "bf16", "fp32", "fp64"],
@@ -861,7 +868,7 @@ def main():
 
     # Create builder
     builder = GemmKernelBuilder(
-        args.working_path, args.datatype, args.layout, args.config_json
+        args.working_path, args.gpu_target, args.datatype, args.layout, args.config_json
     )
 
     if args.list_kernels:
