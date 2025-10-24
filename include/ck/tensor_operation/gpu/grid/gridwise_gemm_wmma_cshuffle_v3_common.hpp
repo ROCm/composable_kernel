@@ -3,11 +3,6 @@
 
 #pragma once
 
-#if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
-#include <iostream>
-#include <ostream>
-#endif
-
 #include "ck/utility/env.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
@@ -789,27 +784,6 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         {
             if(num_k_loop <= BlockwiseGemmPipe::PrefetchStages)
             {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "Pipeline validation failed: num_k_loop (" << num_k_loop
-                              << ") <= PrefetchStages (" << BlockwiseGemmPipe::PrefetchStages
-                              << ") for pipeline version != v1." << __FILE__ << ":" << __LINE__
-                              << ", in function: " << __func__ << std::endl;
-                }
-                return false;
-            }
-        }
-
-        if constexpr(is_same<remove_cvref_t<EDataType>, int8_t>::value)
-        {
-            if(karg.KBatch > 1)
-            {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "int8_t does not support KBatch > 1. KBatch: " << karg.KBatch
-                              << " " << __FILE__ << ":" << __LINE__ << ", in function: " << __func__
-                              << std::endl;
-                }
                 return false;
             }
         }
@@ -873,6 +847,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         }
     }
 
+    // Note: arguments k_batch and k_id should be set if splitk is used
+    // with implicit gemm (no pointer shift but shift using tensor descriptors)
     template <typename AGridDesc_AK0_M_K1,
               typename BGridDesc_BK0_N_K1,
               typename DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
@@ -899,8 +875,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                const index_t& block_n_id,
                                const index_t& num_k_block_per_scale,
                                BScaleStruct& b_scale_struct,
-                               [[maybe_unused]] const index_t k_batch = 1,
-                               [[maybe_unused]] const index_t k_id    = 0)
+                               const index_t k_batch = 1,
+                               const index_t k_id    = 0)
     {
         const auto as_grid_buf = generate_tuple(
             [&](auto i) {
@@ -942,7 +918,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                                  AsDataType,
                                                  AElementwiseOperation,
                                                  BlockwiseGemmPipe::GlobalBufferNum>(
-                as_grid_desc_ak0_m_ak1, a_block_desc_ak0_m_ak1, a_element_op, block_m_id);
+                as_grid_desc_ak0_m_ak1, a_block_desc_ak0_m_ak1, a_element_op, block_m_id, k_id);
 
         // B matrix blockwise copy
         auto b_blockwise_copy =
@@ -951,7 +927,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                                  BsDataType,
                                                  BElementwiseOperation,
                                                  BlockwiseGemmPipe::GlobalBufferNum>(
-                bs_grid_desc_bk0_n_bk1, b_block_desc_bk0_n_bk1, b_element_op, block_n_id);
+                bs_grid_desc_bk0_n_bk1, b_block_desc_bk0_n_bk1, b_element_op, block_n_id, k_id);
 
         // LDS allocation for A and B: be careful of alignment
         constexpr auto a_block_space_size_aligned = math::integer_least_multiple(
@@ -976,7 +952,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         auto c_thread_buf            = blockwise_gemm_pipeline.GetCThreadBuffer();
 
         const index_t num_k_block_main_loop = __builtin_amdgcn_readfirstlane(
-            ATransfer::GetKDimension(as_grid_desc_ak0_m_ak1[I0]) / KPerBlock);
+            ATransfer::GetKDimension(as_grid_desc_ak0_m_ak1[I0]) / (KPerBlock * k_batch));
 
         blockwise_gemm_pipeline.template Run<HasMainKBlockLoop, TailNum>(
             get_first_element_workaround<NumATensor>(as_grid_desc_ak0_m_ak1),

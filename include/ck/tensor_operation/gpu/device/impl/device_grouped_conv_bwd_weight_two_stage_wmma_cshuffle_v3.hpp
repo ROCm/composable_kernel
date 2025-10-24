@@ -374,7 +374,8 @@ struct DeviceGroupedConvBwdWeightTwoStage_Wmma_CShuffleV3
         ComputeTypeA,
         ComputeTypeB,
         false,
-        false>;
+        false,
+        true>;
 
     using Block2TileMapElementwise = BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock>;
 

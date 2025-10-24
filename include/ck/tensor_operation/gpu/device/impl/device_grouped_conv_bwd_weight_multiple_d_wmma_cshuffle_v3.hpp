@@ -322,7 +322,8 @@ struct DeviceGroupedConvBwdWeightMultipleD_Wmma_CShuffleV3
         ComputeTypeA,
         ComputeTypeB,
         false,
-        false>;
+        false,
+        true>;
 
     static constexpr auto MakeElementwiseInputSequence()
     {

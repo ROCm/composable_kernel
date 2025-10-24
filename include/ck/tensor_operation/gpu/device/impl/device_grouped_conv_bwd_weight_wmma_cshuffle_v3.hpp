@@ -396,7 +396,8 @@ struct DeviceGroupedConvBwdWeight_Wmma_CShuffleV3
         ComputeTypeA,
         ComputeTypeB,
         false,
-        false>;
+        false,
+        true>;
 
     // Argument
     using CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock =

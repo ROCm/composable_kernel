@@ -176,7 +176,7 @@ template <typename ALayout,
           typename ComputeTypeB,
           bool PermuteA,
           bool PermuteB,
-          bool ForceThreadTileTransfer = true>
+          bool ForceThreadTileTransfer = false>
 struct GridwiseGemm_wmma_cshuffle_v3
     : GridwiseGemm_wmma_cshuffle_v3_base<
           ALayout,
@@ -327,8 +327,6 @@ struct GridwiseGemm_wmma_cshuffle_v3
     using typename Base::AsGridPointer;
     using typename Base::BsGridPointer;
     using typename Base::DsGridPointer;
-    using AsDataType_ = AsDataType;
-    using BsDataType_ = BsDataType;
 
     struct Problem
     {
