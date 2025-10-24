@@ -470,14 +470,14 @@ struct TransformConvBwdWeightToGemm
         {
             const index_t XStride     = C_;
             const index_t BatchStride = K_ * X_ * C_;
-            // Add NumGroupsToMerge for Batch+M dimension and, 1 as a placehorder
+            // Add NumGroupsToMerge for Batch+M dimension and, 1 as a placeholder
             // for Batch+N dimension
             const auto desc = make_naive_tensor_descriptor(
                 make_tuple(NumGroupsToMerge, K_, X_, 1, C_),
                 make_tuple(BatchStride, KStride, XStride, BatchStride, CXStride),
                 number<VectorSizeC>{},
                 I1);
-            // Padd 1 to NumGroupsToMerge
+            // Pad 1 to NumGroupsToMerge
             const auto padded_desc = transform_tensor_descriptor(
                 desc,
                 make_tuple(make_pass_through_transform(NumGroupsToMerge),
@@ -581,14 +581,14 @@ struct TransformConvBwdWeightToGemm
         {
             const index_t YXStride    = C_;
             const index_t BatchStride = K_ * Y_ * X_ * C_;
-            // Add NumGroupsToMerge for Batch+M dimension and, 1 as a placehorder
+            // Add NumGroupsToMerge for Batch+M dimension and, 1 as a placeholder
             // for Batch+N dimension
             const auto desc = make_naive_tensor_descriptor(
                 make_tuple(NumGroupsToMerge, K_, Y_ * X_, 1, C_),
                 make_tuple(BatchStride, KStride, YXStride, BatchStride, CStride),
                 number<VectorSizeC>{},
                 I1);
-            // Padd 1 to NumGroupsToMerge
+            // Pad 1 to NumGroupsToMerge
             const auto padded_desc = transform_tensor_descriptor(
                 desc,
                 make_tuple(make_pass_through_transform(NumGroupsToMerge),
@@ -695,14 +695,14 @@ struct TransformConvBwdWeightToGemm
         {
             const index_t ZYXStride   = C_;
             const index_t BatchStride = K_ * Z_ * Y_ * X_ * C_;
-            // Add NumGroupsToMerge for Batch+M dimension and, 1 as a placehorder
+            // Add NumGroupsToMerge for Batch+M dimension and, 1 as a placeholder
             // for Batch+N dimension
             const auto desc = make_naive_tensor_descriptor(
                 make_tuple(NumGroupsToMerge, K_, Z_ * Y_ * X_, 1, C_),
                 make_tuple(BatchStride, KStride, ZYXStride, BatchStride, CStride),
                 number<VectorSizeC>{},
                 I1);
-            // Padd 1 to NumGroupsToMerge
+            // Pad 1 to NumGroupsToMerge
             const auto padded_desc = transform_tensor_descriptor(
                 desc,
                 make_tuple(make_pass_through_transform(NumGroupsToMerge),
