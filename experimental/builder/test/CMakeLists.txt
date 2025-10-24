@@ -31,3 +31,5 @@ function(add_ck_factory_test test_name)
 endfunction()
 
 add_ck_factory_test(test_testing_utils test_testing_utils.cpp)
+add_ck_factory_test(test_ck_factory_grouped_convolution_forward test_ck_factory_grouped_convolution_forward.cpp)
+add_ck_factory_test(test_ck_factory_grouped_convolution_forward_convscale test_ck_factory_grouped_convolution_forward_convscale.cpp)
