@@ -473,7 +473,7 @@ def cmake_build(Map conf=[:]){
                         sh 'ninja -j64 package'
                         def arch_name = check_arch_name()
                         sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
-                        stash includes: "composablekernel-**.deb", name: "packages"
+                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${arch_name}"
                     }
                 }
                 if(params.BUILD_INSTANCES_ONLY){
@@ -481,7 +481,7 @@ def cmake_build(Map conf=[:]){
                     echo "Build library package"
                     sh 'ninja -j64 package'
                     sh 'mv composablekernel-dev_*.deb composablekernel-dev_all_targets_1.2.0_amd64.deb'
-                    stash includes: "composablekernel-dev**.deb", name: "packages"
+                    stash includes: "composablekernel-dev**.deb", name: "lib_package"
                 }
             }
             else{
@@ -498,7 +498,7 @@ def cmake_build(Map conf=[:]){
                         sh 'ninja -j64 package'
                         def arch_name = check_arch_name()
                         sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
-                        stash includes: "composablekernel-**.deb", name: "packages"
+                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${arch_name}"
                     }
                 }
             }
@@ -842,10 +842,43 @@ def process_results(Map conf=[:]){
                             echo "could not locate the FMHA performance logs for gfx90a: ${err.getMessage()}."
                         }
                     }
-                    if (params.BUILD_INSTANCES_ONLY || params.BUILD_PACKAGES){
+                    if (params.BUILD_INSTANCES_ONLY){
                         // unstash deb packages
-                        unstash "packages"
+                        try{
+                            unstash "lib_package"
+                        }
+                        catch(Exception err){
+                            echo "could not locate lib_package."
+                        }
                         sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no composablekernel-*.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
+                    }
+                    if (params.BUILD_PACKAGES){
+                        // unstash deb packages
+                        try{
+                            unstash "profiler_package_gfx90a"
+                        }
+                        catch(Exception err){
+                            echo "could not locate profiler_package_gfx90a."
+                        }
+                        try{
+                            unstash "profiler_package_gfx942"
+                        }
+                        catch(Exception err){
+                            echo "could not locate profiler_package_gfx942."
+                        }
+                        try{
+                            unstash "profiler_package_gfx950"
+                        }
+                        catch(Exception err){
+                            echo "could not locate profiler_package_gfx950."
+                        }
+                        try{
+                            unstash "profiler_package_gfx12"
+                        }
+                        catch(Exception err){
+                            echo "could not locate profiler_package_gfx12."
+                        }
+                        sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no composablekernel-ckprofiler*.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
                     }
                     else{
                         // unstash perf files to master
