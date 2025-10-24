@@ -17,7 +17,7 @@ else
     MY_PROJECT_SOURCE=".."
 fi
 
-GPU_TARGETS="gfx908;gfx90a;gfx942"
+GPU_TARGETS="gfx950"
 
 if [ $# -ge 1 ]; then
     case "$1" in

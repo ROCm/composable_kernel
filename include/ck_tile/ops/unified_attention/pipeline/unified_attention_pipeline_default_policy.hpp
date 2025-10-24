@@ -130,9 +130,10 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t kKPerBlock = Problem::UnifiedAttentionShape::HEAD_SIZE;
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t NumWarps   = Problem::UnifiedAttentionShape::NumWarps;
-        constexpr index_t WarpSize   = ck_tile::get_warp_size();
+        constexpr index_t WarpSize   = ck_tile::get_warp_size(); // 64
 
         constexpr index_t KVector = GetAlignmentV<Problem>(); // this is for global load
+        // 4
 
         static_assert(WarpSize * KVector >= kKPerBlock && WarpSize * KVector % kKPerBlock == 0);
         constexpr index_t LanesPerK  = kKPerBlock / KVector; // within a wave
@@ -140,11 +141,11 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t NumIssues  = kNPerBlock / (LaneGroups * NumWarps);
         static_assert(NumIssues == kNPerBlock * kKPerBlock / (kBlockSize * KVector));
 
-        constexpr index_t N0 = NumIssues;
-        constexpr index_t N1 = LaneGroups;
-        constexpr index_t N2 = NumWarps;
-        constexpr index_t K0 = LanesPerK;
-        constexpr index_t K1 = KVector;
+        constexpr index_t N0 = NumIssues; // 8
+        constexpr index_t N1 = LaneGroups; // 2
+        constexpr index_t N2 = NumWarps; // 8
+        constexpr index_t K0 = LanesPerK; // 32
+        constexpr index_t K1 = KVector; // 4
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<1>,

@@ -384,7 +384,7 @@ struct UnifiedAttentionKernel
         // stride for dim 0 (num_queries_per_kv * head_dim, head_dim, 1)
         auto q_dram_window = make_tile_window(
             q_dram,
-            make_tuple(BLOCK_Q * num_queries_per_kv, HEAD_SIZE_PADDED),
+            make_tuple(BLOCK_M, HEAD_SIZE_PADDED),
             {query_pos * num_queries_per_kv, 0}
         );
         
@@ -481,7 +481,7 @@ struct UnifiedAttentionKernel
         auto o_dram = [&]() {
             const auto o_dram_base = make_naive_tensor_view<address_space_enum::global>(
                 o_ptr,
-                make_tuple(seq_len, num_queries_per_kv, HEAD_SIZE),
+                make_tuple(cur_batch_query_len, num_queries_per_kv, HEAD_SIZE),
                 make_tuple(kargs.output_stride_0, kargs.output_stride_1, 1),
                 number<UnifiedAttentionPipeline::kAlignmentO>{},
                 number<1>{});
@@ -497,7 +497,7 @@ struct UnifiedAttentionKernel
                         o_dram_pad,
                         make_tuple(
                             make_merge_transform(
-                                make_tuple(seq_len, num_queries_per_kv)
+                                make_tuple(query_len_padded, num_queries_per_kv)
                             ),
                             make_pass_through_transform(HEAD_SIZE_PADDED)
                         ),
