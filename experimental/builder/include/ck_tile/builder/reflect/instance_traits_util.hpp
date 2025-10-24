@@ -60,45 +60,38 @@ consteval std::string_view type_name()
 template <typename T>
 constexpr std::string_view layout_name()
 {
-    // Convolution layouts
-    if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GNHWC>)
-        return "GNHWC";
-    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GKYXC>)
-        return "GKYXC";
-    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GNHWK>)
-        return "GNHWK";
-    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GKZYXC>)
-        return "GKZYXC";
-    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GNDHWC>)
-        return "GNDHWC";
-    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GNDHWK>)
-        return "GNDHWK";
-    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::NHWGC>)
-        return "NHWGC";
-    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::KYXGC>)
-        return "KYXGC";
-    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::NHWGK>)
-        return "NHWGK";
+    if constexpr(requires {
+                     { T::name } -> std::convertible_to<std::string_view>;
+                 })
+        return T::name;
     else
-        static_assert(false, "unknown_layout");
+        static_assert(false, "layout type is missing name attribute");
 }
 
 // Convert element-wise operation types to string names
 template <typename T>
 constexpr std::string_view elementwise_op_name()
 {
-    if constexpr(std::is_same_v<T, ck::tensor_operation::element_wise::PassThrough>)
+    namespace element_wise = ck::tensor_operation::element_wise;
+
+    if constexpr(std::is_same_v<T, element_wise::PassThrough>)
         return "PassThrough";
-    else if constexpr(std::is_same_v<T, ck::tensor_operation::element_wise::Scale>)
+    else if constexpr(std::is_same_v<T, element_wise::Scale>)
         return "Scale";
-    else if constexpr(std::is_same_v<T, ck::tensor_operation::element_wise::Bilinear>)
+    else if constexpr(std::is_same_v<T, element_wise::Bilinear>)
         return "Bilinear";
-    else if constexpr(std::is_same_v<T, ck::tensor_operation::element_wise::Add>)
+    else if constexpr(std::is_same_v<T, element_wise::Add>)
         return "Add";
-    else if constexpr(std::is_same_v<T, ck::tensor_operation::element_wise::AddRelu>)
+    else if constexpr(std::is_same_v<T, element_wise::AddRelu>)
         return "AddRelu";
-    else if constexpr(std::is_same_v<T, ck::tensor_operation::element_wise::Relu>)
+    else if constexpr(std::is_same_v<T, element_wise::Relu>)
         return "Relu";
+    else if constexpr(std::is_same_v<T, element_wise::BiasNormalizeInInferClamp>)
+        return "BiasNormalizeInInferClamp";
+    else if constexpr(std::is_same_v<T, element_wise::Clamp>)
+        return "Clamp";
+    else if constexpr(std::is_same_v<T, element_wise::AddClamp>)
+        return "AddClamp";
     else
         static_assert(false, "unknown_op");
 }
