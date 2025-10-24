@@ -528,13 +528,15 @@ struct TransformConvBwdWeightToGemm
         if constexpr(NumGroupsToMerge > 1)
         {
             const index_t BatchStride = K_;
-            return make_naive_tensor_descriptor(make_tuple(N_ * Ho_ * Wo_, NumGroupsToMerge, K_), // K_Gm_M
-                                                make_tuple(NDoHoWoStride, BatchStride, KStride),
-                                                number<VectorSizeA>{},
-                                                I1);
+            return make_naive_tensor_descriptor(
+                make_tuple(N_ * Ho_ * Wo_, NumGroupsToMerge, K_), // K_Gm_M
+                make_tuple(NDoHoWoStride, BatchStride, KStride),
+                number<VectorSizeA>{},
+                I1);
         }
         else
-        {            return make_naive_tensor_descriptor(make_tuple(N_ * Ho_ * Wo_, K_), // K_M
+        {
+            return make_naive_tensor_descriptor(make_tuple(N_ * Ho_ * Wo_, K_), // K_M
                                                 make_tuple(NDoHoWoStride, KStride),
                                                 number<VectorSizeA>{},
                                                 I1);
@@ -646,11 +648,11 @@ struct TransformConvBwdWeightToGemm
                 I1);
         }
         else
-{           return make_naive_tensor_descriptor(
-                make_tuple(N_ * Do_ * Ho_ * Wo_, K_),
-                make_tuple(NDoHoWoStride, KStride),
-                number<VectorSizeA>{},
-                I1);
+        {
+            return make_naive_tensor_descriptor(make_tuple(N_ * Do_ * Ho_ * Wo_, K_),
+                                                make_tuple(NDoHoWoStride, KStride),
+                                                number<VectorSizeA>{},
+                                                I1);
         }
     }
 
@@ -762,7 +764,7 @@ struct TransformConvBwdWeightToGemm
             const auto out_gemm_k_gemm_m_grid_desc = transform_tensor_descriptor(
                 out_grid_desc,
                 make_tuple(make_pass_through_transform(N_ * Wo_),
-                        make_merge_transform(make_tuple(NumGroupsToMerge, K_))),
+                           make_merge_transform(make_tuple(NumGroupsToMerge, K_))),
                 make_tuple(sequence<0>{}, sequence<1, 2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -826,7 +828,7 @@ struct TransformConvBwdWeightToGemm
             const auto in_gemmn_gemmktotal_grid_desc =
                 transform_tensor_descriptor(in_n_x_wo_c_grid_desc,
                                             make_tuple(make_merge_transform(make_tuple(X_, C_)),
-                                                    make_merge_transform(make_tuple(N_, Wo_))),
+                                                       make_merge_transform(make_tuple(N_, Wo_))),
                                             make_tuple(sequence<1, 3>{}, sequence<0, 2>{}),
                                             make_tuple(sequence<1>{}, sequence<0>{}));
 
@@ -850,7 +852,7 @@ struct TransformConvBwdWeightToGemm
             const auto out_gemm_k_gemm_m_grid_desc = transform_tensor_descriptor(
                 out_grid_desc,
                 make_tuple(make_pass_through_transform(N_ * Ho_ * Wo_),
-                        make_merge_transform(make_tuple(NumGroupsToMerge, K_))),
+                           make_merge_transform(make_tuple(NumGroupsToMerge, K_))),
                 make_tuple(sequence<0>{}, sequence<1, 2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -922,12 +924,12 @@ struct TransformConvBwdWeightToGemm
                 make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
                 make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3, 4>{}, sequence<5>{}));
 
-        const auto in_gemmn_gemmktotal_grid_desc =
-            transform_tensor_descriptor(in_n_y_ho_x_wo_c_grid_desc,
-                                        make_tuple(make_merge_transform(make_tuple(Y_, X_, C_)),
-                                                   make_merge_transform(make_tuple(N_, Ho_, Wo_))),
-                                        make_tuple(sequence<1, 3, 5>{}, sequence<0, 2, 4>{}),
-                                        make_tuple(sequence<1>{}, sequence<0>{}));
+            const auto in_gemmn_gemmktotal_grid_desc = transform_tensor_descriptor(
+                in_n_y_ho_x_wo_c_grid_desc,
+                make_tuple(make_merge_transform(make_tuple(Y_, X_, C_)),
+                           make_merge_transform(make_tuple(N_, Ho_, Wo_))),
+                make_tuple(sequence<1, 3, 5>{}, sequence<0, 2, 4>{}),
+                make_tuple(sequence<1>{}, sequence<0>{}));
 
             return make_tuple(out_grid_desc, in_gemmn_gemmktotal_grid_desc, wei_grid_desc);
         }
@@ -949,7 +951,7 @@ struct TransformConvBwdWeightToGemm
             const auto out_gemm_k_gemm_m_grid_desc = transform_tensor_descriptor(
                 out_grid_desc,
                 make_tuple(make_pass_through_transform(N_ * Do_ * Ho_ * Wo_),
-                    make_merge_transform(make_tuple(NumGroupsToMerge, K_))),
+                           make_merge_transform(make_tuple(NumGroupsToMerge, K_))),
                 make_tuple(sequence<0>{}, sequence<1, 2>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
 
@@ -1047,12 +1049,12 @@ struct TransformConvBwdWeightToGemm
                            sequence<5, 6>{},
                            sequence<7>{}));
 
-        const auto in_gemmn_gemmktotal_grid_desc = transform_tensor_descriptor(
-            in_n_y_ho_x_wo_c_grid_desc,
-            make_tuple(make_merge_transform(make_tuple(Z_, Y_, X_, C_)),
-                       make_merge_transform(make_tuple(N_, Do_, Ho_, Wo_))),
-            make_tuple(sequence<1, 3, 5, 7>{}, sequence<0, 2, 4, 6>{}),
-            make_tuple(sequence<1>{}, sequence<0>{}));
+            const auto in_gemmn_gemmktotal_grid_desc = transform_tensor_descriptor(
+                in_n_y_ho_x_wo_c_grid_desc,
+                make_tuple(make_merge_transform(make_tuple(Z_, Y_, X_, C_)),
+                           make_merge_transform(make_tuple(N_, Do_, Ho_, Wo_))),
+                make_tuple(sequence<1, 3, 5, 7>{}, sequence<0, 2, 4, 6>{}),
+                make_tuple(sequence<1>{}, sequence<0>{}));
 
             return make_tuple(out_grid_desc, in_gemmn_gemmktotal_grid_desc, wei_grid_desc);
         }

@@ -47,7 +47,8 @@ int run_grouped_conv_bwd_weight_example(ck_tile::ArgParser& arg_parser)
         }
         else
         {
-            throw std::runtime_error("Only num_groups_to_merge of 1 or 2 is supported for fp16 in the example code!");
+            throw std::runtime_error(
+                "Only num_groups_to_merge of 1 or 2 is supported for fp16 in the example code!");
         }
     }
     else if(data_type == "bf16")
@@ -72,7 +73,8 @@ int run_grouped_conv_bwd_weight_example(ck_tile::ArgParser& arg_parser)
         }
         else
         {
-            throw std::runtime_error("Only num_groups_to_merge of 1 or 2 is supported for bf16 in the example code!");
+            throw std::runtime_error(
+                "Only num_groups_to_merge of 1 or 2 is supported for bf16 in the example code!");
         }
     }
     else
@@ -106,7 +108,8 @@ int main(int argc, char* argv[])
             // we will run the example with the merged groups config.
             // The tile size are selected such that we have number of
             // merged groups any power of two smaller or equal to 64.
-            return !run_grouped_conv_bwd_weight_example<GemmConfigComputeV3_merged_groups>(arg_parser);
+            return !run_grouped_conv_bwd_weight_example<GemmConfigComputeV3_merged_groups>(
+                arg_parser);
         }
 #endif
     }
