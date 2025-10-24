@@ -252,7 +252,14 @@ bool InstanceMatcher::MatchAndExplain(InstanceSet actual,
             *listener << " Missing: " << instances.size() << "\n";
             for(const auto& instance : instances)
             {
-                *listener << "- " << instance << "\n";
+                if(instance == "")
+                {
+                    *listener << "- (empty string)\n";
+                }
+                else
+                {
+                    *listener << "- " << instance << "\n";
+                }
             }
         }
 
@@ -270,8 +277,7 @@ bool InstanceMatcher::MatchAndExplain(InstanceSet actual,
             {
                 if(instance == "")
                 {
-                    *listener << "- (empty string; indicates missing GetInstanceString() overload)"
-                              << "\n";
+                    *listener << "- (empty string)\n";
                 }
                 else
                 {
