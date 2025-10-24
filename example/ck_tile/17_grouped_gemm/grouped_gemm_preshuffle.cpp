@@ -178,7 +178,7 @@ template <typename GemmConfig,
 float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                             const ck_tile::index_t num_groups,
                             void* kargs_ptr,
-                            bool splitk = false)
+                            bool splitk)
 {
     using GemmShape = ck_tile::TileGemmShape<
         ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
@@ -190,20 +190,18 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                                                    GemmConfig::TileParitionerGroupNum,
                                                    GemmConfig::TileParitionerM01>;
 
-    using GemmUniversalTraits =
-        ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
-                                         GemmConfig::kPadN,
-                                         GemmConfig::kPadK,
-                                         GemmConfig::DoubleSmemBuffer,
-                                         ALayout,
-                                         BLayout,
-                                         CLayout,
-                                         GemmConfig::TransposeC,
-                                         GemmConfig::UseStructuredSparsity,
-                                         false, // Persistent = false (not supported with preshuffle
-                                                // yet)
-                                         GemmConfig::NumWaveGroups,
-                                         GemmConfig::Preshuffle>;
+    using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<GemmConfig::kPadM,
+                                                                 GemmConfig::kPadN,
+                                                                 GemmConfig::kPadK,
+                                                                 GemmConfig::DoubleSmemBuffer,
+                                                                 ALayout,
+                                                                 BLayout,
+                                                                 CLayout,
+                                                                 GemmConfig::TransposeC,
+                                                                 GemmConfig::UseStructuredSparsity,
+                                                                 GemmConfig::Persistent,
+                                                                 GemmConfig::NumWaveGroups,
+                                                                 GemmConfig::Preshuffle>;
 
     float ave_time{0};
 
