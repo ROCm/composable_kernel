@@ -3,7 +3,7 @@
 
 #include <ck/library/tensor_operation_instance/gpu/grouped_convolution_forward.hpp>
 
-#include "testing_utils.hpp"
+#include "testing_utils.hpp"    
 
 using ck_tile::test::InstanceMatcher;
 using ck_tile::test::InstanceSet;

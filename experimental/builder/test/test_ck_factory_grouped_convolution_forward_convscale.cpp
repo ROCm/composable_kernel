@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
+#include <ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_convscale.hpp>
 #include <ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_convscale_relu.hpp>
 #include <ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_convscale_add.hpp>
 #include <ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_convinvscale.hpp>
@@ -20,23 +21,33 @@ using OutLayout                     = ck::tensor_layout::convolution::NDHWGK;
 using ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD;
 using ck::tensor_operation::device::instance::CombConvScaleRelu;
 using ck::tensor_operation::element_wise::ConvInvscale;
+using ck::tensor_operation::element_wise::ConvScale;
 using ck::tensor_operation::element_wise::ConvScaleAdd;
 using ck::tensor_operation::element_wise::ConvScaleRelu;
 using ck::tensor_operation::element_wise::PassThrough;
 
-template <typename DsLayout, typename DsDataType, typename OutDataType, typename Act>
+template <typename DsLayout,
+          typename DsDataType,
+          typename InDataType,
+          typename WeiDataType,
+          typename OutDataType,
+          typename Act,
+          typename AComputeType,
+          typename BComputeType>
 using DeviceOp = DeviceGroupedConvFwdMultipleABD<NumDimSpatial,
                                                  InLayout,
                                                  WeiLayout,
                                                  DsLayout,
                                                  OutLayout,
-                                                 ck::f8_t, // InDataType
-                                                 ck::f8_t, // WeiDataType
+                                                 InDataType,  // InDataType
+                                                 WeiDataType, // WeiDataType
                                                  DsDataType,
                                                  OutDataType, // OutDataType
                                                  PassThrough,
                                                  PassThrough,
-                                                 Act>;
+                                                 Act,
+                                                 AComputeType,
+                                                 BComputeType>;
 
 } // namespace
 
@@ -51,9 +62,88 @@ struct CkFactoryTestConvFwd : public testing::Test
     static auto get_expected_instances() { return InstanceSet(Case::expected); }
 };
 
+struct F8_ConvScale
+{
+    using DeviceOp = ::DeviceOp<ck::Tuple<>,
+                                ck::Tuple<>,
+                                ck::f8_t,
+                                ck::f8_t,
+                                ck::f8_t,
+                                ConvScale,
+                                ck::f8_t,
+                                ck::f8_t>;
+
+    constexpr static auto expected = {
+        // clang-format off
+        ""
+        // clang-format on
+    };
+};
+
+struct F8_comb1_ConvScale
+{
+    using DeviceOp = ::DeviceOp<ck::Tuple<>,
+                                ck::Tuple<>,
+                                ck::bf8_t,
+                                ck::bf8_t,
+                                ck::f8_t,
+                                ConvScale,
+                                ck::bf8_t,
+                                ck::bf8_t>;
+
+    constexpr static auto expected = {
+        // clang-format off
+        ""
+        // clang-format on
+    };
+};
+
+struct F8_comb2_ConvScale
+{
+    using DeviceOp = ::DeviceOp<ck::Tuple<>,
+                                ck::Tuple<>,
+                                ck::f8_t,
+                                ck::bf8_t,
+                                ck::f8_t,
+                                ConvScale,
+                                ck::f8_t,
+                                ck::bf8_t>;
+
+    constexpr static auto expected = {
+        // clang-format off
+        ""
+        // clang-format on
+    };
+};
+
+struct F8_comb3_ConvScale
+{
+    using DeviceOp = ::DeviceOp<ck::Tuple<>,
+                                ck::Tuple<>,
+                                ck::bf8_t,
+                                ck::f8_t,
+                                ck::f8_t,
+                                ConvScale,
+                                ck::bf8_t,
+                                ck::f8_t>;
+
+    constexpr static auto expected = {
+        // clang-format off
+        ""
+        // clang-format on
+    };
+};
+
 struct F8_ConvScaleRelu
 {
-    using DeviceOp = ::DeviceOp<ck::Tuple<>, ck::Tuple<>, ck::f8_t, ConvScaleRelu>;
+    using DeviceOp = ::DeviceOp<ck::Tuple<>,
+                                ck::Tuple<>,
+                                ck::f8_t,
+                                ck::f8_t,
+                                ck::f8_t,
+                                ConvScaleRelu,
+                                ck::f8_t,
+                                ck::f8_t>;
 
     constexpr static auto expected = {
         // clang-format off
@@ -64,7 +154,14 @@ struct F8_ConvScaleRelu
 
 struct F8_CombConvScaleRelu
 {
-    using DeviceOp = ::DeviceOp<ck::Tuple<>, ck::Tuple<>, float, CombConvScaleRelu>;
+    using DeviceOp = ::DeviceOp<ck::Tuple<>,
+                                ck::Tuple<>,
+                                ck::f8_t,
+                                ck::f8_t,
+                                float,
+                                CombConvScaleRelu,
+                                ck::f8_t,
+                                ck::f8_t>;
 
     constexpr static auto expected = {
         // clang-format off
@@ -75,7 +172,14 @@ struct F8_CombConvScaleRelu
 
 struct F8_ConvScaleAdd
 {
-    using DeviceOp = ::DeviceOp<ck::Tuple<OutLayout>, ck::Tuple<float>, ck::f8_t, ConvScaleAdd>;
+    using DeviceOp = ::DeviceOp<ck::Tuple<OutLayout>,
+                                ck::Tuple<float>,
+                                ck::f8_t,
+                                ck::f8_t,
+                                ck::f8_t,
+                                ConvScaleAdd,
+                                ck::f8_t,
+                                ck::f8_t>;
 
     constexpr static auto expected = {
         // clang-format off
@@ -96,7 +200,13 @@ struct F8_ConvInvscale
 };
 
 using TestTypes =
-    ::testing::Types<F8_ConvScaleRelu, F8_CombConvScaleRelu, F8_ConvScaleAdd, F8_ConvInvscale>;
+    ::testing::Types<F8_ConvScale,
+                                   F8_comb1_ConvScale,
+                                   F8_comb2_ConvScale,
+                                   F8_comb3_ConvScale,
+                                   F8_ConvScaleRelu,
+                                   F8_CombConvScaleRelu,
+                                   F8_ConvScaleAdd, F8_ConvInvscale>;
 
 TYPED_TEST_SUITE(CkFactoryTestConvFwd, TestTypes);
 
