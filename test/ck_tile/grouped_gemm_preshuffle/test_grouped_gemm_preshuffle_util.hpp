@@ -474,7 +474,7 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
         ck_tile::DeviceMem gemm_workspace;
         gemm_workspace.Realloc(get_workspace_size(gemm_descs));
 
-        if constexpr(Persistent==true)
+        if constexpr(Persistent == true)
         {
             invoke_grouped_gemm_persistent<ALayout, BLayout, CLayout>(
                 gemm_descs,
