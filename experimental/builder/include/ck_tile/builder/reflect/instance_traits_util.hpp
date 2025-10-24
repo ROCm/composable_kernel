@@ -72,28 +72,12 @@ constexpr std::string_view layout_name()
 template <typename T>
 constexpr std::string_view elementwise_op_name()
 {
-    namespace element_wise = ck::tensor_operation::element_wise;
-
-    if constexpr(std::is_same_v<T, element_wise::PassThrough>)
-        return "PassThrough";
-    else if constexpr(std::is_same_v<T, element_wise::Scale>)
-        return "Scale";
-    else if constexpr(std::is_same_v<T, element_wise::Bilinear>)
-        return "Bilinear";
-    else if constexpr(std::is_same_v<T, element_wise::Add>)
-        return "Add";
-    else if constexpr(std::is_same_v<T, element_wise::AddRelu>)
-        return "AddRelu";
-    else if constexpr(std::is_same_v<T, element_wise::Relu>)
-        return "Relu";
-    else if constexpr(std::is_same_v<T, element_wise::BiasNormalizeInInferClamp>)
-        return "BiasNormalizeInInferClamp";
-    else if constexpr(std::is_same_v<T, element_wise::Clamp>)
-        return "Clamp";
-    else if constexpr(std::is_same_v<T, element_wise::AddClamp>)
-        return "AddClamp";
+    if constexpr(requires {
+                     { T::name } -> std::convertible_to<std::string_view>;
+                 })
+        return T::name;
     else
-        static_assert(false, "unknown_op");
+        static_assert(false, "Elementwise operation is missing name attribute");
 }
 
 // Convert ConvolutionForwardSpecialization enum to string
