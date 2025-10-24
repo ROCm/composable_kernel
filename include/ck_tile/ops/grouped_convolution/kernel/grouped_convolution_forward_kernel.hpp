@@ -425,12 +425,14 @@ struct GroupedConvFwdKernelArgs
 ///                                     multiplication implementation. It is responsible for storing
 ///                                     results calculated by @ref GemmPipeline_ "GemmPipeline" to
 ///                                     the output C tensor in global memory.
-template <typename GroupedConvTraitsType_,
+template <bool EnableSplitImage_,
+          typename GroupedConvTraitsType_,
           typename TilePartitioner_,
           typename GemmPipeline_,
           typename EpiloguePipeline_>
 struct GroupedConvolutionForwardKernel
 {
+    static constexpr bool EnableSplitImage = EnableSplitImage_;
     static constexpr index_t NDimSpatial = GroupedConvTraitsType_::NDimSpatial;
     static constexpr ConvolutionSpecialization ConvSpecialization =
         GroupedConvTraitsType_::ConvSpecialization;
@@ -906,7 +908,7 @@ struct GroupedConvolutionForwardKernel
         // Pre-calculate block_id (used in both split-image and non-split paths)
         const index_t block_id = static_cast<index_t>(blockIdX);
 
-        if(kargs.num_spatial_pieces > 1)
+        if constexpr(EnableSplitImage)
         {
             // Helper: Find which piece owns this block
             auto find_piece_id = [&]() -> index_t {

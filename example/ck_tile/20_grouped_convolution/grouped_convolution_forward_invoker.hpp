@@ -173,10 +173,10 @@ struct GroupedConvolutionForwardInvoker
         }
 
         // =====================================================================
-        // Kernel launch lambda
+        // Kernel launch lambda (templated on EnableSplitImage)
         // =====================================================================
         const auto Run =
-            [&](const auto has_hot_loop_, const auto tail_number_, const auto memory_operation_) {
+            [&]<bool EnableSplitImage>(const auto has_hot_loop_, const auto tail_number_, const auto memory_operation_) {
                 constexpr bool has_hot_loop_v   = has_hot_loop_.value;
                 constexpr auto tail_number_v    = tail_number_.value;
                 constexpr auto scheduler        = GemmConfig::Scheduler;
@@ -223,7 +223,8 @@ struct GroupedConvolutionForwardInvoker
                     true,
                     GroupedConvTraitsType::VectorSizeC>>;
 
-                using Kernel = ck_tile::GroupedConvolutionForwardKernel<GroupedConvTraitsType,
+                using Kernel = ck_tile::GroupedConvolutionForwardKernel<EnableSplitImage,
+                                                                        GroupedConvTraitsType,
                                                                         TilePartitioner,
                                                                         GemmPipeline,
                                                                         ConvEpilogue>;
@@ -263,11 +264,11 @@ struct GroupedConvolutionForwardInvoker
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
             if(args.k_batch == 1)
             {
-                Run(has_hot_loop_, tail_number_, MemoryOpSet{});
+                Run.template operator()<false>(has_hot_loop_, tail_number_, MemoryOpSet{});
             }
             else
             {
-                Run(has_hot_loop_, tail_number_, MemoryOpAtomicAdd{});
+                Run.template operator()<false>(has_hot_loop_, tail_number_, MemoryOpAtomicAdd{});
             }
         };
 
@@ -374,7 +375,8 @@ struct GroupedConvolutionForwardInvoker
                         true,
                         GroupedConvTraitsType::VectorSizeC>>;
 
-                    using Kernel = ck_tile::GroupedConvolutionForwardKernel<GroupedConvTraitsType,
+                    using Kernel = ck_tile::GroupedConvolutionForwardKernel<true,
+                                                                            GroupedConvTraitsType,
                                                                             TilePartitioner,
                                                                             GemmPipeline,
                                                                             ConvEpilogue>;
