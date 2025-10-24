@@ -218,7 +218,7 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
     {
         ck_tile::index_t AQK, BQK;
         using namespace ck_tile::literals;
-        
+
         std::vector<ck_tile::HostTensor<ADataType>> a_m_k_tensors;
         std::vector<ck_tile::HostTensor<BDataType>> b_k_n_tensors;
         std::vector<ck_tile::HostTensor<CDataType>> c_m_n_tensors;

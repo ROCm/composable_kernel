@@ -264,7 +264,6 @@ int run_grouped_gemm_example_with_layouts(int argc,
                 throw std::runtime_error("K must be divisible by 128 for BQuantGrouped mode");
             }
         }
-        
 
         stride_As[i] = ck_tile::get_default_stride(M, K, stride_As[i], is_row_major(a_layout));
         stride_Bs[i] = ck_tile::get_default_stride(K, N, stride_Bs[i], is_row_major(b_layout));
