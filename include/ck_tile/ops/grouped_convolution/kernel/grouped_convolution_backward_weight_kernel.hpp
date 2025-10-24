@@ -477,9 +477,8 @@ struct GroupedConvolutionBackwardWeightKernel
         return [&]() {
             if(kargs.k_batch > 1)
             {
-                // When we merge more than one conv group into a single gemm batch, we need to
-                // account for that when we zero out the weight buffer, i.e., the GEMM shapes
-                // contain the padded elements which are not needed for the final wei_ptr output.
+                // Total number of convolution groups (ConvG) = GemmBatch * NumGroupsPerBatch
+                // since we require that ConvG % NumGroupsPerBatch == 0.
                 const auto wei_size =
                     kargs.GemmBatch * kargs.GemmM * kargs.GemmN * kargs.NumGroupsPerBatch;
                 hipGetErrorString(
