@@ -98,8 +98,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // [] Atomic ADD function or a tuple of it, for each operations
     // [X] Provide number of cluster (possible calculate it based on the other inputs sizes)
 
-    // ck_tile::FillUniformDistribution<XDataType>{-5.f, 5.f}(x_host);
-    ck_tile::FillUniformDistribution<XDataType>{1.f, 1.f}(x_host);
+    ck_tile::FillUniformDistribution<XDataType>{-5.f, 5.f}(x_host);
+    // ck_tile::FillUniformDistribution<XDataType>{1.f, 1.f}(x_host);
     // ck_tile::FillUniformDistribution<XDataType>{1.f, 2.f}(x_host);
 
     ck_tile::DeviceMem x_buf(x_host.get_element_space_size_in_bytes());
@@ -124,12 +124,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     // Determine block group size for multi-block reduction
     // TODO: it should be in a helper function somewhere else
-    ck_tile::index_t reduce_total_length = H * W; // Hardcoded for now
+    const ck_tile::index_t reduce_total_length = H * W;
     int K_BlockTileSize = BlockTile::at(1);
-    int num_block_tile_iterations = std::max(1, static_cast<int>(std::ceil((reduce_total_length - 1.0) / (127.0 * K_BlockTileSize)))); // Ensure at most 128 blocks in a group
-    int block_group_size = (reduce_total_length + (K_BlockTileSize * num_block_tile_iterations) - 1) /
-                    (K_BlockTileSize * num_block_tile_iterations);
-
+    int num_block_tile_iterations, block_group_size;
+    // int num_block_tile_iterations = std::max(1, static_cast<int>(std::ceil((reduce_total_length - 1.0) / (127.0 * K_BlockTileSize)))); // Ensure at most 128 blocks in a group
+    // int block_group_size = (reduce_total_length + (K_BlockTileSize * num_block_tile_iterations) - 1) /
+    //                 (K_BlockTileSize * num_block_tile_iterations);
+    Kernel::CalculateBlockGroupParams(
+        reduce_total_length, K_BlockTileSize, num_block_tile_iterations, block_group_size);
     const ck_tile::index_t kBlockSize = Kernel::BlockSize();
     ck_tile::index_t kGridSize = (kept_dim_len_prod + BlockTile::at(ck_tile::number<0>{}) - 1) /
                                  BlockTile::at(ck_tile::number<0>{})*block_group_size;
@@ -150,12 +152,16 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     // TODO: clearn the output buffer, use launch_kernel_time_mask see the splitk example
     // auto clear_gemm_output = [&]() {
-    //             if(args.k_batch > 1)
-    //                 hipGetErrorString(hipMemsetAsync(
-    //                     ws_args.c_ptr, 0, args.M * args.N * sizeof(WorkspaceType), s.stream_id_));
+    //         hipGetErrorString(hipMemset(
+    //             ws_args.c_ptr, 0, args.M * args.N * sizeof(WorkspaceType), s.stream_id_));
     // };
 
-    auto noop = [](auto& element) { element = 2*element;}; // TODO: check for the passthrough function
+    auto noop = [](auto&) { }; // TODO: check for the passthrough function
+    auto square_divide = [reduce_total_length] __host__ __device__ (auto& element) {
+        element = element * element / reduce_total_length;
+    };
+
+    auto elementwise_ops = ck_tile::make_tuple(noop, square_divide);
 
     float ave_time = launch_kernel(
         ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
@@ -172,9 +178,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                           output_tensor_offset,
                                           block_group_size,
                                           num_block_tile_iterations,
-                                          noop
+                                          elementwise_ops // TODO: Move it to Problem?
                                         ));
                                         //   blockwise_acc_ops));
+
+    // float ave_time = launch_kernel_time_mask(
+    //     ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
+
+    // );
 
     std::size_t num_btype = sizeof(XDataType) * N * C * H * W + sizeof(YDataType) * N * C;
 
@@ -188,7 +199,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     {
         // reference
         ck_tile::reference_multiple_reduce<XDataType, ComputeDataType, YDataType>(
-            x_host, y_host_ref_tuple, ReduceOps{}, kept_dim, reduce_dims, noop);
+            x_host, y_host_ref_tuple, ReduceOps{}, kept_dim, reduce_dims, elementwise_ops);
         std::cout << "Read " << y_buf_size / 10 << " Bytes from the device" << std::endl;
 
         // Transfer data from device and check error for each operation
@@ -197,10 +208,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
             std::memcpy(y_host_dev_tuple.get(ck_tile::number<i>{}).data(),
                         h.data() + i * output_tensor_offset,
                         output_tensor_offset * sizeof(YDataType));
-                        
-            // std::cout << y_host_dev_tuple.get(ck_tile::number<i>{}) << std::endl;
-            pass &= ck_tile::check_err(y_host_dev_tuple.get(ck_tile::number<i>{}),
+            std::cout << "Checking operation " << i << ": " << std::endl;            
+
+            bool pass_op = ck_tile::check_err(y_host_dev_tuple.get(ck_tile::number<i>{}),
                                        y_host_ref_tuple.get(ck_tile::number<i>{}));
+
+            if (pass_op){
+                std::cout << "✅" << std::endl;
+            } 
+            pass &= pass_op;
         });
 
         std::cout << "valid:" << (pass ? "y" : "n") << std::flush << std::endl;

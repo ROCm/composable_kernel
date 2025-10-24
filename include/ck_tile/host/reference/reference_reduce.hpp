@@ -119,14 +119,14 @@ template <typename XDataType,
                             // keep
           typename ReduceDims, // Expected type: ck_tile::sequence<...> containing dimension indices
                               // to reduce
-          typename ElementWiseOp = ck_tile::element_wise::PassThrough
+          typename ElementWiseOps
           >
 CK_TILE_HOST void reference_multiple_reduce(const HostTensor<XDataType>& x_tensor,
                                             YRefTuple& y_tensor_tuple,
                                             ReduceOps reduce_ops,
                                             KeptDim kept_dim,
                                             ReduceDims reduce_dims,
-                                            ElementWiseOp elementwise_op = ElementWiseOp{})
+                                            ElementWiseOps elementwise_ops)
 {
     const auto& x_lengths = x_tensor.mDesc.get_lengths();
 
@@ -182,13 +182,12 @@ CK_TILE_HOST void reference_multiple_reduce(const HostTensor<XDataType>& x_tenso
             // Access input tensor element
             auto v_a = type_convert<ComputeDataType>(x_tensor(full_indices));
 
-            if constexpr (!std::is_same<ElementWiseOp, ck_tile::element_wise::PassThrough>::value) {
-                // Apply element-wise operation before reduction
-                elementwise_op(v_a);
-            }
-
             // Apply each reduction operation
             static_for<0, reduce_ops.size(), 1>{}([&](auto i) {
+                if constexpr (elementwise_ops.size() > 0){
+                    // Apply element-wise operation before reduction
+                    elementwise_ops.at(i)(v_a);
+                }
                 v_acc_tuple.template at<i>() =
                     reduce_ops.template at<i>()(v_acc_tuple.template at<i>(), v_a);
             });

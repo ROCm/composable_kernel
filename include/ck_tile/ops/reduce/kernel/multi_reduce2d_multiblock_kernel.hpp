@@ -86,7 +86,20 @@ struct MultiReduceMultiblock
         return is_wave32() ? kBlockSize / 2 : kBlockSize;
     }
 
-    private:
+    CK_TILE_HOST static void CalculateBlockGroupParams(
+        const std::size_t reduce_total_length,
+        const std::size_t K_BlockTileSize,
+        int& num_block_tile_iterations,
+        int& block_group_size)
+    {
+        // TODO: fix that, it seems to be wrong on bigger sizes in the unit test
+        num_block_tile_iterations = std::max(
+            1, static_cast<int>(std::ceil((reduce_total_length - 1.0) / (127.0 * K_BlockTileSize))));
+
+        block_group_size = (reduce_total_length + (K_BlockTileSize * num_block_tile_iterations) - 1) /
+                        (K_BlockTileSize * num_block_tile_iterations);
+    }
+        private:
     // Helper function to calculate optimal vector size for input tensor
     template <typename InputShape, typename ReduceDims>
     static constexpr index_t CalculateInputVectorSize()
@@ -118,7 +131,7 @@ struct MultiReduceMultiblock
     }
 
     public:
-    template <typename InputShape, typename InputStrides, typename KeptDim, typename ReduceDims, typename ElementwiseOp = void> //, typename BlockwiseAccOps>
+    template <typename InputShape, typename InputStrides, typename KeptDim, typename ReduceDims, typename ElementwiseOps = void> //, typename BlockwiseAccOps> // TODO handle the elementwise ops better (i.e. no void)
     CK_TILE_DEVICE void operator()(const XDataType* p_x,
                                    YDataType* p_y_tuple,
                                    InputShape input_shape,
@@ -128,12 +141,15 @@ struct MultiReduceMultiblock
                                    index_t output_tensor_offset,
                                    [[maybe_unused]] index_t block_group_size,
                                    [[maybe_unused]] index_t num_block_tile_iterations,
-                                   [[maybe_unused]] ElementwiseOp elementwise_op = ElementwiseOp{}) const
+                                   [[maybe_unused]] ElementwiseOps elementwise_ops = ElementwiseOps{}) const
                                 //    [[maybe_unused]] BlockwiseAccOps blockwise_acc_ops) const
 
     {
+
+        // TODO: static checks about the different tuple sizes
+        
         using S                      = typename Problem::BlockShape;
-        const auto iM                = get_block_id() * S::Block_M;
+        // const auto iM                = get_block_id() * S::Block_M;
         auto reduce_funcs            = typename Problem::ReduceOp{};
         const auto number_operations = reduce_funcs.size();
 
@@ -204,37 +220,37 @@ struct MultiReduceMultiblock
             sequence<0, 1>{}); // Effective transform the input tensor to 2D (kept, reduced) and pad
                                // to block size
 
-        const auto kept_strides = [&]() {
-            return generate_tuple(
-                [&](auto I) {
-                    index_t stride = 1;
-                    static_for<I + 1, kept_dim.size(), 1>{}(
-                        [&](auto J) { stride *= kept_lens.at(number<J>{}); });
-                    return stride;
-                },
-                number<kept_dim.size()>{});
-        }(); // Compute the strides, for a dimensions (a,b,c), the strides are (b*c, c, 1)
+        // const auto kept_strides = [&]() {
+        //     return generate_tuple(
+        //         [&](auto I) {
+        //             index_t stride = 1;
+        //             static_for<I + 1, kept_dim.size(), 1>{}(
+        //                 [&](auto J) { stride *= kept_lens.at(number<J>{}); });
+        //             return stride;
+        //         },
+        //         number<kept_dim.size()>{});
+        // }(); // Compute the strides, for a dimensions (a,b,c), the strides are (b*c, c, 1)
 
-        constexpr auto y_tensor_vector_size = CalculateOutputVectorSize();
+        // constexpr auto y_tensor_vector_size = CalculateOutputVectorSize();
 
-        auto y_tile_windows = generate_tuple(
-            [&]([[maybe_unused]] auto i) {
-                const auto y_tensor_view = make_naive_tensor_view<address_space_enum::global>(
-                    p_y_tuple + (i * output_tensor_offset),
-                    kept_lens,
-                    kept_strides,
-                    number<y_tensor_vector_size>{},
-                    number<1>{});
+        // auto y_tile_windows = generate_tuple(
+        //     [&]([[maybe_unused]] auto i) {
+        //         const auto y_tensor_view = make_naive_tensor_view<address_space_enum::global>(
+        //             p_y_tuple + (i * output_tensor_offset),
+        //             kept_lens,
+        //             kept_strides,
+        //             number<y_tensor_vector_size>{},
+        //             number<1>{});
 
-                const auto y_merge = transform_tensor_view(
-                    y_tensor_view,
-                    make_tuple(kept_merge_transform),
-                    make_tuple(typename arithmetic_sequence_gen<0, kept_dim.size(), 1>::type{}),
-                    make_tuple(sequence<0>{}));
+        //         const auto y_merge = transform_tensor_view(
+        //             y_tensor_view,
+        //             make_tuple(kept_merge_transform),
+        //             make_tuple(typename arithmetic_sequence_gen<0, kept_dim.size(), 1>::type{}),
+        //             make_tuple(sequence<0>{}));
 
-                return make_tile_window(y_merge, make_tuple(number<S::Block_M>{}), {iM});
-            },
-            number<number_operations>{});
+        //         return make_tile_window(y_merge, make_tuple(number<S::Block_M>{}), {iM});
+        //     },
+        //     number<number_operations>{});
 
         __shared__ char smem[Policy::template GetSmemSize<Problem>()]; // shared memory reused by the different operations
 
@@ -299,9 +315,9 @@ struct MultiReduceMultiblock
             {
                 auto x = load_tile(x_window);
 
-                if constexpr (!std::is_same<ElementwiseOp, void>::value) {
+                if constexpr (elementwise_ops.size() > 0) {
                     // Apply the elementwise operation before the reduction
-                    tile_elementwise_inout(elementwise_op, x);
+                    tile_elementwise_inout(elementwise_ops.get(number<i>{}), x);
                 }
 
                 block_reduce2d(x, y_compute, reduce_funcs.get(number<i>{}));
@@ -340,7 +356,7 @@ struct MultiReduceMultiblock
                 // });
                 
                 // Only atomic add is supported for now as the atomic max operation is neither supporting fp16 nor buffer greated than 1 element
-                auto atomic_ops = reduce_funcs.get(number<i>{}).template GetAtomic<YDataType, y_thread_buf.N>();
+                auto atomic_ops = reduce_funcs.get(number<i>{}).template GetAtomic<YDataType, y_thread_buf.N>(); // TODO: check if we need YDataType
                 atomic_ops(p_y_tile, y_thread_buf);
             }
 
