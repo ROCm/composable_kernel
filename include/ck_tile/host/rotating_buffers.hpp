@@ -29,18 +29,23 @@ struct RotatingMemWrapper
     RotatingMemWrapper() = delete;
     RotatingMemWrapper(const void* a_ptr_,
                        const void* b_ptr_,
-                       std::size_t rotating_count_,
+                       std::size_t rotating_count_hint,
                        std::size_t size_a_,
                        std::size_t size_b_)
         : a_ptr(a_ptr_),
           b_ptr(b_ptr_),
-          rotating_count(rotating_count_),
+          rotating_count(rotating_count_hint),
           size_a(size_a_),
           size_b(size_b_)
     {
         // Store original buffer pointers as first entry
         p_a_grids.push_back(a_ptr);
         p_b_grids.push_back(b_ptr);
+
+        // limit the rotating count to prevent oom
+        const uint64_t footprint          = (size_a + size_b);
+        const uint64_t max_rotating_count = (1ULL << 31) / footprint;
+        rotating_count                    = std::min(rotating_count, max_rotating_count);
 
         // Create (rotating_count - 1) additional copies at different memory addresses
         for(size_t i = 1; i < rotating_count; i++)
