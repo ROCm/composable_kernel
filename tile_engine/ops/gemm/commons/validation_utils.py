@@ -479,20 +479,20 @@ def validate_whole_wg_cover_configuration(
             BlockSize, tile_k, a_datatype, tile_m, tile_m
         )
 
-        # #Validate distribution
-        # XPerTile = tile_k
-        # YPerTile = tile_m
+        # Validate distribution
+        XPerTile = tile_k
+        YPerTile = tile_m
 
-        # wg_cover_core_valid, wg_cover_core_error = wg_cover_core_validation(
-        #     XPerTile, YPerTile, BlockSize, vector_load_size, warp_size
-        # )
+        wg_cover_core_valid, wg_cover_core_error = wg_cover_core_validation(
+            XPerTile, YPerTile, BlockSize, vector_load_size, warp_size
+        )
 
-        # if not wg_cover_core_valid:
-        #     print("I am here 1")
-        #     logging.debug(
-        #         f"whole workgroup cover failed for Matrix A distribution: {wg_cover_core_error}"
-        #     )
-        #     return False, wg_cover_core_error
+        if not wg_cover_core_valid:
+            print("I am here 1")
+            logging.debug(
+                f"whole workgroup cover failed for Matrix A distribution: {wg_cover_core_error}"
+            )
+            return False, wg_cover_core_error
 
         XPerTile = tile_m
         YPerTile = tile_k
@@ -513,20 +513,20 @@ def validate_whole_wg_cover_configuration(
             BlockSize, tile_k, b_datatype, tile_n, tile_n
         )
 
-        # #Validate distribution
-        # XPerTile = tile_k
-        # YPerTile = tile_n
+        # Validate distribution
+        XPerTile = tile_k
+        YPerTile = tile_n
 
-        # wg_cover_core_valid, wg_cover_core_error = wg_cover_core_validation(
-        #     XPerTile, YPerTile, BlockSize, vector_load_size, warp_size
-        # )
+        wg_cover_core_valid, wg_cover_core_error = wg_cover_core_validation(
+            XPerTile, YPerTile, BlockSize, vector_load_size, warp_size
+        )
 
-        # if not wg_cover_core_valid:
-        #     print("I am here 3")
-        #     logging.debug(
-        #         f"whole workgroup cover failed for Matrix A distribution: {wg_cover_core_error}"
-        #     )
-        #     return False, wg_cover_core_error
+        if not wg_cover_core_valid:
+            print("I am here 3")
+            logging.debug(
+                f"whole workgroup cover failed for Matrix A distribution: {wg_cover_core_error}"
+            )
+            return False, wg_cover_core_error
 
         XPerTile = tile_n
         YPerTile = tile_k
