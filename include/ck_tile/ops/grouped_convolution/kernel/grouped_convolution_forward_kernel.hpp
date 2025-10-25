@@ -433,7 +433,7 @@ template <bool EnableSplitImage_,
 struct GroupedConvolutionForwardKernel
 {
     static constexpr bool EnableSplitImage = EnableSplitImage_;
-    static constexpr index_t NDimSpatial = GroupedConvTraitsType_::NDimSpatial;
+    static constexpr index_t NDimSpatial   = GroupedConvTraitsType_::NDimSpatial;
     static constexpr ConvolutionSpecialization ConvSpecialization =
         GroupedConvTraitsType_::ConvSpecialization;
     using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
@@ -910,17 +910,28 @@ struct GroupedConvolutionForwardKernel
 
         if constexpr(EnableSplitImage)
         {
-            // Helper: Find which piece owns this block
+            // Helper: Find which piece owns this block using binary search
+            // Reference: device_grouped_conv_fwd_multiple_d_xdl_large_tensor_cshuffle.hpp
             auto find_piece_id = [&]() -> index_t {
-                for(index_t i = 0; i < kargs.num_spatial_pieces; i++)
+                index_t left     = 0;
+                index_t right    = kargs.num_spatial_pieces - 1;
+                index_t piece_id = (left + right) / 2;
+
+                while(!(block_id >= kargs.split_image.pieces[piece_id].block_start &&
+                        block_id < kargs.split_image.pieces[piece_id].block_end) &&
+                      left <= right)
                 {
-                    if(block_id >= kargs.split_image.pieces[i].block_start &&
-                       block_id < kargs.split_image.pieces[i].block_end)
+                    if(block_id < kargs.split_image.pieces[piece_id].block_start)
                     {
-                        return i;
+                        right = piece_id - 1;
                     }
+                    else
+                    {
+                        left = piece_id + 1;
+                    }
+                    piece_id = (left + right) / 2;
                 }
-                return 0; // Should never happen
+                return piece_id;
             };
 
             // Helper: Convert flat spatial index to (d,h,w) coordinates

@@ -39,9 +39,9 @@ struct TransformConvFwdToGemm
     static constexpr auto I5 = number<5>{};
 
     // Unified memory limit constant for both Split-N and Split-Image
-    // static constexpr long_index_t TwoGB = (long_index_t{1} << 20); // 1MB (for testing)
+    static constexpr long_index_t TwoGB = (long_index_t{1} << 20); // 1MB (for testing)
     // static constexpr long_index_t TwoGB = (long_index_t{10} << 20); // 10MB
-    static constexpr long_index_t TwoGB = (long_index_t{1} << 31); // 2GB
+    // static constexpr long_index_t TwoGB = (long_index_t{1} << 31); // 2GB
 
     template <typename ConvDimsType>
     static long_index_t calculate_element_space_size_impl(const ConvDimsType& lengths,
