@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -63,31 +63,45 @@ struct bias_info
     static bias_info decode(std::string str)
     {
         bias_info info{bias_enum::no_bias, 0};
-        if(str == "0" || str == "n")
+        auto found_0 = str.find(':');
+        if(found_0 != std::string::npos)
+        {
+            std::string t = str.substr(0, found_0);
+            std::string v = str.substr(found_0 + 1);
+            if(t == "e" || t == "elementwise")
+            {
+                info.type      = bias_enum::elementwise_bias;
+                info.rank_info = std::stoi(v);
+                if(info.rank_info < 0 || info.rank_info > 2)
+                    throw std::invalid_argument("invalid bias rank: " + str);
+            }
+            else if(t == "a" || t == "alibi")
+            {
+                info.type      = bias_enum::alibi;
+                info.rank_info = std::stoi(v);
+                if(info.rank_info < 0 || info.rank_info > 1)
+                    throw std::invalid_argument("invalid bias rank: " + str);
+            }
+            else
+            {
+                throw std::invalid_argument("invalid bias value: " + str);
+            }
+        }
+        else if(str == "0" || str == "n")
         {
             info.type = bias_enum::no_bias;
         }
-        else if(str.compare(0, 1, "1") == 0 || str.compare(0, 1, "e") == 0 ||
-                str.compare(0, 11, "elementwise") == 0)
+        else if(str == "1" || str == "e" || str == "elementwise")
         {
-            info.type    = bias_enum::elementwise_bias;
-            auto found_0 = str.find(':');
-            if(found_0 != std::string::npos)
-            {
-                std::string e  = str.substr(found_0 + 1);
-                info.rank_info = atoi(e.c_str());
-            }
+            info.type = bias_enum::elementwise_bias;
         }
-        else if(str.compare(0, 1, "2") == 0 || str.compare(0, 1, "a") == 0 ||
-                str.compare(0, 5, "alibi") == 0)
+        else if(str == "2" || str == "a" || str == "alibi")
         {
-            info.type    = bias_enum::alibi;
-            auto found_0 = str.find(':');
-            if(found_0 != std::string::npos)
-            {
-                std::string e  = str.substr(found_0 + 1);
-                info.rank_info = atoi(e.c_str());
-            }
+            info.type = bias_enum::alibi;
+        }
+        else
+        {
+            throw std::invalid_argument("invalid bias value: " + str);
         }
         return info;
     }

@@ -1,0 +1,58 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
+#include <hip/hip_runtime.h>
+
+#include <cstring>
+#include <iostream>
+#include <ostream>
+#include <string>
+#include <tuple>
+
+#include "ck_tile/host.hpp"
+#include "grouped_convolution_utils.hpp"
+#include "grouped_convolution_backward_data_invoker.hpp"
+#include "run_grouped_convolution_bwd_data_example.inc"
+
+template <template <typename PrecType> typename GemmConfig>
+int run_grouped_conv_bwd_data_example(int argc, char* argv[])
+{
+    using Invoker = GroupedConvolutionBackwardDataInvoker;
+
+    auto [result, arg_parser] = create_args(argc, argv);
+    if(!result)
+        return -1;
+
+    std::string data_type  = arg_parser.get_str("prec");
+    std::string in_layout  = arg_parser.get_str("in_layout");
+    std::string wei_layout = arg_parser.get_str("wei_layout");
+    std::string out_layout = arg_parser.get_str("out_layout");
+
+    if(data_type == "fp16")
+    {
+        return run_grouped_conv_bwd_data_example_prec_type<Invoker,
+                                                           GemmConfig<ck_tile::half_t>,
+                                                           ck_tile::half_t>(
+            in_layout, wei_layout, out_layout, argc, argv);
+    }
+    else if(data_type == "bf16")
+    {
+        return run_grouped_conv_bwd_data_example_prec_type<Invoker,
+                                                           GemmConfig<ck_tile::bf16_t>,
+                                                           ck_tile::bf16_t>(
+            in_layout, wei_layout, out_layout, argc, argv);
+    }
+    else
+    {
+        throw std::runtime_error("Unsupported data type for this operation!");
+    }
+}
+
+int main(int argc, char* argv[])
+{
+#if CK_TILE_USE_WMMA
+    return !run_grouped_conv_bwd_data_example<GemmConfigComputeV3_WMMA>(argc, argv);
+#else
+    return !run_grouped_conv_bwd_data_example<GemmConfigComputeV3>(argc, argv);
+#endif
+}

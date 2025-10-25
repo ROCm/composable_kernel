@@ -19,7 +19,7 @@ enum class WGAttrNumAccessEnum
 
 template <typename WarpGemmAttributeMfmaImpl_,
           WGAttrNumAccessEnum AttrNumAccess_ = WGAttrNumAccessEnum::Single>
-struct WarpGemmAtrributeMfma
+struct WarpGemmAttributeMfma
 {
     using Impl                           = remove_cvref_t<WarpGemmAttributeMfmaImpl_>;
     static constexpr auto AttrNumAccess  = AttrNumAccess_;
@@ -93,17 +93,40 @@ struct WarpGemmAtrributeMfma
         Impl{}(c_vec, a_vec, b_vec, bool_constant<post_nop_>{});
     }
 
+    // c_vec += a_vec * b_vec
+    template <index_t opselA, index_t opselB, bool post_nop_ = false>
+    CK_TILE_DEVICE void operator()(CVecType& c_vec,
+                                   const AVecType& a_vec,
+                                   const int32_t& a_scale,
+                                   const BVecType& b_vec,
+                                   const int32_t& b_scale,
+                                   bool_constant<post_nop_> = {}) const
+    {
+        Impl{}.template operator()<opselA, opselB>(
+            c_vec, a_vec, a_scale, b_vec, b_scale, bool_constant<post_nop_>{});
+    }
+
     // c_vec = a_vec * b_vec
     CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec, const BVecType& b_vec) const
     {
         return Impl{}(a_vec, b_vec);
+    }
+
+    // c_vec = a_vec * b_vec
+    template <index_t opselA, index_t opselB>
+    CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec,
+                                       const int32_t& a_scale,
+                                       const BVecType& b_vec,
+                                       const int32_t& b_scale) const
+    {
+        auto c_vec = Impl{}.template operator()<opselA, opselB>(a_vec, a_scale, b_vec, b_scale);
     }
 };
 
 template <typename WarpGemmAttributeMfmaImpl_,
           index_t kKIter,
           WGAttrNumAccessEnum AttrNumAccess_ = WGAttrNumAccessEnum::Single>
-struct WarpGemmAtrributeMfmaIterateK
+struct WarpGemmAttributeMfmaIterateK
 {
     static_assert(kKIter > 0, "wrong!");
 
@@ -125,6 +148,7 @@ struct WarpGemmAtrributeMfmaIterateK
     static constexpr index_t kN          = Impl::kN;
     static constexpr index_t kK          = Impl::kK * kKIter;
     static constexpr index_t kKPerThread = Impl::kABKPerLane * kKIter;
+    static constexpr index_t kCMLane     = Impl::kCMLane;
 
     CK_TILE_HOST_DEVICE static constexpr auto get_num_of_access() { return kKIter; }
 
@@ -367,7 +391,7 @@ struct WarpGemmAtrributeMfmaIterateK
 
 template <typename WarpGemmAttributeMfmaImpl_,
           WGAttrNumAccessEnum AttrNumAccess_ = WGAttrNumAccessEnum::Single>
-struct WarpGemmAtrributeMfmaTransposedCDistribution
+struct WarpGemmAttributeMfmaTransposedCDistribution
 {
     using Impl                           = remove_cvref_t<WarpGemmAttributeMfmaImpl_>;
     static constexpr auto AttrNumAccess  = AttrNumAccess_;
@@ -385,6 +409,7 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution
     static constexpr index_t kN          = Impl::kM;
     static constexpr index_t kK          = Impl::kK;
     static constexpr index_t kKPerThread = Impl::kABKPerLane;
+    static constexpr index_t kCMLane     = Impl::kCMLane;
 
     CK_TILE_HOST_DEVICE static constexpr auto get_num_of_access() { return 1; }
 
@@ -450,7 +475,7 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution
 };
 
 template <typename WarpGemmAttributeMfmaImpl_, index_t SFactor_ = 2>
-struct WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB
+struct WarpGemmAttributeMfmaTransposedCDistribution_SwizzleB
 {
     using Impl = remove_cvref_t<WarpGemmAttributeMfmaImpl_>;
 
@@ -546,7 +571,7 @@ struct WarpGemmAtrributeMfmaTransposedCDistribution_SwizzleB
 template <typename WarpGemmAttributeMfmaImpl_,
           index_t kKIter,
           WGAttrNumAccessEnum AttrNumAccess_ = WGAttrNumAccessEnum::Single>
-struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution
+struct WarpGemmAttributeMfmaIterateKAndTransposedCDistribution
 {
     using Impl                          = remove_cvref_t<WarpGemmAttributeMfmaImpl_>;
     static constexpr auto AttrNumAccess = AttrNumAccess_;
@@ -574,13 +599,13 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution
 
     CK_TILE_DEVICE static constexpr auto get_awarp_dstr_encoding()
     {
-        return WarpGemmAtrributeMfmaIterateK<Impl, kKIter, AttrNumAccess>::
+        return WarpGemmAttributeMfmaIterateK<Impl, kKIter, AttrNumAccess>::
             get_bwarp_dstr_encoding();
     }
 
     CK_TILE_DEVICE static constexpr auto get_bwarp_dstr_encoding()
     {
-        return WarpGemmAtrributeMfmaIterateK<Impl, kKIter, AttrNumAccess>::
+        return WarpGemmAttributeMfmaIterateK<Impl, kKIter, AttrNumAccess>::
             get_awarp_dstr_encoding();
     }
 
@@ -696,7 +721,7 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution
 };
 
 template <typename WarpGemmAttributeMfmaImpl_, index_t kKIter, index_t SFactor_ = 2>
-struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB
+struct WarpGemmAttributeMfmaIterateKAndTransposedCDistribution_SwizzleB
 {
     using Impl = remove_cvref_t<WarpGemmAttributeMfmaImpl_>;
 
@@ -840,7 +865,7 @@ struct WarpGemmAtrributeMfmaIterateKAndTransposedCDistribution_SwizzleB
 };
 
 template <typename WarpGemmAttributeMfmaImpl_, index_t kKIter, index_t SFactor_ = 2>
-struct WarpGemmAtrributeMfmaIterateK_SwizzleA
+struct WarpGemmAttributeMfmaIterateK_SwizzleA
 {
     using Impl = remove_cvref_t<WarpGemmAttributeMfmaImpl_>;
 

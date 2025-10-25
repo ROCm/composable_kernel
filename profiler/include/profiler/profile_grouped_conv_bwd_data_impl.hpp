@@ -29,13 +29,15 @@ template <ck::index_t NDimSpatial,
           typename InLayout,
           typename OutDataType,
           typename WeiDataType,
-          typename InDataType>
+          typename InDataType,
+          typename ComputeDataType = InDataType>
 bool profile_grouped_conv_bwd_data_impl(int do_verification,
                                         int init_method,
                                         bool do_log,
                                         bool time_kernel,
                                         const ck::utils::conv::ConvParam& conv_param,
-                                        ck::index_t split_k = 1)
+                                        ck::index_t split_k    = 1,
+                                        index_t instance_index = -1)
 {
     using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
     using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
@@ -95,7 +97,11 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
                                                                          OutDataType,
                                                                          InElementOp,
                                                                          WeiElementOp,
-                                                                         OutElementOp>();
+                                                                         OutElementOp,
+                                                                         0,
+                                                                         0,
+                                                                         0,
+                                                                         ComputeDataType>();
 
         auto ref_invoker = ref_conv.MakeInvoker();
 
@@ -123,9 +129,9 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     ck::index_t best_split_k = 1;
 
     // profile device op instances
-    bool pass = true;
-
-    auto run_impl = [&](auto& op_ptr, auto& argument_ptr, const index_t& split_k_for_run) {
+    bool pass          = true;
+    index_t num_kernel = 0;
+    auto run_impl      = [&](auto& op_ptr, auto& argument_ptr, const index_t& split_k_for_run) {
         // workspace_sz will be equal to 0 for other layout than NGCHW
         const std::size_t workspace_sz = op_ptr->GetWorkSpaceSize(argument_ptr.get());
         DeviceMem workspace_dev(workspace_sz);
@@ -133,6 +139,12 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            num_kernel++;
+            if((instance_index != -1) && (instance_index + 1 != num_kernel))
+            {
+                // skip test if instance_index is specified
+                return;
+            }
             std::string op_name = op_ptr->GetTypeString();
 
             auto invoker_ptr = op_ptr->MakeInvokerPointer();
@@ -164,9 +176,13 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
             {
                 in_device_buf.FromDevice(in_device.mData.data());
 
-                using ComputeType = std::conditional_t<sizeof(OutDataType) < sizeof(WeiDataType),
-                                                       OutDataType,
-                                                       WeiDataType>;
+                using ComputeType_ = std::conditional_t<sizeof(OutDataType) < sizeof(WeiDataType),
+                                                             OutDataType,
+                                                             WeiDataType>;
+                using ComputeType =
+                    std::conditional_t<sizeof(ComputeType_) < sizeof(ComputeDataType),
+                                            ComputeType_,
+                                            ComputeDataType>;
                 using AccDataType =
                     std::conditional_t<std::is_same_v<ComputeType, int8_t>, int32_t, float>;
                 const index_t num_accums = conv_param.K_;
@@ -185,11 +201,17 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
                 // Use higher threshold
                 rtol = std::max(rtol, rtol_split_k);
                 atol = std::max(atol, atol_split_k);
-
-                pass &= ck::utils::check_err(
-                    in_device, in_host, "Error: Incorrect results!", rtol, atol);
-                std::cout << "Relative error threshold: " << rtol
-                          << " Absolute error threshold: " << atol << std::endl;
+                if(split_k_for_run > 1)
+                {
+                    pass &= ck::utils::check_err(
+                        in_device, in_host, "Error: Incorrect results!", rtol, atol);
+                    std::cout << "Relative error threshold: " << rtol
+                              << " Absolute error threshold: " << atol << std::endl;
+                }
+                else
+                {
+                    pass &= ck::utils::check_err(in_device, in_host, "Error: Incorrect results!");
+                }
 
                 if(do_log)
                 {
@@ -209,18 +231,21 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     };
 
     // do GEMM
-    using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD<NDimSpatial,
-                                                                                     OutLayout,
-                                                                                     WeiLayout,
-                                                                                     ck::Tuple<>,
-                                                                                     InLayout,
-                                                                                     OutDataType,
-                                                                                     WeiDataType,
-                                                                                     ck::Tuple<>,
-                                                                                     InDataType,
-                                                                                     OutElementOp,
-                                                                                     WeiElementOp,
-                                                                                     InElementOp>;
+    using DeviceOp =
+        ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD<NDimSpatial,
+                                                                        OutLayout,
+                                                                        WeiLayout,
+                                                                        ck::Tuple<>,
+                                                                        InLayout,
+                                                                        OutDataType,
+                                                                        WeiDataType,
+                                                                        ck::Tuple<>,
+                                                                        InDataType,
+                                                                        OutElementOp,
+                                                                        WeiElementOp,
+                                                                        InElementOp,
+                                                                        ComputeDataType,
+                                                                        ComputeDataType>;
 
     // get device op instances
     const auto op_ptrs = ck::tensor_operation::device::instance::DeviceOperationInstanceFactory<
@@ -291,6 +316,11 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
               << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops
               << "\nGB/s: " << best_gb_per_sec << ", SplitK " << best_split_k << std::endl;
 
+    if(instance_index != -1)
+    {
+        std::cout << "grouped_conv_bwd_data_instance (" << instance_index << "/" << num_kernel
+                  << "): Passed" << std::endl;
+    }
     return pass;
 }
 

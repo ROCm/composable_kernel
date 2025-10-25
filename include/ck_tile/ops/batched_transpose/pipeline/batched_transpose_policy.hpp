@@ -18,12 +18,12 @@ struct BatchedTransposePolicy : public BatchedTransposeCommonPolicy
         constexpr index_t NPerBlock   = Problem::kNPerBlock;
         constexpr index_t VecLoadSize = Problem::VectorSizeOutput;
 
-        using TileEncodingPattern = TileDistributionEncodingPattern2D<BlockSize,
-                                                                      NPerBlock,
-                                                                      MPerBlock,
-                                                                      VecLoadSize,
-                                                                      TileAccessPattern>;
-        return TileEncodingPattern::MakeShuffled2DStaticTileDistribution();
+        using TileEncodingPattern = tile_distribution_encoding_pattern_2d<BlockSize,
+                                                                          MPerBlock,
+                                                                          NPerBlock,
+                                                                          VecLoadSize,
+                                                                          TileAccessPattern>;
+        return TileEncodingPattern::make_shuffled_2d_static_tile_distribution();
     }
 };
 } // namespace ck_tile

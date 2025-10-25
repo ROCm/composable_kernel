@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/elementwise.hpp"
 #include "ck_tile/host/reference/reference_elementwise.hpp"
+#include "ck_tile/utility/json_dump.hpp"
+#include "elementwise_common.hpp"
 
 auto create_args(int argc, char* argv[])
 {
@@ -14,15 +15,18 @@ auto create_args(int argc, char* argv[])
         .insert("dim2", "32", "dimension 2")
         .insert("dim3", "32", "dimension 3")
         .insert("v", "1", "cpu validation or not")
-        .insert("prec", "fp16", "precision")
+        .insert("x_prec", "fp16", "input precision")
+        .insert("y_prec", "fp16", "output precision")
         .insert("warmup", "10", "cold iter")
-        .insert("repeat", "50", "hot iter");
+        .insert("repeat", "50", "hot iter")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
+        .insert("jsonfile", "elementwise_add_4d.json", "json file name to dump results");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
 
-template <typename DataType>
+template <typename XDataType, typename YDataType>
 bool run(const ck_tile::ArgParser& arg_parser)
 {
     ck_tile::index_t D0 = arg_parser.get_int("dim0");
@@ -30,15 +34,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::index_t D2 = arg_parser.get_int("dim2");
     ck_tile::index_t D3 = arg_parser.get_int("dim3");
 
-    std::string data_type = arg_parser.get_str("prec");
-    int do_validation     = arg_parser.get_int("v");
-    int warmup            = arg_parser.get_int("warmup");
-    int repeat            = arg_parser.get_int("repeat");
+    int do_validation = arg_parser.get_int("v");
+    int warmup        = arg_parser.get_int("warmup");
+    int repeat        = arg_parser.get_int("repeat");
 
-    using XDataType = DataType;
     using ComputeDataType =
         float; // Using float for intermediate calculations can improve numerical stability.
-    using YDataType             = DataType;
     using XElementwiseOperation = ck_tile::element_wise::Add;
 
     // Initialize the input data on the host (CPU).
@@ -69,7 +70,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using BlockWarps = ck_tile::sequence<1>;
     using WarpTile   = ck_tile::sequence<256>;
 
-    using Shape = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, ComputeDataType>;
+    using Shape = ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, XDataType>;
 
     using Problem = ck_tile::ElementWisePipelineProblem<XDataType,
                                                         ComputeDataType,
@@ -83,8 +84,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     for(auto d : problem_shape)
         total_elements *= d;
 
-    constexpr ck_tile::index_t kBlockSize =
-        ck_tile::get_warp_size() * BlockWarps::at(ck_tile::number<0>{});
+    const ck_tile::index_t kBlockSize = Kernel::BlockSize();
 
     constexpr ck_tile::index_t kBlockPerCu = 2;
 
@@ -113,7 +113,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     // Run the kernel
     float ave_time = launch_kernel(
         ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
-        ck_tile::make_kernel<kBlockSize, kBlockPerCu>(
+        ck_tile::make_kernel<kBlockPerCu>(
             Kernel{},
             kGridSize,
             kBlockSize,
@@ -140,20 +140,45 @@ bool run(const ck_tile::ArgParser& arg_parser)
             y_validation, y_host, "Elementwise Add Error: Incorrect results!", 0.01, 0.01);
     }
 
+    if(arg_parser.get_int("json") == 1)
+    {
+        dump_elementwise_json_results(arg_parser.get_str("jsonfile"),
+                                      arg_parser.get_str("prec"),
+                                      kGridSize,
+                                      kBlockSize,
+                                      ave_time,
+                                      0,
+                                      0,
+                                      "elementwise_add_4d");
+    }
+
     return pass;
 }
 
 int main(int argc, char* argv[])
 {
-    auto [result, arg_parser] = create_args(argc, argv);
+    bool result = true;
+    ck_tile::ArgParser arg_parser;
+    std::tie(result, arg_parser) = create_args(argc, argv);
     if(!result)
         return -1;
 
-    const std::string data_type = arg_parser.get_str("prec");
-    if(data_type == "fp16")
+    try
     {
-        return run<ck_tile::half_t>(arg_parser) ? 0 : -2;
+        const auto x_prec_variant = string_to_datatype(arg_parser.get_str("x_prec"));
+        const auto y_prec_variant = string_to_datatype(arg_parser.get_str("y_prec"));
+        return std::visit(
+            [&](auto&& x_dt, auto&& y_dt) -> int {
+                using XDataType = std::decay_t<decltype(x_dt)>;
+                using YDataType = std::decay_t<decltype(y_dt)>;
+                return run<XDataType, YDataType>(arg_parser);
+            },
+            x_prec_variant,
+            y_prec_variant);
     }
-
-    return -3;
+    catch(const std::exception& e)
+    {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return -3;
+    }
 }

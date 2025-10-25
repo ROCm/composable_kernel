@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/fmha.hpp"
@@ -15,6 +16,10 @@
 #include <type_traits>
 #include <utility>
 #include <variant>
+
+struct FmhaFwdFp32
+{
+};
 
 struct FmhaFwdFp16
 {
@@ -40,8 +45,28 @@ struct FmhaFwdFp8Bf16
 {
 };
 
+struct FmhaFwdFp8Fp32
+{
+};
+
 template <typename DataType>
 struct FmhaFwdTypeConfig;
+
+template <>
+struct FmhaFwdTypeConfig<FmhaFwdFp32>
+{
+    using QDataType             = float;
+    using KDataType             = float;
+    using VDataType             = float;
+    using BiasDataType          = float;
+    using RandValOutputDataType = uint8_t;
+    using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
+    using SaccDataType          = float; // data type for first gemm accumulation
+    using SMPLComputeDataType   = float; // data type for reduction, softmax
+    using PDataType             = float; // data type for A matrix of second gemm
+    using OaccDataType          = float; // data type for second gemm accumulation
+    using ODataType             = float;
+};
 
 template <>
 struct FmhaFwdTypeConfig<FmhaFwdFp16>
@@ -107,6 +132,38 @@ struct FmhaFwdTypeConfig<FmhaFwdBf8>
     using ODataType             = ck_tile::bf8_t;
 };
 
+template <>
+struct FmhaFwdTypeConfig<FmhaFwdFp8Bf16>
+{
+    using QDataType             = ck_tile::fp8_t;
+    using KDataType             = ck_tile::fp8_t;
+    using VDataType             = ck_tile::fp8_t;
+    using BiasDataType          = float;
+    using RandValOutputDataType = uint8_t;
+    using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
+    using SaccDataType          = float; // data type for first gemm accumulation
+    using SMPLComputeDataType   = float; // data type for reduction, softmax
+    using PDataType             = ck_tile::fp8_t; // data type for A matrix of second gemm
+    using OaccDataType          = float;          // data type for second gemm accumulation
+    using ODataType             = ck_tile::bf16_t;
+};
+
+template <>
+struct FmhaFwdTypeConfig<FmhaFwdFp8Fp32>
+{
+    using QDataType             = ck_tile::fp8_t;
+    using KDataType             = ck_tile::fp8_t;
+    using VDataType             = ck_tile::fp8_t;
+    using BiasDataType          = float;
+    using RandValOutputDataType = uint8_t;
+    using LSEDataType           = float; // data type for lse(logsumexp L_j = max_j + log(l_j))
+    using SaccDataType          = float; // data type for first gemm accumulation
+    using SMPLComputeDataType   = float; // data type for reduction, softmax
+    using PDataType             = ck_tile::fp8_t; // data type for A matrix of second gemm
+    using OaccDataType          = float;          // data type for second gemm accumulation
+    using ODataType             = float;
+};
+
 struct FmhaMasks
 {
     using NoMask      = ck_tile::GenericAttentionMask<false>;
@@ -125,10 +182,19 @@ struct fmha_fwd_args
     void* lse_ptr;
     void* o_ptr;
 
+    // Optional cumulative sequence length arrays
+    // Batch mode: cu_seqlen_* override effective per-batch lengths (exclude PAD)
+    const ck_tile::index_t* cu_seqlen_q_ptr  = nullptr; // [batch+1]
+    const ck_tile::index_t* cu_seqlen_kv_ptr = nullptr; // [batch+1]
+
     const void* seqstart_q_ptr;
     const void* seqstart_k_ptr;
     const void*
         seqlen_k_ptr; // only used if both 'seqstart_q_ptr' & 'seqstart_k_ptr' are not nullptr
+
+    // Group mode: seqstart_padded_* provide physical starts including PAD (optional)
+    const void* seqstart_padded_q_ptr = nullptr; // [batch+1]
+    const void* seqstart_padded_k_ptr = nullptr; // [batch+1]
 
     ck_tile::index_t seqlen_q;
     ck_tile::index_t seqlen_k;
@@ -517,7 +583,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.min_seqlen_q,
                                              args.p_drop,
                                              args.s_randval,
-                                             args.drop_seed_offset);
+                                             args.drop_seed_offset,
+                                             args.seqstart_padded_q_ptr,
+                                             args.seqstart_padded_k_ptr);
         }
         else
         { // create batch mode kernel arguments
@@ -563,7 +631,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.mask_type,
                                              args.p_drop,
                                              args.s_randval,
-                                             args.drop_seed_offset);
+                                             args.drop_seed_offset,
+                                             args.cu_seqlen_q_ptr,
+                                             args.cu_seqlen_kv_ptr);
         }
     }();
 
@@ -1028,6 +1098,7 @@ template <ck_tile::index_t HDim_,
           bool kPadSK_,
           bool kPadD_,
           bool kPadDv_,
+          bool kUseTrLoad_,
           bool kSkipMinSeqlenQ_ = false>
 struct fmha_fwd_traits_
 {
@@ -1052,6 +1123,7 @@ struct fmha_fwd_traits_
     static constexpr bool kPadSK                     = kPadSK_;
     static constexpr bool kPadD                      = kPadD_;
     static constexpr bool kPadDv                     = kPadDv_;
+    static constexpr bool kUseTrLoad                 = kUseTrLoad_;
     static constexpr bool kSkipMinSeqlenQ            = kSkipMinSeqlenQ_;
 };
 
