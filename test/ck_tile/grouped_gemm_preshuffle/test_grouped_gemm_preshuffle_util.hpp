@@ -39,10 +39,13 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
     using BDataType   = typename Tuple::BDataType;
     using AccDataType = typename Tuple::AccDataType;
     using CDataType   = typename Tuple::CDataType;
-    using Persistent  = typename Tuple::Persistent;
-    using PrecType    = BDataType;
-    using DsLayout    = ck_tile::tuple<>; // not used
-    using DsDataType  = ck_tile::tuple<>; // not used
+
+    using DsLayout   = ck_tile::tuple<>; // not used
+    using DsDataType = ck_tile::tuple<>; // not used
+
+    // Get the persistent value from ck_tile::bool_constant
+    using PersistentType             = typename Tuple::Persistent;
+    static constexpr bool Persistent = PersistentType::value;
 
     static const bool kPadM = false;
     static const bool kPadN = false;
@@ -474,7 +477,7 @@ class TestCkTileGroupedGemmPreshuffle : public ::testing::Test
         ck_tile::DeviceMem gemm_workspace;
         gemm_workspace.Realloc(get_workspace_size(gemm_descs));
 
-        if constexpr(Persistent == true)
+        if constexpr(Persistent)
         {
             invoke_grouped_gemm_persistent<ALayout, BLayout, CLayout>(
                 gemm_descs,
