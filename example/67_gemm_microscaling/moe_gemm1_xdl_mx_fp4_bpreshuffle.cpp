@@ -178,10 +178,10 @@ static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecializatio
 
 constexpr ck::index_t DataPackedSize   = 2;                    // Packed representation of data
 constexpr ck::index_t ScaleBlockSize   = 32;                   // scaling block size
-constexpr ck::index_t KPerBlock        = 128 / DataPackedSize; // 256 f4 = 128 fp4x2
+constexpr ck::index_t KPerBlock        = 256 / DataPackedSize; // 256 f4 = 128 fp4x2
 static constexpr ck::index_t Nswizzle  = false;
 static constexpr ck::index_t ActOP     = 0; // 0: gelu_and_mul, 1: silu_and_mul
-static constexpr ck::index_t MPerBlock = 32;
+static constexpr ck::index_t MPerBlock = 128;
 static constexpr bool MulRoutedWeight  = true;
 
 // clang-format off
@@ -190,10 +190,10 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemmMXBPreShuffl
     A0DataType,  A1DataType,  B0DataType,  B1DataType,  DsDataType, EDataType, AccDataType, CShuffleDataType,
     AElementOp,  BElementOp, CDEElementOp, GemmSpec,   
     ScaleBlockSize,  256, 
-    MPerBlock,  128,  KPerBlock,
+    MPerBlock,  64,  KPerBlock,
     16,   16,
     16,   16,
-    2,    2,
+    4,    2,
     S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 1,
     S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 1,
     2,    2,   S<1, 32, 1, 8>, S<8, 1, 1, 1>,
