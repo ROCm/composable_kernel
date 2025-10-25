@@ -12,6 +12,8 @@ namespace element_wise {
 
 struct Add
 {
+    static constexpr const char* name = "Add";
+
     template <typename Y, typename X0, typename X1>
     __host__ __device__ constexpr void operator()(Y& y, const X0& x0, const X1& x1) const;
 
@@ -279,6 +281,8 @@ struct Subtract
 
 struct Bilinear
 {
+    static constexpr const char* name = "Bilinear";
+
     Bilinear(float alpha = 1.f, float beta = 1.f) : alpha_(alpha), beta_(beta){};
 
     template <typename Y, typename X0, typename X1>
@@ -353,6 +357,8 @@ struct Bilinear
 
 struct AddClamp
 {
+    static constexpr const char* name = "AddClamp";
+
     AddClamp(float floor = 0.f, float ceil = NumericLimits<float>::Max())
         : floor_(floor), ceil_(ceil){};
 
@@ -442,6 +448,8 @@ struct AddClamp
 
 struct AddRelu
 {
+    static constexpr const char* name = "AddRelu";
+
     template <typename Y, typename X0, typename X1>
     __host__ __device__ constexpr void operator()(Y& y, const X0& x0, const X1& x1) const;
 
