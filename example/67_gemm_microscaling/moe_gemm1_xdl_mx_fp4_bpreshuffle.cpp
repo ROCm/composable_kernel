@@ -178,7 +178,7 @@ static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecializatio
 
 constexpr ck::index_t DataPackedSize   = 2;                    // Packed representation of data
 constexpr ck::index_t ScaleBlockSize   = 32;                   // scaling block size
-constexpr ck::index_t KPerBlock        = 128 / DataPackedSize; // 256 f4 = 128 fp4x2
+constexpr ck::index_t KPerBlock        = 256 / DataPackedSize; // 256 f4 = 128 fp4x2
 static constexpr ck::index_t Nswizzle  = false;
 static constexpr ck::index_t ActOP     = 0; // 0: gelu_and_mul, 1: silu_and_mul
 static constexpr ck::index_t MPerBlock = 32;
