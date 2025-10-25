@@ -177,7 +177,7 @@ constexpr ck::index_t DataPackedSize = 2;                    // Packed represent
 constexpr ck::index_t ScaleBlockSize = 32;                   // scaling block size
 constexpr ck::index_t KPerBlock      = 256 / DataPackedSize; // 256 f4 = 128 fp4x2
 
-static constexpr ck::index_t MPerBlock = 128;
+static constexpr ck::index_t MPerBlock = 32;
 static constexpr bool MulRoutedWeight  = true;
 
 // clang-format off
@@ -189,7 +189,7 @@ using DeviceOpInstance                     = ck::tensor_operation::device::Devic
     MPerBlock,   128,    KPerBlock,
     16,   16,
     16,   16,
-    8,    2,
+    2,    2,
     S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 1,
     S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 1,
     2,    2,   S<1, 4, 1, 64>, S<2, 1, 1, 1>,
@@ -204,16 +204,16 @@ int main(int argc, char* argv[])
 
     // per expert:
     // GEMM shape
-    constexpr ck::index_t sorted_tile_num = 13;
-    constexpr ck::index_t valid_tile_num  = 13;
+    constexpr ck::index_t sorted_tile_num = 256;
+    constexpr ck::index_t valid_tile_num  = 256;
     ck::index_t sorted_size               = sorted_tile_num * MPerBlock;
     ck::index_t valid_size                = valid_tile_num * MPerBlock;
 
-    ck::index_t N       = 6144;
-    ck::index_t K       = 4096;
-    ck::index_t experts = 8;
-    ck::index_t tokens  = 832;
-    ck::index_t topk    = 2;
+    ck::index_t N       = 7168;
+    ck::index_t K       = 256;
+    ck::index_t experts = 256;
+    ck::index_t tokens  = 64;
+    ck::index_t topk    = 8;
 
     if(argc == 1)
     {
