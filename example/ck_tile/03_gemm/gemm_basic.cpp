@@ -2,6 +2,9 @@
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gemm_utils.hpp"
+#include "run_gemm_example.inc"
+#include "run_gemm_example_common.hpp"
+#include "gemm_basic_invoker.hpp"
 #include "ck_tile/core/utility/gemm_validation.hpp"
 
 template <typename GemmConfig,
@@ -68,7 +71,6 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
                                              ck_tile::tuple<>,
                                              CLayout,
                                              ck_tile::element_wise::PassThrough,
-                                             CodegenPipelineProblem::kBlockSize,
                                              TilePartitioner::MPerBlock,
                                              TilePartitioner::NPerBlock,
                                              M_Warp,
@@ -121,10 +123,6 @@ float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     }
 }
 
-#include "run_gemm_example.inc"
-#include "run_gemm_example_common.hpp"
-#include "gemm_basic_invoker.hpp"
-
 int run_gemm_example(ck_tile::ArgParser& arg_parser)
 {
     std::string data_type = arg_parser.get_str("prec");
@@ -139,11 +137,11 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
     int stride_b = arg_parser.get_int("stride_b");
     int stride_c = arg_parser.get_int("stride_c");
 
-    ck_tile::validate_gemm_stride(
-        a_layout, b_layout, c_layout, m, n, k, stride_a, stride_b, stride_c);
-
     using GemmConfig = GemmConfigBase;
     using Invoker    = BasicInvoker;
+
+    ck_tile::validate_gemm_stride(
+        a_layout, b_layout, c_layout, m, n, k, stride_a, stride_b, stride_c);
 
     if(data_type == "fp16")
     {
