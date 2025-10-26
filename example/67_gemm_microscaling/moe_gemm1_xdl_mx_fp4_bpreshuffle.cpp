@@ -178,7 +178,7 @@ static constexpr auto GemmSpec = ck::tensor_operation::device::GemmSpecializatio
 
 constexpr ck::index_t DataPackedSize   = 2;                    // Packed representation of data
 constexpr ck::index_t ScaleBlockSize   = 32;                   // scaling block size
-constexpr ck::index_t KPerBlock        = 256 / DataPackedSize; // 256 f4 = 128 fp4x2
+constexpr ck::index_t KPerBlock        = 512 / DataPackedSize; // 256 f4 = 128 fp4x2
 static constexpr ck::index_t Nswizzle  = false;
 static constexpr ck::index_t ActOP     = 0; // 0: gelu_and_mul, 1: silu_and_mul
 static constexpr ck::index_t MPerBlock = 32;
@@ -194,8 +194,8 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceMoeGemmMXBPreShuffl
     16,   16,
     16,   16,
     2,    2,
-    S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 1,
-    S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 1,
+    S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 1,
+    S<16, 16, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 1,
     2,    2,   S<1, 32, 1, 8>, S<8, 1, 1, 1>,
     ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, ActOP, Nswizzle, true, MulRoutedWeight, ck::index_t, A0DataType>;
 // clang-format on
@@ -208,16 +208,16 @@ int main(int argc, char* argv[])
 
     // per expert:
     // GEMM shape
-    constexpr ck::index_t sorted_tile_num = 13;
+    constexpr ck::index_t sorted_tile_num = 256;
     constexpr ck::index_t valid_tile_num  = sorted_tile_num;
     ck::index_t sorted_size               = sorted_tile_num * MPerBlock;
     ck::index_t valid_size                = valid_tile_num * MPerBlock;
 
-    ck::index_t N       = 6144;
-    ck::index_t K       = 4096;
-    ck::index_t experts = 8;
-    ck::index_t tokens  = 832;
-    ck::index_t topk    = 2;
+    ck::index_t N       = 256;
+    ck::index_t K       = 7168;
+    ck::index_t experts = 256;
+    ck::index_t tokens  = 64;
+    ck::index_t topk    = 8;
 
     if(argc == 1)
     {
@@ -273,17 +273,18 @@ int main(int argc, char* argv[])
         printf("err config, tokens * topk > valid_size\n");
         exit(-1);
     }
-
     for(int i = 0; i < sorted_tile_num; i++)
     {
-        expert_ids.mData[i] = i / ck::math::integer_divide_ceil(valid_tile_num, experts);
+        expert_ids.mData[i] = i / (valid_tile_num / experts);
     }
+
     int token_per_tile = (tokens * topk + valid_tile_num - 1) / valid_tile_num;
     int tokenid        = 0;
+
     for(int i = 0; i < sorted_size; i++)
     {
         int tile_off = i % MPerBlock;
-        if(tile_off < token_per_tile)
+        if(tile_off < token_per_tile && tokenid < tokens * topk)
         {
             sorted_token_ids.mData[i] = (tokenid % tokens) | ((tokenid / tokens) << 24);
             tokenid++;
@@ -293,7 +294,6 @@ int main(int argc, char* argv[])
             sorted_token_ids.mData[i] = tokens;
         }
     }
-
     Tensor<A0DataType> a0_t_k(HostTensorDescriptor({tokens, K}, {K, 1}));
     Tensor<XDataType> a1_t_k(HostTensorDescriptor(
         {tokens, (K + ScaleBlockSize - 1) / ScaleBlockSize}, {Scale_Stride_AM, 1}));
@@ -492,11 +492,11 @@ int main(int argc, char* argv[])
             // FMA * tokens * N * (Gate+Up) * topk * (K/BlockScale)
             std::size_t(2) * tokens * N * 2 * topk * K +
             std::size_t(2) * tokens * N * 2 * topk * K / ScaleBlockSize;
-
+        int valid_expert = tokens * topk < experts? tokens * topk : experts;
         std::size_t num_btype = sizeof(A0DataType) / 2 * tokens * topk * K +
-                                sizeof(B0DataType) / 2 * K * N * 2 * experts +
+                                sizeof(B0DataType) * K * N * 2 / 2 * valid_expert +
                                 sizeof(XDataType) * tokens * topk * K / ScaleBlockSize +
-                                sizeof(XDataType) * K / ScaleBlockSize * N * 2 * experts +
+                                sizeof(XDataType) * K / ScaleBlockSize * N * 2 * valid_expert +
                                 sizeof(EDataType) * tokens * topk * N;
 
         float tflops = static_cast<float>(flop) / 1.E9 / ave_time;
