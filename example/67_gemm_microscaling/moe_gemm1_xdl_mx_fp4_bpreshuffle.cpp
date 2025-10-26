@@ -208,11 +208,6 @@ int main(int argc, char* argv[])
 
     // per expert:
     // GEMM shape
-    constexpr ck::index_t sorted_tile_num = 256;
-    constexpr ck::index_t valid_tile_num  = sorted_tile_num;
-    ck::index_t sorted_size               = sorted_tile_num * MPerBlock;
-    ck::index_t valid_size                = valid_tile_num * MPerBlock;
-
     ck::index_t N       = 256;
     ck::index_t K       = 7168;
     ck::index_t experts = 256;
@@ -253,6 +248,10 @@ int main(int argc, char* argv[])
         throw std::runtime_error("wrong! K must be multiple of ScaleBlockSize.");
     };
 
+    ck::index_t sorted_tile_num = experts > tokens  * topk ? experts : tokens * topk;
+    ck::index_t valid_tile_num  = sorted_tile_num;
+    ck::index_t sorted_size               = sorted_tile_num * MPerBlock;
+    ck::index_t valid_size                = valid_tile_num * MPerBlock;
     ck::index_t StrideA              = K;
     ck::index_t StrideB              = K;
     ck::index_t StrideE              = N;
