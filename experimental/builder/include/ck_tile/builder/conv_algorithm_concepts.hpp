@@ -62,7 +62,8 @@ concept LdsTransferDescriptor = requires(T t) {
     { t.lds_padding } -> std::convertible_to<bool>;
 };
 
-// Concept for the convolution output tensor epilogue (copy from registers to global memory via LDS).
+// Concept for the convolution output tensor epilogue (copy from registers to global memory via
+// LDS).
 template <typename T>
 concept EpilogueDescriptor = requires(T t) {
     { t.m_xdl_per_wave_per_shuffle } -> std::convertible_to<size_t>;
@@ -99,8 +100,8 @@ concept SpecifiesGridwiseGemm = requires {
 // Concept to check if a struct specifies convolution input and output block transfer info.
 template <typename T>
 concept SpecifiesBlockTransfer = requires(T t) {
-    { T::block_transfer.block_transfer_a }      -> BlockTransferDescriptor;
-    { T::block_transfer.block_transfer_b }      -> BlockTransferDescriptor;
+    { T::block_transfer.block_transfer_a } -> BlockTransferDescriptor;
+    { T::block_transfer.block_transfer_b } -> BlockTransferDescriptor;
     { T::block_transfer.thread_cluster_dims_c } -> ThreadClusterDescriptor;
 };
 
@@ -109,7 +110,7 @@ template <typename T>
 concept SpecifiesLdsTransfer = requires(T t) {
     { T::block_transfer.lds_transfer_a } -> LdsTransferDescriptor;
     { T::block_transfer.lds_transfer_b } -> LdsTransferDescriptor;
-    { T::block_transfer.epilogue_c }    -> EpilogueDescriptor;
+    { T::block_transfer.epilogue_c } -> EpilogueDescriptor;
 };
 
 // Concept to check if a struct specifies thread cluster access order info.

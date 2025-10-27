@@ -64,8 +64,8 @@ template <typename T>
 constexpr std::string_view layout_name()
 {
     if constexpr((std::is_base_of_v<ck_tile::tensor_layout::BaseTensorLayout, T> ||
-                  std::is_base_of_v<ck::tensor_layout::BaseTensorLayout, T>
-                 ) && requires {
+                  std::is_base_of_v<ck::tensor_layout::BaseTensorLayout, T>) &&
+                 requires {
                      { T::name } -> std::convertible_to<std::string_view>;
                  })
         return T::name;

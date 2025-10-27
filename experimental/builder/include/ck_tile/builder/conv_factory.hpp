@@ -462,8 +462,9 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         .conv_spec = FWD_CONV_SPECIALIZATION,
         .gemm_spec = ck::tensor_operation::device::GemmSpecialization::MNKPadding,
     };
-    static constexpr auto BLOCK  = factory_internal::SetThreadBlockInfo<ALGORITHM>();
-    static constexpr auto GRIDWISE_GEMM = factory_internal::SetGridwiseGemmInfo<SIGNATURE, ALGORITHM>();
+    static constexpr auto BLOCK = factory_internal::SetThreadBlockInfo<ALGORITHM>();
+    static constexpr auto GRIDWISE_GEMM =
+        factory_internal::SetGridwiseGemmInfo<SIGNATURE, ALGORITHM>();
     static constexpr auto A_BLOCK_TRANSFER =
         factory_internal::SetFwdConvABlockTransfer<ALGORITHM>();
     static constexpr auto B_BLOCK_TRANSFER =

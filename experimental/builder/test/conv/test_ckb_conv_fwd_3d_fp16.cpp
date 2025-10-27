@@ -2,16 +2,19 @@
 
 using namespace ck_tile::builder::test_utils;
 
-class FwdConv3DFP16Test : public FwdConvBuilderTestBase {};
+class FwdConv3DFP16Test : public FwdConvBuilderTestBase
+{
+};
 
 // 3D FP16 NDHWGC (channels-last) with Pipeline V4 and FILTER_1X1_PAD0
-TEST_F(FwdConv3DFP16Test, Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_3D_FP16_NDHWGC_ChannelsLast)
+TEST_F(FwdConv3DFP16Test,
+       Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_3D_FP16_NDHWGC_ChannelsLast)
 {
     constexpr ConvSignature<GroupConvLayout3D> FwdConvSignature{
-        .spatial_dim = 3,
-        .direction   = ConvDirection::FORWARD,
-        .layout      = GroupConvLayout3D::NDHWGC_GKZYXC_NDHWGK,
-        .data_type   = DataType::FP16,
+        .spatial_dim           = 3,
+        .direction             = ConvDirection::FORWARD,
+        .layout                = GroupConvLayout3D::NDHWGC_GKZYXC_NDHWGK,
+        .data_type             = DataType::FP16,
         .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
 
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
