@@ -105,6 +105,7 @@ template <typename Problem, typename Policy = UniversalGemmPipelineAgBgCrPolicy>
 struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
 {
     using Base             = BaseGemmPipelineAgBgCrCompV3<Problem>;
+    using BaseBase             = BaseGemmPipelineAgBgCrCompV3<Problem>;
     using PipelineImplBase = GemmPipelineAgBgCrImplBase<Problem, Policy>;
 
     using AsDataType = remove_cvref_t<typename Problem::AsDataTypeTuple>;
@@ -536,7 +537,9 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             __builtin_amdgcn_sched_barrier(0);
 
             // main body
-            if constexpr(HasHotLoop)
+            const auto has_hot_loop = amd_wave_read_first_lane(BaseBase::BlockHasHotloop(num_loop));
+            const auto tail_num = amd_wave_read_first_lane(BaseBase::GetBlockLoopTailNum(num_loop));
+            if (has_hot_loop)
             {
                 index_t i = 0;
                 do
@@ -587,7 +590,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                 } while(i < (num_loop - 1));
             }
             // tail
-            if constexpr((TailNum == TailNumber::Full) || (TailNum == TailNumber::Odd))
+            if ((tail_num == TailNumber::Full) || (tail_num == TailNumber::Odd))
             {
                 // Leak last MFMA block to epilogue region, cover the potential lds-shuffle
                 // latency
