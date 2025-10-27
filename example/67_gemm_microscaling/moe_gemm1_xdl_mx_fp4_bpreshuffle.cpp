@@ -207,7 +207,7 @@ int main(int argc, char* argv[])
 
     // per expert:
     // GEMM shape
-    constexpr ck::index_t sorted_tile_num = 256;
+    constexpr ck::index_t sorted_tile_num = 13;
     constexpr ck::index_t valid_tile_num  = sorted_tile_num;
     ck::index_t sorted_size               = sorted_tile_num * MPerBlock;
     ck::index_t valid_size                = valid_tile_num * MPerBlock;
@@ -215,7 +215,7 @@ int main(int argc, char* argv[])
     ck::index_t N       = 7168;
     ck::index_t K       = 256;
     ck::index_t experts = 8;
-    ck::index_t tokens  = 64;
+    ck::index_t tokens  = 208;
     ck::index_t topk    = 2;
 
     if(argc == 1)
