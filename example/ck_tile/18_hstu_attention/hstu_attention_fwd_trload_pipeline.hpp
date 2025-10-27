@@ -11,7 +11,7 @@
 namespace ck_tile {
 
 template <typename Problem_, typename Policy_ = HstuAttentionFwdPipelineQRKSVSDefaultPolicy>
-struct HstuAttentionFwdPipelineQRKSVS
+struct HstuAttentionFwdPipelineQRKSVSTrLoad
 {
     using Problem         = remove_cvref_t<Problem_>;
     using Policy          = remove_cvref_t<Policy_>;
@@ -40,9 +40,9 @@ struct HstuAttentionFwdPipelineQRKSVS
     static constexpr bool kHasDropout = Problem::kHasDropout;
     static constexpr bool kHasCausal  = Problem::kHasCausal;
 
-    static_assert(Problem::kUseTrLoad == false, "Check failed!");
+    static_assert(Problem::kUseTrLoad == true, "Check failed!");
 
-    static constexpr bool kUseTrLoad = false;
+    static constexpr bool kUseTrLoad = true;
 
     static constexpr bool kPadSeqLenQ   = Problem::Traits::kPadSeqLenQ;
     static constexpr bool kPadSeqLenK   = Problem::Traits::kPadSeqLenK;
@@ -278,19 +278,19 @@ struct HstuAttentionFwdPipelineQRKSVS
             v_lds, Policy::template MakeVLdsBlockDescriptor<Problem>().get_lengths(), {0, 0});
 
         using v_lds_window_type =
-            decltype(get_slice_tile(v_lds_window, sequence<0, 0>{}, sequence<kN1, kK1>{}));
+            decltype(get_slice_tile(v_lds_window, sequence<0, 0>{}, sequence<kK1, kN1>{}));
 
         statically_indexed_array<v_lds_window_type, NumKVLdsBuffers> v_lds_windows;
 
         static_for<0, NumKVLdsBuffers, 1>{}([&](auto i_buf) {
             v_lds_windows[i_buf] = get_slice_tile(
-                v_lds_window, sequence<i_buf * kN1, 0>{}, sequence<(i_buf + 1) * kN1, kK1>{});
+                v_lds_window, sequence<i_buf * kK1, 0>{}, sequence<(i_buf + 1) * kK1, kN1>{});
         });
 
         auto v_dram_window =
             make_tile_window(v_dram_block_window_tmp.get_bottom_tensor_view(),
                              v_dram_block_window_tmp.get_window_lengths(),
-                             {0, seqlen_k_start}, // TODO: hdim split?
+                             {seqlen_k_start, 0},
                              Policy::template MakeVDramTileDistribution<Problem>());
 
         // reduction function for softmax
@@ -414,7 +414,7 @@ struct HstuAttentionFwdPipelineQRKSVS
 
                 // load v_tiles used in current iteration
                 v_tiles[i_k1] = load_tile(v_dram_window);
-                move_tile_window(v_dram_window, {0, kK1});
+                move_tile_window(v_dram_window, {kK1, 0});
 
                 __builtin_amdgcn_sched_barrier(0x00000001);
 
@@ -591,14 +591,6 @@ struct HstuAttentionFwdPipelineQRKSVS
 
             auto p = cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, pcomp_tile));
 
-            using v_shuffled_tile_type = decltype(make_static_distributed_tensor<QKVDataType>(
-                Policy::template MakeShuffledVRegTileDistribution<Problem>()));
-
-            statically_indexed_array<v_shuffled_tile_type, k1_loops> v_shuffled_tiles;
-
-            static_for<0, k1_loops, 1>{}(
-                [&](auto i_k1) { shuffle_tile(v_shuffled_tiles[i_k1], v_tiles[i_k1]); });
-
             // check whether first V-LdsBufer overlap with last K-LdsBuffer,
             // this does not occur when k1_loops == 2 and NumKVLdsBuffers == 4
             if constexpr((k1_loops - 1) % NumKVLdsBuffers == 2 % NumKVLdsBuffers)
@@ -609,7 +601,7 @@ struct HstuAttentionFwdPipelineQRKSVS
             // STAGE 3, Gemm_1 ( O = P@V )
             static_for<0, k1_loops, 1>{}([&](auto i_k1) {
                 store_tile(v_lds_windows[number<(i_k1 + 2) % NumKVLdsBuffers>{}],
-                           tile_elementwise_in(v_element_func, v_shuffled_tiles[i_k1]));
+                           tile_elementwise_in(v_element_func, v_tiles[number<i_k1>{}]));
 
                 __builtin_amdgcn_sched_barrier(0x00000001);
 
@@ -621,18 +613,13 @@ struct HstuAttentionFwdPipelineQRKSVS
 
                 block_sync_lds();
 
+                __builtin_amdgcn_sched_barrier(0x00000001);
+
                 gemm_1(
                     o_acc,
                     get_slice_tile(p, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}),
-                    v_lds_windows[number<(i_k1 + 2) % NumKVLdsBuffers>{}]);
+                    v_lds_windows[number<i_k1 + 2>{}]);
             });
-
-            // check whether last V-LdsBuffer overlap with first K-LdsBuffer,
-            // this does not occur when k1_loops == 2 and NumKVLdsBuffers == 4
-            if constexpr((k1_loops - 1 + 2) % NumKVLdsBuffers == 0)
-            {
-                __builtin_amdgcn_s_barrier();
-            };
         } while(seqlen_k_curr < seqlen_k_end);
 
         if constexpr(kUseSoftmax)
