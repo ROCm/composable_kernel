@@ -1488,7 +1488,7 @@ pipeline {
                                             -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
-                                            -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8" \
+                                            -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf16;bf8" \
                                             -D GEMM_PRESHUFFLE_LAYOUT="rcr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_all && \
@@ -1528,7 +1528,7 @@ pipeline {
                                             -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
-                                            -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8" \
+                                            -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf16;bf8" \
                                             -D GEMM_PRESHUFFLE_LAYOUT="rcr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_all && \
@@ -1570,11 +1570,7 @@ pipeline {
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_all && \
                                            python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" \
-                                           --warmup 5 --repeat 5 --verbose --json results.json && \
-                                           ninja -j64 benchmark_gemm_fp16_rcr && \
-                                           ninja -j64 benchmark_gemm_fp16_rrr && \
-                                           ninja -j64 benchmark_gemm_fp16_crr && \
-                                           ninja -j64 benchmark_gemm_fp16_ccr """
+                                           --warmup 5 --repeat 5 --verbose --json results.json """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
