@@ -3,7 +3,8 @@
 
 #include <ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_convscale_relu.hpp>
 #include <ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_convscale_add.hpp>
-
+#include <ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_convinvscale.hpp>
+#include <ck/library/tensor_operation_instance/device_operation_instance_factory.hpp>
 #include "testing_utils.hpp"
 
 using ck_tile::test::InstanceSet;
@@ -18,6 +19,7 @@ using OutLayout                     = ck::tensor_layout::convolution::NDHWGK;
 
 using ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD;
 using ck::tensor_operation::device::instance::CombConvScaleRelu;
+using ck::tensor_operation::element_wise::ConvInvscale;
 using ck::tensor_operation::element_wise::ConvScaleAdd;
 using ck::tensor_operation::element_wise::ConvScaleRelu;
 using ck::tensor_operation::element_wise::PassThrough;
@@ -82,7 +84,19 @@ struct F8_ConvScaleAdd
     };
 };
 
-using TestTypes = ::testing::Types<F8_ConvScaleRelu, F8_CombConvScaleRelu, F8_ConvScaleAdd>;
+struct F8_ConvInvscale
+{
+    using DeviceOp = ::DeviceOp<ck::Tuple<>, ck::Tuple<>, ck::f8_t, ConvInvscale>;
+
+    constexpr static auto expected = {
+        // clang-format off
+        ""
+        // clang-format on
+    };
+};
+
+using TestTypes =
+    ::testing::Types<F8_ConvScaleRelu, F8_CombConvScaleRelu, F8_ConvScaleAdd, F8_ConvInvscale>;
 
 TYPED_TEST_SUITE(CkFactoryTestConvFwd, TestTypes);
 
