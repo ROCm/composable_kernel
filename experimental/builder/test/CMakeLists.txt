@@ -17,10 +17,14 @@ function(add_ck_builder_test test_name)
 endfunction()
 
 add_ck_builder_test(test_conv_builder
-    test_conv_builder.cpp)
+    test_conv_builder.cpp
+    test_instance_traits.cpp
+    testing_utils.cpp)
 
 add_ck_builder_test(test_get_instance_string
     test_get_instance_string.cpp)
+
+add_ck_builder_test(test_inline_diff test_inline_diff.cpp testing_utils.cpp)
 
 add_ck_builder_test(test_ckb_build_fwd_instances
     conv/test_ckb_conv_fwd_2d_bf16.cpp
