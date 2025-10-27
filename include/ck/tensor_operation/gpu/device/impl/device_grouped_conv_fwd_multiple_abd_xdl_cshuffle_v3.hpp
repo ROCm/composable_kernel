@@ -122,29 +122,54 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
         if constexpr(GridwiseGemm::DirectLoadEnabled)
         {
-#if !defined(__gfx950__)
-            return;
+#if defined(__gfx950__)
+            GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+                karg.p_a_grid + a_group_offset + a_n_offset,
+                karg.p_b_grid + b_group_offset,
+                p_ds_grid_grp,
+                karg.p_c_grid + e_group_offset + e_n_offset,
+                p_shared,
+                karg,
+                karg.a_element_op,
+                karg.b_element_op,
+                karg.c_element_op,
+                block_2_ctile_map,
+                GridwiseGemm::template TransformGrid<decltype(a_grid_desc_ak0_m_ak1),
+                                                     GridwiseGemm::AK0Number,
+                                                     GridwiseGemm::AK1Number>(
+                    a_grid_desc_ak0_m_ak1),
+                GridwiseGemm::template TransformGrid<decltype(b_grid_desc_bk0_n_bk1),
+                                                     GridwiseGemm::BK0Number,
+                                                     GridwiseGemm::BK1Number>(
+                    b_grid_desc_bk0_n_bk1),
+                ds_grid_desc_m_n,
+                c_grid_desc_m_n);
 #endif
         }
-        GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-            karg.p_a_grid + a_group_offset + a_n_offset,
-            karg.p_b_grid + b_group_offset,
-            p_ds_grid_grp,
-            karg.p_c_grid + e_group_offset + e_n_offset,
-            p_shared,
-            karg,
-            karg.a_element_op,
-            karg.b_element_op,
-            karg.c_element_op,
-            block_2_ctile_map,
-            GridwiseGemm::template TransformGrid<decltype(a_grid_desc_ak0_m_ak1),
-                                                 GridwiseGemm::AK0Number,
-                                                 GridwiseGemm::AK1Number>(a_grid_desc_ak0_m_ak1),
-            GridwiseGemm::template TransformGrid<decltype(b_grid_desc_bk0_n_bk1),
-                                                 GridwiseGemm::BK0Number,
-                                                 GridwiseGemm::BK1Number>(b_grid_desc_bk0_n_bk1),
-            ds_grid_desc_m_n,
-            c_grid_desc_m_n);
+        else
+        {
+            GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+                karg.p_a_grid + a_group_offset + a_n_offset,
+                karg.p_b_grid + b_group_offset,
+                p_ds_grid_grp,
+                karg.p_c_grid + e_group_offset + e_n_offset,
+                p_shared,
+                karg,
+                karg.a_element_op,
+                karg.b_element_op,
+                karg.c_element_op,
+                block_2_ctile_map,
+                GridwiseGemm::template TransformGrid<decltype(a_grid_desc_ak0_m_ak1),
+                                                     GridwiseGemm::AK0Number,
+                                                     GridwiseGemm::AK1Number>(
+                    a_grid_desc_ak0_m_ak1),
+                GridwiseGemm::template TransformGrid<decltype(b_grid_desc_bk0_n_bk1),
+                                                     GridwiseGemm::BK0Number,
+                                                     GridwiseGemm::BK1Number>(
+                    b_grid_desc_bk0_n_bk1),
+                ds_grid_desc_m_n,
+                c_grid_desc_m_n);
+        }
     }
 #else
     ignore = karg;
@@ -220,30 +245,56 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 
         if constexpr(GridwiseGemm::DirectLoadEnabled)
         {
-#if !defined(__gfx950__)
-            return;
+#if defined(__gfx950__)
+            GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+                karg.p_a_grid + a_group_offset + a_n_offset,
+                karg.p_b_grid + b_group_offset,
+                p_ds_grid_grp,
+                karg.p_c_grid + e_group_offset + e_n_offset,
+                p_shared_0,
+                p_shared_1,
+                karg,
+                karg.a_element_op,
+                karg.b_element_op,
+                karg.c_element_op,
+                block_2_ctile_map,
+                GridwiseGemm::template TransformGrid<decltype(a_grid_desc_ak0_m_ak1),
+                                                     GridwiseGemm::AK0Number,
+                                                     GridwiseGemm::AK1Number>(
+                    a_grid_desc_ak0_m_ak1),
+                GridwiseGemm::template TransformGrid<decltype(b_grid_desc_bk0_n_bk1),
+                                                     GridwiseGemm::BK0Number,
+                                                     GridwiseGemm::BK1Number>(
+                    b_grid_desc_bk0_n_bk1),
+                ds_grid_desc_m_n,
+                c_grid_desc_m_n);
 #endif
         }
-        GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
-            karg.p_a_grid + a_group_offset + a_n_offset,
-            karg.p_b_grid + b_group_offset,
-            p_ds_grid_grp,
-            karg.p_c_grid + e_group_offset + e_n_offset,
-            p_shared_0,
-            p_shared_1,
-            karg,
-            karg.a_element_op,
-            karg.b_element_op,
-            karg.c_element_op,
-            block_2_ctile_map,
-            GridwiseGemm::template TransformGrid<decltype(a_grid_desc_ak0_m_ak1),
-                                                 GridwiseGemm::AK0Number,
-                                                 GridwiseGemm::AK1Number>(a_grid_desc_ak0_m_ak1),
-            GridwiseGemm::template TransformGrid<decltype(b_grid_desc_bk0_n_bk1),
-                                                 GridwiseGemm::BK0Number,
-                                                 GridwiseGemm::BK1Number>(b_grid_desc_bk0_n_bk1),
-            ds_grid_desc_m_n,
-            c_grid_desc_m_n);
+        else
+        {
+            GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+                karg.p_a_grid + a_group_offset + a_n_offset,
+                karg.p_b_grid + b_group_offset,
+                p_ds_grid_grp,
+                karg.p_c_grid + e_group_offset + e_n_offset,
+                p_shared_0,
+                p_shared_1,
+                karg,
+                karg.a_element_op,
+                karg.b_element_op,
+                karg.c_element_op,
+                block_2_ctile_map,
+                GridwiseGemm::template TransformGrid<decltype(a_grid_desc_ak0_m_ak1),
+                                                     GridwiseGemm::AK0Number,
+                                                     GridwiseGemm::AK1Number>(
+                    a_grid_desc_ak0_m_ak1),
+                GridwiseGemm::template TransformGrid<decltype(b_grid_desc_bk0_n_bk1),
+                                                     GridwiseGemm::BK0Number,
+                                                     GridwiseGemm::BK1Number>(
+                    b_grid_desc_bk0_n_bk1),
+                ds_grid_desc_m_n,
+                c_grid_desc_m_n);
+        }
     }
 #else
     ignore = karg;
