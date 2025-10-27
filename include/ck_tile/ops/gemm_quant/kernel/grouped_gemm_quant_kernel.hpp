@@ -393,6 +393,13 @@ struct QuantGroupedGemmKernel
                 aq_block_window,
                 bq_block_window);
         }
+        else if constexpr(kQuantType == QuantType::TensorQuant)
+        {
+            const AccDataType aq_scale = type_convert<AccDataType>(*aq_ptr);
+            const AccDataType bq_scale = type_convert<AccDataType>(*bq_ptr);
+            EpiloguePipeline{}(
+                c_block_window, c_block_tile, c_block_window, smem_ptr_0, aq_scale, bq_scale);
+        }
     }
 
     // For persistent kernels
