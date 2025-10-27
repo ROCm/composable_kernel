@@ -184,6 +184,11 @@ int run_grouped_conv_fwd_bias_clamp_example_with_layouts(
 
     if(arg_parser.get_int("v") == 1)
     {
+        // FIXME: Address this issue
+        if(arg_parser.get_int("g") > 1 && init_method == 0)
+            std::cerr << "Adding different bias to different groups yield incorrect results"
+                      << std::endl;
+
         ck_tile::HostTensor<OutDataType> output_host_ref(out_g_n_k_wos_desc);
         output_host_ref.SetZero();
 
