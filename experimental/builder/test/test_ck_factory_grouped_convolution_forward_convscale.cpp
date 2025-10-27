@@ -209,8 +209,14 @@ struct F8_ConvScaleAdd
 
 struct F8_ConvInvscale
 {
-    using DeviceOp = ::DeviceOp<ck::Tuple<>, ck::Tuple<>, ck::f8_t, ConvInvscale>;
-
+    using DeviceOp = ::DeviceOp<ck::Tuple<>,
+                                ck::Tuple<>,
+                                ck::f8_t,
+                                ck::f8_t,
+                                ck::f8_t,
+                                ConvInvscale,
+                                ck::f8_t,
+                                ck::f8_t>;
     constexpr static auto expected = {
         // clang-format off
         ""
