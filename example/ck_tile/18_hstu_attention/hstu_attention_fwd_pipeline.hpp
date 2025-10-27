@@ -595,7 +595,7 @@ struct HstuAttentionFwdPipelineQRKSVS
             static_for<0, k1_loops, 1>{}(
                 [&](auto i_k1) { shuffle_tile(v_shuffled_tiles[i_k1], v_tiles[i_k1]); });
 
-            // check whether first V-LdsBufer overlap with next K-LdsBuffer,
+            // check whether first V-LdsBufer overlap with last K-LdsBuffer,
             // this does not occur when k1_loops == 2 and NumKVLdsBuffers == 4
             if constexpr((k1_loops - 1) % NumKVLdsBuffers == 2 % NumKVLdsBuffers)
             {
