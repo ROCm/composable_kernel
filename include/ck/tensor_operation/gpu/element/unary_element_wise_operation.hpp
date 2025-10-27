@@ -552,6 +552,8 @@ struct PassThrough
     {
         y = type_convert<bf8_t>(x);
     }
+
+    static constexpr const char* name = "PassThrough";
 };
 
 struct UnaryConvert
