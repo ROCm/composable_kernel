@@ -349,6 +349,8 @@ CK_TILE_DEVICE bf8x4_t i4_to_bf8x4(int q)
 
 struct PassThroughPack8
 {
+    static constexpr const char* name = "PassThroughPack8";
+
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const;
 
@@ -388,6 +390,8 @@ struct PassThroughPack8
 
 struct DequantPack8
 {
+    static constexpr const char* name = "DequantPack8";
+
     template <typename Y, typename X, typename Z>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x, const Z& z) const;
 
@@ -403,6 +407,8 @@ struct DequantPack8
 
 struct PassThroughPack2
 {
+    static constexpr const char* name = "PassThroughPack2";
+
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const;
 
@@ -429,6 +435,8 @@ struct PassThroughPack2
 
 struct PassThrough
 {
+    static constexpr const char* name = "PassThrough";
+
     template <class T>
     using raw_t = std::remove_cv_t<std::remove_reference_t<T>>;
 
@@ -462,6 +470,8 @@ struct PassThrough
 
 struct AddScale
 {
+    static constexpr const char* name = "AddScale";
+
     template <typename E, typename... As>
     CK_TILE_HOST_DEVICE constexpr void operator()(E& a, const As&... as) const
     {
@@ -479,6 +489,8 @@ struct AddScale
 
 struct MultiDMultiply
 {
+    static constexpr const char* name = "MultiDMultiply";
+
     template <typename E, typename C, typename... Ds>
     CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const Ds&... ds) const -> void
     {
@@ -494,6 +506,8 @@ struct MultiDMultiply
 
 struct MultiDAdd
 {
+    static constexpr const char* name = "MultiDAdd";
+
     template <typename E, typename C, typename... Ds>
     CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const Ds&... ds) const -> void
     {
@@ -509,6 +523,8 @@ struct MultiDAdd
 
 struct UnaryConvert
 {
+    static constexpr const char* name = "UnaryConvert";
+
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
     {
@@ -573,6 +589,8 @@ struct ConvertF8RNE
 
 struct Scale
 {
+    static constexpr const char* name = "Scale";
+
     CK_TILE_HOST_DEVICE Scale(float scale = 1.f) : scale_(scale) {}
 
     template <typename Y, typename X>
@@ -620,6 +638,8 @@ struct Scale
 
 struct ScaleAndResetNaNToMinusInfinity
 {
+    static constexpr const char* name = "ScaleAndResetNaNToMinusInfinity";
+
     CK_TILE_HOST_DEVICE ScaleAndResetNaNToMinusInfinity(float scale) : scale_(scale) {}
 
     template <typename Y, typename X>
@@ -636,6 +656,8 @@ struct ScaleAndResetNaNToMinusInfinity
 
 struct UnaryDivide
 {
+    static constexpr const char* name = "UnaryDivide";
+
     CK_TILE_HOST_DEVICE UnaryDivide(const int32_t divider = 1) : divider_(divider) {}
 
     template <typename T>
@@ -653,6 +675,8 @@ struct UnaryDivide
 
 struct UnarySquare
 {
+    static constexpr const char* name = "UnarySquare";
+
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
     {
@@ -670,6 +694,8 @@ struct UnarySquare
 
 struct UnaryAbs
 {
+    static constexpr const char* name = "UnaryAbs";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -684,6 +710,8 @@ struct UnaryAbs
 
 struct UnarySqrt
 {
+    static constexpr const char* name = "UnarySqrt";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -696,6 +724,8 @@ struct UnarySqrt
 
 struct Relu
 {
+    static constexpr const char* name = "Relu";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -722,6 +752,8 @@ struct Relu
 // gpu code use lower accuracy "_ocml_exp_f32" and "rcp" function
 struct FastGelu
 {
+    static constexpr const char* name = "FastGelu";
+
     template <typename Y, typename X>
     CK_TILE_HOST void operator()(Y& y, const X& x) const;
 
@@ -839,6 +871,8 @@ struct FastGelu
 
 struct FastGeluAsm
 {
+    static constexpr const char* name = "FastGeluAsm";
+
     template <typename Y, typename X>
     CK_TILE_HOST void operator()(Y& y, const X& x) const;
 
@@ -940,6 +974,8 @@ struct FastGeluAsm
 // y = 0.5*x*(1+erf(x/sqrt(2)))
 struct Gelu
 {
+    static constexpr const char* name = "Gelu";
+
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const;
 
@@ -960,6 +996,8 @@ struct Gelu
 
 struct Sigmoid
 {
+    static constexpr const char* name = "Sigmoid";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -974,6 +1012,8 @@ struct Sigmoid
 
 struct Silu
 {
+    static constexpr const char* name = "Silu";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1063,6 +1103,8 @@ struct SiluAsm
 
 struct TanH
 {
+    static constexpr const char* name = "TanH";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1077,6 +1119,8 @@ struct TanH
 
 struct ACos
 {
+    static constexpr const char* name = "ACos";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1091,6 +1135,8 @@ struct ACos
 
 struct Neg
 {
+    static constexpr const char* name = "Neg";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1105,6 +1151,8 @@ struct Neg
 
 struct ATan
 {
+    static constexpr const char* name = "ATan";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1119,6 +1167,8 @@ struct ATan
 
 struct Sin
 {
+    static constexpr const char* name = "Sin";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1133,6 +1183,8 @@ struct Sin
 
 struct ASinH
 {
+    static constexpr const char* name = "ASinH";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1147,6 +1199,8 @@ struct ASinH
 
 struct Cos
 {
+    static constexpr const char* name = "Cos";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1161,6 +1215,8 @@ struct Cos
 
 struct ACosH
 {
+    static constexpr const char* name = "ACosH";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1175,6 +1231,8 @@ struct ACosH
 
 struct Tan
 {
+    static constexpr const char* name = "Tan";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1189,6 +1247,8 @@ struct Tan
 
 struct ATanH
 {
+    static constexpr const char* name = "ATanH";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1203,6 +1263,8 @@ struct ATanH
 
 struct SinH
 {
+    static constexpr const char* name = "SinH";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1217,6 +1279,8 @@ struct SinH
 
 struct Ceil
 {
+    static constexpr const char* name = "Ceil";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1231,6 +1295,8 @@ struct Ceil
 
 struct Exp
 {
+    static constexpr const char* name = "Exp";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1245,6 +1311,8 @@ struct Exp
 
 struct CosH
 {
+    static constexpr const char* name = "CosH";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1259,6 +1327,8 @@ struct CosH
 
 struct Floor
 {
+    static constexpr const char* name = "Floor";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1273,6 +1343,8 @@ struct Floor
 
 struct Log
 {
+    static constexpr const char* name = "Log";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1287,6 +1359,8 @@ struct Log
 
 struct ASin
 {
+    static constexpr const char* name = "ASin";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1301,6 +1375,8 @@ struct ASin
 
 struct Rcp
 {
+    static constexpr const char* name = "Rcp";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(T& y, const T& x) const
     {
@@ -1315,6 +1391,8 @@ struct Rcp
 
 struct Swish
 {
+    static constexpr const char* name = "Swish";
+
     Swish(float beta = 1.0f) : beta_(beta) {}
 
     template <typename Y, typename X>
@@ -1337,6 +1415,8 @@ struct Swish
 
 struct SoftRelu
 {
+    static constexpr const char* name = "SoftRelu";
+
     SoftRelu(float alpha = 1.f) : alpha_(alpha){};
 
     template <typename T>
@@ -1355,6 +1435,8 @@ struct SoftRelu
 
 struct Power
 {
+    static constexpr const char* name = "Power";
+
     Power(float alpha = 0.f, float beta = 1.f, float gamma = 2.f)
         : alpha_(alpha), beta_(beta), gamma_(gamma){};
 
@@ -1378,6 +1460,8 @@ struct Power
 
 struct ClippedRelu
 {
+    static constexpr const char* name = "ClippedRelu";
+
     ClippedRelu(float alpha = 0.f, float beta = 1.f) : alpha_(alpha), beta_(beta){};
 
     template <typename T>
@@ -1397,6 +1481,8 @@ struct ClippedRelu
 
 struct LeakyRelu
 {
+    static constexpr const char* name = "LeakyRelu";
+
     LeakyRelu(float alpha = 0.01f) : alpha_(alpha){};
 
     template <typename T>
@@ -1414,6 +1500,8 @@ struct LeakyRelu
 
 struct Elu
 {
+    static constexpr const char* name = "Elu";
+
     Elu(float alpha = 1.f) : alpha_(alpha){};
 
     template <typename T>
@@ -1431,6 +1519,8 @@ struct Elu
 
 struct Logistic
 {
+    static constexpr const char* name = "Logistic";
+
     Logistic(float alpha = 1.f) : alpha_(alpha){};
 
     template <typename T>
@@ -1449,6 +1539,8 @@ struct Logistic
 
 struct ConvInvscale
 {
+    static constexpr const char* name = "ConvInvscale";
+
     CK_TILE_HOST_DEVICE
     ConvInvscale(float scale_in = 1.f, float scale_wei = 1.f, float scale_out = 1.f)
         : scale_in_(scale_in), scale_wei_(scale_wei), scale_out_(scale_out)
@@ -1472,6 +1564,8 @@ struct ConvInvscale
 
 struct ConvScale
 {
+    static constexpr const char* name = "ConvScale";
+
     CK_TILE_HOST_DEVICE
     ConvScale(float scale_in = 1.f, float scale_wei = 1.f, float scale_out = 1.f)
         : scale_in_(scale_in), scale_wei_(scale_wei), scale_out_(scale_out)
@@ -1495,6 +1589,8 @@ struct ConvScale
 
 struct ConvScaleRelu
 {
+    static constexpr const char* name = "ConvScaleRelu";
+
     CK_TILE_HOST_DEVICE
     ConvScaleRelu(float scale_in = 1.f, float scale_wei = 1.f, float scale_out = 1.f)
         : scale_in_(scale_in), scale_wei_(scale_wei), scale_out_(scale_out)
@@ -1521,6 +1617,8 @@ struct ConvScaleRelu
 template <typename DstType, typename SrcType>
 struct Cast
 {
+    static constexpr const char* name = "Cast";
+
     template <typename T>
     CK_TILE_HOST_DEVICE void operator()(DstType& y, const SrcType& x) const
     {

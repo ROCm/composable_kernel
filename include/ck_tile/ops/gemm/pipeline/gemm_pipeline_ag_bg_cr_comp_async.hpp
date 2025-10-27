@@ -472,6 +472,8 @@ struct GemmPipelineAgBgCrCompAsync : public BaseGemmPipelineAgBgCrCompAsync<Prob
                     block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
                 }
                 {
+                    // write to LDS window(0) must complete before the local prefetch
+                    block_sync_lds_direct_load();
                     // read A(num_loop), B(num_loop) from LDS window(0) to pipeline registers(0)
                     Base::LocalPrefetch(a_block_tile0, a_lds_ld_window0, is_a_load_tr_v);
                     Base::LocalPrefetch(b_block_tile0, b_lds_ld_window0, is_b_load_tr_v);
