@@ -1,4 +1,4 @@
-set(GEMM_PRESHUFFLE_DATATYPE "fp8;fp16" CACHE STRING "List of datatypes for GEMM Preshuffle (semicolon-separated)")
+set(GEMM_PRESHUFFLE_DATATYPE "fp16;fp8" CACHE STRING "List of datatypes for GEMM Preshuffle (semicolon-separated)")
 set(GEMM_PRESHUFFLE_LAYOUT "rcr" CACHE STRING "List of layout for GEMM Preshuffle (semicolon-separated)")
 set(GEMM_PRESHUFFLE_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
 option(ENABLE_CCACHE_GEMM_PRESHUFFLE "Enable ccache for GEMM Preshuffle ops compilation" OFF)
@@ -57,13 +57,15 @@ function(create_individual_gemm_preshuffle_target datatype layout trait tile_con
                 --kernel_name "gemm_preshuffle_${datatype}_${layout}_${trait}_${tile_config}"
                 --tile_config "${tile_config}"
                 --trait_combo "${trait}"
+                --gpu_target "${GEMM_PRESHUFFLE_GPU_TARGETS_INDIVIDUAL}"
         DEPENDS ${GEMM_PRESHUFFLE_SOURCE_DIR}/gemm_preshuffle_instance_builder.py ${config_json}
         COMMENT "Generating ${instance_header}"
     )
     
     # Create the executable
     add_executable(${target_name} 
-        ${GEMM_PRESHUFFLE_SOURCE_DIR}/benchmark_gemm_preshuffle_single.cpp
+        EXCLUDE_FROM_ALL
+        ${GEMM_PRESHUFFLE_SOURCE_DIR}/gemm_preshuffle_benchmark_single.cpp
         ${instance_header}
     )
     
@@ -160,9 +162,11 @@ function(build_individual_gemm_preshuffle_targets datatype layout)
     
     # First, just list the kernels (fast operation)
     message(STATUS "  Listing kernel configurations...")
+    message(STATUS "  GPU Targets: ${GEMM_PRESHUFFLE_GPU_TARGETS_INDIVIDUAL}")
     execute_process(
         COMMAND ${Python3_EXECUTABLE} -u ${CMAKE_CURRENT_LIST_DIR}/gemm_preshuffle_instance_builder.py
                 --working_path ${working_path}
+                --gpu_target ${GEMM_PRESHUFFLE_GPU_TARGETS_INDIVIDUAL}
                 --datatype ${datatype}
                 --layout ${layout}
                 --config_json ${json_blob}
@@ -172,7 +176,7 @@ function(build_individual_gemm_preshuffle_targets datatype layout)
         OUTPUT_VARIABLE list_output
         ERROR_VARIABLE list_error
     )
-    
+
     if(NOT ret EQUAL 0)
         message(FATAL_ERROR "Failed to list kernels for ${datatype} ${layout}: ${list_error}")
     endif()
@@ -269,10 +273,10 @@ else()
     endforeach()
 
     # Create trait-based collection targets
-    # These are common trait components used across all GEMM kernels
-    set(GEMM_PRESHUFFLE_PIPELINES "preshufflev1;preshufflev2")
+    # These are common trait components used across all GEMM Preshuffle kernels
+    set(GEMM_PRESHUFFLE_PIPELINES "preshufflev2")
     set(GEMM_PRESHUFFLE_EPILOGUES "default;cshuffle")
-    set(GEMM_PRESHUFFLE_SCHEDULERS "intrawave;interwave;default") 
+    set(GEMM_PRESHUFFLE_SCHEDULERS "default") 
 
     foreach(pipeline IN LISTS GEMM_PRESHUFFLE_PIPELINES)
         add_custom_target(benchmark_gemm_preshuffle_${pipeline}_pipeline)
@@ -287,7 +291,6 @@ else()
     endforeach()
 
     # Build individual targets for each datatype/layout combination
-    
     foreach(dt IN LISTS GEMM_PRESHUFFLE_DATATYPE)
         foreach(l IN LISTS GEMM_PRESHUFFLE_LAYOUT)
             build_individual_gemm_preshuffle_targets(${dt} ${l})

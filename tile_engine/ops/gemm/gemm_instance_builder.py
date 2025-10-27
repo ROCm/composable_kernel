@@ -8,19 +8,20 @@ import multiprocessing
 import concurrent.futures
 from pathlib import Path
 import logging
-from typing import Optional
 from commons.validation_utils import (
     is_tile_config_valid,
     is_trait_combination_valid,
     get_dtype_string,
     get_abc_layouts,
 )
+
 logging.basicConfig(level=logging.INFO)
 
 
 class GemmKernelBuilder:
-    def __init__(self, working_path, datatype, layout, config_json=None):
+    def __init__(self, working_path, gpu_target, datatype, layout, config_json=None):
         self.working_path = Path(working_path)
+        self.gpu_target = gpu_target
         self.datatype = datatype
         self.layout = layout
         self.config_json = config_json
@@ -92,7 +93,7 @@ class GemmKernelBuilder:
 
                 f.write(f"{kernel['name']}|{tile_str}|{trait_str}\n")
 
-        print(f"Listed {len(kernel_list)} kernel configurations")            
+        print(f"Listed {len(kernel_list)} kernel configurations")
 
     def _get_tile_configs(self, fast_mode=False):
         """Get tile configurations for the current datatype and layout"""
@@ -167,7 +168,7 @@ class GemmKernelBuilder:
                                                     }
                                                 )
         return configs
-     
+
     def _generate_values(self, min_val, max_val, step):
         """Generate a list of values from min to max with the given step"""
         values = []
@@ -175,8 +176,8 @@ class GemmKernelBuilder:
         while val <= max_val:
             values.append(val)
             val += step
-        return values      
-    
+        return values
+
     def _validate_tile_config(
         self,
         tile_m,
@@ -238,7 +239,8 @@ class GemmKernelBuilder:
                 b_datatype,
                 c_datatype,
                 pipeline,
-                layout
+                layout,
+                self.gpu_target,
             )
 
     def _generate_trait_combinations(self):
@@ -276,9 +278,11 @@ class GemmKernelBuilder:
                 logging.debug(
                     f"Skipping unsupported trait combination: {pipeline}-{epilogue}-{scheduler}"
                 )
-        return combinations 
+        return combinations
 
-    def _generate_kernel_instance(self, tile_config, trait_combo, k_block_per_cu, is_header=True):
+    def _generate_kernel_instance(
+        self, tile_config, trait_combo, k_block_per_cu, is_header=True
+    ):
         """Generate a single kernel instance"""
         (
             pipeline,
@@ -316,7 +320,7 @@ class GemmKernelBuilder:
             "mem": "ck_tile::BaseGemmPipelineAgBgCrMem",
             "compv3": "ck_tile::BaseGemmPipelineAgBgCrCompV3",
             "compv4": "ck_tile::BaseGemmPipelineAgBgCrCompV4",
-        }        
+        }
 
         # Map scheduler names to the correct enum values
         scheduler_type_map = {
@@ -542,7 +546,7 @@ struct SelectedKernel {{
     }}
 }};
 """
-        return kernel_name, instance_code         
+        return kernel_name, instance_code
 
     def run(self, num_workers=None):
         """Run the builder to generate individual kernel files"""
@@ -655,6 +659,7 @@ struct SelectedKernel {{
         with open(self.working_path / "gemm_individual_targets.cmake", "w") as f:
             f.write(cmake_code)
 
+
 def _generate_single_kernel_individual(work_item):
     """Worker function to generate a single individual kernel file"""
     tile_config, trait_combo, k_block_per_cu, working_path, datatype, layout = work_item
@@ -683,11 +688,17 @@ def _generate_single_kernel_individual(work_item):
         print(f"Error generating individual kernel: {e}")
         return None
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="GEMM kernel instance builder with parallel support"
     )
     parser.add_argument("--working_path", required=True, help="Working directory path")
+    parser.add_argument(
+        "--gpu_target",
+        required=True,
+        help="GPU target architecture",
+    )
     parser.add_argument(
         "--datatype",
         required=True,
@@ -705,7 +716,9 @@ def main():
         "--num_workers", type=int, help="Number of parallel workers (default: auto)"
     )
     parser.add_argument(
-        "--gen_all_individual", action="store_true", help="Generate individual kernel files"
+        "--gen_all_individual",
+        action="store_true",
+        help="Generate individual kernel files",
     )
     parser.add_argument(
         "--gen_single", action="store_true", help="Generate a single kernel file"
@@ -733,7 +746,7 @@ def main():
     assert len(layout_parts) == 3, (
         f"Invalid layout string: {args.layout} (must be 3 characters like 'rcr' where r stands for row major and c stands for column major)"
     )
-    assert layout_parts[0] in ["r", "c"] and layout_parts[1] in ["r","c"], (
+    assert layout_parts[0] in ["r", "c"] and layout_parts[1] in ["r", "c"], (
         f"Invalid matrix_a layout : {layout_parts[0]} or matrix_b layout: {layout_parts[1]} (matrix_a and matrix_b must be either 'r' for row major or 'c' for column major)"
     )
     assert layout_parts[2] == "r", (
@@ -742,7 +755,7 @@ def main():
 
     # Create builder
     builder = GemmKernelBuilder(
-        args.working_path, args.datatype, args.layout, args.config_json
+        args.working_path, args.gpu_target, args.datatype, args.layout, args.config_json
     )
 
     if args.list_kernels:
@@ -809,6 +822,7 @@ def main():
         parser.error(
             "Must specify one of: --list_kernels, --gen_all_individual, or --gen_single"
         )
+
 
 if __name__ == "__main__":
     main()
