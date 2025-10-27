@@ -16,6 +16,7 @@
 #include "hstu_attention_pipeline_problem.hpp"
 #include "hstu_attention_traits.hpp"
 #include "hstu_attention_fwd_pipeline.hpp"
+#include "hstu_attention_fwd_trload_pipeline.hpp"
 #include "hstu_attention_fwd_kernel.hpp"
 #include "hstu_attention_epilogue.hpp"
 
@@ -32,6 +33,12 @@ struct jagged_forward_causal_softmax_bias_dropout_dispatch
                                     HstuAttentionWithSoftmaxFwdTileSetting<MaxK>,
                                     HstuAttentionNoSoftmaxFwdTileSetting<MaxK>>::Type;
 
+#ifdef BUILD_HSTU_FOR_GFX95_ONLY
+    static constexpr bool kUseTrLoad = true;
+#else
+    static constexpr bool kUseTrLoad = false;
+#endif
+
     template <typename HstuTraits>
     using HstuPipelineProblemTemp = ck_tile::HstuAttentionFwdPipelineProblem<
         InOutDataType,
@@ -43,6 +50,7 @@ struct jagged_forward_causal_softmax_bias_dropout_dispatch
         kHasDropout,
         kUseCausal,
         kUseSoftmax,
+        kUseTrLoad,
         HstuAttentionTileSetting,
         HstuTraits>;
 
@@ -74,8 +82,11 @@ struct jagged_forward_causal_softmax_bias_dropout_dispatch
                 kPadSeqLenQ,
                 kPadHeadDimV>>;
 
-            using HstuPipeline = ck_tile::HstuAttentionFwdPipelineQRKSVS<HstuPipelineProblem>;
-            using HstuKernel   = ck_tile::HstuAttentionFwdKernel<HstuPipeline, HstuEpilogue>;
+            using HstuPipeline = std::conditional_t<
+                kUseTrLoad,
+                ck_tile::HstuAttentionFwdPipelineQRKSVSTrLoad<HstuPipelineProblem>,
+                ck_tile::HstuAttentionFwdPipelineQRKSVS<HstuPipelineProblem>>;
+            using HstuKernel = ck_tile::HstuAttentionFwdKernel<HstuPipeline, HstuEpilogue>;
 
             RunWithKernel<HstuKernel>(param, stream);
         });
