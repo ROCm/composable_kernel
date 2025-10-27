@@ -26,7 +26,7 @@ namespace ck_tile::reflect::detail {
 // Implementation detail for type name mapping
 // This is the single source of truth for supported data types that
 // returns an empty string to indicate an unsupported type.
-namespace detail {
+namespace impl {
 template <typename T>
 consteval std::string_view type_name_impl()
 {
@@ -51,14 +51,14 @@ consteval std::string_view type_name_impl()
     else
         return std::string_view{}; // Return empty for supported types
 }
-} // namespace detail
+} // namespace impl
 
 // Convert data types to string names
 // Fails at compile time for unsupported types
 template <typename T>
 consteval std::string_view type_name()
 {
-    constexpr auto name = detail::type_name_impl<T>();
+    constexpr auto name = impl::type_name_impl<T>();
     static_assert(!name.empty(), "Unsupported data type");
     return name;
 }
@@ -66,14 +66,15 @@ consteval std::string_view type_name()
 // Concept that checks if a type is a valid data type
 // Uses the impl directly to avoid triggering static_assert during concept evaluation
 template <typename T>
-concept IsDataType = !detail::type_name_impl<T>().empty();
+concept IsDataType = !impl::type_name_impl<T>().empty();
 
 // Concept that checks valid layout types
 template <typename T>
 concept IsLayoutType = (std::is_base_of_v<ck_tile::tensor_layout::BaseTensorLayout, T> ||
-                        std::is_base_of_v<ck::tensor_layout::BaseTensorLayout, T>) && requires {
-    { T::name } -> std::convertible_to<std::string_view>;
-};
+                        std::is_base_of_v<ck::tensor_layout::BaseTensorLayout, T>) &&
+                       requires {
+                           { T::name } -> std::convertible_to<std::string_view>;
+                       };
 
 // Convert layout types to string names
 template <IsLayoutType T>
