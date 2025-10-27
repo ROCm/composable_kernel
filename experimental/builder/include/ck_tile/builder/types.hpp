@@ -70,6 +70,7 @@ enum class ElementwiseOperation
 enum class BlockGemmPipelineVersion
 {
     V1,
+    V2,
     V3,
     V4,
     V5
@@ -81,7 +82,6 @@ enum class ConvFwdSpecialization
     DEFAULT,
     FILTER_1X1_PAD0,
     FILTER_1X1_STRIDE1_PAD0,
-    ODD_C,
     FILTER_3x3
 };
 

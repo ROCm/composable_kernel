@@ -84,8 +84,6 @@ constexpr void run_test()
         EXPECT_TRUE(kernel_string.find("Filter1x1Stride1Pad0") != std::string::npos);
     else if(FwdConvSpecialization == ConvFwdSpecialization::FILTER_3x3)
         EXPECT_TRUE(kernel_string.find("Filter3x3") != std::string::npos);
-    else if(FwdConvSpecialization == ConvFwdSpecialization::ODD_C)
-        EXPECT_TRUE(kernel_string.find("OddC") != std::string::npos);
 
     const auto invoker_ptr = instance.MakeInvokerPointer();
     EXPECT_NE(invoker_ptr, nullptr);

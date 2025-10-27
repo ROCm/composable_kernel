@@ -392,10 +392,6 @@ consteval ck::tensor_operation::device::ConvolutionForwardSpecialization SetFwdC
     {
         return ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter1x1Stride1Pad0;
     }
-    else if constexpr(specialization == ConvFwdSpecialization::ODD_C)
-    {
-        return ck::tensor_operation::device::ConvolutionForwardSpecialization::OddC;
-    }
     else if constexpr(specialization == ConvFwdSpecialization::FILTER_3x3)
     {
         return ck::tensor_operation::device::ConvolutionForwardSpecialization::Filter3x3;
