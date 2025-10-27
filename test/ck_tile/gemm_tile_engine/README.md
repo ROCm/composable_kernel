@@ -55,28 +55,23 @@ The key idea: **Unit tests that use tile_engine's exact kernel generation and ve
 - **Traits**: compv3 pipeline only
 - **Coverage**: RCR layout only (other layouts not approved)
 
-### 4. **Tile Size Coverage** (Quick or Comprehensive)
-- **Purpose**: Test different tile dimensions and warp configurations
-- **Quick** (`tile_size_quick_config.json`): Less than 100 kernels
-  - tile_m/n: [32, 64, 128, 256], tile_k: [16, 32, 64]
+### 4. **Coverage Testing** (Quick or Comprehensive)
+- **Purpose**: Comprehensive testing across tile sizes, warp configurations, and trait combinations
+- **Quick** (`quick_coverage_config.json`): Approximately 500 kernels
+  - tile_m/n: [32, 64, 128, 256], tile_k: [16, 32]
   - warp config: 2×2×1, warp_tile 16×16×16
-  - Focused set for fast validation
-- **Comprehensive** (`tile_size_comprehensive_config.json`): More than 1000 kernels
+  - Traits: 3 pipelines × 2 epilogues × 2 schedulers × 2 persistent
+  - Focused set testing all trait combinations with multiple tile sizes
+- **Comprehensive** (`comprehensive_coverage_config.json`): Several thousand kernels
   - tile_m/n: [16-256 step 16]
   - tile_k: [16, 32, 64]
   - warp_m/n: [1, 2, 4], warp_tile_m/n: [16, 32], warp_tile_k: [16, 32]
-  - Extensive coverage across multiple warp configurations and MFMA tile sizes
+  - Traits: 3 pipelines × 2 epilogues × 2 schedulers × 2 persistent
+  - Extensive coverage across all tile sizes, warp configurations, and trait combinations
   - Exact count varies based on validation filtering
-- **Traits**: compv3 pipeline only
-- **Note**: Use CMake option `-DTILE_SIZE_LEVEL=comprehensive` to enable comprehensive testing (default is quick)
+- **Note**: Use CMake option `-DCOVERAGE_LEVEL=comprehensive` to enable comprehensive testing (default is quick)
 
-### 5. **Traits Coverage** (`traits_coverage_config.json`)
-- **Purpose**: Test all pipeline/epilogue/scheduler combinations
-- **Config**: Fixed 64x64x32
-- **Traits**: 3 pipelines × 2 epilogues × 2 schedulers × 2 persistent  
-- **Coverage**: 24 kernels per datatype/layout
-
-### 6. **Padding Coverage** (`padding_coverage_config.json`)
+### 5. **Padding Coverage** (`padding_coverage_config.json`)
 - **Purpose**: Test padding behavior with all padding flags enabled
 - **Config**: Fixed 64x64x32, warp 2x2x1, warp_tile 32x32x16
 - **Padding**: All enabled (pad_m=true, pad_n=true, pad_k=true)

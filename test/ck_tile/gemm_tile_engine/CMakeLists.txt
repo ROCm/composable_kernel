@@ -315,19 +315,7 @@ else()
     message(WARNING "Large datatype config file not found: ${LARGE_DATATYPE_CONFIG_FILE}")
 endif()
 
-# 3. TRAITS COVERAGE: Test trait combinations with fixed fp16/rcr configuration
-#    This focuses on kernel traits (pipelines, epilogues, schedulers, persistent)
-set(TRAITS_CONFIG "traits_coverage_config")
-set(TRAITS_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/configs/${TRAITS_CONFIG}.json")
-
-if(EXISTS ${TRAITS_CONFIG_FILE})
-    message(STATUS "Processing traits config: ${TRAITS_CONFIG} (fp16/rcr only)")
-    build_gemm_test_targets("fp16" "rcr" "${TRAITS_CONFIG}")
-else()
-    message(WARNING "Traits config file not found: ${TRAITS_CONFIG_FILE}")
-endif()
-
-# 4. PADDING COVERAGE: Test padding combinations with fixed fp16/rcr configuration
+# 3. PADDING COVERAGE: Test padding combinations with fixed fp16/rcr configuration
 #    This focuses on padding behavior (pad_m, pad_n, pad_k)
 set(PADDING_CONFIG "padding_coverage_config")
 set(PADDING_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/configs/${PADDING_CONFIG}.json")
@@ -339,28 +327,29 @@ else()
     message(WARNING "Padding config file not found: ${PADDING_CONFIG_FILE}")
 endif()
 
-# 5. TILE SIZE COVERAGE: Test different tile sizes with fixed fp16/rcr configuration
-#    Two levels: quick (less than 100 kernels) or comprehensive (more than 1000 kernels after validation)
-set(TILE_SIZE_LEVEL "quick" CACHE STRING "Tile size coverage level: quick or comprehensive")
-set_property(CACHE TILE_SIZE_LEVEL PROPERTY STRINGS "quick" "comprehensive")
+# 4. COVERAGE LEVEL: Quick or comprehensive testing
+#    Quick: ~500 kernels with multiple tile sizes and all trait combinations
+#    Comprehensive: Several thousand kernels with extensive tile sizes, warp configurations, and all trait combinations
+set(COVERAGE_LEVEL "quick" CACHE STRING "Coverage level: quick or comprehensive")
+set_property(CACHE COVERAGE_LEVEL PROPERTY STRINGS "quick" "comprehensive")
 
-if(TILE_SIZE_LEVEL STREQUAL "quick")
-    set(TILE_SIZE_CONFIG "tile_size_quick_config")
-    set(TILE_SIZE_DESC "Quick - less than 100 kernels")
-elseif(TILE_SIZE_LEVEL STREQUAL "comprehensive")
-    set(TILE_SIZE_CONFIG "tile_size_comprehensive_config")
-    set(TILE_SIZE_DESC "Comprehensive - more than 1000 kernels")
+if(COVERAGE_LEVEL STREQUAL "quick")
+    set(COVERAGE_CONFIG "quick_coverage_config")
+    set(COVERAGE_DESC "Quick - approximately 500 kernels with trait combinations")
+elseif(COVERAGE_LEVEL STREQUAL "comprehensive")
+    set(COVERAGE_CONFIG "comprehensive_coverage_config")
+    set(COVERAGE_DESC "Comprehensive - several thousand kernels with extensive tile and trait coverage")
 else()
-    message(FATAL_ERROR "Invalid TILE_SIZE_LEVEL: ${TILE_SIZE_LEVEL}. Must be 'quick' or 'comprehensive'")
+    message(FATAL_ERROR "Invalid COVERAGE_LEVEL: ${COVERAGE_LEVEL}. Must be 'quick' or 'comprehensive'")
 endif()
 
-set(TILE_SIZE_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/configs/${TILE_SIZE_CONFIG}.json")
+set(COVERAGE_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/configs/${COVERAGE_CONFIG}.json")
 
-if(EXISTS ${TILE_SIZE_CONFIG_FILE})
-    message(STATUS "Processing tile size config: ${TILE_SIZE_LEVEL} - ${TILE_SIZE_DESC}")
-    build_gemm_test_targets("fp16" "rcr" "${TILE_SIZE_CONFIG}")
+if(EXISTS ${COVERAGE_CONFIG_FILE})
+    message(STATUS "Processing coverage config: ${COVERAGE_LEVEL} - ${COVERAGE_DESC}")
+    build_gemm_test_targets("fp16" "rcr" "${COVERAGE_CONFIG}")
 else()
-    message(WARNING "Tile size config file not found: ${TILE_SIZE_CONFIG_FILE}")
+    message(WARNING "Coverage config file not found: ${COVERAGE_CONFIG_FILE}")
 endif()
 # ============================================================================
 
@@ -368,7 +357,6 @@ endif()
 message(STATUS "GEMM tile engine tests configured with datatype-specific design:")
 message(STATUS "  - Small datatypes: fp16/bf16 (all layouts), fp8 (RCR only)")
 message(STATUS "  - Large datatypes: fp32 (RCR only)")
-message(STATUS "  - Traits coverage with fp16/rcr")
 message(STATUS "  - Padding coverage with fp16/rcr")
-message(STATUS "  - Tile size coverage: ${TILE_SIZE_LEVEL} level")
-message(STATUS "    Use -DTILE_SIZE_LEVEL=comprehensive for extensive testing (1000+ kernels)")
+message(STATUS "  - Coverage level: ${COVERAGE_LEVEL} (~500 kernels quick, several thousand comprehensive)")
+message(STATUS "    Use -DCOVERAGE_LEVEL=comprehensive for extensive testing")

@@ -1,22 +1,20 @@
 {
   "problem": {
-    "description": "Configuration for testing different tile sizes (32, 64, 128, 256) with fixed warp configurations for quick coverage"
+    "description": "Quick coverage testing - tests multiple tile sizes with all trait combinations (pipelines, epilogues, schedulers). Approximately 500 kernels."
   },
   "test_params": {
     "problem_sizes": [
       {"m": 512, "n": 512, "k": 256, "split_k": 1},
       {"m": 1024, "n": 512, "k": 512, "split_k": 1},
       {"m": 512, "n": 1024, "k": 512, "split_k": 1},
-      {"m": 1024, "n": 1024, "k": 256, "split_k": 1},
-      {"m": 1024, "n": 1024, "k": 512, "split_k": 2},
-      {"m": 1024, "n": 1024, "k": 512, "split_k": 4}
-
+      {"m": 1024, "n": 1024, "k": 256, "split_k": 2},
+      {"m": 1024, "n": 1024, "k": 256, "split_k": 4}
     ]
   },
   "tile_config": {
     "tile_m": {"values": [32, 64, 128, 256]},
     "tile_n": {"values": [32, 64, 128, 256]},
-    "tile_k": {"values": [16, 32, 64]},
+    "tile_k": {"values": [16, 32]},
     "warp_m": {"values": [2]},
     "warp_n": {"values": [2]},
     "warp_k": {"values": [1]},
@@ -25,12 +23,12 @@
     "warp_tile_k": {"values": [16]}
   },
   "trait_config": {
-    "pipeline": {"values": ["compv3"]},
-    "scheduler": {"values": ["intrawave"]},
-    "epilogue": {"values": ["cshuffle"]},
+    "pipeline": {"values": ["mem", "compv3", "compv4"]},
+    "epilogue": {"values": ["default", "cshuffle"]},
+    "scheduler": {"values": ["intrawave", "interwave"]},
     "pad_m": {"values": [false]},
     "pad_n": {"values": [false]},
     "pad_k": {"values": [false]},
-    "persistent": {"values": [false]}
+    "persistent": {"values": [true, false]}
   }
 }
