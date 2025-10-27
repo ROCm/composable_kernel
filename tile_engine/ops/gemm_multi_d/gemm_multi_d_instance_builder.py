@@ -399,12 +399,14 @@ struct SelectedKernel {{
     static constexpr bool kPadM = {"true" if pad_m in [True, "true"] else "false"};
     static constexpr bool kPadN = {"true" if pad_n in [True, "true"] else "false"};
     static constexpr bool kPadK = {"true" if pad_k in [True, "true"] else "false"};
-    static constexpr bool TransposeC = false;
-    static constexpr bool UsePersistentKernel = {"true" if persistent in [True, "true"] else "false"};
+    
     static constexpr bool DoubleSmemBuffer = {"true" if pipeline == "compv4" else "false"};
-    static constexpr bool UseStructuredSparsity = false;
-    static constexpr bool Preshuffle = false;
-    static constexpr ck_tile::index_t NumWaveGroups = 1;
+    static constexpr bool TransposeC = false;
+
+    //static constexpr bool UsePersistentKernel = {"true" if persistent in [True, "true"] else "false"};
+    //static constexpr bool UseStructuredSparsity = false;
+    //static constexpr bool Preshuffle = false;
+    //static constexpr ck_tile::index_t NumWaveGroups = 1;
 
     // Tile shape
     using TileShape = ck_tile::TileGemmShape<
@@ -416,7 +418,7 @@ struct SelectedKernel {{
     using TilePartitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<TileShape, 8, 4>;
     
     // Traits
-    using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout, NumWaveGroups>;
+    using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout>;
     
     // Pipeline problem
     using GemmPipelineProblem = ck_tile::GemmPipelineProblem<
@@ -450,9 +452,7 @@ struct SelectedKernel {{
                 AccDataType,
                 TileShape,
                 ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
-                                                ALayout, BLayout, CLayout, TransposeC,
-                                                UseStructuredSparsity, UsePersistentKernel,
-                                                NumWaveGroups, Preshuffle>,
+                                                ALayout, BLayout, CLayout, TransposeC>,
                 scheduler,
                 has_hot_loop_v,
                 tail_number_v>;
@@ -467,12 +467,12 @@ struct SelectedKernel {{
             instance_code += """            using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<
                 ADataType,
                 BDataType,
-                ck_tile::tuple<>,  // DsDataType
+                DsDataType,
                 AccDataType,
                 CDataType,
-                ck_tile::tuple<>,  // DsLayout
+                DsLayout
                 CLayout,
-                ck_tile::element_wise::PassThrough,
+                ElementWiseFn,
                 TilePartitioner::MPerBlock,  // kM_
                 TilePartitioner::NPerBlock,  // kN_
                 WarpPerBlock_M,              // MWave_
@@ -481,21 +481,20 @@ struct SelectedKernel {{
                 WarpTileN,                   // NPerXdl_
                 WarpTileK,                   // KPerXdl_
                 TransposeC,                  // isCTransposed_
-                memory_operation,            // MemoryOperation_
-                NumWaveGroups>;              // kNumWaveGroups_
-            
+                memory_operation>;           // MemoryOperation_ 
+       
             using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;
 """
         else:  # default epilogue
             instance_code += """            using EpilogueProblem = ck_tile::DefaultGemm2DEpilogueProblem<
                 ADataType,
                 BDataType,
-                ck_tile::tuple<>,  // DsDataType
+                DsDataType,
                 AccDataType,
                 CDataType,
-                ck_tile::tuple<>,  // DsLayout
+                DsLayout,
                 CLayout,
-                ck_tile::element_wise::PassThrough,
+                ElementWiseFn,
                 TilePartitioner::MPerBlock,  // kM_
                 TilePartitioner::NPerBlock,  // kN_
                 kPadM,
@@ -521,7 +520,7 @@ struct SelectedKernel {{
             }}
             
             // Get grid and block sizes
-            const dim3 grids = {"GemmKernel::MaxOccupancyGridSize(stream)" if persistent in [True, "true"] else "GemmKernel::GridSize(args.M, args.N, args.k_batch)"};
+            const dim3 grids = GemmKernel::GridSize(args.M, args.N, args.k_batch);
             const dim3 blocks = GemmKernel::BlockSize();
             
             if(stream.log_level_ > 0) {{
