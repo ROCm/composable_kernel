@@ -82,20 +82,14 @@ struct GroupedConvTraits
                        true,
                        true,
                        ck_tile::tensor_layout::gemm::RowMajor,
-                       ck_tile::tensor_layout::gemm::ColumnMajor,
-                       // TODO: Change to and enable vector load
-                       //    ck_tile::tensor_layout::gemm::RowMajor,
-                       //    ck_tile::tensor_layout::gemm::RowMajor,
+                       ck_tile::tensor_layout::gemm::RowMajor,
                        ck_tile::tensor_layout::gemm::RowMajor>;
     using GroupedConvImplicitGemmTraitsBwdWeight =
         TileGemmTraits<true,
                        true,
                        true,
-                       ck_tile::tensor_layout::gemm::RowMajor,
                        ck_tile::tensor_layout::gemm::ColumnMajor,
-                       // TODO: Change to and enable vector load
-                       //    ck_tile::tensor_layout::gemm::ColumnMajor,
-                       //    ck_tile::tensor_layout::gemm::RowMajor,
+                       ck_tile::tensor_layout::gemm::RowMajor,
                        ck_tile::tensor_layout::gemm::RowMajor>;
     static constexpr ck_tile::index_t VectorSizeA = VectorSizeA_;
     static constexpr ck_tile::index_t VectorSizeB = VectorSizeB_;

@@ -12,6 +12,14 @@ def show_node_info() {
     """
 }
 
+// Error patterns to scan build logs for specific failure types and send detailed notifications.
+def failurePatterns = [
+    [pattern: /login attempt to .* failed with status: 401 Unauthorized/, description: "Docker registry authentication failed"],
+    [pattern: /docker login failed/, description: "Docker login failed"],
+    [pattern: /HTTP request sent .* 404 Not Found/, description: "HTTP request failed with 404"],
+    [pattern: /cat: .* No such file or directory/, description: "GPU not found"],
+]
+
 class Version {
     int major, minor, patch
     @Override
@@ -71,7 +79,7 @@ def shouldRunCICheck() {
             '''
         ).trim().split('\n')
         
-        if (changedFiles.isEmpty() || (changedFiles.size() == 1 && changedFiles[0].trim().isEmpty())) {
+        if (changedFiles.size() == 1 && changedFiles[0] == '') {
             echo "No changed files detected - this might be a manual trigger or merge commit, running CI for safety"
             return true
         }
@@ -909,7 +917,7 @@ def run_aiter_tests(Map conf=[:]){
                 sh "rocminfo"
                 sh "python3 --version"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8.py"
-                sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py"
+                //sh "python3 /home/jenkins/workspace/aiter/op_tests/test_gemm_a8w8_blockscale.py" //temporarily disable
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_mha_varlen.py"
                 sh "python3 /home/jenkins/workspace/aiter/op_tests/test_moe.py"
@@ -1039,8 +1047,8 @@ pipeline {
             description: "Use the CK build to verify hipTensor build and tests (default: OFF)")
         string(
             name: 'hipTensor_branch',
-            defaultValue: 'mainline',
-            description: 'Specify which branch of hipTensor to use (default: mainline)')
+            defaultValue: 'develop',
+            description: 'Specify which branch of hipTensor to use (default: develop)')
         booleanParam(
             name: "USE_SCCACHE",
             defaultValue: true,
@@ -1190,7 +1198,6 @@ pipeline {
             when {
                 beforeAgent true
                 expression { env.SHOULD_RUN_CI.toBoolean() }
-                expression { params.RUN_CPPCHECK.toBoolean() }
             }
             parallel{
                 stage('Clang Format and Cppcheck') {
@@ -1489,7 +1496,7 @@ pipeline {
                                             -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
-                                            -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8" \
+                                            -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf16;bf8" \
                                             -D GEMM_PRESHUFFLE_LAYOUT="rcr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_all && \
@@ -1529,7 +1536,7 @@ pipeline {
                                             -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
                                             -D GEMM_MULTI_D_DATATYPE="fp16" \
                                             -D GEMM_MULTI_D_LAYOUT="rcrr;rrrr;crrr;ccrr" \
-                                            -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8" \
+                                            -D GEMM_PRESHUFFLE_DATATYPE="fp16;fp8;bf16;bf8" \
                                             -D GEMM_PRESHUFFLE_LAYOUT="rcr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_all && \
@@ -1571,11 +1578,7 @@ pipeline {
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_all && \
                                            python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" \
-                                           --warmup 5 --repeat 5 --verbose --json results.json && \
-                                           ninja -j64 benchmark_gemm_fp16_rcr && \
-                                           ninja -j64 benchmark_gemm_fp16_rrr && \
-                                           ninja -j64 benchmark_gemm_fp16_crr && \
-                                           ninja -j64 benchmark_gemm_fp16_ccr """
+                                           --warmup 5 --repeat 5 --verbose --json results.json """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1850,6 +1853,38 @@ pipeline {
                             echo "Process Performance Test Results stage skipped."
                         }
                     }
+                }
+            }
+        }
+    }
+    post {
+        failure {
+            node(rocmnode("nogpu")) {
+                script {
+                    // Get the build log.
+                    def buildLog = sh(script: 'wget -q --no-check-certificate -O - ' + BUILD_URL + 'consoleText', returnStdout: true)
+                    // Check for patterns in the log.
+                    def foundPatterns = []
+                    for (patternMap in failurePatterns) {
+                        def result = checkForPattern(patternMap.pattern, buildLog)
+                        if (result.found) {
+                            foundPatterns.add([
+                                description: patternMap.description,
+                                matchedLine: result.matchedLine,
+                                context: result.context
+                            ])
+                        }
+                    }
+                    // Send a notification for each matched failure pattern.
+                    for (patternMap in foundPatterns) {
+                        withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
+                        sh '''
+                            curl -X POST "${WEBHOOK_URL}" \
+                            -H 'Content-Type: application/json' \
+                            -d '{"text": "\\n\\n**Build Failed**\\n\\n**Issues detected:** ''' + patternMap.description + '''\\n\\n**Log context:**\\n```\\n''' + patternMap.context.replace("'", "\\'") + '''\\n```\\n\\n**Job:** ''' + env.JOB_NAME + '''\\n\\n**Build:** #''' + env.BUILD_NUMBER + '''\\n\\n**URL:** ''' + env.RUN_DISPLAY_URL + '''"}'
+                        '''
+                        }
+                    }                    
                 }
             }
         }

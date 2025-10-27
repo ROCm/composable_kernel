@@ -42,8 +42,9 @@ using S = ck::Sequence<Is...>;
 using F16 = ck::half_t;
 using F32 = float;
 
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
+using Row    = ck::tensor_layout::gemm::RowMajor;
+using Col    = ck::tensor_layout::gemm::ColumnMajor;
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
@@ -173,7 +174,7 @@ int main(int argc, char* argv[])
         printf("arg3: time kernel (0=no, 1=yes)\n");
         printf("arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideD, StrideE, alpha, "
                "beta\n");
-        exit(0);
+        exit(1);
     }
 
     auto f_host_tensor_descriptor =
@@ -182,11 +183,11 @@ int main(int argc, char* argv[])
 
             if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
+                return HostTensorDescriptor({row, col}, {stride, 1_uz}, Bypass{});
             }
             else
             {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
+                return HostTensorDescriptor({row, col}, {1_uz, stride}, Bypass{});
             }
         };
 

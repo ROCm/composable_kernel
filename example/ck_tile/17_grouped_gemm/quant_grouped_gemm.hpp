@@ -11,12 +11,6 @@
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 #define CK_TILE_PIPELINE_COMPUTE_V3 1
-#define CK_TILE_PIPELINE_MEMORY 2
-#define CK_TILE_PIPELINE_COMPUTE_V4 3
-
-#ifndef CK_TILE_PIPELINE_DEFAULT
-#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE_V3
-#endif
 
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()
@@ -66,7 +60,6 @@ struct GemmConfigBase
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
     static constexpr ck_tile::index_t Pipeline      = CK_TILE_PIPELINE_COMPUTE_V3;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
-    static constexpr bool Preshuffle                = false;
 };
 
 template <typename PrecType>
@@ -102,15 +95,6 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V3>
     using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<PipelineProblem>;
 };
 
-template <>
-struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V4>
-{
-    template <typename PipelineProblem>
-    using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV4<PipelineProblem>;
-    template <typename PipelineProblem>
-    using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV4<PipelineProblem>;
-};
-
 using grouped_gemm_kargs = ck_tile::QuantGroupedGemmHostArgs;
 
 auto create_args(int argc, char* argv[])
@@ -119,7 +103,12 @@ auto create_args(int argc, char* argv[])
     arg_parser.insert("Ms", "", "M dimensions - empty by default.")
         .insert("Ns", "", "N dimensions - empty by default.")
         .insert("Ks", "", "K dimensions - empty by default.")
-        .insert("stride_As", "", "Tensor A strides - it is empty by default.")
+        .insert(
+            "stride_As",
+            "",
+            "Tensor A strides - it is empty by default.") // stride_As/stride_Bs/stride_Cs/stride_AQs/stride_BQs
+                                                          // can be set to zero if
+                                                          // Ms/Ns/Ks is not empty
         .insert("stride_Bs", "", "Tensor B strides - it is empty by default.")
         .insert("stride_Cs", "", "Tensor C strides - it is empty by default.")
         .insert("stride_AQs", "", "Tensor AQ strides - it is empty by default.")
@@ -132,7 +121,9 @@ auto create_args(int argc, char* argv[])
         .insert("warmup", "10", "number of iterations before benchmark the kernel.")
         .insert("repeat", "100", "number of iterations to benchmark the kernel.")
         .insert("group_count", "8", "group count.")
-        .insert("kbatch", "1", "kbatch for SplitK");
+        .insert("kbatch", "1", "kbatch for SplitK")
+        .insert("quant_mode", "tensor", "Choose tensor (default), or rowcol");
+    ;
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -145,13 +136,17 @@ inline std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gem
 
 template <typename GemmConfig,
           typename ALayout,
+          typename AQLayout,
           typename BLayout,
+          typename BQLayout,
           typename CLayout,
           typename ADataType,
+          typename AQDataType,
           typename BDataType,
+          typename BQDataType,
           typename AccDataType,
-          typename CDataType>
+          typename CDataType,
+          ck_tile::QuantType QuantMode>
 float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                             const ck_tile::index_t num_groups,
-                            void* kargs_ptr,
-                            bool splitk = false);
+                            void* kargs_ptr);

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -7,15 +7,19 @@
 
 namespace ck {
 
+#if CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM
+#ifdef __gfx12__
+__device__ void llvm_amdgcn_s_wait_dscnt(short cnt) __asm("llvm.amdgcn.s.wait.dscnt");
+#endif
+#endif
+
 __device__ void block_sync_lds()
 {
 #if CK_EXPERIMENTAL_BLOCK_SYNC_LDS_WITHOUT_SYNC_VMEM
 #ifdef __gfx12__
-    asm volatile("\
-    s_wait_dscnt 0x0 \n \
-    s_barrier_signal -1 \n \
-    s_barrier_wait -1 \
-    " ::);
+    llvm_amdgcn_s_wait_dscnt(0);
+    asm volatile("s_barrier_signal -1\n\t"
+                 "s_barrier_wait -1");
 #else
     // asm volatile("\
     // s_waitcnt lgkmcnt(0) \n \
