@@ -14,6 +14,7 @@ struct ConvSignature
     ConvDirection direction;
     GroupConvLayout layout;
     DataType data_type;
+    ElementwiseOperation elementwise_operation;
 };
 static_assert(ConvSignatureDescriptor<ConvSignature<GroupConvLayout1D>>);
 static_assert(ConvSignatureDescriptor<ConvSignature<GroupConvLayout2D>>);

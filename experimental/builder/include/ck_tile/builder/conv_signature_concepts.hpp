@@ -49,6 +49,7 @@ concept ConvSignatureDescriptor = requires(T t) {
                  std::convertible_to<decltype(t.layout), GroupConvLayout2D> ||
                  std::convertible_to<decltype(t.layout), GroupConvLayout3D>;
     { t.data_type } -> std::convertible_to<DataType>;
+    { t.elementwise_operation } -> std::convertible_to<ElementwiseOperation>;
 };
 
 // Concept to validate a convolution signature's values.

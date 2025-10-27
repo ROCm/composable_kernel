@@ -101,7 +101,8 @@ TEST_F(FwdConvBuilderTest,
         .spatial_dim = 2,
         .direction   = ConvDirection::FORWARD,
         .layout      = GroupConvLayout2D::NHWGC_GKYXC_NHWGK,
-        .data_type   = DataType::BF16};
+        .data_type   = DataType::BF16,
+        .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
 
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 256, .n = 256, .k = 32}};
@@ -120,7 +121,8 @@ TEST_F(FwdConvBuilderTest,
         .spatial_dim = 2,
         .direction   = ConvDirection::FORWARD,
         .layout      = GroupConvLayout2D::GNHWC_GKYXC_GNHWK,
-        .data_type   = DataType::FP16};
+        .data_type   = DataType::FP16,
+        .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
 
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 256, .n = 256, .k = 32}};
@@ -140,7 +142,8 @@ TEST_F(FwdConvBuilderTest,
         .spatial_dim = 2,
         .direction   = ConvDirection::FORWARD,
         .layout      = GroupConvLayout2D::NGCHW_GKCYX_NGKHW,
-        .data_type   = DataType::FP32};
+        .data_type   = DataType::FP32,
+        .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
 
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 128, .n = 128, .k = 32}};
@@ -159,7 +162,8 @@ TEST_F(FwdConvBuilderTest,
         .spatial_dim = 2,
         .direction   = ConvDirection::FORWARD,
         .layout      = GroupConvLayout2D::NHWGC_GKYXC_NHWGK,
-        .data_type   = DataType::BF16};
+        .data_type   = DataType::BF16,
+        .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
 
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 256, .n = 256, .k = 32}};
@@ -182,7 +186,8 @@ TEST_F(FwdConvBuilderTest,
         .spatial_dim = 3,
         .direction   = ConvDirection::FORWARD,
         .layout      = GroupConvLayout3D::NGCDHW_GKCZYX_NGKDHW,
-        .data_type   = DataType::FP32};
+        .data_type   = DataType::FP32,
+        .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
 
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 128, .n = 128, .k = 32}};
@@ -201,7 +206,8 @@ TEST_F(FwdConvBuilderTest,
         .spatial_dim = 3,
         .direction   = ConvDirection::FORWARD,
         .layout      = GroupConvLayout3D::GNDHWC_GKZYXC_GNDHWK,
-        .data_type   = DataType::BF16};
+        .data_type   = DataType::BF16,
+        .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
 
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 256, .n = 256, .k = 32}};
@@ -220,7 +226,8 @@ TEST_F(FwdConvBuilderTest,
         .spatial_dim = 3,
         .direction   = ConvDirection::FORWARD,
         .layout      = GroupConvLayout3D::NDHWGC_GKZYXC_NDHWGK,
-        .data_type   = DataType::FP16};
+        .data_type   = DataType::FP16,
+        .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
 
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 128, .n = 128, .k = 32}};
