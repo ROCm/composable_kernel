@@ -58,31 +58,34 @@ TEST(InstanceTraitsUtil, LayoutNameReturnsCorrectStringsForGemmLayouts)
 TEST(InstanceTraitsUtil, LayoutNameReturnsCorrectStringsForConvLayouts)
 {
     namespace conv = ck::tensor_layout::convolution;
-    EXPECT_THAT((std::vector<std::string_view>{// Input tensor layouts (packed)
-                                               layout_name<conv::NCHW>(),
-                                               layout_name<conv::NHWC>(),
-                                               layout_name<conv::NCDHW>(),
-                                               layout_name<conv::NDHWC>(),
-                                               // Grouped input layouts
-                                               layout_name<conv::GNCHW>(),
-                                               layout_name<conv::GNHWC>(),
-                                               // Weight tensor layouts
-                                               layout_name<conv::KCYX>(),
-                                               layout_name<conv::KYXC>(),
-                                               layout_name<conv::GKCYX>(),
-                                               layout_name<conv::GKYXC>(),
-                                               // Output tensor layouts
-                                               layout_name<conv::NKHW>(),
-                                               layout_name<conv::NHWK>(),
-                                               layout_name<conv::GNKHW>(),
-                                               layout_name<conv::GNHWK>(),
-                                               // Strided layouts
-                                               layout_name<conv::G_NHW_C>(),
-                                               layout_name<conv::G_K_YX_C>(),
-                                               layout_name<conv::G_NHW_K>(),
-                                               // Bias layouts
-                                               layout_name<conv::G_C>(),
-                                               layout_name<conv::G_K>()}),
+    EXPECT_THAT((std::vector<std::string_view>{
+                    // Input tensor layouts
+                    // TODO(deprecated): Remove non-grouped layouts once instances are removed.
+                    layout_name<conv::NCHW>(),
+                    layout_name<conv::NHWC>(),
+                    layout_name<conv::NCDHW>(),
+                    layout_name<conv::NDHWC>(),
+                    // Grouped input layouts
+                    layout_name<conv::GNCHW>(),
+                    layout_name<conv::GNHWC>(),
+                    // Weight tensor layouts
+                    layout_name<conv::KCYX>(),
+                    layout_name<conv::KYXC>(),
+                    layout_name<conv::GKCYX>(),
+                    layout_name<conv::GKYXC>(),
+                    // Output tensor layouts
+                    layout_name<conv::NKHW>(),
+                    layout_name<conv::NHWK>(),
+                    layout_name<conv::GNKHW>(),
+                    layout_name<conv::GNHWK>(),
+                    // Strided layouts
+                    // TODO(deprecated): Remove strided layouts once instances are removed.
+                    layout_name<conv::G_NHW_C>(),
+                    layout_name<conv::G_K_YX_C>(),
+                    layout_name<conv::G_NHW_K>(),
+                    // Bias layouts
+                    layout_name<conv::G_C>(),
+                    layout_name<conv::G_K>()}),
                 ElementsAre("NCHW",
                             "NHWC",
                             "NCDHW",
