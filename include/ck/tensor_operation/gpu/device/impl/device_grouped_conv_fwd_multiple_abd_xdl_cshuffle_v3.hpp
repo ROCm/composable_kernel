@@ -1407,6 +1407,14 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
         }
 
         // check device
+        if constexpr(DirectLoad)
+        {
+            if(get_device_name() != "gfx950")
+            {
+                return false;
+            }
+        }
+
         if(get_device_name() == "gfx908")
         {
             // FIXME: re-enable fp64 when SWDEV-335738 is fixed
