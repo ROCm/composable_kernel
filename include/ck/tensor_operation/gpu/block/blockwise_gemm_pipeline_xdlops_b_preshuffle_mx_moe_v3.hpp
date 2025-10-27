@@ -230,83 +230,83 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v3<BlockGemmPipelineSched
         if constexpr(num_total_stages > 2)
         {
 
-        // Group num_mfma_perstage num_ds_read_a_perstage
-        // since we want to reuse a local register buffer
-        constexpr auto num_mfma_perstage      = num_mfma_inst / num_total_stages;
-        constexpr auto num_ds_read_a_perstage = num_ds_read_inst_a / num_total_stages;
+            // Group num_mfma_perstage num_ds_read_a_perstage
+            // since we want to reuse a local register buffer
+            constexpr auto num_mfma_perstage      = num_mfma_inst / num_total_stages;
+            constexpr auto num_ds_read_a_perstage = num_ds_read_inst_a / num_total_stages;
 
-        constexpr auto num_ds_read_a_mfma_perstage =
-            math::integer_divide_ceil(num_ds_read_a_perstage, ds_read_a_mfma_rate);
+            constexpr auto num_ds_read_a_mfma_perstage =
+                math::integer_divide_ceil(num_ds_read_a_perstage, ds_read_a_mfma_rate);
 
-        constexpr auto num_ds_read_a_prefetch_stages = 2;
+            constexpr auto num_ds_read_a_prefetch_stages = 2;
 
-        constexpr auto buffer_load_perstage_more =
-            math::integer_divide_ceil((num_buffer_load_stage1), (num_total_stages - 2));
-        constexpr auto buffer_load_perstage_less =
-            math::integer_divide_floor((num_buffer_load_stage1), (num_total_stages - 2));
-        constexpr auto buffer_load_perstage_stage2 =
-            math::integer_divide_floor((num_buffer_load_stage2), 2);
+            constexpr auto buffer_load_perstage_more =
+                math::integer_divide_ceil((num_buffer_load_stage1), (num_total_stages - 2));
+            constexpr auto buffer_load_perstage_less =
+                math::integer_divide_floor((num_buffer_load_stage1), (num_total_stages - 2));
+            constexpr auto buffer_load_perstage_stage2 =
+                math::integer_divide_floor((num_buffer_load_stage2), 2);
 
-        constexpr auto buffer_load_stages_more =
-            num_buffer_load_stage1 -
-            math::integer_divide_floor(num_buffer_load_stage1, (num_total_stages - 2)) *
-                ((num_total_stages - 2));
+            constexpr auto buffer_load_stages_more =
+                num_buffer_load_stage1 -
+                math::integer_divide_floor(num_buffer_load_stage1, (num_total_stages - 2)) *
+                    ((num_total_stages - 2));
 
-        constexpr auto buffer_load_issue_point_interval_more =
-            num_mfma_perstage / buffer_load_perstage_more;
-        constexpr auto buffer_load_issue_point_interval_less =
-            num_mfma_perstage / buffer_load_perstage_less;
-        constexpr auto buffer_load_issue_point_interval_stage2 =
-            num_mfma_perstage / buffer_load_perstage_stage2;
+            constexpr auto buffer_load_issue_point_interval_more =
+                num_mfma_perstage / buffer_load_perstage_more;
+            constexpr auto buffer_load_issue_point_interval_less =
+                num_mfma_perstage / buffer_load_perstage_less;
+            constexpr auto buffer_load_issue_point_interval_stage2 =
+                num_mfma_perstage / buffer_load_perstage_stage2;
 
-        // Stage 1
-        // global read more
-        static_for<0, buffer_load_stages_more, 1>{}([&](auto /*i*/) {
-            static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+            // Stage 1
+            // global read more
+            static_for<0, buffer_load_stages_more, 1>{}([&](auto /*i*/) {
+                static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
+                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
 
-                if constexpr(imfma % buffer_load_issue_point_interval_more == 0)
-                {
-                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                }
+                    if constexpr(imfma % buffer_load_issue_point_interval_more == 0)
+                    {
+                        __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                    }
 
-                if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
-                {
-                    __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
-                }
+                    if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
+                    {
+                        __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+                    }
+                });
             });
-        });
 
-        // global read less
-        static_for<0, (num_total_stages - 2 - buffer_load_stages_more), 1>{}([&](auto /*i*/) {
-            static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                if constexpr(imfma % buffer_load_issue_point_interval_less == 0)
-                {
-                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                }
-                if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
-                {
-                    __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
-                }
+            // global read less
+            static_for<0, (num_total_stages - 2 - buffer_load_stages_more), 1>{}([&](auto /*i*/) {
+                static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
+                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                    if constexpr(imfma % buffer_load_issue_point_interval_less == 0)
+                    {
+                        __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                    }
+                    if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
+                    {
+                        __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+                    }
+                });
             });
-        });
 
-        // Stage 2, Sync
-        // lds synchronization, prefetch next loop local A
-        static_for<0, num_ds_read_a_prefetch_stages, 1>{}([&](auto /*i*/) {
-            static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
-                __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
-                if constexpr(imfma % buffer_load_issue_point_interval_stage2 == 0)
-                {
-                    __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
-                }
-                if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
-                {
-                    __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
-                }
+            // Stage 2, Sync
+            // lds synchronization, prefetch next loop local A
+            static_for<0, num_ds_read_a_prefetch_stages, 1>{}([&](auto /*i*/) {
+                static_for<0, num_mfma_perstage, 1>{}([&](auto imfma) {
+                    __builtin_amdgcn_sched_group_barrier(0x008, 1, 0); // MFMA
+                    if constexpr(imfma % buffer_load_issue_point_interval_stage2 == 0)
+                    {
+                        __builtin_amdgcn_sched_group_barrier(0x020, 1, 0); // VMEM read
+                    }
+                    if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
+                    {
+                        __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+                    }
+                });
             });
-        });
         }
         else
         {
