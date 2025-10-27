@@ -202,16 +202,16 @@ struct ConvTensorTypes<DataType::FP32>
 };
 
 template <ElementwiseOperation T>
-struct ConvPassThroughOps
+struct ElementwiseOps
 {
     // This will trigger if a specialization for the given DataType is not found.
     // We should always catch this in an earlier validation check.
     static_assert(sizeof(UnsupportedEnumValue<T>) == 0,
-                  "Internal error. Unsupported data type for convolution factory.");
+                  "Internal error. Unsupported elementwise operation for convolution factory.");
 };
 
 template <>
-struct ConvPassThroughOps<ElementwiseOperation::PASS_THROUGH>
+struct ElementwiseOps<ElementwiseOperation::PASS_THROUGH>
 {
     using AElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
     using BElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
@@ -431,7 +431,7 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
     using Layouts =
         factory_internal::ConvTensorLayouts<SIGNATURE.layout, SPATIAL_DIM, ConvDirection::FORWARD>;
     using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
-    using Ops           = factory_internal::ConvPassThroughOps<SIGNATURE.elementwise_operation>;
+    using Ops           = factory_internal::ElementwiseOps<SIGNATURE.elementwise_operation>;
     using AlgorithmType = decltype(ALGORITHM);
 
     // Check preconditions for the algorithm description.
