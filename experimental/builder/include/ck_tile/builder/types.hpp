@@ -11,7 +11,8 @@ enum class DataType
     FP16,
     BF16,
     FP8,
-    S8
+    I8,
+    U8
 };
 
 // Memory layouts for 1D convolution tensors.
@@ -60,6 +61,7 @@ enum class ElementwiseOperation
 {
     BIAS,
     BIAS_CLAMP,
+    BIAS_BNORM_CLAMP,
     BILINEAR,
     CLAMP,
     SCALE,
