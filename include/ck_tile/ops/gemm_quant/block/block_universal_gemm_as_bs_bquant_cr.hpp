@@ -345,12 +345,14 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
                         constexpr index_t reg_offset = [&]() {
                             if constexpr(Traits::NQPerBlock >= Traits::NIterPerWarp)
                             {
-                                // Each nIter and warp/thread has its own scale - tile dstr handles the proper loading
+                                // Each nIter and warp/thread has its own scale - tile dstr handles
+                                // the proper loading
                                 return nIter * Traits::BQPerBlock + kQScale;
                             }
                             else
                             {
-                                // Many N warps/iters share the same scale, index from full [NQPerBlock=1, BQPerBlock] matrix
+                                // Many N warps/iters share the same scale, index from full
+                                // [NQPerBlock=1, BQPerBlock] matrix
                                 static_assert(Traits::NQPerBlock == 1);
                                 return kQScale;
                             }

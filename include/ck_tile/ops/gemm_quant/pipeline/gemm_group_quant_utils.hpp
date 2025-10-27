@@ -216,12 +216,13 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
             constexpr index_t XR        = get_warp_size() / NQPerIter;
             static_assert(YPerTile == NQPerIter * NWarps * NIterPerWarp);
             return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<MWarps, XR>,
-                                           tuple<sequence<NIterPerWarp, NWarps, NQPerIter>, sequence<XPerTile>>,
-                                           tuple<sequence<0, 1>, sequence<0, 1>>,
-                                           tuple<sequence<0, 1>, sequence<1, 2>>,
-                                           sequence<1, 2>,
-                                           sequence<0, 0>>{});
+                tile_distribution_encoding<
+                    sequence<MWarps, XR>,
+                    tuple<sequence<NIterPerWarp, NWarps, NQPerIter>, sequence<XPerTile>>,
+                    tuple<sequence<0, 1>, sequence<0, 1>>,
+                    tuple<sequence<0, 1>, sequence<1, 2>>,
+                    sequence<1, 2>,
+                    sequence<0, 0>>{});
         }
         else if constexpr(YPerTile >= NIterPerWarp)
         {
@@ -230,16 +231,18 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
             constexpr index_t XR        = get_warp_size() / NQPerIter;
             static_assert(YPerTile == NQPerIter * NIterPerWarp);
             return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<MWarps, NWarps, XR>,
-                                           tuple<sequence<NIterPerWarp, NQPerIter>, sequence<XPerTile>>,
-                                           tuple<sequence<0, 0>, sequence<0, 1>>,
-                                           tuple<sequence<0, 1>, sequence<2, 1>>,
-                                           sequence<1, 2>,
-                                           sequence<0, 0>>{});
+                tile_distribution_encoding<
+                    sequence<MWarps, NWarps, XR>,
+                    tuple<sequence<NIterPerWarp, NQPerIter>, sequence<XPerTile>>,
+                    tuple<sequence<0, 0>, sequence<0, 1>>,
+                    tuple<sequence<0, 1>, sequence<2, 1>>,
+                    sequence<1, 2>,
+                    sequence<0, 0>>{});
         }
         else
         {
-            // larger NQ block size, multiple iters/warps use same scales -> replicate to all threads
+            // larger NQ block size, multiple iters/warps use same scales -> replicate to all
+            // threads
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<MWarps, NWarps, get_warp_size()>,
                                            tuple<sequence<YPerTile>, sequence<XPerTile>>,
