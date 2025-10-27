@@ -361,9 +361,9 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     using typename Base::QDataType;
     using typename Base::QuantGroupSize;
 
-    static constexpr auto QuantType          = Base::QuantType;
-    static constexpr auto PreshuffleB        = Base::PreshuffleB;
-    static constexpr auto TiledMMAPermuteN   = Base::TiledMMAPermuteN;
+    static constexpr auto QuantType        = Base::QuantType;
+    static constexpr auto PreshuffleB      = Base::PreshuffleB;
+    static constexpr auto TiledMMAPermuteN = Base::TiledMMAPermuteN;
 
     protected:
     void SetUpQuantTypeSpecific() {}
