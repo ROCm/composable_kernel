@@ -7,6 +7,7 @@ function(add_ck_builder_test test_name)
     target_include_directories(${test_name} PRIVATE
         "${PROJECT_SOURCE_DIR}/experimental/builder/include"
         "${PROJECT_SOURCE_DIR}/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}"
     )
     target_compile_options(${test_name} PRIVATE
         -Wno-global-constructors
@@ -22,4 +23,9 @@ add_ck_builder_test(test_get_instance_string
     test_get_instance_string.cpp)
 
 add_ck_builder_test(test_ckb_build_fwd_instances
-    test_ckb_build_fwd_instances.cpp)
+    conv/test_ckb_conv_fwd_2d_bf16.cpp
+    conv/test_ckb_conv_fwd_2d_fp16.cpp
+    conv/test_ckb_conv_fwd_2d_fp32.cpp
+    conv/test_ckb_conv_fwd_3d_bf16.cpp
+    conv/test_ckb_conv_fwd_3d_fp16.cpp
+    conv/test_ckb_conv_fwd_3d_fp32.cpp)
