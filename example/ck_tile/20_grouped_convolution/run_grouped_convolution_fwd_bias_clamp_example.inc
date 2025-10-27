@@ -245,27 +245,29 @@ template <typename Invoker,
 int run_grouped_conv_fwd_bias_clamp_example_prec_type(
     std::string in_layout, std::string wei_layout, std::string out_layout, int argc, char* argv[])
 {
-    using NWGC   = ck_tile::tensor_layout::convolution::NWGC;
+    // using NWGC   = ck_tile::tensor_layout::convolution::NWGC;
     using NHWGC  = ck_tile::tensor_layout::convolution::NHWGC;
     using NDHWGC = ck_tile::tensor_layout::convolution::NDHWGC;
 
-    using GKXC   = ck_tile::tensor_layout::convolution::GKXC;
+    // using GKXC   = ck_tile::tensor_layout::convolution::GKXC;
     using GKYXC  = ck_tile::tensor_layout::convolution::GKYXC;
     using GKZYXC = ck_tile::tensor_layout::convolution::GKZYXC;
 
-    using NWGK   = ck_tile::tensor_layout::convolution::NWGK;
+    // using NWGK   = ck_tile::tensor_layout::convolution::NWGK;
     using NHWGK  = ck_tile::tensor_layout::convolution::NHWGK;
     using NDHWGK = ck_tile::tensor_layout::convolution::NDHWGK;
 
     if(in_layout == "NWGC" && wei_layout == "GKXC" && out_layout == "NWGK")
     {
-        return run_grouped_conv_fwd_bias_clamp_example_with_layouts<ck_tile::number<1>{},
-                                                                    GemmWarpConfig,
-                                                                    Invoker,
-                                                                    InPrecType,
-                                                                    WeiPrecType,
-                                                                    OutPrecType>(
-            argc, argv, NWGC{}, GKXC{}, NWGK{});
+        // FIXME: Fix crash in 1D convolution whem using Ds tensor.
+        throw std::runtime_error("1D Convolution does not support bias.");
+        // return run_grouped_conv_fwd_bias_clamp_example_with_layouts<ck_tile::number<1>{},
+        //                                                             GemmWarpConfig,
+        //                                                             Invoker,
+        //                                                             InPrecType,
+        //                                                             WeiPrecType,
+        //                                                             OutPrecType>(
+        //     argc, argv, NWGC{}, GKXC{}, NWGK{});
     }
     else if(in_layout == "NHWGC" && wei_layout == "GKYXC" && out_layout == "NHWGK")
     {
