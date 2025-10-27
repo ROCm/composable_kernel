@@ -7,6 +7,7 @@ function(add_ck_builder_test test_name)
     target_include_directories(${test_name} PRIVATE
         "${PROJECT_SOURCE_DIR}/experimental/builder/include"
         "${PROJECT_SOURCE_DIR}/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}"
     )
     target_compile_options(${test_name} PRIVATE
         -Wno-global-constructors

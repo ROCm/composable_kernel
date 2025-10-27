@@ -16,6 +16,7 @@
 #include <ck/utility/sequence.hpp>
 #include <ck/utility/blkgemmpipe_scheduler.hpp>
 #include <ck/tensor_operation/gpu/device/tensor_layout.hpp>
+#include <ck_tile/ops/common/tensor_layout.hpp>
 #include <ck/tensor_operation/gpu/element/element_wise_operation.hpp>
 #include <ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp>
 #include <ck/tensor_operation/gpu/device/gemm_specialization.hpp>
@@ -69,7 +70,8 @@ concept IsDataType = !detail::type_name_impl<T>().empty();
 
 // Concept that checks valid layout types
 template <typename T>
-concept IsLayoutType = std::is_base_of_v<ck::tensor_layout::BaseTensorLayout, T> && requires {
+concept IsLayoutType = (std::is_base_of_v<ck_tile::tensor_layout::BaseTensorLayout, T> ||
+                        std::is_base_of_v<ck::tensor_layout::BaseTensorLayout, T>) && requires {
     { T::name } -> std::convertible_to<std::string_view>;
 };
 
