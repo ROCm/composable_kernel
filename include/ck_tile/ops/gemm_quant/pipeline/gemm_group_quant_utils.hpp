@@ -209,10 +209,37 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
                                            sequence<1, 2>,
                                            sequence<0, 0>>{});
         }
+        else if constexpr(YPerTile >= NIterPerWarp * NWarps)
+        {
+            // small NQ block size case: split NQ axis by iters and Nwarps
+            constexpr index_t NQPerIter = integer_divide_ceil(YPerTile, NIterPerWarp * NWarps);
+            constexpr index_t XR        = get_warp_size() / NQPerIter;
+            static_assert(YPerTile == NQPerIter * NWarps * NIterPerWarp);
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<MWarps, XR>,
+                                           tuple<sequence<NIterPerWarp, NWarps, NQPerIter>, sequence<XPerTile>>,
+                                           tuple<sequence<0, 1>, sequence<0, 1>>,
+                                           tuple<sequence<0, 1>, sequence<1, 2>>,
+                                           sequence<1, 2>,
+                                           sequence<0, 0>>{});
+        }
+        // else if constexpr(YPerTile >= NIterPerWarp)
+        // {
+        //     // now all NWarps have the same scale -> replicate
+        //     constexpr index_t NQPerIter = integer_divide_ceil(YPerTile, NIterPerWarp);
+        //     constexpr index_t XR        = get_warp_size() / NQPerIter;
+        //     static_assert(YPerTile == NQPerIter * NWarps * NIterPerWarp);
+        //     return make_static_tile_distribution(
+        //         tile_distribution_encoding<sequence<MWarps, NWarps, XR>,
+        //                                    tuple<sequence<NIterPerWarp, NQPerIter>, sequence<XPerTile>>,
+        //                                    tuple<sequence<0, 0>, sequence<0, 1>>,
+        //                                    tuple<sequence<0, 1>, sequence<2, 1>>,
+        //                                    sequence<1, 2>,
+        //                                    sequence<0, 0>>{});
+        // }
         else
         {
-            // YPerQ > 1 implementation - each group of YPerQ rows share the same scale
-            // TODO: do not repeat everything to all threads
+            // larger NQ block size, multiple iters/warps use same scales -> replicate to all threads
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<MWarps, NWarps, get_warp_size()>,
                                            tuple<sequence<YPerTile>, sequence<XPerTile>>,
@@ -221,6 +248,11 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
                                            sequence<1, 2>,
                                            sequence<0, 0>>{});
         }
+    }
+
+    CK_TILE_HOST_DEVICE static constexpr bool is_fully_replicated()
+    {
+        return YPerQ > 1 && YPerTile < NIterPerWarp * NWarps;
     }
 };
 
