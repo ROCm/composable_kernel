@@ -15,6 +15,6 @@ RUN pip install pandas zmq einops ninja && \
     python3 setup.py develop && \
     groupadd -g 1001 jenkins && \
     useradd -u 1001 -g 1001 -m -s /bin/bash jenkins && \
-    chown -R jenkins:jenkins /home/jenkins/workspace && \
-    chmod -R a+rwx /home/jenkins/workspace && \
+    chown -R jenkins:jenkins /home/jenkins && \
+    chmod -R a+rwx /home/jenkins && \
     sudo usermod -aG irc jenkins
