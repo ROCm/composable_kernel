@@ -3,7 +3,6 @@ set(GEMM_LAYOUT "rcr;rrr;crr;ccr" CACHE STRING "List of layout for GEMM (semicol
 set(GEMM_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
 option(ENABLE_CCACHE_GEMM "Enable ccache for GEMM ops compilation" OFF)
 
-
 # Store the directory path for use in functions
 set(GEMM_SOURCE_DIR ${CMAKE_CURRENT_LIST_DIR})
 
@@ -66,7 +65,7 @@ function(create_individual_gemm_target datatype layout trait tile_config config_
     # Create the executable
     add_executable(${target_name}
         EXCLUDE_FROM_ALL
-        ${GEMM_SOURCE_DIR}/benchmark_gemm_single.cpp
+        ${GEMM_SOURCE_DIR}/gemm_benchmark_single.cpp
         ${instance_header}
     )
 
