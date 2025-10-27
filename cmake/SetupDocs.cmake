@@ -84,9 +84,11 @@ function(setup_documentation)
     set(SPHINX_OUTPUT_DIR "${CMAKE_BINARY_DIR}/docs/html")
     set(SPHINX_SOURCE_DIR "${CMAKE_SOURCE_DIR}/docs")
     
-    # Set number of parallel jobs for Sphinx (default to 8 if not set)
+    # Set number of parallel jobs for Sphinx.
+    # Use 8 as a reasonable default for modern multi-core machines if not set by the user.
+    set(SPHINX_DEFAULT_PARALLEL_JOBS 8)
     if(NOT CMAKE_BUILD_PARALLEL_LEVEL)
-        set(CMAKE_BUILD_PARALLEL_LEVEL 8)
+        set(CMAKE_BUILD_PARALLEL_LEVEL ${SPHINX_DEFAULT_PARALLEL_JOBS})
     endif()
     
     add_custom_target(docs
