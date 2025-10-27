@@ -4,6 +4,8 @@ import os
 import json
 import argparse
 import itertools
+import multiprocessing
+import concurrent.futures
 from pathlib import Path
 import logging
 from commons.validation_utils import (
@@ -560,145 +562,153 @@ struct SelectedKernel {{
 """
         return kernel_name, instance_code
 
-    # def run(self, num_workers=None):
-    #     """Run the builder to generate individual kernel files"""
-    #     # Generate individual kernel files
-    #     self.generate_individual(num_workers)
+    def run(self, num_workers=None):
+        """Run the builder to generate individual kernel files"""
+        # Generate individual kernel files
+        self.generate_individual(num_workers)
 
-    # def generate_individual(self, num_workers=None):
-    #     """Generate individual kernel files for separate compilation with parallel processing"""
-    #     if num_workers is None:
-    #         num_workers = min(
-    #             multiprocessing.cpu_count(), 8
-    #         )  # Limit to avoid memory issues
+    def generate_individual(self, num_workers=None):
+        """Generate individual kernel files for separate compilation with parallel processing"""
+        if num_workers is None:
+            num_workers = min(
+                multiprocessing.cpu_count(), 8
+            )  # Limit to avoid memory issues
 
-    #     tile_configs = self._get_tile_configs()
-    #     trait_combos = self._generate_trait_combinations()
-    #     k_block_per_cu = self.config.get("k_block_per_cu")
+        tile_configs = self._get_tile_configs()
+        trait_combos = self._generate_trait_combinations()
+        k_block_per_cu = self.config.get("k_block_per_cu")
+        if k_block_per_cu is None:
+            k_block_per_cu = 1
 
-    #     # Prepare work items for parallel processing
-    #     work_items = []
-    #     for tile_config in tile_configs:
-    #         for trait_combo in trait_combos:
-    #             work_items.append(
-    #                 (
-    #                     tile_config,
-    #                     trait_combo,
-    #                     k_block_per_cu,
-    #                     self.working_path,
-    #                     self.datatype,
-    #                     self.layout,
-    #                 )
-    #             )
+        # Prepare work items for parallel processing
+        work_items = []
+        for tile_config in tile_configs:
+            for trait_combo in trait_combos:
+                work_items.append(
+                    (
+                        tile_config,
+                        trait_combo,
+                        k_block_per_cu,
+                        self.working_path,
+                        self.datatype,
+                        self.layout,
+                    )
+                )
 
-    #     print(
-    #         f"Generating {len(work_items)} individual kernel files using {num_workers} workers..."
-    #     )
-    #     print(f"  Tile configs: {len(tile_configs)}")
-    #     print(f"  Trait combinations: {len(trait_combos)}")
-    #     print(f"  Total kernels: {len(work_items)}")
+        print(
+            f"Generating {len(work_items)} individual kernel files using {num_workers} workers..."
+        )
+        print(f"  Tile configs: {len(tile_configs)}")
+        print(f"  Trait combinations: {len(trait_combos)}")
+        print(f"  Total kernels: {len(work_items)}")
 
-    #     # Show first few work items for debugging
-    #     if work_items:
-    #         print("  First work item example:")
-    #         tile_config, trait_combo = work_items[0][:2]
-    #         print(f"    Tile config: {tile_config}")
-    #         print(f"    Trait combo: {trait_combo[:3]}")  # Show first 3 traits
+        # Show first few work items for debugging
+        if work_items:
+            print("  First work item example:")
+            tile_config, trait_combo = work_items[0][:2]
+            print(f"    Tile config: {tile_config}")
+            print(f"    Trait combo: {trait_combo[:3]}")  # Show first 3 traits
 
-    #     # Process work items in parallel
-    #     kernel_list = []
-    #     completed = 0
+        # Process work items in parallel
+        kernel_list = []
+        completed = 0
 
-    #     with concurrent.futures.ProcessPoolExecutor(
-    #         max_workers=num_workers
-    #     ) as executor:
-    #         # Submit all work items
-    #         print(f"  Submitting {len(work_items)} tasks to executor...")
-    #         future_to_item = {
-    #             executor.submit(_generate_single_kernel_individual, item): item
-    #             for item in work_items
-    #         }
-    #         print("  All tasks submitted, waiting for completion...")
+        with concurrent.futures.ProcessPoolExecutor(
+            max_workers=num_workers
+        ) as executor:
+            # Submit all work items
+            print(f"  Submitting {len(work_items)} tasks to executor...")
+            future_to_item = {
+                executor.submit(_generate_single_kernel_individual, item): item
+                for item in work_items
+            }
+            print("  All tasks submitted, waiting for completion...")
 
-    #         # Collect results with progress reporting
-    #         for future in concurrent.futures.as_completed(future_to_item):
-    #             completed += 1
-    #             if completed % 100 == 0 or completed == len(work_items):
-    #                 print(
-    #                     f"  Progress: {completed}/{len(work_items)} kernels generated"
-    #                 )
+            # Collect results with progress reporting
+            for future in concurrent.futures.as_completed(future_to_item):
+                completed += 1
+                if completed % 100 == 0 or completed == len(work_items):
+                    print(
+                        f"  Progress: {completed}/{len(work_items)} kernels generated"
+                    )
 
-    #             try:
-    #                 result = future.result()
-    #                 if result:
-    #                     kernel_list.append(result)
-    #             except Exception as exc:
-    #                 item = future_to_item[future]
-    #                 print(f"Kernel generation failed for {item}: {exc}")
+                try:
+                    result = future.result()
+                    if result:
+                        kernel_list.append(result)
+                except Exception as exc:
+                    item = future_to_item[future]
+                    print(f"Kernel generation failed for {item}: {exc}")
 
-    #     # Sort kernel list for consistent ordering
-    #     kernel_list.sort(key=lambda x: x[0])  # Sort by kernel name
+        # Sort kernel list for consistent ordering
+        kernel_list.sort(key=lambda x: x[0])  # Sort by kernel name
 
-    #     # Generate CMake include file for individual targets
-    #     self._generate_cmake_individual_targets(kernel_list)
+        # Generate CMake include file for individual targets
+        self._generate_cmake_individual_targets(kernel_list)
 
-    #     print(
-    #         f"Generated {len(kernel_list)} individual kernel files in {self.working_path}"
-    #     )
+        print(
+            f"Generated {len(kernel_list)} individual kernel files in {self.working_path}"
+        )
+
+    def _generate_cmake_individual_targets(self, kernel_list):
+        """Generate CMake include file that creates individual targets"""
+        cmake_code = f"""# Generated CMake file for individual GEMM targets
+        # Datatype: {self.datatype}, Layout: {self.layout}
+        """
+
+        for kernel_name, trait_combo, tile_config in kernel_list:
+            print(
+                "--------------------------------------------------------------------------------------------------------",
+                kernel_name,
+                trait_combo,
+                tile_config,
+                "--------------------------------------------------------------------------------------------------------",
+            )
+            pipeline, epilogue, scheduler = trait_combo[:3]
+
+            # Format tile config for CMake function
+            tile_str = f"{tile_config['tile_m']}x{tile_config['tile_n']}x{tile_config['tile_k']}_"
+            tile_str += f"{tile_config['warp_m']}x{tile_config['warp_n']}x{tile_config['warp_k']}_"
+            tile_str += f"{tile_config['warp_tile_m']}x{tile_config['warp_tile_n']}x{tile_config['warp_tile_k']}"
+
+            trait_str = f"{pipeline}_{epilogue}_{scheduler}_" + "_".join(
+                str(x) for x in trait_combo[3:]
+            )
+
+            cmake_code += f'create_individual_gemm_target("{self.datatype}" "{self.layout}" "{trait_str}" "{tile_str}")\n'
+
+        # Write CMake include file
+        with open(self.working_path / "gemm_individual_targets.cmake", "w") as f:
+            f.write(cmake_code)
 
 
-#     def _generate_cmake_individual_targets(self, kernel_list):
-#         """Generate CMake include file that creates individual targets"""
-#         cmake_code = f"""# Generated CMake file for individual GEMM targets
-# # Datatype: {self.datatype}, Layout: {self.layout}
+def _generate_single_kernel_individual(work_item):
+    """Worker function to generate a single individual kernel file"""
+    tile_config, trait_combo, k_block_per_cu, working_path, datatype, layout = work_item
 
-# """
+    # Create a temporary builder instance for this worker
+    builder = GemmMultiDKernelBuilder(working_path, datatype, layout)
 
-#         for kernel_name, trait_combo, tile_config in kernel_list:
-#             pipeline, epilogue, scheduler = trait_combo[:3]
+    try:
+        kernel_name, instance_code = builder._generate_kernel_instance(
+            tile_config, trait_combo, k_block_per_cu
+        )
 
-#             # Format tile config for CMake function
-#             tile_str = f"{tile_config['tile_m']}x{tile_config['tile_n']}x{tile_config['tile_k']}_"
-#             tile_str += f"{tile_config['warp_m']}x{tile_config['warp_n']}x{tile_config['warp_k']}_"
-#             tile_str += f"{tile_config['warp_tile_m']}x{tile_config['warp_tile_n']}x{tile_config['warp_tile_k']}"
+        # Create simplified filename without the "gemm_" prefix
+        # Remove "gemm_" from the beginning of kernel_name for the filename
+        simplified_name = kernel_name
+        if simplified_name.startswith("gemm_multi_d_"):
+            simplified_name = simplified_name[13:]  # Remove "gemm_" prefix
 
-#             trait_str = f"{pipeline}_{epilogue}_{scheduler}_" + "_".join(
-#                 str(x) for x in trait_combo[3:]
-#             )
+        # Write individual header file
+        header_file = working_path / f"gemm_multi_d_single_{simplified_name}.hpp"
+        with open(header_file, "w") as f:
+            f.write(instance_code)
 
-#             cmake_code += f'create_individual_gemm_target("{self.datatype}" "{self.layout}" "{trait_str}" "{tile_str}")\n'
-
-#         # Write CMake include file
-#         with open(self.working_path / "gemm_individual_targets.cmake", "w") as f:
-#             f.write(cmake_code)
-
-# def _generate_single_kernel_individual(work_item):
-#     """Worker function to generate a single individual kernel file"""
-#     tile_config, trait_combo, k_block_per_cu, working_path, datatype, layout = work_item
-
-#     # Create a temporary builder instance for this worker
-#     builder = GemmKernelBuilder(working_path, datatype, layout)
-
-#     try:
-#         kernel_name, instance_code = builder._generate_kernel_instance(
-#             tile_config, trait_combo, k_block_per_cu
-#         )
-
-#         # Create simplified filename without the "gemm_" prefix
-#         # Remove "gemm_" from the beginning of kernel_name for the filename
-#         simplified_name = kernel_name
-#         if simplified_name.startswith("gemm_"):
-#             simplified_name = simplified_name[5:]  # Remove "gemm_" prefix
-
-#         # Write individual header file
-#         header_file = working_path / f"gemm_single_{simplified_name}.hpp"
-#         with open(header_file, "w") as f:
-#             f.write(instance_code)
-
-#         return (kernel_name, trait_combo, tile_config)
-#     except Exception as e:
-#         print(f"Error generating individual kernel: {e}")
-#         return None
+        return (kernel_name, trait_combo, tile_config)
+    except Exception as e:
+        print(f"Error generating individual kernel: {e}")
+        return None
 
 
 def main():
@@ -838,8 +848,8 @@ def main():
         print(f"Generated {header_file}")
 
     elif args.gen_all_individual:
-        """# Generate all individual kernel files
-        builder.run(args.num_workers)"""
+        # Generate all individual kernel files
+        builder.run(args.num_workers)
     else:
         parser.error(
             "Must specify one of: --list_kernels, --gen_all_individual, or --gen_single"
