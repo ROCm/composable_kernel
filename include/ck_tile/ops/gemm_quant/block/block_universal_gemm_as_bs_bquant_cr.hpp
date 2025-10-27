@@ -342,25 +342,17 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
                         });
 
                         // Multiply bquant with accumulated C
-                        const index_t reg_offset = [&]() {
-                            constexpr bool scale_per_niter_per_warp = Traits::QuantGroupSize::kN == 1 || Traits::NQPerBlock >= Traits::NIterPerWarp * Traits::NWarp;
-                            if constexpr(scale_per_niter_per_warp)
+                        constexpr index_t reg_offset = [&]() {
+                            if constexpr(Traits::NQPerBlock >= Traits::NIterPerWarp)
                             {
                                 // Each nIter and warp/thread has its own scale - tile dstr handles the proper loading
                                 return nIter * Traits::BQPerBlock + kQScale;
                             }
                             else
                             {
-                                // Many warps/iters can share the same scale, index from full [NQPerBlock, BQPerBlock] matrix
-                                const index_t n_idx_of_warp =
-                                    nIter * WarpGemm::kN * NWarp + get_warp_id() * WarpGemm::kN;
-                                const index_t row_index =
-                                    n_idx_of_warp / Traits::QuantGroupSize::kN;
-                                if(get_lane_id() == 0)
-                                {
-                                    printf("row_index: %d\n", row_index);
-                                }
-                                return row_index * Traits::BQPerBlock + kQScale;
+                                // Many N warps/iters share the same scale, index from full [NQPerBlock=1, BQPerBlock] matrix
+                                static_assert(Traits::NQPerBlock == 1);
+                                return kQScale;
                             }
                         }();
 

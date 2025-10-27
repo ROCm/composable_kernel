@@ -223,20 +223,20 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
                                            sequence<1, 2>,
                                            sequence<0, 0>>{});
         }
-        // else if constexpr(YPerTile >= NIterPerWarp)
-        // {
-        //     // now all NWarps have the same scale -> replicate
-        //     constexpr index_t NQPerIter = integer_divide_ceil(YPerTile, NIterPerWarp);
-        //     constexpr index_t XR        = get_warp_size() / NQPerIter;
-        //     static_assert(YPerTile == NQPerIter * NWarps * NIterPerWarp);
-        //     return make_static_tile_distribution(
-        //         tile_distribution_encoding<sequence<MWarps, NWarps, XR>,
-        //                                    tuple<sequence<NIterPerWarp, NQPerIter>, sequence<XPerTile>>,
-        //                                    tuple<sequence<0, 0>, sequence<0, 1>>,
-        //                                    tuple<sequence<0, 1>, sequence<2, 1>>,
-        //                                    sequence<1, 2>,
-        //                                    sequence<0, 0>>{});
-        // }
+        else if constexpr(YPerTile >= NIterPerWarp)
+        {
+            // now all NWarps have the same scale -> replicate
+            constexpr index_t NQPerIter = integer_divide_ceil(YPerTile, NIterPerWarp);
+            constexpr index_t XR        = get_warp_size() / NQPerIter;
+            static_assert(YPerTile == NQPerIter * NIterPerWarp);
+            return make_static_tile_distribution(
+                tile_distribution_encoding<sequence<MWarps, NWarps, XR>,
+                                           tuple<sequence<NIterPerWarp, NQPerIter>, sequence<XPerTile>>,
+                                           tuple<sequence<0, 0>, sequence<0, 1>>,
+                                           tuple<sequence<0, 1>, sequence<2, 1>>,
+                                           sequence<1, 2>,
+                                           sequence<0, 0>>{});
+        }
         else
         {
             // larger NQ block size, multiple iters/warps use same scales -> replicate to all threads
