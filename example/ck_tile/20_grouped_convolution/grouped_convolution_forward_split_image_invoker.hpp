@@ -295,13 +295,14 @@ struct GroupedConvolutionForwardInvoker
             // Populate split-image metadata ONLY if using split-image kernel
             if constexpr(EnableSplitImage)
             {
-                kargs.num_spatial_pieces       = total_pieces;
-                kargs.split_image.total_d      = total_d;
-                kargs.split_image.total_h      = total_h;
-                kargs.split_image.total_w      = total_w;
-                kargs.split_image.num_d_pieces = num_d_pieces;
-                kargs.split_image.num_h_pieces = num_h_pieces;
-                kargs.split_image.num_w_pieces = num_w_pieces;
+                kargs.num_spatial_pieces        = total_pieces;
+                kargs.split_image.total_d       = total_d;
+                kargs.split_image.total_h       = total_h;
+                kargs.split_image.total_w       = total_w;
+                kargs.split_image.total_spatial = total_d * total_h * total_w; // Pre-calculate
+                kargs.split_image.num_d_pieces  = num_d_pieces;
+                kargs.split_image.num_h_pieces  = num_h_pieces;
+                kargs.split_image.num_w_pieces  = num_w_pieces;
 
                 for(ck_tile::index_t i = 0; i < total_pieces; i++)
                 {

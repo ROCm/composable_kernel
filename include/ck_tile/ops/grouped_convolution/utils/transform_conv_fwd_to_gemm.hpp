@@ -39,9 +39,7 @@ struct TransformConvFwdToGemm
     static constexpr auto I5 = number<5>{};
 
     // Unified memory limit constant for both Split-N and Split-Image
-    static constexpr long_index_t TwoGB = (long_index_t{1} << 20); // 1MB (for testing)
-    // static constexpr long_index_t TwoGB = (long_index_t{10} << 20); // 10MB
-    // static constexpr long_index_t TwoGB = (long_index_t{1} << 31); // 2GB
+    static constexpr long_index_t TwoGB = (long_index_t{1} << 31); // 2GB
 
     template <typename ConvDimsType>
     static long_index_t calculate_element_space_size_impl(const ConvDimsType& lengths,
@@ -153,10 +151,13 @@ struct TransformConvFwdToGemm
 
         // Estimate memory (simplified calculation)
         // Use max of input and output tensor sizes
-        const long_index_t input_elements  = N * D_out * H_out * W_out * C * G;
-        const long_index_t output_elements = N * D_out * H_out * W_out * K * G;
-        const long_index_t input_bytes     = input_elements * sizeof(ADataType);
-        const long_index_t output_bytes    = output_elements * sizeof(CDataType);
+        // Cast to long_index_t to prevent overflow during multiplication
+        const long_index_t input_elements =
+            static_cast<long_index_t>(N) * D_out * H_out * W_out * C * G;
+        const long_index_t output_elements =
+            static_cast<long_index_t>(N) * D_out * H_out * W_out * K * G;
+        const long_index_t input_bytes  = input_elements * sizeof(ADataType);
+        const long_index_t output_bytes = output_elements * sizeof(CDataType);
         const long_index_t max_tensor_bytes =
             (input_bytes > output_bytes) ? input_bytes : output_bytes;
 
@@ -177,7 +178,9 @@ struct TransformConvFwdToGemm
             index_t d_piece = D_out / d_split;
             index_t h_piece = H_out / h_split;
             index_t w_piece = W_out / w_split;
-            return effective_N * d_piece * h_piece * w_piece * K * G * sizeof(CDataType);
+            // Cast to long_index_t to prevent overflow
+            return static_cast<long_index_t>(effective_N) * d_piece * h_piece * w_piece * K * G *
+                   sizeof(CDataType);
         };
 
         // Calculate memory after split-N with no spatial split

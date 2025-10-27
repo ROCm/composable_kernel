@@ -367,7 +367,8 @@ struct GroupedConvFwdKernelArgs
     struct SplitImageInfo
     {
         // Common dimensions (same for all pieces)
-        index_t total_d = 1, total_h = 1, total_w = 1;                // Total tensor dimensions
+        index_t total_d = 1, total_h = 1, total_w = 1; // Total tensor dimensions
+        index_t total_spatial = 1; // Pre-calculated: total_d * total_h * total_w
         index_t num_d_pieces = 1, num_h_pieces = 1, num_w_pieces = 1; // Split factors
 
         // Minimal per-piece data (only unique values)
@@ -473,6 +474,77 @@ struct GroupedConvolutionForwardKernel
     static_assert(std::is_same_v<GemmALayout, tensor_layout::gemm::RowMajor>, "Not supported!");
     static_assert(std::is_same_v<GemmBLayout, tensor_layout::gemm::ColumnMajor>, "Not supported!");
     static_assert(std::is_same_v<GemmCLayout, tensor_layout::gemm::RowMajor>, "Not supported!");
+
+    // Helper struct for spatial coordinates
+    struct SpatialCoords
+    {
+        index_t d, h, w;
+    };
+
+    // Helper: Convert flat spatial index to (d,h,w) coordinates
+    CK_TILE_DEVICE static SpatialCoords
+    UnflattenSpatial(index_t flat, index_t h_size, index_t w_size)
+    {
+        if constexpr(NDimSpatial == 1)
+        {
+            return SpatialCoords{0, 0, flat};
+        }
+        else if constexpr(NDimSpatial == 2)
+        {
+            return SpatialCoords{0, flat / w_size, flat % w_size};
+        }
+        else // NDimSpatial == 3
+        {
+            const index_t hw        = h_size * w_size;
+            const index_t d         = flat / hw;
+            const index_t remainder = flat % hw;
+            return SpatialCoords{d, remainder / w_size, remainder % w_size};
+        }
+    }
+
+    // Helper: Convert (d,h,w) to flat spatial index
+    CK_TILE_DEVICE static index_t
+    FlattenSpatial(index_t d, index_t h, index_t w, index_t total_h, index_t total_w)
+    {
+        if constexpr(NDimSpatial == 1)
+        {
+            return w;
+        }
+        else if constexpr(NDimSpatial == 2)
+        {
+            return h * total_w + w;
+        }
+        else // NDimSpatial == 3
+        {
+            return (d * total_h + h) * total_w + w;
+        }
+    }
+
+    // Helper: Find which piece owns a block using binary search
+    template <typename SplitImageInfo>
+    CK_TILE_DEVICE static index_t
+    FindPieceId(index_t block_id, const SplitImageInfo& split_info, index_t num_pieces)
+    {
+        index_t left     = 0;
+        index_t right    = num_pieces - 1;
+        index_t piece_id = (left + right) / 2;
+
+        while(!(block_id >= split_info.pieces[piece_id].block_start &&
+                block_id < split_info.pieces[piece_id].block_end) &&
+              left <= right)
+        {
+            if(block_id < split_info.pieces[piece_id].block_start)
+            {
+                right = piece_id - 1;
+            }
+            else
+            {
+                left = piece_id + 1;
+            }
+            piece_id = (left + right) / 2;
+        }
+        return piece_id;
+    }
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
@@ -910,71 +982,10 @@ struct GroupedConvolutionForwardKernel
 
         if constexpr(EnableSplitImage)
         {
-            // Helper: Find which piece owns this block using binary search
+            // Find which piece owns this block using binary search
             // Reference: device_grouped_conv_fwd_multiple_d_xdl_large_tensor_cshuffle.hpp
-            auto find_piece_id = [&]() -> index_t {
-                index_t left     = 0;
-                index_t right    = kargs.num_spatial_pieces - 1;
-                index_t piece_id = (left + right) / 2;
-
-                while(!(block_id >= kargs.split_image.pieces[piece_id].block_start &&
-                        block_id < kargs.split_image.pieces[piece_id].block_end) &&
-                      left <= right)
-                {
-                    if(block_id < kargs.split_image.pieces[piece_id].block_start)
-                    {
-                        right = piece_id - 1;
-                    }
-                    else
-                    {
-                        left = piece_id + 1;
-                    }
-                    piece_id = (left + right) / 2;
-                }
-                return piece_id;
-            };
-
-            // Helper: Convert flat spatial index to (d,h,w) coordinates
-            auto unflatten_spatial = [](index_t flat, index_t h_size, index_t w_size) {
-                struct Coords
-                {
-                    index_t d, h, w;
-                };
-                if constexpr(NDimSpatial == 1)
-                {
-                    return Coords{0, 0, flat};
-                }
-                else if constexpr(NDimSpatial == 2)
-                {
-                    return Coords{0, flat / w_size, flat % w_size};
-                }
-                else // NDimSpatial == 3
-                {
-                    const index_t hw        = h_size * w_size;
-                    const index_t d         = flat / hw;
-                    const index_t remainder = flat % hw;
-                    return Coords{d, remainder / w_size, remainder % w_size};
-                }
-            };
-
-            // Helper: Convert (d,h,w) to flat spatial index
-            auto flatten_spatial =
-                [](index_t d, index_t h, index_t w, index_t total_h, index_t total_w) -> index_t {
-                if constexpr(NDimSpatial == 1)
-                {
-                    return w;
-                }
-                else if constexpr(NDimSpatial == 2)
-                {
-                    return h * total_w + w;
-                }
-                else // NDimSpatial == 3
-                {
-                    return (d * total_h + h) * total_w + w;
-                }
-            };
-
-            const index_t piece_id = find_piece_id();
+            const index_t piece_id =
+                FindPieceId(block_id, kargs.split_image, kargs.num_spatial_pieces);
             const auto& piece      = kargs.split_image.pieces[piece_id];
             const auto& split_info = kargs.split_image;
 
@@ -993,7 +1004,7 @@ struct GroupedConvolutionForwardKernel
 
             // Convert to local spatial coordinates
             const auto local_coords =
-                unflatten_spatial(local_spatial_flat, piece.h_size, piece.w_size);
+                UnflattenSpatial(local_spatial_flat, piece.h_size, piece.w_size);
 
             // Convert to global spatial coordinates
             const index_t global_n = local_n;
@@ -1002,9 +1013,8 @@ struct GroupedConvolutionForwardKernel
             const index_t global_w = piece.w_start + local_coords.w;
 
             // Convert to global M index
-            const index_t global_spatial_per_batch =
-                split_info.total_d * split_info.total_h * split_info.total_w;
-            const index_t global_spatial_flat = flatten_spatial(
+            const index_t global_spatial_per_batch = split_info.total_spatial; // Pre-calculated
+            const index_t global_spatial_flat      = FlattenSpatial(
                 global_d, global_h, global_w, split_info.total_h, split_info.total_w);
             const index_t global_m = global_n * global_spatial_per_batch + global_spatial_flat;
 
