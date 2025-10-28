@@ -48,7 +48,6 @@ a_device.ToDevice(a_host.data());
 
 ### PracticeGemmShape Configuration
 A PracticeGemmShape struct holds the dimension of each BlockTile and WaveTile:
-![Tile Hierarchy](./images/tile_hierarchy.png)
 
 ```cpp
 using BlockTile = ck_tile::sequence<256, 128, 32>;  // M, N, K per block
@@ -56,7 +55,6 @@ using WaveTile  = ck_tile::sequence<16, 16, 16>;   // M, N, K per wave
 ```
 - A BlockTile of size MxK (256x32) on A matrix and NxK (128x32) on B matrix. A WaveTile of size MxN (16x16) on C matrix.
 
-![Tile Coverage](./images/gemm_loop.png)
 
 - BlockTiles iterate in K dimension to fetch data required for computing region of C covered by C's block tile.
 - BlockTiles are further subdivided into WarpTiles.
