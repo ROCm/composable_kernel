@@ -201,11 +201,11 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
 
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<MWarps, YR>,
-                                        tuple<sequence<Y>, sequence<X0, X1, X2>>,
-                                        tuple<sequence<0, 2>, sequence<0, 2>>,
-                                        tuple<sequence<0, 1>, sequence<1, 2>>,
-                                        sequence<2, 1>,
-                                        sequence<0, 0>>{});
+                                           tuple<sequence<Y>, sequence<X0, X1, X2>>,
+                                           tuple<sequence<0, 2>, sequence<0, 2>>,
+                                           tuple<sequence<0, 1>, sequence<1, 2>>,
+                                           sequence<2, 1>,
+                                           sequence<0, 0>>{});
         }
         else if constexpr(XPerTile >= NIterPerWarp * NWarps)
         {
