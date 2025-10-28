@@ -2,11 +2,10 @@
 
 using namespace ck_tile::builder::test_utils;
 
-namespace ck_tile::builder::testing
-{
+namespace ck_tile::builder::testing {
 
 TEST(FwdConvInstances,
-       Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_2D_FP16_GNHWC)
+     Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_2D_FP16_GNHWC)
 {
     constexpr ConvSignature<GroupConvLayout2D> FwdConvSignature{
         .spatial_dim           = 2,

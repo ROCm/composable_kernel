@@ -2,12 +2,12 @@
 
 using namespace ck_tile::builder::test_utils;
 
-namespace ck_tile::builder::testing
-{
+namespace ck_tile::builder::testing {
 
-// 1D BF16 (channels-first) with Pipeline V2 and FILTER_1X1_STRIDE1_PAD0 specialization and SCALE elementwise op
+// 1D BF16 (channels-first) with Pipeline V2 and FILTER_1X1_STRIDE1_PAD0 specialization and SCALE
+// elementwise op
 TEST(FwdConvInstances,
-       Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_1D_BF16_ChannelsFirst_scale)
+     Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_1D_BF16_ChannelsFirst_scale)
 {
     constexpr ConvSignature<GroupConvLayout1D> FwdConvSignature{
         .spatial_dim           = 1,

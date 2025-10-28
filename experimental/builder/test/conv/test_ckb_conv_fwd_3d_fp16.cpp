@@ -2,12 +2,11 @@
 
 using namespace ck_tile::builder::test_utils;
 
-namespace ck_tile::builder::testing
-{
+namespace ck_tile::builder::testing {
 
 // 3D FP16 NDHWGC (channels-last) with Pipeline V4 and FILTER_1X1_PAD0
 TEST(FwdConvInstances,
-       Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_3D_FP16_NDHWGC_ChannelsLast)
+     Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_3D_FP16_NDHWGC_ChannelsLast)
 {
     constexpr ConvSignature<GroupConvLayout3D> FwdConvSignature{
         .spatial_dim           = 3,

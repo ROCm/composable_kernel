@@ -2,12 +2,11 @@
 
 using namespace ck_tile::builder::test_utils;
 
-namespace ck_tile::builder::testing
-{
+namespace ck_tile::builder::testing {
 
 // 2D BF16 NHWGC (channels-last) with Pipeline V1 and DEFAULT
 TEST(FwdConvInstances,
-       Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_2D_BF16_ChannelsLast)
+     Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_2D_BF16_ChannelsLast)
 {
     constexpr ConvSignature<GroupConvLayout2D> FwdConvSignature{
         .spatial_dim           = 2,
@@ -27,7 +26,7 @@ TEST(FwdConvInstances,
 
 // 2D BF16 NHWGC (channels-last) with Pipeline V5 and FILTER_3x3
 TEST(FwdConvInstances,
-       Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_2D_BF16_NHWGC_Filter3x3)
+     Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_2D_BF16_NHWGC_Filter3x3)
 {
     constexpr ConvSignature<GroupConvLayout2D> FwdConvSignature{
         .spatial_dim           = 2,
