@@ -232,7 +232,7 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
                 tile_distribution_encoding<
                     sequence<MWarps, NWarps, YR>,
                     tuple<sequence<YPerTile>, sequence<NIterPerWarp, NQPerIter>>,
-                    tuple<sequence<0, 2>, sequence<0, 2>>,
+                    tuple<sequence<0, 0>, sequence<0, 2>>,
                     tuple<sequence<0, 1>, sequence<2, 1>>,
                     sequence<2, 1>,
                     sequence<0, 0>>{});

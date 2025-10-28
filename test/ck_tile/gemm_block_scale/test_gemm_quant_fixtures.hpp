@@ -391,11 +391,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         // Initialize data with random values
         ck_tile::FillUniformDistribution<ADataType>{-0.5f, 0.5f}(a_m_k);
         ck_tile::FillUniformDistribution<BDataType>{0.f, 1.f}(b_k_n);
-        // ck_tile::FillUniformDistribution<QDataType>{0.001f, 0.01f}(bq_bqk_bqn);
-        for(size_t i = 0; i < bq_bqk_bqn.size(); ++i)
-        {
-            bq_bqk_bqn.mData[i] = static_cast<QDataType>(0.0001f + 0.0001f * static_cast<float>(i));
-        }
+        ck_tile::FillUniformDistribution<QDataType>{0.001f, 0.01f}(bq_bqk_bqn);
         // Allocate device memory
         ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size() * sizeof(ADataType));
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size() * sizeof(BDataType));
