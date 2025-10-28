@@ -14,7 +14,7 @@
 #include "grouped_convolution_backward_weight_invoker.hpp"
 #include "run_grouped_convolution_bwd_weight_example.inc"
 
-template <template <typename PrecType> typename GemmConfig>
+template <template <typename PrecType> typename ConvConfig>
 int run_grouped_conv_bwd_weight_example(ck_tile::ArgParser& arg_parser)
 {
     using Invoker = GroupedConvolutionBackwardWeightInvoker;
@@ -23,59 +23,21 @@ int run_grouped_conv_bwd_weight_example(ck_tile::ArgParser& arg_parser)
     std::string in_layout                = arg_parser.get_str("in_layout");
     std::string wei_layout               = arg_parser.get_str("wei_layout");
     std::string out_layout               = arg_parser.get_str("out_layout");
-    ck_tile::index_t num_groups_to_merge = arg_parser.get_int("num_groups_to_merge");
+    //ck_tile::index_t num_groups_to_merge = arg_parser.get_int("num_groups_to_merge");
 
     if(data_type == "fp16")
     {
-        // The undefined (negative) value corresponds to the number of
-        // merged groups equal to unity, i.e., no merged groups.
-        if(num_groups_to_merge <= 1)
-        {
-            return run_grouped_conv_bwd_weight_example_prec_type<Invoker,
-                                                                 GemmConfig<ck_tile::half_t>,
-                                                                 1,
+        return run_grouped_conv_bwd_weight_example_prec_type<Invoker,
+                                                                 ConvConfig<ck_tile::half_t>,
                                                                  ck_tile::half_t>(
                 in_layout, wei_layout, out_layout, arg_parser);
-        }
-        else if(num_groups_to_merge == 2)
-        {
-            return run_grouped_conv_bwd_weight_example_prec_type<Invoker,
-                                                                 GemmConfig<ck_tile::half_t>,
-                                                                 2,
-                                                                 ck_tile::half_t>(
-                in_layout, wei_layout, out_layout, arg_parser);
-        }
-        else
-        {
-            throw std::runtime_error(
-                "Only num_groups_to_merge of 1 or 2 is supported for fp16 in the example code!");
-        }
     }
     else if(data_type == "bf16")
     {
-        // The undefined (negative) value corresponds to the number of
-        // merged groups equal to unity, i.e., no merged groups.
-        if(num_groups_to_merge <= 1)
-        {
-            return run_grouped_conv_bwd_weight_example_prec_type<Invoker,
-                                                                 GemmConfig<ck_tile::bf16_t>,
-                                                                 1,
+        return run_grouped_conv_bwd_weight_example_prec_type<Invoker,
+                                                                 ConvConfig<ck_tile::bf16_t>,
                                                                  ck_tile::bf16_t>(
                 in_layout, wei_layout, out_layout, arg_parser);
-        }
-        else if(num_groups_to_merge == 2)
-        {
-            return run_grouped_conv_bwd_weight_example_prec_type<Invoker,
-                                                                 GemmConfig<ck_tile::bf16_t>,
-                                                                 2,
-                                                                 ck_tile::bf16_t>(
-                in_layout, wei_layout, out_layout, arg_parser);
-        }
-        else
-        {
-            throw std::runtime_error(
-                "Only num_groups_to_merge of 1 or 2 is supported for bf16 in the example code!");
-        }
     }
     else
     {
@@ -93,14 +55,14 @@ int main(int argc, char* argv[])
     try
     {
 #if CK_TILE_USE_WMMA
-        return !run_grouped_conv_bwd_weight_example<GemmConfigComputeV3_WMMA>(arg_parser);
+        return !run_grouped_conv_bwd_weight_example<ConvConfigComputeV3_WMMA>(arg_parser);
 #else
         ck_tile::index_t num_groups_to_merge = arg_parser.get_int("num_groups_to_merge");
         if(num_groups_to_merge < 1)
         {
             // By default, we have the "num_groups_to_merge" set to -1,
             // which means we will run the example with the default config.
-            return !run_grouped_conv_bwd_weight_example<GemmConfigComputeV3>(arg_parser);
+            return !run_grouped_conv_bwd_weight_example<ConvConfigComputeV3>(arg_parser);
         }
         else
         {
@@ -108,7 +70,7 @@ int main(int argc, char* argv[])
             // we will run the example with the merged groups config.
             // The tile size are selected such that we have number of
             // merged groups any power of two smaller or equal to 64.
-            return !run_grouped_conv_bwd_weight_example<GemmConfigComputeV3_merged_groups>(
+            return !run_grouped_conv_bwd_weight_example<ConvConfigComputeV3_merged_groups>(
                 arg_parser);
         }
 #endif

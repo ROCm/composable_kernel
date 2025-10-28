@@ -3,7 +3,7 @@
 #pragma once
 
 template <ck_tile::index_t NDimSpatial,
-          typename GemmConfig,
+          typename ConvConfig,
           typename Invoker,
           typename InDataType,
           typename WeiDataType,
@@ -11,31 +11,28 @@ template <ck_tile::index_t NDimSpatial,
           typename OutDataType,
           typename InLayout,
           typename WeiLayout,
-          typename OutLayout,
-          ck_tile::index_t NumGroupsToMerge = 1>
+          typename OutLayout>
 float invoke_grouped_conv_bwd_weight(ck_tile::GroupedConvBwdWeightHostArgs& args,
                                      int n_warmup,
                                      int n_repeat)
 {
     float ave_time = Invoker::template grouped_conv_bwd_weight<NDimSpatial,
-                                                               GemmConfig,
+                                                               ConvConfig,
                                                                InDataType,
                                                                WeiDataType,
                                                                AccDataType,
                                                                OutDataType,
                                                                InLayout,
                                                                WeiLayout,
-                                                               OutLayout,
-                                                               NumGroupsToMerge>(
+                                                               OutLayout>(
         args, ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat});
 
     return ave_time;
 }
 
 template <ck_tile::index_t NDimSpatial,
-          typename GemmConfig,
+          typename ConvConfig,
           typename Invoker,
-          ck_tile::index_t NumGroupsToMerge,
           typename InDataType,
           typename WeiDataType = InDataType,
           typename OutDataType = InDataType,
@@ -132,10 +129,9 @@ int run_grouped_conv_bwd_weight_example_with_layouts(ck_tile::ArgParser& arg_par
     std::cout << "input: " << input.mDesc << std::endl;
     std::cout << "weight: " << weight.mDesc << std::endl;
     std::cout << "output: " << output.mDesc << std::endl;
-    std::cout << "number of groups to merge: " << NumGroupsToMerge << std::endl;
 
     float ave_time = invoke_grouped_conv_bwd_weight<NDimSpatial,
-                                                    GemmConfig,
+                                                    ConvConfig,
                                                     Invoker,
                                                     InDataType,
                                                     WeiDataType,
@@ -143,8 +139,7 @@ int run_grouped_conv_bwd_weight_example_with_layouts(ck_tile::ArgParser& arg_par
                                                     OutDataType,
                                                     InLayout,
                                                     WeiLayout,
-                                                    OutLayout,
-                                                    NumGroupsToMerge>(args, n_warmup, n_repeat);
+                                                    OutLayout>(args, n_warmup, n_repeat);
 
     weight_dev_buf.FromDevice(weight.data());
 
@@ -198,8 +193,7 @@ int run_grouped_conv_bwd_weight_example_with_layouts(ck_tile::ArgParser& arg_par
 }
 
 template <typename Invoker,
-          typename GemmConfig,
-          ck_tile::index_t NumGroupsToMerge,
+          typename ConvConfig,
           typename InPrecType,
           typename WeiPrecType = InPrecType,
           typename OutPrecType = InPrecType>
@@ -223,9 +217,8 @@ int run_grouped_conv_bwd_weight_example_prec_type(std::string in_layout,
     if(in_layout == "NWGC" && wei_layout == "GKXC" && out_layout == "NWGK")
     {
         return run_grouped_conv_bwd_weight_example_with_layouts<ck_tile::number<1>{},
-                                                                GemmConfig,
+                                                                ConvConfig,
                                                                 Invoker,
-                                                                NumGroupsToMerge,
                                                                 InPrecType,
                                                                 WeiPrecType,
                                                                 OutPrecType>(
@@ -234,9 +227,8 @@ int run_grouped_conv_bwd_weight_example_prec_type(std::string in_layout,
     else if(in_layout == "NHWGC" && wei_layout == "GKYXC" && out_layout == "NHWGK")
     {
         return run_grouped_conv_bwd_weight_example_with_layouts<ck_tile::number<2>{},
-                                                                GemmConfig,
+                                                                ConvConfig,
                                                                 Invoker,
-                                                                NumGroupsToMerge,
                                                                 InPrecType,
                                                                 WeiPrecType,
                                                                 OutPrecType>(
@@ -245,9 +237,8 @@ int run_grouped_conv_bwd_weight_example_prec_type(std::string in_layout,
     else if(in_layout == "NDHWGC" && wei_layout == "GKZYXC" && out_layout == "NDHWGK")
     {
         return run_grouped_conv_bwd_weight_example_with_layouts<ck_tile::number<3>{},
-                                                                GemmConfig,
+                                                                ConvConfig,
                                                                 Invoker,
-                                                                NumGroupsToMerge,
                                                                 InPrecType,
                                                                 WeiPrecType,
                                                                 OutPrecType>(
