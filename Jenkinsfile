@@ -20,6 +20,28 @@ def failurePatterns = [
     [pattern: /cat: .* No such file or directory/, description: "GPU not found"],
 ]
 
+// Given a pattern, check if the log contains the pattern and return the context.
+def checkForPattern(pattern, log) {
+    def lines = log.split('\n')
+    for (int i = 0; i < lines.size(); i++) {
+        if (lines[i] =~ pattern) {
+            echo "Found pattern match in log for ${pattern}"
+            
+            // Get the two lines before and after failure.
+            def contextStart = Math.max(0, i - 2)
+            def contextEnd = Math.min(lines.size() - 1, i + 2)
+            def contextLines = []
+            for (int j = contextStart; j <= contextEnd; j++) {
+                contextLines.add(lines[j])
+            }
+            
+            return [found: true, matchedLine: lines[i], context: contextLines.join('\n')]
+        }
+    }
+    echo "No pattern match found in log for ${pattern}"
+    return [found: false, matchedLine: "", context: ""]
+}
+
 class Version {
     int major, minor, patch
     @Override
