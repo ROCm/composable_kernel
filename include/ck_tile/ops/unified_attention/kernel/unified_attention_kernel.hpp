@@ -384,7 +384,7 @@ struct UnifiedAttentionKernel
         // stride for dim 0 (num_queries_per_kv * head_dim, head_dim, 1)
         auto q_dram_window = make_tile_window(
             q_dram,
-            make_tuple(BLOCK_M, HEAD_SIZE_PADDED),
+            make_tuple(number<BLOCK_M>{}, number<HEAD_SIZE_PADDED>{}),
             {query_pos * num_queries_per_kv, 0}
         );
         
@@ -420,7 +420,7 @@ struct UnifiedAttentionKernel
         }();
 
         auto k_dram_window = make_tile_window(
-            k_dram, make_tuple(BLOCK_SIZE, HEAD_SIZE_PADDED), {0, 0});
+            k_dram, make_tuple(number<BLOCK_SIZE>{}, number<HEAD_SIZE_PADDED>{}), {0, 0});
 
         const auto v_dram = [&]() {
             const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
@@ -451,7 +451,7 @@ struct UnifiedAttentionKernel
         }();
 
         auto v_dram_window = make_tile_window(
-            v_dram, make_tuple(BLOCK_SIZE, HEAD_SIZE_PADDED), {0, 0});
+            v_dram, make_tuple(number<BLOCK_SIZE>{}, number<HEAD_SIZE_PADDED>{}), {0, 0});
         
         FmhaMask mask = [&]() {
             if constexpr(kHasMask)
@@ -510,7 +510,7 @@ struct UnifiedAttentionKernel
 
         auto o_dram_window =
             make_tile_window(o_dram,
-                             make_tuple(BLOCK_M, HEAD_SIZE_PADDED),
+                             make_tuple(number<BLOCK_M>{}, number<HEAD_SIZE_PADDED>{}),
                              {query_pos * num_queries_per_kv, 0});
 
         EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr);

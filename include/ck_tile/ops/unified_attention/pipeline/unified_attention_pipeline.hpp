@@ -400,12 +400,6 @@ struct UnifiedAttentionPipeline
                 std::is_same_v<VDataType, remove_cvref_t<typename VDramBlockWindowTmp::DataType>>,
             "wrong!");
 
-        // TODO remove these static asserts
-        static_assert(BLOCK_M == 128, "BLOCK_M == 128"); // pass so BLOCK_M=128
-        // static_assert(QDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] == 128, "QDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] == 128");
-        static_assert(QDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] == 0, "QDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] == 0");
-        // passed so windows length[0] = 0 why?
-
         static_assert(BLOCK_M == QDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                           BLOCK_SIZE == KDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                           HEAD_SIZE_PADDED == KDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
