@@ -66,6 +66,8 @@ class CKGroupedConvFwdOp:
     a_compute_dtype: Optional[str] = None
     b_compute_dtype: Optional[str] = None
 
+    direct_load: Optional[bool] = None
+
     def name(self):
         # cpp alias for template instance
         return (
