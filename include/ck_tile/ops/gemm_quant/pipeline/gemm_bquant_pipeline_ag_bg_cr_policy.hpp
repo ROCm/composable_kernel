@@ -40,7 +40,6 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         constexpr index_t NPerBlockBQ = NPerBlock / Problem::QuantGroupSize::kN;
         constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
         constexpr index_t KPerBlockBQ = KPerBlock / Problem::QuantGroupSize::kK;
-        constexpr index_t VecLoadSize = GetVectorSizeBQ<Problem>();
         using WarpTile                = typename Problem::BlockGemmShape::WarpTile;
         using WarpGemm                = WarpGemmDispatcher<typename Problem::ComputeDataType,
                                                            typename Problem::ComputeDataType,
@@ -57,8 +56,7 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                                                   BlockSize,
                                                   KPerBlockBQ,
                                                   NPerBlockBQ,
-                                                  Problem::QuantGroupSize::kN,
-                                                  VecLoadSize>;
+                                                  Problem::QuantGroupSize::kN>;
 
         return TileEncodingPattern::make_2d_static_tile_distribution();
     }

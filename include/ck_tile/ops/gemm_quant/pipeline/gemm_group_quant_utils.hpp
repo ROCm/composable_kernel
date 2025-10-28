@@ -171,11 +171,9 @@ template <typename BlockGemmShape,
           index_t BlockSize,
           index_t YPerTile,
           index_t XPerTile,
-          index_t YPerQ,
-          index_t VecSize>
+          index_t YPerQ>
 struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding_pattern
 {
-    static_assert(XPerTile % VecSize == 0, "XPerTile must be a multiple of VecSize!");
     static constexpr index_t warp_size = get_warp_size();
     static constexpr index_t num_warps = BlockSize / get_warp_size();
 
@@ -193,7 +191,7 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
         if constexpr(YPerQ == 1)
         {
             // each row of B has independent scale
-            constexpr index_t Y  = XPerTile;
+            constexpr index_t Y  = YPerTile;
             constexpr index_t YR = 1;
             constexpr index_t X0 = NIterPerWarp;
             constexpr index_t X1 = NWarps;
@@ -218,7 +216,7 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
             return make_static_tile_distribution(
                 tile_distribution_encoding<
                     sequence<MWarps, YR>,
-                    tuple<sequence<XPerTile>, sequence<NIterPerWarp, NWarps, NQPerIter>>,
+                    tuple<sequence<YPerTile>, sequence<NIterPerWarp, NWarps, NQPerIter>>,
                     tuple<sequence<0, 2>, sequence<0, 2>>,
                     tuple<sequence<0, 1>, sequence<1, 2>>,
                     sequence<2, 1>,
@@ -227,13 +225,13 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
         else if constexpr(XPerTile >= NIterPerWarp)
         {
             // now all NWarps have the same scale -> replicate
-            constexpr index_t NQPerIter = integer_divide_ceil(YPerTile, NIterPerWarp);
+            constexpr index_t NQPerIter = integer_divide_ceil(XPerTile, NIterPerWarp);
             constexpr index_t YR        = get_warp_size() / NQPerIter;
-            static_assert(YPerTile == NQPerIter * NIterPerWarp);
+            static_assert(XPerTile == NQPerIter * NIterPerWarp);
             return make_static_tile_distribution(
                 tile_distribution_encoding<
                     sequence<MWarps, NWarps, YR>,
-                    tuple<sequence<XPerTile>, sequence<NIterPerWarp, NQPerIter>>,
+                    tuple<sequence<YPerTile>, sequence<NIterPerWarp, NQPerIter>>,
                     tuple<sequence<0, 2>, sequence<0, 2>>,
                     tuple<sequence<0, 1>, sequence<2, 1>>,
                     sequence<2, 1>,
@@ -245,7 +243,7 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
             // threads
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<MWarps, NWarps, get_warp_size()>,
-                                           tuple<sequence<XPerTile>, sequence<YPerTile>>,
+                                           tuple<sequence<YPerTile>, sequence<XPerTile>>,
                                            tuple<sequence<0, 0>, sequence<0>>,
                                            tuple<sequence<0, 1>, sequence<2>>,
                                            sequence<2, 1>,
