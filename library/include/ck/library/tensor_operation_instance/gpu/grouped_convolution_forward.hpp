@@ -300,7 +300,7 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
 #endif
         }
 
-        // layout NGCHW/GKYXC/NGKHW
+        // layout NGCHW/GKCYX/NGKHW
         if constexpr(NumDimSpatial == 2 && is_same_v<InLayout, NGCHW> &&
                      is_same_v<WeiLayout, GKCYX> && is_same_v<OutLayout, NGKHW>)
         {
