@@ -71,6 +71,7 @@
 #include "ck_tile/core/utility/env.hpp"
 #include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/core/utility/functional_with_tuple.hpp"
+#include "ck_tile/core/utility/gemm_validation.hpp"
 #include "ck_tile/core/utility/ignore.hpp"
 #include "ck_tile/core/utility/literals.hpp"
 #include "ck_tile/core/utility/magic_div.hpp"
