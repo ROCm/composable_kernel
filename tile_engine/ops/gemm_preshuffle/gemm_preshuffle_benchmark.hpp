@@ -23,6 +23,14 @@ inline constexpr auto get_metric_name(Metric m)
     }
 }
 
+struct KernelConfig
+{
+    std::tuple<int, int, int> tile_dims;
+    std::tuple<int, int, int> warp_dims;
+    std::tuple<int, int, int> warp_tile_dims;
+    bool permuteN;
+};
+
 struct GemmProblem
 {
     int split_k_;
