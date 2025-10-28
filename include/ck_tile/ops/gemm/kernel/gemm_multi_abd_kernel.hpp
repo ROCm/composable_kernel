@@ -185,14 +185,6 @@ struct GemmKernelMultiABD
         {
             return false;
         }
-        // Currently MultiABD kernel doesn't support F8 data type
-        if(ck_tile::get_device_name() == "gfx950" &&
-           (std::is_same<ck_tile::fp8_t, ADataType>::value ||
-            std::is_same<ck_tile::fp8_t, BDataType>::value ||
-            std::is_same<ck_tile::fp8_t, DDataType>::value))
-        {
-            return false;
-        }
 
         return UniversalGemmKernel::IsSupportedArgument(kargs);
     }
