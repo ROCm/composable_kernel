@@ -4,15 +4,15 @@
   },
   "test_params": {
     "problem_sizes": [
-      {"m": 256, "n": 256, "k": 128, "split_k": 1},
-      {"m": 384, "n": 256, "k": 192, "split_k": 1},
+      {"m": 512, "n": 512, "k": 128, "split_k": 1},
+      {"m": 512, "n": 256, "k": 192, "split_k": 1},
       {"m": 256, "n": 384, "k": 192, "split_k": 1}
     ]
   },
   "tile_config": {
-    "tile_m": {"values": [64]},
-    "tile_n": {"values": [64]},
-    "tile_k": {"values": [16]},
+    "tile_m": {"values": [256]},
+    "tile_n": {"values": [128]},
+    "tile_k": {"values": [32]},
     "warp_m": {"values": [2]},
     "warp_n": {"values": [2]},
     "warp_k": {"values": [1]},

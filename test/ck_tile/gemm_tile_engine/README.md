@@ -45,15 +45,13 @@ The key idea: **Unit tests that use tile_engine's exact kernel generation and ve
 - **Purpose**: Optimized for fp8/fp16/bf16 data types
 - **Config**: 128x128x32, warp 2x2x1, warp_tile 32x32x16  
 - **Traits**: compv3 pipeline only
-- **Coverage**: 
-  - fp16, bf16: All 4 layouts (rcr, rrr, ccr, crr)
-  - fp8: RCR layout only (other layouts not approved)
+- **Coverage**: All 4 layouts (rcr, rrr, ccr, crr) for fp8, fp16, bf16
 
 ### 3. **Large Datatype** (`large_datatype_config.json`)
 - **Purpose**: Optimized for fp32
-- **Config**: 64x64x16, warp 2x2x1, warp_tile 16x16x16
+- **Config**: 256x128x32, warp 2x2x1, warp_tile 16x16x16
 - **Traits**: compv3 pipeline only
-- **Coverage**: RCR layout only (other layouts not approved)
+- **Coverage**: All 4 layouts (rcr, rrr, ccr, crr)
 
 ### 4. **Coverage Testing** (Quick or Comprehensive)
 - **Purpose**: Comprehensive testing across tile sizes, warp configurations, and trait combinations
@@ -79,9 +77,7 @@ The key idea: **Unit tests that use tile_engine's exact kernel generation and ve
 - **Coverage**: 1 kernel configuration testing padding with irregular sizes
 
 ## Data Type Support
-- ✅ **fp16, bf16**: Fully supported - all layouts (rcr, rrr, ccr, crr)
-- 🟡 **fp8**: Supported - RCR layout only (other layouts not approved)
-- 🟡 **fp32**: Supported - RCR layout only (other layouts not approved)
+- ✅ **fp8, fp16, bf16, fp32**: Fully supported - all layouts (rcr, rrr, ccr, crr)
 - ❌ **fp64**: Not supported (hardware MFMA limitation)
 - ⏳ **pk-int4-t, bf8**: Not yet supported by gemm_instance_builder (will be added later)
 
