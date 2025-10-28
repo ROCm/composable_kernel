@@ -82,37 +82,29 @@ int main(int argc, char* argv[])
     bool do_verification = true;
     bool time_kernel     = true;
 
+    ck::index_t M = 48 * 256;
+    ck::index_t N = 1024;
+
     if(argc == 1)
     {
         // use default
     }
-    else if(argc == 3)
+    else if(argc == 3 || argc == 5)
     {
         do_verification = std::stoi(argv[1]);
         time_kernel     = std::stoi(argv[2]);
+        if(argc == 5)
+        {
+            M = std::stoi(argv[3]);
+            N = std::stoi(argv[4]);
+        }
     }
     else
     {
         printf("arg1: verification (0=no, 1=yes)\n");
         printf("arg2: time kernel (0=no, 1=yes)\n");
-        exit(0);
-    }
-
-    ck::index_t M = 48 * 256;
-    ck::index_t N = 1024;
-    if(argc == 1)
-    {
-        // use default case
-    }
-    else if(argc == 3)
-    {
-        M = std::stoi(argv[1]);
-        N = std::stoi(argv[2]);
-    }
-    else
-    {
-        std::cerr << "arg1 to 2: M, N" << std::endl;
-        return 1;
+        printf("arg3-4: M, N\n");
+        exit(1);
     }
 
     ck::index_t Stride = N;
