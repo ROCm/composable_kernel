@@ -1,6 +1,4 @@
 {
-    "problem": {
-    },
     "tile_config": {
         "tile_m": {
             "max": 256,
@@ -101,5 +99,6 @@
                 true
             ]
         }
-    }
+    },
+    "k_block_per_cu": 1
 }
