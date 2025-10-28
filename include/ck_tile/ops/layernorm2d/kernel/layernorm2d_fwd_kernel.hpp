@@ -194,7 +194,7 @@ struct Layernorm2dFwd
         const auto iM = get_block_id() * Block_M;
 
         const auto x_window = [&]() {
-            const auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
+            const auto tmp_ = make_naive_tensor_view<address_space_enum::global, memory_operation_enum::set, amd_buffer_coherence_enum::slc>(
                 static_cast<const XDataType*>(kargs.p_x),
                 make_tuple(kargs.m, kargs.n),
                 make_tuple(kargs.x_stride, 1),
@@ -283,7 +283,7 @@ struct Layernorm2dFwd
         }();
 
         auto y_window = [&]() {
-            auto tmp_ = make_naive_tensor_view<address_space_enum::global>(
+            auto tmp_ = make_naive_tensor_view<address_space_enum::global,  memory_operation_enum::set, amd_buffer_coherence_enum::slc>(
                 static_cast<YDataType*>(kargs.p_y),
                 make_tuple(kargs.m, kargs.n),
                 make_tuple(kargs.y_stride, 1),
