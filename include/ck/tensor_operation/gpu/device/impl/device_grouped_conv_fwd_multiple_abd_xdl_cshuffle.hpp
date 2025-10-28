@@ -1789,28 +1789,6 @@ struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
             }
         }
 
-        if constexpr(is_same_v<AComputeDataType, ck::tf32_t> ||
-                     is_same_v<BComputeDataType, ck::tf32_t>)
-
-        {
-            if(!(ck::get_device_name() == "gfx942"))
-            {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "TF32 is enabled on gfx942 only" << std::endl;
-                }
-                return false;
-            }
-            if constexpr(!is_same_v<AComputeDataType, BComputeDataType>)
-            {
-                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-                {
-                    std::cout << "ComputeDataType for A and B should be same while using TF32"
-                              << std::endl;
-                }
-                return false;
-            }
-        }
         return false;
     }
 

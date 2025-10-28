@@ -236,7 +236,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
         // BQ DRAM window for load
         auto bq_copy_dram_window =
             make_tile_window(bq_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(number<kNPerBlock>{}, number<KPerBlockBQ>{}),
+                             make_tuple(number<KPerBlockBQ>{}, number<kNPerBlock>{}),
                              bq_dram_block_window_tmp.get_window_origin(),
                              PipelinePolicy::template MakeBQDramTileDistribution<Problem>());
 
@@ -269,7 +269,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
         BQBlockTile bq_block_tile, bq_block_tile_2;
         bq_block_tile = load_tile(bq_copy_dram_window);
         // move BQ to tile 1
-        move_tile_window(bq_copy_dram_window, {0, KPerBlockBQ});
+        move_tile_window(bq_copy_dram_window, {KPerBlockBQ, 0});
 
         // Prefill A0
         auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
@@ -318,7 +318,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
             move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
 
             bq_block_tile_2 = load_tile(bq_copy_dram_window);
-            move_tile_window(bq_copy_dram_window, {0, KPerBlockBQ});
+            move_tile_window(bq_copy_dram_window, {KPerBlockBQ, 0});
 
             // Prefill A(2i+1)
             a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
@@ -360,7 +360,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
             move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
 
             bq_block_tile = load_tile(bq_copy_dram_window);
-            move_tile_window(bq_copy_dram_window, {0, KPerBlockBQ});
+            move_tile_window(bq_copy_dram_window, {KPerBlockBQ, 0});
 
             // Prefill A(2i+2)
             a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
