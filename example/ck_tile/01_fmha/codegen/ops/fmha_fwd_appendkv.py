@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from codegen.arch import ArchTrait, get_factories_for_targets
 from codegen.cmake_config import GEN_DIR
 from codegen.cpp_symbol_map import (
     FWD_DTYPE_MAP,
@@ -31,9 +32,7 @@ from codegen.ops.fmha_fwd import (
 FMHA_FWD_APPENDKV_KERNEL_BODY = """
 #include <iostream>
 
-#if !defined(__HIP_DEVICE_COMPILE__) || defined(__{F_arch}__)
-
-using fmha_arch_tag = ck_tile::{F_arch}_t;
+#if !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
 
 using fmha_dtype_{F_idx} = {F_dtype};
 
@@ -65,7 +64,7 @@ using trait_{F_idx} = fmha_fwd_appendkv_traits_<{F_hdim}, {F_dtype}, {F_bs}, {F_
                         {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_rope}, {F_pagedkv}>;
 
 template<>
-float fmha_fwd_appendkv_<trait_{F_idx}, fmha_arch_tag>(const ck_tile::stream_config& s, fmha_fwd_appendkv_args a)
+float fmha_fwd_appendkv_<trait_{F_idx}, {F_arch.tag}>(const ck_tile::stream_config& s, fmha_fwd_appendkv_args a)
 {{
     using k_ = fmha_kernel_{F_idx};
     if(s.log_level_ > 0)
@@ -73,10 +72,10 @@ float fmha_fwd_appendkv_<trait_{F_idx}, fmha_arch_tag>(const ck_tile::stream_con
     auto [kargs, grids] = fmha_fwd_appendkv_create_kargs_and_grids<k_>(a);
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
-    return ck_tile::launch_kernel(s, ck_tile::make_kernel<kBlockPerCu, fmha_arch_tag>(k_{{}}, grids, blocks, 0, kargs));
+    return ck_tile::launch_kernel(s, ck_tile::make_kernel<kBlockPerCu, {F_arch.tag}>(k_{{}}, grids, blocks, 0, kargs));
 }}
 
-#endif // !defined(__HIP_DEVICE_COMPILE__) || defined(__{F_arch}__)
+#endif // !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
 """
 
 FMHA_FWD_APPENDKV_API_FILENAME = "fmha_fwd_appendkv_api.cpp"
@@ -95,14 +94,14 @@ FMHA_FWD_APPENDKV_API_INNER_DISPATCH = """{F_if}((t.is_v_rowmajor == {F_vlayout}
         ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && (t.rope_type == {F_rope_check}) &&
         ((a.block_table_ptr != nullptr) == {F_pagedkv})) {{
     using trait_ = fmha_fwd_appendkv_traits_<{F_hdim}, {F_dtype}, {F_bs}, {F_bsk}, {F_bd}, {F_bdv}, {F_vlayout}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_rope}, {F_pagedkv}>;
-    return fmha_fwd_appendkv_<trait_, ck_tile::{F_arch}_t>(s, a);
+    return fmha_fwd_appendkv_<trait_, {F_arch.tag}>(s, a);
 }}
 """
 
 
 @dataclass
 class FmhaFwdAppendKVApiTrait:
-    arch: str
+    arch: ArchTrait
     # sync with fmha_fwd_appendkv_traits, to generate fallback calls
     hdim: str
     dtype: str  # data type
@@ -247,7 +246,6 @@ class FmhaFwdAppendKVApiPool:
                 )
             per_arch += FMHA_FWD_API_PER_ARCH.format(
                 F_if=if_(i_arch),
-                F_len_arch=len(arch),
                 F_arch=arch,
                 F_dtype_case=indent(per_dtypes),
             )
@@ -276,7 +274,7 @@ class FmhaFwdAppendKVTileSize:
 
 @dataclass
 class FmhaFwdAppendKVKernel:
-    F_arch: str
+    F_arch: ArchTrait
     F_idx: int  # this is not a tunable, but a counter to differentiate symbol
     F_hdim: int  # hdim
     F_dtype: str  # data type
@@ -317,7 +315,7 @@ class FmhaFwdAppendKVKernel:
 
     @property
     def filename(self) -> str:
-        return f"{self.name}_{self.F_arch}.cpp"
+        return f"{self.name}{self.F_arch.filename_suffix}.cpp"
 
     def api_trait(self) -> FmhaFwdAppendKVApiTrait:
         return FmhaFwdAppendKVApiTrait(
@@ -388,11 +386,11 @@ class KernelComponentFactoryBase:
 
 
 class KernelComponentFactoryGfx9(KernelComponentFactoryBase):
-    arch = "gfx9"
+    arch = ArchTrait("gfx9")
 
 
 class KernelComponentFactoryGfx12(KernelComponentFactoryBase):
-    arch = "gfx12"
+    arch = ArchTrait("gfx12")
 
 
 def get_factory(target: str):
@@ -413,17 +411,9 @@ def get_fwd_appendkv_blobs(
     gen = list()
     api_pool = FmhaFwdAppendKVApiPool(mask_impl)
 
-    factories = dict()
-    for target in targets:
-        factory = get_factory(target)
-        factories[factory.arch] = factory
-    # Place more specific architectures first
-    factories = sorted(
-        list(factories.values()), key=lambda f: len(f.arch), reverse=True
-    )
+    factories = get_factories_for_targets(targets, get_factory)
 
     for factory, dtype in itertools.product(factories, FWD_DTYPE_MAP.keys()):
-        arch = factory.arch
         d = factory.get_hdim_tile_size_dict(dtype)
         if d is None:
             continue
@@ -432,7 +422,7 @@ def get_fwd_appendkv_blobs(
             hdim = int(hdim_str)
             for pipeline in factory.get_pipelines(dtype, hdim):
                 k = FmhaFwdAppendKVKernel(
-                    F_arch=arch,
+                    F_arch=factory.arch,
                     F_idx=0,
                     F_hdim=hdim,
                     F_dtype=dtype,

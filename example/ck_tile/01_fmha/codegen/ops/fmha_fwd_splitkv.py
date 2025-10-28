@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Union
 
+from codegen.arch import ArchTrait, get_factories_for_targets
 from codegen.cmake_config import GEN_DIR
 from codegen.cpp_symbol_map import (
     PIPELINE_ENUM_MAP,
@@ -43,9 +44,7 @@ FMHA_FWD_SPLITKV_PIPELINE_MAP = {
 FMHA_FWD_SPLITKV_KERNEL_BODY = """
 #include <iostream>
 
-#if !defined(__HIP_DEVICE_COMPILE__) || defined(__{F_arch}__)
-
-using fmha_arch_tag = ck_tile::{F_arch}_t;
+#if !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
 
 using fmha_dtype_{F_idx} = {F_dtype};
 using fmha_variant_{F_idx} = ck_tile::ComposedAttention<{F_logits} * ck_tile::LOGITS_SOFT_CAP, CK_TILE_FMHA_FWD_FAST_EXP2>;
@@ -113,7 +112,7 @@ static void run(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
     auto [kargs, grids] = fmha_fwd_splitkv_create_kargs_and_grids<k_>(a);
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
-    ck_tile::make_kernel<kBlockPerCu, fmha_arch_tag>(k_{{}}, grids, blocks, 0, kargs)(ck_tile::stream_config{{s.stream_id_}});
+    ck_tile::make_kernel<kBlockPerCu, {F_arch.tag}>(k_{{}}, grids, blocks, 0, kargs)(ck_tile::stream_config{{s.stream_id_}});
 }}
 }}; // struct instance
 }} // anonymous namespace
@@ -145,7 +144,7 @@ void run_instance(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a) {{
 #pragma clang diagnostic pop
 
 template<>
-void fmha_fwd_splitkv_oneshot_<trait_{F_idx}, fmha_arch_tag>(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
+void fmha_fwd_splitkv_oneshot_<trait_{F_idx}, {F_arch.tag}>(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
 {{
     if constexpr({F_mode} == false) {{ // batch mode
         // we don't check every seqlen_k values for kvcache
@@ -163,21 +162,19 @@ void fmha_fwd_splitkv_oneshot_<trait_{F_idx}, fmha_arch_tag>(const ck_tile::stre
 }}
 
 template<>
-std::string fmha_fwd_splitkv_get_name_<trait_{F_idx}, fmha_arch_tag>()
+std::string fmha_fwd_splitkv_get_name_<trait_{F_idx}, {F_arch.tag}>()
 {{
     using k_ = instance<true>::fmha_kernel; /// FIXME: choose real kernel type
     return k_::GetName();
 }}
 
-#endif // !defined(__HIP_DEVICE_COMPILE__) || defined(__{F_arch}__)
+#endif // !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
 """
 
 FMHA_FWD_SPLITKV_COMBINE_KERNEL_BODY = """
 #include <iostream>
 
-#if !defined(__HIP_DEVICE_COMPILE__) || defined(__{F_arch}__)
-
-using fmha_arch_tag = ck_tile::{F_arch}_t;
+#if !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
 
 using fmha_dtype_{F_idx} = {F_dtype};
 
@@ -219,7 +216,7 @@ static void run(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
     auto [kargs, grids] = fmha_fwd_splitkv_combine_create_kargs_and_grids<k_>(a);
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
-    ck_tile::make_kernel<kBlockPerCu, fmha_arch_tag>(k_{{}}, grids, blocks, 0, kargs)(ck_tile::stream_config{{s.stream_id_}});
+    ck_tile::make_kernel<kBlockPerCu, {F_arch.tag}>(k_{{}}, grids, blocks, 0, kargs)(ck_tile::stream_config{{s.stream_id_}});
 }}
 }}; // struct instance
 }} // anonymous namespace
@@ -228,7 +225,7 @@ using trait_{F_idx} = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_m
                         {F_lse}, {F_squant}, {F_spad}, {F_dvpad}>;
 
 template<>
-void fmha_fwd_splitkv_combine_oneshot_<trait_{F_idx}, fmha_arch_tag>(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
+void fmha_fwd_splitkv_combine_oneshot_<trait_{F_idx}, {F_arch.tag}>(const ck_tile::stream_config& s, fmha_fwd_splitkv_args a)
 {{
     if (a.num_splits <= 8) {{
         instance<3>::run(s, a);
@@ -244,13 +241,13 @@ void fmha_fwd_splitkv_combine_oneshot_<trait_{F_idx}, fmha_arch_tag>(const ck_ti
 }}
 
 template<>
-std::string fmha_fwd_splitkv_combine_get_name_<trait_{F_idx}, fmha_arch_tag>()
+std::string fmha_fwd_splitkv_combine_get_name_<trait_{F_idx}, {F_arch.tag}>()
 {{
     using k_ = instance<6>::fmha_kernel; /// FIXME: choose real kernel type
     return k_::GetName();
 }}
 
-#endif // !defined(__HIP_DEVICE_COMPILE__) || defined(__{F_arch}__)
+#endif // !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
 """
 
 FMHA_FWD_SPLITKV_API_FILENAME = "fmha_fwd_splitkv_api.cpp"
@@ -300,12 +297,12 @@ FMHA_FWD_SPLITKV_API_INNER_DISPATCH = """{F_if}((t.is_group_mode == {F_mode}) &&
         }} else {{
             using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bn1comb}, true, {F_squant}, {F_spad}, {F_dvpad}>;
 
-            return fmha_fwd_splitkv_<traits_, traits2_, ck_tile::{F_arch}_t>(s, a);
+            return fmha_fwd_splitkv_<traits_, traits2_, {F_arch.tag}>(s, a);
         }}
     }} else {{
         using traits2_ = fmha_fwd_splitkv_combine_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bn1comb}, false, {F_squant}, {F_spad}, {F_dvpad}>;
 
-        return fmha_fwd_splitkv_<traits_, traits2_, ck_tile::{F_arch}_t>(s, a);
+        return fmha_fwd_splitkv_<traits_, traits2_, {F_arch.tag}>(s, a);
     }}
 }}
 """
@@ -313,7 +310,7 @@ FMHA_FWD_SPLITKV_API_INNER_DISPATCH = """{F_if}((t.is_group_mode == {F_mode}) &&
 
 @dataclass
 class FmhaFwdSplitKVApiTrait:
-    arch: str
+    arch: ArchTrait
     pipeline_tag: str
     # sync with fmha_fwd_traits<>, to generate fallback calls
     hdim: int
@@ -600,7 +597,6 @@ class FmhaFwdSplitKVApiPool:
                 )
             per_arch += FMHA_FWD_API_PER_ARCH.format(
                 F_if=if_(i_arch),
-                F_len_arch=len(arch),
                 F_arch=arch,
                 F_dtype_case=indent(per_dtypes),
             )
@@ -626,7 +622,7 @@ class FmhaFwdSplitKVCombineTileSize:
 
 @dataclass
 class FmhaFwdSplitKVKernel:
-    F_arch: str
+    F_arch: ArchTrait
     F_idx: int  # this is not a tunable, but a counter to differentiate symbol
     F_hdim: int  # hdim
     F_dtype: str  # data type
@@ -690,12 +686,12 @@ class FmhaFwdSplitKVKernel:
 
     @property
     def filename(self) -> str:
-        return f"{self.name}_{self.F_arch}.cpp"
+        return f"{self.name}{self.F_arch.filename_suffix}.cpp"
 
 
 @dataclass
 class FmhaFwdSplitKVCombineKernel:
-    F_arch: str
+    F_arch: ArchTrait
     F_idx: int  # this is not a tunable, but a counter to differentiate symbol
     F_hdim: int  # hdim
     F_dtype: str  # data type
@@ -731,7 +727,7 @@ class FmhaFwdSplitKVCombineKernel:
 
     @property
     def filename(self) -> str:
-        return f"{self.name}_{self.F_arch}.cpp"
+        return f"{self.name}{self.F_arch.filename_suffix}.cpp"
 
 
 class KernelComponentFactoryBase:
@@ -806,7 +802,7 @@ class KernelComponentFactoryBase:
 
 
 class KernelComponentFactoryGfx9(KernelComponentFactoryBase):
-    arch = "gfx9"
+    arch = ArchTrait("gfx9")
 
     @staticmethod
     def get_hdim_tile_size_dict(dtype: str) -> Optional[dict]:
@@ -829,7 +825,7 @@ class KernelComponentFactoryGfx9(KernelComponentFactoryBase):
 
 
 class KernelComponentFactoryGfx12(KernelComponentFactoryBase):
-    arch = "gfx12"
+    arch = ArchTrait("gfx12")
 
     @staticmethod
     def get_hdim_tile_size_dict(dtype: str) -> Optional[dict]:
@@ -870,17 +866,9 @@ def get_fwd_splitkv_blobs(
 
     gen = list()
 
-    factories = dict()
-    for target in targets:
-        factory = get_factory(target)
-        factories[factory.arch] = factory
-    # Place more specific architectures first
-    factories = sorted(
-        list(factories.values()), key=lambda f: len(f.arch), reverse=True
-    )
+    factories = get_factories_for_targets(targets, get_factory)
 
     for factory, dtype in itertools.product(factories, FWD_DTYPE_MAP.keys()):
-        arch = factory.arch
         d = factory.get_hdim_tile_size_dict(dtype)
         if d is None:
             continue
@@ -900,7 +888,7 @@ def get_fwd_splitkv_blobs(
                 ):
                     continue
                 k = Kernel(
-                    F_arch=arch,
+                    F_arch=factory.arch,
                     F_idx=0,
                     F_hdim=hdim,
                     F_dtype=dtype,
@@ -966,17 +954,9 @@ def get_fwd_splitkv_combine_blobs(
 
     gen = list()
 
-    factories = dict()
-    for target in targets:
-        factory = get_factory(target)
-        factories[factory.arch] = factory
-    # Place more specific architectures first
-    factories = sorted(
-        list(factories.values()), key=lambda f: len(f.arch), reverse=True
-    )
+    factories = get_factories_for_targets(targets, get_factory)
 
     for factory, dtype in itertools.product(factories, FWD_DTYPE_MAP.keys()):
-        arch = factory.arch
         d = factory.get_combine_hdim_tile_size_dict(dtype)
         if d is None:
             continue
@@ -989,7 +969,7 @@ def get_fwd_splitkv_combine_blobs(
                         # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
                         continue
                 k = Kernel(
-                    F_arch=arch,
+                    F_arch=factory.arch,
                     F_idx=0,
                     F_hdim=hdim,
                     F_dtype=dtype,

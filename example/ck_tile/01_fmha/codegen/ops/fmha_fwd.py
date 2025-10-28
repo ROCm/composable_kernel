@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from codegen.arch import ArchTrait, get_factories_for_targets
 from codegen.cmake_config import GEN_DIR
 from codegen.cpp_symbol_map import (
     LAYOUT_MAP,
@@ -41,9 +42,7 @@ FMHA_FWD_KERNEL_HEADER = """// SPDX-License-Identifier: MIT
 FMHA_FWD_KERNEL_BODY = """
 #include <iostream>
 
-#if !defined(__HIP_DEVICE_COMPILE__) || defined(__{F_arch}__)
-
-using fmha_arch_tag = ck_tile::{F_arch}_t;
+#if !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
 
 using fmha_dtype_{F_idx} = {F_dtype};
 
@@ -107,7 +106,7 @@ using trait_{F_idx} = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F
                         {F_pipeline_enum}, {F_logits}, fmha_mask_{F_idx}, {F_bias}, {F_lse}, {F_dropout}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}>;
 
 template<>
-float fmha_fwd_<trait_{F_idx}, fmha_arch_tag>(const ck_tile::stream_config& s, fmha_fwd_args a)
+float fmha_fwd_<trait_{F_idx}, {F_arch.tag}>(const ck_tile::stream_config& s, fmha_fwd_args a)
 {{
     using k_ = fmha_kernel_{F_idx};
     if(s.log_level_ > 0)
@@ -115,10 +114,10 @@ float fmha_fwd_<trait_{F_idx}, fmha_arch_tag>(const ck_tile::stream_config& s, f
     auto [kargs, grids] = fmha_fwd_create_kargs_and_grids<k_>(a);
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
-    return ck_tile::launch_kernel(s, ck_tile::make_kernel<kBlockPerCu, fmha_arch_tag>(k_{{}}, grids, blocks, 0, kargs));
+    return ck_tile::launch_kernel(s, ck_tile::make_kernel<kBlockPerCu, {F_arch.tag}>(k_{{}}, grids, blocks, 0, kargs));
 }}
 
-#endif // !defined(__HIP_DEVICE_COMPILE__) || defined(__{F_arch}__)
+#endif // !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
 """
 
 FMHA_FWD_API_FILENAME = "fmha_fwd_api.cpp"
@@ -176,7 +175,7 @@ float fmha_fwd(fmha_fwd_traits t, fmha_fwd_args a, const ck_tile::stream_config&
 }}
 """
 
-FMHA_FWD_API_PER_ARCH = """{F_if}(device_name.compare(0, {F_len_arch}, \"{F_arch}\") == 0) {{
+FMHA_FWD_API_PER_ARCH = """{F_if}({F_arch.device_name_check}) {{
 {F_dtype_case}
 }}
 """
@@ -194,7 +193,7 @@ FMHA_FWD_API_PER_HDIM_CASE = """{F_if}(t.hdim_q <= {F_hdim} && t.hdim_v <= {F_hd
 FMHA_FWD_API_INNER_DISPATCH = """{F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && (t.has_logits_soft_cap == {F_logits}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse})  && (t.has_dropout == {F_dropout}) && (t.do_fp8_static_quant == {F_squant}) && (t.skip_min_seqlen_q == {F_skip}) &&
         ({F_scheck}) && ({F_seqtune}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck}) && ({F_constraint})) {{
     using trait_ = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, {F_lse}, {F_dropout}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}>;
-    return fmha_fwd_<trait_, ck_tile::{F_arch}_t>(s, a);
+    return fmha_fwd_<trait_, {F_arch.tag}>(s, a);
 }}
 """
 
@@ -215,7 +214,7 @@ class CppConstraint:
 
 @dataclass
 class FmhaFwdApiTrait:
-    arch: str
+    arch: ArchTrait
     pipeline_tag: str
     # sync with fmha_fwd_traits<>, to generate fallback calls
     hdim: str
@@ -494,7 +493,6 @@ class FmhaFwdApiPool:
                 )
             per_arch += FMHA_FWD_API_PER_ARCH.format(
                 F_if=if_(i_arch),
-                F_len_arch=len(arch),
                 F_arch=arch,
                 F_dtype_case=indent(per_dtypes),
             )
@@ -539,7 +537,7 @@ class FmhaFwdTileSize:
 
 @dataclass
 class FmhaFwdKernel:
-    F_arch: str
+    F_arch: ArchTrait
     F_idx: int  # this is not a tunable, but a counter to differentiate symbol
     F_hdim: int  # hdim
     F_dtype: str  # data type
@@ -604,7 +602,7 @@ class FmhaFwdKernel:
 
     @property
     def filename(self) -> str:
-        return f"{self.name}_{self.F_arch}.cpp"
+        return f"{self.name}{self.F_arch.filename_suffix}.cpp"
 
     def api_trait(self) -> FmhaFwdApiTrait:
         return FmhaFwdApiTrait(
@@ -637,7 +635,9 @@ class FmhaFwdKernel:
 
 
 class KernelComponentFactoryGfx9:
-    arch = "gfx9"
+    arch = ArchTrait(
+        "gfx9", preprocessor_check="defined(__gfx9__) && !defined(__gfx950__)"
+    )
 
     # TODO: design a more practical way to do it
     # this is current supported tile size per hdim
@@ -748,7 +748,7 @@ class KernelComponentFactoryGfx9:
 
 
 class KernelComponentFactoryGfx950(KernelComponentFactoryGfx9):
-    arch = "gfx950"
+    arch = ArchTrait("gfx950")
 
     @staticmethod
     def get_pipelines(dtype, hdim, hdim_v, receipt, mask_impl) -> List[FmhaFwdPipeline]:
@@ -778,7 +778,7 @@ class KernelComponentFactoryGfx950(KernelComponentFactoryGfx9):
 
 
 class KernelComponentFactoryGfx12:
-    arch = "gfx12"
+    arch = ArchTrait("gfx12")
 
     @staticmethod
     def get_hdim_tile_size_dict(dtype: str) -> Optional[dict]:
@@ -866,17 +866,9 @@ def get_fwd_blobs(
     gen = list()
     api_pool = FmhaFwdApiPool(mask_impl)
 
-    factories = dict()
-    for target in targets:
-        factory = get_factory(target)
-        factories[factory.arch] = factory
-    # Place more specific architectures first
-    factories = sorted(
-        list(factories.values()), key=lambda f: len(f.arch), reverse=True
-    )
+    factories = get_factories_for_targets(targets, get_factory)
 
     for factory, dtype in itertools.product(factories, FWD_DTYPE_MAP.keys()):
-        arch = factory.arch
         d = factory.get_hdim_tile_size_dict(dtype)
         if d is None:
             continue
@@ -899,7 +891,7 @@ def get_fwd_blobs(
                     # NOTE: this is used to speedup deepseek prefill case, we don't gen training
                     if pipeline.F_bias != "no" or pipeline.F_dropout == "t":
                         continue
-                if arch.startswith("gfx9") and dtype != "fp32":
+                if factory.arch.name.startswith("gfx9") and dtype != "fp32":
                     # TODO: update if >=gfx11 archs get qr_async and qr_async_trload support
                     if pipeline.tag != "qr_async_trload" and (
                         ((hdim, hdim_v) == (128, 128) and tile.F_bn0 != 128)
@@ -920,7 +912,7 @@ def get_fwd_blobs(
                 ):
                     continue
                 k = FmhaFwdKernel(
-                    F_arch=arch,
+                    F_arch=factory.arch,
                     F_idx=0,
                     F_hdim=hdim,
                     F_dtype=dtype,

@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+from codegen.arch import ArchTrait, get_factories_for_targets
 from codegen.cmake_config import GEN_DIR
 from codegen.cpp_symbol_map import (
     LAYOUT_MAP,
@@ -41,9 +42,7 @@ FMHA_FWD_PAGEDKV_PIPELINE_MAP = {
 FMHA_FWD_KERNEL_BODY = """
 #include <iostream>
 
-#if !defined(__HIP_DEVICE_COMPILE__) || defined(__{F_arch}__)
-
-using fmha_arch_tag = ck_tile::{F_arch}_t;
+#if !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
 
 using fmha_dtype_{F_idx} = {F_dtype};
 
@@ -105,7 +104,7 @@ using trait_{F_idx} = fmha_fwd_pagedkv_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_
                         {F_pipeline_enum}, {F_logits}, fmha_mask_{F_idx}, {F_bias}, {F_lse}, {F_pagedkv}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_skip}>;
 
 template<>
-float fmha_fwd_pagedkv_<trait_{F_idx}, fmha_arch_tag>(const ck_tile::stream_config& s, fmha_fwd_pagedkv_args a)
+float fmha_fwd_pagedkv_<trait_{F_idx}, {F_arch.tag}>(const ck_tile::stream_config& s, fmha_fwd_pagedkv_args a)
 {{
     using k_ = fmha_kernel_{F_idx};
     if(s.log_level_ > 0)
@@ -113,10 +112,10 @@ float fmha_fwd_pagedkv_<trait_{F_idx}, fmha_arch_tag>(const ck_tile::stream_conf
     auto [kargs, grids] = fmha_fwd_pagedkv_create_kargs_and_grids<k_>(a);
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
-    return ck_tile::launch_kernel(s, ck_tile::make_kernel<kBlockPerCu, fmha_arch_tag>(k_{{}}, grids, blocks, 0, kargs));
+    return ck_tile::launch_kernel(s, ck_tile::make_kernel<kBlockPerCu, {F_arch.tag}>(k_{{}}, grids, blocks, 0, kargs));
 }}
 
-#endif // !defined(__HIP_DEVICE_COMPILE__) || defined(__{F_arch}__)
+#endif // !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
 """
 
 FMHA_FWD_API_FILENAME = "fmha_fwd_pagedkv_api.cpp"
@@ -134,14 +133,14 @@ float fmha_fwd_pagedkv(fmha_fwd_pagedkv_traits& t, fmha_fwd_pagedkv_args& a, con
 FMHA_FWD_API_INNER_DISPATCH = """{F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && (t.has_logits_soft_cap == {F_logits}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse})  && (t.use_pagedkv == {F_pagedkv}) && (t.do_fp8_static_quant == {F_squant}) && (t.skip_min_seqlen_q == {F_skip}) &&
         ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
     using trait_ = fmha_fwd_pagedkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, {F_lse}, {F_pagedkv}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_skip}>;
-    return fmha_fwd_pagedkv_<trait_, ck_tile::{F_arch}_t>(s, a);
+    return fmha_fwd_pagedkv_<trait_, {F_arch.tag}>(s, a);
 }}
 """
 
 
 @dataclass
 class FmhaFwdApiTrait:
-    arch: str
+    arch: ArchTrait
     pipeline_tag: str
     # sync with fmha_fwd_traits<>, to generate fallback calls
     hdim: str
@@ -394,7 +393,6 @@ class FmhaFwdApiPool:
                 )
             per_arch += FMHA_FWD_API_PER_ARCH.format(
                 F_if=if_(i_arch),
-                F_len_arch=len(arch),
                 F_arch=arch,
                 F_dtype_case=indent(per_dtypes),
             )
@@ -438,7 +436,7 @@ class FmhaFwdTileSize:
 
 @dataclass
 class FmhaFwdKernel:
-    F_arch: str
+    F_arch: ArchTrait
     F_idx: int  # this is not a tunable, but a counter to differentiate symbol
     F_hdim: int  # hdim
     F_dtype: str  # data type
@@ -502,7 +500,7 @@ class FmhaFwdKernel:
 
     @property
     def filename(self) -> str:
-        return f"{self.name}_{self.F_arch}.cpp"
+        return f"{self.name}{self.F_arch.filename_suffix}.cpp"
 
     def api_trait(self) -> FmhaFwdApiTrait:
         return FmhaFwdApiTrait(
@@ -566,7 +564,7 @@ class KernelComponentFactoryBase:
 
 
 class KernelComponentFactoryGfx9(KernelComponentFactoryBase):
-    arch = "gfx9"
+    arch = ArchTrait("gfx9")
 
     @staticmethod
     def get_hdim_tile_size_dict(dtype: str) -> Optional[dict]:
@@ -590,7 +588,7 @@ class KernelComponentFactoryGfx9(KernelComponentFactoryBase):
 
 
 class KernelComponentFactoryGfx12(KernelComponentFactoryBase):
-    arch = "gfx12"
+    arch = ArchTrait("gfx12")
 
     @staticmethod
     def get_hdim_tile_size_dict(dtype: str) -> Optional[dict]:
@@ -632,17 +630,9 @@ def get_fwd_blobs(
     gen = list()
     api_pool = FmhaFwdApiPool(mask_impl)
 
-    factories = dict()
-    for target in targets:
-        factory = get_factory(target)
-        factories[factory.arch] = factory
-    # Place more specific architectures first
-    factories = sorted(
-        list(factories.values()), key=lambda f: len(f.arch), reverse=True
-    )
+    factories = get_factories_for_targets(targets, get_factory)
 
     for factory, dtype in itertools.product(factories, FWD_DTYPE_MAP.keys()):
-        arch = factory.arch
         d = factory.get_hdim_tile_size_dict(dtype)
         if d is None:
             continue
@@ -667,7 +657,7 @@ def get_fwd_blobs(
                 ):
                     continue
                 k = FmhaFwdKernel(
-                    F_arch=arch,
+                    F_arch=factory.arch,
                     F_idx=0,
                     F_hdim=hdim,
                     F_dtype=dtype,
