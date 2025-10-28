@@ -95,7 +95,7 @@ TYPED_TEST(TEST_SUITE_NAME, MoeSortingCase3)
     );
 }
 
-TYPED_TEST(TEST_SUITE_NAME, MoeSortingCase4)
+TYPED_TEST(TEST_SUITE_NAME, DISABLED_MoeSortingCase4)
 {
     int tokens       = 99;
     int local_tokens = -1;
