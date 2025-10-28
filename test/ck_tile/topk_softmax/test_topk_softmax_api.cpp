@@ -96,7 +96,7 @@ float topk_softmax(topk_softmax_trait t, topk_softmax_kargs a, ck_tile::stream_c
         }
 #endif
     }
-    if(t.input_type == "fp16" && t.weight_type == "fp32" && t.activation == "sigmoid")
+    else if(t.input_type == "fp16" && t.weight_type == "fp32" && t.activation == "sigmoid")
     {
         using ts_input_type  = ck_tile::fp16_t;
         using ts_weight_type = float;
