@@ -31,5 +31,7 @@
     "pad_n": {"values": [false]},
     "pad_k": {"values": [false]},
     "persistent": {"values": [true, false]}
-  }
+  },
+  "k_block_per_cu": 1,
+  "permute_n": false
 }

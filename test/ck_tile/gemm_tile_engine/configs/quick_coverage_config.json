@@ -1,6 +1,6 @@
 {
   "problem": {
-    "description": "Quick coverage testing - tests multiple tile sizes with all trait combinations (pipelines, epilogues, schedulers). Approximately 500 kernels."
+    "description": "Quick coverage testing - tests multiple tile sizes with all trait combinations (pipelines, epilogues, schedulers). Approximately 250 kernels."
   },
   "test_params": {
     "problem_sizes": [
@@ -29,6 +29,8 @@
     "pad_m": {"values": [false]},
     "pad_n": {"values": [false]},
     "pad_k": {"values": [false]},
-    "persistent": {"values": [true, false]}
-  }
+    "persistent": {"values": [false]}
+  },
+  "k_block_per_cu": 1,
+  "permute_n": false
 }

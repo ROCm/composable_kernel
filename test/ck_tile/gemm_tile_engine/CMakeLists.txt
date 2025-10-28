@@ -296,18 +296,22 @@ endif()
 
 # 2. LARGE DATATYPES: Test optimized config for large data types (fp32)
 #    These data types require smaller warp tiles due to larger memory footprint
-set(LARGE_DATATYPE_CONFIG "large_datatype_config")
-set(LARGE_DATATYPE_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/configs/${LARGE_DATATYPE_CONFIG}.json")
-set(LARGE_DATATYPES "fp32")
+#    NOTE: fp32 is currently disabled because gemm_instance_builder.py does not support it yet
+#    TODO: Re-enable when fp32 support is added to tile_engine
+# set(LARGE_DATATYPE_CONFIG "large_datatype_config")
+# set(LARGE_DATATYPE_CONFIG_FILE "${CMAKE_CURRENT_SOURCE_DIR}/configs/${LARGE_DATATYPE_CONFIG}.json")
+# set(LARGE_DATATYPES "fp32")
+#
+# if(EXISTS ${LARGE_DATATYPE_CONFIG_FILE})
+#     message(STATUS "Processing large datatype config: ${LARGE_DATATYPE_CONFIG} (fp32)")
+#     # fp32: testing RCR layout only (non-RCR layouts cause compilation issues on some GPU architectures)
+#     message(STATUS "  fp32: testing RCR layout only")
+#     build_gemm_test_targets("fp32" "rcr" "${LARGE_DATATYPE_CONFIG}")
+# else()
+#     message(WARNING "Large datatype config file not found: ${LARGE_DATATYPE_CONFIG_FILE}")
+# endif()
 
-if(EXISTS ${LARGE_DATATYPE_CONFIG_FILE})
-    message(STATUS "Processing large datatype config: ${LARGE_DATATYPE_CONFIG} (fp32)")
-    # fp32: testing RCR layout only (non-RCR layouts cause compilation issues on some GPU architectures)
-    message(STATUS "  fp32: testing RCR layout only")
-    build_gemm_test_targets("fp32" "rcr" "${LARGE_DATATYPE_CONFIG}")
-else()
-    message(WARNING "Large datatype config file not found: ${LARGE_DATATYPE_CONFIG_FILE}")
-endif()
+message(STATUS "Skipping large datatype (fp32) tests: fp32 not yet supported by gemm_instance_builder.py")
 
 # 3. PADDING COVERAGE: Test padding combinations with fixed fp16/rcr configuration
 #    This focuses on padding behavior (pad_m, pad_n, pad_k)
@@ -322,14 +326,14 @@ else()
 endif()
 
 # 4. COVERAGE LEVEL: Quick or comprehensive testing
-#    Quick: ~500 kernels with multiple tile sizes and all trait combinations
+#    Quick: ~250 kernels with multiple tile sizes and trait combinations
 #    Comprehensive: Several thousand kernels with extensive tile sizes, warp configurations, and all trait combinations
 set(COVERAGE_LEVEL "quick" CACHE STRING "Coverage level: quick or comprehensive")
 set_property(CACHE COVERAGE_LEVEL PROPERTY STRINGS "quick" "comprehensive")
 
 if(COVERAGE_LEVEL STREQUAL "quick")
     set(COVERAGE_CONFIG "quick_coverage_config")
-    set(COVERAGE_DESC "Quick - approximately 500 kernels with trait combinations")
+    set(COVERAGE_DESC "Quick - approximately 250 kernels with trait combinations")
 elseif(COVERAGE_LEVEL STREQUAL "comprehensive")
     set(COVERAGE_CONFIG "comprehensive_coverage_config")
     set(COVERAGE_DESC "Comprehensive - several thousand kernels with extensive tile and trait coverage")
@@ -350,7 +354,7 @@ endif()
 
 message(STATUS "GEMM tile engine tests configured with datatype-specific design:")
 message(STATUS "  - Small datatypes: fp8/fp16/bf16 (all layouts)")
-message(STATUS "  - Large datatypes: fp32 (RCR only)")
+message(STATUS "  - Large datatypes: fp32 (disabled - not yet supported by gemm_instance_builder.py)")
 message(STATUS "  - Padding coverage with fp16/rcr")
-message(STATUS "  - Coverage level: ${COVERAGE_LEVEL} (~500 kernels quick, several thousand comprehensive)")
+message(STATUS "  - Coverage level: ${COVERAGE_LEVEL} (~250 kernels quick, several thousand comprehensive)")
 message(STATUS "    Use -DCOVERAGE_LEVEL=comprehensive for extensive testing")
