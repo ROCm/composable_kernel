@@ -16,30 +16,26 @@
 #include <ck/utility/sequence.hpp>
 #include <ck/utility/blkgemmpipe_scheduler.hpp>
 #include <ck/tensor_operation/gpu/device/tensor_layout.hpp>
+#include <ck_tile/ops/common/tensor_layout.hpp>
 #include <ck/tensor_operation/gpu/element/element_wise_operation.hpp>
 #include <ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp>
 #include <ck/tensor_operation/gpu/device/gemm_specialization.hpp>
 
 namespace ck_tile::reflect::detail {
 
-// Metaprogramming helper to convert ck::Sequence to constexpr std::array
-template <typename Seq>
-struct SequenceToArray;
-
-template <ck::index_t... Is>
-struct SequenceToArray<ck::Sequence<Is...>>
-{
-    static constexpr std::array<int, sizeof...(Is)> value = {static_cast<int>(Is)...};
-};
-
-// Convert data types to string names
+// Implementation detail for type name mapping
+// This is the single source of truth for supported data types that
+// returns an empty string to indicate an unsupported type.
+namespace impl {
 template <typename T>
-consteval std::string_view type_name()
+consteval std::string_view type_name_impl()
 {
     if constexpr(std::is_same_v<T, ck::half_t>)
         return "fp16";
     else if constexpr(std::is_same_v<T, float>)
         return "fp32";
+    else if constexpr(std::is_same_v<T, ck::tf32_t>)
+        return "tf32";
     else if constexpr(std::is_same_v<T, double>)
         return "fp64";
     else if constexpr(std::is_same_v<T, int8_t>)
@@ -53,118 +49,114 @@ consteval std::string_view type_name()
     else if constexpr(std::is_same_v<T, ck::bf8_t>)
         return "bf8";
     else
-        static_assert(false, "unknown_type");
+        return std::string_view{}; // Return empty for supported types
+}
+} // namespace impl
+
+// Convert data types to string names
+// Fails at compile time for unsupported types
+template <typename T>
+consteval std::string_view type_name()
+{
+    constexpr auto name = impl::type_name_impl<T>();
+    static_assert(!name.empty(), "Unsupported data type");
+    return name;
 }
 
-// Convert layout types to string names
+// Concept that checks if a type is a valid data type
+// Uses the impl directly to avoid triggering static_assert during concept evaluation
 template <typename T>
+concept IsDataType = !impl::type_name_impl<T>().empty();
+
+// Concept that checks valid layout types
+template <typename T>
+concept IsLayoutType = (std::is_base_of_v<ck_tile::tensor_layout::BaseTensorLayout, T> ||
+                        std::is_base_of_v<ck::tensor_layout::BaseTensorLayout, T>) &&
+                       requires {
+                           { T::name } -> std::convertible_to<std::string_view>;
+                       };
+
+// Convert layout types to string names
+template <IsLayoutType T>
 constexpr std::string_view layout_name()
 {
-    // Convolution layouts
-    if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GNHWC>)
-        return "GNHWC";
-    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GKYXC>)
-        return "GKYXC";
-    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GNHWK>)
-        return "GNHWK";
-    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GKZYXC>)
-        return "GKZYXC";
-    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GNDHWC>)
-        return "GNDHWC";
-    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::GNDHWK>)
-        return "GNDHWK";
-    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::NHWGC>)
-        return "NHWGC";
-    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::KYXGC>)
-        return "KYXGC";
-    else if constexpr(std::is_same_v<T, ck::tensor_layout::convolution::NHWGK>)
-        return "NHWGK";
-    else
-        static_assert(false, "unknown_layout");
+    return T::name;
 }
 
 // Convert element-wise operation types to string names
 template <typename T>
 constexpr std::string_view elementwise_op_name()
 {
-    if constexpr(std::is_same_v<T, ck::tensor_operation::element_wise::PassThrough>)
-        return "PassThrough";
-    else if constexpr(std::is_same_v<T, ck::tensor_operation::element_wise::Scale>)
-        return "Scale";
-    else if constexpr(std::is_same_v<T, ck::tensor_operation::element_wise::Bilinear>)
-        return "Bilinear";
-    else if constexpr(std::is_same_v<T, ck::tensor_operation::element_wise::Add>)
-        return "Add";
-    else if constexpr(std::is_same_v<T, ck::tensor_operation::element_wise::AddRelu>)
-        return "AddRelu";
-    else if constexpr(std::is_same_v<T, ck::tensor_operation::element_wise::Relu>)
-        return "Relu";
+    if constexpr(requires {
+                     { T::name } -> std::convertible_to<std::string_view>;
+                 })
+        return T::name;
     else
-        static_assert(false, "unknown_op");
+        static_assert(false, "Elementwise operation is missing name attribute");
 }
 
 // Convert ConvolutionForwardSpecialization enum to string
 constexpr std::string_view
 conv_fwd_spec_name(ck::tensor_operation::device::ConvolutionForwardSpecialization spec)
 {
-    using ck::tensor_operation::device::ConvolutionForwardSpecialization;
+    using enum ck::tensor_operation::device::ConvolutionForwardSpecialization;
     switch(spec)
     {
-    case ConvolutionForwardSpecialization::Default: return "Default";
-    case ConvolutionForwardSpecialization::Filter1x1Stride1Pad0: return "Filter1x1Stride1Pad0";
-    case ConvolutionForwardSpecialization::Filter1x1Pad0: return "Filter1x1Pad0";
-    case ConvolutionForwardSpecialization::Filter3x3: return "Filter3x3";
-    case ConvolutionForwardSpecialization::OddC: return "OddC";
+    case Default: return "Default";
+    case Filter1x1Stride1Pad0: return "Filter1x1Stride1Pad0";
+    case Filter1x1Pad0: return "Filter1x1Pad0";
+    case Filter3x3: return "Filter3x3";
+    case OddC: return "OddC";
     }
 }
 
 // Convert GemmSpecialization enum to string
 constexpr std::string_view gemm_spec_name(ck::tensor_operation::device::GemmSpecialization spec)
 {
-    using ck::tensor_operation::device::GemmSpecialization;
+    using enum ck::tensor_operation::device::GemmSpecialization;
     switch(spec)
     {
-    case GemmSpecialization::Default: return "Default";
-    case GemmSpecialization::MPadding: return "MPadding";
-    case GemmSpecialization::NPadding: return "NPadding";
-    case GemmSpecialization::KPadding: return "KPadding";
-    case GemmSpecialization::MNPadding: return "MNPadding";
-    case GemmSpecialization::MKPadding: return "MKPadding";
-    case GemmSpecialization::NKPadding: return "NKPadding";
-    case GemmSpecialization::MNKPadding: return "MNKPadding";
-    case GemmSpecialization::OPadding: return "OPadding";
-    case GemmSpecialization::MOPadding: return "MOPadding";
-    case GemmSpecialization::NOPadding: return "NOPadding";
-    case GemmSpecialization::KOPadding: return "KOPadding";
-    case GemmSpecialization::MNOPadding: return "MNOPadding";
-    case GemmSpecialization::MKOPadding: return "MKOPadding";
-    case GemmSpecialization::NKOPadding: return "NKOPadding";
-    case GemmSpecialization::MNKOPadding: return "MNKOPadding";
+    case Default: return "Default";
+    case MPadding: return "MPadding";
+    case NPadding: return "NPadding";
+    case KPadding: return "KPadding";
+    case MNPadding: return "MNPadding";
+    case MKPadding: return "MKPadding";
+    case NKPadding: return "NKPadding";
+    case MNKPadding: return "MNKPadding";
+    case OPadding: return "OPadding";
+    case MOPadding: return "MOPadding";
+    case NOPadding: return "NOPadding";
+    case KOPadding: return "KOPadding";
+    case MNOPadding: return "MNOPadding";
+    case MKOPadding: return "MKOPadding";
+    case NKOPadding: return "NKOPadding";
+    case MNKOPadding: return "MNKOPadding";
     }
 }
 
 // Convert BlockGemmPipelineScheduler enum to string
 constexpr std::string_view pipeline_scheduler_name(ck::BlockGemmPipelineScheduler sched)
 {
-    using ck::BlockGemmPipelineScheduler;
+    using enum ck::BlockGemmPipelineScheduler;
     switch(sched)
     {
-    case BlockGemmPipelineScheduler::Intrawave: return "Intrawave";
-    case BlockGemmPipelineScheduler::Interwave: return "Interwave";
+    case Intrawave: return "Intrawave";
+    case Interwave: return "Interwave";
     }
 }
 
 // Convert BlockGemmPipelineVersion enum to string
 constexpr std::string_view pipeline_version_name(ck::BlockGemmPipelineVersion ver)
 {
-    using ck::BlockGemmPipelineVersion;
+    using enum ck::BlockGemmPipelineVersion;
     switch(ver)
     {
-    case BlockGemmPipelineVersion::v1: return "v1";
-    case BlockGemmPipelineVersion::v2: return "v2";
-    case BlockGemmPipelineVersion::v3: return "v3";
-    case BlockGemmPipelineVersion::v4: return "v4";
-    case BlockGemmPipelineVersion::v5: return "v5";
+    case v1: return "v1";
+    case v2: return "v2";
+    case v3: return "v3";
+    case v4: return "v4";
+    case v5: return "v5";
     }
 }
 
@@ -184,12 +176,138 @@ inline std::string array_to_string(const std::array<T, N>& arr)
     return oss.str();
 }
 
-// Handle ck::Tuple (empty tuple for DsLayout/DsDataType)
-template <typename T>
-constexpr std::string_view tuple_name()
+// Metaprogramming helper to convert ck::Sequence to constexpr std::array
+template <typename Seq>
+struct SequenceToArray;
+
+template <ck::index_t... Is>
+struct SequenceToArray<ck::Sequence<Is...>>
 {
-    // For now, just check if it's an empty tuple
-    return "EmptyTuple";
+    static constexpr std::array<int, sizeof...(Is)> value = {static_cast<int>(Is)...};
+};
+
+namespace detail {
+// Generic helper to build list-like strings (Tuple, Seq, etc.)
+//
+// Example output: "Seq(1,2,3)"
+//
+// prefix: The list-like container name (e.g. "Tuple" or "Seq")
+// converter_fn: A callable that converts each element to a string representation
+// For types: converter_fn should be a template lambda like []<typename U>() { return
+// type_name<U>(); } For values: converter_fn should be a regular lambda like [](auto value) {
+// return std::to_string(value); }
+template <typename ConverterFn, typename... Elements>
+constexpr std::string build_list_string(std::string_view prefix, const ConverterFn& converter_fn)
+{
+    if constexpr(sizeof...(Elements) == 0)
+    {
+        return std::string(prefix) + "()";
+    }
+    else
+    {
+        std::string result = std::string(prefix) + "(";
+        std::size_t index  = 0;
+        ((result +=
+          (index++ > 0 ? "," : "") + std::string(converter_fn.template operator()<Elements>())),
+         ...);
+        result += ")";
+        return result;
+    }
+}
+
+// Overload for value-based lists (sequences)
+template <typename ConverterFn, auto... Values>
+constexpr std::string build_list_string_values(std::string_view prefix,
+                                               const ConverterFn& converter_fn)
+{
+    if constexpr(sizeof...(Values) == 0)
+    {
+        return std::string(prefix) + "()";
+    }
+    else
+    {
+        std::string result = std::string(prefix) + "(";
+        std::size_t index  = 0;
+        ((result += (index++ > 0 ? "," : "") + converter_fn(Values)), ...);
+        result += ")";
+        return result;
+    }
+}
+} // namespace detail
+
+// Convert ck::Sequence to string representation
+// Converts a ck::Sequence type to a string in the format "Seq(v1,v2,...,vn)"
+// where each value is converted using std::to_string.
+//
+// Template parameter:
+//   T: Must be a ck::Sequence<...> type
+//
+// Constraints:
+//   - Sequence elements must support std::to_string (typically ck::index_t)
+//
+// Examples:
+//   sequence_name<ck::Sequence<>>()           returns "Seq()"
+//   sequence_name<ck::Sequence<42>>()         returns "Seq(42)"
+//   sequence_name<ck::Sequence<1,2,3>>()      returns "Seq(1,2,3)"
+//   sequence_name<ck::Sequence<256,128,64>>() returns "Seq(256,128,64)"
+template <typename T>
+    requires requires { []<ck::index_t... Is>(ck::Sequence<Is...>*) {}(static_cast<T*>(nullptr)); }
+constexpr std::string sequence_name()
+{
+    return []<ck::index_t... Is>(ck::Sequence<Is...>*) constexpr {
+        auto to_string_fn = [](auto value) { return std::to_string(value); };
+        return detail::build_list_string_values<decltype(to_string_fn), Is...>("Seq", to_string_fn);
+    }(static_cast<T*>(nullptr));
+}
+
+// Convert ck::Tuple to string representation
+// Converts a ck::Tuple type to a string in the format "Tuple(e1,e2,...,en)"
+// where each element is converted based on its type (layout names or data type names).
+//
+// Template parameter:
+//   T: Must be a ck::Tuple<...> type
+//
+// Constraints:
+//   - Empty tuples are supported and return "EmptyTuple"
+//   - All tuple elements must be homogeneous: either all layouts (IsLayoutType) or all data types
+//   (IsDataType)
+//   - Mixed layouts and data types in the same tuple will cause a compile-time error
+//
+// Examples:
+//   tuple_name<ck::Tuple<>>()                                    returns "EmptyTuple"
+//   tuple_name<ck::Tuple<ck::tensor_layout::gemm::RowMajor>>()  returns "Tuple(RowMajor)"
+//   tuple_name<ck::Tuple<NCHW,NHWC>>()                          returns "Tuple(NCHW,NHWC)"
+//   tuple_name<ck::Tuple<ck::half_t>>()                         returns "Tuple(fp16)"
+//   tuple_name<ck::Tuple<ck::half_t,float,double>>()            returns "Tuple(fp16,fp32,fp64)"
+template <typename T>
+    requires requires { []<typename... Ts>(ck::Tuple<Ts...>*) {}(static_cast<T*>(nullptr)); }
+constexpr std::string tuple_name()
+{
+    return []<typename... Ts>(ck::Tuple<Ts...>*) constexpr {
+        if constexpr(sizeof...(Ts) == 0)
+        {
+            return std::string("EmptyTuple");
+        }
+        else if constexpr((IsLayoutType<Ts> && ...))
+        {
+            // Lambda wrapper for layout_name
+            auto layout_name_fn = []<typename U>() { return layout_name<U>(); };
+            return detail::build_list_string<decltype(layout_name_fn), Ts...>("Tuple",
+                                                                              layout_name_fn);
+        }
+        else if constexpr((IsDataType<Ts> && ...))
+        {
+            // Lambda wrapper for type_name
+            auto type_name_fn = []<typename U>() { return type_name<U>(); };
+            return detail::build_list_string<decltype(type_name_fn), Ts...>("Tuple", type_name_fn);
+        }
+        else
+        {
+            static_assert((IsLayoutType<Ts> && ...) || (IsDataType<Ts> && ...),
+                          "Tuple elements must be all layouts or all data types, not mixed");
+            return std::string{}; // unreachable
+        }
+    }(static_cast<T*>(nullptr));
 }
 
 } // namespace ck_tile::reflect::detail

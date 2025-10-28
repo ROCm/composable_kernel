@@ -7,6 +7,7 @@ function(add_ck_builder_test test_name)
     target_include_directories(${test_name} PRIVATE
         "${PROJECT_SOURCE_DIR}/experimental/builder/include"
         "${PROJECT_SOURCE_DIR}/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}"
     )
     target_compile_options(${test_name} PRIVATE
         -Wno-global-constructors
@@ -15,9 +16,13 @@ function(add_ck_builder_test test_name)
     target_link_libraries(${test_name} PRIVATE GTest::gtest_main GTest::gmock)
 endfunction()
 
+# The test_conv_builder target has all the unit tests (each test should run < 10 ms)
 add_ck_builder_test(test_conv_builder
     test_conv_builder.cpp
-    test_instance_traits.cpp)
+    test_instance_traits.cpp
+    test_instance_traits_util.cpp
+    testing_utils.cpp)
 
+# Testing the virtual GetInstanceString methods requires kernel compilation.
 add_ck_builder_test(test_get_instance_string
     test_get_instance_string.cpp)
