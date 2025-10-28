@@ -1574,7 +1574,6 @@ pipeline {
                                             -D GPU_TARGETS="gfx1201" \
                                             -D GEMM_DATATYPE="fp16" \
                                             -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
-                                            -DGEMM_CONFIG_FILE=gfx120x_config.json \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 benchmark_gemm_all && \
                                            python3 ../tile_engine/ops/gemm/gemm_benchmark.py . --problem-sizes "1024,1024,1024" \
