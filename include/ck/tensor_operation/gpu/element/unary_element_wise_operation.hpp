@@ -157,6 +157,8 @@ namespace element_wise {
 
 struct PassThroughPack8
 {
+    static constexpr const char* name = "PassThroughPack8";
+
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const;
 
@@ -265,6 +267,8 @@ struct PassThroughPack8
 
 struct DequantPack8
 {
+    static constexpr const char* name = "DequantPack8";
+
     template <typename Y, typename X, typename Z>
     __host__ __device__ void operator()(Y& y, const X& x, const Z& z) const;
 
@@ -301,6 +305,8 @@ struct DequantPack8
 
 struct PassThroughPack2
 {
+    static constexpr const char* name = "PassThroughPack2";
+
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const;
 
@@ -558,6 +564,8 @@ struct PassThrough
 
 struct UnaryConvert
 {
+    static constexpr const char* name = "UnaryConvert";
+
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const
     {
@@ -567,6 +575,8 @@ struct UnaryConvert
 
 struct ConvertBF16RTN
 {
+    static constexpr const char* name = "ConvertBF16RTN";
+
     // convert to bf16 using round to nearest (rtn)
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const
@@ -584,6 +594,8 @@ struct ConvertBF16RTN
 
 struct ConvertF8SR
 {
+    static constexpr const char* name = "ConvertF8SR";
+
     // convert to fp8 using stochastic rounding (SR)
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const
@@ -602,6 +614,8 @@ struct ConvertF8SR
 
 struct ConvertF8RNE
 {
+    static constexpr const char* name = "ConvertF8RNE";
+
     // convert to fp8 using rounding to nearest even
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const
@@ -667,6 +681,8 @@ struct Scale
 
 struct ScaleAndResetNaNToMinusInfinity
 {
+    static constexpr const char* name = "ScaleAndResetNaNToMinusInfinity";
+
     __host__ __device__ ScaleAndResetNaNToMinusInfinity(float scale) : scale_(scale) {}
 
     template <typename Y, typename X>
@@ -683,6 +699,8 @@ struct ScaleAndResetNaNToMinusInfinity
 
 struct UnaryDivide
 {
+    static constexpr const char* name = "UnaryDivide";
+
     __host__ __device__ UnaryDivide(const int32_t divider = 1) : divider_(divider) {}
 
     template <typename T>
@@ -727,6 +745,8 @@ struct UnaryDivide
 
 struct UnarySquare
 {
+    static constexpr const char* name = "UnarySquare";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -743,6 +763,8 @@ struct UnarySquare
 
 struct UnaryAbs
 {
+    static constexpr const char* name = "UnaryAbs";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -773,6 +795,8 @@ struct UnaryAbs
 
 struct UnarySqrt
 {
+    static constexpr const char* name = "UnarySqrt";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -898,6 +922,8 @@ struct Relu
 // gpu code use lower accuracy "_ocml_exp_f32" and "rcp" function
 struct FastGelu
 {
+    static constexpr const char* name = "FastGelu";
+
     template <typename Y, typename X>
     __host__ void operator()(Y& y, const X& x) const;
 
@@ -1013,6 +1039,8 @@ struct FastGelu
 // y = 0.5*x*(1+erf(x/sqrt(2)))
 struct Gelu
 {
+    static constexpr const char* name = "Gelu";
+
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const;
 
@@ -1031,6 +1059,8 @@ struct Gelu
 
 struct Sigmoid
 {
+    static constexpr const char* name = "Sigmoid";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -1055,6 +1085,8 @@ struct Sigmoid
 
 struct Silu
 {
+    static constexpr const char* name = "SiLU";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -1068,6 +1100,8 @@ struct Silu
 
 struct TanH
 {
+    static constexpr const char* name = "TanH";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -1091,6 +1125,8 @@ struct TanH
 
 struct ACos
 {
+    static constexpr const char* name = "ACos";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -1105,6 +1141,8 @@ struct ACos
 
 struct Neg
 {
+    static constexpr const char* name = "Neg";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -1119,6 +1157,8 @@ struct Neg
 
 struct ATan
 {
+    static constexpr const char* name = "ATan";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -1133,6 +1173,8 @@ struct ATan
 
 struct Sin
 {
+    static constexpr const char* name = "Sin";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -1147,6 +1189,8 @@ struct Sin
 
 struct ASinH
 {
+    static constexpr const char* name = "ASinH";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -1161,6 +1205,8 @@ struct ASinH
 
 struct Cos
 {
+    static constexpr const char* name = "Cos";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -1175,6 +1221,8 @@ struct Cos
 
 struct ACosH
 {
+    static constexpr const char* name = "ACosH";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -1189,6 +1237,8 @@ struct ACosH
 
 struct Tan
 {
+    static constexpr const char* name = "Tan";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -1203,6 +1253,8 @@ struct Tan
 
 struct ATanH
 {
+    static constexpr const char* name = "ATanH";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -1217,6 +1269,8 @@ struct ATanH
 
 struct SinH
 {
+    static constexpr const char* name = "SinH";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -1231,6 +1285,8 @@ struct SinH
 
 struct Ceil
 {
+    static constexpr const char* name = "Ceil";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -1245,6 +1301,8 @@ struct Ceil
 
 struct Exp
 {
+    static constexpr const char* name = "Exp";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -1259,6 +1317,8 @@ struct Exp
 
 struct CosH
 {
+    static constexpr const char* name = "CosH";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -1273,6 +1333,8 @@ struct CosH
 
 struct Floor
 {
+    static constexpr const char* name = "Floor";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -1287,6 +1349,8 @@ struct Floor
 
 struct Log
 {
+    static constexpr const char* name = "Log";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -1301,6 +1365,8 @@ struct Log
 
 struct ASin
 {
+    static constexpr const char* name = "ASin";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -1315,6 +1381,8 @@ struct ASin
 
 struct Rcp
 {
+    static constexpr const char* name = "Rcp";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {
@@ -1329,6 +1397,8 @@ struct Rcp
 
 struct Swish
 {
+    static constexpr const char* name = "Swish";
+
     Swish(float beta = 1.0f) : beta_(beta) {}
 
     template <typename Y, typename X>
@@ -1358,6 +1428,8 @@ struct Swish
 
 struct SoftRelu
 {
+    static constexpr const char* name = "SoftRelu";
+
     SoftRelu(float alpha = 1.f) : alpha_(alpha){};
 
     template <typename T>
@@ -1386,6 +1458,8 @@ struct SoftRelu
 
 struct Power
 {
+    static constexpr const char* name = "Power";
+
     Power(float alpha = 0.f, float beta = 1.f, float gamma = 2.f)
         : alpha_(alpha), beta_(beta), gamma_(gamma){};
 
@@ -1420,6 +1494,8 @@ struct Power
 
 struct ClippedRelu
 {
+    static constexpr const char* name = "ClippedRelu";
+
     ClippedRelu(float alpha = 0.f, float beta = 1.f) : alpha_(alpha), beta_(beta){};
 
     template <typename T>
@@ -1449,6 +1525,8 @@ struct ClippedRelu
 
 struct LeakyRelu
 {
+    static constexpr const char* name = "LeakyRelu";
+
     LeakyRelu(float alpha = 0.01f) : alpha_(alpha){};
 
     template <typename T>
@@ -1476,6 +1554,8 @@ struct LeakyRelu
 
 struct Elu
 {
+    static constexpr const char* name = "Elu";
+
     Elu(float alpha = 1.f) : alpha_(alpha){};
 
     template <typename T>
@@ -1503,6 +1583,8 @@ struct Elu
 
 struct Logistic
 {
+    static constexpr const char* name = "Logistic";
+
     Logistic(float alpha = 1.f) : alpha_(alpha){};
 
     template <typename T>
@@ -1531,6 +1613,8 @@ struct Logistic
 
 struct ConvInvscale
 {
+    static constexpr const char* name = "ConvInvscale";
+
     __host__ __device__ ConvInvscale(float scale_in  = 1.f,
                                      float scale_wei = 1.f,
                                      float scale_out = 1.f)
@@ -1554,6 +1638,8 @@ struct ConvInvscale
 
 struct ConvScale
 {
+    static constexpr const char* name = "ConvScale";
+
     __host__ __device__ ConvScale(float scale_in  = 1.f,
                                   float scale_wei = 1.f,
                                   float scale_out = 1.f)
@@ -1577,6 +1663,8 @@ struct ConvScale
 
 struct ConvScaleRelu
 {
+    static constexpr const char* name = "ConvScaleRelu";
+
     __host__ __device__ ConvScaleRelu(float scale_in  = 1.f,
                                       float scale_wei = 1.f,
                                       float scale_out = 1.f)
