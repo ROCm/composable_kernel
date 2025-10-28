@@ -1,9 +1,17 @@
 #!/bin/bash
 # TODO: run this script from CK root or build directory
 #EXE="/code/composable_kernel/build/bin/tile_example_fmha_fwd"
-EXE="$(find . -name tile_example_fmha_fwd -type f | head -n 1)"
-KNAME=1
+set -euo pipefail
 
+SCRIPT_DIR=$(cd $(dirname "${BASH_SOURCE[0]}") && pwd)
+EXE_NAME=tile_example_fmha_fwd
+EXE="$(find . -name $EXE_NAME -type f | head -n 1)"
+KNAME=1
+GPU_arch=$GPU_arch
+if [ -z "$GPU_arch" ] ; then
+    GPU_arch=$(rocminfo | grep -E 'Name:\s+gfx' | head -n1 | awk '{print $2}')
+fi
+set -x
 
 COMMON_ARGS='-v=1 -warmup=0 -repeat=1'
 
