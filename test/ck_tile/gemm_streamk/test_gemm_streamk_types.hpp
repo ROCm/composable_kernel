@@ -14,6 +14,8 @@
 using F16  = ck_tile::half_t;
 using F32  = float;
 using BF16 = ck_tile::bf16_t;
+using F8   = ck_tile::fp8_t;
+using BF8  = ck_tile::bf8_t;
 
 using Row = ck_tile::tensor_layout::gemm::RowMajor;
 using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
@@ -79,7 +81,7 @@ struct Layouts
 //                            MxNxK          MxNxK                         M      N    K                       M     N   K    
 // 
 // The example options for each field are:
-//  - DATA_TYPE: F16, BF16
+//  - DATA_TYPE: F16, BF16, F8, BF8
 //  - LAYOUT: RRR, RRC, RCR, RCC, CRR, CRC, CCR, CCC
 //  - PIPELINE_TYPE: Mem, CompV3, CompV4
 //  - M_MACRO_TILE: 128, 256, etc
@@ -121,3 +123,5 @@ struct Layouts
 
 #include "test_gemm_streamk_types_fp16.hpp"
 #include "test_gemm_streamk_types_bf16.hpp"
+#include "test_gemm_streamk_types_fp8.hpp"
+#include "test_gemm_streamk_types_bf8.hpp"
