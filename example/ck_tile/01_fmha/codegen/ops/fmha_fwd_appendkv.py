@@ -349,43 +349,17 @@ def get_fwd_appendkv_blobs(
             #         applying rotary embedding, so I just use 't' in inter/half pipelines
             for vlayout in ["row", "col"]:
                 for pagedkv in ["t", "f"]:
-                    pipelines.append(
-                        FmhaFwdAppendKVPipeline(
-                            vlayout, "f", "t", "f", "f", "no", pagedkv
-                        )
-                    )
-                    pipelines.append(
-                        FmhaFwdAppendKVPipeline(
-                            vlayout, "t", "t", "t", "t", "no", pagedkv
-                        )
-                    )
+                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, "f", "t", "f", "f", "no", pagedkv))  # fmt: skip
+                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, "t", "t", "t", "t", "no", pagedkv))  # fmt: skip
 
-                    pipelines.append(
-                        FmhaFwdAppendKVPipeline(
-                            vlayout, "f", "t", "t", "f", "inter", pagedkv
-                        )
-                    )
-                    pipelines.append(
-                        FmhaFwdAppendKVPipeline(
-                            vlayout, "t", "t", "t", "t", "inter", pagedkv
-                        )
-                    )
+                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, "f", "t", "t", "f", "inter", pagedkv))  # fmt: skip
+                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, "t", "t", "t", "t", "inter", pagedkv))  # fmt: skip
 
-                    pipelines.append(
-                        FmhaFwdAppendKVPipeline(
-                            vlayout, "f", "t", "t", "f", "half", pagedkv
-                        )
-                    )
-                    pipelines.append(
-                        FmhaFwdAppendKVPipeline(
-                            vlayout, "t", "t", "t", "t", "half", pagedkv
-                        )
-                    )
+                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, "f", "t", "t", "f", "half", pagedkv))  # fmt: skip
+                    pipelines.append(FmhaFwdAppendKVPipeline(vlayout, "t", "t", "t", "t", "half", pagedkv))  # fmt: skip
         elif dtype in ["fp8", "bf8"]:
             # rope/paged-kv is not supported
-            pipelines.append(
-                FmhaFwdAppendKVPipeline("col", "t", "t", "t", "t", "no", "f")
-            )
+            pipelines.append(FmhaFwdAppendKVPipeline("col", "t", "t", "t", "t", "no", "f"))  # fmt: skip
         elif dtype in ["fp8fp16", "fp8bf16"]:
             # TODO
             None

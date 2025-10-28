@@ -7,10 +7,6 @@
 Mappings and utility functions for kernel code generation.
 """
 
-import subprocess
-import re
-from functools import lru_cache
-
 DATA_TYPE_MAP = {
     "fp32": "float",
     "fp16": "ck_tile::half_t",
@@ -198,31 +194,3 @@ def element_size(data_type: str) -> float:
     if data_type not in ELEMENT_SIZE_MAP:
         raise ValueError(f"Unsupported data type: {data_type}")
     return ELEMENT_SIZE_MAP[data_type]
-
-
-GPU_NAME_PATTERN = re.compile(r"Name:\s*(gfx\d+\w*)")
-
-
-@lru_cache(maxsize=1)
-def get_gpu_name_by_id(gpu_id: int = 0) -> str:
-    """Retrieve GPU name (e.g. gfx90a) by device ID"""
-    try:
-        output = subprocess.check_output(
-            ["rocminfo"], text=True, stderr=subprocess.PIPE, timeout=5
-        )
-        if matches := GPU_NAME_PATTERN.finditer(output):
-            gpu_list = [m.group(1) for m in matches]
-            return gpu_list[gpu_id] if gpu_id < len(gpu_list) else ""
-
-        return ""
-
-    except subprocess.CalledProcessError as e:
-        print(f"GPU query failed (exit {e.returncode}): {e.stderr.strip()}")
-    except FileNotFoundError:
-        print("ROCm tools not installed (requires rocminfo)")
-    except subprocess.TimeoutExpired:
-        print("GPU query timeout (5s)")
-    except Exception as e:
-        print(f"GPU detection error: {str(e)}")
-
-    return ""

@@ -575,30 +575,8 @@ class KernelComponentFactory:
     def get_hdim_tile_size_dict(dtype: str) -> Optional[dict]:
         if dtype == "fp16" or dtype == "bf16":
             return {
-                128: [
-                    FmhaFwdTileSize(
-                        128,
-                        128,
-                        32,
-                        128,
-                        32,
-                        128,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        32,
-                        32,
-                        16,
-                        32,
-                        32,
-                        16,
-                        -1,
-                    )
-                ],
-            }
+                128 : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
+            }  # fmt: skip
         else:
             return None
 
@@ -618,40 +596,10 @@ class KernelComponentFactory:
                 ["t", "f"],
                 ["t", "f"],
             ):
-                pipelines.append(
-                    FmhaFwdPipeline(
-                        "qr_async",
-                        "row",
-                        "t",
-                        "f",
-                        "t",
-                        "t",
-                        logits,
-                        bias,
-                        lse,
-                        dropout,
-                        squant,
-                        mask,
-                    )
-                )
-                pipelines.append(
-                    FmhaFwdPipeline(
-                        "qr_async",
-                        "row",
-                        "t",
-                        "t",
-                        "t",
-                        "t",
-                        logits,
-                        bias,
-                        lse,
-                        dropout,
-                        squant,
-                        mask,
-                    )
-                )
-                # pipelines.append(FmhaFwdPipeline('qr_async', 'col', 't', 'f', 't', 't', logits, bias, lse, dropout, squant, mask))
-                # pipelines.append(FmhaFwdPipeline('qr_async', 'col', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask))
+                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "f", "t", "t", logits, bias, lse, dropout, squant, mask))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, lse, dropout, squant, mask))  # fmt: skip
+                # pipelines.append(FmhaFwdPipeline("qr_async", "col", "t", "f", "t", "t", logits, bias, lse, dropout, squant, mask))  # fmt: skip
+                # pipelines.append(FmhaFwdPipeline("qr_async", "col", "t", "t", "t", "t", logits, bias, lse, dropout, squant, mask))  # fmt: skip
         else:
             assert False
         return pipelines
@@ -663,33 +611,7 @@ class CustomFactory(KernelComponentFactory):
         result = KernelComponentFactory.get_hdim_tile_size_dict(dtype)
         if dtype == "fp16" or dtype == "bf16":
             if 128 in result.keys():
-                result[128].insert(
-                    0,
-                    FmhaFwdTileSize(
-                        64,
-                        128,
-                        64,
-                        128,
-                        64,
-                        128,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        -1,
-                        CppConstraint(
-                            "get_num_blocks(128) < num_cus * min_cu_util_rate"
-                        ),
-                    ),
-                )
+                result[128].insert(0, FmhaFwdTileSize( 64, 128, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1, CppConstraint("get_num_blocks(128) < num_cus * min_cu_util_rate")))  # fmt: skip
         return result
 
 

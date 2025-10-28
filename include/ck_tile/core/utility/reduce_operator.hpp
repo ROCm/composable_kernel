@@ -73,7 +73,7 @@ struct Max
                                           std::is_same_v<T, fp8_t> || std::is_same_v<T, bf8_t>>>
     CK_TILE_HOST_DEVICE static constexpr T GetIdentityValue()
     {
-        return numeric<T>::min();
+        return numeric<T>::lowest();
     };
 
     template <typename T,
@@ -96,7 +96,7 @@ struct AbsMax
                                           std::is_same_v<T, fp8_t> || std::is_same_v<T, bf8_t>>>
     CK_TILE_HOST_DEVICE static constexpr T GetIdentityValue()
     {
-        return numeric<T>::min();
+        return numeric<T>::zero();
     };
 
     template <typename T,

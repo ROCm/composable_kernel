@@ -1,3 +1,4 @@
+include_guard(GLOBAL)
 include(FetchContent)
 
 set(GOOGLETEST_DIR "" CACHE STRING "Location of local GoogleTest repo to build against")

@@ -75,6 +75,18 @@ struct DataTypeTraits<ck_tile::bf16_t>
     static constexpr const char* name = "bf16";
 };
 
+template <>
+struct DataTypeTraits<ck_tile::fp8_t>
+{
+    static constexpr const char* name = "fp8";
+};
+
+template <>
+struct DataTypeTraits<ck_tile::bf8_t>
+{
+    static constexpr const char* name = "bf8";
+};
+
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
@@ -94,7 +106,7 @@ auto create_args(int argc, char* argv[])
         .insert("stride_b", "0", "Tensor B stride")
         .insert("stride_c", "0", "Tensor C stride")
         .insert("v", "2", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
-        .insert("prec", "fp16", "data type. fp16/bf16")
+        .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
         .insert("warmup", "50", "number of iterations before benchmarking the kernel")
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")

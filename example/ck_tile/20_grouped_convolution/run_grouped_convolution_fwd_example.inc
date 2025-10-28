@@ -12,7 +12,7 @@ template <ck_tile::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout>
-float invoke_grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args,
+float invoke_grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs<>& args,
                               int n_warmup,
                               int n_repeat)
 {
@@ -128,12 +128,12 @@ int run_grouped_conv_fwd_example_with_layouts(
     weight_dev_buf.ToDevice(weight.data());
     output_dev_buf.SetZero();
 
-    ck_tile::GroupedConvFwdHostArgs args(conv_param,
-                                         input_dev_buf.GetDeviceBuffer(),
-                                         weight_dev_buf.GetDeviceBuffer(),
-                                         {},
-                                         output_dev_buf.GetDeviceBuffer(),
-                                         kbatch);
+    ck_tile::GroupedConvFwdHostArgs<> args(conv_param,
+                                           input_dev_buf.GetDeviceBuffer(),
+                                           weight_dev_buf.GetDeviceBuffer(),
+                                           {},
+                                           output_dev_buf.GetDeviceBuffer(),
+                                           kbatch);
 
     std::cout << "Run Grouped Conv Fwd kernel" << std::endl;
     std::cout << "input: " << input.mDesc << std::endl;
