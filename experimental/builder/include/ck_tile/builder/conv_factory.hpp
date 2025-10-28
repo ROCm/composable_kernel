@@ -218,6 +218,14 @@ struct ElementwiseOps<ElementwiseOperation::PASS_THROUGH>
     using CDEElementwiseOp = ck::tensor_operation::element_wise::PassThrough;
 };
 
+template <>
+struct ElementwiseOps<ElementwiseOperation::SCALE>
+{
+    using AElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
+    using BElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
+    using CDEElementwiseOp = ck::tensor_operation::element_wise::Scale;
+};
+
 // The algorithm specializations for the convolution and GEMM.
 template <typename CONV_ENUM>
     requires(
@@ -364,6 +372,10 @@ consteval ck::BlockGemmPipelineVersion SetBlockGemmPipelineVersion()
     if constexpr(version == BlockGemmPipelineVersion::V1)
     {
         return ck::BlockGemmPipelineVersion::v1;
+    }
+    else if constexpr(version == BlockGemmPipelineVersion::V2)
+    {
+        return ck::BlockGemmPipelineVersion::v2;
     }
     else if constexpr(version == BlockGemmPipelineVersion::V3)
     {
