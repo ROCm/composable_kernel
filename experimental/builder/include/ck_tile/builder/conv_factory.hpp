@@ -434,9 +434,6 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
     using Ops           = factory_internal::ElementwiseOps<SIGNATURE.elementwise_operation>;
     using AlgorithmType = decltype(ALGORITHM);
 
-    // Check preconditions for the algorithm description.
-    static_assert(SPATIAL_DIM == 2 || SPATIAL_DIM == 3,
-                  "Only 2D and 3D convolutions are supported in this factory.");
     static_assert(SpecifiesThreadBlock<AlgorithmType>,
                   "The convolution algorithm descriptor must specify thread block info.");
     static_assert(SpecifiesGridwiseGemm<AlgorithmType>,
