@@ -194,6 +194,23 @@ struct StreamKTilePartitionerBaseConfigDP2TileSK : public StreamKTilePartitioner
                                              ck_tile::sequence<UNUSED, UNUSED, UNUSED>>;
 };
 
+struct StreamKTilePartitionerBaseConfigSKOnlyWith2WgsPerSKTile
+    : public StreamKTilePartitionerBaseConfig
+{
+    static constexpr ck_tile::index_t M    = 16;
+    static constexpr ck_tile::index_t N    = 4;
+    static constexpr ck_tile::index_t K    = 16;
+    static constexpr ck_tile::index_t GRID = 8;
+
+    static constexpr ck_tile::index_t M_TILE = 4;
+    static constexpr ck_tile::index_t N_TILE = 4;
+    static constexpr ck_tile::index_t K_TILE = 8;
+
+    using GemmShape = ck_tile::TileGemmShape<ck_tile::sequence<M_TILE, N_TILE, K_TILE>,
+                                             ck_tile::sequence<UNUSED, UNUSED, UNUSED>,
+                                             ck_tile::sequence<UNUSED, UNUSED, UNUSED>>;
+};
+
 struct StreamKTilePartitionerBaseConfigDPOnly : public StreamKTilePartitionerBaseConfig
 {
     static constexpr ck_tile::index_t M    = 12;
