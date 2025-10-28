@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/core/utility/reduce_operator_accumulate.hpp"
 
 namespace ck_tile {
 
@@ -74,21 +75,21 @@ struct BlockReduce2d
 
                     if constexpr(kProcessIndex)
                     {
-                        bool changed    = false;
-                        y_tensor(idx_0) = reduce_func(y_tensor(idx_0), val, changed);
 
-                        if(changed)
-                        {
-                            const auto x_indices = get_x_indices_from_distributed_indices(
-                                XDistributedTensor_::get_tile_distribution(), idx);
-                            const auto red_idx = index_calculator(x_indices);
-                            y_index_tensor(idx_0) =
-                                type_convert<typename YIndexDistributedTensor_::DataType>(red_idx);
-                        }
+                        const auto x_indices = get_x_indices_from_distributed_indices(
+                            XDistributedTensor_::get_tile_distribution(), idx);
+                        const auto new_idx = index_calculator(x_indices);
+                        auto current_idx   = y_index_tensor(idx_0);
+
+                        AccumulateWithIndex{}(
+                            reduce_func, y_tensor(idx_0), current_idx, val, new_idx);
+
+                        y_index_tensor(idx_0) =
+                            type_convert<typename YIndexDistributedTensor_::DataType>(current_idx);
                     }
                     else
                     {
-                        y_tensor(idx_0) = reduce_func(y_tensor(idx_0), val);
+                        Accumulate{}(reduce_func, y_tensor(idx_0), val);
                     }
                 }(idx_));
             },
@@ -289,16 +290,13 @@ struct BlockReduce2dSync
                         if constexpr(kProcessIndex)
                         {
                             const auto idx_remote = warp_shuffle(idx_local, src_lane);
-                            bool changed          = false;
-                            v_local               = reduce_func(v_local, v_remote, changed);
-                            if(changed)
-                            {
-                                idx_local = idx_remote;
-                            }
+
+                            AccumulateWithIndex{}(
+                                reduce_func, v_local, idx_local, v_remote, idx_remote);
                         }
                         else
                         {
-                            v_local = reduce_func(v_local, v_remote);
+                            Accumulate{}(reduce_func, v_local, v_remote);
                         }
                     });
                 }
@@ -475,16 +473,11 @@ struct BlockReduce2dCrossWarpSync
                     {
                         if constexpr(kProcessIndex)
                         {
-                            bool changed = false;
-                            v[i0]        = reduce_func(v[i0], v[i1], changed);
-                            if(changed)
-                            {
-                                idx_v[i0] = idx_v[i1];
-                            }
+                            AccumulateWithIndex{}(reduce_func, v[i0], idx_v[i0], v[i1], idx_v[i1]);
                         }
                         else
                         {
-                            v[i0] = reduce_func(v[i0], v[i1]);
+                            Accumulate{}(reduce_func, v[i0], v[i1]);
                         }
                     }
                 });

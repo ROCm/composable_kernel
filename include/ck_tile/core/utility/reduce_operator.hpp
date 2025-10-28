@@ -86,7 +86,7 @@ struct Max
         typename T,
         typename = std::enable_if_t<
             is_any_of<T, float, double, int32_t, int8_t, half_t, bf16_t, fp8_t, bf8_t>::value>>
-    CK_TILE_HOST_DEVICE constexpr T operator()(T& y, const T x, bool& changed) const
+    CK_TILE_HOST_DEVICE constexpr T operator()(const T& y, const T x, bool& changed) const
     {
         T new_max = max(y, x);
         if(x > y)
@@ -122,7 +122,7 @@ struct AbsMax
         typename T,
         typename = std::enable_if_t<
             is_any_of<T, float, double, int32_t, int8_t, half_t, bf16_t, fp8_t, bf8_t>::value>>
-    CK_TILE_HOST_DEVICE constexpr T operator()(T& y, const T x, bool& changed) const
+    CK_TILE_HOST_DEVICE constexpr T operator()(const T& y, const T x, bool& changed) const
     {
         T new_max = max(y, abs(x));
         if(abs(x) > y)
