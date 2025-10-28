@@ -7,7 +7,7 @@
 #include <memory>
 
 #include "ck/ck.hpp"
-#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_dynamic.hpp"
+#include "ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
@@ -161,7 +161,7 @@ template <ck::index_t NumDimSpatial,
           typename DDataTypes,
           typename OutDataType,
           typename AComputeType,
-          typename BComputeType = AComputeType>
+          typename BComputeType>
 struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<
     NumDimSpatial,
     InLayout,

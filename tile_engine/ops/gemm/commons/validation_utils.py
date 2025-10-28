@@ -23,6 +23,31 @@ ELEMENT_SIZE_MAP = {
     "fp64": 8,
 }
 
+WARP_SUPPORTED_COMBINATIONS = {
+    "gfx90a": [
+        [1, 4, 1],
+        [2, 2, 1],
+        [4, 1, 1],
+    ],
+    "gfx942": [
+        [1, 4, 1],
+        [2, 2, 1],
+        [4, 1, 1],
+    ],
+    "gfx950": [
+        [1, 4, 1],
+        [2, 2, 1],
+        [4, 1, 1],
+    ],
+    "gfx1201": [
+        [2, 4, 1],
+        [1, 8, 1],
+        [8, 1, 1],
+        [4, 2, 1],
+    ],
+}
+
+# [TODO] Handle this while moving code to commons
 # Supported warp tile combinations for different GPU architectures and data types
 WARP_TILE_SUPPORTED_COMBINATIONS = {
     "gfx90a": {
@@ -290,6 +315,7 @@ def is_tile_config_valid(
     b_datatype: str,
     c_datatype: str,
     pipeline: str,
+    layout: str,
     gpu_target: str,
     trait_name: str = None,
 ) -> bool:
@@ -348,6 +374,24 @@ def is_tile_config_valid(
         logging.debug(f"LDS validation failed: {lds_error}")
         return False
 
+    # Validate whole workgroup cover configuration
+    wr_cover_valid, wg_cover_error = validate_whole_wg_cover_configuration(
+        tile_m,
+        tile_n,
+        tile_k,
+        warp_m,
+        warp_n,
+        warp_k,
+        layout,
+        a_datatype,
+        b_datatype,
+    )
+    if not wr_cover_valid:
+        logging.debug(
+            f"Whole workgroup cover configuration validation failed: {wg_cover_error}"
+        )
+        return False
+
     # Validate warp tile combination
     warp_tile_valid, warp_tile_error = validate_warp_tile_combination(
         warp_tile_m,
@@ -363,3 +407,209 @@ def is_tile_config_valid(
         return False
 
     return True
+
+
+# [TODO] Handle this while moving code to commons Add more datatype to this function if needed
+def get_dtype_string(datatype: str) -> str:
+    """Get C++ type string for datatype"""
+    dtype_map = {
+        "fp16": "ck_tile::fp16_t",
+        "fp8": "ck_tile::fp8_t",
+        "bf8": "ck_tile::bf8_t",
+        "bf16": "ck_tile::bf16_t",
+        "fp32": "float",
+        "fp64": "double",
+    }
+    return dtype_map.get(datatype, "float")
+
+
+LAYOUT_MAP = {
+    "r": "ck_tile::tensor_layout::gemm::RowMajor",
+    "c": "ck_tile::tensor_layout::gemm::ColumnMajor",
+}
+
+
+def get_abc_layouts(layout_code: str) -> Tuple[str, str, str]:
+    """
+    Return (ALayout, BLayout, CLayout) from a 3-letter code like 'rcr', 'ccr', 'crr', 'rrr'.
+    """
+    code = str(layout_code).strip().lower()
+
+    a_layout = LAYOUT_MAP[code[0]]
+    b_layout = LAYOUT_MAP[code[1]]
+    c_layout = LAYOUT_MAP[code[2]]
+    return a_layout, b_layout, c_layout
+
+
+def validate_whole_wg_cover_configuration(
+    tile_m,
+    tile_n,
+    tile_k,
+    warp_m,
+    warp_n,
+    warp_k,
+    layout,
+    a_datatype,
+    b_datatype,
+) -> Tuple[bool, str]:
+    # Validate whole workgroup cover configuration
+
+    warp_size = 64
+    NumWarps = warp_m * warp_n * warp_k
+    BlockSize = NumWarps * warp_size
+
+    XPerTile = 0
+    YPerTile = 0
+    vector_load_size = 0
+
+    # A matrix validation
+    if layout[0] == "r":
+        XPerTile = tile_k
+        YPerTile = tile_m
+
+        vector_load_size = get_global_vector_load_size(
+            BlockSize, tile_k, a_datatype, tile_m, tile_k
+        )
+
+    elif layout[0] == "c":
+        vector_load_size = get_global_vector_load_size(
+            BlockSize, tile_k, a_datatype, tile_m, tile_m
+        )
+
+        # Validate distribution
+        XPerTile = tile_k
+        YPerTile = tile_m
+
+        wg_cover_core_valid, wg_cover_core_error = wg_cover_core_validation(
+            XPerTile, YPerTile, BlockSize, vector_load_size, warp_size
+        )
+
+        if not wg_cover_core_valid:
+            print("I am here 1")
+            logging.debug(
+                f"whole workgroup cover failed for Matrix A distribution: {wg_cover_core_error}"
+            )
+            return False, wg_cover_core_error
+
+        XPerTile = tile_m
+        YPerTile = tile_k
+
+    wg_cover_core_valid, wg_cover_core_error = wg_cover_core_validation(
+        XPerTile, YPerTile, BlockSize, vector_load_size, warp_size
+    )
+
+    if not wg_cover_core_valid:
+        logging.debug(
+            f"whole workgroup cover failed for Matrix A: {wg_cover_core_error}"
+        )
+        return False, wg_cover_core_error
+
+    # B matrix validation
+    if layout[1] == "r":
+        vector_load_size = get_global_vector_load_size(
+            BlockSize, tile_k, b_datatype, tile_n, tile_n
+        )
+
+        # Validate distribution
+        XPerTile = tile_k
+        YPerTile = tile_n
+
+        wg_cover_core_valid, wg_cover_core_error = wg_cover_core_validation(
+            XPerTile, YPerTile, BlockSize, vector_load_size, warp_size
+        )
+
+        if not wg_cover_core_valid:
+            print("I am here 3")
+            logging.debug(
+                f"whole workgroup cover failed for Matrix A distribution: {wg_cover_core_error}"
+            )
+            return False, wg_cover_core_error
+
+        XPerTile = tile_n
+        YPerTile = tile_k
+
+    elif layout[1] == "c":
+        XPerTile = tile_k
+        YPerTile = tile_n
+
+        vector_load_size = get_global_vector_load_size(
+            BlockSize, tile_k, b_datatype, tile_n, tile_k
+        )
+
+    wg_cover_core_valid, wg_cover_core_error = wg_cover_core_validation(
+        XPerTile, YPerTile, BlockSize, vector_load_size, warp_size
+    )
+    if not wg_cover_core_valid:
+        print("I am here 4")
+        logging.debug(
+            f"whole workgroup cover failed for Matrix B: {wg_cover_core_error}"
+        )
+        return False, wg_cover_core_error
+
+    return True, ""
+
+
+def wg_cover_core_validation(
+    XPerTile: int,
+    YPerTile: int,
+    BlockSize: int,
+    vector_load_size: int,
+    warp_size: int,
+) -> Tuple[bool, str]:
+    if XPerTile % vector_load_size != 0:
+        return False
+
+    num_warps = BlockSize / warp_size
+    LargestVec = (XPerTile * YPerTile) / (num_warps * warp_size)
+
+    X1 = LargestVec if vector_load_size > LargestVec else vector_load_size
+    X0 = XPerTile / X1
+    Y1 = warp_size // X0
+
+    if X0 * Y1 != warp_size:
+        return False, ""
+
+    return True, ""
+
+
+def get_global_vector_load_size(
+    BlockSize: int,
+    KPerBlock: int,
+    DataType: str,
+    MNPerBlock: int,
+    XPerTile: int,
+) -> int:
+    elements_per_thread = MNPerBlock * KPerBlock / BlockSize
+    PackedSize = 1
+
+    if (
+        XPerTile % (PackedSize * 32 / element_size(DataType)) == 0
+        and elements_per_thread % (PackedSize * 32 / element_size(DataType)) == 0
+        and PackedSize == 2
+    ):
+        return PackedSize * 32 / element_size(DataType)
+    elif (
+        XPerTile % (PackedSize * 16 / element_size(DataType)) == 0
+        and elements_per_thread % (PackedSize * 16 / element_size(DataType)) == 0
+    ):
+        return int(PackedSize * 16 / element_size(DataType))
+
+    elif (
+        XPerTile % (PackedSize * 8 / element_size(DataType)) == 0
+        and elements_per_thread % (PackedSize * 8 / element_size(DataType)) == 0
+    ):
+        return int(PackedSize * 8 / element_size(DataType))
+    elif (
+        element_size(DataType) >= PackedSize * 4
+        and XPerTile % (PackedSize * 4 / element_size(DataType)) == 0
+        and elements_per_thread % (PackedSize * 4 / element_size(DataType)) == 0
+    ):
+        return int(PackedSize * 4 / element_size(DataType))
+    elif (
+        element_size(DataType) >= PackedSize * 2
+        and XPerTile % (PackedSize * 2 / element_size(DataType)) == 0
+        and elements_per_thread % (PackedSize * 2 / element_size(DataType)) == 0
+    ):
+        return int(PackedSize * 2 / element_size(DataType))
+    else:
+        return PackedSize

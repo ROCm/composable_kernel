@@ -11,6 +11,7 @@
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 #define CK_TILE_PIPELINE_COMPUTE_V3 1
+#define CK_TILE_PIPELINE_BQUANT_COMPUTE_V3 2
 
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()
@@ -38,6 +39,14 @@ struct GemmTypeConfig<ck_tile::fp8_t>
 {
     using ADataType   = ck_tile::fp8_t;
     using BDataType   = ck_tile::fp8_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::half_t;
+};
+template <>
+struct GemmTypeConfig<ck_tile::bf8_t>
+{
+    using ADataType   = ck_tile::bf8_t;
+    using BDataType   = ck_tile::bf8_t;
     using AccDataType = float;
     using CDataType   = ck_tile::half_t;
 };
@@ -77,22 +86,9 @@ struct GemmConfigComputeV3_2 : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
 
-    static constexpr bool DoubleSmemBuffer     = false;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
+    static constexpr bool DoubleSmemBuffer = false;
 
     static constexpr int kBlockPerCu = 1;
-};
-
-template <ck_tile::index_t PipelineId>
-struct PipelineTypeTraits;
-
-template <>
-struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V3>
-{
-    template <typename PipelineProblem>
-    using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>;
-    template <typename PipelineProblem>
-    using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV3<PipelineProblem>;
 };
 
 using grouped_gemm_kargs = ck_tile::QuantGroupedGemmHostArgs;
@@ -122,8 +118,7 @@ auto create_args(int argc, char* argv[])
         .insert("repeat", "100", "number of iterations to benchmark the kernel.")
         .insert("group_count", "8", "group count.")
         .insert("kbatch", "1", "kbatch for SplitK")
-        .insert("quant_mode", "tensor", "Choose tensor (default), or rowcol");
-    ;
+        .insert("quant_mode", "bquant", "Choose bquant (default), tensor, or rowcol");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);

@@ -5,7 +5,7 @@
 
 #include "test_gemm_quant_base.hpp"
 #include "ck_tile/host/permute_pk_int4.hpp"
-#include "ck_tile/host/shuffle_utils.hpp"
+#include "ck_tile/host/tensor_shuffle_utils.hpp"
 
 struct GemmConfigBase
 {

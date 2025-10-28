@@ -55,8 +55,8 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
             tile_distribution_encoding_pattern_bq<BlockGemmShape,
                                                   WarpGemm,
                                                   BlockSize,
-                                                  NPerBlockBQ,
                                                   KPerBlockBQ,
+                                                  NPerBlockBQ,
                                                   Problem::QuantGroupSize::kN,
                                                   VecLoadSize>;
 
