@@ -410,8 +410,12 @@ struct GroupedConvolutionBackwardWeightKernel
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
+        constexpr auto NumGroupsToMerge = GroupedConvTraitsType_::NumGroupsToMerge;
         // clang-format off
-        return concat('_', "grouped_convolution_backward_weight", gemm_prec_str<InDataType, WeiDataType>, GemmPipeline::GetName());
+        if (NumGroupsToMerge > 1)
+            return concat('_', "grouped_convolution_backward_weight", gemm_prec_str<InDataType, WeiDataType>, GemmPipeline::GetName(), "merge", NumGroupsToMerge);
+        else
+            return concat('_', "grouped_convolution_backward_weight", gemm_prec_str<InDataType, WeiDataType>, GemmPipeline::GetName());
         // clang-format on
     }
 
