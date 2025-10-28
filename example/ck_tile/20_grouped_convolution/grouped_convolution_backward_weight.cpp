@@ -19,24 +19,24 @@ int run_grouped_conv_bwd_weight_example(ck_tile::ArgParser& arg_parser)
 {
     using Invoker = GroupedConvolutionBackwardWeightInvoker;
 
-    std::string data_type                = arg_parser.get_str("prec");
-    std::string in_layout                = arg_parser.get_str("in_layout");
-    std::string wei_layout               = arg_parser.get_str("wei_layout");
-    std::string out_layout               = arg_parser.get_str("out_layout");
+    std::string data_type  = arg_parser.get_str("prec");
+    std::string in_layout  = arg_parser.get_str("in_layout");
+    std::string wei_layout = arg_parser.get_str("wei_layout");
+    std::string out_layout = arg_parser.get_str("out_layout");
 
     if(data_type == "fp16")
     {
         return run_grouped_conv_bwd_weight_example_prec_type<Invoker,
-                                                                 ConvConfig<ck_tile::half_t>,
-                                                                 ck_tile::half_t>(
-                in_layout, wei_layout, out_layout, arg_parser);
+                                                             ConvConfig<ck_tile::half_t>,
+                                                             ck_tile::half_t>(
+            in_layout, wei_layout, out_layout, arg_parser);
     }
     else if(data_type == "bf16")
     {
         return run_grouped_conv_bwd_weight_example_prec_type<Invoker,
-                                                                 ConvConfig<ck_tile::bf16_t>,
-                                                                 ck_tile::bf16_t>(
-                in_layout, wei_layout, out_layout, arg_parser);
+                                                             ConvConfig<ck_tile::bf16_t>,
+                                                             ck_tile::bf16_t>(
+            in_layout, wei_layout, out_layout, arg_parser);
     }
     else
     {
