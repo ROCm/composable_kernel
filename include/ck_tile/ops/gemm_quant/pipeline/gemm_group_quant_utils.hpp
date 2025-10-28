@@ -191,28 +191,28 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
     static_assert(KWarps == 1);
 
     // # of elements per thread
-    static constexpr index_t X  = XPerTile;
-    static constexpr index_t XR = 2;
+    static constexpr index_t Y  = YPerTile;
+    static constexpr index_t YR = 1;
 
     // Number of iters per warp
     // MIters are indexed using (Y0, Y1)
-    static constexpr index_t Y0 = NIterPerWarp;
+    static constexpr index_t X0 = NIterPerWarp;
 
     // # of warps in Y dim
-    static constexpr index_t Y1 = NWarps;
+    static constexpr index_t X1 = NWarps;
 
-    static constexpr index_t Y2 = WarpGemm::kN;
+    static constexpr index_t X2 = WarpGemm::kN;
 
-    static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover the blocktile along Y.");
+    static_assert(X0 * X1 * X2 == XPerTile, "X0, X1, X2 must cover the blocktile along Y.");
 
     CK_TILE_HOST_DEVICE static constexpr auto make_2d_static_tile_distribution()
     {
         return make_static_tile_distribution(
-            tile_distribution_encoding<sequence<MWarps, XR>,
-                                       tuple<sequence<Y0, Y1, Y2>, sequence<X>>,
-                                       tuple<sequence<0, 1>, sequence<0, 1>>,
+            tile_distribution_encoding<sequence<MWarps, YR>,
+                                       tuple<sequence<Y>, sequence<X0, X1, X2>>,
+                                       tuple<sequence<0, 2>, sequence<0, 2>>,
                                        tuple<sequence<0, 1>, sequence<1, 2>>,
-                                       sequence<1, 2>,
+                                       sequence<2, 1>,
                                        sequence<0, 0>>{});
     }
 };
