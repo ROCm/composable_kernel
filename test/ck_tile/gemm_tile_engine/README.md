@@ -51,7 +51,7 @@ The key idea: **Unit tests that use tile_engine's exact kernel generation and ve
 - **Purpose**: Optimized for fp32
 - **Config**: 256x128x32, warp 2x2x1, warp_tile 16x16x16
 - **Traits**: compv3 pipeline only
-- **Coverage**: All 4 layouts (rcr, rrr, ccr, crr)
+- **Coverage**: RCR layout only (non-RCR layouts cause compilation issues on some GPU architectures)
 
 ### 4. **Coverage Testing** (Quick or Comprehensive)
 - **Purpose**: Comprehensive testing across tile sizes, warp configurations, and trait combinations
@@ -77,7 +77,8 @@ The key idea: **Unit tests that use tile_engine's exact kernel generation and ve
 - **Coverage**: 1 kernel configuration testing padding with irregular sizes
 
 ## Data Type Support
-- ✅ **fp8, fp16, bf16, fp32**: Fully supported - all layouts (rcr, rrr, ccr, crr)
+- ✅ **fp8, fp16, bf16**: Fully supported - all layouts (rcr, rrr, ccr, crr)
+- 🟡 **fp32**: Supported - RCR layout only (non-RCR layouts cause compilation issues on some GPU architectures)
 - ❌ **fp64**: Not supported (hardware MFMA limitation)
 - ⏳ **pk-int4-t, bf8**: Not yet supported by gemm_instance_builder (will be added later)
 
