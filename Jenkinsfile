@@ -20,6 +20,33 @@ def failurePatterns = [
     [pattern: /cat: .* No such file or directory/, description: "GPU not found"],
 ]
 
+def sendFailureNotifications() {
+    // Get the build log.
+    def buildLog = sh(script: 'wget -q --no-check-certificate -O - ' + BUILD_URL + 'consoleText', returnStdout: true)
+    // Check for patterns in the log.
+    def foundPatterns = []
+    for (patternMap in failurePatterns) {
+        def result = checkForPattern(patternMap.pattern, buildLog)
+        if (result.found) {
+            foundPatterns.add([
+                description: patternMap.description,
+                matchedLine: result.matchedLine,
+                context: result.context
+            ])
+        }
+    }
+    // Send a notification for each matched failure pattern.
+    for (patternMap in foundPatterns) {
+        withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
+        sh '''
+            curl -X POST "${WEBHOOK_URL}" \
+            -H 'Content-Type: application/json' \
+            -d '{"text": "\\n\\n**Build Failed**\\n\\n**Issues detected:** ''' + patternMap.description + '''\\n\\n**Log context:**\\n```\\n''' + patternMap.context.replace("'", "\\'") + '''\\n```\\n\\n**Job:** ''' + env.JOB_NAME + '''\\n\\n**Build:** #''' + env.BUILD_NUMBER + '''\\n\\n**URL:** ''' + env.RUN_DISPLAY_URL + '''"}'
+        '''
+        }
+    }
+}
+
 class Version {
     int major, minor, patch
     @Override
@@ -1879,30 +1906,7 @@ pipeline {
         failure {
             node(rocmnode("nogpu")) {
                 script {
-                    // Get the build log.
-                    def buildLog = sh(script: 'wget -q --no-check-certificate -O - ' + BUILD_URL + 'consoleText', returnStdout: true)
-                    // Check for patterns in the log.
-                    def foundPatterns = []
-                    for (patternMap in failurePatterns) {
-                        def result = checkForPattern(patternMap.pattern, buildLog)
-                        if (result.found) {
-                            foundPatterns.add([
-                                description: patternMap.description,
-                                matchedLine: result.matchedLine,
-                                context: result.context
-                            ])
-                        }
-                    }
-                    // Send a notification for each matched failure pattern.
-                    for (patternMap in foundPatterns) {
-                        withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
-                        sh '''
-                            curl -X POST "${WEBHOOK_URL}" \
-                            -H 'Content-Type: application/json' \
-                            -d '{"text": "\\n\\n**Build Failed**\\n\\n**Issues detected:** ''' + patternMap.description + '''\\n\\n**Log context:**\\n```\\n''' + patternMap.context.replace("'", "\\'") + '''\\n```\\n\\n**Job:** ''' + env.JOB_NAME + '''\\n\\n**Build:** #''' + env.BUILD_NUMBER + '''\\n\\n**URL:** ''' + env.RUN_DISPLAY_URL + '''"}'
-                        '''
-                        }
-                    }                    
+                    sendFailureNotifications()
                 }
             }
         }
