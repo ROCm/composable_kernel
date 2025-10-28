@@ -1396,7 +1396,7 @@ struct Swish
 {
     static constexpr const char* name = "Swish";
 
-    Swish(float beta = 1.0f) : beta_(beta){}
+    Swish(float beta = 1.0f) : beta_(beta) {}
 
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
