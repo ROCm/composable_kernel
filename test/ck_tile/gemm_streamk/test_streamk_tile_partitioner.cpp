@@ -77,6 +77,26 @@ TEST(StreamKTilePartitionerBaseGetWorkSpaceSize, ReductionStrategy)
               expected_partials_size + expected_flags_size);
 }
 
+TEST(StreamKTilePartitionerBaseEstimateNumWgsPerTile, EstimateNumWgsPerTileLowerValue)
+{
+    using Config = StreamKTilePartitionerBaseConfigDP2TileSK;
+
+    ck_tile::StreamKTilePartitionerBase<Config::GemmShape> tile_partitioner{
+        Config::M, Config::N, Config::K, Config::GRID};
+
+    EXPECT_EQ(tile_partitioner.estimate_num_wgs_per_tile(), 1);
+}
+
+TEST(StreamKTilePartitionerBaseEstimateNumWgsPerTile, EstimateNumWgsPerTileEqualValue)
+{
+    using Config = StreamKTilePartitionerBaseConfigSKOnlyWith2WgsPerSKTile;
+
+    ck_tile::StreamKTilePartitionerBase<Config::GemmShape> tile_partitioner{
+        Config::M, Config::N, Config::K, Config::GRID};
+
+    EXPECT_EQ(tile_partitioner.estimate_num_wgs_per_tile(), 2);
+}
+
 TEST(StreamKTilePartitionerBaseGetLocalIter, GetLocalIter)
 {
     // Types
