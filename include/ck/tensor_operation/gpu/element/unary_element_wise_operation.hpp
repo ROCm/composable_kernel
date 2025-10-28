@@ -332,6 +332,8 @@ struct PassThroughPack2
 
 struct PassThrough
 {
+    static constexpr const char* name = "PassThrough";
+
     template <typename Y, typename X>
     __host__ __device__ void operator()(Y& y, const X& x) const;
 
@@ -552,8 +554,6 @@ struct PassThrough
     {
         y = type_convert<bf8_t>(x);
     }
-
-    static constexpr const char* name = "PassThrough";
 };
 
 struct UnaryConvert
@@ -620,6 +620,8 @@ struct ConvertF8RNE
 
 struct Scale
 {
+    static constexpr const char* name = "Scale";
+
     __host__ __device__ Scale(float scale = 1.f) : scale_(scale) {}
 
     template <typename Y, typename X>
@@ -783,6 +785,8 @@ struct UnarySqrt
 
 struct Clamp
 {
+    static constexpr const char* name = "Clamp";
+
     Clamp(float floor = 0.f, float ceil = NumericLimits<float>::Max())
         : floor_(floor), ceil_(ceil){};
 
@@ -856,6 +860,8 @@ struct Clamp
 
 struct Relu
 {
+    static constexpr const char* name = "Relu";
+
     template <typename T>
     __host__ __device__ void operator()(T& y, const T& x) const
     {

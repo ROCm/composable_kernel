@@ -16,20 +16,13 @@ function(add_ck_builder_test test_name)
     target_link_libraries(${test_name} PRIVATE GTest::gtest_main GTest::gmock)
 endfunction()
 
+# The test_conv_builder target has all the unit tests (each test should run < 10 ms)
 add_ck_builder_test(test_conv_builder
     test_conv_builder.cpp
     test_instance_traits.cpp
+    test_instance_traits_util.cpp
     testing_utils.cpp)
 
+# Testing the virtual GetInstanceString methods requires kernel compilation.
 add_ck_builder_test(test_get_instance_string
     test_get_instance_string.cpp)
-
-add_ck_builder_test(test_inline_diff test_inline_diff.cpp testing_utils.cpp)
-
-add_ck_builder_test(test_ckb_build_fwd_instances
-    conv/test_ckb_conv_fwd_2d_bf16.cpp
-    conv/test_ckb_conv_fwd_2d_fp16.cpp
-    conv/test_ckb_conv_fwd_2d_fp32.cpp
-    conv/test_ckb_conv_fwd_3d_bf16.cpp
-    conv/test_ckb_conv_fwd_3d_fp16.cpp
-    conv/test_ckb_conv_fwd_3d_fp32.cpp)
