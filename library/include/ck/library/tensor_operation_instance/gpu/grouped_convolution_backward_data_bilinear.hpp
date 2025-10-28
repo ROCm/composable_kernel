@@ -44,6 +44,22 @@ void add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgk_gkzyxc_ndhwgc_f32_in
                                                                   PassThrough,
                                                                   PassThrough,
                                                                   Bilinear>>>& instances);
+
+void add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgk_gkzyxc_ndhwgc_f32_tf32_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NDHWGK,
+                                                                  GKZYXC,
+                                                                  Tuple<NDHWGC>,
+                                                                  NDHWGC,
+                                                                  F32,
+                                                                  F32,
+                                                                  Tuple<F32>,
+                                                                  F32,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  Bilinear,
+                                                                  TF32,
+                                                                  TF32>>>& instances);
 #endif
 #ifdef CK_ENABLE_BF16
 void add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgk_gkzyxc_ndhwgc_bf16_instances(
@@ -121,11 +137,20 @@ struct DeviceOperationInstanceFactory<
 #endif
 #ifdef CK_ENABLE_FP32
                 else if constexpr(is_same_v<InDataType, F32> && is_same_v<WeiDataType, F32> &&
-                                  is_same_v<OutDataType, F32> && is_same_v<ComputeTypeA, F32> &&
-                                  is_same_v<ComputeTypeB, F32>)
+                                  is_same_v<OutDataType, F32>)
                 {
-                    add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgk_gkzyxc_ndhwgc_f32_instances(
-                        op_ptrs);
+                    static_assert(is_same_v<ComputeTypeA, ComputeTypeB>,
+                                  "ComputeTypeA and ComputeTypeB must be the same");
+                    if constexpr(is_same_v<ComputeTypeA, F32>)
+                    {
+                        add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgk_gkzyxc_ndhwgc_f32_instances(
+                            op_ptrs);
+                    }
+                    else if constexpr(is_same_v<ComputeTypeA, TF32>)
+                    {
+                        add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgk_gkzyxc_ndhwgc_f32_tf32_instances(
+                            op_ptrs);
+                    }
                 }
 #endif
 #ifdef CK_ENABLE_BF16

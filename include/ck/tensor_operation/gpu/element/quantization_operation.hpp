@@ -24,6 +24,8 @@ namespace element_wise {
 template <typename Activation>
 struct Activation_Mul_Clamp
 {
+    static constexpr const char* name = "Activation_Mul_Clamp";
+
     // Convolution + Activation (piecewise linear function)
     // If an activation is piecewise linear function, then Activation(Sy * Qy) = Sy * Activation(Qy)
     // Z = Activation(Y) = Activation(W @ X)
@@ -71,6 +73,8 @@ struct Activation_Mul_Clamp
 template <typename Activation>
 struct Mul_Activation_Mul_Clamp
 {
+    static constexpr const char* name = "Mul_Activation_Mul_Clamp";
+
     // Convolution + Activation (non piecewise linear function)
     // Z = Activation(Y) = Activation(W @ X)
     // Sz * Qz = Activation(Sy * Qy)
@@ -101,6 +105,8 @@ struct Mul_Activation_Mul_Clamp
 template <typename Activation>
 struct Activation_Mul2_Clamp
 {
+    static constexpr const char* name = "Activation_Mul2_Clamp";
+
     Activation_Mul2_Clamp(Activation activationOp) : activationOp_(activationOp) {}
 
     __host__ __device__ constexpr void
@@ -131,6 +137,8 @@ struct Activation_Mul2_Clamp
 template <typename Activation>
 struct Add_Activation_Mul_Clamp
 {
+    static constexpr const char* name = "Add_Activation_Mul_Clamp";
+
     // Convolution + bias
     // Let Bias = B = Sw * Sx * Qb
     // Where Qb is int32
@@ -175,6 +183,8 @@ struct Add_Activation_Mul_Clamp
 template <typename Activation>
 struct Add_Activation_Mul2_Clamp
 {
+    static constexpr const char* name = "Add_Activation_Mul2_Clamp";
+
     Add_Activation_Mul2_Clamp(Activation activationOp) : activationOp_(activationOp) {}
 
     __host__ __device__ constexpr void
@@ -206,6 +216,8 @@ struct Add_Activation_Mul2_Clamp
 template <typename Activation>
 struct Add_Mul_Activation_Mul_Clamp
 {
+    static constexpr const char* name = "Add_Mul_Activation_Mul_Clamp";
+
     // Convolution + Activation (non piecewise linear function)
     // Z = Activation(Y) = Activation(W @ X + B)
     // Sz * Qz = Activation(Sy * Qy)
@@ -250,6 +262,8 @@ struct Add_Mul_Activation_Mul_Clamp
 template <typename Activation>
 struct Add_Mul2_Activation_Mul_Clamp
 {
+    static constexpr const char* name = "Add_Mul2_Activation_Mul_Clamp";
+
     Add_Mul2_Activation_Mul_Clamp(float scale_z_inv, Activation activationOp)
         : scale_z_inv_(scale_z_inv), activationOp_(activationOp)
     {
