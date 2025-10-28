@@ -87,7 +87,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--targets",
-        default="gfx90a",
+        default="gfx9,gfx950",
         required=False,
         help="list of GPU targets, separated by comma.",
     )
