@@ -565,6 +565,8 @@ struct NormalizeInInfer
 // used by Conv+Bias+BatchNorm+Clamp inference
 struct BiasNormalizeInInferClamp
 {
+    static constexpr const char* name = "BiasNormalizeInInferClamp";
+
     BiasNormalizeInInferClamp(float floor   = 0.f,
                               float ceil    = NumericLimits<float>::Max(),
                               float epsilon = 1e-4)
