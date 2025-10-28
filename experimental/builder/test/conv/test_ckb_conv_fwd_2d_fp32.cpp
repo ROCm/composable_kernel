@@ -2,11 +2,10 @@
 
 using namespace ck_tile::builder::test_utils;
 
-class FwdConv2DFP32Test : public FwdConvBuilderTestBase
+namespace ck_tile::builder::testing
 {
-};
 
-TEST_F(FwdConv2DFP32Test,
+TEST(FwdConvInstances,
        Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_2D_FP32_NGCHW_GKCYX)
 {
     constexpr ConvSignature<GroupConvLayout2D> FwdConvSignature{
@@ -24,3 +23,5 @@ TEST_F(FwdConv2DFP32Test,
              BlockGemmPipelineVersion::V4,
              ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0>();
 }
+
+} // namespace ck_tile::builder::testing

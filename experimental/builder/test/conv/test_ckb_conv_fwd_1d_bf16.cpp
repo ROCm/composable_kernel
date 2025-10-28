@@ -2,12 +2,11 @@
 
 using namespace ck_tile::builder::test_utils;
 
-class FwdConv1DBF16Test : public FwdConvBuilderTestBase
+namespace ck_tile::builder::testing
 {
-};
 
 // 1D BF16 (channels-first) with Pipeline V2 and FILTER_1X1_STRIDE1_PAD0 specialization and SCALE elementwise op
-TEST_F(FwdConv1DBF16Test,
+TEST(FwdConvInstances,
        Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_1D_BF16_ChannelsFirst_scale)
 {
     constexpr ConvSignature<GroupConvLayout1D> FwdConvSignature{
@@ -25,3 +24,5 @@ TEST_F(FwdConv1DBF16Test,
              BlockGemmPipelineVersion::V2,
              ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0>();
 }
+
+} // namespace ck_tile::builder::testing

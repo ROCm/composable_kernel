@@ -2,12 +2,11 @@
 
 using namespace ck_tile::builder::test_utils;
 
-class FwdConv3DFP32Test : public FwdConvBuilderTestBase
+namespace ck_tile::builder::testing
 {
-};
 
 // 3D FP32 NGCDHW (channels-first) with Pipeline V1 and FILTER_1X1_PAD0
-TEST_F(FwdConv3DFP32Test,
+TEST(FwdConvInstances,
        Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_3D_FP32_ChannelsFirst)
 {
     constexpr ConvSignature<GroupConvLayout3D> FwdConvSignature{
@@ -25,3 +24,5 @@ TEST_F(FwdConv3DFP32Test,
              BlockGemmPipelineVersion::V1,
              ConvFwdSpecialization::FILTER_1X1_PAD0>();
 }
+
+} // namespace ck_tile::builder::testing
