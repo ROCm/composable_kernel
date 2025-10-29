@@ -4,6 +4,8 @@
 #pragma once
 
 #include <cstdlib>
+#include <functional>
+#include <numeric>
 #include <thread>
 
 #include "ck_tile/core.hpp"

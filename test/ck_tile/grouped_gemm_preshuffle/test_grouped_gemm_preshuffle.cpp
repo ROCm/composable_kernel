@@ -8,11 +8,13 @@
 #include "ck_tile/host.hpp"
 #include "test_grouped_gemm_preshuffle_util.hpp"
 
-using F16 = ck_tile::half_t;
-using F8  = ck_tile::fp8_t;
-using F32 = float;
-using Row = ck_tile::tensor_layout::gemm::RowMajor;
-using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
+using F16   = ck_tile::half_t;
+using F8    = ck_tile::fp8_t;
+using F32   = float;
+using Row   = ck_tile::tensor_layout::gemm::RowMajor;
+using Col   = ck_tile::tensor_layout::gemm::ColumnMajor;
+using False = std::false_type;
+using True  = std::true_type;
 
 // Custom tuple-like structure for kernel configuration
 template <typename ALayout_,
@@ -22,6 +24,7 @@ template <typename ALayout_,
           typename BDataType_,
           typename AccDataType_,
           typename CDataType_,
+          typename Persistent_,
           int M_Tile_val_,
           int N_Tile_val_,
           int K_Tile_val_,
@@ -35,6 +38,7 @@ struct KernelConfig
     using BDataType   = BDataType_;
     using AccDataType = AccDataType_;
     using CDataType   = CDataType_;
+    using Persistent  = Persistent_;
 
     static constexpr int M_Tile_     = M_Tile_val_;
     static constexpr int N_Tile_     = N_Tile_val_;
@@ -44,11 +48,16 @@ struct KernelConfig
 
 // clang-format off
 using KernelTypes = ::testing::Types<
-    //               ALayout, BLayout, CLayout, ADataType, BDataType, AccDataType, CDataType, M_Tile, N_Tile, K_Tile, BlockPerCu
-    KernelConfig<    Row,     Col,     Row,       F16,       F16,         F32,       F16,       16,     64,    256,         1>,
-    KernelConfig<    Row,     Col,     Row,       F8,        F8,          F32,       F16,       16,     64,    256,         1>,
-    KernelConfig<    Row,     Col,     Row,       F16,       F16,         F32,       F16,      128,    128,    128,         2>,
-    KernelConfig<    Row,     Col,     Row,       F8,        F8,          F32,       F16,      128,    128,    128,         2>
+    //               ALayout, BLayout, CLayout, ADataType, BDataType, AccDataType, CDataType, Persistent ,M_Tile, N_Tile, K_Tile, BlockPerCu
+    KernelConfig<    Row,     Col,     Row,       F16,       F16,         F32,       F16,   False,    16,     64,    256,         1>,
+    KernelConfig<    Row,     Col,     Row,       F8,        F8,          F32,       F16,   False,    16,     64,    256,         1>,
+    KernelConfig<    Row,     Col,     Row,       F16,       F16,         F32,       F16,   False,  128,    128,    128,         2>,
+    KernelConfig<    Row,     Col,     Row,       F8,        F8,          F32,       F16,   False,   128,    128,    128,         2>,
+
+    KernelConfig<    Row,     Col,     Row,       F16,       F16,         F32,       F16,   True,    16,     64,    256,         1>,
+    KernelConfig<    Row,     Col,     Row,       F8,        F8,          F32,       F16,   True,    16,     64,    256,         1>,
+    KernelConfig<    Row,     Col,     Row,       F16,       F16,         F32,       F16,   True,  128,    128,    128,         2>,
+    KernelConfig<    Row,     Col,     Row,       F8,        F8,          F32,       F16,   True,   128,    128,    128,         2>
     >;
 // clang-format on
 

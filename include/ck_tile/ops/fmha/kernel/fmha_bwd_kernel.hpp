@@ -313,7 +313,10 @@ struct FmhaBwdDQDKDVKernel
     {
         const int32_t* seqstart_q_ptr;
         const int32_t* seqstart_k_ptr;
-        const int32_t* seqlen_k_ptr;
+        const int32_t* seqlen_q_ptr;    // per-batch actual length [batch]
+        const int32_t* seqlen_k_ptr;    // per-batch actual length [batch]
+        const int32_t* cu_seqlen_q_ptr; // cumulative seqlen [batch+1], optional
+        const int32_t* cu_seqlen_k_ptr; // cumulative seqlen [batch+1], optional
     };
 
     using Kargs = std::conditional_t<kIsGroupMode, FmhaBwdGroupModeKargs, FmhaBwdBatchModeKargs>;
@@ -520,7 +523,10 @@ struct FmhaBwdDQDKDVKernel
                   void* dq_acc_ptr,
                   const void* seqstart_q_ptr,
                   const void* seqstart_k_ptr,
+                  const void* seqlen_q_ptr,
                   const void* seqlen_k_ptr,
+                  const void* cu_seqlen_q_ptr,
+                  const void* cu_seqlen_k_ptr,
                   ck_tile::index_t hdim_q,
                   ck_tile::index_t hdim_v,
                   ck_tile::index_t num_head_q,
@@ -594,7 +600,10 @@ struct FmhaBwdDQDKDVKernel
                     {},                // placeholder for deterministic
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     reinterpret_cast<const int32_t*>(seqstart_k_ptr),
-                    reinterpret_cast<const int32_t*>(seqlen_k_ptr)};
+                    reinterpret_cast<const int32_t*>(seqlen_q_ptr),
+                    reinterpret_cast<const int32_t*>(seqlen_k_ptr),
+                    reinterpret_cast<const int32_t*>(cu_seqlen_q_ptr),
+                    reinterpret_cast<const int32_t*>(cu_seqlen_k_ptr)};
 
         if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
         {
@@ -736,10 +745,29 @@ struct FmhaBwdDQDKDVKernel
                 batch_offset_randval = query_start * kargs.stride_randval;
             }
 
-            // get real # queries & # keys under group mode
-            const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
-            kargs.seqlen_q = adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
-            if(kargs.seqlen_k_ptr != nullptr)
+            // Priority: cu_seqlen_q_ptr > seqlen_q_ptr > physical_seqlen_q
+            if(kargs.cu_seqlen_q_ptr != nullptr)
+            {
+                kargs.seqlen_q =
+                    kargs.cu_seqlen_q_ptr[i_batch + 1] - kargs.cu_seqlen_q_ptr[i_batch];
+            }
+            else
+            {
+                // get real # queries & # keys under group mode
+                const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
+                const ck_tile::index_t physical_seqlen_q =
+                    adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
+                kargs.seqlen_q =
+                    kargs.seqlen_q_ptr ? kargs.seqlen_q_ptr[i_batch] : physical_seqlen_q;
+            }
+
+            // Priority: cu_seqlen_k_ptr > seqlen_k_ptr > seqstart_k
+            if(kargs.cu_seqlen_k_ptr != nullptr)
+            {
+                kargs.seqlen_k =
+                    kargs.cu_seqlen_k_ptr[i_batch + 1] - kargs.cu_seqlen_k_ptr[i_batch];
+            }
+            else if(kargs.seqlen_k_ptr != nullptr)
             {
                 kargs.seqlen_k = kargs.seqlen_k_ptr[i_batch];
             }
@@ -747,6 +775,12 @@ struct FmhaBwdDQDKDVKernel
             {
                 const auto adjusted_seqstart_k_ptr = kargs.seqstart_k_ptr + i_batch;
                 kargs.seqlen_k = adjusted_seqstart_k_ptr[1] - adjusted_seqstart_k_ptr[0];
+            }
+
+            // skip if logical lengths are zero
+            if(kargs.seqlen_q == 0 || kargs.seqlen_k == 0)
+            {
+                return;
             }
 
             // # of required blocks is different in each groups, terminate unnecessary blocks
@@ -1246,6 +1280,8 @@ struct FmhaBwdOGradDotOKernel
     struct FmhaBwdOGradDotOGroupModeKargs : FmhaBwdOGradDotOCommonKargs
     {
         const int32_t* seqstart_q_ptr;
+        const int32_t* seqlen_q_ptr;    // per-batch actual length [batch]
+        const int32_t* cu_seqlen_q_ptr; // cumulative seqlen [batch+1], optional
     };
 
     using Kargs = std::
@@ -1293,6 +1329,8 @@ struct FmhaBwdOGradDotOKernel
               void* d_ptr,
               float p_undrop,
               const void* seqstart_q_ptr,
+              const void* seqlen_q_ptr,
+              const void* cu_seqlen_q_ptr,
               ck_tile::index_t hdim_v,
               ck_tile::index_t stride_do,
               ck_tile::index_t stride_o,
@@ -1311,7 +1349,9 @@ struct FmhaBwdOGradDotOKernel
                      nhead_stride_do,
                      nhead_stride_o,
                      nhead_stride_d},
-                    reinterpret_cast<const int32_t*>(seqstart_q_ptr)};
+                    reinterpret_cast<const int32_t*>(seqstart_q_ptr),
+                    reinterpret_cast<const int32_t*>(seqlen_q_ptr),
+                    reinterpret_cast<const int32_t*>(cu_seqlen_q_ptr)};
 
         return kargs;
     }
@@ -1355,9 +1395,23 @@ struct FmhaBwdOGradDotOKernel
             batch_offset_do = query_start * kargs.stride_do;
             batch_offset_d  = query_start;
 
-            // get real # queries & # keys under group mode
-            const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
-            kargs.seqlen_q = adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
+            // Priority: cu_seqlen_q_ptr > seqlen_q_ptr > physical_seqlen_q
+            if(kargs.cu_seqlen_q_ptr != nullptr)
+            {
+                kargs.seqlen_q =
+                    kargs.cu_seqlen_q_ptr[i_batch + 1] - kargs.cu_seqlen_q_ptr[i_batch];
+            }
+            else
+            {
+                // get real # queries & # keys under group mode
+                const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
+                const ck_tile::index_t physical_seqlen_q =
+                    adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
+                kargs.seqlen_q = kargs.seqlen_q_ptr
+                                     ? static_cast<ck_tile::index_t>(kargs.seqlen_q_ptr[i_batch])
+                                     : physical_seqlen_q;
+            }
+
             // # of required blocks is different in each groups, terminate unnecessary blocks
             // earlier
             if(kargs.seqlen_q <= i_m0)
@@ -1521,6 +1575,10 @@ struct FmhaBwdConvertQGradKernel
     {
         const int32_t* seqstart_q_ptr;
         const int32_t* seqstart_k_ptr;
+        const int32_t* seqlen_q_ptr;    // per-batch actual length [batch]
+        const int32_t* seqlen_k_ptr;    // per-batch actual length [batch]
+        const int32_t* cu_seqlen_q_ptr; // cumulative seqlen [batch+1], optional
+        const int32_t* cu_seqlen_k_ptr; // cumulative seqlen [batch+1], optional
     };
 
     using Kargs = std::conditional_t<kIsGroupMode,
@@ -1569,6 +1627,10 @@ struct FmhaBwdConvertQGradKernel
               void* dq_ptr,
               const void* seqstart_q_ptr,
               const void* seqstart_k_ptr,
+              const void* seqlen_q_ptr,
+              const void* seqlen_k_ptr,
+              const void* cu_seqlen_q_ptr,
+              const void* cu_seqlen_k_ptr,
               ck_tile::index_t hdim_q,
               ck_tile::index_t stride_dq,
               ck_tile::index_t stride_dq_acc,
@@ -1587,7 +1649,11 @@ struct FmhaBwdConvertQGradKernel
                      nhead_stride_dq_acc},
                     {},
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
-                    reinterpret_cast<const int32_t*>(seqstart_k_ptr)};
+                    reinterpret_cast<const int32_t*>(seqstart_k_ptr),
+                    reinterpret_cast<const int32_t*>(seqlen_q_ptr),
+                    reinterpret_cast<const int32_t*>(seqlen_k_ptr),
+                    reinterpret_cast<const int32_t*>(cu_seqlen_q_ptr),
+                    reinterpret_cast<const int32_t*>(cu_seqlen_k_ptr)};
 
         if constexpr(kIsDeterministic)
         {
@@ -1632,13 +1698,41 @@ struct FmhaBwdConvertQGradKernel
             batch_offset_dq                = query_start * kargs.stride_dq;
             batch_offset_dq_acc            = query_start * kargs.stride_dq_acc;
 
-            // get real # queries & # keys under group mode
-            const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
-            kargs.seqlen_q = adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
+            if(kargs.cu_seqlen_q_ptr != nullptr)
+            {
+                kargs.seqlen_q =
+                    kargs.cu_seqlen_q_ptr[i_batch + 1] - kargs.cu_seqlen_q_ptr[i_batch];
+            }
+            else
+            {
+                // get real # queries & # keys under group mode
+                const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
+                const ck_tile::index_t physical_seqlen_q =
+                    adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
+                kargs.seqlen_q = kargs.seqlen_q_ptr
+                                     ? static_cast<ck_tile::index_t>(kargs.seqlen_q_ptr[i_batch])
+                                     : physical_seqlen_q;
+            }
+
             if constexpr(kIsDeterministic)
             {
                 const auto adjusted_seqstart_k_ptr = kargs.seqstart_k_ptr + i_batch;
-                kargs.seqlen_k = adjusted_seqstart_k_ptr[1] - adjusted_seqstart_k_ptr[0];
+                const ck_tile::index_t physical_seqlen_k =
+                    adjusted_seqstart_k_ptr[1] - adjusted_seqstart_k_ptr[0];
+
+                // Priority: cu_seqlen_k_ptr > seqlen_k_ptr > physical_seqlen_k
+                if(kargs.cu_seqlen_k_ptr != nullptr)
+                {
+                    kargs.seqlen_k =
+                        kargs.cu_seqlen_k_ptr[i_batch + 1] - kargs.cu_seqlen_k_ptr[i_batch];
+                }
+                else
+                {
+                    kargs.seqlen_k =
+                        kargs.seqlen_k_ptr
+                            ? static_cast<ck_tile::index_t>(kargs.seqlen_k_ptr[i_batch])
+                            : physical_seqlen_k;
+                }
             }
             // # of required blocks is different in each groups, terminate unnecessary blocks
             // earlier

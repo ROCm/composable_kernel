@@ -28,7 +28,8 @@ template <typename GemmConfig,
           typename BDataType,
           typename BQDataType,
           typename AccDataType,
-          typename CDataType>
+          typename CDataType,
+          ck_tile::QuantType QuantMode = ck_tile::QuantType::BQuantGrouped>
 float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                             const ck_tile::index_t num_groups,
                             void* kargs_ptr)
@@ -44,19 +45,20 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
     using TilePartitioner = ck_tile::
         GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
 
-    constexpr ck_tile::QuantType QuantMode = ck_tile::QuantType::RowColQuant;
-    using GemmUniversalTraits              = ck_tile::TileGemmQuantTraits<GemmConfig::kPadM,
-                                                                          GemmConfig::kPadN,
-                                                                          GemmConfig::kPadK,
-                                                                          false,
-                                                                          ALayout,
-                                                                          BLayout,
-                                                                          CLayout,
-                                                                          QuantMode,
-                                                                          AQLayout,
-                                                                          BQLayout,
-                                                                          GemmConfig::DoubleSmemBuffer,
-                                                                          true>;
+    using GemmUniversalTraits = ck_tile::TileGemmQuantTraits<GemmConfig::kPadM,
+                                                             GemmConfig::kPadN,
+                                                             GemmConfig::kPadK,
+                                                             false, // PreshuffleQuant
+                                                             false, // PreshuffleB
+                                                             ALayout,
+                                                             BLayout,
+                                                             CLayout,
+                                                             QuantMode,
+                                                             AQLayout,
+                                                             BQLayout,
+                                                             GemmConfig::TransposeC,
+                                                             GemmConfig::DoubleSmemBuffer,
+                                                             true>;
 
     float ave_time{0};
 
@@ -65,18 +67,29 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
         constexpr auto memory_operation = memory_operation_.value;
         constexpr bool transpose_c      = false;
 
-        using QuantGemmProblem = ck_tile::GemmRowColTensorQuantPipelineProblem<ADataType,
-                                                                               BDataType,
-                                                                               AccDataType,
-                                                                               AccDataType,
-                                                                               GemmShape,
-                                                                               GemmUniversalTraits,
-                                                                               transpose_c,
-                                                                               BDataType,
-                                                                               scheduler>;
+        using QuantGemmProblem = typename std::conditional<
+            QuantMode == ck_tile::QuantType::BQuantGrouped,
+            ck_tile::GemmBQuantPipelineProblem<ADataType,
+                                               BDataType,
+                                               BQDataType,
+                                               AccDataType,
+                                               GemmShape,
+                                               GemmUniversalTraits,
+                                               128>, // QuantGroupSize
+            ck_tile::GemmRowColTensorQuantPipelineProblem<ADataType,
+                                                          BDataType,
+                                                          AccDataType,
+                                                          AccDataType,
+                                                          GemmShape,
+                                                          GemmUniversalTraits,
+                                                          transpose_c,
+                                                          BDataType,
+                                                          scheduler>>::type;
 
-        using GemmPipeline = typename PipelineTypeTraits<
-            GemmConfig::Pipeline>::template GemmPipeline<QuantGemmProblem>;
+        using GemmPipeline =
+            typename std::conditional<QuantMode == ck_tile::QuantType::BQuantGrouped,
+                                      ck_tile::BQuantGemmPipelineAgBgCrCompV3<QuantGemmProblem>,
+                                      ck_tile::GemmPipelineAgBgCrCompV3<QuantGemmProblem>>::type;
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
                                              BDataType,

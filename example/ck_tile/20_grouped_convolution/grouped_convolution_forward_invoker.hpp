@@ -15,10 +15,10 @@ struct GroupedConvolutionForwardInvoker
               typename InLayout,
               typename WeiLayout,
               typename OutLayout,
-              typename DsDataType     = ck_tile::tuple<>,
-              typename DsLayout       = ck_tile::tuple<>,
-              typename CDEElementWise = ck_tile::element_wise::PassThrough>
-    static float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args,
+              typename DsDataType    = ck_tile::tuple<>,
+              typename DsLayout      = ck_tile::tuple<>,
+              typename CDElementWise = ck_tile::element_wise::PassThrough>
+    static float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs<CDElementWise>& args,
                                   const ck_tile::stream_config& s)
     {
         constexpr int kBlockPerCu = 1;
@@ -49,7 +49,8 @@ struct GroupedConvolutionForwardInvoker
                                                                  OutLayout,
                                                                  VectorSizeA,
                                                                  VectorSizeB,
-                                                                 VectorSizeC>;
+                                                                 VectorSizeC,
+                                                                 CDElementWise>;
 
         using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<
             GemmConfig::kPadM,
@@ -128,7 +129,7 @@ struct GroupedConvolutionForwardInvoker
                     OutDataType,
                     typename GroupedConvTraitsType::ImplicitGemmDsLayout,
                     ck_tile::tensor_layout::gemm::RowMajor,
-                    CDEElementWise,
+                    CDElementWise,
                     TilePartitioner::MPerBlock,
                     TilePartitioner::NPerBlock,
                     GemmConfig::M_Warp,
