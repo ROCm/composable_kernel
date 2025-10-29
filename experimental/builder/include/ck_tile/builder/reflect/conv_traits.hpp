@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -14,75 +14,113 @@ namespace ck_tile::reflect::conv {
 
 /// @brief Helper structures for organizing trait data with domain-specific naming
 
-/// @brief Data tile dimensions processed by workgroup
+/// @brief Data tile dimensions processed by a workgroup.
+/// @details This struct defines the M, N, and K dimensions of the data tile
+/// that a single workgroup (thread block) is responsible for processing in the
+/// underlying GEMM computation.
 struct DataTileInfo
 {
-    int m; // Processed tile m dimension
-    int n; // Processed tile n dimension
-    int k; // Processed tile k dimension
+    int m; ///< M dimension of the tile processed by the workgroup (MPerBlock).
+    int n; ///< N dimension of the tile processed by the workgroup (NPerBlock).
+    int k; ///< K dimension of the tile processed by the workgroup (KPerBlock).
 };
 
+/// @brief Dimensions for an input data tile transfer.
+/// @details Defines the shape of the input tile (A or B matrix) as it is
+/// transferred from global memory to LDS. The tile is conceptually divided
+/// into k0 and k1 dimensions.
 struct InputTileTransferDimensions
 {
-    int k0;
-    int m_or_n; // m for A transfer, n for B transfer
-    int k1;
+    int k0;     ///< The outer dimension of K, where K = k0 * k1.
+    int m_or_n; ///< The M dimension for the A matrix transfer, or the N dimension for the B matrix.
+    int k1; ///< The inner dimension of K, often corresponding to the vector load size from global
+            ///< memory.
 };
 
+/// @brief Parameters governing the transfer of an input tile.
+/// @details This struct holds configuration details for how an input tile is
+/// loaded from global memory into LDS, including thread clustering, memory
+/// access patterns, and vectorization settings.
 struct InputTileTransferParams
 {
-    int k1;
-    std::array<int, 3> thread_cluster_dims;
-    std::array<int, 3> thread_cluster_order;
-    std::array<int, 3> src_access_order;
-    int src_vector_dim;
-    int src_scalar_per_vector;
-    int dst_scalar_per_vector_k1;
-    bool lds_padding;
+    int k1; ///< The inner K dimension size, often matching the vectorization width.
+    std::array<int, 3>
+        thread_cluster_dims; ///< Spatial thread distribution over the input data tile; defines how
+                             ///< many threads are arranged on each axis.
+    std::array<int, 3> thread_cluster_order; ///< The order of thread spatial distribution over the
+                                             ///< input tensor dimensions.
+    std::array<int, 3> src_access_order; ///< The order of accessing input tensor axes (e.g., which
+                                         ///< dimension to read first).
+    int src_vector_dim; ///< The index of the axis on which vectorized memory access is performed
+                        ///< (the contiguous dimension).
+    int src_scalar_per_vector;    ///< The size of the vector access instruction; the number of
+                                  ///< elements accessed per thread per instruction.
+    int dst_scalar_per_vector_k1; ///< The size of the vectorized store into LDS memory along the K1
+                                  ///< dimension.
+    bool lds_padding; ///< Flag indicating if padding is used for the LDS tensor to prevent bank
+                      ///< conflicts.
 };
 
+/// @brief Complete information for an input tile transfer.
+/// @details Combines the dimensional information and transfer parameters for
+/// a full description of an input tile's journey from global memory to LDS.
 struct InputTileTransferInfo
 {
-    InputTileTransferDimensions tile_dimensions;
-    InputTileTransferParams transfer_params;
+    InputTileTransferDimensions tile_dimensions; ///< The shape and layout of the tile.
+    InputTileTransferParams transfer_params; ///< The parameters for the memory transfer operation.
 };
 
+/// @brief Parameters for the warp-level GEMM computation.
+/// @details Defines the configuration of the GEMM operation performed by each
+/// warp using hardware MFMA (Matrix Fused Multiply-Add) instructions.
 struct WarpGemmParams
 {
-    int gemm_m;
-    int gemm_n;
-    int num_m_gemms;
-    int num_n_gemms;
+    int gemm_m;      ///< The M dimension of a single MFMA instruction (MPerXdl).
+    int gemm_n;      ///< The N dimension of a single MFMA instruction (NPerXdl).
+    int num_m_gemms; ///< The number of MFMA iterations along the M dimension of the output tile per
+                     ///< wavefront (MXdlPerWave).
+    int num_n_gemms; ///< The number of MFMA iterations along the N dimension of the output tile per
+                     ///< wavefront (NXdlPerWave).
 };
 
+/// @brief Parameters for shuffling data between warps (CShuffle optimization).
+/// @details Configures how many MFMA instruction results are processed per
+/// wave in each iteration of the CShuffle routine.
 struct WarpShuffleParams
 {
-    int m_gemms_per_shuffle;
-    int n_gemms_per_shuffle;
+    int m_gemms_per_shuffle; ///< Number of MFMA results along the M dimension to process per wave
+                             ///< per shuffle iteration.
+    int n_gemms_per_shuffle; ///< Number of MFMA results along the N dimension to process per wave
+                             ///< per shuffle iteration.
 };
 
+/// @brief Information for the output tile transfer (CShuffle).
+/// @details Describes how the final computed tile (C matrix) is written out from
+/// LDS to global memory, including shuffling, thread clustering, and vectorization.
 struct OutputTileTransferInfo
 {
-    WarpShuffleParams shuffle_params;
+    WarpShuffleParams shuffle_params; ///< Configuration for cross-warp data shuffling.
     // m_block, m_wave_per_xdl, n_block, n_wave_per_xdl
-    std::array<int, 4> thread_cluster_dims;
-    int scalar_per_vector;
+    std::array<int, 4> thread_cluster_dims; ///< The spatial thread distribution used for storing
+                                            ///< data into the output tensor.
+    int scalar_per_vector; ///< The size of the vectorized memory access when storing data to the
+                           ///< output tensor.
 };
 
 // Helper metafunctions to derive signature information from Instance types
 
-// Derive ConvDirection from device kernel type
+/// @brief Derives the convolution direction from a device kernel `Instance` type.
+/// @tparam Instance The device kernel instance type.
+/// @return A `builder::ConvDirection` enum value (FORWARD, BACKWARD_DATA, or BACKWARD_WEIGHT).
 template <typename Instance>
 constexpr builder::ConvDirection conv_direction()
 {
     using InstTraits = InstanceTraits<Instance>;
 
-    // Check if conv_forward_specialization exists
     if constexpr(requires { &InstTraits::kConvForwardSpecialization; })
     {
         return builder::ConvDirection::FORWARD;
     }
-    // Check if kConvBwdDataSpecialization exists
     else if constexpr(requires { &InstTraits::kConvBwdDataSpecialization; })
     {
         return builder::ConvDirection::BACKWARD_DATA;
@@ -97,7 +135,9 @@ constexpr builder::ConvDirection conv_direction()
     }
 }
 
-// Derive GroupConvLayout from layout types/devel/composable_kernel
+/// @brief Derives the grouped convolution layout from a device kernel `Instance` type.
+/// @tparam Instance The device kernel instance type.
+/// @return A `builder::GroupConvLayout{1D|2D|3D}` enum value corresponding to the tensor layouts.
 template <typename Instance>
 constexpr auto conv_layout()
 {
@@ -185,7 +225,9 @@ constexpr auto conv_layout()
     }
 }
 
-// Derive DataType from data type
+/// @brief Derives the data type from a device kernel `Instance` type.
+/// @tparam Instance The device kernel instance type.
+/// @return A `builder::DataType` enum value (e.g., FP16, BF16, FP32).
 template <typename Instance>
 constexpr builder::DataType conv_data_type()
 {
@@ -214,7 +256,7 @@ constexpr builder::DataType conv_data_type()
     }
     else if constexpr(std::is_same_v<ADataType, uint8_t>)
     {
-        return builder::DataType::I8;
+        return builder::DataType::U8;
     }
     else
     {
@@ -223,41 +265,59 @@ constexpr builder::DataType conv_data_type()
     }
 }
 
-// Helper to extract values from Sequence types at compile time
+/// @brief Helper to extract a value from a `ck::Sequence` type at a specific index.
+/// @tparam Seq The `ck::Sequence` type.
+/// @tparam Idx The index of the value to extract.
 template <typename Seq, ck::index_t Idx>
 struct SequenceAt;
 
+/// @brief Specialization of `SequenceAt` for `ck::Sequence`.
 template <ck::index_t... Is, ck::index_t Idx>
 struct SequenceAt<ck::Sequence<Is...>, Idx>
 {
+    /// The integer value at the specified index within the sequence.
     static constexpr int value = ck::Sequence<Is...>::At(Idx);
 };
 
-// Primary template for ConvTraits
+/// @brief Primary template for extracting convolution traits.
+/// @details This struct is the main entry point for reflecting on a convolution
+/// kernel's properties. It is specialized to handle different kinds of input types.
 template <typename T>
 struct ConvTraits;
 
-// Specialization 1: Direct from Instance (Primary use case)
+/// @brief Specialization of `ConvTraits` for a direct device kernel `Instance`.
+/// @details This is the primary specialization used to extract a comprehensive
+/// set of traits directly from a fully-formed device kernel `Instance` type.
+/// It uses `InstanceTraits` to access the kernel's template parameters.
 template <typename Instance>
     requires requires { typename InstanceTraits<Instance>; }
 struct ConvTraits<Instance>
 {
     using InstTraits = InstanceTraits<Instance>;
 
-    // Signature information (derived from Instance template parameters)
-    static constexpr int spatial_dim                  = InstTraits::kSpatialDim;
+    // --- Signature Information ---
+    /// @brief The number of spatial dimensions in the convolution (1, 2, or 3).
+    static constexpr int spatial_dim = InstTraits::kSpatialDim;
+    /// @brief The direction of the convolution (Forward, Backward Data, or Backward Weight).
     static constexpr builder::ConvDirection direction = conv_direction<Instance>();
-    static constexpr auto layout                      = conv_layout<Instance>();
-    static constexpr builder::DataType data_type      = conv_data_type<Instance>();
+    /// @brief The memory layout of the convolution tensors (e.g., GNHWC_GKYXC_GNHWK).
+    static constexpr auto layout = conv_layout<Instance>();
+    /// @brief The primary data type used in the computation (e.g., FP16, FP32).
+    static constexpr builder::DataType data_type = conv_data_type<Instance>();
 
+    /// @brief The GEMM specialization used by the kernel (e.g., Tiling, Partition).
     static constexpr auto gemm_specialization = InstTraits::kGemmSpecialization;
+    /// @brief The convolution-specific specialization (e.g., Default, 1x1).
     static constexpr auto conv_specialization = InstTraits::kConvForwardSpecialization;
 
-    // Algorithm information (extracted from Instance template parameters)
-    static constexpr int thread_block_size  = InstTraits::kBlockSize;
+    // --- Algorithm Information ---
+    /// @brief The total number of threads in a thread block (workgroup).
+    static constexpr int thread_block_size = InstTraits::kBlockSize;
+    /// @brief The dimensions of the data tile processed by the thread block.
     static constexpr DataTileInfo tile_dims = {
         .m = InstTraits::kMPerBlock, .n = InstTraits::kNPerBlock, .k = InstTraits::kKPerBlock};
 
+    /// @brief Configuration for the A-matrix (input) tile transfer.
     static constexpr InputTileTransferInfo a_tile_transfer = {
         .tile_dimensions = {.k0     = InstTraits::kKPerBlock / InstTraits::kAK1,
                             .m_or_n = InstTraits::kMPerBlock,
@@ -272,6 +332,7 @@ struct ConvTraits<Instance>
                                 InstTraits::kABlockTransferDstScalarPerVectorK1,
                             .lds_padding = static_cast<bool>(InstTraits::kABlockLdsExtraM)}};
 
+    /// @brief Configuration for the B-matrix (weights) tile transfer.
     static constexpr InputTileTransferInfo b_tile_transfer = {
         .tile_dimensions = {.k0     = InstTraits::kKPerBlock / InstTraits::kBK1,
                             .m_or_n = InstTraits::kNPerBlock,
@@ -286,11 +347,13 @@ struct ConvTraits<Instance>
                                 InstTraits::kBBlockTransferDstScalarPerVectorK1,
                             .lds_padding = static_cast<bool>(InstTraits::kBBlockLdsExtraN)}};
 
+    /// @brief Parameters for the warp-level GEMM computation.
     static constexpr WarpGemmParams warp_gemm = {.gemm_m      = InstTraits::kMPerXDL,
                                                  .gemm_n      = InstTraits::kNPerXDL,
                                                  .num_m_gemms = InstTraits::kMXdlPerWave,
                                                  .num_n_gemms = InstTraits::kNXdlPerWave};
 
+    /// @brief Configuration for the C-matrix (output) tile transfer.
     static constexpr OutputTileTransferInfo c_tile_transfer = {
         .shuffle_params      = {.m_gemms_per_shuffle = InstTraits::kCShuffleMXdlPerWavePerShuffle,
                                 .n_gemms_per_shuffle = InstTraits::kCShuffleNXdlPerWavePerShuffle},
@@ -300,8 +363,9 @@ struct ConvTraits<Instance>
                                 InstTraits::kCThreadClusterLengths[3]},
         .scalar_per_vector   = InstTraits::kCBlockTransferScalarPerVector};
 
-    // Pipeline version (only available for forward convolutions)
-    // For backward data, this member doesn't exist in InstanceTraits
+    /// @brief Helper to safely get the pipeline version.
+    /// @details This is only available for some convolutions (e.g., forward).
+    /// If not present in `InstanceTraits`, it returns a default value.
     template <typename T = InstTraits>
     static constexpr auto get_pipeline_version()
     {
@@ -316,10 +380,12 @@ struct ConvTraits<Instance>
         }
     }
 
+    /// @brief The block GEMM pipeline version used by the kernel.
     static constexpr auto pipeline_version = get_pipeline_version();
 
-    // Pipeline version (only available for forward convolutions)
-    // For backward data, this member doesn't exist in InstanceTraits
+    /// @brief Helper to safely get the pipeline scheduler.
+    /// @details This is only available for some convolutions. If not present
+    /// in `InstanceTraits`, it returns a default value.
     template <typename T = InstTraits>
     static constexpr auto get_pipeline_scheduler()
     {
@@ -334,10 +400,15 @@ struct ConvTraits<Instance>
         }
     }
 
+    /// @brief The pipeline scheduler used by the kernel.
     static constexpr auto pipeline_scheduler = get_pipeline_scheduler();
 };
 
-// Specialization 2: From Builder (Backward compatibility)
+/// @brief Specialization of `ConvTraits` for a `ConvBuilder` type.
+/// @details This specialization provides backward compatibility for reflecting
+/// on kernels defined via the `ConvBuilder` interface. It works by first
+/// creating the `Instance` via the builder's factory, and then delegating
+/// all trait extraction to the `ConvTraits<Instance>` specialization.
 template <builder::ConvSignatureDescriptor auto SIGNATURE,
           builder::ConvAlgorithmDescriptor auto ALGORITHM,
           builder::StringLiteral VERSION>
