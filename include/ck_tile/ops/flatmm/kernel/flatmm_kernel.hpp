@@ -567,7 +567,9 @@ struct FlatmmKernel
         const auto& a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
             {
-                return make_naive_tensor_view<address_space_enum::global>(
+                return make_naive_tensor_view<address_space_enum::global,
+                                              memory_operation_enum::set,
+                                              amd_buffer_coherence_enum::SYSTEM_NT1>(
                     a_ptr,
                     make_tuple(kargs.M, splitk_batch_offset.splitted_k),
                     make_tuple(kargs.stride_A, 1),
@@ -576,7 +578,9 @@ struct FlatmmKernel
             }
             else
             {
-                return make_naive_tensor_view<address_space_enum::global>(
+                return make_naive_tensor_view<address_space_enum::global,
+                                              memory_operation_enum::set,
+                                              amd_buffer_coherence_enum::SYSTEM_NT1>(
                     a_ptr,
                     make_tuple(splitk_batch_offset.splitted_k, kargs.M),
                     make_tuple(kargs.stride_A, 1),
@@ -626,7 +630,9 @@ struct FlatmmKernel
         const auto& e_tensor_view = [&]() {
             if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
             {
-                return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
+                return make_naive_tensor_view<address_space_enum::global,
+                                              DstInMemOp,
+                                              amd_buffer_coherence_enum::SYSTEM_NT1>(
                     e_ptr,
                     make_tuple(kargs.M, kargs.N),
                     make_tuple(kargs.stride_E, 1),
@@ -635,7 +641,9 @@ struct FlatmmKernel
             }
             else
             {
-                return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
+                return make_naive_tensor_view<address_space_enum::global,
+                                              DstInMemOp,
+                                              amd_buffer_coherence_enum::SYSTEM_NT1>(
                     e_ptr,
                     make_tuple(kargs.N, kargs.M),
                     make_tuple(kargs.stride_E, 1),
