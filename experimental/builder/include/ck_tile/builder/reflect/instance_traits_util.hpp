@@ -15,6 +15,7 @@
 #include <ck/utility/data_type.hpp>
 #include <ck/utility/sequence.hpp>
 #include <ck/utility/blkgemmpipe_scheduler.hpp>
+#include <ck/utility/loop_scheduler.hpp>
 #include <ck/tensor_operation/gpu/device/tensor_layout.hpp>
 #include <ck_tile/ops/common/tensor_layout.hpp>
 #include <ck/tensor_operation/gpu/element/element_wise_operation.hpp>
@@ -157,6 +158,17 @@ constexpr std::string_view pipeline_version_name(ck::BlockGemmPipelineVersion ve
     case v3: return "v3";
     case v4: return "v4";
     case v5: return "v5";
+    }
+}
+
+// Convert LoopScheduler enum to string
+constexpr std::string_view loop_scheduler_name(ck::LoopScheduler sched)
+{
+    using enum ck::LoopScheduler;
+    switch(sched)
+    {
+    case Default: return "Default";
+    case Interwave: return "Interwave";
     }
 }
 
