@@ -261,7 +261,7 @@ else()
             message(WARNING "ccache requested but not found")
         endif()
     else()
-        message(STATUS "ccache disabled for GEMM Multi D ps (use -DENABLE_CCACHE_GEMM_MULTI_D=ON to enable)")
+        message(STATUS "ccache disabled for GEMM Multi D ops (use -DENABLE_CCACHE_GEMM_MULTI_D=ON to enable)")
     endif()
 
     # Create master collection targets

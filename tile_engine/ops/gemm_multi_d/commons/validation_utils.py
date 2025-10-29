@@ -562,7 +562,7 @@ def wg_cover_core_validation(
     warp_size: int,
 ) -> Tuple[bool, str]:
     if XPerTile % vector_load_size != 0:
-        return False
+        return False, "XPerTile is not divisible by vector_load_size"
 
     num_warps = BlockSize / warp_size
     LargestVec = (XPerTile * YPerTile) / (num_warps * warp_size)
@@ -572,7 +572,7 @@ def wg_cover_core_validation(
     Y1 = warp_size // X0
 
     if X0 * Y1 != warp_size:
-        return False, ""
+        return False, "X0 * Y1 != warp_size"
 
     return True, ""
 

@@ -583,9 +583,9 @@ def get_global_vector_load_size(
     PackedSize = 1
 
     if (
-        XPerTile % (PackedSize * 32 / element_size(DataType)) == 0
+        PackedSize == 2
+        and XPerTile % (PackedSize * 32 / element_size(DataType)) == 0
         and elements_per_thread % (PackedSize * 32 / element_size(DataType)) == 0
-        and PackedSize == 2
     ):
         return PackedSize * 32 / element_size(DataType)
     elif (

@@ -128,7 +128,7 @@ class GemmMultiDBenchmark:
         # Assign dimensions based on order and magnitude
         if len(dimension_groups) >= 3:
             # Sort by magnitude to identify: largest=tile_sizes, smallest=warp_config, middle=warp_tile
-            sorted_groups = sorted(dimension_groups, key=lambda x: max(x), reverse=True)
+            sorted_groups = sorted(dimension_groups, key=max, reverse=True)
 
             # Largest dimensions = tile sizes
             config["tile_sizes"]["tile_m"] = sorted_groups[0][0]
@@ -146,7 +146,7 @@ class GemmMultiDBenchmark:
             config["warp_tile"]["warp_tile_k"] = sorted_groups[1][2]
         elif len(dimension_groups) == 2:
             # If only 2 groups, assign based on magnitude
-            sorted_groups = sorted(dimension_groups, key=lambda x: max(x), reverse=True)
+            sorted_groups = sorted(dimension_groups, key=max, reverse=True)
 
             # Larger = tile sizes
             config["tile_sizes"]["tile_m"] = sorted_groups[0][0]

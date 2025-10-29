@@ -590,8 +590,11 @@ struct SelectedKernel {{
                         trait_combo,
                         k_block_per_cu,
                         self.working_path,
+                        self.gpu_target,
                         self.datatype,
                         self.layout,
+                        self.elementwise_function,
+                        self.config_json,
                     )
                 )
 
@@ -686,10 +689,27 @@ struct SelectedKernel {{
 
 def _generate_single_kernel_individual(work_item):
     """Worker function to generate a single individual kernel file"""
-    tile_config, trait_combo, k_block_per_cu, working_path, datatype, layout = work_item
+    (
+        tile_config,
+        trait_combo,
+        k_block_per_cu,
+        working_path,
+        gpu_target,
+        datatype,
+        layout,
+        elementwise_function,
+        config_json,
+    ) = work_item
 
     # Create a temporary builder instance for this worker
-    builder = GemmMultiDKernelBuilder(working_path, datatype, layout)
+    builder = GemmMultiDKernelBuilder(
+        working_path,
+        gpu_target,
+        datatype,
+        layout,
+        elementwise_function,
+        config_json,
+    )
 
     try:
         kernel_name, instance_code = builder._generate_kernel_instance(
