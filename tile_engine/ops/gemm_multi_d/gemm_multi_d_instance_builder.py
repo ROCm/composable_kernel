@@ -378,7 +378,7 @@ using D0Layout = {ds_layout[0]};
 using D1Layout = {ds_layout[1]};
 using DsLayout = ck_tile::tuple<D0Layout, D1Layout>;
 
-sing ElementWiseFn = ck_tile::element_wise::{self.elementwise_function};
+using ElementWiseFn = ck_tile::element_wise::{self.elementwise_function};
 
 // Kernel name for display
 constexpr const char* KERNEL_NAME = "{kernel_name}";
@@ -433,7 +433,7 @@ struct SelectedKernel {{
     // Base pipeline for hot loop detection
     using BaseGemmPipeline = {base_pipeline_map.get(pipeline)}<GemmPipelineProblem>;
 
-    static float launch(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{
+    static float launch(const ck_tile::GemmMultiDHostArgs<DsDataType::size()>& args, const ck_tile::stream_config& stream) {{
         const ck_tile::index_t k_grain = args.k_batch * TileK;
         const ck_tile::index_t K_split = (args.K + k_grain - 1) / k_grain * TileK;
         const ck_tile::index_t num_loop = TilePartitioner::GetLoopNum(K_split);
@@ -472,7 +472,7 @@ struct SelectedKernel {{
                 DsDataType,
                 AccDataType,
                 CDataType,
-                DsLayout
+                DsLayout,
                 CLayout,
                 ElementWiseFn,
                 TilePartitioner::MPerBlock,  // kM_
@@ -512,21 +512,21 @@ struct SelectedKernel {{
         instance_code += f"""
             
             // Kernel type
-            using GemmKernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+            using GemmKernelMultiD = ck_tile::GemmKernelMultiD<TilePartitioner, GemmPipeline, GemmEpilogue>;
             
             // Make kernel arguments
-            auto kargs = GemmKernel::MakeKernelArgs(args);
+            auto kargs = GemmKernelMultiD::MakeKernelArgs(args);
             
-            if (!GemmKernel::IsSupportedArgument(kargs)) {{
+            if (!GemmKernelMultiD::IsSupportedArgument(kargs)) {{
                 throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!");
             }}
             
             // Get grid and block sizes
-            const dim3 grids = GemmKernel::GridSize(args.M, args.N, args.k_batch);
-            const dim3 blocks = GemmKernel::BlockSize();
+            const dim3 grids = GemmKernelMultiD::GridSize(args.M, args.N, args.k_batch);
+            const dim3 blocks = GemmKernelMultiD::BlockSize();
             
             if(stream.log_level_ > 0) {{
-                std::cout << "Launching kernel with args: " << GemmKernel::GetName() << '\\n'
+                std::cout << "Launching kernel with args: " << GemmKernelMultiD::GetName() << '\\n'
                           << "grid: {{" << grids.x << ", " << grids.y << ", " << grids.z << "}}"
                           << ", blocks: {{" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}}"
                           << std::endl;
@@ -536,7 +536,7 @@ struct SelectedKernel {{
             constexpr int kBlockPerCu = {k_block_per_cu};
             ave_time = ck_tile::launch_kernel(
                 stream,
-                ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
+                ck_tile::make_kernel<kBlockPerCu>(GemmKernelMultiD{{}}, grids, blocks, 0, kargs));
             
             return ave_time;
         }};
@@ -652,7 +652,7 @@ struct SelectedKernel {{
 
     def _generate_cmake_individual_targets(self, kernel_list):
         """Generate CMake include file that creates individual targets"""
-        cmake_code = f"""# Generated CMake file for individual GEMM targets
+        cmake_code = f"""# Generated CMake file for individual GEMM Multi D targets
         # Datatype: {self.datatype}, Layout: {self.layout}
         """
 
@@ -675,10 +675,12 @@ struct SelectedKernel {{
                 str(x) for x in trait_combo[3:]
             )
 
-            cmake_code += f'create_individual_gemm_target("{self.datatype}" "{self.layout}" "{trait_str}" "{tile_str}")\n'
+            cmake_code += f'create_individual_gemm_multi_d_target("{self.datatype}" "{self.layout}" "{trait_str}" "{tile_str}")\n'
 
         # Write CMake include file
-        with open(self.working_path / "gemm_individual_targets.cmake", "w") as f:
+        with open(
+            self.working_path / "gemm_multi_d_individual_targets.cmake", "w"
+        ) as f:
             f.write(cmake_code)
 
 
@@ -694,11 +696,11 @@ def _generate_single_kernel_individual(work_item):
             tile_config, trait_combo, k_block_per_cu
         )
 
-        # Create simplified filename without the "gemm_" prefix
-        # Remove "gemm_" from the beginning of kernel_name for the filename
+        # Create simplified filename without the "gemm_multi_d_" prefix
+        # Remove "gemm_multi_d_" from the beginning of kernel_name for the filename
         simplified_name = kernel_name
         if simplified_name.startswith("gemm_multi_d_"):
-            simplified_name = simplified_name[13:]  # Remove "gemm_" prefix
+            simplified_name = simplified_name[13:]  # Remove "gemm_multi_d_" prefix
 
         # Write individual header file
         header_file = working_path / f"gemm_multi_d_single_{simplified_name}.hpp"
