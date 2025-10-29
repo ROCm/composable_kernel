@@ -454,15 +454,16 @@ template <ConvSignatureDescriptor auto SIGNATURE,
           auto VERSION>
 struct ConvFactory;
 
-// Factory specialization for an instance of a grouped forward convolution kernel.
+// Factory specialization for DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 instance 
+// of a grouped forward convolution kernel.
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
-    requires ConvDirectionIsForward<SIGNATURE>
+    requires ConvDirectionIsForward<SIGNATURE> && 
+             ConvDeviceOpIs_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<SIGNATURE>
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    /*static constexpr auto*/ 
     using Layouts = decltype(factory_internal::GetTensorLayout<SIGNATURE.layout, SPATIAL_DIM, ConvDirection::FORWARD>());
     using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
     using Ops           = factory_internal::ElementwiseOps<SIGNATURE.elementwise_operation>;

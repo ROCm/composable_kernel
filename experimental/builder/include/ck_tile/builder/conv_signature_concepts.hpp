@@ -17,11 +17,11 @@
 // signature at compile time.
 #pragma once
 
-#include <variant>
 #include <concepts>
 #include <type_traits>
 
 #include "ck_tile/builder/types.hpp"
+#include "ck_tile/builder/conv_signature_predicates.hpp"
 
 namespace ck_tile::builder {
 
@@ -63,18 +63,7 @@ template <auto Sig>
 concept ValidConvSignature = requires {
     requires ConvSpatialDim<Sig.spatial_dim>;
     requires ConvDataType<Sig.data_type>;
+    //requires ConvDeviceOp<Sig.device_operation>;
 };
-
-// Predicate for forward convolution.
-template <auto Sig>
-concept ConvDirectionIsForward = (Sig.direction == ConvDirection::FORWARD);
-
-// Predicate for backward data convolution.
-template <auto Sig>
-concept ConvDirectionIsBackwardData = (Sig.direction == ConvDirection::BACKWARD_DATA);
-
-// Predicate for backward weight convolution.
-template <auto Sig>
-concept ConvDirectionIsBackwardWeight = (Sig.direction == ConvDirection::BACKWARD_WEIGHT);
 
 } // namespace ck_tile::builder

@@ -81,22 +81,22 @@ enum class FwdGroupConvDeviceOperation
 // Backward data convolution device operations.
 enum class BwdDataGroupConvDeviceOperation
 {
-    DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1,
     DeviceGroupedConvBwdDataMultipleD,
-    DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
+    DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle,
+    DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
 };
 
 // Backward weight convolution device operations.
 enum class BwdWeightGroupConvDeviceOperation
 {
     DeviceGroupedConvBwdWeight,
-    DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle,
+    DeviceGroupedConvBwdWeight_Dl,
     DeviceGroupedConvBwdWeight_Xdl_CShuffle,
-    DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle,
-    DeviceGroupedConvBwdWeight_Wmma_CShuffle,
     DeviceGroupedConvBwdWeight_Xdl_CShuffleV3,
+    DeviceGroupedConvBwdWeight_Wmma_CShuffle,
+    DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle,
     DeviceGroupedConvBwdWeightMultipleD,
-    DeviceGroupedConvBwdWeight_Dl
+    DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle,
 };
 
 // Structural type for device operation
