@@ -79,6 +79,11 @@ function(create_individual_gemm_test_target datatype layout config_name trait ti
         -include ${test_header}       # Auto-include generated header
     )
 
+    # Add FP8 format definitions for proper data type interpretation
+    if(CK_USE_OCP_FP8)
+        target_compile_options(${target_name} PRIVATE -DCK_TILE_USE_OCP_FP8)
+    endif()
+
     message(STATUS "  Created test target: ${target_name}")
 endfunction()
 
