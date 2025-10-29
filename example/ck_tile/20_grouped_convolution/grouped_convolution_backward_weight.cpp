@@ -56,16 +56,7 @@ int main(int argc, char* argv[])
 #if CK_TILE_USE_WMMA
         return !run_grouped_conv_bwd_weight_example<ConvConfigComputeV3_WMMA>(arg_parser);
 #else
-        bool merge_conv_groups = arg_parser.get_bool("merge_conv_groups");
-        if(merge_conv_groups)
-        {
-            return !run_grouped_conv_bwd_weight_example<ConvConfigComputeV3_merged_groups>(
-                arg_parser);
-        }
-        else
-        {
-            return !run_grouped_conv_bwd_weight_example<ConvConfigComputeV3>(arg_parser);
-        }
+        return !run_grouped_conv_bwd_weight_example<ConvConfigComputeV3>(arg_parser);
 #endif
     }
     catch(const std::runtime_error& e)
