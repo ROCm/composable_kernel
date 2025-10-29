@@ -20,6 +20,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added tensor-wise quantization for CK_TILE GEMM.
 * Added support for batched contraction kernel.
 * Added pooling kernel in CK_TILE
+* Added top-k sigmoid kernel in CK_TILE
 
 ### Changed
 

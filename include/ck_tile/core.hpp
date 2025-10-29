@@ -78,6 +78,7 @@
 #include "ck_tile/core/utility/print.hpp"
 #include "ck_tile/core/utility/random.hpp"
 #include "ck_tile/core/utility/reduce_operator.hpp"
+#include "ck_tile/core/utility/reduce_operator_accumulate.hpp"
 #include "ck_tile/core/utility/static_counter.hpp"
 #include "ck_tile/core/utility/to_sequence.hpp"
 #include "ck_tile/core/utility/transpose_vectors.hpp"
