@@ -1186,6 +1186,17 @@ enum struct amd_buffer_coherence_enum
     glc               = 1,
     slc               = 2,
     glc_slc           = 3,
+    // s[1:0] System Cache Level: 0=warp, 1=group, 2=device, 3=system
+    // bit0 = sc0, bit1 = nt, bit2 = swz?, bit4 = sc1
+    //
+    WAVE_NT0 = 0,
+    WAVE_NT1 = 2,
+    GROUP_NT0 = 1,
+    GROUP_NT1 = 3,
+    DEVICE_NT0 = 8,
+    DEVICE_NT1 = 10,
+    SYSTEM_NT0 = 9,
+    SYSTEM_NT1 = 11,
 };
 
 template <index_t N,
