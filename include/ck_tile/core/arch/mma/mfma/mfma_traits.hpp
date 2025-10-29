@@ -1,16 +1,20 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright © Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier:  MIT
 
 #pragma once
 
-#include "mfma.hpp"
-
 namespace ck_tile::core::arch::mma {
 
-/** @struct is_mma_op_mfma
- * @brief Trait to check if MmaOp is an MFMA operation
- * @tparam MmaOp The matrix multiply-accumulate operation type to check
+/*! @struct MfmaOp
+ * @brief Meta-tag for the MFMA operation. This will be used in the MmaOp policies to
+ * identify the operation as an MFMA operation.
  */
+struct MfmaOp;
+
+// /** @struct is_mma_op_mfma
+//  * @brief Trait to check if MmaOp is an MFMA operation
+//  * @tparam MmaOp The matrix multiply-accumulate operation type to check
+//  */
 template <typename MmaOp, typename = void>
 struct is_mma_op_mfma : std::false_type
 {

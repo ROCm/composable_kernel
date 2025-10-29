@@ -1,9 +1,14 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright © Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier:  MIT
 
 #pragma once
 
-#include "wmma.hpp"
+#include "wmma_traits.hpp"
+
+#include "ck_tile/core/config.hpp"
+#include "ck_tile/core/arch/arch.hpp"
+#include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
+#include "ck_tile/core/numeric/vector_type.hpp"
 
 namespace ck_tile::core::arch::mma {
 // TODO: Specifically for gfx11 wmma, we need to deal with quirks such as:
@@ -29,6 +34,29 @@ namespace ck_tile::core::arch::mma {
 // smaller values of K that aren't directly supported by the built-ins.
 // For flexibility, it is recommended that for each backend wrapper it supports at least
 // one packed register for each input to be able to process smaller K values by padding.
+
+// /*! @struct DefaultWmmaFlags
+//  * @brief Generates default WMMA control flags based on data types.
+//  * @tparam ADataType Data type of matrix A
+//  * @tparam BDataType Data type of matrix B
+//  * @tparam DataTypeAccum Data type of the accumulator
+//  */
+template <typename ADataType, typename BDataType, typename CDataType>
+struct DefaultWmmaCtrlFlags
+{
+    // Generate default flags for signage
+    // Only used currently for integer inputs / accum in gfx11 / gfx12
+    constexpr static WmmaCtrlFlags InputSignA =
+        std::is_signed_v<ADataType> ? WmmaCtrlFlags::SIGNED : WmmaCtrlFlags::UNSIGNED;
+    constexpr static WmmaCtrlFlags InputSignB =
+        std::is_signed_v<BDataType> ? WmmaCtrlFlags::SIGNED : WmmaCtrlFlags::UNSIGNED;
+    constexpr static WmmaCtrlFlags AccumSign =
+        std::is_signed_v<CDataType> ? WmmaCtrlFlags::SIGNED : WmmaCtrlFlags::UNSIGNED;
+
+    // Generate default flags for accumulator destination bits.
+    // Only used if accumulation size is 16-bit in gfx11
+    constexpr static WmmaCtrlFlags AccumBits = WmmaCtrlFlags::LOW;
+};
 
 /*! @struct amdgcn_mma
  * @brief Specialization of amdgcn_mma for fp16_t, fp16_t, fp32_t MMA operation on GFX11
@@ -68,9 +96,9 @@ struct amdgcn_mma<fp16_t,
     static constexpr index_t kCM1PerLane = 1;
 
     CK_TILE_DEVICE static auto
-    exec(AVecType const& a_vec, BVecType const& b_vec, CVecType const& c_vec) -> CVecType
+    exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec) -> CVecType
     {
-        return {__builtin_amdgcn_wmma_f32_16x16x16_f16_w32(regsA, regsB, regsC)};
+        return {__builtin_amdgcn_wmma_f32_16x16x16_f16_w32(aVec, bVec, cVec)};
     }
 };
 

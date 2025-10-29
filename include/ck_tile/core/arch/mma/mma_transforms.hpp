@@ -1,8 +1,8 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright © Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier:  MIT
 #pragma once
 
-namespace ck::tile::core::arch::mma {
+namespace ck_tile::core::arch::mma {
 
 /*! @struct PassThroughTransform
  * @brief A no-op transform that passes through the input as-is.
@@ -16,18 +16,19 @@ struct PassThroughTransform
     }
 };
 
-/*! @struct MmaTransformsDefaultSelector
- *  @brief  Default selector for MmaTransforms based on MmaOp and GfxTargetId.
- *  @tparam MmaOp The Mma operation type.
- *  @tparam GfxTargetId The target architecture ID.
- */
+// /*! @struct MmaTransformsDefaultSelector
+//  *  @brief  Default selector for MmaTransforms based on MmaOp and GfxTargetId.
+//  *  @tparam MmaOp The Mma operation type.
+//  *  @tparam GfxTargetId The target architecture ID.
+//  *  @tparam Enable SFINAE parameter for specialization.
+//  */
 template <MmaOpI MmaOp, uint32_t GfxTargetId, typename Enable = void>
 struct MmaTransformsDefaultSelector;
 
-/*! @concept MmaTransformsI
- *  @brief  Expresses the interface of required members for each MmaTransforms type.
- *  @tparam MmaTransforms The MmaTransforms type to be tested.
- */
+// /*! @concept MmaTransformsI
+//  *  @brief  Expresses the interface of required members for each MmaTransforms type.
+//  *  @tparam MmaTransforms The MmaTransforms type to be tested.
+//  */
 template <typename MmaTransforms>
 concept MmaTransformsI = requires(MmaTransforms transforms) {
     // Transforms should define TransformA, TransformB, TransformC, and TransformD types
@@ -37,4 +38,4 @@ concept MmaTransformsI = requires(MmaTransforms transforms) {
     typename MmaTransforms::TransformD;
 };
 
-} // namespace ck::tile::core::arch::mma
+} // namespace ck_tile::core::arch::mma

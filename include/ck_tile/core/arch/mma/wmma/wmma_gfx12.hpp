@@ -1,9 +1,14 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright © Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier:  MIT
 
 #pragma once
 
-#include "wmma.hpp"
+#include "wmma_traits.hpp"
+
+#include "ck_tile/core/config.hpp"
+#include "ck_tile/core/arch/arch.hpp"
+#include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
+#include "ck_tile/core/numeric/vector_type.hpp"
 
 namespace ck_tile::core::arch::mma {
 
@@ -14,22 +19,22 @@ namespace ck_tile::core::arch::mma {
 // For flexibility, it is recommended that for each backend wrapper it supports at least
 // one packed register for each input to be able to process smaller K values by padding.
 
-/*! @struct amdgcn_wmma
+/*! @struct amdgcn_mma
  * @brief Specialization of amdgcn_wmma for fp16_t, fp16_t, fp32_t MMA operation on GFX12
  * architecture.
  * @tparam CtrlFlags Control flags for the WMMA operation
  * @tparam GfxTargetId Graphics target identifier
  */
 template <typename CtrlFlags, uint32_t GfxTargetId>
-struct amdgcn_wmma<fp16_t,
-                   fp16_t,
-                   fp32_t,
-                   16u,
-                   16u,
-                   16u,
-                   CtrlFlags,
-                   GfxTargetId,
-                   enable_if_gfx12_target_id_t<GfxTargetId>>
+struct amdgcn_mma<fp16_t,
+                  fp16_t,
+                  fp32_t,
+                  16u,
+                  16u,
+                  16u,
+                  CtrlFlags,
+                  GfxTargetId,
+                  enable_if_gfx12_target_id_t<GfxTargetId>>
 {
     // Wmma operation type
     using OpType = WmmaOp;
@@ -52,9 +57,9 @@ struct amdgcn_wmma<fp16_t,
     static constexpr index_t kCM1PerLane = 1;
 
     CK_TILE_DEVICE static auto
-    exec(ARegsT const& regsA, BRegsT const& regsB, CRegsT const& regsC) -> CRegsT
+    exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec) -> CVecType
     {
-        return {__builtin_amdgcn_wmma_f32_16x16x16_f16_w32_gfx12(regsA, regsB, regsC)};
+        return {__builtin_amdgcn_wmma_f32_16x16x16_f16_w32_gfx12(aVec, bVec, cVec)};
     }
 };
 

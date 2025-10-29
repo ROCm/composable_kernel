@@ -1,9 +1,13 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright © Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier:  MIT
+
 #pragma once
 
-#include "wmma.hpp"
-namespace ck::tile::core::arch::mma {
+#include "ck_tile/core/config.hpp"
+#include "ck_tile/core/arch/arch.hpp"
+#include "ck_tile/core/arch/mma/mma_transforms.hpp"
+
+namespace ck_tile::core::arch::mma {
 
 /*! @struct DuplicateTransform
  * @brief Transform to duplicate low register elements to high register elements
@@ -51,10 +55,10 @@ struct UnpadTransform
  */
 struct MmaDefaultTransformsGfx11
 {
-    using TransformA = DuplicateTransform;
-    using TransformB = DuplicateTransform;
-    using TransformC = PadTransform;
-    using TransformD = UnpadTransform;
+    using ATransform = DuplicateTransform;
+    using BTransform = DuplicateTransform;
+    using CTransform = PadTransform;
+    using DTransform = UnpadTransform;
 };
 
 /*! @struct MmaDefaultTransformsGfx12
@@ -62,10 +66,10 @@ struct MmaDefaultTransformsGfx11
  */
 struct MmaDefaultTransformsGfx12
 {
-    using TransformA = PassThroughTransform;
-    using TransformB = PassThroughTransform;
-    using TransformC = PassThroughTransform;
-    using TransformD = PassThroughTransform;
+    using ATransform = PassThroughTransform;
+    using BTransform = PassThroughTransform;
+    using CTransform = PassThroughTransform;
+    using DTransform = PassThroughTransform;
 };
 
 /*! @struct MmaTransformsDefaultSelector
@@ -90,4 +94,4 @@ struct MmaTransformsDefaultSelector<MmaOp, GfxTargetId, enable_if_gfx12_target_i
     using SelectedTransforms = MmaDefaultTransformsGfx12;
 };
 
-} // namespace ck::tile::core::arch::mma
+} // namespace ck_tile::core::arch::mma

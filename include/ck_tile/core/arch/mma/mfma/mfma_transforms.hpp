@@ -1,21 +1,21 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright © Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier:  MIT
 
 #pragma once
 
-#include "mfma.hpp"
+#include "ck_tile/core/arch/arch.hpp"
 
-namespace ck::tile::core::arch::mma {
+namespace ck_tile::core::arch::mma {
 
 /*! @struct MmaDefaultTransformsGfx9
  * @brief Implements the default MMA transforms for gfx9 targets
  */
 struct MmaDefaultTransformsGfx9
 {
-    using TransformA = PassThroughTransform;
-    using TransformB = PassThroughTransform;
-    using TransformC = PassThroughTransform;
-    using TransformD = PassThroughTransform;
+    using ATransform = PassThroughTransform;
+    using BTransform = PassThroughTransform;
+    using CTransform = PassThroughTransform;
+    using DTransform = PassThroughTransform;
 };
 
 /*! @struct MmaTransformsDefaultSelector
@@ -29,4 +29,4 @@ struct MmaTransformsDefaultSelector<MmaOp, GfxTargetId, enable_if_gfx9_target_id
     using SelectedTransforms = MmaDefaultTransformsGfx9;
 };
 
-} // namespace ck::tile::core::arch::mma
+} // namespace ck_tile::core::arch::mma

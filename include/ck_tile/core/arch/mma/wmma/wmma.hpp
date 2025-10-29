@@ -1,19 +1,11 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright © Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier:  MIT
 
 #pragma once
 
-#include "ck_tile/core/arch/mma/mma.hpp"
-
 namespace ck_tile::core::arch::mma {
 
-/*! @struct WmmaOp
- *  @brief Meta-tag for the WMMA operation. This will be used in the MmaOp struct to
- *  identify the operation as an WMMA operation.
- */
-struct WmmaOp;
-
-/*! @struct WmmaCtrlFlags
+/*! @enum WmmaCtrlFlags
  *  @brief Common wmma control flags for gfx11 and gfx12
  */
 enum struct WmmaCtrlFlags : bool

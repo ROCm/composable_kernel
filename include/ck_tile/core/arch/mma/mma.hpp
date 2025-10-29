@@ -1,5 +1,5 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright © Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier:  MIT
 #pragma once
 
 #include "ck_tile/core/arch/arch.hpp"
@@ -13,7 +13,7 @@
 #include "mfma/mfma.hpp"
 #include "wmma/wmma.hpp"
 
-namespace ck::tile::core::arch {
+namespace ck_tile::core::arch {
 
 /*! @struct MmaAccumPolicy
  * @brief Accumulation order for Mma decomposition
@@ -31,9 +31,9 @@ enum struct MmaAccumPolicy
  * (e.g., mfma or wmma), this class performs block-wise decomposition to matrix-multiply input
  * fragments of (A: FragM x FragK) x (B: FragK x FragN) and accumulates results into output fragment
  * (C: FragM x FragN).
- * @tparam DataTypeA Data type of input fragment A
- * @tparam DataTypeB Data type of input fragment B
- * @tparam DataTypeAcc Data type of input/output fragment C (accumulator)
+ * @tparam ADataType Data type of input fragment A
+ * @tparam BDataType Data type of input fragment B
+ * @tparam CDataType Data type of input/output fragment C (accumulator)
  * @tparam FragM Mma fragment M dimension
  * @tparam FragN Mma fragment K dimension
  * @tparam FragK Mma fragment M dimension
@@ -51,17 +51,17 @@ enum struct MmaAccumPolicy
  * output fragment. This is a powerful example of how to build a flexible and reusable mma driver
  * that can adapt to different hardware capabilities and requirements.
  */
-template <typename DataTypeA,
-          typename DataTypeB,
-          typename DataTypeAcc,
+template <typename ADataType,
+          typename BDataType,
+          typename CDataType,
           uint32_t FragM,
           uint32_t FragN,
           uint32_t FragK,
           MmaAccumPolicy AccumPolicy = MmaAccumPolicy::ROW_MAJOR,
           uint32_t GfxTargetId       = get_target_arch_id(),
-          MmaOpI MmaOp               = typename MmaDefaultSelector<DataTypeA,
-                                                                   DataTypeB,
-                                                                   DataTypeAcc,
+          MmaOpI MmaOp               = typename MmaDefaultSelector<ADataType,
+                                                                   BDataType,
+                                                                   CDataType,
                                                                    FragM,
                                                                    FragN,
                                                                    FragK,
@@ -225,4 +225,4 @@ struct WaveWiseMma
     }
 };
 
-} // namespace ck::tile::core::arch
+} // namespace ck_tile::core::arch

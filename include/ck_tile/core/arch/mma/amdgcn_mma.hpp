@@ -1,20 +1,23 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright © Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier:  MIT
+
 #pragma once
 
-#include "mma.hpp"
+#include "ck_tile/core/config.hpp"
+#include "ck_tile/core/numeric/vector_type.hpp"
+#include "ck_tile/core/utility/ignore.hpp"
 
-namespace ck::tile::core::arch::mma {
+namespace ck_tile::core::arch::mma {
 
 /*! @struct Unsupported
  *  @brief  Meta-tag to indicate unsupported amdgcn_mma instance.
  */
 struct Unsupported;
 
-/*! @concept MmaOpI
- *  @brief  Expresses the meta-data interface required for each MmaOp policy.
- *  @tparam MmaOp policy class
- */
+// /*! @concept MmaOpI
+//  * @brief  Expresses the meta-data interface required for each MmaOp policy.
+//  * @tparam MmaOp The MmaOp to be tested.
+//  */
 template <typename MmaOp>
 concept MmaOpI = requires(MmaOp op) {
     // Requires an op context
@@ -44,27 +47,26 @@ concept MmaOpI = requires(MmaOp op) {
     } -> std::convertible_to<typename MmaOp::CVecType>;
 };
 
-/*! @struct amdgcn_mma
- *  @brief  This is the default MmaOp policy.
- *          Instances of this class are to be used as MmaOp policies.
- *          Light builtin wrapper for mfma / wmma instructions. This class's job is to
- *          provide a uniform interface to invoke the appropriate instruction
- *          based on the template parameters provided. This interface is to bridge
- *          the gap between the ck_tile API types and the native __builtin types.
- *  @tparam DataTypeTA Datatype of input A
- *  @tparam DataTypeTB Datatype of input B
- *  @tparam ComputeT Datatype of accumulator
- *  @tparam BlockM M-dimension of mma block
- *  @tparam BlockN N-dimension of mma block
- *  @tparam BlockK K-dimension of mma block
- *  @tparam CtrlFlags Control flags for mma operation
- *  @tparam GfxTarget The current gfx family target of interest being compiled
- *  @tparam TargetEnable Enabler for the current target if supported
- *  @tparam Enabler SFINAE enabler
- */
-template <typename DataTypeA,
-          typename DataTypeB,
-          typename DataTypeAcc,
+// /*! @struct amdgcn_mma
+//  *  @brief  This is the default MmaOp policy.
+//  *          Instances of this class are to be used as MmaOp policies.
+//  *          Light builtin wrapper for mfma / wmma instructions. This class's job is to
+//  *          provide a uniform interface to invoke the appropriate instruction
+//  *          based on the template parameters provided. This interface is to bridge
+//  *          the gap between the ck_tile API types and the native __builtin types.
+//  *  @tparam ADataType Datatype of input A
+//  *  @tparam BDataType Datatype of input B
+//  *  @tparam CDataType Datatype of accumulator
+//  *  @tparam BlockM M-dimension of mma block
+//  *  @tparam BlockN N-dimension of mma block
+//  *  @tparam BlockK K-dimension of mma block
+//  *  @tparam CtrlFlags Control flags for mma operation
+//  *  @tparam GfxTargetId The current gfx family target of interest being compiled
+//  *  @tparam Enabler SFINAE enabler
+//  */
+template <typename ADataType,
+          typename BDataType,
+          typename CDataType,
           uint32_t BlockM,
           uint32_t BlockN,
           uint32_t BlockK,
@@ -77,9 +79,9 @@ struct amdgcn_mma
     using OpType = Unsupported;
 
     // Interface types for A, B, C vectors types
-    using AVecType = ext_vector_t<DataTypeA, BlockM * BlockK / get_warp_size()>;
-    using BVecType = ext_vector_t<DataTypeB, BlockN * BlockK / get_warp_size()>;
-    using CVecType = ext_vector_t<DataTypeAcc, BlockM * BlockN / get_warp_size()>;
+    using AVecType = ext_vector_t<ADataType, 1>;
+    using BVecType = ext_vector_t<BDataType, 1>;
+    using CVecType = ext_vector_t<CDataType, 1>;
 
     // Layout constants - default to 0
     static constexpr index_t kAMBlock = 0;
@@ -99,8 +101,13 @@ struct amdgcn_mma
     CK_TILE_DEVICE static CVecType const&
     exec(AVecType const& regsA, BVecType const& regsB, CVecType const& regsC)
     {
+        ignore(regsA, regsB);
         return regsC; // No-op, just return C
     }
 };
 
-} // namespace ck::tile::core::arch::mma
+} // namespace ck_tile::core::arch::mma
+
+// Include the implementations
+#include "wmma/wmma.hpp"
+#include "mfma/mfma.hpp"

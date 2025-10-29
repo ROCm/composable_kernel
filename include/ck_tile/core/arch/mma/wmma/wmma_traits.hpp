@@ -1,16 +1,20 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright © Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier:  MIT
 
 #pragma once
 
-#include "wmma.hpp"
-
 namespace ck_tile::core::arch::mma {
 
-/** @struct is_mma_op_wmma
- * @brief Trait to check if MmaOp is an WMMA operation
- * @tparam MmaOp The matrix multiply-accumulate operation type to check
+/*! @struct WmmaOp
+ *  @brief Meta-tag for the WMMA operation. This will be used in the MmaOp struct to
+ *  identify the operation as an WMMA operation.
  */
+struct WmmaOp;
+
+// /** @struct is_mma_op_wmma
+//  * @brief Trait to check if MmaOp is an WMMA operation
+//  * @tparam MmaOp The matrix multiply-accumulate operation type to check
+//  */
 template <typename MmaOp, typename = void>
 struct is_mma_op_wmma : std::false_type
 {

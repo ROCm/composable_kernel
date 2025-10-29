@@ -414,16 +414,16 @@ static_assert(0, "Unsupported architecture"); // TODO: Do we want to stop the bu
 // gfx11: wave32 only
 // gfx12: wave32 only
 #if CK_TILE_ARCH_GFX9
-static_assert(!(bool)(CK_TILE_WAVE32_MODE) && (bool)(CK_TILE_WAVE64_MODE),
+static_assert(!static_cast<bool>(CK_TILE_WAVE32_MODE) && static_cast<bool>(CK_TILE_WAVE64_MODE),
               "CK_TILE supports only wave64 for gfx9 arch");
 #endif
 
 #if CK_TILE_ARCH_GFX11
-static_assert((bool)(CK_TILE_WAVE32_MODE) && !(bool)(CK_TILE_WAVE64_MODE),
+static_assert(static_cast<bool>(CK_TILE_WAVE32_MODE) && !static_cast<bool>(CK_TILE_WAVE64_MODE),
               "CK_TILE supports only wave32 for gfx11 arch");
 #endif
 
 #if CK_TILE_ARCH_GFX12
-static_assert((bool)(CK_TILE_WAVE32_MODE) && !(bool)(CK_TILE_WAVE64_MODE),
+static_assert(static_cast<bool>(CK_TILE_WAVE32_MODE) && !static_cast<bool>(CK_TILE_WAVE64_MODE),
               "CK_TILE supports only wave32 for gfx12 arch");
 #endif

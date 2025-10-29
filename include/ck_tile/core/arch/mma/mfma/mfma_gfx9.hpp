@@ -1,9 +1,14 @@
-// SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright © Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier:  MIT
 
 #pragma once
 
-#include "mfma.hpp"
+#include "mfma_traits.hpp"
+
+#include "ck_tile/core/config.hpp"
+#include "ck_tile/core/arch/arch.hpp"
+#include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
+#include "ck_tile/core/numeric/vector_type.hpp"
 
 namespace ck_tile::core::arch::mma {
 
@@ -14,6 +19,28 @@ namespace ck_tile::core::arch::mma {
 // For flexibility, it is recommended that for each backend wrapper it supports at least
 // one packed register for each input to be able to process smaller K values by padding.
 
+/*! @struct DefaultMmaCtrlFlags
+ * @brief Default MFMA flags, no broadcasting or rotation of inputs
+ */
+struct DefaultMfmaCtrlFlags
+{
+    static constexpr uint32_t Cbsz = 0; // CBSZ flag, default 0
+    static constexpr uint32_t Abid = 0; // ABID flag, default 0
+    static constexpr uint32_t Blgp = 0; // BLGP flag, default 0
+};
+
+// /*! @concept CtrlFlagsGfx9I
+//  *  @brief  Expresses the interface of required members for each CtrlFlags type on Gfx9.
+//  *  @tparam CtrlFlags The control flags to be tested.
+//  */
+template <typename CtrlFlags>
+concept CtrlFlagsGfx9I = requires(CtrlFlags ctrlFlags) {
+    // Flag members for Gfx9 MFMA instructions
+    { CtrlFlags::Cbsz } -> std::convertible_to<int>;
+    { CtrlFlags::Abid } -> std::convertible_to<int>;
+    { CtrlFlags::Blgp } -> std::convertible_to<int>;
+};
+
 /*! @struct amdgcn_mma
  * @brief Specialization of amdgcn_mma for MFMA on GFX9 targets
  *
@@ -23,7 +50,7 @@ namespace ck_tile::core::arch::mma {
  * @tparam CtrlFlags Control flags for the MFMA operation
  * @tparam GfxTargetId Target architecture ID
  */
-template <typename CtrlFlags, uint32_t GfxTargetId>
+template <CtrlFlagsGfx9I CtrlFlags, uint32_t GfxTargetId>
 struct amdgcn_mma<fp16_t,
                   fp16_t,
                   fp32_t,
@@ -57,10 +84,14 @@ struct amdgcn_mma<fp16_t,
     static constexpr index_t kCM1PerLane = 4;
 
     CK_TILE_DEVICE static auto
-    exec(AVecType const& a_vec, BVecType const& b_vec, CVecType const& c_vec) -> CVecType
+    exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec) -> CVecType
     {
-        return {__builtin_amdgcn_mfma_f32_16x16x16f16(
-            a_vec, b_vec, c_vec, (int)CtrlFlags::Cbsz, (int)CtrlFlags::Abid, (int)CtrlFlags::Blgp)};
+        return {__builtin_amdgcn_mfma_f32_16x16x16f16(aVec,
+                                                      bVec,
+                                                      cVec,
+                                                      static_cast<int>(CtrlFlags::Cbsz),
+                                                      static_cast<int>(CtrlFlags::Abid),
+                                                      static_cast<int>(CtrlFlags::Blgp))};
     }
 };
 
@@ -73,7 +104,7 @@ struct amdgcn_mma<fp16_t,
  * @tparam CtrlFlags Control flags for the MFMA operation
  * @tparam GfxTargetId Target architecture ID
  */
-template <typename CtrlFlags, uint32_t GfxTargetId>
+template <CtrlFlagsGfx9I CtrlFlags, uint32_t GfxTargetId>
 struct amdgcn_mma<fp16_t,
                   fp16_t,
                   fp32_t,
@@ -106,10 +137,14 @@ struct amdgcn_mma<fp16_t,
     static constexpr index_t kCM1PerLane = 4;
 
     CK_TILE_DEVICE static auto
-    exec(AVecType const& a_vec, BVecType const& b_vec, CVecType const& c_vec) -> CVecType
+    exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec) -> CVecType
     {
-        return {__builtin_amdgcn_mfma_f32_16x16x32_f16(
-            a_vec, b_vec, c_vec, (int)CtrlFlags::Cbsz, (int)CtrlFlags::Abid, (int)CtrlFlags::Blgp)};
+        return {__builtin_amdgcn_mfma_f32_16x16x32_f16(aVec,
+                                                       bVec,
+                                                       cVec,
+                                                       static_cast<int>(CtrlFlags::Cbsz),
+                                                       static_cast<int>(CtrlFlags::Abid),
+                                                       static_cast<int>(CtrlFlags::Blgp))};
     }
 };
 
