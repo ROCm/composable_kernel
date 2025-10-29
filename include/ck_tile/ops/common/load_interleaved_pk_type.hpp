@@ -17,7 +17,7 @@ struct is_pk_int4<pk_int4_t> : std::true_type
 {
 };
 
-template <typename ComputeDataType, index_t UnaryOpSize>
+template <typename DstDataType, index_t UnaryOpSize>
 struct InterleavedPKTypeLoader
 {
     template <typename WarpWindow, typename WarpTile>
@@ -30,24 +30,24 @@ struct InterleavedPKTypeLoader
         constexpr index_t thread_buffer_size = WarpTile::get_thread_buffer_size() / UnaryOpSize;
         const auto in_dstr_tensors           = load_tile(warp_window);
 
-        using ComputeVectorType = ComputeDataType __attribute__((ext_vector_type(UnaryOpSize)));
+        using DstVectorType = DstDataType __attribute__((ext_vector_type(UnaryOpSize)));
         static_for<0, thread_buffer_size, 1>{}([&](auto i) {
-            elementwise_op(warp_tile.get_thread_buffer().template get_as<ComputeVectorType>()(i),
+            elementwise_op(warp_tile.get_thread_buffer().template get_as<DstVectorType>()(i),
                            in_dstr_tensors.get_thread_buffer().template get_as<pk_int4x4_t>()[i]);
         });
     }
 };
 
-template <typename BDataType,
-          typename ComputeDataType,
+template <typename SrcDataType,
+          typename DstDataType,
           index_t UnaryOpSize,
           typename WarpTile,
           typename WarpWindow>
 CK_TILE_DEVICE void load_int4_tile(WarpTile& dst, const WarpWindow& src)
 {
-    if constexpr(is_pk_int4<std::remove_cv_t<BDataType>>::value)
+    if constexpr(is_pk_int4<std::remove_cv_t<SrcDataType>>::value)
     {
-        InterleavedPKTypeLoader<ComputeDataType, UnaryOpSize>::load_interleaved_pk_type(dst, src);
+        InterleavedPKTypeLoader<DstDataType, UnaryOpSize>::load_interleaved_pk_type(dst, src);
     }
     else
     {
