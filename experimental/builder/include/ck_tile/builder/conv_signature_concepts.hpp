@@ -63,7 +63,7 @@ template <auto Sig>
 concept ValidConvSignature = requires {
     requires ConvSpatialDim<Sig.spatial_dim>;
     requires ConvDataType<Sig.data_type>;
-    //requires ConvDeviceOp<Sig.device_operation>;
+    requires IsValidConvDeviceOp<Sig>;
 };
 
 } // namespace ck_tile::builder
