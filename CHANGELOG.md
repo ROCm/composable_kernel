@@ -19,8 +19,9 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added support for f32 to FMHA (fwd/bwd).
 * Added tensor-wise quantization for CK_TILE GEMM.
 * Added support for batched contraction kernel.
-* Added pooling kernel in CK_TILE.
 * Added WMMA (gfx12) support for FMHA.
+* Added pooling kernel in CK_TILE
+* Added top-k sigmoid kernel in CK_TILE
 
 ### Changed
 
