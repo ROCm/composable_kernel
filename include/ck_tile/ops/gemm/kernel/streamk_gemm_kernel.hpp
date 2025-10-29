@@ -7,7 +7,6 @@
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/host/concat.hpp"
 
-const bool print_log = true;
 namespace ck_tile {
 namespace reboot {
 
@@ -293,6 +292,12 @@ struct StreamKKernel
             {a_ptr}, {b_ptr}, {/*ds_ptr*/}, c_ptr, smem_ptr_0, kargs, num_loop, i_m, i_n, k_size);
     }
 
+    /// @brief Signals that the current thread block (CTA) has completed storing its partial
+    /// results.
+    /// @param kargs Kernel arguments, including the workspace pointer.
+    /// @param cta_idx The index of the current thread block (CTA).
+    /// @note This function utilizes a workgroup barrier to set a synchronization flag for the given
+    /// CTA index.
     CK_TILE_DEVICE void SignalStorePartialDone(const StreamKKernelArgs& kargs,
                                                index_t cta_idx) const
     {
@@ -301,6 +306,11 @@ struct StreamKKernel
         sk_flags.wait_set(0, 1, cta_idx);
     }
 
+    /// @brief Waits for the thread block (cta_idx) to complete storing its partial results.
+    /// @param kargs Kernel arguments, including the workspace pointer.
+    /// @param cta_idx The index of the thread block (CTA).
+    /// @note This function utilizes a workgroup barrier to wait for the synchronization flag to be
+    /// set by the given CTA index.
     CK_TILE_DEVICE void WaitStorePartialDone(const StreamKKernelArgs& kargs, index_t cta_idx) const
     {
         auto sk_flags_ptr = static_cast<uint32_t*>(kargs.workspace_ptr);
@@ -308,6 +318,11 @@ struct StreamKKernel
         sk_flags.wait_eq(1, cta_idx);
     }
 
+    /// @brief Adds the values of a block tile to an output block tile.
+    /// @param in_out_block_tile The output block tile to which values are added.
+    /// @param in_block_tile The input block tile whose values are added.
+    /// @note This function iterates over the distributed spans of the block tiles and updates the
+    /// output block tile with accumulated values.
     template <typename OAccTile>
     CK_TILE_DEVICE void AddBlockTile(OAccTile& in_out_block_tile,
                                      const OAccTile& in_block_tile) const
@@ -322,6 +337,13 @@ struct StreamKKernel
         });
     }
 
+    /// @brief Loads a partial block tile from the workspace buffer.
+    /// @param kargs Kernel arguments, including the workspace pointer.
+    /// @param cta_idx The index of the thread block (CTA).
+    /// @param c_block_tile_dist The tile distribution for the block.
+    /// @return The loaded partial block tile.
+    /// @note This function calculates the buffer pointer and uses the tile distribution for loading
+    /// the partial block tile.
     template <typename DataType, typename OAccTileDist>
     CK_TILE_DEVICE auto LoadPartial(const StreamKKernelArgs& kargs,
                                     index_t cta_idx,
@@ -349,6 +371,12 @@ struct StreamKKernel
         return load_tile(partial_tile_window);
     }
 
+    /// @brief Stores a partial block tile to the workspace buffer.
+    /// @param kargs Kernel arguments, including the workspace pointer.
+    /// @param cta_idx The index of the thread block (CTA).
+    /// @param c_block_tile The block tile to be stored.
+    /// @note This function calculates the buffer pointer and uses the tile window for storing the
+    /// partial block tile.
     template <typename OAccTile>
     CK_TILE_DEVICE void StorePartial(const StreamKKernelArgs& kargs,
                                      index_t cta_idx,
@@ -470,6 +498,9 @@ struct StreamKKernel
                 if(!tile_started)
                 {
                     StorePartial(kargs, cta_idx, c_block_tile);
+                    // Ensure device-wide visibility of partial results stored in global memory
+                    // before signaling completion. __threadfence() guarantees that all global
+                    // memory writes by this thread are visible to other threads on the device.
                     __threadfence(); // send signal when the store is done
                     SignalStorePartialDone(kargs, cta_idx);
                 }

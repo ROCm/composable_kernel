@@ -32,7 +32,7 @@ struct GemmConfigMemoryInterwave : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 256;
     static constexpr ck_tile::index_t N_Tile = 256;
-    static constexpr ck_tile::index_t K_Tile = 32;
+    static constexpr ck_tile::index_t K_Tile = 16;
 
     static constexpr ck_tile::index_t M_Warp = 2;
     static constexpr ck_tile::index_t N_Warp = 2;
@@ -96,9 +96,6 @@ auto create_args(int argc, char* argv[])
         .insert("a_layout", "R", "A tensor data layout - Row by default")
         .insert("b_layout", "C", "B tensor data layout - Column by default")
         .insert("c_layout", "R", "C tensor data layout - Row by default")
-        .insert("num_sk_blocks",
-                "-1",
-                "number of Stream-K blocks. -1: chosen by algorithm, or user selected")
         .insert("reduction_strategy",
                 "atomic",
                 "strategy for storing results in C tensor - atomic/reduction")
