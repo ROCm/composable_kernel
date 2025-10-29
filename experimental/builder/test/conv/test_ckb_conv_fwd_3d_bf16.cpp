@@ -2,13 +2,11 @@
 
 using namespace ck_tile::builder::test_utils;
 
-class FwdConv3DBF16Test : public FwdConvBuilderTestBase
-{
-};
+namespace ck_tile::builder::testing {
 
 // 3D BF16 GNDHWC (group-first, channels-last) with Pipeline V3 and DEFAULT
-TEST_F(FwdConv3DBF16Test,
-       Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_3D_BF16_GNDHWC)
+TEST(FwdConvInstances,
+     Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_3D_BF16_GNDHWC)
 {
     constexpr ConvSignature<GroupConvLayout3D> FwdConvSignature{
         .spatial_dim           = 3,
@@ -25,3 +23,5 @@ TEST_F(FwdConv3DBF16Test,
              BlockGemmPipelineVersion::V3,
              ConvFwdSpecialization::DEFAULT>();
 }
+
+} // namespace ck_tile::builder::testing
