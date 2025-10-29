@@ -65,8 +65,7 @@ struct GemmMultiDProblem
            << "   \"layout_b\":\"" << problem.layout_b_ << "\",\n"
            << "   \"layout_d0\":\"" << problem.layout_d0_ << "\",\n"
            << "   \"layout_d1\":\"" << problem.layout_d1_ << "\",\n"
-           << "   \"layout_c\":\"" << problem.layout_c_ << "\",\n"
-           << "\n"
+           << "   \"layout_c\":\"" << problem.layout_c_ << "\"" << "\n"
            << "}";
         return os;
     }
