@@ -1200,7 +1200,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
         }
     };
 
-    auto run_appendkv = [&](const ck_tile::stream_config& sc) {
+    auto run_appendkv = [&]([[maybe_unused]] const ck_tile::stream_config& sc) {
 #if CK_TILE_FMHA_FWD_APPENDKV_API
         if(need_append_kvcache)
         {
