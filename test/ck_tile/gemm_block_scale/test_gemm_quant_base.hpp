@@ -55,6 +55,7 @@ class TestCkTileGemmQuantBase : public ::testing::Test
     static constexpr ck_tile::index_t K_Warp_Tile = GemmConfig::K_Warp_Tile;
     static constexpr bool PreshuffleQuant         = GemmConfig::PreshuffleQuant;
     static constexpr bool PreshuffleB             = GemmConfig::PreshuffleB;
+    static constexpr bool TiledMMAPermuteN        = GemmConfig::TiledMMAPermuteN;
     static constexpr bool DoubleSmemBuffer        = GemmConfig::DoubleSmemBuffer;
 
     public:
@@ -131,19 +132,6 @@ class TestCkTileGemmQuantBase : public ::testing::Test
                 max_accumulated_value, kbatch);
         // Use higher threshold
         return ck_tile::make_tuple(std::max(rtol, rtol_split_k), std::max(atol, atol_split_k));
-    }
-
-    template <typename T>
-    auto shuffle_b(const ck_tile::HostTensor<T>& t)
-    {
-        assert(t.get_lengths().size() == 2);
-        int n_                = t.get_lengths()[1];
-        int k_                = t.get_lengths()[0];
-        constexpr int divisor = N_Warp_Tile == 32 ? 2 : 4;
-        ck_tile::HostTensor<T> t_view(
-            {n_ / N_Warp_Tile, N_Warp_Tile, k_ / K_Warp_Tile, divisor, K_Warp_Tile / divisor});
-        std::copy(t.begin(), t.end(), t_view.begin());
-        return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
     }
 };
 

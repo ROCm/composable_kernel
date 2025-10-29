@@ -75,7 +75,7 @@ inline auto create_args(int argc, char* argv[])
     return std::make_tuple(result, arg_parser);
 }
 
-void benchmark_gemm_preshuffle_single(const ck_tile::ArgParser& arg_parser)
+void benchmark_single(const ck_tile::ArgParser& arg_parser)
 {
     // Use DataTypeTraits to get the actual type names from the generated header
     // The generated header defines ADataType, BDataType, AccDataType, CDataType
@@ -124,9 +124,16 @@ void benchmark_gemm_preshuffle_single(const ck_tile::ArgParser& arg_parser)
     try
     {
         // Create a lambda that wraps the kernel launch
-
         std::tuple<int, int, int> warp_tile_dims = std::make_tuple(
             SelectedKernel::WarpTileM, SelectedKernel::WarpTileN, SelectedKernel::WarpTileK);
+        std::tuple<int, int, int> tile_dims =
+            std::make_tuple(SelectedKernel::TileM, SelectedKernel::TileN, SelectedKernel::TileK);
+        std::tuple<int, int, int> warp_dims = std::make_tuple(SelectedKernel::WarpPerBlock_M,
+                                                              SelectedKernel::WarpPerBlock_N,
+                                                              SelectedKernel::WarpPerBlock_K);
+        bool permuteN                       = SelectedKernel::PermuteN;
+
+        KernelConfig config{tile_dims, warp_dims, warp_tile_dims, permuteN};
 
         auto kernel_func = [](const ck_tile::GemmHostArgs& args,
                               const ck_tile::stream_config& stream) {
@@ -134,7 +141,7 @@ void benchmark_gemm_preshuffle_single(const ck_tile::ArgParser& arg_parser)
         };
 
         // Benchmark the kernel
-        profiler.benchmark(gemm_problem, kernel_func, warp_tile_dims);
+        profiler.benchmark(gemm_problem, kernel_func, config);
 
         // Select best instance based on metric
         profiler.select_best_instance(static_cast<Metric>(arg_parser.get_int("metric")));
@@ -153,7 +160,7 @@ int main(int argc, char* argv[])
         if(!result)
             return EXIT_FAILURE;
 
-        benchmark_gemm_preshuffle_single(parser);
+        benchmark_single(parser);
         return 0;
     }
     catch(const std::exception& e)

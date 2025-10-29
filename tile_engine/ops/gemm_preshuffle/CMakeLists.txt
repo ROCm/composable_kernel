@@ -1,4 +1,4 @@
-set(GEMM_PRESHUFFLE_DATATYPE "fp8;fp16" CACHE STRING "List of datatypes for GEMM Preshuffle (semicolon-separated)")
+set(GEMM_PRESHUFFLE_DATATYPE "fp16;fp8" CACHE STRING "List of datatypes for GEMM Preshuffle (semicolon-separated)")
 set(GEMM_PRESHUFFLE_LAYOUT "rcr" CACHE STRING "List of layout for GEMM Preshuffle (semicolon-separated)")
 set(GEMM_PRESHUFFLE_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
 option(ENABLE_CCACHE_GEMM_PRESHUFFLE "Enable ccache for GEMM Preshuffle ops compilation" OFF)
@@ -64,7 +64,8 @@ function(create_individual_gemm_preshuffle_target datatype layout trait tile_con
     
     # Create the executable
     add_executable(${target_name} 
-        ${GEMM_PRESHUFFLE_SOURCE_DIR}/benchmark_gemm_preshuffle_single.cpp
+        EXCLUDE_FROM_ALL
+        ${GEMM_PRESHUFFLE_SOURCE_DIR}/gemm_preshuffle_benchmark_single.cpp
         ${instance_header}
     )
     
@@ -175,7 +176,7 @@ function(build_individual_gemm_preshuffle_targets datatype layout)
         OUTPUT_VARIABLE list_output
         ERROR_VARIABLE list_error
     )
-    
+
     if(NOT ret EQUAL 0)
         message(FATAL_ERROR "Failed to list kernels for ${datatype} ${layout}: ${list_error}")
     endif()
@@ -272,10 +273,10 @@ else()
     endforeach()
 
     # Create trait-based collection targets
-    # These are common trait components used across all GEMM kernels
-    set(GEMM_PRESHUFFLE_PIPELINES "preshufflev1;preshufflev2")
+    # These are common trait components used across all GEMM Preshuffle kernels
+    set(GEMM_PRESHUFFLE_PIPELINES "preshufflev2")
     set(GEMM_PRESHUFFLE_EPILOGUES "default;cshuffle")
-    set(GEMM_PRESHUFFLE_SCHEDULERS "intrawave;interwave;default") 
+    set(GEMM_PRESHUFFLE_SCHEDULERS "default") 
 
     foreach(pipeline IN LISTS GEMM_PRESHUFFLE_PIPELINES)
         add_custom_target(benchmark_gemm_preshuffle_${pipeline}_pipeline)
@@ -290,7 +291,6 @@ else()
     endforeach()
 
     # Build individual targets for each datatype/layout combination
-    
     foreach(dt IN LISTS GEMM_PRESHUFFLE_DATATYPE)
         foreach(l IN LISTS GEMM_PRESHUFFLE_LAYOUT)
             build_individual_gemm_preshuffle_targets(${dt} ${l})
