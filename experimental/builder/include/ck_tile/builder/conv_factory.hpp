@@ -158,6 +158,28 @@ struct ConvTensorLayouts<GroupConvLayout3D::GNDHWC_GKZYXC_GNDHWK, 3, ConvDirecti
     using ELayout  = ck::tensor_layout::convolution::GNDHWK;
 };
 
+template <GroupConvLayout Layout, size_t SPATIAL_DIM, ConvDirection DIR>
+consteval auto GetTensorLayout()
+{
+
+    if constexpr(SPATIAL_DIM == 1)
+    {
+        return factory_internal::ConvTensorLayouts<Layout._1d, 1, DIR>{};
+    }
+    else if constexpr(SPATIAL_DIM == 2)
+    {
+        return factory_internal::ConvTensorLayouts<Layout._2d, 2, DIR>{};
+    }
+    else if constexpr(SPATIAL_DIM == 3)
+    {
+        return factory_internal::ConvTensorLayouts<Layout._3d, 3, DIR>{};
+    }
+    else
+    {
+        static_assert(false, "Unsupported spatial dimension for convolution layout.");
+    }
+}
+
 // Type mappings from builder convolution data type to CK tensor types.
 template <DataType T>
 struct ConvTensorTypes
@@ -440,8 +462,8 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts =
-        factory_internal::ConvTensorLayouts<SIGNATURE.layout, SPATIAL_DIM, ConvDirection::FORWARD>;
+    /*static constexpr auto*/ 
+    using Layouts = decltype(factory_internal::GetTensorLayout<SIGNATURE.layout, SPATIAL_DIM, ConvDirection::FORWARD>());
     using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
     using Ops           = factory_internal::ElementwiseOps<SIGNATURE.elementwise_operation>;
     using AlgorithmType = decltype(ALGORITHM);

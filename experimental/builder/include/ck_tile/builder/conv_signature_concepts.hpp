@@ -17,6 +17,7 @@
 // signature at compile time.
 #pragma once
 
+#include <variant>
 #include <concepts>
 #include <type_traits>
 
@@ -40,16 +41,21 @@ template <DataType T>
 concept ConvDataType = (T == DataType::FP32) || (T == DataType::FP16) || (T == DataType::BF16) ||
                        (T == DataType::FP8) || (T == DataType::I8) || (T == DataType::U8);
 
+template <typename T>
+concept ConvDeviceOp = std::same_as<std::remove_cvref_t<T>, GroupConvDeviceOp>;
+
+template <typename T>
+concept ConvLayout = std::same_as<std::remove_cvref_t<T>, GroupConvLayout>;
+
 // Concept for a type that defines a convolution's operational signature.
 template <typename T>
 concept ConvSignatureDescriptor = requires(T t) {
     { t.spatial_dim } -> std::convertible_to<unsigned int>;
     { t.direction } -> std::convertible_to<ConvDirection>;
-    requires std::convertible_to<decltype(t.layout), GroupConvLayout1D> ||
-                 std::convertible_to<decltype(t.layout), GroupConvLayout2D> ||
-                 std::convertible_to<decltype(t.layout), GroupConvLayout3D>;
+    { t.layout } -> ConvLayout;
     { t.data_type } -> std::convertible_to<DataType>;
     { t.elementwise_operation } -> std::convertible_to<ElementwiseOperation>;
+    { t.device_operation } -> ConvDeviceOp;
 };
 
 // Concept to validate a convolution signature's values.
