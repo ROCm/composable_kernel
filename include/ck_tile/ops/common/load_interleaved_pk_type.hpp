@@ -8,15 +8,6 @@
 
 namespace ck_tile {
 
-template <class T>
-struct is_pk_int4 : std::false_type
-{
-};
-template <>
-struct is_pk_int4<pk_int4_t> : std::true_type
-{
-};
-
 template <typename DstDataType, index_t UnaryOpSize>
 struct InterleavedPKTypeLoader
 {
@@ -45,7 +36,7 @@ template <typename SrcDataType,
           typename WarpWindow>
 CK_TILE_DEVICE void load_int4_tile(WarpTile& dst, const WarpWindow& src)
 {
-    if constexpr(is_pk_int4<std::remove_cv_t<SrcDataType>>::value)
+    if constexpr(std::is_same_v<SrcDataType, pk_int4_t>)
     {
         InterleavedPKTypeLoader<DstDataType, UnaryOpSize>::load_interleaved_pk_type(dst, src);
     }
