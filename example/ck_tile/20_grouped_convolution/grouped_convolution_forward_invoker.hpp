@@ -32,9 +32,10 @@ struct GroupedConvolutionForwardInvoker
             GemmConfig::PermuteA,
             GemmConfig::PermuteB>;
 
-        constexpr ck_tile::index_t VectorSizeA = 8;
-        constexpr ck_tile::index_t VectorSizeB = 8;
-        constexpr ck_tile::index_t VectorSizeC = 8;
+        constexpr ck_tile::index_t VectorSizeA      = 8;
+        constexpr ck_tile::index_t VectorSizeB      = 8;
+        constexpr ck_tile::index_t VectorSizeC      = 8;
+        constexpr ck_tile::index_t NumGroupsToMerge = 1;
 
         constexpr auto ConvSpec = ck_tile::ConvolutionSpecialization::Default;
         using TilePartitioner =
@@ -50,6 +51,7 @@ struct GroupedConvolutionForwardInvoker
                                                                  VectorSizeA,
                                                                  VectorSizeB,
                                                                  VectorSizeC,
+                                                                 NumGroupsToMerge,
                                                                  CDElementWise>;
 
         using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<
