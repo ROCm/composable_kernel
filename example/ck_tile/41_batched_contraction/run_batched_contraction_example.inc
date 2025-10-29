@@ -45,10 +45,10 @@ float invoke_batched_contraction_kernel(
     const void* b_full_dims_dev_buf,
     const std::array<const void*, DsDataType::size()>& ds_dev_buf,
     void* e_full_dims_dev_buf,
-    const std::vector<ck_tile::index_t>& G_dims,
-    const std::vector<ck_tile::index_t>& M_dims,
-    const std::vector<ck_tile::index_t>& N_dims,
-    const std::vector<ck_tile::index_t>& K_dims,
+    ck_tile::index_t num_g_dims,
+    ck_tile::index_t num_m_dims,
+    ck_tile::index_t num_n_dims,
+    ck_tile::index_t num_k_dims,
     const std::vector<ck_tile::index_t>& A_dims, // [G0,G1,..,M0,M1,..,K0,K1,..]
     const std::vector<ck_tile::index_t>& B_dims, // [G0,G1,..,N0,N1,..,K0,K1,..]
     const std::array<std::vector<ck_tile::index_t>, DsDataType::size()>&
@@ -79,9 +79,8 @@ float invoke_batched_contraction_kernel(
                                                                  E_strides            // E_strides
     );
 
-    std::cout << "Calling batched_contraction with dimensions: G=" << G_dims.size()
-              << ", M=" << M_dims.size() << ", N=" << N_dims.size() << ", K=" << K_dims.size()
-              << std::endl;
+    std::cout << "Calling batched_contraction with dimensions: G=" << num_g_dims
+              << ", M=" << num_m_dims << ", N=" << num_n_dims << ", K=" << num_k_dims << std::endl;
 
     float ave_time = batched_contraction<ADataType,
                                          BDataType,
@@ -95,11 +94,10 @@ float invoke_batched_contraction_kernel(
                                          CDEElementWise>(
         args,
         ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat},
-        G_dims.size(), // num_g_dims
-        M_dims.size(), // num_m_dims
-        N_dims.size(), // num_n_dims
-        K_dims.size()  // num_k_dims
-    );
+        num_g_dims,
+        num_m_dims,
+        num_n_dims,
+        num_k_dims);
 
     return ave_time;
 }
@@ -357,10 +355,10 @@ int run_batched_contraction_example_with_layouts(
                                                           b_full_dims_dev_buf.GetDeviceBuffer(),
                                                           ds_ptr_buf,
                                                           e_full_dims_dev_buf.GetDeviceBuffer(),
-                                                          G_dims,
-                                                          M_dims,
-                                                          N_dims,
-                                                          K_dims,
+                                                          G_dims.size(),
+                                                          M_dims.size(),
+                                                          N_dims.size(),
+                                                          K_dims.size(),
                                                           A_dims,
                                                           B_dims,
                                                           Ds_dims,
