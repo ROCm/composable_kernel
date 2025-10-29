@@ -13,10 +13,10 @@ template <index_t NDimSpatial,
           index_t VectorSizeA,
           index_t VectorSizeB,
           index_t VectorSizeC,
+          index_t NumGroupsToMerge = 1,
           bool SplitN              = false,
           typename ADataType       = float,
           typename CDataType       = float,
-          index_t NumGroupsToMerge = 1,
           typename IndexType       = index_t>
 struct TransformConvFwdToGemm
 {
