@@ -375,30 +375,48 @@ struct QuantGroupedGemmKernel
         const bool has_hot_loop   = GemmPipeline::BlockHasHotloop(num_loop);
         const TailNumber tail_num = GemmPipeline::GetBlockLoopTailNum(num_loop);
 
-        // Run GEMM pipeline
-        const auto& c_block_tile = GemmPipeline{}.template operator()(
-            a_block_window, b_block_window, num_loop, has_hot_loop, tail_num, smem_ptr_0);
-        // Run Epilogue Pipeline
-        auto& c_block_window = gemm_tile_windows.at(Base::I4);
-        if constexpr(kQuantType == QuantType::RowColQuant)
+        if constexpr(kQuantType == QuantType::BQuantGrouped)
         {
-            const auto& aq_block_window = gemm_tile_windows.at(Base::I1);
             const auto& bq_block_window = gemm_tile_windows.at(Base::I3);
-            EpiloguePipeline{}.template
-            operator()<decltype(c_block_window), decltype(c_block_tile), decltype(c_block_window)>(
-                c_block_window,
-                c_block_tile,
-                c_block_window,
-                smem_ptr_0,
-                aq_block_window,
-                bq_block_window);
+            // Run GEMM pipeline
+            const auto& c_block_tile = GemmPipeline{}.template operator()(a_block_window,
+                                                                          b_block_window,
+                                                                          bq_block_window,
+                                                                          num_loop,
+                                                                          has_hot_loop,
+                                                                          tail_num,
+                                                                          smem_ptr_0);
+
+            auto& c_block_window = gemm_tile_windows.at(Base::I4);
+
+            // Run Epilogue Pipeline
+            EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
         }
-        else if constexpr(kQuantType == QuantType::TensorQuant)
+        else
         {
-            const AccDataType aq_scale = type_convert<AccDataType>(*aq_ptr);
-            const AccDataType bq_scale = type_convert<AccDataType>(*bq_ptr);
-            EpiloguePipeline{}(
-                c_block_window, c_block_tile, c_block_window, smem_ptr_0, aq_scale, bq_scale);
+            // Run GEMM pipeline
+            const auto& c_block_tile = GemmPipeline{}.template operator()(
+                a_block_window, b_block_window, num_loop, has_hot_loop, tail_num, smem_ptr_0);
+            // Run Epilogue Pipeline
+            auto& c_block_window = gemm_tile_windows.at(Base::I4);
+            if constexpr(kQuantType == QuantType::RowColQuant)
+            {
+                const auto& aq_block_window = gemm_tile_windows.at(Base::I1);
+                const auto& bq_block_window = gemm_tile_windows.at(Base::I3);
+                EpiloguePipeline{}(c_block_window,
+                                   c_block_tile,
+                                   c_block_window,
+                                   smem_ptr_0,
+                                   aq_block_window,
+                                   bq_block_window);
+            }
+            else if constexpr(kQuantType == QuantType::TensorQuant)
+            {
+                const AccDataType aq_scale = type_convert<AccDataType>(*aq_ptr);
+                const AccDataType bq_scale = type_convert<AccDataType>(*bq_ptr);
+                EpiloguePipeline{}(
+                    c_block_window, c_block_tile, c_block_window, smem_ptr_0, aq_scale, bq_scale);
+            }
         }
     }
 
