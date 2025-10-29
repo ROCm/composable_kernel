@@ -20,23 +20,23 @@ enum struct GemmPipelineScheduler
 enum struct TailNumber
 {
     // Single / Double buffer pipeline
-    Odd,  // 0
-    Even, // 1
+    Odd,
+    Even,
 
     // Long prefetch pipeline, up to 8
-    One,   // 2
-    Two,   // 3
-    Three, // 4
-    Four,  // 5
-    Five,  // 6
-    Six,   // 7
-    Seven, // 8
+    One,
+    Two,
+    Three,
+    Four,
+    Five,
+    Six,
+    Seven,
 
     // Unroll stages > Prefetch stages, number of loop is multiple of unroll stages
-    Empty, // 9
-           // Unroll stages <= Prefetch stages, number of loop is multiple of unroll stages add
-           // prefetchstages
-    Full,  // 10
+    Empty,
+    // Unroll stages <= Prefetch stages, number of loop is multiple of unroll stages add
+    // prefetchstages
+    Full,
 };
 
 } // namespace ck_tile

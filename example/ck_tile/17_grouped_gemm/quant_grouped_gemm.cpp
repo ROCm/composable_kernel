@@ -58,7 +58,7 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                                                              BQLayout,
                                                              GemmConfig::TransposeC,
                                                              GemmConfig::DoubleSmemBuffer,
-                                                             true>;
+                                                             true>; // Persistence
 
     float ave_time{0};
 
@@ -93,9 +93,6 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
             std::conditional_t<GemmConfig::PreshuffleB == true,
                                ck_tile::WPQuantBPipelineAgBgCrV2<QuantGemmProblem>,
                                ck_tile::BQuantGemmPipelineAgBgCrCompV3<QuantGemmProblem>>>;
-
-        // print pipeline name
-        std::cout << "GemmPipeline: " << GemmPipeline::GetName() << std::endl;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,

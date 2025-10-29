@@ -220,18 +220,10 @@ int run_grouped_gemm_example_with_layouts(int argc,
 
         for(int i = 0; i < group_count; i++)
         {
-            if(init_method == 2 || init_method == 0)
-            {
-                Ms.push_back(128);
-                Ns.push_back(128);
-                Ks.push_back(128);
-            }
-            else
-            {
-                Ms.push_back(256 + 256 * i);
-                Ns.push_back(256 + 512 * i);
-                Ks.push_back(512 + 128 * i);
-            }
+
+            Ms.push_back(256 + 256 * i);
+            Ns.push_back(256 + 512 * i);
+            Ks.push_back(512 + 128 * i);
 
             // Let get_default_stride calculate based on layout
             stride_As.push_back(0);
@@ -345,13 +337,6 @@ int run_grouped_gemm_example_with_layouts(int argc,
                   << " b_k_n: " << b_k_n_tensors[i].mDesc << " c_m_n: " << c_m_n_tensors[i].mDesc
                   << " aq: " << aq_tensors[i].mDesc << " bq: " << bq_tensors[i].mDesc << std::endl;
 
-        if(init_method == 0)
-        {
-            ck_tile::FillUniformDistribution<ADataType>{0.f, 0.f}(a_m_k_tensors[i]);
-            ck_tile::FillUniformDistribution<BDataType>{0.f, 0.f}(b_k_n_tensors[i]);
-            ck_tile::FillUniformDistribution<AQDataType>{0.f, 0.f}(aq_tensors[i]);
-            ck_tile::FillUniformDistribution<BQDataType>{0.f, 0.f}(bq_tensors[i]);
-        }
         if(init_method == 2)
         {
             ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_m_k_tensors[i]);
@@ -380,18 +365,15 @@ int run_grouped_gemm_example_with_layouts(int argc,
 
         if constexpr(GemmConfig::PreshuffleB && QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
-            std::cout << "Preshuffle B" << std::endl;
             ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<GemmConfig>(b_k_n_tensors[i]);
             b_k_n_dev_buf[i]->ToDevice(b_shuffle_host.data());
         }
         else
         {
-            std::cout << "No preshuffle B" << std::endl;
             b_k_n_dev_buf[i]->ToDevice(b_k_n_tensors[i].data());
         }
 
         a_m_k_dev_buf[i]->ToDevice(a_m_k_tensors[i].data());
-        // b_k_n_dev_buf[i]->ToDevice(b_k_n_tensors[i].data());
         aq_dev_buf[i]->ToDevice(aq_tensors[i].data());
         bq_dev_buf[i]->ToDevice(bq_tensors[i].data());
         c_m_n_dev_buf[i]->SetZero();

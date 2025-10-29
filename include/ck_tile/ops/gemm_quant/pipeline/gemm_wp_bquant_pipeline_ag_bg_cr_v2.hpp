@@ -110,12 +110,6 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                                    void* p_smem_ping,
                                    void* p_smem_pong) const
     {
-        if(get_thread_id() == 0 && get_block_id() == 0)
-        {
-            printf("***************HELLO***************\n");
-            printf("TailNum: %d\n", static_cast<int>(TailNum));
-            printf("WPQuantBPipelineAgBgCrV2 operator() num_loop: %d\n", num_loop);
-        }
         static_assert(
             std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
                 std::is_same_v<BDataType, remove_cvref_t<typename BFlatBlockWindowTmp::DataType>> &&
@@ -308,10 +302,6 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
 
         // MAIN LOOP
         index_t iCounter = (num_loop - 1) / 2;
-        if(get_thread_id() == 0 && get_block_id() == 0)
-        {
-            printf("***************iCounter: %d***************\n", iCounter);
-        }
         while(iCounter > 0)
         {
             // prefetch B(2i+1)
@@ -338,10 +328,6 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
             a_block_tile = load_tile(a_copy_dram_window);
             // move A window to next k
             move_tile_window(a_copy_dram_window, {0, kKPerBlock});
-            if(get_thread_id() == 0 && get_block_id() == 0)
-            {
-                printf("GEMM 2i\n");
-            }
 
             // GEMM 2i
             block_weight_preshuffle(c_block_tile,
@@ -386,10 +372,6 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
             move_tile_window(a_copy_dram_window, {0, kKPerBlock});
 
             // GEMM 2i+1
-            if(get_thread_id() == 0 && get_block_id() == 0)
-            {
-                printf("GEMM 2i+1\n");
-            }
             block_weight_preshuffle(c_block_tile,
                                     a_warp_tensor,
                                     b_warp_tensor_pong,
@@ -428,11 +410,6 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
             a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
             store_tile(a_copy_lds_window_pong, a_block_tile_tmp);
 
-            if(get_thread_id() == 0 && get_block_id() == 0)
-            {
-                printf("GEMM EVEN TAIL 1\n");
-            }
-
             // GEMM loopK-1
             block_weight_preshuffle(c_block_tile,
                                     a_warp_tensor,
@@ -448,10 +425,6 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
             });
 
             Base::Last2ndHotLoopScheduler();
-            if(get_thread_id() == 0 && get_block_id() == 0)
-            {
-                printf("GEMM EVEN TAIL 2\n");
-            }
 
             // GEMM loopK
             block_weight_preshuffle(c_block_tile,
@@ -463,33 +436,6 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
         }
         else if constexpr(TailNum == TailNumber::Odd)
         {
-            if(get_thread_id() == 0 && get_block_id() == 0)
-            {
-                printf("GEMM ODD TAIL\n");
-            }
-            if(get_block_id() == 0 && get_thread_id() == 0)
-            {
-                auto& a_tb = a_warp_tensor(number<0>{}).get_thread_buffer();
-                printf("A warp tensor 0 thread buffer size: %d\n", a_tb.size());
-                for(int i = 0; i < a_tb.size(); i++)
-                {
-                    printf("A warp tensor 0 thread buffer: %f\n", type_convert<float>(a_tb.get(i)));
-                }
-                auto& a_tb_1 = a_warp_tensor(number<1>{}).get_thread_buffer();
-                printf("A warp tensor 1 thread buffer size: %d\n", a_tb_1.size());
-                for(int i = 0; i < a_tb_1.size(); i++)
-                {
-                    printf("A warp tensor 1 thread buffer: %f\n",
-                           type_convert<float>(a_tb_1.get(i)));
-                }
-                auto& b_tb_ping = b_warp_tensor_ping(number<0>{})(number<0>{}).get_thread_buffer();
-                printf("B warp tensor ping 0 thread buffer size: %d\n", b_tb_ping.size());
-                for(int i = 0; i < b_tb_ping.size(); i++)
-                {
-                    printf("B warp tensor ping 0 thread buffer: %f\n",
-                           type_convert<float>(b_tb_ping.get(i)));
-                }
-            }
             // GEMM loopK
             block_weight_preshuffle(c_block_tile,
                                     a_warp_tensor,
@@ -497,20 +443,6 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                                     bq_block_tile,
                                     a_warp_windows_ping);
             Base::LastHotLoopScheduler();
-
-            if(get_thread_id() == 0 && get_block_id() == 0)
-            {
-                auto& tbuf = c_block_tile.get_thread_buffer();
-                // print thread buffer .size()
-                printf("c_block_tile_after: thread buffer size: %d\n", tbuf.size());
-                const float v = type_convert<float>(tbuf.get(0));
-                printf("c_block_tile_after: %f at thread %d\n", v, get_thread_id());
-            }
-        }
-
-        if(get_thread_id() == 0 && get_block_id() == 0)
-        {
-            printf("***************GOODBYE***************\n");
         }
 
         return c_block_tile;
@@ -526,19 +458,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                                    void* p_smem_ping,
                                    void* p_smem_pong) const
     {
-        // if(get_thread_id() == 0 && get_block_id() == 0)
-        // {
-        //     printf("WPQuantBPipelineAgBgCrV2 operator()\n");
-        //     printf("PreshuffleB inside pipeline operator(): %d\n", PreshuffleB);
-        //     printf("WPQuantBPipelineAgBgCrV2 operator() num_loop: %d\n", num_loop);
-        //     a_dram_block_window_tmp.template print_tile_window_range<ADataType>(
-        //         0, 4, 0, 4, "a_dram_block_window_tmp");
-        //     b_flat_dram_block_window_tmp.template print_tile_window_range<BDataType>(
-        //         0, 4, 0, 4, "b_flat_dram_block_window_tmp");
-        //     bq_dram_block_window_tmp.template print_tile_window_range<BQDataType>(
-        //         0, 4, 0, 4, "bq_dram_block_window_tmp");
-        //     printf("TailNum: %d\n", static_cast<int>(TailNum));
-        // }
+
         return operator()<TailNum>(
             a_dram_block_window_tmp,
             [](const ADataType& a) { return a; },
@@ -560,11 +480,6 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                                    void* p_smem_ping,
                                    void* p_smem_pong) const
     {
-        if(get_thread_id() == 0 && get_block_id() == 0)
-        {
-            printf("WPQuantBPipelineAgBgCrV2 operator() tail_number: %d\n",
-                   static_cast<int>(tail_number));
-        }
         const auto RunPipeline = [&](auto bool_val, auto tail_num_) {
             (void)bool_val; // Suppress unused parameter warning
             constexpr auto tail_num = tail_num_.value;

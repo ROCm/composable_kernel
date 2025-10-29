@@ -144,12 +144,12 @@ auto create_args(int argc, char* argv[])
         .insert("c_layout", "R", "C tensor data layout - Row by default.")
         .insert("validate", "1", "0. No validation, 1. Validation on CPU.")
         .insert("prec", "fp8", "data type. fp16/bf16/fp8/bf8")
-        .insert("warmup", "0", "number of iterations before benchmark the kernel.")
-        .insert("repeat", "1", "number of iterations to benchmark the kernel.")
+        .insert("warmup", "10", "number of iterations before benchmark the kernel.")
+        .insert("repeat", "100", "number of iterations to benchmark the kernel.")
         .insert("group_count", "8", "group count.")
         .insert("kbatch", "1", "kbatch for SplitK")
         .insert("quant_mode", "bquant", "Choose bquant (default), tensor, or rowcol")
-        .insert("init", "0", "0. Random, 1. Zero, 2. One");
+        .insert("init", "0", "0. Random, 2. One(s) (Constant)");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
