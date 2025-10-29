@@ -146,6 +146,5 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
 int main(int argc, char* argv[])
 {
     int result1 = !run_grouped_gemm_example<GemmConfigPreshuffleB_Bquant_prefill>(argc, argv);
-    int result2 = !run_grouped_gemm_example<GemmConfigComputeV3_2>(argc, argv);
-    return result1 || result2;
+    return result1;
 }
