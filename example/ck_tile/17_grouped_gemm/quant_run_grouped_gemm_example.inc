@@ -127,22 +127,6 @@ float invoke_gemm(int n_warmup,
     return ave_time;
 }
 
-template <typename GemmConfig, typename T>
-auto shuffle_b(const ck_tile::HostTensor<T>& t)
-{
-    assert(t.get_lengths().size() == 2);
-    int n_                = t.get_lengths()[1];
-    int k_                = t.get_lengths()[0];
-    constexpr int divisor = GemmConfig::N_Warp_Tile == 32 ? 2 : 4;
-    ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
-                                   GemmConfig::N_Warp_Tile,
-                                   k_ / GemmConfig::K_Warp_Tile,
-                                   divisor,
-                                   GemmConfig::K_Warp_Tile / divisor});
-    std::copy(t.begin(), t.end(), t_view.begin());
-    return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
-}
-
 template <typename GemmConfig,
           typename ADataType,
           typename AQDataType,
@@ -365,7 +349,8 @@ int run_grouped_gemm_example_with_layouts(int argc,
 
         if constexpr(GemmConfig::PreshuffleB && QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
-            ck_tile::HostTensor<BDataType> b_shuffle_host = shuffle_b<GemmConfig>(b_k_n_tensors[i]);
+            ck_tile::HostTensor<BDataType> b_shuffle_host =
+                ck_tile::shuffle_b<GemmConfig>(b_k_n_tensors[i]);
             b_k_n_dev_buf[i]->ToDevice(b_shuffle_host.data());
         }
         else
