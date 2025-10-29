@@ -130,9 +130,13 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
     std::string b_layout  = arg_parser.get_str("b_layout");
     std::string c_layout  = arg_parser.get_str("c_layout");
 
-    int m        = arg_parser.get_int("m");
-    int n        = arg_parser.get_int("n");
-    int k        = arg_parser.get_int("k");
+    std::tuple<ck_tile::index_t, ck_tile::index_t, ck_tile::index_t> gemm_sizes =
+        parse_gemm_size(arg_parser);
+
+    int m = std::get<0>(gemm_sizes);
+    int n = std::get<1>(gemm_sizes);
+    int k = std::get<2>(gemm_sizes);
+
     int stride_a = arg_parser.get_int("stride_a");
     int stride_b = arg_parser.get_int("stride_b");
     int stride_c = arg_parser.get_int("stride_c");
