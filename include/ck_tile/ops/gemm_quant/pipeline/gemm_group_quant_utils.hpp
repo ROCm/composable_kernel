@@ -207,31 +207,25 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
                                            sequence<2, 1>,
                                            sequence<0, 0>>{});
         }
-        else if constexpr(XPerTile >= NIterPerWarp * NWarps)
+        else if constexpr(XPerTile == NIterPerWarp * NWarps)
         {
             // small NQ block size case: split NQ axis by iters and Nwarps
-            constexpr index_t NQPerIter = integer_divide_ceil(XPerTile, NIterPerWarp * NWarps);
-            constexpr index_t YR        = get_warp_size() / NQPerIter;
-            static_assert(XPerTile == NQPerIter * NWarps * NIterPerWarp);
             return make_static_tile_distribution(
                 tile_distribution_encoding<
-                    sequence<MWarps, YR>,
-                    tuple<sequence<YPerTile>, sequence<NIterPerWarp, NWarps, NQPerIter>>,
-                    tuple<sequence<0, 2>, sequence<0, 2>>,
-                    tuple<sequence<0, 1>, sequence<1, 2>>,
+                    sequence<MWarps, get_warp_size()>,
+                    tuple<sequence<YPerTile>, sequence<NIterPerWarp, NWarps>>,
+                    tuple<sequence<0, 2>, sequence<0>>,
+                    tuple<sequence<0, 1>, sequence<1>>,
                     sequence<2, 1>,
                     sequence<0, 0>>{});
         }
-        else if constexpr(XPerTile >= NIterPerWarp)
+        else if constexpr(XPerTile == NIterPerWarp || XPerTile == 1)
         {
             // now all NWarps have the same scale -> replicate
-            constexpr index_t NQPerIter = integer_divide_ceil(XPerTile, NIterPerWarp);
-            constexpr index_t YR        = get_warp_size() / NQPerIter;
-            static_assert(XPerTile == NQPerIter * NIterPerWarp);
             return make_static_tile_distribution(
                 tile_distribution_encoding<
-                    sequence<MWarps, NWarps, YR>,
-                    tuple<sequence<YPerTile>, sequence<NIterPerWarp, NQPerIter>>,
+                    sequence<MWarps, NWarps, get_warp_size()>,
+                    tuple<sequence<YPerTile>, sequence<XPerTile, 1>>,
                     tuple<sequence<0, 0>, sequence<0, 2>>,
                     tuple<sequence<0, 1>, sequence<2, 1>>,
                     sequence<2, 1>,
@@ -239,15 +233,7 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
         }
         else
         {
-            // larger NQ block size, multiple iters/warps use same scales -> replicate to all
-            // threads
-            return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<MWarps, NWarps, get_warp_size()>,
-                                           tuple<sequence<YPerTile>, sequence<XPerTile>>,
-                                           tuple<sequence<0, 0>, sequence<0>>,
-                                           tuple<sequence<0, 1>, sequence<2>>,
-                                           sequence<2, 1>,
-                                           sequence<0, 0>>{});
+            static_assert(false, "not supported quant tile configuration");
         }
     }
 };
