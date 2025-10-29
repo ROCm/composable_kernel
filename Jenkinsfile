@@ -42,6 +42,34 @@ def checkForPattern(pattern, log) {
     return [found: false, matchedLine: "", context: ""]
 }
 
+// Scan build logs and send notifications
+def sendFailureNotifications() {
+    // Get the build log.
+    def buildLog = sh(script: 'wget -q --no-check-certificate -O - ' + BUILD_URL + 'consoleText', returnStdout: true)
+    // Check for patterns in the log.
+    def foundPatterns = []
+    for (patternMap in failurePatterns) {
+        def result = checkForPattern(patternMap.pattern, buildLog)
+        if (result.found) {
+            foundPatterns.add([
+                description: patternMap.description,
+                matchedLine: result.matchedLine,
+                context: result.context
+            ])
+        }
+    }
+    // Send a notification for each matched failure pattern.
+    for (patternMap in foundPatterns) {
+        withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
+        sh '''
+            curl -X POST "${WEBHOOK_URL}" \
+            -H 'Content-Type: application/json' \
+            -d '{"text": "\\n\\n**Build Failed**\\n\\n**Issues detected:** ''' + patternMap.description + '''\\n\\n**Log context:**\\n```\\n''' + patternMap.context.replace("'", "\\'") + '''\\n```\\n\\n**Job:** ''' + env.JOB_NAME + '''\\n\\n**Build:** #''' + env.BUILD_NUMBER + '''\\n\\n**URL:** ''' + env.RUN_DISPLAY_URL + '''"}'
+        '''
+        }
+    }
+}
+
 class Version {
     int major, minor, patch
     @Override
@@ -1557,6 +1585,25 @@ pipeline {
                         cleanWs()
                     }
                 }
+                stage("Run CK_TILE_FMHA Tests on gfx1201")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_CK_TILE_FMHA_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx1201") }
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx12-generic && \
+                                           make -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
+                                           cd ../ &&
+                                           example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx1201 """
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+                }
             }
         }
         stage("Run TILE_ENGINE_GEMM Tests")
@@ -1863,7 +1910,7 @@ pipeline {
                     }
                     agent{ label 'miopen && (gfx1101 || gfx1100)' }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx11-generic" -DUSE_OPT_GFX11=ON -DCMAKE_CXX_FLAGS=" -O3 " """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx11-generic" -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx11-generic" \
@@ -1884,7 +1931,7 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx1201") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx12-generic" -DUSE_OPT_GFX12=ON -DCMAKE_CXX_FLAGS=" -O3 " """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx12-generic" -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx12-generic" \
@@ -1948,30 +1995,7 @@ pipeline {
         failure {
             node(rocmnode("nogpu")) {
                 script {
-                    // Get the build log.
-                    def buildLog = sh(script: 'wget -q --no-check-certificate -O - ' + BUILD_URL + 'consoleText', returnStdout: true)
-                    // Check for patterns in the log.
-                    def foundPatterns = []
-                    for (patternMap in failurePatterns) {
-                        def result = checkForPattern(patternMap.pattern, buildLog)
-                        if (result.found) {
-                            foundPatterns.add([
-                                description: patternMap.description,
-                                matchedLine: result.matchedLine,
-                                context: result.context
-                            ])
-                        }
-                    }
-                    // Send a notification for each matched failure pattern.
-                    for (patternMap in foundPatterns) {
-                        withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
-                        sh '''
-                            curl -X POST "${WEBHOOK_URL}" \
-                            -H 'Content-Type: application/json' \
-                            -d '{"text": "\\n\\n**Build Failed**\\n\\n**Issues detected:** ''' + patternMap.description + '''\\n\\n**Log context:**\\n```\\n''' + patternMap.context.replace("'", "\\'") + '''\\n```\\n\\n**Job:** ''' + env.JOB_NAME + '''\\n\\n**Build:** #''' + env.BUILD_NUMBER + '''\\n\\n**URL:** ''' + env.RUN_DISPLAY_URL + '''"}'
-                        '''
-                        }
-                    }                    
+                    sendFailureNotifications()
                 }
             }
         }
