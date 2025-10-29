@@ -1372,12 +1372,14 @@ template <typename NewTensorView_,
           typename OldTensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
+          typename ReplacementPartitionIndex_,
           index_t NumCoord = 1>
 CK_TILE_DEVICE auto
 replace_bottom_tensor_view(const NewTensorView_& new_tensor_view,
                            const tile_window_with_static_distribution<OldTensorView_,
                                                                       WindowLengths_,
                                                                       StaticTileDistribution_,
+                                                                      ReplacementPartitionIndex_,
                                                                       NumCoord>& tile_window)
 {
     return make_tile_window(new_tensor_view,
