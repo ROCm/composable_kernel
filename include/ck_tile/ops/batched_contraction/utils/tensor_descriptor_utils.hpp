@@ -13,8 +13,8 @@
  * dimensions for GEMM operations. These functions transform multi-dimensional tensors into
  * 2D matrix descriptors by removing batch dimensions and flattening the remaining dimensions.
  *
- * These utilities are currently not used in the main batched contraction kernel but are preserved
- * for future implementations that may require explicit tensor descriptor creation.
+ * These utilities are used by BatchedContractionKernel to create stride-aware descriptors
+ * that support arbitrary multi-dimensional non-contiguous tensor layouts.
  */
 
 namespace ck_tile {
