@@ -39,7 +39,7 @@ using CShuffleDataType = F32;
 using D0DataType       = F32;
 using D1DataType       = F32;
 using DsDataType       = ck::Tuple<D0DataType, D1DataType>;
-using EDataType        = F16;
+using EDataType        = BF16;
 
 using A0Layout = Row;
 using B0Layout = Col;
@@ -47,6 +47,96 @@ using D0Layout = Row;
 using D1Layout = Col;
 using DsLayout = ck::Tuple<D0Layout, D1Layout>;
 using ELayout  = Row;
+
+template <typename DataType, typename ComputeDataType = DataType>
+inline __host__ __device__ constexpr double get_rtol()
+{
+    if constexpr(std::is_same_v<DataType, float> && std::is_same_v<ComputeDataType, ck::tf32_t>)
+    {
+        return 1e-3;
+    }
+    else if constexpr(std::is_same_v<DataType, float>)
+    {
+        return 1e-3;
+    }
+    else if constexpr(std::is_same_v<DataType, double>)
+    {
+        return 1e-6;
+    }
+    else if constexpr(std::is_same_v<DataType, ck::half_t>)
+    {
+        return 1e-3;
+    }
+    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
+    {
+        return 5e-2;
+    }
+    else if constexpr(std::is_same_v<DataType, int32_t>)
+    {
+        return 1e-1;
+    }
+    else if constexpr(std::is_same_v<DataType, int8_t>)
+    {
+        return 1e-1;
+    }
+    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
+    {
+        return 1e-1; // 240 and 224 are acceptable
+    }
+    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
+    {
+        return 1.5e-1; // 57344 and 49152 are acceptable
+    }
+    else
+    {
+        return 1e-3;
+    }
+}
+
+template <typename DataType, typename ComputeDataType = DataType>
+inline __host__ __device__ constexpr double get_atol()
+{
+    if constexpr(std::is_same_v<DataType, float> && std::is_same_v<ComputeDataType, ck::tf32_t>)
+    {
+        return 1e-3;
+    }
+    else if constexpr(std::is_same_v<DataType, float>)
+    {
+        return 1e-3;
+    }
+    else if constexpr(std::is_same_v<DataType, double>)
+    {
+        return 1e-6;
+    }
+    else if constexpr(std::is_same_v<DataType, ck::half_t>)
+    {
+        return 1e-3;
+    }
+    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
+    {
+        return 5e-2;
+    }
+    else if constexpr(std::is_same_v<DataType, int32_t>)
+    {
+        return 1e-1;
+    }
+    else if constexpr(std::is_same_v<DataType, int8_t>)
+    {
+        return 1e-1;
+    }
+    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
+    {
+        return 16.1; // 240 and 224 are acceptable
+    }
+    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
+    {
+        return 8192.1; // 57344 and 49152 are acceptable
+    }
+    else
+    {
+        return 1e-3;
+    }
+}
 
 struct MultiplyMultiply
 {
@@ -139,14 +229,14 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultiD_Xdl_CShu
     // clang-format off
     <   Row, Col, DsLayout, ELayout, A0DataType, B0DataType, DsDataType, EDataType, AccDataType, CShuffleDataType,
         AElementOp,  BElementOp, CDEElementOp, GemmSpec, 256,
-        256,   256,    128,
+        64,   128,    128,
         16,   16,
         16,   16,
-        16,    4,
+        4,    2,
         S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
         S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 0,
-        2,    1,   S<1, 32, 1, 8>, S<8, 8, 1>,
-        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3, FP8>;
+        2,    1,   S<1, 32, 1, 8>, S<2, 2, 1>,
+        ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, FP8>;
 // clang-format on
 
 int main(int argc, char* argv[])
@@ -405,8 +495,11 @@ int main(int argc, char* argv[])
 
         e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
-        return ck::utils::check_err(
-                   e_m_n_device_result, e_m_n_host_result, "Error: Incorrect results!", 1e-3, 5e-2)
+        return ck::utils::check_err(e_m_n_device_result,
+                                    e_m_n_host_result,
+                                    "Error: Incorrect results!",
+                                    get_rtol<EDataType>(),
+                                    get_atol<EDataType>())
                    ? 0
                    : 1;
     }
