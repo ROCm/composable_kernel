@@ -26,6 +26,8 @@ struct PoolProblem
     using OutputIndex     = bool_constant<OutputIndex_>;
     using PropagateNan    = bool_constant<PropagateNan_>;
 
+    static constexpr bool kOutputIndex       = OutputIndex_;
+    static constexpr bool kPropagateNan      = PropagateNan_;
     static constexpr bool kNeedCrossLaneSync = BlockShape::ThreadPerWarp_N > 1;
     static constexpr bool kNeedCrossWarpSync = BlockShape::WarpPerBlock_N > 1;
 };
