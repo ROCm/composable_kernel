@@ -55,3 +55,28 @@ add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_bias_clamp test
 add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_bias_bnorm_clamp test_ck_factory_grouped_convolution_forward_bias_bnorm_clamp.cpp)
 add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scaleadd_scaleadd_relu test_ck_factory_grouped_convolution_forward_scaleadd_scaleadd_relu.cpp)
 add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_dynamic_op test_ck_factory_grouped_convolution_forward_dynamic_op.cpp)
+
+# Function to add all test_ckb targets to a list
+function(collect_test_ckb_targets result_var)
+    # Get all targets in current directory
+    get_directory_property(all_targets BUILDSYSTEM_TARGETS)
+    
+    set(test_ckb_targets)
+    foreach(target ${all_targets})
+        # Check if target name starts with "test_ckb"
+        string(REGEX MATCH "^test_ckb" match_result ${target})
+        if(match_result)
+            list(APPEND test_ckb_targets ${target})
+        endif()
+    endforeach()
+    
+    set(${result_var} ${test_ckb_targets} PARENT_SCOPE)
+endfunction()
+
+# Create the custom target
+collect_test_ckb_targets(TEST_CKB_TARGETS)
+add_custom_target(test_ckb_all)
+add_dependencies(test_ckb_all ${TEST_CKB_TARGETS})
+
+# Optional: Print the collected targets for verification
+message(STATUS "Found following CK Builder test targets: ${TEST_CKB_TARGETS}")
