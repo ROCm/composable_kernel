@@ -17,7 +17,7 @@
 #define CK_TILE_PIPELINE_COMPUTE_V4 3
 #define CK_TILE_PIPELINE_COMPUTE_V5 4
 
-struct GemmConfigBase
+struct ConvConfigBase
 {
     static constexpr bool kPadM = true;
     static constexpr bool kPadN = true;
@@ -29,6 +29,10 @@ struct GemmConfigBase
     static constexpr bool TransposeC            = false;
     static constexpr bool UseStructuredSparsity = false;
 
+    static constexpr ck_tile::index_t VectorSizeA = 4;
+    static constexpr ck_tile::index_t VectorSizeB = 8;
+    static constexpr ck_tile::index_t VectorSizeC = 8;
+
     static constexpr int kBlockPerCu                         = 1;
     static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
     static constexpr ck_tile::index_t TileParitionerM01      = 4;
@@ -37,10 +41,12 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t NumWaveGroups = 1;
     static constexpr bool Preshuffle                = false;
     static constexpr bool TiledMMAPermuteN          = false;
+
+    static constexpr ck_tile::index_t NumGroupsToMerge = 1;
 };
 
 template <typename PrecType>
-struct GemmConfigMemoryInterwave : public GemmConfigBase
+struct ConvConfigMemoryInterwave : public ConvConfigBase
 {
     // Memory friendly for Interwave scheduler
     static constexpr ck_tile::index_t M_Tile = 128;
@@ -61,7 +67,7 @@ struct GemmConfigMemoryInterwave : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigMemoryIntrawave : public GemmConfigBase
+struct ConvConfigMemoryIntrawave : public ConvConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 32;
@@ -80,7 +86,7 @@ struct GemmConfigMemoryIntrawave : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigComputeV3 : public GemmConfigBase
+struct ConvConfigComputeV3 : public ConvConfigBase
 {
     // Compute V3 only support Intrawave scheduler
     static constexpr ck_tile::index_t M_Tile = 16;
@@ -100,7 +106,7 @@ struct GemmConfigComputeV3 : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigComputeV3_1 : public GemmConfigBase
+struct ConvConfigComputeV3_1 : public ConvConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 256;
     static constexpr ck_tile::index_t N_Tile = 256;
@@ -119,7 +125,7 @@ struct GemmConfigComputeV3_1 : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigComputeV3_2 : public GemmConfigBase
+struct ConvConfigComputeV3_2 : public ConvConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;
@@ -140,7 +146,7 @@ struct GemmConfigComputeV3_2 : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigComputeV3_WMMA : public GemmConfigBase
+struct ConvConfigComputeV3_WMMA : public ConvConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;
@@ -161,7 +167,7 @@ struct GemmConfigComputeV3_WMMA : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigComputeV4 : public GemmConfigBase
+struct ConvConfigComputeV4 : public ConvConfigBase
 {
     // Compute V4 only support Intrawave scheduler
     // Using the ping pong reader in the lds level
@@ -182,7 +188,7 @@ struct GemmConfigComputeV4 : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigComputeV4_1 : public GemmConfigBase
+struct ConvConfigComputeV4_1 : public ConvConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 256;
     static constexpr ck_tile::index_t N_Tile = 256;
@@ -201,7 +207,7 @@ struct GemmConfigComputeV4_1 : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigComputeV5 : public GemmConfigBase
+struct ConvConfigComputeV5 : public ConvConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 128;
     static constexpr ck_tile::index_t N_Tile = 128;
@@ -218,6 +224,31 @@ struct GemmConfigComputeV5 : public GemmConfigBase
     static constexpr bool DoubleSmemBuffer               = false;
     static constexpr ck_tile::index_t Pipeline           = CK_TILE_PIPELINE_COMPUTE_V5;
     static constexpr ck_tile::index_t NumWaNumWaveGroups = 2;
+};
+
+template <typename PrecType>
+struct ConvConfigComputeV3_merged_groups : public ConvConfigBase
+{
+    static constexpr ck_tile::index_t VectorSizeA = 4;
+    static constexpr ck_tile::index_t VectorSizeB = 8;
+    static constexpr ck_tile::index_t VectorSizeC = 8;
+
+    static constexpr ck_tile::index_t M_Tile = 16;
+    static constexpr ck_tile::index_t N_Tile = 32;
+    static constexpr ck_tile::index_t K_Tile = 32;
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 2;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = 32;
+
+    static constexpr bool DoubleSmemBuffer     = false;
+    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
+
+    static constexpr ck_tile::index_t NumGroupsToMerge = 2;
 };
 
 template <typename InDataType, typename WeiDataType = InDataType, typename OutDataType = InDataType>
