@@ -34,7 +34,19 @@ template <typename ADataType,
           uint32_t FragK,
           uint32_t GfxTargetId,
           typename Enable = void>
-struct MmaDefaultSelector;
+struct MmaDefaultSelector
+{
+    // By default, no selection is made, and we fall back to a pass-through unsupported
+    // implementation. This is because we do not have any knowledge of the target architecture here.
+    using SelectedOp = amdgcn_mma<ADataType,
+                                  BDataType,
+                                  CDataType,
+                                  FragM,
+                                  FragN,
+                                  FragK,
+                                  void,
+                                  amdgcn_target_arch_id::HOST>;
+};
 
 // /*! @concept MmaSelectorI
 //  *  @brief  Expresses the required members for each MmaSelector class.
@@ -47,3 +59,7 @@ concept MmaSelectorI = requires(MmaSelector op) {
 };
 
 } // namespace ck_tile::core::arch::mma
+
+// Include the implementations
+#include "wmma/wmma_selector.hpp"
+#include "mfma/mfma_selector.hpp"

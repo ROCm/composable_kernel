@@ -9,6 +9,9 @@
 #include "ck_tile/core/arch/mma/mma_traits.hpp"
 #include "ck_tile/core/numeric/vector_type.hpp"
 
+#include "mfma_traits.hpp"
+#include "mfma_gfx9.hpp"
+
 namespace ck_tile::core::arch::mma {
 
 // /*! @struct MfmaDefaultSelector
