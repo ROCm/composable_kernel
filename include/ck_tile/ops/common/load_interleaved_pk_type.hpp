@@ -32,13 +32,19 @@ struct InterleavedPKTypeLoader
 template <typename SrcDataType,
           typename DstDataType,
           index_t UnaryOpSize,
+          bool LoadTranspose = false,
           typename WarpTile,
           typename WarpWindow>
 CK_TILE_DEVICE void load_int4_tile(WarpTile& dst, const WarpWindow& src)
 {
     if constexpr(std::is_same_v<SrcDataType, pk_int4_t>)
     {
+        static_assert(!LoadTranspose, "LoadTranspose not supported with pk_int4_t");
         InterleavedPKTypeLoader<DstDataType, UnaryOpSize>::load_interleaved_pk_type(dst, src);
+    }
+    else if constexpr(LoadTranspose)
+    {
+        dst = load_tile_transpose(src);
     }
     else
     {
