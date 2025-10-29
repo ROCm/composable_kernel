@@ -80,7 +80,6 @@ void benchmark_single(const ck_tile::ArgParser& arg_parser)
 {
     // Use DataTypeTraits to get the actual type names from the generated header
     // The generated header defines ADataType, BDataType, AccDataType, CDataType
-    printf("Benchmarking kernel: %s\n", KERNEL_NAME);
     std::string dtype_a   = DataTypeTraits<ADataType>::name;
     std::string dtype_b   = DataTypeTraits<BDataType>::name;
     std::string dtype_acc = DataTypeTraits<AccDataType>::name;
