@@ -1540,6 +1540,23 @@ struct Logistic
     const float alpha_;
 };
 
+struct Clamp
+{
+    CK_TILE_HOST_DEVICE Clamp(float lower = std::numeric_limits<float>::lowest(),
+                              float upper = std::numeric_limits<float>::max())
+        : lower_(lower), upper_(upper) {};
+
+    template <typename T>
+    CK_TILE_HOST_DEVICE constexpr void operator()(T& y, const T& x) const
+    {
+        T lower = ck_tile::type_convert<T>(lower_);
+        T upper = ck_tile::type_convert<T>(upper_);
+        y       = ck_tile::clamp(x, lower, upper);
+    }
+
+    float lower_, upper_;
+};
+
 struct ConvInvscale
 {
     static constexpr const char* name = "ConvInvscale";
@@ -1627,6 +1644,55 @@ struct Cast
     {
         y = ck_tile::type_convert<DstType>(x);
     };
+};
+
+/**
+ * @brief Compose two unary element-wise functions into one.
+ *
+ *
+ * @note The Ds tensor can be used by at most one of the composed functions.
+ * This holds even if compositions are chained:
+ * In `Compose<FA, Compose<FB, FC>>`, only one of `FA`, `FB`, or `FC` can use
+ * the Ds tensor.
+ *
+ * @tparam FuncA    The first function to be applied.
+ * @tparam FuncB    The second function to be applied.
+ * @tparam FuncADs  Whether `FuncA` uses the Ds tensor.
+ * @tparam FuncBDs  Whether `FuncB` uses the Ds tensor.
+ */
+template <typename FuncA, typename FuncB, bool FuncADs = false, bool FuncBDs = false>
+struct Compose
+{
+    static_assert(!(FuncADs && FuncBDs), "Only one composed function may use the Ds tensor.");
+
+    CK_TILE_HOST_DEVICE Compose(FuncA func_a_ = FuncA{}, FuncB func_b_ = FuncB{})
+        : func_a(func_a_), func_b(func_b_)
+    {
+    }
+
+    template <typename AIn, typename BOut, typename AOut = AIn, typename... ADs>
+    CK_TILE_HOST_DEVICE constexpr void operator()(BOut& y, const AIn& x, const ADs&... ds) const
+    {
+        AOut tmp;
+        if constexpr(FuncADs)
+        {
+            func_a(tmp, x, ds...);
+            func_b(y, tmp);
+        }
+        else if constexpr(FuncBDs)
+        {
+            func_a(tmp, x);
+            func_b(y, tmp, ds...);
+        }
+        else
+        {
+            func_a(tmp, x);
+            func_b(y, tmp);
+        }
+    }
+
+    const FuncA func_a;
+    const FuncB func_b;
 };
 
 // support fastconvert of int8 to fp16

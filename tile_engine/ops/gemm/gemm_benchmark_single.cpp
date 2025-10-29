@@ -30,9 +30,9 @@ inline auto create_args(int argc, char* argv[])
         .insert("stride_c", "0", "The stride value for tensor C. Default is 0.")
         .insert("split_k", "1", "The split value for k dimension. Default is 1.")
         .insert("verify",
-                "0",
+                "2",
                 "The type of validation. Set to 0 for no validation, 1 for validation on CPU, or 2 "
-                "for validation on GPU. Default is 0, no validation.")
+                "for validation on GPU. Default is 2, GPU validation.")
         .insert("log",
                 "false",
                 "Whether output kernel instance information or not. Possible values are true or "
@@ -75,7 +75,7 @@ inline auto create_args(int argc, char* argv[])
     return std::make_tuple(result, arg_parser);
 }
 
-void benchmark_gemm_single(const ck_tile::ArgParser& arg_parser)
+void benchmark_single(const ck_tile::ArgParser& arg_parser)
 {
     // Use DataTypeTraits to get the actual type names from the generated header
     // The generated header defines ADataType, BDataType, AccDataType, CDataType
@@ -149,7 +149,7 @@ int main(int argc, char* argv[])
         if(!result)
             return EXIT_FAILURE;
 
-        benchmark_gemm_single(parser);
+        benchmark_single(parser);
         return 0;
     }
     catch(const std::exception& e)

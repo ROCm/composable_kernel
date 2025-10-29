@@ -254,8 +254,8 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
             constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
 
             static_assert(is_bq_col_major, "Bq must be col major (row major not supported yet)");
-            static_assert(NPerBlock == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
-                              KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}],
+            static_assert(KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+                              NPerBlock == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}],
                           "Bq block window has incorrect lengths for defined BqLayout!");
 
             static_assert(is_a_col_major
@@ -313,7 +313,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
             constexpr BDramTileWindowStep b_dram_tile_window_step =
                 is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
             constexpr BQDramTileWindowStep bq_dram_tile_window_step =
-                is_bq_col_major ? make_array(0, KPerBlockBQ) : make_array(KPerBlockBQ, 0);
+                is_bq_col_major ? make_array(KPerBlockBQ, 0) : make_array(0, KPerBlockBQ);
 
             // DRAM prefetch (global read 0)
             Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
@@ -358,6 +358,8 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
 
             if constexpr(HasHotLoop)
             {
+                constexpr index_t tail_count =
+                    ((TailNum == TailNumber::Full) || (TailNum == TailNumber::Odd)) ? 1 : 2;
                 index_t i = 0;
                 do
                 {
@@ -403,7 +405,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                     __builtin_amdgcn_sched_barrier(0);
 
                     i += 1;
-                } while(i < (num_loop - 1));
+                } while(i < (num_loop - tail_count));
             }
             // tail
             if constexpr((TailNum == TailNumber::Full) || (TailNum == TailNumber::Odd))
@@ -469,6 +471,49 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
             bq_dram_block_window_tmp,
             num_loop,
             p_smem);
+    }
+
+    /// @brief Runtime pipeline dispatch operator for grouped GEMM kernels.
+    ///
+    /// This operator is used by grouped GEMM kernels where pipeline parameters
+    /// (has_hot_loop, num_loop, tail_number) are calculated on the device side
+    /// at runtime, not on the host side during compilation. This is necessary
+    /// because different GEMM problems in the group may have different K dimensions,
+    /// requiring different pipeline configurations that cannot be determined at
+    /// compile time.
+    ///
+    /// @param a_dram_block_window_tmp Block window for A tensor in DRAM
+    /// @param b_dram_block_window_tmp Block window for B tensor in DRAM
+    /// @param bq_dram_block_window_tmp Block window for BQ (quantization scale) tensor in DRAM
+    /// @param num_loop Number of main loop iterations (calculated on device)
+    /// @param has_hot_loop Whether the pipeline has a hot loop (calculated on device)
+    /// @param tail_number Type of tail handling required (calculated on device)
+    /// @param p_smem Pointer to shared memory
+    /// @return Accumulated result tile in registers
+    template <typename ADramBlockWindowTmp,
+              typename BDramBlockWindowTmp,
+              typename BQDramBlockWindowTmp>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                   const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
+                                   index_t num_loop,
+                                   bool has_hot_loop,
+                                   TailNumber tail_number,
+                                   void* p_smem) const
+    {
+        const auto RunPipeline = [&](auto has_hot_loop_, auto tail_number_) {
+            constexpr bool hot_loop = has_hot_loop_.value;
+            constexpr auto tail_num = tail_number_.value;
+            return PipelineImpl<Scheduler>{}.template operator()<hot_loop, tail_num>(
+                a_dram_block_window_tmp,
+                [](const ADataType& a) { return a; },
+                b_dram_block_window_tmp,
+                [](const BDataType& b) { return b; },
+                bq_dram_block_window_tmp,
+                num_loop,
+                p_smem);
+        };
+        return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
     }
 };
 
