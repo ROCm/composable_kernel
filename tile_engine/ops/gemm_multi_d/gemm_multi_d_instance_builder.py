@@ -778,6 +778,26 @@ def main():
         f"Invalid matrix_c or d dimension in layout: {layout_parts[2]} andf {layout_parts[3]} (must be 'r' only as currently we are supporting only row major)"
     )
 
+    # Elementwise function name validation
+    elementwise_function = args.elementwise_function.lower()
+
+    valid_functions = ["mul", "add", "passthrough"]
+    if elementwise_function not in valid_functions:
+        raise ValueError(
+            f"Invalid elementwise function: {elementwise_function}. "
+            f"Valid options are: {', '.join(valid_functions)}"
+        )
+
+    # Set the function name based on the elementwise function
+    if elementwise_function == "mul":
+        function_name = "MultiDMultiply"
+    elif elementwise_function == "add":
+        function_name = "MultiDAdd"
+    elif elementwise_function == "passthrough":
+        function_name = "PassThrough"  # TODO Change this
+
+    args.elementwise_function = function_name
+
     # Create builder
     builder = GemmMultiDKernelBuilder(
         args.working_path,
