@@ -658,7 +658,7 @@ struct UniversalGemmBasePolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
+    CK_TILE_DEVICE static constexpr index_t GetSmemSizeA()
     {
         constexpr index_t smem_size_a =
             integer_least_multiple(sizeof(typename Problem::ADataType) *
@@ -668,7 +668,7 @@ struct UniversalGemmBasePolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeB()
+    CK_TILE_DEVICE static constexpr index_t GetSmemSizeB()
     {
         constexpr index_t smem_size_b =
             integer_least_multiple(sizeof(typename Problem::BDataType) *
@@ -678,7 +678,7 @@ struct UniversalGemmBasePolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
+    CK_TILE_DEVICE static constexpr index_t GetSmemSize()
     {
         constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
         constexpr index_t smem_size_b = GetSmemSizeB<Problem>();
