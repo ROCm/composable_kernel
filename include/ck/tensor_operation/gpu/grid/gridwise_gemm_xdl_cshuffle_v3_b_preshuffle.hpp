@@ -900,6 +900,11 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
                           (NPerBlock % (NXdlPerWave * NPerXdl)) == 0,
                       "Invalid tuning param!");
 
+        if constexpr(NXdlPerWave % CShuffleNXdlPerWavePerShuffle != 0)
+        {
+            return false;
+        }
+
         if constexpr(!(GemmSpec == tensor_operation::device::GemmSpecialization::MPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MNPadding ||
                        GemmSpec == tensor_operation::device::GemmSpecialization::MKPadding ||

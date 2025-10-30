@@ -29,23 +29,23 @@ struct tuple_concat<std::tuple<Xs...>, std::tuple<Ys...>>
 } // namespace
 
 template <typename Tuple>
-class TestGemmMultiplyMultiplyWP_FP8_MK_NK
-    : public ck::test::TestGemmMultiplyMultiplyWPCommon<
-          typename tuple_concat<std::tuple<Row, Col, Row, Col>, Tuple>::type>
+class TestGemmUniversalPreshuffle_FP8_MK_NK
+    : public ck::test::TestGemmUniversalPreshuffleCommon<
+          typename tuple_concat<std::tuple<Row, Col>, Tuple>::type>
 {
 };
 
 // clang-format off
 using KernelTypes_MK_NK = ::testing::Types<
 #if defined(CK_ENABLE_FP8) && (defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94))
-    std::tuple< F8, F8, F8, F32, F32, F16>,
-    std::tuple< F8, F8, F8, F32, F32, BF16>
+    std::tuple< F8, F8, F8, F16>,
+    std::tuple< F8, F8, F8, BF16>
 #endif
     >;
 
-TYPED_TEST_SUITE(TestGemmMultiplyMultiplyWP_FP8_MK_NK, KernelTypes_MK_NK);
+TYPED_TEST_SUITE(TestGemmUniversalPreshuffle_FP8_MK_NK, KernelTypes_MK_NK);
 
-TYPED_TEST(TestGemmMultiplyMultiplyWP_FP8_MK_NK, Regular0)
+TYPED_TEST(TestGemmUniversalPreshuffle_FP8_MK_NK, Regular0)
 {
     std::vector<int> Ms{128, 224, 256, 448, 512};
     constexpr int N = 512;
@@ -55,7 +55,7 @@ TYPED_TEST(TestGemmMultiplyMultiplyWP_FP8_MK_NK, Regular0)
         this->Run(M, N, K);
 }
 
-TYPED_TEST(TestGemmMultiplyMultiplyWP_FP8_MK_NK, Regular1)
+TYPED_TEST(TestGemmUniversalPreshuffle_FP8_MK_NK, Regular1)
 {
     std::vector<int> Ms{128, 224, 256, 448, 512};
     constexpr int N = 1024;
@@ -65,7 +65,7 @@ TYPED_TEST(TestGemmMultiplyMultiplyWP_FP8_MK_NK, Regular1)
         this->Run(M, N, K);
 }
 
-TYPED_TEST(TestGemmMultiplyMultiplyWP_FP8_MK_NK, Regular2)
+TYPED_TEST(TestGemmUniversalPreshuffle_FP8_MK_NK, Regular2)
 {
     std::vector<int> Ms{128, 256, 512};
     constexpr int N = 448;
