@@ -289,6 +289,10 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
 
                 block_sync_lds();
                 b_scale_struct.template GlobalLoad<0>((i + 2) % num_loop_per_scale == 0);
+                if constexpr(ck::is_same<BScaleStruct, Empty>::value == false)
+                {
+			block_sync_lds();
+		}
                 a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
                 b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
 
@@ -631,6 +635,10 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Interwave,
                 blockwise_gemm_func();
 
                 b_scale_struct.template GlobalLoad<0>((i + 2) % num_loop_per_scale == 0);
+                if constexpr(ck::is_same<BScaleStruct, Empty>::value == false)
+                {
+			block_sync_lds();
+		}
                 a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
                 b_blockwise_copy.RunWrite(b_block_desc, b_block_buf);
 
