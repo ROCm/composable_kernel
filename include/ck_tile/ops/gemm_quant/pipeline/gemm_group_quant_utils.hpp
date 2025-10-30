@@ -223,13 +223,12 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
         {
             // now all NWarps have the same scale -> replicate
             return make_static_tile_distribution(
-                tile_distribution_encoding<
-                    sequence<MWarps, NWarps, get_warp_size()>,
-                    tuple<sequence<YPerTile>, sequence<XPerTile, 1>>,
-                    tuple<sequence<0, 0>, sequence<0, 2>>,
-                    tuple<sequence<0, 1>, sequence<2, 1>>,
-                    sequence<2, 1>,
-                    sequence<0, 0>>{});
+                tile_distribution_encoding<sequence<MWarps, NWarps, get_warp_size()>,
+                                           tuple<sequence<YPerTile>, sequence<XPerTile, 1>>,
+                                           tuple<sequence<0, 0>, sequence<0, 2>>,
+                                           tuple<sequence<0, 1>, sequence<2, 1>>,
+                                           sequence<2, 1>,
+                                           sequence<0, 0>>{});
         }
         else
         {
