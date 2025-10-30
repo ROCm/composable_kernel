@@ -15,9 +15,9 @@ int main()
     using AccDataType = float;
 
     // ArgParser
-    ck_tile::index_t M            = 2048;
-    ck_tile::index_t N            = 1024;
-    ck_tile::index_t K            = 512;
+    ck_tile::index_t M            = 512;
+    ck_tile::index_t N            = 256;
+    ck_tile::index_t K            = 64;
     ck_tile::index_t verification = 1;
 
     ck_tile::index_t stride_a = K;
@@ -78,14 +78,9 @@ int main()
                                  ck_tile::integer_divide_ceil(N, PracticeGemmShape::BlockTile_N);
 
     std::cout << "kGridSize: " << kGridSize << std::endl;
-
-    constexpr ck_tile::index_t kWarpPerCU = 4; // 4 warps per CU
-    constexpr ck_tile::index_t kWarpPerBlock =
-        kBlockSize / ck_tile::get_warp_size();                           // 4 warps per block
-    constexpr ck_tile::index_t kBlockPerCU = kWarpPerCU / kWarpPerBlock; // 1 block per CU
+    constexpr ck_tile::index_t kBlockPerCU = 1; // 1 block per CU
 
     std::cout << "kBlockSize: " << kBlockSize << std::endl;
-    std::cout << "kWarpPerBlock: " << kWarpPerBlock << std::endl;
     std::cout << "kBlockPerCU: " << kBlockPerCU << std::endl;
 
     using gemm_kernel =

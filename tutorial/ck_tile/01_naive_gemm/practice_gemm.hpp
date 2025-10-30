@@ -53,20 +53,14 @@ struct PracticeGemmKernel
                                    const index_t stride_c) const
     {
 
-        auto a_dram = [&] {
-            return make_naive_tensor_view<address_space_enum::global>(
-                p_a, make_tuple(M, K), make_tuple(stride_a, 1), number<8>{}, number<1>{});
-        }();
+        auto a_dram = make_naive_tensor_view<address_space_enum::global>(
+            p_a, make_tuple(M, K), make_tuple(stride_a, 1), number<8>{}, number<1>{});
 
-        auto b_dram = [&] {
-            return make_naive_tensor_view<address_space_enum::global>(
-                p_b, make_tuple(N, K), make_tuple(stride_b, 1), number<8>{}, number<1>{});
-        }();
+        auto b_dram = make_naive_tensor_view<address_space_enum::global>(
+            p_b, make_tuple(N, K), make_tuple(stride_b, 1), number<8>{}, number<1>{});
 
-        const auto c_dram = [&] {
-            return make_naive_tensor_view<address_space_enum::global>(
-                p_c, make_tuple(M, N), make_tuple(stride_c, 1), number<8>{}, number<1>{});
-        }();
+        const auto c_dram = make_naive_tensor_view<address_space_enum::global>(
+            p_c, make_tuple(M, N), make_tuple(stride_c, 1), number<8>{}, number<1>{});
 
         PracticeGemmHostPipeline<Problem, Policy>{}(a_dram, b_dram, c_dram);
     }

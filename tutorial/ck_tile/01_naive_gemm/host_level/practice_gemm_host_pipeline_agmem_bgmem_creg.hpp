@@ -24,8 +24,9 @@ struct PracticeGemmHostPipeline
     template <typename ADRAMTensorView, typename BDRAMTensorView, typename CDRAMTensorView>
     CK_TILE_DEVICE void operator()(const ADRAMTensorView& a_dram,
                                    const BDRAMTensorView& b_dram,
-                                   CDRAMTensorView& c_dram) const
+                                   CDRAMTensorView& c_dram_ref) const
     {
+
         // Size of the entire problem
         const auto M = a_dram.get_tensor_descriptor().get_length(number<0>{}); // M x K
         const auto N = c_dram.get_tensor_descriptor().get_length(number<1>{}); // M x N
@@ -56,8 +57,8 @@ struct PracticeGemmHostPipeline
 
         const auto tile_id = block2tile(id_block);
 
-        const auto tile_id_m = tile_id.template get(number<0>{});
-        const auto tile_id_n = tile_id.template get(number<1>{});
+        const auto tile_id_m = tile_id.at(number<0>{});
+        const auto tile_id_n = tile_id.at(number<1>{});
 
         // if(get_thread_id() == 0 && get_block_id() == 15)
         // {
