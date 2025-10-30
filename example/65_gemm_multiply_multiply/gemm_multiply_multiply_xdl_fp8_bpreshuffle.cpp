@@ -385,10 +385,10 @@ int main(int argc, char* argv[])
         d1_m_n.GenerateTensorValue(GeneratorTensor_1<D1DataType>{});
         break;
     default:
-        a0_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{0.0, 1.0});
+        a0_m_k.GenerateTensorValue(GeneratorTensor_3<A0DataType>{-0.5, 0.5});
         b0_k_n.GenerateTensorValue(GeneratorTensor_3<B0DataType>{-0.5, 0.5});
-        d0_m_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0.0, 1.0});
-        d1_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
+        d0_m_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0.0, 0.5});
+        d1_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 0.5});
     }
     DeviceMem a0_device_buf(sizeof(A0DataType) * a0_m_k.mDesc.GetElementSpaceSize());
     DeviceMem b0_device_buf(sizeof(B0DataType) * b0_k_n.mDesc.GetElementSpaceSize());
