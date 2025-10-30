@@ -29,6 +29,7 @@ struct GroupedConvFwdKernelArgs
                                GroupedConvTraitsType_::VectorSizeA,
                                GroupedConvTraitsType_::VectorSizeB,
                                GroupedConvTraitsType_::VectorSizeC,
+                               GroupedConvTraitsType_::NumGroupsToMerge,
                                true>; // Split N enabled
     using CDElementwise                 = typename GroupedConvTraitsType_::CDElementwise;
     static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
@@ -451,7 +452,12 @@ struct GroupedConvolutionForwardKernel
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
-        return concat('_', "grouped_convolution_forward", gemm_prec_str<InDataType, WeiDataType>, GemmPipeline::GetName());
+        return concat('_', "grouped_convolution_forward", 
+            gemm_prec_str<InDataType, WeiDataType>(), 
+            "gemm",
+            GemmPipeline::GetName(),
+            "epilogue",
+            EpiloguePipeline::GetName());
         // clang-format on
     }
 
