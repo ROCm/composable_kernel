@@ -249,6 +249,7 @@ class GemmMultiDKernelBuilder:
                 c_datatype,
                 pipeline,
                 layout,
+                self.gpu_target,
             )
 
     def _generate_trait_combinations(self):
@@ -404,11 +405,6 @@ struct SelectedKernel {{
     
     static constexpr bool DoubleSmemBuffer = {"true" if pipeline == "compv4" else "false"};
     static constexpr bool TransposeC = false;
-
-    //static constexpr bool UsePersistentKernel = {"true" if persistent in [True, "true"] else "false"};
-    //static constexpr bool UseStructuredSparsity = false;
-    //static constexpr bool Preshuffle = false;
-    //static constexpr ck_tile::index_t NumWaveGroups = 1;
 
     // Tile shape
     using TileShape = ck_tile::TileGemmShape<
@@ -660,13 +656,6 @@ struct SelectedKernel {{
         """
 
         for kernel_name, trait_combo, tile_config in kernel_list:
-            print(
-                "--------------------------------------------------------------------------------------------------------",
-                kernel_name,
-                trait_combo,
-                tile_config,
-                "--------------------------------------------------------------------------------------------------------",
-            )
             pipeline, epilogue, scheduler = trait_combo[:3]
 
             # Format tile config for CMake function
