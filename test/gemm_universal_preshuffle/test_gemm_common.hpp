@@ -30,7 +30,7 @@ class TestGemmUniversalPreshuffleCommon : public ::testing::Test
     static constexpr bool bench_      = false;
     std::vector<int> k_batches_;
 
-    void SetUp() override { k_batches_ = {1}; }
+    void SetUp() override { k_batches_ = {1, 2, 4}; }
 
     void Run(const int M, const int N, const int K)
     {
