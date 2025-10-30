@@ -34,13 +34,13 @@ template <typename ADataType,
           uint32_t BlockM,
           uint32_t BlockN,
           uint32_t BlockKTest,
-          uint32_t GfxTargetId>
+          amdgcn_target_arch_id GfxTargetId>
 struct MfmaDefaultSelector
 {
     private:
     // TODO: Move this power-of-2 check to a type_traits utility
     static_assert((BlockKTest & (BlockKTest - 1)) == 0u, "BlockK must be a power of 2");
-    static_assert(is_gfx9_arch_id_v<GfxTargetId>,
+    static_assert(is_gfx9_arch_id(GfxTargetId),
                   "MfmaDefaultSelector only supports gfx9 target IDs");
 
     // Define our candidate MFMA implementation for the current parameters
@@ -85,7 +85,7 @@ template <typename ADataType,
           typename CDataType,
           uint32_t BlockM,
           uint32_t BlockN,
-          uint32_t GfxTargetId>
+          amdgcn_target_arch_id GfxTargetId>
 struct MfmaDefaultSelector<ADataType, BDataType, CDataType, BlockM, BlockN, 1u, GfxTargetId>
 {
     // Default unsupported pass-through if no instruction is found
@@ -119,7 +119,7 @@ template <typename ADataType,
           uint32_t FragM,
           uint32_t FragN,
           uint32_t FragK,
-          uint32_t GfxTargetId>
+          amdgcn_target_arch_id GfxTargetId>
 struct MmaDefaultSelector<ADataType,
                           BDataType,
                           CDataType,

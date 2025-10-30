@@ -28,13 +28,13 @@ template <typename ADataType,
           uint32_t BlockM,
           uint32_t BlockN,
           uint32_t BlockKTest,
-          uint32_t GfxTargetId>
+          amdgcn_target_arch_id GfxTargetId>
 struct WmmaDefaultSelector
 {
     private:
     // TODO: Move this power-of-2 check to a type_traits utility
     static_assert((BlockKTest & (BlockKTest - 1)) == 0u, "BlockK must be a power of 2");
-    static_assert(is_rdna_arch_id_v<GfxTargetId>,
+    static_assert(is_rdna_arch_id(GfxTargetId),
                   "WmmaDefaultSelector only supports rdna target IDs");
 
     // By default, let's assume no special flags for WMMA
@@ -84,7 +84,7 @@ template <typename ADataType,
           typename CDataType,
           uint32_t BlockM,
           uint32_t BlockN,
-          uint32_t GfxTargetId>
+          amdgcn_target_arch_id GfxTargetId>
 struct WmmaDefaultSelector<ADataType, BDataType, CDataType, BlockM, BlockN, 1u, GfxTargetId>
 {
     // By default, let's assume no special flags for WMMA
@@ -114,7 +114,7 @@ template <typename ADataType,
           uint32_t FragM,
           uint32_t FragN,
           uint32_t FragK,
-          uint32_t GfxTargetId>
+          amdgcn_target_arch_id GfxTargetId>
 struct MmaDefaultSelector<ADataType,
                           BDataType,
                           CDataType,

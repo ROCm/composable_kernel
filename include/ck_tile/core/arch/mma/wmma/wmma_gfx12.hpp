@@ -25,7 +25,7 @@ namespace ck_tile::core::arch::mma {
  * @tparam CtrlFlags Control flags for the WMMA operation
  * @tparam GfxTargetId Graphics target identifier
  */
-template <typename CtrlFlags, uint32_t GfxTargetId>
+template <typename CtrlFlags, amdgcn_target_arch_id GfxTargetId>
 struct amdgcn_mma<fp16_t,
                   fp16_t,
                   fp32_t,

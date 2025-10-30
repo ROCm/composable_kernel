@@ -22,7 +22,7 @@ struct PassThroughTransform
 //  *  @tparam GfxTargetId The target architecture ID.
 //  *  @tparam Enable SFINAE parameter for specialization.
 //  */
-template <MmaOpI MmaOp, uint32_t GfxTargetId, typename Enable = void>
+template <MmaOpI MmaOp, amdgcn_target_arch_id GfxTargetId, typename Enable = void>
 struct MmaTransformsDefaultSelector;
 
 // /*! @concept MmaTransformsI
@@ -32,10 +32,10 @@ struct MmaTransformsDefaultSelector;
 template <typename MmaTransforms>
 concept MmaTransformsI = requires(MmaTransforms transforms) {
     // Transforms should define TransformA, TransformB, TransformC, and TransformD types
-    typename MmaTransforms::TransformA;
-    typename MmaTransforms::TransformB;
-    typename MmaTransforms::TransformC;
-    typename MmaTransforms::TransformD;
+    typename MmaTransforms::ATransform;
+    typename MmaTransforms::BTransform;
+    typename MmaTransforms::CTransform;
+    typename MmaTransforms::DTransform;
 };
 
 } // namespace ck_tile::core::arch::mma

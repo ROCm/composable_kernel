@@ -71,7 +71,7 @@ template <typename ADataType,
           uint32_t BlockN,
           uint32_t BlockK,
           typename CtrlFlags,
-          uint32_t GfxTargetId,
+          amdgcn_target_arch_id GfxTargetId,
           typename Enabler = void>
 struct amdgcn_mma
 {

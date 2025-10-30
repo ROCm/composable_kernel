@@ -32,7 +32,7 @@ template <typename ADataType,
           uint32_t FragM,
           uint32_t FragN,
           uint32_t FragK,
-          uint32_t GfxTargetId,
+          amdgcn_target_arch_id GfxTargetId,
           typename Enable = void>
 struct MmaDefaultSelector
 {

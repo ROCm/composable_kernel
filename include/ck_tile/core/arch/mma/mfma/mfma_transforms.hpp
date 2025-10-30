@@ -23,7 +23,7 @@ struct MmaDefaultTransformsGfx9
  * @tparam MmaOp Mma operation
  * @tparam GfxTargetId Graphics target id
  */
-template <MmaOpI MmaOp, uint32_t GfxTargetId>
+template <MmaOpI MmaOp, amdgcn_target_arch_id GfxTargetId>
 struct MmaTransformsDefaultSelector<MmaOp, GfxTargetId, enable_if_gfx9_target_id_t<GfxTargetId>>
 {
     using SelectedTransforms = MmaDefaultTransformsGfx9;

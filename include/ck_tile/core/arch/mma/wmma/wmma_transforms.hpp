@@ -77,7 +77,7 @@ struct MmaDefaultTransformsGfx12
  * @tparam MmaOp Mma operation
  * @tparam GfxTargetId Graphics target identifier
  */
-template <MmaOpI MmaOp, uint32_t GfxTargetId>
+template <MmaOpI MmaOp, amdgcn_target_arch_id GfxTargetId>
 struct MmaTransformsDefaultSelector<MmaOp, GfxTargetId, enable_if_gfx11_target_id_t<GfxTargetId>>
 {
     using SelectedTransforms = MmaDefaultTransformsGfx11;
@@ -88,7 +88,7 @@ struct MmaTransformsDefaultSelector<MmaOp, GfxTargetId, enable_if_gfx11_target_i
  * @tparam MmaOp Mma operation
  * @tparam GfxTargetId Graphics target identifier
  */
-template <MmaOpI MmaOp, uint32_t GfxTargetId>
+template <MmaOpI MmaOp, amdgcn_target_arch_id GfxTargetId>
 struct MmaTransformsDefaultSelector<MmaOp, GfxTargetId, enable_if_gfx12_target_id_t<GfxTargetId>>
 {
     using SelectedTransforms = MmaDefaultTransformsGfx12;

@@ -18,30 +18,29 @@ struct DummyCtrlFlags
 {
 };
 
-// Define a new dummy architecture ID for testing
-constexpr uint32_t DummyGfxTargetId = 55555u;
+constexpr uint32_t DummyGfxTargetIdVal = 55555u;
+
+// Spoof a new dummy architecture ID for testing
+constexpr amdgcn_target_arch_id DummyGfxTargetId =
+    static_cast<amdgcn_target_arch_id>(DummyGfxTargetIdVal);
 
 // Define a new dummy op type
 struct DummyOpType;
 
-// Define an architecture test to include the dummy gfx target ID
-template <uint32_t GfxTargetId>
-struct is_dummy_arch_id : is_any_value_of<uint32_t, GfxTargetId, DummyGfxTargetId>
+/*! @brief Returns true if the given arch_id is a gfx11 architecture */
+constexpr bool is_dummy_arch_id(amdgcn_target_arch_id arch_id)
 {
-};
-
-// Convenience evaluator
-template <uint32_t GfxTargetId>
-static constexpr bool is_dummy_arch_id_v = is_dummy_arch_id<GfxTargetId>::value;
+    return static_cast<uint32_t>(arch_id) == DummyGfxTargetIdVal;
+}
 
 // Enable if for dummy architecture ID
-template <uint32_t GfxTargetId>
-using enable_if_dummy_arch_id_t = std::enable_if_t<is_dummy_arch_id_v<GfxTargetId>>;
+template <amdgcn_target_arch_id GfxTargetId>
+using enable_if_dummy_arch_id_t = std::enable_if_t<is_dummy_arch_id(GfxTargetId)>;
 
 // Specialization of amdgcn_mma for a supported dummy architecture.
 // This way, we don't have to worry about underlying architectural details,
 // and can focus on testing the mechanism of selecting supported vs unsupported architectures.
-template <uint32_t GfxTargetId>
+template <amdgcn_target_arch_id GfxTargetId>
 struct amdgcn_mma<fp32_t,
                   fp32_t,
                   fp32_t,
@@ -82,7 +81,7 @@ struct amdgcn_mma<fp32_t,
 };
 
 // Have an alias so we can test supported arch vs unsupported arch
-template <uint32_t GfxTargetId>
+template <amdgcn_target_arch_id GfxTargetId>
 using DummyAmdgcnMma =
     amdgcn_mma<fp32_t, fp32_t, fp32_t, 16u, 16u, 16u, DummyCtrlFlags, GfxTargetId>;
 
@@ -102,7 +101,7 @@ template <typename ADataType,
           uint32_t FragM,
           uint32_t FragN,
           uint32_t FragK,
-          uint32_t GfxTargetId>
+          amdgcn_target_arch_id GfxTargetId>
 struct MmaDefaultSelector<ADataType,
                           BDataType,
                           CDataType,
@@ -152,8 +151,8 @@ TEST(TestAmdgcnMma, ArchSupported)
 // Test case for unsupported architecture
 TEST(TestAmdgcnMma, ArchUnsupported)
 {
-    // Use an unsupported GfxTargetId (e.g., 1)
-    constexpr uint32_t UnsupportedGfxTargetId = 1;
+    // Use an unsupported GfxTargetId (e.g., Host)
+    constexpr auto UnsupportedGfxTargetId = amdgcn_target_arch_id::HOST;
 
     // Instantiate MmaOp with the dummy unsupported GfxTargetId
     using MmaOp = DummyAmdgcnMma<UnsupportedGfxTargetId>;
@@ -254,9 +253,9 @@ TEST(TestAmdgcnMma, ArchSupportedExecDeviceOutput)
 
 TEST(TestAmdgcnMma, ArchUnsupportedExecDeviceOutput)
 {
-    constexpr uint32_t UnsupportedGfxTargetId = 1;
-    using MmaOp                               = DummyAmdgcnMma<UnsupportedGfxTargetId>;
-    using DataType                            = fp32_t;
+    constexpr auto UnsupportedGfxTargetId = amdgcn_target_arch_id::HOST;
+    using MmaOp                           = DummyAmdgcnMma<UnsupportedGfxTargetId>;
+    using DataType                        = fp32_t;
 
     typename MmaOp::AVecType h_a{};
     typename MmaOp::BVecType h_b{};
@@ -321,9 +320,9 @@ TEST(TestAmdgcnMma, MmaOpParamsTraitsSupportedMembers)
 // Test MmaOpParams for unsupported DummyAmdgcnMma, including all member variables
 TEST(TestAmdgcnMma, MmaOpParamsUnsupportedMembers)
 {
-    constexpr uint32_t UnsupportedGfxTargetId = 1;
-    using MmaOp                               = DummyAmdgcnMma<UnsupportedGfxTargetId>;
-    using Traits                              = MmaOpParams<MmaOp>;
+    constexpr auto UnsupportedGfxTargetId = amdgcn_target_arch_id::HOST;
+    using MmaOp                           = DummyAmdgcnMma<UnsupportedGfxTargetId>;
+    using Traits                          = MmaOpParams<MmaOp>;
 
     // Check MmaOpParams members
     EXPECT_TRUE((std::is_same<typename Traits::ADataType, fp32_t>::value));
@@ -364,9 +363,9 @@ TEST(TestAmdgcnMma, MmaOpTraitsSupportedMembers)
 // Test MmaOpTraits for unsupported DummyAmdgcnMma, including all member variables
 TEST(TestAmdgcnMma, MmaOpTraitsUnsupportedMembers)
 {
-    constexpr uint32_t UnsupportedGfxTargetId = 1;
-    using MmaOp                               = DummyAmdgcnMma<UnsupportedGfxTargetId>;
-    using Traits                              = MmaOpTraits<MmaOp>;
+    constexpr auto UnsupportedGfxTargetId = amdgcn_target_arch_id::HOST;
+    using MmaOp                           = DummyAmdgcnMma<UnsupportedGfxTargetId>;
+    using Traits                          = MmaOpTraits<MmaOp>;
 
     // Check MmaOpTraits member variables
     EXPECT_TRUE((std::is_same<typename Traits::OpType, Unsupported>::value));
@@ -407,7 +406,7 @@ TEST(TestAmdgcnMma, MmaDefaultSelectorSupported)
 TEST(TestAmdgcnMma, MmaDefaultSelectorUnsupported)
 {
     // Direct selection of the unsupported dummy instruction
-    constexpr uint32_t UnsupportedGfxTargetId = 1;
+    constexpr auto UnsupportedGfxTargetId = amdgcn_target_arch_id::HOST;
     using SelectedMma =
         MmaDefaultSelector<fp32_t, fp32_t, fp32_t, 16u, 16u, 16u, UnsupportedGfxTargetId>::
             SelectedOp;
@@ -445,7 +444,7 @@ TEST(TestAmdgcnMma, MmaDefaultSelectorUnsupportedFragment)
 // Test MmaDefaultSelector for a different data type (fp16_t) and unsupported arch
 TEST(TestAmdgcnMma, MmaDefaultSelectorFp16Unsupported)
 {
-    constexpr uint32_t UnsupportedGfxTargetId = 1;
+    constexpr auto UnsupportedGfxTargetId = amdgcn_target_arch_id::HOST;
     using SelectedMma =
         MmaDefaultSelector<fp16_t, fp16_t, fp16_t, 16u, 16u, 16u, UnsupportedGfxTargetId>::
             SelectedOp;
@@ -454,14 +453,18 @@ TEST(TestAmdgcnMma, MmaDefaultSelectorFp16Unsupported)
     EXPECT_FALSE(MmaOpTraits<SelectedMma>::IsSupported);
 }
 
-// Kernel to test amdgcn_mma::exec on device
+// Test on real hardware for MmaOp selection.
+// This is not a GEMM kernel, but a simple test to ensure that the selected MmaOp works correctly on
+// real hardware. Assumption: inputs are all 1's The multiply-accumulate functionality can be tested
+// here by looping over the k dimension and accumulating the results. They should be equal to FragK
+// regardless of hardware.
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
           uint32_t FragM,
           uint32_t FragN,
           uint32_t FragK>
-__global__ void test_real_mma_selector_kernel(void* a, void* b, void* c, void* out)
+__global__ void test_accum_over_k(void* a, void* b, void* c, void* out)
 {
     using Selector = MmaDefaultSelector<ADataType,
                                         BDataType,
@@ -493,7 +496,7 @@ __global__ void test_real_mma_selector_kernel(void* a, void* b, void* c, void* o
 }
 
 // Do a live test. At minimum, there should be a solution on real hardware for F16_F16_F32_16x16x32
-TEST(TestAmdgcnMma, F16_F16_F32_16x16x32_Real)
+TEST(TestAmdgcnMma, MmaSelector_F16_F16_F32_16x16x32_Real)
 {
     int devCount;
     hipDevice_t dev;
@@ -503,17 +506,11 @@ TEST(TestAmdgcnMma, F16_F16_F32_16x16x32_Real)
     hipDeviceProp_t devProp;
     HIP_CHECK_ERROR(hipGetDeviceProperties(&devProp, dev));
 
-    std::string deviceName(devProp.gcnArchName);
-
-    bool isGfx11 = (deviceName.find("gfx1100") != std::string::npos) ||
-                   (deviceName.find("gfx1101") != std::string::npos) ||
-                   (deviceName.find("gfx1102") != std::string::npos) ||
-                   (deviceName.find("gfx1153") != std::string::npos);
-
+    auto currentArchId = gfx_target_string_to_arch_id(devProp.gcnArchName);
     bool hasDevice     = static_cast<bool>(devCount > 0);
     int deviceWarpSize = devProp.warpSize;
 
-    if(!hasDevice)
+    if(!hasDevice || !(is_cdna_arch_id(currentArchId) || is_rdna_arch_id(currentArchId)))
     {
         GTEST_SKIP() << "No HIP device found. Skipping test.";
     }
@@ -526,10 +523,11 @@ TEST(TestAmdgcnMma, F16_F16_F32_16x16x32_Real)
     static constexpr uint32_t BlockN = 16;
     static constexpr uint32_t BlockK = 32;
 
-    // Gfx11 has data duplication and accumulator padding
+    // Gfx11 has input data duplication and no accumulator padding (MultiplierC = 1)
+    bool isGfx11         = is_gfx11_arch_id(currentArchId);
     uint32_t MultiplierA = isGfx11 ? 2 : 1;
     uint32_t MultiplierB = isGfx11 ? 2 : 1;
-    uint32_t MultiplierC = ((isGfx11 && (sizeof(CType) < sizeof(float)))) ? 2 : 1;
+    uint32_t MultiplierC = 1;
 
     // The number of elements per thread
     uint32_t AElements = BlockM * BlockK / deviceWarpSize * MultiplierA;
@@ -562,8 +560,7 @@ TEST(TestAmdgcnMma, F16_F16_F32_16x16x32_Real)
     HIP_CHECK_ERROR(hipMemcpy(d_c, h_c.data(), CSize, hipMemcpyHostToDevice));
 
     // Need at least 1 WG with 64 threads to get defined MFMA/WMMA behaviour
-    test_real_mma_selector_kernel<AType, BType, CType, BlockM, BlockN, BlockK>
-        <<<1, 64>>>(d_a, d_b, d_c, d_out);
+    test_accum_over_k<AType, BType, CType, BlockM, BlockN, BlockK><<<1, 64>>>(d_a, d_b, d_c, d_out);
     HIP_CHECK_ERROR(hipDeviceSynchronize());
 
     HIP_CHECK_ERROR(hipMemcpy(h_out.data(), d_out, CSize, hipMemcpyDeviceToHost));

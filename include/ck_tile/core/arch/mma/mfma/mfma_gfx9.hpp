@@ -50,7 +50,7 @@ concept CtrlFlagsGfx9I = requires(CtrlFlags ctrlFlags) {
  * @tparam CtrlFlags Control flags for the MFMA operation
  * @tparam GfxTargetId Target architecture ID
  */
-template <CtrlFlagsGfx9I CtrlFlags, uint32_t GfxTargetId>
+template <CtrlFlagsGfx9I CtrlFlags, amdgcn_target_arch_id GfxTargetId>
 struct amdgcn_mma<fp16_t,
                   fp16_t,
                   fp32_t,
@@ -104,7 +104,7 @@ struct amdgcn_mma<fp16_t,
  * @tparam CtrlFlags Control flags for the MFMA operation
  * @tparam GfxTargetId Target architecture ID
  */
-template <CtrlFlagsGfx9I CtrlFlags, uint32_t GfxTargetId>
+template <CtrlFlagsGfx9I CtrlFlags, amdgcn_target_arch_id GfxTargetId>
 struct amdgcn_mma<fp16_t,
                   fp16_t,
                   fp32_t,

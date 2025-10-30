@@ -56,7 +56,7 @@ concept MmaOpParamsI = requires(MmaOpParams op) {
     { MmaOpParams::BlockM } -> std::convertible_to<unsigned int>;
     { MmaOpParams::BlockN } -> std::convertible_to<unsigned int>;
     { MmaOpParams::BlockK } -> std::convertible_to<unsigned int>;
-    { MmaOpParams::GfxTargetId } -> std::convertible_to<unsigned int>;
+    { MmaOpParams::GfxTargetId } -> std::convertible_to<amdgcn_target_arch_id>;
 };
 
 /*! @struct MmaOpParams
@@ -77,7 +77,7 @@ template <typename ADataType_,
           uint32_t BlockN_,
           uint32_t BlockK_,
           typename CtrlFlags_,
-          uint32_t GfxTargetId_>
+          amdgcn_target_arch_id GfxTargetId_>
 struct MmaOpParams<amdgcn_mma<ADataType_,
                               BDataType_,
                               CDataType_,
@@ -88,14 +88,14 @@ struct MmaOpParams<amdgcn_mma<ADataType_,
                               GfxTargetId_>>
 {
     // Capture incoming template parameters
-    using ADataType                       = ADataType_;
-    using BDataType                       = BDataType_;
-    using CDataType                       = CDataType_;
-    static constexpr uint32_t BlockM      = BlockM_;
-    static constexpr uint32_t BlockN      = BlockN_;
-    static constexpr uint32_t BlockK      = BlockK_;
-    using CtrlFlags                       = CtrlFlags_;
-    static constexpr uint32_t GfxTargetId = GfxTargetId_;
+    using ADataType                                    = ADataType_;
+    using BDataType                                    = BDataType_;
+    using CDataType                                    = CDataType_;
+    static constexpr uint32_t BlockM                   = BlockM_;
+    static constexpr uint32_t BlockN                   = BlockN_;
+    static constexpr uint32_t BlockK                   = BlockK_;
+    using CtrlFlags                                    = CtrlFlags_;
+    static constexpr amdgcn_target_arch_id GfxTargetId = GfxTargetId_;
 };
 
 // /*! @struct MmaOpTraits
