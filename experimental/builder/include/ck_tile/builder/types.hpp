@@ -87,4 +87,41 @@ enum class ConvFwdSpecialization
     FILTER_3x3
 };
 
+// Enums for the bacward data convolution specialization.
+enum class ConvBwdDataSpecialization
+{
+    DEFAULT,
+    FILTER_1X1_STRIDE1_PAD0,
+};
+
+// Enums for the bacward weight convolution specialization.
+enum class ConvBwdWeightSpecialization
+{
+    DEFAULT,
+    FILTER_1X1_STRIDE1_PAD0,
+    FILTER_1X1_PAD0,
+    ODD_C,
+};
+
+// Enums for the Gemm padding.
+enum class GemmPadding
+{
+    DEFAULT,
+    M_PADDING,
+    N_PADDING,
+    K_PADDING,
+    MN_PADDING,
+    MK_PADDING,
+    NK_PADDING,
+    MNK_PADDING,
+    O_PADDING,
+    MO_PADDING,
+    NO_PADDING,
+    KO_PADDING,
+    MNO_PADDING,
+    MKO_PADDING,
+    NKO_PADDING,
+    MNKO_PADDING,
+};
+
 } // namespace ck_tile::builder
