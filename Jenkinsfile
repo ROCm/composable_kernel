@@ -1287,21 +1287,14 @@ pipeline {
         DOCKER_BUILDKIT = "1"
     }
     stages{
-        stage("No GPU found test") {
-            agent{ label rocmnode("nogpu") }
-            steps {
-                script {
-                    echo "GPU not found"
-                    sh 'false';
-                }
-            }
-        }
         stage("Determine CI Execution") {
             agent{ label rocmnode("nogpu") }
             steps {
                 script {
                     env.SHOULD_RUN_CI = String.valueOf(params.FORCE_CI.toBoolean() || shouldRunCICheck())
                     echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
+                    echo "GPU not found"
+                    sh 'false';
                 }
             }
         }
