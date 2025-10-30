@@ -125,7 +125,7 @@ WARP_TILE_SUPPORTED_COMBINATIONS = {
             [32, 32, 64],
         ],
     },
-    "gfx1201": {
+    "gfx1201": {  # Check how to handle for GEMM and Multi D
         "fp16_fp16_fp16": [
             [16, 16, 16],
         ],
