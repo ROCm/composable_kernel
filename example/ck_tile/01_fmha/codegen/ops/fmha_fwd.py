@@ -911,8 +911,6 @@ def get_fwd_blobs(
                         continue
                 if pipeline.tag == "qr_wholek_prefetch" and (((hdim, hdim_v) == (128, 128) and tile.F_bm0 == 128)):
                     continue
-                if pipeline.tag in ['qr_async','qr','qr_async_trload'] and (((hdim, hdim_v) == (128, 128) and tile.F_bm0 == 64)):
-                    continue
                 # logits_soft_cap is only allowed if no bias
                 if not (
                     (pipeline.F_logits == "t" and pipeline.F_bias == "no")
