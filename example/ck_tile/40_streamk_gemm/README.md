@@ -28,7 +28,7 @@ args:
           -stride_b    tensor B stride (default:0)
           -stride_c    tensor C stride (default:0)
                  -v    validation strategy. 0. No validation, 1. Validation on CPU, 2. Validation on GPU (default:1)
-              -prec    data type. fp16/bf16 (default:fp16)
+              -prec    data type. fp16/bf16/fp8/bf8 (default:fp16)
             -warmup    number of iterations before benchmarking the kernel (default:50)
             -repeat    number of iterations to benchmark the kernel (default:100)
              -timer    timing mode. gpu:gpu timer, cpu:cpu timer (default:gpu)
