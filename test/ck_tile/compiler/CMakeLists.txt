@@ -6,7 +6,7 @@
 # =================================================================================
 
 # This test suite contains a curated set of CK Tile tests specifically designed for compiler
-# CI nodes. The goal is to provide comprehensive coverage while completing within 20-30 minutes
+# CI nodes. The goal is to provide comprehensive coverage while completing within 20-30 minutes.
 
 set(COMPILER_TEST_COMPILE_OPTIONS)
 if(CK_USE_OCP_FP8)
@@ -24,7 +24,7 @@ endif()
 
 # ===============================================================================
 
-if(GPU_TARGETS MATCHES "gfx94|gfx95|")
+if(GPU_TARGETS MATCHES "gfx94|gfx95")
     # Test basic tests for MI300 series
     add_gtest_executable(test_ck_tile_gemm_pipeline_basic_fp8_compiler ../gemm/test_gemm_pipeline_basic_fp8.cpp)
     target_compile_options(test_ck_tile_gemm_pipeline_basic_fp8_compiler PRIVATE ${COMPILER_TEST_COMPILE_OPTIONS})
@@ -44,8 +44,8 @@ endif()
 if(GPU_TARGETS MATCHES "gfx11|gfx12")
     # mem_wmma for Radeon GPU's
     add_gtest_executable(test_ck_tile_gemm_pipeline_mem_wmma_compiler ../gemm/test_gemm_pipeline_mem_wmma.cpp)
-    target_compile_options(test_ck_tile_gemm_pipeline_mem_compiler PRIVATE ${COMPILER_TEST_COMPILE_OPTIONS})
-    set_tests_properties(test_ck_tile_gemm_pipeline_mem_compiler PROPERTIES LABELS "COMPILE_CI")
+    target_compile_options(test_ck_tile_gemm_pipeline_mem_wmma_compiler PRIVATE ${COMPILER_TEST_COMPILE_OPTIONS})
+    set_tests_properties(test_ck_tile_gemm_pipeline_mem_wmma_compiler PROPERTIES LABELS "COMPILE_CI")
 endif()
 
 #================================================================================
@@ -64,7 +64,6 @@ endif()
 
 if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
     add_gtest_executable(test_ck_tile_grouped_gemm_compiler ../grouped_gemm/test_grouped_gemm.cpp)
-
     set_tests_properties(test_ck_tile_grouped_gemm_compiler PROPERTIES LABELS "COMPILE_CI")
 endif()
 
@@ -77,7 +76,7 @@ if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
     if(result EQUAL 0)
         target_link_libraries(test_ck_tile_reduce2d_compiler PRIVATE utility)
     endif()
-    set_tests_properties(test_ck_tile_reduce2d_compiler PROPERTIES LABELS "COMPILER_CI")
+    set_tests_properties(test_ck_tile_reduce2d_compiler PROPERTIES LABELS "COMPILE_CI")
 endif()
 
 #================================================================================
@@ -151,4 +150,57 @@ endif()
 if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
     add_gtest_executable(test_ck_tile_pooling_compiler ../pooling/test_pooling.cpp)
     set_tests_properties(test_ck_tile_pooling_compiler PROPERTIES LABELS "COMPILE_CI")
+endif()
+
+# ================================================================================
+# Custom Target: Build All Compiler Tests
+# ================================================================================
+
+add_custom_target(compiler_tests)
+
+# Add dependencies for all compiler test executables
+if(TARGET test_ck_tile_gemm_pipeline_basic_fp16_compiler)
+    add_dependencies(compiler_tests test_ck_tile_gemm_pipeline_basic_fp16_compiler)
+endif()
+if(TARGET test_ck_tile_gemm_pipeline_basic_fp8_compiler)
+    add_dependencies(compiler_tests test_ck_tile_gemm_pipeline_basic_fp8_compiler)
+endif()
+if(TARGET test_ck_tile_gemm_pipeline_mem_compiler)
+    add_dependencies(compiler_tests test_ck_tile_gemm_pipeline_mem_compiler)
+endif()
+if(TARGET test_ck_tile_gemm_pipeline_mem_wmma_compiler)
+    add_dependencies(compiler_tests test_ck_tile_gemm_pipeline_mem_wmma_compiler)
+endif()
+if(TARGET test_ck_tile_batched_gemm_compiler)
+    add_dependencies(compiler_tests test_ck_tile_batched_gemm_compiler)
+endif()
+if(TARGET test_ck_tile_grouped_gemm_compiler)
+    add_dependencies(compiler_tests test_ck_tile_grouped_gemm_compiler)
+endif()
+if(TARGET test_ck_tile_reduce2d_compiler)
+    add_dependencies(compiler_tests test_ck_tile_reduce2d_compiler)
+endif()
+if(TARGET test_ck_tile_pk_int4_compiler)
+    add_dependencies(compiler_tests test_ck_tile_pk_int4_compiler)
+endif()
+if(TARGET test_ck_tile_cshuffle_epilogue_compiler)
+    add_dependencies(compiler_tests test_ck_tile_cshuffle_epilogue_compiler)
+endif()
+if(TARGET test_ck_tile_elementwise_1d_compiler)
+    add_dependencies(compiler_tests test_ck_tile_elementwise_1d_compiler)
+endif()
+if(TARGET test_ck_tile_tuple_apply_compiler)
+    add_dependencies(compiler_tests test_ck_tile_tuple_apply_compiler)
+endif()
+if(TARGET test_atomic_compiler)
+    add_dependencies(compiler_tests test_atomic_compiler)
+endif()
+if(TARGET test_ck_tile_batched_transpose_compiler)
+    add_dependencies(compiler_tests test_ck_tile_batched_transpose_compiler)
+endif()
+if(TARGET test_tile_image_to_column_compiler)
+    add_dependencies(compiler_tests test_tile_image_to_column_compiler)
+endif()
+if(TARGET test_ck_tile_pooling_compiler)
+    add_dependencies(compiler_tests test_ck_tile_pooling_compiler)
 endif()
