@@ -128,16 +128,20 @@ struct is_any_of<CompareTo, FirstType, Rest...>
 {
 };
 
-// Utility to check if a value is contained in a list of values at compile time
-template <typename T, T Val, T... Vals>
-struct is_any_value_of
-    : public std::conditional_t<((Val == Vals) || ...), std::true_type, std::false_type>
+/**
+ * @brief Helper to check if a value is in a list of values
+ * @tparam T The type of the search value
+ * @tparam Ts The types of the search list values
+ * @param search The value to search for
+ * @param searchList The list of values to search in
+ * @return true if the search value is in the search list, false otherwise
+ */
+template <typename T, typename... Ts>
+    requires((std::is_convertible<Ts, T>::value && ...) && (sizeof...(Ts) >= 1))
+CK_TILE_HOST_DEVICE static constexpr bool is_any_value_of(T search, Ts... searchList)
 {
-    static_assert(sizeof...(Vals) >= 1u, "Value list must be >= 1");
-};
-
-template <typename T, T Val, T... Vals>
-static constexpr bool is_any_value_of_v = is_any_value_of<T, Val, Vals...>::value;
+    return ((search == static_cast<T>(searchList)) || ...);
+}
 
 // Helper to check if a type is a specialization of a given template
 template <typename Test, template <typename...> class RefTemplate>

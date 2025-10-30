@@ -96,69 +96,106 @@ constexpr inline auto gfx_target_string_to_arch_id(char const* testStr)
 {
     auto str = std::string(testStr);
     if(str.find("gfx908") != std::string::npos)
+    {
         return amdgcn_target_arch_id::GFX908;
-    if(str.find("gfx90a") != std::string::npos)
+    }
+    else if(str.find("gfx90a") != std::string::npos)
+    {
         return amdgcn_target_arch_id::GFX90A;
-    if(str.find("gfx942") != std::string::npos)
+    }
+    else if(str.find("gfx942") != std::string::npos)
+    {
         return amdgcn_target_arch_id::GFX942;
-    if(str.find("gfx950") != std::string::npos)
+    }
+    else if(str.find("gfx950") != std::string::npos)
+    {
         return amdgcn_target_arch_id::GFX950;
-    if(str.find("gfx1100") != std::string::npos)
+    }
+    else if(str.find("gfx1100") != std::string::npos)
+    {
         return amdgcn_target_arch_id::GFX1100;
-    if(str.find("gfx1101") != std::string::npos)
+    }
+    else if(str.find("gfx1101") != std::string::npos)
+    {
         return amdgcn_target_arch_id::GFX1101;
-    if(str.find("gfx1102") != std::string::npos)
+    }
+    else if(str.find("gfx1102") != std::string::npos)
+    {
         return amdgcn_target_arch_id::GFX1102;
-    if(str.find("gfx1151") != std::string::npos)
+    }
+    else if(str.find("gfx1151") != std::string::npos)
+    {
         return amdgcn_target_arch_id::GFX1151;
-    if(str.find("gfx1200") != std::string::npos)
+    }
+    else if(str.find("gfx1200") != std::string::npos)
+    {
         return amdgcn_target_arch_id::GFX1200;
-    if(str.find("gfx1201") != std::string::npos)
+    }
+    else if(str.find("gfx1201") != std::string::npos)
+    {
         return amdgcn_target_arch_id::GFX1201;
-    return amdgcn_target_arch_id::HOST;
+    }
+    else
+    {
+        return amdgcn_target_arch_id::HOST;
+    }
 }
 
 /*! @brief Returns true if the given arch_id is a gfx9 architecture */
-constexpr bool is_gfx9_arch_id(amdgcn_target_arch_id arch_id)
+CK_TILE_HOST_DEVICE constexpr bool is_gfx9_arch_id(amdgcn_target_arch_id arch_id)
 {
-    return arch_id == amdgcn_target_arch_id::GFX908 || arch_id == amdgcn_target_arch_id::GFX90A ||
-           arch_id == amdgcn_target_arch_id::GFX942 || arch_id == amdgcn_target_arch_id::GFX950;
+    return is_any_value_of(arch_id,
+                           amdgcn_target_arch_id::GFX908,
+                           amdgcn_target_arch_id::GFX90A,
+                           amdgcn_target_arch_id::GFX942,
+                           amdgcn_target_arch_id::GFX950);
 }
 /*! @brief Returns true if the given arch_id is a gfx11 architecture */
-constexpr bool is_gfx11_arch_id(amdgcn_target_arch_id arch_id)
+CK_TILE_HOST_DEVICE constexpr bool is_gfx11_arch_id(amdgcn_target_arch_id arch_id)
 {
-    return arch_id == amdgcn_target_arch_id::GFX1100 || arch_id == amdgcn_target_arch_id::GFX1101 ||
-           arch_id == amdgcn_target_arch_id::GFX1102 || arch_id == amdgcn_target_arch_id::GFX1151;
+    return is_any_value_of(arch_id,
+                           amdgcn_target_arch_id::GFX1100,
+                           amdgcn_target_arch_id::GFX1101,
+                           amdgcn_target_arch_id::GFX1102,
+                           amdgcn_target_arch_id::GFX1151);
 }
 
 /*! @brief Returns true if the given arch_id is a gfx12 architecture */
-constexpr bool is_gfx12_arch_id(amdgcn_target_arch_id arch_id)
+CK_TILE_HOST_DEVICE constexpr bool is_gfx12_arch_id(amdgcn_target_arch_id arch_id)
 {
-    return arch_id == amdgcn_target_arch_id::GFX1200 || arch_id == amdgcn_target_arch_id::GFX1201;
+    return is_any_value_of(arch_id, amdgcn_target_arch_id::GFX1200, amdgcn_target_arch_id::GFX1201);
 }
 
 /*! @brief Returns true if the given arch_id is a CDNA architecture */
-constexpr bool is_cdna_arch_id(amdgcn_target_arch_id arch_id) { return is_gfx9_arch_id(arch_id); }
+CK_TILE_HOST_DEVICE constexpr bool is_cdna_arch_id(amdgcn_target_arch_id arch_id)
+{
+    return is_gfx9_arch_id(arch_id);
+}
 
 /*! @brief Returns true if the given arch_id is a RDNA architecture */
-constexpr bool is_rdna_arch_id(amdgcn_target_arch_id arch_id)
+CK_TILE_HOST_DEVICE constexpr bool is_rdna_arch_id(amdgcn_target_arch_id arch_id)
 {
     return is_gfx11_arch_id(arch_id) || is_gfx12_arch_id(arch_id);
 }
 
 /*! @brief Returns true if the given arch_id maps to wave32 (RDNA) */
-constexpr bool is_wave32_arch_id(amdgcn_target_arch_id arch_id) { return is_rdna_arch_id(arch_id); }
+CK_TILE_HOST_DEVICE constexpr bool is_wave32_arch_id(amdgcn_target_arch_id arch_id)
+{
+    return is_rdna_arch_id(arch_id);
+}
 
 /*! @brief Returns true if the given arch_id maps to wave64 (CDNA) */
-constexpr bool is_wave64_arch_id(amdgcn_target_arch_id arch_id) { return is_cdna_arch_id(arch_id); }
+CK_TILE_HOST_DEVICE constexpr bool is_wave64_arch_id(amdgcn_target_arch_id arch_id)
+{
+    return is_cdna_arch_id(arch_id);
+}
 
 /*! @brief SFINAE enabler for target architecture if it is in the list of supported architectures
  * @tparam TargetId The target architecture ID to check
  * @tparam SupportedArchs The list of supported architecture IDs
  */
 template <amdgcn_target_arch_id TargetId, amdgcn_target_arch_id... SupportedArchs>
-using enable_if_target_arch_id_t =
-    std::enable_if_t<is_any_value_of_v<amdgcn_target_arch_id, TargetId, SupportedArchs...>>;
+using enable_if_target_arch_id_t = std::enable_if_t<is_any_value_of(TargetId, SupportedArchs...)>;
 
 /*! @brief SFINAE enabler for target architecture if it is CDNA arch
  * @tparam TargetId The target architecture ID to check
