@@ -46,5 +46,4 @@ struct BlockFmhaPipelineEnumToStr<BlockFmhaPipelineEnum::QRKSVS_WHOLEK_PREFETCH>
     static constexpr const char* name = "qr_wholek_prefetch";
 };
 
-
 } // namespace ck_tile
