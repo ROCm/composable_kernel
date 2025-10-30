@@ -8,7 +8,22 @@ import multiprocessing
 import concurrent.futures
 from pathlib import Path
 import logging
-from commons.validation_utils import (
+import sys
+
+
+def _setup_path():
+    """Setup path to allow importing from commons directory."""
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+    if parent_dir not in sys.path:
+        sys.path.insert(0, parent_dir)
+
+
+# Setup path before imports
+_setup_path()
+
+# Now import local modules
+from commons.validation_utils import (  # noqa: E402
     is_tile_config_valid,
     is_trait_combination_valid,
     get_dtype_string,
