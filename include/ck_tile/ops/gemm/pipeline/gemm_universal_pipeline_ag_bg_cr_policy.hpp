@@ -71,7 +71,7 @@ struct UniversalGemmBasePolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
+    CK_TILE_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
 
         using ADataType             = remove_cvref_t<typename Problem::ADataType>;
@@ -141,7 +141,7 @@ struct UniversalGemmBasePolicy
      * @return B tensor LDS block descriptor.
      */
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
+    CK_TILE_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
         using BDataType = remove_cvref_t<typename Problem::BDataType>;
 
@@ -660,18 +660,20 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
     {
-        constexpr auto a_lds_desc     = MakeALdsBlockDescriptor<Problem>();
-        constexpr index_t smem_size_a = integer_least_multiple(
-            sizeof(typename Problem::ADataType) * a_lds_desc.get_element_space_size(), 16);
+        constexpr index_t smem_size_a =
+            integer_least_multiple(sizeof(typename Problem::ADataType) *
+                                       Problem::BlockGemmShape::kM * Problem::BlockGemmShape::kK,
+                                   16);
         return smem_size_a;
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeB()
     {
-        constexpr auto b_lds_desc     = MakeBLdsBlockDescriptor<Problem>();
-        constexpr index_t smem_size_b = integer_least_multiple(
-            sizeof(typename Problem::BDataType) * b_lds_desc.get_element_space_size(), 16);
+        constexpr index_t smem_size_b =
+            integer_least_multiple(sizeof(typename Problem::BDataType) *
+                                       Problem::BlockGemmShape::kN * Problem::BlockGemmShape::kK,
+                                   16);
         return smem_size_b;
     }
 
