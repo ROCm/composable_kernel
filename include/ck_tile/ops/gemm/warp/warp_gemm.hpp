@@ -384,9 +384,9 @@ using WarpGemmMfma_f32_32x32x16_bf8_bf8_CTransposed =
         WarpGemmAttributeMfmaImpl_f32_32x32x16_bf8_bf8<WGAttrCtlEnum::Default_>>>;
 
 template <index_t swizzle_factor = 2>
-using WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution =
+using WarpGemmMfmaFp8Fp8F32M32N32K32SwizzleBTransposedCDistribution =
     WarpGemmImpl<WarpGemmAttributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
-        WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<fp8_t, fp8_t, WGAttrCtlEnum::Default_>,
+        WarpGemmAttributeMfmaImpl_f32_32x32x16_fp8_fp8<WGAttrCtlEnum::Default_>,
         2,
         swizzle_factor>>;
 
