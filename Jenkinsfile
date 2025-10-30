@@ -1293,8 +1293,6 @@ pipeline {
                 script {
                     env.SHOULD_RUN_CI = String.valueOf(params.FORCE_CI.toBoolean() || shouldRunCICheck())
                     echo "SHOULD_RUN_CI: ${env.SHOULD_RUN_CI}"
-                    echo "GPU not found"
-                    sh 'false';
                 }
             }
         }
