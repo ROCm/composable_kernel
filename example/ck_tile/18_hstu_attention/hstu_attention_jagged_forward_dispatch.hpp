@@ -15,8 +15,10 @@
 #include "hstu_attention_hdim_switch.hpp"
 #include "hstu_attention_pipeline_problem.hpp"
 #include "hstu_attention_traits.hpp"
-#include "hstu_attention_fwd_pipeline.hpp"
-#include "hstu_attention_fwd_trload_pipeline.hpp"
+#include "hstu_attention_with_softmax_fwd_pipeline.hpp"
+#include "hstu_attention_no_softmax_fwd_pipeline.hpp"
+#include "hstu_attention_with_softmax_fwd_trload_pipeline.hpp"
+#include "hstu_attention_no_softmax_fwd_trload_pipeline.hpp"
 #include "hstu_attention_fwd_kernel.hpp"
 #include "hstu_attention_epilogue.hpp"
 
@@ -82,13 +84,28 @@ struct jagged_forward_causal_softmax_bias_dropout_dispatch
                 kPadSeqLenQ,
                 kPadHeadDimV>>;
 
-            using HstuPipeline = std::conditional_t<
-                kUseTrLoad,
-                ck_tile::HstuAttentionFwdPipelineQRKSVSTrLoad<HstuPipelineProblem>,
-                ck_tile::HstuAttentionFwdPipelineQRKSVS<HstuPipelineProblem>>;
-            using HstuKernel = ck_tile::HstuAttentionFwdKernel<HstuPipeline, HstuEpilogue>;
+            if constexpr(!kUseTrLoad)
+            {
+                using HstuPipeline = std::conditional_t<
+                    kUseSoftmax,
+                    ck_tile::HstuAttentionWithSoftmaxFwdPipelineQRKSVS<HstuPipelineProblem>,
+                    ck_tile::HstuAttentionNoSoftmaxFwdPipelineQRKSVS<HstuPipelineProblem>>;
 
-            RunWithKernel<HstuKernel>(param, stream);
+                using HstuKernel = ck_tile::HstuAttentionFwdKernel<HstuPipeline, HstuEpilogue>;
+
+                RunWithKernel<HstuKernel>(param, stream);
+            }
+            else
+            {
+                using HstuPipeline = std::conditional_t<
+                    kUseSoftmax,
+                    ck_tile::HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad<HstuPipelineProblem>,
+                    ck_tile::HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad<HstuPipelineProblem>>;
+
+                using HstuKernel = ck_tile::HstuAttentionFwdKernel<HstuPipeline, HstuEpilogue>;
+
+                RunWithKernel<HstuKernel>(param, stream);
+            };
         });
     };
 
