@@ -33,6 +33,14 @@ struct elementwise_op_traits<ck_tile::element_wise::Relu>
     static constexpr int num_inputs = 1;
 };
 
+using NegRelu =
+    ck_tile::element_wise::Compose<ck_tile::element_wise::Relu, ck_tile::element_wise::Neg>;
+template <>
+struct elementwise_op_traits<NegRelu>
+{
+    static constexpr int num_inputs = 1;
+};
+
 template <std::size_t D, typename F>
 auto make_uniform_array_with_factory(F&& factory)
 {
@@ -92,43 +100,52 @@ class TestCkTileElementwise : public ::testing::Test
 
         YDataType* p_y_device = static_cast<YDataType*>(d_y_mem.GetDeviceBuffer());
 
+        auto run_elementwise_kernel = [&](auto has_remainder) {
+            constexpr bool kPad = decltype(has_remainder)::value;
+            using Problem       = ck_tile::ElementWisePipelineProblem<XDataType,
+                                                                      ComputeDataType,
+                                                                      YDataType,
+                                                                      TestElementWiseShape,
+                                                                      ElementwiseOpType,
+                                                                      kPad>;
+            using Policy        = ck_tile::ElementWiseDefaultPolicy;
+            ck_tile::ElementWiseKernel<Problem, Policy> ew_kernel;
+
+            ck_tile::index_t grid_size = (total_m_elements + TestElementWiseShape::kBlockM - 1) /
+                                         TestElementWiseShape::kBlockM;
+            dim3 grid(grid_size, 1, 1);
+            dim3 block                             = dim3(ew_kernel.BlockSize());
+            constexpr ck_tile::index_t kBlockPerCu = 1;
+
+            ck_tile::stream_config s{nullptr, false, 0}; // Default stream, no timing, no log
+
+            ck_tile::launch_kernel(s,
+                                   ck_tile::make_kernel<kBlockPerCu> // MinBlockPerCu
+                                   (ew_kernel,
+                                    grid,
+                                    block,
+                                    0, // actual shared memory
+                                    lens,
+                                    strides, // input strides
+                                    strides, // output strides
+                                    d_x_ptrs_tuple,
+                                    p_y_device));
+        };
+
         // Problem and Policy
-        using Problem = ck_tile::ElementWisePipelineProblem<XDataType,
-                                                            ComputeDataType,
-                                                            YDataType,
-                                                            TestElementWiseShape,
-                                                            ElementwiseOpType>;
-        using Policy  = ck_tile::ElementWiseDefaultPolicy;
-
-        ck_tile::ElementWiseKernel<Problem, Policy> ew_kernel;
-
-        // Launch configuration
-        ck_tile::index_t grid_size =
-            (total_m_elements + TestElementWiseShape::kBlockM - 1) / TestElementWiseShape::kBlockM;
-        dim3 grid(grid_size, 1, 1);
-        dim3 block                             = dim3(ew_kernel.BlockSize());
-        constexpr ck_tile::index_t kBlockPerCu = 1;
-
-        ck_tile::stream_config s{nullptr, false, 0}; // Default stream, no timing, no log
-
-        // Check if the kernel configuration is supported
-        if(!ew_kernel.IsSupportedArgument(lens))
+        using BaseProblem = ck_tile::ElementWisePipelineProblem<XDataType,
+                                                                ComputeDataType,
+                                                                YDataType,
+                                                                TestElementWiseShape,
+                                                                ElementwiseOpType>;
+        if(total_m_elements % BaseProblem::BlockShape::kVectorM)
         {
-            throw std::runtime_error(
-                "The kernel configuration is not supported for the given input size.");
+            run_elementwise_kernel(std::true_type{});
         }
-
-        ck_tile::launch_kernel(s,
-                               ck_tile::make_kernel<kBlockPerCu> // MinBlockPerCu
-                               (ew_kernel,
-                                grid,
-                                block,
-                                0, // actual shared memory
-                                lens,
-                                strides, // input strides
-                                strides, // output strides
-                                d_x_ptrs_tuple,
-                                p_y_device));
+        else
+        {
+            run_elementwise_kernel(std::false_type{});
+        }
 
         d_y_mem.FromDevice(h_y.data());
 
@@ -185,7 +202,11 @@ using TestConfig_F16_Add = std::tuple<ck_tile::half_t,
                                       Shape1_BlockTile,
                                       Shape1_WarpTile>;
 
-using TestTypes = ::testing::Types<TestConfig_F32_Add, TestConfig_F32_Relu, TestConfig_F16_Add>;
+using TestConfig_F32_Neg_Relu =
+    std::tuple<float, float, float, NegRelu, Shape1_BlockWarps, Shape1_BlockTile, Shape1_WarpTile>;
+
+using TestTypes = ::testing::
+    Types<TestConfig_F32_Add, TestConfig_F32_Relu, TestConfig_F16_Add, TestConfig_F32_Neg_Relu>;
 
 TYPED_TEST_SUITE(TestCkTileElementwise, TestTypes);
 

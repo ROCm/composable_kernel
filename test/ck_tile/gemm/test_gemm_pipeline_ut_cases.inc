@@ -10,27 +10,44 @@ TYPED_TEST(TEST_SUITE_NAME, SmallM)
 {
     std::vector<int> Ms{1, 2, 3, 4, 5, 6};
     constexpr int N = 1024;
-    constexpr int K = 320;
+    std::vector<int> Ks;
+    for(auto K_count : {2, 3, 4, 10, 11})
+    {
+        Ks.push_back(K_count * TestFixture::K_Tile);
+    }
 
     for(int M : Ms)
     {
-        if constexpr(std::is_same_v<typename TestFixture::ALayout,
-                                    ck_tile::tensor_layout::gemm::ColumnMajor>)
+        for(int K : Ks)
         {
-            EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
-        }
-        else
-        {
-            this->Run(M, N, K);
+            if constexpr(std::is_same_v<typename TestFixture::ALayout,
+                                        ck_tile::tensor_layout::gemm::ColumnMajor>)
+            {
+                EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+            }
+            else
+            {
+                this->Run(M, N, K);
+            }
         }
     }
+}
+
+TYPED_TEST(TEST_SUITE_NAME, SingleTile)
+{
+    this->Run(TestFixture::M_Tile, TestFixture::N_Tile, TestFixture::K_Tile);
 }
 
 TYPED_TEST(TEST_SUITE_NAME, MidLargeM)
 {
     std::vector<int> Ms{127, 255, 312, 799, 1573};
-    constexpr int N           = 1024;
-    constexpr int K           = 320;
+    constexpr int N = 1024;
+
+    std::vector<int> Ks;
+    for(auto K_count : {2, 3, 4, 10, 11})
+    {
+        Ks.push_back(K_count * TestFixture::K_Tile);
+    }
     constexpr int VecLoadSize = (std::is_same_v<typename TestFixture::ADataType, ck_tile::fp8_t> ||
                                  std::is_same_v<typename TestFixture::ADataType, ck_tile::bf8_t> ||
                                  std::is_same_v<typename TestFixture::ADataType, ck_tile::int8_t>)
@@ -39,21 +56,24 @@ TYPED_TEST(TEST_SUITE_NAME, MidLargeM)
 
     for(int M : Ms)
     {
-        if constexpr(std::is_same_v<typename TestFixture::ALayout,
-                                    ck_tile::tensor_layout::gemm::ColumnMajor>)
+        for(int K : Ks)
         {
-            if(M % VecLoadSize == 0)
+            if constexpr(std::is_same_v<typename TestFixture::ALayout,
+                                        ck_tile::tensor_layout::gemm::ColumnMajor>)
             {
-                this->Run(M, N, K);
+                if(M % VecLoadSize == 0)
+                {
+                    this->Run(M, N, K);
+                }
+                else
+                {
+                    EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+                }
             }
             else
             {
-                EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+                this->Run(M, N, K);
             }
-        }
-        else
-        {
-            this->Run(M, N, K);
         }
     }
 }

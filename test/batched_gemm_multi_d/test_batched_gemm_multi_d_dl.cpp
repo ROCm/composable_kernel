@@ -7,6 +7,8 @@
 #include "profiler/profile_batched_gemm_impl.hpp"
 #include "ck/library/tensor_operation_instance/gpu/batched_gemm_multi_d.hpp"
 
+static ck::index_t instance_index = -1;
+
 namespace {
 using F16 = ck::half_t;
 
@@ -70,7 +72,8 @@ class TestBatchedGemmMultiD : public ::testing::Test
                 M * K,
                 K * N,
                 M * N,
-                BatchCount);
+                BatchCount,
+                instance_index);
         EXPECT_TRUE(pass);
     }
 };
@@ -88,3 +91,18 @@ TYPED_TEST(TestBatchedGemmMultiD, f16) { this->template Run<F16>(); }
 #ifdef CK_ENABLE_INT8
 TYPED_TEST(TestBatchedGemmMultiD, int8) { this->template Run<int8_t>(); }
 #endif
+int main(int argc, char** argv)
+{
+    testing::InitGoogleTest(&argc, argv);
+    if(argc == 1) {}
+    else if(argc == 2)
+    {
+        instance_index = atoi(argv[1]);
+    }
+    else
+    {
+        std::cout << "Usage of " << argv[0] << std::endl;
+        std::cout << "Arg1: instance_index(-1 means all)" << std::endl;
+    }
+    return RUN_ALL_TESTS();
+}

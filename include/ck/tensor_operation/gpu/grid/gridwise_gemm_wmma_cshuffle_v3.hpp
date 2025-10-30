@@ -175,7 +175,8 @@ template <typename ALayout,
           typename ComputeTypeA,
           typename ComputeTypeB,
           bool PermuteA,
-          bool PermuteB>
+          bool PermuteB,
+          bool ForceThreadTileTransfer = false>
 struct GridwiseGemm_wmma_cshuffle_v3
     : GridwiseGemm_wmma_cshuffle_v3_base<
           ALayout,
@@ -227,7 +228,8 @@ struct GridwiseGemm_wmma_cshuffle_v3
           ComputeTypeA,
           ComputeTypeB,
           PermuteA,
-          PermuteB>
+          PermuteB,
+          ForceThreadTileTransfer>
 {
     using Base = GridwiseGemm_wmma_cshuffle_v3_base<
         ALayout,
@@ -279,7 +281,8 @@ struct GridwiseGemm_wmma_cshuffle_v3
         ComputeTypeA,
         ComputeTypeB,
         PermuteA,
-        PermuteB>;
+        PermuteB,
+        ForceThreadTileTransfer>;
 
     using Base::I0;
     using Base::I1;
@@ -317,9 +320,6 @@ struct GridwiseGemm_wmma_cshuffle_v3
     using Base::MakeDEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock;
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
-
-    using Base::GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1;
-    using Base::GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1;
 
     using Base::NumATensor;
     using Base::NumBTensor;

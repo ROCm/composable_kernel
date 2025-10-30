@@ -225,7 +225,7 @@ bool run_gemm_test(int argc, char* argv[])
 }
 
 template <typename APrecType, typename BPrecType = APrecType, typename CPrecType = APrecType>
-int run_gemm_combinations()
+bool run_gemm_combinations()
 {
     // Define possible values for each parameter
     std::vector<std::string> m_values = {"128", "1024"};
@@ -304,5 +304,5 @@ int run_gemm_combinations()
             }
         }
     }
-    return is_success ? EXIT_SUCCESS : EXIT_FAILURE;
+    return is_success;
 }

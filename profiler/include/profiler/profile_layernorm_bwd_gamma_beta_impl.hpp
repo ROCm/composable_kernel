@@ -27,7 +27,8 @@ bool profile_layernorm_bwd_gamma_beta_impl(int do_verification,
                                            int init_method,
                                            bool do_log,
                                            bool time_kernel,
-                                           std::vector<index_t> length)
+                                           std::vector<index_t> length,
+                                           index_t instance_index = -1)
 {
     // we don't need GammaDataType and DXDataType here, just for reference class
     using GammaDataType = DYDataType;
@@ -178,6 +179,11 @@ bool profile_layernorm_bwd_gamma_beta_impl(int do_verification,
         if(inst_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             ++num_kernel;
+            if((instance_index != -1) && (instance_index + 1 != num_kernel))
+            {
+                // skip test if instance_index is specified
+                continue;
+            }
         }
         else
         {
@@ -255,7 +261,11 @@ bool profile_layernorm_bwd_gamma_beta_impl(int do_verification,
         std::cout << "Error: No kernel is applicable" << std::endl;
         return false;
     }
-
+    if(instance_index != -1)
+    {
+        std::cout << "layernorm_bwd_gamma_instance (" << instance_index << "/" << num_kernel
+                  << "): Passed" << std::endl;
+    }
     return true;
 }
 

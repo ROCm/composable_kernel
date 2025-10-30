@@ -9,7 +9,6 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 #include "ck_tile/utility/json_dump.hpp"
 
 #define CK_TILE_PIPELINE_COMPUTE_V3 1
@@ -183,6 +182,7 @@ struct GemmConfigPreshuffleDecode : public GemmConfigBase
     static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
     static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
     static constexpr bool Preshuffle           = true;
+    static constexpr bool Persistent           = true;
     static constexpr bool DoubleSmemBuffer     = true;
 };
 
@@ -296,7 +296,7 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_PRESHUFFLE_V2>
         ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<PipelineProblem>;
 };
 
-using grouped_gemm_kargs = ck_tile::GroupedGemmHostArgs;
+using grouped_gemm_kargs = ck_tile::GroupedGemmHostArgs<>;
 
 std::pair<bool, ck_tile::ArgParser> create_args(int argc, char* argv[])
 {
@@ -325,7 +325,7 @@ std::pair<bool, ck_tile::ArgParser> create_args(int argc, char* argv[])
 
 inline std::size_t get_workspace_size(const std::vector<grouped_gemm_kargs>& gemm_descs)
 {
-    return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg);
+    return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg<>);
 }
 
 template <typename GemmConfig, typename T>

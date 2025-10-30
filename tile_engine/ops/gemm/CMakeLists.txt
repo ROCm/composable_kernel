@@ -1,5 +1,5 @@
 set(GEMM_DATATYPE "fp8;fp16" CACHE STRING "List of datatypes for GEMM (semicolon-separated)")
-set(GEMM_LAYOUT "rcr" CACHE STRING "List of layout for GEMM (semicolon-separated)")
+set(GEMM_LAYOUT "rcr;rrr;crr;ccr" CACHE STRING "List of layout for GEMM (semicolon-separated)")
 set(GEMM_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
 option(ENABLE_CCACHE_GEMM "Enable ccache for GEMM ops compilation" OFF)
 
@@ -57,13 +57,15 @@ function(create_individual_gemm_target datatype layout trait tile_config config_
                 --kernel_name "gemm_${datatype}_${layout}_${trait}_${tile_config}"
                 --tile_config "${tile_config}"
                 --trait_combo "${trait}"
+                --gpu_target "${GEMM_GPU_TARGETS_INDIVIDUAL}"
         DEPENDS ${GEMM_SOURCE_DIR}/gemm_instance_builder.py ${config_json}
         COMMENT "Generating ${instance_header}"
     )
 
     # Create the executable
     add_executable(${target_name}
-        ${GEMM_SOURCE_DIR}/benchmark_gemm_single.cpp
+        EXCLUDE_FROM_ALL
+        ${GEMM_SOURCE_DIR}/gemm_benchmark_single.cpp
         ${instance_header}
     )
 
@@ -101,9 +103,9 @@ function(create_individual_gemm_target datatype layout trait tile_config config_
     list(GET trait_parts 1 epilogue)
     list(GET trait_parts 2 scheduler)
 
-    add_dependencies(benchmark_gemm_${pipeline} ${target_name})
-    add_dependencies(benchmark_gemm_${epilogue} ${target_name})
-    add_dependencies(benchmark_gemm_${scheduler} ${target_name})
+    add_dependencies(benchmark_gemm_${pipeline}_pipeline ${target_name})
+    add_dependencies(benchmark_gemm_${epilogue}_epilogue ${target_name})
+    add_dependencies(benchmark_gemm_${scheduler}_scheduler ${target_name})
 endfunction()
 
 # Function to build individual GEMM targets
@@ -163,7 +165,8 @@ function(build_individual_gemm_targets datatype layout)
                 --datatype ${datatype}
                 --layout ${layout}
                 --config_json ${json_blob}
-                --list_kernels")
+                --gpu_target ${GEMM_GPU_TARGETS_INDIVIDUAL}
+                --list_kernels ")
 
     # First, just list the kernels (fast operation)
     message(STATUS "  Listing kernel configurations...")
@@ -173,7 +176,8 @@ function(build_individual_gemm_targets datatype layout)
                 --datatype ${datatype}
                 --layout ${layout}
                 --config_json ${json_blob}
-                --list_kernels
+                --gpu_target ${GEMM_GPU_TARGETS_INDIVIDUAL}
+                --list_kernels  
         WORKING_DIRECTORY ${CMAKE_CURRENT_LIST_DIR}
         RESULT_VARIABLE ret
         OUTPUT_VARIABLE list_output
@@ -282,15 +286,15 @@ else()
     set(GEMM_SCHEDULERS "intrawave;interwave")
 
     foreach(pipeline IN LISTS GEMM_PIPELINES)
-        add_custom_target(benchmark_gemm_${pipeline})
+        add_custom_target(benchmark_gemm_${pipeline}_pipeline)
     endforeach()
 
     foreach(epilogue IN LISTS GEMM_EPILOGUES)
-        add_custom_target(benchmark_gemm_${epilogue})
+        add_custom_target(benchmark_gemm_${epilogue}_epilogue)
     endforeach()
 
     foreach(scheduler IN LISTS GEMM_SCHEDULERS)
-        add_custom_target(benchmark_gemm_${scheduler})
+        add_custom_target(benchmark_gemm_${scheduler}_scheduler)
     endforeach()
 
     # Build individual targets for each datatype/layout combination

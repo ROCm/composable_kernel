@@ -46,7 +46,9 @@ template <typename InDataType,
           ck::ReduceTensorOp ReduceOpId,
           bool PropagateNan,
           bool OutputIndex>
-bool profile_pool3d_fwd_impl(PoolFwdInputParams& in_params, PoolFwdKernelParams& kernel_params)
+bool profile_pool3d_fwd_impl(PoolFwdInputParams& in_params,
+                             PoolFwdKernelParams& kernel_params,
+                             index_t instance_index = -1)
 {
     constexpr index_t InOutRank  = 5;
     constexpr index_t WindowRank = 3;
@@ -199,6 +201,11 @@ bool profile_pool3d_fwd_impl(PoolFwdInputParams& in_params, PoolFwdKernelParams&
         if(inst_ptr->IsSupportedArgument(argument_ptr.get()))
         {
             ++num_kernel;
+            if((instance_index != -1) && (instance_index + 1 != num_kernel))
+            {
+                // skip test if instance_index is specified
+                continue;
+            }
         }
         else
         {
@@ -328,7 +335,11 @@ bool profile_pool3d_fwd_impl(PoolFwdInputParams& in_params, PoolFwdKernelParams&
         std::cout << "Error: No kernel is applicable" << std::endl;
         return false;
     }
-
+    if(instance_index != -1)
+    {
+        std::cout << "max_pool3d_fwd_instance (" << instance_index << "/" << num_kernel
+                  << "): Passed" << std::endl;
+    }
     return true;
 }
 

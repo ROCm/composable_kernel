@@ -1289,6 +1289,23 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffleV3
         const index_t GemmK = arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I0) *
                               arg.a_grid_desc_kbatch_k0_m_k1_.GetLength(I2);
 
+        if constexpr(is_same_v<ComputeTypeA, ck::tf32_t> || is_same_v<ComputeTypeB, ck::tf32_t>)
+        {
+            if(!is_tf32_supported())
+            {
+                return false;
+            }
+            if constexpr(!is_same_v<ComputeTypeA, ComputeTypeB>)
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "ComputeDataType for A and B should be same while using TF32"
+                              << std::endl;
+                }
+                return false;
+            }
+        }
+
         if(get_warp_size() == 64)
         {
             if constexpr(NXdlPerWave64 > 0)

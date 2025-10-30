@@ -950,6 +950,22 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
         {
             return false;
         }
+        if constexpr(is_same_v<ComputeTypeA, ck::tf32_t> || is_same_v<ComputeTypeB, ck::tf32_t>)
+        {
+            if(!is_tf32_supported())
+            {
+                return false;
+            }
+            if constexpr(!is_same_v<ComputeTypeA, ComputeTypeB>)
+            {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "ComputeDataType for A and B should be same while using TF32"
+                              << std::endl;
+                }
+                return false;
+            }
+        }
         if constexpr(NDimSpatial == 1)
         {
             if constexpr(!is_GNWC_GKXC_GNWK<InLayout, WeiLayout, OutLayout>())

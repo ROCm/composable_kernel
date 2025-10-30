@@ -1277,13 +1277,29 @@ struct MfmaSelector
     template <>
     constexpr auto GetMfma<tf32_t, 32, 32>()
     {
+#if defined(__gfx12__)
+        return MfmaInstr::wmma_unsupport_16x16_gfx12;
+#elif defined(__gfx11__)
+        return MfmaInstr::wmma_unsupport_16x16_gfx11;
+#elif defined(__gfx942__)
         return MfmaInstr::mfma_f32_32x32x4xf32;
+#else
+        return MfmaInstr::mfma_f32_32x32x2f32;
+#endif
     }
 
     template <>
     constexpr auto GetMfma<tf32_t, 16, 16>()
     {
+#if defined(__gfx12__)
+        return MfmaInstr::wmma_unsupport_16x16_gfx12;
+#elif defined(__gfx11__)
+        return MfmaInstr::wmma_unsupport_16x16_gfx11;
+#elif defined(__gfx942__)
         return MfmaInstr::mfma_f32_16x16x8xf32;
+#else
+        return MfmaInstr::mfma_f32_16x16x4f32;
+#endif
     }
 
     template <>

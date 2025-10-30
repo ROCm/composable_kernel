@@ -72,42 +72,33 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ true>
                                            typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
 
         constexpr auto warp_gemm = []() {
-            constexpr index_t WarpGemmM = Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{});
-            static_assert(WarpGemmM == 4 || WarpGemmM == 16 || WarpGemmM == 32);
-
-            if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
-                         std::is_same_v<typename Problem::KDataType, half_t> &&
+            if constexpr(get_warp_size() == 64 &&
+                         std::is_same_v<typename Problem::QDataType, fp8_t> &&
+                         std::is_same_v<typename Problem::KDataType, fp8_t> &&
                          std::is_same_v<typename Problem::SaccDataType, float>)
             {
-                if constexpr(WarpGemmM == 32)
-                    return WarpGemmMfmaF16F16F32M32N32K16SwizzleBTransposedCDistribution{};
-                else if constexpr(WarpGemmM == 16)
-                    return WarpGemmMfmaF16F16F32M16N16K16TransposedCDistribution{};
-                else // WarpGemmM == 4
-                    return WarpGemmMfmaF16F16F32M4N64K16{};
-            }
-            else if constexpr(std::is_same_v<typename Problem::QDataType, bf16_t> &&
-                              std::is_same_v<typename Problem::KDataType, bf16_t> &&
-                              std::is_same_v<typename Problem::SaccDataType, float>)
-            {
-                if constexpr(WarpGemmM == 32)
-                    return WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution{};
-                else if constexpr(WarpGemmM == 16)
-                    return WarpGemmMfmaBf16Bf16F32M16N16K16TransposedCDistribution{};
-                else // WarpGemmM == 4
-                    return WarpGemmMfmaBf16Bf16F32M4N64K16{};
-            }
-            else if constexpr(std::is_same_v<typename Problem::QDataType, fp8_t> &&
-                              std::is_same_v<typename Problem::KDataType, fp8_t> &&
-                              std::is_same_v<typename Problem::SaccDataType, float>)
-            {
-                static_assert(WarpGemmM == 32);
+                static_assert(Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}) == 32);
+                static_assert(Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}) == 32);
+                static_assert(Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}) == 32);
 
-                // TODO: hard coded here. Otherwise, it may incorrect result
+                // TODO: hard coded here. Otherwise, it produces incorrect results
                 constexpr index_t swizzle_factor = 4;
-                return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<
+                return WarpGemmMfmaFp8Fp8F32M32N32K32SwizzleBTransposedCDistribution<
                     swizzle_factor>{};
-            } // TODO - bf8_t
+            }
+            else
+            {
+                constexpr bool SwizzleA =
+                    Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}) == 32;
+                return WarpGemmDispatcher<typename Problem::QDataType,
+                                          typename Problem::KDataType,
+                                          typename Problem::SaccDataType,
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
+                                          true, // TransposeC
+                                          SwizzleA>{};
+            }
         }();
 
         using BlockGemmPolicy =
@@ -201,7 +192,7 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
         constexpr auto q_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kKPerBlock / kKPack>{}, number<kMPerBlock>{}, number<kKPack>{}),
             make_tuple(number<(kMPerBlock + 1) * kKPack>{}, number<kKPack>{}, number<1>{}),
-            number<8>{},
+            number<kKPack>{},
             number<1>{});
 
         constexpr auto q_lds_block_desc = transform_tensor_descriptor(
@@ -221,48 +212,41 @@ struct BlockFmhaPipelineQXCustomPolicy</* QLoadOnce = */ false>
             BlockGemmProblem<typename Problem::QDataType,
                              typename Problem::KDataType,
                              typename Problem::SaccDataType,
-                             Problem::kBlockSize,
+                             Problem::kNumGemm0Warps * get_warp_size(),
                              TileGemmShape<sequence<Problem::BlockFmhaShape::kM0,
                                                     Problem::BlockFmhaShape::kN0,
                                                     Problem::BlockFmhaShape::kK0>,
                                            typename Problem::BlockFmhaShape::Gemm0BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
 
-        constexpr index_t WarpGemmM = Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{});
-        static_assert(WarpGemmM == 4 || WarpGemmM == 16 || WarpGemmM == 32);
-
         constexpr auto warp_gemm = []() {
-            if constexpr(std::is_same_v<typename Problem::QDataType, half_t> &&
-                         std::is_same_v<typename Problem::KDataType, half_t> &&
+            if constexpr(get_warp_size() == 64 &&
+                         std::is_same_v<typename Problem::QDataType, fp8_t> &&
+                         std::is_same_v<typename Problem::KDataType, fp8_t> &&
                          std::is_same_v<typename Problem::SaccDataType, float>)
             {
-                if constexpr(WarpGemmM == 32)
-                    return WarpGemmMfmaF16F16F32M32N32K16SwizzleBTransposedCDistribution{};
-                else if constexpr(WarpGemmM == 16)
-                    return WarpGemmMfmaF16F16F32M16N16K16TransposedCDistribution{};
-                else // WarpGemmM == 4
-                    return WarpGemmMfmaF16F16F32M4N64K16{};
-            }
-            else if constexpr(std::is_same_v<typename Problem::QDataType, bf16_t> &&
-                              std::is_same_v<typename Problem::KDataType, bf16_t> &&
-                              std::is_same_v<typename Problem::SaccDataType, float>)
-            {
-                if constexpr(WarpGemmM == 32)
-                    return WarpGemmMfmaBf16Bf16F32M32N32K16SwizzleBTransposedCDistribution{};
-                else if constexpr(WarpGemmM == 16)
-                    return WarpGemmMfmaBf16Bf16F32M16N16K16TransposedCDistribution{};
-                else // WarpGemmM == 4
-                    return WarpGemmMfmaBf16Bf16F32M4N64K16{};
-            }
-            else if constexpr(std::is_same_v<typename Problem::QDataType, fp8_t> &&
-                              std::is_same_v<typename Problem::KDataType, fp8_t> &&
-                              std::is_same_v<typename Problem::SaccDataType, float>)
-            {
-                // TODO: hard coded here. Otherwise, it may incorrect result
+                static_assert(Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}) == 32);
+                static_assert(Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}) == 32);
+                static_assert(Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}) == 32);
+
+                // TODO: hard coded here. Otherwise, it produces incorrect results
                 constexpr index_t swizzle_factor = 4;
-                return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<
+                return WarpGemmMfmaFp8Fp8F32M32N32K32SwizzleBTransposedCDistribution<
                     swizzle_factor>{};
-            } // TODO - bf8_t
+            }
+            else
+            {
+                constexpr bool SwizzleA =
+                    Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}) == 32;
+                return WarpGemmDispatcher<typename Problem::QDataType,
+                                          typename Problem::KDataType,
+                                          typename Problem::SaccDataType,
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
+                                          Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
+                                          true, // TransposeC
+                                          SwizzleA>{};
+            }
         }();
 
         using BlockGemmPolicy =
@@ -445,7 +429,8 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WG              = remove_cvref_t<decltype(config.template at<0>())>;
 
-        return WG::WarpGemmAttribute::Impl::kCM1PerLane;
+        constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::ODataType);
+        return min(MaxVectorSize, WG::WarpGemmAttribute::Impl::kCM1PerLane);
     }
 
     template <typename Problem>
@@ -507,7 +492,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         constexpr auto k_lds_block_desc_0 = make_naive_tensor_descriptor(
             make_tuple(number<kKPerBlock / kKPack>{}, number<kNPerBlock>{}, number<kKPack>{}),
             make_tuple(number<(kNPerBlock + 1) * kKPack>{}, number<kKPack>{}, number<1>{}),
-            number<8>{},
+            number<kKPack>{},
             number<1>{});
 
         constexpr auto k_lds_block_desc = transform_tensor_descriptor(
@@ -806,15 +791,14 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
             if constexpr(total_pixels % N1 != 0 || kKPack % K3 != 0) // if K2 or K3 is not divisible
             {
-                constexpr index_t kNPack = 32;
-                static_assert(kNPerBlock % kNPack == 0);
-                constexpr index_t K0   = kBlockSize / get_warp_size();
-                constexpr index_t N2   = 2;
-                constexpr index_t N1_m = kNPack / N2;
-                constexpr index_t N0_m = kNPerBlock / kNPack;
-                constexpr index_t K1   = get_warp_size() / N1_m;
-                constexpr index_t K2_m = kKPerBlock / K1 / K0;
-
+                static_assert(kNPerBlock % 16 == 0);
+                constexpr index_t kNPack = kNPerBlock % 32 == 0 ? 32 : 16;
+                constexpr index_t K0     = kBlockSize / get_warp_size();
+                constexpr index_t N2     = 2;
+                constexpr index_t N1_m   = kNPack / N2;
+                constexpr index_t N0_m   = kNPerBlock / kNPack;
+                constexpr index_t K1     = get_warp_size() / N1_m;
+                constexpr index_t K2_m   = kKPerBlock / K1 / K0;
                 return make_static_tile_distribution(
                     tile_distribution_encoding<
                         sequence<1>,
@@ -824,7 +808,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
                         sequence<1, 2, 1>, // N0 K2 N2
                         sequence<0, 2, 2>>{});
             }
-            else if constexpr(get_warp_size() % (kKPack / K3 * N0) == 0)
+            else if constexpr(get_warp_size() % (K2 * N0) == 0)
             {
                 constexpr index_t K1 = get_warp_size() / (K2 * N0);
                 constexpr index_t K0 = kBlockSize / get_warp_size();
@@ -863,13 +847,40 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
             constexpr index_t N0 = kNPerBlock / (N2 * N1);
             static_assert(N0 != 0);
 
-            return make_static_tile_distribution(
+            constexpr auto dstr = make_static_tile_distribution(
                 tile_distribution_encoding<sequence<1>,
                                            tuple<sequence<N0, N1, N2>, sequence<K0, K1>>,
-                                           tuple<sequence<1>, sequence<1, 2>>,
+                                           tuple<sequence<1>, sequence<1, 2>>, // N1, N2 K0
                                            tuple<sequence<1>, sequence<2, 0>>,
-                                           sequence<1, 2>,
+                                           sequence<1, 2>, // N0 K1
                                            sequence<0, 1>>{});
+            if constexpr(container_reduce(dstr.get_lengths(), std::multiplies<index_t>{}, 1) ==
+                         kNPerBlock * kKPerBlock)
+            {
+                return dstr;
+            }
+            else
+            {
+                static_assert(kKPerBlock % 16 == 0);
+                constexpr index_t kKPerIter = kKPerBlock % 32 == 0 ? 32 : 16;
+                constexpr index_t K0_m      = kKPerBlock / kKPerIter;
+                constexpr index_t K2        = 2;
+                constexpr index_t K1_m      = kKPerIter / K2;
+                constexpr index_t N2_m      = get_warp_size() / K1_m;
+                constexpr index_t N0_m      = kNPerBlock / (N2_m * N1);
+                constexpr auto dstr_m       = make_static_tile_distribution(
+                    tile_distribution_encoding<
+                              sequence<1>,
+                              tuple<sequence<N0_m, N1, N2_m>, sequence<K0_m, K1_m, K2>>,
+                              tuple<sequence<1>, sequence<1, 2>>, // N1, N2 K1
+                              tuple<sequence<1>, sequence<2, 1>>,
+                              sequence<2, 1, 2>, // K0 N0 K2
+                              sequence<0, 0, 2>>{});
+                static_assert(container_reduce(dstr_m.get_lengths(),
+                                               std::multiplies<index_t>{},
+                                               1) == kNPerBlock * kKPerBlock);
+                return dstr_m;
+            }
         }
     }
 
@@ -897,14 +908,14 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
         constexpr index_t K2 = kKPack / K3; // TODO: this dimention could be outside single wave
         if constexpr(total_pixels % N1 != 0 || kKPack % K3 != 0) // if K2 or K3 is not divisible
         {
-            constexpr index_t kNPack = 32;
-            static_assert(kNPerBlock % kNPack == 0);
-            constexpr index_t K0   = kBlockSize / get_warp_size();
-            constexpr index_t N2   = 2;
-            constexpr index_t N1_m = kNPack / N2;
-            constexpr index_t N0_m = kNPerBlock / kNPack;
-            constexpr index_t K1   = get_warp_size() / N1_m;
-            constexpr index_t K2_m = kKPerBlock / K1 / K0;
+            static_assert(kNPerBlock % 16 == 0);
+            constexpr index_t kNPack = kNPerBlock % 32 == 0 ? 32 : 16;
+            constexpr index_t K0     = kBlockSize / get_warp_size();
+            constexpr index_t N2     = 2;
+            constexpr index_t N1_m   = kNPack / N2;
+            constexpr index_t N0_m   = kNPerBlock / kNPack;
+            constexpr index_t K1     = get_warp_size() / N1_m;
+            constexpr index_t K2_m   = kKPerBlock / K1 / K0;
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<1>,
                                            tuple<sequence<N0_m, N1_m, N2>, sequence<K0, K1, K2_m>>,
@@ -913,7 +924,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
                                            sequence<1, 1, 2>, // N0 K2 <-> N2
                                            sequence<0, 2, 2>>{});
         }
-        else if constexpr(get_warp_size() % (kKPack / K3 * N0) == 0)
+        else if constexpr(get_warp_size() % (K2 * N0) == 0)
         {
             constexpr index_t K1 = get_warp_size() / (K2 * N0);
             constexpr index_t K0 = kBlockSize / get_warp_size();
@@ -957,15 +968,16 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
                                            typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
 
         auto warp_gemm = [&]() {
-            if constexpr(std::is_same_v<typename Problem::KDataType, fp8_t> &&
+            if constexpr(get_warp_size() == 64 &&
+                         std::is_same_v<typename Problem::PDataType, fp8_t> &&
                          std::is_same_v<typename Problem::VDataType, fp8_t> &&
                          std::is_same_v<typename Problem::OaccDataType, float>)
             {
-                return WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution<>{};
-                // return
-                // WarpGemmImpl<WarpGemmAttributeMfmaTransposedCDistribution_SwizzleB<
-                //         WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<typename
-                //         Problem::PDataType, typename Problem::VDataType>>>{};
+                static_assert(Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}) == 32);
+                static_assert(Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}) == 32);
+                static_assert(Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) == 32);
+
+                return WarpGemmMfmaFp8Fp8F32M32N32K32SwizzleBTransposedCDistribution<>{};
             }
             else
             {

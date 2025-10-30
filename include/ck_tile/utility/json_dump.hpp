@@ -1,10 +1,10 @@
+#ifdef CK_ENABLE_JSON_DUMP
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wzero-as-null-pointer-constant"
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/document.h"
 #include "rapidjson/rapidjson.h"
-// #include <fstream>
 #pragma GCC diagnostic pop
 
 #define START_JSON_DUMP_FILE(file_name)                                             \
@@ -75,6 +75,18 @@ static void add_perf_to_json(rapidjson::Writer<rapidjson::StringBuffer>& writer,
     writer.EndObject();
     writer.EndArray();
 }
+
+#else
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-parameter"
+#pragma GCC diagnostic ignored "-Wunused-local-typedef"
+#define START_JSON_DUMP_FILE(file_name)
+#define END_JSON_DUMP_FILE() \
+    std::cout << "JSON dump disabled, To enable, set CK_ENABLE_JSON_DUMP cmake option" << std::endl;
+
+#define ADD_KEY_VALUE(key, value)
+#define ADD_PERF_TO_JSON(_time, tflops, gbytes)
+#endif
 
 // Helper traits to check for static member existence
 template <typename T, typename = void>
@@ -698,3 +710,7 @@ void dump_fmha_bwd_json_results(const std::string& json_filename,
     ADD_PERF_TO_JSON(ave_time, tflops, gb_per_sec)
     END_JSON_DUMP_FILE();
 }
+
+#ifndef CK_ENABLE_JSON_DUMP
+#pragma GCC diagnostic pop
+#endif

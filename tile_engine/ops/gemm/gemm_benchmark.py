@@ -273,48 +273,6 @@ class GemmBenchmark:
                 print(f"Error reading JSON file {json_file}: {e}")
             return None
 
-    def parse_benchmark_output(self, output: str) -> Optional[Dict]:
-        """Parse the benchmark output format - extract JSON directly"""
-        try:
-            # Find JSON block between asterisk markers
-            lines = output.split("\n")
-            json_start = -1
-            json_end = -1
-
-            for i, line in enumerate(lines):
-                if line.strip().startswith("{"):
-                    json_start = i
-                elif line.strip().endswith("}") and json_start != -1:
-                    json_end = i
-                    break
-
-            if json_start != -1 and json_end != -1:
-                json_text = "\n".join(lines[json_start : json_end + 1])
-                data = json.loads(json_text)
-
-                # Return the complete JSON data as-is, just add some convenience fields
-                result = data.copy()
-                if "perf_result" in data:
-                    perf = data["perf_result"]
-                    # Add convenience fields for backward compatibility
-                    result["time_ms"] = perf.get("latency(ms)", 0)
-                    result["tflops"] = perf.get("tflops(TFlops)", 0)
-                    result["bandwidth_gb_s"] = perf.get("bandwidth(GB/s)", 0)
-
-                return result
-
-            return None
-
-        except json.JSONDecodeError as e:
-            if self.verbose:
-                print(f"Failed to parse JSON: {e}")
-                print(f"Output was: {output[:200]}...")
-            return None
-        except Exception as e:
-            if self.verbose:
-                print(f"Error parsing output: {e}")
-            return None
-
     def benchmark_problem_size(
         self,
         kernels: List[Path],

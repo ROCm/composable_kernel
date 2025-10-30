@@ -27,7 +27,8 @@ struct GroupedConvBwdDataKernelArgs
                                    GroupedConvTraitsType_::ConvSpecialization,
                                    GroupedConvTraitsType_::VectorSizeA,
                                    GroupedConvTraitsType_::VectorSizeB,
-                                   GroupedConvTraitsType_::VectorSizeC>;
+                                   GroupedConvTraitsType_::VectorSizeC,
+                                   true>; // Split N enabled
     static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
 
     static constexpr auto I0 = number<0>();
@@ -121,6 +122,11 @@ struct GroupedConvBwdDataKernelArgs
 
             grid_size_ += grid_size_grp;
 
+            // Get the actual split N from transformer
+            n_per_split = conv_to_gemm_transformer.GetN();
+            original_n  = conv_to_gemm_transformer.GetOriginalN();
+            n_splits    = ck_tile::integer_divide_ceil(original_n, n_per_split);
+
             ++gemm_count;
         }
         group_stride_a = args.K_; // A: Out NWGK
@@ -130,6 +136,9 @@ struct GroupedConvBwdDataKernelArgs
                                          1,
                                          std::multiplies<index_t>()); // B: Wei GKXC
         group_stride_c = args.C_;                                     // C: In  NWGC
+
+        input_batch_stride  = args.C_ * args.G_ * args.input_spatial_lengths_[0];
+        output_batch_stride = args.K_ * args.G_ * args.output_spatial_lengths_[0];
 
         GemmBatch = args.G_;
     }
@@ -237,6 +246,11 @@ struct GroupedConvBwdDataKernelArgs
 
                 grid_size_ += grid_size_grp;
 
+                // Get the actual split N from transformer
+                n_per_split = conv_to_gemm_transformer.GetN();
+                original_n  = conv_to_gemm_transformer.GetOriginalN();
+                n_splits    = ck_tile::integer_divide_ceil(original_n, n_per_split);
+
                 ++gemm_count;
             }
         }
@@ -247,6 +261,11 @@ struct GroupedConvBwdDataKernelArgs
                                          1,
                                          std::multiplies<index_t>()); // B: Wei GKXC
         group_stride_c = args.C_;                                     // C: In  NWGC
+
+        input_batch_stride =
+            args.C_ * args.G_ * args.input_spatial_lengths_[0] * args.input_spatial_lengths_[1];
+        output_batch_stride =
+            args.K_ * args.G_ * args.output_spatial_lengths_[0] * args.output_spatial_lengths_[1];
 
         GemmBatch = args.G_;
     }
@@ -369,6 +388,11 @@ struct GroupedConvBwdDataKernelArgs
 
                     grid_size_ += grid_size_grp;
 
+                    // Get the actual split N from transformer
+                    n_per_split = conv_to_gemm_transformer.GetN();
+                    original_n  = conv_to_gemm_transformer.GetOriginalN();
+                    n_splits    = ck_tile::integer_divide_ceil(original_n, n_per_split);
+
                     ++gemm_count;
                 }
             }
@@ -381,6 +405,11 @@ struct GroupedConvBwdDataKernelArgs
                                          1,
                                          std::multiplies<index_t>()); // B: Wei GKXC
         group_stride_c = args.C_;                                     // C: In  NWGC
+
+        input_batch_stride = args.C_ * args.G_ * args.input_spatial_lengths_[0] *
+                             args.input_spatial_lengths_[1] * args.input_spatial_lengths_[2];
+        output_batch_stride = args.K_ * args.G_ * args.output_spatial_lengths_[0] *
+                              args.output_spatial_lengths_[1] * args.output_spatial_lengths_[2];
 
         GemmBatch = args.G_; // C: In  NWGC
     }
@@ -425,6 +454,13 @@ struct GroupedConvBwdDataKernelArgs
     long_index_t group_stride_a;
     long_index_t group_stride_b;
     long_index_t group_stride_c;
+
+    // Split-N support fields - initialize to safe defaults
+    index_t n_splits            = 1; // Number of batch splits (e.g., 2 for 128→64×2)
+    index_t n_per_split         = 1; // Batches per split (N_ from transformer)
+    index_t original_n          = 1; // Original batch size before splitting
+    index_t input_batch_stride  = 0; // Stride to next batch in input tensor
+    index_t output_batch_stride = 0; // Stride to next batch in output tensor
 };
 
 /// @brief The Grouped Convolution Backward Data kernel template.
@@ -471,10 +507,6 @@ template <typename GroupedConvTraitsType_,
           typename EpiloguePipeline_>
 struct GroupedConvolutionBackwardDataKernel
 {
-    // Todo: Enable Vector Load Size > 1
-    static_assert(GroupedConvTraitsType_::VectorSizeA == 1 &&
-                  GroupedConvTraitsType_::VectorSizeB == 1);
-
     static constexpr index_t NDimSpatial = GroupedConvTraitsType_::NDimSpatial_;
     static constexpr ConvolutionSpecialization ConvSpecialization =
         GroupedConvTraitsType_::ConvSpecialization;
@@ -517,12 +549,7 @@ struct GroupedConvolutionBackwardDataKernel
     static_assert(GemmPipeline::kPadM && GemmPipeline::kPadN && GemmPipeline::kPadK,
                   "Not supported!");
     static_assert(std::is_same_v<GemmALayout, tensor_layout::gemm::RowMajor>, "Not supported!");
-    static_assert(std::is_same_v<GemmBLayout, tensor_layout::gemm::ColumnMajor>, "Not supported!");
-    // TODO: Change to and enable vector load
-    // static_assert(std::is_same_v<GemmALayout, tensor_layout::gemm::RowMajor>,
-    //               "Not supported A GEMM layout!");
-    // static_assert(std::is_same_v<GemmBLayout, tensor_layout::gemm::RowMajor>,
-    //               "Not supported B GEMM layout!");
+    static_assert(std::is_same_v<GemmBLayout, tensor_layout::gemm::RowMajor>, "Not supported!");
     static_assert(std::is_same_v<GemmCLayout, tensor_layout::gemm::RowMajor>,
                   "Not supported C GEMM layout!");
 
@@ -536,7 +563,7 @@ struct GroupedConvolutionBackwardDataKernel
     CK_TILE_HOST static auto GridSize(const GroupedConvBwdDataKernelArgsSpecialized& kargs)
     {
         // enable batched grouped gemm
-        return dim3(kargs.grid_size_, kargs.GemmBatch, kargs.k_batch);
+        return dim3(kargs.grid_size_, kargs.GemmBatch, kargs.n_splits * kargs.k_batch);
     }
 
     CK_TILE_HOST static constexpr auto BlockSize()
@@ -742,8 +769,8 @@ struct GroupedConvolutionBackwardDataKernel
         const auto& b_pad_view = [&]() {
             const auto& b_tensor_view = views.at(I1);
             return pad_tensor_view(b_tensor_view,
-                                   make_tuple(number<TilePartitioner::NPerBlock>{},
-                                              number<TilePartitioner::KPerBlock>{}),
+                                   make_tuple(number<TilePartitioner::KPerBlock>{},
+                                              number<TilePartitioner::NPerBlock>{}),
                                    sequence<true, true>{});
         }();
 
@@ -788,9 +815,9 @@ struct GroupedConvolutionBackwardDataKernel
 
         const auto& b_block_window = [&]() {
             return make_tile_window(b_pad_view,
-                                    make_tuple(number<TilePartitioner::NPerBlock>{},
-                                               number<TilePartitioner::KPerBlock>{}),
-                                    {i_n, i_k});
+                                    make_tuple(number<TilePartitioner::KPerBlock>{},
+                                               number<TilePartitioner::NPerBlock>{}),
+                                    {i_k, i_n});
         }();
 
         const auto ds_block_window = generate_tuple(
@@ -952,11 +979,31 @@ struct GroupedConvolutionBackwardDataKernel
         const auto group_offset_b = amd_wave_read_first_lane(kargs.group_stride_b * blockIdY);
         const auto group_offset_c = amd_wave_read_first_lane(kargs.group_stride_c * blockIdY);
 
+        const auto blockIdZ = amd_wave_read_first_lane(blockIdx.z);
+
+        // SplitN
+        const index_t split_n_idx = __builtin_amdgcn_readfirstlane(blockIdZ / kargs.k_batch);
+        const index_t split_n_offset =
+            __builtin_amdgcn_readfirstlane(split_n_idx * kargs.n_per_split);
+
+        const long_index_t output_batch_offset =
+            static_cast<long_index_t>(split_n_offset) *
+            static_cast<long_index_t>(kargs.output_batch_stride);
+        const long_index_t input_batch_offset = static_cast<long_index_t>(split_n_offset) *
+                                                static_cast<long_index_t>(kargs.input_batch_stride);
+
+        // SplitK
+        // TODO: Implement SplitK support
+        // const index_t split_k_idx =
+        //     __builtin_amdgcn_readfirstlane(blockIdZ - split_n_idx * kargs.k_batch);
+
         // options
         // conv_bwd_data = Out * Weight = In
-        const OutDataType* a_ptr = static_cast<const OutDataType*>(kargs.out_ptr) + group_offset_a;
+        const OutDataType* a_ptr =
+            static_cast<const OutDataType*>(kargs.out_ptr) + group_offset_a + output_batch_offset;
         const WeiDataType* b_ptr = static_cast<const WeiDataType*>(kargs.wei_ptr) + group_offset_b;
-        InDataType* c_ptr        = static_cast<InDataType*>(kargs.in_ptr) + group_offset_c;
+        InDataType* c_ptr =
+            static_cast<InDataType*>(kargs.in_ptr) + group_offset_c + input_batch_offset;
 
         // allocate LDS
         __shared__ char smem_ptr_0[GetSmemSize()];

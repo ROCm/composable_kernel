@@ -12,6 +12,24 @@
 
 namespace ck_tile {
 
+// fp32
+
+using WarpGemmMfmaF32F32F32M16N16K4 = WarpGemmImpl<
+    WarpGemmAttributeMfma<WarpGemmAttributeMfmaImplF32F32F32M16N16K4<WGAttrCtlEnum::Default_>>>;
+
+template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
+using WarpGemmMfmaF32F32F32M16N16K16 = WarpGemmImpl<WarpGemmAttributeMfmaIterateK<
+    WarpGemmAttributeMfmaImplF32F32F32M16N16K4<WGAttrCtlEnum::Default_>,
+    4,
+    AttrNumAccess>>;
+
+template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
+using WarpGemmMfmaF32F32F32M16N16K16TransposedCDistribution =
+    WarpGemmImpl<WarpGemmAttributeMfmaIterateKAndTransposedCDistribution<
+        WarpGemmAttributeMfmaImplF32F32F32M16N16K4<WGAttrCtlEnum::Default_>,
+        4,
+        AttrNumAccess>>;
+
 // fp16
 
 using WarpGemmMfmaF16F16F32M32N32K8 = WarpGemmImpl<
@@ -282,6 +300,10 @@ using WarpGemmMfma_f32_16x16x64_bf8_bf8 = WarpGemmImpl<WarpGemmAttributeMfmaIter
     2>>;
 
 template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
+using WarpGemmMfma_f32_16x16x128_fp4 = WarpGemmImpl<
+    WarpGemmAttributeMfma<WarpGemmAttributeMfmaScaleImpl_f32_16x16x128_fp4<WGAttrCtlEnum::Default_>,
+                          AttrNumAccess>>;
+template <WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
 using WarpGemmMfma_f32_16x16x128_fp8_fp8 = WarpGemmImpl<
     WarpGemmAttributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x128_fp8_fp8<WGAttrCtlEnum::Default_>,
                           AttrNumAccess>>;
@@ -362,9 +384,9 @@ using WarpGemmMfma_f32_32x32x16_bf8_bf8_CTransposed =
         WarpGemmAttributeMfmaImpl_f32_32x32x16_bf8_bf8<WGAttrCtlEnum::Default_>>>;
 
 template <index_t swizzle_factor = 2>
-using WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution =
+using WarpGemmMfmaFp8Fp8F32M32N32K32SwizzleBTransposedCDistribution =
     WarpGemmImpl<WarpGemmAttributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
-        WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<fp8_t, fp8_t, WGAttrCtlEnum::Default_>,
+        WarpGemmAttributeMfmaImpl_f32_32x32x16_fp8_fp8<WGAttrCtlEnum::Default_>,
         2,
         swizzle_factor>>;
 

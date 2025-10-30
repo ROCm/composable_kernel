@@ -210,7 +210,8 @@ struct FusedMoeGemmPipeline_FlatmmUk
 
         auto a_res =
             make_wave_buffer_resource(reinterpret_cast<const ADataType*>(kargs.a_ptr),
-                                      kargs.num_tokens * kargs.stride_token * sizeof(ADataType));
+                                      kargs.num_tokens * kargs.stride_token * sizeof(ADataType),
+                                      std::true_type{});
 
         auto make_gu_win = [&](const auto* ptr_) {
             auto view_ = make_naive_tensor_view<address_space_enum::global>(
@@ -322,7 +323,8 @@ struct FusedMoeGemmPipeline_FlatmmUk
 
         auto o_res =
             make_wave_buffer_resource(reinterpret_cast<const ODataType*>(kargs.o_ptr),
-                                      kargs.num_tokens * kargs.stride_token * sizeof(ODataType));
+                                      kargs.num_tokens * kargs.stride_token * sizeof(ODataType),
+                                      std::true_type{});
         auto row_coords_o = GetRowCoords_O(sorted_tile_id * BlockShape::Block_M0);
         auto w_scale      = GetWeightScale(
             row_coords_o, reinterpret_cast<const TopkWeightDataType*>(kargs.sorted_weight_ptr));

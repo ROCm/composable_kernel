@@ -70,25 +70,15 @@ float invoke_gemm(int n_warmup,
     }
     else
     {
-        if(GemmConfig::Preshuffle)
-        {
-            // not supported yet
-            throw std::runtime_error(
-                "Persistent grouped gemm with preshuffle is not supported yet");
-        }
+        // NOTE: With the persistent TileLoop kernel, we do not necessarily need to have the gemm
+        // problems known on the host. Instead, we can just pass the pointer to the kernel and let
+        // the workgroups figure out which tiles to work on. This is useful when the gemm problems
+        // are generated dynamically. In this example however, we generate the `kargs` using the
+        // known gemm_descs, and copy the gemm descriptions to the device memory. The contents of
+        // the memory pointed to by `kargs_ptr` pointer could be written by e.g. another kernel from
+        // earlier stage.
 
-        // NOTE: With the persistent TileLoop kernel, we do not necessarily need to haveCollapse
-        // commentComment on line L74tenpercent commented on Sep 5, 2025 tenpercenton Sep 5,
-        // 2025ContributorMore actionsdid you intend to remove the comment?Write a replyResolve
-        // commentCode has comments. Press enter to view. the gemm problems known on the host.
-        // Instead, we can just pass the pointer to the kernel and let the workgroups figure out
-        // which tiles to work on. This is useful when the gemm problems are generated dynamically.
-        // In this example however, we generate the `kargs` using the known gemm_descs,
-        // and copy the gemm descriptions to the device memory.
-        // The contents of the memory pointed to by `kargs_ptr` pointer could be
-        // written by e.g. another kernel from earlier stage.
-
-        std::vector<ck_tile::GemmTransKernelArg> kargs;
+        std::vector<ck_tile::GemmTransKernelArg<>> kargs;
         void* kargs_ptr   = gemm_workspace.GetDeviceBuffer();
         const bool splitk = args[0].k_batch > 1;
         for(const auto& arg : args)
@@ -109,7 +99,7 @@ float invoke_gemm(int n_warmup,
         const auto stream = ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat};
         HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
                                             kargs.data(),
-                                            kargs.size() * sizeof(ck_tile::GemmTransKernelArg),
+                                            kargs.size() * sizeof(ck_tile::GemmTransKernelArg<>),
                                             hipMemcpyHostToDevice,
                                             stream.stream_id_));
         ave_time = grouped_gemm_tileloop<GemmConfig,
@@ -143,7 +133,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
     auto [result, arg_parser] = create_args(argc, argv);
 
     auto valid_input_data = [&](int group_count, const auto&... args) {
-        return !(args.empty() || ...) && group_count == (args.size() == ...);
+        return group_count != 0 && ((args.size() == static_cast<size_t>(group_count)) && ...);
     };
 
     const int group_count = arg_parser.get_int("group_count");
@@ -260,8 +250,18 @@ int run_grouped_gemm_example_with_layouts(int argc,
         const void* p_b = b_k_n_dev_buf[i]->GetDeviceBuffer();
         void* p_c       = c_m_n_dev_buf[i]->GetDeviceBuffer();
 
-        gemm_descs.push_back(
-            {p_a, p_b, p_c, kbatch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
+        gemm_descs.push_back({p_a,
+                              p_b,
+                              {/*ds_ptr*/},
+                              p_c,
+                              kbatch,
+                              M,
+                              N,
+                              K,
+                              stride_As[i],
+                              stride_Bs[i],
+                              {/*stride_Ds*/},
+                              stride_Cs[i]});
     }
 
     float ave_time = invoke_gemm<GemmConfig,
