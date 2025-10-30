@@ -47,6 +47,8 @@ struct GemmPipelineAGmemBGmemCRegV1
     static constexpr bool kPadN = Problem::kPadN;
     static constexpr bool kPadK = Problem::kPadK;
 
+    static constexpr bool Preshuffle = Problem::Preshuffle;
+
     static constexpr index_t NumWaveGroups = Problem::NumWaveGroups;
 
     static constexpr index_t kLdsAlignmentInBytes = 16;
@@ -282,9 +284,9 @@ struct GemmPipelineAGmemBGmemCRegV1
     {
         return operator()(
             a_dram_block_window_tmp,
-            [](const ADataType& a) { return a; },
+            [](const ADataType & a) { return a; },
             b_dram_block_window_tmp,
-            [](const BDataType& b) { return b; },
+            [](const BDataType & b) { return b; },
             num_loop,
             p_smem);
     }

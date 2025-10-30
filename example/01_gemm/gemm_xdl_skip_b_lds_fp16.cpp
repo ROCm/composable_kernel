@@ -56,10 +56,10 @@ using CDataType   = float;
 using AccDataType = float;
 
 #endif
-    // clang-format on
+// clang-format on
 
-    using ReferenceGemmInstance = ck::tensor_operation::host::
-        ReferenceGemm<ADataType, BDataType, CDataType, float, AElementOp, BElementOp, CElementOp>;
+using ReferenceGemmInstance = ck::tensor_operation::host::
+    ReferenceGemm<ADataType, BDataType, CDataType, float, AElementOp, BElementOp, CElementOp>;
 
 template <typename DataType>
 std::ostream& show_2d_matrix(std::ostream& os, Tensor<DataType>& matrix)

@@ -132,6 +132,8 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
     using Base::a_block_desc_k0_m0_m1_m2_k1;
     using Base::b_block_desc_k0_n0_n1_n2_k1;
 
+    using typename Base::Empty;
+
     static constexpr index_t PrefetchStages  = 2;
     static constexpr index_t PrefillStages   = 1;
     static constexpr index_t GlobalBufferNum = 1;
@@ -255,6 +257,58 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
         */
     }
 
+    template <typename ABlockBuffer,
+              typename AThreadBuffer,
+              typename BBlockBuffer,
+              typename BThreadBuffer,
+              typename BScaleStruct>
+    __device__ inline void LocalLoad(ABlockBuffer& a_block_buf,
+                                     AThreadBuffer& a_thread_buf,
+                                     BBlockBuffer& b_block_buf,
+                                     BThreadBuffer& b_thread_buf,
+                                     BScaleStruct& b_scale_struct) const
+    {
+        static_for<0, KRepeat, 1>{}([&](auto k0) {
+            static_for<0, MRepeat, 1>{}([&](auto m0) {
+                a_thread_copy_.Run(
+                    a_block_desc_k0_m0_m1_m2_k1,
+                    make_tuple(Number<k0 * KPack / A_K1 / A_KRow>{}, m0, I0, I0, I0, I0),
+                    a_block_buf,
+                    a_thread_desc_,
+                    make_tuple(I0, m0, k0, I0, I0, I0),
+                    a_thread_buf);
+            });
+
+            if constexpr(ck::is_same_v<BScaleStruct, Empty>)
+            {
+                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                    b_thread_copy_.Run(
+                        b_block_desc_k0_n0_n1_n2_k1,
+                        make_tuple(Number<k0 * KPack / B_K1 / B_KRow>{}, n0, I0, I0, I0, I0),
+                        b_block_buf,
+                        b_thread_desc_,
+                        make_tuple(I0, n0, k0, I0, I0, I0),
+                        b_thread_buf);
+                });
+            }
+            else
+            {
+                static_for<0, NRepeat, 1>{}([&](auto n0) {
+                    b_thread_copy_.Run(
+                        b_block_desc_k0_n0_n1_n2_k1,
+                        make_tuple(Number<k0 * KPack / B_K1 / B_KRow>{}, n0, I0, I0, I0, I0),
+                        b_block_buf,
+                        b_scale_struct.b_scale_thread_bufs(
+                            I0)[Number<n0 * BScaleStruct::num_scale_k_block +
+                                       k0 / BScaleStruct::num_scale_krepeat>{}],
+                        b_thread_desc_,
+                        make_tuple(I0, n0, k0, I0, I0, I0),
+                        b_thread_buf);
+                });
+            }
+        });
+    }
+
     template <bool HasMainLoop,
               TailNumber TailNum,
               typename AGridDesc,
@@ -269,7 +323,8 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
               typename BGridBuffer,
               typename BBlockBuffer,
               typename BBlockTransferStep,
-              typename CThreadBuffer>
+              typename CThreadBuffer,
+              typename BScaleStruct>
     __device__ void Run(const AGridDesc& a_grid_desc,
                         const ABlockDesc& a_block_desc,
                         ABlockTransfer& a_blockwise_copy,
@@ -283,7 +338,10 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
                         BBlockBuffer& b_block_buf,
                         const BBlockTransferStep& b_block_copy_step,
                         CThreadBuffer& c_thread_buf,
-                        index_t num_loop) const
+                        // BScaleThreadCopy
+                        BScaleStruct& b_scale_struct,
+                        index_t num_loop,
+                        index_t num_loop_per_scale) const
     {
         __builtin_amdgcn_sched_barrier(0);
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeA>(
@@ -297,6 +355,8 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
 
         a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
         b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+
+        b_scale_struct.template GlobalLoad<0>(num_loop_per_scale == 1);
 
         // Local prefill 1
         a_blockwise_copy.RunWrite(a_block_desc, a_block_buf);
@@ -314,20 +374,8 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
 
         // Local prefetch 1
         block_sync_lds();
-        static_for<0, KRepeat, 1>{}([&](auto k0) {
-            a_thread_copy_.Run(a_block_desc_k0_m0_m1_m2_k1,
-                               make_tuple(Number<k0 * KPack / A_K1 / A_KRow>{}, I0, I0, I0, I0, I0),
-                               a_block_buf,
-                               a_thread_desc_,
-                               make_tuple(I0, I0, k0, I0, I0, I0),
-                               a_thread_buf);
-            b_thread_copy_.Run(b_block_desc_k0_n0_n1_n2_k1,
-                               make_tuple(Number<k0 * KPack / B_K1 / B_KRow>{}, I0, I0, I0, I0, I0),
-                               b_block_buf,
-                               b_thread_desc_,
-                               make_tuple(I0, I0, k0, I0, I0, I0),
-                               b_thread_buf);
-        });
+
+        LocalLoad(a_block_buf, a_thread_buf, b_block_buf, b_thread_buf, b_scale_struct);
 
         __builtin_amdgcn_sched_barrier(0);
 
@@ -347,6 +395,8 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
 
                 a_blockwise_copy.MoveSrcSliceWindow(a_grid_desc, a_block_copy_step);
                 b_blockwise_copy.MoveSrcSliceWindow(b_grid_desc, b_block_copy_step);
+
+                b_scale_struct.template GlobalLoad<0>((i + 2) % num_loop_per_scale == 0);
 
                 static_for<0, KRepeat, 1>{}([&](auto k0) {
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
@@ -392,22 +442,7 @@ struct BlockwiseGemmWmmaops_pipeline_v3<BlockGemmPipelineScheduler::Intrawave,
 
                 block_sync_lds();
 
-                static_for<0, KRepeat, 1>{}([&](auto k0) {
-                    a_thread_copy_.Run(
-                        a_block_desc_k0_m0_m1_m2_k1,
-                        make_tuple(Number<k0 * KPack / A_K1 / A_KRow>{}, I0, I0, I0, I0, I0),
-                        a_block_buf,
-                        a_thread_desc_,
-                        make_tuple(I0, I0, k0, I0, I0, I0),
-                        a_thread_buf);
-                    b_thread_copy_.Run(
-                        b_block_desc_k0_n0_n1_n2_k1,
-                        make_tuple(Number<k0 * KPack / B_K1 / B_KRow>{}, I0, I0, I0, I0, I0),
-                        b_block_buf,
-                        b_thread_desc_,
-                        make_tuple(I0, I0, k0, I0, I0, I0),
-                        b_thread_buf);
-                });
+                LocalLoad(a_block_buf, a_thread_buf, b_block_buf, b_thread_buf, b_scale_struct);
 
                 HotLoopScheduler();
                 __builtin_amdgcn_sched_barrier(0);

@@ -117,10 +117,7 @@ struct Rmsnorm2dFwdPipelineOnePass
 
         // compute inv-rms
         auto inv_rms = tile_elementwise_in(
-            [&](const auto& v_) {
-                return type_convert<ComputeDataType>(1.0f) / (sqrt(v_ / row_size + epsilon));
-            },
-            square_sum);
+            [&](const auto& v_) { return rsqrtf(v_ / row_size + epsilon); }, square_sum);
 
         if constexpr(kSaveInvRms)
             store_tile(inv_rms_window, cast_tile<InvRmsDataType>(inv_rms));

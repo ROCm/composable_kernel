@@ -178,8 +178,8 @@ bool profile_grouped_conv_fwd_bias_clamp_impl(int do_verification,
                                                   in_element_op,
                                                   wei_element_op,
                                                   out_element_op,
-                                                  {},
-                                                  {},
+                                                                             {},
+                                                                             {},
                                                   d_tensors);
 
         // init host output to zero
@@ -312,9 +312,9 @@ bool profile_grouped_conv_fwd_bias_clamp_impl(int do_verification,
         run_impl(op_ptr, argument_ptr);
     }
 
-    std::cout << "Best configuration parameters:"
-              << "\nname: " << best_op_name << "\navg_time: " << best_avg_time
-              << "\ntflops: " << best_tflops << "\nGB/s: " << best_gb_per_sec << std::endl;
+    std::cout << "Best configuration parameters:" << "\nname: " << best_op_name
+              << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops
+              << "\nGB/s: " << best_gb_per_sec << std::endl;
 
     return pass;
 }

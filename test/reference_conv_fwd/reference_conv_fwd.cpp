@@ -58,12 +58,12 @@ run_reference_convolution_forward(const ck::utils::conv::ConvParam& conv_param,
     ck::ranges::fill<OutDataType>(host_output, 0.f);
 
     auto ref_conv     = ck::tensor_operation::host::ReferenceConvFwd<NDimSpatial,
-                                                                 InDataType,
-                                                                 WeiDataType,
-                                                                 OutDataType,
-                                                                 InElementOp,
-                                                                 WeiElementOp,
-                                                                 OutElementOp>();
+                                                                     InDataType,
+                                                                     WeiDataType,
+                                                                     OutDataType,
+                                                                     InElementOp,
+                                                                     WeiElementOp,
+                                                                     OutElementOp>();
     auto ref_invoker  = ref_conv.MakeInvoker();
     auto ref_argument = ref_conv.MakeArgument(input,
                                               weights,

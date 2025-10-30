@@ -333,12 +333,12 @@ struct matrix_core_swizzle_kernel
                     return tmp_1;
 #else
                     // b_nr_kr_waveflatten = b_nr_kr_kw_nw_kv,
-                    constexpr index_t kv = Alignment;
-                    constexpr index_t nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
-                    constexpr index_t kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
+                    constexpr index_t kv          = Alignment;
+                    constexpr index_t nw          = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
+                    constexpr index_t kw          = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
                     constexpr index_t waveflatten = kw * nw * kv;
-                    const index_t kr = a_.k / (k1 * k2);
-                    const index_t nr = a_.n / nw;
+                    const index_t kr              = a_.k / (k1 * k2);
+                    const index_t nr              = a_.n / nw;
                     auto tmp = make_naive_tensor_view_packed<address_space_enum::global>(
                         p_dst,
                         make_tuple(nr, kr, waveflatten),
@@ -387,8 +387,8 @@ struct matrix_core_swizzle_kernel
                     constexpr index_t nw = WarpGemm::WarpGemmAttribute::Impl::kAMLane;
                     constexpr index_t kw = WarpGemm::WarpGemmAttribute::Impl::kABKLane;
                     constexpr index_t waveflatten_tile = kw * nw * kv;
-                    constexpr index_t nr_tile = NPerBlock / nw;
-                    constexpr index_t kr_tile = KPerBlock / (kw * kv);
+                    constexpr index_t nr_tile          = NPerBlock / nw;
+                    constexpr index_t kr_tile          = KPerBlock / (kw * kv);
                     return make_tile_window(dst_view,
                                             make_tuple(number<nr_tile>{},
                                                        number<kr_tile>{},

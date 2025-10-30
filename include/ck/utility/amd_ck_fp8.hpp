@@ -1400,7 +1400,7 @@ __host__ __device__ static inline fp8_storage_t cvt_float_to_fp8(const float f)
 #else
         constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
-        rng                = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&f), f);
+        rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&f), f);
 #else
         rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&f), f);
 #endif // #ifndef CK_CODE_GEN_RTC
@@ -1426,7 +1426,7 @@ __host__ static inline fp8_storage_t cvt_float_to_fp8(const float f)
 #else
         constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
-        rng                = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&f), f);
+        rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&f), f);
 #else
         rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&f), f);
 #endif // #ifndef CK_CODE_GEN_RTC
@@ -1503,7 +1503,7 @@ __device__ static inline fp8x2_storage_t cvt_float_to_fp8(const float2_t f)
 #else
         constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
-        rng                = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&f), f[0]);
+        rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&f), f[0]);
 #else
         rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&f), f[0]);
 #endif // #ifndef CK_CODE_GEN_RTC
@@ -1704,7 +1704,7 @@ __host__ static inline fp8x2_storage_t cvt_bhalf_t_to_fp8(const ushortx2_t x)
 #else
             constexpr int seed = 1254739;
 #ifndef CK_CODE_GEN_RTC
-            rng                = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x),
+            rng = prand_generator<float, seed>(reinterpret_cast<uintptr_t>(&x),
                                                static_cast<float>(x[0]));
 #else
             rng = prand_generator<float, seed>(reinterpret_cast<size_t>(&x),
@@ -1734,7 +1734,7 @@ using bf8_t = bf8_ocp_t;
 #define CK_FP8_TYPE_FNUZ 0
 #define CK_FP8_TYPE_OCP 1
 #else
-using f8_t = f8_fnuz_t;
+using f8_t  = f8_fnuz_t;
 using bf8_t = bf8_fnuz_t;
 #define CK_FP8_TYPE_FNUZ 1
 #define CK_FP8_TYPE_OCP 0

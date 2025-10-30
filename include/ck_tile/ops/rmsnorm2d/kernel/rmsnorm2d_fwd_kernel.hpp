@@ -58,13 +58,14 @@ struct Rmsnorm2dFwd
     static constexpr bool kSaveInvRms  = Problem::Traits::kSaveInvRms;
     static constexpr bool kSaveUnquant = Problem::Traits::kSaveUnquant;
 
-    static constexpr index_t Block_M  = Problem::BlockShape::Block_M;
-    static constexpr index_t Block_N  = Problem::BlockShape::Block_N;
-    static constexpr bool kPadM       = false; // always no need to pad along M
-    static constexpr bool kPadN       = Problem::Traits::kPadN;
-    static constexpr bool kTwoPass    = Problem::Traits::kTwoPass;
-    static constexpr auto kFusedAdd   = Problem::Traits::kFusedAdd;
-    static constexpr auto kFusedQuant = Problem::Traits::kFusedQuant;
+    static constexpr index_t Block_M                = Problem::BlockShape::Block_M;
+    static constexpr index_t Block_N                = Problem::BlockShape::Block_N;
+    static constexpr bool kPadM                     = false; // always no need to pad along M
+    static constexpr bool kPadN                     = Problem::Traits::kPadN;
+    static constexpr bool kTwoPass                  = Problem::Traits::kTwoPass;
+    static constexpr auto kFusedAdd                 = Problem::Traits::kFusedAdd;
+    static constexpr auto kFusedQuant               = Problem::Traits::kFusedQuant;
+    static constexpr auto kUseModelSensitiveRMSNorm = Problem::Traits::kUseModelSensitiveRMSNorm;
 
     static constexpr index_t ThreadPerWarp_N = Problem::BlockShape::ThreadPerWarp_N;
     static constexpr index_t Vector_N        = Problem::BlockShape::Vector_N;
@@ -150,6 +151,8 @@ struct Rmsnorm2dFwd
             if (kPadN) n += "_pn";
             if (kSaveInvRms) n += "_rms";
             if (kTwoPass) n += "_2p";
+            if (kUseModelSensitiveRMSNorm == Rmsnorm2dSensitiveEnum::NO_SPECIFIC_MODEL) n += "_nsm";
+            else if (kUseModelSensitiveRMSNorm == Rmsnorm2dSensitiveEnum::T5_MODEL_LIKE) n += "_t5ml";
             return n; }();
 
         auto prec_str = [&] () {

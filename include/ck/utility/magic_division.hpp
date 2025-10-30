@@ -75,7 +75,7 @@ struct MagicDivision
     // integral_constant<uint32_t, .>
     template <uint32_t Divisor>
     __host__ __device__ static constexpr auto
-        CalculateMagicNumbers(integral_constant<uint32_t, Divisor>)
+    CalculateMagicNumbers(integral_constant<uint32_t, Divisor>)
     {
         constexpr auto tmp = CalculateMagicNumbers(uint32_t{Divisor});
 
@@ -88,7 +88,7 @@ struct MagicDivision
 
     template <uint32_t Divisor>
     __host__ __device__ static constexpr auto
-        CalculateMagicMultiplier(integral_constant<uint32_t, Divisor>)
+    CalculateMagicMultiplier(integral_constant<uint32_t, Divisor>)
     {
         constexpr uint32_t multiplier = CalculateMagicMultiplier(uint32_t{Divisor});
 
@@ -97,7 +97,7 @@ struct MagicDivision
 
     template <uint32_t Divisor>
     __host__ __device__ static constexpr auto
-        CalculateMagicShift(integral_constant<uint32_t, Divisor>)
+    CalculateMagicShift(integral_constant<uint32_t, Divisor>)
     {
         constexpr uint32_t shift = CalculateMagicShift(uint32_t{Divisor});
 
@@ -107,21 +107,21 @@ struct MagicDivision
     // integral_constant<int32_t, .>
     template <int32_t Divisor>
     __host__ __device__ static constexpr auto
-        CalculateMagicNumbers(integral_constant<int32_t, Divisor>)
+    CalculateMagicNumbers(integral_constant<int32_t, Divisor>)
     {
         return CalculateMagicNumbers(integral_constant<uint32_t, Divisor>{});
     }
 
     template <int32_t Divisor>
     __host__ __device__ static constexpr auto
-        CalculateMagicMultiplier(integral_constant<int32_t, Divisor>)
+    CalculateMagicMultiplier(integral_constant<int32_t, Divisor>)
     {
         return CalculateMagicMultiplier(integral_constant<uint32_t, Divisor>{});
     }
 
     template <int32_t Divisor>
     __host__ __device__ static constexpr auto
-        CalculateMagicShift(integral_constant<int32_t, Divisor>)
+    CalculateMagicShift(integral_constant<int32_t, Divisor>)
     {
         return CalculateMagicShift(integral_constant<uint32_t, Divisor>{});
     }

@@ -228,9 +228,8 @@ struct GridwiseReduction_mk_to_m_threadwise_multi_d
             static_for<0, MThreadSliceSize, 1>{}([&](auto I) {
                 const auto c_ds_buf_refs = concat_tuple_of_reference(
                     tie(accu_value_buf[I]),
-                    generate_tie(
-                        [&](auto Id) -> const auto& { return ds_thread_buf[Id][I]; },
-                        Number<NumDTensor>{}));
+                    generate_tie([&](auto Id) -> const auto& { return ds_thread_buf[Id][I]; },
+                                 Number<NumDTensor>{}));
 
                 unpack2(out_elementwise_op, tie(out_value_buf(I)), c_ds_buf_refs);
             });

@@ -37,25 +37,25 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_contraction_multiple_abd_xdl_cshuffle(
-            AsPointer p_as_grid,
-            BsPointer p_bs_grid,
-            DsPointer p_ds_grid,
-            EDataType* __restrict__ p_e_grid,
-            const AElementwiseOperation a_element_op,
-            const BElementwiseOperation b_element_op,
-            const CDEElementwiseOperation cde_element_op,
-            const AsGridDesc_AK0_M_AK1 as_grid_desc_ak0_m_ak1,
-            const BsGridDesc_BK0_N_BK1 bs_grid_desc_bk0_n_bk1,
-            const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                ds_grid_desc_mblock_mperblock_nblock_nperblock,
-            const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
-                e_grid_desc_mblock_mperblock_nblock_nperblock,
-            const Block2ETileMap block_2_etile_map)
+    kernel_contraction_multiple_abd_xdl_cshuffle(
+        AsPointer p_as_grid,
+        BsPointer p_bs_grid,
+        DsPointer p_ds_grid,
+        EDataType* __restrict__ p_e_grid,
+        const AElementwiseOperation a_element_op,
+        const BElementwiseOperation b_element_op,
+        const CDEElementwiseOperation cde_element_op,
+        const AsGridDesc_AK0_M_AK1 as_grid_desc_ak0_m_ak1,
+        const BsGridDesc_BK0_N_BK1 bs_grid_desc_bk0_n_bk1,
+        const DsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+            ds_grid_desc_mblock_mperblock_nblock_nperblock,
+        const EGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock
+            e_grid_desc_mblock_mperblock_nblock_nperblock,
+        const Block2ETileMap block_2_etile_map)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if defined(__gfx9__)
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     GridwiseGemm::template Run<HasMainKBlockLoop>(p_as_grid,

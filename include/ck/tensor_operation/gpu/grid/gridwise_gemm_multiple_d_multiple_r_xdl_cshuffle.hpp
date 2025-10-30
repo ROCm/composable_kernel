@@ -952,7 +952,7 @@ struct GridwiseGemmMultipleDMultipleR_k0mk1_k0nk1_mn_xdl_cshuffle_v1
             }); // copy c, d, e + reduction
 
         } // shuffle C + Ds + reduction + write out
-    }     // Run
+    } // Run
 };
 
 } // namespace ck

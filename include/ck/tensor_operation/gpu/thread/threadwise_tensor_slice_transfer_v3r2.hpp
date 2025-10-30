@@ -229,8 +229,7 @@ struct ThreadwiseTensorSliceTransfer_v3r2
                             src_data_idx_seq,
                             src_vector_container.template AsType<src_vector_t>()[I0]);
 
-                    constexpr auto move_on_dim = [&]() constexpr
-                    {
+                    constexpr auto move_on_dim = [&]() constexpr {
                         StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
                         static_for<0, nDim, 1>{}([&](auto i) {
@@ -245,8 +244,7 @@ struct ThreadwiseTensorSliceTransfer_v3r2
                         });
 
                         return move_on_dim_;
-                    }
-                    ();
+                    }();
 
                     // move src coord
                     static_for<0, nDim, 1>{}([&](auto i) {
@@ -438,8 +436,7 @@ struct ThreadwiseTensorSliceTransfer_v3r2
                         is_dst_valid,
                         dst_vector_container.template AsType<dst_vector_t>()[I0]);
 
-                    constexpr auto move_on_dim = [&]() constexpr
-                    {
+                    constexpr auto move_on_dim = [&]() constexpr {
                         StaticallyIndexedArray<bool, nDim> move_on_dim_;
 
                         static_for<0, nDim, 1>{}([&](auto i) {
@@ -454,8 +451,7 @@ struct ThreadwiseTensorSliceTransfer_v3r2
                         });
 
                         return move_on_dim_;
-                    }
-                    ();
+                    }();
 
                     // move dst coord
                     static_for<0, nDim, 1>{}([&](auto i) {

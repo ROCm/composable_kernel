@@ -16,11 +16,11 @@ float fused_moegemm_(const ck_tile::stream_config& s, fused_moegemm_args a)
 {
     using f_traits = ck_tile::FusedMoeGemmTraits<Ts_::GateOnly, Ts_::FusedQuant == 1, 1 /*atomic*/>;
     using f_shape  = ck_tile::FusedMoeGemmShape<typename Ts_::BlockTile_0,
-                                               typename Ts_::WarpPerBlock_0,
-                                               typename Ts_::WarpTile_0,
-                                               typename Ts_::BlockTile_1,
-                                               typename Ts_::WarpPerBlock_0,
-                                               typename Ts_::WarpTile_0>;
+                                                typename Ts_::WarpPerBlock_0,
+                                                typename Ts_::WarpTile_0,
+                                                typename Ts_::BlockTile_1,
+                                                typename Ts_::WarpPerBlock_0,
+                                                typename Ts_::WarpTile_0>;
 
     constexpr auto get_activation_ = []() {
         if constexpr(Ts_::Activation == 0)

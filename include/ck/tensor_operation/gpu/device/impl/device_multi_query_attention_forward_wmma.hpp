@@ -44,23 +44,23 @@ template <typename DeviceOp,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_multi_query_attention_wmma(const ADataType* __restrict__ p_a_grid,
-                                          const B0DataType* __restrict__ p_b0_grid,
-                                          const B1DataType* __restrict__ p_b1_grid,
-                                          CDataType* __restrict__ p_c_grid,
-                                          index_t M,  // SequenceQ
-                                          index_t N,  // SequenceK
-                                          index_t K,  // HeadDim
-                                          index_t O,  // SequenceK
-                                          index_t G0, // Batch
-                                          index_t G1, // HeadNum
-                                          float alpha,
-                                          bool input_permute,
-                                          bool output_permute)
+    kernel_multi_query_attention_wmma(const ADataType* __restrict__ p_a_grid,
+                                      const B0DataType* __restrict__ p_b0_grid,
+                                      const B1DataType* __restrict__ p_b1_grid,
+                                      CDataType* __restrict__ p_c_grid,
+                                      index_t M,  // SequenceQ
+                                      index_t N,  // SequenceK
+                                      index_t K,  // HeadDim
+                                      index_t O,  // SequenceK
+                                      index_t G0, // Batch
+                                      index_t G1, // HeadNum
+                                      float alpha,
+                                      bool input_permute,
+                                      bool output_permute)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx11__) || defined(__gfx12__))
+#if(defined(__gfx11__) || defined(__gfx12__))
 
     // clang-format off
 // ***************************************************

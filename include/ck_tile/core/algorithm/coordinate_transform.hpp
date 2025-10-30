@@ -1259,7 +1259,7 @@ struct slice : public base_transform<1, 1>
 
         printf("}");
     } // namespace ck
-};    // namespace ck
+}; // namespace ck
 
 /*
  * \brief lower_idx = upper_idx % modulus.

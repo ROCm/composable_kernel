@@ -34,9 +34,8 @@ static constexpr auto Intrawave = BlockGemmPipelineScheduler::Intrawave;
 static constexpr auto Interwave = BlockGemmPipelineScheduler::Interwave;
 
 template <GemmSpecialization GemmSpec>
-using device_gemm_wmma_universal_f8_f16_f16_km_nk_mn_comp_instances =
-    std::tuple<
-        // clang-format off
+using device_gemm_wmma_universal_f8_f16_f16_km_nk_mn_comp_instances = std::tuple<
+    // clang-format off
         //#########################| ALayout| BLayout| CLayout|AData| BData| CData| AccData| CShuffle|           A|           B|           C| GemmSpec| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MRepeat| NRepeat|    ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|    BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|   CShuffle|   CShuffle| CShuffleBlockTransfer| CShuffleBlockTransfer|    BlkGemm|                      BlkGemm|
         //#########################|        |        |        | Type|  Type|  Type|    Type| DataType| Elementwise| Elementwise| Elementwise|         |  Size| Block| Block| Block|    |    | Wmma| Wmma|        |        |     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraM|     ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar|    ExtraN|    MRepeat|    NRepeat|        ClusterLengths|       ScalarPerVector|  PipeSched|                  PipelineVer|
         //#########################|        |        |        |     |      |      |        |         |   Operation|   Operation|   Operation|         |      |      |      |      |    |    |     |     |        |        | Lengths_AK0_M_AK1|   ArrangeOrder|               |               |      PerVector|  PerVector_AK1|          | Lengths_BK0_N_BK1|   ArrangeOrder|               |               |      PerVector|  PerVector_BK1|          | PerShuffle| PerShuffle|     _MBlock_MPerBlock|            _NPerBlock|           |                             |
@@ -53,8 +52,8 @@ using device_gemm_wmma_universal_f8_f16_f16_km_nk_mn_comp_instances =
         DeviceGemm_Wmma_CShuffleV3<      Col,     Col,     Row,   F8,   F16,   F16,     F32,      F16, PassThrough, PassThrough, PassThrough, GemmSpec,   256,   128,   128,    64,   8,   8,   16,   16,       4,       2,       S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,         1,       S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,          1,          1,        S<1, 32, 1, 8>,                     8,  Intrawave, BlockGemmPipelineVersion::v3>,
         DeviceGemm_Wmma_CShuffleV3<      Col,     Col,     Row,   F8,   F16,   F16,     F32,      F16, PassThrough, PassThrough, PassThrough, GemmSpec,   128,   128,   128,    32,   8,   8,   16,   16,       4,       4,       S<4, 32, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,         1,       S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,          1,          1,        S<1, 32, 1, 4>,                     8,  Intrawave, BlockGemmPipelineVersion::v3>,
         DeviceGemm_Wmma_CShuffleV3<      Col,     Col,     Row,   F8,   F16,   F16,     F32,      F16, PassThrough, PassThrough, PassThrough, GemmSpec,    64,    32,    64,    64,   8,   8,   16,   16,       2,       2,       S<4, 16, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,         1,       S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,          1,          1,        S<1, 16, 1, 4>,                     8,  Intrawave, BlockGemmPipelineVersion::v3>
-        // clang-format on
-        >;
+    // clang-format on
+    >;
 } // namespace instance
 } // namespace device
 } // namespace tensor_operation

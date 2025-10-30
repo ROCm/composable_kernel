@@ -22,7 +22,7 @@ class GemmProfiler
 
     void benchmark(GemmProblem& gemm_problem,
                    std::vector<std::function<std::tuple<std::string, float>(
-                       ck_tile::GemmHostArgs<>&, const ck_tile::stream_config&)>>& callables)
+                       ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>& callables)
     {
         const ALayout layout_a = ALayout{};
         const BLayout layout_b = BLayout{};
@@ -89,10 +89,9 @@ class GemmProfiler
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 
-        ck_tile::GemmHostArgs<> gemm_args = {
+        ck_tile::GemmHostArgs gemm_args = {
             a_m_k_dev_buf.GetDeviceBuffer(),
             b_k_n_dev_buf.GetDeviceBuffer(),
-            {}, // ds_ptr
             c_m_n_dev_buf.GetDeviceBuffer(),
             gemm_problem.split_k_,
             gemm_problem.m_,
@@ -100,7 +99,6 @@ class GemmProfiler
             gemm_problem.k_,
             gemm_problem.stride_a_,
             gemm_problem.stride_b_,
-            {}, // stride_Ds
             gemm_problem.stride_c_,
         };
 
@@ -220,10 +218,8 @@ class GemmProfiler
                 {
                     file << "rocm_version,device_name,"
                          << "split_k,m,n,k,stride_a,stride_b,stride_c,"
-                         << "dtype_a,dtype_b,dtype_acc,dtype_c,"
-                         << "layout_a,layout_b,layout_c,"
-                         << "structured_sparsity,"
-                         << "name,"
+                         << "dtype_a,dtype_b,dtype_acc,dtype_c," << "layout_a,layout_b,layout_c,"
+                         << "structured_sparsity," << "name,"
                          << "latency(ms),tflops(TFlops),bandwidth(GB/s),metric\n";
                 }
 
@@ -253,7 +249,7 @@ class GemmProfiler
         return kernel_instance;
     }
 
-    GemmProfiler(const GemmProfiler&) = delete;
+    GemmProfiler(const GemmProfiler&)            = delete;
     GemmProfiler& operator=(const GemmProfiler&) = delete;
 
     private:

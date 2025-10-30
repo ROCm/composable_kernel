@@ -91,8 +91,9 @@ inline auto Transform(const Range& r, F f) -> std::vector<decltype(f(*r.begin())
 }
 
 template <class Range1, class Range2, class F>
-inline auto Transform(const Range1& r1, const Range2& r2, F f)
-    -> std::vector<decltype(f(*r1.begin(), *r2.begin()))>
+inline auto Transform(const Range1& r1,
+                      const Range2& r2,
+                      F f) -> std::vector<decltype(f(*r1.begin(), *r2.begin()))>
 {
     std::vector<decltype(f(*r1.begin(), *r2.begin()))> result;
     assert(std::distance(r1.begin(), r1.end()) == std::distance(r2.begin(), r2.end()));

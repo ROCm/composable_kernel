@@ -62,6 +62,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-
     libzstd-dev \
     openssh-server \
     clang-format-12 \
+    clang-format-18 \
     kmod && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \

@@ -29,6 +29,9 @@ struct TileFlatmmShape
     static constexpr index_t flatKPerWarp  = WarpTile::at(idxK) * WarpTile::at(idxN);
     static constexpr index_t flatKPerBlock = flatKPerWarp * kK / WarpTile::at(idxK);
 
+    static constexpr bool PermuteA = false;
+    static constexpr bool PermuteB = false;
+
     CK_TILE_HOST static std::string GetName()
     {
         // clang-format off

@@ -11,6 +11,7 @@
 #include "ck_tile/core/numeric/bfloat16.hpp"
 #include "ck_tile/core/numeric/float8.hpp"
 #include "ck_tile/core/numeric/int8.hpp"
+#include "ck_tile/core/numeric/mxfp_convert.hpp"
 
 namespace ck_tile {
 
@@ -64,6 +65,21 @@ CK_TILE_TYPE_CONVERT(bf8_t, bf8, float, float)
 CK_TILE_TYPE_CONVERT(float, float, int8_t, int8)
 CK_TILE_TYPE_CONVERT(int8_t, int8, float, float)
 
+} // namespace ck_tile
+
+#include "ck_tile/core/numeric/pk_fp4.hpp"
+
+namespace ck_tile {
+
+CK_TILE_TYPE_CONVERT(pk_fp4_t, pk_fp4, fp32x2_t, fp32x2)
+CK_TILE_TYPE_CONVERT(fp32x2_t, fp32x2, pk_fp4_t, pk_fp4)
+CK_TILE_TYPE_CONVERT(pk_fp4_t, pk_fp4, fp16x2_t, fp16x2)
+CK_TILE_TYPE_CONVERT(fp16x2_t, fp16x2, pk_fp4_t, pk_fp4)
+CK_TILE_TYPE_CONVERT(pk_fp4_t, pk_fp4, bf16x2_t, bf16x2)
+CK_TILE_TYPE_CONVERT(bf16x2_t, bf16x2, pk_fp4_t, pk_fp4)
+CK_TILE_TYPE_CONVERT(pk_fp4_t, pk_fp4, float, float)
+CK_TILE_TYPE_CONVERT(pk_fp4_t, pk_fp4, bf16_t, bf16)
+CK_TILE_TYPE_CONVERT(pk_fp4_t, pk_fp4, fp16_t, fp16)
 #undef CK_TILE_TYPE_CONVERT
 #endif
 

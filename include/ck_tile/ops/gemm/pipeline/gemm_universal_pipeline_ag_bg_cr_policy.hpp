@@ -12,6 +12,20 @@ namespace ck_tile {
 template <typename Derived>
 struct UniversalGemmBasePolicy
 {
+#if defined(__gfx950__)
+    template <typename Problem>
+    static constexpr bool is_a_load_tr =
+        std::is_same_v<remove_cvref_t<typename Problem::ALayout>, tensor_layout::gemm::ColumnMajor>;
+    template <typename Problem>
+    static constexpr bool is_b_load_tr =
+        std::is_same_v<remove_cvref_t<typename Problem::BLayout>, tensor_layout::gemm::RowMajor>;
+#else
+    template <typename Problem>
+    static constexpr bool is_a_load_tr = false;
+    template <typename Problem>
+    static constexpr bool is_b_load_tr = false;
+#endif
+
     static constexpr auto I0 = number<0>{};
     static constexpr auto I1 = number<1>{};
     static constexpr auto I2 = number<2>{};
@@ -22,51 +36,65 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
-        using ADataType = remove_cvref_t<typename Problem::ADataType>;
 
+        using ADataType             = remove_cvref_t<typename Problem::ADataType>;
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-        constexpr index_t KPack     = GetSmemPackA<Problem>();
 
-        constexpr auto DataTypeSize = sizeof(ADataType);
-        constexpr auto MLdsLayer =
-            (32 * 4 / KPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / KPerBlock / DataTypeSize);
+        if constexpr(is_a_load_tr<Problem>)
+        {
+            // TODO: better lds descriptor for performance
+            constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor( //
+                make_tuple(number<KPerBlock>{}, number<MPerBlock>{}),
+                make_tuple(number<MPerBlock>{}, number<1>{}),
+                number<MPerBlock>{},
+                number<1>{});
+            return a_lds_block_desc_0;
+        }
+        else
+        {
+            constexpr index_t KPack = GetSmemPackA<Problem>();
 
-        constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
-            make_tuple(number<KPerBlock / KPack * MLdsLayer>{},
-                       number<MPerBlock / MLdsLayer>{},
-                       number<KPack>{}),
-            make_tuple(number<KPack>{}, number<KPerBlock * MLdsLayer>{}, number<1>{}),
-            number<KPack>{},
-            number<1>{});
+            constexpr auto DataTypeSize = sizeof(ADataType);
+            constexpr auto MLdsLayer =
+                (32 * 4 / KPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / KPerBlock / DataTypeSize);
 
-        constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
-            a_lds_block_desc_0,
-            make_tuple(make_xor_transform(make_tuple(number<MPerBlock / MLdsLayer>{},
-                                                     number<KPerBlock / KPack * MLdsLayer>{})),
-                       make_pass_through_transform(number<KPack>{})),
-            make_tuple(sequence<1, 0>{}, sequence<2>{}),
-            make_tuple(sequence<1, 0>{}, sequence<2>{}));
+            constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
+                make_tuple(number<KPerBlock / KPack * MLdsLayer>{},
+                           number<MPerBlock / MLdsLayer>{},
+                           number<KPack>{}),
+                make_tuple(number<KPack>{}, number<KPerBlock * MLdsLayer>{}, number<1>{}),
+                number<KPack>{},
+                number<1>{});
 
-        constexpr auto a_lds_block_desc_xk0_mnldslayer_mn_xk1 = transform_tensor_descriptor(
-            a_lds_block_desc_permuted,
-            make_tuple(make_unmerge_transform(
-                           make_tuple(number<MLdsLayer>{}, number<KPerBlock / KPack>{})),
-                       make_pass_through_transform(number<MPerBlock / MLdsLayer>{}),
-                       make_pass_through_transform(number<KPack>{})),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
-            make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}));
+            constexpr auto a_lds_block_desc_permuted = transform_tensor_descriptor(
+                a_lds_block_desc_0,
+                make_tuple(make_xor_transform(make_tuple(number<MPerBlock / MLdsLayer>{},
+                                                         number<KPerBlock / KPack * MLdsLayer>{})),
+                           make_pass_through_transform(number<KPack>{})),
+                make_tuple(sequence<1, 0>{}, sequence<2>{}),
+                make_tuple(sequence<1, 0>{}, sequence<2>{}));
 
-        constexpr auto a_lds_block_desc = transform_tensor_descriptor(
-            a_lds_block_desc_xk0_mnldslayer_mn_xk1,
-            make_tuple(make_merge_transform_v3_division_mod(
-                           make_tuple(number<MPerBlock / MLdsLayer>{}, number<MLdsLayer>{})),
-                       make_merge_transform_v3_division_mod(
-                           make_tuple(number<KPerBlock / KPack>{}, number<KPack>{}))),
-            make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}));
+            constexpr auto a_lds_block_desc_xk0_mnldslayer_mn_xk1 = transform_tensor_descriptor(
+                a_lds_block_desc_permuted,
+                make_tuple(make_unmerge_transform(
+                               make_tuple(number<MLdsLayer>{}, number<KPerBlock / KPack>{})),
+                           make_pass_through_transform(number<MPerBlock / MLdsLayer>{}),
+                           make_pass_through_transform(number<KPack>{})),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+                make_tuple(sequence<0, 2>{}, sequence<1>{}, sequence<3>{}));
 
-        return a_lds_block_desc;
+            constexpr auto a_lds_block_desc = transform_tensor_descriptor(
+                a_lds_block_desc_xk0_mnldslayer_mn_xk1,
+                make_tuple(make_merge_transform_v3_division_mod(
+                               make_tuple(number<MPerBlock / MLdsLayer>{}, number<MLdsLayer>{})),
+                           make_merge_transform_v3_division_mod(
+                               make_tuple(number<KPerBlock / KPack>{}, number<KPack>{}))),
+                make_tuple(sequence<1, 0>{}, sequence<2, 3>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}));
+
+            return a_lds_block_desc;
+        }
     }
 
     /**
@@ -78,14 +106,24 @@ struct UniversalGemmBasePolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeBLdsBlockDescriptor()
     {
-        // using BLayout   = remove_cvref_t<typename Problem::BLayout>;
         using BDataType = remove_cvref_t<typename Problem::BDataType>;
 
         constexpr index_t NPerBlock = Problem::BlockGemmShape::kN;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
 
 #if 1
-        // if constexpr(std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::ColumnMajor>)
+        if constexpr(is_b_load_tr<Problem>)
+        {
+            // TODO: better lds descriptor for performance
+            constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor( //
+                make_tuple(number<KPerBlock>{}, number<NPerBlock>{}),
+                make_tuple(number<NPerBlock>{}, number<1>{}),
+                number<NPerBlock>{},
+                number<1>{});
+            return b_lds_block_desc_0;
+        }
+        else
+        // else if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::ColumnMajor>)
         {
             constexpr index_t KPack     = GetSmemPackB<Problem>();
             constexpr auto BK0          = number<KPerBlock / KPack>{};
@@ -131,10 +169,10 @@ struct UniversalGemmBasePolicy
             constexpr index_t BlockSize   = Problem::kBlockSize;
             constexpr index_t VecLoadSize = GetVectorSizeB<Problem>();
             using TileEncodingPattern     = TileDistributionEncodingPattern2D<BlockSize,
-                                                                          KPerBlock,
-                                                                          NPerBlock,
-                                                                          VecLoadSize,
-                                                                          BTileAccessPattern>;
+                                                                              KPerBlock,
+                                                                              NPerBlock,
+                                                                              VecLoadSize,
+                                                                              BTileAccessPattern>;
 
             constexpr auto BK0 = number<TileEncodingPattern::X1>{};
             constexpr auto BK1 = number<TileEncodingPattern::Y0>{};
@@ -584,17 +622,29 @@ struct UniversalGemmPipelineAgBgCrPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
-        using BlockWarps      = typename Problem::BlockGemmShape::BlockWarps;
-        using WarpTile        = typename Problem::BlockGemmShape::WarpTile;
+        using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
+        using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
+
+        constexpr index_t vector_size =
+            DS_READ_TR_SIZE() / sizeof(typename Problem::ComputeDataType);
+        constexpr index_t thread_elements = WarpTile::at(I1) * WarpTile::at(I2) / get_warp_size();
+        constexpr auto wg_attr_num_access =
+            !(is_a_load_tr<Problem> || is_b_load_tr<Problem>) ? WGAttrNumAccessEnum::Single
+            : vector_size == thread_elements                  ? WGAttrNumAccessEnum::Single
+            : vector_size * 2 == thread_elements              ? WGAttrNumAccessEnum::Double
+            : vector_size * 4 == thread_elements              ? WGAttrNumAccessEnum::Quad
+                                                              : WGAttrNumAccessEnum::Invalid;
+
         using WarpGemm        = WarpGemmMfmaDispatcher<typename Problem::ComputeDataType,
-                                                typename Problem::ComputeDataType,
-                                                typename Problem::CDataType,
-                                                WarpTile::at(I0),
-                                                WarpTile::at(I1),
-                                                WarpTile::at(I2),
-                                                Problem::TransposeC,
-                                                false,
-                                                Problem::UseStructuredSparsity>;
+                                                       typename Problem::ComputeDataType,
+                                                       typename Problem::CDataType,
+                                                       WarpTile::at(I0),
+                                                       WarpTile::at(I1),
+                                                       WarpTile::at(I2),
+                                                       Problem::TransposeC,
+                                                       false,
+                                                       Problem::UseStructuredSparsity,
+                                                       wg_attr_num_access>;
         using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
                                                                       typename Problem::BDataType,
                                                                       typename Problem::CDataType,

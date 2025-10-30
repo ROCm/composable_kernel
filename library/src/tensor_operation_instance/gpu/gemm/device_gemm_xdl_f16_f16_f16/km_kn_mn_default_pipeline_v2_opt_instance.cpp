@@ -9,8 +9,7 @@ namespace device {
 namespace instance {
 
 // Compilation parameters for a[k, m] * b[k, n] = c[m, n]
-using Instances =
-    std::tuple<
+using Instances = std::tuple<
 // clang-format off
 #if CK_EXPERIMENTAL_PIPELINE_V2_INSTANCES        
         // pipeline v2, 1 wave
@@ -20,8 +19,8 @@ using Instances =
         //##########|      |      |      |        |        |        |        |            |            |            |              |      |      |      |      |   |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |                |                |            |                        |                     |
         DeviceGemmXdl<  F16,   F16,   F16,     F32,     Col,     Row,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,    64,   128,     8,  8,   32,   32,    1,    2,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,      true,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              2,              8,      true,               7,               1,           1,  LoopScheduler::Default,  PipelineVersion::v2>
 #endif
-        // clang-format on
-        >;
+    // clang-format on
+    >;
 
 void add_device_gemm_xdl_f16_f16_f16_km_kn_mn_default_pipeline_v2_opt_instances(
     OwnerList<InstanceNT>& instances)

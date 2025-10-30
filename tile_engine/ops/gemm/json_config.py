@@ -118,7 +118,9 @@ class GemmConfig:
     trait_config: TraitConfig
 
     @classmethod
-    def from_json(cls: Type["GemmConfig"], filepath: str, datatype: str) -> "GemmConfig":
+    def from_json(
+        cls: Type["GemmConfig"], filepath: str, datatype: str, layout: str
+    ) -> "GemmConfig":
         """JSON configuration loader with validation controls"""
         config_path = Path(filepath)
 
@@ -132,32 +134,40 @@ class GemmConfig:
             a_type = datatype
             b_type = datatype
             c_type = datatype
-            if b_type == 'int4':
+            if b_type == "int4":
                 a_type = "fp16"
-            if b_type in ['bf8', 'fp8', 'int4']:
+            if b_type in ["bf8", "fp8", "int4"]:
                 c_type = "fp16"
 
+            layout_parts = layout.lower()
+            assert len(layout_parts) == 3, (
+                f"Invalid layout string: {layout} (must be 3 characters like 'rcr' where r stands for row major and c stands for column major)"
+            )
+            assert layout_parts[0] in ("r", "c"), (
+                f"Invalid matrix_a layout: {layout_parts[0]} (must be 'r' for row major or or 'c' for column major)"
+            )
+            assert layout_parts[1] in ("r", "c"), (
+                f"Invalid matrix_a layout: {layout_parts[1]} (must be 'r' for row major or or 'c' for column major)"
+            )
+            assert layout_parts[2] == "r", (
+                f"Invalid matrix_c layout: {layout_parts[2]} (must be 'r' only as currently we are supporting only row major)"
+            )
+            a_layout = layout_parts[0]
+            b_layout = layout_parts[1]
+            c_layout = layout_parts[2]
+
             # Parse problem config
-            #TODO: Not reading datatype information from json file.
+            # TODO: Not reading datatype information from json file.
             problem = ProblemConfig(
                 datatypes=(
-                    EnumConfigParam(
-                        values=[a_type]),
-                    EnumConfigParam(
-                        values=[b_type]),
-                    EnumConfigParam(
-                        values=[c_type])
+                    EnumConfigParam(values=[a_type]),
+                    EnumConfigParam(values=[b_type]),
+                    EnumConfigParam(values=[c_type]),
                 ),
                 layouts=(
-                    EnumConfigParam(
-                        values=config_dict["problem"]["layout_a"]["values"]
-                    ),
-                    EnumConfigParam(
-                        values=config_dict["problem"]["layout_b"]["values"]
-                    ),
-                    EnumConfigParam(
-                        values=config_dict["problem"]["layout_c"]["values"]
-                    ),
+                    EnumConfigParam(values=[a_layout]),
+                    EnumConfigParam(values=[b_layout]),
+                    EnumConfigParam(values=[c_layout]),
                 ),
             )
 

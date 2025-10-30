@@ -81,7 +81,7 @@ struct tensor_adaptor
 
     template <index_t IDimHidden>
     CK_TILE_HOST_DEVICE static constexpr auto
-        get_transform_and_its_upper_dimension(number<IDimHidden>)
+    get_transform_and_its_upper_dimension(number<IDimHidden>)
     {
         // FIXME: length of bottom dimension is not known, since info about lower dim length are not
         // saved in transformation
@@ -119,13 +119,13 @@ struct tensor_adaptor
 
     CK_TILE_HOST_DEVICE static constexpr index_t get_num_of_hidden_dimension()
     {
-        constexpr auto all_low_dim_ids = unpack(
-            [](auto&&... xs) constexpr { return merge_sequences(xs...); },
-            LowerDimensionHiddenIdss{});
+        constexpr auto all_low_dim_ids =
+            unpack([](auto&&... xs) constexpr { return merge_sequences(xs...); },
+                   LowerDimensionHiddenIdss{});
 
-        constexpr auto all_up_dim_ids = unpack(
-            [](auto&&... xs) constexpr { return merge_sequences(xs...); },
-            UpperDimensionHiddenIdss{});
+        constexpr auto all_up_dim_ids =
+            unpack([](auto&&... xs) constexpr { return merge_sequences(xs...); },
+                   UpperDimensionHiddenIdss{});
 
         constexpr auto all_dim_ids = merge_sequences(all_low_dim_ids, all_up_dim_ids);
 
@@ -461,7 +461,7 @@ transform_tensor_adaptor(const OldTensorAdaptor& old_tensor_adaptor,
         sequence<0>{}, inclusive_scan_sequence(up_dim_numbers, plus<index_t>{}, number<0>{}));
 
     constexpr auto up_dim_hidden_idss = generate_tuple(
-        [ old_hidden_dim_number, up_dim_numbers_scan ](auto i) constexpr {
+        [old_hidden_dim_number, up_dim_numbers_scan](auto i) constexpr {
             return
                 typename arithmetic_sequence_gen<old_hidden_dim_number + up_dim_numbers_scan[i],
                                                  old_hidden_dim_number + up_dim_numbers_scan[i + 1],
@@ -470,8 +470,8 @@ transform_tensor_adaptor(const OldTensorAdaptor& old_tensor_adaptor,
         number<num_new_transform>{});
 
     // new top dimension's hidden ids
-    constexpr auto unordered_new_top_dim_hidden_ids = unpack(
-        [](auto... xs) constexpr { return merge_sequences(xs...); }, up_dim_hidden_idss);
+    constexpr auto unordered_new_top_dim_hidden_ids =
+        unpack([](auto... xs) constexpr { return merge_sequences(xs...); }, up_dim_hidden_idss);
 
     constexpr auto new_top_dim_unordered2ordered = unpack(
         [](auto... xs) constexpr { return merge_sequences(xs...); }, NewUpperDimensionNewTopIdss{});
@@ -595,8 +595,7 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const TensorAdaptor0& a
                 TensorAdaptor1::get_lower_dimension_hidden_idss()[itran];
 
             // sequence in, sequence out
-            constexpr auto low_dim_hidden_ids_1_mod = [&]() constexpr
-            {
+            constexpr auto low_dim_hidden_ids_1_mod = [&]() constexpr {
                 auto low_dim_hidden_ids_1_mod_ = to_multi_index(low_dim_hidden_ids_1);
 
                 // shift hidden id so every dim id is unique
@@ -619,8 +618,7 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const TensorAdaptor0& a
                 });
 
                 return low_dim_hidden_ids_1_mod_;
-            }
-            ();
+            }();
 
             return generate_sequence_v2(
                 [&](auto i) constexpr { return number<low_dim_hidden_ids_1_mod[i]>{}; },
@@ -643,8 +641,7 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const TensorAdaptor0& a
                 TensorAdaptor1::get_upper_dimension_hidden_idss()[itran];
 
             // sequence in, constexpr tuple out
-            constexpr auto up_dim_hidden_ids_1_mod = [&]() constexpr
-            {
+            constexpr auto up_dim_hidden_ids_1_mod = [&]() constexpr {
                 auto up_dim_hidden_ids_1_mod_ = to_multi_index(up_dim_hidden_ids_1);
 
                 // shift hidden id
@@ -653,8 +650,7 @@ CK_TILE_HOST_DEVICE constexpr auto chain_tensor_adaptors(const TensorAdaptor0& a
                 });
 
                 return up_dim_hidden_ids_1_mod_;
-            }
-            ();
+            }();
 
             // constexpr tuple to sequence
             return generate_sequence_v2(

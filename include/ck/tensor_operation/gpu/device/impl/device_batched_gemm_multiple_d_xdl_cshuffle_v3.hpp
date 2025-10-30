@@ -33,11 +33,11 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
-        kernel_batched_gemm_xdl_cshuffle_v3_multi_d(BatchedGemmArg karg)
+    kernel_batched_gemm_xdl_cshuffle_v3_multi_d(BatchedGemmArg karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if defined(__gfx9__)
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t g_idx = blockIdx.z % karg.Batch;
@@ -79,11 +79,11 @@ template <typename GridwiseGemm,
           TailNumber TailNum       = TailNumber::Full>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #endif
-        kernel_batched_gemm_xdl_cshuffle_v3_multi_d_2lds(BatchedGemmArg karg)
+    kernel_batched_gemm_xdl_cshuffle_v3_multi_d_2lds(BatchedGemmArg karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if defined(__gfx9__)
     // Pass two lds pointer is the key to tell compiler that ds_read/write
     // operate on different lds chunk at same time without order dependecy
     __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -335,6 +335,60 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
                   BatchStrideA_, BatchStrideB_, BatchStrideDs_, BatchStrideE_}
         {
         }
+    };
+
+    struct ActiveWorkgroupsPerCU
+    {
+        ActiveWorkgroupsPerCU()
+        {
+            constexpr int dynamic_smem_size = 0;
+            int max_occupancy               = 0;
+
+            constexpr index_t minimum_occupancy = []() {
+                if constexpr(BlkGemmPipeSched == BlockGemmPipelineScheduler::Interwave)
+                {
+                    return 2;
+                }
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                {
+                    return (MPerBlock * NPerBlock / BlockSize <= 128) ? 2 : 1;
+                }
+                else
+                {
+                    return 1;
+                }
+            }();
+
+            if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
+            {
+                hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                    &max_occupancy,
+                    kernel_batched_gemm_xdl_cshuffle_v3_multi_d_2lds<
+                        GridwiseGemm,
+                        Argument,
+                        true,
+                        InMemoryDataOperationEnum::AtomicAdd,
+                        minimum_occupancy>,
+                    BlockSize,
+                    dynamic_smem_size));
+            }
+            else
+            {
+                hip_check_error(hipOccupancyMaxActiveBlocksPerMultiprocessor(
+                    &max_occupancy,
+                    kernel_batched_gemm_xdl_cshuffle_v3_multi_d<
+                        GridwiseGemm,
+                        Argument,
+                        true,
+                        InMemoryDataOperationEnum::AtomicAdd,
+                        minimum_occupancy>,
+                    BlockSize,
+                    dynamic_smem_size));
+            }
+
+            max_occupancy_ = std::max(1, max_occupancy);
+        }
+        int max_occupancy_;
     };
 
     // Invoker
@@ -1043,6 +1097,12 @@ struct DeviceBatchedGemmMultiD_Xdl_CShuffle_V3
         // clang-format on
 
         return str.str();
+    }
+
+    static ck::index_t GetMaxOccupancy()
+    {
+        static ActiveWorkgroupsPerCU active_workgroups_per_cu;
+        return active_workgroups_per_cu.max_occupancy_;
     }
 };
 

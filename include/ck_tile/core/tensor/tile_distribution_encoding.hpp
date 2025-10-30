@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -532,6 +532,26 @@ struct tile_distribution_encoding
         printf("}");
     }
 };
+
+template <typename encoding, typename shuffle>
+class tile_distribution_encoding_shuffle;
+template <typename encoding, index_t... shuffle>
+class tile_distribution_encoding_shuffle<encoding, sequence<shuffle...>>
+{
+    template <typename Ys2RHs>
+    using shuffled = sequence<(Ys2RHs::template get<shuffle>())...>;
+
+    public:
+    using type = tile_distribution_encoding<typename encoding::RsLengths,
+                                            typename encoding::HsLengthss,
+                                            typename encoding::Ps2RHssMajor,
+                                            typename encoding::Ps2RHssMinor,
+                                            shuffled<typename encoding::Ys2RHsMajor>,
+                                            shuffled<typename encoding::Ys2RHsMinor>>;
+};
+template <typename encoding, typename shuffle>
+using tile_distribution_encoding_shuffle_t =
+    typename tile_distribution_encoding_shuffle<encoding, shuffle>::type;
 
 namespace detail {
 

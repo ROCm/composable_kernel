@@ -273,7 +273,7 @@ def get_fmha_fwd_appendkv_tile_dict_from_dtype(dtype : str) -> Optional[dict]:
     else:
         return None
 
-def get_fwd_appendkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) -> Tuple[FmhaFwdAppendKVApiPool, List[FmhaFwdAppendKVKernel]]:
+def get_fwd_appendkv_blobs(kernel_filter : Optional[str], receipt, mask_impl, optdim_list) -> Tuple[FmhaFwdAppendKVApiPool, List[FmhaFwdAppendKVKernel]]:
     # TODO: we don't support tuning yet, so pick up one value for vlayout/pipeline/pad
     #       support this in future
     def get_pipelines(dtype, hdim) -> List[FmhaFwdAppendKVPipeline]:
@@ -326,6 +326,9 @@ def get_fwd_appendkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                 if kernel_filter != '':
                     if not fnmatch.fnmatch(k.name, kernel_filter):
                         continue
+                if optdim_list != [-1]:
+                    if hdim not in optdim_list:
+                        continue
                 # 2 - Flash attention integration
                 if receipt == 2:
                     cond = dtype in ['fp16', 'bf16']
@@ -334,7 +337,7 @@ def get_fwd_appendkv_blobs(kernel_filter : Optional[str], receipt, mask_impl) ->
                         continue
                 # PyTorch integration
                 elif receipt == 4:
-                    cond = dtype in ['fp16, bf16']
+                    cond = dtype in ['fp16', 'bf16']
                     cond &= pipeline.F_vlayout == 'row'
                     if not cond:
                         continue
@@ -350,16 +353,14 @@ def write_fwd_appendkv_api(api_pool : FmhaFwdAppendKVApiPool, autogen_dir: Path)
     (autogen_dir / FMHA_FWD_APPENDKV_API_FILENAME).write_text(api_pool.api)
 
 def write_blobs(output_dir : Path, kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> None:
-    assert optdim_list == [-1]
-    api_pool, kernels = get_fwd_appendkv_blobs(kernel_filter, receipt, mask_impl)
+    api_pool, kernels = get_fwd_appendkv_blobs(kernel_filter, receipt, mask_impl, optdim_list)
     for kernel in kernels:
         write_single_kernel(kernel, output_dir)
     write_fwd_appendkv_api(api_pool, output_dir)
 
 def list_blobs(file_path : Path, kernel_filter : Optional[str], receipt, optdim_list, mask_impl) -> None:
-    assert optdim_list == [-1]
     with file_path.open('a') as f:
-        _, kernels = get_fwd_appendkv_blobs(kernel_filter, receipt, mask_impl)
+        _, kernels = get_fwd_appendkv_blobs(kernel_filter, receipt, mask_impl, optdim_list)
         for kernel in kernels:
             f.write(str(file_path.parent / GEN_DIR / kernel.filename) + "\n")
         f.write(str(file_path.parent / GEN_DIR / FMHA_FWD_APPENDKV_API_FILENAME) + "\n")

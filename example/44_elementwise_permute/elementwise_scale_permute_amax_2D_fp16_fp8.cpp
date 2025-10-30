@@ -152,7 +152,7 @@ int main(int argc, char* argv[])
 
     std::array<const void*, 1> inputs = {input_dev_buf.GetDeviceBuffer()};
     std::array<void*, 2> outputs      = {output_scaled_casted_transposed_dev_buf.GetDeviceBuffer(),
-                                    output_scaled_casted_dev_buf.GetDeviceBuffer()};
+                                         output_scaled_casted_dev_buf.GetDeviceBuffer()};
 
     std::cout << "Input: " << input.mDesc << std::endl;
     std::cout << "Scale: " << scale << std::endl;
@@ -164,8 +164,8 @@ int main(int argc, char* argv[])
     auto launch_transpose_scale = [&]() {
         auto transposeScale = DeviceElementwisePermuteInstance{};
         auto argument       = transposeScale.MakeArgumentPointer(dims,
-                                                           {in_strides},
-                                                           {out_strides, in_strides},
+                                                                 {in_strides},
+                                                                 {out_strides, in_strides},
                                                            inputs,
                                                            outputs,
                                                            ScalePassThrough{scale});

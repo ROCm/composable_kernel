@@ -399,7 +399,7 @@ struct GridwiseNormalizationBwdData_mk_to_mk
                                     dx_grid_desc_m_k,
                                     dx_global_val_buf);
 
-        }    // end of sweep once
+        } // end of sweep once
         else // Sweep Twice pipeline
         {
             constexpr auto thread_copy_fwd_step_m_k = make_multi_index(0, K_BlockTileSize);

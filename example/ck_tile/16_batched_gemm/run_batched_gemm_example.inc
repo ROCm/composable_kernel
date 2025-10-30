@@ -50,21 +50,20 @@ float invoke_batched_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                           int n_warmup,
                           int n_repeat)
 {
-    ck_tile::BatchedGemmHostArgs args;
-    args.a_ptr          = a_m_k_dev_buf.GetDeviceBuffer();
-    args.b_ptr          = b_k_n_dev_buf.GetDeviceBuffer();
-    args.e_ptr          = c_m_n_dev_buf.GetDeviceBuffer();
-    args.k_batch        = kbatch;
-    args.M              = M;
-    args.N              = N;
-    args.K              = K;
-    args.stride_A       = stride_A;
-    args.stride_B       = stride_B;
-    args.stride_E       = stride_C;
-    args.batch_stride_A = batch_stride_A;
-    args.batch_stride_B = batch_stride_B;
-    args.batch_stride_E = batch_stride_C;
-    args.batch_count    = batch_count;
+    ck_tile::BatchedGemmHostArgs args{a_m_k_dev_buf.GetDeviceBuffer(),
+                                      b_k_n_dev_buf.GetDeviceBuffer(),
+                                      c_m_n_dev_buf.GetDeviceBuffer(),
+                                      kbatch,
+                                      M,
+                                      N,
+                                      K,
+                                      stride_A,
+                                      stride_B,
+                                      stride_C,
+                                      batch_stride_A,
+                                      batch_stride_B,
+                                      batch_stride_C,
+                                      batch_count};
 
     float ave_time = batched_gemm<ADataType,
                                   BDataType,

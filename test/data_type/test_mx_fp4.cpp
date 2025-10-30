@@ -212,8 +212,8 @@ TEST(MXFP4, HostScaledConvert)
     auto i = 256 * 16;
 
     // f4x2 -> f32x2
-    EXPECT_EQ(out[i++], 1.0f);
     EXPECT_EQ(out[i++], -4.0f);
+    EXPECT_EQ(out[i++], 1.0f);
 
     // f32x2 -> f4x2
     // RNE
@@ -296,8 +296,8 @@ TEST(MXFP4, DeviceScaledConvert)
     auto i = 256 * 16;
 
     // f4x2 -> f32x2
-    EXPECT_EQ(out[i++], 1.0f);
     EXPECT_EQ(out[i++], -4.0f);
+    EXPECT_EQ(out[i++], 1.0f);
 
     // f32x2 -> f4x2
     // RNE

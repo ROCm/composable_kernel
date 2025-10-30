@@ -10,7 +10,7 @@
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
+#include "ck_tile/ops/gemm/kernel/gemm_multi_d_kernel.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
 struct ElementWiseAddAdd
@@ -95,7 +95,7 @@ class TestCkTileGemmMultiD : public ::testing::Test
               typename DsLayout,
               typename ELayout,
               typename CDEElementWise = ck_tile::element_wise::PassThrough>
-    void invoke_gemm_multi_d(const ck_tile::GemmHostArgs<DsDataType::size()>& args,
+    void invoke_gemm_multi_d(const ck_tile::GemmMultiDHostArgs<DsDataType::size()>& args,
                              const ck_tile::stream_config& s)
     {
         constexpr ck_tile::index_t M_Tile = 256;
@@ -189,7 +189,7 @@ class TestCkTileGemmMultiD : public ::testing::Test
                                                  UniversalGemmProblem::TransposeC,
                                                  memory_operation>>;
 
-            using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+            using Kernel = ck_tile::GemmKernelMultiD<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 
             const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
@@ -345,18 +345,18 @@ class TestCkTileGemmMultiD : public ::testing::Test
                                                                   d1_m_n_dev_buf.GetDeviceBuffer()};
         std::array<ck_tile::index_t, DsDataType::size()> stridesDs = {StrideD0, StrideD1};
 
-        ck_tile::GemmHostArgs<DsDataType::size()> args({a_m_k_dev_buf.GetDeviceBuffer(),
-                                                        b_k_n_dev_buf.GetDeviceBuffer(),
-                                                        ds_ptr_buf,
-                                                        e_m_n_dev_buf.GetDeviceBuffer(),
-                                                        k_batch,
-                                                        M,
-                                                        N,
-                                                        K,
-                                                        StrideA,
-                                                        StrideB,
-                                                        stridesDs,
-                                                        StrideE});
+        ck_tile::GemmMultiDHostArgs<DsDataType::size()> args({a_m_k_dev_buf.GetDeviceBuffer(),
+                                                              b_k_n_dev_buf.GetDeviceBuffer(),
+                                                              ds_ptr_buf,
+                                                              e_m_n_dev_buf.GetDeviceBuffer(),
+                                                              k_batch,
+                                                              M,
+                                                              N,
+                                                              K,
+                                                              StrideA,
+                                                              StrideB,
+                                                              stridesDs,
+                                                              StrideE});
 
         invoke_gemm_multi_d<ADataType,
                             BDataType,

@@ -105,8 +105,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     b_buf.ToDevice(b_host.data());
     gamma_buf.ToDevice(gamma_host.data());
 
-    std::cout << "[" << input_data_type << ", " << quantized_data_type << "]"
-              << " m:" << m << ", n:" << n << ", stride:" << stride << std::flush;
+    std::cout << "[" << input_data_type << ", " << quantized_data_type << "]" << " m:" << m
+              << ", n:" << n << ", stride:" << stride << std::flush;
 
     add_rmsnorm2d_rdquant_fwd_traits traits{input_data_type, quantized_data_type, SaveX};
 

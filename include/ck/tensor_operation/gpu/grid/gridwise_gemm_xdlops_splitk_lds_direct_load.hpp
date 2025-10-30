@@ -30,15 +30,15 @@ template <typename GridwiseGemm,
           typename CElementwiseOperation>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_gemm_xdlops_splitk_lds_direct_load(typename GridwiseGemm::Argument karg,
-                                                  const Block2CTileMap& b2c_map,
-                                                  const AElementwiseOperation a_element_op,
-                                                  const BElementwiseOperation b_element_op,
-                                                  const CElementwiseOperation c_element_op)
+    kernel_gemm_xdlops_splitk_lds_direct_load(typename GridwiseGemm::Argument karg,
+                                              const Block2CTileMap& b2c_map,
+                                              const AElementwiseOperation a_element_op,
+                                              const BElementwiseOperation b_element_op,
+                                              const CElementwiseOperation c_element_op)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if defined(__gfx9__)
     constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
 
     __shared__ uint8_t p_shared[shared_size];
@@ -168,17 +168,10 @@ struct GridwiseGemm_xdlops_splitk_lds_direct_load
 
         void Print() const
         {
-            std::cout << "arg {"
-                      << "M:" << M << ", "
-                      << "N:" << N << ", "
-                      << "K:" << K << ", "
-                      << "SA:" << StrideA << ", "
-                      << "SB:" << StrideB << ", "
-                      << "SC:" << StrideC << ", "
-                      << "MP:" << MPadded << ", "
-                      << "NP:" << NPadded << ", "
-                      << "KP:" << KPadded << ", "
-                      << "K0Padded:" << K0Padded << ", "
+            std::cout << "arg {" << "M:" << M << ", " << "N:" << N << ", " << "K:" << K << ", "
+                      << "SA:" << StrideA << ", " << "SB:" << StrideB << ", " << "SC:" << StrideC
+                      << ", " << "MP:" << MPadded << ", " << "NP:" << NPadded << ", "
+                      << "KP:" << KPadded << ", " << "K0Padded:" << K0Padded << ", "
                       << "KB:" << k_batch << "}" << std::endl;
         }
     };

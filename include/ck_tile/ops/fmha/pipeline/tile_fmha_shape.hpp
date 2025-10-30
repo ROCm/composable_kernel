@@ -60,8 +60,8 @@ struct TileFmhaShape
     // v, rowmajor : seqlen*hdim, colmajor : hdim*seqlen
     static constexpr bool IsVLayoutRowMajor = IsVLayoutRowMajor_;
     using VLayout                           = std::conditional_t<IsVLayoutRowMajor,
-                                       ck_tile::tensor_layout::gemm::RowMajor,
-                                       ck_tile::tensor_layout::gemm::ColumnMajor>;
+                                                                 ck_tile::tensor_layout::gemm::RowMajor,
+                                                                 ck_tile::tensor_layout::gemm::ColumnMajor>;
 };
 
 template <typename BlockTile_, // sequence<...

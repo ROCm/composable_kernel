@@ -28,16 +28,16 @@ template <typename GridwiseGemm,
           bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_grouped_contraction_multiple_d_xdl_cshuffle(
-            const void CK_CONSTANT_ADDRESS_SPACE* contraction_args,
-            const index_t group_count,
-            const AElementwiseOperation a_element_op,
-            const BElementwiseOperation b_element_op,
-            const CDEElementwiseOperation cde_element_op)
+    kernel_grouped_contraction_multiple_d_xdl_cshuffle(
+        const void CK_CONSTANT_ADDRESS_SPACE* contraction_args,
+        const index_t group_count,
+        const AElementwiseOperation a_element_op,
+        const BElementwiseOperation b_element_op,
+        const CDEElementwiseOperation cde_element_op)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx9__))
+#if defined(__gfx9__)
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t block_id = get_block_1d_id();

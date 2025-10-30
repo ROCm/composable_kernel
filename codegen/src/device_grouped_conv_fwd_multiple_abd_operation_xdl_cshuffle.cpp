@@ -142,12 +142,11 @@ std::vector<Operation_Conv_Fwd_Xdl_Cshuffle> Operation_Conv_Fwd_Xdl_Cshuffle::Cr
         x.A                = TensorDesc{prob.ADataType, prob.ALayout};
         x.B                = TensorDesc{prob.BDataType, prob.BLayout};
         x.E                = TensorDesc{prob.EDataType, prob.ELayout};
-        x.Ds               = Transform(prob.DsLayout, prob.DsDataType, [](auto lo, auto dt) {
-            return TensorDesc{dt, lo};
-        });
-        x.a_elem_op        = prob.AElementOp;
-        x.b_elem_op        = prob.BElementOp;
-        x.cde_elem_op      = prob.CDEElementOp;
+        x.Ds               = Transform(
+            prob.DsLayout, prob.DsDataType, [](auto lo, auto dt) { return TensorDesc{dt, lo}; });
+        x.a_elem_op   = prob.AElementOp;
+        x.b_elem_op   = prob.BElementOp;
+        x.cde_elem_op = prob.CDEElementOp;
         x.update_prologue(prologue);
         x.update_epilogue(epilogue);
         result.push_back(x);

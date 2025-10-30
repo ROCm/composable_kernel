@@ -194,9 +194,9 @@ int main(int argc, char* argv[])
     auto invoker   = device_op.MakeInvoker();
     auto argument  = device_op.MakeArgument(
         std::array<const void*, 2>{a0_device_buf.GetDeviceBuffer(),
-                                   a1_device_buf.GetDeviceBuffer()},
+                                    a1_device_buf.GetDeviceBuffer()},
         std::array<const void*, 2>{b0_device_buf.GetDeviceBuffer(),
-                                   b1_device_buf.GetDeviceBuffer()},
+                                    b1_device_buf.GetDeviceBuffer()},
         std::array<const void*, 0>{},
         e_device_buf.GetDeviceBuffer(),
         std::array<std::vector<ck::index_t>, 2>{a0_ms_ks_lengths, a1_ms_ks_lengths},

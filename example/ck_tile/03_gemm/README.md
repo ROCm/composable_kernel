@@ -23,7 +23,7 @@ args:
           -n    n dimension (default:2048)
           -k    k dimension (default:64)
    -a_layout    Tensor A data layout (default: R)
-   -b_layout    Tensor B data layout (default: R)
+   -b_layout    Tensor B data layout (default: C)
    -c_layout    Tensor C data layout (default: R)
    -stride_a    Tensor A stride (default:0)
    -stride_b    Tensor B stride (default:0)

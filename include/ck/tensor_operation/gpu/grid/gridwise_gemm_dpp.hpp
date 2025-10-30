@@ -21,14 +21,14 @@ namespace ck {
 template <typename GridwiseGemm, bool HasMainKBlockLoop>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
 #if CK_USE_WAVES_PER_EU
-        __attribute__((amdgpu_waves_per_eu(CK_MIN_WAVES_PER_EU, CK_MAX_WAVES_PER_EU)))
+    __attribute__((amdgpu_waves_per_eu(CK_MIN_WAVES_PER_EU, CK_MAX_WAVES_PER_EU)))
 #endif
-        kernel_gemm_dpp(const typename GridwiseGemm::Argument karg)
+    kernel_gemm_dpp(const typename GridwiseGemm::Argument karg)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx103__) || defined(__gfx11__))
+#if(defined(__gfx103__) || defined(__gfx11__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const auto a_grid_desc_ak0_m_ak1 = amd_wave_read_first_lane(
@@ -154,17 +154,10 @@ struct GridwiseGemm_ak0mak1_bk0nbk1_mn_dpp
 
         __host__ void Print() const
         {
-            std::cout << "problem {"
-                      << "M:" << M << ", "
-                      << "N:" << N << ", "
-                      << "K:" << K << ", "
-                      << "SA:" << StrideA << ", "
-                      << "SB:" << StrideB << ", "
-                      << "SC:" << StrideC << ", "
-                      << "MP:" << MPadded << ", "
-                      << "NP:" << NPadded << ", "
-                      << "AK0:" << AK0 << ", "
-                      << "BK0:" << BK0 << "}" << std::endl;
+            std::cout << "problem {" << "M:" << M << ", " << "N:" << N << ", " << "K:" << K << ", "
+                      << "SA:" << StrideA << ", " << "SB:" << StrideB << ", " << "SC:" << StrideC
+                      << ", " << "MP:" << MPadded << ", " << "NP:" << NPadded << ", "
+                      << "AK0:" << AK0 << ", " << "BK0:" << BK0 << "}" << std::endl;
         }
 
         index_t M;

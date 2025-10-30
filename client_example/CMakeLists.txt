@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.15)
 project(ck_app)
-add_compile_options(-std=c++17)
+add_compile_options(-std=c++20)
 
 if (DTYPES)
     add_definitions(-DDTYPES)

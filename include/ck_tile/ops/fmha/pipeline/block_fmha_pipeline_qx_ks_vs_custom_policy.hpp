@@ -509,7 +509,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
 
     template <typename Problem, index_t IBuf = 0>
     CK_TILE_HOST_DEVICE static constexpr auto
-        MakeKLdsStoreBlockDescriptor(number<IBuf> = number<0>{})
+    MakeKLdsStoreBlockDescriptor(number<IBuf> = number<0>{})
     {
         // K is always k-major, we use async-copy to load into LDS
         constexpr index_t kNPerBlock = Problem::BlockFmhaShape::kN0;

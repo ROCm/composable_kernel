@@ -37,9 +37,8 @@ template <index_t NDSpatial,
           typename BLayout,
           typename CLayout,
           ConvolutionBackwardWeightSpecialization ConvSpec>
-using device_grouped_conv_bwd_weight_wmma_f16_instances =
-    std::tuple<
-        // clang-format off
+using device_grouped_conv_bwd_weight_wmma_f16_instances = std::tuple<
+    // clang-format off
         //#####################################|    NumDim|       A|       B|       C| AData| BData|  CData| AccData|            A|           B|            C|    ConvForward| Block|  MPer|  NPer|  KPer| K1|  MPer| NPer| MRepeat| NRepeat|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|       CShuffle|       CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
         //#####################################|   Spatial|  Layout|  Layout|  Layout|  Type|  Type|   Type|    Type|  Elementwise| Elementwise|  Elementwise| Specialization|  Size| Block| Block| Block|   |  WMMA| WMMA|        |        |   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MRepeatPerWave| NRepeatPerWave|            _MBlock_MPerBlock| ScalarPerVector|
         //#####################################|          |        |        |        |      |      |       |        |    Operation|   Operation|    Operation|               |      |      |      |      |   |      |     |        |        | Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |     PerShuffle|     PerShuffle|            _NBlock_NPerBlock|      _NPerBlock|
@@ -71,17 +70,16 @@ using device_grouped_conv_bwd_weight_wmma_f16_instances =
         DeviceGroupedConvBwdWeight_Wmma_CShuffle<NDSpatial, ALayout, BLayout, CLayout,  F16,   F16,  F16,  F32,  PassThrough, PassThrough, PassThrough,       ConvSpec,           32,    64,    32,     8,  8,    16,   16,       4,       2,      S<8, 4, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              8,              8,         1,      S<8, 4, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              8,              8,         1,           1,           1,               S<1, 16, 1, 2>,               8>,  
         DeviceGroupedConvBwdWeight_Wmma_CShuffle<NDSpatial, ALayout, BLayout, CLayout,  F16,   F16,  F16,  F32,  PassThrough, PassThrough, PassThrough,       ConvSpec,           32,    64,    16,     8,  8,    16,   16,       4,       1,      S<8, 4, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              8,              8,         1,      S<8, 4, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              8,         1,           1,           1,               S<1, 16, 1, 2>,               8>,  
         DeviceGroupedConvBwdWeight_Wmma_CShuffle<NDSpatial, ALayout, BLayout, CLayout,  F16,   F16,  F16,  F32,  PassThrough, PassThrough, PassThrough,       ConvSpec,           32,    32,    16,     8,  8,    16,   16,       2,       1,      S<8, 4, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              8,              8,         1,      S<8, 4, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              4,              8,         1,           1,           1,               S<1, 16, 1, 2>,               8>
-        // clang-format on
-        >;
+    // clang-format on
+    >;
 
 template <index_t NDSpatial,
           typename ALayout,
           typename BLayout,
           typename CLayout,
           ConvolutionBackwardWeightSpecialization ConvSpec>
-using device_grouped_conv_bwd_weight_wmma_i8_instances =
-    std::tuple<
-        // clang-format off
+using device_grouped_conv_bwd_weight_wmma_i8_instances = std::tuple<
+    // clang-format off
         //#####################################|    NumDim|       A|       B|       C| AData| BData|  CData| AccData|            A|           B|            C|    ConvForward| Block|  MPer|  NPer|  KPer| K1|  MPer| NPer| MRepeat| NRepeat|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|       CShuffle|       CShuffle| CBlockTransferClusterLengths|  CBlockTransfer|
         //#####################################|   Spatial|  Layout|  Layout|  Layout|  Type|  Type|   Type|    Type|  Elementwise| Elementwise|  Elementwise| Specialization|  Size| Block| Block| Block|   |  WMMA| WMMA|        |        |   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| MRepeatPerWave| NRepeatPerWave|            _MBlock_MPerBlock| ScalarPerVector|
         //#####################################|          |        |        |        |      |      |       |        |    Operation|   Operation|    Operation|               |      |      |      |      |   |      |     |        |        | Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |     PerShuffle|     PerShuffle|            _NBlock_NPerBlock|      _NPerBlock|
@@ -110,8 +108,8 @@ using device_grouped_conv_bwd_weight_wmma_i8_instances =
         DeviceGroupedConvBwdWeight_Wmma_CShuffle<NDSpatial, ALayout, BLayout, CLayout, I8,    I8,  I8,  I32,    PassThrough, PassThrough, PassThrough,       ConvSpec,           32,    64,    64,     8,   8,    16,   16,       4,       4,      S<8, 4, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              16,              8,         1,      S<8, 4, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,           16,              8,         1,           1,           1,               S<1, 16, 1, 2>,               8>,  
         DeviceGroupedConvBwdWeight_Wmma_CShuffle<NDSpatial, ALayout, BLayout, CLayout, I8,    I8,  I8,  I32,    PassThrough, PassThrough, PassThrough,       ConvSpec,           32,    32,    32,     8,   8,    16,   16,       2,       2,      S<8, 4, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,               8,              8,         1,      S<8, 4, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,            8,              8,         1,           1,           1,               S<1, 16, 1, 2>,               8>,  
         DeviceGroupedConvBwdWeight_Wmma_CShuffle<NDSpatial, ALayout, BLayout, CLayout, I8,    I8,  I8,  I32,    PassThrough, PassThrough, PassThrough,       ConvSpec,           32,    64,    16,     8,   8,    16,   16,       4,       1,      S<8, 4, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,              16,              8,         1,      S<8, 4, 1>,     S<0, 2, 1>,     S<0, 2, 1>,             1,            4,              8,         1,           1,           1,               S<1, 16, 1, 2>,               8>
-        // clang-format on
-        >;
+    // clang-format on
+    >;
 
 } // namespace instance
 } // namespace device

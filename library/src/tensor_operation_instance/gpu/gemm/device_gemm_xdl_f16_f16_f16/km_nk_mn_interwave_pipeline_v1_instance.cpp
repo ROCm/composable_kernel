@@ -9,8 +9,7 @@ namespace device {
 namespace instance {
 
 // Compilation parameters for a[k, m] * b[n, k] = c[m, n]
-using Instances =
-    std::tuple<
+using Instances = std::tuple<
 // clang-format off
 #if CK_EXPERIMENTAL_INTER_WAVE_INSTANCES        
         // pipeline v1, 2 waves
@@ -27,8 +26,8 @@ using Instances =
         DeviceGemmXdl<  F16,   F16,   F16,     F32,     Col,      Col,    Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,   128,    64,     4,  8,   32,   32,    2,    1,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              2,              8,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,               7,               1,           1,  LoopScheduler::Interwave,        PipelineVersion::v1>,
         DeviceGemmXdl<  F16,   F16,   F16,     F32,     Col,      Col,    Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   256,    64,   128,     4,  8,   32,   32,    1,    2,     S<4, 64, 1>,     S<0, 2, 1>,     S<0, 2, 1>,              1,              1,              8,      true,     S<4, 64, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,      true,               7,               1,           1,  LoopScheduler::Interwave,        PipelineVersion::v1>
 #endif
-        // clang-format on
-        >;
+    // clang-format on
+    >;
 
 void add_device_gemm_xdl_f16_f16_f16_km_nk_mn_interwave_pipeline_v1_instances(
     OwnerList<InstanceNN>& instances)

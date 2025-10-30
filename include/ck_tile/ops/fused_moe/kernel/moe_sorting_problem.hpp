@@ -73,4 +73,12 @@ struct MoeSortingProblemMp
                   SubTokenTile == 8 || SubTokenTile == 16);
 };
 
+template <bool LocalToken_, index_t BlockSize_ = 1024, index_t Occu_ = 1>
+struct MoeSortingClearWorkspaceProblem
+{
+    static constexpr bool LocalToken   = LocalToken_;
+    static constexpr index_t BlockSize = BlockSize_;
+    static constexpr index_t Occu      = Occu_;
+};
+
 } // namespace ck_tile

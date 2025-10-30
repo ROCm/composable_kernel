@@ -242,21 +242,20 @@ class TestCkTileBatchedGemm : public ::testing::Test
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 
-        ck_tile::BatchedGemmHostArgs args;
-        args.a_ptr          = a_m_k_dev_buf.GetDeviceBuffer();
-        args.b_ptr          = b_k_n_dev_buf.GetDeviceBuffer();
-        args.e_ptr          = c_m_n_dev_buf.GetDeviceBuffer();
-        args.k_batch        = 1;
-        args.M              = M;
-        args.N              = N;
-        args.K              = K;
-        args.stride_A       = StrideA;
-        args.stride_B       = StrideB;
-        args.stride_E       = StrideC;
-        args.batch_stride_A = BatchStrideA;
-        args.batch_stride_B = BatchStrideB;
-        args.batch_stride_E = BatchStrideC;
-        args.batch_count    = BatchCount;
+        ck_tile::BatchedGemmHostArgs args{a_m_k_dev_buf.GetDeviceBuffer(),
+                                          b_k_n_dev_buf.GetDeviceBuffer(),
+                                          c_m_n_dev_buf.GetDeviceBuffer(),
+                                          1,
+                                          M,
+                                          N,
+                                          K,
+                                          StrideA,
+                                          StrideB,
+                                          StrideC,
+                                          BatchStrideA,
+                                          BatchStrideB,
+                                          BatchStrideC,
+                                          BatchCount};
 
         invoke_batched_gemm<ALayout, BLayout, CLayout>(args,
                                                        ck_tile::stream_config{nullptr, false});

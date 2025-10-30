@@ -132,9 +132,9 @@ void PerformImageToColumnPad0(const ck::index_t G,
                                                                   ck::wrapper::size<0>(tile_shape));
 
     const auto kernel    = DeviceImageToColumnPad0<decltype(input_tensor_global),
-                                                decltype(output_tensor_global),
-                                                decltype(tile_shape),
-                                                decltype(thread_layout)>;
+                                                   decltype(output_tensor_global),
+                                                   decltype(tile_shape),
+                                                   decltype(thread_layout)>;
     const float avg_time = launch_and_time_kernel(StreamConfig{nullptr, true},
                                                   kernel,
                                                   dim3(grid_size_x, grid_size_y, 1),

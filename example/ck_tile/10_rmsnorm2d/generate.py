@@ -65,7 +65,8 @@ template <typename XDataType_,
           bool kSaveUnquant_,
           bool kTwoPass_,
           ck_tile::index_t kFusedAdd_ = 0,
-          ck_tile::index_t kFusedQuant_ = 0>
+          ck_tile::index_t kFusedQuant_ = 0,
+          ck_tile::index_t kUseModelSensitiveRMSNorm_ = 0>
 struct rmsnorm2d_fwd_traits_
 {
     using XDataType           = ck_tile::remove_cvref_t<XDataType_>;
@@ -127,8 +128,9 @@ struct rmsnorm2d_fwd_traits_
     static constexpr bool kSaveInvRms  = kSaveInvRms_;
     static constexpr bool kSaveUnquant = kSaveUnquant_;
     static constexpr bool kTwoPass     = kTwoPass_;
-    static constexpr ck_tile::index_t kFusedAdd = kFusedAdd_;
-    static constexpr ck_tile::index_t kFusedQuant = kFusedQuant_;
+    static constexpr ck_tile::index_t kFusedAdd                 = kFusedAdd_;
+    static constexpr ck_tile::index_t kFusedQuant               = kFusedQuant_;
+    static constexpr ck_tile::index_t kUseModelSensitiveRMSNorm = kUseModelSensitiveRMSNorm_;
 };
 
 template <typename XDataType_,
@@ -146,7 +148,8 @@ template <typename XDataType_,
           bool kSaveUnquant_,
           bool kTwoPass_,
           int  kFusedAdd_,
-          int  kFusedQuant_>
+          int  kFusedQuant_,
+          int  kUseModelSensitiveRMSNorm_>
 using traits_ = rmsnorm2d_fwd_traits_<XDataType_,
                                       YDataType_,
                                       SmoothScaleDataType_,
@@ -162,7 +165,8 @@ using traits_ = rmsnorm2d_fwd_traits_<XDataType_,
                                       kSaveUnquant_,
                                       kTwoPass_,
                                       kFusedAdd_,
-                                      kFusedQuant_>;
+                                      kFusedQuant_,
+                                      kUseModelSensitiveRMSNorm_>;
 """
 
     API_COMMON_HEADER = """
@@ -197,7 +201,8 @@ float rmsnorm2d_fwd_(const S& s, A a)
                                     Traits_::kSaveUnquant,
                                     Traits_::kTwoPass,
                                     static_cast<ck_tile::Rmsnorm2dFusedAddEnum>(Traits_::kFusedAdd),
-                                    static_cast<ck_tile::Rmsnorm2dFusedQuantEnum>(Traits_::kFusedQuant)>;
+                                    static_cast<ck_tile::Rmsnorm2dFusedQuantEnum>(Traits_::kFusedQuant),
+                                    static_cast<ck_tile::Rmsnorm2dSensitiveEnum>(Traits_::kUseModelSensitiveRMSNorm)>;
 
     using PipelineProblem =
         ck_tile::Rmsnorm2dFwdPipelineProblem<typename RmsnormTypeConfig<XDataType, YDataType, SmoothScaleDataType, YScaleDataType>::XDataType,
@@ -213,7 +218,13 @@ float rmsnorm2d_fwd_(const S& s, A a)
 
     using OnePassPipeline = ck_tile::Rmsnorm2dFwdPipelineOnePass<PipelineProblem>;
     using TwoPassPipeline = ck_tile::Rmsnorm2dFwdPipelineTwoPass<PipelineProblem>;
-    using Pipeline        = std::conditional_t<Traits_::kTwoPass, TwoPassPipeline, OnePassPipeline>;
+    using T5PassPipeline  = ck_tile::Rmsnorm2dFwdPipelineModelSensitiveT5Pass<PipelineProblem>;
+
+    using Pipeline = std::conditional_t<
+        (Traits_::kUseModelSensitiveRMSNorm == 0 || Traits_::kTwoPass), // TODO: consider TwoPass for T5PassPipeline
+        std::conditional_t<Traits_::kTwoPass, TwoPassPipeline, OnePassPipeline>,  // kUseModelSensitiveRMSNorm == 0
+        T5PassPipeline
+    >;
 
     using Default2DEpilogueProblem = ck_tile::Default2DEpilogueProblem<ComputeDataType, YDataType, false, Traits_::kPadN, false>;
     using Default2DEpilogue = ck_tile::Default2DEpilogue<Default2DEpilogueProblem>;
@@ -387,12 +398,13 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t,
         F_kTwoPass : bool
         F_kFusedAdd : int
         F_kFusedQuant : int
+        F_use_model_sensitive_rmsnorm : int
 
         @property
         def trait_name(self) ->str:
             t_ = f'{DATA_TYPE_MAP[self.F_XDataType]}, {DATA_TYPE_MAP[self.F_YDataType]}, {DATA_TYPE_MAP[self.F_SmoothScaleDataType]}, {DATA_TYPE_MAP[self.F_YScaleDataType]}, {DATA_TYPE_MAP[self.F_UnquantYDataType]}, {self.F_Repeat_M:2}, {self.F_Repeat_N:2}, {self.F_ThreadPerBlock_M:2}, {self.F_ThreadPerBlock_N:4}'
             t_ += f', {self.F_Vector_N:2}, {BOOL_MAP(self.F_kPadN):5}, {BOOL_MAP(self.F_kSaveInvRms):5}, {BOOL_MAP(self.F_kSaveUnquant):5}'
-            t_ += f', {BOOL_MAP(self.F_kTwoPass):5}, {self.F_kFusedAdd:4}, {self.F_kFusedQuant:4}'
+            t_ += f', {BOOL_MAP(self.F_kTwoPass):5}, {self.F_kFusedAdd:4}, {self.F_kFusedQuant:4}, {self.F_use_model_sensitive_rmsnorm:4}'
             return t_
 
         # string when calling this kernel
@@ -413,6 +425,7 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t,
         F_add : int
         F_sweep : int
         F_saveunquant : bool
+        F_use_model_sensitive_rmsnorm : int
         instance_list : List[Any] # List[h_traits]
 
         @property
@@ -426,6 +439,10 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t,
                 nnn = nnn + '_' + FUSED_FUSED_SWEEP_STR_MAP[self.F_sweep]
             if self.F_saveunquant:
                 nnn = nnn + '_saveunquant'
+            if self.F_use_model_sensitive_rmsnorm == 0:
+                nnn = nnn + '_nsm'
+            elif self.F_use_model_sensitive_rmsnorm == 1:
+                nnn = nnn + '_t5ml'
             return nnn
 
         @property
@@ -481,9 +498,9 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t,
                         elif ins.F_kFusedQuant == 2:
                             _sweep_cond = 't.fused_quant == {f_fused_sweep} && (t.prec_sy == \"{f_sy_type}\" && t.save_unquant == {f_suq})'.format(
                                 f_fused_sweep = ins.F_kFusedQuant, f_sy_type=ins.F_YScaleDataType, f_suq=BOOL_MAP(ins.F_kSaveUnquant))
-                        _cond = '((a.n % {f_vec_n} == 0) && (t.fused_add == {f_fused_add}) && ({f_sweep_cond}))'.format(
+                        _cond = '((a.n % {f_vec_n} == 0) && (t.fused_add == {f_fused_add}) && ({f_sweep_cond}) && (t.use_model_sensitive_rmsnorm == {f_use_model_sensitive_rmsnorm}) )'.format(
                                         f_vec_n = ins.F_Vector_N, f_fused_add = ins.F_kFusedAdd,
-                                        f_sweep_cond = _sweep_cond)
+                                        f_sweep_cond = _sweep_cond, f_use_model_sensitive_rmsnorm = ins.F_use_model_sensitive_rmsnorm)
                         inner_str += self.API_INNER_CASE.format(F_if = get_if_str(idx_in_n, len_in_n, False),
                                             F_VEC_COND = _cond, F_instance_func=ins.call_name)
                     #inner_str = inner_str + vec_str
@@ -516,85 +533,149 @@ float rmsnorm2d_fwd(rmsnorm2d_fwd_traits t,
         fused_sweep_list = [0, 1, 2] # NOTE: only single pass can use fused (smooth) dynamic quant
         bool_list = [False, True]
 
-        #                                                              rm  rn  tm   tn  vn  pd     mv     unquant  2p     add    sweep
-        h_trait_dict = {'64'  : [ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  8,  8,  8,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  4,  16, 4,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  4,  64, 1,  True,  False, False,   False,   0,    0)],
-                        '128' : [ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  4,  16, 8,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  4,  64, 2,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  4,  64, 1,  True,  False, False,   False,   0,    0)],
-                        '256' : [ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  4,  64, 4,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  4,  64, 2,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  4,  64, 1,  True,  False, False,   False,   0,    0)],
-                        '512' : [ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  4,  64, 8,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  4,  64, 4,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  4,  64, 2,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  8,  4,  64, 1,  True,  False, False,   False,   0,    0)],
-                        '640' : [ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  5,  4,  64, 2,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  5,  4, 128, 1,  True,  False, False,   False,   0,    0)],
-                        '768' : [ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  4,  64, 4,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  6,  4,  64, 2,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1, 12,  4,  64, 1,  True,  False, False,   False,   0,    0)],
-                        '1024' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  2,  64, 8,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  2,  64, 4,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  8,  2,  64, 2,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1, 256, 1,  True,  False, False,   False,   0,    0)],
-                        '1536' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  4,  64, 8,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  2, 128, 4,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1, 256, 2,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  6,  1, 256, 1,  True,  False, False,   False,   0,    0)],
-                        '2048' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  1, 256, 8,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  1, 256, 4,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1, 256, 2,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  8,  1, 256, 1,  True,  False, False,   False,   0,    0)],
-                        '3072' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1, 128, 8,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1, 256, 4,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  6,  1, 256, 2,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1,1024, 1,  True,  False, False,   False,   0,    0)],
-                        '4096' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  1, 256, 8,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1, 256, 4,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  1,1024, 2,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1,1024, 1,  True,  False, False,   False,   0,    0)],
-                        '6144' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1, 256, 8,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1, 512, 4,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1,1024, 2,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  6,  1,1024, 1,  True,  False, False,   False,   0,    0)],
-                        '8192' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1, 256, 8,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1, 512, 4,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1,1024, 2,  True,  False, False,   False,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  8,  1,1024, 1,  True,  False, False,   False,   0,    0)],
-                        'big'  :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  1,1024, 8,  True,  False, False,    True,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1, 256, 4,  True,  False, False,    True,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1, 12,  1, 256, 2,  True,  False, False,    True,   0,    0),
-                                  h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1,1024, 1,  True,  False, False,    True,   0,    0)]}
+        h_trait_dicts = {
+            0: {
+                #                                              rm  rn  tm   tn  vn  pd     mv     unquant  2p     add    sweep  srm
+                '64'   :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  8,  8,  8,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  4,  16, 4,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  4,  64, 1,  True,  False, False,   False,   0,    0,    0)],
+                '128'  :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  4,  16, 8,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  4,  64, 2,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  4,  64, 1,  True,  False, False,   False,   0,    0,    0)],
+                '256'  :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  4,  64, 4,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  4,  64, 2,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  4,  64, 1,  True,  False, False,   False,   0,    0,    0)],
+                '512'  :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  4,  64, 8,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  4,  64, 4,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  4,  64, 2,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  8,  4,  64, 1,  True,  False, False,   False,   0,    0,    0)],
+                '640'  :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  5,  4,  64, 2,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  5,  4, 128, 1,  True,  False, False,   False,   0,    0,    0)],
+                '768'  :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  4,  64, 4,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  6,  4,  64, 2,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1, 12,  4,  64, 1,  True,  False, False,   False,   0,    0,    0)],
+                '1024' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  2,  64, 8,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  2,  64, 4,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  8,  2,  64, 2,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1, 256, 1,  True,  False, False,   False,   0,    0,    0)],
+                '1536' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  4,  64, 8,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  2, 128, 4,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1, 256, 2,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  6,  1, 256, 1,  True,  False, False,   False,   0,    0,    0)],
+                '2048' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  1, 256, 8,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  1, 256, 4,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1, 256, 2,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  8,  1, 256, 1,  True,  False, False,   False,   0,    0,    0)],
+                '3072' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1, 128, 8,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1, 256, 4,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  6,  1, 256, 2,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1,1024, 1,  True,  False, False,   False,   0,    0,    0)],
+                '4096' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  1, 256, 8,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1, 256, 4,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  1,1024, 2,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1,1024, 1,  True,  False, False,   False,   0,    0,    0)],
+                '6144' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1, 256, 8,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1, 512, 4,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1,1024, 2,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  6,  1,1024, 1,  True,  False, False,   False,   0,    0,    0)],
+                '8192' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1, 256, 8,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1, 512, 4,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1,1024, 2,  True,  False, False,   False,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  8,  1,1024, 1,  True,  False, False,   False,   0,    0,    0)],
+                'big'  :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  1,1024, 8,  True,  False, False,    True,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1, 256, 4,  True,  False, False,    True,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1, 12,  1, 256, 2,  True,  False, False,    True,   0,    0,    0),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1,1024, 1,  True,  False, False,    True,   0,    0,    0)]
+            },
+            1: {
+                #                                               rm  rn  tm   tn  vn  pd     mv     unquant  2p     add    sweep srm
+                '64'   :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  8,  8,  8,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  4,  16, 4,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  4,  64, 1,  True,  False, False,   False,   0,    0,    1)],
+                '128'  :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  4,  16, 8,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  4,  64, 2,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  4,  64, 1,  True,  False, False,   False,   0,    0,    1)],
+                '256'  :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  8,  32, 8,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  4,  64, 4,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  4,  64, 2,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  4,  64, 1,  True,  False, False,   False,   0,    0,    1)],
+                '512'  :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  4,  64, 8,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  4,  64, 4,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  4,  64, 2,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  8,  4,  64, 1,  True,  False, False,   False,   0,    0,    1)],
+                '640'  :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  2, 128, 8,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  5,  4,  64, 2,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  5,  4, 128, 1,  True,  False, False,   False,   0,    0,    1)],
+                '768'  :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  2, 128, 8,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  4,  64, 4,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  6,  4,  64, 2,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1, 12,  4,  64, 1,  True,  False, False,   False,   0,    0,    1)],
+                '1024' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  2, 128, 8,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  2,  64, 4,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  8,  2,  64, 2,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1, 256, 1,  True,  False, False,   False,   0,    0,    1)],
+                '1536' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  1, 256, 8,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  2, 128, 4,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1, 256, 2,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  6,  1, 256, 1,  True,  False, False,   False,   0,    0,    1)],
+                '2048' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  1, 256, 8,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  1, 256, 4,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1, 256, 2,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  8,  1, 256, 1,  True,  False, False,   False,   0,    0,    1)],
+                '3072' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  1, 256, 8,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1, 256, 4,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  6,  1, 256, 2,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1,1024, 1,  True,  False, False,   False,   0,    0,    1)],
+                '4096' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  1, 256, 8,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1, 256, 4,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  2,  1,1024, 2,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1,1024, 1,  True,  False, False,   False,   0,    0,    1)],
+                '6144' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1, 256, 8,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1, 512, 4,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  3,  1,1024, 2,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  6,  1,1024, 1,  True,  False, False,   False,   0,    0,    1)],
+                '8192' :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1, 256, 8,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1, 512, 4,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1,1024, 2,  True,  False, False,   False,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  8,  1,1024, 1,  True,  False, False,   False,   0,    0,    1)],
+                'big'  :[ h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  1,  1,1024, 8,  True,  False, False,    True,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1, 256, 4,  True,  False, False,    True,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1, 12,  1, 256, 2,  True,  False, False,    True,   0,    0,    1),
+                          h_traits('x', 'y', 'xs', 'ys', 'uqy', 1,  4,  1,1024, 1,  True,  False, False,    True,   0,    0,    1)]
+            } 
+        }
+        
         total_blob = list()
-        for hs_key in h_trait_dict:
-            hs = h_trait_dict[hs_key]
-            current_n = hs[0].F_Repeat_N * hs[0].F_ThreadPerBlock_N * hs[0].F_Vector_N
-            for dtype, scale_type, fused_add, fused_quant, save_unquant in itertools.product(dtype_list, scale_list, fused_add_list, fused_sweep_list, bool_list):
-                prec_i, prec_o = dtype.split(',')
-                scale_sm, scale_y = scale_type.split(',')
-                if prec_o in dynamic_quant_out_dtype and fused_quant != 1 and fused_quant != 2:
-                    continue # skip non dynamic quant case
-                if (fused_quant == 1 or fused_quant == 2) and hs_key == 'big':
-                    continue
-                if (fused_quant == 0 and save_unquant == True):
-                    continue # save_unquant should always be false when there is no quant enabled
-                current_hs = list()
-                for chs_ in hs:
-                    h_ = copy.copy(chs_) # copy the base instance out
-                    h_.F_XDataType = prec_i
-                    h_.F_YDataType = prec_o
-                    h_.F_SmoothScaleDataType = scale_sm
-                    h_.F_YScaleDataType = scale_y
-                    h_.F_UnquantYDataType = prec_i
-                    h_.F_kFusedAdd = fused_add
-                    h_.F_kFusedQuant = fused_quant
-                    h_.F_kSaveUnquant = save_unquant
-                    current_hs.append(h_) # + "\n"
-                #f.write(str(f.parent / GEN_DIR / (blobs.api_common_header_
-                current_n_str = 'big' if hs_key == 'big' else current_n
-                total_blob.append(h_instance(dtype, current_n_str, fused_add, fused_quant, save_unquant, current_hs))
+
+        for model_sensitive_flag in [0, 1]: # 0: default; 1: model sensitive
+            current_trait_dict = h_trait_dicts[model_sensitive_flag]
+            for hs_key in current_trait_dict:
+                hs = current_trait_dict[hs_key]            
+                current_n = hs_key
+                for dtype, scale_type, fused_add, fused_quant, save_unquant in itertools.product(dtype_list, scale_list, fused_add_list, fused_sweep_list, bool_list):
+                    prec_i, prec_o = dtype.split(',')
+                    scale_sm, scale_y = scale_type.split(',')
+                    if prec_o in dynamic_quant_out_dtype and fused_quant != 1 and fused_quant != 2:
+                        continue # skip non dynamic quant case
+                    if (fused_quant == 1 or fused_quant == 2) and hs_key == 'big':
+                        continue
+                    if (fused_quant == 0 and save_unquant == True):
+                        continue # save_unquant should always be false when there is no quant enabled
+                    current_hs = list()
+                    for chs_ in hs:
+                        h_ = copy.copy(chs_) # copy the base instance out
+                        h_.F_XDataType = prec_i
+                        h_.F_YDataType = prec_o
+                        h_.F_SmoothScaleDataType = scale_sm
+                        h_.F_YScaleDataType = scale_y
+                        h_.F_UnquantYDataType = prec_i
+                        h_.F_kFusedAdd = fused_add
+                        h_.F_kFusedQuant = fused_quant
+                        h_.F_kSaveUnquant = save_unquant
+                        current_hs.append(h_) # + "\n"
+                    #f.write(str(f.parent / GEN_DIR / (blobs.api_common_header_
+                    current_n_str = 'big' if hs_key == 'big' else current_n
+                    total_blob.append(h_instance(dtype, current_n_str, fused_add, fused_quant, save_unquant, h_.F_use_model_sensitive_rmsnorm, current_hs))
         return total_blob
 
     def list_blobs(self) -> None:

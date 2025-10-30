@@ -27,9 +27,8 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto GemmDefault = ck::tensor_operation::device::GemmSpecialization::Default;
 
 // Compilation parameters for a[m, k] * b[n, k] = c[m, n]
-using device_gemm_xdl_f64_f64_f64_mk_nk_mn_instances =
-    std::tuple<
-        // clang-format off
+using device_gemm_xdl_f64_f64_f64_mk_nk_mn_instances = std::tuple<
+    // clang-format off
         //##########| AData| BData| CData| AccData| ALayout| BLayout| CLayout|           A|           B|           C|          GEMM| Block|  MPer|  NPer| K0Per| K1| MPer| NPer| MXdl| NXdl|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds| CThreadTransfer| CThreadTransfer|
         //##########|  Type|  Type|  Type|    Type|        |        |        | Elementwise| Elementwise| Elementwise|Specialization|  Size| Block| Block| Block|   |  XDL|  XDL|  Per|  Per|   ThreadCluster|  ThreadCluster| SrcAccessOrder|   SrcVectorDim|      SrcScalar|      DstScalar| AddExtraM|   ThreadCluster|  ThreadCluster| SrcAccessOrder|  SrcVectorDim|      SrcScalar|      DstScalar| AddExtraN| SrcDstVectorDim|       DstScalar|
         //##########|      |      |      |        |        |        |        |   Operation|   Operation|   Operation|              |      |      |      |      |   |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |                |       PerVector|
@@ -44,8 +43,8 @@ using device_gemm_xdl_f64_f64_f64_mk_nk_mn_instances =
         DeviceGemmXdl<  F64,   F64,   F64,     F64,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,   128,    32,   128,     4,  2,   16,   16,    2,    4,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              2,              2,      true,     S<4, 32, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              2,              2,      true,               7,               1>,
         DeviceGemmXdl<  F64,   F64,   F64,     F64,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,    64,    64,    32,     4,  2,   16,   16,    4,    2,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              2,              2,      true,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              2,              2,      true,               7,               1>,
         DeviceGemmXdl<  F64,   F64,   F64,     F64,     Row,     Col,     Row, PassThrough, PassThrough, PassThrough,   GemmDefault,    64,    32,    64,     4,  2,   16,   16,    2,    4,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              2,              2,      true,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              2,              2,      true,               7,               1>
-        // clang-format on
-        >;
+    // clang-format on
+    >;
 
 void add_device_gemm_xdl_f64_f64_f64_mk_nk_mn_instances(
     std::vector<std::unique_ptr<

@@ -25,19 +25,18 @@ template <typename InputGridDesc,
           typename GridwiseTensorRearrangeKernel>
 __global__ void
 #if CK_USE_LAUNCH_BOUNDS
-    __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
+__launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
 #endif
-        kernel_tensor_rearrange(const InputGridDesc in_grid_desc,
-                                const InputDataType* __restrict__ p_in_global,
-                                const OutputGridDesc out_grid_desc,
-                                OutputDataType* __restrict__ p_out_global,
-                                const index_t batch_count,
-                                const Block2ETileMap block_2_tile_map,
-                                const ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch)
+    kernel_tensor_rearrange(const InputGridDesc in_grid_desc,
+                            const InputDataType* __restrict__ p_in_global,
+                            const OutputGridDesc out_grid_desc,
+                            OutputDataType* __restrict__ p_out_global,
+                            const index_t batch_count,
+                            const Block2ETileMap block_2_tile_map,
+                            const ComputePtrOffsetOfStridedBatch compute_ptr_offset_of_batch)
 {
-#if(!defined(__HIP_DEVICE_COMPILE__) || defined(__gfx906__) || defined(__gfx908__) ||         \
-    defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx103__) || defined(__gfx11__) || \
-    defined(__gfx12__))
+#if(defined(__gfx906__) || defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || \
+    defined(__gfx103__) || defined(__gfx11__) || defined(__gfx12__))
     GridwiseTensorRearrangeKernel::Run(in_grid_desc,
                                        p_in_global,
                                        out_grid_desc,

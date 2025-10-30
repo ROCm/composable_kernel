@@ -126,9 +126,6 @@ if __name__ == "__main__":
     filter_list.extend([''] * (len(api_list) - len(filter_list)))
     optdim_list = [int(hdim) for hdim in args.optdim.split(',')]
 
-    if len(api_list) > 1:
-        assert optdim_list == [-1]
-
     if args.list_blobs is not None:
         list_blobs(args.list_blobs, api_list, filter_list, optdim_list, int(args.receipt), mask_impl=args.mask)
     else:

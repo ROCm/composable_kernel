@@ -372,11 +372,11 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
                 : false;
         constexpr auto is_scale_mfma = false;
         constexpr auto mfma          = MfmaSelector<A0B0B1DataType,
-                                           Gemm0MPerXdl,
-                                           Gemm0NPerXdl,
-                                           A0B0B1DataType,
-                                           is_single_rate_mfma,
-                                           is_scale_mfma>::selected_mfma;
+                                                    Gemm0MPerXdl,
+                                                    Gemm0NPerXdl,
+                                                    A0B0B1DataType,
+                                                    is_single_rate_mfma,
+                                                    is_scale_mfma>::selected_mfma;
         constexpr auto N3            = mfma.num_groups_per_blk;
         constexpr auto N5            = mfma.group_size;
         return transform_tensor_descriptor(
@@ -669,11 +669,11 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
         constexpr auto is_scale_mfma = false;
         constexpr index_t KPack      = math::max(lcm_A0K1_B0K1,
                                             MfmaSelector<A0B0B1DataType,
-                                                         Gemm0MPerXdl,
-                                                         Gemm0NPerXdl,
-                                                         A0B0B1DataType,
-                                                         is_single_rate_mfma,
-                                                         is_scale_mfma>::selected_mfma.k_per_blk);
+                                                              Gemm0MPerXdl,
+                                                              Gemm0NPerXdl,
+                                                              A0B0B1DataType,
+                                                              is_single_rate_mfma,
+                                                              is_scale_mfma>::selected_mfma.k_per_blk);
 
         auto blockwise_gemm0 = BlockwiseGemmXdlops_v2<
             BlockSize,
@@ -1176,18 +1176,16 @@ struct GridwiseBatchedGemmMultipleDGemmMultipleD_Xdl_CShuffle
             // tuple of reference to C/Ds tensor descriptors
             const auto c1_d1s_desc_refs = concat_tuple_of_reference(
                 tie(c1_shuffle_block_desc_mblock_mperblock_nblock_nperblock),
-                generate_tie(
-                    [&](auto i) -> const auto& // return type should be reference
-                    { return d1s_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
-                    Number<NumD1Tensor>{}));
+                generate_tie([&](auto i) -> const auto& // return type should be reference
+                             { return d1s_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
+                             Number<NumD1Tensor>{}));
 
             // tuple of reference to C/Ds tensor descriptors
             const auto c1_d1s_buf_refs = concat_tuple_of_reference(
                 tie(c1_shuffle_block_buf),
-                generate_tie(
-                    [&](auto i) -> const auto& // return type should be reference
-                    { return d1s_grid_buf[i]; },
-                    Number<NumD1Tensor>{}));
+                generate_tie([&](auto i) -> const auto& // return type should be reference
+                             { return d1s_grid_buf[i]; },
+                             Number<NumD1Tensor>{}));
 
             // tuple of starting index of C/Ds blockwise copy
             const auto idx_c1_d1s_block_begin = container_concat(

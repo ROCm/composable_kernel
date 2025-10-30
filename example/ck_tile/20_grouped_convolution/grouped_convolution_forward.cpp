@@ -23,7 +23,7 @@ template <ck_tile::index_t NDimSpatial,
           typename DsDataType     = ck_tile::tuple<>,
           typename DsLayout       = ck_tile::tuple<>,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
-float grouped_conv_fwd(const ck_tile::GroupedConvHostArgs& args, const ck_tile::stream_config& s)
+float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args, const ck_tile::stream_config& s)
 {
     constexpr int kBlockPerCu = 1;
 
@@ -97,7 +97,7 @@ float grouped_conv_fwd(const ck_tile::GroupedConvHostArgs& args, const ck_tile::
                                                                 ConvEpilogue>;
         auto kargs   = Kernel::MakeKernelArgs(args);
 
-        const dim3 grids      = Kernel::GridSize(args);
+        const dim3 grids      = Kernel::GridSize(kargs);
         constexpr dim3 blocks = Kernel::BlockSize();
 
         if(!Kernel::IsSupportedArgument(kargs))
@@ -129,7 +129,7 @@ float grouped_conv_fwd(const ck_tile::GroupedConvHostArgs& args, const ck_tile::
                                           ck_tile::memory_operation_enum::set>{});
 }
 
-#include "run_grouped_convolution_example.inc"
+#include "run_grouped_convolution_fwd_example.inc"
 
 template <typename InPrecType, typename WeiPrecType = InPrecType, typename OutPrecType = InPrecType>
 int run_grouped_conv_fwd_example_prec_type(
@@ -185,7 +185,7 @@ int run_grouped_conv_fwd_example(int argc, char* argv[])
 
     std::string data_type  = arg_parser.get_str("prec");
     std::string in_layout  = arg_parser.get_str("in_layout");
-    std::string wei_layout = arg_parser.get_str("weight_layout");
+    std::string wei_layout = arg_parser.get_str("wei_layout");
     std::string out_layout = arg_parser.get_str("out_layout");
 
     if(data_type == "fp16")

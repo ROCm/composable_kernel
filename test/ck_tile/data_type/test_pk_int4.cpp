@@ -36,8 +36,8 @@ TEST(PackedInt4, ConvertToHalf)
     const half_t first_input_val  = ck_tile::type_convert<half_t>(7.f);
     const half_t second_input_val = ck_tile::type_convert<half_t>(-1.f);
 #else
-    const half_t first_input_val     = ck_tile::type_convert<half_t>(-1.f);
-    const half_t second_input_val    = ck_tile::type_convert<half_t>(7.f);
+    const half_t first_input_val  = ck_tile::type_convert<half_t>(-1.f);
+    const half_t second_input_val = ck_tile::type_convert<half_t>(7.f);
 #endif
     uint8_t data = 0b11110111; // {-1, 7}
     pk_int4_t in = ck_tile::bit_cast<int8_t>(data);
@@ -53,8 +53,8 @@ TEST(PackedInt4, ConvertToBHalf)
     const bf16_t first_input_val  = ck_tile::type_convert<bf16_t>(7.f);
     const bf16_t second_input_val = ck_tile::type_convert<bf16_t>(-1.f);
 #else
-    const bf16_t first_input_val     = ck_tile::type_convert<bf16_t>(-1.f);
-    const bf16_t second_input_val    = ck_tile::type_convert<bf16_t>(7.f);
+    const bf16_t first_input_val  = ck_tile::type_convert<bf16_t>(-1.f);
+    const bf16_t second_input_val = ck_tile::type_convert<bf16_t>(7.f);
 #endif
     uint8_t data = 0b11110111; // {-1, 7}
     pk_int4_t in = ck_tile::bit_cast<int8_t>(data);

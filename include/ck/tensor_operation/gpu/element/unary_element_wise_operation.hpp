@@ -266,7 +266,7 @@ struct DequantPack8
         dst.template AsType<half2_t>()(Number<3>{}) =
             type_convert<half2_t>(src.template AsType<pk_i4_t>()[Number<3>{}]);
 
-        y          = dst.template AsType<half8_t>()[Number<0>{}];
+        y = dst.template AsType<half8_t>()[Number<0>{}];
 #endif
     }
 

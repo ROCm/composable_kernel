@@ -12,25 +12,6 @@
 #include "ck_tile/ops/flatmm.hpp"
 #include "ck_tile/ops/gemm.hpp"
 
-#define CK_TILE_PIPELINE_COMPUTE 1
-#define CK_TILE_PIPELINE_MEMORY 2
-
-#ifndef CK_TILE_PIPELINE_DEFAULT
-#define CK_TILE_PIPELINE_DEFAULT CK_TILE_PIPELINE_COMPUTE
-#endif
-
-#if(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_MEMORY)
-#define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrMem
-#define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrMem
-#define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Interwave
-#elif(CK_TILE_PIPELINE_DEFAULT == CK_TILE_PIPELINE_COMPUTE)
-#define GEMM_PIPELINE ck_tile::GemmPipelineAgBgCrCompV3
-#define UNIVERSAL_GEMM_PIPELINE ck_tile::BaseGemmPipelineAgBgCrCompV3
-#define GEMM_PIPELINE_SCHEDULER ck_tile::GemmPipelineScheduler::Intrawave
-#else
-#error "unsupported CK_TILE_PIPELINE_DEFAULT value"
-#endif
-
 // GEMM config with 32x132 warp tile
 template <typename DataType>
 struct FlatmmConfig32
@@ -47,10 +28,19 @@ struct FlatmmConfig32
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = sizeof(DataType) == 2 ? 16 : 32;
 
-    static constexpr bool kPadM      = false;
-    static constexpr bool kPadN      = false;
-    static constexpr bool kPadK      = false;
-    static constexpr int kBlockPerCu = 2;
+    static constexpr bool kPadM = false;
+    static constexpr bool kPadN = false;
+    static constexpr bool kPadK = false;
+
+    static constexpr bool TransposeC            = false;
+    static constexpr bool UseStructuredSparsity = false;
+
+    static constexpr int kBlockPerCu                = 2;
+    static constexpr int TileParitionerGroupNum     = 8;
+    static constexpr int TileParitionerM01          = 4;
+    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Default;
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
+    static constexpr bool DoubleSmemBuffer          = false;
 };
 
 template <typename DataType>
@@ -75,10 +65,19 @@ struct FlatmmConfig16
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = sizeof(DataType) == 2 ? 32 : 64;
 
-    static constexpr bool kPadM      = false;
-    static constexpr bool kPadN      = false;
-    static constexpr bool kPadK      = false;
-    static constexpr int kBlockPerCu = 2;
+    static constexpr bool kPadM = false;
+    static constexpr bool kPadN = false;
+    static constexpr bool kPadK = false;
+
+    static constexpr bool TransposeC            = false;
+    static constexpr bool UseStructuredSparsity = false;
+
+    static constexpr int kBlockPerCu                = 2;
+    static constexpr int TileParitionerGroupNum     = 8;
+    static constexpr int TileParitionerM01          = 4;
+    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Default;
+    static constexpr ck_tile::index_t NumWaveGroups = 1;
+    static constexpr bool DoubleSmemBuffer          = false;
 };
 
 template <typename DataType>
@@ -159,10 +158,10 @@ struct DataTypeTraits<ck_tile::half_t>
     static constexpr const char* name = "fp16";
 };
 
-template <>
-struct DataTypeTraits<ck_tile::bf16_t>
+template <typename T>
+struct is_8bit_type
+    : std::bool_constant<std::is_same_v<T, ck_tile::fp8_t> || std::is_same_v<T, ck_tile::bf8_t>>
 {
-    static constexpr const char* name = "bf16";
 };
 
 auto create_args(int argc, char* argv[])
@@ -200,4 +199,4 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-float flatmm_calc(const ck_tile::FlatmmHostArgs& args, const ck_tile::stream_config& s);
+float flatmm_calc(const ck_tile::FlatmmHostArgs<>& args, const ck_tile::stream_config& s);

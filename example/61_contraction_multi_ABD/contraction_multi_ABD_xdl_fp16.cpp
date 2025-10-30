@@ -213,7 +213,7 @@ int main(int argc, char* argv[])
     auto invoker   = device_op.MakeInvoker();
     auto argument  = device_op.MakeArgument(
         std::array<const void*, 2>{a0_device_buf.GetDeviceBuffer(),
-                                   a1_device_buf.GetDeviceBuffer()},
+                                    a1_device_buf.GetDeviceBuffer()},
         std::array<const void*, 1>{b_device_buf.GetDeviceBuffer()},
         std::array<const void*, 1>{d_device_buf.GetDeviceBuffer()},
         e_device_buf.GetDeviceBuffer(),

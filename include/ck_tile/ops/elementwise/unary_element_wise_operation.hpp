@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -110,6 +110,86 @@ CK_TILE_DEVICE bf16x4_t i4_to_bhalf4(int q)
     return res;
 }
 
+CK_TILE_DEVICE fp8x8_t amd_assembly_i4_to_fp8x8(int a)
+{
+    uint32_t src = static_cast<uint32_t>(a), src_hi;
+    uint32_t fp8x4_lo, fp8x4_hi;
+    float tmp_0, tmp_1;
+
+    asm volatile("v_lshrrev_b32 %[v_hi_src], 4, %[v_src]\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_3\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src], src0_sel:BYTE_3\n"
+                 "v_cvt_pk_fp8_f32 %[v_dst_hi], %[v_tmp_1], %[v_tmp_0], op_sel:[0, 0, 1]\n"
+
+                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_2\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src], src0_sel:BYTE_2\n"
+                 "v_cvt_pk_fp8_f32 %[v_dst_hi], %[v_tmp_1], %[v_tmp_0]\n"
+
+                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_1\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src], src0_sel:BYTE_1\n"
+                 "v_cvt_pk_fp8_f32 %[v_dst_lo], %[v_tmp_1], %[v_tmp_0], op_sel:[0, 0, 1]\n"
+
+                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src]\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src]\n"
+                 "v_cvt_pk_fp8_f32 %[v_dst_lo], %[v_tmp_1], %[v_tmp_0]\n"
+                 : [v_tmp_0] "+v"(tmp_0),
+                   [v_tmp_1] "+v"(tmp_1),
+                   [v_hi_src] "+v"(src_hi),
+                   [v_dst_lo] "+v"(fp8x4_lo),
+                   [v_dst_hi] "+v"(fp8x4_hi),
+                   [v_src] "+v"(src)
+                 :);
+
+    return bit_cast<fp8x8_t>(((static_cast<uint64_t>(fp8x4_hi) << 32) | fp8x4_lo));
+}
+
+CK_TILE_DEVICE float amd_assembly_fp8_to_fp32(uint32_t src)
+{
+    float res;
+    asm volatile("v_cvt_f32_fp8 %0, %1, src0_sel:BYTE_0" : "=v"(res) : "v"(src));
+    return res;
+}
+
+CK_TILE_DEVICE float amd_assembly_bf8_to_fp32(uint32_t src)
+{
+    float res;
+    asm volatile("v_cvt_f32_bf8 %0, %1, src0_sel:BYTE_0" : "=v"(res) : "v"(src));
+    return res;
+}
+
+CK_TILE_DEVICE bf8x8_t amd_assembly_i4_to_bf8x8(int a)
+{
+    uint32_t src = static_cast<uint32_t>(a), src_hi;
+    uint32_t bf8x4_lo, bf8x4_hi;
+    float tmp_0, tmp_1;
+
+    asm volatile("v_lshrrev_b32 %[v_hi_src], 4, %[v_src]\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_3\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src], src0_sel:BYTE_3\n"
+                 "v_cvt_pk_bf8_f32 %[v_dst_hi], %[v_tmp_1], %[v_tmp_0], op_sel:[0, 0, 1]\n"
+
+                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_2\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src], src0_sel:BYTE_2\n"
+                 "v_cvt_pk_bf8_f32 %[v_dst_hi], %[v_tmp_1], %[v_tmp_0]\n"
+
+                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src], src0_sel:BYTE_1\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src], src0_sel:BYTE_1\n"
+                 "v_cvt_pk_bf8_f32 %[v_dst_lo], %[v_tmp_1], %[v_tmp_0], op_sel:[0, 0, 1]\n"
+
+                 "v_cvt_off_f32_i4 %[v_tmp_0], %[v_src]\n"
+                 "v_cvt_off_f32_i4 %[v_tmp_1], %[v_hi_src]\n"
+                 "v_cvt_pk_bf8_f32 %[v_dst_lo], %[v_tmp_1], %[v_tmp_0]\n"
+                 : [v_tmp_0] "+v"(tmp_0),
+                   [v_tmp_1] "+v"(tmp_1),
+                   [v_hi_src] "+v"(src_hi),
+                   [v_dst_lo] "+v"(bf8x4_lo),
+                   [v_dst_hi] "+v"(bf8x4_hi),
+                   [v_src] "+v"(src)
+                 :);
+
+    return bit_cast<bf8x8_t>(((static_cast<uint64_t>(bf8x4_hi) << 32) | bf8x4_lo));
+}
+
 struct PassThroughPack8
 {
     template <typename Y, typename X>
@@ -125,6 +205,16 @@ struct PassThroughPack8
     {
         y.lo = i4_to_bhalf4(bit_cast<int>(x));
         y.hi = i4_to_bhalf4(bit_cast<int>(x) >> 16);
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void operator()(fp8x8_t& y, const pk_int4x4_t& x) const
+    {
+        y = amd_assembly_i4_to_fp8x8(bit_cast<int>(x));
+    }
+
+    CK_TILE_HOST_DEVICE constexpr void operator()(bf8x8_t& y, const pk_int4x4_t& x) const
+    {
+        y = amd_assembly_i4_to_bf8x8(bit_cast<int>(x));
     }
     constexpr const static bool is_pack8_invocable = true;
 };

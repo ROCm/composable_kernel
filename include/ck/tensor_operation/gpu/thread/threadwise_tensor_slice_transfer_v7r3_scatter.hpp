@@ -421,8 +421,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
             {
                 constexpr auto forward_step = DstSpaceFillingCurve::GetForwardStep(iAccess);
 
-                auto forward_step_scatter = [&]() constexpr
-                {
+                auto forward_step_scatter = [&]() constexpr {
                     Index step_;
 
                     static_for<0, nDim, 1>{}([&](auto i) {
@@ -430,8 +429,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                     });
 
                     return step_;
-                }
-                ();
+                }();
                 static_for<0, nDst, 1>{}([&](auto i) {
                     move_tensor_coordinate(
                         dst_descs[i],
@@ -493,8 +491,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
         {
             constexpr auto reset_step =
                 DstSpaceFillingCurve::GetStepBetween(Number<dst_num_access - 1>{}, Number<0>{});
-            auto reset_step_scatter = [&]() constexpr
-            {
+            auto reset_step_scatter = [&]() constexpr {
                 Index step_;
                 static_for<0, nDim, 1>{}([&](auto i) {
                     step_(i) =
@@ -502,8 +499,7 @@ struct ThreadwiseTensorSliceTransfer_v7r3_scatter
                 });
 
                 return step_;
-            }
-            ();
+            }();
             return reset_step_scatter;
         }
     }

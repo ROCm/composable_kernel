@@ -188,12 +188,16 @@ def buildDocker(install_prefix){
     if(params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
         dockerArgs = dockerArgs + " --no-cache --build-arg BASE_DOCKER='${base_image_name}' -f Dockerfile.compiler . "
     }
+    else if(params.RUN_AITER_TESTS){
+        image_name = "rocm/composable_kernel:ck_aiter"
+        dockerArgs = dockerArgs + " --no-cache -f Dockerfile.aiter . "
+    }
     else{
         dockerArgs = dockerArgs + " -f Dockerfile . "
     }
     echo "Build Args: ${dockerArgs}"
     try{
-        if(params.BUILD_DOCKER){
+        if(params.BUILD_DOCKER || params.RUN_AITER_TESTS){
             //force building the new docker if that parameter is true
             echo "Building image: ${image_name}"
             retimage = docker.build("${image_name}", dockerArgs)
@@ -233,11 +237,6 @@ def cmake_build(Map conf=[:]){
     }
 
     def build_type_debug = (conf.get("build_type",'release') == 'debug')
-
-    // use special compiler for gfx950
-    if ( check_arch() == 7){
-        compiler = "/llvm-project/build/bin/clang++"
-    }
 
     //cmake_env can overwrite default CXX variables.
     def cmake_envs = "CXX=${compiler} CXXFLAGS='-Werror' " + conf.get("cmake_ex_env","")
@@ -600,7 +599,7 @@ def Build_CK(Map conf=[:]){
                         if (params.RUN_FULL_QA && arch == 2 ){
                             // build deb packages
                             echo "Build packages"
-                            sh 'make -j package'
+                            sh 'ninja package'
                             archiveArtifacts artifacts: 'composablekernel*.deb'
                             sh 'mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.1.0_amd64.deb'
                             sh 'mv composablekernel-dev_*.deb composablekernel-dev_1.1.0_amd64.deb'
@@ -812,13 +811,62 @@ def process_results(Map conf=[:]){
     }
 }
 
+def run_aiter_tests(Map conf=[:]){
+    show_node_info()
+    env.HSA_ENABLE_SDMA=0
+    checkout scm
+    //use the latest pytorch image
+    def image = "rocm/composable_kernel:ck_aiter"
+    def dockerOpts="--network=host --device=/dev/kfd --device=/dev/dri --group-add video --group-add render --group-add irc --cap-add=SYS_PTRACE --security-opt seccomp=unconfined --user=jenkins -v=/var/jenkins/:/var/jenkins"
+    def variant = env.STAGE_NAME
+    def retimage
+    def video_id = sh(returnStdout: true, script: 'getent group video | cut -d: -f3')
+    def render_id = sh(returnStdout: true, script: 'getent group render | cut -d: -f3')
+    dockerOpts = dockerOpts + " --group-add=${video_id} --group-add=${render_id} "
+    echo "Docker flags: ${dockerOpts}"
+
+    gitStatusWrapper(credentialsId: "${env.ck_git_creds}", gitHubContext: "Jenkins - ${variant}", account: 'ROCm', repo: 'composable_kernel') {
+        try
+        {
+            echo "Pulling image: ${image}"
+            retimage = docker.image("${image}")
+            withDockerRegistry([ credentialsId: "ck_docker_cred", url: "" ]) {
+                retimage.pull()
+            }
+        }
+        catch(Exception ex)
+        {
+            error "Unable to locate image: ${image}"
+        }
+    }
+
+    withDockerContainer(image: image, args: dockerOpts) {
+        timeout(time: 45, unit: 'MINUTES'){
+            try{
+                sh "python3 --version"
+                sh "rocminfo"
+                sh "python3 ../aiter/op_tests/test_gemm_a8w8_blockscale.py"
+                //sh "python3 ../aiter/op_tests/test_mha.py"
+            }
+            catch(e){
+                echo "Throwing error exception while running AITER tests"
+                echo 'Exception occurred: ' + e.toString()
+                throw e
+            }
+            finally{
+                echo "Finished running AITER tests"
+            }
+        }
+    }
+}
+
 //launch develop branch daily jobs
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_CK_TILE_TRANSPOSE_TESTS=true;RUN_CK_TILE_GEMM_TESTS=true;RUN_TILE_ENGINE_GEMM_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
-                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
+                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true
-                                              0 13 * * * % BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false''' : ""
+                                              0 13 * * * % RUN_AITER_TESTS=true;BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false''' : ""
 
 pipeline {
     agent none
@@ -919,8 +967,8 @@ pipeline {
             description: "Build CK and run tests on gfx90a (default: ON)")
         booleanParam(
             name: "BUILD_GFX942",
-            defaultValue: true,
-            description: "Build CK and run tests on gfx942 (default: ON)")
+            defaultValue: false,
+            description: "Build CK and run tests on gfx942 (default: OFF)")
         booleanParam(
             name: "BUILD_GFX950",
             defaultValue: false,
@@ -957,6 +1005,10 @@ pipeline {
             name: "RUN_ALL_UNIT_TESTS",
             defaultValue: false,
             description: "Run all unit tests (default: OFF)")
+        booleanParam(
+            name: "RUN_AITER_TESTS",
+            defaultValue: false,
+            description: "Run AITER tests with latest CK develop branch (default: OFF)")
     }
     environment{
         dbuser = "${dbuser}"
@@ -999,7 +1051,7 @@ pipeline {
                                 -o -iname \'*.cpp.in\' \
                                 -o -iname \'*.cl\' \
                                 | grep -v 'build/' \
-                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-12 -style=file {} | diff - {}\' && \
+                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\' && \
                                 /cppcheck/build/bin/cppcheck ../* -v -j \$(nproc) -I ../include -I ../profiler/include -I ../library/include \
                                 -D CK_ENABLE_FP64 -D CK_ENABLE_FP32 -D CK_ENABLE_FP16 -D CK_ENABLE_FP8 -D CK_ENABLE_BF16 -D CK_ENABLE_BF8 -D CK_ENABLE_INT8 \
                                 -D __gfx908__ -D __gfx90a__ -D __gfx942__ -D __gfx1030__ -D __gfx1100__ -D __gfx1101__ -D __gfx1102__ \
@@ -1028,10 +1080,28 @@ pipeline {
                                 -o -iname \'*.cpp.in\' \
                                 -o -iname \'*.cl\' \
                                 | grep -v 'build/' \
-                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-12 -style=file {} | diff - {}\'"
+                                | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\'"
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
+                        cleanWs()
+                    }
+                }
+            }
+        }
+        stage("Run AITER Tests")
+        {
+            parallel
+            {
+                stage("Run AITER Tests on gfx90a")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_AITER_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx90a")}
+                    steps{
+                        run_aiter_tests()
                         cleanWs()
                     }
                 }
@@ -1051,8 +1121,8 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
-                                           make -j64 test_grouped_convnd_fwd_large_cases_xdl test_grouped_convnd_bwd_data_xdl_large_cases && \
-                                           ./bin/test_grouped_convnd_fwd_large_cases_xdl && ./bin/test_grouped_convnd_bwd_data_xdl_large_cases"""
+                                           make -j64 test_grouped_convnd_fwd_large_cases_xdl test_grouped_convnd_bwd_data_xdl_large_cases test_grouped_convnd_fwd_bias_clamp_large_cases && \
+                                           ./bin/test_grouped_convnd_fwd_large_cases_xdl && ./bin/test_grouped_convnd_bwd_data_xdl_large_cases && ./bin/test_grouped_convnd_fwd_bias_clamp_large_cases"""
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1234,11 +1304,24 @@ pipeline {
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx90a" \
                                             -D GEMM_DATATYPE="fp8;fp16" \
+                                            -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
-                                           ninja -j64 benchmark_gemm_fp8 && \
-                                           ./bin/benchmark_gemm_fp8 && \
-                                           ninja -j64 benchmark_gemm_fp16 && \
-                                           ./bin/benchmark_gemm_fp16 """
+                                           ninja -j64 benchmark_gemm_fp8_rcr && \
+                                           ./bin/benchmark_gemm_fp8_rcr && \
+                                           ninja -j64 benchmark_gemm_fp16_rcr && \
+                                           ./bin/benchmark_gemm_fp16_rcr && \
+                                           ninja -j64 benchmark_gemm_fp8_crr && \
+                                           ./bin/benchmark_gemm_fp8_crr && \
+                                           ninja -j64 benchmark_gemm_fp16_crr && \
+                                           ./bin/benchmark_gemm_fp16_crr && \
+                                           ninja -j64 benchmark_gemm_fp8_ccr && \
+                                           ./bin/benchmark_gemm_fp8_ccr && \
+                                           ninja -j64 benchmark_gemm_fp16_ccr && \
+                                           ./bin/benchmark_gemm_fp16_ccr && \
+                                           ninja -j64 benchmark_gemm_fp8_rrr && \
+                                           ./bin/benchmark_gemm_fp8_rrr && \
+                                           ninja -j64 benchmark_gemm_fp16_rrr && \
+                                           ./bin/benchmark_gemm_fp16_rrr """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1259,11 +1342,24 @@ pipeline {
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx942" \
                                             -D GEMM_DATATYPE="fp8;fp16" \
+                                            -D GEMM_LAYOUT="rcr;rrr;crr;ccr" \
                                             -DCMAKE_CXX_FLAGS=" -O3 " .. && \
-                                           ninja -j128 benchmark_gemm_fp8 && \
-                                           ./bin/benchmark_gemm_fp8 && \
-                                           ninja -j128 benchmark_gemm_fp16 && \
-                                           ./bin/benchmark_gemm_fp16 """
+                                           ninja -j64 benchmark_gemm_fp8_rcr && \
+                                           ./bin/benchmark_gemm_fp8_rcr && \
+                                           ninja -j64 benchmark_gemm_fp16_rcr && \
+                                           ./bin/benchmark_gemm_fp16_rcr && \
+                                           ninja -j64 benchmark_gemm_fp8_crr && \
+                                           ./bin/benchmark_gemm_fp8_crr && \
+                                           ninja -j64 benchmark_gemm_fp16_crr && \
+                                           ./bin/benchmark_gemm_fp16_crr && \
+                                           ninja -j64 benchmark_gemm_fp8_ccr && \
+                                           ./bin/benchmark_gemm_fp8_ccr && \
+                                           ninja -j64 benchmark_gemm_fp16_ccr && \
+                                           ./bin/benchmark_gemm_fp16_ccr && \
+                                           ninja -j64 benchmark_gemm_fp8_rrr && \
+                                           ./bin/benchmark_gemm_fp8_rrr && \
+                                           ninja -j64 benchmark_gemm_fp16_rrr && \
+                                           ./bin/benchmark_gemm_fp16_rrr """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1352,12 +1448,12 @@ pipeline {
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx950" \
-                                           -DCMAKE_CXX_COMPILER=/llvm-project/build/bin/clang++ \
+                                           -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
                                            -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_ub22.04_rocm7.0", config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        Build_CK_and_Reboot(setup_args: setup_args, docker_name: "${env.CK_DOCKERHUB_PRIVATE}:ck_ub24.04_rocm7.0", config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                         cleanWs()
                     }
                 }

@@ -357,7 +357,7 @@ int main(int argc, char* argv[])
                 int n1 = n % NLane;
 
                 int k0 = k / (KLane * KPack);
-                tempk = k % (KLane * KPack);
+                tempk  = k % (KLane * KPack);
                 int k1 = tempk / KPack;
                 int k2 = tempk % KPack;
 

@@ -1,0 +1,82 @@
+{
+  "problem": {
+  },
+  "tile_config": {
+    "tile_m": {
+      "values": [
+        128      ]
+    },
+    "tile_n": {
+      "values": [
+        128
+      ]
+    },
+    "tile_k": {
+      "values": [
+        128
+      ]
+    },
+    "warp_m": {
+      "values": [
+        2
+      ]
+    },
+    "warp_n": {
+      "values": [
+        2
+      ]
+    },
+    "warp_k": {
+      "values": [
+        1
+      ]
+    },
+    "warp_tile_m": {
+      "values": [
+        32
+      ]
+    },
+    "warp_tile_n": {
+      "values": [
+        32
+      ]
+    },
+    "warp_tile_k": {
+      "values": [
+        16
+      ]
+    }
+  },
+  "trait_config": {
+    "pipeline": {
+      "values": [
+        "compv3"
+      ]
+    },
+    "scheduler": {
+      "values": [
+        "intrawave"
+      ]
+    },
+    "epilogue": {
+      "values": [
+        "default"
+      ]
+    },
+    "pad_m": {
+      "values": [
+        false
+      ]
+    },
+    "pad_n": {
+      "values": [
+        false
+      ]
+    },
+    "pad_k": {
+      "values": [
+        false
+      ]
+    }
+  }
+}

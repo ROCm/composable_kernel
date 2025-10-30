@@ -83,18 +83,18 @@ float invoke_gemm(int n_warmup,
         const bool splitk = args[0].k_batch > 1;
         for(const auto& arg : args)
         {
-            kargs.emplace_back(ck_tile::GemmKernelArgs<>{arg.a_ptr,
-                                                         arg.b_ptr,
-                                                         {},
-                                                         arg.e_ptr,
-                                                         arg.M,
-                                                         arg.N,
-                                                         arg.K,
-                                                         arg.stride_A,
-                                                         arg.stride_B,
-                                                         {},
-                                                         arg.stride_E,
-                                                         arg.k_batch});
+            kargs.emplace_back(ck_tile::UniversalGemmKernelArgs<>{{arg.a_ptr},
+                                                                  {arg.b_ptr},
+                                                                  {/*arg.ds_ptr*/},
+                                                                  arg.e_ptr,
+                                                                  arg.M,
+                                                                  arg.N,
+                                                                  arg.K,
+                                                                  {arg.stride_A},
+                                                                  {arg.stride_B},
+                                                                  {/*arg.stride_Ds*/},
+                                                                  arg.stride_E,
+                                                                  arg.k_batch});
         }
         const auto stream = ck_tile::stream_config{nullptr, true, 1, n_warmup, n_repeat};
         HIP_CHECK_ERROR(hipMemcpyWithStream(kargs_ptr,
@@ -216,9 +216,9 @@ int run_grouped_gemm_example_with_layouts(int argc,
         c_m_n_tensors.push_back(ck_tile::HostTensor<CDataType>(
             ck_tile::host_tensor_descriptor(M, N, stride_Cs[i], is_row_major(CLayout{}))));
 
-        std::cout << "gemm[" << i << "]"
-                  << " a_m_k: " << a_m_k_tensors[i].mDesc << " b_k_n: " << b_k_n_tensors[i].mDesc
-                  << " c_m_n: " << c_m_n_tensors[i].mDesc << std::endl;
+        std::cout << "gemm[" << i << "]" << " a_m_k: " << a_m_k_tensors[i].mDesc
+                  << " b_k_n: " << b_k_n_tensors[i].mDesc << " c_m_n: " << c_m_n_tensors[i].mDesc
+                  << std::endl;
 
         ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensors[i]);
         ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
@@ -240,7 +240,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
         void* p_c       = c_m_n_dev_buf[i]->GetDeviceBuffer();
 
         gemm_descs.push_back(
-            {p_a, p_b, {}, p_c, kbatch, M, N, K, stride_As[i], stride_Bs[i], {}, stride_Cs[i]});
+            {p_a, p_b, p_c, kbatch, M, N, K, stride_As[i], stride_Bs[i], stride_Cs[i]});
     }
 
     invoke_gemm<ADataType,

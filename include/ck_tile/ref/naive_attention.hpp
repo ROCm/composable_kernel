@@ -695,18 +695,18 @@ struct naive_attention_fwd_kernel
             static_cast<naive_attention_variation_enum>(variation_),                                        \
             static_cast<naive_attention_quant_algo>(quant_algo_)>;                                          \
         using k_   = naive_attention_fwd_kernel<q_type_,                                                    \
-                                              k_type_,                                                    \
-                                              v_type_,                                                    \
-                                              o_type_,                                                    \
-                                              acc_type_,                                                  \
-                                              kvscale_type_,                                              \
-                                              q_layout_,                                                  \
-                                              k_layout_,                                                  \
-                                              v_layout_,                                                  \
-                                              o_layout_,                                                  \
-                                              k_scale_layout_,                                            \
-                                              v_scale_layout_,                                            \
-                                              ktraits_>;                                                  \
+                                                k_type_,                                                    \
+                                                v_type_,                                                    \
+                                                o_type_,                                                    \
+                                                acc_type_,                                                  \
+                                                kvscale_type_,                                              \
+                                                q_layout_,                                                  \
+                                                k_layout_,                                                  \
+                                                v_layout_,                                                  \
+                                                o_layout_,                                                  \
+                                                k_scale_layout_,                                            \
+                                                v_scale_layout_,                                            \
+                                                ktraits_>;                                                  \
         dim3 grids = k_::get_grid_size(a);                                                                  \
         r          = ck_tile::launch_kernel(s,                                                              \
                                    ck_tile::make_kernel(k_{}, grids, k_::get_block_size(), 0, a)); \
