@@ -91,8 +91,8 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     }
     else if(init_method == 2)
     {
-        ck_tile::FillUniformDistribution<InDataType>{1.f, 1.f}(input);
-        ck_tile::FillUniformDistribution<WeiDataType>{1.f, 1.f}(weight);
+        ck_tile::FillUniformDistribution<InDataType>{0.f, 1.f}(input);
+        ck_tile::FillUniformDistribution<WeiDataType>{0.f, 1.f}(weight);
     }
     else
     {
@@ -133,7 +133,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         ck_tile::DeviceMem output_dev_buf(output.get_element_space_size_in_bytes());
 
         input_dev_buf.ToDevice(input.data());
-        weight_dev_buf.ToDevice(output.data());
+        weight_dev_buf.ToDevice(weight.data());
         output_dev_buf.SetZero();
 
         ck_tile::GroupedConvFwdHostArgs args(conv_param,
@@ -232,6 +232,23 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
               << "\nname: " << best_op_name
               << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops
               << "\nGB/s: " << best_gb_per_sec << std::endl;
+
+    const char* log_file = std::getenv("CK_TILE_PROFILER_LOG_FILE");
+    if(log_file != nullptr)
+    {
+        std::ofstream out(log_file, std::ios::app);
+        if(out.is_open())
+        {
+            std::stringstream out_ss;
+            out_ss << "CK Tile best configuration:" << std::endl
+                   << "name: " << best_op_name << std::endl
+                   << "avg_time: " << best_avg_time << std::endl
+                   << "SplitK: " << 1 << std::endl
+                   << "all_pass " << (all_pass ? "true" : "false") << std::endl;
+            out << out_ss.str();
+            out.close();
+        }
+    }
 
     if(instance_index != -1)
     {

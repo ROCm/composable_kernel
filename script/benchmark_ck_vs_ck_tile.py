@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 plt.switch_backend('Agg')
 import numpy as np
 
+import xlsxwriter
+
 def parse_cli_args():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(description="Run CK and CK Tile convolution profilers.")
@@ -45,7 +47,7 @@ def run_ck_profiler_cmd(cmd_args, profiler_type, bin_path, results_file, log_to_
       subprocess.run(cmd) 
     else:
       with open(os.devnull, 'w') as devnull:
-        timeoutInSec = 15 * 60 # 15 minutes timeout
+        timeoutInSec = 300 * 60 # 300 minutes timeout
         try:
           subprocess.run(cmd, stdout=devnull, stderr=devnull, timeout=timeoutInSec, env=env)
         except subprocess.TimeoutExpired:
@@ -77,8 +79,8 @@ def run_analysis(results_file):
   while i < len(lines):
       line = lines[i].strip()
       
-      # Look for grouped_conv_bwd_weight command lines
-      if line.startswith('grouped_conv_bwd_weight'):
+      # Look for grouped_conv_* command lines
+      if line.startswith('grouped_conv_'):
           current_case = {'command': line}
           i += 1
           
@@ -96,6 +98,9 @@ def run_analysis(results_file):
                   i += 1
               if i < len(lines) and lines[i].strip().startswith('SplitK:'):
                   current_case['ck_tile_splitk'] = lines[i].strip().replace('SplitK:', '').strip()
+                  i += 1
+              if i < len(lines) and lines[i].strip().startswith('all_pass'):
+                  current_case['ck_tile_all_pass'] = lines[i].strip().replace('all_pass', '').strip()
                   i += 1
           
           # Parse CK results
@@ -129,25 +134,82 @@ def run_analysis(results_file):
   ck_times = []
   ck_tile_times = []
   case_labels = []
-  
+
+  workbook = xlsxwriter.Workbook('conv_perf.xlsx')
+  worksheet = workbook.add_worksheet()
+
+  header_format = workbook.add_format()
+  header_format.set_bold()
+
+  offset = 4
+
+  worksheet.write(offset, 0, "command", header_format)
+  worksheet.set_column(0, 0, 66)
+  worksheet.write(offset, 1, "CK Time", header_format)
+  worksheet.set_column(1, 1, 11)
+  worksheet.write(offset, 2, "CK Tile Time", header_format)
+  worksheet.set_column(2, 2, 11)
+  worksheet.write(offset, 3, "CK / CK Tile", header_format)
+  worksheet.set_column(3, 3, 11)
+  worksheet.write(offset, 4, "All pass", header_format)
+  worksheet.set_column(4, 4, 11)
+  worksheet.write(offset, 5, "CK best kernel", header_format)
+  worksheet.set_column(5, 5, 25)
+  worksheet.write(offset, 6, "CK tile best kernel", header_format)
+  worksheet.set_column(6, 6, 25)
+
+  offset += 1
+
+  num_of_ck_tile_slower = 0
+
   for i, case in enumerate(test_cases):
+      worksheet.write(i + offset, 0, case['command'])
+      worksheet.write(i + offset, 1, case['ck_time'])
+      worksheet.write(i + offset, 2, case['ck_tile_time'])
+
+      format = workbook.add_format()
+      ratio = case['ck_time'] / case['ck_tile_time']
+
+      if ratio < 1.0:
+        format.set_bg_color('red')
+        num_of_ck_tile_slower += 1
+      else:
+        format.set_bg_color('green')
+
+      all_pass = case['ck_tile_all_pass']
+
+      worksheet.write(i + offset, 3, ratio, format)
+
+      format2 = workbook.add_format()
+      format2.set_bg_color('green' if all_pass == "true" else 'red')
+      worksheet.write(i + offset, 4, all_pass, format2)
+      worksheet.write(i + offset, 5, case['ck_name'])
+      worksheet.write(i + offset, 6, case['ck_tile_name'])
+
       ck_time = case['ck_time']
       ck_tile_time = case['ck_tile_time']
       
       # Performance ratio: CK_time / CK_Tile_time * 100%
       # >100% means CK Tile is faster, <100% means CK is faster
-      ratio = (ck_time / ck_tile_time) * 100
-      performance_ratios.append(ratio)
-      ck_times.append(ck_time)
-      ck_tile_times.append(ck_tile_time)
+    #   ratio = (ck_time / ck_tile_time) * 100
+    #   performance_ratios.append(ratio)
+    #   ck_times.append(ck_time)
+    #   ck_tile_times.append(ck_tile_time)
       
-      # Create a short label for the test case
-      cmd_parts = case['command'].split()
-      if len(cmd_parts) >= 8:
-          label = f"G{cmd_parts[8]}_N{cmd_parts[9]}_K{cmd_parts[10]}_C{cmd_parts[11]}"
-      else:
-          label = f"Case_{i+1}"
-      case_labels.append(label)
+    #   # Create a short label for the test case
+    #   cmd_parts = case['command'].split()
+    #   if len(cmd_parts) >= 8:
+    #       label = f"G{cmd_parts[8]}_N{cmd_parts[9]}_K{cmd_parts[10]}_C{cmd_parts[11]}"
+    #   else:
+    #       label = f"Case_{i+1}"
+    #   case_labels.append(label)
+
+  worksheet.write(0, 0, f"all cases: {len(test_cases)}")
+  worksheet.write(1, 0, f"ck tile slower: {num_of_ck_tile_slower}")
+  worksheet.write(2, 0, f"ck tile slower: {(num_of_ck_tile_slower / len(test_cases) * 100):2.1f}%")
+
+  workbook.close()
+  return
       
   
   max_cases_to_detailed_plot = 10

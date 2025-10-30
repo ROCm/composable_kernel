@@ -32,9 +32,9 @@ struct GroupedConvolutionBackwardWeightInvoker
             GemmConfig::PermuteA,
             GemmConfig::PermuteB>;
 
-        constexpr ck_tile::index_t VectorSizeA = 4;
-        constexpr ck_tile::index_t VectorSizeB = 8;
-        constexpr ck_tile::index_t VectorSizeC = 8;
+        constexpr ck_tile::index_t VectorSizeA = 1;
+        constexpr ck_tile::index_t VectorSizeB = 2;
+        constexpr ck_tile::index_t VectorSizeC = 2;
 
         constexpr auto ConvSpec = ck_tile::ConvolutionSpecialization::Default;
         using TilePartitioner =

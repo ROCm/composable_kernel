@@ -11,6 +11,7 @@ message(STATUS "CK_PROFILER_OP_FILTER: ${CK_PROFILER_OP_FILTER}")
 message(STATUS "CK_PROFILER_INSTANCE_FILTER: ${CK_PROFILER_INSTANCE_FILTER}")
 
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1[12]")
+  list(APPEND PROFILER_OPS tile_profile_grouped_conv_bwd_data.cpp)
   list(APPEND PROFILER_OPS tile_profile_grouped_conv_bwd_weight.cpp)
   list(APPEND PROFILER_OPS tile_profile_grouped_conv_fwd.cpp)
 endif()
@@ -39,11 +40,15 @@ endif()
 
 set(DEVICE_INSTANCES "")
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1[12]")
+  list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_bwd_data_bf16_instances)
   list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_bwd_weight_fp16_instances)
   list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_bwd_weight_bf16_instances)
   list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_bwd_weight_bf16_instances_opt)
   list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_fwd_fp16_instances)
   list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_fwd_bf16_instances)
+  list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_fwd_bf16_instances_2)
+  list(APPEND DEVICE_INSTANCES ck_tile_grouped_conv_fwd_bf16_instances_3)
+
 endif()
 
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx9" OR SUPPORTED_GPU_TARGETS MATCHES "gfx1[12]")

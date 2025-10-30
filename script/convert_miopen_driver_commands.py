@@ -33,7 +33,9 @@ def parse_miopen_command(miopen_cmd):
 def determine_operation_type(params):
     """Determine the operation type based on MIOpen parameters"""
     # TODO: Current data is for bwd weight.
-    return "grouped_conv_bwd_weight"
+    return "grouped_conv_bwd_data"
+    #return "grouped_conv_bwd_weight"
+    #return "grouped_conv_fwd"#"grouped_conv_bwd_weight"
 
 def convert_miopen_to_ck_profiler(miopen_cmd):
     """Convert MIOpen driver command to CK profiler command"""
@@ -44,8 +46,8 @@ def convert_miopen_to_ck_profiler(miopen_cmd):
     # Determine operation type
     operation = determine_operation_type(params)
     
-    data_type    = 5 # BF16
-    layout       = 2 # channels last
+    data_type    = 2 #2 for bwd data 2 FOR FWD 5 FOR BWD WEI # BF16
+    layout       = 1 #1 FIR BWD DATA 1 FOR FWD 2 FOR BWE WEI # channels last
     verification = 1 # with verification
     init_method  = 2 # uniform data
     print_output = 0 # no print output
@@ -172,11 +174,14 @@ def parse_arguments():
 
 def main():
     args = parse_arguments()
+    print(args.input_file)
     
     # Check if input file exists
     if not os.path.exists(args.input_file):
         print(f"Error: Input file '{args.input_file}' does not exist")
         sys.exit(1)
+
+    print(args.input_file)
     
     # Generate output filename if not provided
     output_file = args.output if args.output else generate_output_filename(args.input_file)
