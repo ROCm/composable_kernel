@@ -9,6 +9,9 @@
 #include <ck_tile/builder/reflect/instance_traits.hpp>
 #include <ck_tile/builder/types.hpp>
 #include <ck/tensor_operation/gpu/device/tensor_layout.hpp>
+#include <ck/tensor_operation/gpu/device/convolution_backward_data_specialization.hpp>
+#include <ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp>
+#include <ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp>
 
 namespace ck_tile::reflect::conv {
 
@@ -75,12 +78,12 @@ struct InputTileTransferInfo
 /// warp using hardware MFMA (Matrix Fused Multiply-Add) instructions.
 struct WarpGemmParams
 {
-    int gemm_m;      ///< The M dimension of a single MFMA instruction (MPerXdl).
-    int gemm_n;      ///< The N dimension of a single MFMA instruction (NPerXdl).
-    int num_m_gemms; ///< The number of MFMA iterations along the M dimension of the output tile per
-                     ///< wavefront (MXdlPerWave).
-    int num_n_gemms; ///< The number of MFMA iterations along the N dimension of the output tile per
-                     ///< wavefront (NXdlPerWave).
+    int gemm_m; ///< The M dimension of a single MFMA instruction (MPerXdl).
+    int gemm_n; ///< The N dimension of a single MFMA instruction (NPerXdl).
+    int m_iter; ///< The number of MFMA iterations along the M dimension of the output tile per
+                ///< wavefront (MXdlPerWave).
+    int n_iter; ///< The number of MFMA iterations along the N dimension of the output tile per
+                ///< wavefront (NXdlPerWave).
 };
 
 /// @brief Parameters for shuffling data between warps (CShuffle optimization).
@@ -132,6 +135,72 @@ constexpr builder::ConvDirection conv_direction()
     else
     {
         return builder::ConvDirection::FORWARD; // Default fallback
+    }
+}
+
+/// @brief Derives the convolution-specific specialization from a device kernel `Instance` type.
+/// @tparam Instance The device kernel instance type.
+/// @return A `builder::ConvFwdSpecialization`, `builder::ConvBwdDataSpecialization`, or
+/// `builder::ConvBwdWeightSpecialization` enum value.
+template <typename Instance>
+constexpr auto conv_spec()
+{
+    using InstTraits = InstanceTraits<Instance>;
+
+    if constexpr(requires { InstTraits::kConvForwardSpecialization; })
+    {
+        using enum ck::tensor_operation::device::ConvolutionForwardSpecialization;
+
+        if constexpr(InstTraits::kConvForwardSpecialization == Default)
+        {
+            return builder::ConvFwdSpecialization::DEFAULT;
+        }
+        else if constexpr(InstTraits::kConvForwardSpecialization == Filter1x1Pad0)
+        {
+            return builder::ConvFwdSpecialization::FILTER_1X1_PAD0;
+        }
+        else if constexpr(InstTraits::kConvForwardSpecialization == Filter1x1Stride1Pad0)
+        {
+            return builder::ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0;
+        }
+        else if constexpr(InstTraits::kConvForwardSpecialization == Filter3x3)
+        {
+            return builder::ConvFwdSpecialization::FILTER_3x3;
+        }
+    }
+    else if constexpr(requires { InstTraits::kConvBwdDataSpecialization; })
+    {
+        using enum ck::tensor_operation::device::ConvolutionBackwardDataSpecialization;
+
+        if constexpr(InstTraits::kConvBwdDataSpecialization == Default)
+        {
+            return builder::ConvBwdDataSpecialization::DEFAULT;
+        }
+        else if constexpr(InstTraits::kConvBwdDataSpecialization == Filter1x1Stride1Pad0)
+        {
+            return builder::ConvBwdDataSpecialization::FILTER_1X1_STRIDE1_PAD0;
+        }
+    }
+    else if constexpr(requires { InstTraits::kConvBwdWeightSpecialization; })
+    {
+        using enum ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization;
+
+        if constexpr(InstTraits::kConvBwdWeightSpecialization == Default)
+        {
+            return builder::ConvBwdWeightSpecialization::DEFAULT;
+        }
+        else if constexpr(InstTraits::kConvBwdWeightSpecialization == Filter1x1Stride1Pad0)
+        {
+            return builder::ConvBwdWeightSpecialization::FILTER_1X1_STRIDE1_PAD0;
+        }
+        else if constexpr(InstTraits::kConvBwdWeightSpecialization == Filter1x1Pad0)
+        {
+            return builder::ConvBwdWeightSpecialization::FILTER_1X1_PAD0;
+        }
+        else if constexpr(InstTraits::kConvBwdWeightSpecialization == OddC)
+        {
+            return builder::ConvBwdWeightSpecialization::ODD_C;
+        }
     }
 }
 
@@ -265,19 +334,120 @@ constexpr builder::DataType conv_data_type()
     }
 }
 
-/// @brief Helper to extract a value from a `ck::Sequence` type at a specific index.
-/// @tparam Seq The `ck::Sequence` type.
-/// @tparam Idx The index of the value to extract.
-template <typename Seq, ck::index_t Idx>
-struct SequenceAt;
-
-/// @brief Specialization of `SequenceAt` for `ck::Sequence`.
-template <ck::index_t... Is, ck::index_t Idx>
-struct SequenceAt<ck::Sequence<Is...>, Idx>
+/// @brief Derives the elementwise operation from op type.
+/// @tparam ElementwiseOp Elementwise operation functor type.
+/// @return A `builder::ElementwiseOperation` enum value corresponding to elementwise operation.
+template <typename ElementwiseOp>
+constexpr builder::ElementwiseOperation elementwise_op()
 {
-    /// The integer value at the specified index within the sequence.
-    static constexpr int value = ck::Sequence<Is...>::At(Idx);
-};
+    constexpr std::string_view name = detail::elementwise_op_name<ElementwiseOp>();
+    if constexpr(detail::case_insensitive_equal(name, "Bias"))
+    {
+        return builder::ElementwiseOperation::BIAS;
+    }
+    else if constexpr(detail::case_insensitive_equal(name, "BiasClamp"))
+    {
+        return builder::ElementwiseOperation::BIAS_CLAMP;
+    }
+    else if constexpr(detail::case_insensitive_equal(name, "BiasBnormClamp"))
+    {
+        return builder::ElementwiseOperation::BIAS_BNORM_CLAMP;
+    }
+    else if constexpr(detail::case_insensitive_equal(name, "Bilinear"))
+    {
+        return builder::ElementwiseOperation::BILINEAR;
+    }
+    else if constexpr(detail::case_insensitive_equal(name, "Clamp"))
+    {
+        return builder::ElementwiseOperation::CLAMP;
+    }
+    else if constexpr(detail::case_insensitive_equal(name, "Scale"))
+    {
+        return builder::ElementwiseOperation::SCALE;
+    }
+    else if constexpr(detail::case_insensitive_equal(name, "PassThrough"))
+    {
+        return builder::ElementwiseOperation::PASS_THROUGH;
+    }
+}
+
+/// @brief Derives a gemm padding from a kernel instance type.
+/// @tparam Instance - A Device Kernel object type.
+/// @return A `builder::GemmPadding` enum value corresponding to kernel padding.
+template <typename Instance>
+constexpr builder::GemmPadding gemm_padding()
+{
+    using InstTraits = InstanceTraits<Instance>;
+    using enum builder::GemmPadding;
+    using enum ck::tensor_operation::device::GemmSpecialization;
+
+    constexpr auto gemm_spec = InstTraits::kGemmSpecialization;
+
+    if constexpr(gemm_spec == Default)
+    {
+        return DEFAULT;
+    }
+    else if constexpr(gemm_spec == MPadding)
+    {
+        return M_PADDING;
+    }
+    else if constexpr(gemm_spec == NPadding)
+    {
+        return N_PADDING;
+    }
+    else if constexpr(gemm_spec == KPadding)
+    {
+        return K_PADDING;
+    }
+    else if constexpr(gemm_spec == MNPadding)
+    {
+        return MN_PADDING;
+    }
+    else if constexpr(gemm_spec == MKPadding)
+    {
+        return MK_PADDING;
+    }
+    else if constexpr(gemm_spec == NKPadding)
+    {
+        return NK_PADDING;
+    }
+    else if constexpr(gemm_spec == MNKPadding)
+    {
+        return MNK_PADDING;
+    }
+    else if constexpr(gemm_spec == OPadding)
+    {
+        return O_PADDING;
+    }
+    else if constexpr(gemm_spec == MOPadding)
+    {
+        return MO_PADDING;
+    }
+    else if constexpr(gemm_spec == NOPadding)
+    {
+        return NO_PADDING;
+    }
+    else if constexpr(gemm_spec == KOPadding)
+    {
+        return KO_PADDING;
+    }
+    else if constexpr(gemm_spec == MNOPadding)
+    {
+        return MNO_PADDING;
+    }
+    else if constexpr(gemm_spec == MKOPadding)
+    {
+        return MKO_PADDING;
+    }
+    else if constexpr(gemm_spec == NKOPadding)
+    {
+        return NKO_PADDING;
+    }
+    else if constexpr(gemm_spec == MNKOPadding)
+    {
+        return MNKO_PADDING;
+    }
+}
 
 /// @brief Primary template for extracting convolution traits.
 /// @details This struct is the main entry point for reflecting on a convolution
@@ -305,10 +475,17 @@ struct ConvTraits<Instance>
     /// @brief The primary data type used in the computation (e.g., FP16, FP32).
     static constexpr builder::DataType data_type = conv_data_type<Instance>();
 
-    /// @brief The GEMM specialization used by the kernel (e.g., Tiling, Partition).
-    static constexpr auto gemm_specialization = InstTraits::kGemmSpecialization;
+    static constexpr builder::ElementwiseOperation input_element_op =
+        elementwise_op<typename InstTraits::AElementwiseOperation>();
+    static constexpr builder::ElementwiseOperation weight_element_op =
+        elementwise_op<typename InstTraits::BElementwiseOperation>();
+    static constexpr builder::ElementwiseOperation output_element_op =
+        elementwise_op<typename InstTraits::CDEElementwiseOperation>();
+
+    /// @brief The GEMM specialization used by the kernel - padding
+    static constexpr auto gemm_padding = gemm_padding<Instance>();
     /// @brief The convolution-specific specialization (e.g., Default, 1x1).
-    static constexpr auto conv_specialization = InstTraits::kConvForwardSpecialization;
+    static constexpr auto conv_specialization = conv_spec<Instance>();
 
     // --- Algorithm Information ---
     /// @brief The total number of threads in a thread block (workgroup).
@@ -348,10 +525,10 @@ struct ConvTraits<Instance>
                             .lds_padding = static_cast<bool>(InstTraits::kBBlockLdsExtraN)}};
 
     /// @brief Parameters for the warp-level GEMM computation.
-    static constexpr WarpGemmParams warp_gemm = {.gemm_m      = InstTraits::kMPerXDL,
-                                                 .gemm_n      = InstTraits::kNPerXDL,
-                                                 .num_m_gemms = InstTraits::kMXdlPerWave,
-                                                 .num_n_gemms = InstTraits::kNXdlPerWave};
+    static constexpr WarpGemmParams warp_gemm = {.gemm_m = InstTraits::kMPerXDL,
+                                                 .gemm_n = InstTraits::kNPerXDL,
+                                                 .m_iter = InstTraits::kMXdlPerWave,
+                                                 .n_iter = InstTraits::kNXdlPerWave};
 
     /// @brief Configuration for the C-matrix (output) tile transfer.
     static constexpr OutputTileTransferInfo c_tile_transfer = {
@@ -425,6 +602,16 @@ struct ConvTraits<builder::ConvBuilder<SIGNATURE, ALGORITHM, VERSION>>
     static constexpr builder::ConvDirection direction = InstanceConvTraits::direction;
     static constexpr auto layout                      = InstanceConvTraits::layout;
     static constexpr builder::DataType data_type      = InstanceConvTraits::data_type;
+
+    static constexpr builder::ElementwiseOperation input_element_op =
+        InstanceConvTraits::input_element_op;
+    static constexpr builder::ElementwiseOperation weight_element_op =
+        InstanceConvTraits::weight_element_op;
+    static constexpr builder::ElementwiseOperation output_element_op =
+        InstanceConvTraits::output_element_op;
+
+    static constexpr auto gemm_padding        = InstanceConvTraits::gemm_padding;
+    static constexpr auto conv_specialization = InstanceConvTraits::conv_specialization;
 
     static constexpr int thread_block_size                  = InstanceConvTraits::thread_block_size;
     static constexpr DataTileInfo tile_dims                 = InstanceConvTraits::tile_dims;
