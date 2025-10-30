@@ -11,7 +11,7 @@ using namespace ck_tile::builder;
 using namespace test;
 
 // Common test implementation
-template <auto FwdConvSignature,
+template <ConvSignature FwdConvSignature,
           ThreadBlock FwdThreadBlock,
           BlockGemmPipelineVersion FwdPipelineVersion,
           ConvFwdSpecialization FwdConvSpecialization>
