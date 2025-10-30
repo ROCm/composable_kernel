@@ -154,7 +154,7 @@ function(build_individual_gemm_multi_d_targets datatype layout)
     endif()
 
     # Generate individual kernel files using parallel version
-    message(STATUS "Generating individual kernels for ${datatype} ${layout} using ${num_workers} workers...")
+    message(VERBOSE "Generating individual kernels for ${datatype} ${layout} using ${num_workers} workers...")
     message(STATUS "  Working path: ${working_path}")
     message(STATUS "  Config file: ${json_blob}")
     message(STATUS "  Python executable: ${Python3_EXECUTABLE}")
