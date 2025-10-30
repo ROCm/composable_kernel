@@ -5,10 +5,6 @@
 #pragma once
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/convolution_specialization.hpp"
-#include <iostream>
-#include <queue>
-#include <vector>
-
 namespace ck_tile {
 
 // ═══════════════════════════════════════════════════════════════════════
