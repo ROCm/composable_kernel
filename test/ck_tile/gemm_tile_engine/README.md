@@ -47,17 +47,17 @@ The key idea: **Unit tests that use tile_engine's exact kernel generation and ve
 - **Traits**: compv3 pipeline only
 - **Coverage**: All 4 layouts (rcr, rrr, ccr, crr) for fp8, fp16, bf16
 
-### 3. **Large Datatype** (`large_datatype_config.json`)
-- **Purpose**: Optimized for fp32
-- **Config**: 256x128x32, warp 2x2x1, warp_tile 16x16x16
-- **Traits**: compv3 pipeline only
-- **Coverage**: RCR layout only (non-RCR layouts cause compilation issues on some GPU architectures)
-- **Status**: ⚠️ Currently disabled - fp32 not yet supported by `gemm_instance_builder.py`
+### 3. **Padding Coverage** (`padding_coverage_config.json`)
+- **Purpose**: Test padding behavior with all padding flags enabled
+- **Config**: Fixed 64x64x32, warp 2x2x1, warp_tile 32x32x16
+- **Padding**: All enabled (pad_m=true, pad_n=true, pad_k=true)
+- **Problem sizes**: Vector-aligned but not tile-aligned (104×104×56, 200×152×80, 152×200×64)
+- **Coverage**: 1 kernel configuration testing padding with irregular sizes
 
 ### 4. **Coverage Testing** (Quick or Comprehensive)
 - **Purpose**: Comprehensive testing across tile sizes, warp configurations, and trait combinations
-- **Quick** (`quick_coverage_config.json`): Approximately 250 kernels
-  - tile_m/n: [32, 64, 128, 256], tile_k: [16, 32]
+- **Quick** (`quick_coverage_config.json`): Approximately 144 kernels
+  - tile_m/n: [32, 64, 256], tile_k: [16, 32]
   - warp config: 2×2×1, warp_tile 16×16×16
   - Traits: 3 pipelines × 2 epilogues × 2 schedulers (persistent=false only)
   - Focused set testing trait combinations with multiple tile sizes
@@ -70,17 +70,10 @@ The key idea: **Unit tests that use tile_engine's exact kernel generation and ve
   - Exact count varies based on validation filtering
 - **Note**: Use CMake option `-DCOVERAGE_LEVEL=comprehensive` to enable comprehensive testing (default is quick)
 
-### 5. **Padding Coverage** (`padding_coverage_config.json`)
-- **Purpose**: Test padding behavior with all padding flags enabled
-- **Config**: Fixed 64x64x32, warp 2x2x1, warp_tile 32x32x16
-- **Padding**: All enabled (pad_m=true, pad_n=true, pad_k=true)
-- **Problem sizes**: Vector-aligned but not tile-aligned (104×104×56, 200×152×80, 152×200×64)
-- **Coverage**: 1 kernel configuration testing padding with irregular sizes
-
 ## Data Type Support
 - ✅ **fp8, fp16, bf16**: Fully supported - all layouts (rcr, rrr, ccr, crr)
 - ❌ **fp64**: Not supported (hardware MFMA limitation)
-- ⏳ **fp32, pk-int4-t, bf8**: Not yet supported by gemm_instance_builder (will be added later)
+- ⏳ **fp32, bf8, pk-int4-t**: Not yet supported by gemm_instance_builder (will be added later)
 
 ## Test Result Behavior
 
