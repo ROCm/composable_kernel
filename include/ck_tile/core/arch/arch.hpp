@@ -351,6 +351,7 @@ CK_TILE_DEVICE static constexpr auto get_device_arch()
 
 CK_TILE_DEVICE static constexpr auto get_n_words_per_128b() { return 4; }
 
+namespace detail {
 CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx9_t) { return 32; }
 
 CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx103_t) { return 32; }
@@ -360,10 +361,10 @@ CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx11_t) { return 32; }
 CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx12_t) { return 64; }
 
 CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx950_t) { return 64; }
-
+} // namespace detail
 CK_TILE_DEVICE static constexpr auto get_n_lds_banks()
 {
-    return get_n_lds_banks(get_device_arch());
+    return detail::get_n_lds_banks(get_device_arch());
 }
 
 enum LLVMSchedGroupMask : int32_t
