@@ -19,12 +19,15 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added support for f32 to FMHA (fwd/bwd).
 * Added tensor-wise quantization for CK_TILE GEMM.
 * Added support for batched contraction kernel.
+* Added WMMA (gfx12) support for FMHA.
 * Added pooling kernel in CK_TILE
 * Added top-k sigmoid kernel in CK_TILE
 
 ### Changed
 
 * Removed `BlockSize` in `make_kernel` and `CShuffleEpilogueProblem` to support Wave32 in CK_TILE (#2594)
+* Added an optional template parameter `Arch` (`gfx9_t`, `gfx12_t` etc.) to `make_kernel` to support linking multiple object files that have the same kernel compiled for different architectures.
+* FMHA examples and tests can be built for multiple architectures (gfx9, gfx950, gfx12) at the same time.
 
 ## Composable Kernel 1.1.0 for ROCm 7.1.0
 

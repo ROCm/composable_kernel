@@ -677,7 +677,17 @@ struct FmhaBwdDQDKDVKernel
         return ck_tile::make_tuple(i_block, i_nhead, i_batch);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
+    CK_TILE_HOST static dim3 BlockSize()
+    {
+        if(is_wave32())
+        {
+            return dim3(kBlockSize / 2);
+        }
+        else
+        {
+            return dim3(kBlockSize);
+        }
+    }
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
@@ -1171,6 +1181,21 @@ struct FmhaBwdDQDKDVKernel
                                                              scale_rp_undrop,
                                                              dropout);
 
+#if defined(__gfx12__)
+            // Workaround for a compiler bug (SWDEV-559729): v_wmma instructions can be incorrectly
+            // placed in divergent branches used to store padded tensors (when some lanes are
+            // inactive due to padding). Inline asm with dummy dependencies on VGPRs of the tensors
+            // prevents the compiler doing this.
+            if constexpr(kPadHeadDimQ > 0)
+            {
+                impl::insert_dummy_dep(dk_acc_tile.get_thread_buffer());
+            }
+            if constexpr(kPadHeadDimV > 0)
+            {
+                impl::insert_dummy_dep(dv_acc_tile.get_thread_buffer());
+            }
+#endif
+
             KGradEpiloguePipeline{}(dk_dram_window, dk_acc_tile, nullptr);
             VGradEpiloguePipeline{}(dv_dram_window, dv_acc_tile, nullptr);
         }
@@ -1241,7 +1266,7 @@ struct FmhaBwdOGradDotOKernel
             return n.empty() ? n : std::string("p") + n; }();
         return
             _SS_("fmha_bwd_dot_do_o_d") + _TS_(kVHeaddim) + "_" + _SS_(t2s<ODataType>::name) +
-            "_" + (kIsGroupMode ? "group" : "batch") + "_" +
+            "_b" + _TS_(kM0) + "_" + (kIsGroupMode ? "group" : "batch") + "_" +
             ("o" + _TS_(kBlockPerCu)) + (pn.empty() ? "_npad" : "_" + pn);
         #undef _SS_
         #undef _TS_
@@ -1371,7 +1396,7 @@ struct FmhaBwdOGradDotOKernel
         return ck_tile::make_tuple(i_block, i_nhead, i_batch);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
+    CK_TILE_HOST static dim3 BlockSize() { return dim3(kBlockSize); }
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize() { return 0; }
 
@@ -1678,7 +1703,7 @@ struct FmhaBwdConvertQGradKernel
         return ck_tile::make_tuple(i_block, i_nhead, i_batch);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
+    CK_TILE_HOST static dim3 BlockSize() { return dim3(kBlockSize); }
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize() { return 0; }
 

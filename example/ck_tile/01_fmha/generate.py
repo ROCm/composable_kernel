@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
+
 # generate kernel instances to speed up compilation
 
 import argparse
@@ -38,6 +39,7 @@ assert 0 < len(handlers)
 
 
 def write_blobs(
+    targets: List[str],
     output_dir: Optional[str],
     api_list: List[str],
     filters_list: List[str],
@@ -54,11 +56,12 @@ def write_blobs(
 
     for api, kernel_filter in zip(api_list, filters_list):
         handler = handlers[api][HandlerId.WRITE_BLOBS]
-        handler(output_dir, kernel_filter, receipt, optdim_list, mask_impl)
+        handler(targets, output_dir, kernel_filter, receipt, optdim_list, mask_impl)
 
 
 # list all the files that will be generated
 def list_blobs(
+    targets: List[str],
     output_file: Optional[str],
     api_list: List[str],
     filters_list: List[str],
@@ -74,13 +77,19 @@ def list_blobs(
 
     for api, kernel_filter in zip(api_list, filters_list):
         handler = handlers[api][HandlerId.LIST_BLOBS]
-        handler(file_path, kernel_filter, receipt, optdim_list, mask_impl)
+        handler(targets, file_path, kernel_filter, receipt, optdim_list, mask_impl)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         prog="generate",
         description="gen API for CK fmha kernel",
+    )
+    parser.add_argument(
+        "--targets",
+        default="gfx9,gfx950",
+        required=False,
+        help="list of GPU targets, separated by comma.",
     )
     parser.add_argument(
         "-d",
@@ -142,6 +151,7 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+    targets = args.targets.split(",")
     api_list = args.direction.split(",")
     filter_list = args.filter.split(",")
     filter_list.extend([""] * (len(api_list) - len(filter_list)))
@@ -149,6 +159,7 @@ if __name__ == "__main__":
 
     if args.list_blobs is not None:
         list_blobs(
+            targets,
             args.list_blobs,
             api_list,
             filter_list,
@@ -158,6 +169,7 @@ if __name__ == "__main__":
         )
     else:
         write_blobs(
+            targets,
             args.output_dir,
             api_list,
             filter_list,
