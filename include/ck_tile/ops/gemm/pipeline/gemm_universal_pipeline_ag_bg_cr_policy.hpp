@@ -94,7 +94,7 @@ struct UniversalGemmBasePolicy
 
             constexpr auto DataTypeSize = sizeof(ADataType);
             constexpr auto MLdsLayer =
-                (32 * 4 / KPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / KPerBlock / DataTypeSize);
+                max(1UL, get_n_lds_banks() * get_n_words_per_128b() / KPerBlock / DataTypeSize);
 
             constexpr auto a_lds_block_desc_0 = make_naive_tensor_descriptor(
                 make_tuple(number<KPerBlock / KPack * MLdsLayer>{},
@@ -166,7 +166,7 @@ struct UniversalGemmBasePolicy
             constexpr auto BK0          = number<KPerBlock / KPack>{};
             constexpr auto DataTypeSize = sizeof(BDataType);
             constexpr auto NLdsLayer =
-                (32 * 4 / KPerBlock / DataTypeSize) < 1 ? 1 : (32 * 4 / KPerBlock / DataTypeSize);
+                max(1UL, get_n_lds_banks() * get_n_words_per_128b() / KPerBlock / DataTypeSize);
 
             constexpr auto b_lds_block_desc_0 = make_naive_tensor_descriptor(
                 make_tuple(

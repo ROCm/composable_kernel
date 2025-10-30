@@ -326,6 +326,17 @@ struct gfx12_t
 {
 };
 
+CK_TILE_DEVICE static constexpr auto get_n_words_per_128b() { return 4; }
+
+CK_TILE_DEVICE static constexpr auto get_n_lds_banks()
+{
+#if defined(__gfx950__)
+    return 64;
+#else
+    return 32;
+#endif
+}
+
 CK_TILE_DEVICE static constexpr auto get_device_arch()
 {
 #if defined(__gfx11__)
