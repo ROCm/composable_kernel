@@ -69,7 +69,8 @@ template <ck::index_t NDimSpatial,
           ck::BlockGemmPipelineScheduler BlkGemmPipeSched,
           ck::BlockGemmPipelineVersion BlkGemmPipelineVer,
           typename AComputeDataType,
-          typename BComputeDataType>
+          typename BComputeDataType,
+          bool DirectLoad>
 struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3;
 
 } // namespace ck::tensor_operation::device
@@ -124,7 +125,8 @@ template <ck::index_t NDimSpatial,
           ck::BlockGemmPipelineScheduler BlkGemmPipeSched,
           ck::BlockGemmPipelineVersion BlkGemmPipelineVer,
           typename AComputeDataType_,
-          typename BComputeDataType_>
+          typename BComputeDataType_,
+          bool DirectLoad>
 struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<
     NDimSpatial,
     ALayout_,
@@ -173,7 +175,8 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultiple
     BlkGemmPipeSched,
     BlkGemmPipelineVer,
     AComputeDataType_,
-    BComputeDataType_>>
+    BComputeDataType_,
+    DirectLoad>>
 {
     // Spatial dimension
     static constexpr int kSpatialDim = NDimSpatial;
@@ -336,6 +339,7 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultiple
         oss << "," << detail::pipeline_version_name(kPipelineVersion);     // 46. BlkGemmPipelineVer
         oss << "," << detail::type_name<AComputeDataType>();               // 47. AComputeDataType
         oss << "," << detail::type_name<BComputeDataType>();               // 48. BComputeDataType
+        oss << "," << (DirectLoad ? "true" : "false");                     // 49. DirectLoad
         oss << ">";
 
         return oss.str();
