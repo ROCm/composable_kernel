@@ -20,7 +20,7 @@ TEST(FwdConvInstances,
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 256, .n = 256, .k = 32}};
 
-    run_test<FwdConvSignature,
+    run_test_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<FwdConvSignature,
              FwdThreadBlock,
              BlockGemmPipelineVersion::V1,
              ConvFwdSpecialization::DEFAULT>();
@@ -42,7 +42,7 @@ TEST(FwdConvInstances,
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 256, .n = 256, .k = 32}};
 
-    run_test<FwdConvSignature,
+    run_test_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<FwdConvSignature,
              FwdThreadBlock,
              BlockGemmPipelineVersion::V5,
              ConvFwdSpecialization::FILTER_3x3>();

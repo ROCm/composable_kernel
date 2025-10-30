@@ -77,7 +77,7 @@ concept AccessOrderDescriptor = requires(T t) {
     { t.order } -> std::convertible_to<std::array<size_t, 3>>;
 };
 
-// No requirements yet for a ConvAlogorithm concept.
+// No requirements yet for a ConvAlgorithm concept.
 template <typename T>
 concept ConvAlgorithmDescriptor = std::is_class_v<T>;
 
@@ -136,6 +136,11 @@ concept SpecifiesGemmPipelineVersion = requires {
 template <typename T>
 concept SpecifiesFwdConcSpecialization = requires {
     { T::fwd_specialization } -> std::convertible_to<ConvFwdSpecialization>;
+};
+
+template <typename T>
+concept SpecifiesNumPrefetchStages = requires {
+    { T::num_gemm_k_prefetch_stages } -> std::convertible_to<size_t>;
 };
 
 } // namespace ck_tile::builder

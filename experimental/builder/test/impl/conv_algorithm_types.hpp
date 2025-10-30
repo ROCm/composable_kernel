@@ -98,22 +98,40 @@ struct BlockTransferABC
     AccessOrder src_access_order_b;
 };
 
-struct ConvAlgorithm
+struct ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
 {
     ThreadBlock thread_block;
     GridwiseGemm gridwise_gemm;
     BlockTransferABC block_transfer;
-    BlockGemmPipelineVersion pipeline_version;
     ConvFwdSpecialization fwd_specialization;
+    BlockGemmPipelineVersion pipeline_version;
 };
-static_assert(ckb::ConvAlgorithmDescriptor<ConvAlgorithm>);
-static_assert(ckb::SpecifiesThreadBlock<ConvAlgorithm>);
-static_assert(ckb::SpecifiesGridwiseGemm<ConvAlgorithm>);
-static_assert(ckb::SpecifiesBlockTransfer<ConvAlgorithm>);
-static_assert(ckb::SpecifiesLdsTransfer<ConvAlgorithm>);
-static_assert(ckb::SpecifiesThreadClusterAccessOrder<ConvAlgorithm>);
-static_assert(ckb::SpecifiesSourceAccessOrder<ConvAlgorithm>);
-static_assert(ckb::SpecifiesGemmPipelineVersion<ConvAlgorithm>);
-static_assert(ckb::SpecifiesFwdConcSpecialization<ConvAlgorithm>);
+static_assert(ckb::ConvAlgorithmDescriptor<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
+static_assert(ckb::SpecifiesThreadBlock<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
+static_assert(ckb::SpecifiesGridwiseGemm<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
+static_assert(ckb::SpecifiesBlockTransfer<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
+static_assert(ckb::SpecifiesLdsTransfer<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
+static_assert(ckb::SpecifiesThreadClusterAccessOrder<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
+static_assert(ckb::SpecifiesSourceAccessOrder<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
+static_assert(ckb::SpecifiesFwdConcSpecialization<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
+static_assert(ckb::SpecifiesGemmPipelineVersion<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
+
+struct ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
+{
+    ThreadBlock thread_block;
+    GridwiseGemm gridwise_gemm;
+    BlockTransferABC block_transfer;
+    ConvFwdSpecialization fwd_specialization;
+    size_t num_gemm_k_prefetch_stages;
+};
+static_assert(ckb::ConvAlgorithmDescriptor<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
+static_assert(ckb::SpecifiesThreadBlock<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
+static_assert(ckb::SpecifiesGridwiseGemm<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
+static_assert(ckb::SpecifiesBlockTransfer<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
+static_assert(ckb::SpecifiesLdsTransfer<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
+static_assert(ckb::SpecifiesThreadClusterAccessOrder<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
+static_assert(ckb::SpecifiesSourceAccessOrder<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
+static_assert(ckb::SpecifiesFwdConcSpecialization<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
+static_assert(ckb::SpecifiesNumPrefetchStages<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
 
 } // namespace ck_tile::builder::test
