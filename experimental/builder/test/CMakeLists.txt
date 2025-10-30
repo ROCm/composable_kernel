@@ -19,7 +19,7 @@ endfunction()
 # The test_conv_builder target has all the unit tests (each test should run < 10 ms)
 add_ck_builder_test(test_conv_builder
     test_conv_builder.cpp
-    test_instance_traits.cpp
+    test_fwd_instance_traits.cpp
     test_instance_traits_util.cpp)
 
 add_ck_builder_test(test_inline_diff test_inline_diff.cpp)
