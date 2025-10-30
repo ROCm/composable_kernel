@@ -275,8 +275,8 @@ int run_gemm_example_with_layouts(int argc,
               << " B_Type=" << DataTypeTraits<BDataType>::name
               << " C_Type=" << DataTypeTraits<CDataType>::name
               << " reduction_strategy=" << arg_parser.get_str("reduction_strategy") << " "
-              << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << std::endl;
+              << " persistent_dp=" << arg_parser.get_str("persistent_dp") << " " << ave_time
+              << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
 
     bool pass = true;
 

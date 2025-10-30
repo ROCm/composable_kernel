@@ -23,6 +23,7 @@ args:
           -b_layout    tensor B data layout (default: C)
           -c_layout    tensor C data layout (default: R)
 -reduction_strategy    strategy for storing results in C tensor. atomic/reduction (default:atomic)
+     -persistent_dp    persistent strategy for data-parallel section. 0. Non-persistent, 1 persistent.")
           -stride_a    tensor A stride (default:0)
           -stride_b    tensor B stride (default:0)
           -stride_c    tensor C stride (default:0)

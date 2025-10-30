@@ -169,7 +169,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     return 0;
 }
 
-template <template <typename PreType> typename GemmConfig>
+template <template <typename PreType, bool Persistent_> typename GemmConfig>
 int run_gemm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -179,18 +179,35 @@ int run_gemm_example(int argc, char* argv[])
     std::string data_type = arg_parser.get_str("prec");
     std::string a_layout  = arg_parser.get_str("a_layout");
     std::string b_layout  = arg_parser.get_str("b_layout");
+    auto persistent_dp    = arg_parser.get_bool("persistent_dp");
 
     if(data_type == "bf16")
     {
         using TypeConfig = StreamKGemmTypeConfig<ck_tile::bf16_t>;
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::bf16_t>, TypeConfig>(
-            a_layout, b_layout, argc, argv);
+        if(persistent_dp)
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf16_t, true>, TypeConfig>(
+                a_layout, b_layout, argc, argv);
+        }
+        else
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf16_t, false>, TypeConfig>(
+                a_layout, b_layout, argc, argv);
+        }
     }
     else if(data_type == "fp16")
     {
         using TypeConfig = StreamKGemmTypeConfig<ck_tile::half_t>;
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, TypeConfig>(
-            a_layout, b_layout, argc, argv);
+        if(persistent_dp)
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t, true>, TypeConfig>(
+                a_layout, b_layout, argc, argv);
+        }
+        else
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t, false>, TypeConfig>(
+                a_layout, b_layout, argc, argv);
+        }
     }
     else if(data_type == "fp8")
     {

@@ -18,7 +18,6 @@ struct GemmConfigBase
 
     static constexpr bool TransposeC            = false;
     static constexpr bool UseStructuredSparsity = false;
-    static constexpr bool Persistent            = false;
 
     static constexpr int kBlockPerCu                = 1;
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
@@ -27,7 +26,7 @@ struct GemmConfigBase
     static constexpr bool DoubleSmemBuffer          = false;
 };
 
-template <typename PrecType>
+template <typename PrecType, bool Persistent_>
 struct GemmConfigMemoryInterwave : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 256;
@@ -42,7 +41,8 @@ struct GemmConfigMemoryInterwave : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = sizeof(PrecType) == 2 ? 8 : 16;
 
-    static constexpr auto Scheduler = ck_tile::GemmPipelineScheduler::Intrawave;
+    static constexpr bool Persistent = Persistent_;
+    static constexpr auto Scheduler  = ck_tile::GemmPipelineScheduler::Intrawave;
 };
 
 template <typename ADataType_, typename BDataType_ = ADataType_, typename CDataType_ = ADataType_>
@@ -99,6 +99,9 @@ auto create_args(int argc, char* argv[])
         .insert("reduction_strategy",
                 "atomic",
                 "strategy for storing results in C tensor - atomic/reduction")
+        .insert("persistent_dp",
+                "0",
+                "0. Non-persistent data-parallel section, 1 Fully persistent kernel.")
         .insert("stride_a", "0", "Tensor A stride")
         .insert("stride_b", "0", "Tensor B stride")
         .insert("stride_c", "0", "Tensor C stride")
