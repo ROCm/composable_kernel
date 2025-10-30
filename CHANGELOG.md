@@ -6,6 +6,8 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 
 ### Added 
 
+### Added
+* Added support for mixed precision fp8 x bf8 universal GEMM and weight preshuffle GEMM
 * Added a compute async pipeline in the CK TILE universal GEMM on gfx950
 * Added support for B Tensor type pk_int4_t in the CK TILE weight preshuffle GEMM.
 * Added the new api to load different memory sizes to SGPR.
