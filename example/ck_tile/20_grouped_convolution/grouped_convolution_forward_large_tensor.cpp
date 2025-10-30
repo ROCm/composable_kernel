@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
-// Split-image grouped convolution example
-// This example demonstrates split-image convolution for large images.
-// It always uses split-image (Kernel<true>), even for small images (with 1 piece).
-// For regular convolution without split-image, use grouped_convolution_forward.cpp
+// Large tensor grouped convolution example
+// This example demonstrates convolution for large tensors that exceed memory limits.
+// It uses automatic tensor splitting when needed to handle large images.
+// For regular convolution without tensor splitting, use grouped_convolution_forward.cpp
 
 #include <hip/hip_runtime.h>
 
@@ -16,7 +16,7 @@
 
 #include "ck_tile/host.hpp"
 #include "grouped_convolution_utils.hpp"
-#include "grouped_convolution_forward_split_image_invoker.hpp"
+#include "grouped_convolution_forward_large_tensor_invoker.hpp"
 #include "run_grouped_convolution_fwd_example.inc"
 
 template <template <typename PrecType> typename GemmConfig>
