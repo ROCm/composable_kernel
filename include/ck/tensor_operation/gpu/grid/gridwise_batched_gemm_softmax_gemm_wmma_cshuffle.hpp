@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
+#include "ck/utility/env.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/multi_index_transform_helper.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
@@ -569,26 +570,33 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
 
         if(!(M == c_grid_desc_m_n.GetLength(I0) && N == c_grid_desc_m_n.GetLength(I1)))
         {
-            printf("GridwiseOp: M/N Length err, A_M/N = %d, %d | C_M/N = %d, %d\n",
-                   M,
-                   N,
-                   c_grid_desc_m_n.GetLength(I0),
-                   c_grid_desc_m_n.GetLength(I1));
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                printf("GridwiseOp: M/N Length err, A_M/N = %d, %d | C_M/N = %d, %d\n",
+                       M,
+                       N,
+                       c_grid_desc_m_n.GetLength(I0),
+                       c_grid_desc_m_n.GetLength(I1));
+            }
             return false;
         }
 
         if(!(M % MPerBlock == 0 && L % LPerBlock == 0 && K % KPerBlock == 0 && N % NPerBlock == 0))
         {
-            printf("GridwiseOp: M/L/K/N Division err, M/L/K/N = %d, %d, %d, %d | M/L/K/NPerBlock = "
-                   "%d, %d, %d, %d\n",
-                   M,
-                   L,
-                   K,
-                   N,
-                   MPerBlock,
-                   LPerBlock,
-                   KPerBlock,
-                   NPerBlock);
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                printf("GridwiseOp: M/L/K/N Division err, M/L/K/N = %d, %d, %d, %d | "
+                       "M/L/K/NPerBlock = "
+                       "%d, %d, %d, %d\n",
+                       M,
+                       L,
+                       K,
+                       N,
+                       MPerBlock,
+                       LPerBlock,
+                       KPerBlock,
+                       NPerBlock);
+            }
             return false;
         }
 
@@ -596,23 +604,32 @@ struct GridwiseBatchedGemmSoftmaxGemm_Wmma
         const auto num_gemm0_k_loop = K / KPerBlock;
         if(!GridwiseGemmPipe::IsSupported(num_gemm0_k_loop))
         {
-            printf("GridwiseOp: outer loop unsupport\n");
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                printf("GridwiseOp: outer loop unsupport\n");
+            }
             return false;
         }
 
         // check gemm1 gridwise gemm pipeline
         if(!(LPerBlock % LTilePerBlock == 0))
         {
-            printf("GridwiseOp: inner loop division, L/LTilePerblock: %d, %d\n",
-                   LPerBlock,
-                   LTilePerBlock);
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                printf("GridwiseOp: inner loop division, L/LTilePerblock: %d, %d\n",
+                       LPerBlock,
+                       LTilePerBlock);
+            }
             return false;
         }
 
         const auto num_gemm1_k_inner_loop = LPerBlock / LTilePerBlock;
         if(!GridwiseGemmPipe::IsSupported(num_gemm1_k_inner_loop))
         {
-            printf("GridwiseOp: inner loop unsupport\n");
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                printf("GridwiseOp: inner loop unsupport\n");
+            }
             return false;
         }
 

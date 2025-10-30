@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/fmha/pipeline/block_fmha_pipeline_qx_ks_vs_custom_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
-#include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v2_custom_policy.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_breg_creg_v2.hpp"
@@ -512,14 +511,13 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm0BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm0WarpTile>>;
 
-        using WarpGemm =
-            WarpGemmMfmaDispatcher<typename Problem::QDataType,
-                                   typename Problem::KDataType,
-                                   typename Problem::SaccDataType,
-                                   Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
-                                   Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
-                                   Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
-                                   true>;
+        using WarpGemm = WarpGemmDispatcher<typename Problem::QDataType,
+                                            typename Problem::KDataType,
+                                            typename Problem::SaccDataType,
+                                            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<0>{}),
+                                            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<1>{}),
+                                            Problem::BlockFmhaShape::Gemm0WarpTile::at(number<2>{}),
+                                            true>;
 
         using BlockGemmPolicy =
             BlockGemmARegBRegCRegV2CustomPolicy<typename Problem::QDataType,
@@ -546,22 +544,22 @@ struct BlockFmhaPipelineQRKSVSAsyncTrloadDefaultPolicy
                                            typename Problem::BlockFmhaShape::Gemm1BlockWarps,
                                            typename Problem::BlockFmhaShape::Gemm1WarpTile>>;
 
-        using WarpGemm = WarpGemmMfmaDispatcher<
-            typename Problem::PDataType,
-            typename Problem::VDataType,
-            typename Problem::OaccDataType,
-            Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
-            Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
-            Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
-            true,
-            false,
-            false,
-            ((Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}) == 16 &&
-              Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) == 32) ||
-             (Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}) == 32 &&
-              Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) == 16))
-                ? WGAttrNumAccessEnum::Double
-                : WGAttrNumAccessEnum::Single>;
+        using WarpGemm =
+            WarpGemmDispatcher<typename Problem::PDataType,
+                               typename Problem::VDataType,
+                               typename Problem::OaccDataType,
+                               Problem::BlockFmhaShape::Gemm1WarpTile::at(number<0>{}),
+                               Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}),
+                               Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}),
+                               true,
+                               false,
+                               false,
+                               ((Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}) == 16 &&
+                                 Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) == 32) ||
+                                (Problem::BlockFmhaShape::Gemm1WarpTile::at(number<1>{}) == 32 &&
+                                 Problem::BlockFmhaShape::Gemm1WarpTile::at(number<2>{}) == 16))
+                                   ? WGAttrNumAccessEnum::Double
+                                   : WGAttrNumAccessEnum::Single>;
 
         using BlockGemmPolicy =
             BlockGemmARegBRegCRegV2CustomPolicy<typename Problem::PDataType,

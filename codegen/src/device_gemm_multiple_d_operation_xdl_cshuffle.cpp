@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/host/device_gemm_multiple_d/operation.hpp"
 #include "ck/host/stringutils.hpp"
@@ -81,16 +81,16 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(
 //   Size| Block| Block| Block|    |    |  XDL|  XDL|  Per|  Per| Prefetch|
 //       |      |      |      |    |    |     |     | Wave| Wave|    Stage|
 //       |      |      |      |    |    |     |     |     |     |         |
-  {   256,   256,   128,    32,   8,   8,   32,   32,    4,    2,        1},
-  {   256,   128,   256,    32,   8,   8,   32,   32,    2,    4,        1},
-  {   128,   128,   128,    32,   8,   8,   32,   32,    4,    2,        1},
-  {   256,   128,   128,    32,   8,   8,   32,   32,    2,    2,        1},
-  {   128,   128,    64,    32,   8,   8,   32,   32,    2,    2,        1},
-  {   128,    64,   128,    32,   8,   8,   32,   32,    2,    2,        1},
-  {   256,   128,    64,    32,   8,   8,   32,   32,    2,    1,        1},
-  {   256,    64,   128,    32,   8,   8,   32,   32,    1,    2,        1},
+  {   256,   256,   128,    32,   8,   8,   16,   16,    8,    4,        1},
+  {   256,   128,   256,    32,   8,   8,   16,   16,    4,    8,        1},
+  {   128,   128,   128,    32,   8,   8,   16,   16,    8,    4,        1},
+  {   256,   128,   128,    32,   8,   8,   16,   16,    4,    4,        1},
+  {   128,   128,    64,    32,   8,   8,   16,   16,    4,    4,        1},
+  {   128,    64,   128,    32,   8,   8,   16,   16,    4,    4,        1},
+  {   256,   128,    64,    32,   8,   8,   16,   16,    4,    2,        1},
+  {   256,    64,   128,    32,   8,   8,   16,   16,    2,    4,        1},
 //  Irregular tile
-  {    64,    16,    16,    32,   8,   8,   16,   16,    1,    1,        1},
+  {    64,    32,    32,    32,   8,   8,   16,   16,    2,    2,        1},
         // clang-format on
     };
 
@@ -194,14 +194,14 @@ std::vector<Operation_Xdl_CShuffle> Operation_Xdl_CShuffle::CreateOperations(
 //         _MBlock_MWaveMPerXdl| ScalarPerVector
 //         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl
 //                             |                
-  {              S<1, 32, 1, 8>,               8},
-  {              S<1, 32, 1, 8>,               8},
-  {              S<1, 16, 1, 8>,               8},
-  {              S<1, 32, 1, 8>,               8},
-  {              S<1, 32, 1, 4>,               8},
-  {              S<1, 16, 1, 8>,               8},
-  {              S<1, 32, 1, 8>,               8},
-  {              S<1, 32, 1, 8>,               8},
+  {              S<1, 32, 1, 8>,               4},
+  {              S<1, 32, 1, 8>,               4},
+  {              S<1, 16, 1, 8>,               4},
+  {              S<1, 32, 1, 8>,               4},
+  {              S<1, 32, 1, 4>,               4},
+  {              S<1, 16, 1, 8>,               4},
+  {              S<1, 32, 1, 8>,               4},
+  {              S<1, 32, 1, 8>,               4},
 //  Irregular tile
   {              S<1, 16, 1, 4>,               1},
         // clang-format on

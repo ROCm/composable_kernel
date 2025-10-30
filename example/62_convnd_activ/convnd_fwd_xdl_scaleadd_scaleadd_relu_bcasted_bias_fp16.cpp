@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <algorithm>
 #include <cstdlib>
@@ -74,10 +74,10 @@ using DeviceGroupedConvNDFwdInstance =
         32,          // KPerBlock
         8,           // AK1
         8,           // BK1
-        32,          // MPerXdl
-        32,          // NPerXdl
-        2,           // MXdlPerWave
-        4,           // NXdlPerWave
+        16,          // MPerXdl
+        16,          // NPerXdl
+        4,           // MXdlPerWave
+        8,           // NXdlPerWave
         S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
         S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
@@ -95,7 +95,7 @@ using DeviceGroupedConvNDFwdInstance =
         1,
         1,
         S<1, 32, 1, 8>,
-        8>;
+        4>;
 
 using DeviceGroupedConvNDActivInstance = DeviceGroupedConvNDFwdInstance<OutElementOp>;
 
@@ -130,11 +130,12 @@ bool run_grouped_conv(bool do_verification,
     // Fill other lenghts than G,K with 1 and strides with 0
     bias_g_k_lengths.fill(1);
     bias_g_k_strides.fill(0);
-    bias_g_k_lengths[0]              = G;
-    bias_g_k_lengths[2]              = K;
-    bias_g_k_strides[0]              = K; // stride to G
-    bias_g_k_strides[2]              = 1; // stride to K
-    const auto broadcasted_bias_desc = HostTensorDescriptor(bias_g_k_lengths, bias_g_k_strides);
+    bias_g_k_lengths[0] = G;
+    bias_g_k_lengths[2] = K;
+    bias_g_k_strides[0] = K; // stride to G
+    bias_g_k_strides[2] = 1; // stride to K
+    const auto broadcasted_bias_desc =
+        HostTensorDescriptor(bias_g_k_lengths, bias_g_k_strides, BiasLayout{});
 
     //  y = relu ( alpha1 * conv(x) + alpha2 * z + bias )
     Tensor<InDataType> in(in_g_n_c_wis_desc);

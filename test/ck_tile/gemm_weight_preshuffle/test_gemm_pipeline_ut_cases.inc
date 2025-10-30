@@ -20,7 +20,7 @@ TYPED_TEST(TEST_SUITE_NAME, GemmPreshuffle)
 
 TYPED_TEST(TEST_SUITE_NAME, GemmPreshuffle_128x128x128)
 {
-    if constexpr(std::is_same_v<TypeParam, F8Types>)
+    if constexpr(std::is_same_v<std::tuple_element_t<3, TypeParam>, F8>)
     {
         GTEST_SKIP() << "Skipping this test due to failures with F8";
     }
@@ -48,7 +48,7 @@ TYPED_TEST(TEST_SUITE_NAME, GemmPreshuffle_128x128x4096)
 
 TYPED_TEST(TEST_SUITE_NAME, GemmPreshuffle_128x2048x128)
 {
-    if constexpr(std::is_same_v<TypeParam, F8Types>)
+    if constexpr(std::is_same_v<std::tuple_element_t<3, TypeParam>, F8>)
     {
         GTEST_SKIP() << "Skipping this test due to failures with F8";
     }
@@ -77,7 +77,7 @@ TYPED_TEST(TEST_SUITE_NAME, GemmPreshuffle_128x2048x4096)
 
 TYPED_TEST(TEST_SUITE_NAME, GemmPreshuffle_1024x128x128)
 {
-    if constexpr(std::is_same_v<TypeParam, F8Types>)
+    if constexpr(std::is_same_v<std::tuple_element_t<3, TypeParam>, F8>)
     {
         GTEST_SKIP() << "Skipping this test due to failures with F8";
     }
@@ -106,7 +106,7 @@ TYPED_TEST(TEST_SUITE_NAME, GemmPreshuffle_1024x128x4096)
 
 TYPED_TEST(TEST_SUITE_NAME, GemmPreshuffle_1024x2048x128)
 {
-    if constexpr(std::is_same_v<TypeParam, F8Types>)
+    if constexpr(std::is_same_v<std::tuple_element_t<3, TypeParam>, F8>)
     {
         GTEST_SKIP() << "Skipping this test due to failures with F8";
     }

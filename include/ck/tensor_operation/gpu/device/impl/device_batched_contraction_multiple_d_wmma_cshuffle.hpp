@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include <iostream>
 #include <sstream>
 
+#include "ck/utility/env.hpp"
 #include "ck/utility/common_header.hpp"
 #include "ck/tensor_description/tensor_descriptor.hpp"
 #include "ck/tensor_description/tensor_descriptor_helper.hpp"
@@ -853,7 +854,10 @@ struct DeviceBatchedContractionMultipleD_Wmma_CShuffle
                                       arg.e_grid_desc_m_n_,
                                       arg.block_2_ctile_map_))
         {
-            printf("GridwiseOp: Validity check failure\n");
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                printf("GridwiseOp: Validity check failure\n");
+            }
             return false;
         }
 

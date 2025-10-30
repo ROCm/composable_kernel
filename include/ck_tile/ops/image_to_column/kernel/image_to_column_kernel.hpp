@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -31,6 +31,7 @@ struct ImageToColumn
 
     static constexpr index_t kMPerBlock = Problem::BlockShape::kMPerBlock;
     static constexpr index_t kKPerBlock = Problem::BlockShape::kKPerBlock;
+    static constexpr index_t kBlockSize = Problem::BlockShape::kBlockSize;
 
     struct Kargs
     {
@@ -174,9 +175,9 @@ struct ImageToColumn
     {
         const auto [M, K] = CalculateMKDims(kargs);
 
-        const index_t iM     = __builtin_amdgcn_readfirstlane(blockIdx.x * kMPerBlock);
-        const index_t iK     = __builtin_amdgcn_readfirstlane(blockIdx.y * kKPerBlock);
-        const index_t iBatch = __builtin_amdgcn_readfirstlane(blockIdx.z);
+        const index_t iM     = amd_wave_read_first_lane(blockIdx.x * kMPerBlock);
+        const index_t iK     = amd_wave_read_first_lane(blockIdx.y * kKPerBlock);
+        const index_t iBatch = amd_wave_read_first_lane(blockIdx.z);
 
         const auto in_offset  = iBatch * kargs.image_g_n_c_wis_strides[I0];
         const auto out_offset = iBatch * kargs.gemm_g_m_k_strides[I0];

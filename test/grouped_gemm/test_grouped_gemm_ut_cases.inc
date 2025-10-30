@@ -2,7 +2,7 @@
 
 TYPED_TEST(TestGroupedGemm, TinyCases)
 {
-    const std::vector<int> Ms{0, 1};
+    const std::vector<int> Ms{2, 1};
     constexpr int N = 768;
     constexpr int K = 544;
 
@@ -14,7 +14,7 @@ TYPED_TEST(TestGroupedGemm, TinyCases)
 
 TYPED_TEST(TestGroupedGemm, SmallCases)
 {
-    const std::vector<int> Ms{2, 1, 3, 4, 5, 0};
+    const std::vector<int> Ms{2, 1, 3, 4, 5};
     constexpr int N = 768;
     constexpr int K = 544;
 

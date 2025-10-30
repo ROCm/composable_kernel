@@ -11,11 +11,16 @@ namespace ck_tile {
 template <typename Problem, typename Policy>
 struct GemmPipelineAgBgCrImplBase
 {
-    using ADataType      = remove_cvref_t<typename Problem::ADataType>;
-    using BDataType      = remove_cvref_t<typename Problem::BDataType>;
-    using ALayout        = remove_cvref_t<typename Problem::ALayout>;
-    using BLayout        = remove_cvref_t<typename Problem::BLayout>;
+    using AsDataType     = remove_cvref_t<typename Problem::AsDataTypeTuple>;
+    using BsDataType     = remove_cvref_t<typename Problem::BsDataTypeTuple>;
+    using AsLayout       = remove_cvref_t<typename Problem::AsLayoutTuple>;
+    using BsLayout       = remove_cvref_t<typename Problem::BsLayoutTuple>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
+
+    using ADataType = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
+    using ALayout   = remove_cvref_t<std::tuple_element_t<number<0>{}, AsLayout>>;
+    using BDataType = remove_cvref_t<std::tuple_element_t<number<0>{}, BsDataType>>;
+    using BLayout   = remove_cvref_t<std::tuple_element_t<number<0>{}, BsLayout>>;
 
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
@@ -57,6 +62,13 @@ struct GemmPipelineAgBgCrImplBase
         store_tile(lds_tile_window, block_tile_tmp);
     }
 
+    template <typename DstTileWindow, typename SrcBlockTile>
+    CK_TILE_DEVICE void LocalPrefill(DstTileWindow& lds_tile_window,
+                                     const SrcBlockTile& src_block_tile) const
+    {
+        store_tile(lds_tile_window, src_block_tile);
+    }
+
     template <typename DstBlockTile, typename SrcTileWindow, bool LoadTranspose = false>
     CK_TILE_DEVICE void LocalPrefetch(DstBlockTile& dst_block_tile,
                                       const SrcTileWindow& lds_tile_window,
@@ -88,23 +100,100 @@ struct GemmPipelineAgBgCrImplBase
         return make_tuple(std::move(a_lds_block), std::move(b_lds_block));
     }
 
+    template <typename DramBlockWindowTmp,
+              typename std::enable_if_t<is_detected<is_tuple, DramBlockWindowTmp>::value, bool>* =
+                  nullptr>
+    CK_TILE_DEVICE constexpr auto CopyADramWindow(const DramBlockWindowTmp& dram_block_window_tmp,
+                                                  const array<index_t, 2>& offset = {0, 0}) const
+    {
+        constexpr bool is_col_major = std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
+
+        using YPerTile = std::conditional_t<is_col_major, number<KPerBlock>, number<MPerBlock>>;
+        using XPerTile = std::conditional_t<is_col_major, number<MPerBlock>, number<KPerBlock>>;
+        // A DRAM tile window for load
+        auto a_copy_dram_window = generate_tuple(
+            [&](auto idx) {
+                return make_tile_window(
+                    dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view(),
+                    make_tuple(YPerTile{}, XPerTile{}),
+                    dram_block_window_tmp[number<idx>{}].get_window_origin() + offset,
+                    Policy::template MakeADramTileDistribution<Problem>());
+            },
+            number<DramBlockWindowTmp::size()>{});
+        return std::move(a_copy_dram_window);
+    }
+
+    template <typename DramBlockWindowTmp,
+              typename std::enable_if_t<!is_detected<is_tuple, DramBlockWindowTmp>::value, bool>* =
+                  nullptr>
+    CK_TILE_DEVICE constexpr auto CopyADramWindow(const DramBlockWindowTmp& dram_block_window_tmp,
+                                                  const array<index_t, 2>& offset = {0, 0}) const
+    {
+        constexpr bool is_col_major = std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
+
+        using YPerTile = std::conditional_t<is_col_major, number<KPerBlock>, number<MPerBlock>>;
+        using XPerTile = std::conditional_t<is_col_major, number<MPerBlock>, number<KPerBlock>>;
+        // A DRAM tile window for load
+        auto a_copy_dram_window =
+            make_tile_window(dram_block_window_tmp.get_bottom_tensor_view(),
+                             make_tuple(YPerTile{}, XPerTile{}),
+                             dram_block_window_tmp.get_window_origin() + offset,
+                             Policy::template MakeADramTileDistribution<Problem>());
+
+        return std::move(a_copy_dram_window);
+    }
+
+    template <typename DramBlockWindowTmp,
+              typename std::enable_if_t<is_detected<is_tuple, DramBlockWindowTmp>::value, bool>* =
+                  nullptr>
+    CK_TILE_DEVICE constexpr auto CopyBDramWindow(const DramBlockWindowTmp& dram_block_window_tmp,
+                                                  const array<index_t, 2>& offset = {0, 0}) const
+    {
+        constexpr bool is_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
+
+        using YPerTile = std::conditional_t<is_row_major, number<KPerBlock>, number<NPerBlock>>;
+        using XPerTile = std::conditional_t<is_row_major, number<NPerBlock>, number<KPerBlock>>;
+        // A DRAM tile window for load
+        auto a_copy_dram_window = generate_tuple(
+            [&](auto idx) {
+                return make_tile_window(
+                    dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view(),
+                    make_tuple(YPerTile{}, XPerTile{}),
+                    dram_block_window_tmp[number<idx>{}].get_window_origin() + offset,
+                    Policy::template MakeBDramTileDistribution<Problem>());
+            },
+            number<DramBlockWindowTmp::size()>{});
+        return std::move(a_copy_dram_window);
+    }
+
+    template <typename DramBlockWindowTmp,
+              typename std::enable_if_t<!is_detected<is_tuple, DramBlockWindowTmp>::value, bool>* =
+                  nullptr>
+    CK_TILE_DEVICE constexpr auto CopyBDramWindow(const DramBlockWindowTmp& dram_block_window_tmp,
+                                                  const array<index_t, 2>& offset = {0, 0}) const
+    {
+        constexpr bool is_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
+
+        using YPerTile = std::conditional_t<is_row_major, number<KPerBlock>, number<NPerBlock>>;
+        using XPerTile = std::conditional_t<is_row_major, number<NPerBlock>, number<KPerBlock>>;
+        // A DRAM tile window for load
+        auto a_copy_dram_window =
+            make_tile_window(dram_block_window_tmp.get_bottom_tensor_view(),
+                             make_tuple(YPerTile{}, XPerTile{}),
+                             dram_block_window_tmp.get_window_origin() + offset,
+                             Policy::template MakeBDramTileDistribution<Problem>());
+
+        return std::move(a_copy_dram_window);
+    }
+
     template <typename ADramBlockWindowTmp, typename ALdsTensorView, typename ALdsLoadTileDistr>
     CK_TILE_DEVICE constexpr auto GetAWindows(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                               const ALdsTensorView& a_lds_block_view,
                                               const ALdsLoadTileDistr&,
                                               const array<index_t, 2>& offset = {0, 0}) const
     {
-        constexpr bool is_col_major = std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
-
-        using YPerTile = std::conditional_t<is_col_major, number<KPerBlock>, number<MPerBlock>>;
-        using XPerTile = std::conditional_t<is_col_major, number<MPerBlock>, number<KPerBlock>>;
-
         // A DRAM tile window for load
-        auto a_copy_dram_window =
-            make_tile_window(a_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(YPerTile{}, XPerTile{}),
-                             a_dram_block_window_tmp.get_window_origin() + offset,
-                             Policy::template MakeADramTileDistribution<Problem>());
+        auto a_copy_dram_window = CopyADramWindow(a_dram_block_window_tmp, offset);
 
         // A LDS tile window for store
         auto a_lds_shape = []() {
@@ -138,16 +227,8 @@ struct GemmPipelineAgBgCrImplBase
                                               const BLdsLoadTileDistr&,
                                               const array<index_t, 2>& offset = {0, 0}) const
     {
-        constexpr bool is_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
-
-        using YPerTile = std::conditional_t<is_row_major, number<KPerBlock>, number<NPerBlock>>;
-        using XPerTile = std::conditional_t<is_row_major, number<NPerBlock>, number<KPerBlock>>;
-
-        auto b_copy_dram_window =
-            make_tile_window(b_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(YPerTile{}, XPerTile{}),
-                             b_dram_block_window_tmp.get_window_origin() + offset,
-                             Policy::template MakeBDramTileDistribution<Problem>());
+        // A DRAM tile window for load
+        auto b_copy_dram_window = CopyBDramWindow(b_dram_block_window_tmp, offset);
 
         // TODO: Do we really need those two tile windows???
         // They're exactly same...

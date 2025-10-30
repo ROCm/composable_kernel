@@ -18,6 +18,9 @@
 
 namespace ck_tile {
 
+/** @brief Maximum number of error values to display when checking errors */
+constexpr int ERROR_DETAIL_LIMIT = 128;
+
 /** @brief 8-bit floating point type */
 using F8 = ck_tile::fp8_t;
 /** @brief 8-bit brain floating point type */
@@ -280,7 +283,7 @@ check_err(const Range& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < ERROR_DETAIL_LIMIT)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
@@ -348,7 +351,7 @@ check_err(const Range& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < ERROR_DETAIL_LIMIT)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
@@ -416,7 +419,7 @@ check_err(const Range& out,
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < ERROR_DETAIL_LIMIT)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
@@ -478,7 +481,7 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < ERROR_DETAIL_LIMIT)
             {
                 std::cerr << msg << " out[" << i << "] != ref[" << i << "]: " << o << " != " << r
                           << std::endl;
@@ -564,7 +567,7 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < ERROR_DETAIL_LIMIT)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o_fp64 << " != " << r_fp64 << std::endl;
@@ -630,7 +633,7 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
         {
             max_err = err > max_err ? err : max_err;
             err_count++;
-            if(err_count < 5)
+            if(err_count < ERROR_DETAIL_LIMIT)
             {
                 std::cerr << msg << std::setw(12) << std::setprecision(7) << " out[" << i
                           << "] != ref[" << i << "]: " << o << " != " << r << std::endl;
@@ -643,6 +646,58 @@ std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_val
         report_error_stats(err_count, max_err, ref.size());
     }
     return res;
+}
+
+/**
+ * @brief Check errors between pk_fp4_t ranges
+ *
+ * Compares two ranges of pk_fp4_t without tolerance.
+ * This specialization handles ck_tile::pk_fp4_t type.
+ *
+ * @tparam Range Type of output range
+ * @tparam RefRange Type of reference range
+ * @param out Output range to check
+ * @param ref Reference range to check against
+ * @param msg Error message to display if check fails
+ * @return True if check passes, false otherwise
+ */
+template <typename Range, typename RefRange>
+std::enable_if_t<(std::is_same_v<ranges::range_value_t<Range>, ranges::range_value_t<RefRange>> &&
+                  std::is_same_v<ranges::range_value_t<Range>, pk_fp4_t>),
+                 bool>
+    CK_TILE_HOST check_err(const Range& out,
+                           const RefRange& ref,
+                           const std::string& msg = "Error: Incorrect results!",
+                           double                 = 0,
+                           double                 = 0)
+{
+    if(check_size_mismatch(out, ref, msg))
+        return false;
+
+    int err_count = 0;
+
+    auto update_err = [&](pk_fp4_raw_t o, pk_fp4_raw_t r, std::size_t index) {
+        if(o != r)
+        {
+            std::cerr << msg << " out[" << index << "] != ref[" << index
+                      << "]: " << type_convert<float>(pk_fp4_t{o})
+                      << " != " << type_convert<float>(pk_fp4_t{r}) << std::endl;
+            ++err_count;
+        }
+    };
+
+    for(std::size_t i = 0; i < ref.size(); ++i)
+    {
+        const pk_fp4_t o = *std::next(std::begin(out), i);
+        const pk_fp4_t r = *std::next(std::begin(ref), i);
+        update_err(o._unpack(number<0>{}), r._unpack(number<0>{}), i * 2);
+        update_err(o._unpack(number<1>{}), r._unpack(number<1>{}), i * 2 + 1);
+    }
+    if(err_count > 0)
+    {
+        report_error_stats(err_count, numeric<pk_fp4_t>::max(), ref.size());
+    }
+    return err_count == 0;
 }
 
 } // namespace ck_tile

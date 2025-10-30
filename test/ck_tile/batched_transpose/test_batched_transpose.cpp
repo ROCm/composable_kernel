@@ -137,11 +137,11 @@ class TestCkTileBatchedTranspose //              N    C    H    W    layout_in==
                                                                  Config::BlockTile::at(1)};
         auto kargs           = Kernel::MakeKargs(host_args);
 
-        auto sc                   = ck_tile::stream_config{};
-        const dim3 grid_size      = Kernel::GridSize(host_args);
-        constexpr dim3 block_size = Kernel::BlockSize();
-        ck_tile::launch_kernel(
-            sc, ck_tile::make_kernel<block_size.x, 1>(Kernel{}, grid_size, block_size, 0, kargs));
+        auto sc               = ck_tile::stream_config{};
+        const dim3 grid_size  = Kernel::GridSize(host_args);
+        const dim3 block_size = Kernel::BlockSize();
+        ck_tile::launch_kernel(sc,
+                               ck_tile::make_kernel<1>(Kernel{}, grid_size, block_size, 0, kargs));
 
         y_dev.FromDevice(y_host.data());
         ck_tile::reference_batched_transpose<DataType>(x_host, y_ref, layout_in, layout_out);
@@ -306,6 +306,12 @@ class CaseHalfPadRectTile2LoadTranspose
 {
 };
 
+class CaseBytePadRectTile
+    : public TestCkTileBatchedTranspose<
+          PipelineConfig<ck_tile::fp8_t, PipelineTag::Universal, 256, 32, 2, 2, false, false>>
+{
+};
+
 TEST_P(CaseHalf, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseByte, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseWord, TestCorrectness) { this->Run(GetParam()); }
@@ -321,6 +327,7 @@ TEST_P(CaseHalfPadRectTile1, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseHalfPadRectTile1LoadTranspose, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseHalfPadRectTile2, TestCorrectness) { this->Run(GetParam()); }
 TEST_P(CaseHalfPadRectTile2LoadTranspose, TestCorrectness) { this->Run(GetParam()); }
+TEST_P(CaseBytePadRectTile, TestCorrectness) { this->Run(GetParam()); }
 
 // clang-format off
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalf, kTestingValues);
@@ -338,5 +345,6 @@ INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadRectTile1, 
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadRectTile1LoadTranspose, kTestingValues);
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadRectTile2, kTestingValues);
 INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseHalfPadRectTile2LoadTranspose, kTestingValues);
+INSTANTIATE_TEST_SUITE_P(TestCkTileBatchedTransposeSuite, CaseBytePadRectTile, kTestingValues);
 
 // clang-format on

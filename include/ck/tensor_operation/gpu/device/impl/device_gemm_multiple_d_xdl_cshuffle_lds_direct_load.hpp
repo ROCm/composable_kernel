@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2023-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -74,10 +74,14 @@ struct DeviceGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
                                  BElementwiseOperation,
                                  CDEElementwiseOperation>
 {
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
     static constexpr auto I1            = Number<1>{};
     static constexpr index_t NumDTensor = DsDataType::Size();
 
-    using GridwiseGemm = GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseGemmMultipleD_Xdl_CShuffle_LdsDirectLoad<
         ALayout,
         BLayout,
         DsLayout,
@@ -104,7 +108,7 @@ struct DeviceGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
         MPerXDL,
         NPerXDL,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_AK0_M_AK1,
         ABlockTransferSrcAccessOrder,
         ABlockTransferSrcVectorDim,
@@ -121,13 +125,17 @@ struct DeviceGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
         CDEBlockTransferScalarPerVector_NPerBlock,
         LoopSched,
         PipelineVer>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
-    using Argument = typename GridwiseGemm::Argument;
+    using Argument = typename GridwiseGemm64::Argument;
 
     struct Invoker : public BaseInvoker
     {
 
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const typename GridwiseGemm::Argument& arg,
+                     const StreamConfig& stream_config = StreamConfig{})
         {
             if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
                                             arg.b_grid_desc_n_k_,
@@ -191,6 +199,8 @@ struct DeviceGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
             }
         }
 
+        INVOKER_RUN3_IMPL
+
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override
         {
@@ -200,11 +210,10 @@ struct DeviceGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_xdl_supported())
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
         {
             return false;
         }
-
         if(!ck::is_lds_direct_load_supported())
         {
             return false;
@@ -288,11 +297,29 @@ struct DeviceGemmMultipleD_Xdl_CShuffle_LdsDirectLoad
             }
         }
 
-        return GridwiseGemm::CheckValidity(arg.a_grid_desc_m_k_,
-                                           arg.b_grid_desc_n_k_,
-                                           arg.ds_grid_desc_m_n_,
-                                           arg.e_grid_desc_m_n_,
-                                           arg.block_2_etile_map_);
+        if(get_warp_size() == 64)
+        {
+            if constexpr(NXdlPerWave64 > 0)
+            {
+                return GridwiseGemm64::CheckValidity(arg.a_grid_desc_m_k_,
+                                                     arg.b_grid_desc_n_k_,
+                                                     arg.ds_grid_desc_m_n_,
+                                                     arg.e_grid_desc_m_n_,
+                                                     arg.block_2_etile_map_);
+            }
+        }
+        else
+        {
+            if constexpr(NXdlPerWave32 > 0)
+            {
+                return GridwiseGemm32::CheckValidity(arg.a_grid_desc_m_k_,
+                                                     arg.b_grid_desc_n_k_,
+                                                     arg.ds_grid_desc_m_n_,
+                                                     arg.e_grid_desc_m_n_,
+                                                     arg.block_2_etile_map_);
+            }
+        }
+        return false;
     }
 
     bool IsSupportedArgument(const BaseArgument* p_arg) override

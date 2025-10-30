@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -7,13 +7,35 @@
 
 namespace ck {
 
-__host__ __device__ constexpr index_t get_warp_size()
+__device__ constexpr index_t get_warp_size()
 {
-#if defined(__GFX9__) || !defined(__HIP_DEVICE_COMPILE__)
+#if defined(__HIP_DEVICE_COMPILE__)
+#if defined(__GFX9__)
     return 64;
 #else
     return 32;
 #endif
+#else
+    return 64;
+#endif
+}
+
+inline __host__ index_t get_warp_size()
+{
+#if !(defined(__HIPCC_RTC__) || defined(CK_CODE_GEN_RTC))
+    int device  = 0;
+    int result  = 0;
+    auto status = hipGetDevice(&device);
+    if(status == hipSuccess)
+    {
+        status = hipDeviceGetAttribute(&result, hipDeviceAttributeWarpSize, device);
+        if(status == hipSuccess)
+        {
+            return result;
+        }
+    }
+#endif
+    return 64;
 }
 
 __device__ index_t get_thread_local_1d_id() { return threadIdx.x; }

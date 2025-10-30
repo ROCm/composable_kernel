@@ -320,9 +320,9 @@ struct BlockFmhaFwdPagedKVPipelineQRKSVS
                 k_block_tile = load_tile(k_dram_window);
             }
             auto physical_next_block_id_k =
-                __builtin_amdgcn_readfirstlane(k_page_block_navigator.prefetch_table_id(
+                amd_wave_read_first_lane(k_page_block_navigator.prefetch_table_id(
                     i_page_block_k, k_dram_block_window, {kN0, 0}));
-            auto physical_next_block_id_v = __builtin_amdgcn_readfirstlane(
+            auto physical_next_block_id_v = amd_wave_read_first_lane(
                 v_page_block_navigator.prefetch_table_id(i_page_block_v, v_dram_window, {0, kK1}));
 
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)

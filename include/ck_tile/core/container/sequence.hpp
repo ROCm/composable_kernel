@@ -175,6 +175,9 @@ struct sequence
         return sequence<type::get(number<Ids>{})...>{};
     }
 
+    CK_TILE_HOST_DEVICE static constexpr auto sum() { return (Is + ... + 0); }
+    CK_TILE_HOST_DEVICE static constexpr auto product() { return (Is * ... * 1); }
+
     // modify element at index "I" with value "X"
     template <index_t I, index_t X>
     CK_TILE_HOST_DEVICE static constexpr auto modify(number<I>, number<X>)

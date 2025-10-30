@@ -27,10 +27,10 @@ using DeviceConvFwdInstance =
         16,          // KPerBlock
         4,           // AK1
         4,           // BK1
-        32,          // MPerXdl
-        32,          // NPerXdl
-        2,           // MXdlPerWave
-        4,           // NXdlPerWave
+        16,          // MPerXdl
+        16,          // NPerXdl
+        4,           // MXdlPerWave
+        8,           // NXdlPerWave
         S<4, 64, 1>, // ABlockTransferThreadClusterLengths_AK0_M_AK1
         S<1, 0, 2>,  // ABlockTransferThreadClusterArrangeOrder
         S<1, 0, 2>,  // ABlockTransferSrcAccessOrder
@@ -47,7 +47,7 @@ using DeviceConvFwdInstance =
         1,           // BBlockLdsExtraN
         1,
         1,
-        S<1, 16, 1, 16>,
+        S<1, 32, 1, 8>,
         4>;
 
 template <ck::index_t NDimSpatial>

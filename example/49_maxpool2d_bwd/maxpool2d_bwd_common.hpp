@@ -77,7 +77,9 @@ bool maxpool_bwd_test(bool do_verification,
         [](std::size_t N_, std::size_t C_, std::size_t H, std::size_t W) {
             using namespace ck::literals;
             // reference need Tensor with NCHW order
-            return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, 1_uz, W * C_, C_});
+            return HostTensorDescriptor({N_, C_, H, W},
+                                        {C_ * H * W, 1_uz, W * C_, C_},
+                                        ck::tensor_layout::convolution::NCHW{});
         };
 
     // in

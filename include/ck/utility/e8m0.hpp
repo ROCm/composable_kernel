@@ -3,6 +3,7 @@
 
 #pragma once
 
+#ifndef CK_CODE_GEN_RTC
 #include "ck/utility/type.hpp"
 
 namespace ck {
@@ -78,3 +79,4 @@ __host__ __device__ inline constexpr int32_t get_exponent_value<e8m0_bexp_t>(e8m
 } // namespace utils
 
 } // namespace ck
+#endif

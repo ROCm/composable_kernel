@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -44,7 +44,8 @@ bool profile_gemm_splitk_impl(int do_verification,
                               int StrideC,
                               int KBatch,
                               int n_warmup,
-                              int n_iter)
+                              int n_iter,
+                              int instance_index = -1)
 {
     bool pass = true;
 
@@ -54,11 +55,11 @@ bool profile_gemm_splitk_impl(int do_verification,
 
             if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
+                return HostTensorDescriptor({row, col}, {stride, 1_uz}, layout);
             }
             else
             {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
+                return HostTensorDescriptor({row, col}, {1_uz, stride}, layout);
             }
         };
 
@@ -141,6 +142,7 @@ bool profile_gemm_splitk_impl(int do_verification,
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
     float best_kbatch     = 0;
+    int num_kernel        = 0;
 
     // profile device GEMM instances
     for(auto& op_ptr : op_ptrs)
@@ -175,7 +177,12 @@ bool profile_gemm_splitk_impl(int do_verification,
 
             if(op_ptr->IsSupportedArgument(argument_ptr.get()))
             {
-
+                ++num_kernel;
+                if((instance_index != -1) && (instance_index + 1 != num_kernel))
+                {
+                    // skip test if instance_index is specified
+                    continue;
+                }
                 // re-init C to zero before profiling next kernel
                 c_device_buf.SetZero();
 
@@ -294,7 +301,11 @@ bool profile_gemm_splitk_impl(int do_verification,
               << " StrideB = " << StrideB << " StrideC = " << StrideC << " KBatch = " << best_kbatch
               << " : " << best_ave_time << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec
               << " GB/s, " << best_op_name << std::endl;
-
+    if(instance_index != -1)
+    {
+        std::cout << "gemm_splitk_instance (" << instance_index << "/" << num_kernel << "): Passed"
+                  << std::endl;
+    }
     return pass;
 }
 

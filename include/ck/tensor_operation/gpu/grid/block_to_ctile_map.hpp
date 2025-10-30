@@ -169,7 +169,8 @@ struct BlockToCTileMap_M00_N0_M01Adapt<MPerBlock, NPerBlock, void>
     }
 
     template <typename CGridDesc_M_N>
-    __host__ constexpr bool CheckValidity(const CGridDesc_M_N& /* c_grid_desc_m_n */) const
+    __host__ __device__ constexpr bool
+    CheckValidity(const CGridDesc_M_N& /* c_grid_desc_m_n */) const
     {
         return true;
     }

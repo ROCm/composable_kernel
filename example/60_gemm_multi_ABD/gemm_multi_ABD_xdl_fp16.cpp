@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -127,10 +127,10 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleABD_Xdl
     32,
     8,
     8,
-    32,
-    32,
+    16,
+    16,
+    8,
     4,
-    2,
     S<4, 64, 1>,
     S<1, 0, 2>,
     S<1, 0, 2>,
@@ -148,7 +148,7 @@ using DeviceOpInstance = ck::tensor_operation::device::DeviceGemmMultipleABD_Xdl
     1,
     1,
     S<1, 32, 1, 8>,
-    8>;
+    4>;
 
 int main(int argc, char* argv[])
 {

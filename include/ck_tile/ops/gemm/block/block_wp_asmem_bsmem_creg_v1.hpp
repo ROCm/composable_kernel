@@ -33,14 +33,13 @@ struct BlockWeightPreshuffleASmemBSmemCRegV1
 
     static constexpr index_t kBlockSize = Problem::kBlockSize;
 
+    static constexpr auto config = BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
+    using WG                     = remove_cvref_t<decltype(config.template at<0>())>;
+
     CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
     {
         constexpr index_t MPerBlock = BlockGemmShape::kM;
         constexpr index_t NPerBlock = BlockGemmShape::kN;
-
-        constexpr auto config = BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
-
-        using WG = remove_cvref_t<decltype(config.template at<0>())>;
 
         constexpr index_t MWarp = config.template at<1>();
         constexpr index_t NWarp = config.template at<2>();
@@ -73,9 +72,6 @@ struct BlockWeightPreshuffleASmemBSmemCRegV1
     {
         constexpr index_t MPerBlock = BlockGemmShape::kM;
         constexpr index_t KPerBlock = BlockGemmShape::kK;
-
-        constexpr auto config = BlockPolicy::template GetWarpGemmMWarpNWarp<Problem>();
-        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
 
         constexpr index_t MWarp = config.template at<1>();
 

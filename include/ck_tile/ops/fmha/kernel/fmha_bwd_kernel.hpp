@@ -40,7 +40,7 @@ struct FmhaBwdDQDKDVKernel
     static constexpr ck_tile::index_t kBlockSize  = FmhaPipeline::kBlockSize;
     static constexpr ck_tile::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
     static constexpr bool kUseQrQtrDorPipeline =
-        ck_tile::fmha_bwd_qr_qtr_dor_pipeline_c<FmhaPipeline>;
+        ck_tile::fmha_bwd_qr_qtr_dor_pipeline<FmhaPipeline>::value;
     static_assert(!kUseQrQtrDorPipeline || !std::is_same_v<QGradEpiloguePipeline_, void>,
                   "QrQtrDorPipeline needs QGradEpiloguePipeline");
 
@@ -60,12 +60,12 @@ struct FmhaBwdDQDKDVKernel
     using VGradDataType    = ck_tile::remove_cvref_t<typename FmhaPipeline::VGradDataType>;
     using BiasGradDataType = ck_tile::remove_cvref_t<typename FmhaPipeline::BiasGradDataType>;
 
-    static constexpr bool kIsGroupMode = FmhaPipeline::kIsGroupMode;
-    static constexpr bool kPadHeadDimQ = FmhaPipeline::kPadHeadDimQ;
-    static constexpr bool kPadHeadDimV = FmhaPipeline::kPadHeadDimV;
-    static constexpr auto BiasEnum     = FmhaPipeline::BiasEnum;
-    static constexpr bool kHasBiasGrad = FmhaPipeline::kHasBiasGrad;
-    using FmhaMask                     = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
+    static constexpr bool kIsGroupMode    = FmhaPipeline::kIsGroupMode;
+    static constexpr index_t kPadHeadDimQ = FmhaPipeline::kPadHeadDimQ;
+    static constexpr index_t kPadHeadDimV = FmhaPipeline::kPadHeadDimV;
+    static constexpr auto BiasEnum        = FmhaPipeline::BiasEnum;
+    static constexpr bool kHasBiasGrad    = FmhaPipeline::kHasBiasGrad;
+    using FmhaMask                    = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaMask>;
     using FmhaDropout                 = ck_tile::remove_cvref_t<typename FmhaPipeline::FmhaDropout>;
     static constexpr bool kHasMask    = FmhaMask::IsMasking;
     static constexpr bool kHasDropout = FmhaDropout::IsDropout;
@@ -75,13 +75,14 @@ struct FmhaBwdDQDKDVKernel
     static constexpr index_t kMaxSeqLenQ   = FmhaPipeline::BlockFmhaShape::kMaxSeqLenQ;
     static_assert(kUseQrQtrDorPipeline == (kMaxSeqLenQ != 0));
 #if defined(__gfx950__)
-    static constexpr bool kIsAvialable = true;
+    static constexpr bool kIsAvailable = true;
 #else
-    static constexpr bool kIsAvialable = !kUseTrLoad;
+    static constexpr bool kIsAvailable = !kUseTrLoad;
 #endif
 
     // clang-format off
     template <typename T> struct t2s;
+    template <> struct t2s<float> { static constexpr const char * name = "fp32"; };
     template <> struct t2s<ck_tile::fp16_t> { static constexpr const char * name = "fp16"; };
     template <> struct t2s<ck_tile::bf16_t> { static constexpr const char * name = "bf16"; };
     // clang-format on
@@ -100,8 +101,8 @@ struct FmhaBwdDQDKDVKernel
         #define _TS_  std::to_string
         auto pn = [&] () {
             std::string n;
-            if (kPadHeadDimQ) n += "d";
-            if (kPadHeadDimV) n += "dv";
+            if (kPadHeadDimQ) n += "d" + _TS_(kPadHeadDimQ);
+            if (kPadHeadDimV) n += "dv"+ _TS_(kPadHeadDimV);
             return n.empty() ? n : std::string("p") + n; }();
         return
             _SS_("fmha_bwd_d") + _TS_(bfs::kQKHeaddim) + "_" + _SS_(t2s<QDataType>::name) +
@@ -113,9 +114,11 @@ struct FmhaBwdDQDKDVKernel
             "r" + _TS_(gbr4::at(ck_tile::number<0>{})) + "x" + _TS_(gbr4::at(ck_tile::number<1>{})) + "x" + _TS_(gbr4::at(ck_tile::number<2>{})) + "_" +
             "w" + _TS_(gwt0::at(ck_tile::number<0>{})) + "x" + _TS_(gwt0::at(ck_tile::number<1>{})) + "x" + _TS_(gwt0::at(ck_tile::number<2>{})) + "_" +
             "w" + _TS_(gwt1::at(ck_tile::number<0>{})) + "x" + _TS_(gwt1::at(ck_tile::number<1>{})) + "x" + _TS_(gwt1::at(ck_tile::number<2>{})) + "_" +
-            ("o" + _TS_(kBlockPerCu)) + (pn.empty() ? "_npad" : "_" + pn) +
+            ("o" + _TS_(kBlockPerCu)) + "_" +
+            ("maxq" + _TS_(kMaxSeqLenQ)) +
+            (pn.empty() ? "_npad" : "_" + pn) +
             (BiasEnum == BlockAttentionBiasEnum::NO_BIAS ? _SS_("_nbias") : (_SS_("_") + BlockAttentionBiasEnumToStr<BiasEnum>::name)) +
-            (kHasBiasGrad ? "_dbias" : "_ndbias") + (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kHasDropout ? "_dropout" : "_ndropout" ) +
+            (kHasBiasGrad ? "_dbias" : "_ndbias") + (kHasMask ? "_" + _SS_(FmhaMask::name) : "_nmask") + (kHasDropout ? gwt0::at(ck_tile::number<0>{}) == 16? "_dropout_wg16":"_dropout_wg32" : "_ndropout" ) +
             (kIsStoreRandval ? "_storerandval" : "" ) + (kIsDeterministic ? "_deterministic" : "_ndeterministic" ) + (kUseTrLoad ? "_trload" : "_ntrload");
         #undef _SS_
         #undef _TS_
@@ -310,7 +313,10 @@ struct FmhaBwdDQDKDVKernel
     {
         const int32_t* seqstart_q_ptr;
         const int32_t* seqstart_k_ptr;
-        const int32_t* seqlen_k_ptr;
+        const int32_t* seqlen_q_ptr;    // per-batch actual length [batch]
+        const int32_t* seqlen_k_ptr;    // per-batch actual length [batch]
+        const int32_t* cu_seqlen_q_ptr; // cumulative seqlen [batch+1], optional
+        const int32_t* cu_seqlen_k_ptr; // cumulative seqlen [batch+1], optional
     };
 
     using Kargs = std::conditional_t<kIsGroupMode, FmhaBwdGroupModeKargs, FmhaBwdBatchModeKargs>;
@@ -517,7 +523,10 @@ struct FmhaBwdDQDKDVKernel
                   void* dq_acc_ptr,
                   const void* seqstart_q_ptr,
                   const void* seqstart_k_ptr,
+                  const void* seqlen_q_ptr,
                   const void* seqlen_k_ptr,
+                  const void* cu_seqlen_q_ptr,
+                  const void* cu_seqlen_k_ptr,
                   ck_tile::index_t hdim_q,
                   ck_tile::index_t hdim_v,
                   ck_tile::index_t num_head_q,
@@ -591,7 +600,10 @@ struct FmhaBwdDQDKDVKernel
                     {},                // placeholder for deterministic
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
                     reinterpret_cast<const int32_t*>(seqstart_k_ptr),
-                    reinterpret_cast<const int32_t*>(seqlen_k_ptr)};
+                    reinterpret_cast<const int32_t*>(seqlen_q_ptr),
+                    reinterpret_cast<const int32_t*>(seqlen_k_ptr),
+                    reinterpret_cast<const int32_t*>(cu_seqlen_q_ptr),
+                    reinterpret_cast<const int32_t*>(cu_seqlen_k_ptr)};
 
         if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
         {
@@ -665,7 +677,17 @@ struct FmhaBwdDQDKDVKernel
         return ck_tile::make_tuple(i_block, i_nhead, i_batch);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
+    CK_TILE_HOST static dim3 BlockSize()
+    {
+        if(is_wave32())
+        {
+            return dim3(kBlockSize / 2);
+        }
+        else
+        {
+            return dim3(kBlockSize);
+        }
+    }
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
@@ -676,7 +698,7 @@ struct FmhaBwdDQDKDVKernel
 
     CK_TILE_DEVICE void operator()(Kargs kargs) const
     {
-        if constexpr(kIsAvialable)
+        if constexpr(kIsAvailable)
             run_(std::move(kargs));
     }
 
@@ -688,7 +710,7 @@ struct FmhaBwdDQDKDVKernel
         // divide problem
         const auto [i_tile_n, i_nhead, i_batch] = GetTileIndex();
 
-        const index_t i_n0 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN0);
+        const index_t i_n0 = amd_wave_read_first_lane(i_tile_n * FmhaPipeline::kN0);
 
         long_index_t batch_offset_q       = 0;
         long_index_t batch_offset_k       = 0;
@@ -733,10 +755,29 @@ struct FmhaBwdDQDKDVKernel
                 batch_offset_randval = query_start * kargs.stride_randval;
             }
 
-            // get real # queries & # keys under group mode
-            const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
-            kargs.seqlen_q = adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
-            if(kargs.seqlen_k_ptr != nullptr)
+            // Priority: cu_seqlen_q_ptr > seqlen_q_ptr > physical_seqlen_q
+            if(kargs.cu_seqlen_q_ptr != nullptr)
+            {
+                kargs.seqlen_q =
+                    kargs.cu_seqlen_q_ptr[i_batch + 1] - kargs.cu_seqlen_q_ptr[i_batch];
+            }
+            else
+            {
+                // get real # queries & # keys under group mode
+                const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
+                const ck_tile::index_t physical_seqlen_q =
+                    adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
+                kargs.seqlen_q =
+                    kargs.seqlen_q_ptr ? kargs.seqlen_q_ptr[i_batch] : physical_seqlen_q;
+            }
+
+            // Priority: cu_seqlen_k_ptr > seqlen_k_ptr > seqstart_k
+            if(kargs.cu_seqlen_k_ptr != nullptr)
+            {
+                kargs.seqlen_k =
+                    kargs.cu_seqlen_k_ptr[i_batch + 1] - kargs.cu_seqlen_k_ptr[i_batch];
+            }
+            else if(kargs.seqlen_k_ptr != nullptr)
             {
                 kargs.seqlen_k = kargs.seqlen_k_ptr[i_batch];
             }
@@ -744,6 +785,12 @@ struct FmhaBwdDQDKDVKernel
             {
                 const auto adjusted_seqstart_k_ptr = kargs.seqstart_k_ptr + i_batch;
                 kargs.seqlen_k = adjusted_seqstart_k_ptr[1] - adjusted_seqstart_k_ptr[0];
+            }
+
+            // skip if logical lengths are zero
+            if(kargs.seqlen_q == 0 || kargs.seqlen_k == 0)
+            {
+                return;
             }
 
             // # of required blocks is different in each groups, terminate unnecessary blocks
@@ -813,7 +860,7 @@ struct FmhaBwdDQDKDVKernel
         const auto q_dram = pad_tensor_view(
             q_dram_naive,
             make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kQKHeaddim>{}),
-            sequence<false, kPadHeadDimQ>{});
+            sequence<false, (kPadHeadDimQ > 0)>{});
 
         const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
             k_ptr,
@@ -824,7 +871,7 @@ struct FmhaBwdDQDKDVKernel
         const auto k_dram = pad_tensor_view(
             k_dram_naive,
             make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kQKHeaddim>{}),
-            sequence<false, kPadHeadDimQ>{});
+            sequence<false, (kPadHeadDimQ > 0)>{});
 
         const auto v_dram = [&]() {
             const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
@@ -836,7 +883,7 @@ struct FmhaBwdDQDKDVKernel
             return pad_tensor_view(
                 v_dram_naive,
                 make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kVHeaddim>{}),
-                sequence<false, kPadHeadDimV>{});
+                sequence<false, (kPadHeadDimV > 0)>{});
         }();
 
         // lse and d should be fine to read unpaded data as they are not on the reduction dimension
@@ -855,7 +902,7 @@ struct FmhaBwdDQDKDVKernel
         const auto do_dram = pad_tensor_view(
             do_dram_naive,
             make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kVHeaddim>{}),
-            sequence<false, kPadHeadDimV>{});
+            sequence<false, (kPadHeadDimV > 0)>{});
 
         auto q_dram_window = make_tile_window(
             q_dram,
@@ -903,7 +950,7 @@ struct FmhaBwdDQDKDVKernel
             const auto dq_acc_dram = pad_tensor_view(
                 dq_acc_dram_naive,
                 make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kQKHeaddim>{}),
-                sequence<false, kPadHeadDimQ>{});
+                sequence<false, (kPadHeadDimQ > 0)>{});
             return make_tile_window(
                 dq_acc_dram,
                 make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kQKHeaddim>{}),
@@ -1087,7 +1134,7 @@ struct FmhaBwdDQDKDVKernel
             return pad_tensor_view(
                 dk_dram_naive,
                 make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kQKHeaddim>{}),
-                sequence<false, kPadHeadDimQ>{});
+                sequence<false, (kPadHeadDimQ > 0)>{});
         }();
 
         auto dv_dram = [&]() {
@@ -1101,7 +1148,7 @@ struct FmhaBwdDQDKDVKernel
             return pad_tensor_view(
                 dv_dram_naive,
                 make_tuple(number<FmhaPipeline::kN0>{}, number<FmhaPipeline::kVHeaddim>{}),
-                sequence<false, kPadHeadDimV>{});
+                sequence<false, (kPadHeadDimV > 0)>{});
         }();
 
         auto dk_dram_window = make_tile_window(
@@ -1115,7 +1162,8 @@ struct FmhaBwdDQDKDVKernel
             {i_n0, 0});
         if constexpr(!kUseQrQtrDorPipeline)
         {
-            auto [dk_acc_tile, dv_acc_tile] = FmhaPipeline{}(q_dram_window,
+            auto [dk_acc_tile, dv_acc_tile] = FmhaPipeline{}(smem_ptr,
+                                                             q_dram_window,
                                                              k_dram_window,
                                                              v_dram_window,
                                                              bias_dram_window,
@@ -1131,15 +1179,30 @@ struct FmhaBwdDQDKDVKernel
                                                              kargs.scale,
                                                              rp_undrop,
                                                              scale_rp_undrop,
-                                                             smem_ptr,
                                                              dropout);
 
-            KGradEpiloguePipeline{}(dk_dram_window, dk_acc_tile);
-            VGradEpiloguePipeline{}(dv_dram_window, dv_acc_tile);
+#if defined(__gfx12__)
+            // Workaround for a compiler bug (SWDEV-559729): v_wmma instructions can be incorrectly
+            // placed in divergent branches used to store padded tensors (when some lanes are
+            // inactive due to padding). Inline asm with dummy dependencies on VGPRs of the tensors
+            // prevents the compiler doing this.
+            if constexpr(kPadHeadDimQ > 0)
+            {
+                impl::insert_dummy_dep(dk_acc_tile.get_thread_buffer());
+            }
+            if constexpr(kPadHeadDimV > 0)
+            {
+                impl::insert_dummy_dep(dv_acc_tile.get_thread_buffer());
+            }
+#endif
+
+            KGradEpiloguePipeline{}(dk_dram_window, dk_acc_tile, nullptr);
+            VGradEpiloguePipeline{}(dv_dram_window, dv_acc_tile, nullptr);
         }
         else
         {
-            FmhaPipeline{}(q_dram_window,
+            FmhaPipeline{}(smem_ptr,
+                           q_dram_window,
                            k_dram_window,
                            v_dram_window,
                            bias_dram_window,
@@ -1160,7 +1223,6 @@ struct FmhaBwdDQDKDVKernel
                            kargs.scale,
                            rp_undrop,
                            scale_rp_undrop,
-                           smem_ptr,
                            dropout);
         }
     }
@@ -1185,6 +1247,7 @@ struct FmhaBwdOGradDotOKernel
 
     // clang-format off
     template <typename T> struct t2s;
+    template <> struct t2s<float> { static constexpr const char * name = "fp32"; };
     template <> struct t2s<ck_tile::fp16_t> { static constexpr const char * name = "fp16"; };
     template <> struct t2s<ck_tile::bf16_t> { static constexpr const char * name = "bf16"; };
     // clang-format on
@@ -1203,7 +1266,7 @@ struct FmhaBwdOGradDotOKernel
             return n.empty() ? n : std::string("p") + n; }();
         return
             _SS_("fmha_bwd_dot_do_o_d") + _TS_(kVHeaddim) + "_" + _SS_(t2s<ODataType>::name) +
-            "_" + (kIsGroupMode ? "group" : "batch") + "_" +
+            "_b" + _TS_(kM0) + "_" + (kIsGroupMode ? "group" : "batch") + "_" +
             ("o" + _TS_(kBlockPerCu)) + (pn.empty() ? "_npad" : "_" + pn);
         #undef _SS_
         #undef _TS_
@@ -1242,6 +1305,8 @@ struct FmhaBwdOGradDotOKernel
     struct FmhaBwdOGradDotOGroupModeKargs : FmhaBwdOGradDotOCommonKargs
     {
         const int32_t* seqstart_q_ptr;
+        const int32_t* seqlen_q_ptr;    // per-batch actual length [batch]
+        const int32_t* cu_seqlen_q_ptr; // cumulative seqlen [batch+1], optional
     };
 
     using Kargs = std::
@@ -1289,6 +1354,8 @@ struct FmhaBwdOGradDotOKernel
               void* d_ptr,
               float p_undrop,
               const void* seqstart_q_ptr,
+              const void* seqlen_q_ptr,
+              const void* cu_seqlen_q_ptr,
               ck_tile::index_t hdim_v,
               ck_tile::index_t stride_do,
               ck_tile::index_t stride_o,
@@ -1307,7 +1374,9 @@ struct FmhaBwdOGradDotOKernel
                      nhead_stride_do,
                      nhead_stride_o,
                      nhead_stride_d},
-                    reinterpret_cast<const int32_t*>(seqstart_q_ptr)};
+                    reinterpret_cast<const int32_t*>(seqstart_q_ptr),
+                    reinterpret_cast<const int32_t*>(seqlen_q_ptr),
+                    reinterpret_cast<const int32_t*>(cu_seqlen_q_ptr)};
 
         return kargs;
     }
@@ -1327,7 +1396,7 @@ struct FmhaBwdOGradDotOKernel
         return ck_tile::make_tuple(i_block, i_nhead, i_batch);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
+    CK_TILE_HOST static dim3 BlockSize() { return dim3(kBlockSize); }
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize() { return 0; }
 
@@ -1336,7 +1405,7 @@ struct FmhaBwdOGradDotOKernel
         // divide problem
         const auto [i_tile_m, i_nhead, i_batch] = GetTileIndex();
 
-        const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * kM0);
+        const index_t i_m0 = amd_wave_read_first_lane(i_tile_m * kM0);
 
         long_index_t batch_offset_o  = 0;
         long_index_t batch_offset_do = 0;
@@ -1351,9 +1420,23 @@ struct FmhaBwdOGradDotOKernel
             batch_offset_do = query_start * kargs.stride_do;
             batch_offset_d  = query_start;
 
-            // get real # queries & # keys under group mode
-            const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
-            kargs.seqlen_q = adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
+            // Priority: cu_seqlen_q_ptr > seqlen_q_ptr > physical_seqlen_q
+            if(kargs.cu_seqlen_q_ptr != nullptr)
+            {
+                kargs.seqlen_q =
+                    kargs.cu_seqlen_q_ptr[i_batch + 1] - kargs.cu_seqlen_q_ptr[i_batch];
+            }
+            else
+            {
+                // get real # queries & # keys under group mode
+                const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
+                const ck_tile::index_t physical_seqlen_q =
+                    adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
+                kargs.seqlen_q = kargs.seqlen_q_ptr
+                                     ? static_cast<ck_tile::index_t>(kargs.seqlen_q_ptr[i_batch])
+                                     : physical_seqlen_q;
+            }
+
             // # of required blocks is different in each groups, terminate unnecessary blocks
             // earlier
             if(kargs.seqlen_q <= i_m0)
@@ -1441,6 +1524,7 @@ struct FmhaBwdConvertQGradKernel
 
     // clang-format off
     template <typename T> struct t2s;
+    template <> struct t2s<float> { static constexpr const char * name = "fp32"; };
     template <> struct t2s<ck_tile::fp16_t> { static constexpr const char * name = "fp16"; };
     template <> struct t2s<ck_tile::bf16_t> { static constexpr const char * name = "bf16"; };
     // clang-format on
@@ -1516,6 +1600,10 @@ struct FmhaBwdConvertQGradKernel
     {
         const int32_t* seqstart_q_ptr;
         const int32_t* seqstart_k_ptr;
+        const int32_t* seqlen_q_ptr;    // per-batch actual length [batch]
+        const int32_t* seqlen_k_ptr;    // per-batch actual length [batch]
+        const int32_t* cu_seqlen_q_ptr; // cumulative seqlen [batch+1], optional
+        const int32_t* cu_seqlen_k_ptr; // cumulative seqlen [batch+1], optional
     };
 
     using Kargs = std::conditional_t<kIsGroupMode,
@@ -1564,6 +1652,10 @@ struct FmhaBwdConvertQGradKernel
               void* dq_ptr,
               const void* seqstart_q_ptr,
               const void* seqstart_k_ptr,
+              const void* seqlen_q_ptr,
+              const void* seqlen_k_ptr,
+              const void* cu_seqlen_q_ptr,
+              const void* cu_seqlen_k_ptr,
               ck_tile::index_t hdim_q,
               ck_tile::index_t stride_dq,
               ck_tile::index_t stride_dq_acc,
@@ -1582,7 +1674,11 @@ struct FmhaBwdConvertQGradKernel
                      nhead_stride_dq_acc},
                     {},
                     reinterpret_cast<const int32_t*>(seqstart_q_ptr),
-                    reinterpret_cast<const int32_t*>(seqstart_k_ptr)};
+                    reinterpret_cast<const int32_t*>(seqstart_k_ptr),
+                    reinterpret_cast<const int32_t*>(seqlen_q_ptr),
+                    reinterpret_cast<const int32_t*>(seqlen_k_ptr),
+                    reinterpret_cast<const int32_t*>(cu_seqlen_q_ptr),
+                    reinterpret_cast<const int32_t*>(cu_seqlen_k_ptr)};
 
         if constexpr(kIsDeterministic)
         {
@@ -1607,7 +1703,7 @@ struct FmhaBwdConvertQGradKernel
         return ck_tile::make_tuple(i_block, i_nhead, i_batch);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
+    CK_TILE_HOST static dim3 BlockSize() { return dim3(kBlockSize); }
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize() { return 0; }
 
@@ -1616,7 +1712,7 @@ struct FmhaBwdConvertQGradKernel
         // divide problem
         const auto [i_tile_m, i_nhead, i_batch] = GetTileIndex();
 
-        const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * kM0);
+        const index_t i_m0 = amd_wave_read_first_lane(i_tile_m * kM0);
 
         long_index_t batch_offset_dq     = 0;
         long_index_t batch_offset_dq_acc = 0;
@@ -1627,13 +1723,41 @@ struct FmhaBwdConvertQGradKernel
             batch_offset_dq                = query_start * kargs.stride_dq;
             batch_offset_dq_acc            = query_start * kargs.stride_dq_acc;
 
-            // get real # queries & # keys under group mode
-            const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
-            kargs.seqlen_q = adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
+            if(kargs.cu_seqlen_q_ptr != nullptr)
+            {
+                kargs.seqlen_q =
+                    kargs.cu_seqlen_q_ptr[i_batch + 1] - kargs.cu_seqlen_q_ptr[i_batch];
+            }
+            else
+            {
+                // get real # queries & # keys under group mode
+                const auto adjusted_seqstart_q_ptr = kargs.seqstart_q_ptr + i_batch;
+                const ck_tile::index_t physical_seqlen_q =
+                    adjusted_seqstart_q_ptr[1] - adjusted_seqstart_q_ptr[0];
+                kargs.seqlen_q = kargs.seqlen_q_ptr
+                                     ? static_cast<ck_tile::index_t>(kargs.seqlen_q_ptr[i_batch])
+                                     : physical_seqlen_q;
+            }
+
             if constexpr(kIsDeterministic)
             {
                 const auto adjusted_seqstart_k_ptr = kargs.seqstart_k_ptr + i_batch;
-                kargs.seqlen_k = adjusted_seqstart_k_ptr[1] - adjusted_seqstart_k_ptr[0];
+                const ck_tile::index_t physical_seqlen_k =
+                    adjusted_seqstart_k_ptr[1] - adjusted_seqstart_k_ptr[0];
+
+                // Priority: cu_seqlen_k_ptr > seqlen_k_ptr > physical_seqlen_k
+                if(kargs.cu_seqlen_k_ptr != nullptr)
+                {
+                    kargs.seqlen_k =
+                        kargs.cu_seqlen_k_ptr[i_batch + 1] - kargs.cu_seqlen_k_ptr[i_batch];
+                }
+                else
+                {
+                    kargs.seqlen_k =
+                        kargs.seqlen_k_ptr
+                            ? static_cast<ck_tile::index_t>(kargs.seqlen_k_ptr[i_batch])
+                            : physical_seqlen_k;
+                }
             }
             // # of required blocks is different in each groups, terminate unnecessary blocks
             // earlier

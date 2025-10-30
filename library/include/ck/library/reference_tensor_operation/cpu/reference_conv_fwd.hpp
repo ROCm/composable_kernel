@@ -59,6 +59,7 @@ template <ck::index_t NDimSpatial,
           ck::index_t NumAElementwiseTensor                                         = 0,
           ck::index_t NumBElementwiseTensor                                         = 0,
           ck::index_t NumDElementwiseTensor                                         = 0,
+          typename ComputeDataType                                                  = InDataType,
           typename std::enable_if<NDimSpatial >= 1 && NDimSpatial <= 3, bool>::type = false>
 struct ReferenceConvFwd : public device::BaseOperator
 {
@@ -163,8 +164,18 @@ struct ReferenceConvFwd : public device::BaseOperator
                                                      k,
                                                      c,
                                                      x);
-                                v_acc +=
-                                    ck::type_convert<float>(v_in) * ck::type_convert<float>(v_wei);
+                                if constexpr(is_same_v<ComputeDataType, ck::tf32_t>)
+                                {
+                                    v_acc += ck::type_convert<float>(
+                                                 ck::type_convert<ComputeDataType>(v_in)) *
+                                             ck::type_convert<float>(
+                                                 ck::type_convert<ComputeDataType>(v_wei));
+                                }
+                                else
+                                {
+                                    v_acc += ck::type_convert<float>(v_in) *
+                                             ck::type_convert<float>(v_wei);
+                                }
                             }
                         }
                     }
@@ -238,8 +249,18 @@ struct ReferenceConvFwd : public device::BaseOperator
                                                          c,
                                                          y,
                                                          x);
-                                    v_acc += ck::type_convert<float>(v_in) *
-                                             ck::type_convert<float>(v_wei);
+                                    if constexpr(is_same_v<ComputeDataType, ck::tf32_t>)
+                                    {
+                                        v_acc += ck::type_convert<float>(
+                                                     ck::type_convert<ComputeDataType>(v_in)) *
+                                                 ck::type_convert<float>(
+                                                     ck::type_convert<ComputeDataType>(v_wei));
+                                    }
+                                    else
+                                    {
+                                        v_acc += ck::type_convert<float>(v_in) *
+                                                 ck::type_convert<float>(v_wei);
+                                    }
                                 }
                             }
                         }
@@ -327,8 +348,18 @@ struct ReferenceConvFwd : public device::BaseOperator
                                                              z,
                                                              y,
                                                              x);
-                                        v_acc += ck::type_convert<float>(v_in) *
-                                                 ck::type_convert<float>(v_wei);
+                                        if constexpr(is_same_v<ComputeDataType, ck::tf32_t>)
+                                        {
+                                            v_acc += ck::type_convert<float>(
+                                                         ck::type_convert<ComputeDataType>(v_in)) *
+                                                     ck::type_convert<float>(
+                                                         ck::type_convert<ComputeDataType>(v_wei));
+                                        }
+                                        else
+                                        {
+                                            v_acc += ck::type_convert<float>(v_in) *
+                                                     ck::type_convert<float>(v_wei);
+                                        }
                                     }
                                 }
                             }

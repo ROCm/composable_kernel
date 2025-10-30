@@ -12,7 +12,7 @@ This experimental kernel is intended for novice CK developers. It introduces the
 mkdir build && cd build
 # you can replace <arch> with the appropriate architecture 
 # (for example gfx90a or gfx942) or leave it blank
-sh ../script/cmake-ck-dev.sh  ../ <arch>
+../script/cmake-ck-dev.sh  ../ <arch>
 # Make the copy kernel executable
 make tile_example_copy -j
 ```

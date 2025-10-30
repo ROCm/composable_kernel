@@ -40,19 +40,19 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
                                             int N,
                                             int K,
                                             int O,
-                                            int BatchCount    = 1,
-                                            int StrideA       = -1,
-                                            int StrideB0      = -1,
-                                            int StrideB1      = -1,
-                                            int StrideC       = -1,
-                                            int BatchStrideA  = -1,
-                                            int BatchStrideB0 = -1,
-                                            int BatchStrideB1 = -1,
-                                            int BatchStrideC  = -1,
-                                            float alpha       = -1.f)
+                                            int BatchCount     = 1,
+                                            int StrideA        = -1,
+                                            int StrideB0       = -1,
+                                            int StrideB1       = -1,
+                                            int StrideC        = -1,
+                                            int BatchStrideA   = -1,
+                                            int BatchStrideB0  = -1,
+                                            int BatchStrideB1  = -1,
+                                            int BatchStrideC   = -1,
+                                            float alpha        = -1.f,
+                                            int instance_index = -1)
 
 {
-
     using Row           = tensor_layout::gemm::RowMajor;
     using Col           = tensor_layout::gemm::ColumnMajor;
     using PassThrough   = tensor_operation::element_wise::PassThrough;
@@ -118,11 +118,13 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
 
         if(std::is_same<decltype(layout), Row>::value)
         {
-            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, stride, 1_uz});
+            return HostTensorDescriptor(
+                {batch_count, row, col}, {batch_stride, stride, 1_uz}, layout);
         }
         else
         {
-            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, 1_uz, stride});
+            return HostTensorDescriptor(
+                {batch_count, row, col}, {batch_stride, 1_uz, stride}, layout);
         }
     };
 
@@ -251,7 +253,7 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
     float best_ave_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
-
+    int num_kernel        = 0;
     // profile device op instances
     for(auto& op_ptr : op_ptrs)
     {
@@ -283,6 +285,13 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            ++num_kernel;
+            if((instance_index != -1) && (instance_index + 1 != num_kernel))
+            {
+                // skip test if instance_index is specified
+                continue;
+            }
+
             std::string op_name = op_ptr->GetTypeString();
 
             float ave_time =
@@ -339,7 +348,11 @@ bool profile_batched_gemm_softmax_gemm_impl(bool do_verification,
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;
-
+    if(instance_index != -1)
+    {
+        std::cout << "batched_gemm_softmax_gemm_instance (" << instance_index << "/" << num_kernel
+                  << "): Passed" << std::endl;
+    }
     return pass;
 }
 

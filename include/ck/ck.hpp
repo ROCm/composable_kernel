@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/config.h"
+#include <stdint.h>
 
 #if !defined(__HIPCC_RTC__) || !defined(CK_CODE_GEN_RTC)
 #ifndef CK_DONT_USE_HIP_RUNTIME_HEADERS
@@ -50,10 +51,11 @@
 #endif
 
 // define general macros for various architectures
-#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__)
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx942__) || defined(__gfx950__) || \
+    defined(__gfx9_4_generic__)
 #define __gfx9__
 #endif
-#if defined(__gfx942__) || defined(__gfx950__)
+#if defined(__gfx942__) || defined(__gfx950__) || defined(__gfx9_4_generic__)
 #define __gfx94__
 #endif
 #if defined(__gfx1010__) || defined(__gfx1011__) || defined(__gfx1012__)

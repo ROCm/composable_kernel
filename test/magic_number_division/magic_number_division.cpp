@@ -56,10 +56,27 @@ __host__ void cpu_magic_number_division(uint32_t magic_multiplier,
     }
 }
 
-int main(int, char*[])
+int main(int argc, char* argv[])
 {
-    uint64_t num_divisor  = 4096;
-    uint64_t num_dividend = 1L << 16;
+    uint64_t num_divisor   = 4096;
+    uint64_t num_dividend  = 1L << 16;
+    uint32_t divisor_start = 0;
+    uint32_t divisor_end   = num_divisor;
+
+    if(argc == 1)
+    {
+        // use default range
+    }
+    else if(argc == 3)
+    {
+        divisor_start = std::stoi(argv[1]);
+        divisor_end   = std::stoi(argv[2]);
+    }
+    else
+    {
+        std::cerr << "arg1 to 2: divisor_start divisor_end" << std::endl;
+        return 1;
+    }
 
     std::vector<int32_t> divisors_host(num_divisor);
     std::vector<int32_t> dividends_host(num_dividend);
@@ -90,6 +107,10 @@ int main(int, char*[])
 
     for(std::size_t i = 0; i < num_divisor; ++i)
     {
+        if(i < divisor_start || i > divisor_end)
+        {
+            continue;
+        }
         // run naive division on GPU
         gpu_naive_division<<<1024, 256>>>(
             divisors_host[i],

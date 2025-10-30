@@ -64,7 +64,8 @@ struct TileCopy
     using Problem   = ck_tile::remove_cvref_t<Problem_>;
     using XDataType = typename Problem::XDataType;
 
-    static constexpr bool AsyncCopy = Problem::AsyncCopy;
+    static constexpr index_t kBlockSize = Problem::BlockShape::BlockSize;
+    static constexpr bool AsyncCopy     = Problem::AsyncCopy;
 
     template <typename Problem>
     CK_TILE_DEVICE static constexpr auto MakeDRAMDistribution()

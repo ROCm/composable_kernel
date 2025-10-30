@@ -1,0 +1,31 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
+#include <iostream>
+
+#include "gtest/gtest.h"
+#include "profiler/profile_gemm_universal_reduce_impl.hpp"
+
+TEST(GemmUniversalReduce, FP16)
+{
+    using Row = ck::tensor_layout::gemm::RowMajor;
+
+    int M      = 512;
+    int N      = 256;
+    int K      = 128;
+    int KBatch = 1;
+
+    bool pass = true;
+
+    pass = pass && ck::profiler::profile_gemm_universal_reduce_impl<ck::half_t,
+                                                                    ck::half_t,
+                                                                    ck::Tuple<>,
+                                                                    float,
+                                                                    ck::half_t,
+                                                                    Row,
+                                                                    Row,
+                                                                    ck::Tuple<>,
+                                                                    Row>(
+                       true, 1, false, true, M, N, K, K, N, N, KBatch, 1, 10);
+    EXPECT_TRUE(pass);
+}

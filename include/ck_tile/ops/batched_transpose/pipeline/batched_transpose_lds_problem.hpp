@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -20,11 +20,10 @@ struct BatchedTransposeLdsProblem
 
     static constexpr index_t kRowWarps_    = NumWarps::at(number<0>{});
     static constexpr index_t kColWarps_    = NumWarps::at(number<1>{});
-    static constexpr index_t kBlockSize_   = get_warp_size() * kRowWarps_ * kColWarps_;
     static constexpr index_t kRowPerBlock_ = BlockTile::at(number<0>{});
     static constexpr index_t kColPerBlock_ = BlockTile::at(number<1>{});
 
-    static constexpr index_t kBlockSize = kBlockSize_;
+    static constexpr index_t kBlockSize = get_warp_size() * kRowWarps_ * kColWarps_;
     // warps per block
     static constexpr index_t kLeadNumWarps   = kColWarps_;
     static constexpr index_t kSecondNumWarps = kRowWarps_;

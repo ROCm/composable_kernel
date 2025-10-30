@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
+#include "ck/ck.hpp"
+#include "ck/host_utility/device_prop.hpp"
 #include "profiler/profile_gemm_add_relu_add_layernorm_impl.hpp"
 
 using Row = ck::tensor_layout::gemm::RowMajor;
@@ -75,3 +77,13 @@ using KernelTypes = ::testing::Types<
 
 TYPED_TEST_SUITE(TestGemmAddReluAddLayernorm, KernelTypes);
 TYPED_TEST(TestGemmAddReluAddLayernorm, Test_FP16) { this->Run(); }
+int main(int argc, char** argv)
+{
+    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    {
+        std::cout << "No available instance for gfx11 & gfx12." << std::endl;
+        return 0;
+    }
+    testing::InitGoogleTest(&argc, argv);
+    return RUN_ALL_TESTS();
+}

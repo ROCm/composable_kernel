@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <iostream>
 #include <sstream>
 
@@ -22,9 +23,10 @@ namespace tensor_operation {
 namespace device {
 
 template <typename GridwiseGemm,
-          typename ADataType,
-          typename BDataType,
-          typename CDataType,
+          typename AsDataType,
+          typename BsDataType,
+          typename DsDataType,
+          typename EDataType,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t KPerBlock,
@@ -32,6 +34,7 @@ template <typename GridwiseGemm,
           index_t AK1,
           index_t BK1,
           GemmSpecialization GemmSpec,
+          typename CDEShuffleBlockTransferScalarPerVectors,
           BlockGemmPipelineScheduler BlkGemmPipeSched,
           BlockGemmPipelineVersion BlkGemmPipelineVer,
           typename ComputeTypeA,
@@ -85,18 +88,42 @@ struct DeviceGemm_Wmma_CShuffleV3_Common
                 {
                     Argument arg_ = arg;
 
-                    const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAGridDescriptor_AK0_M_AK1(
-                        arg_.M, arg_.MPadded, arg_.K, arg_.KPadded, arg_.StrideA, arg_.AK0);
-                    const auto b_grid_desc_bk0_n_bk1 = GridwiseGemm::MakeBGridDescriptor_BK0_N_BK1(
-                        arg_.K, arg_.KPadded, arg_.N, arg_.NPadded, arg_.StrideB, arg_.BK0);
+                    const auto a_grid_desc_ak0_m_ak1 = GridwiseGemm::MakeAsGridDescriptor_AK0_M_AK1(
+                        arg_.M, arg_.MPadded, arg_.K, arg_.KPadded, arg_.StrideAs, arg_.AK0);
+                    const auto b_grid_desc_bk0_n_bk1 = GridwiseGemm::MakeBsGridDescriptor_BK0_N_BK1(
+                        arg_.K, arg_.KPadded, arg_.N, arg_.NPadded, arg_.StrideBs, arg_.BK0);
 
-                    auto size_a_buffer = a_grid_desc_ak0_m_ak1.GetElementSpaceSize() *
-                                         sizeof(ADataType) / GridwiseGemm::APackedSize;
-                    auto size_b_buffer = b_grid_desc_bk0_n_bk1.GetElementSpaceSize() *
-                                         sizeof(BDataType) / GridwiseGemm::BPackedSize;
+                    std::array<std::size_t, GridwiseGemm::NumATensor> size_as_buffers;
+                    static_for<0, GridwiseGemm::NumATensor, 1>{}([&](auto i) {
+                        using ADataType    = remove_cvref_t<tuple_element_t<i.value, AsDataType>>;
+                        size_as_buffers[i] = a_grid_desc_ak0_m_ak1[i].GetElementSpaceSize() *
+                                             sizeof(ADataType) / GridwiseGemm::APackedSize;
+                    });
 
-                    ck::utility::RotatingMemWrapper<Argument> rotating_mem(
-                        arg_, stream_config.rotating_count, size_a_buffer, size_b_buffer);
+                    std::array<std::size_t, GridwiseGemm::NumBTensor> size_bs_buffers;
+                    static_for<0, GridwiseGemm::NumBTensor, 1>{}([&](auto i) {
+                        using BDataType    = remove_cvref_t<tuple_element_t<i.value, BsDataType>>;
+                        size_bs_buffers[i] = b_grid_desc_bk0_n_bk1[i].GetElementSpaceSize() *
+                                             sizeof(BDataType) / GridwiseGemm::BPackedSize;
+                    });
+
+                    const auto ds_grid_desc_m_n = GridwiseGemm::MakeDsGridDescriptor_M_N(
+                        arg_.M, arg_.MPadded, arg_.N, arg_.NPadded, arg_.StrideDs);
+
+                    std::array<std::size_t, GridwiseGemm::NumDTensor> size_ds_buffers;
+                    static_for<0, GridwiseGemm::NumDTensor, 1>{}([&](auto i) {
+                        using DDataType = remove_cvref_t<tuple_element_t<i.value, DsDataType>>;
+                        size_ds_buffers[i] =
+                            ds_grid_desc_m_n[i].GetElementSpaceSize() * sizeof(DDataType);
+                    });
+
+                    ck::utility::
+                        RotatingMemWrapperMultiABD<Argument, AsDataType, BsDataType, DsDataType>
+                            rotating_mem(arg_,
+                                         stream_config.rotating_count,
+                                         size_as_buffers,
+                                         size_bs_buffers,
+                                         size_ds_buffers);
                     rotating_mem.Print();
 
                     auto run_flush_cache = [&]() {
@@ -106,9 +133,9 @@ struct DeviceGemm_Wmma_CShuffleV3_Common
                         rotating_mem.Next();
                         // clear c mem
                         if(arg_.KBatch > 1)
-                            HIP_CHECK_ERROR(hipMemsetAsync(arg_.p_c_grid,
+                            HIP_CHECK_ERROR(hipMemsetAsync(arg_.p_e_grid,
                                                            0,
-                                                           arg_.M * arg_.N * sizeof(CDataType),
+                                                           arg_.M * arg_.N * sizeof(EDataType),
                                                            stream_config.stream_id_));
                     };
 
@@ -124,9 +151,9 @@ struct DeviceGemm_Wmma_CShuffleV3_Common
                 else
                 {
                     if(arg.KBatch > 1)
-                        HIP_CHECK_ERROR(hipMemsetAsync(arg.p_c_grid,
+                        HIP_CHECK_ERROR(hipMemsetAsync(arg.p_e_grid,
                                                        0,
-                                                       arg.M * arg.N * sizeof(CDataType),
+                                                       arg.M * arg.N * sizeof(EDataType),
                                                        stream_config.stream_id_));
 
                     ave_time = launch_and_time_kernel(
@@ -149,6 +176,16 @@ struct DeviceGemm_Wmma_CShuffleV3_Common
                 }
             }();
 
+            // ThreadwiseTensorSliceTransfer_v7r3 (used in ThreadGroupTensorSliceTransfer_v7r3) is
+            // currently implemented in such a way that all SrcScalarPerVectors must be the same, so
+            // if one of D matrices is column-major, then all SrcScalarPerVectors must be 1. On the
+            // other hand, Split K for 16-bit outputs uses packed atomics so ScalarPerVectors cannot
+            // be odd.
+            constexpr bool AtomicsImplementationExists =
+                !(std::is_same_v<EDataType, ck::half_t> || std::is_same_v<EDataType, ck::bhalf_t> ||
+                  std::is_same_v<EDataType, int8_t>) ||
+                (CDEShuffleBlockTransferScalarPerVectors{}[0] % 2 == 0);
+
             if(has_main_k_block_loop)
             {
                 // Tail number always full
@@ -157,12 +194,15 @@ struct DeviceGemm_Wmma_CShuffleV3_Common
                 {
                     if(arg.KBatch > 1)
                     {
-                        const auto kernel =
-                            kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
-                                                         true,
-                                                         InMemoryDataOperationEnum::AtomicAdd,
-                                                         minimum_occupancy>;
-                        Run(kernel);
+                        if constexpr(AtomicsImplementationExists)
+                        {
+                            const auto kernel =
+                                kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
+                                                             true,
+                                                             InMemoryDataOperationEnum::AtomicAdd,
+                                                             minimum_occupancy>;
+                            Run(kernel);
+                        }
                     }
                     else
                     {
@@ -186,12 +226,15 @@ struct DeviceGemm_Wmma_CShuffleV3_Common
                 {
                     if(arg.KBatch > 1)
                     {
-                        const auto kernel =
-                            kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
-                                                         false,
-                                                         InMemoryDataOperationEnum::AtomicAdd,
-                                                         minimum_occupancy>;
-                        Run(kernel);
+                        if constexpr(AtomicsImplementationExists)
+                        {
+                            const auto kernel =
+                                kernel_gemm_wmma_cshuffle_v3<GridwiseGemm,
+                                                             false,
+                                                             InMemoryDataOperationEnum::AtomicAdd,
+                                                             minimum_occupancy>;
+                            Run(kernel);
+                        }
                     }
                     else
                     {
@@ -229,8 +272,8 @@ struct DeviceGemm_Wmma_CShuffleV3_Common
             return false;
         }
 
-        if constexpr(std::is_same_v<CDataType, ck::half_t> ||
-                     std::is_same_v<CDataType, ck::bhalf_t>)
+        if constexpr(std::is_same_v<EDataType, ck::half_t> ||
+                     std::is_same_v<EDataType, ck::bhalf_t>)
         {
             if(arg.KBatch > 1 && ck::is_gfx11_supported())
             {

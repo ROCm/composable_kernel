@@ -85,19 +85,24 @@ bool profile_gemm_blockscale_weighpreshuffle_impl(int do_verification,
 {
     bool pass = true;
 
-    auto f_host_tensor_descriptor =
-        [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-            using namespace ck::literals;
+    auto f_host_tensor_descriptor = [](std::size_t row, std::size_t col, int& stride, auto layout) {
+        using namespace ck::literals;
 
-            if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
-            {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
-            }
-            else
-            {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
-            }
-        };
+        if(is_same<decltype(layout), tensor_layout::gemm::RowMajor>::value)
+        {
+            auto desc = HostTensorDescriptor({row, col}, {static_cast<std::size_t>(stride), 1_uz});
+            if(stride <= 0)
+                stride = desc.GetStrides()[0];
+            return desc;
+        }
+        else
+        {
+            auto desc = HostTensorDescriptor({row, col}, {1_uz, static_cast<std::size_t>(stride)});
+            if(stride <= 0)
+                stride = desc.GetStrides()[1];
+            return desc;
+        }
+    };
 
     ck::index_t Scale_Stride_AM = ((M + ScaleBlockM - 1) / ScaleBlockM);
     ck::index_t Scale_Stride_BN = ck::is_same_v<BLayout, ck::tensor_layout::gemm::ColumnMajor>

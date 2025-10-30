@@ -167,10 +167,10 @@ bool run_grouped_conv_fwd(bool do_verification,
     return (pass ? 0 : 1);
 }
 
-int run_conv2d_fwd_bias_perchannel_quantization_example(const OutElementOp& out_element_op)
+int run_conv2d_fwd_bias_perchannel_quantization_example(const OutElementOp& out_element_op,
+                                                        bool do_verification,
+                                                        bool time_kernel)
 {
-    bool do_verification           = true;
-    bool time_kernel               = true;
     const ck::index_t ndim_spatial = 2;
 
     ck::utils::conv::ConvParam conv_param{
@@ -214,7 +214,8 @@ int run_conv2d_fwd_bias_perchannel_quantization_example(const OutElementOp& out_
                                                         1,             // k
                                                         0,             // ho
                                                         0              // wo
-                                                    });
+                                                    },
+                                                    BiasLayout{});
 
     const auto requant_scale_g_k_desc = bias_g_k_desc;
 

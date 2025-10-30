@@ -2,6 +2,7 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
+#include <vector>
 #include <hip/hip_runtime.h>
 
 #include "ck_tile/core.hpp"
@@ -28,6 +29,12 @@ TEST(PackedFp4, NumericLimits)
     EXPECT_EQ(ck_tile::numeric<pk_fp4_t>::lowest(), pk_fp4_t{0b11111111});
     EXPECT_EQ(ck_tile::numeric<pk_fp4_t>::epsilon(), pk_fp4_t{0b00010001});
     EXPECT_EQ(ck_tile::numeric<pk_fp4_t>::round_error(), pk_fp4_t{0b00010001});
+}
+TEST(PackedFp4, fill)
+{
+    std::vector<pk_fp4_t> v_fp4(4);
+    ck_tile::FillUniformDistribution<pk_fp4_t>{1.f, 1.f}(v_fp4);
+    EXPECT_EQ(v_fp4[0].get(), pk_fp4_t{0b00100010}.get());
 }
 TEST(PackedFp4, ConvertBasic)
 {
@@ -102,7 +109,7 @@ struct SrcPkfp4Dst
                 // ex: fp32_t -> fp4 -> bf16_t
                 dst[i] = toDST(toPF4(src[i]));
                 // ex: fp32x2_t -> pk_fp4 -> unpack<0> -> bf16_t
-                dst[i + 1] = toDST(toPF4(toPF4(input2).unpack(number<1>{})));
+                dst[i + 1] = toDST(toPF4(input2).unpack(number<1>{}));
             }
             else
             {

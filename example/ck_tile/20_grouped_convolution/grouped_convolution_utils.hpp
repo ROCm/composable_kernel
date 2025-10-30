@@ -11,6 +11,11 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/grouped_convolution.hpp"
+#include "conv_configs.hpp"
+using MemoryOpSet =
+    std::integral_constant<ck_tile::memory_operation_enum, ck_tile::memory_operation_enum::set>;
+using MemoryOpAtomicAdd = std::integral_constant<ck_tile::memory_operation_enum,
+                                                 ck_tile::memory_operation_enum::atomic_add>;
 
 template <typename InDataType, typename WeiDataType, typename AccDataType, typename OutDataType>
 auto calculate_rtol_atol(const ck_tile::index_t GemmK,
@@ -120,12 +125,9 @@ auto create_args(int argc, char* argv[])
         .insert("repeat", "100", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("split_k", "1", "splitK value")
-        .insert("init", "0", "0:random, 1:linear, 2:constant(1)");
+        .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
+        .insert("json", "0", "0: No Json, 1: Dump Results in Json format");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
 }
-
-// host API
-float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args,
-                       const ck_tile::stream_config& s);

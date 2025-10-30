@@ -10,6 +10,9 @@
 #include "ck_tile/core/numeric/integer.hpp"
 #include "ck_tile/core/numeric/integral_constant.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
+#include "ck_tile/core/arch/amd_buffer_addressing_builtins.hpp"
+#include "ck_tile/core/arch/amd_buffer_addressing.hpp"
+#include "ck_tile/core/utility/ignore.hpp"
 
 #define CK_TILE_S_CNT_MAX 0b1100'1111'0111'1111
 #define CK_TILE_VMCNT(cnt)                                              \
@@ -307,6 +310,23 @@ CK_TILE_HOST_DEVICE constexpr auto get_warp_size()
     }
 }
 
+CK_TILE_HOST bool is_wave32()
+{
+    hipDeviceProp_t props{};
+    int device;
+    auto status = hipGetDevice(&device);
+    if(status != hipSuccess)
+    {
+        return false;
+    }
+    status = hipGetDeviceProperties(&props, device);
+    if(status != hipSuccess)
+    {
+        return false;
+    }
+    return props.major > 9;
+}
+
 CK_TILE_DEVICE index_t get_grid_size() { return gridDim.x; }
 
 CK_TILE_DEVICE index_t get_block_size() { return blockDim.x; }
@@ -321,9 +341,18 @@ CK_TILE_DEVICE index_t get_block_1d_id() { return blockIdx.x; }
 // Use these instead
 CK_TILE_DEVICE index_t get_lane_id() { return __lane_id(); }
 
-CK_TILE_DEVICE index_t get_warp_id()
+template <bool ReturnSgpr = true>
+CK_TILE_DEVICE index_t get_warp_id(bool_constant<ReturnSgpr> = {})
 {
-    return __builtin_amdgcn_readfirstlane(threadIdx.x / get_warp_size());
+    const index_t warp_id = threadIdx.x / get_warp_size();
+    if constexpr(ReturnSgpr)
+    {
+        return amd_wave_read_first_lane(warp_id);
+    }
+    else
+    {
+        return warp_id;
+    }
 }
 
 CK_TILE_DEVICE index_t get_thread_id() { return threadIdx.x; }
@@ -351,6 +380,34 @@ CK_TILE_DEVICE void block_sync_load_raw(index_t cnt = 0)
 // https://llvm.org/docs/AMDGPU/gfx9_waitcnt.html
 struct waitcnt_arg
 {
+#if defined(__gfx12__)
+    // use s_wait_loadcnt_dscnt in this instruction; in this instruction, ds [5:0]; mem [13:8]
+    CK_TILE_DEVICE static constexpr index_t MAX = 0b00'111111'00'111111;
+
+    CK_TILE_DEVICE static constexpr index_t kMaxVmCnt   = 0b111111;
+    CK_TILE_DEVICE static constexpr index_t kMaxExpCnt  = 0b111;
+    CK_TILE_DEVICE static constexpr index_t kMaxLgkmCnt = 0b111111;
+
+    template <index_t cnt>
+    CK_TILE_DEVICE static constexpr index_t from_vmcnt()
+    {
+        static_assert(cnt >= 0 && !(cnt >> 6), "valid range is [0..63]");
+        return MAX & (cnt << 8);
+    }
+
+    template <index_t cnt>
+    CK_TILE_DEVICE static constexpr index_t from_expcnt()
+    {
+        return 0; // no export in MI series
+    }
+
+    template <index_t cnt>
+    CK_TILE_DEVICE static constexpr index_t from_lgkmcnt()
+    {
+        static_assert(cnt >= 0 && !(cnt >> 6), "valid range is [0..63]");
+        return MAX & cnt;
+    }
+#else
     // bit numbers (hex) -------------------------> FE'DC'BA98'7'654'3210
     // [V]M [E]XP [L]GKM counters and [U]NUSED ---> VV'UU'LLLL'U'EEE'VVVV
     CK_TILE_DEVICE static constexpr index_t MAX = 0b11'00'1111'0'111'1111;
@@ -379,6 +436,7 @@ struct waitcnt_arg
         static_assert(cnt >= 0 && !(cnt >> 4), "valid range is [0..15]");
         return MAX & (cnt << 8);
     }
+#endif
 };
 
 template <index_t vmcnt   = waitcnt_arg::kMaxVmCnt,
@@ -386,9 +444,18 @@ template <index_t vmcnt   = waitcnt_arg::kMaxVmCnt,
           index_t lgkmcnt = waitcnt_arg::kMaxLgkmCnt>
 CK_TILE_DEVICE void s_waitcnt()
 {
+#if defined(__gfx12__)
+    // GFX12 do't use __builtin_amdgcn_s_waitcnt
+    constexpr index_t wait_mask = waitcnt_arg::from_vmcnt<vmcnt>() |
+                                  waitcnt_arg::from_expcnt<expcnt>() |
+                                  waitcnt_arg::from_lgkmcnt<lgkmcnt>();
+
+    asm volatile("s_wait_loadcnt_dscnt %0" : : "n"(wait_mask) : "memory");
+#else
     __builtin_amdgcn_s_waitcnt(waitcnt_arg::from_vmcnt<vmcnt>() |
                                waitcnt_arg::from_expcnt<expcnt>() |
                                waitcnt_arg::from_lgkmcnt<lgkmcnt>());
+#endif
 }
 
 template <index_t vmcnt   = waitcnt_arg::kMaxVmCnt,
@@ -396,8 +463,23 @@ template <index_t vmcnt   = waitcnt_arg::kMaxVmCnt,
           index_t lgkmcnt = waitcnt_arg::kMaxLgkmCnt>
 CK_TILE_DEVICE void s_waitcnt_barrier()
 {
+#if defined(__gfx12__)
+    // GFX12 optimization: Manual barrier implementation avoids performance penalty
+    // from __builtin_amdgcn_s_barrier which inserts extra s_wait_loadcnt_dscnt 0x0
+    constexpr index_t wait_mask = waitcnt_arg::from_vmcnt<vmcnt>() |
+                                  waitcnt_arg::from_expcnt<expcnt>() |
+                                  waitcnt_arg::from_lgkmcnt<lgkmcnt>();
+
+    asm volatile("s_wait_loadcnt_dscnt %0\n"
+                 "s_barrier_signal -1\n"
+                 "s_barrier_wait -1"
+                 :
+                 : "n"(wait_mask)
+                 : "memory");
+#else
     s_waitcnt<vmcnt, expcnt, lgkmcnt>();
     __builtin_amdgcn_s_barrier();
+#endif
 }
 
 template <index_t lgkmcnt = 0>
@@ -471,4 +553,42 @@ CK_TILE_HOST_DEVICE constexpr const char* address_space_to_string(address_space_
     }
 }
 
+// Architecture tags
+struct gfx9_t
+{
+};
+struct gfx950_t
+{
+};
+struct gfx11_t
+{
+};
+struct gfx12_t
+{
+};
+
+CK_TILE_DEVICE static constexpr auto get_device_arch()
+{
+#if defined(__gfx11__)
+    return gfx11_t{};
+#else // if defined(__gfx12__)
+    return gfx12_t{};
+#endif
+}
+
+enum LLVMSchedGroupMask : int32_t
+{
+    NONE       = 0,
+    ALU        = 1 << 0,
+    VALU       = 1 << 1,
+    SALU       = 1 << 2,
+    MFMA       = 1 << 3,
+    VMEM       = 1 << 4,
+    VMEM_READ  = 1 << 5,
+    VMEM_WRITE = 1 << 6,
+    DS         = 1 << 7,
+    DS_READ    = 1 << 8,
+    DS_WRITE   = 1 << 9,
+    ALL        = (DS_WRITE << 1) - 1,
+};
 } // namespace ck_tile

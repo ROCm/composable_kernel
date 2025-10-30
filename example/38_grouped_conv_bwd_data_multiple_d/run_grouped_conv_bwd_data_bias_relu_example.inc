@@ -206,7 +206,8 @@ int run_grouped_conv_bwd_data_bias_relu_example(int argc, char* argv[])
                                                               1,              // c
                                                               0,              // hi
                                                               0               // wi
-                                                          });
+                                                          },
+                                                          ctc::GNCHW{});
 
     // input image: GNHWC
     const auto in_g_n_c_wis_desc =

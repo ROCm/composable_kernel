@@ -22,6 +22,8 @@ using F32 = float;
 using ADataType = F32;
 using BDataType = F32;
 
+using NchwLayout  = ck::tensor_layout::convolution::NCHW;
+using NhwcLayout  = ck::tensor_layout::convolution::NHWC;
 using UnaryScale  = ck::tensor_operation::element_wise::Scale;
 using UnarySquare = ck::tensor_operation::element_wise::UnarySquare;
 using UnaryScaleSquare =
@@ -40,10 +42,26 @@ using DeviceElementwisePermuteInstance = ck::tensor_operation::device::DeviceEle
     ck::Sequence<1>,      // InScalarPerVectorSeq
     ck::Sequence<1>>;     // OutScalarPerVectorSeq
 
-int main()
+int main(int argc, char* argv[])
 {
     bool do_verification = true;
     bool time_kernel     = true;
+
+    if(argc == 1)
+    {
+        // use default
+    }
+    else if(argc == 3)
+    {
+        do_verification = std::stoi(argv[1]);
+        time_kernel     = std::stoi(argv[2]);
+    }
+    else
+    {
+        printf("arg1: verification (0=no, 1=yes)\n");
+        printf("arg2: time kernel (0=no, 1=yes)\n");
+        exit(0);
+    }
 
     std::vector<std::size_t> nchw = {16, 8, 32, 64};
     std::vector<std::size_t> nhwc = {16, 32, 64, 8};
@@ -60,9 +78,9 @@ int main()
                                             static_cast<int>(nhwc[0] * nhwc[1])};
     ck::ranges::copy(nchw, ab_lengths.begin());
 
-    std::array<Tensor<ADataType>, 1> as = {Tensor<ADataType>(ab_lengths, a_strides)};
+    std::array<Tensor<ADataType>, 1> as = {Tensor<ADataType>(ab_lengths, a_strides, NchwLayout{})};
     Tensor<ADataType>& a                = as[0];
-    Tensor<BDataType> b(ab_lengths, b_strides);
+    Tensor<BDataType> b(ab_lengths, b_strides, NhwcLayout{});
 
     float scale = 1.f;
     auto i      = 0;
@@ -123,7 +141,7 @@ int main()
 
     if(do_verification)
     {
-        Tensor<BDataType> host_b(ab_lengths, b_strides);
+        Tensor<BDataType> host_b(ab_lengths, b_strides, NhwcLayout{});
         using ReferenceElementwiseInstance = ck::tensor_operation::host::
             ReferenceElementwise<1, ADataType, BDataType, UnaryScaleSquare>;
         auto ref_elementwise = ReferenceElementwiseInstance{};

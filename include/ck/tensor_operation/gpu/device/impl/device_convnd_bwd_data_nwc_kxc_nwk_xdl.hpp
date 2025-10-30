@@ -36,8 +36,8 @@ template <ck::index_t NDimSpatial,
           ck::index_t NPerBlock,
           ck::index_t K0PerBlock,
           ck::index_t K1,
-          ck::index_t MPerXdl,
-          ck::index_t NPerXdl,
+          ck::index_t MPerXDL,
+          ck::index_t NPerXDL,
           ck::index_t MXdlPerWave,
           ck::index_t NXdlPerWave,
           typename ABlockTransferThreadClusterLengths_K0_M_K1,
@@ -79,6 +79,10 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
           OutElementwiseOperation>
 {
     using DeviceOp = DeviceConvNdBwdDataNwcKxcNwk_Xdl;
+
+    GET_NXDL_PER_WAVE_IMPL
+    static constexpr auto NXdlPerWave64 = GetNXdlPerWave<true>();
+    static constexpr auto NXdlPerWave32 = GetNXdlPerWave<false>();
 
     using ADataType = OutDataType;
     using BDataType = WeiDataType;
@@ -975,7 +979,8 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
     using CGridDesc_M_N     = remove_cvref_t<decltype(ABCGridDescs{}[I2])>;
 
     // GridwiseGemm
-    using GridwiseGemm = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3<
+    template <index_t NXdlPerWave_>
+    using GridwiseGemmBase = GridwiseGemm_k0mk1_k0nk1_mn_xdlops_v2r3<
         BlockSize,
         ABDataType, // TODO: distinguish A/B datatype
         AccDataType,
@@ -987,11 +992,11 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
         MPerBlock,
         NPerBlock,
         K0PerBlock,
-        MPerXdl,
-        NPerXdl,
+        MPerXDL,
+        NPerXDL,
         K1,
         MXdlPerWave,
-        NXdlPerWave,
+        NXdlPerWave_,
         ABlockTransferThreadClusterLengths_K0_M_K1,
         ABlockTransferThreadClusterArrangeOrder,
         ABlockTransferSrcAccessOrder,
@@ -1011,6 +1016,8 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
         Sequence<2, 3, 0, 1, 7, 5, 4, 6>, // CThreadTransferSrcDstAccessOrder,
         7,                                // CThreadTransferSrcDstVectorDim,
         CThreadTransferDstScalarPerVector>;
+    using GridwiseGemm64 = GridwiseGemmBase<math::max(NXdlPerWave64, 1)>;
+    using GridwiseGemm32 = GridwiseGemmBase<NXdlPerWave32>;
 
     // Argument
     struct Argument : public BaseArgument
@@ -1216,7 +1223,8 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
     {
         using Argument = DeviceOp::Argument;
 
-        float Run(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
+        template <typename GridwiseGemm>
+        float RunImp(const Argument& arg, const StreamConfig& stream_config = StreamConfig{})
         {
             float ave_time = 0;
             for(size_t i = 0; i < arg.a_grid_desc_k0_m_k1_container_.size(); i++)
@@ -1305,6 +1313,8 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
             return ave_time;
         }
 
+        INVOKER_RUN_IMPL
+
         float Run(const BaseArgument* p_arg,
                   const StreamConfig& stream_config = StreamConfig{}) override
         {
@@ -1320,11 +1330,10 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
 
     static bool IsSupportedArgument(const Argument& arg)
     {
-        if(!ck::is_xdl_supported())
+        if(!ck::is_xdl_wmma_supported<ADataType, BDataType, MPerXDL, NPerXDL>())
         {
             return false;
         }
-
         if constexpr(ConvBackwardDataSpecialization ==
                      ConvolutionBackwardDataSpecialization::Filter1x1Stride1Pad0)
         {
@@ -1354,14 +1363,30 @@ struct DeviceConvNdBwdDataNwcKxcNwk_Xdl
         }
 
         // Gridwise GEMM size
+        bool isWave64 = get_warp_size() == 64;
         for(std::size_t i = 0; i < arg.a_grid_desc_k0_m_k1_container_.size(); i++)
         {
-            if(!GridwiseGemm::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
-                                            arg.b_grid_desc_k0_n_k1_container_[i],
-                                            arg.c_grid_desc_m_n_container_[i]))
+            bool valid = false;
+            if(isWave64)
             {
-                return false;
+                if constexpr(NXdlPerWave64 > 0)
+                {
+                    valid = GridwiseGemm64::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
+                                                          arg.b_grid_desc_k0_n_k1_container_[i],
+                                                          arg.c_grid_desc_m_n_container_[i]);
+                }
             }
+            else
+            {
+                if constexpr(NXdlPerWave32 > 0)
+                {
+                    valid = GridwiseGemm32::CheckValidity(arg.a_grid_desc_k0_m_k1_container_[i],
+                                                          arg.b_grid_desc_k0_n_k1_container_[i],
+                                                          arg.c_grid_desc_m_n_container_[i]);
+                }
+            }
+            if(!valid)
+                return false;
         }
         return true;
     }

@@ -39,7 +39,8 @@ bool profile_avg_pool2d_bwd_impl(int do_verification,
                                  std::vector<index_t> window_strides,
                                  std::vector<index_t> window_dilations,
                                  std::vector<index_t> input_left_pads,
-                                 std::vector<index_t> input_right_pads)
+                                 std::vector<index_t> input_right_pads,
+                                 index_t instance_index = -1)
 {
     constexpr index_t InOutRank  = 4;
     constexpr index_t WindowRank = 2;
@@ -82,7 +83,9 @@ bool profile_avg_pool2d_bwd_impl(int do_verification,
         [](std::size_t N_, std::size_t C_, std::size_t H, std::size_t W) {
             using namespace ck::literals;
 
-            return HostTensorDescriptor({N_, C_, H, W}, {C_ * H * W, 1_uz, W * C_, C_});
+            return HostTensorDescriptor({N_, C_, H, W},
+                                        {C_ * H * W, 1_uz, W * C_, C_},
+                                        ck::tensor_layout::convolution::NCHW{});
         };
 
     Tensor<DOutDataType> out_n_c_ho_wo_host(f_host_tensor_descriptor(N, C, Ho, Wo));
@@ -164,6 +167,11 @@ bool profile_avg_pool2d_bwd_impl(int do_verification,
         {
             ++num_kernel;
             instance_found = true;
+            if((instance_index != -1) && (instance_index + 1 != num_kernel))
+            {
+                // skip test if instance_index is specified
+                continue;
+            }
         }
         else
         {
@@ -247,7 +255,11 @@ bool profile_avg_pool2d_bwd_impl(int do_verification,
         std::cout << "Error: No kernel is applicable" << std::endl;
         return false;
     }
-
+    if(instance_index != -1)
+    {
+        std::cout << "avg_pool2d_bwd_instance (" << instance_index << "/" << num_kernel
+                  << "): Passed" << std::endl;
+    }
     return pass && instance_found;
 }
 

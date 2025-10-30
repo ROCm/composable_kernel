@@ -17,7 +17,13 @@ void add_device_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_comp_default_instances(
     add_device_operation_instances(
         instances, device_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_comp_instances<GemmDefault>{});
 
-    if(ck::get_device_name() != "gfx950")
+    if(ck::get_device_name() == "gfx950")
+    {
+        add_device_operation_instances(
+            instances,
+            device_gemm_xdl_universal_f8_f8_bf16_mk_nk_mn_comp_instances_dr<GemmDefault>{});
+    }
+    else
     {
         add_device_operation_instances(
             instances,

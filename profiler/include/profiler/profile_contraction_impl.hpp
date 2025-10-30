@@ -54,25 +54,36 @@ int profile_contraction_impl(ck::index_t do_verification,
                              const std::vector<ck::index_t>& StridesA, // [M0, M1, K0, K1]
                              const std::vector<ck::index_t>& StridesB, // [N0, N1, K0, K1]
                              const std::vector<ck::index_t>& StridesE, // [M0, M1, N0, N1]
-                             const std::vector<ck::index_t>& StridesD) // [M0, M1, N0, N1]
+                             const std::vector<ck::index_t>& StridesD, // [M0, M1, N0, N1]
+                             int instance_index = -1)
 {
     bool pass = true;
 
     auto f_host_tensor_descriptor = [](const std::vector<ck::index_t>& dims01,
                                        const std::vector<ck::index_t>& dims23,
-                                       const std::vector<ck::index_t>& strides) {
+                                       const std::vector<ck::index_t>& strides,
+                                       auto layout) {
         std::vector<std::size_t> dims_szt(dims01.begin(), dims01.end());
         dims_szt.insert(dims_szt.end(), dims23.begin(), dims23.end());
-        std::vector<std::size_t> strides_szt(strides.begin(), strides.end());
 
-        return HostTensorDescriptor(dims_szt, strides);
+        // For ColumnMajor with more than 2 dimensions, the strides are custom-defined, so skip
+        // verification.
+        if constexpr(ck::is_same_v<decltype(layout), ck::tensor_layout::gemm::ColumnMajor>)
+        {
+            if(strides.size() > 2)
+            {
+                return HostTensorDescriptor(
+                    dims_szt, strides, ck::tensor_layout::BypassLayoutVerification{});
+            }
+        }
+        return HostTensorDescriptor(dims_szt, strides, layout);
     };
 
-    Tensor<DataType> a_m_k(f_host_tensor_descriptor(M, K, StridesA));
-    Tensor<DataType> b_n_k(f_host_tensor_descriptor(N, K, StridesB));
-    Tensor<DataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StridesE));
-    Tensor<DataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StridesE));
-    Tensor<DataType> d_m_n(f_host_tensor_descriptor(M, N, StridesD));
+    Tensor<DataType> a_m_k(f_host_tensor_descriptor(M, K, StridesA, ALayout{}));
+    Tensor<DataType> b_n_k(f_host_tensor_descriptor(N, K, StridesB, BLayout{}));
+    Tensor<DataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StridesE, CDELayout{}));
+    Tensor<DataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StridesE, CDELayout{}));
+    Tensor<DataType> d_m_n(f_host_tensor_descriptor(M, N, StridesD, CDELayout{}));
 
     std::cout << "a_m_k: " << a_m_k.mDesc << std::endl;
     std::cout << "b_n_k: " << b_n_k.mDesc << std::endl;
@@ -160,7 +171,7 @@ int profile_contraction_impl(ck::index_t do_verification,
         auto ref_op      = ReferenceGemmInstance{};
         auto ref_invoker = ref_op.MakeInvoker();
 
-        Tensor<DataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StridesE));
+        Tensor<DataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StridesE, CDELayout{}));
 
         auto ref_argument =
             ref_op.MakeArgument(a_m_k, b_n_k, c_m_n_host_result, a_element_op, b_element_op);
@@ -187,7 +198,7 @@ int profile_contraction_impl(ck::index_t do_verification,
     float best_avg_time   = 0;
     float best_tflops     = 0;
     float best_gb_per_sec = 0;
-
+    int num_kernel        = 0;
     // profile device op instances
     for(auto& op_ptr : op_ptrs)
     {
@@ -246,6 +257,12 @@ int profile_contraction_impl(ck::index_t do_verification,
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            ++num_kernel;
+            if((instance_index != -1) && (instance_index + 1 != num_kernel))
+            {
+                // skip test if instance_index is specified
+                continue;
+            }
             // re-init C to zero before profiling next kernel
             e_device_buf.SetZero();
 
@@ -366,6 +383,11 @@ int profile_contraction_impl(ck::index_t do_verification,
               << " ms, " << best_tflops << " TFlops, " << best_gb_per_sec << " GB/s, "
               << best_op_name << std::endl;
 
+    if(instance_index != -1)
+    {
+        std::cout << "contraction_instance (" << instance_index << "/" << num_kernel << "): Passed"
+                  << std::endl;
+    }
     return pass;
 }
 

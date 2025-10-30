@@ -34,8 +34,14 @@ subtrees:
     title: Composable Kernel vector utilities
   - file: reference/Composable-Kernel-wrapper.rst
     title: Composable Kernel wrapper
+  - file: doxygen/html/namespace_c_k.rst
+    title: CK API reference 
+  - file: doxygen/html/namespaceck__tile.rst
+    title: CK Tile API reference
   - file: doxygen/html/annotated.rst
-    title: Composable Kernel class list
+    title: Full API class list
+  - file: reference/Composable-Kernel-Glossary.rst
+    title: Glossary
 
 - caption: About
   entries:

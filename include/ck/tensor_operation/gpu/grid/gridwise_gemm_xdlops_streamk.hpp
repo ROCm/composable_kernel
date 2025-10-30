@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2022, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -37,23 +37,26 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                index_t StrideC,
                                typename GridwiseGemm::Block2CTileMap block_mapping)
 {
-#if(defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__))
-    constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
+#if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx12__)
+    if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
+    {
+        constexpr index_t shared_size = GridwiseGemm::GetSharedMemoryNumberOfByte();
 
-    __shared__ uint8_t p_shared[shared_size];
+        __shared__ uint8_t p_shared[shared_size];
 
-    GridwiseGemm::Run(p_a_grid,
-                      p_b_grid,
-                      p_c_grid,
-                      p_workspace,
-                      M,
-                      N,
-                      K,
-                      StrideA,
-                      StrideB,
-                      StrideC,
-                      block_mapping,
-                      static_cast<void*>(p_shared));
+        GridwiseGemm::Run(p_a_grid,
+                          p_b_grid,
+                          p_c_grid,
+                          p_workspace,
+                          M,
+                          N,
+                          K,
+                          StrideA,
+                          StrideB,
+                          StrideC,
+                          block_mapping,
+                          static_cast<void*>(p_shared));
+    }
 #else
     ignore = p_a_grid;
     ignore = p_b_grid;
@@ -83,8 +86,8 @@ template <index_t BlockSize,
           index_t MPerBlock,
           index_t NPerBlock,
           index_t K0PerBlock,
-          index_t MPerXDL,
-          index_t NPerXDL,
+          index_t MPerXdl,
+          index_t NPerXdl,
           index_t K1Value,
           index_t MRepeat,
           index_t NRepeat,
@@ -305,6 +308,10 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                          c_block_size * sizeof(FloatCShuffle));
     }
 
+    static constexpr index_t MXdlPerWave = MRepeat;
+    static constexpr index_t NXdlPerWave = NRepeat;
+    IS_VALID_COMPILATION_PARAMETER_IMPL(FloatC)
+
     __host__ __device__ static constexpr bool CheckValidity(const Argument& karg)
     {
         if constexpr(is_same<tensor_layout::gemm::RowMajor, ALayout>::value)
@@ -380,27 +387,27 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
     __host__ __device__ static constexpr auto
     GetCBlockDescriptor_MBlock_MPerShuffle_NBlock_NPerShuffle()
     {
-        constexpr index_t MWave = MPerBlock / (MRepeat * MPerXDL);
-        constexpr index_t NWave = NPerBlock / (NRepeat * NPerXDL);
+        constexpr index_t MWave = MPerBlock / (MRepeat * MPerXdl);
+        constexpr index_t NWave = NRepeat * NPerXdl == 0 ? 1 : NPerBlock / (NRepeat * NPerXdl);
 
         return make_naive_tensor_descriptor_packed(
             make_tuple(I1,
-                       Number<CShuffleMRepeatPerShuffle * MWave * MPerXDL>{},
+                       Number<CShuffleMRepeatPerShuffle * MWave * MPerXdl>{},
                        I1,
-                       Number<CShuffleNRepeatPerShuffle * NWave * NPerXDL>{}));
+                       Number<CShuffleNRepeatPerShuffle * NWave * NPerXdl>{}));
     }
 
     __host__ __device__ static constexpr auto
     GetCBlockDescriptor_MShuffleRepeat_MPerShuffle_NShuffleRepeat_NPerShuffle()
     {
-        constexpr index_t MWave = MPerBlock / (MRepeat * MPerXDL);
-        constexpr index_t NWave = NPerBlock / (NRepeat * NPerXDL);
+        constexpr index_t MWave = MPerBlock / (MRepeat * MPerXdl);
+        constexpr index_t NWave = NRepeat * NPerXdl == 0 ? 1 : NPerBlock / (NRepeat * NPerXdl);
 
         return make_naive_tensor_descriptor_packed(
             make_tuple(Number<MRepeat / CShuffleMRepeatPerShuffle>{},
-                       Number<CShuffleMRepeatPerShuffle * MWave * MPerXDL>{},
+                       Number<CShuffleMRepeatPerShuffle * MWave * MPerXdl>{},
                        Number<NRepeat / CShuffleNRepeatPerShuffle>{},
-                       Number<CShuffleNRepeatPerShuffle * NWave * NPerXDL>{}));
+                       Number<CShuffleNRepeatPerShuffle * NWave * NPerXdl>{}));
     }
 
     __host__ __device__ static constexpr auto GetClusterLengthReduction()
@@ -490,8 +497,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                                                                 FloatAcc,
                                                                 decltype(a_block_desc_k0_m_k1),
                                                                 decltype(b_block_desc_k0_n_k1),
-                                                                MPerXDL,
-                                                                NPerXDL,
+                                                                MPerXdl,
+                                                                NPerXdl,
                                                                 MRepeat,
                                                                 NRepeat,
                                                                 K1>{};
@@ -829,8 +836,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
 
             // output: register to global memory
             {
-                constexpr index_t MWave = MPerBlock / (MRepeat * MPerXDL);
-                constexpr index_t NWave = NPerBlock / (NRepeat * NPerXDL);
+                constexpr index_t MWave = MPerBlock / (MRepeat * MPerXdl);
+                constexpr index_t NWave = NPerBlock / (NRepeat * NPerXdl);
 
                 constexpr auto c_m0_n0_m1_n1_m2_m3_m4_n2_block_desc =
                     blockwise_gemm.GetCBlockDescriptor_M0_N0_M1_N1_M2_M3_M4_N2();
@@ -871,12 +878,12 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                                               M1,
                                               M2,
                                               M3,
-                                              M4)),       // M1 = MWave, M2 * M3 * M4 = MPerXDL
+                                              M4)),       // M1 = MWave, M2 * M3 * M4 = MPerXdl
                                make_freeze_transform(I0), // freeze nblock
                                make_unmerge_transform(
                                    make_tuple(CShuffleNRepeatPerShuffle,
                                               N1,
-                                              N2))), // M1 = MWave, M2 * M3 * M4 = MPerXDL
+                                              N2))), // M1 = MWave, M2 * M3 * M4 = MPerXdl
                     make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
                     make_tuple(Sequence<>{},
                                Sequence<0, 2, 4, 5, 6>{},
@@ -948,9 +955,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                     CElementwiseOperation, // ElementwiseOperation,
                                            // InMemoryDataOperationEnum::Set, // DstInMemOp,
                     Sequence<1,
-                             CShuffleMRepeatPerShuffle * MWave * MPerXDL,
+                             CShuffleMRepeatPerShuffle * MWave * MPerXdl,
                              1,
-                             CShuffleNRepeatPerShuffle * NWave * NPerXDL>, // BlockSliceLengths,
+                             CShuffleNRepeatPerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
                     CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
                     Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
                     FloatCShuffle,        // typename SrcData,
@@ -977,9 +984,9 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                     CElementwiseOperation, // ElementwiseOperation,
                                            // InMemoryDataOperationEnum::Set, // DstInMemOp,
                     Sequence<1,
-                             CShuffleMRepeatPerShuffle * MWave * MPerXDL,
+                             CShuffleMRepeatPerShuffle * MWave * MPerXdl,
                              1,
-                             CShuffleNRepeatPerShuffle * NWave * NPerXDL>, // BlockSliceLengths,
+                             CShuffleNRepeatPerShuffle * NWave * NPerXdl>, // BlockSliceLengths,
                     CBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
                     Sequence<0, 1, 2, 3>, // typename ThreadClusterArrangeOrder,
                     FloatCShuffle,        // typename SrcData,
@@ -1000,11 +1007,11 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_streamk
                      c_element_op};
 
                 constexpr auto mxdlperwave_forward_step =
-                    make_multi_index(0, CShuffleMRepeatPerShuffle * MWave * MPerXDL, 0, 0);
+                    make_multi_index(0, CShuffleMRepeatPerShuffle * MWave * MPerXdl, 0, 0);
                 constexpr auto nxdlperwave_forward_step =
-                    make_multi_index(0, 0, 0, CShuffleNRepeatPerShuffle * NWave * NPerXDL);
+                    make_multi_index(0, 0, 0, CShuffleNRepeatPerShuffle * NWave * NPerXdl);
                 constexpr auto nxdlperwave_backward_step =
-                    make_multi_index(0, 0, 0, -CShuffleNRepeatPerShuffle * NWave * NPerXDL);
+                    make_multi_index(0, 0, 0, -CShuffleNRepeatPerShuffle * NWave * NPerXdl);
 
                 static_for<0, MRepeat, CShuffleMRepeatPerShuffle>{}([&](auto mxdlperwave_iter) {
                     constexpr auto mxdlperwave = mxdlperwave_iter;

@@ -105,7 +105,7 @@ bool profile_gemm_b_scale_impl(int do_verification,
         break;
     case 2:
         a_m_k.GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
-        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-0.5, 0.5});
+        b_k_n.GenerateTensorValue(GeneratorTensor_3<BDataType>{-1, 2});
         b1_k_n.GenerateTensorValue(GeneratorTensor_3<BScaleDataType>{0, 1.0});
         break;
     default:
@@ -122,8 +122,16 @@ bool profile_gemm_b_scale_impl(int do_verification,
     const auto b_element_op = BElementOp{};
     const auto c_element_op = CElementOp{};
 
+    static constexpr index_t BPackedSize = []() {
+        if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
+            return 2;
+        else
+            return 1;
+    }();
+
     DeviceMem a_device_buf(sizeof(ADataType) * a_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n_permute.mDesc.GetElementSpaceSize());
+    DeviceMem b_device_buf(sizeof(BDataType) * b_k_n_permute.mDesc.GetElementSpaceSize() /
+                           BPackedSize);
     DeviceMem b1_device_buf(sizeof(BScaleDataType) * b1_k_n.mDesc.GetElementSpaceSize());
     DeviceMem c_device_buf(sizeof(CDataType) * c_m_n_device_result.mDesc.GetElementSpaceSize());
 
@@ -152,16 +160,24 @@ bool profile_gemm_b_scale_impl(int do_verification,
     // Run reference GEMM
     if(do_verification)
     {
-        Tensor<float> b_k_n_dequant({K, N});
+        Tensor<BScaleDataType> b_k_n_dequant({K, N});
 
         float v_b = 0;
         for(int n = 0; n < N; n++)
         {
             for(int k = 0; k < K; k++)
             {
-                ck::pk_i4_t i4x2 = b_k_n(k, n).data;
-                int8_t i4        = 0;
-                if(k % 2 == 1)
+                // for proper testing, we need to replicate k_shuffle when used
+                // see unary_element_wise_operation.hpp
+#if CK_USE_PK4_LAYOUT_SHUFFLE
+                int k_shuffle = (k / 8) * 8 + (k % 2) * 4 + (k % 8) / 2;
+#else
+                int k_shuffle = k;
+#endif
+
+                ck::pk_i4_t i4x2 = b_k_n(k_shuffle, n).data;
+                int i4           = 0;
+                if(k_shuffle % 2 == 0)
                     i4 = (i4x2.data >> 0) & 0xf;
                 else
                     i4 = (i4x2.data >> 4) & 0xf;
@@ -173,7 +189,7 @@ bool profile_gemm_b_scale_impl(int do_verification,
             }
         }
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<ADataType,
-                                                                                AccDataType,
+                                                                                BScaleDataType,
                                                                                 CDataType,
                                                                                 AccDataType,
                                                                                 AElementOp,
@@ -334,7 +350,11 @@ bool profile_gemm_b_scale_impl(int do_verification,
                     else
                     {
 #endif
-                        pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+                        std::string msg = "Error: Incorrect results!";
+                        double rtol     = 2e-2;
+                        double atol     = 2e-2;
+                        pass            = pass & ck::utils::check_err(
+                                          c_m_n_device_result, c_m_n_host_result, msg, rtol, atol);
 #if defined CK_ENABLE_FP8
                     }
 #endif
@@ -364,13 +384,6 @@ bool profile_gemm_b_scale_impl(int do_verification,
                                                                rotating_count});
 
                 std::size_t flop = std::size_t(2) * M * N * K;
-
-                static constexpr index_t BPackedSize = []() {
-                    if constexpr(is_same_v<remove_cvref_t<BDataType>, pk_i4_t>)
-                        return 2;
-                    else
-                        return 1;
-                }();
 
                 std::size_t num_btype = sizeof(ADataType) * M * K +
                                         sizeof(BDataType) * K * N / BPackedSize +

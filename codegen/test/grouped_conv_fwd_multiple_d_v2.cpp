@@ -160,9 +160,10 @@ struct Epilogue
                                               Epilogue{1.0f, 1.0f});
     out_host.SetZero();
     ref_invoker.Run(ref_argument);**/
-
+    int i = 0;
     for(auto solution : prob.GetSolutions("gfx908", prologue, epilogue))
     {
+        std::cout << "Testing solution " << std::to_string(++i) << std::endl;
         // substitute instance values into the template
         auto src = ck::host::InterpolateString(
             conv_compile_check,

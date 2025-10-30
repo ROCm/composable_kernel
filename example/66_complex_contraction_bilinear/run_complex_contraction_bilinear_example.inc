@@ -95,25 +95,26 @@ int run_complex_contraction_bilinear_example(int argc, char* argv[])
         exit(0);
     }
 
+    using DefaultLayout = ck::tensor_layout::gemm::RowMajor;
     // For Real Part of Complex Tensor
-    Tensor<ADataType> a_ms_ks_re(a_ms_ks_lengths, a_ms_ks_strides);
-    Tensor<BDataType> b_ns_ks_re(b_ns_ks_lengths, b_ns_ks_strides);
-    Tensor<EDataType> d_ms_ns_re(d_ms_ns_lengths, d_ms_ns_strides);
+    Tensor<ADataType> a_ms_ks_re(a_ms_ks_lengths, a_ms_ks_strides, DefaultLayout{});
+    Tensor<BDataType> b_ns_ks_re(b_ns_ks_lengths, b_ns_ks_strides, DefaultLayout{});
+    Tensor<EDataType> d_ms_ns_re(d_ms_ns_lengths, d_ms_ns_strides, DefaultLayout{});
 
-    Tensor<EDataType> e_ms_ns_host_result_re(e_ms_ns_lengths, e_ms_ns_strides);
-    Tensor<EDataType> e_ms_ns_device_result_re(e_ms_ns_lengths, e_ms_ns_strides);
+    Tensor<EDataType> e_ms_ns_host_result_re(e_ms_ns_lengths, e_ms_ns_strides, DefaultLayout{});
+    Tensor<EDataType> e_ms_ns_device_result_re(e_ms_ns_lengths, e_ms_ns_strides, DefaultLayout{});
 
     // For Imaginary Part of Complex Tensor
-    Tensor<ADataType> a_ms_ks_img(a_ms_ks_lengths, a_ms_ks_strides);
-    Tensor<BDataType> b_ns_ks_img(b_ns_ks_lengths, b_ns_ks_strides);
-    Tensor<EDataType> d_ms_ns_img(d_ms_ns_lengths, d_ms_ns_strides);
+    Tensor<ADataType> a_ms_ks_img(a_ms_ks_lengths, a_ms_ks_strides, DefaultLayout{});
+    Tensor<BDataType> b_ns_ks_img(b_ns_ks_lengths, b_ns_ks_strides, DefaultLayout{});
+    Tensor<EDataType> d_ms_ns_img(d_ms_ns_lengths, d_ms_ns_strides, DefaultLayout{});
 
-    Tensor<EDataType> e_ms_ns_host_result_img(e_ms_ns_lengths, e_ms_ns_strides);
-    Tensor<EDataType> e_ms_ns_device_result_img(e_ms_ns_lengths, e_ms_ns_strides);
+    Tensor<EDataType> e_ms_ns_host_result_img(e_ms_ns_lengths, e_ms_ns_strides, DefaultLayout{});
+    Tensor<EDataType> e_ms_ns_device_result_img(e_ms_ns_lengths, e_ms_ns_strides, DefaultLayout{});
 
     // Intermediate E tensor Definition
-    Tensor<EDataType> e_ms_ns_device_result_re1(e_ms_ns_lengths, e_ms_ns_strides);
-    Tensor<EDataType> e_ms_ns_device_result_img1(e_ms_ns_lengths, e_ms_ns_strides);
+    Tensor<EDataType> e_ms_ns_device_result_re1(e_ms_ns_lengths, e_ms_ns_strides, DefaultLayout{});
+    Tensor<EDataType> e_ms_ns_device_result_img1(e_ms_ns_lengths, e_ms_ns_strides, DefaultLayout{});
 
     std::cout << "a_ms_ks_re: " << a_ms_ks_re.mDesc << std::endl;
     std::cout << "b_ns_ks_re: " << b_ns_ks_re.mDesc << std::endl;
@@ -349,8 +350,10 @@ int run_complex_contraction_bilinear_example(int argc, char* argv[])
     if(do_verification)
     {
         // Real Part Verification
-        Tensor<CShuffleDataType> c_ms_ns_host_result_re(e_ms_ns_lengths, e_ms_ns_strides);
-        Tensor<CShuffleDataType> c_ms_ns_host_result_re1(e_ms_ns_lengths, e_ms_ns_strides);
+        Tensor<CShuffleDataType> c_ms_ns_host_result_re(
+            e_ms_ns_lengths, e_ms_ns_strides, DefaultLayout{});
+        Tensor<CShuffleDataType> c_ms_ns_host_result_re1(
+            e_ms_ns_lengths, e_ms_ns_strides, DefaultLayout{});
 
         using ReferenceOpInstance =
             ck::tensor_operation::host::ReferenceContraction_M2_N2_K2<NumDimM,
@@ -422,8 +425,10 @@ int run_complex_contraction_bilinear_example(int argc, char* argv[])
         isRealOk = ck::utils::check_err(e_ms_ns_device_result_re, e_ms_ns_host_result_re) ? 0 : 1;
 
         // Img Part Verification
-        Tensor<CShuffleDataType> c_ms_ns_host_result_img(e_ms_ns_lengths, e_ms_ns_strides);
-        Tensor<CShuffleDataType> c_ms_ns_host_result_img1(e_ms_ns_lengths, e_ms_ns_strides);
+        Tensor<CShuffleDataType> c_ms_ns_host_result_img(
+            e_ms_ns_lengths, e_ms_ns_strides, DefaultLayout{});
+        Tensor<CShuffleDataType> c_ms_ns_host_result_img1(
+            e_ms_ns_lengths, e_ms_ns_strides, DefaultLayout{});
 
         auto ref_argument_img = ref_op.MakeArgument(
             a_ms_ks_re, b_ns_ks_img, c_ms_ns_host_result_img, a_element_op, b_element_op);

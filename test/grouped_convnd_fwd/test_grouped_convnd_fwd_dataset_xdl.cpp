@@ -32,7 +32,6 @@ std::vector<ck::utils::conv::ConvParam> load_csv_test_cases(const std::string& f
     while(std::getline(file, line))
     {
         line_number++;
-        std::cout << "Line " << line_number << ": " << line << std::endl;
         // Skip comment lines (starting with #) and empty lines
         if(line.empty() || line[0] == '#')
         {

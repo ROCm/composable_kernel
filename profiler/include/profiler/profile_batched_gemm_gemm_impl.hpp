@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -110,11 +110,13 @@ bool profile_batched_gemm_gemm_impl(bool do_verification,
 
         if(std::is_same<decltype(layout), Row>::value)
         {
-            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, stride, 1_uz});
+            return HostTensorDescriptor(
+                {batch_count, row, col}, {batch_stride, stride, 1_uz}, layout);
         }
         else
         {
-            return HostTensorDescriptor({batch_count, row, col}, {batch_stride, 1_uz, stride});
+            return HostTensorDescriptor(
+                {batch_count, row, col}, {batch_stride, 1_uz, stride}, layout);
         }
     };
 
@@ -220,9 +222,10 @@ bool profile_batched_gemm_gemm_impl(bool do_verification,
     }
 
     std::string best_op_name;
-    float best_ave_time   = 0;
-    float best_tflops     = 0;
-    float best_gb_per_sec = 0;
+    float best_ave_time         = 0;
+    float best_tflops           = 0;
+    float best_gb_per_sec       = 0;
+    int num_supported_instances = 0;
 
     // profile device op instances
     for(auto& op_ptr : op_ptrs)
@@ -255,6 +258,7 @@ bool profile_batched_gemm_gemm_impl(bool do_verification,
 
         if(op_ptr->IsSupportedArgument(argument_ptr.get()))
         {
+            num_supported_instances++;
             std::string op_name = op_ptr->GetTypeString();
 
             float ave_time =
@@ -308,6 +312,8 @@ bool profile_batched_gemm_gemm_impl(bool do_verification,
             std::cout << op_ptr->GetTypeString() << " does not support this problem" << std::endl;
         }
     }
+
+    printf("\033[36mFound %d supported instances\033[0m\n", num_supported_instances);
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_op_name << std::endl;

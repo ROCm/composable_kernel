@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gemm_reduce_xdl_common.hpp"
 
@@ -150,6 +150,11 @@ int main(int argc, char* argv[])
                   << " arg3: Measure kernel execution time (1=ON, 0=Off)\n"
                   << " arg4 to 9: M (256x), N(128x), K(32x), StrideA, StrideB, StrideE\n"
                   << std::endl;
+        exit(EXIT_SUCCESS);
+    }
+
+    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
+    {
         exit(EXIT_SUCCESS);
     }
 

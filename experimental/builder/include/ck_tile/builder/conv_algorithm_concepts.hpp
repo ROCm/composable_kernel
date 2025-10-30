@@ -1,0 +1,141 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
+
+#include <type_traits>
+#include <concepts>
+#include <array>
+
+#include "ck_tile/builder/types.hpp"
+
+namespace ck_tile::builder {
+
+/********************************************************************/
+/* Descriptors for individual elements of the algorithm description */
+/********************************************************************/
+
+// Concept for thread block dimensions for a GEMM problem.
+template <typename T>
+concept ThreadBlockDescriptor = requires(T t) {
+    { t.block_size } -> std::convertible_to<size_t>;
+    { t.tile_size.m } -> std::convertible_to<size_t>;
+    { t.tile_size.n } -> std::convertible_to<size_t>;
+    { t.tile_size.k } -> std::convertible_to<size_t>;
+};
+
+// Concept for parameters that describe a gridwise GEMM problem.
+template <typename T>
+concept GridwiseGemmDescriptor = requires(T t) {
+    { t.ak1 } -> std::convertible_to<size_t>;
+    { t.bk1 } -> std::convertible_to<size_t>;
+    { t.m_per_xdl } -> std::convertible_to<size_t>;
+    { t.n_per_xdl } -> std::convertible_to<size_t>;
+    { t.m_xdl_per_wave } -> std::convertible_to<size_t>;
+    { t.n_xdl_per_wave } -> std::convertible_to<size_t>;
+};
+
+// Concept for vectorized data transfer for convolution input tensors.
+template <typename T>
+concept BlockTransferDescriptor = requires(T t) {
+    { t.k0 } -> std::convertible_to<size_t>;
+    { t.m_n } -> std::convertible_to<size_t>;
+    { t.k1 } -> std::convertible_to<size_t>;
+};
+
+// Concept for thread cluster dimensions for GEMM output tensor.
+template <typename T>
+concept ThreadClusterDescriptor = requires(T t) {
+    { t.m_block } -> std::convertible_to<size_t>;
+    { t.m_wave_per_xdl } -> std::convertible_to<size_t>;
+    { t.n_block } -> std::convertible_to<size_t>;
+    { t.n_wave_per_xdl } -> std::convertible_to<size_t>;
+};
+
+// Concept for the LDS transfer for the convolution input tensors.
+template <typename T>
+concept LdsTransferDescriptor = requires(T t) {
+    { t.src_vector_dim } -> std::convertible_to<size_t>;
+    { t.src_scalar_per_vector } -> std::convertible_to<size_t>;
+    { t.lds_dst_scalar_per_vector } -> std::convertible_to<size_t>;
+    { t.is_direct_load } -> std::convertible_to<bool>;
+    { t.lds_padding } -> std::convertible_to<bool>;
+};
+
+// Concept for the convolution output tensor epilogue (copy from registers to global memory via
+// LDS).
+template <typename T>
+concept EpilogueDescriptor = requires(T t) {
+    { t.m_xdl_per_wave_per_shuffle } -> std::convertible_to<size_t>;
+    { t.n_xdl_per_wave_per_shuffle } -> std::convertible_to<size_t>;
+    { t.scalar_per_vector } -> std::convertible_to<size_t>;
+};
+
+// Concept for the thread cluster access order
+template <typename T>
+concept AccessOrderDescriptor = requires(T t) {
+    { t.order } -> std::convertible_to<std::array<size_t, 3>>;
+};
+
+// No requirements yet for a ConvAlogorithm concept.
+template <typename T>
+concept ConvAlgorithmDescriptor = std::is_class_v<T>;
+
+/******************************************** */
+/* Requirements for the algorithm description */
+/******************************************** */
+
+// Concept to check if struct specifies thread block info.
+template <typename T>
+concept SpecifiesThreadBlock = requires {
+    { T::thread_block } -> ThreadBlockDescriptor;
+};
+
+// Concept to check if a struct specifies gridwise GEMM info.
+template <typename T>
+concept SpecifiesGridwiseGemm = requires {
+    { T::gridwise_gemm } -> GridwiseGemmDescriptor;
+};
+
+// Concept to check if a struct specifies convolution input and output block transfer info.
+template <typename T>
+concept SpecifiesBlockTransfer = requires(T t) {
+    { T::block_transfer.block_transfer_a } -> BlockTransferDescriptor;
+    { T::block_transfer.block_transfer_b } -> BlockTransferDescriptor;
+    { T::block_transfer.thread_cluster_dims_c } -> ThreadClusterDescriptor;
+};
+
+// Concept to check if a struct specifies LDS transfer info for tensors A, B, and C.
+template <typename T>
+concept SpecifiesLdsTransfer = requires(T t) {
+    { T::block_transfer.lds_transfer_a } -> LdsTransferDescriptor;
+    { T::block_transfer.lds_transfer_b } -> LdsTransferDescriptor;
+    { T::block_transfer.epilogue_c } -> EpilogueDescriptor;
+};
+
+// Concept to check if a struct specifies thread cluster access order info.
+template <typename T>
+concept SpecifiesThreadClusterAccessOrder = requires(T t) {
+    { T::block_transfer.block_transfer_access_order_a } -> AccessOrderDescriptor;
+    { T::block_transfer.block_transfer_access_order_b } -> AccessOrderDescriptor;
+};
+
+// Concept to check if a struct specifies source access order info.
+template <typename T>
+concept SpecifiesSourceAccessOrder = requires(T t) {
+    { T::block_transfer.src_access_order_a } -> AccessOrderDescriptor;
+    { T::block_transfer.src_access_order_b } -> AccessOrderDescriptor;
+};
+
+// Concept to check if struct specifies block_gemm_pipeline_version.
+template <typename T>
+concept SpecifiesGemmPipelineVersion = requires {
+    { T::pipeline_version } -> std::convertible_to<BlockGemmPipelineVersion>;
+};
+
+template <typename T>
+concept SpecifiesFwdConcSpecialization = requires {
+    { T::fwd_specialization } -> std::convertible_to<ConvFwdSpecialization>;
+};
+
+} // namespace ck_tile::builder

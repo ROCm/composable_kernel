@@ -48,7 +48,7 @@ else()
 endif()
 
 if (GPU_TARGETS)
-    if (GPU_TARGETS MATCHES "gfx9")
+    if (GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
         add_definitions(-DCK_USE_XDL)
         set(CK_USE_XDL "ON")
     endif()

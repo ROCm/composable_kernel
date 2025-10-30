@@ -27,10 +27,14 @@ void print_helper_msg()
               << ck::utils::conv::get_conv_param_parser_helper_msg() << std::endl;
 }
 
-template <typename DataType>
+template <typename DataType, typename GemmType = DataType>
 inline __host__ __device__ constexpr double get_rtol()
 {
-    if constexpr(std::is_same_v<DataType, float>)
+    if constexpr(std::is_same_v<DataType, float> && std::is_same_v<GemmType, ck::tf32_t>)
+    {
+        return 5e-3;
+    }
+    else if constexpr(std::is_same_v<DataType, float>)
     {
         return 1e-3;
     }
@@ -68,10 +72,14 @@ inline __host__ __device__ constexpr double get_rtol()
     }
 }
 
-template <typename DataType>
+template <typename DataType, typename GemmType = DataType>
 inline __host__ __device__ constexpr double get_atol()
 {
-    if constexpr(std::is_same_v<DataType, float>)
+    if constexpr(std::is_same_v<DataType, float> && std::is_same_v<GemmType, ck::tf32_t>)
+    {
+        return 1e-2;
+    }
+    else if constexpr(std::is_same_v<DataType, float>)
     {
         return 1e-3;
     }
@@ -116,7 +124,8 @@ template <ck::index_t NDimSpatial,
           typename InElementOp,
           typename WeiElementOp,
           typename OutElementOp,
-          typename DeviceConvNDFwdInstance>
+          typename DeviceConvNDFwdInstance,
+          typename ComputeDataType = OutDataType>
 bool run_grouped_conv_fwd(bool do_verification,
                           int init_method,
                           bool time_kernel,
@@ -228,7 +237,11 @@ bool run_grouped_conv_fwd(bool do_verification,
                                                                      OutDataType,
                                                                      InElementOp,
                                                                      WeiElementOp,
-                                                                     OutElementOp>();
+                                                                     OutElementOp,
+                                                                     0,
+                                                                     0,
+                                                                     0,
+                                                                     ComputeDataType>();
 
         auto ref_invoker  = ref_conv.MakeInvoker();
         auto ref_argument = ref_conv.MakeArgument(in,
@@ -249,8 +262,8 @@ bool run_grouped_conv_fwd(bool do_verification,
         return ck::utils::check_err(out_device,
                                     out_host,
                                     "Error: incorrect results!",
-                                    get_rtol<OutDataType>(),
-                                    get_atol<OutDataType>());
+                                    get_rtol<OutDataType, ComputeDataType>(),
+                                    get_atol<OutDataType, ComputeDataType>());
     }
 
     return true;

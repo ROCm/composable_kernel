@@ -30,6 +30,7 @@ struct FmhaFwdPagedKVKernel
     using EpiloguePipeline                        = ck_tile::remove_cvref_t<EpiloguePipeline_>;
     static constexpr ck_tile::index_t kBlockSize  = FmhaPipeline::kBlockSize;
     static constexpr ck_tile::index_t kBlockPerCu = FmhaPipeline::kBlockPerCu;
+
     static_assert(kBlockPerCu > 0);
     static constexpr ck_tile::index_t kBlockPerCuInput = FmhaPipeline::Problem::kBlockPerCu;
 
@@ -864,7 +865,17 @@ struct FmhaFwdPagedKVKernel
         }
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
+    CK_TILE_HOST static dim3 BlockSize()
+    {
+        if(is_wave32())
+        {
+            return dim3(kBlockSize / 2);
+        }
+        else
+        {
+            return dim3(kBlockSize);
+        }
+    }
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
@@ -879,8 +890,8 @@ struct FmhaFwdPagedKVKernel
         // divide problem
         const auto [i_tile_m, i_tile_n, i_nhead, i_batch] = GetTileIndex(kargs);
 
-        const index_t i_m0 = __builtin_amdgcn_readfirstlane(i_tile_m * FmhaPipeline::kM0);
-        const index_t i_n1 = __builtin_amdgcn_readfirstlane(i_tile_n * FmhaPipeline::kN1);
+        const index_t i_m0 = amd_wave_read_first_lane(i_tile_m * FmhaPipeline::kM0);
+        const index_t i_n1 = amd_wave_read_first_lane(i_tile_n * FmhaPipeline::kN1);
 
         long_index_t batch_offset_q    = 0;
         long_index_t batch_offset_k    = 0;
@@ -1357,7 +1368,6 @@ struct FmhaFwdPagedKVKernel
                 make_tuple(kargs.stride_o, 1),
                 number<FmhaPipeline::kAlignmentO>{},
                 number<1>{});
-
             return pad_tensor_view(
                 o_dram_naive,
                 make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
@@ -1369,7 +1379,7 @@ struct FmhaFwdPagedKVKernel
                              make_tuple(number<FmhaPipeline::kM0>{}, number<FmhaPipeline::kN1>{}),
                              {i_m0, i_n1});
 
-        EpiloguePipeline{}(o_dram_window, o_acc_tile);
+        EpiloguePipeline{}(o_dram_window, o_acc_tile, nullptr);
     }
 };
 

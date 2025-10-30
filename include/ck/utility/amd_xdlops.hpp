@@ -1636,4 +1636,45 @@ struct intrin_mfma_f32_16x16x32bf8f8<16, 16>
     }
 };
 
+/******************* tf32  *************************************/
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_f32_16x16x8xf32;
+
+template <>
+struct intrin_mfma_f32_16x16x8xf32<16, 16>
+{
+    template <class FloatC>
+    __device__ static void Run(const float2_t& reg_a, const float2_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx94__)
+        reg_c.template AsType<float4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_16x16x8_xf32(
+            reg_a, reg_b, reg_c.template AsType<float4_t>()[Number<0>{}], 0, 0, 0);
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif
+    }
+};
+
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_f32_32x32x4xf32;
+
+template <>
+struct intrin_mfma_f32_32x32x4xf32<32, 32>
+{
+    template <class FloatC>
+    __device__ static void Run(const float2_t& reg_a, const float2_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx94__)
+        reg_c.template AsType<float16_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_32x32x4_xf32(
+            reg_a, reg_b, reg_c.template AsType<float16_t>()[Number<0>{}], 0, 0, 0);
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif
+    }
+};
+
 } // namespace ck

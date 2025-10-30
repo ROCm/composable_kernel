@@ -145,6 +145,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_gufusion_v3<BlockGemmPipelineSch
     using Base::BMmaKStride;
 
     using Base::MWaves;
+    using Base::WaveSize;
 
     static constexpr index_t PrefetchStages        = 2;
     static constexpr index_t PrefillStages         = 1;
@@ -158,7 +159,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_gufusion_v3<BlockGemmPipelineSch
         constexpr index_t M1 = TileDesc_M0_M1_M2_K{}.GetLength(Number<1>{});
         constexpr index_t M2 = TileDesc_M0_M1_M2_K{}.GetLength(Number<2>{});
         constexpr index_t K2 = KPack / KGroup;
-        constexpr index_t K1 = 64 / NPerXDL;
+        constexpr index_t K1 = WaveSize / NPerXDL;
         constexpr index_t K0 = KRepeat * KGroup;
 
         return transform_tensor_descriptor(

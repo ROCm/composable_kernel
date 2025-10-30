@@ -22,7 +22,6 @@ from gemm_multi_d_codegen_utils import (
     warp_tile_supported_combinations,
     trait_unsupported_combinations,
     element_size,
-    get_gpu_name_by_id,
 )
 import logging
 
@@ -39,6 +38,8 @@ class GemmMultiDCodeGenerator:
     ):
         self.output_dir = Path(args.working_path)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+
+        self.gpu_target = args.gpu_target
 
         if user_provided_config is not None:
             self.config = user_provided_config
@@ -261,7 +262,7 @@ class GemmMultiDCodeGenerator:
 
         current_combination = [warp_tile_m, warp_tile_n, warp_tile_k]
 
-        gpu_name = get_gpu_name_by_id(0)
+        gpu_name = self.gpu_target
 
         gpu_warp_tile_key = warp_tile_supported_combinations.get(gpu_name, {})
         if not gpu_warp_tile_key:
@@ -443,8 +444,8 @@ struct GemmKernelMultiD {{
             using Kernel = ck_tile::GemmKernelMultiD<TilePartitioner, GemmPipeline, GemmEpilogue>;
             auto kargs   = Kernel::MakeKernelArgs(args);
 
-            const dim3 grids      = Kernel::GridSize(args.M, args.N, args.k_batch);
-            constexpr dim3 blocks = Kernel::BlockSize();
+            const dim3 grids  = Kernel::GridSize(args.M, args.N, args.k_batch);
+            const dim3 blocks = Kernel::BlockSize();
 
             if(!Kernel::IsSupportedArgument(kargs))
             {{
@@ -460,7 +461,7 @@ struct GemmKernelMultiD {{
             }}
 
             ave_time = ck_tile::launch_kernel(stream,
-                                          ck_tile::make_kernel<blocks.x, kBlockPerCu>(
+                                          ck_tile::make_kernel<kBlockPerCu>(
                                               Kernel{{}}, grids, blocks, 0, kargs));
                 
             return ave_time;
@@ -712,6 +713,11 @@ if __name__ == "__main__":
         default="./",
         required=False,
         help="The path where all the blobs are going to be generated",
+    )
+    parser.add_argument(
+        "--gpu_target",
+        required=True,
+        help="GPU target architecture",
     )
     parser.add_argument(
         "-j",

@@ -187,12 +187,24 @@ inline __host__ __device__ constexpr bf8_ocp_t type_convert<bf8_ocp_t, int>(int 
     return bf8_ocp_t{type_convert<bf8_ocp_t::data_type>(x)};
 }
 
+template <typename Y, enable_if_t<is_same_v<Y, ck::tf32_t>, bool> = false>
+inline __host__ __device__ constexpr float type_convert(float x)
+{
+    union
+    {
+        float fp32;
+        uint32_t int32;
+    } u = {x};
+
+    u.int32 = u.int32 & 0xffffe000;
+    return u.fp32;
+}
+
 // Convert X to Y
 template <typename Y, typename X>
 __host__ __device__ constexpr Y type_convert_sp(X x)
 {
     static_assert(!ck::is_reference_v<Y> && !ck::is_reference_v<X>);
-
     return static_cast<Y>(x);
 }
 
@@ -244,6 +256,65 @@ inline __host__ __device__ constexpr half_t type_convert_sp<half_t, int>(int x)
     return u.fp16;
 }
 
+template <>
+inline __host__ __device__ constexpr int type_convert_sp<int, f8_t>(f8_t x)
+{
+    union
+    {
+        f8_t fp8;
+        int int32;
+    } u = {x};
+
+    return u.int32;
+}
+
+template <>
+inline __host__ __device__ constexpr f8_t type_convert_sp<f8_t, int>(int x)
+{
+    union
+    {
+        int int32;
+        f8_t fp8;
+    } u = {x};
+
+    return u.fp8;
+}
+
+template <>
+inline __host__ __device__ constexpr int type_convert_sp<int, bhalf_t>(bhalf_t x)
+{
+    union
+    {
+        bhalf_t fp16;
+        int int32;
+    } u = {x};
+
+    return u.int32;
+}
+
+template <>
+inline __host__ __device__ constexpr bhalf_t type_convert_sp<bhalf_t, int>(int x)
+{
+    union
+    {
+        int int32;
+        bhalf_t fp16;
+    } u = {x};
+
+    return u.fp16;
+}
+
+template <>
+inline __host__ __device__ constexpr bhalf_t type_convert_sp<bhalf_t, float>(float x)
+{
+    return type_convert<bhalf_t>(x);
+}
+
+template <>
+inline __host__ __device__ constexpr half_t type_convert_sp<half_t, float>(float x)
+{
+    return type_convert<half_t>(x);
+}
 // Declare a template function for fp8 conversion using SR
 template <typename Y, typename X>
 __host__ __device__ constexpr Y f8_convert_sr(X x);
@@ -280,7 +351,7 @@ inline __host__ __device__ f8_fnuz_t f8_convert_sr<f8_fnuz_t, float>(float x)
         val.fval = __builtin_amdgcn_fmed3f(val.fval, max_fp8, -max_fp8);
     ival       = __builtin_amdgcn_cvt_sr_fp8_f32(val.fval, rng, ival, 0); // 0 pos
     val.i32val = ival;
-    return val.i8val[0]; // little endian
+    return f8_fnuz_t{val.i8val[0]}; // little endian
 #else
     constexpr bool negative_zero_nan = true;
     constexpr bool clip              = true;
@@ -348,7 +419,7 @@ inline __host__ __device__ bf8_fnuz_t f8_convert_sr<bf8_fnuz_t, float>(float x)
         val.fval = __builtin_amdgcn_fmed3f(val.fval, max_bf8, -max_bf8);
     ival       = __builtin_amdgcn_cvt_sr_bf8_f32(val.fval, rng, ival, 0); // 0 pos
     val.i32val = ival;
-    return val.i8val[0]; // little endian
+    return bf8_fnuz_t{val.i8val[0]}; // little endian
 #else
     constexpr bool negative_zero_nan = true;
     constexpr bool clip              = true;
@@ -584,7 +655,7 @@ inline __host__ __device__ f8_fnuz_t f8_convert_rne<f8_fnuz_t, float>(float x)
         val.fval = __builtin_amdgcn_fmed3f(val.fval, max_fp8, -max_fp8);
     ival       = __builtin_amdgcn_cvt_pk_fp8_f32(val.fval, val.fval, ival, false); // false -> WORD0
     val.i32val = ival;
-    return val.i8val[0];
+    return f8_fnuz_t{val.i8val[0]};
 #else
     constexpr bool negative_zero_nan = true;
     constexpr bool clip              = true;
@@ -636,7 +707,7 @@ inline __host__ __device__ bf8_fnuz_t f8_convert_rne<bf8_fnuz_t, float>(float x)
         val.fval = __builtin_amdgcn_fmed3f(val.fval, max_bf8, -max_bf8);
     ival       = __builtin_amdgcn_cvt_pk_bf8_f32(val.fval, val.fval, ival, false); // false -> WORD0
     val.i32val = ival;
-    return val.i8val[0];
+    return bf8_fnuz_t{val.i8val[0]};
 #else
     constexpr bool negative_zero_nan = true;
     constexpr bool clip              = true;
@@ -853,7 +924,7 @@ inline __host__ __device__ float type_convert<float, f8_fnuz_t>(f8_fnuz_t x)
 {
 #if defined(__gfx94__)
     float fval;
-    uint32_t i32val = static_cast<uint32_t>(x);
+    uint32_t i32val = static_cast<uint32_t>(static_cast<uint8_t>(x));
     fval            = __builtin_amdgcn_cvt_f32_fp8(i32val, 0);
     // asm volatile("v_cvt_f32_fp8 %0, %1 src0_sel:BYTE_0" : "=v"(fval) : "v"(i32val));
     return fval;
@@ -917,7 +988,7 @@ inline __host__ __device__ float2_t type_convert<float2_t, f8x2_ocp_t>(f8x2_ocp_
 #if CK_OCP_FP8_CVT_FAST_PATH
 // __builtin_amdgcn_cvt_pk_f32_fp8 can produce incorrect results due to a compiler issue.
 // TODO: Enable when SWDEV-532959 is fixed.
-#if defined(__gfx1200__) || defined(__gfx1201__)
+#if defined(__gfx12__)
     return float2_t{__builtin_amdgcn_cvt_f32_fp8(bit_cast<uint16_t>(x), 0),
                     __builtin_amdgcn_cvt_f32_fp8(bit_cast<uint16_t>(x), 1)};
 #else
@@ -1060,7 +1131,7 @@ inline __host__ __device__ float2_t type_convert<float2_t, bf8x2_ocp_t>(bf8x2_oc
 #if CK_OCP_FP8_CVT_FAST_PATH
 // __builtin_amdgcn_cvt_pk_f32_bf8 can produce incorrect results due to a compiler issue.
 // TODO: Enable when SWDEV-532959 is fixed.
-#if defined(__gfx1200__) || defined(__gfx1201__)
+#if defined(__gfx12__)
     return float2_t{__builtin_amdgcn_cvt_f32_bf8(bit_cast<uint16_t>(x), 0),
                     __builtin_amdgcn_cvt_f32_bf8(bit_cast<uint16_t>(x), 1)};
 #else
@@ -1359,7 +1430,7 @@ inline __host__ __device__ float type_convert<float, bf8_fnuz_t>(bf8_fnuz_t x)
 {
 #if defined(__gfx94__)
     float fval;
-    uint32_t i32val = static_cast<uint32_t>(x);
+    uint32_t i32val = static_cast<uint32_t>(static_cast<uint8_t>(x));
     fval            = __builtin_amdgcn_cvt_f32_bf8(i32val, 0);
     // asm volatile("v_cvt_f32_bf8 %0, %1 src0_sel:BYTE_0" : "=v"(fval) : "v"(i32val));
     return fval;

@@ -125,7 +125,7 @@ inline bool parse_cmd_args(int argc,
 
         const ck::index_t num_dim_spatial = std::stoi(argv[4]);
         problem_size                      = ck::utils::conv::parse_conv_param(
-            num_dim_spatial, threshold_to_catch_partial_args, argv);
+            num_dim_spatial, threshold_to_catch_partial_args + 1, argv);
     }
     else
     {
