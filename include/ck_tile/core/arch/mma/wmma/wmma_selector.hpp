@@ -29,14 +29,10 @@ template <typename ADataType,
           uint32_t BlockN,
           uint32_t BlockKTest,
           amdgcn_target_arch_id GfxTargetId>
+    requires(is_rdna_arch_id(GfxTargetId) && is_power_of_two_integer(BlockKTest))
 struct WmmaDefaultSelector
 {
     private:
-    // TODO: Move this power-of-2 check to a type_traits utility
-    static_assert((BlockKTest & (BlockKTest - 1)) == 0u, "BlockK must be a power of 2");
-    static_assert(is_rdna_arch_id(GfxTargetId),
-                  "WmmaDefaultSelector only supports rdna target IDs");
-
     // By default, let's assume no special flags for WMMA
     using CtrlFlags = DefaultWmmaCtrlFlags<ADataType, BDataType, CDataType>;
 
@@ -142,8 +138,9 @@ struct MmaDefaultSelector<ADataType,
     // Check if each candidate is supported for the given fragment sizes
     // For this case, we require the fragment sizes to be multiples of the WMMA shape
     static constexpr bool IsSupported16x16 = CandidateTraits16x16::IsSupported &&
-                                             (FragM % 16u == 0u) && (FragN % 16u == 0u) &&
-                                             (CandidateTraits16x16::BlockK % 16u == 0u);
+                                             (FragM % CandidateTraits16x16::BlockM == 0u) &&
+                                             (FragN % CandidateTraits16x16::BlockN == 0u) &&
+                                             (FragK % CandidateTraits16x16::BlockK == 0u);
 
     public:
     // Select the largest supported WMMA operation for the given fragment shape
