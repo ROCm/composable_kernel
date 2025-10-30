@@ -7,7 +7,6 @@
 #include "gemm_basic_invoker.hpp"
 #include "ck_tile/core/utility/gemm_validation.hpp"
 
-
 int run_gemm_example(ck_tile::ArgParser& arg_parser)
 {
     std::string data_type = arg_parser.get_str("prec");
