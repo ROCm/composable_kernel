@@ -19,10 +19,8 @@ def _setup_path():
         sys.path.insert(0, parent_dir)
 
 
-# Setup path before imports
 _setup_path()
 
-# Now import local modules
 from commons.validation_utils import (  # noqa: E402
     is_tile_config_valid,
     is_trait_combination_valid,
