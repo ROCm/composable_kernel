@@ -887,8 +887,8 @@ struct GroupedConvolutionBackwardDataKernel
         const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views_tuple);
         auto gemm_tile_windows     = MakeGemmTileWindows(gemm_pad_views, block_idx_m, block_idx_n);
 
-        const index_t num_loop = amd_wave_read_first_lane(
-            TilePartitioner::GetLoopNum(gemm_tile_windows.at(I0).get_length(I1)));
+        const index_t num_loop = amd_wave_read_first_lane(TilePartitioner::GetLoopNum(
+            gemm_pad_views.at(I0).get_tensor_descriptor().get_length(I1)));
 
         // Run GEMM cooperatively by whole workgroup.
         const auto& a_block_window = gemm_tile_windows.at(I0);

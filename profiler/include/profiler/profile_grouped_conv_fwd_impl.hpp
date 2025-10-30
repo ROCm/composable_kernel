@@ -210,6 +210,8 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         {
             std::cout << op_ptr->GetTypeString() << " does not support this problem" << std::endl;
         }
+
+
     };
 
     using DeviceOp = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<NDimSpatial,
@@ -261,6 +263,23 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
     std::cout << "Best configuration parameters:" << "\nname: " << best_op_name
               << "\navg_time: " << best_avg_time << "\ntflops: " << best_tflops
               << "\nGB/s: " << best_gb_per_sec << std::endl;
+
+    const char* log_file = std::getenv("CK_PROFILER_LOG_FILE");
+    if(log_file != nullptr)
+    {
+        std::ofstream out(log_file, std::ios::app);
+        if(out.is_open())
+        {
+            std::stringstream out_ss;
+            out_ss << "CK best configuration:" << std::endl
+                << "name: " << best_op_name << std::endl
+                << "avg_time: " << best_avg_time << std::endl
+                << "SplitK: " << 1 << std::endl;
+            out << out_ss.str();
+            out.close();
+        }
+    }
+              
     if(instance_index != -1)
     {
         std::cout << "grouped_conv_fwd_instance (" << instance_index << "/" << num_kernel

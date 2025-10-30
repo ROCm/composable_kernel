@@ -14,9 +14,9 @@
 #include "ck_tile/host/convolution_parameter.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/grouped_convolution_utils.hpp"
-#include "ck_tile/library/tensor_operation_instance/gpu/tile_grouped_conv_bwd_weight_factory.hpp"
-#include "ck_tile/ops/grouped_convolution/kernel/grouped_convolution_backward_weight_kernel.hpp"
-#include "ck_tile/host/reference/reference_grouped_conv_bwd_weight.hpp"
+#include "ck_tile/library/tensor_operation_instance/gpu/tile_grouped_conv_bwd_data_factory.hpp"
+#include "ck_tile/ops/grouped_convolution/kernel/grouped_convolution_backward_data_kernel.hpp"
+#include "ck_tile/host/reference/reference_grouped_conv_bwd_data.hpp"
 namespace ck_tile {
 namespace profiler {
 
@@ -51,7 +51,7 @@ template <ck_tile::index_t NDimSpatial,
           typename OutDataType,
           typename ComputeTypeA = InDataType,
           typename ComputeTypeB = ComputeTypeA>
-bool profile_grouped_conv_bwd_weight_impl(int do_verification,
+bool profile_grouped_conv_bwd_data_impl(int do_verification,
                                           int init_method,
                                           bool /*do_log*/,
                                           bool time_kernel,
@@ -82,15 +82,15 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     switch(init_method)
     {
     case 0:
-        ck_tile::FillUniformDistribution<InDataType>{-1.f, 1.f}(input);
+        ck_tile::FillUniformDistribution<WeiDataType>{-1.f, 1.f}(weight);
         ck_tile::FillUniformDistribution<OutDataType>{-1.f, 1.f}(output);
         break;
     case 1:
-        ck_tile::FillMonotonicSeq<InDataType>{}(input);
+        ck_tile::FillMonotonicSeq<WeiDataType>{}(weight);
         ck_tile::FillMonotonicSeq<OutDataType>{}(output);
         break;
     case 2:
-        ck_tile::FillUniformDistribution<InDataType>{1.f, 1.f}(input);
+        ck_tile::FillUniformDistribution<WeiDataType>{1.f, 1.f}(weight);
         ck_tile::FillUniformDistribution<OutDataType>{1.f, 1.f}(output);
         break;
     default:
@@ -98,7 +98,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
         output.SetZero();
     }
 
-    using DeviceOp = ops::GroupedConvolutionBackwardWeightBaseInvoker<
+    using DeviceOp = ops::GroupedConvolutionBackwardDataBaseInvoker<
                                                         NDimSpatial,
                                                         InLayout,
                                                         WeiLayout,
@@ -139,13 +139,13 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     }
 
     // First, calculate the reference result if verification is needed.
-    ck_tile::HostTensor<WeiDataType> weight_host_ref(wei_g_k_c_xs_desc);
-    weight_host_ref.SetZero();
+    ck_tile::HostTensor<InDataType> input_host_ref(in_g_n_c_wis_desc);
+    input_host_ref.SetZero();
     if (do_verification)
     {
-        ck_tile::reference_grouped_conv_bwd_weight<NDimSpatial, InDataType, WeiDataType, OutDataType>(
-                            input,
-                            weight_host_ref,
+        ck_tile::reference_grouped_conv_bwd_data<NDimSpatial, InDataType, WeiDataType, OutDataType>(
+                            input_host_ref,
+                            weight,
                             output,
                             conv_param.conv_filter_strides_,
                             conv_param.conv_filter_dilations_,
@@ -167,11 +167,11 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
             ck_tile::DeviceMem weight_dev_buf(weight.get_element_space_size_in_bytes());
             ck_tile::DeviceMem output_dev_buf(output.get_element_space_size_in_bytes());
 
-            input_dev_buf.ToDevice(input.data());
-            weight_dev_buf.SetZero();
+            input_dev_buf.SetZero();
+            weight_dev_buf.ToDevice(weight.data());
             output_dev_buf.ToDevice(output.data());
 
-            ck_tile::GroupedConvBwdWeightHostArgs args(conv_param,
+            ck_tile::GroupedConvBwdDataHostArgs args(conv_param,
                                                input_dev_buf.GetDeviceBuffer(),
                                                weight_dev_buf.GetDeviceBuffer(),
                                                {},
@@ -199,17 +199,17 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                     constexpr int n_repeat = 1;
 
                     op->Run(args, false, n_warmup, n_repeat);
-                    weight_dev_buf.FromDevice(weight.data());
+                    input_dev_buf.FromDevice(input.data());
 
                     const ck_tile::index_t GemmK = weight.get_element_size() / (conv_param.G_ * conv_param.K_);
                     const float max_accumulated_value =
-                        *std::max_element(weight_host_ref.mData.begin(), weight_host_ref.mData.end());
+                        *std::max_element(input_host_ref.mData.begin(), input_host_ref.mData.end());
                     const auto rtol_atol =
                         calculate_rtol_atol<InDataType, WeiDataType, AccDataType, OutDataType>(
                             GemmK, split_k_value, max_accumulated_value);
 
-                    pass = ck_tile::check_err(weight,
-                                            weight_host_ref,
+                    pass = ck_tile::check_err(input,
+                                            input_host_ref,
                                             "Error: Incorrect results!",
                                             rtol_atol.at(ck_tile::number<0>{}),
                                             rtol_atol.at(ck_tile::number<1>{}));
@@ -289,7 +289,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
 
     if(instance_index != -1)
     {
-        std::cout << "grouped_conv_bwd_weight_instance (" << instance_index << "/" << num_kernel
+        std::cout << "grouped_conv_bwd_data_instance (" << instance_index << "/" << num_kernel
                   << "): Passed" << std::endl;
     }
     return all_pass;
