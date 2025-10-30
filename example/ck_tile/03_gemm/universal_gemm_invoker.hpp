@@ -95,13 +95,13 @@ struct UniversalFactory
     public:
     using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 
-    CK_TILE_HOST static constexpr auto make_kernel(const ck_tile::GemmHostArgs& args)
+    CK_TILE_HOST static constexpr auto make_kernel(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
     {
         auto kargs = Kernel::MakeKernelArgs(args);
 
         // NB: do we really need the stream to be launched here?
         const dim3 grids  = AlgorithmMetadata::KPersistent::value
-                                ? Kernel::MaxOccupancyGridSize(ck_tile::stream_config{})
+                                ? Kernel::MaxOccupancyGridSize(s)
                                 : Kernel::GridSize(args.M, args.N, args.k_batch);
         const dim3 blocks = Kernel::BlockSize();
 
@@ -291,7 +291,7 @@ struct UniversalInvoker
             //     kargs));
 
             ave_time = ck_tile::launch_kernel(
-                s, ck_tile::experimental::builder::UniversalFactory<Algo, Inp>::make_kernel(args));
+                s, ck_tile::experimental::builder::UniversalFactory<Algo, Inp>::make_kernel(args, s));
 
             return ave_time;
         };
