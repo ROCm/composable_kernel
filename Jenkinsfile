@@ -20,6 +20,56 @@ def failurePatterns = [
     [pattern: /cat: .* No such file or directory/, description: "GPU not found"],
 ]
 
+// Given a pattern, check if the log contains the pattern and return the context.
+def checkForPattern(pattern, log) {
+    def lines = log.split('\n')
+    for (int i = 0; i < lines.size(); i++) {
+        if (lines[i] =~ pattern) {
+            echo "Found pattern match in log for ${pattern}"
+            
+            // Get the two lines before and after failure.
+            def contextStart = Math.max(0, i - 2)
+            def contextEnd = Math.min(lines.size() - 1, i + 2)
+            def contextLines = []
+            for (int j = contextStart; j <= contextEnd; j++) {
+                contextLines.add(lines[j])
+            }
+            
+            return [found: true, matchedLine: lines[i], context: contextLines.join('\n')]
+        }
+    }
+    echo "No pattern match found in log for ${pattern}"
+    return [found: false, matchedLine: "", context: ""]
+}
+
+// Scan build logs and send notifications
+def sendFailureNotifications() {
+    // Get the build log.
+    def buildLog = sh(script: 'wget -q --no-check-certificate -O - ' + BUILD_URL + 'consoleText', returnStdout: true)
+    // Check for patterns in the log.
+    def foundPatterns = []
+    for (patternMap in failurePatterns) {
+        def result = checkForPattern(patternMap.pattern, buildLog)
+        if (result.found) {
+            foundPatterns.add([
+                description: patternMap.description,
+                matchedLine: result.matchedLine,
+                context: result.context
+            ])
+        }
+    }
+    // Send a notification for each matched failure pattern.
+    for (patternMap in foundPatterns) {
+        withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
+        sh '''
+            curl -X POST "${WEBHOOK_URL}" \
+            -H 'Content-Type: application/json' \
+            -d '{"text": "\\n\\n**Build Failed**\\n\\n**Issues detected:** ''' + patternMap.description + '''\\n\\n**Log context:**\\n```\\n''' + patternMap.context.replace("'", "\\'") + '''\\n```\\n\\n**Job:** ''' + env.JOB_NAME + '''\\n\\n**Build:** #''' + env.BUILD_NUMBER + '''\\n\\n**URL:** ''' + env.RUN_DISPLAY_URL + '''"}'
+        '''
+        }
+    }
+}
+
 class Version {
     int major, minor, patch
     @Override
@@ -194,6 +244,33 @@ def check_arch(){
     return arch_type
 }
 
+def check_arch_name(){
+    def arch_name = ""
+    sh 'rocminfo | tee rocminfo.log'
+    if ( runShell('grep -n "gfx90a" rocminfo.log') ){
+        arch_name = "gfx90a"
+    }
+    else if ( runShell('grep -n "gfx942" rocminfo.log') ) {
+        arch_name = "gfx942"
+    }
+    else if ( runShell('grep -n "gfx10" rocminfo.log') ) {
+        arch_name = "gfx10"
+    }
+    else if ( runShell('grep -n "gfx11" rocminfo.log') ) {
+        arch_name = "gfx11"
+    }
+    else if ( runShell('grep -n "gfx12" rocminfo.log') ) {
+        arch_name = "gfx12"
+    }
+    else if ( runShell('grep -n "gfx908" rocminfo.log') ) {
+        arch_name = "gfx908"
+    }
+    else if ( runShell('grep -n "gfx950" rocminfo.log') ) {
+        arch_name = "gfx950"
+    }
+    return arch_name
+}
+
 def getDockerImage(Map conf=[:]){
     env.DOCKER_BUILDKIT=1
     def prefixpath = conf.get("prefixpath", "/opt/rocm")
@@ -301,12 +378,6 @@ def cmake_build(Map conf=[:]){
 
     //cmake_env can overwrite default CXX variables.
     def cmake_envs = "CXX=${compiler} CXXFLAGS='-Werror' " + conf.get("cmake_ex_env","")
-
-    def package_build = (conf.get("package_build","") == "true")
-
-    if (package_build == true) {
-        config_targets = "package"
-    }
 
     if(conf.get("build_install","") == "true")
     {
@@ -455,15 +526,20 @@ def cmake_build(Map conf=[:]){
                     else{
                         sh "ninja check"
                     }
+                    if(params.BUILD_PACKAGES){
+                        echo "Build ckProfiler packages"
+                        sh 'ninja -j64 package'
+                        def arch_name = check_arch_name()
+                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
+                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${arch_name}"
+                    }
                 }
                 if(params.BUILD_INSTANCES_ONLY){
                     // build deb packages
-                    echo "Build packages"
+                    echo "Build library package"
                     sh 'ninja -j64 package'
-                    archiveArtifacts artifacts: 'composablekernel-dev*.deb'
                     sh 'mv composablekernel-dev_*.deb composablekernel-dev_all_targets_1.2.0_amd64.deb'
-                    sh 'mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64.deb'
-                    stash includes: "composablekernel-**.deb", name: "packages"
+                    stash includes: "composablekernel-dev**.deb", name: "lib_package"
                 }
             }
             else{
@@ -475,15 +551,18 @@ def cmake_build(Map conf=[:]){
                     else{
                         sh "ninja check"
                     }
+                    if(params.BUILD_PACKAGES){
+                        echo "Build ckProfiler packages"
+                        sh 'ninja -j64 package'
+                        def arch_name = check_arch_name()
+                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
+                        stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${arch_name}"
+                    }
                 }
             }
         }
     }
 
-    // Only archive from develop
-    if (package_build == true && env.BRANCH_NAME == "develop") {
-        archiveArtifacts artifacts: "build/*.deb", allowEmptyArchive: true, fingerprint: true
-    }
     //check the node gpu architecture
     def arch = check_arch()
     if (params.RUN_CK_TILE_FMHA_TESTS){
@@ -823,8 +902,41 @@ def process_results(Map conf=[:]){
                     }
                     if (params.BUILD_INSTANCES_ONLY){
                         // unstash deb packages
-                        unstash "packages"
+                        try{
+                            unstash "lib_package"
+                        }
+                        catch(Exception err){
+                            echo "could not locate lib_package."
+                        }
                         sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no composablekernel-*.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
+                    }
+                    if (params.BUILD_PACKAGES){
+                        // unstash deb packages
+                        try{
+                            unstash "profiler_package_gfx90a"
+                        }
+                        catch(Exception err){
+                            echo "could not locate profiler_package_gfx90a."
+                        }
+                        try{
+                            unstash "profiler_package_gfx942"
+                        }
+                        catch(Exception err){
+                            echo "could not locate profiler_package_gfx942."
+                        }
+                        try{
+                            unstash "profiler_package_gfx950"
+                        }
+                        catch(Exception err){
+                            echo "could not locate profiler_package_gfx950."
+                        }
+                        try{
+                            unstash "profiler_package_gfx12"
+                        }
+                        catch(Exception err){
+                            echo "could not locate profiler_package_gfx12."
+                        }
+                        sh "sshpass -p ${env.ck_deb_pw} scp -o StrictHostKeyChecking=no composablekernel-ckprofiler*.deb ${env.ck_deb_user}@${env.ck_deb_ip}:/var/www/html/composable_kernel/"
                     }
                     else{
                         // unstash perf files to master
@@ -993,7 +1105,7 @@ def run_pytorch_tests(Map conf=[:]){
 //launch develop branch daily jobs
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_PERFORMANCE_TESTS=true;FORCE_CI=true
                                               0 22 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_TILE_ENGINE_GEMM_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
-                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
+                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true;BUILD_PACKAGES=true
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;FORCE_CI=true
@@ -1085,6 +1197,10 @@ pipeline {
             name: "BUILD_INSTANCES_ONLY",
             defaultValue: false,
             description: "Test building instances for various architectures simultaneously (default: OFF)")
+        booleanParam(
+            name: "BUILD_PACKAGES",
+            defaultValue: false,
+            description: "Build packages for the libraries and/or ckProfiler (default: OFF)")
         booleanParam(
             name: "BUILD_GFX908",
             defaultValue: false,
@@ -1469,6 +1585,25 @@ pipeline {
                         cleanWs()
                     }
                 }
+                stage("Run CK_TILE_FMHA Tests on gfx1201")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_CK_TILE_FMHA_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx1201") }
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx12-generic && \
+                                           make -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
+                                           cd ../ &&
+                                           example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx1201 """
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+                }
             }
         }
         stage("Run TILE_ENGINE_GEMM Tests")
@@ -1775,7 +1910,7 @@ pipeline {
                     }
                     agent{ label 'miopen && (gfx1101 || gfx1100)' }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx11-generic" -DUSE_OPT_GFX11=ON -DCMAKE_CXX_FLAGS=" -O3 " """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx11-generic" -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx11-generic" \
@@ -1796,7 +1931,7 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx1201") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx12-generic" -DUSE_OPT_GFX12=ON -DCMAKE_CXX_FLAGS=" -O3 " """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx12-generic" -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx12-generic" \
@@ -1829,7 +1964,7 @@ pipeline {
                 stage("Process results"){
                     when {
                         beforeAgent true
-                        expression { (params.RUN_PERFORMANCE_TESTS.toBoolean() || params.BUILD_INSTANCES_ONLY.toBoolean() || params.RUN_CK_TILE_FMHA_TESTS.toBoolean()) && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { (params.RUN_PERFORMANCE_TESTS.toBoolean() || params.BUILD_INSTANCES_ONLY.toBoolean() || params.RUN_CK_TILE_FMHA_TESTS.toBoolean()|| params.BUILD_PACKAGES.toBoolean()) && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent { label 'mici' }
                     steps{
@@ -1860,30 +1995,7 @@ pipeline {
         failure {
             node(rocmnode("nogpu")) {
                 script {
-                    // Get the build log.
-                    def buildLog = sh(script: 'wget -q --no-check-certificate -O - ' + BUILD_URL + 'consoleText', returnStdout: true)
-                    // Check for patterns in the log.
-                    def foundPatterns = []
-                    for (patternMap in failurePatterns) {
-                        def result = checkForPattern(patternMap.pattern, buildLog)
-                        if (result.found) {
-                            foundPatterns.add([
-                                description: patternMap.description,
-                                matchedLine: result.matchedLine,
-                                context: result.context
-                            ])
-                        }
-                    }
-                    // Send a notification for each matched failure pattern.
-                    for (patternMap in foundPatterns) {
-                        withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
-                        sh '''
-                            curl -X POST "${WEBHOOK_URL}" \
-                            -H 'Content-Type: application/json' \
-                            -d '{"text": "\\n\\n**Build Failed**\\n\\n**Issues detected:** ''' + patternMap.description + '''\\n\\n**Log context:**\\n```\\n''' + patternMap.context.replace("'", "\\'") + '''\\n```\\n\\n**Job:** ''' + env.JOB_NAME + '''\\n\\n**Build:** #''' + env.BUILD_NUMBER + '''\\n\\n**URL:** ''' + env.RUN_DISPLAY_URL + '''"}'
-                        '''
-                        }
-                    }                    
+                    sendFailureNotifications()
                 }
             }
         }

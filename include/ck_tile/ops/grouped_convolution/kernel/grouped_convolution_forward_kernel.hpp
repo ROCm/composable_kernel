@@ -29,6 +29,7 @@ struct GroupedConvFwdKernelArgs
                                GroupedConvTraitsType_::VectorSizeA,
                                GroupedConvTraitsType_::VectorSizeB,
                                GroupedConvTraitsType_::VectorSizeC,
+                               GroupedConvTraitsType_::NumGroupsToMerge,
                                true>; // Split N enabled
     using CDElementwise                 = typename GroupedConvTraitsType_::CDElementwise;
     static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;

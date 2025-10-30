@@ -107,7 +107,15 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
             constexpr bool transpose_c      = false;
             // We create the GEMM pipeline without specifying hotloop or tailnumber.
             // These are automatically run inside the kernel based on the given input data.
-            using QuantGemmProblem =
+            using QuantGemmProblem = typename std::conditional<
+                QuantType == ck_tile::QuantType::BQuantGrouped,
+                ck_tile::GemmBQuantPipelineProblem<ADataType,
+                                                   BDataType,
+                                                   BQDataType,
+                                                   AccDataType,
+                                                   GemmShape,
+                                                   GemmUniversalTraits,
+                                                   128>, // QuantGroupSize
                 ck_tile::GemmRowColTensorQuantPipelineProblem<ADataType,
                                                               BDataType,
                                                               AccDataType,
@@ -116,9 +124,13 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                                                               GemmUniversalTraits,
                                                               transpose_c,
                                                               BDataType,
-                                                              scheduler>;
+                                                              scheduler>>::type;
 
-            using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<QuantGemmProblem>;
+            using GemmPipeline = typename std::conditional<
+                QuantType == ck_tile::QuantType::BQuantGrouped,
+                ck_tile::BQuantGemmPipelineAgBgCrCompV3<QuantGemmProblem>,
+                ck_tile::GemmPipelineAgBgCrCompV3<QuantGemmProblem>>::type;
+
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,
@@ -244,6 +256,15 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                 AQK = 1; // Row quantization: tensor shape [M, 1] or [1]
                 BQK = 1; // Column quantization: tensor shape [1, N] or [1]
             }
+            else if constexpr(QuantType == ck_tile::QuantType::BQuantGrouped)
+            {
+                AQK = 0;       // No A quantization
+                BQK = K / 128; // Group quantization: BQK = K / GroupSize
+                if(K % 128 != 0)
+                {
+                    throw std::runtime_error("K must be divisible by 128 for BQuantGrouped mode");
+                }
+            }
 
             stride_As[i] = ck_tile::get_default_stride(M, K, stride_As[i], is_row_major(ALayout{}));
             stride_Bs[i] = ck_tile::get_default_stride(K, N, stride_Bs[i], is_row_major(BLayout{}));
@@ -258,7 +279,13 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
             else if constexpr(QuantType == ck_tile::QuantType::TensorQuant)
             {
                 stride_AQs[i] = 1; // Tensor quantization: tensor shape [1]
-                stride_AQs[i] = 1; // Tensor quantization: tensor shape [1]
+                stride_BQs[i] = 1; // Tensor quantization: tensor shape [1]
+            }
+            else if constexpr(QuantType == ck_tile::QuantType::BQuantGrouped)
+            {
+                stride_AQs[i] = 0; // No A quantization
+                stride_BQs[i] =
+                    ck_tile::get_default_stride(BQK, N, stride_BQs[i], is_row_major(BQLayout()));
             }
 
             a_m_k_tensors.push_back(ck_tile::HostTensor<ADataType>(
@@ -284,6 +311,15 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                 bq_tensors.push_back(
                     ck_tile::HostTensor<BQDataType>(ck_tile::host_tensor_descriptor(
                         1, 1, stride_BQs[i], is_row_major(BQLayout()))));
+            }
+            else if constexpr(QuantType == ck_tile::QuantType::BQuantGrouped)
+            {
+                aq_tensors.push_back(
+                    ck_tile::HostTensor<AQDataType>(ck_tile::host_tensor_descriptor(
+                        0, AQK, stride_AQs[i], is_row_major(AQLayout{}))));
+                bq_tensors.push_back(
+                    ck_tile::HostTensor<BQDataType>(ck_tile::host_tensor_descriptor(
+                        BQK, N, stride_BQs[i], is_row_major(BQLayout()))));
             }
 
             std::cout << "gemm[" << i << "]" << " a_m_k: " << a_m_k_tensors[i].mDesc
@@ -373,7 +409,6 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                                     kargs.size() * sizeof(ck_tile::QuantGemmTransKernelArg),
                                     hipMemcpyHostToDevice,
                                     stream.stream_id_));
-
             invoke_grouped_gemm_persistent<GroupedGemKernelParam_Mfma, ALayout, BLayout, CLayout>(
                 stream, group_count, kargs_ptr);
         }
@@ -419,6 +454,17 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                                                                 b_k_n_tensors[i],
                                                                 bq_tensors[i],
                                                                 c_m_n_host_ref);
+            }
+            else if constexpr(QuantType == ck_tile::QuantType::BQuantGrouped)
+            {
+                ck_tile::reference_gemm_quant<ADataType,
+                                              AQDataType,
+                                              BDataType,
+                                              AccDataType,
+                                              CDataType,
+                                              128,
+                                              false>(
+                    a_m_k_tensors[i], bq_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
             }
 
             const float max_accumulated_value =

@@ -10,11 +10,6 @@ namespace ck_tile::builder::test_utils {
 using namespace ck_tile::builder;
 using namespace test;
 
-// Common test base class
-class FwdConvBuilderTestBase : public ::testing::Test
-{
-};
-
 // Common test implementation
 template <auto FwdConvSignature,
           ThreadBlock FwdThreadBlock,
@@ -92,12 +87,5 @@ constexpr void run_test()
     const auto invoker_ptr = instance.MakeInvokerPointer();
     EXPECT_NE(invoker_ptr, nullptr);
 }
-
-// Common thread block configurations
-constexpr ThreadBlock DefaultThreadBlock{.block_size = 256,
-                                         .tile_size  = {.m = 256, .n = 256, .k = 32}};
-
-constexpr ThreadBlock SmallThreadBlock{.block_size = 256,
-                                       .tile_size  = {.m = 128, .n = 128, .k = 32}};
 
 } // namespace ck_tile::builder::test_utils
