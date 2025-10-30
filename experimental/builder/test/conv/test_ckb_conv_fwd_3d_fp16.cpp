@@ -14,8 +14,8 @@ TEST(FwdConvInstances,
         .layout                = GroupConvLayout3D::NDHWGC_GKZYXC_NDHWGK,
         .data_type             = DataType::FP16,
         .elementwise_operation = ElementwiseOperation::PASS_THROUGH,
-        .device_operation      = FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
-    };
+        .device_operation =
+            FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3};
 
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 128, .n = 128, .k = 32}};

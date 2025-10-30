@@ -48,13 +48,15 @@ enum class GroupConvLayout3D
     NGCDHW_GKCZYX_NGKDHW,
 };
 
-struct GroupConvLayout {
-    union {
+struct GroupConvLayout
+{
+    union
+    {
         GroupConvLayout1D _1d;
         GroupConvLayout2D _2d;
         GroupConvLayout3D _3d;
     };
-    
+
     constexpr GroupConvLayout(GroupConvLayout1D layout) : _1d(layout) {}
     constexpr GroupConvLayout(GroupConvLayout2D layout) : _2d(layout) {}
     constexpr GroupConvLayout(GroupConvLayout3D layout) : _3d(layout) {}
@@ -100,13 +102,15 @@ enum class BwdWeightGroupConvDeviceOperation
 };
 
 // Structural type for device operation
-struct GroupConvDeviceOp {
-    union {
+struct GroupConvDeviceOp
+{
+    union
+    {
         FwdGroupConvDeviceOperation _fwd;
         BwdDataGroupConvDeviceOperation _bwd_data;
         BwdWeightGroupConvDeviceOperation _bwd_weight;
     };
-    
+
     constexpr GroupConvDeviceOp(FwdGroupConvDeviceOperation op) : _fwd(op) {}
     constexpr GroupConvDeviceOp(BwdDataGroupConvDeviceOperation op) : _bwd_data(op) {}
     constexpr GroupConvDeviceOp(BwdWeightGroupConvDeviceOperation op) : _bwd_weight(op) {}
