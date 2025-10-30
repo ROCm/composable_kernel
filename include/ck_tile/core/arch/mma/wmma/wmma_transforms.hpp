@@ -73,7 +73,7 @@ struct MmaDefaultTransformsGfx12
 };
 
 /*! @struct MmaTransformsDefaultSelector
- * @brief Implements the default MMA transforms selection for gfx11 targers
+ * @brief Implements the default MMA transforms selection for gfx11 targets
  * @tparam MmaOp Mma operation
  * @tparam GfxTargetId Graphics target identifier
  */
@@ -84,7 +84,7 @@ struct MmaTransformsDefaultSelector<MmaOp, GfxTargetId, enable_if_gfx11_target_i
 };
 
 /*! @struct MmaTransformsDefaultSelector
- * @brief Implements the default MMA transforms selection for gfx12 targers
+ * @brief Implements the default MMA transforms selection for gfx12 targets
  * @tparam MmaOp Mma operation
  * @tparam GfxTargetId Graphics target identifier
  */

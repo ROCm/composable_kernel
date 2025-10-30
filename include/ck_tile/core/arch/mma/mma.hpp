@@ -85,20 +85,20 @@ struct WaveWiseMma
     constexpr static uint32_t BlocksC = BlocksM * BlocksN;
 
     // Vector types for packed registers in each block
-    using VecTypeA = typename BlockWiseMmaOpTraits::VecTypeA;
-    using VecTypeB = typename BlockWiseMmaOpTraits::VecTypeB;
-    using VecTypeC = typename BlockWiseMmaOpTraits::VecTypeC;
+    using AVecType = typename BlockWiseMmaOpTraits::AVecType;
+    using BVecType = typename BlockWiseMmaOpTraits::BVecType;
+    using CVecType = typename BlockWiseMmaOpTraits::CVecType;
 
     // Buffer types for fragments
-    using BufferTypeA = VecTypeA[BlocksM][BlocksK];
-    using BufferTypeB = VecTypeB[BlocksN][BlocksK];
-    using BufferTypeC = VecTypeC[BlocksM][BlocksN];
+    using ABufferType = AVecType[BlocksM][BlocksK];
+    using BBufferType = BVecType[BlocksN][BlocksK];
+    using CBufferType = CVecType[BlocksM][BlocksN];
 
     // Transforms
-    using TransFormA = typename MmaTransforms::TransformA;
-    using TransFormB = typename MmaTransforms::TransformB;
-    using TransFormC = typename MmaTransforms::TransformC;
-    using TransFormD = typename MmaTransforms::TransformD;
+    using ATransForm = typename MmaTransforms::ATransform;
+    using BTransForm = typename MmaTransforms::BTransform;
+    using CTransForm = typename MmaTransforms::CTransform;
+    using DTransForm = typename MmaTransforms::DTransform;
 
     // Sanity checks
     static_assert(FragM >= BlockM, "FragM must be larger than BlockM");
@@ -142,9 +142,9 @@ struct WaveWiseMma
         // then we convert the result into buffers of native vector formats
         // that we can easily index. Native vector formats are necessary inputs
         // to the given MmaOp exec function.
-        auto a_frag = formatBuffer<BufferTypeA>(TransFormA::exec(a));
-        auto b_frag = formatBuffer<BufferTypeB>(TransformB::exec(b));
-        auto c_frag = formatBuffer<BufferTypeC>(TransformC::exec(accum));
+        auto a_frag = formatBuffer<ABufferType>(TransFormA::exec(a));
+        auto b_frag = formatBuffer<BBufferType>(TransformB::exec(b));
+        auto c_frag = formatBuffer<CBufferType>(TransformC::exec(accum));
 
         // "Col-major" accumulation over the M-dimension blocks first.
         // Pseudo code here, but we would basically iterate over the blocks in col-major order
@@ -178,9 +178,9 @@ struct WaveWiseMma
         // then we convert the result into buffers of native vector formats
         // that we can easily index. Native vector formats are necessary inputs
         // to the given MmaOp exec function.
-        auto a_frag = formatBuffer<BufferTypeA>(TransFormA::exec(a));
-        auto b_frag = formatBuffer<BufferTypeB>(TransformB::exec(b));
-        auto c_frag = formatBuffer<BufferTypeC>(TransformC::exec(accum));
+        auto a_frag = formatBuffer<ABufferType>(TransFormA::exec(a));
+        auto b_frag = formatBuffer<BBufferType>(TransformB::exec(b));
+        auto c_frag = formatBuffer<CBufferType>(TransformC::exec(accum));
 
         // "Row-major" accumulation over the N-dimension blocks first.
         // Pseudo code here, but we would basically iterate over the blocks in row-major order.
