@@ -8,25 +8,30 @@ import multiprocessing
 import concurrent.futures
 from pathlib import Path
 import logging
-import sys
+import importlib.util
 
 
-def _setup_path():
-    """Setup path to allow importing from commons directory."""
+def _import_validation_utils():
+    """Import validation utilities from commons directory."""
     current_dir = os.path.dirname(os.path.abspath(__file__))
     parent_dir = os.path.dirname(current_dir)
-    if parent_dir not in sys.path:
-        sys.path.insert(0, parent_dir)
+
+    # Load the module dynamically
+    spec = importlib.util.spec_from_file_location(
+        "validation_utils", os.path.join(parent_dir, "commons", "validation_utils.py")
+    )
+    validation_utils = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(validation_utils)
+
+    return validation_utils
 
 
-_setup_path()
-
-from commons.validation_utils import (  # noqa: E402
-    is_tile_config_valid,
-    is_trait_combination_valid,
-    get_dtype_string,
-    get_abc_layouts,
-)
+# Import validation functions
+_validation_utils = _import_validation_utils()
+is_tile_config_valid = _validation_utils.is_tile_config_valid
+is_trait_combination_valid = _validation_utils.is_trait_combination_valid
+get_dtype_string = _validation_utils.get_dtype_string
+get_abc_layouts = _validation_utils.get_abc_layouts
 
 logging.basicConfig(level=logging.INFO)
 
