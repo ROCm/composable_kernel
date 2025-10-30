@@ -42,7 +42,8 @@ def sendFailureNotifications() {
         [pattern: /docker login failed/, description: "Docker login failed"],
         [pattern: /HTTP request sent .* 404 Not Found/, description: "HTTP request failed with 404"],
         [pattern: /cat: .* No such file or directory/, description: "GPU not found"],
-        [pattern: /GPU not found/, description: "GPU not found"]
+        [pattern: /GPU not found/, description: "GPU not found"],
+        [pattern: /Could not connect to Redis at .* Connection timed out/, description: "Redis connection timed out"]
     ]
     
     // Get the build log.
