@@ -204,11 +204,12 @@ class GemmMultiDProfiler
 
         // verify result
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
-        bool verified_correct = !setting_.verify_ || compare(name,
-                                                             gemm_multi_d_problem.k_,
-                                                             gemm_multi_d_problem.split_k_,
-                                                             c_m_n_dev_result,
-                                                             c_m_n_host_result);
+        bool verified_correct =
+            !setting_.verify_ || compare(name,
+                                         gemm_multi_d_problem.k_,
+                                         1, // Multi d currently supports only k_batch  = 1
+                                         c_m_n_dev_result,
+                                         c_m_n_host_result);
 
         if(verified_correct)
         {
