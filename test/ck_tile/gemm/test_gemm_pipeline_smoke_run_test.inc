@@ -203,49 +203,43 @@ template <typename GemmConfig,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-bool run_gemm_test_with_layouts(ck_tile::ArgParser& arg_parser,
-                                const ALayout a_layout                  = ALayout{},
-                                const BLayout b_layout                  = BLayout{},
-                                [[maybe_unused]] const CLayout c_layout = CLayout{})
+bool run_gemm_test_with_layouts(const int M, const int N, const int K)
 {
     using AccDataType = typename GemmTypeConfig<ADataType, BDataType, CDataType>::AccDataType;
 
-    ck_tile::index_t M = arg_parser.get_int("m");
-    ck_tile::index_t N = arg_parser.get_int("n");
-    ck_tile::index_t K = arg_parser.get_int("k");
+    ck_tile::index_t stride_A = 0;
+    ck_tile::index_t stride_B = 0;
+    ck_tile::index_t stride_C = 0;
 
-    ck_tile::index_t stride_A = arg_parser.get_int("stride_a");
-    ck_tile::index_t stride_B = arg_parser.get_int("stride_b");
-    ck_tile::index_t stride_C = arg_parser.get_int("stride_c");
+    constexpr ck_tile::index_t kbatch = 1;
+    constexpr int init_method         = 0;
+    constexpr int verification_method = 2;
+    constexpr int n_warmup            = 0;
+    constexpr int n_repeat            = 1;
+    constexpr bool persistent         = false;
 
-    ck_tile::index_t kbatch      = arg_parser.get_int("split_k");
-    int n_warmup                 = arg_parser.get_int("warmup");
-    int n_repeat                 = arg_parser.get_int("repeat");
-    ck_tile::index_t init_method = arg_parser.get_int("init");
-    bool persistent              = arg_parser.get_int("persistent");
-
-    stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
-    stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
+    stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(ALayout{}));
+    stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(BLayout{}));
     stride_C = ck_tile::get_default_stride(M, N, stride_C, is_row_major(CLayout{}));
 
     ck_tile::HostTensor<ADataType> a_m_k(
-        ck_tile::host_tensor_descriptor(M, K, stride_A, is_row_major(a_layout)));
+        ck_tile::host_tensor_descriptor(M, K, stride_A, is_row_major(ALayout{})));
     ck_tile::HostTensor<BDataType> b_k_n(
-        ck_tile::host_tensor_descriptor(K, N, stride_B, is_row_major(b_layout)));
+        ck_tile::host_tensor_descriptor(K, N, stride_B, is_row_major(BLayout{})));
     ck_tile::HostTensor<CDataType> c_m_n_dev_result(
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
-    if(init_method == 0)
+    if constexpr(init_method == 0)
     {
         ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
         ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
     }
-    else if(init_method == 1)
+    else if constexpr(init_method == 1)
     {
         ck_tile::FillMonotonicSeq<ADataType>{}(a_m_k);
         ck_tile::FillMonotonicSeq<BDataType>{}(b_k_n);
     }
-    else if(init_method == 2)
+    else if constexpr(init_method == 2)
     {
         ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_m_k);
         ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_k_n);
@@ -325,7 +319,7 @@ bool run_gemm_test_with_layouts(ck_tile::ArgParser& arg_parser,
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
     bool pass = true;
 
-    if(arg_parser.get_int("v") == 1)
+    if constexpr(verification_method == 1)
     {
         ck_tile::HostTensor<CDataType> c_m_n_host_ref(
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
@@ -348,7 +342,7 @@ bool run_gemm_test_with_layouts(ck_tile::ArgParser& arg_parser,
                   << std::endl;
         std::cout << "The CPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
     }
-    else if(arg_parser.get_int("v") == 2)
+    else if constexpr(verification_method == 2)
     {
         if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
         {
