@@ -319,31 +319,51 @@ struct gfx9_t
 struct gfx950_t
 {
 };
+struct gfx103_t
+{
+};
 struct gfx11_t
 {
 };
 struct gfx12_t
 {
 };
-
-CK_TILE_DEVICE static constexpr auto get_n_words_per_128b() { return 4; }
-
-CK_TILE_DEVICE static constexpr auto get_n_lds_banks()
+struct gfx_invalid_t
 {
-#if defined(__gfx950__)
-    return 64;
-#else
-    return 32;
-#endif
-}
+};
 
 CK_TILE_DEVICE static constexpr auto get_device_arch()
 {
-#if defined(__gfx11__)
+#if defined(__gfx103__)
+    return gfx103_t{};
+#elif defined(__gfx11__)
     return gfx11_t{};
-#else // if defined(__gfx12__)
+#elif defined(__gfx12__)
     return gfx12_t{};
+#elif defined(__gfx950__)
+    return gfx950_t{};
+#elif defined(__gfx9__)
+    return gfx9_t{};
+#else
+    return gfx_invalid_t{};
 #endif
+}
+
+CK_TILE_DEVICE static constexpr auto get_n_words_per_128b() { return 4; }
+
+CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx9_t) { return 32; }
+
+CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx10_t) { return 32; }
+
+CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx11_t) { return 32; }
+
+CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx12_t) { return 64; }
+
+CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx950_t) { return 64; }
+
+CK_TILE_DEVICE static constexpr auto get_n_lds_banks()
+{
+    return get_n_lds_banks(get_device_arch());
 }
 
 enum LLVMSchedGroupMask : int32_t
