@@ -33,12 +33,27 @@ template <typename Derived>
 struct UniversalGemmBasePolicy
 {
 #if defined(__gfx950__)
+    // The combination of pk_int4_t and transposed loading causes numerical errors.
+    // Therefore do not use transposed loading in this case.
     template <typename Problem>
-    static constexpr bool is_a_load_tr =
-        std::is_same_v<remove_cvref_t<typename Problem::ALayout>, tensor_layout::gemm::ColumnMajor>;
+    static constexpr bool is_a_load_tr = []() {
+        using BDataType = remove_cvref_t<typename Problem::BDataType>;
+        if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            return false;
+        else
+            return std::is_same_v<remove_cvref_t<typename Problem::ALayout>,
+                                  tensor_layout::gemm::ColumnMajor>;
+    }();
+
     template <typename Problem>
-    static constexpr bool is_b_load_tr =
-        std::is_same_v<remove_cvref_t<typename Problem::BLayout>, tensor_layout::gemm::RowMajor>;
+    static constexpr bool is_b_load_tr = []() {
+        using BDataType = remove_cvref_t<typename Problem::BDataType>;
+        if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            return false;
+        else
+            return std::is_same_v<remove_cvref_t<typename Problem::BLayout>,
+                                  tensor_layout::gemm::RowMajor>;
+    }();
 #else
     template <typename Problem>
     static constexpr bool is_a_load_tr = false;
