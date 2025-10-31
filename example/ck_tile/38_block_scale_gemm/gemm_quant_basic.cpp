@@ -143,7 +143,11 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                              GemmConfig::N_Warp_Tile,
                                              GemmConfig::K_Warp_Tile,
                                              transpose_c,
-                                             ck_tile::memory_operation_enum::set>>;
+                                             ck_tile::memory_operation_enum::set,
+                                             1,
+                                             false,
+                                             1,
+                                             GemmConfig::TiledMMAPermuteN>>;
         using Kernel =
             ck_tile::QuantGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue, QuantMode>;
 
