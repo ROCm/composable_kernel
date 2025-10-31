@@ -753,7 +753,7 @@ struct GroupedConvolutionForwardKernel
                               "Not supported!");
 
                 return make_tensor_view<address_space_enum::global>(
-                    static_cast<OutDataType*>(ds_ptr[i]), c_desc);
+                    static_cast<const OutDataType*>(ds_ptr[i]), c_desc);
             },
             number<NumDTensor>{});
 
