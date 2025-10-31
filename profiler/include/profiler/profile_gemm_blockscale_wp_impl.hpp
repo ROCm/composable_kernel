@@ -126,6 +126,26 @@ bool profile_gemm_blockscale_weighpreshuffle_impl(int do_verification,
     Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
     Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
 
+    // Update strides based on tensor properties if they are <= 0
+    auto get_stride = [](auto& tensor, auto layout, ck::index_t current_stride) -> ck::index_t {
+        if(current_stride <= 0)
+        {
+            if constexpr(std::is_same_v<decltype(layout), tensor_layout::gemm::RowMajor>)
+            {
+                return tensor.GetStrides()[0];
+            }
+            else
+            {
+                return tensor.GetStrides()[1];
+            }
+        }
+        return current_stride;
+    };
+
+    StrideA  = get_stride(a0_m_k, ALayout{}, StrideA);
+    StrideB  = get_stride(b0_k_n, BLayout{}, StrideB);
+    StrideE  = get_stride(e_m_n_host_result, ELayout{}, StrideE);
+
     int total_gemm_needed =
         a0_m_k.GetElementSpaceSizeInBytes() + b0_k_n.GetElementSpaceSizeInBytes() +
         a1_m_k.GetElementSpaceSizeInBytes() + b1_k_n.GetElementSpaceSizeInBytes();

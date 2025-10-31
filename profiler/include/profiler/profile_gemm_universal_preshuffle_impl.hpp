@@ -99,6 +99,26 @@ bool profile_gemm_universal_preshuffle_impl(int do_verification,
     Tensor<CDataType> c_m_n_host_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
     Tensor<CDataType> c_m_n_device_result(f_host_tensor_descriptor(M, N, StrideC, CLayout{}));
 
+    // Update strides based on tensor properties if they are <= 0
+    auto get_stride = [](auto& tensor, auto layout, ck::index_t current_stride) -> ck::index_t {
+        if(current_stride <= 0)
+        {
+            if constexpr(std::is_same_v<decltype(layout), tensor_layout::gemm::RowMajor>)
+            {
+                return tensor.GetStrides()[0];
+            }
+            else
+            {
+                return tensor.GetStrides()[1];
+            }
+        }
+        return current_stride;
+    };
+
+    StrideA  = get_stride(a_m_k, ALayout{}, StrideA);
+    StrideB  = get_stride(b_k_n, BLayout{}, StrideB);
+    StrideC  = get_stride(c_m_n_host_result, CLayout{}, StrideC);
+
     std::size_t total_gemm_needed =
         a_m_k.GetElementSpaceSizeInBytes() + b_k_n.GetElementSpaceSizeInBytes();
     int rotating_count = std::max(
