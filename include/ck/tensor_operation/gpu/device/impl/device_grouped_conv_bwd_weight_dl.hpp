@@ -162,7 +162,7 @@ struct DeviceGroupedConvBwdWeight_Dl : public DeviceGroupedConvBwdWeight<NDimSpa
     static constexpr auto K1Number     = Number<K1>{};
     static constexpr auto GemmK1Number = K1Number;
 
-    // Bytes per 32 lds bank: 32 * 4 bytes
+    // 4 bytes per bank
     static constexpr auto BankLength = 4 * get_n_lds_banks();
     static constexpr auto ElePerBank = BankLength / sizeof(ADataType);
 
