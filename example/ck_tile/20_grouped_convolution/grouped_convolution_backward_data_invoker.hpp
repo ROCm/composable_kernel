@@ -170,8 +170,15 @@ struct GroupedConvolutionBackwardDataInvoker
                               << ", Vector size C: " << ConvEpilogue::GetVectorSizeC() << std::endl;
                 }
 
-                ave_time = ck_tile::launch_kernel(
-                    s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+                auto preprocess = [&]() {
+                    ck_tile::hip_check_error(hipMemsetAsync(
+                        kargs.in_ptr, 0, args.template GetInputByte<InDataType>(), s.stream_id_));
+                };
+
+                ave_time = ck_tile::launch_kernel_time_mask(
+                    s,
+                    preprocess,
+                    ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 
                 return ave_time;
             };

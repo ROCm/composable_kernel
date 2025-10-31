@@ -8,12 +8,14 @@ namespace ck_tile::builder::testing {
 TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_3D_FP16_NDHWGC_ChannelsLast)
 {
-    constexpr ConvSignature<GroupConvLayout3D> FwdConvSignature{
+    constexpr ConvSignature FwdConvSignature{
         .spatial_dim           = 3,
         .direction             = ConvDirection::FORWARD,
         .layout                = GroupConvLayout3D::NDHWGC_GKZYXC_NDHWGK,
         .data_type             = DataType::FP16,
-        .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
+        .elementwise_operation = ElementwiseOperation::PASS_THROUGH,
+        .device_operation =
+            FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3};
 
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 128, .n = 128, .k = 32}};
