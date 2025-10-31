@@ -13,9 +13,9 @@
 #include "mfma/mfma.hpp"
 #include "wmma/wmma.hpp"
 
-namespace ck_tile::core::arch {
+namespace ck_tile::core::arch::mma {
 
-/*! @struct MmaAccumPolicy
+/*! @enum MmaAccumPolicy
  * @brief Accumulation order for Mma decomposition
  */
 enum struct MmaAccumPolicy
@@ -70,8 +70,9 @@ template <typename ADataType,
               typename MmaTransformsDefaultSelector<MmaOp, GfxTargetId>::SelectedTransforms>
 struct WaveWiseMma
 {
-    using BlockWiseMmaOp     = MmaOp;
-    using BlockWiseMmaTraits = MmaTraits<BlockWiseMmaOp>;
+
+    using BlockWiseMmaOp       = MmaOp;
+    using BlockWiseMmaOpTraits = MmaOpTraits<BlockWiseMmaOp>;
 
     // Block dimensions
     constexpr static uint32_t BlockM = BlockWiseMmaOpTraits::BlockM;
@@ -95,10 +96,10 @@ struct WaveWiseMma
     using CBufferType = CVecType[BlocksM][BlocksN];
 
     // Transforms
-    using ATransForm = typename MmaTransforms::ATransform;
-    using BTransForm = typename MmaTransforms::BTransform;
-    using CTransForm = typename MmaTransforms::CTransform;
-    using DTransForm = typename MmaTransforms::DTransform;
+    using ATransform = typename MmaTransforms::ATransform;
+    using BTransform = typename MmaTransforms::BTransform;
+    using CTransform = typename MmaTransforms::CTransform;
+    using DTransform = typename MmaTransforms::DTransform;
 
     // Sanity checks
     static_assert(FragM >= BlockM, "FragM must be larger than BlockM");
@@ -110,7 +111,7 @@ struct WaveWiseMma
 
     private:
     template <typename DstT, typename SrcT>
-    CK_TILE_DEVICE static inline auto formatBuffer(SrcT const& inputBuffer)
+    CK_TILE_DEVICE static auto formatBuffer(SrcT const& inputBuffer)
     {
         // TODO: Implement formatting logic as needed.
         // This is intended to convert input fragments to the native vector types
@@ -120,7 +121,7 @@ struct WaveWiseMma
     }
 
     template <typename DstT, typename SrcT>
-    CK_TILE_DEVICE static inline auto formatBuffer(SrcT& inputBuffer)
+    CK_TILE_DEVICE static auto formatBuffer(SrcT& inputBuffer)
     {
         // TODO: Implement formatting logic as needed.
         // This is intended to convert input fragments to the native vector types
@@ -135,16 +136,16 @@ struct WaveWiseMma
      * @tparam VecTC The input/output fragment C vector type
      */
     template <typename VecTA, typename VecTB, typename VecTC>
-    CK_TILE_DEVICE static inline decltype(auto) exec_col_major(VecTA&& a, VecTB&& b, VecTC&& accum)
+    CK_TILE_DEVICE static decltype(auto) exec_col_major(VecTA&& a, VecTB&& b, VecTC&& accum)
     {
         // We implement an example wave-tile pipeline here.
         // First, we apply the necessary transforms to the input fragments,
         // then we convert the result into buffers of native vector formats
         // that we can easily index. Native vector formats are necessary inputs
         // to the given MmaOp exec function.
-        auto a_frag = formatBuffer<ABufferType>(TransFormA::exec(a));
-        auto b_frag = formatBuffer<BBufferType>(TransformB::exec(b));
-        auto c_frag = formatBuffer<CBufferType>(TransformC::exec(accum));
+        auto a_frag = formatBuffer<ABufferType>(ATransform::exec(a));
+        auto b_frag = formatBuffer<BBufferType>(BTransform::exec(b));
+        auto c_frag = formatBuffer<CBufferType>(CTransform::exec(accum));
 
         // "Col-major" accumulation over the M-dimension blocks first.
         // Pseudo code here, but we would basically iterate over the blocks in col-major order
@@ -155,14 +156,14 @@ struct WaveWiseMma
                 for(uint32_t bk = 0u; bk < BlocksK; ++bk)
                 {
                     c_frag[bm][bn] =
-                        BlockWiseMma::exec(c_frag[bm][bn], a_frag[bm][bk], b_frag[bn][bk]);
+                        BlockWiseMmaOp::exec(c_frag[bm][bn], a_frag[bm][bk], b_frag[bn][bk]);
                 }
             }
         }
 
         // Convert native vector results back to the output fragment format
         // and then return after we apply the final output transform.
-        return TransformsD::exec(formatBuffer<std::decay_t<VecTC>>(c_frag));
+        return DTransform::exec(formatBuffer<std::decay_t<VecTC>>(c_frag));
     }
 
     /*! @brief Execute Mma in row-major accumulation order.
@@ -171,16 +172,16 @@ struct WaveWiseMma
      * @tparam VecTC The input/output fragment C vector type
      */
     template <typename VecTA, typename VecTB, typename VecTC>
-    CK_TILE_DEVICE static inline decltype(auto) exec_row_major(VecTA&& a, VecTB&& b, VecTC&& accum)
+    CK_TILE_DEVICE static decltype(auto) exec_row_major(VecTA&& a, VecTB&& b, VecTC&& accum)
     {
         // We implement an example wave-tile pipeline here.
         // First, we apply the necessary transforms to the input fragments,
         // then we convert the result into buffers of native vector formats
         // that we can easily index. Native vector formats are necessary inputs
         // to the given MmaOp exec function.
-        auto a_frag = formatBuffer<ABufferType>(TransFormA::exec(a));
-        auto b_frag = formatBuffer<BBufferType>(TransformB::exec(b));
-        auto c_frag = formatBuffer<CBufferType>(TransformC::exec(accum));
+        auto a_frag = formatBuffer<ABufferType>(ATransform::exec(a));
+        auto b_frag = formatBuffer<BBufferType>(BTransform::exec(b));
+        auto c_frag = formatBuffer<CBufferType>(CTransform::exec(accum));
 
         // "Row-major" accumulation over the N-dimension blocks first.
         // Pseudo code here, but we would basically iterate over the blocks in row-major order.
@@ -193,14 +194,14 @@ struct WaveWiseMma
                 for(uint32_t bk = 0u; bk < BlocksK; ++bk)
                 {
                     c_frag[bm][bn] =
-                        BlockWiseMma::exec(c_frag[bm][bn], a_frag[bm][bk], b_frag[bn][bk]);
+                        BlockWiseMmaOp::exec(c_frag[bm][bn], a_frag[bm][bk], b_frag[bn][bk]);
                 }
             }
         }
 
         // Convert native vector results back to the output fragment format
         // and then return after we apply the final output transform.
-        return TransformsD::exec(formatBuffer<std::decay_t<VecTC>>(c_frag));
+        return DTransform::exec(formatBuffer<std::decay_t<VecTC>>(c_frag));
     }
 
     public:
@@ -210,7 +211,7 @@ struct WaveWiseMma
      * @tparam VecTC The input/output fragment C vector type
      */
     template <typename VecTA, typename VecTB, typename VecTC>
-    CK_TILE_DEVICE static inline decltype(auto) exec(VecTA&& a, VecTB&& b, VecTC&& accum)
+    CK_TILE_DEVICE static decltype(auto) exec(VecTA&& a, VecTB&& b, VecTC&& accum)
     {
         if constexpr(AccumPolicy == MmaAccumPolicy::ROW_MAJOR)
         {
@@ -225,4 +226,4 @@ struct WaveWiseMma
     }
 };
 
-} // namespace ck_tile::core::arch
+} // namespace ck_tile::core::arch::mma
