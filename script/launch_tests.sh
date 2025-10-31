@@ -47,8 +47,9 @@ DEFAULT_CHUNK_SIZE=10
 DEFAULT_FAIL_FAST=false
 
 # Split tests into chunks and run multiple ctest commands
-CHUNK_SIZE=${CTEST_CHUNK_SIZE:-$DEFAULT_CHUNK_SIZE}
-FAIL_FAST=${CTEST_FAIL_FAST:-$DEFAULT_FAIL_FAST}
+# Export variables so Python subprocess can access them
+export CHUNK_SIZE=${CTEST_CHUNK_SIZE:-$DEFAULT_CHUNK_SIZE}
+export FAIL_FAST=${CTEST_FAIL_FAST:-$DEFAULT_FAIL_FAST}
 
 python3 -c "
 import json
