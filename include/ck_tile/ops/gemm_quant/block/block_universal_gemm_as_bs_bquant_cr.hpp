@@ -77,7 +77,7 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
         static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
         static constexpr index_t NQPerBlock = NPerBlock / QuantGroupSize::kN;
-        static constexpr index_t BQPerBlock = KPerBlock / QuantGroupSize::kK;
+        static constexpr index_t KQPerBlock = KPerBlock / QuantGroupSize::kK;
 
         static constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WarpGemm               = remove_cvref_t<decltype(config.template at<0>())>;
@@ -344,18 +344,13 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
 
                         // Multiply bquant with accumulated C
                         constexpr index_t reg_offset = [&]() {
-                            if constexpr(Traits::NQPerBlock >= Traits::NIterPerWarp)
-                            {
-                                // Each nIter and warp/thread has its own scale - tile dstr handles
-                                // the proper loading
-                                return nIter * Traits::BQPerBlock + kQScale;
-                            }
+                            if constexpr(GemmTraits::QuantGroupSize::kN >= (NWarp * WarpGemm::kN))
+                                return (nIter * NWarp * WarpGemm::kN) /
+                                           GemmTraits::QuantGroupSize::kN * Traits::KQPerBlock +
+                                       kQScale;
                             else
                             {
-                                // Many N warps/iters share the same scale, index from full
-                                // [KQPerBlock, NQPerBlock=1] matrix
-                                static_assert(Traits::NQPerBlock == 1);
-                                return kQScale;
+                                return nIter * Traits::KQPerBlock + kQScale;
                             }
                         }();
 

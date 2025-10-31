@@ -188,51 +188,48 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
 
     CK_TILE_HOST_DEVICE static constexpr auto make_2d_static_tile_distribution()
     {
-        if constexpr(YPerQ == 1)
+        if constexpr(YPerQ < WarpGemm::kN)
         {
             // each row of B has independent scale
             constexpr index_t Y  = YPerTile;
             constexpr index_t YR = 1;
             constexpr index_t X0 = NIterPerWarp;
             constexpr index_t X1 = NWarps;
-            constexpr index_t X2 = WarpGemm::kN;
+            constexpr index_t X2 = WarpGemm::kN / YPerQ;
+            constexpr index_t XR = YPerQ;
 
             static_assert(X0 * X1 * X2 == XPerTile, "X0, X1, X2 must cover the blocktile along X.");
 
             return make_static_tile_distribution(
-                tile_distribution_encoding<sequence<MWarps, YR>,
+                tile_distribution_encoding<sequence<MWarps, YR, XR>,
                                            tuple<sequence<Y>, sequence<X0, X1, X2>>,
-                                           tuple<sequence<0, 2>, sequence<0, 2>>,
-                                           tuple<sequence<0, 1>, sequence<1, 2>>,
+                                           tuple<sequence<0, 2>, sequence<0, 2, 0>>,
+                                           tuple<sequence<0, 1>, sequence<1, 2, 2>>,
                                            sequence<2, 1>,
                                            sequence<0, 0>>{});
         }
-        else if constexpr(XPerTile == NIterPerWarp * NWarps)
+        else if constexpr(YPerQ <= WarpGemm::kN * NWarps)
         {
-            // small NQ block size case: split NQ axis by iters and Nwarps
+            constexpr auto XR = YPerQ / WarpGemm::kN;
+            constexpr auto X1 = NWarps / XR;
+            constexpr auto X0 = XPerTile / X1;
             return make_static_tile_distribution(
-                tile_distribution_encoding<
-                    sequence<MWarps, get_warp_size()>,
-                    tuple<sequence<YPerTile>, sequence<NIterPerWarp, NWarps>>,
-                    tuple<sequence<0, 2>, sequence<0>>,
-                    tuple<sequence<0, 1>, sequence<1>>,
-                    sequence<2, 1>,
-                    sequence<0, 0>>{});
+                tile_distribution_encoding<sequence<MWarps, XR, get_warp_size()>,
+                                           tuple<sequence<YPerTile>, sequence<X0, X1>>,
+                                           tuple<sequence<0, 2, 0>, sequence<0>>,
+                                           tuple<sequence<0, 1, 1>, sequence<2>>,
+                                           sequence<2, 1>,
+                                           sequence<0, 0>>{});
         }
-        else if constexpr(XPerTile == NIterPerWarp || XPerTile == 1)
+        else // YPerQ > WarpGemm::kN * NWarps
         {
-            // now all NWarps have the same scale -> replicate
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<MWarps, NWarps, get_warp_size()>,
-                                           tuple<sequence<YPerTile>, sequence<XPerTile, 1>>,
-                                           tuple<sequence<0, 0>, sequence<0, 2>>,
-                                           tuple<sequence<0, 1>, sequence<2, 1>>,
+                                           tuple<sequence<YPerTile>, sequence<XPerTile>>,
+                                           tuple<sequence<0, 0>, sequence<0>>,
+                                           tuple<sequence<0, 1>, sequence<2>>,
                                            sequence<2, 1>,
                                            sequence<0, 0>>{});
-        }
-        else
-        {
-            static_assert(false, "not supported quant tile configuration");
         }
     }
 };
