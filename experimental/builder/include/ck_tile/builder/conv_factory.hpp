@@ -350,8 +350,8 @@ constexpr BlockTransfer SetFwdConvBBlockTransfer()
 // Block transfer parameters for C tensor.
 struct CBlockTransfer
 {
-    size_t m_xdl_per_wave_per_shuffle        = 0;
-    size_t n_xdl_per_wave_per_shuffle        = 0;
+    size_t m_per_wave_per_shuffle        = 0;
+    size_t n_per_wave_per_shuffle        = 0;
     ck::Array<size_t, 4> thread_cluster_dims = {0, 0, 0, 0};
     size_t scalar_per_vector                 = 0;
 };
@@ -361,8 +361,8 @@ constexpr CBlockTransfer SetCBlockTransfer()
 {
     constexpr auto& TCL = ALGORITHM.block_transfer.thread_cluster_dims_c;
     constexpr auto& EPC = ALGORITHM.block_transfer.epilogue_c;
-    CBlockTransfer block_transfer{.m_xdl_per_wave_per_shuffle = EPC.m_xdl_per_wave_per_shuffle,
-                                  .n_xdl_per_wave_per_shuffle = EPC.n_xdl_per_wave_per_shuffle,
+    CBlockTransfer block_transfer{.m_per_wave_per_shuffle = EPC.m_per_wave_per_shuffle,
+                                  .n_per_wave_per_shuffle = EPC.n_per_wave_per_shuffle,
                                   .thread_cluster_dims =
                                       {
                                           TCL.m_block,
@@ -549,8 +549,8 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
             B_BLOCK_TRANSFER.src_scalar_per_vector,
             B_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
             B_BLOCK_TRANSFER.lds_padding,
-            C_BLOCK_TRANSFER.m_xdl_per_wave_per_shuffle,
-            C_BLOCK_TRANSFER.n_xdl_per_wave_per_shuffle,
+            C_BLOCK_TRANSFER.m_per_wave_per_shuffle,
+            C_BLOCK_TRANSFER.n_per_wave_per_shuffle,
             to_sequence_v<C_BLOCK_TRANSFER.thread_cluster_dims>,
             C_BLOCK_TRANSFER.scalar_per_vector,
             PIPELINE_SCHEDULER,
@@ -662,8 +662,8 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
             B_BLOCK_TRANSFER.src_scalar_per_vector,
             B_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
             B_BLOCK_TRANSFER.lds_padding,
-            C_BLOCK_TRANSFER.m_xdl_per_wave_per_shuffle,
-            C_BLOCK_TRANSFER.n_xdl_per_wave_per_shuffle,
+            C_BLOCK_TRANSFER.m_per_wave_per_shuffle,
+            C_BLOCK_TRANSFER.n_per_wave_per_shuffle,
             to_sequence_v<C_BLOCK_TRANSFER.thread_cluster_dims>,
             C_BLOCK_TRANSFER.scalar_per_vector>;
 };
@@ -772,8 +772,8 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
             B_BLOCK_TRANSFER.src_scalar_per_vector,
             B_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
             B_BLOCK_TRANSFER.lds_padding,
-            C_BLOCK_TRANSFER.m_xdl_per_wave_per_shuffle, // TODO: Rename this to m_per_wave_per_shuffle
-            C_BLOCK_TRANSFER.n_xdl_per_wave_per_shuffle, // TODO: Rename this to n_per_wave_per_shuffle
+            C_BLOCK_TRANSFER.m_per_wave_per_shuffle,
+            C_BLOCK_TRANSFER.n_per_wave_per_shuffle,
             to_sequence_v<C_BLOCK_TRANSFER.thread_cluster_dims>,
             C_BLOCK_TRANSFER.scalar_per_vector
             // TODO: Add LoopScheduler and PipelineVersion

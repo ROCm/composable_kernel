@@ -4,7 +4,7 @@ using namespace ck_tile::builder::test_utils;
 
 namespace ck_tile::builder::testing {
 
-// 1D I8 (channels-last) with and FILTER_1X1_STRIDE1_PAD0 specialization
+// 1D I8 (channels-last) with and DEFAULT specialization
 TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle_Instance_1D_FP32_ChannelsFirst_scale)
 {
