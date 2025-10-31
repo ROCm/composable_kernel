@@ -100,7 +100,7 @@ struct DeviceConv2dBwdWeightXdl_C_Shuffle_Input_N_Hi_Wi_C_Weight_K_Y_X_C_Output_
     static constexpr auto N1Number = K1Number;
 
     // Bytes per 32 lds bank: 32 * 4 bytes
-    static constexpr auto BankLength = 128;
+    static constexpr auto BankLength = 4 * get_n_lds_banks();
     static constexpr auto ElePerBank = BankLength / sizeof(ADataType);
 
     // M1 & M0
