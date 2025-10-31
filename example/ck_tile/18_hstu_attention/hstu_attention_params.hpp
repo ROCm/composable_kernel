@@ -10,9 +10,11 @@ struct HstuAttentionFwdParams
     bool is_jagged;
 
     ck_tile::index_t num_batch;
-    ck_tile::index_t seqlen;     // batched mode only
-    const void* seq_offsets_ptr; // jagged mode only
-    ck_tile::index_t max_seqlen; // jagged mode only
+    ck_tile::index_t seqlen_q;      // batched mode only
+    ck_tile::index_t seqlen_kv;     // batched mode only
+    const void* seq_q_offsets_ptr;  // jagged mode only
+    const void* seq_kv_offsets_ptr; // jagged mode only
+    ck_tile::index_t max_seqlen;    // jagged mode only
 
     const void* q_ptr;
     const void* k_ptr;
