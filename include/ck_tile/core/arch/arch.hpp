@@ -352,7 +352,7 @@ CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx103_t) { return 32; }
 
 CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx11_t) { return 32; }
 
-CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx12_t) { return 64; }
+CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx12_t) { return 32; }
 
 CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx950_t) { return 64; }
 
