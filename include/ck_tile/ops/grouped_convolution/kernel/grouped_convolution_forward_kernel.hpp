@@ -367,6 +367,7 @@ struct GroupedConvFwdKernelArgs
     index_t GemmN;
     index_t GemmK;
     index_t GemmBatch;
+    index_t NumGroupsPerBatch;
 
     const void* in_ptr;
     const void* wei_ptr;
