@@ -1760,6 +1760,8 @@ struct FastNumericArrayConverter<uint8_t, half_t, N>
 
 struct DynamicUnaryOp
 {
+    static constexpr const char* name = "DynamicUnaryOp";
+
     __host__ __device__ DynamicUnaryOp() = delete;
 
     __host__ __device__ DynamicUnaryOp(const Swish& swish)
