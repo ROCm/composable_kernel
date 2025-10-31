@@ -165,6 +165,7 @@ struct GemmConfigPreshuffleB_Bquant_decode : public GemmConfigBase
 
     static constexpr bool PreshuffleB      = true;
     static constexpr bool DoubleSmemBuffer = true;
+    static constexpr bool PreshuffleQuant  = true;
 
     static constexpr int N_Repeat          = N_Tile / N_Warp_Tile / N_Warp;
     static constexpr bool TiledMMAPermuteN = N_Repeat % 2 == 0;
@@ -281,14 +282,14 @@ auto create_args(int argc, char* argv[])
         .insert("prec",
                 "fp8",
                 "data type. For AQuant: fp8/bf8/i4fp8/i4bf8, For Bquant: fp8/bf8/fp8i4/bf8i4")
-        .insert("warmup", "50", "number of iterations before benchmark the kernel")
-        .insert("repeat", "1000", "number of iterations to benchmark the kernel")
+        .insert("warmup", "0", "number of iterations before benchmark the kernel")
+        .insert("repeat", "1", "number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("split_k", "1", "splitK value")
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
         .insert("flush_cache", "true", "flush cache before running the kernel, defaults to true")
-        .insert("rotating_count", "1000", "rotating count, defaults to 1")
-        .insert("quant_mode", "bquant", "Choose aquant (default), bquant, tensor or rowcol");
+        .insert("rotating_count", "0", "rotating count, defaults to 1")
+        .insert("quant_mode", "aquant", "Choose aquant (default), bquant, tensor or rowcol");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);

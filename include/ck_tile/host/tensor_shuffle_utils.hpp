@@ -11,6 +11,7 @@ auto shuffle_aq(const ck_tile::HostTensor<T>* t, int block_aq_k)
     }
     int m_   = t->get_lengths()[0];
     int aqk_ = t->get_lengths()[1];
+    printf("m_: %d, aqk_: %d, block_aq_k: %d\n", m_, aqk_, block_aq_k);
     if(aqk_ % block_aq_k != 0)
     {
         throw std::runtime_error("shuffle_aq needs a aqk of multiple times of block_aq_k.");
@@ -18,6 +19,25 @@ auto shuffle_aq(const ck_tile::HostTensor<T>* t, int block_aq_k)
     ck_tile::HostTensor<T> t_view({m_, aqk_ / block_aq_k, block_aq_k});
     std::copy(t->begin(), t->end(), t_view.begin());
     return ck_tile::reference_permute(t_view, {1, 0, 2});
+}
+
+template <typename T>
+auto shuffle_bq(const ck_tile::HostTensor<T>* t, int block_bq_k)
+{
+    if(t->get_lengths().size() != 2)
+    {
+        throw std::runtime_error("Host tensor is not rank 2 tensor.");
+    }
+    int bqk_ = t->get_lengths()[0];
+    int n_   = t->get_lengths()[1];
+    printf("bqk_: %d, n_: %d, block_bq_k: %d\n", bqk_, n_, block_bq_k);
+    if(bqk_ % block_bq_k != 0)
+    {
+        throw std::runtime_error("shuffle_bq needs a bqk of multiple times of block_bq_k.");
+    }
+    ck_tile::HostTensor<T> t_view({n_, bqk_ / block_bq_k, block_bq_k});
+    std::copy(t->begin(), t->end(), t_view.begin());
+    return ck_tile::reference_permute(t_view, {1, 2, 0});
 }
 
 template <typename GemmConfig, typename T>

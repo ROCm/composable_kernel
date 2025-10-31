@@ -268,6 +268,10 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
 
             if constexpr(std::is_same_v<AQDataType, float>)
             {
+                if(get_block_id() == 0 && get_thread_id() == 0)
+                {
+                    printf("Here exchange_quant_value_across_lanes float\n");
+                }
                 scale_reg_dword = ck_tile::bit_cast<uint32_t>(scale_reg);
             }
             else
@@ -277,7 +281,13 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
 
             int gathered_scale_reg = __builtin_amdgcn_ds_bpermute(
                 pull_from_lane << 2, __builtin_bit_cast(int, scale_reg_dword));
-
+            if(get_block_id() == 0 && get_thread_id() == 0)
+            {
+                printf("pull_from_lane: %d, scale_reg_dword: 0x%08x, gathered_scale_reg: %d\n",
+                       pull_from_lane,
+                       scale_reg_dword,
+                       gathered_scale_reg);
+            }
             return Base::cvt_scale_to_fp32(gathered_scale_reg);
         }
 
@@ -352,6 +362,10 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                         decltype(threadIdx.x) pull_from_lane     = 0;
                         if constexpr(WarpGemm::kM == 16)
                         {
+                            if(get_block_id() == 0 && get_thread_id() == 0)
+                            {
+                                printf("Here WarpGemm::kM == 16\n");
+                            }
                             pull_from_lane =
                                 (__lane_id() / Traits::WarpGemm::kN * kTileRowsOfCPerThread +
                                  c_row) *
@@ -371,7 +385,14 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                             static_assert(false, "WarpGemm::kM is not 16 nor 32.");
                         }
                         auto& scale_reg = aq_block_tensor.get_thread_buffer()[mIter];
-
+                        if(get_block_id() == 0 && get_thread_id() == 0)
+                        {
+                            printf("mIter: %d, kQScale: %d, pull_from_lane: %u, scale_reg: %f\n",
+                                   mIter,
+                                   kQScale,
+                                   pull_from_lane,
+                                   scale_reg);
+                        }
                         return exchange_quant_value_across_lanes(scale_reg, pull_from_lane);
                     }
                     else
@@ -531,6 +552,16 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                         static_for<0, WarpGemm::kM * WarpGemm::kN / warp_size, 1>{}(
                             [&](auto c_row) {
                                 float scale_reg_f = aq_picker.template pick<c_row>();
+                                if(get_block_id() == 0 && get_thread_id() == 0)
+                                {
+                                    printf("mIter: %d, nIter: %d, kQScale: %d, c_row: %d, "
+                                           "scale_reg_f: %f\n",
+                                           static_cast<int>(mIter),
+                                           static_cast<int>(nIter),
+                                           static_cast<int>(kQScale),
+                                           static_cast<int>(c_row),
+                                           scale_reg_f);
+                                }
                                 c_block_tensor.get_thread_buffer()[tbuf_offset + c_row] +=
                                     (c_warp_tensor.get_thread_buffer()[c_row] * scale_reg_f);
                             });

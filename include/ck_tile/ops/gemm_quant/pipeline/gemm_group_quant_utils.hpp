@@ -74,6 +74,17 @@ struct tile_distribution_encoding_pattern_aq : public tile_distribution_encoding
     {
         if constexpr(PreshuffleQuant)
         {
+            if(get_block_id() == 0 && get_thread_id() == 33)
+            {
+                printf("YperTile: %d, XPerTile: %d, MWarps: %d, NWarps: %d, MIterPerWarp: %d, "
+                       "warp_size: %d\n",
+                       YPerTile,
+                       XPerTile,
+                       MWarps,
+                       NWarps,
+                       MIterPerWarp,
+                       warp_size);
+            }
             // # of elements per thread
             static_assert(XPerTile >= warp_size && XPerTile % warp_size == 0);
             constexpr index_t X1 = warp_size;
@@ -84,9 +95,10 @@ struct tile_distribution_encoding_pattern_aq : public tile_distribution_encoding
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<NWarps>,
                                            tuple<sequence<Y0, Y1>, sequence<X0, X1>>,
-                                           tuple<sequence<1, 0>, sequence<2>>,
-                                           tuple<sequence<1, 0>, sequence<1>>,
-                                           sequence<1, 2>,
+                                           tuple<sequence<1, 0>, sequence<2>>, //(MWarp, NWarp),
+                                                                               //(warp_size)
+                                           tuple<sequence<1, 0>, sequence<1>>, //(1, 4), (64)
+                                           sequence<1, 2>,                     // (1), (64/64) = 1
                                            sequence<0, 0>>{});
         }
         else
