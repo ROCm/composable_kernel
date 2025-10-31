@@ -1,3 +1,6 @@
+## Copyright © Advanced Micro Devices, Inc. or its affiliates.
+## SPDX-License-Identifier: MIT
+
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 # Convert miopen driver command to ck Profiler
