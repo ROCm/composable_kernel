@@ -210,8 +210,8 @@ struct DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle
             ? math::min(CBlockTransferScalarPerVector_NWaveNPerXdl, MaxScalarPerVectorFP32)
             : CBlockTransferScalarPerVector_NWaveNPerXdl;
 
-    // 4 bytes per bank
-    static constexpr auto BankLength = 4 * get_n_lds_banks();
+    // Bytes per 32 lds bank: 32 * 4 bytes
+    static constexpr auto BankLength = 128;
     static constexpr auto ElePerBank = BankLength / sizeof(ADataType);
 
     // M1 & M0
