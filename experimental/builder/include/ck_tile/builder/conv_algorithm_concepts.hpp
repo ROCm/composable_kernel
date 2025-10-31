@@ -175,6 +175,11 @@ concept SpecifiesNumPrefetchStages = requires {
 };
 
 template <typename T>
+concept SpecifiesNumGroupsToMerge = requires {
+    { T::num_groups_to_merge } -> std::convertible_to<size_t>;
+};
+
+template <typename T>
 concept SpecifiesLoopScheduler = requires {
     { T::loop_scheduler } -> std::convertible_to<LoopScheduler>;
 };

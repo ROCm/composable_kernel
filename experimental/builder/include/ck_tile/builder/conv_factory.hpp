@@ -790,6 +790,8 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
                   "The convolution algorithm descriptor must specify number of prefetch stages.");
     static_assert(SpecifiesLoopScheduler<AlgorithmType>,
                   "The convolution algorithm descriptor must specify loop scheduler.");
+    static_assert(SpecifiesNumGroupsToMerge<AlgorithmType>,
+                  "The convolution algorithm descriptor must specify number of groups to merge.");
 
     static constexpr auto FWD_CONV_SPECIALIZATION = factory_internal::SetFwdConvSpecialization<ALGORITHM>();
     static constexpr auto GEMM_SPECIALIZATION     = factory_internal::SetGemmSpecialization<ALGORITHM>();
@@ -867,7 +869,8 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         C_BLOCK_TRANSFER.scalar_per_vector,
         typename Types::AComputeType,
         typename Types::BComputeType,
-        LOOP_SCHEDULER
+        LOOP_SCHEDULER,
+        ALGORITHM.num_groups_to_merge
     >;
 };
 

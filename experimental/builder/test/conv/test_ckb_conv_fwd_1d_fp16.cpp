@@ -4,14 +4,14 @@ using namespace ck_tile::builder::test_utils;
 
 namespace ck_tile::builder::testing {
 
-// 1D FP16 (channels-first) with DEFAULT specialization
+// 1D FP16 (channels-last) with DEFAULT specialization
 TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_Instance_1D_FP16_ChannelsFirst_scale)
 {
     constexpr ConvSignature FwdConvSignature{
         .spatial_dim           = 1,
         .direction             = ConvDirection::FORWARD,
-        .layout                = GroupConvLayout1D::NGCW_GKXC_NGKW,
+        .layout                = GroupConvLayout1D::NWGC_GKXC_NWGK,
         .data_type             = DataType::FP16,
         .elementwise_operation = ElementwiseOperation::PASS_THROUGH,
         .device_operation =
@@ -23,7 +23,7 @@ TEST(FwdConvInstances,
     run_test_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<
         FwdConvSignature,
         FwdThreadBlock,
-        ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0>();
+        ConvFwdSpecialization::DEFAULT>();
 }
 
 } // namespace ck_tile::builder::testing

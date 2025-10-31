@@ -154,6 +154,7 @@ struct ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     ConvFwdSpecialization fwd_specialization;
     GemmSpecialization gemm_specialization;
     size_t num_gemm_k_prefetch_stages;
+    size_t num_groups_to_merge;
     LoopScheduler loop_scheduler;
 };
 static_assert(
@@ -178,6 +179,8 @@ static_assert(
     ckb::SpecifiesGemmSpecialization<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
 static_assert(
     ckb::SpecifiesLoopScheduler<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
+static_assert(
+    ckb::SpecifiesNumGroupsToMerge<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
 
 struct ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
 {
