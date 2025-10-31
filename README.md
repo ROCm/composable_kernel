@@ -118,7 +118,7 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
     Or pass additional cmake arguments:
 
     ```bash
-    ../script/cmake-ck-dev.sh .. gfx90a -DDTYPES=fp16;fp32
+    ../script/cmake-ck-dev.sh .. gfx90a -DCMAKE_BUILD_TYPE=Release
     ```
 
 4. Build the entire CK library:
