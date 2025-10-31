@@ -51,10 +51,8 @@ constexpr void run_test_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3()
                                                 .src_access_order_a            = {1, 0, 2},
                                                 .src_access_order_b            = {1, 0, 2}};
 
-    constexpr BlockGemm BlockGemmDesc = {
-        .pipeline_version  = FwdPipelineVersion,
-        .scheduler         = BlockGemmPipelineScheduler::INTRAWAVE
-    };
+    constexpr BlockGemm BlockGemmDesc = {.pipeline_version = FwdPipelineVersion,
+                                         .scheduler        = BlockGemmPipelineScheduler::INTRAWAVE};
 
     constexpr ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 FwdConvAlgorithm{
         .thread_block        = FwdThreadBlock,
@@ -62,8 +60,7 @@ constexpr void run_test_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3()
         .block_transfer      = FwdBlockTransfer,
         .fwd_specialization  = FwdConvSpecialization,
         .gemm_specialization = GemmSpecialization::MNKPadding,
-        .block_gemm          = BlockGemmDesc
-    };
+        .block_gemm          = BlockGemmDesc};
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
 
@@ -174,13 +171,12 @@ template <ConvSignature FwdConvSignature,
           ConvFwdSpecialization FwdConvSpecialization>
 constexpr void run_test_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle()
 {
-    constexpr GridwiseWmmaGemm FwdGemmParams{
-        .k1 = 8, 
-        .m_per_wmma = 32, 
-        .n_per_wmma = 32, 
-        .m_wmma_per_wave = 2, 
-        .n_wmma_per_wave = 1,
-        .pipeline_version = GridwiseGemmPipelineVersion::V1};
+    constexpr GridwiseWmmaGemm FwdGemmParams{.k1               = 8,
+                                             .m_per_wmma       = 32,
+                                             .n_per_wmma       = 32,
+                                             .m_wmma_per_wave  = 2,
+                                             .n_wmma_per_wave  = 1,
+                                             .pipeline_version = GridwiseGemmPipelineVersion::V1};
 
     constexpr BlockTransferABC FwdBlockTransfer{.block_transfer_a = {.k0 = 4, .m_n = 32, .k1 = 1},
                                                 .block_transfer_b = {.k0 = 4, .m_n = 32, .k1 = 1},

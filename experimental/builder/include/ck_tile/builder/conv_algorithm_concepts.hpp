@@ -38,7 +38,6 @@ concept GridwiseXdlGemmDescriptor = requires(T t) {
 // Concept for parameter that describe block GEMM problem.
 template <typename T>
 concept BlockGemmDescriptor = requires(T t) {
-
     { t.pipeline_version } -> std::convertible_to<BlockGemmPipelineVersion>;
     { t.scheduler } -> std::convertible_to<BlockGemmPipelineScheduler>;
 };

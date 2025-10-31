@@ -293,15 +293,15 @@ template <ConvAlgorithmDescriptor auto ALGORITHM>
 constexpr BlockGemmSpec SetBlockGemm()
 {
     constexpr auto& BG = ALGORITHM.block_gemm;
-    
+
     ck::BlockGemmPipelineScheduler scheduler;
     ck::BlockGemmPipelineVersion version;
 
-    if constexpr (BG.scheduler == BlockGemmPipelineScheduler::INTRAWAVE)
+    if constexpr(BG.scheduler == BlockGemmPipelineScheduler::INTRAWAVE)
     {
         scheduler = ck::BlockGemmPipelineScheduler::Intrawave;
     }
-    else if constexpr (BG.scheduler == BlockGemmPipelineScheduler::INTERWAVE)
+    else if constexpr(BG.scheduler == BlockGemmPipelineScheduler::INTERWAVE)
     {
         scheduler = ck::BlockGemmPipelineScheduler::Interwave;
     }
@@ -310,23 +310,23 @@ constexpr BlockGemmSpec SetBlockGemm()
         static_assert(false, "Unknown BlockGemmPipelineScheduler");
     }
 
-    if constexpr (BG.pipeline_version == BlockGemmPipelineVersion::V1)
+    if constexpr(BG.pipeline_version == BlockGemmPipelineVersion::V1)
     {
         version = ck::BlockGemmPipelineVersion::v1;
     }
-    else if constexpr (BG.pipeline_version == BlockGemmPipelineVersion::V2)
+    else if constexpr(BG.pipeline_version == BlockGemmPipelineVersion::V2)
     {
         version = ck::BlockGemmPipelineVersion::v2;
     }
-    else if constexpr (BG.pipeline_version == BlockGemmPipelineVersion::V3)
+    else if constexpr(BG.pipeline_version == BlockGemmPipelineVersion::V3)
     {
         version = ck::BlockGemmPipelineVersion::v3;
     }
-    else if constexpr (BG.pipeline_version == BlockGemmPipelineVersion::V4)
+    else if constexpr(BG.pipeline_version == BlockGemmPipelineVersion::V4)
     {
         version = ck::BlockGemmPipelineVersion::v4;
     }
-    else if constexpr (BG.pipeline_version == BlockGemmPipelineVersion::V5)
+    else if constexpr(BG.pipeline_version == BlockGemmPipelineVersion::V5)
     {
         version = ck::BlockGemmPipelineVersion::v5;
     }
@@ -489,7 +489,7 @@ consteval ck::PipelineVersion SetGridwiseGemmPipelineVersion()
 template <ConvAlgorithmDescriptor auto ALGORITHM>
 consteval ck::tensor_operation::device::GemmSpecialization SetGemmSpecialization()
 {
-    constexpr auto gemm_spec = ALGORITHM.gemm_specialization;    
+    constexpr auto gemm_spec = ALGORITHM.gemm_specialization;
 
     if constexpr(gemm_spec == GemmSpecialization::Default)
     {
@@ -666,16 +666,17 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
                   "specialization.");
     static_assert(SpecifiesGemmSpecialization<AlgorithmType>,
                   "The convolution algorithm descriptor must specify gemm specialization.");
-    static_assert(ALGORITHM.block_transfer.lds_transfer_a.is_direct_load == ALGORITHM.block_transfer.lds_transfer_b.is_direct_load,
-                    "A and B block transfers must both be direct load or not.");
+    static_assert(ALGORITHM.block_transfer.lds_transfer_a.is_direct_load ==
+                      ALGORITHM.block_transfer.lds_transfer_b.is_direct_load,
+                  "A and B block transfers must both be direct load or not.");
 
     static constexpr bool IS_DIRECT_LOAD = ALGORITHM.block_transfer.lds_transfer_a.is_direct_load;
-    static constexpr auto FWD_CONV_SPECIALIZATION = factory_internal::SetFwdConvSpecialization<ALGORITHM>();
-    static constexpr auto GEMM_SPECIALIZATION     = factory_internal::SetGemmSpecialization<ALGORITHM>();
-    static constexpr factory_internal::ConvSpec SPECIALIZATION{
-        .conv_spec = FWD_CONV_SPECIALIZATION,
-        .gemm_spec = GEMM_SPECIALIZATION
-    };
+    static constexpr auto FWD_CONV_SPECIALIZATION =
+        factory_internal::SetFwdConvSpecialization<ALGORITHM>();
+    static constexpr auto GEMM_SPECIALIZATION =
+        factory_internal::SetGemmSpecialization<ALGORITHM>();
+    static constexpr factory_internal::ConvSpec SPECIALIZATION{.conv_spec = FWD_CONV_SPECIALIZATION,
+                                                               .gemm_spec = GEMM_SPECIALIZATION};
 
     static constexpr auto BLOCK         = factory_internal::SetThreadBlockInfo<ALGORITHM>();
     static constexpr auto GRIDWISE_GEMM = ALGORITHM.gridwise_gemm;
@@ -747,8 +748,7 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         BLOCK_GEMM.pipeline_version,
         typename Types::AComputeType,
         typename Types::BComputeType,
-        IS_DIRECT_LOAD
-    >;
+        IS_DIRECT_LOAD>;
 };
 
 // Factory specialization for DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle instance
@@ -793,12 +793,12 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
     static_assert(SpecifiesNumGroupsToMerge<AlgorithmType>,
                   "The convolution algorithm descriptor must specify number of groups to merge.");
 
-    static constexpr auto FWD_CONV_SPECIALIZATION = factory_internal::SetFwdConvSpecialization<ALGORITHM>();
-    static constexpr auto GEMM_SPECIALIZATION     = factory_internal::SetGemmSpecialization<ALGORITHM>();
-    static constexpr factory_internal::ConvSpec SPECIALIZATION{
-        .conv_spec = FWD_CONV_SPECIALIZATION,
-        .gemm_spec = GEMM_SPECIALIZATION
-    };
+    static constexpr auto FWD_CONV_SPECIALIZATION =
+        factory_internal::SetFwdConvSpecialization<ALGORITHM>();
+    static constexpr auto GEMM_SPECIALIZATION =
+        factory_internal::SetGemmSpecialization<ALGORITHM>();
+    static constexpr factory_internal::ConvSpec SPECIALIZATION{.conv_spec = FWD_CONV_SPECIALIZATION,
+                                                               .gemm_spec = GEMM_SPECIALIZATION};
 
     static constexpr auto LOOP_SCHEDULER = factory_internal::SetLoopScheduler<ALGORITHM>();
     static constexpr auto BLOCK          = factory_internal::SetThreadBlockInfo<ALGORITHM>();
@@ -870,8 +870,7 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         typename Types::AComputeType,
         typename Types::BComputeType,
         LOOP_SCHEDULER,
-        ALGORITHM.num_groups_to_merge
-    >;
+        ALGORITHM.num_groups_to_merge>;
 };
 
 // Factory specialization for DeviceGroupedConvFwdMultipleD_Wmma_CShuffle instance
@@ -912,12 +911,12 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
     static_assert(SpecifiesLoopScheduler<AlgorithmType>,
                   "The convolution algorithm descriptor must specify loop scheduler.");
 
-    static constexpr auto FWD_CONV_SPECIALIZATION = factory_internal::SetFwdConvSpecialization<ALGORITHM>();
-    static constexpr auto GEMM_SPECIALIZATION     = factory_internal::SetGemmSpecialization<ALGORITHM>();
-    static constexpr factory_internal::ConvSpec SPECIALIZATION{
-        .conv_spec = FWD_CONV_SPECIALIZATION,
-        .gemm_spec = GEMM_SPECIALIZATION
-    };
+    static constexpr auto FWD_CONV_SPECIALIZATION =
+        factory_internal::SetFwdConvSpecialization<ALGORITHM>();
+    static constexpr auto GEMM_SPECIALIZATION =
+        factory_internal::SetGemmSpecialization<ALGORITHM>();
+    static constexpr factory_internal::ConvSpec SPECIALIZATION{.conv_spec = FWD_CONV_SPECIALIZATION,
+                                                               .gemm_spec = GEMM_SPECIALIZATION};
 
     static constexpr auto LOOP_SCHEDULER = factory_internal::SetLoopScheduler<ALGORITHM>();
     static constexpr auto BLOCK          = factory_internal::SetThreadBlockInfo<ALGORITHM>();
@@ -988,8 +987,7 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         to_sequence_v<C_BLOCK_TRANSFER.thread_cluster_dims>,
         C_BLOCK_TRANSFER.scalar_per_vector,
         LOOP_SCHEDULER,
-        GRIDWISE_GEMM_PIPELINE_VERSION
-    >;
+        GRIDWISE_GEMM_PIPELINE_VERSION>;
 };
 
 } // namespace ck_tile::builder
