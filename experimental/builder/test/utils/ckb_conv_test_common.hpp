@@ -141,7 +141,8 @@ constexpr void run_test_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle()
         .block_transfer             = FwdBlockTransfer,
         .fwd_specialization         = FwdConvSpecialization,
         .gemm_specialization        = GemmSpecialization::MNKPadding,
-        .num_gemm_k_prefetch_stages = 1};
+        .num_gemm_k_prefetch_stages = 1,
+        .loop_scheduler             = LoopScheduler::DEFAULT};
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
 

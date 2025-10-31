@@ -196,7 +196,9 @@ template <>
 struct ConvTensorTypes<DataType::FP16>
 {
     using ADataType        = ck::half_t;
+    using AComputeType     = ck::half_t;
     using BDataType        = ck::half_t;
+    using BComputeType     = ck::half_t;
     using CShuffleDataType = ck::half_t;
     using DsDataTypes      = ck::Tuple<>;
     using AccDataType      = float;
@@ -207,7 +209,9 @@ template <>
 struct ConvTensorTypes<DataType::BF16>
 {
     using ADataType        = ck::bhalf_t;
+    using AComputeType     = ck::bhalf_t;
     using BDataType        = ck::bhalf_t;
+    using BComputeType     = ck::bhalf_t;
     using CShuffleDataType = ck::bhalf_t;
     using DsDataTypes      = ck::Tuple<>;
     using AccDataType      = float;
@@ -218,7 +222,9 @@ template <>
 struct ConvTensorTypes<DataType::FP32>
 {
     using ADataType        = float;
+    using AComputeType     = float;
     using BDataType        = float;
+    using BComputeType     = float;
     using CShuffleDataType = float;
     using DsDataTypes      = ck::Tuple<>;
     using AccDataType      = float;
@@ -229,7 +235,9 @@ template <>
 struct ConvTensorTypes<DataType::I8>
 {
     using ADataType        = int8_t;
+    using AComputeType     = int8_t;
     using BDataType        = int8_t;
+    using BComputeType     = int8_t;
     using CShuffleDataType = int8_t;
     using DsDataTypes      = ck::Tuple<>;
     using AccDataType      = int32_t;
@@ -658,7 +666,10 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
                   "specialization.");
     static_assert(SpecifiesGemmSpecialization<AlgorithmType>,
                   "The convolution algorithm descriptor must specify gemm specialization.");
+    static_assert(ALGORITHM.block_transfer.lds_transfer_a.is_direct_load == ALGORITHM.block_transfer.lds_transfer_b.is_direct_load,
+                    "A and B block transfers must both be direct load or not.");
 
+    static constexpr bool IS_DIRECT_LOAD = ALGORITHM.block_transfer.lds_transfer_a.is_direct_load;
     static constexpr auto FWD_CONV_SPECIALIZATION = factory_internal::SetFwdConvSpecialization<ALGORITHM>();
     static constexpr auto GEMM_SPECIALIZATION     = factory_internal::SetGemmSpecialization<ALGORITHM>();
     static constexpr factory_internal::ConvSpec SPECIALIZATION{
@@ -733,7 +744,11 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         to_sequence_v<C_BLOCK_TRANSFER.thread_cluster_dims>,
         C_BLOCK_TRANSFER.scalar_per_vector,
         BLOCK_GEMM.scheduler,
-        BLOCK_GEMM.pipeline_version>;
+        BLOCK_GEMM.pipeline_version,
+        typename Types::AComputeType,
+        typename Types::BComputeType,
+        IS_DIRECT_LOAD
+    >;
 };
 
 // Factory specialization for DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle instance
@@ -773,6 +788,8 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
                   "The convolution algorithm descriptor must specify gemm specialization.");
     static_assert(SpecifiesNumPrefetchStages<AlgorithmType>,
                   "The convolution algorithm descriptor must specify number of prefetch stages.");
+    static_assert(SpecifiesLoopScheduler<AlgorithmType>,
+                  "The convolution algorithm descriptor must specify loop scheduler.");
 
     static constexpr auto FWD_CONV_SPECIALIZATION = factory_internal::SetFwdConvSpecialization<ALGORITHM>();
     static constexpr auto GEMM_SPECIALIZATION     = factory_internal::SetGemmSpecialization<ALGORITHM>();
@@ -781,8 +798,9 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         .gemm_spec = GEMM_SPECIALIZATION
     };
 
-    static constexpr auto BLOCK         = factory_internal::SetThreadBlockInfo<ALGORITHM>();
-    static constexpr auto GRIDWISE_GEMM = ALGORITHM.gridwise_gemm;
+    static constexpr auto LOOP_SCHEDULER = factory_internal::SetLoopScheduler<ALGORITHM>();
+    static constexpr auto BLOCK          = factory_internal::SetThreadBlockInfo<ALGORITHM>();
+    static constexpr auto GRIDWISE_GEMM  = ALGORITHM.gridwise_gemm;
     static constexpr auto A_BLOCK_TRANSFER =
         factory_internal::SetFwdConvABlockTransfer<ALGORITHM>();
     static constexpr auto B_BLOCK_TRANSFER =
@@ -846,7 +864,11 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         C_BLOCK_TRANSFER.m_per_wave_per_shuffle,
         C_BLOCK_TRANSFER.n_per_wave_per_shuffle,
         to_sequence_v<C_BLOCK_TRANSFER.thread_cluster_dims>,
-        C_BLOCK_TRANSFER.scalar_per_vector>;
+        C_BLOCK_TRANSFER.scalar_per_vector,
+        typename Types::AComputeType,
+        typename Types::BComputeType,
+        LOOP_SCHEDULER
+    >;
 };
 
 // Factory specialization for DeviceGroupedConvFwdMultipleD_Wmma_CShuffle instance
