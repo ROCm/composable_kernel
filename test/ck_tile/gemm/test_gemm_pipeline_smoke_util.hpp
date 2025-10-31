@@ -241,6 +241,15 @@ struct GemmConfigComputeV3_WMMA : public GemmConfigBase
     static constexpr int kBlockPerCu = 2;
 };
 
+template <typename PrecType>
+#if CK_TILE_USE_WMMA
+using GemmConfigsTemplate = ::testing::Types<GemmConfigComputeV3_WMMA<PrecType>>;
+#else
+using GemmConfigsTemplate = ::testing::Types<GemmConfigComputeV3<PrecType>,
+                                             GemmConfigComputeV3_2<PrecType>,
+                                             GemmConfigComputeV4<PrecType>>;
+#endif
+
 template <typename ADataType, typename BDataType = ADataType, typename CDataType = ADataType>
 struct GemmTypeConfig;
 
@@ -277,6 +286,15 @@ struct GemmTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>
 {
     using ADataType   = ck_tile::fp8_t;
     using BDataType   = ck_tile::fp8_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::half_t;
+};
+
+template <>
+struct GemmTypeConfig<ck_tile::fp8_t, ck_tile::bf8_t, ck_tile::half_t>
+{
+    using ADataType   = ck_tile::fp8_t;
+    using BDataType   = ck_tile::bf8_t;
     using AccDataType = float;
     using CDataType   = ck_tile::half_t;
 };
@@ -421,31 +439,6 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V5>
     template <typename PipelineProblem>
     using UniversalGemmPipeline = ck_tile::BaseGemmPipelineAgBgCrCompV5<PipelineProblem>;
 };
-
-auto create_args(int argc, char* argv[])
-{
-    ck_tile::ArgParser arg_parser;
-    arg_parser.insert("m", "3840", "m dimension")
-        .insert("n", "4096", "n dimension")
-        .insert("k", "2048", "k dimension")
-        .insert("a_layout", "R", "A tensor data layout - Row by default")
-        .insert("b_layout", "C", "B tensor data layout - Column by default")
-        .insert("c_layout", "R", "C tensor data layout - Row by default")
-        .insert("stride_a", "0", "Tensor A stride")
-        .insert("stride_b", "0", "Tensor B stride")
-        .insert("stride_c", "0", "Tensor C stride")
-        .insert("v", "2", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
-        .insert("prec", "fp16", "data type. fp16/bf16/fp8/bf8")
-        .insert("warmup", "50", "number of iterations before benchmark the kernel")
-        .insert("repeat", "100", "number of iterations to benchmark the kernel")
-        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
-        .insert("split_k", "1", "splitK value")
-        .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
-        .insert("persistent", "0", "0:non-persistent, 1:persistent");
-
-    bool result = arg_parser.parse(argc, argv);
-    return std::make_tuple(result, arg_parser);
-}
 
 // host API
 template <typename ADataType,

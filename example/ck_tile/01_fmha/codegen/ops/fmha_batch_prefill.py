@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 # generate kernel instances to speed up compilation
 
 import copy
@@ -21,6 +21,7 @@ from codegen.cpp_symbol_map import (
     BOOL_MAP,
     PIPELINE_ENUM_MAP,
 )
+from codegen.utils import update_file
 
 
 DTYPE_BITS = {"fp32": 32, "fp16": 16, "bf16": 16, "fp8": 8, "bf8": 8}
@@ -441,7 +442,7 @@ class FmhaFwdApiPool:
             )
         if not per_dtypes:
             # empty string we add some ignore to suppress warning in api
-            per_dtypes += "    (void)t ; (void)s ; (void)a;"
+            per_dtypes += "    (void)t; (void)s; (void)a;"
         return FMHA_FWD_KERNEL_HEADER + FMHA_FWD_API.format(F_dispatch=per_dtypes)
 
 
@@ -575,30 +576,8 @@ class KernelComponentFactory:
     def get_hdim_tile_size_dict(dtype: str) -> Optional[dict]:
         if dtype == "fp16" or dtype == "bf16":
             return {
-                128: [
-                    FmhaFwdTileSize(
-                        128,
-                        128,
-                        32,
-                        128,
-                        32,
-                        128,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        32,
-                        32,
-                        16,
-                        32,
-                        32,
-                        16,
-                        -1,
-                    )
-                ],
-            }
+                128 : [FmhaFwdTileSize(128, 128, 32, 128, 32,  128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
+            }  # fmt: skip
         else:
             return None
 
@@ -618,40 +597,10 @@ class KernelComponentFactory:
                 ["t", "f"],
                 ["t", "f"],
             ):
-                pipelines.append(
-                    FmhaFwdPipeline(
-                        "qr_async",
-                        "row",
-                        "t",
-                        "f",
-                        "t",
-                        "t",
-                        logits,
-                        bias,
-                        lse,
-                        dropout,
-                        squant,
-                        mask,
-                    )
-                )
-                pipelines.append(
-                    FmhaFwdPipeline(
-                        "qr_async",
-                        "row",
-                        "t",
-                        "t",
-                        "t",
-                        "t",
-                        logits,
-                        bias,
-                        lse,
-                        dropout,
-                        squant,
-                        mask,
-                    )
-                )
-                # pipelines.append(FmhaFwdPipeline('qr_async', 'col', 't', 'f', 't', 't', logits, bias, lse, dropout, squant, mask))
-                # pipelines.append(FmhaFwdPipeline('qr_async', 'col', 't', 't', 't', 't', logits, bias, lse, dropout, squant, mask))
+                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "f", "t", "t", logits, bias, lse, dropout, squant, mask))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, lse, dropout, squant, mask))  # fmt: skip
+                # pipelines.append(FmhaFwdPipeline("qr_async", "col", "t", "f", "t", "t", logits, bias, lse, dropout, squant, mask))  # fmt: skip
+                # pipelines.append(FmhaFwdPipeline("qr_async", "col", "t", "t", "t", "t", logits, bias, lse, dropout, squant, mask))  # fmt: skip
         else:
             assert False
         return pipelines
@@ -663,33 +612,7 @@ class CustomFactory(KernelComponentFactory):
         result = KernelComponentFactory.get_hdim_tile_size_dict(dtype)
         if dtype == "fp16" or dtype == "bf16":
             if 128 in result.keys():
-                result[128].insert(
-                    0,
-                    FmhaFwdTileSize(
-                        64,
-                        128,
-                        64,
-                        128,
-                        64,
-                        128,
-                        4,
-                        1,
-                        1,
-                        4,
-                        1,
-                        1,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        16,
-                        -1,
-                        CppConstraint(
-                            "get_num_blocks(128) < num_cus * min_cu_util_rate"
-                        ),
-                    ),
-                )
+                result[128].insert(0, FmhaFwdTileSize( 64, 128, 64, 128, 64,  128,  4, 1, 1,  4, 1, 1,  16, 16, 16,  16, 16, 16,  -1, CppConstraint("get_num_blocks(128) < num_cus * min_cu_util_rate")))  # fmt: skip
         return result
 
 
@@ -798,15 +721,20 @@ def get_fwd_blobs(
 
 
 def write_single_fwd_kernel(kernel: FmhaFwdKernel, autogen_dir: Path) -> None:
-    (autogen_dir / kernel.filename).write_text(kernel.template)
+    update_file(autogen_dir / kernel.filename, kernel.template)
 
 
 def write_fwd_api(api_pool: FmhaFwdApiPool, autogen_dir: Path) -> None:
-    (autogen_dir / FMHA_FWD_API_FILENAME).write_text(api_pool.api)
+    update_file(autogen_dir / FMHA_FWD_API_FILENAME, api_pool.api)
 
 
 def write_blobs(
-    output_dir: Path, kernel_filter: str, receipt, optdim_list, mask_impl
+    targets: List[str],
+    output_dir: Path,
+    kernel_filter: str,
+    receipt,
+    optdim_list,
+    mask_impl,
 ) -> None:
     api_pool, kernels = get_fwd_blobs(kernel_filter, receipt, optdim_list, mask_impl)
     for kernel in kernels:
@@ -815,7 +743,12 @@ def write_blobs(
 
 
 def list_blobs(
-    file_path: Path, kernel_filter: str, receipt, optdim_list, mask_impl
+    targets: List[str],
+    file_path: Path,
+    kernel_filter: str,
+    receipt,
+    optdim_list,
+    mask_impl,
 ) -> None:
     with file_path.open("a") as f:
         _, kernels = get_fwd_blobs(kernel_filter, receipt, optdim_list, mask_impl)

@@ -40,6 +40,11 @@ option(MIOPEN_REQ_LIBS_ONLY "Build only the MIOpen required libraries" OFF)
 option(CK_EXPERIMENTAL_BUILDER "Enable experimental builder" OFF)
 option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
 
+if(CK_EXPERIMENTAL_BUILDER)
+    add_definitions(-DCK_EXPERIMENTAL_BUILDER)
+    include_directories(${PROJECT_SOURCE_DIR}/experimental/builder/include)  
+endif()
+
 # Usage: for customized Python location cmake -DCK_USE_ALTERNATIVE_PYTHON="/opt/Python-3.8.13/bin/python3.8"
 # CK Codegen requires dataclass which is added in Python 3.7
 # Python version 3.8 is required for general good practice as it is default for Ubuntu 20.04
@@ -341,7 +346,6 @@ endif()
 
 
 option(USE_BITINT_EXTENSION_INT4 "Whether to enable clang's BitInt extension to provide int4 data type." OFF)
-option(USE_OPT_GFX11 "Whether to enable LDS cumode and Wavefront32 mode for GFX11 silicons." OFF)
 option(ENABLE_ASM_DUMP "Whether to enable assembly dump for kernels." OFF)
 option(ENABLE_JSON_DUMP "Whether to enable json dump for examples." OFF)
 
@@ -612,11 +616,11 @@ endif()
 
 if(NOT MIOPEN_REQ_LIBS_ONLY)
     # make check runs the entire set of examples and tests
-    add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR})
+    add_custom_target(check COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} USES_TERMINAL)
     # make smoke runs the tests and examples that runs within 30 seconds on gfx90a
-    add_custom_target(smoke COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "SMOKE_TEST")
+    add_custom_target(smoke COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "SMOKE_TEST" USES_TERMINAL)
     # make regression runs the tests and examples that runs for more 30 seconds on gfx90a
-    add_custom_target(regression COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "REGRESSION_TEST")
+    add_custom_target(regression COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "REGRESSION_TEST" USES_TERMINAL)
 endif()
 
 
