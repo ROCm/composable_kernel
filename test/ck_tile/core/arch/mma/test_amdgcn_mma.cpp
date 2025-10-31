@@ -495,7 +495,7 @@ __global__ void test_accum_over_k(void* a, void* b, void* c, void* out)
     *reinterpret_cast<typename MmaOp::CVecType*>(out) = result;
 }
 
-// Do a live test. At minimum, there should be a solution on real hardware for F16_F16_F32_16x16x32
+// Do a live test. At minimum, there should be a solution on real hardware for F16_F16_F32_16x16x32.
 TEST(TestAmdgcnMma, MmaSelector_F16_F16_F32_16x16x32_Real)
 {
     int devCount;
@@ -519,6 +519,110 @@ TEST(TestAmdgcnMma, MmaSelector_F16_F16_F32_16x16x32_Real)
     using BType = fp16_t;
     using CType = fp32_t;
 
+    // Fragment size, also the expected block size from the selector.
+    // Note: Actual blockK might be slightly different due to hardware implementation, but the
+    // test_accum_over_k kernel will loop over the K dimension to ensure that the total K is
+    // correct.
+    static constexpr uint32_t FragM  = 16;
+    static constexpr uint32_t FragN  = 16;
+    static constexpr uint32_t FragK  = 32;
+    static constexpr uint32_t BlockM = FragM;
+    static constexpr uint32_t BlockN = FragN;
+    static constexpr uint32_t BlockK = FragK;
+
+    // Gfx11 has input data duplication and no accumulator padding (MultiplierC = 1)
+    bool isGfx11         = is_gfx11_arch_id(currentArchId);
+    uint32_t MultiplierA = isGfx11 ? 2 : 1;
+    uint32_t MultiplierB = isGfx11 ? 2 : 1;
+    uint32_t MultiplierC = 1;
+
+    // The number of elements per thread
+    uint32_t AElements = BlockM * BlockK / deviceWarpSize * MultiplierA;
+    uint32_t BElements = BlockN * BlockK / deviceWarpSize * MultiplierB;
+    uint32_t CElements = BlockM * BlockN / deviceWarpSize * MultiplierC;
+
+    uint32_t ASize = AElements * sizeof(AType);
+    uint32_t BSize = BElements * sizeof(BType);
+    uint32_t CSize = CElements * sizeof(CType);
+
+    // Initialize A and B to all 1's, C to all 0's
+    std::vector<AType> h_a(AElements, static_cast<AType>(1));
+    std::vector<BType> h_b(BElements, static_cast<BType>(1));
+    std::vector<CType> h_c(CElements, static_cast<CType>(0));
+    std::vector<CType> h_out(CElements, static_cast<CType>(0));
+
+    AType* d_a;
+    BType* d_b;
+    CType* d_c;
+    CType* d_out;
+
+    HIP_CHECK_ERROR(hipMalloc(&d_a, ASize));
+    HIP_CHECK_ERROR(hipMalloc(&d_b, BSize));
+    HIP_CHECK_ERROR(hipMalloc(&d_c, CSize));
+    HIP_CHECK_ERROR(hipMalloc(&d_out, CSize));
+
+    // Copy inputs to device
+    HIP_CHECK_ERROR(hipMemcpy(d_a, h_a.data(), ASize, hipMemcpyHostToDevice));
+    HIP_CHECK_ERROR(hipMemcpy(d_b, h_b.data(), BSize, hipMemcpyHostToDevice));
+    HIP_CHECK_ERROR(hipMemcpy(d_c, h_c.data(), CSize, hipMemcpyHostToDevice));
+
+    // Need at least 1 WG with 64 threads to get defined MFMA/WMMA behaviour
+    test_accum_over_k<AType, BType, CType, FragM, FragN, FragK><<<1, 64>>>(d_a, d_b, d_c, d_out);
+    HIP_CHECK_ERROR(hipDeviceSynchronize());
+
+    HIP_CHECK_ERROR(hipMemcpy(h_out.data(), d_out, CSize, hipMemcpyDeviceToHost));
+
+    // Output should be FragK for all elements, because the inputs are all 1's
+    for(size_t i = 0; i < CElements; ++i)
+    {
+        CType expected = static_cast<CType>(FragK);
+
+        EXPECT_NEAR(h_out[i], expected, 1e-3);
+    }
+
+    HIP_CHECK_ERROR(hipFree(d_a));
+    HIP_CHECK_ERROR(hipFree(d_b));
+    HIP_CHECK_ERROR(hipFree(d_c));
+    HIP_CHECK_ERROR(hipFree(d_out));
+}
+
+// Do a live test. At minimum, there should be a solution on real hardware for F16_F16_F32_16x16x32
+// The selector should be able to pick the correct MmaOp as a multiple of 16x16x32, even if the
+// fragment sizes are larger than 16x16x32. This tests that the selector can handle larger fragment
+// sizes and still select the correct MmaOp.
+TEST(TestAmdgcnMma, MmaSelector_F16_F16_F32_112x112x128_Real)
+{
+    int devCount;
+    hipDevice_t dev;
+    HIP_CHECK_ERROR(hipGetDevice(&dev));
+    HIP_CHECK_ERROR(hipGetDeviceCount(&devCount));
+
+    hipDeviceProp_t devProp;
+    HIP_CHECK_ERROR(hipGetDeviceProperties(&devProp, dev));
+
+    auto currentArchId = gfx_target_string_to_arch_id(devProp.gcnArchName);
+    bool hasDevice     = static_cast<bool>(devCount > 0);
+    int deviceWarpSize = devProp.warpSize;
+
+    if(!hasDevice || !(is_cdna_arch_id(currentArchId) || is_rdna_arch_id(currentArchId)))
+    {
+        GTEST_SKIP() << "No HIP device found. Skipping test.";
+    }
+
+    using AType = fp16_t;
+    using BType = fp16_t;
+    using CType = fp32_t;
+
+    // Fragment size to test for decomposition.
+    // We expect the selector to pick a 16x16 block
+    static constexpr uint32_t FragM = 112;
+    static constexpr uint32_t FragN = 112;
+    static constexpr uint32_t FragK = 128;
+
+    // The expected block size from the selector (multiple of 16).
+    // Note: Actual blockK might be slightly different due to hardware implementation, but the
+    // test_accum_over_k kernel will loop over the K dimension to ensure that the total K is
+    // correct.
     static constexpr uint32_t BlockM = 16;
     static constexpr uint32_t BlockN = 16;
     static constexpr uint32_t BlockK = 32;
@@ -560,16 +664,15 @@ TEST(TestAmdgcnMma, MmaSelector_F16_F16_F32_16x16x32_Real)
     HIP_CHECK_ERROR(hipMemcpy(d_c, h_c.data(), CSize, hipMemcpyHostToDevice));
 
     // Need at least 1 WG with 64 threads to get defined MFMA/WMMA behaviour
-    test_accum_over_k<AType, BType, CType, BlockM, BlockN, BlockK><<<1, 64>>>(d_a, d_b, d_c, d_out);
+    test_accum_over_k<AType, BType, CType, FragM, FragN, FragK><<<1, 64>>>(d_a, d_b, d_c, d_out);
     HIP_CHECK_ERROR(hipDeviceSynchronize());
 
     HIP_CHECK_ERROR(hipMemcpy(h_out.data(), d_out, CSize, hipMemcpyDeviceToHost));
 
-    // Output should be BlockK for all elements, because the inputs are all 1's
+    // Output should be FragK for all elements, because the inputs are all 1's
     for(size_t i = 0; i < CElements; ++i)
     {
-        // All threads write to the same values and they will be exactly the same as BlockK
-        CType expected = static_cast<CType>(BlockK);
+        CType expected = static_cast<CType>(FragK);
 
         EXPECT_NEAR(h_out[i], expected, 1e-3);
     }
