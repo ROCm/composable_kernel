@@ -48,12 +48,11 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     kernel_moe_mxgemm(typename GridwiseGemm::Argument karg)
 {
 #if defined(__gfx9__)
-    __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
-    __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+    __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
         auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
 
-    GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
+    GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
         karg.p_sorted_token_ids,
         karg.p_sorted_expert_ids,
         karg.p_max_token_id,
@@ -63,8 +62,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         karg.p_b_scale_grid + splitk_batch_offset.b_scale_k_split_offset,
         karg.p_ds_grid,
         karg.p_c_grid,
-        p_shared_0,
-        p_shared_1,
+        p_shared,
         karg,
         karg.a_element_op,
         karg.b_element_op,
@@ -1248,7 +1246,7 @@ struct GridwiseMoeGemmMX_BPreshuffle
     __host__ static constexpr bool CalculateHasMainKBlockLoop(index_t K)
     {
         const index_t num_loop = K / KPerBlock;
-
+        printf("num_loop: %d \n", num_loop);
         return BlockwiseGemmPipe::BlockHasHotloop(num_loop);
     }
 
@@ -1278,7 +1276,7 @@ struct GridwiseMoeGemmMX_BPreshuffle
     // using Block2CTileMapDefault = BlockToCTileMap_Grouped_M00_N0_M01Adapt<8, MPerBlock,
     // NPerBlock>;
 
-#if 0
+#if 1
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum CGlobalMemoryDataOperation,
               TailNumber TailNum = TailNumber::Odd>
@@ -1481,11 +1479,8 @@ struct GridwiseMoeGemmMX_BPreshuffle
 
         // LDS allocation for A and B: be careful of alignment
         // Cast after lds
-        auto a_block_buf_ping = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared_0), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
-        auto a_block_buf_pong = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<ADataType*>(p_shared_1), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
-        auto a_block_bufs = make_tuple(a_block_buf_ping, a_block_buf_pong);
+        auto a_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
+            static_cast<ADataType*>(p_shared), a_block_desc_ak0_m_ak1.GetElementSpaceSize());
 
         constexpr auto a_block_slice_copy_step = make_multi_index(KPerBlock / AK1Number, 0, 0);
         constexpr auto b_block_slice_copy_step = make_multi_index(0, 0, 0, KRepeat, 0);
@@ -1610,7 +1605,7 @@ struct GridwiseMoeGemmMX_BPreshuffle
                 a_block_desc_ak0_m_ak1,
                 a_blockwise_copy,
                 a_grid_buf,
-                a_block_bufs,
+                a_block_buf,
                 a_block_slice_copy_step,
                 // Gate and Up
                 b_grid_desc_bpreshuffled,
@@ -1643,7 +1638,7 @@ struct GridwiseMoeGemmMX_BPreshuffle
                 a_block_desc_ak0_m_ak1,
                 a_blockwise_copy,
                 a_grid_buf,
-                a_block_bufs,
+                a_block_buf,
                 a_block_slice_copy_step,
                 b_grid_desc_bpreshuffled, // B
                 b_block_desc_bk0_n_bk1,
@@ -1770,7 +1765,7 @@ struct GridwiseMoeGemmMX_BPreshuffle
                 GetCShuffleBlockDescriptor_MBlock_MPerBlock_NBlock_NPerBlock();
 
             auto c_shuffle_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-                static_cast<CShuffleDataType*>(p_shared_0),
+                static_cast<CShuffleDataType*>(p_shared),
                 c_shuffle_block_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
 
             constexpr auto c_block_desc_m0_n0_m1_n1_m2_m3_m4_n2 = transform_tensor_descriptor(

@@ -61,6 +61,7 @@ static constexpr auto GetNXdlPerWave2()
     static_assert(MWaves > 0);
 
     constexpr index_t NWaves = Waves / MWaves;
+
     if constexpr(NWaves == 0)
     {
         return 0;
@@ -118,6 +119,7 @@ static constexpr auto GetNXdlPerWave2()
         {                                                                              \
             if constexpr(NXdlPerWave64 > 0)                                            \
             {                                                                          \
+                printf("NXdlPerWave64:%d, get_warp_size: %d\n",NXdlPerWave64, get_warp_size()); \
                 return RunImp<GridwiseGemm64>(arg, stream_config);                     \
             }                                                                          \
         }                                                                              \
@@ -125,6 +127,7 @@ static constexpr auto GetNXdlPerWave2()
         {                                                                              \
             if constexpr(NXdlPerWave32 > 0)                                            \
             {                                                                          \
+                printf("NXdlPerWave32:%d, get_warp_size: %d\n",NXdlPerWave64, get_warp_size()); \
                 return RunImp<GridwiseGemm32>(                                         \
                     reinterpret_cast<const typename GridwiseGemm32::Argument&>(arg),   \
                     stream_config);                                                    \

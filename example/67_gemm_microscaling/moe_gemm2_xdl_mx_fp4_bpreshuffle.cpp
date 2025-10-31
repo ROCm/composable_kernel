@@ -185,14 +185,14 @@ using DeviceOpInstance                     = ck::tensor_operation::device::Devic
     A0Layout,    B0Layout,    DsLayout,    ELayout, 
     A0DataType,  A1DataType,  B0DataType,  B1DataType,  DsDataType, EDataType, AccDataType, CShuffleDataType,
     AElementOp,  BElementOp, CDEElementOp, GemmSpec,   
-    ScaleBlockSize,      256,   
+    ScaleBlockSize,      64,   
     MPerBlock,   128,    KPerBlock,
     16,   16,
     16,   16,
-    2,    2,
-    S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 1,
-    S<8, 32, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 1,
-    2,    2,   S<1, 4, 1, 64>, S<2, 1, 1, 1>,
+    2,    8,
+    S<8, 8, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 1,
+    S<8, 8, 1>, S<1, 0, 2>, S<1, 0, 2>, 2, 16, 16, 1,
+    2,    2,   S<1, 8, 1, 8>, S<2, 1, 1, 1>,
     ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1, 0, false, false, MulRoutedWeight, ck::index_t, A0DataType>;
 // clang-format on
 
@@ -204,16 +204,16 @@ int main(int argc, char* argv[])
 
     // per expert:
     // GEMM shape
-    constexpr ck::index_t sorted_tile_num = 13;
-    constexpr ck::index_t valid_tile_num  = 13;
+    constexpr ck::index_t sorted_tile_num = 8;
+    constexpr ck::index_t valid_tile_num  = 8;
     ck::index_t sorted_size               = sorted_tile_num * MPerBlock;
     ck::index_t valid_size                = valid_tile_num * MPerBlock;
 
     ck::index_t N       = 6144;
     ck::index_t K       = 4096;
-    ck::index_t experts = 8;
+    ck::index_t experts = 256;
     ck::index_t tokens  = 208;
-    ck::index_t topk    = 2;
+    ck::index_t topk    = 8;
 
     if(argc == 1)
     {
