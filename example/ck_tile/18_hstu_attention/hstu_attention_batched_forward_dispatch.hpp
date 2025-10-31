@@ -60,7 +60,7 @@ struct batched_forward_causal_softmax_bias_dropout_dispatch
     {
         constexpr ck_tile::index_t occupancy = -1;
 
-        const bool pad_seqlen_k   = !(param.seqlen % HstuAttentionTileSetting::kN0 == 0);
+        const bool pad_seqlen_k   = !(param.seqlen_kv % HstuAttentionTileSetting::kN0 == 0);
         const bool pad_headdim_qk = !(param.hdim_qk % HstuAttentionTileSetting::kSubQKHeaddim == 0);
         const bool pad_headdim_v  = !(param.hdim_v % HstuAttentionTileSetting::kN1 == 0);
 
@@ -125,7 +125,8 @@ struct batched_forward_causal_softmax_bias_dropout_dispatch
                                          param.v_ptr,
                                          param.bias_ptr,
                                          param.o_ptr,
-                                         param.seqlen,
+                                         param.seqlen_q,
+                                         param.seqlen_kv,
                                          param.hdim_qk,
                                          param.hdim_v,
                                          param.num_head,
@@ -157,7 +158,7 @@ struct batched_forward_causal_softmax_bias_dropout_dispatch
 
         bool has_minfull_attn_seqlen = (param.min_full_attn_seqlen > 0);
         dim3 kGridSize               = HstuKernel::GridSize(
-            param.num_batch, param.num_head, param.seqlen, param.hdim_v, has_minfull_attn_seqlen);
+            param.num_batch, param.num_head, param.seqlen_q, param.hdim_v, has_minfull_attn_seqlen);
         constexpr dim3 kBlockSize              = HstuKernel::BlockSize();
         constexpr ck_tile::index_t kBlockPerCu = HstuKernel::kBlockPerCu;
 
