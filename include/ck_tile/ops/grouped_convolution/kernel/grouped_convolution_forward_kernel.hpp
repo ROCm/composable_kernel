@@ -111,7 +111,7 @@ struct GroupedConvFwdKernelArgs
         // Calculate batch strides using the original argument dimensions.
         // These are the original dimensions passed to the constructor, not modified by the invoker
         // yet. (The invoker modifies args after calling MakeKernelArgs.) VERIFIED: G_ MUST be
-        // included - NHWGC layout has all groups within each batch
+        // included - NWGC layout has all groups within each batch
         input_batch_stride  = args.G_ * args.C_ * args.input_spatial_lengths_[0];
         output_batch_stride = args.G_ * args.K_ * args.output_spatial_lengths_[0];
 
