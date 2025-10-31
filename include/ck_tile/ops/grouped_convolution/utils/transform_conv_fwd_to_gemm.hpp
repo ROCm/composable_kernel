@@ -1375,7 +1375,6 @@ struct TransformConvFwdToGemm
                 unmerged_padded_desc,
                 make_tuple(make_merge_transform(make_tuple(NDoHoWo, NumGroupsToMerge)),
                            make_merge_transform(make_tuple(K_, NumGroupsToMerge))),
-                // TODO: sequence<0,1> or sequence<1,0>?
                 make_tuple(sequence<0, 1>{}, sequence<2, 3>{}), 
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
@@ -1442,7 +1441,6 @@ struct TransformConvFwdToGemm
                 unmerged_padded_desc,
                 make_tuple(make_merge_transform(make_tuple(NDoHoWo, NumGroupsToMerge)),
                            make_merge_transform(make_tuple(K_, NumGroupsToMerge))),
-                // TODO: sequence<0,1> or sequence<1,0>?
                 make_tuple(sequence<0, 1>{}, sequence<2, 3>{}), 
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
@@ -1510,7 +1508,6 @@ struct TransformConvFwdToGemm
                 unmerged_padded_desc,
                 make_tuple(make_merge_transform(make_tuple(NDoHoWo, NumGroupsToMerge)),
                            make_merge_transform(make_tuple(K_, NumGroupsToMerge))),
-                // TODO: sequence<0,1> or sequence<1,0>?
                 make_tuple(sequence<0, 1>{}, sequence<2, 3>{}),
                 make_tuple(sequence<0>{}, sequence<1>{}));
         }
