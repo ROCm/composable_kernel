@@ -657,6 +657,16 @@ struct GroupedConvolutionForwardKernel
             return false;
         }
 
+        if constexpr(GroupedConvTraitsType_::NumGroupsToMerge > 1)
+        {
+            const index_t ConvG = kargs.wei_g_k_c_xs_lengths[number<0>{}];
+            if(ConvG % GroupedConvTraitsType_::NumGroupsToMerge != 0)
+            {
+                CK_TILE_ERROR("ConvG must be a multiple of NumGroupsToMerge!");
+                return false;
+            }
+        }
+
         return true;
     }
 
