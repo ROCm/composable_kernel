@@ -24,15 +24,25 @@ concept ThreadBlockDescriptor = requires(T t) {
     { t.tile_size.k } -> std::convertible_to<size_t>;
 };
 
-// Concept for parameters that describe a gridwise GEMM problem.
+// Concept for parameters that describe a gridwise XDL GEMM problem.
 template <typename T>
-concept GridwiseGemmDescriptor = requires(T t) {
+concept GridwiseXdlGemmDescriptor = requires(T t) {
     { t.ak1 } -> std::convertible_to<size_t>;
     { t.bk1 } -> std::convertible_to<size_t>;
     { t.m_per_xdl } -> std::convertible_to<size_t>;
     { t.n_per_xdl } -> std::convertible_to<size_t>;
     { t.m_xdl_per_wave } -> std::convertible_to<size_t>;
     { t.n_xdl_per_wave } -> std::convertible_to<size_t>;
+};
+
+// Concept for parameters that describe a gridwise WMMA GEMM problem.
+template <typename T>
+concept GridwiseWmmaGemmDescriptor = requires(T t) {
+    { t.k1 } -> std::convertible_to<size_t>;
+    { t.m_per_wmma } -> std::convertible_to<size_t>;
+    { t.n_per_wmma } -> std::convertible_to<size_t>;
+    { t.m_wmma_per_wave } -> std::convertible_to<size_t>;
+    { t.n_wmma_per_wave } -> std::convertible_to<size_t>;
 };
 
 // Concept for vectorized data transfer for convolution input tensors.
@@ -91,10 +101,16 @@ concept SpecifiesThreadBlock = requires {
     { T::thread_block } -> ThreadBlockDescriptor;
 };
 
-// Concept to check if a struct specifies gridwise GEMM info.
+// Concept to check if a struct specifies gridwise XDL GEMM info.
 template <typename T>
-concept SpecifiesGridwiseGemm = requires {
-    { T::gridwise_gemm } -> GridwiseGemmDescriptor;
+concept SpecifiesGridwiseXdlGemm = requires {
+    { T::gridwise_gemm } -> GridwiseXdlGemmDescriptor;
+};
+
+// Concept to check if a struct specifies gridwise WMMA GEMM info.
+template <typename T>
+concept SpecifiesGridwiseWmmaGemm = requires {
+    { T::gridwise_gemm } -> GridwiseWmmaGemmDescriptor;
 };
 
 // Concept to check if a struct specifies convolution input and output block transfer info.
