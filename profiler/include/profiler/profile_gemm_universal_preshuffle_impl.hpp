@@ -20,6 +20,7 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
+#include "profiler/common.hpp"
 
 namespace ck {
 namespace profiler {
@@ -337,8 +338,8 @@ bool profile_gemm_universal_preshuffle_impl(int do_verification,
                                  is_same_v<CDataType, f8_t>)
                     {
                         std::string msg = "Error: Incorrect results!";
-                        double rtol     = 1e-1;
-                        double atol     = 1e-1;
+                        double rtol     = get_rtol<CDataType>();
+                        double atol     = get_atol<CDataType>();
                         pass            = pass & ck::utils::check_err(
                                           c_m_n_device_result, c_m_n_host_result, msg, rtol, atol);
                     }
