@@ -51,13 +51,12 @@ constexpr void run_test_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3()
                                                 .src_access_order_a            = {1, 0, 2},
                                                 .src_access_order_b            = {1, 0, 2}};
 
-    constexpr ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 
-                            FwdConvAlgorithm{
-                                    .thread_block       = FwdThreadBlock,
-                                    .gridwise_gemm      = FwdGemmParams,
-                                    .block_transfer     = FwdBlockTransfer,
-                                    .fwd_specialization = FwdConvSpecialization,
-                                    .pipeline_version   = FwdPipelineVersion};
+    constexpr ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 FwdConvAlgorithm{
+        .thread_block       = FwdThreadBlock,
+        .gridwise_gemm      = FwdGemmParams,
+        .block_transfer     = FwdBlockTransfer,
+        .fwd_specialization = FwdConvSpecialization,
+        .pipeline_version   = FwdPipelineVersion};
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
 
@@ -129,13 +128,12 @@ constexpr void run_test_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle()
                                                 .src_access_order_a            = {1, 0, 2},
                                                 .src_access_order_b            = {1, 0, 2}};
 
-    constexpr ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle 
-                        FwdConvAlgorithm{
-                                    .thread_block       = FwdThreadBlock,
-                                    .gridwise_gemm      = FwdGemmParams,
-                                    .block_transfer     = FwdBlockTransfer,
-                                    .fwd_specialization = FwdConvSpecialization,
-                                    .num_gemm_k_prefetch_stages = 1};
+    constexpr ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle FwdConvAlgorithm{
+        .thread_block               = FwdThreadBlock,
+        .gridwise_gemm              = FwdGemmParams,
+        .block_transfer             = FwdBlockTransfer,
+        .fwd_specialization         = FwdConvSpecialization,
+        .num_gemm_k_prefetch_stages = 1};
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
 
@@ -166,11 +164,8 @@ template <ConvSignature FwdConvSignature,
           ConvFwdSpecialization FwdConvSpecialization>
 constexpr void run_test_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle()
 {
-    constexpr GridwiseWmmaGemm FwdGemmParams{.k1              = 8,
-                                             .m_per_wmma      = 32,
-                                             .n_per_wmma      = 32,
-                                             .m_wmma_per_wave = 2,
-                                             .n_wmma_per_wave = 1};
+    constexpr GridwiseWmmaGemm FwdGemmParams{
+        .k1 = 8, .m_per_wmma = 32, .n_per_wmma = 32, .m_wmma_per_wave = 2, .n_wmma_per_wave = 1};
 
     constexpr BlockTransferABC FwdBlockTransfer{.block_transfer_a = {.k0 = 4, .m_n = 32, .k1 = 1},
                                                 .block_transfer_b = {.k0 = 4, .m_n = 32, .k1 = 1},
@@ -196,13 +191,12 @@ constexpr void run_test_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle()
                                                 .src_access_order_a            = {1, 0, 2},
                                                 .src_access_order_b            = {1, 0, 2}};
 
-    constexpr ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle 
-                        FwdConvAlgorithm{
-                                    .thread_block       = FwdThreadBlock,
-                                    .gridwise_gemm      = FwdGemmParams,
-                                    .block_transfer     = FwdBlockTransfer,
-                                    .fwd_specialization = FwdConvSpecialization,
-                                    .num_gemm_k_prefetch_stages = 1};
+    constexpr ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle FwdConvAlgorithm{
+        .thread_block               = FwdThreadBlock,
+        .gridwise_gemm              = FwdGemmParams,
+        .block_transfer             = FwdBlockTransfer,
+        .fwd_specialization         = FwdConvSpecialization,
+        .num_gemm_k_prefetch_stages = 1};
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
 

@@ -21,9 +21,9 @@ TEST(FwdConvInstances,
                                          .tile_size  = {.m = 256, .n = 256, .k = 32}};
 
     run_test_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<FwdConvSignature,
-             FwdThreadBlock,
-             BlockGemmPipelineVersion::V1,
-             ConvFwdSpecialization::DEFAULT>();
+                                                             FwdThreadBlock,
+                                                             BlockGemmPipelineVersion::V1,
+                                                             ConvFwdSpecialization::DEFAULT>();
 }
 
 // 2D BF16 NHWGC (channels-last) with Pipeline V5 and FILTER_3x3
@@ -43,9 +43,9 @@ TEST(FwdConvInstances,
                                          .tile_size  = {.m = 256, .n = 256, .k = 32}};
 
     run_test_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<FwdConvSignature,
-             FwdThreadBlock,
-             BlockGemmPipelineVersion::V5,
-             ConvFwdSpecialization::FILTER_3x3>();
+                                                             FwdThreadBlock,
+                                                             BlockGemmPipelineVersion::V5,
+                                                             ConvFwdSpecialization::FILTER_3x3>();
 }
 
 } // namespace ck_tile::builder::testing

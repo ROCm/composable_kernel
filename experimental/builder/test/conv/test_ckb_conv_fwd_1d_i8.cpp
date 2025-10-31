@@ -21,8 +21,8 @@ TEST(FwdConvInstances,
                                          .tile_size  = {.m = 64, .n = 64, .k = 64}};
 
     run_test_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle<FwdConvSignature,
-             FwdThreadBlock,
-             ConvFwdSpecialization::DEFAULT>();
+                                                         FwdThreadBlock,
+                                                         ConvFwdSpecialization::DEFAULT>();
 }
 
 } // namespace ck_tile::builder::testing
