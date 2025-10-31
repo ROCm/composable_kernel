@@ -142,9 +142,9 @@ bool profile_gemm_blockscale_weighpreshuffle_impl(int do_verification,
         return current_stride;
     };
 
-    StrideA  = get_stride(a0_m_k, ALayout{}, StrideA);
-    StrideB  = get_stride(b0_k_n, BLayout{}, StrideB);
-    StrideE  = get_stride(e_m_n_host_result, ELayout{}, StrideE);
+    StrideA = get_stride(a0_m_k, ALayout{}, StrideA);
+    StrideB = get_stride(b0_k_n, BLayout{}, StrideB);
+    StrideE = get_stride(e_m_n_host_result, ELayout{}, StrideE);
 
     int total_gemm_needed =
         a0_m_k.GetElementSpaceSizeInBytes() + b0_k_n.GetElementSpaceSizeInBytes() +

@@ -115,9 +115,9 @@ bool profile_gemm_universal_preshuffle_impl(int do_verification,
         return current_stride;
     };
 
-    StrideA  = get_stride(a_m_k, ALayout{}, StrideA);
-    StrideB  = get_stride(b_k_n, BLayout{}, StrideB);
-    StrideC  = get_stride(c_m_n_host_result, CLayout{}, StrideC);
+    StrideA = get_stride(a_m_k, ALayout{}, StrideA);
+    StrideB = get_stride(b_k_n, BLayout{}, StrideB);
+    StrideC = get_stride(c_m_n_host_result, CLayout{}, StrideC);
 
     std::size_t total_gemm_needed =
         a_m_k.GetElementSpaceSizeInBytes() + b_k_n.GetElementSpaceSizeInBytes();
