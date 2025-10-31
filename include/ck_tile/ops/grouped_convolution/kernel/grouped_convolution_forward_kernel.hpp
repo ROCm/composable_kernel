@@ -481,13 +481,25 @@ struct GroupedConvolutionForwardKernel
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
+        constexpr auto NumGroupsToMerge = GroupedConvTraitsType_::NumGroupsToMerge;
         // clang-format off
-        return concat('_', "grouped_convolution_forward", 
-            gemm_prec_str<InDataType, WeiDataType>(), 
-            "gemm",
-            GemmPipeline::GetName(),
-            "epilogue",
-            EpiloguePipeline::GetName());
+        if (NumGroupsToMerge > 1) {
+            return concat('_', "grouped_convolution_forward", 
+                gemm_prec_str<InDataType, WeiDataType>(), 
+                "gemm",
+                GemmPipeline::GetName(),
+                "epilogue",
+                EpiloguePipeline::GetName(),
+                "merge",
+                NumGroupsToMerge);
+        } else {
+            return concat('_', "grouped_convolution_forward", 
+                gemm_prec_str<InDataType, WeiDataType>(), 
+                "gemm",
+                GemmPipeline::GetName(),
+                "epilogue",
+                EpiloguePipeline::GetName());
+        }
         // clang-format on
     }
 
