@@ -1,3 +1,6 @@
+// Copyright © Advanced Micro Devices, Inc. or its affiliates.
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 bool run_gemm_add(const ProblemSize& problem_size, const ExecutionConfig& config)
