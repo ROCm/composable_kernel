@@ -49,8 +49,16 @@ struct GridwiseWmmaGemm
     size_t n_per_wmma      = 0;
     size_t m_wmma_per_wave = 0;
     size_t n_wmma_per_wave = 0;
+    GridwiseGemmPipelineVersion pipeline_version;
 };
 static_assert(ckb::GridwiseWmmaGemmDescriptor<GridwiseWmmaGemm>);
+
+struct BlockGemm
+{
+    BlockGemmPipelineVersion pipeline_version;
+    BlockGemmPipelineScheduler scheduler;
+};
+static_assert(ckb::BlockGemmDescriptor<BlockGemm>);
 
 // Describe Aand B block transfer thread cluster lengths.
 struct BlockTransfer
@@ -115,7 +123,8 @@ struct ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
     GridwiseXdlGemm gridwise_gemm;
     BlockTransferABC block_transfer;
     ConvFwdSpecialization fwd_specialization;
-    BlockGemmPipelineVersion pipeline_version;
+    GemmSpecialization gemm_specialization;
+    BlockGemm block_gemm;
 };
 static_assert(
     ckb::ConvAlgorithmDescriptor<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
@@ -133,8 +142,9 @@ static_assert(
     ckb::SpecifiesSourceAccessOrder<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
 static_assert(ckb::SpecifiesFwdConcSpecialization<
               ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
-static_assert(ckb::SpecifiesGemmPipelineVersion<
-              ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
+static_assert(ckb::SpecifiesBlockGemm<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
+static_assert(
+    ckb::SpecifiesGemmSpecialization<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
 
 struct ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 {
@@ -142,6 +152,7 @@ struct ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     GridwiseXdlGemm gridwise_gemm;
     BlockTransferABC block_transfer;
     ConvFwdSpecialization fwd_specialization;
+    GemmSpecialization gemm_specialization;
     size_t num_gemm_k_prefetch_stages;
 };
 static_assert(
@@ -162,6 +173,8 @@ static_assert(ckb::SpecifiesFwdConcSpecialization<
               ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
 static_assert(
     ckb::SpecifiesNumPrefetchStages<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
+static_assert(
+    ckb::SpecifiesGemmSpecialization<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
 
 struct ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
 {
@@ -169,7 +182,9 @@ struct ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
     GridwiseWmmaGemm gridwise_gemm;
     BlockTransferABC block_transfer;
     ConvFwdSpecialization fwd_specialization;
+    GemmSpecialization gemm_specialization;
     size_t num_gemm_k_prefetch_stages;
+    LoopScheduler loop_scheduler;
 };
 static_assert(
     ckb::ConvAlgorithmDescriptor<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle>);
@@ -187,5 +202,9 @@ static_assert(
     ckb::SpecifiesFwdConcSpecialization<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle>);
 static_assert(
     ckb::SpecifiesNumPrefetchStages<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle>);
+static_assert(
+    ckb::SpecifiesGemmSpecialization<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle>);
+static_assert(
+    ckb::SpecifiesLoopScheduler<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle>);
 
 } // namespace ck_tile::builder::test

@@ -51,12 +51,19 @@ constexpr void run_test_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3()
                                                 .src_access_order_a            = {1, 0, 2},
                                                 .src_access_order_b            = {1, 0, 2}};
 
+    constexpr BlockGemm BlockGemmDesc = {
+        .pipeline_version  = FwdPipelineVersion,
+        .scheduler         = BlockGemmPipelineScheduler::INTRAWAVE
+    };
+
     constexpr ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 FwdConvAlgorithm{
-        .thread_block       = FwdThreadBlock,
-        .gridwise_gemm      = FwdGemmParams,
-        .block_transfer     = FwdBlockTransfer,
-        .fwd_specialization = FwdConvSpecialization,
-        .pipeline_version   = FwdPipelineVersion};
+        .thread_block        = FwdThreadBlock,
+        .gridwise_gemm       = FwdGemmParams,
+        .block_transfer      = FwdBlockTransfer,
+        .fwd_specialization  = FwdConvSpecialization,
+        .gemm_specialization = GemmSpecialization::MNKPadding,
+        .block_gemm          = BlockGemmDesc
+    };
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
 
@@ -133,6 +140,7 @@ constexpr void run_test_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle()
         .gridwise_gemm              = FwdGemmParams,
         .block_transfer             = FwdBlockTransfer,
         .fwd_specialization         = FwdConvSpecialization,
+        .gemm_specialization        = GemmSpecialization::MNKPadding,
         .num_gemm_k_prefetch_stages = 1};
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
@@ -165,7 +173,12 @@ template <ConvSignature FwdConvSignature,
 constexpr void run_test_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle()
 {
     constexpr GridwiseWmmaGemm FwdGemmParams{
-        .k1 = 8, .m_per_wmma = 32, .n_per_wmma = 32, .m_wmma_per_wave = 2, .n_wmma_per_wave = 1};
+        .k1 = 8, 
+        .m_per_wmma = 32, 
+        .n_per_wmma = 32, 
+        .m_wmma_per_wave = 2, 
+        .n_wmma_per_wave = 1,
+        .pipeline_version = GridwiseGemmPipelineVersion::V1};
 
     constexpr BlockTransferABC FwdBlockTransfer{.block_transfer_a = {.k0 = 4, .m_n = 32, .k1 = 1},
                                                 .block_transfer_b = {.k0 = 4, .m_n = 32, .k1 = 1},
@@ -196,7 +209,9 @@ constexpr void run_test_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle()
         .gridwise_gemm              = FwdGemmParams,
         .block_transfer             = FwdBlockTransfer,
         .fwd_specialization         = FwdConvSpecialization,
-        .num_gemm_k_prefetch_stages = 1};
+        .gemm_specialization        = GemmSpecialization::MNKPadding,
+        .num_gemm_k_prefetch_stages = 1,
+        .loop_scheduler             = LoopScheduler::DEFAULT};
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
 

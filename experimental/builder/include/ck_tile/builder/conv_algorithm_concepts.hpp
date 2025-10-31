@@ -35,6 +35,14 @@ concept GridwiseXdlGemmDescriptor = requires(T t) {
     { t.n_xdl_per_wave } -> std::convertible_to<size_t>;
 };
 
+// Concept for parameter that describe block GEMM problem.
+template <typename T>
+concept BlockGemmDescriptor = requires(T t) {
+
+    { t.pipeline_version } -> std::convertible_to<BlockGemmPipelineVersion>;
+    { t.scheduler } -> std::convertible_to<BlockGemmPipelineScheduler>;
+};
+
 // Concept for parameters that describe a gridwise WMMA GEMM problem.
 template <typename T>
 concept GridwiseWmmaGemmDescriptor = requires(T t) {
@@ -43,6 +51,7 @@ concept GridwiseWmmaGemmDescriptor = requires(T t) {
     { t.n_per_wmma } -> std::convertible_to<size_t>;
     { t.m_wmma_per_wave } -> std::convertible_to<size_t>;
     { t.n_wmma_per_wave } -> std::convertible_to<size_t>;
+    { t.pipeline_version } -> std::convertible_to<GridwiseGemmPipelineVersion>;
 };
 
 // Concept for vectorized data transfer for convolution input tensors.
@@ -143,10 +152,11 @@ concept SpecifiesSourceAccessOrder = requires(T t) {
     { T::block_transfer.src_access_order_b } -> AccessOrderDescriptor;
 };
 
-// Concept to check if struct specifies block_gemm_pipeline_version.
+// Concept to check if struct specifies block GEMM.
 template <typename T>
-concept SpecifiesGemmPipelineVersion = requires {
-    { T::pipeline_version } -> std::convertible_to<BlockGemmPipelineVersion>;
+concept SpecifiesBlockGemm = requires {
+    { T::block_gemm.pipeline_version } -> std::convertible_to<BlockGemmPipelineVersion>;
+    { T::block_gemm.scheduler } -> std::convertible_to<BlockGemmPipelineScheduler>;
 };
 
 template <typename T>
@@ -155,8 +165,18 @@ concept SpecifiesFwdConcSpecialization = requires {
 };
 
 template <typename T>
+concept SpecifiesGemmSpecialization = requires {
+    { T::gemm_specialization } -> std::convertible_to<GemmSpecialization>;
+};
+
+template <typename T>
 concept SpecifiesNumPrefetchStages = requires {
     { T::num_gemm_k_prefetch_stages } -> std::convertible_to<size_t>;
+};
+
+template <typename T>
+concept SpecifiesLoopScheduler = requires {
+    { T::loop_scheduler } -> std::convertible_to<LoopScheduler>;
 };
 
 } // namespace ck_tile::builder
