@@ -319,20 +319,65 @@ struct gfx9_t
 struct gfx950_t
 {
 };
+struct gfx103_t
+{
+};
 struct gfx11_t
 {
 };
 struct gfx12_t
 {
 };
+struct gfx_invalid_t
+{
+};
 
 CK_TILE_DEVICE static constexpr auto get_device_arch()
 {
+// FIXME(0): on all devices except gfx11 it returns gfx12_t
+// FIXME(1): during the host compilation pass it returns gfx12_t
 #if defined(__gfx11__)
     return gfx11_t{};
-#else // if defined(__gfx12__)
+#else
     return gfx12_t{};
 #endif
+}
+
+CK_TILE_DEVICE static constexpr auto get_n_words_per_128b() { return 4; }
+
+namespace detail {
+CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx9_t) { return 32; }
+
+CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx103_t) { return 32; }
+
+CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx11_t) { return 32; }
+
+CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx12_t) { return 32; }
+
+CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx950_t) { return 64; }
+
+CK_TILE_DEVICE static constexpr auto get_n_lds_banks(gfx_invalid_t) { return 0; }
+
+CK_TILE_DEVICE static constexpr auto arch_tag_dispatch()
+{
+#if defined(__gfx103__)
+    return gfx103_t{};
+#elif defined(__gfx11__)
+    return gfx11_t{};
+#elif defined(__gfx12__)
+    return gfx12_t{};
+#elif defined(__gfx950__)
+    return gfx950_t{};
+#elif defined(__gfx9__)
+    return gfx9_t{};
+#else
+    return gfx_invalid_t{};
+#endif
+}
+} // namespace detail
+CK_TILE_DEVICE static constexpr auto get_n_lds_banks()
+{
+    return detail::get_n_lds_banks(detail::arch_tag_dispatch());
 }
 
 enum LLVMSchedGroupMask : int32_t
