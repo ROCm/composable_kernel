@@ -978,8 +978,8 @@ struct GroupedConvolutionForwardKernel
             static_cast<const InDataType*>(kargs.in_ptr) + group_offset_a + input_batch_offset;
         const WeiDataType* b_ptr = static_cast<const WeiDataType*>(kargs.wei_ptr) +
                                    group_offset_b; // No batch offset for weights!
-        OutDataType* base_c_ptr = static_cast<OutDataType*>(kargs.out_ptr) + group_offset_c +
-                                  output_batch_offset;
+        OutDataType* base_c_ptr =
+            static_cast<OutDataType*>(kargs.out_ptr) + group_offset_c + output_batch_offset;
 
         // =====================================================================
         // Split-image: Map local block to global tile index (if enabled)
