@@ -626,7 +626,9 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v1<BlockGemmPipelineSched
                         __builtin_amdgcn_s_waitcnt(async_vmcnt_encoding);
                     });
 
+                    __builtin_amdgcn_s_waitcnt(async_vmcnt_encoding);
                     block_sync_lds();
+
                     static_for<0, MRepeat, 1>{}([&](auto m0) {
                         static_for<0, KRepeat, 1>{}([&](auto k) {
                             constexpr auto k_step = k * xdlops_gemm.KPerXdlops / APackedSize *
@@ -772,11 +774,12 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v1<BlockGemmPipelineSched
                             c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                     });
                 });
-                __builtin_amdgcn_s_waitcnt(async_vmcnt_encoding);
-                block_sync_lds();
-
                 // constexpr auto lds_buf = m0.value >= SwitchM ? I1 : I0;
             });
+
+            __builtin_amdgcn_s_waitcnt(async_vmcnt_encoding);
+            block_sync_lds();
+
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 static_for<0, KRepeat, 1>{}([&](auto k) {
                     constexpr auto k_step = k * xdlops_gemm.KPerXdlops / APackedSize *
@@ -797,7 +800,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v1<BlockGemmPipelineSched
                         });
                 });
             });
-            __builtin_amdgcn_sched_barrier(0);
 
             static_for<0, MRepeat, 1>{}([&](auto m0) {
                 constexpr auto im_major = m0 / MXdlPack;
@@ -943,6 +945,22 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v1<BlockGemmPipelineSched
                             b_thread_vec.template AsType<mfma_input_type_b>(),
                             b_scale_thread_vec.template AsType<mfma_scale_input_type_b>(),
                             c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+
+                            #if 1
+                             printf("blkIdx: %u, blkIdy: %u, tidx: %u, im_minor: %d, in_minor: "
+                                    "%d, ik_minor: %d, a_thread_vec=<0x%08x, 0x%08x, 0x%08x, "
+                                    "0x%08x>\n",
+                                    blockIdx.x,
+                                    blockIdx.y,
+                                    threadIdx.x,
+                                    im_minor,
+                                    in_minor,
+                                    ik_minor,
+                                    *(reinterpret_cast<const uint32_t*>(&(a_thread_vec.template AsType<f4x8_t>()[Number<0>{}]))),
+                                    *(reinterpret_cast<const uint32_t*>(&(a_thread_vec.template AsType<f4x8_t>()[Number<1>{}]))),
+                                    *(reinterpret_cast<const uint32_t*>(&(a_thread_vec.template AsType<f4x8_t>()[Number<2>{}]))),
+                                    *(reinterpret_cast<const uint32_t*>(&(a_thread_vec.template AsType<f4x8_t>()[Number<3>{}]))));
+                            #endif
                     });
                 });
             });
