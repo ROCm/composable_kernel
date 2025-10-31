@@ -278,7 +278,7 @@ int run_gemm_example_with_layouts(int argc,
               << " persistent_dp=" << arg_parser.get_str("persistent_dp") << " " << ave_time
               << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
 
-    bool pass = true;
+    bool pass = false;
 
     // Memory on host to store gpu reference result
     ck_tile::HostTensor<CDataType> c_m_n_ref(

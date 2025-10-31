@@ -212,14 +212,30 @@ int run_gemm_example(int argc, char* argv[])
     else if(data_type == "fp8")
     {
         using TypeConfig = StreamKGemmTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>;
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, TypeConfig>(
-            a_layout, b_layout, argc, argv);
+        if(persistent_dp)
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t, true>, TypeConfig>(
+                a_layout, b_layout, argc, argv);
+        }
+        else
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t, false>, TypeConfig>(
+                a_layout, b_layout, argc, argv);
+        }
     }
     else if(data_type == "bf8")
     {
         using TypeConfig = StreamKGemmTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>;
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>, TypeConfig>(
-            a_layout, b_layout, argc, argv);
+        if(persistent_dp)
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t, true>, TypeConfig>(
+                a_layout, b_layout, argc, argv);
+        }
+        else
+        {
+            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t, false>, TypeConfig>(
+                a_layout, b_layout, argc, argv);
+        }
     }
     else
     {
