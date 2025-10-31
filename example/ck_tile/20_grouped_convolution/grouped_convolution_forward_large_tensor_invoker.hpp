@@ -18,7 +18,7 @@ struct GroupedConvolutionForwardInvoker
               typename DsDataType     = ck_tile::tuple<>,
               typename DsLayout       = ck_tile::tuple<>,
               typename CDEElementWise = ck_tile::element_wise::PassThrough>
-    static float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args,
+    static float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs<CDEElementWise>& args,
                                   const ck_tile::stream_config& s)
     {
         if(s.log_level_ > 0)
@@ -105,7 +105,8 @@ struct GroupedConvolutionForwardInvoker
                                             VectorSizeA,
                                             VectorSizeB,
                                             VectorSizeC,
-                                            true,
+                                            1,     // NumGroupsToMerge
+                                            false, // SplitN
                                             InDataType,
                                             OutDataType>;
 
@@ -176,32 +177,36 @@ struct GroupedConvolutionForwardInvoker
 
             if(s.log_level_ > 0)
             {
-                std::cout << "[INVOKER] Split-image: Independent split factors per dimension\n";
+                std::cout << "\n========================================\n";
+                std::cout << "[SPLIT-IMAGE ENABLED] Large tensor detected\n";
+                std::cout << "========================================\n";
                 if(NDimSpatial == 3)
                 {
-                    std::cout << "[INVOKER] Dimensions: D=" << total_d << " H=" << total_h
+                    std::cout << "Total dimensions: D=" << total_d << " H=" << total_h
                               << " W=" << total_w << "\n";
-                    std::cout << "[INVOKER] Pieces: D=" << num_d_pieces << " × H=" << num_h_pieces
+                    std::cout << "Split into pieces: D=" << num_d_pieces << " × H=" << num_h_pieces
                               << " × W=" << num_w_pieces << " = " << total_pieces
                               << " total pieces\n";
+                    std::cout << "Base piece size: D=" << (total_d / num_d_pieces)
+                              << " H=" << (total_h / num_h_pieces)
+                              << " W=" << (total_w / num_w_pieces) << "\n";
                 }
                 else if(NDimSpatial == 2)
                 {
-                    std::cout << "[INVOKER] Dimensions: H=" << total_h << " W=" << total_w << "\n";
-                    std::cout << "[INVOKER] Pieces: H=" << num_h_pieces << " × W=" << num_w_pieces
+                    std::cout << "Total dimensions: H=" << total_h << " W=" << total_w << "\n";
+                    std::cout << "Split into pieces: H=" << num_h_pieces << " × W=" << num_w_pieces
                               << " = " << total_pieces << " total pieces\n";
+                    std::cout << "Base piece size: H=" << (total_h / num_h_pieces)
+                              << " W=" << (total_w / num_w_pieces) << "\n";
                 }
                 else
                 {
-                    std::cout << "[INVOKER] Dimensions: W=" << total_w << "\n";
-                    std::cout << "[INVOKER] Pieces: W=" << num_w_pieces << " = " << total_pieces
+                    std::cout << "Total dimensions: W=" << total_w << "\n";
+                    std::cout << "Split into pieces: W=" << num_w_pieces << " = " << total_pieces
                               << " total pieces\n";
+                    std::cout << "Base piece size: W=" << (total_w / num_w_pieces) << "\n";
                 }
-            }
-
-            if(s.log_level_ > 0)
-            {
-                std::cout << "[INVOKER] Split-Image: Creating " << total_pieces << " pieces\n";
+                std::cout << "========================================\n\n";
             }
 
             // Base piece size (non-overlapping division)

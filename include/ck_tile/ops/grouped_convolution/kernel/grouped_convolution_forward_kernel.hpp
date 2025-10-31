@@ -885,9 +885,8 @@ struct GroupedConvolutionForwardKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I3);
 
-        EpiloguePipeline{kargs.elfunc}
-            .template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-                c_block_window, c_block_tile, d_block_window, smem_ptr_0);
+        EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+            c_block_window, c_block_tile, d_block_window, smem_ptr_0);
     }
 
     /**
@@ -969,30 +968,31 @@ struct GroupedConvolutionForwardKernel
             static_cast<long_index_t>(batch_offset) *
             static_cast<long_index_t>(kargs.output_batch_stride);
 
-        // Adjust pointers with formula: base + group_offset + batch_offset + spatial_offset
-        // This ensures spatial offset is applied per-batch, not globally (standard behavior)
+        // Calculate base pointers with group and batch offsets
         const InDataType* base_a_ptr =
-            static_cast<const InDataType*>(kargs.in_ptr) + group_offset_a + input_batch_offset +
-            kargs.spatial_offset_in; // Add spatial offset from split-image
+            static_cast<const InDataType*>(kargs.in_ptr) + group_offset_a + input_batch_offset;
         const WeiDataType* b_ptr = static_cast<const WeiDataType*>(kargs.wei_ptr) +
                                    group_offset_b; // No batch offset for weights!
         OutDataType* base_c_ptr = static_cast<OutDataType*>(kargs.out_ptr) + group_offset_c +
-                                  output_batch_offset +
-                                  kargs.spatial_offset_out; // Add spatial offset from split-image
+                                  output_batch_offset;
 
         // =====================================================================
         // Split-image: Map local block to global tile index (if enabled)
         // =====================================================================
-        const InDataType* a_ptr = base_a_ptr;
-        OutDataType* c_ptr      = base_c_ptr;
-        index_t i_m             = 0;
-        index_t i_n             = 0;
+        const InDataType* a_ptr;
+        OutDataType* c_ptr;
+        index_t i_m = 0;
+        index_t i_n = 0;
 
         // Pre-calculate block_id (used in both split-image and non-split paths)
         const index_t block_id = static_cast<index_t>(blockIdX);
 
         if constexpr(EnableSplitImage)
         {
+            // Add spatial offsets for split-image (constexpr optimization)
+            a_ptr = base_a_ptr + kargs.spatial_offset_in;
+            c_ptr = base_c_ptr + kargs.spatial_offset_out;
+
             // Find which piece owns this block using binary search
             // Reference: device_grouped_conv_fwd_multiple_d_xdl_large_tensor_cshuffle.hpp
             const index_t piece_id =
@@ -1032,21 +1032,18 @@ struct GroupedConvolutionForwardKernel
             // Set tile indices for GEMM operation
             i_m = amd_wave_read_first_lane(global_m);
             i_n = amd_wave_read_first_lane(local_tile_n * TilePartitioner::NPerBlock);
-
-            // NO pointer offsetting! Global tile index already encodes position
-            a_ptr = base_a_ptr;
-            c_ptr = base_c_ptr;
         }
         else
         {
+            // No spatial offsets needed for regular path
+            a_ptr = base_a_ptr;
+            c_ptr = base_c_ptr;
+
             // No split-image: use standard tile partitioning
             const auto [iM, iN] =
                 TilePartitioner{kargs.GemmM, kargs.GemmN}.GetOutputTileIndex(block_id);
             i_m = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
             i_n = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
-
-            a_ptr = base_a_ptr;
-            c_ptr = base_c_ptr;
         }
 
         // Use global descriptors for all cases

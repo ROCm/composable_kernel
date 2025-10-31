@@ -147,7 +147,7 @@ struct GroupedConvolutionForwardInvoker
                 OutDataType,
                 typename GroupedConvTraitsType::ImplicitGemmDsLayout,
                 ck_tile::tensor_layout::gemm::RowMajor,
-                CDEElementWise,
+                CDElementWise,
                 TilePartitioner::MPerBlock,
                 TilePartitioner::NPerBlock,
                 GemmConfig::M_Warp,
