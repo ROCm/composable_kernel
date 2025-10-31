@@ -38,7 +38,7 @@ struct TestConfigs
     static constexpr auto AppendKVHDimValues = std::array{
         std::tuple{32, -1}, std::tuple{64, -1}, std::tuple{128, -1}, std::tuple{256, -1}};
     static constexpr auto ModeValues        = std::array{mode_enum::batch, mode_enum::group};
-    static constexpr auto IsVRowmajorValues = std::array{false, true};
+    static constexpr auto IsVRowmajorValues = std::array{true};
     static constexpr bool squant            = false;
     static constexpr bool def_lse           = true;
     static constexpr bool def_is_v_rowmajor = true;
@@ -47,24 +47,18 @@ struct TestConfigs
 template <>
 struct TestConfigs<FmhaFwdFp8>
 {
-    // Currently there are no fp8 instances for splitkv, pagedkv by default (the tests pass if such
-    // instances are added), however the corresponding tests are not disabled (they will be skipped)
-    // in case such instances will be added in the future.
-
-    static constexpr auto HDimValues         = std::array{std::tuple{64, -1}, std::tuple{128, -1}};
+    static constexpr auto HDimValues =
+        std::array{std::tuple{64, -1}, std::tuple{128, -1}, std::tuple{256, -1}};
     static constexpr auto SplitKVHDimValues  = std::array{std::tuple{64, -1}, std::tuple{128, -1}};
     static constexpr auto AppendKVHDimValues = std::array{std::tuple{64, -1}, std::tuple{128, -1}};
-    // There are no fp8 instances with seqlen padding (mode_enum::group requires it)
-    static constexpr auto ModeValues        = std::array{mode_enum::batch};
-    static constexpr auto IsVRowmajorValues = std::array{false};
-    static constexpr bool squant            = true;
-    static constexpr bool def_lse           = false;
-    static constexpr bool def_is_v_rowmajor = true;
-    static int adjust_seqlen(int seqlen)
-    {
-        // There are no fp8 instances with padding, pad seqlen to avoid skipping most of the tests
-        return ck_tile::integer_least_multiple(seqlen, 128);
-    }
+    static constexpr auto ModeValues         = std::array{mode_enum::batch, mode_enum::group};
+    static constexpr auto IsVRowmajorValues  = std::array{true};
+    static constexpr bool squant             = true;
+    static constexpr bool def_lse            = false;
+    static constexpr bool def_is_v_rowmajor  = true;
+    // When there are no fp8 instances with padding, pad seqlen to avoid skipping most of the tests:
+    // return ck_tile::integer_least_multiple(seqlen, 128);
+    static int adjust_seqlen(int seqlen) { return seqlen; }
 };
 template <>
 struct TestConfigs<FmhaFwdFp32>

@@ -158,6 +158,28 @@ struct ConvTensorLayouts<GroupConvLayout3D::GNDHWC_GKZYXC_GNDHWK, 3, ConvDirecti
     using ELayout  = ck::tensor_layout::convolution::GNDHWK;
 };
 
+template <GroupConvLayout Layout, size_t SPATIAL_DIM, ConvDirection DIR>
+consteval auto GetTensorLayout()
+{
+
+    if constexpr(SPATIAL_DIM == 1)
+    {
+        return factory_internal::ConvTensorLayouts<Layout._1d, 1, DIR>{};
+    }
+    else if constexpr(SPATIAL_DIM == 2)
+    {
+        return factory_internal::ConvTensorLayouts<Layout._2d, 2, DIR>{};
+    }
+    else if constexpr(SPATIAL_DIM == 3)
+    {
+        return factory_internal::ConvTensorLayouts<Layout._3d, 3, DIR>{};
+    }
+    else
+    {
+        static_assert(false, "Unsupported spatial dimension for convolution layout.");
+    }
+}
+
 // Type mappings from builder convolution data type to CK tensor types.
 template <DataType T>
 struct ConvTensorTypes
@@ -216,6 +238,14 @@ struct ElementwiseOps<ElementwiseOperation::PASS_THROUGH>
     using AElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
     using BElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
     using CDEElementwiseOp = ck::tensor_operation::element_wise::PassThrough;
+};
+
+template <>
+struct ElementwiseOps<ElementwiseOperation::SCALE>
+{
+    using AElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
+    using BElementwiseOp   = ck::tensor_operation::element_wise::PassThrough;
+    using CDEElementwiseOp = ck::tensor_operation::element_wise::Scale;
 };
 
 // The algorithm specializations for the convolution and GEMM.
@@ -365,6 +395,10 @@ consteval ck::BlockGemmPipelineVersion SetBlockGemmPipelineVersion()
     {
         return ck::BlockGemmPipelineVersion::v1;
     }
+    else if constexpr(version == BlockGemmPipelineVersion::V2)
+    {
+        return ck::BlockGemmPipelineVersion::v2;
+    }
     else if constexpr(version == BlockGemmPipelineVersion::V3)
     {
         return ck::BlockGemmPipelineVersion::v3;
@@ -420,23 +454,23 @@ template <ConvSignatureDescriptor auto SIGNATURE,
           auto VERSION>
 struct ConvFactory;
 
-// Factory specialization for an instance of a grouped forward convolution kernel.
+// Factory specialization for DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 instance
+// of a grouped forward convolution kernel.
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
-    requires ConvDirectionIsForward<SIGNATURE>
+    requires ConvDirectionIsForward<SIGNATURE> &&
+             ConvDeviceOpIs_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<SIGNATURE>
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts =
-        factory_internal::ConvTensorLayouts<SIGNATURE.layout, SPATIAL_DIM, ConvDirection::FORWARD>;
+    using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE.layout,
+                                                                     SPATIAL_DIM,
+                                                                     ConvDirection::FORWARD>());
     using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
     using Ops           = factory_internal::ElementwiseOps<SIGNATURE.elementwise_operation>;
     using AlgorithmType = decltype(ALGORITHM);
 
-    // Check preconditions for the algorithm description.
-    static_assert(SPATIAL_DIM == 2 || SPATIAL_DIM == 3,
-                  "Only 2D and 3D convolutions are supported in this factory.");
     static_assert(SpecifiesThreadBlock<AlgorithmType>,
                   "The convolution algorithm descriptor must specify thread block info.");
     static_assert(SpecifiesGridwiseGemm<AlgorithmType>,

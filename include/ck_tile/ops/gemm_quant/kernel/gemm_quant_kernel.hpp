@@ -483,6 +483,7 @@ struct QuantGemmKernel
                                                    const QuantGemmKernelArgs& kargs,
                                                    const SplitKBatchOffset& splitk_batch_offset)
     {
+
         static_assert(!TilePartitioner::BlockGemmShape::PermuteA, "Not implemented!");
         const auto& a_tensor_view = [&]() {
             if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
@@ -791,6 +792,7 @@ struct QuantGemmKernel
         }();
         if constexpr(PreshuffleB)
         {
+
             return make_tuple(a_pad_view, aq_pad_view, b_flat_view, bq_pad_view, c_pad_view);
         }
         else
@@ -803,6 +805,7 @@ struct QuantGemmKernel
     CK_TILE_DEVICE static auto
     MakeGemmTileWindows(const PadView& views, const index_t i_m, const index_t i_n)
     {
+
         const auto& a_pad_view     = views.at(I0);
         const auto& aq_pad_view    = views.at(I1);
         const auto& b_pad_view     = views.at(I2);
@@ -869,6 +872,7 @@ struct QuantGemmKernel
         const auto& b_block_window = [&]() {
             if constexpr(PreshuffleB)
             {
+
                 return make_tile_window(
                     b_pad_view,
                     make_tuple(number<GemmPipeline::flatNPerWarp>{},

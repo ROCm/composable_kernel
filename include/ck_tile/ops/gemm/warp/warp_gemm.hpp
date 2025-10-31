@@ -263,6 +263,9 @@ using WarpGemmMfma_f32_32x32x16_fp8_fp8 = WarpGemmImpl<
 using WarpGemmMfma_f32_32x32x16_fp8_bf8 = WarpGemmImpl<
     WarpGemmAttributeMfma<WarpGemmAttributeMfmaImpl_f32_32x32x16_fp8_bf8<WGAttrCtlEnum::Default_>>>;
 
+using WarpGemmMfma_f32_16x16x32_fp8_bf8 = WarpGemmImpl<
+    WarpGemmAttributeMfma<WarpGemmAttributeMfmaImpl_f32_16x16x32_fp8_bf8<WGAttrCtlEnum::Default_>>>;
+
 using WarpGemmMfma_f32_32x32x16_bf8_fp8 = WarpGemmImpl<
     WarpGemmAttributeMfma<WarpGemmAttributeMfmaImpl_f32_32x32x16_bf8_fp8<WGAttrCtlEnum::Default_>>>;
 
@@ -275,6 +278,10 @@ using WarpGemmMfma_f32_32x32x32_fp8_fp8 = WarpGemmImpl<WarpGemmAttributeMfmaIter
 
 using WarpGemmMfma_f32_32x32x32_bf8_bf8 = WarpGemmImpl<WarpGemmAttributeMfmaIterateK<
     WarpGemmAttributeMfmaImpl_f32_32x32x16_bf8_bf8<WGAttrCtlEnum::Default_>,
+    2>>;
+
+using WarpGemmMfma_f32_32x32x32_fp8_bf8 = WarpGemmImpl<WarpGemmAttributeMfmaIterateK<
+    WarpGemmAttributeMfmaImpl_f32_32x32x16_fp8_bf8<WGAttrCtlEnum::Default_>,
     2>>;
 
 using WarpGemmMfma_f32_16x16x32_fp8_fp8 = WarpGemmImpl<
@@ -384,9 +391,9 @@ using WarpGemmMfma_f32_32x32x16_bf8_bf8_CTransposed =
         WarpGemmAttributeMfmaImpl_f32_32x32x16_bf8_bf8<WGAttrCtlEnum::Default_>>>;
 
 template <index_t swizzle_factor = 2>
-using WarpGemmMfmaFp8Fp8F32M32N32K16SwizzleBTransposedCDistribution =
+using WarpGemmMfmaFp8Fp8F32M32N32K32SwizzleBTransposedCDistribution =
     WarpGemmImpl<WarpGemmAttributeMfmaIterateKAndTransposedCDistribution_SwizzleB<
-        WarpGemmAttributeMfmaImpl_f32_32x32x16_f8_base<fp8_t, fp8_t, WGAttrCtlEnum::Default_>,
+        WarpGemmAttributeMfmaImpl_f32_32x32x16_fp8_fp8<WGAttrCtlEnum::Default_>,
         2,
         swizzle_factor>>;
 

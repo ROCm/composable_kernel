@@ -2,19 +2,19 @@
 
 using namespace ck_tile::builder::test_utils;
 
-class FwdConv2DFP16Test : public FwdConvBuilderTestBase
-{
-};
+namespace ck_tile::builder::testing {
 
-TEST_F(FwdConv2DFP16Test,
-       Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_2D_FP16_GNHWC)
+TEST(FwdConvInstances,
+     Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_2D_FP16_GNHWC)
 {
-    constexpr ConvSignature<GroupConvLayout2D> FwdConvSignature{
+    constexpr ConvSignature FwdConvSignature{
         .spatial_dim           = 2,
         .direction             = ConvDirection::FORWARD,
         .layout                = GroupConvLayout2D::GNHWC_GKYXC_GNHWK,
         .data_type             = DataType::FP16,
-        .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
+        .elementwise_operation = ElementwiseOperation::PASS_THROUGH,
+        .device_operation =
+            FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3};
 
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 256, .n = 256, .k = 32}};
@@ -24,3 +24,5 @@ TEST_F(FwdConv2DFP16Test,
              BlockGemmPipelineVersion::V3,
              ConvFwdSpecialization::FILTER_1X1_PAD0>();
 }
+
+} // namespace ck_tile::builder::testing
