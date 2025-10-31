@@ -33,7 +33,7 @@ static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecial
 
 // e = elementwise((a * b), d0, d1)
 // h = layernorm(e, gamma, beta)
-// outout: h[m, n]
+// output: h[m, n]
 // input: a[k, m], b[k, n], d0[m, n], d1[m, n], gamma[n], beta[n]
 template <BlockGemmPipelineScheduler GemmLoopScheduler, BlockGemmPipelineVersion GemmPipeline>
 using device_gemm_add_relu_add_wmma_c_shuffle_layernorm_f16_mk_nk_mn_mn_mn_instances = std::tuple<
@@ -59,7 +59,7 @@ using device_gemm_add_relu_add_wmma_c_shuffle_layernorm_f16_mk_nk_mn_mn_mn_insta
     >;
 
 template <BlockGemmPipelineScheduler GemmLoopScheduler, BlockGemmPipelineVersion GemmPipeline>
-using device_gemm_add_relu_add_wmma_c_shuffle_layernorm_f16_mk_nk_mn_mn_mn_irresular_tile_instances =
+using device_gemm_add_relu_add_wmma_c_shuffle_layernorm_f16_mk_nk_mn_mn_mn_irregular_tile_instances =
     std::tuple<
         // clang-format off
         //##########################################|      A|      B|            Ds|      H| AData| BData|          DsData| HData| AccData| CShuffleData | EMeanVarData| GammaData|  BetaData|           A|           B|         CDE|           H|           GEMM| Block|  MPer|  NPer|  KPer| AK1| BK1| MPer| NPer| MRepeat| NRepeat|  ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockTransfer| ABlockLds|  BBlockTransfer| BBlockTransfer| BBlockTransfer| BlockTransfer| BBlockTransfer| BBlockTransfer| BBlockLds|    CShuffle|    CShuffle|  CShuffleBlockTransfer|     CDEShuffleBlockTransfer|            Layernorm|       Layernorm|     LoopScheduler|     Pipeline|
@@ -94,7 +94,7 @@ void add_device_gemm_add_relu_add_wmma_c_shuffle_layernorm_f16_mk_nk_mn_mn_mn_in
 
     add_device_operation_instances(
         instances,
-        device_gemm_add_relu_add_wmma_c_shuffle_layernorm_f16_mk_nk_mn_mn_mn_irresular_tile_instances<
+        device_gemm_add_relu_add_wmma_c_shuffle_layernorm_f16_mk_nk_mn_mn_mn_irregular_tile_instances<
             BlockGemmPipelineScheduler::Intrawave,
             BlockGemmPipelineVersion::v1>{});
 }

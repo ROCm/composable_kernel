@@ -651,7 +651,7 @@ struct DeviceGemmMultipleDLayernorm_Wmma_CShuffleV3
         index_t mean_space_sz = gemm_welford_size * sizeof(EMeanVarDataType);
         mean_space_sz         = math::integer_least_multiple(mean_space_sz, 128);
 
-        // setup buffer used for intermediate welford varirance
+        // setup buffer used for intermediate welford variance
         pArg_->p_workspace_var_ = reinterpret_cast<char*>(pArg_->p_workspace_mean_) + mean_space_sz;
 
         index_t variance_space_sz = gemm_welford_size * sizeof(EMeanVarDataType);

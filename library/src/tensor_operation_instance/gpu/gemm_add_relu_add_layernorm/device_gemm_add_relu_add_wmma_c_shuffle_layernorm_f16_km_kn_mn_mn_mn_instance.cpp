@@ -33,7 +33,7 @@ static constexpr auto GemmMNKPadding = ck::tensor_operation::device::GemmSpecial
 
 // e = elementwise((a * b), d0, d1)
 // h = layernorm(e, gamma, beta)
-// outout: h[m, n]
+// output: h[m, n]
 // input: a[k, m], b[k, n], d0[m, n], d1[m, n], gamma[n], beta[n]
 template <BlockGemmPipelineScheduler GemmLoopScheduler, BlockGemmPipelineVersion GemmPipeline>
 using device_gemm_add_relu_add_wmma_c_shuffle_layernorm_f16_km_kn_mn_mn_mn_instances = std::tuple<
