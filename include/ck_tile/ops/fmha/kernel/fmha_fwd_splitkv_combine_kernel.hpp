@@ -37,7 +37,7 @@ struct FmhaFwdSplitKVCombineKernel
     template <> struct t2s<ck_tile::bf8_t> { static constexpr const char * name = "bf8"; };
     // clang-format on
 
-    __host__ static std::string GetName()
+    CK_TILE_HOST static std::string GetName()
     {
         // sync with generate.py
         // clang-format off
@@ -127,7 +127,7 @@ struct FmhaFwdSplitKVCombineKernel
     using Kargs = std::conditional_t<kIsGroupMode, GroupModeKargs, BatchModeKargs>;
 
     template <bool Cond = !kIsGroupMode>
-    __host__ static constexpr std::enable_if_t<Cond, Kargs>
+    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargs(const void* lse_acc_ptr,
               const void* o_acc_ptr,
               void* lse_ptr,
@@ -185,7 +185,7 @@ struct FmhaFwdSplitKVCombineKernel
     }
 
     template <bool Cond = kIsGroupMode>
-    __host__ static constexpr std::enable_if_t<Cond, Kargs>
+    CK_TILE_HOST static constexpr std::enable_if_t<Cond, Kargs>
     MakeKargs(const void* lse_acc_ptr,
               const void* o_acc_ptr,
               void* lse_ptr,
@@ -240,8 +240,10 @@ struct FmhaFwdSplitKVCombineKernel
                                                 ck_tile::index_t max_seqlen_q,
                                                 ck_tile::index_t hdim_v)
     {
+        // Recalculate kM0 = get_warp_size() / NThreads on host
+        const index_t m0 = (is_wave32() ? 32 : 64) / FmhaPipeline::Problem::NThreads;
         // TODO: this may need tuning
-        return dim3(ck_tile::integer_divide_ceil(max_seqlen_q, FmhaPipeline::kM0) *
+        return dim3(ck_tile::integer_divide_ceil(max_seqlen_q, m0) *
                         ck_tile::integer_divide_ceil(hdim_v, FmhaPipeline::kN1),
                     nhead,
                     batch_size);
@@ -266,7 +268,17 @@ struct FmhaFwdSplitKVCombineKernel
         return ck_tile::make_tuple(i_tile_m, i_tile_n, i_nhead, i_batch);
     }
 
-    __host__ static constexpr auto BlockSize() { return dim3(kBlockSize); }
+    CK_TILE_HOST static dim3 BlockSize()
+    {
+        if(is_wave32())
+        {
+            return dim3(kBlockSize / 2);
+        }
+        else
+        {
+            return dim3(kBlockSize);
+        }
+    }
 
     CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
@@ -344,7 +356,7 @@ struct FmhaFwdSplitKVCombineKernel
             const auto lse_acc_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 lse_acc_ptr,
                 make_tuple(kargs.num_splits, kargs.seqlen_q),
-                make_tuple(kargs.split_stride_lse_acc, 1),
+                make_tuple(kargs.split_stride_lse_acc, number<1>{}),
                 number<FmhaPipeline::kAlignmentLSEacc>{},
                 number<1>{});
 
@@ -358,11 +370,11 @@ struct FmhaFwdSplitKVCombineKernel
             const auto o_acc_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 o_acc_ptr,
                 make_tuple(kargs.num_splits, kargs.seqlen_q, kargs.hdim_v),
-                make_tuple(kargs.split_stride_o_acc, kargs.row_stride_o_acc, 1),
+                make_tuple(kargs.split_stride_o_acc, kargs.row_stride_o_acc, number<1>{}),
                 number<FmhaPipeline::kAlignmentOacc>{},
                 number<1>{});
 
-            // read 4 * (kM0, kN1) o_acc tiles simultaneously by 4 warps
+            // read kNumWarps * (kM0, kN1) o_acc tiles simultaneously by kNumWarps warps
             const auto o_acc_dram_view = pad_tensor_view(
                 o_acc_dram_naive,
                 make_tuple(
@@ -469,7 +481,7 @@ struct FmhaFwdSplitKVCombineKernel
             const auto o_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 o_ptr,
                 make_tuple(kargs.seqlen_q, kargs.hdim_v),
-                make_tuple(kargs.row_stride_o, 1),
+                make_tuple(kargs.row_stride_o, number<1>{}),
                 number<FmhaPipeline::kAlignmentO>{},
                 number<1>{});
 

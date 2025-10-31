@@ -686,8 +686,8 @@ struct QuantGemmKernel
                 static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
                 return make_naive_tensor_view<address_space_enum::global>(
                     bq_ptr,
-                    make_tuple(kargs.N, kargs.QK_B),
-                    make_tuple(kargs.stride_BQ, 1),
+                    make_tuple(kargs.QK_B, kargs.N),
+                    make_tuple(1, kargs.stride_BQ),
                     number<GemmPipeline::GetVectorSizeBQ()>{},
                     number<1>{});
             }
@@ -905,9 +905,9 @@ struct QuantGemmKernel
                 static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
                 return make_tile_window(
                     bq_pad_view,
-                    make_tuple(number<TilePartitioner::NPerBlock>{},
-                               number<TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSize>{}),
-                    {i_n, 0});
+                    make_tuple(number<TilePartitioner::KPerBlock / GemmPipeline::QuantGroupSize>{},
+                               number<TilePartitioner::NPerBlock>{}),
+                    {0, i_n});
             }
             else
             {
