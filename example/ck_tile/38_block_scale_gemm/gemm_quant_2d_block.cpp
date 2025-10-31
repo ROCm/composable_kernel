@@ -4,7 +4,7 @@
 // This example demonstrates 2D block scale quantization (N×K) for BQuant
 // using non-preshuffled configuration.
 // NOTE: Once more 2d support is ready, we can migrate all 2d quant types to this example
-// This is currently done separately to avoid too verbose dispatching. 
+// This is currently done separately to avoid too verbose dispatching.
 
 #include <cstring>
 #include <iostream>
@@ -278,14 +278,14 @@ int dispatch_by_data_type(const std::string& data_type,
                           const std::string& quant_mode,
                           const std::string& a_layout,
                           const std::string& b_layout,
-                          int                argc,
-                          char*              argv[]);
+                          int argc,
+                          char* argv[]);
 
 // Helper function to parse group size string "MxNxK"
 std::tuple<int, int, int> parse_group_size(const std::string& group_size_str)
 {
     int m = 1, n = 1, k = 128;
-    
+
     size_t first_x = group_size_str.find('x');
     if(first_x == std::string::npos)
     {
@@ -293,17 +293,17 @@ std::tuple<int, int, int> parse_group_size(const std::string& group_size_str)
         k = std::stoi(group_size_str);
         return {1, 1, k};
     }
-    
+
     size_t second_x = group_size_str.find('x', first_x + 1);
     if(second_x == std::string::npos)
     {
         throw std::runtime_error("Invalid group_size format! Expected MxNxK (e.g., 1x32x128)");
     }
-    
+
     m = std::stoi(group_size_str.substr(0, first_x));
     n = std::stoi(group_size_str.substr(first_x + 1, second_x - first_x - 1));
     k = std::stoi(group_size_str.substr(second_x + 1));
-    
+
     return {m, n, k};
 }
 
@@ -330,8 +330,9 @@ int run_gemm_example(int argc, char* argv[])
     };
 
     // Dispatch for supported group sizes
-    // Note: This example uses non-preshuffled BQuant which supports both K-only and N×K quantization
-    
+    // Note: This example uses non-preshuffled BQuant which supports both K-only and N×K
+    // quantization
+
     if(m_group == 1 && n_group == 1 && k_group == 64)
     {
         return dispatch_by_group_size.template operator()<1, 1, 64>();
@@ -371,14 +372,13 @@ int dispatch_by_data_type(const std::string& data_type,
                           const std::string& quant_mode,
                           const std::string& a_layout,
                           const std::string& b_layout,
-                          int                argc,
-                          char*              argv[])
+                          int argc,
+                          char* argv[])
 {
     // This example ONLY supports BQuant for 2D block scale quantization
     if(quant_mode != "bquant")
     {
-        throw std::runtime_error(
-            "This example only supports BQuant! Use --quant_mode=bquant");
+        throw std::runtime_error("This example only supports BQuant! Use --quant_mode=bquant");
     }
 
     if(data_type == "fp8")

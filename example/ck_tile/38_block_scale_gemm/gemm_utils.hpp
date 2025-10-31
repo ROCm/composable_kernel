@@ -305,7 +305,9 @@ auto create_args(int argc, char* argv[])
         .insert("flush_cache", "true", "flush cache before running the kernel, defaults to true")
         .insert("rotating_count", "1000", "rotating count, defaults to 1")
         .insert("quant_mode", "bquant", "Choose aquant (default), bquant, tensor or rowcol")
-        .insert("group_size", "1x1x128", "Quantization group size as MxNxK, e.g., 1x1x128, 1x32x128, 1x64x128");
+        .insert("group_size",
+                "1x1x128",
+                "Quantization group size as MxNxK, e.g., 1x1x128, 1x32x128, 1x64x128");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
