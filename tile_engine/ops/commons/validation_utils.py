@@ -125,36 +125,11 @@ WARP_TILE_SUPPORTED_COMBINATIONS = {
             [32, 32, 64],
         ],
     },
-    "gfx1201": {
+    "gfx1201": {  # Check how to handle for GEMM and Multi D
         "fp16_fp16_fp16": [
             [16, 16, 16],
         ],
     },
-}
-
-# Supported warp tile combinations for different GPU architectures and data types
-WARP_SUPPORTED_COMBINATIONS = {
-    "gfx90a": [
-        [1, 4, 1],
-        [2, 2, 1],
-        [4, 1, 1],
-    ],
-    "gfx942": [
-        [1, 4, 1],
-        [2, 2, 1],
-        [4, 1, 1],
-    ],
-    "gfx950": [
-        [1, 4, 1],
-        [2, 2, 1],
-        [4, 1, 1],
-    ],
-    "gfx1201": [
-        [2, 4, 1],
-        [1, 8, 1],
-        [8, 1, 1],
-        [4, 2, 1],
-    ],
 }
 
 # Unsupported trait combinations
@@ -441,6 +416,20 @@ def get_abc_layouts(layout_code: str) -> Tuple[str, str, str]:
     return a_layout, b_layout, c_layout
 
 
+def get_abcd_layouts(layout_code: str) -> Tuple[str, str, str, List[str]]:
+    """
+    Return (ALayout, BLayout, CLayout) from a 3-letter code like 'rcrr', 'ccrr', 'crrr', 'rrrr'.
+    """
+    code = str(layout_code).strip().lower()
+
+    a_layout = LAYOUT_MAP[code[0]]
+    b_layout = LAYOUT_MAP[code[1]]
+    c_layout = LAYOUT_MAP[code[2]]
+    d0_layout = LAYOUT_MAP[code[3]]
+    d1_layout = LAYOUT_MAP[code[3]]
+    return a_layout, b_layout, c_layout, [d0_layout, d1_layout]
+
+
 def validate_whole_wg_cover_configuration(
     tile_m,
     tile_n,
@@ -464,12 +453,12 @@ def validate_whole_wg_cover_configuration(
 
     # A matrix validation
     if layout[0] == "r":
-        XPerTile = tile_k
-        YPerTile = tile_m
-
         vector_load_size = get_global_vector_load_size(
             BlockSize, tile_k, a_datatype, tile_m, tile_k
         )
+
+        XPerTile = tile_k
+        YPerTile = tile_m
 
     elif layout[0] == "c":
         vector_load_size = get_global_vector_load_size(
@@ -485,7 +474,6 @@ def validate_whole_wg_cover_configuration(
         )
 
         if not wg_cover_core_valid:
-            print("I am here 1")
             logging.debug(
                 f"whole workgroup cover failed for Matrix A distribution: {wg_cover_core_error}"
             )
@@ -521,7 +509,7 @@ def validate_whole_wg_cover_configuration(
         if not wg_cover_core_valid:
             print("I am here 3")
             logging.debug(
-                f"whole workgroup cover failed for Matrix A distribution: {wg_cover_core_error}"
+                f"whole workgroup cover failed for Matrix B distribution: {wg_cover_core_error}"
             )
             return False, wg_cover_core_error
 
@@ -540,7 +528,6 @@ def validate_whole_wg_cover_configuration(
         XPerTile, YPerTile, BlockSize, vector_load_size, warp_size
     )
     if not wg_cover_core_valid:
-        print("I am here 4")
         logging.debug(
             f"whole workgroup cover failed for Matrix B: {wg_cover_core_error}"
         )
@@ -557,7 +544,7 @@ def wg_cover_core_validation(
     warp_size: int,
 ) -> Tuple[bool, str]:
     if XPerTile % vector_load_size != 0:
-        return False
+        return False, "XPerTile is not divisible by vector_load_size"
 
     num_warps = BlockSize / warp_size
     LargestVec = (XPerTile * YPerTile) / (num_warps * warp_size)
@@ -567,7 +554,7 @@ def wg_cover_core_validation(
     Y1 = warp_size // X0
 
     if X0 * Y1 != warp_size:
-        return False, ""
+        return False, "X0 * Y1 != warp_size"
 
     return True, ""
 
@@ -583,9 +570,9 @@ def get_global_vector_load_size(
     PackedSize = 1
 
     if (
-        XPerTile % (PackedSize * 32 / element_size(DataType)) == 0
+        PackedSize == 2
+        and XPerTile % (PackedSize * 32 / element_size(DataType)) == 0
         and elements_per_thread % (PackedSize * 32 / element_size(DataType)) == 0
-        and PackedSize == 2
     ):
         return PackedSize * 32 / element_size(DataType)
     elif (
