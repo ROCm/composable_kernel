@@ -37,7 +37,7 @@ class TestGemmMultiplyMultiplyWP_FP8_MK_NK
 
 // clang-format off
 using KernelTypes_MK_NK = ::testing::Types<
-#if defined(CK_ENABLE_FP8) && (defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94))
+#if defined(CK_ENABLE_FP8)
     std::tuple< F8, F8, F8, F32, F32, F16>,
     std::tuple< F8, F8, F8, F32, F32, BF16>
 #endif

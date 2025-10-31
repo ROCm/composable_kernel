@@ -35,7 +35,7 @@ class TestGemmBlockScaleWP_FP8_MK_NK : public ck::test::TestGemmBlockscaleWPComm
 
 // clang-format off
 using KernelTypes_MK_NK = ::testing::Types<
-#if defined(CK_ENABLE_FP8) && (defined(CK_USE_FP8_ON_UNSUPPORTED_ARCH) || defined(CK_USE_GFX94))
+#if defined(CK_ENABLE_FP8)
     std::tuple< F8, F32, F8, F32, F8, BF16>
 #endif
     >;
