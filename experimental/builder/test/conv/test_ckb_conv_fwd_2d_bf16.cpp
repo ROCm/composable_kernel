@@ -8,12 +8,14 @@ namespace ck_tile::builder::testing {
 TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_2D_BF16_ChannelsLast)
 {
-    constexpr ConvSignature<GroupConvLayout2D> FwdConvSignature{
+    constexpr ConvSignature FwdConvSignature{
         .spatial_dim           = 2,
         .direction             = ConvDirection::FORWARD,
         .layout                = GroupConvLayout2D::NHWGC_GKYXC_NHWGK,
         .data_type             = DataType::BF16,
-        .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
+        .elementwise_operation = ElementwiseOperation::PASS_THROUGH,
+        .device_operation =
+            FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3};
 
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 256, .n = 256, .k = 32}};
@@ -28,12 +30,14 @@ TEST(FwdConvInstances,
 TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3_Instance_2D_BF16_NHWGC_Filter3x3)
 {
-    constexpr ConvSignature<GroupConvLayout2D> FwdConvSignature{
+    constexpr ConvSignature FwdConvSignature{
         .spatial_dim           = 2,
         .direction             = ConvDirection::FORWARD,
         .layout                = GroupConvLayout2D::NHWGC_GKYXC_NHWGK,
         .data_type             = DataType::BF16,
-        .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
+        .elementwise_operation = ElementwiseOperation::PASS_THROUGH,
+        .device_operation =
+            FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3};
 
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 256, .n = 256, .k = 32}};
