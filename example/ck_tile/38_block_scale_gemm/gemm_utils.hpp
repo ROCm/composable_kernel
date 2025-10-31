@@ -193,6 +193,22 @@ struct GemmConfigPreshuffleB_Bquant_prefill : public GemmConfigBase
     static constexpr bool TiledMMAPermuteN = N_Repeat % 2 == 0;
 };
 
+template <typename PrecType>
+struct GemmConfigBQuantPrefill : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
+};
+
 template <typename ADataType_,
           typename BDataType_ = ADataType_,
           typename CDataType_ = ADataType_,
@@ -288,7 +304,8 @@ auto create_args(int argc, char* argv[])
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
         .insert("flush_cache", "true", "flush cache before running the kernel, defaults to true")
         .insert("rotating_count", "1000", "rotating count, defaults to 1")
-        .insert("quant_mode", "bquant", "Choose aquant (default), bquant, tensor or rowcol");
+        .insert("quant_mode", "bquant", "Choose aquant (default), bquant, tensor or rowcol")
+        .insert("group_size", "1x1x128", "Quantization group size as MxNxK, e.g., 1x1x128, 1x32x128, 1x64x128");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);

@@ -33,9 +33,9 @@ struct GemmBQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Prob
     static_assert(KPerBlockBQ >= 1, "KPerBlock must be >= QuantGroupSize");
 
     static_assert(NPerBlock % QuantGroupSize::kN == 0,
-                  "NPerBlock must be a multiple of QuantGroupSize");
+                  "NPerBlock must be a multiple of QuantGroupSize::kN");
     static_assert(KPerBlock % QuantGroupSize::kK == 0,
-                  "KPerBlock must be a multiple of QuantGroupSize");
+                  "KPerBlock must be a multiple of QuantGroupSize::kK");
 
     // Create DRAM tile window for BQ
     template <typename BQDramBlockWindowTmp>
