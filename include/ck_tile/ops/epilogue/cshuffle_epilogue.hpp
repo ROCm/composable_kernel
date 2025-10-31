@@ -3,12 +3,14 @@
 
 #pragma once
 
+#include "ck_tile/host/concat.hpp"
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/common/utils.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
-#include <optional>
+#include <type_traits>
 
 namespace ck_tile {
 
@@ -117,8 +119,25 @@ struct CShuffleEpilogue
     static constexpr index_t MRepeat                       = kMPerBlock / (MPerXdl * MWave);
     static constexpr index_t NRepeat                       = kNPerBlock / (NPerXdl * NWave);
 
+    CDElementwise elfunc_;
+
+    CK_TILE_DEVICE CShuffleEpilogue(CDElementwise elfunc = CDElementwise{}) : elfunc_(elfunc) {};
+
     static_assert(NumDTensor == DsLayout::size(),
                   "The size of DsDataType and DsLayout should be the same");
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        // clang-format off
+        return concat('_', "CShuffleEpilogue", 
+                      concat('x', MWave, NWave),
+                      concat('x', MPerXdl, NPerXdl, KPerXdl),
+                      VectorSizeC,
+                      isCTransposed ? "CTransposed" : "CNotTransposed",
+                      mem_op_string<MemoryOperation>());
+        // clang-format on
+    }
+
     /**
      * @brief Get the vector store size for C tensor.
      *
@@ -385,7 +404,7 @@ struct CShuffleEpilogue
             generate_tie([&](auto idx) -> const auto& { return ds_tensor[idx]; },
                          number<NumDTensor>{}));
 
-        tile_elementwise_inout_unpack(typename Problem::CDElementwise{}, c_ds_tiles);
+        tile_elementwise_inout_unpack(elfunc_, c_ds_tiles);
     }
 
     template <typename OutDramWindow, typename COutTensor>
@@ -450,7 +469,7 @@ struct CShuffleEpilogue
     CK_TILE_DEVICE auto operator()(ODramWindow& out_dram_window,
                                    const OAccTile& o_acc_tile,
                                    const DsDramWindows& ds_dram_windows,
-                                   void* /*p_smem*/,
+                                   void* /* p_smem */,
                                    const ScaleM& scale_m = {},
                                    const ScaleN& scale_n = {})
     {

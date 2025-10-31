@@ -182,19 +182,50 @@ struct fmha_fwd_args
     void* lse_ptr;
     void* o_ptr;
 
-    // Optional cumulative sequence length arrays
-    // Batch mode: cu_seqlen_* override effective per-batch lengths (exclude PAD)
-    const ck_tile::index_t* cu_seqlen_q_ptr  = nullptr; // [batch+1]
-    const ck_tile::index_t* cu_seqlen_kv_ptr = nullptr; // [batch+1]
-
-    const void* seqstart_q_ptr;
-    const void* seqstart_k_ptr;
-    const void*
-        seqlen_k_ptr; // only used if both 'seqstart_q_ptr' & 'seqstart_k_ptr' are not nullptr
-
-    // Group mode: seqstart_padded_* provide physical starts including PAD (optional)
-    const void* seqstart_padded_q_ptr = nullptr; // [batch+1]
-    const void* seqstart_padded_k_ptr = nullptr; // [batch+1]
+    // Usage notes for sequence length pointer parameters:
+    //
+    // [Note: Define "Group mode" vs "Batch mode" here if possible, e.g., "Group mode handles
+    // MQA/GQA..."]
+    //
+    // With padding:
+    //   Group mode:
+    //     - seqstart_q_ptr, seqstart_k_ptr: Record cumulative physical (including padding) sequence
+    //     lengths. [array size: batch + 1]
+    //     - seqlen_q_ptr/seqlen_k_ptr: Records logical (excluding padding) length for each
+    //     sequence. [array size: batch]
+    //     - cu_seqlen_q_ptr/cu_seqlen_k_ptr: Records cumulative logical (excluding padding)
+    //     sequence lengths. [array size: batch + 1]
+    //     - seqlen_q_ptr (per-sequence) and cu_seqlen_q_ptr (cumulative logical) are mutually
+    //     exclusive. Use one set, not both.
+    //
+    //   Batch mode:
+    //     - cu_seqlen_q_ptr/cu_seqlen_k_ptr: Records cumulative logical (excluding padding)
+    //     sequence lengths. [array size: batch + 1]
+    //     - seqstart_* and seqlen_* pointers must be nullptr.
+    //
+    // Without padding:
+    //   (Note: Physical length equals logical length)
+    //
+    //   Group mode:
+    //     - seqstart_q_ptr, seqstart_k_ptr: Record cumulative physical sequence lengths. [array
+    //     size: batch + 1]
+    //     - seqlen_q_ptr/seqlen_k_ptr and cu_seqlen_q_ptr/cu_seqlen_k_ptr must be nullptr.
+    //
+    //   Batch mode:
+    //     - All sequence length pointers (seqstart_*, seqlen_*, cu_seqlen_*) must be nullptr.
+    //
+    const void* seqstart_q_ptr =
+        nullptr; // Cumulative physical sequence length array [batch + 1]. (Used in Group mode)
+    const void* seqstart_k_ptr =
+        nullptr; // Cumulative physical sequence length array [batch + 1]. (Used in Group mode)
+    const void* seqlen_q_ptr = nullptr;    // Per-sequence logical (excluding padding) length array
+                                           // [batch]. (Used in Group mode with padding)
+    const void* seqlen_k_ptr = nullptr;    // Per-sequence logical (excluding padding) length array
+                                           // [batch]. (Used in Group mode with padding)
+    const void* cu_seqlen_q_ptr = nullptr; // Cumulative logical (excluding padding) sequence length
+                                           // array [batch + 1]. (Used with padding)
+    const void* cu_seqlen_k_ptr = nullptr; // Cumulative logical (excluding padding) sequence length
+                                           // array [batch + 1]. (Used with padding)
 
     ck_tile::index_t seqlen_q;
     ck_tile::index_t seqlen_k;
@@ -555,6 +586,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.o_ptr,
                                              args.seqstart_q_ptr,
                                              args.seqstart_k_ptr,
+                                             args.seqlen_q_ptr,
                                              args.seqlen_k_ptr,
                                              args.hdim_q,
                                              args.hdim_v,
@@ -584,8 +616,8 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.p_drop,
                                              args.s_randval,
                                              args.drop_seed_offset,
-                                             args.seqstart_padded_q_ptr,
-                                             args.seqstart_padded_k_ptr);
+                                             args.cu_seqlen_q_ptr,
+                                             args.cu_seqlen_k_ptr);
         }
         else
         { // create batch mode kernel arguments
@@ -633,7 +665,7 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.s_randval,
                                              args.drop_seed_offset,
                                              args.cu_seqlen_q_ptr,
-                                             args.cu_seqlen_kv_ptr);
+                                             args.cu_seqlen_k_ptr);
         }
     }();
 
@@ -1127,7 +1159,7 @@ struct fmha_fwd_traits_
     static constexpr bool kSkipMinSeqlenQ            = kSkipMinSeqlenQ_;
 };
 
-template <typename Traits_>
+template <typename Traits_, typename Arch = void>
 float fmha_fwd_(const ck_tile::stream_config&, fmha_fwd_args);
 
 template <ck_tile::index_t HDim_,
@@ -1178,7 +1210,7 @@ struct fmha_fwd_pagedkv_traits_
     static constexpr bool kSkipMinSeqlenQ            = kSkipMinSeqlenQ_;
 };
 
-template <typename Traits_>
+template <typename Traits_, typename Arch = void>
 float fmha_fwd_pagedkv_(const ck_tile::stream_config&, fmha_fwd_pagedkv_args);
 
 template <ck_tile::index_t HDim_,
@@ -1227,10 +1259,10 @@ struct fmha_fwd_splitkv_traits_
     static constexpr bool kIsPagedKV                 = kIsPagedKV_;
 };
 
-template <typename Traits_>
+template <typename Traits_, typename Arch = void>
 void fmha_fwd_splitkv_oneshot_(const ck_tile::stream_config&, fmha_fwd_splitkv_args);
 
-template <typename Traits_>
+template <typename Traits_, typename Arch = void>
 std::string fmha_fwd_splitkv_get_name_();
 
 template <ck_tile::index_t HDim_,
@@ -1253,10 +1285,10 @@ struct fmha_fwd_splitkv_combine_traits_
     static constexpr bool kPadDv            = kPadDv_;
 };
 
-template <typename Traits_>
+template <typename Traits_, typename Arch = void>
 void fmha_fwd_splitkv_combine_oneshot_(const ck_tile::stream_config&, fmha_fwd_splitkv_args);
 
-template <typename Traits_>
+template <typename Traits_, typename Arch = void>
 std::string fmha_fwd_splitkv_combine_get_name_();
 
 // this is used to pattern-match internl kernel implementation, not to instantiate kernel
@@ -1290,10 +1322,10 @@ struct fmha_fwd_appendkv_traits_
     static constexpr bool kIsPagedKV              = kIsPagedKV_;
 };
 
-template <typename Traits_>
+template <typename Traits_, typename Arch = void>
 float fmha_fwd_appendkv_(const ck_tile::stream_config&, fmha_fwd_appendkv_args);
 
-template <typename Traits_>
+template <typename Traits_, typename Arch = void>
 float fmha_batch_prefill_(const ck_tile::stream_config&, fmha_batch_prefill_args);
 
 // This is the public API, will be generated by script

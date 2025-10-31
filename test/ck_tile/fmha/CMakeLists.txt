@@ -1,10 +1,11 @@
 # Keep in sync with example/ck_tile/01_fmha/CMakeLists.txt
-if(NOT SUPPORTED_GPU_TARGETS MATCHES "gfx9")
+if(NOT SUPPORTED_GPU_TARGETS MATCHES "gfx9|gfx12")
     return()
 endif()
 
 set(FMHA_BWD_INSTANCES "tile_fmha_bwd_instances")
 set(FMHA_FWD_INSTANCES "tile_fmha_fwd_instances")
+
 set(TEST_NAME "test_ck_tile_fmha")
 
 function(add_gtest_fwd test_group)
