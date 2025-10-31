@@ -65,11 +65,6 @@ struct GroupedConvFwdKernelArgs
 
         k_batch = args.k_batch;
 
-        // GemmM will be set after Split-N calculation
-        // GemmN     = args.K_;
-        // GemmK     = args.C_ * args.filter_spatial_lengths_[0];
-        // GemmBatch = args.G_;
-
         in_ptr  = args.in_ptr;
         wei_ptr = args.wei_ptr;
         for(index_t d = 0; d < NumDTensor; d++)
@@ -103,7 +98,7 @@ struct GroupedConvFwdKernelArgs
                                          args.filter_spatial_lengths_.end(),
                                          1,
                                          std::multiplies<index_t>());
-        group_stride_c = args.K_;
+        group_stride_c = args.K_ * NumGroupsPerBatch;
 
         // Initialize Split-N support fields for 1D convolution (NWGC layout)
         // Get the actual split N from transformer
@@ -202,7 +197,7 @@ struct GroupedConvFwdKernelArgs
                                          args.filter_spatial_lengths_.end(),
                                          1,
                                          std::multiplies<index_t>());
-        group_stride_c = args.K_;
+        group_stride_c = args.K_ * NumGroupsPerBatch;
 
         // Initialize Split-N support fields for 2D convolution (NHWGC layout)
         // Get the actual split N from transformer
@@ -310,7 +305,7 @@ struct GroupedConvFwdKernelArgs
                                          args.filter_spatial_lengths_.end(),
                                          1,
                                          std::multiplies<index_t>());
-        group_stride_c = args.K_;
+        group_stride_c = args.K_ * NumGroupsPerBatch;
 
         // Initialize Split-N support fields for 3D convolution (NDHWGC layout)
         // Get the actual split N from transformer
