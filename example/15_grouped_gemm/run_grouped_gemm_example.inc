@@ -157,6 +157,50 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         a_tensors_device[i]->ToDevice(a_tensors[i].mData.data());
         b_tensors_device[i]->ToDevice(b_tensors[i].mData.data());
         c_tensors_device[i]->SetZero();
+
+        if(false)
+        {
+            // A is row major, B is column major, C is row major -- here are all row major?
+            ADataType* host_a_ptr = a_tensors[i].mData.data();
+            std::cout << "a_tensor[" << i << "]; shape " << a_tensors[i].mDesc.GetLengths()[0]
+                      << " x " << a_tensors[i].mDesc.GetLengths()[1]
+                      << "; stride: " << a_tensors[i].mDesc.GetStrides()[0] << " x "
+                      << a_tensors[i].mDesc.GetStrides()[1] << std::endl;
+            std::cout << "\t";
+            for(std::size_t row_idx = 0; row_idx < a_tensors[i].mDesc.GetLengths()[0]; row_idx++)
+            {
+                std::cout << row_idx << ": ";
+                for(std::size_t col_idx = 0; col_idx < a_tensors[i].mDesc.GetLengths()[1];
+                    col_idx++)
+                {
+                    std::cout << host_a_ptr[row_idx * a_tensors[i].mDesc.GetStrides()[0] +
+                                            col_idx * a_tensors[i].mDesc.GetStrides()[1]]
+                              << " ";
+                }
+                std::cout << std::endl << "\t";
+            }
+            std::cout << std::endl;
+            // col major
+            BDataType* host_b_ptr = b_tensors[i].mData.data();
+            std::cout << "b_tensor[" << i << "]; shape " << b_tensors[i].mDesc.GetLengths()[0]
+                      << " x " << b_tensors[i].mDesc.GetLengths()[1]
+                      << "; stride: " << b_tensors[i].mDesc.GetStrides()[0] << " x "
+                      << b_tensors[i].mDesc.GetStrides()[1] << std::endl;
+            std::cout << "\t";
+            for(std::size_t row_idx = 0; row_idx < b_tensors[i].mDesc.GetLengths()[0]; row_idx++)
+            {
+                std::cout << row_idx << ": ";
+                for(std::size_t col_idx = 0; col_idx < b_tensors[i].mDesc.GetLengths()[1];
+                    col_idx++)
+                {
+                    std::cout << host_b_ptr[row_idx * b_tensors[i].mDesc.GetStrides()[0] +
+                                            col_idx * b_tensors[i].mDesc.GetStrides()[1]]
+                              << " ";
+                }
+                std::cout << std::endl << "\t";
+            }
+            std::cout << std::endl;
+        }
 #endif
 
         p_a.push_back(a_tensors_device[i]->GetDeviceBuffer());
@@ -211,7 +255,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
     if(!config.async_hargs)
     {
-        invoker.Run(argument, StreamConfig{nullptr, false});
+        invoker.Run(argument, StreamConfig{nullptr, false, 1, 0, 1});
+        // invoker.Run(argument, StreamConfig{nullptr, false});
     }
     else
     {
@@ -221,7 +266,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         hipEvent_t event0 = nullptr;
         hip_check_error(hipEventCreate(&event0));
 
-        invoker.Run(argument, StreamConfig{nullptr, false}, stream0, event0);
+        invoker.Run(argument, StreamConfig{nullptr, false, 1, 0, 1}, stream0, event0);
+        // invoker.Run(argument, StreamConfig{nullptr, false}, stream0, event0);
 
         hip_check_error(hipEventSynchronize(event0));
         hip_check_error(hipStreamSynchronize(stream0));
@@ -267,6 +313,9 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
     if(config.time_kernel)
     {
+        std::cout << "run with time kernel" << std::endl;
+        // float ave_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel, 1, 0,
+        // 1});
         float ave_time   = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});
         float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
         float gb_per_sec = num_btype / 1.E6 / ave_time;
@@ -280,6 +329,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
 bool run_grouped_gemm_example(int argc, char* argv[])
 {
+    // std::srand(0); // 固定随机种子为0
     ProblemSize problem_size;
     ExecutionConfig config;
 
@@ -313,7 +363,11 @@ bool run_grouped_gemm_example(int argc, char* argv[])
     {
         problem_size.Ms.push_back(256 + 256 * i);
         problem_size.Ns.push_back(128 + 128 * i);
-        problem_size.Ks.push_back(128 + 64 * i);
+        problem_size.Ks.push_back(64 + 64 * i);
+
+        // problem_size.Ms.push_back(128 + 128 * i);
+        // problem_size.Ns.push_back(128 + 128 * i);
+        // problem_size.Ks.push_back(32 + 32 * i);
 
         problem_size.stride_As.push_back(problem_size.Ks[i]);
         problem_size.stride_Bs.push_back(problem_size.Ks[i]);

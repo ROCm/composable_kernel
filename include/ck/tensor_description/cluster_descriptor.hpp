@@ -14,6 +14,7 @@ __host__ __device__ constexpr auto make_cluster_descriptor(
     const Lengths& lengths,
     ArrangeOrder order = typename arithmetic_sequence_gen<0, Lengths::Size(), 1>::type{})
 {
+    // A: <4, 64, 1> <1, 0, 2> --> <64, 4, 1>
     constexpr index_t ndim_low = Lengths::Size();
 
     const auto reordered_lengths = container_reorder_given_new2old(lengths, order);

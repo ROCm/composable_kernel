@@ -119,6 +119,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                             const SrcBuffer& src_buf,
                             Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
+        // if(threadIdx.x == 0 && blockIdx.x == 0)
+        //     printf("%s\n\n", __PRETTY_FUNCTION__);
         static_assert(SrcBuffer::GetAddressSpace() == AddressSpaceEnum::Global or
                           SrcBuffer::GetAddressSpace() == AddressSpaceEnum::Lds,
                       "wrong!");
@@ -129,18 +131,21 @@ struct ThreadwiseTensorSliceTransfer_v3r1
 
         // scalar per access on each dim
         // TODO: don't use lambda_scalar_per_access
+        // <1, 1, 4>
         constexpr auto src_scalar_per_access = generate_sequence(
             detail::lambda_scalar_per_access<SrcVectorDim, SrcScalarPerVector_>{}, Number<nDim>{});
 
+        // <1, 2, 1>
         constexpr auto src_access_lengths = SliceLengths{} / src_scalar_per_access;
 
         static_assert(SliceLengths::At(SrcVectorDim) % (SrcScalarPerVector_) == 0,
                       "SliceLengths[SrcVectorDim] must be divisible by SrcScalarPerVector");
 
-        constexpr auto src_dim_access_order = SrcDimAccessOrder{};
+        constexpr auto src_dim_access_order = SrcDimAccessOrder{}; // <1, 0, 2>
 
         constexpr auto ordered_src_access_lengths =
             container_reorder_given_new2old(src_access_lengths, src_dim_access_order);
+        // <2,1,1> <4,1,1>
 
         // make forward steps
         const auto src_forward_steps = generate_tuple(
@@ -279,7 +284,7 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                                                    Sequence<I0, I8, I12>,
                                                    Sequence<I0, I8, I12, I14>,
                                                    Sequence<I0>>;
-
+            // real load
             static_for<0, tuple_element_t<SrcScalarPerVector, VectorSizeLookupTable>::Size(), 1>{}(
                 [&](auto v_idx) {
                     constexpr auto VectorLoadSize =
@@ -522,6 +527,8 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                              DstBuffer& dst_buf,
                              Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
+        // if(threadIdx.x == 0 && blockIdx.x == 0)
+        //     printf("%s\n\n", __PRETTY_FUNCTION__);
         // if there is transpose, it's done here
         // if there is oob check, it's done here
         // TODO move this elsewhere

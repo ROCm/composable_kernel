@@ -57,6 +57,10 @@ struct GridwiseGemmPipeline_v1<1, true, true>
                                CThreadBuffer& c_thread_buf,
                                index_t num_loop)
     {
+        // grid buf is global, block buf is lds
+        // if(threadIdx.x == 0 && blockIdx.x == 0)
+        //     printf("%s\n\n", __PRETTY_FUNCTION__);
+
         // preload data into LDS
         a_blockwise_copy.RunRead(a_grid_desc, a_grid_buf);
         b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
@@ -83,6 +87,9 @@ struct GridwiseGemmPipeline_v1<1, true, true>
 
                 b_blockwise_copy.RunRead(b_grid_desc, b_grid_buf);
 
+                // if(threadIdx.x == 0 && blockIdx.x == 0)
+                //     printf("%d: mainloop\n\n", __LINE__);
+
                 blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);
 
                 block_sync_lds();
@@ -99,6 +106,8 @@ struct GridwiseGemmPipeline_v1<1, true, true>
 
         // tail
         {
+            // if(threadIdx.x == 0 && blockIdx.x == 0)
+            //     printf("%d: tail\n\n", __LINE__);
             block_sync_lds();
 
             blockwise_gemm.Run(a_block_buf, b_block_buf, c_thread_buf);

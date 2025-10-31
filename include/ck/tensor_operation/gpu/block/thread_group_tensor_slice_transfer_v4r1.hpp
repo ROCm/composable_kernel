@@ -120,6 +120,8 @@ struct ThreadGroupTensorSliceTransfer_v4r1
                             const SrcBuffer& src_buf,
                             Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
+        // if(threadIdx.x == 0 && blockIdx.x == 0)
+        //     printf("%s\n\n", __PRETTY_FUNCTION__);
         if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
@@ -132,6 +134,8 @@ struct ThreadGroupTensorSliceTransfer_v4r1
                              DstBuffer& dst_buf,
                              Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
+        // if(threadIdx.x == 0 && blockIdx.x == 0)
+        //     printf("%s\n\n", __PRETTY_FUNCTION__);
         if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
            ThreadGroup::GetThreadId() < thread_cluster_desc_.GetElementSize())
         {
@@ -146,10 +150,13 @@ struct ThreadGroupTensorSliceTransfer_v4r1
                         DstBuffer& dst_buf,
                         Number<ThreadScratchId> thread_scratch_id)
     {
+        // if(threadIdx.x == 0 && blockIdx.x == 0)
+        //     printf("%s\n\n", __PRETTY_FUNCTION__);
         RunRead(src_desc, src_buf, thread_scratch_id);
         RunWrite(dst_desc, dst_buf, thread_scratch_id);
     }
 
+    // move to next slice(for pipeline read/write)
     __device__ void MoveSrcSliceWindow(const SrcDesc& src_desc, const Index& step)
     {
         if(ThreadGroup::GetNumOfThread() == thread_cluster_desc_.GetElementSize() or
@@ -171,6 +178,7 @@ struct ThreadGroupTensorSliceTransfer_v4r1
     private:
     static constexpr auto thread_cluster_desc_ =
         make_cluster_descriptor(ThreadClusterLengths{}, ThreadClusterArrangeOrder{});
+    // A: <4, 64, 1> <1, 0, 2> -- > <64, 4, 1>
 
     using ThreadwiseTransfer =
         ThreadwiseTensorSliceTransfer_v3r1<decltype(thread_slice_lengths),

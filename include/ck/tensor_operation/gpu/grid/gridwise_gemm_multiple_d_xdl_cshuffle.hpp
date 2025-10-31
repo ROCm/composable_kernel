@@ -532,6 +532,9 @@ struct GridwiseGemmMultipleD_xdl_cshuffle
                                const index_t k_batch = 1,
                                const index_t k_idx   = 0)
     {
+        // use this
+        // if(threadIdx.x == 0 && blockIdx.x == 0)
+        //     printf("%s\n\n", __PRETTY_FUNCTION__);
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
 
