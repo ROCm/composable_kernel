@@ -96,7 +96,7 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
     **Convenience script for development builds:**
 
     Alternatively, you can use the provided convenience script `script/cmake-ck-dev.sh` which automatically 
-    configures CK for development with sensible defaults:
+    configures CK for development with sensible defaults. In the build directory:
 
     ```bash
     ../script/cmake-ck-dev.sh
@@ -109,7 +109,10 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
     * Enables verbose makefile output
     * Sets additional compiler flags for better error messages
 
-    You can optionally specify custom GPU targets:
+    By default, it considers the parent directory to be the project source directory.
+
+    You can specify the source directory as the first argument.
+    You can specify custom GPU targets (semicolon-separated) as the second argument:
 
     ```bash
     ../script/cmake-ck-dev.sh .. gfx1100
@@ -121,13 +124,13 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
     ../script/cmake-ck-dev.sh .. gfx90a -DCMAKE_BUILD_TYPE=Release
     ```
 
-4. Build the entire CK library:
+5. Build the entire CK library:
 
     ```bash
     make -j"$(nproc)"
     ```
 
-5. Install CK:
+6. Install CK:
 
     ```bash
     make -j install
