@@ -43,10 +43,13 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     {
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
+        // Full K needed for matrix B
+        const index_t Kt = karg.K;
+
         auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
-        const index_t num_k_per_block =
-            karg.K / (GridwiseGemm::KLane * GridwiseGemm::KPackPerGroup);
-        const index_t k_id = blockIdx.z * num_k_per_block;
+
+        const index_t num_k_per_block = GridwiseGemm::CalculateBK0Shuffled(karg.K);
+        const index_t k_id            = blockIdx.z * num_k_per_block;
 
         GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
             karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
@@ -58,7 +61,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
             karg.a_element_op,
             karg.b_element_op,
             karg.c_element_op,
-            k_id);
+            k_id,
+            Kt);
     }
 #else
     ignore = karg;
@@ -83,10 +87,13 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
         __shared__ char p_shared1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
+        // Full K needed for matrix B
+        const index_t Kt = karg.K;
+
         auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg, blockIdx.z);
-        const index_t num_k_per_block =
-            karg.K / (GridwiseGemm::KLane * GridwiseGemm::KPackPerGroup);
-        const index_t k_id = blockIdx.z * num_k_per_block;
+
+        const index_t num_k_per_block = GridwiseGemm::CalculateBK0Shuffled(karg.K);
+        const index_t k_id            = blockIdx.z * num_k_per_block;
 
         GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
             karg.p_a_grid + splitk_batch_offset.a_k_split_offset,
@@ -99,7 +106,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
             karg.a_element_op,
             karg.b_element_op,
             karg.c_element_op,
-            k_id);
+            k_id,
+            Kt);
     }
 #else
     ignore = karg;
@@ -1172,7 +1180,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                AElementwiseOperation a_element_op,
                                BElementwiseOperation b_element_op,
                                CElementwiseOperation c_element_op,
-                               index_t k_id)
+                               const index_t k_id,
+                               const index_t Kt)
     {
         const auto block_2_ctile_map = Block2CTileMapDefault{problem.M, problem.N, 4};
         Run<Block2CTileMapDefault, HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
@@ -1186,7 +1195,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             b_element_op,
             c_element_op,
             block_2_ctile_map,
-            k_id);
+            k_id,
+            Kt);
     }
 
     template <typename Block2CTileMap,
@@ -1203,12 +1213,11 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                BElementwiseOperation b_element_op,
                                CElementwiseOperation c_element_op,
                                const Block2CTileMap& block_2_ctile_map,
-                               index_t k_id)
+                               const index_t k_id,
+                               const index_t Kt)
     {
         ignore              = b_element_op;
         index_t BN0Shuffled = CalculateBN0Shuffled(problem.N);
-        // recompute K without splitK for matrix B
-        const index_t Kt    = problem.K + problem.KRead * (problem.KBatch - 1);
         index_t BK0Shuffled = CalculateBK0Shuffled(Kt);
 
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
@@ -1611,7 +1620,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                     AElementwiseOperation a_element_op,
                                     BElementwiseOperation b_element_op,
                                     CElementwiseOperation c_element_op,
-                                    index_t k_id)
+                                    const index_t k_id,
+                                    const index_t Kt)
     {
         const auto block_2_ctile_map = Block2CTileMapDefault{problem.M, problem.N, 4};
         Run_2Lds<Block2CTileMapDefault, HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
@@ -1626,7 +1636,8 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
             b_element_op,
             c_element_op,
             block_2_ctile_map,
-            k_id);
+            k_id,
+            Kt);
     }
 
     template <typename Block2CTileMap,
@@ -1644,11 +1655,11 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3_b_preshuffle
                                     BElementwiseOperation b_element_op,
                                     CElementwiseOperation c_element_op,
                                     const Block2CTileMap& block_2_ctile_map,
-                                    index_t k_id)
+                                    const index_t k_id,
+                                    const index_t Kt)
     {
         ignore                           = b_element_op;
         index_t BN0Shuffled              = CalculateBN0Shuffled(problem.N);
-        const index_t Kt                 = problem.K + problem.KRead * (problem.KBatch - 1);
         index_t BK0Shuffled              = CalculateBK0Shuffled(Kt);
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);

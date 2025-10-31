@@ -40,9 +40,12 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     {
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
+        // Full K needed for matrix B
+        const index_t Kt = karg.K;
+
         auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
 
-        const index_t num_k_per_block = karg.K / (GridwiseGemm::KLane * GridwiseGemm::KPack);
+        const index_t num_k_per_block = GridwiseGemm::CalculateBK0Shuffled(karg.K);
         const index_t k_id            = blockIdx.z * num_k_per_block;
 
         GridwiseGemm::template Run<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
@@ -51,7 +54,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
             karg.p_c_grid + splitk_batch_offset.c_reduce_offset,
             p_shared,
             karg,
-            k_id);
+            k_id,
+            Kt);
     }
 #else
     ignore = karg;
@@ -78,8 +82,12 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
         __shared__ char p_shared_0[GridwiseGemm::GetSharedMemoryNumberOfByte()];
         __shared__ char p_shared_1[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
-        auto splitk_batch_offset      = typename GridwiseGemm::SplitKBatchOffset(karg);
-        const index_t num_k_per_block = karg.K / (GridwiseGemm::KLane * GridwiseGemm::KPack);
+        // Full K needed for matrix B
+        const index_t Kt = karg.K;
+
+        auto splitk_batch_offset = typename GridwiseGemm::SplitKBatchOffset(karg);
+
+        const index_t num_k_per_block = GridwiseGemm::CalculateBK0Shuffled(karg.K);
         const index_t k_id            = blockIdx.z * num_k_per_block;
 
         GridwiseGemm::template Run_2Lds<HasMainKBlockLoop, CGlobalMemoryDataOperation, TailNum>(
@@ -89,7 +97,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
             p_shared_0,
             p_shared_1,
             karg,
-            k_id);
+            k_id,
+            Kt);
     }
 #else
     ignore = karg;
@@ -1147,7 +1156,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
                                const BGridDesc_BPreshuffled& b_grid_desc_bpreshuffled,
                                const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock&
                                    c_grid_desc_mblock_mperblock_nblock_nperblock,
-                               index_t k_id)
+                               const index_t k_id)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
@@ -1479,11 +1488,10 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
                                CDataType* p_c_grid,
                                void* p_shared,
                                const Problem& problem,
-                               index_t k_id)
+                               const index_t k_id,
+                               const index_t Kt)
     {
-        index_t BN0Shuffled = CalculateBN0Shuffled(problem.N);
-        // recompute K without splitK for matrix B
-        const index_t Kt                 = problem.K + problem.KRead * (problem.KBatch - 1);
+        index_t BN0Shuffled              = CalculateBN0Shuffled(problem.N);
         index_t BK0Shuffled              = CalculateBK0Shuffled(Kt);
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
@@ -1527,7 +1535,7 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
                                     const BGridDesc_BPreshuffled& b_grid_desc_bpreshuffled,
                                     const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock&
                                         c_grid_desc_mblock_mperblock_nblock_nperblock,
-                                    index_t k_id)
+                                    const index_t k_id)
     {
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid, a_grid_desc_ak0_m_ak1.GetElementSpaceSize());
@@ -1868,11 +1876,10 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
                                     void* p_shared_0,
                                     void* p_shared_1,
                                     const Problem& problem,
-                                    index_t k_id)
+                                    const index_t k_id,
+                                    const index_t Kt)
     {
-        index_t BN0Shuffled = CalculateBN0Shuffled(problem.N);
-        // recompute K without splitK for matrix B
-        const index_t Kt                 = problem.K + problem.KRead * (problem.KBatch - 1);
+        index_t BN0Shuffled              = CalculateBN0Shuffled(problem.N);
         index_t BK0Shuffled              = CalculateBK0Shuffled(Kt);
         const auto a_grid_desc_ak0_m_ak1 = MakeAGridDescriptor_AK0_M_AK1(
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideA, problem.AK0);
