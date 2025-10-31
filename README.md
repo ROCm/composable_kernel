@@ -93,6 +93,34 @@ Docker images are available on [DockerHub](https://hub.docker.com/r/rocm/composa
     want to build the library for a list of different architectures,
     you should use the `GPU_ARCHS` build argument, for example `GPU_ARCHS=gfx908;gfx1030;gfx1100;gfx942`.
 
+    **Convenience script for development builds:**
+
+    Alternatively, you can use the provided convenience script `script/cmake-ck-dev.sh` which automatically 
+    configures CK for development with sensible defaults:
+
+    ```bash
+    ../script/cmake-ck-dev.sh
+    ```
+
+    This script:
+    * Cleans CMake cache files before configuring
+    * Sets `BUILD_DEV=ON` for development mode
+    * Defaults to GPU targets: `gfx908;gfx90a;gfx942`
+    * Enables verbose makefile output
+    * Sets additional compiler flags for better error messages
+
+    You can optionally specify custom GPU targets:
+
+    ```bash
+    ../script/cmake-ck-dev.sh .. gfx1100
+    ```
+
+    Or pass additional cmake arguments:
+
+    ```bash
+    ../script/cmake-ck-dev.sh .. gfx90a -DDTYPES=fp16;fp32
+    ```
+
 4. Build the entire CK library:
 
     ```bash
