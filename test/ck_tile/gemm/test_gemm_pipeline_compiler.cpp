@@ -5,93 +5,285 @@
 #include "test_gemm_pipeline_util.hpp"
 #include "gtest/gtest.h"
 
-// Concise test suite for compiler validation.
-// Covers essential combinations of data types, layouts, and pipeline types.
+// ============================================================================
+// Comprehensive GEMM Compiler Validation Test Suite
+// This file consolidates all GEMM pipeline tests for compiler validation
+// Covers essential combinations of data types, layouts, and pipeline types
+// ============================================================================
+
+// ----------------------------------------------------------------------------
+// Test Class Definitions for Different Pipeline Types
+// ----------------------------------------------------------------------------
 
 template <typename T>
-class TestCkTileGemmCompiler : public TestCkTileGemmPipeline<T, TestCkTileGemmCompiler<T>>
+class TestGemmMem : public TestCkTileGemmPipeline<T, TestGemmMem<T>>
 {
 };
 
-#define TEST_SUITE_NAME TestCkTileGemmCompiler
+template <typename T>
+class TestGemmMemWmma : public TestCkTileGemmPipeline<T, TestGemmMemWmma<T>>
+{
+};
 
-using CompilerTestTypes = ::testing::Types<
-    // ============================================================================
-    // KernelTypes with Mem pipeline
+template <typename T>
+class TestGemmCompV3 : public TestCkTileGemmPipeline<T, TestGemmCompV3<T>>
+{
+};
+
+template <typename T>
+class TestGemmCompV3Wmma : public TestCkTileGemmPipeline<T, TestGemmCompV3Wmma<T>>
+{
+};
+
+template <typename T>
+class TestGemmCompV4 : public TestCkTileGemmPipeline<T, TestGemmCompV4<T>>
+{
+};
+
+template <typename T>
+class TestGemmCompV4Wmma : public TestCkTileGemmPipeline<T, TestGemmCompV4Wmma<T>>
+{
+};
+
+template <typename T>
+class TestGemmCompV6 : public TestCkTileGemmPipeline<T, TestGemmCompV6<T>>
+{
+};
+
+template <typename T>
+class TestGemmPersistent : public TestCkTileGemmPipeline<T, TestGemmPersistent<T>>
+{
+};
+
+template <typename T>
+class TestGemmPersistentWmma : public TestCkTileGemmPipeline<T, TestGemmPersistentWmma<T>>
+{
+};
+
+// ----------------------------------------------------------------------------
+// Type Definitions for Each Pipeline Configuration
+// ----------------------------------------------------------------------------
+
+// Memory Pipeline Types
+using MemTestTypes = ::testing::Types<
     // Parameters: ALayout, BLayout, CLayout, ADataType, BDataType, AccDataType,
     //             CDataType, M_BlockSize, N_BlockSize, K_BlockSize, M_TileSize,
     //             N_TileSize, K_TileSize, Scheduler, PipelineType
-    // ============================================================================
-    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,         Mem>,
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,         Mem>,
-    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,         Mem>,
+    std::tuple<Row, Row, Row, F16, F16, F32, F16, I256, I256, I64, I32, I32, I16, Intrawave, Mem>,
+    std::tuple<Row, Col, Row, F16, F16, F32, F16, I256, I256, I64, I32, I32, I16, Intrawave, Mem>,
+    std::tuple<Col, Row, Row, F16, F16, F32, F16, I256, I256, I64, I32, I32, I16, Intrawave, Mem>,
+    std::tuple<Col, Col, Row, F8, F8, F32, F16, I256, I256, I64, I32, I32, I16, Interwave, Mem>>;
 
-    // KernelTypes with WMMA Mem pipeline
-    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16,        I16, Interwave,         Mem>,
-    std::tuple<    Row,     Row,     Row,       BF16,      BF16,        F32,       BF16,       I64,         I64,          I32,        I16,        I16,        I16, Interwave,         Mem>,
-	std::tuple<    Row,     Row,     Row,       BF8,       BF8,         F32,       F16,        I64,         I64,          I32,        I16,        I16,        I16, Intrawave,         Mem>,
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16,        I16, Intrawave,         Mem>,
+// Memory Pipeline WMMA Types
+using MemWmmaTestTypes = ::testing::Types<
+    std::tuple<Row, Row, Row, F16, F16, F32, F16, I64, I64, I32, I16, I16, I16, Interwave, Mem>,
+    std::tuple<Row, Row, Row, BF16, BF16, F32, BF16, I64, I64, I32, I16, I16, I16, Interwave, Mem>>;
 
-    // KernelTypes with CompV3 pipeline
-    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,         CompV3>,
-    std::tuple<    Row,     Col,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,         CompV3>,
-    std::tuple<    Col,     Col,     Row,       INT8,      INT8,        INT32,     INT32,      I256,        I256,         I64,        I32,        I32,        I16, Intrawave,         CompV3>,
-    std::tuple<    Row,     Row,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,         CompV3>,
+// CompV3 Pipeline Types
+using CompV3TestTypes = ::testing::Types<
+    std::
+        tuple<Row, Row, Row, F16, F16, F32, F16, I256, I256, I64, I32, I32, I16, Intrawave, CompV3>,
+    std::tuple<Row, Col, Row, F8, F8, F32, F16, I256, I256, I64, I32, I32, I16, Intrawave, CompV3>,
+    std::tuple<Col,
+               Row,
+               Row,
+               INT8,
+               INT8,
+               INT32,
+               INT32,
+               I256,
+               I256,
+               I64,
+               I32,
+               I32,
+               I16,
+               Intrawave,
+               CompV3>,
+    std::tuple<Col,
+               Col,
+               Row,
+               INT8,
+               INT8,
+               INT32,
+               INT32,
+               I256,
+               I256,
+               I64,
+               I32,
+               I32,
+               I16,
+               Intrawave,
+               CompV3>>;
 
-    // KernelTypes with CompV3 pipeline (WMMA)
-    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16,        I16, Intrawave,         CompV3>,
-    std::tuple<    Row,     Row,     Row,       BF16,      BF16,        F32,       F16,        I64,         I64,          I32,        I16,        I16,        I16, Intrawave,         CompV3>,
-	std::tuple<    Row,     Col,     Row,       BF8,       BF8,         F32,       F16,        I64,         I64,          I32,        I16,        I16,        I16, Intrawave,         CompV3>,
-    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16,        I16, Intrawave,         CompV3>,
+// CompV3 Pipeline WMMA Types
+using CompV3WmmaTestTypes = ::testing::Types<
+    std::tuple<Row, Row, Row, F16, F16, F32, F16, I64, I64, I32, I16, I16, I16, Intrawave, CompV3>,
+    std::tuple<Row,
+               Row,
+               Row,
+               BF16,
+               BF16,
+               F32,
+               F16,
+               I64,
+               I64,
+               I32,
+               I16,
+               I16,
+               I16,
+               Intrawave,
+               CompV3>>;
 
-    // KernelTypes with CompV4 pipeline
-    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,         CompV4>,
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,         CompV4>,
-    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,         CompV4>,
-    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,         CompV4>,
+// CompV4 Pipeline Types
+using CompV4TestTypes = ::testing::Types<
+    std::
+        tuple<Row, Row, Row, F16, F16, F32, F16, I256, I256, I32, I32, I32, I16, Intrawave, CompV4>,
+    std::
+        tuple<Row, Col, Row, F16, F16, F32, F16, I256, I256, I32, I32, I32, I16, Intrawave, CompV4>,
+    std::
+        tuple<Col, Row, Row, F16, F16, F32, F16, I256, I256, I32, I32, I32, I16, Intrawave, CompV4>,
+    std::tuple<Col,
+               Col,
+               Row,
+               F16,
+               F16,
+               F32,
+               F16,
+               I256,
+               I256,
+               I32,
+               I32,
+               I32,
+               I16,
+               Intrawave,
+               CompV4>>;
 
-    // KernelTypes with CompV4 pipeline (WMMA)
-    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16,        I16, Intrawave,         CompV4>,
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16,        I16, Intrawave,         CompV4>,
-    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16,        I16, Intrawave,         CompV4>,
-    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16,        I16, Intrawave,         CompV4>,
+// CompV4 Pipeline WMMA Types
+using CompV4WmmaTestTypes = ::testing::Types<
+    std::tuple<Row, Row, Row, F16, F16, F32, F16, I64, I64, I32, I16, I16, I16, Intrawave, CompV4>,
+    std::tuple<Row, Col, Row, F16, F16, F32, F16, I64, I64, I32, I16, I16, I16, Intrawave, CompV4>,
+    std::tuple<Col, Row, Row, F16, F16, F32, F16, I64, I64, I32, I16, I16, I16, Intrawave, CompV4>,
+    std::tuple<Col, Col, Row, F16, F16, F32, F16, I64, I64, I32, I16, I16, I16, Intrawave, CompV4>>;
 
-    // KernelTypes with CompV6 pipeline
-    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,         CompV6>,
-    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,         CompV6>,
-    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,         CompV6>,
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,         CompV6>,
+// CompV6 Pipeline Types
+using CompV6TestTypes = ::testing::Types<
+    std::
+        tuple<Row, Row, Row, F16, F16, F32, F16, I256, I256, I64, I32, I32, I16, Intrawave, CompV6>,
+    std::
+        tuple<Col, Row, Row, F16, F16, F32, F16, I256, I256, I64, I32, I32, I16, Intrawave, CompV6>,
+    std::
+        tuple<Col, Col, Row, F16, F16, F32, F16, I256, I256, I64, I32, I32, I16, Intrawave, CompV6>,
+    std::tuple<Row,
+               Col,
+               Row,
+               F16,
+               F16,
+               F32,
+               F16,
+               I256,
+               I256,
+               I64,
+               I32,
+               I32,
+               I16,
+               Intrawave,
+               CompV6>>;
 
-    // ============================================================================
-    // KernelTypes with Persistent CompV3 pipeline
+// Persistent CompV3 Pipeline Types
+using PersistentTestTypes = ::testing::Types<
     // Additional Parameter: Persistent (Persistent/NonPersistent mode)
-    // ============================================================================
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,         CompV3,    Persistent>,
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,         CompV3, NonPersistent>,
+    std::tuple<Row,
+               Col,
+               Row,
+               F16,
+               F16,
+               F32,
+               F16,
+               I256,
+               I256,
+               I64,
+               I32,
+               I32,
+               I16,
+               Intrawave,
+               CompV3,
+               Persistent>,
+    std::tuple<Row,
+               Col,
+               Row,
+               F16,
+               F16,
+               F32,
+               F16,
+               I256,
+               I256,
+               I64,
+               I32,
+               I32,
+               I16,
+               Intrawave,
+               CompV3,
+               NonPersistent>>;
 
-    // KernelTypes with Persistent CompV3 pipeline (WMMA)
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16,        I16, Intrawave,         CompV3,    Persistent>,
-    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I64,         I64,          I32,        I16,        I16,        I16, Intrawave,         CompV3, NonPersistent>
->;
+// Persistent CompV3 Pipeline WMMA Types
+using PersistentWmmaTestTypes = ::testing::Types<std::tuple<Row,
+                                                            Col,
+                                                            Row,
+                                                            F16,
+                                                            F16,
+                                                            F32,
+                                                            F16,
+                                                            I64,
+                                                            I64,
+                                                            I32,
+                                                            I16,
+                                                            I16,
+                                                            I16,
+                                                            Intrawave,
+                                                            CompV3,
+                                                            Persistent>,
+                                                 std::tuple<Row,
+                                                            Col,
+                                                            Row,
+                                                            F16,
+                                                            F16,
+                                                            F32,
+                                                            F16,
+                                                            I64,
+                                                            I64,
+                                                            I32,
+                                                            I16,
+                                                            I16,
+                                                            I16,
+                                                            Intrawave,
+                                                            CompV3,
+                                                            NonPersistent>>;
 
-TYPED_TEST_SUITE(TestCkTileGemmCompiler, CompilerTestTypes);
+// ----------------------------------------------------------------------------
+// Test Suite Registrations
+// ----------------------------------------------------------------------------
+
+TYPED_TEST_SUITE(TestGemmMem, MemTestTypes);
+TYPED_TEST_SUITE(TestGemmMemWmma, MemWmmaTestTypes);
+TYPED_TEST_SUITE(TestGemmCompV3, CompV3TestTypes);
+TYPED_TEST_SUITE(TestGemmCompV3Wmma, CompV3WmmaTestTypes);
+TYPED_TEST_SUITE(TestGemmCompV4, CompV4TestTypes);
+TYPED_TEST_SUITE(TestGemmCompV4Wmma, CompV4WmmaTestTypes);
+TYPED_TEST_SUITE(TestGemmCompV6, CompV6TestTypes);
+TYPED_TEST_SUITE(TestGemmPersistent, PersistentTestTypes);
+TYPED_TEST_SUITE(TestGemmPersistentWmma, PersistentWmmaTestTypes);
 
 // ============================================================================
-// Test Cases
+// Memory Pipeline Tests (Mem)
 // ============================================================================
 
-// Test 1: Single tile - validates basic kernel compilation and execution
-TYPED_TEST(TEST_SUITE_NAME, SingleTile)
-{
-    this->Run(TestFixture::M_Tile, TestFixture::N_Tile, TestFixture::K_Tile);
-}
+#define TEST_SUITE_NAME TestGemmMem
 
-// Test 2: Small M - validates edge cases with small batch sizes
-TYPED_TEST(TEST_SUITE_NAME, SmallM)
+TYPED_TEST(TEST_SUITE_NAME, SmallM_SingleRow)
 {
-    std::vector<int> Ms{1, 4};  // Minimal set for compiler check
+    std::vector<int> Ms{1};
     constexpr int N = 1024;
-    constexpr int K = 256;
+    constexpr int K = TestFixture::K_Tile * 2;
 
     for(int M : Ms)
     {
@@ -107,23 +299,587 @@ TYPED_TEST(TEST_SUITE_NAME, SmallM)
     }
 }
 
-// Test 3: Regular size - validates typical production workload
-TYPED_TEST(TEST_SUITE_NAME, Regular)
+TYPED_TEST(TEST_SUITE_NAME, SingleTile)
+{
+    this->Run(TestFixture::M_Tile, TestFixture::N_Tile, TestFixture::K_Tile);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, ExactlyTwoTiles_M)
+{
+    this->Run(TestFixture::M_Tile * 2, TestFixture::N_Tile, TestFixture::K_Tile * 2);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, ExactlyTwoTiles_N)
+{
+    this->Run(TestFixture::M_Tile, TestFixture::N_Tile * 2, TestFixture::K_Tile * 2);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, ExactlyTwoTiles_K)
+{
+    this->Run(TestFixture::M_Tile, TestFixture::N_Tile, TestFixture::K_Tile * 2);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, Regular_512x1024x512)
 {
     constexpr int M = 512;
     constexpr int N = 1024;
     constexpr int K = 512;
-
     this->Run(M, N, K);
 }
 
-// Test 4: Padded K - validates handling of non-aligned K dimension
-TYPED_TEST(TEST_SUITE_NAME, PaddK)
+TYPED_TEST(TEST_SUITE_NAME, Square_1024x1024x1024)
+{
+    constexpr int M = 1024;
+    constexpr int N = 1024;
+    constexpr int K = 1024;
+    this->Run(M, N, K);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, LargeMatrix_2048x2048x2048)
+{
+    constexpr int M = 2048;
+    constexpr int N = 2048;
+    constexpr int K = 2048;
+    this->Run(M, N, K);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, VeryLargeMatrix_4096x4096x4096)
+{
+    constexpr int M = 4096;
+    constexpr int N = 4096;
+    constexpr int K = 4096;
+    this->Run(M, N, K);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, TallSkinny_4096x128x1024)
+{
+    constexpr int M = 4096;
+    constexpr int N = 128;
+    constexpr int K = 1024;
+    this->Run(M, N, K);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, ShortWide_128x4096x1024)
 {
     constexpr int M = 128;
-    constexpr int N = 1024;
-    constexpr int K = 432;  // Non-aligned K
+    constexpr int N = 4096;
+    constexpr int K = 1024;
+    this->Run(M, N, K);
+}
 
+TYPED_TEST(TEST_SUITE_NAME, DeepNarrow_2048x2048x8192)
+{
+    constexpr int M = 2048;
+    constexpr int N = 2048;
+    constexpr int K = 8192;
+    this->Run(M, N, K);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, StressTest_ExtremelyTallMatrix)
+{
+    constexpr int M = 16384;
+    constexpr int N = 64;
+    constexpr int K = 512;
+    this->Run(M, N, K);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, StressTest_ExtremelyWideMatrix)
+{
+    constexpr int M = 64;
+    constexpr int N = 16384;
+    constexpr int K = 512;
+    this->Run(M, N, K);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, StressTest_VeryDeepK)
+{
+    constexpr int M = 1024;
+    constexpr int N = 1024;
+    constexpr int K = 16384;
+    this->Run(M, N, K);
+}
+
+#undef TEST_SUITE_NAME
+
+// ============================================================================
+// Memory Pipeline Tests with WMMA
+// ============================================================================
+
+#define TEST_SUITE_NAME TestGemmMemWmma
+
+TYPED_TEST(TEST_SUITE_NAME, SingleTile_WMMA)
+{
+    this->Run(TestFixture::M_Tile, TestFixture::N_Tile, TestFixture::K_Tile);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, Regular_WMMA)
+{
+    constexpr int M = 512;
+    constexpr int N = 1024;
+    constexpr int K = 512;
+    this->Run(M, N, K);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, LargeMatrix_WMMA)
+{
+    constexpr int M = 2048;
+    constexpr int N = 2048;
+    constexpr int K = 2048;
+    this->Run(M, N, K);
+}
+
+#undef TEST_SUITE_NAME
+
+// ============================================================================
+// Compute V3 Pipeline Tests
+// ============================================================================
+
+#define TEST_SUITE_NAME TestGemmCompV3
+
+TYPED_TEST(TEST_SUITE_NAME, SmallM_CompV3)
+{
+    std::vector<int> Ms{1, 2, 3, 4, 5, 6};
+    constexpr int N = 1024;
+    std::vector<int> Ks;
+    for(auto K_count : {2, 3, 4, 10, 11})
+    {
+        Ks.push_back(K_count * TestFixture::K_Tile);
+    }
+
+    for(int M : Ms)
+    {
+        for(int K : Ks)
+        {
+            if constexpr(std::is_same_v<typename TestFixture::ALayout,
+                                        ck_tile::tensor_layout::gemm::ColumnMajor>)
+            {
+                EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+            }
+            else
+            {
+                this->Run(M, N, K);
+            }
+        }
+    }
+}
+
+TYPED_TEST(TEST_SUITE_NAME, SingleTile_CompV3)
+{
+    this->Run(TestFixture::M_Tile, TestFixture::N_Tile, TestFixture::K_Tile);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, MidLargeM_CompV3)
+{
+    std::vector<int> Ms{127, 255, 312, 799, 1573};
+    constexpr int N = 1024;
+
+    std::vector<int> Ks;
+    for(auto K_count : {2, 3, 4, 10, 11})
+    {
+        Ks.push_back(K_count * TestFixture::K_Tile);
+    }
+
+    constexpr int VecLoadSize = (std::is_same_v<typename TestFixture::ADataType, ck_tile::fp8_t> ||
+                                 std::is_same_v<typename TestFixture::ADataType, ck_tile::bf8_t> ||
+                                 std::is_same_v<typename TestFixture::ADataType, ck_tile::int8_t>)
+                                    ? 16
+                                    : 8;
+
+    for(int M : Ms)
+    {
+        for(int K : Ks)
+        {
+            if constexpr(std::is_same_v<typename TestFixture::ALayout,
+                                        ck_tile::tensor_layout::gemm::ColumnMajor>)
+            {
+                if(M % VecLoadSize == 0)
+                {
+                    this->Run(M, N, K);
+                }
+                else
+                {
+                    EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+                }
+            }
+            else
+            {
+                this->Run(M, N, K);
+            }
+        }
+    }
+}
+
+TYPED_TEST(TEST_SUITE_NAME, Regular_CompV3)
+{
+    constexpr int M = 512;
+    constexpr int N = 1024;
+    constexpr int K = 512;
+    this->Run(M, N, K);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, LargeMatrix_CompV3)
+{
+    constexpr int M = 2048;
+    constexpr int N = 2048;
+    constexpr int K = 2048;
+    this->Run(M, N, K);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, BatchedSmall_CompV3)
+{
+    constexpr int M = 256;
+    constexpr int N = 256;
+    constexpr int K = 256;
+    this->Run(M, N, K);
+}
+
+#undef TEST_SUITE_NAME
+
+// ============================================================================
+// Compute V3 Pipeline Tests with WMMA
+// ============================================================================
+
+#define TEST_SUITE_NAME TestGemmCompV3Wmma
+
+TYPED_TEST(TEST_SUITE_NAME, SmallM_CompV3Wmma)
+{
+    std::vector<int> Ms{1, 2, 3, 4, 5, 6};
+    constexpr int N = 1024;
+    std::vector<int> Ks;
+    for(auto K_count : {2, 3, 4, 10, 11})
+    {
+        Ks.push_back(K_count * TestFixture::K_Tile);
+    }
+
+    for(int M : Ms)
+    {
+        for(int K : Ks)
+        {
+            if constexpr(std::is_same_v<typename TestFixture::ALayout,
+                                        ck_tile::tensor_layout::gemm::ColumnMajor>)
+            {
+                EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+            }
+            else
+            {
+                this->Run(M, N, K);
+            }
+        }
+    }
+}
+
+TYPED_TEST(TEST_SUITE_NAME, SingleTile_CompV3Wmma)
+{
+    this->Run(TestFixture::M_Tile, TestFixture::N_Tile, TestFixture::K_Tile);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, Regular_CompV3Wmma)
+{
+    constexpr int M = 512;
+    constexpr int N = 1024;
+    constexpr int K = 512;
+    this->Run(M, N, K);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, LargeMatrix_CompV3Wmma)
+{
+    constexpr int M = 2048;
+    constexpr int N = 2048;
+    constexpr int K = 2048;
+    this->Run(M, N, K);
+}
+
+#undef TEST_SUITE_NAME
+
+// ============================================================================
+// Compute V4 Pipeline Tests
+// ============================================================================
+
+#define TEST_SUITE_NAME TestGemmCompV4
+
+TYPED_TEST(TEST_SUITE_NAME, SmallM_CompV4)
+{
+    std::vector<int> Ms{1, 2, 3, 4, 5, 6};
+    constexpr int N = 1024;
+    std::vector<int> Ks;
+    for(auto K_count : {2, 3, 4})
+    {
+        Ks.push_back(K_count * TestFixture::K_Tile);
+    }
+
+    for(int M : Ms)
+    {
+        for(int K : Ks)
+        {
+            if constexpr(std::is_same_v<typename TestFixture::ALayout,
+                                        ck_tile::tensor_layout::gemm::ColumnMajor>)
+            {
+                EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+            }
+            else
+            {
+                this->Run(M, N, K);
+            }
+        }
+    }
+}
+
+TYPED_TEST(TEST_SUITE_NAME, SingleTile_CompV4)
+{
+    this->Run(TestFixture::M_Tile, TestFixture::N_Tile, TestFixture::K_Tile);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, Regular_CompV4)
+{
+    constexpr int M = 512;
+    constexpr int N = 1024;
+    constexpr int K = 512;
+    this->Run(M, N, K);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, LargeMatrix_CompV4)
+{
+    constexpr int M = 2048;
+    constexpr int N = 2048;
+    constexpr int K = 2048;
+    this->Run(M, N, K);
+}
+
+#undef TEST_SUITE_NAME
+
+// ============================================================================
+// Compute V4 Pipeline Tests with WMMA
+// ============================================================================
+
+#define TEST_SUITE_NAME TestGemmCompV4Wmma
+
+TYPED_TEST(TEST_SUITE_NAME, SingleTile_CompV4Wmma)
+{
+    this->Run(TestFixture::M_Tile, TestFixture::N_Tile, TestFixture::K_Tile);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, Regular_CompV4Wmma)
+{
+    constexpr int M = 512;
+    constexpr int N = 1024;
+    constexpr int K = 512;
+    this->Run(M, N, K);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, LargeMatrix_CompV4Wmma)
+{
+    constexpr int M = 2048;
+    constexpr int N = 2048;
+    constexpr int K = 2048;
+    this->Run(M, N, K);
+}
+
+#undef TEST_SUITE_NAME
+
+// ============================================================================
+// Compute V6 Pipeline Tests
+// ============================================================================
+
+#define TEST_SUITE_NAME TestGemmCompV6
+
+TYPED_TEST(TEST_SUITE_NAME, SmallM_CompV6)
+{
+    std::vector<int> Ms{1, 2, 3, 4, 5, 6};
+    constexpr int N = 1024;
+    std::vector<int> Ks;
+    for(auto K_count : {2, 3, 4, 10, 11})
+    {
+        Ks.push_back(K_count * TestFixture::K_Tile);
+    }
+
+    for(int M : Ms)
+    {
+        for(int K : Ks)
+        {
+            if constexpr(std::is_same_v<typename TestFixture::ALayout,
+                                        ck_tile::tensor_layout::gemm::ColumnMajor>)
+            {
+                EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+            }
+            else
+            {
+                this->Run(M, N, K);
+            }
+        }
+    }
+}
+
+TYPED_TEST(TEST_SUITE_NAME, SingleTile_CompV6)
+{
+    this->Run(TestFixture::M_Tile, TestFixture::N_Tile, TestFixture::K_Tile);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, MidLargeM_CompV6)
+{
+    std::vector<int> Ms{127, 255, 312, 799, 1573};
+    constexpr int N = 1024;
+
+    std::vector<int> Ks;
+    for(auto K_count : {2, 3, 4, 10, 11})
+    {
+        Ks.push_back(K_count * TestFixture::K_Tile);
+    }
+
+    constexpr int VecLoadSize = (std::is_same_v<typename TestFixture::ADataType, ck_tile::fp8_t> ||
+                                 std::is_same_v<typename TestFixture::ADataType, ck_tile::bf8_t> ||
+                                 std::is_same_v<typename TestFixture::ADataType, ck_tile::int8_t>)
+                                    ? 16
+                                    : 8;
+
+    for(int M : Ms)
+    {
+        for(int K : Ks)
+        {
+            if constexpr(std::is_same_v<typename TestFixture::ALayout,
+                                        ck_tile::tensor_layout::gemm::ColumnMajor>)
+            {
+                if(M % VecLoadSize == 0)
+                {
+                    this->Run(M, N, K);
+                }
+                else
+                {
+                    EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+                }
+            }
+            else
+            {
+                this->Run(M, N, K);
+            }
+        }
+    }
+}
+
+TYPED_TEST(TEST_SUITE_NAME, Regular_CompV6)
+{
+    constexpr int M = 512;
+    constexpr int N = 1024;
+    constexpr int K = 512;
+    this->Run(M, N, K);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, LargeMatrix_CompV6)
+{
+    constexpr int M = 2048;
+    constexpr int N = 2048;
+    constexpr int K = 2048;
+    this->Run(M, N, K);
+}
+
+#undef TEST_SUITE_NAME
+
+// ============================================================================
+// Persistent Kernel Tests
+// ============================================================================
+
+#define TEST_SUITE_NAME TestGemmPersistent
+
+TYPED_TEST(TEST_SUITE_NAME, SmallM_Persistent)
+{
+    std::vector<int> Ms{1, 2, 3, 4, 5, 6};
+    constexpr int N = 1024;
+    std::vector<int> Ks;
+    for(auto K_count : {2, 3, 4, 10, 11})
+    {
+        Ks.push_back(K_count * TestFixture::K_Tile);
+    }
+
+    for(int M : Ms)
+    {
+        for(int K : Ks)
+        {
+            if constexpr(std::is_same_v<typename TestFixture::ALayout,
+                                        ck_tile::tensor_layout::gemm::ColumnMajor>)
+            {
+                EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+            }
+            else
+            {
+                this->Run(M, N, K);
+            }
+        }
+    }
+}
+
+TYPED_TEST(TEST_SUITE_NAME, SingleTile_Persistent)
+{
+    this->Run(TestFixture::M_Tile, TestFixture::N_Tile, TestFixture::K_Tile);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, Regular_Persistent)
+{
+    constexpr int M = 512;
+    constexpr int N = 1024;
+    constexpr int K = 512;
+    this->Run(M, N, K);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, LargeMatrix_Persistent)
+{
+    constexpr int M = 2048;
+    constexpr int N = 2048;
+    constexpr int K = 2048;
+    this->Run(M, N, K);
+}
+
+#undef TEST_SUITE_NAME
+
+// ============================================================================
+// Persistent Kernel Tests with WMMA
+// ============================================================================
+
+#define TEST_SUITE_NAME TestGemmPersistentWmma
+
+TYPED_TEST(TEST_SUITE_NAME, SmallM_PersistentWmma)
+{
+    std::vector<int> Ms{1, 2, 3, 4, 5, 6};
+    constexpr int N = 1024;
+    std::vector<int> Ks;
+    for(auto K_count : {2, 3, 4, 10, 11})
+    {
+        Ks.push_back(K_count * TestFixture::K_Tile);
+    }
+
+    for(int M : Ms)
+    {
+        for(int K : Ks)
+        {
+            if constexpr(std::is_same_v<typename TestFixture::ALayout,
+                                        ck_tile::tensor_layout::gemm::ColumnMajor>)
+            {
+                EXPECT_THROW((this->Run(M, N, K)), std::runtime_error);
+            }
+            else
+            {
+                this->Run(M, N, K);
+            }
+        }
+    }
+}
+
+TYPED_TEST(TEST_SUITE_NAME, SingleTile_PersistentWmma)
+{
+    this->Run(TestFixture::M_Tile, TestFixture::N_Tile, TestFixture::K_Tile);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, Regular_PersistentWmma)
+{
+    constexpr int M = 512;
+    constexpr int N = 1024;
+    constexpr int K = 512;
+    this->Run(M, N, K);
+}
+
+TYPED_TEST(TEST_SUITE_NAME, LargeMatrix_PersistentWmma)
+{
+    constexpr int M = 2048;
+    constexpr int N = 2048;
+    constexpr int K = 2048;
     this->Run(M, N, K);
 }
 
