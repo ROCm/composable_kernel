@@ -48,12 +48,72 @@ enum class GroupConvLayout3D
     NGCDHW_GKCZYX_NGKDHW,
 };
 
+struct GroupConvLayout
+{
+    union
+    {
+        GroupConvLayout1D _1d;
+        GroupConvLayout2D _2d;
+        GroupConvLayout3D _3d;
+    };
+
+    constexpr GroupConvLayout(GroupConvLayout1D layout) : _1d(layout) {}
+    constexpr GroupConvLayout(GroupConvLayout2D layout) : _2d(layout) {}
+    constexpr GroupConvLayout(GroupConvLayout3D layout) : _3d(layout) {}
+};
+
 // Direction of the convolution operation.
 enum class ConvDirection
 {
     FORWARD,
     BACKWARD_DATA,
     BACKWARD_WEIGHT
+};
+
+// Forward convolution device operations.
+enum class FwdGroupConvDeviceOperation
+{
+    DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK,
+    DeviceGroupedConvFwdMultipleD_Wmma_CShuffle,
+    DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle,
+    DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3,
+    DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
+};
+
+// Backward data convolution device operations.
+enum class BwdDataGroupConvDeviceOperation
+{
+    DeviceGroupedConvBwdDataMultipleD,
+    DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle,
+    DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
+};
+
+// Backward weight convolution device operations.
+enum class BwdWeightGroupConvDeviceOperation
+{
+    DeviceGroupedConvBwdWeight,
+    DeviceGroupedConvBwdWeight_Dl,
+    DeviceGroupedConvBwdWeight_Xdl_CShuffle,
+    DeviceGroupedConvBwdWeight_Xdl_CShuffleV3,
+    DeviceGroupedConvBwdWeight_Wmma_CShuffle,
+    DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle,
+    DeviceGroupedConvBwdWeightMultipleD,
+    DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle,
+};
+
+// Structural type for device operation
+struct GroupConvDeviceOp
+{
+    union
+    {
+        FwdGroupConvDeviceOperation _fwd;
+        BwdDataGroupConvDeviceOperation _bwd_data;
+        BwdWeightGroupConvDeviceOperation _bwd_weight;
+    };
+
+    constexpr GroupConvDeviceOp(FwdGroupConvDeviceOperation op) : _fwd(op) {}
+    constexpr GroupConvDeviceOp(BwdDataGroupConvDeviceOperation op) : _bwd_data(op) {}
+    constexpr GroupConvDeviceOp(BwdWeightGroupConvDeviceOperation op) : _bwd_weight(op) {}
 };
 
 // Fused element-wise operations.

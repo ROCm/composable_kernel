@@ -35,21 +35,11 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
 
 enum struct GemmPipelineType
 {
-    WeightPreshuffleV1,
     WeightPreshuffleV2
 };
 
 template <GemmPipelineType PT, typename Problem>
 struct GemmPipelineTypeSelector;
-
-template <typename Problem>
-struct GemmPipelineTypeSelector<GemmPipelineType::WeightPreshuffleV1, Problem>
-{
-    using base_pipeline = ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV1<Problem>;
-    using pipeline      = ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV1<Problem>;
-
-    static constexpr auto GetName() { return "GemmPipelineAgBgCrWeightPreshuffleV1"; }
-};
 
 template <typename Problem>
 struct GemmPipelineTypeSelector<GemmPipelineType::WeightPreshuffleV2, Problem>

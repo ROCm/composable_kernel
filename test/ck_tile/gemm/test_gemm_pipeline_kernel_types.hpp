@@ -8,16 +8,7 @@
 
 #include "ck_tile/host.hpp"
 #include "test_gemm_pipeline_util.hpp"
-
-using INT8  = ck_tile::int8_t;
-using INT32 = ck_tile::int32_t;
-
-using F16 = ck_tile::half_t;
-using F32 = float;
-using F8  = ck_tile::fp8_t;
-
-using BF16 = ck_tile::bf16_t;
-using BF8  = ck_tile::bf8_t;
+#include "test_gemm_pipeline_prec_types.hpp"
 
 using Row       = ck_tile::tensor_layout::gemm::RowMajor;
 using Col       = ck_tile::tensor_layout::gemm::ColumnMajor;
@@ -42,7 +33,7 @@ using I256 = ck_tile::number<256>;
 
 // clang-format off
 using KernelTypesMem = ::testing::Types<
-    //         ALayout, BLayout, CLayout, ADataType, BDataType, AccDataType, CDataType, M_BlockSize, N_BlockSize, K_BlockSize, M_TileSize, M_TileSize, K_TileSize, Scheduler, PipelineType
+    //         ALayout, BLayout, CLayout, ADataType, BDataType, AccDataType, CDataType, M_BlockSize, N_BlockSize, K_BlockSize, M_TileSize, N_TileSize, K_TileSize, Scheduler, PipelineType
     std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,         Mem>,
     std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Interwave,         Mem>,
     std::tuple<    Row,     Row,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Interwave,         Mem>,
@@ -124,33 +115,22 @@ using KernelTypesCompV3Wmma = ::testing::Types<
     std::tuple<    Col,     Col,     Row,       BF8,       BF8,         F32,       F16,        I64,         I64,          I32,        I16,        I16,        I16, Intrawave,        CompV3>
 >;
 
+using KernelTypesCompV4 = ::testing::Types<
+    std::tuple<    Row,     Row,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
+    std::tuple<    Row,     Row,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
+    std::tuple<    Row,     Row,     Row,       F8,        BF8,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV4>,
+    std::tuple<    Row,     Col,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
+    std::tuple<    Row,     Col,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
+    std::tuple<    Row,     Col,     Row,       F8,        BF8,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV4>,
+    std::tuple<    Col,     Row,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
+    std::tuple<    Col,     Row,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
+    std::tuple<    Col,     Row,     Row,       F8,        BF8,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV4>,
+    std::tuple<    Col,     Col,     Row,       F16,       F16,         F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
+    std::tuple<    Col,     Col,     Row,       F8,        F8,          F32,       F16,        I256,        I256,         I32,        I32,        I32,        I16, Intrawave,        CompV4>,
+    std::tuple<    Col,     Col,     Row,       F8,        BF8,         F32,       F16,        I256,        I256,         I64,        I32,        I32,        I16, Intrawave,        CompV4>
+>;
+
 // clang-format on
-template <typename ALayout, typename BLayout, typename CLayout, typename InputType>
-using CompV4Config = std::tuple<ALayout,
-                                BLayout,
-                                CLayout,
-                                InputType, // AType
-                                InputType, // BType
-                                F32,       // AccType
-                                F16,       // OutputType
-                                I256,      // MBlockTileSize
-                                I256,      // NBlockTileSize
-                                I32,       // KBlockTileSize
-                                I32,       // MWarpTileSize
-                                I32,       // NWarpTileSize
-                                I16,       // KWarpTileSize
-                                Intrawave,
-                                CompV4>;
-
-using KernelTypesCompV4 = ::testing::Types<CompV4Config<Row, Row, Row, F16>,
-                                           CompV4Config<Row, Col, Row, F16>,
-                                           CompV4Config<Col, Row, Row, F16>,
-                                           CompV4Config<Col, Col, Row, F16>,
-                                           CompV4Config<Row, Row, Row, F8>,
-                                           CompV4Config<Row, Col, Row, F8>,
-                                           CompV4Config<Col, Row, Row, F8>,
-                                           CompV4Config<Col, Col, Row, F8>>;
-
 template <typename ALayout, typename BLayout, typename CLayout, typename InputType>
 using CompAsyncConfig = std::tuple<ALayout,
                                    BLayout,

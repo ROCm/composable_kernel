@@ -15,6 +15,8 @@
 #include <ck/utility/data_type.hpp>
 #include <ck/utility/sequence.hpp>
 #include <ck/utility/blkgemmpipe_scheduler.hpp>
+#include <ck/utility/loop_scheduler.hpp>
+#include <ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp>
 #include <ck/tensor_operation/gpu/device/tensor_layout.hpp>
 #include <ck_tile/ops/common/tensor_layout.hpp>
 #include <ck/tensor_operation/gpu/element/element_wise_operation.hpp>
@@ -157,6 +159,30 @@ constexpr std::string_view pipeline_version_name(ck::BlockGemmPipelineVersion ve
     case v3: return "v3";
     case v4: return "v4";
     case v5: return "v5";
+    }
+}
+
+// Convert PipelineVersion enum to string (for Wmma kernels)
+constexpr std::string_view pipeline_version_name(ck::PipelineVersion ver)
+{
+    using enum ck::PipelineVersion;
+    switch(ver)
+    {
+    case v1: return "v1";
+    case v2: return "v2";
+    case v4: return "v4";
+    case weight_only: return "weight_only";
+    }
+}
+
+// Convert LoopScheduler enum to string
+constexpr std::string_view loop_scheduler_name(ck::LoopScheduler sched)
+{
+    using enum ck::LoopScheduler;
+    switch(sched)
+    {
+    case Default: return "Default";
+    case Interwave: return "Interwave";
     }
 }
 
@@ -308,6 +334,26 @@ constexpr std::string tuple_name()
             return std::string{}; // unreachable
         }
     }(static_cast<T*>(nullptr));
+}
+
+// Concept to check if a type is a ck::Tuple
+template <typename T>
+concept IsCkTuple =
+    requires { []<typename... Ts>(ck::Tuple<Ts...>*) {}(static_cast<T*>(nullptr)); };
+
+// Deduces whether to use tuple_name or type_name
+// Handles both scalar data types and ck::Tuple types
+template <typename T>
+constexpr std::string type_or_type_tuple_name()
+{
+    if constexpr(IsCkTuple<T>)
+    {
+        return tuple_name<T>();
+    }
+    else
+    {
+        return std::string(type_name<T>());
+    }
 }
 
 } // namespace ck_tile::reflect::detail

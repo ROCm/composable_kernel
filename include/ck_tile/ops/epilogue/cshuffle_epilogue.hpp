@@ -3,7 +3,9 @@
 
 #pragma once
 
+#include "ck_tile/host/concat.hpp"
 #include "ck_tile/core.hpp"
+#include "ck_tile/ops/common/utils.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
@@ -123,6 +125,19 @@ struct CShuffleEpilogue
 
     static_assert(NumDTensor == DsLayout::size(),
                   "The size of DsDataType and DsLayout should be the same");
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetName()
+    {
+        // clang-format off
+        return concat('_', "CShuffleEpilogue", 
+                      concat('x', MWave, NWave),
+                      concat('x', MPerXdl, NPerXdl, KPerXdl),
+                      VectorSizeC,
+                      isCTransposed ? "CTransposed" : "CNotTransposed",
+                      mem_op_string<MemoryOperation>());
+        // clang-format on
+    }
+
     /**
      * @brief Get the vector store size for C tensor.
      *
