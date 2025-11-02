@@ -1,65 +1,54 @@
 {
     "problem" : {
-        "shape" : {
-            "n" : {
-                "values" : [
-                    32
-                ]
-            },
-            "c" : {
-                "values" : [
-                    7,
-                    19
-                ],
-                "_comments" : "c = 7 only one block covers the reduction ; c = 19 two blocks needed to cover the reduction"
-            },
-            "h" : {
-                "values" : [
-                    7
-                ]
-            },
-            "w" : {
-                "values" : [
-                    512
-                ]
-            }
-        }
+    },
+
+    "problem_size" : {
+         "input_shape" : [
+            [128, 128, 8],
+            [512, 1024, 8],
+            [32, 7, 7, 512], 
+            [32, 19, 7, 512],
+            [128, 256, 128, 8]
+        ]
     },
 
     "tile_config" : {
-        "tile_m" : {
-            "values" : [
-                128
-            ]
-        },
-        "tile_n" : {
-            "values": [
-                128
-            ]
-        },
-
-        "warp_tile_m" : {
-            "values" : [
-                1, 
-                32
-            ]
-        },
-        "warp_tile_n" : {
-            "values" : [
-                128, 
-                512
-            ]
-        },
-        "thread_tile_m" : {
-            "values" : [
-                1, 
-                8
-            ]
-        },
-        "thread_tile_n" : {
-            "values" : [
-                8
-            ]
+        "fixed": [
+            {"tile_m": 128, "tile_n": 128, "warp_per_block_m": 4, "warp_per_block_n": 1, "warp_tile_m": 32, "warp_tile_n": 128, "thread_tile_m": 8, "thread_tile_n": 8}
+        ],
+        "combination": {
+            "tile_m" : {
+                "values" : [
+                ]
+            },
+            "tile_n" : {
+                "values": [
+                ]
+            },
+            "warp_per_block_m" : {
+                "values" : [
+                ]
+            },
+            "warp_per_block_n" : {
+                "values" : [
+                ]
+            },
+            "warp_tile_m" : {
+                "values" : [
+                ]
+            },
+            "warp_tile_n" : {
+                "values" : [
+                ]
+            },
+            "thread_tile_m" : {
+                "values" : [
+                ]
+            },
+            "thread_tile_n" : {
+                "values" : [
+                ]
+            }
         }
     }
 }

@@ -63,19 +63,25 @@ struct MultiReduceThreadWise
     }
 
     public:
-    template <typename InputShape, typename InputStrides, typename KeptDim, typename ReduceDims>
+    template <typename InputShape, typename InputStrides, typename KeptDim, typename ReduceDims, typename ElementwiseOps, typename AccumulatorOps>
     CK_TILE_DEVICE void operator()(const XDataType* p_x,
                                    YDataType* p_y_tuple,
                                    InputShape input_shape,
                                    InputStrides input_strides,
                                    KeptDim kept_dim,
                                    ReduceDims reduce_dims,
-                                   index_t output_tensor_offset) const
+                                   index_t output_tensor_offset,
+                                   ElementwiseOps elementwise_ops,
+                                   AccumulatorOps accumulator_ops
+                                ) const
     {
         using S                      = typename Problem::BlockShape;
         const auto iM                = get_block_id() * S::Block_M;
-        auto reduce_funcs            = typename Problem::ReduceOp{};
-        const auto number_operations = reduce_funcs.size();
+        auto reduce_ops            = typename Problem::ReduceOp{};
+        // auto elementwise_ops       = typename Problem::ElementwiseOps{};
+        // auto accumulator_ops       = typename Problem::AccumulatorOps{};
+        // auto inter_block_reduce_ops = typename Problem::InterBlockReduceOps{};
+        const auto number_operations = reduce_ops.size();
 
         static_assert(number_operations > 0,
                       "Error: At least one reduction operation must be specified!");
@@ -103,7 +109,7 @@ struct MultiReduceThreadWise
                 return ck_tile::make_tuple(
                     type_convert<XDataType>(args.template GetIdentityValue<ComputeDataType>())...);
             },
-            reduce_funcs); // Get the identity element for each operation
+            reduce_ops); // Get the identity element for each operation
 
         constexpr auto x_tensor_vector_size =
             CalculateInputVectorSize<InputShape, ReduceDims>(); // Move at "vectorization" steps if
@@ -192,26 +198,32 @@ struct MultiReduceThreadWise
                 Policy::template MakeXBlockTileDistribution<Problem>()); // Input tile windows and
                                                                          // prep the block
 
-            using XTensorType = decltype(load_tile(x_window)); // Load input tile
+            // using XTensorType = decltype(load_tile(x_window)); // Record the loading input tile type
+            using ComputeDataTensorType = decltype(cast_tile<ComputeDataType>(load_tile(x_window)));
 
-            auto y_compute = block_reduce2d.template MakeYBlockTile<XTensorType>();
+            auto y_compute = block_reduce2d.template MakeYBlockTile<ComputeDataTensorType>();
 
             set_tile(y_compute,
-                     reduce_funcs.get(number<i>{}).template GetIdentityValue<ComputeDataType>());
+                     reduce_ops.get(number<i>{}).template GetIdentityValue<ComputeDataType>());
 
             for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
             {
                 const auto x = load_tile(x_window);
 
-                block_reduce2d(x, y_compute, reduce_funcs.get(number<i>{}));
+                auto x_compute = cast_tile<ComputeDataType>(x);
+
+                tile_elementwise_inout(elementwise_ops.get(number<i>{}), x_compute, x_compute);
+
+                block_reduce2d(x_compute, y_compute, reduce_ops.get(number<i>{}));
 
                 move_tile_window(x_window, {0, S::Block_N});
             }
 
-            block_reduce2d_sync(y_compute, reduce_funcs.get(number<i>{}));
+            block_reduce2d_sync(y_compute, reduce_ops.get(number<i>{}));
             block_reduce2d_cross_warp_sync(
-                y_compute, static_cast<void*>(smem), reduce_funcs.get(number<i>{}));
+                y_compute, static_cast<void*>(smem), reduce_ops.get(number<i>{}));
 
+            tile_elementwise_inout(accumulator_ops.get(number<i>{}), y_compute, y_compute); 
             // Store the result back in each element of the tuple
             store_tile(y_tile_windows.get(number<i>{}), cast_tile<YDataType>(y_compute));
         });

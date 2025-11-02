@@ -86,18 +86,21 @@ struct MultiReduceMultiblock
         return is_wave32() ? kBlockSize / 2 : kBlockSize;
     }
 
-    CK_TILE_HOST static void CalculateBlockGroupParams(
-        const std::size_t reduce_total_length,
-        const std::size_t K_BlockTileSize,
+    CK_TILE_HOST_DEVICE static void CalculateBlockGroupParams(
+        const int reduce_total_length,
+        [[maybe_unused]] int K_BlockTileSize,
         int& num_block_tile_iterations,
         int& block_group_size)
     {
         // TODO: fix that, it seems to be wrong on bigger sizes in the unit test
-        num_block_tile_iterations = std::max(
-            1, static_cast<int>(std::ceil((reduce_total_length - 1.0) / (127.0 * K_BlockTileSize))));
+        // num_block_tile_iterations = std::max(
+        //     1, static_cast<int>(std::ceil((reduce_total_length - 1.0) / (127.0 * K_BlockTileSize))));
+        num_block_tile_iterations = ck_tile::clamp(ck_tile::integer_divide_ceil(reduce_total_length, Problem::BlockShape::Block_N), 1, 128);
 
-        block_group_size = (reduce_total_length + (K_BlockTileSize * num_block_tile_iterations) - 1) /
-                        (K_BlockTileSize * num_block_tile_iterations);
+        // block_group_size = (reduce_total_length + (K_BlockTileSize * num_block_tile_iterations) - 1) /
+        //                 (K_BlockTileSize * num_block_tile_iterations);
+
+        block_group_size = ck_tile::max((reduce_total_length / num_block_tile_iterations) / Problem::BlockShape::Block_N, 1);
     }
         private:
     // Helper function to calculate optimal vector size for input tensor
@@ -131,7 +134,7 @@ struct MultiReduceMultiblock
     }
 
     public:
-    template <typename InputShape, typename InputStrides, typename KeptDim, typename ReduceDims, typename ElementwiseOps = void> //, typename BlockwiseAccOps> // TODO handle the elementwise ops better (i.e. no void)
+    template <typename InputShape, typename InputStrides, typename KeptDim, typename ReduceDims, typename ElementwiseOps, typename AccumulatorOps, typename InterblockReduceOps>
     CK_TILE_DEVICE void operator()(const XDataType* p_x,
                                    YDataType* p_y_tuple,
                                    InputShape input_shape,
@@ -139,9 +142,12 @@ struct MultiReduceMultiblock
                                    KeptDim kept_dim,
                                    ReduceDims reduce_dims,
                                    index_t output_tensor_offset,
-                                   [[maybe_unused]] index_t block_group_size,
-                                   [[maybe_unused]] index_t num_block_tile_iterations,
-                                   [[maybe_unused]] ElementwiseOps elementwise_ops = ElementwiseOps{}) const
+                                   ElementwiseOps elementwise_ops,
+                                   AccumulatorOps accumulator_ops,
+                                   InterblockReduceOps interblock_reduce_ops
+                                ) const
+                                //    [[maybe_unused]] index_t block_group_size,
+                                //    [[maybe_unused]] index_t num_block_tile_iterations) const
                                 //    [[maybe_unused]] BlockwiseAccOps blockwise_acc_ops) const
 
     {
@@ -150,8 +156,12 @@ struct MultiReduceMultiblock
         
         using S                      = typename Problem::BlockShape;
         // const auto iM                = get_block_id() * S::Block_M;
-        auto reduce_funcs            = typename Problem::ReduceOp{};
-        const auto number_operations = reduce_funcs.size();
+        auto reduce_ops            = typename Problem::ReduceOp{};
+        // auto elementwise_ops       = typename Problem::ElementwiseOps{};
+        // auto accumulator_ops       = typename Problem::AccumulatorOps{};
+        // auto inter_block_reduce_ops = typename Problem::InterBlockReduceOps{};
+
+        const auto number_operations = reduce_ops.size();
 
         static_assert(number_operations > 0,
                       "Error: At least one reduction operation must be specified!");
@@ -168,6 +178,13 @@ struct MultiReduceMultiblock
                 [&](auto I) { return input_shape.at(number<reduce_dims.at(I)>{}); },
                 number<reduce_dims.size()>{});
         }();
+
+        int block_group_size=0;
+        int num_n_tile_iteration=0;
+        int total_reduce_len = 1;
+        static_for<0, reduce_lens.size(), 1>{}([&](auto i) { total_reduce_len *= reduce_lens.at(i); });
+
+        CalculateBlockGroupParams(total_reduce_len, S::Block_N, num_n_tile_iteration, block_group_size);
 
         const auto thread_local_id = get_thread_id();
         const auto block_global_id = get_block_id(); // Hardware block id
@@ -191,7 +208,7 @@ struct MultiReduceMultiblock
                 return ck_tile::make_tuple(
                     type_convert<XDataType>(args.template GetIdentityValue<ComputeDataType>())...);
             },
-            reduce_funcs); // Get the identity element for each operation
+            reduce_ops); // Get the identity element for each operation
 
         constexpr auto x_tensor_vector_size =
             CalculateInputVectorSize<InputShape, ReduceDims>(); // Move at "vectorization" steps if
@@ -207,7 +224,7 @@ struct MultiReduceMultiblock
             desc.get_element_space_size(),
             custom_padding_values.get(
                 number<0>{})); // Input tensor buffer view, currently using the first operation
-                               // identity element as padding?? TODO: check this
+                               // identity element as padding?? TODO: check this <-- We need to move it in to the "num_operation" loop, we need the padding to be right for each operation
 
         const auto x_tensor = tensor_view<decltype(buffer_view), decltype(desc)>{
             buffer_view, desc}; // Tensor view over the buffer view and tensor descriptor
@@ -260,8 +277,8 @@ struct MultiReduceMultiblock
         // index_t num_n_tile_iteration = __builtin_amdgcn_readfirstlane(integer_divide_ceil(
         //     merged_reduce_len, S::Block_N)); // Figure out the number of iterations needed to cover
         //                                      // the reduced dimension with Block size N
-        index_t num_n_tile_iteration = __builtin_amdgcn_readfirstlane(integer_divide_ceil(
-            merged_reduce_len/block_group_size, S::Block_N)); // Figure out the number of iterations needed to cover
+        // index_t num_n_tile_iteration = __builtin_amdgcn_readfirstlane(integer_divide_ceil(
+        //     merged_reduce_len/block_group_size, S::Block_N)); // Figure out the number of iterations needed to cover
                                              // the reduced dimension with Block size N
         // index_t num_n_tile_iteration = num_block_tile_iterations;
 
@@ -285,9 +302,13 @@ struct MultiReduceMultiblock
 
         if(thread_local_id == 0 && block_group_id == 1 && block_local_id == 1) {
         // if(thread_local_id == 0 && block_global_id == 2) {
-            printf("Block group ID 1 is active for global block %d, thread %d (%d, %d) || ", block_global_id, thread_local_id, m_offset, n_offset);
+            printf("Block group ID 1 is active for global block %d, thread %d (%d, %d), num iteration = %d, total reduce len = %d, merged reduce len = %d || ", block_global_id, thread_local_id, m_offset, n_offset, num_n_tile_iteration, total_reduce_len, merged_reduce_len);
         }
 
+        if(n_offset >= merged_reduce_len)
+        {
+            return;
+        }
         static_for<0, number_operations, 1>{}([&](auto i) { // TODO: remove the -1 to process all operations
             // Compute the starting offset for this thread/block/cluster
             // index_t m_offset = block_group_id * S::Block_M + thread_m_cluster_id * MThreadSliceSize;
@@ -299,40 +320,43 @@ struct MultiReduceMultiblock
             auto x_window = make_tile_window(
                 transformed_x_tensor,
                 make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
-                // {iM, 0},
                 {m_offset, n_offset},
                 Policy::template MakeXBlockTileDistribution<Problem>()); // Input tile windows and
                                                                          // prep the block
 
-            using XTensorType = decltype(load_tile(x_window)); // Load input tile
+            // using XTensorType = decltype(load_tile(x_window)); // Record the loading input tile type
+            using ComputeDataTensorType = decltype(cast_tile<ComputeDataType>(load_tile(x_window))); // Type after casting to compute type
 
-            auto y_compute = block_reduce2d.template MakeYBlockTile<XTensorType>();
+            auto y_compute = block_reduce2d.template MakeYBlockTile<ComputeDataTensorType>();
 
             set_tile(y_compute,
-                     reduce_funcs.get(number<i>{}).template GetIdentityValue<ComputeDataType>());
+                     reduce_ops.get(number<i>{}).template GetIdentityValue<ComputeDataType>());
 
             for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
             {
                 auto x = load_tile(x_window);
 
-                if constexpr (elementwise_ops.size() > 0) {
-                    // Apply the elementwise operation before the reduction
-                    tile_elementwise_inout(elementwise_ops.get(number<i>{}), x);
-                }
+                // Apply the elementwise operation before the reduction
+                auto x_compute = cast_tile<ComputeDataType>(x);
+                // tile_elementwise_inout([&](auto& in) { elementwise_ops.get(number<i>{})(in, in); }, x_compute);
+                tile_elementwise_inout(elementwise_ops.get(number<i>{}), x_compute, x_compute);
 
-                block_reduce2d(x, y_compute, reduce_funcs.get(number<i>{}));
+                block_reduce2d(x_compute, y_compute, reduce_ops.get(number<i>{}));
 
                 move_tile_window(x_window, {0, S::Block_N});
             }
 
-            block_reduce2d_sync(y_compute, reduce_funcs.get(number<i>{}));
+            block_reduce2d_sync(y_compute, reduce_ops.get(number<i>{}));
             block_reduce2d_cross_warp_sync(
-                y_compute, static_cast<void*>(smem), reduce_funcs.get(number<i>{}));
+                y_compute, static_cast<void*>(smem), reduce_ops.get(number<i>{}));
 
             // Store the result back in each element of the tuple
             // store_tile(y_tile_windows.get(number<i>{}), cast_tile<YDataType>(y_compute));
 
             if( thread_n_cluster_id == 0) {
+                // tile_elementwise_inout([&](auto& in) { accumulator_ops.get(number<i>{})(in, in); }, y_compute); // TODO: this does not seem to be impacting anything???
+                tile_elementwise_inout(accumulator_ops.get(number<i>{}), y_compute, y_compute); // TODO: this does not seem to be impacting anything???
+
                 // 1. Get the pointer to the output buffer for this tile window
                 auto* p_y_tile = p_y_tuple + (i * output_tensor_offset) + S::Block_M * block_group_id + y_compute.get_thread_buffer_size() * thread_m_cluster_id; // TODO shall we include num_n_iteration???
                 // auto* p_y_tile = y_tile_windows.get(number<i>{}).bottom_tensor_view_.buf_.p_data_;
@@ -356,7 +380,7 @@ struct MultiReduceMultiblock
                 // });
                 
                 // Only atomic add is supported for now as the atomic max operation is neither supporting fp16 nor buffer greated than 1 element
-                auto atomic_ops = reduce_funcs.get(number<i>{}).template GetAtomic<YDataType, y_thread_buf.N>(); // TODO: check if we need YDataType
+                auto atomic_ops = interblock_reduce_ops.get(number<i>{}).template GetAtomic<YDataType, y_thread_buf.N>(); // TODO: check if we need YDataType
                 atomic_ops(p_y_tile, y_thread_buf);
             }
 
