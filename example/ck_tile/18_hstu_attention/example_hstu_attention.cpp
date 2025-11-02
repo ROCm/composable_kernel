@@ -290,7 +290,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
         // only consider num_batch values even if more values are provided by the user
         for(int i = 0; i < num_batch; i++)
         {
-            max_uih_seqlen = max(max_uih_seqlen, seq_lengths_q[i]);
+            max_uih_seqlen = max(max_uih_seqlen, max(seq_lengths_q[i], seq_lengths_kv[i]));
         };
     }
     else
