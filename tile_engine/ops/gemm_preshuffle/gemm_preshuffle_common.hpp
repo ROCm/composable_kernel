@@ -78,7 +78,7 @@ constexpr auto is_row_major(Layout)
 // Structure to hold kernel traits for dispatcher
 struct KernelTraits
 {
-    std::string pipeline;  // preshufflev1, preshufflev2
+    std::string pipeline;  // preshufflev2
     std::string scheduler; // intrawave, interwave, default
     std::string epilogue;  // cshuffle, default
     bool pad_m;
@@ -105,11 +105,7 @@ inline KernelTraits extract_traits_from_name(const std::string& kernel_name)
     KernelTraits traits;
 
     // Extract pipeline
-    if(kernel_name.find("preshufflev1") != std::string::npos)
-    {
-        traits.pipeline = "preshufflev1";
-    }
-    else if(kernel_name.find("preshufflev2") != std::string::npos)
+    if(kernel_name.find("preshufflev2") != std::string::npos)
     {
         traits.pipeline = "preshufflev2";
     }
