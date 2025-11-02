@@ -260,6 +260,8 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
         std::vector<std::unique_ptr<ck_tile::DeviceMem>> aq_dev_buf;
         std::vector<std::unique_ptr<ck_tile::DeviceMem>> bq_dev_buf;
 
+        using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
+
         a_m_k_dev_buf.reserve(group_count);
         b_k_n_dev_buf.reserve(group_count);
         c_m_n_dev_buf.reserve(group_count);
@@ -497,7 +499,7 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                                               BDataType,
                                               AccDataType,
                                               CDataType,
-                                              128,
+                                              QuantGroupSize,
                                               false>(
                     a_m_k_tensors[i], bq_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
             }
