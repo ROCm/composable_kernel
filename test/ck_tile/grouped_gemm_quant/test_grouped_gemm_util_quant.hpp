@@ -93,6 +93,8 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
         constexpr ck_tile::index_t TileParitionerGroupNum = 8;
         constexpr ck_tile::index_t TileParitionerM01      = 4;
 
+        using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
+
         using GemmShape =
             ck_tile::TileGemmShape<ck_tile::sequence<GroupedGemKernelParam::M_Tile,
                                                      GroupedGemKernelParam::N_Tile,
@@ -135,7 +137,7 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                                                    AccDataType,
                                                    GemmShape,
                                                    GemmUniversalTraits,
-                                                   128>, // QuantGroupSize
+                                                   QuantGroupSize>,
                 ck_tile::GemmRowColTensorQuantPipelineProblem<ADataType,
                                                               BDataType,
                                                               AccDataType,
