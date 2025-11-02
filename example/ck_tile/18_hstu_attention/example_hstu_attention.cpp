@@ -266,13 +266,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(!num_targets.empty())
     {
         // supplement num_targets using the last input value if user-provided lengths not enough
-        if(static_cast<int>(num_targets.size()) < num_batch)
-        {
-            auto last_val = num_targets.back();
-
-            for(int i = num_targets.size(); i < num_batch; i++)
-                num_targets.push_back(last_val);
-        };
+        supplement_array_by_last_element(num_targets, num_batch);
 
         // only consider num_batch values even if more values are provided by the user
         for(int i = 0; i < num_batch; i++)
