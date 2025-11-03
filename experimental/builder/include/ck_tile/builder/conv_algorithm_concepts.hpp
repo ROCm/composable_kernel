@@ -38,8 +38,8 @@ concept GridwiseXdlGemmDescriptor = requires(T t) {
 // Concept for parameter that describe block GEMM problem.
 template <typename T>
 concept BlockGemmDescriptor = requires(T t) {
-    { t.pipeline_version } -> std::convertible_to<BlockGemmPipelineVersion>;
-    { t.scheduler } -> std::convertible_to<BlockGemmPipelineScheduler>;
+    { t.pipeline_version } -> std::convertible_to<PipelineVersion>;
+    { t.scheduler } -> std::convertible_to<PipelineScheduler>;
 };
 
 // Concept for parameters that describe a gridwise WMMA GEMM problem.
@@ -50,7 +50,7 @@ concept GridwiseWmmaGemmDescriptor = requires(T t) {
     { t.n_per_wmma } -> std::convertible_to<size_t>;
     { t.m_wmma_per_wave } -> std::convertible_to<size_t>;
     { t.n_wmma_per_wave } -> std::convertible_to<size_t>;
-    { t.pipeline_version } -> std::convertible_to<GridwiseGemmPipelineVersion>;
+    { t.pipeline_version } -> std::convertible_to<PipelineVersion>;
 };
 
 // Concept for vectorized data transfer for convolution input tensors.
@@ -154,8 +154,8 @@ concept SpecifiesSourceAccessOrder = requires(T t) {
 // Concept to check if struct specifies block GEMM.
 template <typename T>
 concept SpecifiesBlockGemm = requires {
-    { T::block_gemm.pipeline_version } -> std::convertible_to<BlockGemmPipelineVersion>;
-    { T::block_gemm.scheduler } -> std::convertible_to<BlockGemmPipelineScheduler>;
+    { T::block_gemm.pipeline_version } -> std::convertible_to<PipelineVersion>;
+    { T::block_gemm.scheduler } -> std::convertible_to<PipelineScheduler>;
 };
 
 template <typename T>
@@ -180,7 +180,7 @@ concept SpecifiesNumGroupsToMerge = requires {
 
 template <typename T>
 concept SpecifiesLoopScheduler = requires {
-    { T::loop_scheduler } -> std::convertible_to<LoopScheduler>;
+    { T::loop_scheduler } -> std::convertible_to<PipelineScheduler>;
 };
 
 } // namespace ck_tile::builder
