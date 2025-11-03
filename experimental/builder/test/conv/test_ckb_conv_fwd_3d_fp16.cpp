@@ -1,7 +1,7 @@
 #include "utils/ckb_conv_test_configs.hpp"
 #include "utils/ckb_conv_test_common.hpp"
 
-namespace ck_tile::builder::testing {
+namespace {
 
 using namespace ck_tile::builder::test_utils;
 
