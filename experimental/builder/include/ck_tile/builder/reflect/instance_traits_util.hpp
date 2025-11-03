@@ -1,5 +1,5 @@
+// Copyright © Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 // Utility functions and helpers for instance_traits.hpp
 // Contains helper functions to convert types, enums, and sequences to string representations.
