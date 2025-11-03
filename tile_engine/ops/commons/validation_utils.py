@@ -801,9 +801,9 @@ def validate_gemm(
         logging.debug(
             f"Whole workgroup cover configuration validation failed: {wg_cover_error}"
         )
-        return False
+        return False, wg_cover_error
 
-    return True
+    return True, ""
 
 
 def validate_gemm_preshuffle(
@@ -837,7 +837,7 @@ def validate_gemm_preshuffle(
     )
     if not vector_valid:
         logging.debug(f"Vector load alignment failed: {vector_error}")
-        return False
+        return False, "vector load alignment error"
 
     # Validate M0, M1, M2 configuration for matrix A row-major layout
     m0_m1_m2_valid, m0_m1_m2_error = validate_m0_m1_m2_configuration(
@@ -852,9 +852,9 @@ def validate_gemm_preshuffle(
     )
     if not m0_m1_m2_valid:
         logging.debug(f"M0/M1/M2 configuration validation failed: {m0_m1_m2_error}")
-        return False
+        return False, m0_m1_m2_error
 
-    return True
+    return True, ""
 
 
 def validate_vector_load_alignment(
