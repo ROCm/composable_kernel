@@ -18,25 +18,20 @@
 
 namespace ck_tile {
 
-// Use SFINAE by declaring offset as integral<Offset> rather than index_t, in order to avoid
-// overload ambiguity caused by the implicit number<> to index_t conversion
 template <typename TileWindow_,
-          typename Offset,
           index_t i_access           = -1,
           bool oob_conditional_check = true,
-          typename = std::enable_if_t<std::is_class_v<TileWindow_> && std::is_integral_v<Offset>>>
-CK_TILE_DEVICE auto load_tile(const TileWindow_& tile_window,
-                              Offset offset,
-                              number<i_access>                     = {},
-                              bool_constant<oob_conditional_check> = {})
+          typename                   = std::enable_if_t<std::is_class_v<TileWindow_>>>
+CK_TILE_DEVICE auto load_tile_with_offset(const TileWindow_& tile_window,
+                                          index_t offset,
+                                          number<i_access>                     = {},
+                                          bool_constant<oob_conditional_check> = {})
 {
-    return tile_window.load(offset, number<i_access>{}, bool_constant<oob_conditional_check>{});
+    return tile_window.load_with_offset(
+        offset, number<i_access>{}, bool_constant<oob_conditional_check>{});
 }
 
-template <typename TileWindow_,
-          index_t i_access           = -1,
-          bool oob_conditional_check = true,
-          typename = std::enable_if_t<std::is_class_v<TileWindow_> && !is_constant_v<TileWindow_>>>
+template <typename TileWindow_, index_t i_access = -1, bool oob_conditional_check = true>
 CK_TILE_DEVICE auto load_tile(const TileWindow_& tile_window,
                               number<i_access>                     = {},
                               bool_constant<oob_conditional_check> = {})
@@ -52,13 +47,10 @@ CK_TILE_DEVICE auto load_tile(const TileWindow_& tile_window,
  *       and an elementwise function. For each A = A0, A1… AN, the elementwise function
  *       is additionally applied during a single read.
  */
-template <
-    typename TileWindow_,
-    typename ElementWise_,
-    index_t i_access           = -1,
-    bool oob_conditional_check = true,
-    typename = std::enable_if_t<std::is_class_v<TileWindow_> && std::is_class_v<ElementWise_> &&
-                                !is_constant_v<ElementWise_>>>
+template <typename TileWindow_,
+          typename ElementWise_,
+          index_t i_access           = -1,
+          bool oob_conditional_check = true>
 CK_TILE_DEVICE auto load_tile_with_elementwise(const TileWindow_& tile_window,
                                                ElementWise_ elementwise,
                                                number<i_access>                     = {},
@@ -70,31 +62,26 @@ CK_TILE_DEVICE auto load_tile_with_elementwise(const TileWindow_& tile_window,
         tile_window, elementwise, number<i_access>{}, bool_constant<oob_conditional_check>{});
 }
 
-// Use SFINAE by declaring offset as integral<Offset> rather than index_t, in order to avoid
-// overload ambiguity caused by the implicit number<> to index_t conversion
 template <typename DistributedTensor_,
           typename TileWindow_,
-          typename Offset,
           index_t i_access           = -1,
           bool oob_conditional_check = true,
           typename = std::enable_if_t<std::is_class_v<std::remove_cv_t<DistributedTensor_>> &&
-                                      std::is_class_v<TileWindow_> && std::is_integral_v<Offset>>>
-CK_TILE_DEVICE auto load_tile(DistributedTensor_& dst_tile,
-                              const TileWindow_& tile_window,
-                              Offset offset,
-                              number<i_access>                     = {},
-                              bool_constant<oob_conditional_check> = {})
+                                      std::is_class_v<TileWindow_>>>
+CK_TILE_DEVICE auto load_tile_with_offset(DistributedTensor_& dst_tile,
+                                          const TileWindow_& tile_window,
+                                          index_t offset,
+                                          number<i_access>                     = {},
+                                          bool_constant<oob_conditional_check> = {})
 {
-    return tile_window.load(
+    return tile_window.load_with_offset(
         offset, dst_tile, number<i_access>{}, bool_constant<oob_conditional_check>{});
 }
 
 template <typename DistributedTensor_,
           typename TileWindow_,
           index_t i_access           = -1,
-          bool oob_conditional_check = true,
-          typename = std::enable_if_t<std::is_class_v<std::remove_cv_t<DistributedTensor_>> &&
-                                      std::is_class_v<TileWindow_> && !is_constant_v<TileWindow_>>>
+          bool oob_conditional_check = true>
 CK_TILE_DEVICE auto load_tile(DistributedTensor_& dst_tile,
                               const TileWindow_& tile_window,
                               number<i_access>                     = {},
@@ -158,33 +145,30 @@ CK_TILE_DEVICE auto load_tile_raw(T& tile,
 
 template <typename LdsTileWindow_,
           typename TileWindow_,
-          typename Offset,
           index_t i_access           = -1,
           bool oob_conditional_check = true,
           typename = std::enable_if_t<std::is_class_v<remove_cvref_t<LdsTileWindow_>> &&
-                                      std::is_class_v<TileWindow_> && std::is_integral_v<Offset>>>
-CK_TILE_DEVICE auto async_load_tile(LdsTileWindow_&& lds_tile,
-                                    const TileWindow_& tile_window,
-                                    Offset offset,
-                                    number<i_access>                     = {},
-                                    bool_constant<oob_conditional_check> = {})
+                                      std::is_class_v<TileWindow_>>>
+CK_TILE_DEVICE auto async_load_tile_with_offset(LdsTileWindow_&& lds_tile,
+                                                const TileWindow_& tile_window,
+                                                index_t offset,
+                                                number<i_access>                     = {},
+                                                bool_constant<oob_conditional_check> = {})
 {
-    return tile_window.async_load(
+    return tile_window.async_load_with_offset(
         offset, lds_tile, number<i_access>{}, bool_constant<oob_conditional_check>{});
 }
 
 template <typename LdsTileWindow_,
           typename TileWindow_,
           index_t i_access           = -1,
-          bool oob_conditional_check = true,
-          typename = std::enable_if_t<std::is_class_v<remove_cvref_t<LdsTileWindow_>> &&
-                                      std::is_class_v<TileWindow_> && !is_constant_v<TileWindow_>>>
+          bool oob_conditional_check = true>
 CK_TILE_DEVICE auto async_load_tile(LdsTileWindow_&& lds_tile,
                                     const TileWindow_& tile_window,
                                     number<i_access>                     = {},
                                     bool_constant<oob_conditional_check> = {})
 {
-    return async_load_tile(
+    return async_load_tile_with_offset(
         lds_tile, tile_window, 0, number<i_access>{}, bool_constant<oob_conditional_check>{});
 }
 
