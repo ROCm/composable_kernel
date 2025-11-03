@@ -95,7 +95,7 @@ struct Default2DEpilogue
     {
         constexpr bool is_partition_index =
             std::is_convertible_v<decltype(ds_dram_windows),
-                                  decltype(detail::get_partition_index(
+                                  decltype(get_partition_index(
                                       o_acc_tile.get_tile_distribution()))>;
 
         const auto storeOrUpdateTile = [&](const auto& o_tile) {

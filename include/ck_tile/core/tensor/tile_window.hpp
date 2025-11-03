@@ -73,7 +73,7 @@ struct tile_window_with_static_distribution
         const typename Base::WindowLengths& window_lengths,
         const typename Base::BottomTensorIndex& window_origin,
         const typename Base::TileDstr& tile_distribution,
-        decltype(detail::get_partition_index(tile_distribution)) partition_index)
+        decltype(get_partition_index(tile_distribution)) partition_index)
         : pre_computed_coords_{}
     {
 
@@ -104,7 +104,7 @@ struct tile_window_with_static_distribution
                                                window_lengths,
                                                window_origin,
                                                tile_distribution,
-                                               detail::get_partition_index(tile_distribution))
+                                               get_partition_index(tile_distribution))
     {
     }
 
@@ -113,7 +113,7 @@ struct tile_window_with_static_distribution
     prepare_coords(const typename Base::BottomTensorView& bottom_tensor_view,
                    const typename Base::BottomTensorIndex& window_origin,
                    const typename Base::TileDstr& tile_distribution,
-                   decltype(detail::get_partition_index(tile_distribution)) partition_index,
+                   decltype(get_partition_index(tile_distribution)) partition_index,
                    NewReplacementPartitionIndex = {}) const
     {
         array<tuple<typename Base::WindowAdaptorCoord, typename Base::BottomTensorCoord>, NumCoord>
@@ -997,10 +997,10 @@ struct tile_window_with_static_distribution
     {
         // TODO: this use less register for FA, but more register for GEMM
         // need investigation
-        const auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
-            this->tile_dstr_.get_ps_ys_to_xs_adaptor(),
-            container_concat(detail::get_partition_index(this->tile_dstr_),
-                             array<index_t, Base::NDimY>{0}));
+        const auto window_adaptor_thread_coord_tmp =
+            make_tensor_adaptor_coordinate(this->tile_dstr_.get_ps_ys_to_xs_adaptor(),
+                                           container_concat(get_partition_index(this->tile_dstr_),
+                                                            array<index_t, Base::NDimY>{0}));
 
         typename Base::BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
             this->window_origin_ + window_adaptor_thread_coord_tmp.get_bottom_index();
@@ -1083,7 +1083,7 @@ make_tile_window(const TensorView_& tensor_view,
                  const WindowLengths_& window_lengths,
                  const multi_index<TensorView_::get_num_of_dimension()>& origin,
                  const StaticTileDistribution_& tile_distribution,
-                 decltype(detail::get_partition_index(tile_distribution)) partition_index,
+                 decltype(get_partition_index(tile_distribution)) partition_index,
                  ReplacementPartitionIndex = {},
                  number<NumCoord>          = {})
 {
@@ -1335,7 +1335,7 @@ template <typename TensorView,
 CK_TILE_DEVICE constexpr auto
 make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
                  const StaticTileDistribution& tile_distribution,
-                 decltype(detail::get_partition_index(tile_distribution)) partition_index,
+                 decltype(get_partition_index(tile_distribution)) partition_index,
                  ReplacementPartitionIndex = {})
 {
     return make_tile_window(tile_window.get_bottom_tensor_view(),

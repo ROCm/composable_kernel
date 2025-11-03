@@ -158,7 +158,7 @@ template <typename StaticTileDistribution, typename DistributedIndices>
 CK_TILE_HOST_DEVICE constexpr auto get_x_indices_from_distributed_indices(
     StaticTileDistribution tile_distribution,
     DistributedIndices distributed_indices,
-    decltype(detail::get_partition_index(tile_distribution)) partition_index)
+    decltype(get_partition_index(tile_distribution)) partition_index)
 {
     constexpr auto y_indices =
         tile_distribution.get_y_indices_from_distributed_indices(distributed_indices);
@@ -177,7 +177,7 @@ get_x_indices_from_distributed_indices(StaticTileDistribution tile_distribution,
                                        DistributedIndices distributed_indices)
 {
     return get_x_indices_from_distributed_indices(
-        tile_distribution, distributed_indices, detail::get_partition_index(tile_distribution));
+        tile_distribution, distributed_indices, get_partition_index(tile_distribution));
 }
 
 template <typename DataType, typename StaticTileDistribution, typename XIndicesPredicate>
@@ -203,11 +203,11 @@ set_tile_if(static_distributed_tensor<DataType, StaticTileDistribution>& out_ten
 }
 
 template <typename DataType, typename StaticTileDistribution, typename XIndicesPredicate>
-CK_TILE_HOST_DEVICE void set_tile_if(
-    static_distributed_tensor<DataType, StaticTileDistribution>& out_tensor,
-    DataType value,
-    XIndicesPredicate predicate,
-    decltype(detail::get_partition_index(std::declval<StaticTileDistribution>())) partition_index)
+CK_TILE_HOST_DEVICE void
+set_tile_if(static_distributed_tensor<DataType, StaticTileDistribution>& out_tensor,
+            DataType value,
+            XIndicesPredicate predicate,
+            decltype(get_partition_index(std::declval<StaticTileDistribution>())) partition_index)
 {
     constexpr auto out_spans =
         static_distributed_tensor<DataType, StaticTileDistribution>::get_distributed_spans();
