@@ -28,7 +28,13 @@ TEST(FwdConvInstances,
         .block_gemm          = BlockGemmDesc_v2_intrawave};
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
-    run_test<Builder>();
+    
+    const auto& asserts = InstanceNameAsserts{}
+                            .StartsWith("DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3")
+                            .Contains("Filter1x1Stride1Pad0")
+                            .Contains("BlkGemmPipelineVersion: v2");
+
+    run_test<Builder>(asserts);
 }
 
 } // namespace

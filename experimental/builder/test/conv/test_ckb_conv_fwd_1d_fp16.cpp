@@ -29,7 +29,12 @@ TEST(FwdConvInstances,
         .loop_scheduler             = LoopScheduler::DEFAULT};
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
-    run_test<Builder>();
+
+    const auto& asserts = InstanceNameAsserts{}
+                            .StartsWith("DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle")
+                            .Contains("Default");
+
+    run_test<Builder>(asserts);
 }
 
 } // namespace
