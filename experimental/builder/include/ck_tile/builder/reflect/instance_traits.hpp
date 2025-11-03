@@ -16,6 +16,7 @@
 
 #include <string>
 #include <type_traits>
+#include <concepts>
 
 namespace ck_tile::reflect {
 
