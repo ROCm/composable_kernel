@@ -61,7 +61,11 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                           const CGridDesc_MBlock_MPerBlock_NBlock_NPerBlock
                                               c_grid_desc_mblock_mperblock_nblock_nperblock,
                                           const Block2CTileMap block_2_ctile_map,
-                                          const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch)
+                                          const ComputePtrOffsetOfBatch compute_ptr_offset_of_batch,
+                                          const long_index_t split_k_stride_a,
+                                          const long_index_t split_k_stride_b,
+                                          bool split_k_offset_a_hack,
+                                          bool split_k_offset_b_hack)
 {
 #if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx11__) || \
     defined(__gfx12__)
@@ -88,7 +92,11 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                                       a_element_op,
                                                       b_element_op,
                                                       c_element_op,
-                                                      block_2_ctile_map);
+                                                      block_2_ctile_map,
+                                                      split_k_stride_a,
+                                                      split_k_stride_b,
+                                                      split_k_offset_a_hack,
+                                                      split_k_offset_b_hack);
     }
 #else
     ignore = p_a_grid;
@@ -103,6 +111,10 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
     ignore = batch_count;
     ignore = block_2_ctile_map;
     ignore = compute_ptr_offset_of_batch;
+    ignore = split_k_stride_a;
+    ignore = split_k_stride_b;
+    ignore = split_k_offset_a_hack;
+    ignore = split_k_offset_b_hack;
 
     compute_ptr_offset_of_batch.GetAPtrOffset(0);
     compute_ptr_offset_of_batch.GetBPtrOffset(0);
@@ -638,6 +650,23 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                 elementwise_block_2_ctile_map_transpose_e_ = Block2TileMapTranspose{
                     e_in_transpose_desc_.GetLength(I0), e_in_transpose_desc_.GetLength(I1)};
             }
+
+            const index_t output_spatial_acum = ck::accumulate_n<index_t>(
+                output_spatial_lengths_.begin(), NDimSpatial, 1, std::multiplies<>());
+            const bool is_k_not_paded =
+                (Conv_N_ * output_spatial_acum) % (K0PerBlock * K1 * k_batch_) == 0;
+            // Check if there is KPading and we can divide N * OutSpatialDims by k_batch
+            split_k_offset_a_hack_ =
+                (Conv_N_ * output_spatial_acum) % k_batch_ == 0 && is_k_not_paded &&
+                is_NSpatialGC_GKSpatial_NSpatialGK<InLayout, WeiLayout, OutLayout>();
+            // Check if there is KPading and we can divide N by k_batch
+            split_k_offset_b_hack_ =
+                Conv_N_ % k_batch_ == 0 && is_k_not_paded &&
+                is_NSpatialGC_GKSpatial_NSpatialGK<InLayout, WeiLayout, OutLayout>();
+
+            split_k_stride_a_ =
+                a_g_n_k_wos_strides[NDimSpatial + I2] * (Conv_N_ * output_spatial_acum) / k_batch_;
+            split_k_stride_b_ = b_g_n_c_wis_strides[I1] * Conv_N_ / k_batch_;
         }
 
         std::size_t GetWorkspaceATensorSizeBytes() const
@@ -731,6 +760,9 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
         const std::array<ck::index_t, NDimSpatial>& input_left_pads_;
         const std::array<ck::index_t, NDimSpatial>& input_right_pads_;
         long_index_t c_space_size_bytes;
+
+        bool split_k_offset_a_hack_, split_k_offset_b_hack_;
+        long_index_t split_k_stride_a_, split_k_stride_b_;
     };
 
     // Invoker
@@ -877,7 +909,11 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                     arg.b_grid_desc_kbatch_k0_n_k1_,
                     c_grid_desc_mblock_mperblock_nblock_nperblock,
                     arg.block_2_ctile_map_,
-                    arg.compute_ptr_offset_of_batch_);
+                    arg.compute_ptr_offset_of_batch_,
+                    arg.split_k_stride_a_,
+                    arg.split_k_stride_b_,
+                    arg.split_k_offset_a_hack_,
+                    arg.split_k_offset_b_hack_);
             };
 
             if(has_main_k0_block_loop)
