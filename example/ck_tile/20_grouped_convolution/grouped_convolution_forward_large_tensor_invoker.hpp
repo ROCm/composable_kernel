@@ -53,7 +53,10 @@ struct GroupedConvolutionForwardInvoker
                                                                  OutLayout,
                                                                  VectorSizeA,
                                                                  VectorSizeB,
-                                                                 VectorSizeC>;
+                                                                 VectorSizeC,
+                                                                 1, /*NumGroupsToMerge*/
+                                                                 ck_tile::element_wise::PassThrough,
+                                                                 true /*EnableSplitImage*/>;
 
         using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<
             GemmConfig::kPadM,
@@ -238,68 +241,64 @@ struct GroupedConvolutionForwardInvoker
         // =====================================================================
         // Kernel launch lambda: Uses EnableSplitImage based on layout support
         // =====================================================================
-        const auto Run = [&]<bool EnableSplitImage>(const auto has_hot_loop_,
-                                                    const auto tail_number_,
-                                                    const auto memory_operation_) {
-            constexpr bool has_hot_loop_v   = has_hot_loop_.value;
-            constexpr auto tail_number_v    = tail_number_.value;
-            constexpr auto scheduler        = GemmConfig::Scheduler;
-            constexpr auto memory_operation = memory_operation_.value;
+        const auto Run =
+            [&](const auto has_hot_loop_, const auto tail_number_, const auto memory_operation_) {
+                constexpr bool has_hot_loop_v   = has_hot_loop_.value;
+                constexpr auto tail_number_v    = tail_number_.value;
+                constexpr auto scheduler        = GemmConfig::Scheduler;
+                constexpr auto memory_operation = memory_operation_.value;
 
-            using UniversalGemmProblem =
-                ck_tile::UniversalGemmPipelineProblem<InDataType,
-                                                      WeiDataType,
-                                                      AccDataType,
-                                                      GemmShape,
-                                                      GemmUniversalTraits,
-                                                      scheduler,
-                                                      has_hot_loop_v,
-                                                      tail_number_v,
-                                                      ck_tile::element_wise::PassThrough,
-                                                      ck_tile::element_wise::PassThrough,
-                                                      OutDataType,
-                                                      true,
-                                                      VectorSizeA,
-                                                      VectorSizeB>;
+                using UniversalGemmProblem =
+                    ck_tile::UniversalGemmPipelineProblem<InDataType,
+                                                          WeiDataType,
+                                                          AccDataType,
+                                                          GemmShape,
+                                                          GemmUniversalTraits,
+                                                          scheduler,
+                                                          has_hot_loop_v,
+                                                          tail_number_v,
+                                                          ck_tile::element_wise::PassThrough,
+                                                          ck_tile::element_wise::PassThrough,
+                                                          OutDataType,
+                                                          true,
+                                                          VectorSizeA,
+                                                          VectorSizeB>;
 
-            using GemmPipeline = typename PipelineTypeTraits<
-                GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
+                using GemmPipeline = typename PipelineTypeTraits<
+                    GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
 
-            using ConvEpilogue = ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
-                InDataType,
-                WeiDataType,
-                DsDataType,
-                AccDataType,
-                OutDataType,
-                typename GroupedConvTraitsType::ImplicitGemmDsLayout,
-                ck_tile::tensor_layout::gemm::RowMajor,
-                CDEElementWise,
-                TilePartitioner::MPerBlock,
-                TilePartitioner::NPerBlock,
-                GemmConfig::M_Warp,
-                GemmConfig::N_Warp,
-                GemmConfig::M_Warp_Tile,
-                GemmConfig::N_Warp_Tile,
-                GemmConfig::K_Warp_Tile,
-                GemmConfig::TransposeC,
-                memory_operation,
-                1,
-                true,
-                GroupedConvTraitsType::VectorSizeC>>;
+                using ConvEpilogue = ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
+                    InDataType,
+                    WeiDataType,
+                    DsDataType,
+                    AccDataType,
+                    OutDataType,
+                    typename GroupedConvTraitsType::ImplicitGemmDsLayout,
+                    ck_tile::tensor_layout::gemm::RowMajor,
+                    CDEElementWise,
+                    TilePartitioner::MPerBlock,
+                    TilePartitioner::NPerBlock,
+                    GemmConfig::M_Warp,
+                    GemmConfig::N_Warp,
+                    GemmConfig::M_Warp_Tile,
+                    GemmConfig::N_Warp_Tile,
+                    GemmConfig::K_Warp_Tile,
+                    GemmConfig::TransposeC,
+                    memory_operation,
+                    1,
+                    true,
+                    GroupedConvTraitsType::VectorSizeC>>;
 
-            // Use split-image kernel if layout supports it, otherwise use regular kernel
-            using Kernel = ck_tile::GroupedConvolutionForwardKernel<EnableSplitImage,
-                                                                    GroupedConvTraitsType,
-                                                                    TilePartitioner,
-                                                                    GemmPipeline,
-                                                                    ConvEpilogue>;
+                // Use split-image kernel if layout supports it, otherwise use regular kernel
+                using Kernel = ck_tile::GroupedConvolutionForwardKernel<GroupedConvTraitsType,
+                                                                        TilePartitioner,
+                                                                        GemmPipeline,
+                                                                        ConvEpilogue>;
 
-            // Create kargs
-            auto kargs = Kernel::MakeKernelArgs(args);
+                // Create kargs
+                auto kargs = Kernel::MakeKernelArgs(args);
 
-            // Populate split-image metadata ONLY if using split-image kernel
-            if constexpr(EnableSplitImage)
-            {
+                // Populate split-image metadata ONLY if using split-image kernel
                 kargs.num_spatial_pieces        = total_pieces;
                 kargs.split_image.total_d       = total_d;
                 kargs.split_image.total_h       = total_h;
@@ -320,41 +319,35 @@ struct GroupedConvolutionForwardInvoker
                                                    temp_pieces[i].h_size,
                                                    temp_pieces[i].w_size};
                 }
-            }
 
-            // Calculate grid: use total_blocks for split-image, or normal GridSize for regular
-            const dim3 grids = [&]() {
-                if constexpr(EnableSplitImage)
-                    return dim3(total_blocks, kargs.GemmBatch, kargs.n_splits);
-                else
-                    return Kernel::GridSize(kargs);
-            }();
-            const dim3 blocks = Kernel::BlockSize();
+                // Calculate grid: use total_blocks for split-image, or normal GridSize for regular
+                const dim3 grids  = dim3(total_blocks, kargs.GemmBatch, kargs.n_splits);
+                const dim3 blocks = Kernel::BlockSize();
 
-            if(!Kernel::IsSupportedArgument(kargs))
-            {
-                throw std::runtime_error("Wrong! Arguments not supported! Skipping conv!\n");
-            }
+                if(!Kernel::IsSupportedArgument(kargs))
+                {
+                    throw std::runtime_error("Wrong! Arguments not supported! Skipping conv!\n");
+                }
 
-            if(s.log_level_ > 0)
-            {
-                std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
-                          << "shape: " << GemmShape::GetName() << '\n'
-                          << "problem: " << UniversalGemmProblem::GetName() << '\n'
-                          << "pipeline: " << GemmPipeline::GetName() << '\n'
-                          << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-                          << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
-                          << "}" << '\n'
-                          << "Vector size A: " << GemmPipeline::GetVectorSizeA()
-                          << ", Vector size B: " << GemmPipeline::GetVectorSizeB()
-                          << ", Vector size C: " << ConvEpilogue::GetVectorSizeC() << std::endl;
-            }
+                if(s.log_level_ > 0)
+                {
+                    std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
+                              << "shape: " << GemmShape::GetName() << '\n'
+                              << "problem: " << UniversalGemmProblem::GetName() << '\n'
+                              << "pipeline: " << GemmPipeline::GetName() << '\n'
+                              << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+                              << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
+                              << "}" << '\n'
+                              << "Vector size A: " << GemmPipeline::GetVectorSizeA()
+                              << ", Vector size B: " << GemmPipeline::GetVectorSizeB()
+                              << ", Vector size C: " << ConvEpilogue::GetVectorSizeC() << std::endl;
+                }
 
-            ave_time = ck_tile::launch_kernel(
-                s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+                ave_time = ck_tile::launch_kernel(
+                    s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 
-            return ave_time;
-        };
+                return ave_time;
+            };
 
         // =====================================================================
         // Step 4: Dispatch kernel (split-image or regular based on decision)
