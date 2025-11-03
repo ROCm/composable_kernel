@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
+// This example demonstrates 2D block scale quantization (N×K) for BQuant
+// using non-preshuffled configuration.
+// NOTE: Once more 2d support is ready, we can migrate all 2d quant types to this example
+// This is currently done separately to avoid too verbose dispatching.
+
 #include <cstring>
 #include <iostream>
 #include <ostream>
@@ -17,7 +22,7 @@ template <typename GemmConfig,
           typename ALayout,
           typename BLayout,
           typename CLayout,
-          uint32_t QuantGroupSize,
+          typename QuantGroupSize,
           ck_tile::QuantType QuantMode,
           typename CDEElementWise>
 float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s)
@@ -57,11 +62,12 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                                                  GemmTraits,
                                                                  ComputeDataType>;
 
+    // This example only supports BQuant (no AQuant)
+    // For non-preshuffled BQuant, use BaseBQuantGemmPipelineAgBgCrCompV3
     using BaseGemmPipeline = std::conditional_t<
         GemmConfig::PreshuffleB == true,
         ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>,
-        ck_tile::BaseAQuantGemmPipelineAgBgCrMem<GemmPipelineProblem>>; // memory pipeline hardcoded
-                                                                        // for aquant
+        ck_tile::BaseBQuantGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>;
 
     const ck_tile::index_t K_split =
         (args.K + GemmConfig::K_Tile - 1) / GemmConfig::K_Tile * GemmConfig::K_Tile;
@@ -229,7 +235,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
 
 template <typename GemmConfig,
           typename TypeConfig,
-          uint32_t QuantGroupSize,
+          typename QuantGroupSize,
           ck_tile::QuantType QuantMode>
 int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int argc, char* argv[])
 {
@@ -266,6 +272,41 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     return 0;
 }
 
+// Forward declaration for dispatch function
+template <template <typename PreType> typename GemmConfig, typename QuantGroupSize>
+int dispatch_by_data_type(const std::string& data_type,
+                          const std::string& quant_mode,
+                          const std::string& a_layout,
+                          const std::string& b_layout,
+                          int argc,
+                          char* argv[]);
+
+// Helper function to parse group size string "MxNxK"
+std::tuple<int, int, int> parse_group_size(const std::string& group_size_str)
+{
+    int m = 1, n = 1, k = 128;
+
+    size_t first_x = group_size_str.find('x');
+    if(first_x == std::string::npos)
+    {
+        // Single number provided, assume it's the K dimension
+        k = std::stoi(group_size_str);
+        return {1, 1, k};
+    }
+
+    size_t second_x = group_size_str.find('x', first_x + 1);
+    if(second_x == std::string::npos)
+    {
+        throw std::runtime_error("Invalid group_size format! Expected MxNxK (e.g., 1x32x128)");
+    }
+
+    m = std::stoi(group_size_str.substr(0, first_x));
+    n = std::stoi(group_size_str.substr(first_x + 1, second_x - first_x - 1));
+    k = std::stoi(group_size_str.substr(second_x + 1));
+
+    return {m, n, k};
+}
+
 template <template <typename PreType> typename GemmConfig>
 int run_gemm_example(int argc, char* argv[])
 {
@@ -273,139 +314,57 @@ int run_gemm_example(int argc, char* argv[])
     if(!result)
         return -1;
 
-    std::string data_type = arg_parser.get_str("prec");
-    std::string a_layout  = arg_parser.get_str("a_layout");
-    std::string b_layout  = arg_parser.get_str("b_layout");
+    std::string data_type      = arg_parser.get_str("prec");
+    std::string a_layout       = arg_parser.get_str("a_layout");
+    std::string b_layout       = arg_parser.get_str("b_layout");
+    std::string quant_mode     = arg_parser.get_str("quant_mode");
+    std::string group_size_str = arg_parser.get_str("group_size");
 
-    std::string quant_mode = arg_parser.get_str("quant_mode");
+    auto [m_group, n_group, k_group] = parse_group_size(group_size_str);
+
+    // Dispatch based on group size (M, N, K)
+    return dispatch_group_size_ct<GemmConfig>(m_group, n_group, k_group, [&](auto QGS_) {
+        using QuantGroupSize = decltype(QGS_);
+        return dispatch_by_data_type<GemmConfig, QuantGroupSize>(
+            data_type, quant_mode, a_layout, b_layout, argc, argv);
+    });
+}
+
+template <template <typename PreType> typename GemmConfig, typename QuantGroupSize>
+int dispatch_by_data_type(const std::string& data_type,
+                          const std::string& quant_mode,
+                          const std::string& a_layout,
+                          const std::string& b_layout,
+                          int argc,
+                          char* argv[])
+{
+    // This example ONLY supports BQuant for 2D block scale quantization
+    if(quant_mode != "bquant")
+    {
+        throw std::runtime_error("This example only supports BQuant! Use --quant_mode=bquant");
+    }
 
     if(data_type == "fp8")
     {
         using TypeConfig =
             decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t, float>{});
 
-        if(quant_mode == "aquant")
-        {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
-                                              TypeConfig,
-                                              128,
-                                              ck_tile::QuantType::AQuantGrouped>(
-                a_layout, b_layout, argc, argv);
-        }
-        else if(quant_mode == "bquant")
-        {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
-                                              TypeConfig,
-                                              128,
-                                              ck_tile::QuantType::BQuantGrouped>(
-                a_layout, b_layout, argc, argv);
-        }
-        else if(quant_mode == "rowcol")
-        {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
-                                              TypeConfig,
-                                              128,
-                                              ck_tile::QuantType::RowColQuant>(
-                a_layout, b_layout, argc, argv);
-        }
-        else if(quant_mode == "tensor")
-        {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
-                                              TypeConfig,
-                                              128,
-                                              ck_tile::QuantType::TensorQuant>(
-                a_layout, b_layout, argc, argv);
-        }
-        else
-        {
-            throw std::runtime_error(
-                "Unsupported quantization mode! Use 'aquant', 'bquant', 'tensor' or 'rowcol'");
-        }
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
+                                          TypeConfig,
+                                          QuantGroupSize,
+                                          ck_tile::QuantType::BQuantGrouped>(
+            a_layout, b_layout, argc, argv);
     }
     else if(data_type == "bf8")
     {
         using TypeConfig =
             decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t, float>{});
 
-        if(quant_mode == "aquant")
-        {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
-                                              TypeConfig,
-                                              128,
-                                              ck_tile::QuantType::AQuantGrouped>(
-                a_layout, b_layout, argc, argv);
-        }
-        else if(quant_mode == "bquant")
-        {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
-                                              TypeConfig,
-                                              128,
-                                              ck_tile::QuantType::BQuantGrouped>(
-                a_layout, b_layout, argc, argv);
-        }
-        else if(quant_mode == "rowcol")
-        {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
-                                              TypeConfig,
-                                              128,
-                                              ck_tile::QuantType::RowColQuant>(
-                a_layout, b_layout, argc, argv);
-        }
-        else if(quant_mode == "tensor")
-        {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
-                                              TypeConfig,
-                                              128,
-                                              ck_tile::QuantType::TensorQuant>(
-                a_layout, b_layout, argc, argv);
-        }
-        else
-        {
-            throw std::runtime_error(
-                "Unsupported quantization mode! Use 'aquant', 'bquant', 'tensor' or 'rowcol'");
-        }
-    }
-    else if(data_type == "i4fp8")
-    {
-        using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t,
-                                                        ck_tile::fp8_t,
-                                                        ck_tile::half_t,
-                                                        ck_tile::fp8_t>{});
-
-        if(quant_mode == "aquant")
-        {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
-                                              TypeConfig,
-                                              128,
-                                              ck_tile::QuantType::AQuantGrouped>(
-                a_layout, b_layout, argc, argv);
-        }
-        else
-        {
-            throw std::runtime_error(
-                "Unsupported quantization mode for this datatype! Use 'aquant'.");
-        }
-    }
-    else if(data_type == "i4bf8")
-    {
-        using TypeConfig = decltype(GemmQuantTypeConfig<ck_tile::pk_int4_t,
-                                                        ck_tile::bf8_t,
-                                                        ck_tile::half_t,
-                                                        ck_tile::bf8_t>{});
-
-        if(quant_mode == "aquant")
-        {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
-                                              TypeConfig,
-                                              128,
-                                              ck_tile::QuantType::AQuantGrouped>(
-                a_layout, b_layout, argc, argv);
-        }
-        else
-        {
-            throw std::runtime_error(
-                "Unsupported quantization mode for this datatype! Use 'aquant'.");
-        }
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
+                                          TypeConfig,
+                                          QuantGroupSize,
+                                          ck_tile::QuantType::BQuantGrouped>(
+            a_layout, b_layout, argc, argv);
     }
     else if(data_type == "fp8i4")
     {
@@ -414,19 +373,11 @@ int run_gemm_example(int argc, char* argv[])
                                                         ck_tile::half_t,
                                                         ck_tile::fp8_t>{});
 
-        if(quant_mode == "bquant")
-        {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
-                                              TypeConfig,
-                                              128,
-                                              ck_tile::QuantType::BQuantGrouped>(
-                a_layout, b_layout, argc, argv);
-        }
-        else
-        {
-            throw std::runtime_error(
-                "Unsupported quantization mode for this datatype! Use 'bquant'.");
-        }
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
+                                          TypeConfig,
+                                          QuantGroupSize,
+                                          ck_tile::QuantType::BQuantGrouped>(
+            a_layout, b_layout, argc, argv);
     }
     else if(data_type == "bf8i4")
     {
@@ -435,19 +386,11 @@ int run_gemm_example(int argc, char* argv[])
                                                         ck_tile::half_t,
                                                         ck_tile::bf8_t>{});
 
-        if(quant_mode == "bquant")
-        {
-            return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
-                                              TypeConfig,
-                                              128,
-                                              ck_tile::QuantType::BQuantGrouped>(
-                a_layout, b_layout, argc, argv);
-        }
-        else
-        {
-            throw std::runtime_error(
-                "Unsupported quantization mode for this datatype! Use 'bquant'.");
-        }
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
+                                          TypeConfig,
+                                          QuantGroupSize,
+                                          ck_tile::QuantType::BQuantGrouped>(
+            a_layout, b_layout, argc, argv);
     }
     else
     {
@@ -455,7 +398,27 @@ int run_gemm_example(int argc, char* argv[])
     }
 }
 
+template <template <typename> typename GemmConfig, typename F>
+int dispatch_group_size_ct(int m, int n, int k, F&& f)
+{
+    // This expands into a sequence of `if (m==M && n==N && k==K) { ... }`
+#define DISPATCH_ONE(M, N, K)                                                        \
+    if(m == M && n == N && k == K)                                                   \
+    {                                                                                \
+        using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<M, N, K>>; \
+        return f(QuantGroupSize{});                                                  \
+    }
+
+    CK_TILE_SUPPORTED_QUANT_GROUPS(DISPATCH_ONE)
+
+#undef DISPATCH_ONE
+
+    throw std::runtime_error(
+        "Unsupported group size! Please add it to CK_TILE_SUPPORTED_QUANT_GROUPS(X).");
+}
+
 int main(int argc, char* argv[])
 {
-    return !run_gemm_example<GemmConfigPreshuffleB_Bquant_prefill>(argc, argv);
+    // Use non-preshuffled GemmConfig for 2D block scale support
+    return !run_gemm_example<GemmConfigBQuantPrefill>(argc, argv);
 }
