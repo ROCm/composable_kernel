@@ -581,6 +581,15 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
             return false;
         }
 
+        constexpr long_index_t TwoGB = (long_index_t{1} << 31);
+
+        if(!(a_b_k0_m_k1_grid_desc.GetElementSpaceSize() * sizeof(FloatA) <= TwoGB &&
+             b_b_k0_n_k1_grid_desc.GetElementSpaceSize() * sizeof(FloatB) <= TwoGB &&
+             c_m_n_grid_desc.GetElementSpaceSize() * sizeof(FloatC) <= TwoGB))
+        {
+            return false;
+        }
+
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)
         return true;
     }

@@ -484,7 +484,7 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
             elementwise_Bs_res = load_tile_with_elementwise(b_tile_windows, b_element_func);
             move_tile_window(b_tile_windows, b_dram_tile_window_step);
 
-            if(HasHotLoop)
+            if constexpr(HasHotLoop)
             {
                 // minus 2 because we have ping-pong double buffer.
                 index_t iCounter = amd_wave_read_first_lane(num_loop - 2);
@@ -529,7 +529,6 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                         // gemm
                         block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
                         HotLoopScheduler();
-                        __builtin_amdgcn_sched_barrier(0);
                     }
                     // pong
                     {
@@ -572,7 +571,6 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                         // gemm
                         block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
                         HotLoopScheduler();
-                        __builtin_amdgcn_sched_barrier(0);
                     }
                     iCounter -= 2;
                 } while(iCounter > 1);
@@ -631,8 +629,7 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                     Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1, is_a_load_tr_v);
                     Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1, is_b_load_tr_v);
                     block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
-                    static_for<0, 8, 1>{}([&](auto i) {
-                        ignore = i;
+                    static_for<0, 8, 1>{}([&](auto) {
                         __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
                         __builtin_amdgcn_sched_group_barrier(0x008, 8, 0); // MFMA
                     });
