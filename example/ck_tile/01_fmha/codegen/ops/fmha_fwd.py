@@ -7,9 +7,10 @@ import fnmatch
 import itertools
 import os
 from collections import OrderedDict
+from functools import partial
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import ClassVar, List, Optional, Tuple
 
 from codegen.arch import ArchTrait, get_factories_for_targets
 from codegen.cmake_config import GEN_DIR
@@ -39,7 +40,7 @@ FMHA_FWD_KERNEL_HEADER = """// SPDX-License-Identifier: MIT
 #include "fmha_fwd.hpp"
 """
 
-FMHA_FWD_KERNEL_BODY = """
+FMHA_FWD_KERNEL_BODY_TEMPLATE = """
 #include <iostream>
 
 #if !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
@@ -546,9 +547,11 @@ class FmhaFwdKernel:
     F_pipeline: FmhaFwdPipeline
     mask_impl: str
 
-    @property
-    def template(self) -> str:
-        return FMHA_FWD_KERNEL_HEADER + FMHA_FWD_KERNEL_BODY.format(
+    KERNEL_HEADER: ClassVar[str] = FMHA_FWD_KERNEL_HEADER
+    KERNEL_BODY_TEMPLATE: ClassVar[str] = FMHA_FWD_KERNEL_BODY_TEMPLATE
+
+    def render(self) -> str:
+        return type(self).KERNEL_HEADER + type(self).KERNEL_BODY_TEMPLATE.format(
             F_idx=self.F_idx,
             F_arch=self.F_arch,
             F_hdim=self.F_hdim,
@@ -632,6 +635,17 @@ class FmhaFwdKernel:
             tr_load=self.F_pipeline.F_trload,
             constraint=self.F_tile.F_constraint & self.F_pipeline.F_constraint,
         )
+
+
+@dataclass
+class FmhaFwdV3Kernel(FmhaFwdKernel):
+    KERNEL_BODY_TEMPLATE: ClassVar[str] = FMHA_FWD_KERNEL_BODY_TEMPLATE
+
+
+def create_kernel(pipeline: FmhaFwdPipeline, *args, **kwargs) -> FmhaFwdKernel:
+    ctor = FmhaFwdV3Kernel if pipeline.tag == "qr_async_trload_v3" else FmhaFwdKernel
+    builder = partial(ctor, F_pipeline=pipeline)
+    return builder(*args, **kwargs)
 
 
 class KernelComponentFactoryGfx9:
@@ -911,14 +925,14 @@ def get_fwd_blobs(
                     or pipeline.F_logits == "f"
                 ):
                     continue
-                k = FmhaFwdKernel(
+                k = create_kernel(
+                    pipeline,
                     F_arch=factory.arch,
                     F_idx=0,
                     F_hdim=hdim,
                     F_dtype=dtype,
                     F_mode=mode,
                     F_tile=tile,
-                    F_pipeline=pipeline,
                     mask_impl=mask_impl,
                 )
                 if kernel_filter != "":
@@ -1012,7 +1026,7 @@ def get_fwd_blobs(
 
 
 def write_single_fwd_kernel(kernel: FmhaFwdKernel, autogen_dir: Path) -> None:
-    update_file(autogen_dir / kernel.filename, kernel.template)
+    update_file(autogen_dir / kernel.filename, kernel.render())
 
 
 def write_fwd_api(api_pool: FmhaFwdApiPool, autogen_dir: Path) -> None:
