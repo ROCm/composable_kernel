@@ -278,7 +278,7 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
 
             if(!GridwiseGemm::CheckValidity(gemm_arg))
             {
-                throw std::runtime_error("wrong! GridwiseGemmWelford has invalid setting");
+                throw std::runtime_error("wrong! GridwiseGemm has invalid setting");
             }
 
             index_t gdx, gdy, gdz;
@@ -289,6 +289,7 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
             index_t K_split = (arg.KRaw_ + KPerBlock - 1) / KPerBlock * KPerBlock;
 
             const bool has_main_k_block_loop = GridwiseGemm::CalculateHasMainKBlockLoop(K_split);
+            TailNumber TailNum               = GridwiseGemm::CalculateKBlockLoopTailNum(arg.KRaw_);
 
             const auto Run = [&](const auto& kernel) {
                 // Note: cache flushing not supported
@@ -325,27 +326,69 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
                              BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
-                    const auto kernel =
-                        kernel_gemm_reduce_wmma_cshuffle_v3<GridwiseGemm,
-                                                            ReduceTrait,
-                                                            true,
-                                                            InMemoryDataOperationEnum::Set,
-                                                            minimum_occupancy>;
-                    Run(kernel);
+                    if(TailNum == TailNumber::Full)
+                    {
+                        const auto kernel =
+                            kernel_gemm_reduce_wmma_cshuffle_v3<GridwiseGemm,
+                                                                ReduceTrait,
+                                                                true,
+                                                                InMemoryDataOperationEnum::Set,
+                                                                minimum_occupancy>;
+                        Run(kernel);
+                    }
+                    else
+                    {
+                        throw std::runtime_error("wrong! Invalid pipeline setting");
+                    }
                 }
             }
             else
             {
-                // Tail number always 1
                 if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
-                    const auto kernel =
-                        kernel_gemm_reduce_wmma_cshuffle_v3<GridwiseGemm,
-                                                            ReduceTrait,
-                                                            false,
-                                                            InMemoryDataOperationEnum::Set,
-                                                            minimum_occupancy>;
-                    Run(kernel);
+                    if(TailNum == TailNumber::Full)
+                    {
+                        const auto kernel =
+                            kernel_gemm_reduce_wmma_cshuffle_v3<GridwiseGemm,
+                                                                ReduceTrait,
+                                                                false,
+                                                                InMemoryDataOperationEnum::Set,
+                                                                minimum_occupancy>;
+                        Run(kernel);
+                    }
+                    else
+                    {
+                        throw std::runtime_error("wrong! Invalid pipeline v1 setting");
+                    }
+                }
+                else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+                {
+                    if(TailNum == TailNumber::Even)
+                    {
+                        const auto kernel =
+                            kernel_gemm_reduce_wmma_cshuffle_v3<GridwiseGemm,
+                                                                ReduceTrait,
+                                                                false,
+                                                                InMemoryDataOperationEnum::Set,
+                                                                minimum_occupancy,
+                                                                TailNumber::Even>;
+                        Run(kernel);
+                    }
+                    else if(TailNum == TailNumber::Odd)
+                    {
+                        const auto kernel =
+                            kernel_gemm_reduce_wmma_cshuffle_v3<GridwiseGemm,
+                                                                ReduceTrait,
+                                                                false,
+                                                                InMemoryDataOperationEnum::Set,
+                                                                minimum_occupancy,
+                                                                TailNumber::Odd>;
+                        Run(kernel);
+                    }
+                    else
+                    {
+                        throw std::runtime_error("wrong! Invalid pipeline v3 setting");
+                    }
                 }
             }
 
@@ -370,12 +413,22 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
     {
         if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported())
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Device implementation supports only gfx11 and gfx12! " << __FILE__
+                          << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
+            }
             return false;
         }
 
         if constexpr(std::is_same_v<ComputeTypeA, f8_t> || std::is_same_v<ComputeTypeA, bf8_t> ||
                      std::is_same_v<ComputeTypeB, f8_t> || std::is_same_v<ComputeTypeB, bf8_t>)
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "FP8 and BF8 not supported on gfx11! " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+            }
             if(ck::is_gfx11_supported())
             {
                 return false;
@@ -388,6 +441,11 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
              GemmSpec == GemmSpecialization::MNKPadding ||
              GemmSpec == GemmSpecialization::KPadding))
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Without padding, K must be divisible by AK1 and BK1! " << __FILE__
+                          << ":" << __LINE__ << ", in function: " << __func__ << std::endl;
+            }
             return false;
         }
 
