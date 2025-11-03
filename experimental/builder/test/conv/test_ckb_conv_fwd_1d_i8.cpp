@@ -1,8 +1,8 @@
 #include "utils/ckb_conv_test_common.hpp"
 
-using namespace ck_tile::builder::test_utils;
+namespace {
 
-namespace ck_tile::builder::testing {
+using namespace ck_tile::builder::test_utils;
 
 // 1D I8 (channels-last) with and DEFAULT specialization
 TEST(FwdConvInstances,
@@ -17,12 +17,17 @@ TEST(FwdConvInstances,
         .device_operation =
             FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleD_Wmma_CShuffle};
 
-    constexpr ThreadBlock FwdThreadBlock{.block_size = 128,
-                                         .tile_size  = {.m = 64, .n = 64, .k = 64}};
+    constexpr ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle FwdConvAlgorithm{
+        .thread_block               = FwdThreadBlock_64x64x64,
+        .gridwise_gemm              = FwdGemmParams_Wmma_2x1_per_wave,
+        .block_transfer             = FwdBlockTransfer_4x32x1,
+        .fwd_specialization         = ConvFwdSpecialization::DEFAULT,
+        .gemm_specialization        = GemmSpecialization::MNKPadding,
+        .num_gemm_k_prefetch_stages = 1,
+        .loop_scheduler             = LoopScheduler::DEFAULT};
 
-    run_test_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle<FwdConvSignature,
-                                                         FwdThreadBlock,
-                                                         ConvFwdSpecialization::DEFAULT>();
+    using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
+    run_test<Builder>();
 }
 
-} // namespace ck_tile::builder::testing
+} // namespace

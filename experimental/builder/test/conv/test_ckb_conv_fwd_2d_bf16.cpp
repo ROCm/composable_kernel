@@ -1,8 +1,8 @@
 #include "utils/ckb_conv_test_common.hpp"
 
-using namespace ck_tile::builder::test_utils;
+namespace{
 
-namespace ck_tile::builder::testing {
+using namespace ck_tile::builder::test_utils;
 
 // 2D BF16 NHWGC (channels-last) with Pipeline V1 and DEFAULT
 TEST(FwdConvInstances,
@@ -17,13 +17,16 @@ TEST(FwdConvInstances,
         .device_operation =
             FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3};
 
-    constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
-                                         .tile_size  = {.m = 256, .n = 256, .k = 32}};
+    constexpr ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 FwdConvAlgorithm{
+        .thread_block        = FwdThreadBlock_256x256x32,
+        .gridwise_gemm       = FwdGemmParams_Xdl_4x4_per_wave,
+        .block_transfer      = FwdBlockTransfer_4x64_1,
+        .fwd_specialization  = ConvFwdSpecialization::DEFAULT,
+        .gemm_specialization = GemmSpecialization::MNKPadding,
+        .block_gemm          = BlockGemmDesc_v1_intrawave};
 
-    run_test_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<FwdConvSignature,
-                                                             FwdThreadBlock,
-                                                             BlockGemmPipelineVersion::V1,
-                                                             ConvFwdSpecialization::DEFAULT>();
+    using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
+    run_test<Builder>();
 }
 
 // 2D BF16 NHWGC (channels-last) with Pipeline V5 and FILTER_3x3
@@ -39,13 +42,16 @@ TEST(FwdConvInstances,
         .device_operation =
             FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3};
 
-    constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
-                                         .tile_size  = {.m = 256, .n = 256, .k = 32}};
+    constexpr ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 FwdConvAlgorithm{
+        .thread_block        = FwdThreadBlock_256x256x32,
+        .gridwise_gemm       = FwdGemmParams_Xdl_4x4_per_wave,
+        .block_transfer      = FwdBlockTransfer_4x64_1,
+        .fwd_specialization  = ConvFwdSpecialization::FILTER_3x3,
+        .gemm_specialization = GemmSpecialization::MNKPadding,
+        .block_gemm          = BlockGemmDesc_v5_intrawave};
 
-    run_test_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<FwdConvSignature,
-                                                             FwdThreadBlock,
-                                                             BlockGemmPipelineVersion::V5,
-                                                             ConvFwdSpecialization::FILTER_3x3>();
+    using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
+    run_test<Builder>();
 }
 
-} // namespace ck_tile::builder::testing
+} // namespace
