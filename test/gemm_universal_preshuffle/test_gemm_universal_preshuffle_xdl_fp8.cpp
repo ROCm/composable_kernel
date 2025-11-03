@@ -42,6 +42,7 @@ using KernelTypes_MK_NK = ::testing::Types<
     std::tuple< F8, F8, F8, BF16>
 #endif
     >;
+// clang-format on
 
 TYPED_TEST_SUITE(TestGemmUniversalPreshuffle_FP8_MK_NK, KernelTypes_MK_NK);
 

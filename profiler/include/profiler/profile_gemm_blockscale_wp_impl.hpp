@@ -69,19 +69,19 @@ template <typename A0DataType,
           typename ALayout,
           typename BLayout,
           typename ELayout>
-bool profile_gemm_blockscale_weighpreshuffle_impl(int do_verification,
-                                                  int init_method,
-                                                  bool do_log,
-                                                  bool time_kernel,
-                                                  int M,
-                                                  int N,
-                                                  int K,
-                                                  int StrideA,
-                                                  int StrideB,
-                                                  int StrideE,
-                                                  int n_warmup,
-                                                  int n_iter,
-                                                  uint64_t rotating = 0)
+bool profile_gemm_blockscale_weightpreshuffle_impl(int do_verification,
+                                                   int init_method,
+                                                   bool do_log,
+                                                   bool time_kernel,
+                                                   int M,
+                                                   int N,
+                                                   int K,
+                                                   int StrideA,
+                                                   int StrideB,
+                                                   int StrideE,
+                                                   int n_warmup,
+                                                   int n_iter,
+                                                   uint64_t rotating = 0)
 {
     bool pass = true;
 

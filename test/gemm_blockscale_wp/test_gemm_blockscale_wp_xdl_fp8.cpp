@@ -39,6 +39,7 @@ using KernelTypes_MK_NK = ::testing::Types<
     std::tuple< F8, F32, F8, F32, F8, BF16>
 #endif
     >;
+// clang-format on
 
 TYPED_TEST_SUITE(TestGemmBlockScaleWP_FP8_MK_NK, KernelTypes_MK_NK);
 
