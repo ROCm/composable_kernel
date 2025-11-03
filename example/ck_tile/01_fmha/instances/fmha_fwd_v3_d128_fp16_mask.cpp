@@ -6,8 +6,7 @@
 
 namespace ck_tile {
 
-using kernel_traits =
-    fmha_fwd_v3_kernel_traits<fmha_fwd_v3_args::data_type_enum::fp16, false, true>;
+using kernel_traits = fmha_fwd_v3_kernel_traits<FmhaFwdFp16, false, true>;
 
 INST_FMHA_FWD_V3_DISPATCH(kernel_traits)
 

@@ -7,54 +7,40 @@
 
 namespace ck_tile {
 
-std::ostream& operator<<(std::ostream& stream, const fmha_fwd_v3_args::data_type_enum& data_type)
+float fmha_fwd_v3(fmha_fwd_traits traits, fmha_fwd_args args, const ck_tile::stream_config& config)
 {
-    switch(data_type)
-    {
-    case fmha_fwd_v3_args::data_type_enum::fp16: return stream << "fp16";
-    case fmha_fwd_v3_args::data_type_enum::bf16: return stream << "bf16";
-    default: return stream << "unknown";
-    }
-}
-
-std::pair<bool, float> fmha_fwd_v3(const fmha_fwd_v3_args& args, const stream_config& config)
-{
-    if(args.data_type == fmha_fwd_v3_args::data_type_enum::fp16)
+    if(traits.data_type.compare("fp16") == 0)
     {
         if(args.mask_type == static_cast<int>(mask_enum::no_mask))
         {
-            using kernel_traits =
-                fmha_fwd_v3_kernel_traits<fmha_fwd_v3_args::data_type_enum::fp16, false, false>;
+            using kernel_traits = fmha_fwd_v3_kernel_traits<FmhaFwdFp16, false, false>;
 
-            return fmha_fwd_v3_kernel_dispatch<kernel_traits>(args, config);
+            return fmha_fwd_v3_kernel_dispatch<kernel_traits, ck_tile::gfx950_t>(config, args);
         }
         else
         {
-            using kernel_traits =
-                fmha_fwd_v3_kernel_traits<fmha_fwd_v3_args::data_type_enum::fp16, false, true>;
+            using kernel_traits = fmha_fwd_v3_kernel_traits<FmhaFwdFp16, false, true>;
 
-            return fmha_fwd_v3_kernel_dispatch<kernel_traits>(args, config);
+            return fmha_fwd_v3_kernel_dispatch<kernel_traits, ck_tile::gfx950_t>(config, args);
         }
     }
-    else if(args.data_type == fmha_fwd_v3_args::data_type_enum::bf16)
+    else if(traits.data_type.compare("bf16") == 0)
     {
         if(args.mask_type == static_cast<int>(mask_enum::no_mask))
         {
-            using kernel_traits =
-                fmha_fwd_v3_kernel_traits<fmha_fwd_v3_args::data_type_enum::bf16, false, false>;
+            using kernel_traits = fmha_fwd_v3_kernel_traits<FmhaFwdBf16, false, false>;
 
-            return fmha_fwd_v3_kernel_dispatch<kernel_traits>(args, config);
+            return fmha_fwd_v3_kernel_dispatch<kernel_traits, ck_tile::gfx950_t>(config, args);
         }
         else
         {
-            using kernel_traits =
-                fmha_fwd_v3_kernel_traits<fmha_fwd_v3_args::data_type_enum::bf16, false, true>;
+            using kernel_traits = fmha_fwd_v3_kernel_traits<FmhaFwdBf16, false, true>;
 
-            return fmha_fwd_v3_kernel_dispatch<kernel_traits>(args, config);
+            return fmha_fwd_v3_kernel_dispatch<kernel_traits, ck_tile::gfx950_t>(config, args);
         }
     }
 
-    return std::make_pair(false, -1.f);
+    return -1.;
 }
 
 } // namespace ck_tile

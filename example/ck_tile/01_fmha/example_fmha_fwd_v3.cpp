@@ -87,12 +87,10 @@ struct Problem
 {
     explicit Problem(const ck_tile::ArgParser& args)
     {
-        data_type = args.get_str("prec") == "fp16"
-                        ? ck_tile::fmha_fwd_v3_args::data_type_enum::fp16
-                        : ck_tile::fmha_fwd_v3_args::data_type_enum::bf16;
-        batch     = args.get_int("b");
-        seqlen_q  = args.get_int("s");
-        seqlen_k  = args.get_int("s_k");
+        prec     = args.get_str("prec") == "fp16" ? "fp16" : "bf16";
+        batch    = args.get_int("b");
+        seqlen_q = args.get_int("s");
+        seqlen_k = args.get_int("s_k");
         if(seqlen_k < 0)
         {
             seqlen_k = seqlen_q;
@@ -172,7 +170,7 @@ struct Problem
         }
     }
 
-    ck_tile::fmha_fwd_v3_args::data_type_enum data_type;
+    std::string prec;
     ck_tile::index_t batch;
     ck_tile::index_t seqlen_q;
     ck_tile::index_t seqlen_k;
@@ -342,17 +340,27 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     // Ensure output buffer is zero-initialized so padded regions compare cleanly
     o_buf.SetZero();
 
-    ck_tile::fmha_fwd_v3_args args{};
+    fmha_fwd_traits traits{};
+    traits.hdim_q              = problem.hdim;
+    traits.hdim_v              = problem.hdim;
+    traits.data_type           = problem.prec;
+    traits.is_v_rowmajor       = true;
+    traits.is_group_mode       = false;
+    traits.has_logits_soft_cap = false;
+    traits.mask_type           = mask_enum::mask_bottom_right;
+    traits.bias_type           = bias_enum::no_bias;
+    traits.has_lse             = false;
+    traits.do_fp8_static_quant = false;
 
-    args.data_type     = problem.data_type;
-    args.batch         = problem.batch;
-    args.seqlen_q      = problem.seqlen_q;
-    args.seqlen_k      = problem.seqlen_k;
-    args.nhead_q       = problem.nhead_q;
-    args.nhead_kv      = problem.nhead_kv;
-    args.hdim_qk       = problem.hdim;
-    args.hdim_v        = problem.hdim;
-    args.softmax_scale = problem.softmax_scale;
+    fmha_fwd_args args{};
+    args.batch    = problem.batch;
+    args.seqlen_q = problem.seqlen_q;
+    args.seqlen_k = problem.seqlen_k;
+    args.nhead_q  = problem.nhead_q;
+    args.nhead_k  = problem.nhead_kv;
+    args.hdim_q   = problem.hdim;
+    args.hdim_v   = problem.hdim;
+    args.scale_s  = problem.softmax_scale;
 
     args.window_size_left  = problem.mask.left;
     args.window_size_right = problem.mask.right;
@@ -445,7 +453,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     args.cu_seqlen_q_ptr =
         !cuq_cum.empty() ? reinterpret_cast<const ck_tile::index_t*>(cuq_buf.GetDeviceBuffer())
                          : nullptr;
-    args.cu_seqlen_kv_ptr =
+    args.cu_seqlen_k_ptr =
         !cukv_cum.empty() ? reinterpret_cast<const ck_tile::index_t*>(cukv_buf.GetDeviceBuffer())
                           : nullptr;
 
@@ -455,8 +463,8 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
                                          run_config.kernel_warmup,
                                          run_config.kernel_repeat};
 
-    auto [result, time] = ck_tile::fmha_fwd_v3(args, stream_config);
-    if(!result)
+    float time = ck_tile::fmha_fwd_v3(traits, args, stream_config);
+    if(time < 0.f)
     {
         std::cerr << "faild to run fmha_fwd_v3()" << std::endl;
         return false;
@@ -477,7 +485,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     }();
     float tflops = static_cast<float>(flop) / 1.e9 / time;
 
-    std::cout << "[" << problem.data_type << "|";
+    std::cout << "[" << problem.prec << "|";
     if(problem.input_layout == problem.output_layout)
     {
         std::cout << problem.input_layout;
@@ -602,7 +610,7 @@ int main(int argc, char* argv[])
     RunConfig run_config(args);
 
     const auto run = [&] {
-        if(problem.data_type == ck_tile::fmha_fwd_v3_args::data_type_enum::fp16)
+        if(problem.prec == "fp16")
         {
             return run_impl<ck_tile::fp16_t>(problem, run_config);
         }

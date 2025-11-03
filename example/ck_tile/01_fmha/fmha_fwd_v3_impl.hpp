@@ -17,25 +17,26 @@
 #include "ck_tile/ops/fmha/pipeline/tile_fmha_shape.hpp"
 #include "ck_tile/ops/fmha/pipeline/tile_fmha_traits.hpp"
 
+#include "fmha_fwd.hpp"
 #include "fmha_fwd_v3.hpp"
 #include "mask.hpp"
 
-#define INST_FMHA_FWD_V3_DISPATCH(kernel_traits)                                               \
-    template <>                                                                                \
-    std::pair<bool, float> fmha_fwd_v3_kernel_dispatch<kernel_traits>(                         \
-        const fmha_fwd_v3_args& args, const stream_config& config)                             \
-    {                                                                                          \
-        return std::make_pair(true,                                                            \
-                              fmha_fwd_v3_kernel_launch<kernel_traits::kernel>(args, config)); \
+#define INST_FMHA_FWD_V3_DISPATCH(kernel_traits)                                              \
+    template <>                                                                               \
+    float fmha_fwd_v3_kernel_dispatch<kernel_traits, ck_tile::gfx950_t>(                      \
+        const ck_tile::stream_config& config, fmha_fwd_args args)                             \
+    {                                                                                         \
+        return fmha_fwd_v3_kernel_launch<get_fmha_fwd_v3_kernel<kernel_traits>::type>(config, \
+                                                                                      args);  \
     }
 
 namespace ck_tile {
 
-template <fmha_fwd_v3_args::data_type_enum DataType>
+template <typename DataType>
 struct fmha_fwd_v3_problem_traits;
 
 template <>
-struct fmha_fwd_v3_problem_traits<fmha_fwd_v3_args::data_type_enum::fp16>
+struct fmha_fwd_v3_problem_traits<FmhaFwdFp16>
 {
     using qkvp_dtype = ck_tile::half_t;
     using acc_dtype  = float;
@@ -44,7 +45,7 @@ struct fmha_fwd_v3_problem_traits<fmha_fwd_v3_args::data_type_enum::fp16>
 };
 
 template <>
-struct fmha_fwd_v3_problem_traits<fmha_fwd_v3_args::data_type_enum::bf16>
+struct fmha_fwd_v3_problem_traits<FmhaFwdBf16>
 {
     using qkvp_dtype = ck_tile::bf16_t;
     using acc_dtype  = float;
@@ -52,15 +53,45 @@ struct fmha_fwd_v3_problem_traits<fmha_fwd_v3_args::data_type_enum::bf16>
     using lse_dtype  = float;
 };
 
-template <fmha_fwd_v3_args::data_type_enum DataType, bool IsVariableSeqlen, bool IsMasking>
-struct fmha_fwd_v3_kernel_traits
+template <typename DataType, bool kIsGroupMode, bool kIsMasking>
+using fmha_fwd_v3_kernel_traits =
+    fmha_fwd_traits_<128,
+                     DataType,
+                     kIsGroupMode,
+                     256,
+                     32,
+                     128,
+                     128,
+                     32,
+                     128,
+                     true,
+                     ck_tile::BlockFmhaPipelineEnum::QRKSVS_ASYNC_TRLOAD_V3,
+                     false,
+                     ck_tile::GenericAttentionMask<kIsMasking, /*IsLocal=*/false>,
+                     ck_tile::BlockAttentionBiasEnum::NO_BIAS,
+                     false,
+                     false,
+                     false,
+                     true,
+                     true,
+                     false,
+                     false,
+                     true,
+                     false>;
+
+template <typename KernelTraits>
+struct get_fmha_fwd_v3_kernel
 {
-    static constexpr auto date_type          = DataType;
-    static constexpr bool is_variable_seqlen = IsVariableSeqlen;
-    static constexpr bool is_masking         = IsMasking;
+    using data_type                    = KernelTraits::DataType;
+    static constexpr bool kIsGroupMode = KernelTraits::kIsGroupMode;
 
     //                                    M0   N0  K0   N1   K1
-    using fmha_block_tile      = sequence<256, 32, 128, 128, 32, 128>;
+    using fmha_block_tile      = sequence<KernelTraits::kM0,
+                                          KernelTraits::kN0,
+                                          KernelTraits::kK0,
+                                          KernelTraits::kN1,
+                                          KernelTraits::kK1,
+                                          KernelTraits::kK0BlockLength>;
     using fmha_warp_gemm_shape = sequence<32, 32, 16>;
     using fmha_block_warps     = sequence<8, 1, 1>;
 
@@ -69,49 +100,48 @@ struct fmha_fwd_v3_kernel_traits
                                      fmha_warp_gemm_shape,
                                      fmha_block_warps,
                                      fmha_warp_gemm_shape,
-                                     true // IsVLayoutRowMajor
-                                     >;
+                                     KernelTraits::kIsVLayoutRowMajor>;
 
-    using fmha_traits = TileFmhaFwdV3Traits<true,  // kPadSeqLenQ
-                                            true,  // kPadSeqLenK
-                                            false, // kPadHeadDimQ
-                                            false, // kPadHeadDimV
-                                            false, // kStoreLSE
-                                            -1     // kBlockPerCu
+    using fmha_traits = TileFmhaFwdV3Traits<KernelTraits::kPadS,     // kPadSeqLenQ
+                                            KernelTraits::kPadSK,    // kPadSeqLenK
+                                            KernelTraits::kPadD,     // kPadHeadDimQ
+                                            KernelTraits::kPadDv,    // kPadHeadDimV
+                                            KernelTraits::kStoreLse, // kStoreLSE
+                                            -1                       // kBlockPerCu
                                             >;
 
-    using fmha_mask = GenericAttentionMask<IsMasking, /*IsLocal=*/false>;
+    using fmha_mask = KernelTraits::FmhaMask;
 
     using fmha_pipeline_problem =
-        BlockFmhaFwdV3PipelineProblem<typename fmha_fwd_v3_problem_traits<date_type>::qkvp_dtype,
-                                      typename fmha_fwd_v3_problem_traits<date_type>::qkvp_dtype,
-                                      typename fmha_fwd_v3_problem_traits<date_type>::qkvp_dtype,
-                                      typename fmha_fwd_v3_problem_traits<date_type>::acc_dtype,
-                                      typename fmha_fwd_v3_problem_traits<date_type>::acc_dtype,
-                                      typename fmha_fwd_v3_problem_traits<date_type>::lse_dtype,
-                                      typename fmha_fwd_v3_problem_traits<date_type>::qkvp_dtype,
-                                      typename fmha_fwd_v3_problem_traits<date_type>::acc_dtype,
-                                      typename fmha_fwd_v3_problem_traits<date_type>::o_dtype,
+        BlockFmhaFwdV3PipelineProblem<typename fmha_fwd_v3_problem_traits<data_type>::qkvp_dtype,
+                                      typename fmha_fwd_v3_problem_traits<data_type>::qkvp_dtype,
+                                      typename fmha_fwd_v3_problem_traits<data_type>::qkvp_dtype,
+                                      typename fmha_fwd_v3_problem_traits<data_type>::acc_dtype,
+                                      typename fmha_fwd_v3_problem_traits<data_type>::acc_dtype,
+                                      typename fmha_fwd_v3_problem_traits<data_type>::lse_dtype,
+                                      typename fmha_fwd_v3_problem_traits<data_type>::qkvp_dtype,
+                                      typename fmha_fwd_v3_problem_traits<data_type>::acc_dtype,
+                                      typename fmha_fwd_v3_problem_traits<data_type>::o_dtype,
                                       fmha_shape,
-                                      IsVariableSeqlen,
+                                      kIsGroupMode,
                                       fmha_mask,
                                       fmha_traits>;
 
     using fmha_pipeline = BlockFmhaFwdV3Pipeline<fmha_pipeline_problem>;
 
     using epilogue = Default2DEpilogue<
-        Default2DEpilogueProblem<typename fmha_fwd_v3_problem_traits<date_type>::acc_dtype,
-                                 typename fmha_fwd_v3_problem_traits<date_type>::o_dtype,
+        Default2DEpilogueProblem<typename fmha_fwd_v3_problem_traits<data_type>::acc_dtype,
+                                 typename fmha_fwd_v3_problem_traits<data_type>::o_dtype,
                                  true, // kPadM
                                  true, // kPadM
                                  true  // UseRawStore
                                  >>;
 
-    using kernel = FmhaFwdV3Kernel<fmha_pipeline, epilogue>;
+    using type = FmhaFwdV3Kernel<fmha_pipeline, epilogue>;
 };
 
 template <typename Kernel>
-float fmha_fwd_v3_kernel_launch(const fmha_fwd_v3_args& args, const stream_config& config)
+float fmha_fwd_v3_kernel_launch(const ck_tile::stream_config& config, fmha_fwd_args args)
 {
     /// NOTICE: This was borrowed from Aiter. Make sure the selected remap_opt setting truly
     /// maximizes the kernel's performance.
@@ -136,11 +166,11 @@ float fmha_fwd_v3_kernel_launch(const fmha_fwd_v3_args& args, const stream_confi
                                    args.o_ptr,
                                    args.seqlen_q,
                                    args.seqlen_k,
-                                   args.hdim_qk,
+                                   args.hdim_q,
                                    args.hdim_v,
                                    args.nhead_q,
-                                   args.nhead_q / args.nhead_kv,
-                                   args.softmax_scale,
+                                   args.nhead_q / args.nhead_k,
+                                   args.scale_s,
                                    args.stride_q,
                                    args.stride_k,
                                    args.stride_v,
@@ -159,8 +189,8 @@ float fmha_fwd_v3_kernel_launch(const fmha_fwd_v3_args& args, const stream_confi
                                    args.window_size_right,
                                    args.mask_type,
                                    remap_opt,
-                                   args.cu_seqlen_q_ptr,
-                                   args.cu_seqlen_kv_ptr);
+                                   static_cast<const ck_tile::index_t*>(args.cu_seqlen_q_ptr),
+                                   static_cast<const ck_tile::index_t*>(args.cu_seqlen_k_ptr));
 
     dim3 grids            = Kernel::GridSize(args.batch, args.nhead_q, args.seqlen_q, args.hdim_v);
     constexpr dim3 blocks = Kernel::BlockSize();
@@ -169,11 +199,7 @@ float fmha_fwd_v3_kernel_launch(const fmha_fwd_v3_args& args, const stream_confi
     return launch_kernel(config, make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 }
 
-// return value:
-//   first  = whether the kernel was launched (true = launched, false = skipped)
-//   second = elapsed time (ms) of the kernel launch, valid only if first == true
-template <typename KernelTraits>
-std::pair<bool, float> fmha_fwd_v3_kernel_dispatch(const fmha_fwd_v3_args& args,
-                                                   const stream_config& config);
+template <typename KernelTraits, typename Arch = void>
+float fmha_fwd_v3_kernel_dispatch(const ck_tile::stream_config&, fmha_fwd_args);
 
 } // namespace ck_tile
