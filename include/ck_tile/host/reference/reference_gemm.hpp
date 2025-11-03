@@ -16,7 +16,7 @@ template <typename ADataType,
           typename BDataType,
           typename AccDataType,
           typename CDataType,
-          uint32_t QuantGroupSize,
+          typename QuantGroupSize,
           bool aquant,
           typename AElementOp   = ck_tile::identity,
           typename BElementOp   = ck_tile::identity,
@@ -80,12 +80,11 @@ CK_TILE_HOST void reference_gemm_quant(const HostTensor<ADataType>& a_m_k,
             v_block_acc += v_a * v_b;
 
             // Apply group dequant scale
-            if((k + 1) % QuantGroupSize == 0)
+            if((k + 1) % QuantGroupSize::kK == 0)
             {
                 float scale       = 0.f;
-                index_t outer_dim = (aquant) ? m : k / QuantGroupSize;
-                index_t inner_dim = (aquant) ? k / QuantGroupSize : n;
-
+                index_t outer_dim = (aquant) ? (m / QuantGroupSize::kM) : (k / QuantGroupSize::kK);
+                index_t inner_dim = (aquant) ? (k / QuantGroupSize::kK) : (n / QuantGroupSize::kN);
                 if constexpr(std::is_same_v<QDataType, float>)
                 {
                     scale = q(outer_dim, inner_dim);
