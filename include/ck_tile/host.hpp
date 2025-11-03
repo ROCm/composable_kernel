@@ -48,4 +48,5 @@
 #include "ck_tile/host/rotating_buffers.hpp"
 #include "ck_tile/host/stream_config.hpp"
 #include "ck_tile/host/stream_utils.hpp"
+#include "ck_tile/host/tensor_shuffle_utils.hpp"
 #include "ck_tile/host/timer.hpp"
