@@ -56,14 +56,19 @@ struct MultiReduceThreadWise
     {
         using S                                   = typename Problem::BlockShape;
         constexpr index_t memory_vector_size      = 16 / sizeof(YDataType);
-        constexpr index_t thread_tile_vector_size = S::ThreadTile_M; // ?
+        constexpr index_t thread_tile_vector_size = S::ThreadTile_M;
         constexpr index_t vector_size = ck_tile::min(memory_vector_size, thread_tile_vector_size);
 
         return vector_size;
     }
 
     public:
-    template <typename InputShape, typename InputStrides, typename KeptDim, typename ReduceDims, typename ElementwiseOps, typename AccumulatorOps>
+    template <typename InputShape,
+              typename InputStrides,
+              typename KeptDim,
+              typename ReduceDims,
+              typename ElementwiseOps,
+              typename AccumulatorOps>
     CK_TILE_DEVICE void operator()(const XDataType* p_x,
                                    YDataType* p_y_tuple,
                                    InputShape input_shape,
@@ -72,15 +77,12 @@ struct MultiReduceThreadWise
                                    ReduceDims reduce_dims,
                                    index_t output_tensor_offset,
                                    ElementwiseOps elementwise_ops,
-                                   AccumulatorOps accumulator_ops
-                                ) const
+                                   AccumulatorOps accumulator_ops) const
     {
-        using S                      = typename Problem::BlockShape;
-        const auto iM                = get_block_id() * S::Block_M;
-        auto reduce_ops            = typename Problem::ReduceOp{};
-        // auto elementwise_ops       = typename Problem::ElementwiseOps{};
-        // auto accumulator_ops       = typename Problem::AccumulatorOps{};
-        // auto inter_block_reduce_ops = typename Problem::InterBlockReduceOps{};
+        using S         = typename Problem::BlockShape;
+        const auto iM   = get_block_id() * S::Block_M;
+        auto reduce_ops = typename Problem::ReduceOp{};
+
         const auto number_operations = reduce_ops.size();
 
         static_assert(number_operations > 0,
@@ -99,6 +101,10 @@ struct MultiReduceThreadWise
                 number<reduce_dims.size()>{});
         }();
 
+        index_t total_reduce_len = 1;
+        static_for<0, reduce_lens.size(), 1>{}(
+            [&](auto i) { total_reduce_len *= reduce_lens.at(i); });
+
         const auto kept_merge_transform =
             make_merge_transform(kept_lens); // Dimension(s) not reduced are being flattened
         const auto reduce_merge_transform =
@@ -107,7 +113,7 @@ struct MultiReduceThreadWise
         const auto custom_padding_values = ck_tile::apply(
             [](auto... args) {
                 return ck_tile::make_tuple(
-                    type_convert<XDataType>(args.template GetIdentityValue<ComputeDataType>())...);
+                    args.template GetIdentityValue<XDataType>()...);
             },
             reduce_ops); // Get the identity element for each operation
 
@@ -118,25 +124,7 @@ struct MultiReduceThreadWise
         auto desc = make_naive_tensor_descriptor(input_shape,
                                                  input_strides,
                                                  number<x_tensor_vector_size>{},
-                                                 number<1>{}); // Create the tensor descriptor
-
-        auto buffer_view = make_buffer_view<address_space_enum::global>(
-            p_x,
-            desc.get_element_space_size(),
-            custom_padding_values.get(
-                number<0>{})); // Input tensor buffer view, currently using the first operation
-                               // identity element as padding?? TODO: check this
-
-        const auto x_tensor = tensor_view<decltype(buffer_view), decltype(desc)>{
-            buffer_view, desc}; // Tensor view over the buffer view and tensor descriptor
-        const auto transformed_x_tensor = pad_tensor_view(
-            transform_tensor_view(x_tensor,
-                                  make_tuple(kept_merge_transform, reduce_merge_transform),
-                                  make_tuple(kept_dim, reduce_dims),
-                                  make_tuple(sequence<0>{}, sequence<1>{})),
-            make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
-            sequence<0, 1>{}); // Effective transform the input tensor to 2D (kept, reduced) and pad
-                               // to block size
+                                                 number<1>{});
 
         const auto kept_strides = [&]() {
             return generate_tuple(
@@ -147,7 +135,7 @@ struct MultiReduceThreadWise
                     return stride;
                 },
                 number<kept_dim.size()>{});
-        }(); // Compute the strides, for a dimensions (a,b,c), the strides are (b*c, c, 1)
+        }();
 
         constexpr auto y_tensor_vector_size = CalculateOutputVectorSize();
 
@@ -173,24 +161,35 @@ struct MultiReduceThreadWise
         __shared__ char smem[Policy::template GetSmemSize<Problem>()]; // shared memory is reused
                                                                        // for each operation
 
-        const auto merged_reduce_len =
-            transformed_x_tensor.get_tensor_descriptor().get_lengths().at(
-                number<1>{}); // Get the last dimension size (reduced dimension)
         index_t num_n_tile_iteration = __builtin_amdgcn_readfirstlane(integer_divide_ceil(
-            merged_reduce_len, S::Block_N)); // Figure out the number of iterations needed to cover
+            total_reduce_len, S::Block_N)); // Figure out the number of iterations needed to cover
                                              // the reduced dimension with Block size N
 
         auto block_reduce2d =
-            Policy::template GetBlockReduce2d<Problem>(); // Get the block reduction , at thread
-                                                          // level, function
+            Policy::template GetBlockReduce2d<Problem>(); 
         auto block_reduce2d_sync =
-            Policy::template GetBlockReduce2dSync<Problem>(); // Get the block sync, at warp level,
-                                                              // function
+            Policy::template GetBlockReduce2dSync<Problem>(); 
         auto block_reduce2d_cross_warp_sync =
-            Policy::template GetBlockReduce2dCrossWarpSync<Problem>(); // Get the block for the
-                                                                       // cross warp level sync
+            Policy::template GetBlockReduce2dCrossWarpSync<Problem>();
 
         static_for<0, number_operations, 1>{}([&](auto i) {
+            auto buffer_view = make_buffer_view<address_space_enum::global>(
+                p_x,
+                desc.get_element_space_size(),
+                custom_padding_values.get(
+                    number<i>{})); // Input tensor buffer view
+
+            const auto x_tensor = tensor_view<decltype(buffer_view), decltype(desc)>{
+                buffer_view, desc}; // Tensor view over the buffer view and tensor descriptor
+            const auto transformed_x_tensor = pad_tensor_view(
+                transform_tensor_view(x_tensor,
+                                    make_tuple(kept_merge_transform, reduce_merge_transform),
+                                    make_tuple(kept_dim, reduce_dims),
+                                    make_tuple(sequence<0>{}, sequence<1>{})),
+                make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
+                sequence<0, 1>{}); // Specify how transform the input tensor to 2D (kept, reduced) and pad
+                                // to block size
+
             auto x_window = make_tile_window(
                 transformed_x_tensor,
                 make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
@@ -198,7 +197,6 @@ struct MultiReduceThreadWise
                 Policy::template MakeXBlockTileDistribution<Problem>()); // Input tile windows and
                                                                          // prep the block
 
-            // using XTensorType = decltype(load_tile(x_window)); // Record the loading input tile type
             using ComputeDataTensorType = decltype(cast_tile<ComputeDataType>(load_tile(x_window)));
 
             auto y_compute = block_reduce2d.template MakeYBlockTile<ComputeDataTensorType>();
@@ -223,7 +221,7 @@ struct MultiReduceThreadWise
             block_reduce2d_cross_warp_sync(
                 y_compute, static_cast<void*>(smem), reduce_ops.get(number<i>{}));
 
-            tile_elementwise_inout(accumulator_ops.get(number<i>{}), y_compute, y_compute); 
+            tile_elementwise_inout(accumulator_ops.get(number<i>{}), y_compute, y_compute);
             // Store the result back in each element of the tuple
             store_tile(y_tile_windows.get(number<i>{}), cast_tile<YDataType>(y_compute));
         });

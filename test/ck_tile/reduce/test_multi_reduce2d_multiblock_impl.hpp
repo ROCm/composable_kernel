@@ -15,23 +15,21 @@
 
 #include "test_multi_reduce2d_common.hpp"
 
-
-
 template <typename Tuple>
 class TestCkTileMultiReduceMultiblock : public ::testing::Test
 {
     protected:
-    using XDataType          = std::tuple_element_t<0, Tuple>;
-    using ComputeDataType    = std::tuple_element_t<1, Tuple>;
-    using YDataType          = std::tuple_element_t<2, Tuple>;
-    using ReduceOpsType      = std::tuple_element_t<3, Tuple>;
-    using ElementwiseOpsType = std::tuple_element_t<4, Tuple>;
-    using AccumulatorOpsType  = std::tuple_element_t<5, Tuple>;
+    using XDataType               = std::tuple_element_t<0, Tuple>;
+    using ComputeDataType         = std::tuple_element_t<1, Tuple>;
+    using YDataType               = std::tuple_element_t<2, Tuple>;
+    using ReduceOpsType           = std::tuple_element_t<3, Tuple>;
+    using ElementwiseOpsType      = std::tuple_element_t<4, Tuple>;
+    using AccumulatorOpsType      = std::tuple_element_t<5, Tuple>;
     using InterBlockReduceOpsType = std::tuple_element_t<6, Tuple>;
-    using BlockWarps_        = std::tuple_element_t<7, Tuple>;
-    using BlockTile_         = std::tuple_element_t<8, Tuple>;
-    using WarpTile_          = std::tuple_element_t<9, Tuple>;
-    using ThreadTile_        = std::tuple_element_t<10, Tuple>;
+    using BlockWarps_             = std::tuple_element_t<7, Tuple>;
+    using BlockTile_              = std::tuple_element_t<8, Tuple>;
+    using WarpTile_               = std::tuple_element_t<9, Tuple>;
+    using ThreadTile_             = std::tuple_element_t<10, Tuple>;
 
     using TestReduce2dShape =
         ck_tile::Reduce2dShape<BlockWarps_, BlockTile_, WarpTile_, ThreadTile_>;
@@ -46,7 +44,13 @@ class TestCkTileMultiReduceMultiblock : public ::testing::Test
                         KeptDimSeq kept_dims,
                         ReduceDimSeq reduce_dims)
     {
-        const auto number_operations = ReduceOpsType::size(); // TODO: static assert, all operations should have the same size
+        static_assert(ReduceOpsType::size() == ElementwiseOpsType::size() &&
+                        ReduceOpsType::size() == AccumulatorOpsType::size() &&
+                        ReduceOpsType::size() == InterBlockReduceOpsType::size(),
+                    "Error: All operations tuple size must match the number of reduction operations");
+
+        const auto number_operations =
+            ReduceOpsType::size();
 
         ck_tile::HostTensor<XDataType> h_x(input_shape, input_strides);
 
@@ -82,32 +86,30 @@ class TestCkTileMultiReduceMultiblock : public ::testing::Test
         ck_tile::DeviceMem d_y_mem(output_buffer_size);
 
         std::vector<YDataType> h(number_operations * output_number_elements);
-        std::fill(h.begin(),
-                  h.end(),
-                  static_cast<YDataType>(0.0f)); // TODO: Fill it in with the identify element
+
+        // Init the output data with identity values respective to each reduce op
+        ck_tile::static_for<0, number_operations, 1>{}([&](auto i) {
+            constexpr auto op       = ReduceOpsType{}.at(i);
+            const auto identity_val = op.template GetIdentityValue<YDataType>();
+            std::fill(h.begin() + i * output_number_elements,
+                      h.begin() + (i + 1) * output_number_elements,
+                      identity_val);
+        });
 
         d_x_mem.ToDevice(h_x.data());
         d_y_mem.ToDevice(
-            h.data()); // TODO: Initialize the output buffer with operations' identity element
-
-        // Problem and kernel setup
-        // using Problem = ck_tile::Reduce2dProblem<XDataType,
-        //                                          ComputeDataType,
-        //                                          YDataType,
-        //                                          TestReduce2dShape,
-        //                                          ReduceOpsType>;
+            h.data());
 
         using Problem = ck_tile::Reduce2dProblem<XDataType,
-                                                ComputeDataType,
-                                                YDataType,
-                                                TestReduce2dShape,
-                                                ReduceOpsType>;
+                                                 ComputeDataType,
+                                                 YDataType,
+                                                 TestReduce2dShape,
+                                                 ReduceOpsType>;
 
         using Kernel = ck_tile::MultiReduceMultiblock<Problem>;
-        // using Kernel = KernelType<Problem, ck_tile::Reduce2dDefaultPolicy>;
 
         // Launch configuration
-        const ck_tile::index_t kBlockSize  = Kernel::BlockSize();
+        const ck_tile::index_t kBlockSize      = Kernel::BlockSize();
         constexpr ck_tile::index_t kBlockPerCu = 1;
         ck_tile::index_t block_group_size;
         int num_block_tile_iterations;
@@ -115,8 +117,6 @@ class TestCkTileMultiReduceMultiblock : public ::testing::Test
             make_elementwise_ops_tuple(total_reduce_elements, ElementwiseOpsType{});
         auto accumulator_ops =
             make_elementwise_ops_tuple(total_reduce_elements, AccumulatorOpsType{});
-        // auto interblock_reduce_ops =
-        //     make_elementwise_ops_tuple(total_reduce_elements, InterBlockReduceOpsType{});  
 
         Kernel::CalculateBlockGroupParams(
             total_reduce_elements, kBlockSize, num_block_tile_iterations, block_group_size);
@@ -126,7 +126,8 @@ class TestCkTileMultiReduceMultiblock : public ::testing::Test
                   << ", Reduce total length: " << total_reduce_elements << std::endl;
 
         ck_tile::index_t kGridSize =
-            ((kept_dim_len_prod + TestReduce2dShape::Block_M - 1) / TestReduce2dShape::Block_M) * block_group_size;
+            ((kept_dim_len_prod + TestReduce2dShape::Block_M - 1) / TestReduce2dShape::Block_M) *
+            block_group_size;
 
         // Generic helper to create tuple from vector based on compile-time size
         auto make_shape_tuple = []<std::size_t N>(const std::vector<ck_tile::index_t>& vec) {
@@ -142,14 +143,8 @@ class TestCkTileMultiReduceMultiblock : public ::testing::Test
                total_reduce_elements,
                input_strides_tuple)) // output tensor's continuous dimension
         {
-            std::cerr<< total_reduce_elements << "VS" << TestReduce2dShape::ThreadTile_N <<std::endl;
             throw std::runtime_error("Wrong! Arguments not supported!\n");
         }
-
-        // TODO
-        // block_group_size,
-        // num_block_tile_iterations,
-        // elementwise_ops
 
         ck_tile::launch_kernel(
             ck_tile::stream_config{nullptr, false, 0},
@@ -166,12 +161,19 @@ class TestCkTileMultiReduceMultiblock : public ::testing::Test
                                               output_number_elements,
                                               elementwise_ops,
                                               accumulator_ops,
-                                              InterBlockReduceOpsType{}
-                                            ));
+                                              InterBlockReduceOpsType{}));
 
         // Reference computation
         ck_tile::reference_multiple_reduce_multiblock<XDataType, ComputeDataType, YDataType>(
-            h_x, h_ys_ref, ReduceOpsType{}, kept_dims, reduce_dims, elementwise_ops, accumulator_ops, InterBlockReduceOpsType{}, block_group_size);
+            h_x,
+            h_ys_ref,
+            ReduceOpsType{},
+            kept_dims,
+            reduce_dims,
+            elementwise_ops,
+            accumulator_ops,
+            InterBlockReduceOpsType{},
+            block_group_size);
 
         // Calculate proper error thresholds based on data types and number of accumulations
         // const auto rtol = ck_tile::get_relative_threshold<XDataType, YDataType, ComputeDataType>(
@@ -179,9 +181,12 @@ class TestCkTileMultiReduceMultiblock : public ::testing::Test
         // const auto atol = ck_tile::get_absolute_threshold<YDataType, YDataType, ComputeDataType>(
         //     5.0f, total_reduce_elements);
 
-        const auto rtol = 1e-3;
+        // Unfortunately due to the non-sequenciality, down-casting on the output buffer
+        // and further operations on this buffer, the error is compounding at a faster
+        // rate than what the host reference can support. A large tolerance is then required
+        const auto rtol = 1e-2;
         const auto atol = 1e-1;
-        std::cout << "RTOL=" << rtol << " ; ATOL=" << atol << std::endl;
+
         // Transfer data from device and check error for each operation
         std::vector<YDataType> h_y_tmp(output_number_elements * number_operations);
         d_y_mem.FromDevice(h_y_tmp.data());
@@ -190,6 +195,7 @@ class TestCkTileMultiReduceMultiblock : public ::testing::Test
             std::memcpy(h_ys.get(ck_tile::number<i>{}).data(),
                         h_y_tmp.data() + i * output_number_elements,
                         output_number_elements * sizeof(YDataType));
+            std::cout << "Checking errors for operation: " << i << std::endl;
             result &= ck_tile::check_err(h_ys.get(ck_tile::number<i>{}),
                                          h_ys_ref.get(ck_tile::number<i>{}),
                                          "Error: Incorrect reduce results!",
@@ -346,60 +352,3 @@ class TestCkTileMultiReduceMultiblock : public ::testing::Test
                           reduce_dims);
     }
 };
-
-// struct SquareDivide
-// {
-//     float divisor;
-//     __host__ __device__
-
-//         __host__ __device__
-//         SquareDivide()
-//         : divisor(1.0f)
-//     {
-//     }
-
-//     SquareDivide(float d) : divisor(d) {}
-
-//     template <typename T>
-//     __host__ __device__ void operator()(T& x) const
-//     {
-//         x = (x * x) / divisor;
-//     }
-// };
-
-// struct Square
-// {
-//     template <typename T>
-//     __host__ __device__ void operator()(T& x) const
-//     {
-//         x = (x * x);
-//     }
-// };
-
-// struct Divide
-// {
-//     float divisor;
-
-//     __host__ __device__
-//         Divide()
-//         : divisor(1.0f)
-//     {
-//     }
-
-//     Divide(float d) : divisor(d) {} // TODO: template parameter
-
-//     template <typename T>
-//     __host__ __device__ void operator()(T& x) const
-//     {
-//         x = x / divisor;
-//     }
-// };
-
-// struct PassThrough
-// {
-//     template <typename T>
-//     __host__ __device__ void operator()(T&) const
-//     {
-//     }
-// };
-

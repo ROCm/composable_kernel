@@ -1,18 +1,9 @@
 import argparse
-from dataclasses import asdict
 from pathlib import Path
 
 from reduce_config import ReduceConfig
-from reduce_parameter import get_parameter_combinations, ParametersBlockwise
+from reduce_parameter import get_parameter_combinations, TYPE_MAP
 
-from string import Template
-
-# from commons.validation_utils import (
-#     is_tile_config_valid,
-#     is_trait_combination_valid,
-#     get_dtype_string,
-#     get_abc_layouts,
-# )
 
 class MultiReduceBase:
     def __init__(self, working_path, gpu_target, datatype, config_json=None):
@@ -22,7 +13,10 @@ class MultiReduceBase:
         self.config = ReduceConfig(config_json) if config_json else None
         self.name = "multiops_base"
 
-        self.signature_test = {3:"Test3D_KeepDim0_ReduceDim12", 4: "Test4D_KeepDim01_ReduceDim23"}
+        self.signature_test = {
+            3: "Test3D_KeepDim0_ReduceDim12",
+            4: "Test4D_KeepDim01_ReduceDim23",
+        }
         self.header = "test_multi_reduce2d_multiblock_impl.hpp"
         self.test_type = "TestCkTileMultiReduce2D"
 
@@ -32,25 +26,24 @@ class MultiReduceBase:
 
         instances = []
         for params in get_parameter_combinations(self.config.config_dict):
-            
             instance = self._create_instance(params)
             instances.append((instance, params))
-        return instances  # TODO: write these instance somewhere?
+        return instances
 
     def _create_instance(self, parameters):
-
         generated_test = self._get_test(parameters)
 
         return generated_test
 
-
     def do_list_blobs(self):
-        # instances = self._generate_instances(template_path, "multiblock")
-        # for instance, params in instances:
-        # for params in self.config.get_parameter_combinations():
-        #     print(f"{self.name}_{params}")  # Or handle the instance code as needed
-        with open(self.working_path / Path(f"reduce_{self.name}_blobs_list.txt"), "w") as f:
-            combos_str = [f"{self.name}_{params}" for params in self.config.get_parameter_combinations()]
+
+        with open(
+            self.working_path / Path(f"reduce_{self.name}_blobs_list.txt"), "w"
+        ) as f:
+            combos_str = [
+                f"{self.name}_{params}"
+                for params in get_parameter_combinations(self.config.config_dict)
+            ]
             f.write("\n".join(combos_str))
             f.write("\n")
 
@@ -66,8 +59,10 @@ class MultiReduceBase:
         signature = self.signature_test.get(dimension, None)
 
         if not signature:
-            raise ValueError(f"No test signature found for input shape dimension: {dimension}")
-        
+            raise ValueError(
+                f"No test signature found for input shape dimension: {dimension}"
+            )
+
         shape_str = [str(i) for i in params.input_shape]
         input_shape_arg_str = ",".join(shape_str)
         input_shape_str = "x".join(shape_str)
@@ -80,9 +75,9 @@ using Shape_WarpTile   = ck_tile::sequence<{params.warp_m}, {params.warp_n}>;
 using Shape_ThreadTile = ck_tile::sequence<{params.thread_tile_m}, {params.thread_tile_n}>;
 
 using TestConfig =
-    std::tuple<ck_tile::half_t, // TODO
+    std::tuple<{TYPE_MAP[self.datatype]},
                float,
-               ck_tile::half_t, // TODO
+               {TYPE_MAP[self.datatype]},
                ck_tile::tuple<ck_tile::ReduceOp::Add, ck_tile::ReduceOp::Add>, // Intra block reductions
                ck_tile::tuple<ck_tile::element_wise::PassThrough, ck_tile::element_wise::UnarySquare>, // Elementwise ops
                ck_tile::tuple<ck_tile::element_wise::PassThrough, ck_tile::element_wise::UnaryDivide>, // Accumulator Elementiwise ops, intra block
@@ -104,10 +99,11 @@ TYPED_TEST({self.test_type}, {signature}_{input_shape_str})
 
         return t
 
+
 class MultiReduceThreadwiseKernelBuilder(MultiReduceBase):
     def __init__(self, working_path, gpu_target, datatype, config_json=None):
         super().__init__(working_path, gpu_target, datatype, config_json)
-        
+
         # self.working_path = Path(working_path)
         # self.gpu_target = gpu_target
         # self.datatype = datatype
@@ -116,6 +112,7 @@ class MultiReduceThreadwiseKernelBuilder(MultiReduceBase):
 
         self.header = "test_multi_reduce2d_threadwise_impl.hpp"
         self.test_type = "TestCkTileMultiReduceThreadwise"
+
 
 class MultiReduceMultiBlockKernelBuilder(MultiReduceBase):
     def __init__(self, working_path, gpu_target, datatype, config_json=None):
@@ -132,13 +129,14 @@ class MultiReduceMultiBlockKernelBuilder(MultiReduceBase):
         self.header = "test_multi_reduce2d_multiblock_impl.hpp"
         self.test_type = "TestCkTileMultiReduceMultiblock"
 
+
 #     def _generate_instances(self):
 #         if not self.config:
 #             raise ValueError("Configuration not provided.")
 
 #         instances = []
 #         for params in self.config.get_parameter_combinations():
-            
+
 #             instance = self._create_instance(params)
 #             instances.append((instance, params))
 #         return instances  # TODO: write these instance somewhere?
@@ -173,7 +171,7 @@ class MultiReduceMultiBlockKernelBuilder(MultiReduceBase):
 
 #         if not signature:
 #             raise ValueError(f"No test signature found for input shape dimension: {dimension}")
-        
+
 #         shape_str = [str(i) for i in params.input_shape]
 #         input_shape_arg_str = ",".join(shape_str)
 #         input_shape_str = "x".join(shape_str)
@@ -209,15 +207,10 @@ class MultiReduceMultiBlockKernelBuilder(MultiReduceBase):
 #         return t
 
 
-
 def main(args):
     variants = {
-        "multiops_threadwise": {
-            "class": MultiReduceThreadwiseKernelBuilder
-        },
-        "multiops_multiblock": {
-            "class": MultiReduceMultiBlockKernelBuilder
-        }
+        "multiops_threadwise": {"class": MultiReduceThreadwiseKernelBuilder},
+        "multiops_multiblock": {"class": MultiReduceMultiBlockKernelBuilder},
     }
     if args.variant and not (args.list_blobs or args.gen_blobs):
         raise ValueError("Please provide a Reduction Kernel variant")

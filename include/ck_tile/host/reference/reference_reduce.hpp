@@ -118,18 +118,16 @@ template <typename XDataType,
           typename KeptDim, // Expected type: ck_tile::sequence<...> containing dimension indices to
                             // keep
           typename ReduceDims, // Expected type: ck_tile::sequence<...> containing dimension indices
-                              // to reduce
+                               // to reduce
           typename ElementWiseOps,
-          typename AccElementWiseOps
-          >
+          typename AccElementWiseOps>
 CK_TILE_HOST void reference_multiple_reduce(const HostTensor<XDataType>& x_tensor,
                                             YRefTuple& y_tensor_tuple,
                                             ReduceOps reduce_ops,
                                             KeptDim kept_dim,
                                             ReduceDims reduce_dims,
-                                            [[maybe_unused]]ElementWiseOps elementwise_ops,
-                                            [[maybe_unused]]AccElementWiseOps accumulator_ops
-                                        )
+                                            ElementWiseOps elementwise_ops,
+                                            AccElementWiseOps accumulator_ops)
 {
     const auto& x_lengths = x_tensor.mDesc.get_lengths();
 
@@ -189,7 +187,7 @@ CK_TILE_HOST void reference_multiple_reduce(const HostTensor<XDataType>& x_tenso
             static_for<0, reduce_ops.size(), 1>{}([&](auto i) {
                 // Apply element-wise operation before reduction
                 elementwise_ops.at(i)(v_a, v_a);
-                
+
                 v_acc_tuple.template at<i>() =
                     reduce_ops.template at<i>()(v_acc_tuple.template at<i>(), v_a);
             });
@@ -223,21 +221,20 @@ template <typename XDataType,
           typename KeptDim, // Expected type: ck_tile::sequence<...> containing dimension indices to
                             // keep
           typename ReduceDims, // Expected type: ck_tile::sequence<...> containing dimension indices
-                              // to reduce
+                               // to reduce
           typename ElementWiseOps,
           typename AccElementWiseOps,
-          typename InterBlockReduceOps
-          >
-CK_TILE_HOST void reference_multiple_reduce_multiblock(const HostTensor<XDataType>& x_tensor,
-                                            YRefTuple& y_tensor_tuple,
-                                            ReduceOps reduce_ops,
-                                            KeptDim kept_dim,
-                                            ReduceDims reduce_dims,
-                                            [[maybe_unused]]ElementWiseOps elementwise_ops,
-                                            [[maybe_unused]]AccElementWiseOps accumulator_ops,
-                                            [[maybe_unused]]InterBlockReduceOps inter_block_reduce_ops,
-                                            ck_tile::index_t num_blocks
-                                        )
+          typename InterBlockReduceOps>
+CK_TILE_HOST void
+reference_multiple_reduce_multiblock(const HostTensor<XDataType>& x_tensor,
+                                     YRefTuple& y_tensor_tuple,
+                                     ReduceOps reduce_ops,
+                                     KeptDim kept_dim,
+                                     ReduceDims reduce_dims,
+                                     ElementWiseOps elementwise_ops,
+                                     AccElementWiseOps accumulator_ops,
+                                     InterBlockReduceOps inter_block_reduce_ops,
+                                     ck_tile::index_t num_blocks)
 {
     const auto& x_lengths = x_tensor.mDesc.get_lengths();
 
@@ -256,8 +253,8 @@ CK_TILE_HOST void reference_multiple_reduce_multiblock(const HostTensor<XDataTyp
         auto& y_tensor = y_tensor_tuple.template at<i>();
         for(auto& val : y_tensor.mData)
         {
-            val = type_convert<YDataType>(
-                inter_block_reduce_ops.template at<i>().template GetIdentityValue<ComputeDataType>());
+            val = inter_block_reduce_ops.template at<i>()
+                        .template GetIdentityValue<YDataType>();
         }
     });
 
@@ -277,8 +274,7 @@ CK_TILE_HOST void reference_multiple_reduce_multiblock(const HostTensor<XDataTyp
         std::vector<std::size_t> y_indices(kept_dim.size());
         static_for<0, kept_dim.size(), 1>{}([&](auto i) { y_indices[i] = kept_indices[i]; });
 
-        const auto max_element_per_block =
-            (total_reduce_elements + num_blocks - 1) / num_blocks;
+        const auto max_element_per_block = (total_reduce_elements + num_blocks - 1) / num_blocks;
 
         for(index_t block_id = 0; block_id < num_blocks; ++block_id)
         {
@@ -335,7 +331,7 @@ CK_TILE_HOST void reference_multiple_reduce_multiblock(const HostTensor<XDataTyp
                 // Update the output tensor with the partial result from this block
                 auto& y_tensor = y_tensor_tuple.template at<i>();
                 auto& y_val    = y_tensor(y_indices);
-                y_val = inter_block_reduce_ops.template at<i>()(
+                y_val          = inter_block_reduce_ops.template at<i>()(
                     y_val, type_convert<YDataType>(v_acc_tuple.template at<i>()));
             });
         }

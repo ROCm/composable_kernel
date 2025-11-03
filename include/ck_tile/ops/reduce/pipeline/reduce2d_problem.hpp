@@ -24,25 +24,4 @@ struct Reduce2dProblem
     static constexpr bool kNeedCrossWarpSync = BlockShape::WarpPerBlock_N > 1;
 };
 
-template <typename XDataType_,
-          typename ComputeDataType_,
-          typename YDataType_,
-          typename BlockShape_,
-          typename ReduceOps_,
-          typename ElementwiseOps_,
-          typename AccumulatorOps_,
-          typename InterBlockReduceOps_>
-struct Reduce2dMultiProblem: public Reduce2dProblem<XDataType_,
-                                                  ComputeDataType_,
-                                                  YDataType_,
-                                                  BlockShape_,
-                                                  ReduceOps_
-                                                  >
-{
-
-    using ElementwiseOps      = ElementwiseOps_;
-    using AccumulatorOps      = AccumulatorOps_;
-    using InterBlockReduceOps = InterBlockReduceOps_;
-};
-
 } // namespace ck_tile

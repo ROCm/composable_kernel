@@ -1,10 +1,9 @@
-cmake_minimum_required(VERSION 4.2)
+# cmake_minimum_required(VERSION 4.2)
 
-enable_testing()
+# enable_testing()
 
 set(MULTI_REDUCE_DATATYPE "fp16" CACHE STRING "List of datatypes Multi Reduce (semicolon-separated)")
 set(MULTI_REDUCE_VARIANTS "multiops_multiblock;multiops_threadwise" CACHE STRING "List of variants for Multi Reduce (semicolon-separated)")
-set(MULTI_REDUCE_FUNCTIONS "add"  CACHE STRING "Reduction functions (elementwise ops, intrablock reduce, accumulator ops, interblock reduce)")
 
 function(build_multi_reduce_for_datatype datatype variant)
     # Filter GPU targets to only gfx942, and gfx950
@@ -31,7 +30,7 @@ function(build_multi_reduce_for_datatype datatype variant)
 
     # Comment this if-else block when using user_provided_config
     if(variant IN_LIST VALID_VARIANTS)
-        set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_multi_reduce_multiblock_config.json")
+        set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/default_multi_reduce_config.json")
     else()
         # set(json_blob "${CMAKE_CURRENT_LIST_DIR}/configs/custom_ci_config.json")
         message(WARNING "Unknown Multi Reduce variant: ${variant}.")
@@ -49,7 +48,7 @@ function(build_multi_reduce_for_datatype datatype variant)
                 --variant ${variant}
                 --config_json ${json_blob}
                 --list_blobs
-                --gpu_target ${GPU_TARGETS}
+                --gpu_target "${GPU_TARGETS}"
         RESULT_VARIABLE ret
     )
     if(NOT ret EQUAL 0)
@@ -57,7 +56,6 @@ function(build_multi_reduce_for_datatype datatype variant)
     endif()
 
     file(STRINGS "${working_path}/reduce_${variant}_blobs_list.txt" codegen_blobs)
-    # file(STRINGS "${working_path}/gemm_multi_d_instance_blobs_range.txt" codegen_blobs_range)
     
     # Generate the blobs
     execute_process(
@@ -67,7 +65,7 @@ function(build_multi_reduce_for_datatype datatype variant)
                 --config_json "${json_blob}"
                 --variant "${variant}"
                 --gen_blobs
-                --gpu_target ${GPU_TARGETS}
+                --gpu_target "${GPU_TARGETS}"
         RESULT_VARIABLE ret
     )
     if(NOT ret EQUAL 0)
@@ -96,7 +94,7 @@ function(build_multi_reduce_for_datatype datatype variant)
         add_test(NAME ${test_target} COMMAND ${test_target})
         set_tests_properties(${test_target} PROPERTIES LABELS "multi_reduce")
     endforeach()
-    # add_custom_target(test_reduce_${variant}_${datatype} DEPENDS ${codegen_blobs})
+    add_custom_target(test_reduce_${variant}_${datatype} DEPENDS ${codegen_blobs})
 
     # # Generating a single binary from all the tests (debug-only)
     # set(test_srcs)
@@ -115,103 +113,6 @@ function(build_multi_reduce_for_datatype datatype variant)
     #     target_link_libraries(${test_target} PRIVATE gtest gtest_main)
     # endif()
 
-    # set(intermediate_libs)
-    # list(LENGTH codegen_blobs codegen_blobs_len)
-
-    # foreach(blob IN LISTS codegen_blobs_range)
-    #     string(STRIP "${blob}" stripped_blob)
-    #     separate_arguments(spilit_blob UNIX_COMMAND "${stripped_blob}")
-    #     # Each line is: <trait_name> <first_index_inclusive> <last_index_exclusive>   
-    #     list(GET spilit_blob 0 name)
-    #     list(GET spilit_blob 1 first)
-    #     list(GET spilit_blob 2 last)
-    #     math(EXPR total_files "${last} - ${first}")
-    #     if(total_files EQUAL 0)
-    #         continue()        # nothing for this trait
-    #     endif()
-
-    #     # Object libraries (chunked) per trait
-    #     set(sub_intermediate_libs)
-    #     set(chunk_size 3)
-    #     math(EXPR num_chunks "( ${total_files} + ${chunk_size} - 1 ) / ${chunk_size}")
-    #     math(EXPR num_chunks_minus_1 "${num_chunks} - 1")
-        
-    #     foreach(i RANGE 0 ${num_chunks_minus_1})
-    #         math(EXPR start "${first} + ${i} * ${chunk_size} ")
-    #         math(EXPR end "${start} + ${chunk_size} - 1")
-
-    #         set(chunk_files)
-    #         foreach(j RANGE ${start} ${end})
-    #             if(j LESS ${last} AND j LESS ${codegen_blobs_len})
-    #                 list(GET codegen_blobs ${j} f)
-    #                 list(APPEND chunk_files "${f}")
-    #             endif()
-    #         endforeach()
-
-    #         #list(LENGTH chunk_files chunk_files_len)
-    #         #if(chunk_files_len AND chunk_files_len GREATER 1)
-    #         if(chunk_files)
-    #             set(sub_intermediate_lib_name "gemm_multi_d_objlib_${name}_${i}_${datatype}_${layout}")
-    #             add_library(${sub_intermediate_lib_name} OBJECT ${chunk_files})
-    #             set_property(TARGET ${sub_intermediate_lib_name} PROPERTY HIP_ARCHITECTURES ${GEMM_GPU_TARGETS})
-    #             list(APPEND sub_intermediate_libs ${sub_intermediate_lib_name})
-    #         endif()
-
-    #     endforeach()
-
-    #     # ------------------ Bundle the object libs into one static lib ---------
-    #     #list(LENGTH sub_intermediate_libs sub_intermediate_libs_len)
-    #     #if(sub_intermediate_libs AND sub_intermediate_libs_len GREATER 1)
-    #     if(sub_intermediate_libs)
-    #         set(intermediate_lib_name "gemm_multi_d_staticlib_${name}_${datatype}_${layout}")
-    #         # Collect the $<TARGET_OBJECTS:...> expressions
-            
-    #         set(obj_exprs)
-    #         foreach(objlib IN LISTS sub_intermediate_libs)
-    #             list(APPEND obj_exprs $<TARGET_OBJECTS:${objlib}>)
-    #         endforeach()
-            
-    #         add_library(${intermediate_lib_name} STATIC ${obj_exprs})
-    #         add_dependencies(${intermediate_lib_name} gemm_multi_d_gen_${datatype}_${layout})
-    #         set_property(TARGET ${intermediate_lib_name} PROPERTY HIP_ARCHITECTURES ${GEMM_GPU_TARGETS})
-    #         #foreach(objlib IN LISTS sub_intermediate_libs)
-    #         #    target_sources(${intermediate_lib_name} PRIVATE $<TARGET_OBJECTS:${objlib}>)
-    #         #endforeach()
-    #         list(APPEND intermediate_libs ${intermediate_lib_name})
-    #     endif()
-
-    # endforeach()
-    
-    # # Interface library for instances
-    # add_library(gemm_multi_d_template_instances_${datatype}_${layout} INTERFACE)
-    # add_dependencies(gemm_multi_d_template_instances_${datatype}_${layout} gemm_multi_d_gen_${datatype}_${layout})
-    # target_link_libraries(gemm_multi_d_template_instances_${datatype}_${layout} INTERFACE ${intermediate_libs})
-    # target_include_directories(gemm_multi_d_template_instances_${datatype}_${layout} INTERFACE
-    #     ${CMAKE_CURRENT_LIST_DIR}
-    #     "${working_path}"
-    # )
-    # set_target_properties(gemm_multi_d_template_instances_${datatype}_${layout} PROPERTIES LINKER_LANGUAGE CXX)
-    
-    # # Host API interface library
-    # add_library(gemm_multi_d_host_api_${datatype}_${layout} INTERFACE)
-    # target_link_libraries(gemm_multi_d_host_api_${datatype}_${layout} INTERFACE gemm_multi_d_template_instances_${datatype}_${layout})
-    # target_include_directories(gemm_multi_d_host_api_${datatype}_${layout} INTERFACE
-    #     ${CMAKE_CURRENT_LIST_DIR}
-    #     "${working_path}"
-    # )
-
-    
-
-    # # Executable per datatype
-    # set(exec_name "benchmark_gemm_multi_d_${datatype}_${layout}")
-    # add_executable(${exec_name} benchmark_gemm_multi_d.cpp)
-    # set_property(TARGET ${exec_name} PROPERTY HIP_ARCHITECTURES ${GEMM_GPU_TARGETS})
-    # target_link_libraries(${exec_name} PRIVATE gemm_multi_d_host_api_${datatype}_${layout})
-    # target_compile_options(${exec_name} PRIVATE
-    #     -Wno-undefined-func-template
-    #     -Wno-float-equal
-    #     --offload-compress
-    # )
 endfunction()
 
 # Process each datatype in isolation

@@ -448,8 +448,7 @@ struct PassThrough
     template <typename Y, typename X>
     CK_TILE_HOST_DEVICE void operator()(Y& y, const X& x) const
     {
-        // this->operator()(y, x, ck_tile::tuple<>{});
-        y = ck_tile::type_convert<raw_t<Y>>(x);;
+        y = ck_tile::type_convert<raw_t<Y>>(x);
     }
 
     template <typename E, typename C, typename... Ds>

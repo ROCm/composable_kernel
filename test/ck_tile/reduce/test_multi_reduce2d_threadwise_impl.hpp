@@ -19,17 +19,17 @@ template <typename Tuple>
 class TestCkTileMultiReduceThreadwise : public ::testing::Test
 {
     protected:
-    using XDataType       = std::tuple_element_t<0, Tuple>;
-    using ComputeDataType = std::tuple_element_t<1, Tuple>;
-    using YDataType       = std::tuple_element_t<2, Tuple>;
-    using ReduceOpsType   = std::tuple_element_t<3, Tuple>;
-    using ElementwiseOpsType = std::tuple_element_t<4, Tuple>;
-    using AccumulatorOpsType  = std::tuple_element_t<5, Tuple>;
+    using XDataType               = std::tuple_element_t<0, Tuple>;
+    using ComputeDataType         = std::tuple_element_t<1, Tuple>;
+    using YDataType               = std::tuple_element_t<2, Tuple>;
+    using ReduceOpsType           = std::tuple_element_t<3, Tuple>;
+    using ElementwiseOpsType      = std::tuple_element_t<4, Tuple>;
+    using AccumulatorOpsType      = std::tuple_element_t<5, Tuple>;
     using InterBlockReduceOpsType = std::tuple_element_t<6, Tuple>;
-    using BlockWarps_     = std::tuple_element_t<7, Tuple>;
-    using BlockTile_      = std::tuple_element_t<8, Tuple>;
-    using WarpTile_       = std::tuple_element_t<9, Tuple>;
-    using ThreadTile_     = std::tuple_element_t<10, Tuple>;
+    using BlockWarps_             = std::tuple_element_t<7, Tuple>;
+    using BlockTile_              = std::tuple_element_t<8, Tuple>;
+    using WarpTile_               = std::tuple_element_t<9, Tuple>;
+    using ThreadTile_             = std::tuple_element_t<10, Tuple>;
 
     using TestReduce2dShape =
         ck_tile::Reduce2dShape<BlockWarps_, BlockTile_, WarpTile_, ThreadTile_>;
@@ -45,22 +45,22 @@ class TestCkTileMultiReduceThreadwise : public ::testing::Test
                         ReduceDimSeq reduce_dims)
     {
         const auto number_operations = ReduceOpsType::size();
-        
+
         ck_tile::HostTensor<XDataType> h_x(input_shape, input_strides);
 
         auto h_ys = ck_tile::generate_tuple(
             [&output_shape, &output_strides](auto /*i*/) {
                 return ck_tile::HostTensor<YDataType>(output_shape, output_strides);
-            }, ck_tile::number<number_operations>{});
-        
+            },
+            ck_tile::number<number_operations>{});
+
         auto h_ys_ref = ck_tile::generate_tuple(
             [&output_shape, &output_strides](auto /*i*/) {
                 return ck_tile::HostTensor<YDataType>(output_shape, output_strides);
-            }, ck_tile::number<number_operations>{});
-            
+            },
+            ck_tile::number<number_operations>{});
 
         ck_tile::FillUniformDistribution<XDataType>{-5.f, 5.f}(h_x);
-
 
         ck_tile::static_for<0, number_operations, 1>{}([&](auto i) {
             h_ys.template at<i>().SetZero();
@@ -74,20 +74,24 @@ class TestCkTileMultiReduceThreadwise : public ::testing::Test
             return prod;
         }();
 
-        auto output_buffer_size = number_operations*h_ys.get(ck_tile::number<0>{}).get_element_space_size_in_bytes();
+        auto output_buffer_size =
+            number_operations * h_ys.get(ck_tile::number<0>{}).get_element_space_size_in_bytes();
         ck_tile::DeviceMem d_x_mem(h_x.get_element_space_size_in_bytes());
         ck_tile::DeviceMem d_y_mem(output_buffer_size);
 
         d_x_mem.ToDevice(h_x.data());
 
         // Problem and kernel setup
-        using Problem = ck_tile::
-            Reduce2dMultiProblem<XDataType, ComputeDataType, YDataType, TestReduce2dShape, ReduceOpsType, ElementwiseOpsType, AccumulatorOpsType, InterBlockReduceOpsType>;
+        using Problem = ck_tile::Reduce2dProblem<XDataType,
+                                                      ComputeDataType,
+                                                      YDataType,
+                                                      TestReduce2dShape,
+                                                      ReduceOpsType>;
 
         using Kernel = ck_tile::MultiReduceThreadWise<Problem>;
 
         // Launch configuration
-        const ck_tile::index_t kBlockSize  = Kernel::BlockSize();
+        const ck_tile::index_t kBlockSize      = Kernel::BlockSize();
         constexpr ck_tile::index_t kBlockPerCu = 1;
 
         ck_tile::index_t kGridSize =
@@ -129,13 +133,16 @@ class TestCkTileMultiReduceThreadwise : public ::testing::Test
                                               reduce_dims,
                                               output_number_elements,
                                               elementwise_ops,
-                                              accumulator_ops
-                                            ));
-
+                                              accumulator_ops));
 
         // Reference computation
-        ck_tile::reference_multiple_reduce<XDataType, ComputeDataType, YDataType>(
-            h_x, h_ys_ref, ReduceOpsType{}, kept_dims, reduce_dims, elementwise_ops, accumulator_ops);
+        ck_tile::reference_multiple_reduce<XDataType, ComputeDataType, YDataType>(h_x,
+                                                                                  h_ys_ref,
+                                                                                  ReduceOpsType{},
+                                                                                  kept_dims,
+                                                                                  reduce_dims,
+                                                                                  elementwise_ops,
+                                                                                  accumulator_ops);
 
         // Calculate proper error thresholds based on data types and number of accumulations
         // const auto rtol = ck_tile::get_relative_threshold<XDataType, YDataType, ComputeDataType>(
@@ -143,17 +150,26 @@ class TestCkTileMultiReduceThreadwise : public ::testing::Test
         // const auto atol = ck_tile::get_absolute_threshold<XDataType, YDataType, ComputeDataType>(
         //     5.0f, total_reduce_elements);
 
-        const auto rtol = 1e-3;
+
+        // Unfortunately due to the non-sequenciality, down-casting on the output buffer
+        // and further operations on this buffer, the error is compounding at a faster
+        // rate than what the host reference can support. A large tolerance is then required
+        const auto rtol = 1e-2;
         const auto atol = 1e-1;
-        std::cout << "RTOL=" << rtol << " ; ATOL=" << atol << std::endl;
 
         // Transfer data from device and check error for each operation
-        std::vector<YDataType> h_y_tmp(output_number_elements*number_operations);
+        std::vector<YDataType> h_y_tmp(output_number_elements * number_operations);
         d_y_mem.FromDevice(h_y_tmp.data());
         bool result = true;
         ck_tile::static_for<0, number_operations, 1>{}([&](auto i) {
-            std::memcpy(h_ys.get(ck_tile::number<i>{}).data(), h_y_tmp.data() + i * output_number_elements, output_number_elements * sizeof(YDataType));
-            result &= ck_tile::check_err(h_ys.get(ck_tile::number<i>{}), h_ys_ref.get(ck_tile::number<i>{}), "Error: Incorrect reduce results!", rtol, atol);
+            std::memcpy(h_ys.get(ck_tile::number<i>{}).data(),
+                        h_y_tmp.data() + i * output_number_elements,
+                        output_number_elements * sizeof(YDataType));
+            result &= ck_tile::check_err(h_ys.get(ck_tile::number<i>{}),
+                                         h_ys_ref.get(ck_tile::number<i>{}),
+                                         "Error: Incorrect reduce results!",
+                                         rtol,
+                                         atol);
         });
 
         EXPECT_TRUE(result);
@@ -305,88 +321,3 @@ class TestCkTileMultiReduceThreadwise : public ::testing::Test
                           reduce_dims);
     }
 };
-
-// struct SquareDivide
-// {
-//     float divisor;
-//     __host__ __device__
-
-//         __host__ __device__
-//         SquareDivide()
-//         : divisor(1.0f)
-//     {
-//     }
-
-//     SquareDivide(float d) : divisor(d) {}
-
-//     template <typename T>
-//     __host__ __device__ void operator()(T& x)
-//     {
-//         x = (x * x) / divisor;
-//     }
-// };
-
-// struct Square
-// {
-//     template <typename T>
-//     __host__ __device__ void operator()(T& x)
-//     {
-//         x = (x * x);
-//     }
-// };
-
-// struct Divide
-// {
-//     float divisor;
-
-//     __host__ __device__
-//         Divide()
-//         : divisor(1.0f)
-//     {
-//     }
-
-//     Divide(float d) : divisor(d) {} // TODO: template parameter
-
-//     template <typename T>
-//     __host__ __device__ void operator()(T& x)
-//     {
-//         x = x / divisor;
-//     }
-// };
-
-// struct PassThrough
-// {
-//     template <typename T>
-//     __host__ __device__ void operator()(T&) const
-//     {
-//     }
-// };
-
-// // Overload for PassThrough (no parameter)
-// inline PassThrough make_elementwise_op(ck_tile::index_t, PassThrough) { return PassThrough{}; }
-
-// // Overload for SquareDivide (needs parameter)
-// inline SquareDivide make_elementwise_op(ck_tile::index_t total_reduce_elements, SquareDivide)
-// {
-//     return SquareDivide{static_cast<float>(total_reduce_elements)};
-// }
-
-// // Overload for SquareDivide (needs parameter)
-// inline Divide make_elementwise_op(ck_tile::index_t total_reduce_elements, Divide)
-// {
-//     return Divide{static_cast<float>(total_reduce_elements)};
-// }
-
-// // Overload for Square (needs parameter)
-// inline Square make_elementwise_op(ck_tile::index_t, Square)
-// {
-//     return Square{};
-// }
-
-// template <typename... Ops>
-// auto make_elementwise_ops_tuple(ck_tile::index_t total_reduce_elements, ck_tile::tuple<Ops...>)
-// {
-//     return ck_tile::make_tuple(
-//         // Ops{total_reduce_elements}... // For ops that need the parameter
-//         make_elementwise_op(total_reduce_elements, Ops{})...);
-// }
