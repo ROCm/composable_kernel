@@ -3,6 +3,7 @@
 
 #include "gemm_utils.hpp"
 #include "run_gemm_example.inc"
+#include "ck_tile/ops/common.hpp"
 
 template <typename GemmConfig,
           typename ADataType,
@@ -16,7 +17,8 @@ template <typename GemmConfig,
           typename ELayout,
           typename CDEElementWise,
           ck_tile::StreamKReductionStrategy ReductionStrategy>
-std::tuple<float, int> gemm(const ck_tile::StreamKHostArgs& args, const ck_tile::stream_config& s)
+std::tuple<float, ck_tile::index_t> gemm(const ck_tile::StreamKHostArgs& args,
+                                         const ck_tile::stream_config& s)
 
 {
     using GemmShape = ck_tile::TileGemmShape<
@@ -42,7 +44,7 @@ std::tuple<float, int> gemm(const ck_tile::StreamKHostArgs& args, const ck_tile:
                                                                  GemmConfig::NumWaveGroups,
                                                                  GemmConfig::Preshuffle>;
 
-    const auto Run = [&](const auto memory_operation) -> std::tuple<float, int> {
+    const auto Run = [&](const auto memory_operation) -> std::tuple<float, ck_tile::index_t> {
         // We create the GEMM pipeline without specifying has_hot_loop or tail_num.
         // This is because num_loop can vary (a) per WG and (b) per iteration of the Stream-K
         // while loop. Instead, has_hot_loop and tail_num are determined in the Stream-K
@@ -54,7 +56,7 @@ std::tuple<float, int> gemm(const ck_tile::StreamKHostArgs& args, const ck_tile:
                                                                            GemmUniversalTraits,
                                                                            GemmConfig::Scheduler>;
 
-        using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<UniversalGemmProblem>;
+        using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>;
 
         using GemmEpilogue = ck_tile::CShuffleEpilogue<
             ck_tile::CShuffleEpilogueProblem<ADataType,
@@ -113,7 +115,13 @@ std::tuple<float, int> gemm(const ck_tile::StreamKHostArgs& args, const ck_tile:
             preprocess,
             ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 
-        int num_wgs_per_tile = estimate_num_wgs_per_tile<ReductionStrategy>(kargs.tile_partitioner);
+        ck_tile::index_t num_wgs_per_tile = ck_tile::estimate_num_wgs_per_tile<ReductionStrategy>(
+            kargs.tile_partitioner.sk_num_blocks,
+            // k_iters_per_big_block could be 1, which indicates that all Stream-K workgroups are
+            // big and each does one iteration. Thus, we ensure the value passed in is at least 1 to
+            // avoid division by zero errors.
+            ck_tile::max(kargs.tile_partitioner.k_iters_per_big_block - 1, 1u),
+            kargs.tile_partitioner.k_iters_per_tile.get());
 
         return std::tuple{ave_time, num_wgs_per_tile};
     };
@@ -177,6 +185,18 @@ int run_gemm_example(int argc, char* argv[])
     {
         using TypeConfig = StreamKGemmTypeConfig<ck_tile::half_t>;
         return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>, TypeConfig>(
+            a_layout, b_layout, argc, argv);
+    }
+    else if(data_type == "fp8")
+    {
+        using TypeConfig = StreamKGemmTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t>;
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>, TypeConfig>(
+            a_layout, b_layout, argc, argv);
+    }
+    else if(data_type == "bf8")
+    {
+        using TypeConfig = StreamKGemmTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t>;
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>, TypeConfig>(
             a_layout, b_layout, argc, argv);
     }
     else

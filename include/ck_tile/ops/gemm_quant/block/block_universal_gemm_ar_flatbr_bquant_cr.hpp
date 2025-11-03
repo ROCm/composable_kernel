@@ -10,7 +10,7 @@ namespace ck_tile {
 
 // A is block window on shared memory
 // BQ (scale tensor) is block distributed tensor.
-// Consecutive kQuantGroupSize elements of B are quantized with a separate scale.
+// Consecutive QuantGroupSize elements of B are quantized with a separate scale.
 // B is block window on block distributed tensor.
 // C is block distributed tensor
 template <typename Problem_, typename BlockPolicy_>
@@ -24,6 +24,10 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
     using CDataType       = remove_cvref_t<typename Problem::CDataType>;
     using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
     using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>; // TileFlatmmShape
+    using QuantGroupSize  = remove_cvref_t<typename Problem::QuantGroupSize>;
+
+    static_assert(QuantGroupSize::kM == 1, "only N/K blocks for BQuant preshuffle kernel!");
+    static_assert(QuantGroupSize::kN == 1, "no block for N supported yet!");
 
     static constexpr auto I0   = number<0>();
     static constexpr auto I1   = number<1>();
@@ -47,8 +51,7 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t kQuantGroupSize = Problem::kQuantGroupSize;
-    static constexpr index_t kBlockSize      = Problem::kBlockSize;
+    static constexpr index_t kBlockSize = Problem::kBlockSize;
 
     static constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
     static constexpr index_t NIterPerWarp =
@@ -58,13 +61,12 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
     static constexpr auto MIter_2nd_last =
         (MIterPerWarp >= 2) ? MIterPerWarp - 2 : MIterPerWarp - 1;
 
-    static constexpr index_t KPerBlockBQ = KPerBlock / kQuantGroupSize;
+    static constexpr index_t KPerBlockBQ = KPerBlock / QuantGroupSize::kK;
 
     static constexpr index_t QScalesPerBlockRow =
-        (KPerBlock + kQuantGroupSize - 1) / kQuantGroupSize;
-
+        integer_divide_ceil(KPerBlock, QuantGroupSize::kK);
     static constexpr index_t QScalesPerWarpGemmRow =
-        (WG::kK + kQuantGroupSize - 1) / kQuantGroupSize;
+        integer_divide_ceil(WG::kK, QuantGroupSize::kK);
 
     static constexpr index_t KIterPerQScale = KIterPerWarp / QScalesPerBlockRow;
     static constexpr index_t DsReadPreload  = 2; // default 2, preload 2 ds read
