@@ -1,4 +1,4 @@
-#include "utils/ckb_conv_test_common.hpp"
+#include "utils/ckb_conv_test_configs.hpp"
 
 namespace {
     

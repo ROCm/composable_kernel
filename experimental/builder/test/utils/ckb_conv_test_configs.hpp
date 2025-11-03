@@ -135,7 +135,7 @@ constexpr BlockGemm BlockGemmDesc_v5_intrawave = {.pipeline_version = BlockGemmP
 
 // Common test implementation
 template <typename Builder>
-constexpr void run_test()
+constexpr void run_test(std::vector<std::function<void(const std::string&)>> checks = {})
 {
     auto instance = typename Builder::Instance{};
 
@@ -145,6 +145,11 @@ constexpr void run_test()
 
     const auto invoker_ptr = instance.MakeInvokerPointer();
     EXPECT_NE(invoker_ptr, nullptr);
+
+    for (const auto& check : checks)
+    {
+        check(kernel_string);
+    }
 }
 
 } // namespace ck_tile::builder::test_utils
