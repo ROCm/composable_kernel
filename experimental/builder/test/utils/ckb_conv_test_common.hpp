@@ -1,0 +1,35 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
+#pragma once
+
+#include <gtest/gtest.h>
+#include "impl/conv_algorithm_types.hpp"
+#include "impl/conv_signature_types.hpp"
+#include "ck_tile/builder/conv_builder.hpp"
+
+namespace ck_tile::builder::test_utils {
+
+using namespace ck_tile::builder;
+using namespace test;
+
+// Common test implementation
+template <typename Builder>
+constexpr void run_test(std::vector<std::function<void(const std::string&)>> checks = {})
+{
+    auto instance = typename Builder::Instance{};
+
+    const auto kernel_string = instance.GetTypeString();
+    std::cout << "Generated kernel: " << kernel_string << std::endl;
+    EXPECT_GT(kernel_string.size(), 0);
+
+    const auto invoker_ptr = instance.MakeInvokerPointer();
+    EXPECT_NE(invoker_ptr, nullptr);
+
+    for (const auto& check : checks)
+    {
+        check(kernel_string);
+    }
+}
+
+} // namespace ck_tile::builder::test_utils

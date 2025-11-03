@@ -3,7 +3,6 @@
 
 #pragma once
 
-#include <gtest/gtest.h>
 #include "impl/conv_algorithm_types.hpp"
 #include "impl/conv_signature_types.hpp"
 #include "ck_tile/builder/conv_builder.hpp"
@@ -132,24 +131,5 @@ constexpr BlockGemm BlockGemmDesc_v4_intrawave = {.pipeline_version = BlockGemmP
 
 constexpr BlockGemm BlockGemmDesc_v5_intrawave = {.pipeline_version = BlockGemmPipelineVersion::V5,
                                                 .scheduler        = BlockGemmPipelineScheduler::INTRAWAVE};
-
-// Common test implementation
-template <typename Builder>
-constexpr void run_test(std::vector<std::function<void(const std::string&)>> checks = {})
-{
-    auto instance = typename Builder::Instance{};
-
-    const auto kernel_string = instance.GetTypeString();
-    std::cout << "Generated kernel: " << kernel_string << std::endl;
-    EXPECT_GT(kernel_string.size(), 0);
-
-    const auto invoker_ptr = instance.MakeInvokerPointer();
-    EXPECT_NE(invoker_ptr, nullptr);
-
-    for (const auto& check : checks)
-    {
-        check(kernel_string);
-    }
-}
 
 } // namespace ck_tile::builder::test_utils
