@@ -180,7 +180,6 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                       "wrong!");
 
         // K tile in LDS
-
         KDataType* k_lds_ptr = static_cast<KDataType*>(static_cast<void*>(
             static_cast<char*>(smem_ptr) + Policy::template GetSmemSizeQ<Problem>()));
         auto k_lds           = make_tensor_view<address_space_enum::lds>(
