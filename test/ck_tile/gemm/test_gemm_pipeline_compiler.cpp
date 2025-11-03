@@ -129,21 +129,11 @@ using CompV3WmmaTestTypes = ::testing::Types<
                CompV3>>;
 
 // CompV4 Pipeline Types
-using CompV4TestTypes = ::testing::Types<std::tuple<Col,
-                                                    Col,
-                                                    Row,
-                                                    F16,
-                                                    F16,
-                                                    F32,
-                                                    F16,
-                                                    I256,
-                                                    I256,
-                                                    I32,
-                                                    I32,
-                                                    I32,
-                                                    I16,
-                                                    Intrawave,
-                                                    CompV4>>;
+using CompV4TestTypes = ::testing::Types<
+    std::tuple<Col, Col, Row, F8, F8, F32, F16, I256, I256, I32, I32, I32, I16, Intrawave, CompV4>,
+    std::tuple<Row, Col, Row, F8, BF8, F32, F16, I256, I256, I32, I32, I32, I16, Intrawave, CompV4>,
+    std::
+        tuple<Col, Col, Row, F8, BF8, F32, F16, I256, I256, I32, I32, I32, I16, Intrawave, CompV4>>;
 
 // CompV4 Pipeline WMMA Types
 using CompV4WmmaTestTypes = ::testing::Types<
@@ -179,8 +169,8 @@ using PersistentTestTypes = ::testing::Types<
                F16,
                F32,
                F16,
-               I256,
-               I256,
+               I64,
+               I64,
                I64,
                I32,
                I32,
@@ -188,6 +178,7 @@ using PersistentTestTypes = ::testing::Types<
                Intrawave,
                CompV3,
                Persistent>,
+
     std::tuple<Row,
                Col,
                Row,
@@ -195,8 +186,8 @@ using PersistentTestTypes = ::testing::Types<
                F16,
                F32,
                F16,
-               I256,
-               I256,
+               I64,
+               I64,
                I64,
                I32,
                I32,
@@ -247,10 +238,10 @@ TYPED_TEST_SUITE(TestGemmMem, MemTestTypes);
 TYPED_TEST_SUITE(TestGemmMemWmma, MemWmmaTestTypes);
 TYPED_TEST_SUITE(TestGemmCompV3, CompV3TestTypes);
 TYPED_TEST_SUITE(TestGemmCompV3Wmma, CompV3WmmaTestTypes);
-// TYPED_TEST_SUITE(TestGemmCompV4, CompV4TestTypes);
+TYPED_TEST_SUITE(TestGemmCompV4, CompV4TestTypes);
 TYPED_TEST_SUITE(TestGemmCompV4Wmma, CompV4WmmaTestTypes);
-// TYPED_TEST_SUITE(TestGemmCompV6, CompV6TestTypes);
-// TYPED_TEST_SUITE(TestGemmPersistent, PersistentTestTypes);
+TYPED_TEST_SUITE(TestGemmCompV6, CompV6TestTypes);
+TYPED_TEST_SUITE(TestGemmPersistent, PersistentTestTypes);
 TYPED_TEST_SUITE(TestGemmPersistentWmma, PersistentWmmaTestTypes);
 
 // ============================================================================
