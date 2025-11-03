@@ -18,7 +18,7 @@ struct NRepetitions2DEpilogue
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
 
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return 0; }
+    CK_TILE_DEVICE static constexpr index_t GetSmemSize() { return 0; }
 
     template <typename ODramWindowTmp,
               typename OAccTile,
@@ -71,7 +71,7 @@ struct MRepetitions2DEpilogue
     static constexpr bool kPadM = Problem::kPadM;
     static constexpr bool kPadN = Problem::kPadN;
 
-    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize() { return 0; }
+    CK_TILE_DEVICE static constexpr index_t GetSmemSize() { return 0; }
 
     template <typename ODramWindowTmp,
               typename OAccTile,

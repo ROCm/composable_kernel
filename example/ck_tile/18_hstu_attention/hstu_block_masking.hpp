@@ -69,7 +69,7 @@ struct HstuBlockMaskWithLocal
     // use this if need loop over X axis tile by tile (eg. seqlen_k loop-over)
     // i_y is the start offset of the current tile along the seqlen_q dimension
     template <index_t YTile, index_t XTile>
-    CK_TILE_HOST_DEVICE constexpr auto
+    CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
     {
         // handle two special cases first
@@ -339,7 +339,7 @@ struct HstuBlockMaskNoLocal
     // use this if need loop over X axis tile by tile (eg. seqlen_k loop-over)
     // i_y is the start offset of the current tile along the seqlen_q dimension
     template <index_t YTile, index_t XTile>
-    CK_TILE_HOST_DEVICE constexpr auto
+    CK_TILE_DEVICE constexpr auto
     GetTileRangeAlongX(index_t i_y, number<YTile>, number<XTile>) const
     {
         if constexpr(!IsMasking)
@@ -368,7 +368,7 @@ struct HstuBlockMaskNoLocal
         };
     }
 
-    CK_TILE_HOST bool IsTokenPairInsideMask(int row, int col)
+    CK_TILE_HOST_DEVICE bool IsTokenPairInsideMask(int row, int col)
     {
         int row_id;
         int col_id;
@@ -403,48 +403,6 @@ struct HstuBlockMaskNoLocal
         else
         {
             return (row_id != col_id) || (row == col);
-        };
-    };
-
-    CK_TILE_DEVICE bool IsTokenPairInsideMask(int row, int col)
-    {
-        int row_id;
-        int col_id;
-
-        if(contextual_seqlen > 0)
-        {
-            // row_id/col_id is clamped from physical row/col according to contextual_seqlen and
-            // max_uih_len
-            row_id = max(row - contextual_seqlen + 1, 0);
-            col_id = max(col - contextual_seqlen + 1, 0);
-
-            row_id = min(row_id, max_row_id);
-            col_id = min(col_id, max_col_id);
-
-            if(row_id == 0 && col_id < max_col_id)
-                return true;
-        }
-        else
-        {
-            // row_id/col_id is clamped from physical row/col according to contextual_seqlen and
-            // max_uih_len
-            row_id = min(row, max_row_id);
-            col_id = min(col, max_col_id);
-        };
-
-        // use row_id/col_id to check the dist between two q/k token pair, token pairs on the
-        // diagonal line are always considerred
-        if constexpr(IsMasking)
-        {
-            bool res = ((row_id > col_id) || (row == col));
-
-            return res;
-        }
-        else
-        {
-            bool res = ((row_id != col_id) || (row == col));
-
-            return res;
         };
     };
 

@@ -104,7 +104,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
 
     using DropoutType = std::conditional_t<kHasDropout, BlockDropout, NullBlockDropout>;
 
-    CK_TILE_HOST_DEVICE static constexpr ck_tile::index_t GetSmemSize()
+    CK_TILE_DEVICE static constexpr ck_tile::index_t GetSmemSize()
     {
         return Policy::template GetSmemSize<Problem>();
     }
@@ -121,7 +121,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
               typename PComputeElementFunction,
               typename OAccElementFunction,
               typename HstuMask>
-    CK_TILE_HOST_DEVICE auto
+    CK_TILE_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*kSubQKHeaddim tile
                const QElementFunction& q_element_func,
                const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*kSubQKHeaddim tile
@@ -516,7 +516,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
               typename HstuMask>
-    CK_TILE_HOST_DEVICE auto
+    CK_TILE_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp,       // M0*kSubQKHeaddim tile
                const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*KSubQKHeaddim tile
                const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
