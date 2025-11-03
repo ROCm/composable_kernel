@@ -313,11 +313,7 @@ bool run_grouped_gemm_example(int argc, char* argv[])
     {
         problem_size.Ms.push_back(256 + 256 * i);
         problem_size.Ns.push_back(128 + 128 * i);
-        problem_size.Ks.push_back(64 + 64 * i);
-
-        // problem_size.Ms.push_back(128 + 128 * i);
-        // problem_size.Ns.push_back(128 + 128 * i);
-        // problem_size.Ks.push_back(32 + 32 * i);
+        problem_size.Ks.push_back(128 + 64 * i);
 
         problem_size.stride_As.push_back(problem_size.Ks[i]);
         problem_size.stride_Bs.push_back(problem_size.Ks[i]);

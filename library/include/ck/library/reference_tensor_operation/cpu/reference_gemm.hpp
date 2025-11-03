@@ -142,19 +142,8 @@ struct ReferenceGemm : public device::BaseOperator
                         arg.b_element_op_(v_b, arg.b_k_n_(k, n));
                     }
 
-                    if constexpr(is_same_v<ComputeTypeA, ComputeTypeB> &&
-                                 is_same_v<ComputeTypeA, ck::tf32_t>)
-                    { // only for tf32 now
-                        v_acc +=
-                            // ck::type_convert<AccDataType>(ck::type_convert<ComputeTypeA>(v_a)) *
-                            // ck::type_convert<AccDataType>(ck::type_convert<ComputeTypeB>(v_b));
-                            ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
-                    }
-                    else
-                    {
-                        v_acc +=
-                            ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
-                    }
+                    v_acc +=
+                        ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
                 }
 
                 CDataType v_c{0};

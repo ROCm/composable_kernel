@@ -307,31 +307,6 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                         const BBlockBuffer& b_block_buf,
                         CThreadBuffer& c_thread_buf) const
     {
-        // if(threadIdx.x == 0 && blockIdx.x == 0)
-        //     printf("%s\n\n", __PRETTY_FUNCTION__);
-        // if(threadIdx.x == 0 && blockIdx.x == 0)
-        //     printf("MPerBlock: %d, NPerBlock: %d, KPerBlock: %d, A_K0: %d, B_K0: %d, A_K1: %d, "
-        //            "B_K1: %d, MWaves: %d, NWaves: %d, WaveSize: %d, KPerThread: %d\n",
-        //            MPerBlock,
-        //            NPerBlock,
-        //            KPerBlock,
-        //            A_K0,
-        //            B_K0,
-        //            A_K1,
-        //            B_K1,
-        //            MWaves,
-        //            NWaves,
-        //            WaveSize,
-        //            KPerThread);
-        // printf("a thead size: %ld; b thead size: %ld\n",
-        //        a_thread_desc_.GetElementSpaceSize().value,
-        //        b_thread_desc_.GetElementSpaceSize().value);
-        // if(threadIdx.x == 0 && blockIdx.x == 0)
-        //     printf("a_block_buf: %d , %d, %d, %d \n", a_block_buf[0], a_block_buf[1],
-        //     a_block_buf[2], a_block_buf[3]);
-        // if(threadIdx.x == 0 && blockIdx.x == 0)
-        //     printf("b_block_buf: %d , %d, %d, %d \n", b_block_buf[0], b_block_buf[1],
-        //     b_block_buf[2], b_block_buf[3]);
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ElementDataTypeA>(
             a_thread_desc_.GetElementSpaceSize());
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ElementDataTypeB>(
@@ -354,17 +329,6 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                                    b_thread_desc_,
                                    make_tuple(I0, I0, I0, I0),
                                    b_thread_buf);
-
-                // if(threadIdx.x == 0 && blockIdx.x == 0)
-                //     printf("a thead: %d, %d, %d, %d; b thead: %d, %d, %d, %d\n",
-                //            a_thread_buf[I0],
-                //            a_thread_buf[I1],
-                //            a_thread_buf[I2],
-                //            a_thread_buf[I3],
-                //            b_thread_buf[I0],
-                //            b_thread_buf[I1],
-                //            b_thread_buf[I2],
-                //            b_thread_buf[I3]);
 
                 static_for<0, KPerThread, KPack>{}([&](auto k) {
                     vector_type<ElementDataTypeA, KPack> a_thread_vec;
@@ -639,14 +603,12 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 #endif // #if CK_EXPERIMENTAL_INTER_WAVE_SCHEDULING
 };
 
-// use bfx3 simulate tf32.
-// - in/out/acc are all float;
-// - one input is separated to 2 bf16 registers. -- TODO: layout should be changed.
-// - 3 xdlops gemm outputs are same, as accumulation of 3 xdlops gemm results.
-
-//  std::enable_if_t<is_same_v<FloatA, float> && is_same_v<FloatB, float> &&
-//          is_same_v<ComputeTypeA, tf32_t> && is_same_v<ComputeTypeB, tf32_t>,
-//      bool> = true
+/*
+ * @brief blockwise gemm xdlops with bf16x3 simulate tf32
+ * in/out/acc are all float;
+ * one input is separated to 2 bf16 registers.
+ * 3 xdlops gemm output regs are same, as accumulation of 3 xdlops gemm results.
+ */
 template <index_t BlockSize,
           typename FloatA,
           typename FloatB,

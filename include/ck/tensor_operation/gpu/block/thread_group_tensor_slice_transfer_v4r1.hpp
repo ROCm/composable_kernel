@@ -171,7 +171,6 @@ struct ThreadGroupTensorSliceTransfer_v4r1
     private:
     static constexpr auto thread_cluster_desc_ =
         make_cluster_descriptor(ThreadClusterLengths{}, ThreadClusterArrangeOrder{});
-    // A: <4, 64, 1> <1, 0, 2> -- > <64, 4, 1>
 
     using ThreadwiseTransfer =
         ThreadwiseTensorSliceTransfer_v3r1<decltype(thread_slice_lengths),

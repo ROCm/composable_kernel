@@ -279,7 +279,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                                                    Sequence<I0, I8, I12>,
                                                    Sequence<I0, I8, I12, I14>,
                                                    Sequence<I0>>;
-            // real load
             static_for<0, tuple_element_t<SrcScalarPerVector, VectorSizeLookupTable>::Size(), 1>{}(
                 [&](auto v_idx) {
                     constexpr auto VectorLoadSize =
@@ -522,8 +521,6 @@ struct ThreadwiseTensorSliceTransfer_v3r1
                              DstBuffer& dst_buf,
                              Number<ThreadScratchId> thread_scratch_id = Number<ThreadScratchId>{})
     {
-        // if(threadIdx.x == 0 && blockIdx.x == 0)
-        //     printf("%s\n\n", __PRETTY_FUNCTION__);
         // if there is transpose, it's done here
         // if there is oob check, it's done here
         // TODO move this elsewhere
