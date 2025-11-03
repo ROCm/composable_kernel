@@ -25,6 +25,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Added pooling kernel in CK_TILE
 * Added top-k sigmoid kernel in CK_TILE
 * Added the blockscale 2D support for CK_TILE GEMM.
+* Added reduce and multi reduction kernels
 
 ### Changed
 
