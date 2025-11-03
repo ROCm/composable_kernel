@@ -42,6 +42,10 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
     static constexpr bool kHasDropout = Problem::kHasDropout;
     static constexpr bool kHasCausal  = Problem::kHasCausal;
 
+    static_assert(Problem::kUseTrLoad == false, "Check failed!");
+
+    static constexpr bool kUseTrLoad = false;
+
     static constexpr bool kPadSeqLenQ   = Problem::Traits::kPadSeqLenQ;
     static constexpr bool kPadSeqLenK   = Problem::Traits::kPadSeqLenK;
     static constexpr bool kPadHeadDimQK = Problem::Traits::kPadHeadDimQK;
