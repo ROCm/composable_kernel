@@ -381,6 +381,8 @@ CK_TILE_HOST_DEVICE constexpr auto InputTileDistributionEncoding()
  * the last is SFINAE to ensure the tile distribution encoding is valid.
  *
  * @param tile_window             The tile window with static distribution to load and transpose.
+ * @param offset                  The offset (in elements) added to the base address before
+ * indexing.
  *
  * @return A statically distributed tensor containing the transposed tile data.
  *

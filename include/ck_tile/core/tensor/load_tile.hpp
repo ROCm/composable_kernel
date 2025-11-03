@@ -17,7 +17,7 @@
 #include "ck_tile/core/tensor/null_tensor.hpp"
 
 namespace ck_tile {
-
+// Per-lane read-offset tweaks allow swizzling patterns not representable by tile_distribution.
 template <typename TileWindow_,
           index_t i_access           = -1,
           bool oob_conditional_check = true,
@@ -62,6 +62,7 @@ CK_TILE_DEVICE auto load_tile_with_elementwise(const TileWindow_& tile_window,
         tile_window, elementwise, number<i_access>{}, bool_constant<oob_conditional_check>{});
 }
 
+// Per-lane read-offset tweaks allow swizzling patterns not representable by tile_distribution.
 template <typename DistributedTensor_,
           typename TileWindow_,
           index_t i_access           = -1,
@@ -141,6 +142,7 @@ CK_TILE_DEVICE auto load_tile_raw(T& tile,
         tile, number<i_access>{}, bool_constant<oob_conditional_check>{}, bool_constant<pre_nop>{});
 }
 
+// Per-lane read-offset tweaks allow swizzling patterns not representable by tile_distribution.
 template <typename LdsTileWindow_,
           typename TileWindow_,
           index_t i_access           = -1,
