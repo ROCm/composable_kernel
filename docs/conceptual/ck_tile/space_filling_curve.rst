@@ -33,6 +33,11 @@ Snake Patterns
 
 Snake (or serpentine) patterns reverse the traversal direction on alternate rows/planes, keeping consecutive accesses spatially close. This pattern is particularly effective for maintaining cache locality when moving between rows or higher-dimensional boundaries.
 
+Usage
+~~~~~
+
+SFC mainly uses in the following part of CK Tile: Tile Transpose, Tile shuffling iteration, and CShuffle to both access the tile data with the discrete way the application requred and have the best cache memory coherent hit.
+
 C++ Implementation
 ------------------
 

@@ -133,7 +133,7 @@ There is a limitation, though: we cannot preload entire rows or columns of ``A``
 - Once done, move the tile window forward along the ``K`` dimension
 - Repeat until the entire **16×16 output block** of ``C`` is computed
 
-This technique of **tiling with cooperative loading** dramatically reduces global memory traffic and improves GPU efficiency by leveraging fast, on-chip LDS.
+This technique of **tiling with cooperative loading** dramatically reduces global memory traffic and improves GPU efficiency by leveraging fast, on-chip LDS as in LDS we could have a better speed and reuse of the data.
 
 Tiling Mathematics
 ------------------
@@ -185,6 +185,18 @@ How much space in LDS would this tiling use? Recall that matrices **A** and **B*
 - Total for A and B: 512 × 2 = 1 KB.
 
 We have much more space in LDS, so why not try a bigger tile size? We can afford 32 KB for each matrix, which allows us to increase the tile size to **256×64**. With this tile size, each compute unit (CU) will output a **256×256 block in C**. With this approach, the number of global memory reads will be **256 times smaller per element in C** compared to a brute-force approach.
+
+Variation of the GEMM in Inference
+----------------------------------
+
+When we are implementing GEMM in inference, because B matrix is the weight which is static, we will preshuffle the B matrix to the warp GEMM MFMA shape to have a faster access for registers to do the MFMA operations. In this strategy we have the following optimizations:
+
+- Shared Memory bypass of the B Matrix.
+- Loop over the A Matrix stored in the shared memory and let B stays in the registers.
+- Ping Pong buffering for the GEMM Pipeline
+
+We could reach a 20%+ peformance raise comparing to the universal gemm in general.
+
 
 Utilization Considerations
 --------------------------

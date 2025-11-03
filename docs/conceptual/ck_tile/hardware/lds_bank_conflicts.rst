@@ -11,7 +11,7 @@ Understanding AMD GPU LDS and Bank Conflicts
 Introduction
 ============
 
-Local Data Share (**LDS**) is AMD's shared memory within a compute unit (see :ref:`ck_tile_gpu_basics` for architecture details). It is organized into **32 banks**, each serving 4 bytes per cycle. Understanding how memory addresses map to banks is key to avoiding **bank conflicts**.
+Local Data Share (**LDS**) is AMD's shared memory within a compute unit (see :ref:`ck_tile_gpu_basics` for architecture details). It is organized into **32 or 64 banks** depending on the hardware architecture, each bank has a 4 bytes width. Understanding how memory addresses map to banks is key to avoiding **bank conflicts**.
 
 Bank Mapping
 ============
@@ -24,10 +24,10 @@ For AMD GCN architecture, the LDS bank mapping is typically:
 
 This means:
 
-- Addresses that differ by multiples of ``32 * 4 bytes = 128 bytes`` map to the same bank.
+- Addresses that differ by multiples of ``bank numbers * 4 bytes`` map to the same bank.
 - Conflicts occur when multiple threads in the same wave access the same bank **in the same cycle**.
 
-Not all the lanes can produce bank conflicts. HW divides access to LDS from wavefront into phases. Which lanes would be considered in each phase depends on the width of the instruction. Let us consider ``ds_write_b128`` as an example. Here access will be divided into 8 phases for 64 lane wavefront:
+Not all the lanes can produce bank conflicts. HW divides access to LDS from wavefront into phases. Which lanes would be considered in each phase depends on the width of the instruction. Let us consider ``ds_write_b128`` as an example as it is the instruction that has the largest granularity write with the highest performance. Here access will be divided into 8 phases for 64 lane wavefront. If in 1 phase there will not be two thread access the same bank, there will bot be bank conflict:
 
 - lane0~lane7
 - lane8~lane15
@@ -65,6 +65,8 @@ Similarly for LDS read instruction ``ds_read_b128``, when there is no bank confl
 - 44:47+56:59
 
 then it's bank conflict-free for LDS reading.
+
+The reason we are accessing the data vertically is becasue in most LDS access we will have the MFMA instruction in the next step and the MFMA require to access the data vertically like above.
 
 The LDS read access pattern illustrated below is typical for LDS usage in machine learning workloads. The read pattern can generate 4-way bank conflicts in every phase of access. You can experiment with ``row_padding`` (padding in a number of banks) to see if the problem can be solved this way, but also remember that in practice this will require additional LDS storage. The bigger the padding, the more additional storage is necessary.
 
