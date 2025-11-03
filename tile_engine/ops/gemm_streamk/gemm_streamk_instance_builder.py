@@ -9,7 +9,7 @@ import concurrent.futures
 from pathlib import Path
 import logging
 from typing import Optional
-from validation_utils import is_tile_config_valid, is_trait_combination_valid
+from gemm_streamk_validation_utils import is_tile_config_valid, is_trait_combination_valid
 
 logging.basicConfig(level=logging.INFO)
 
@@ -106,6 +106,7 @@ class GemmKernelBuilder:
             "structured_sparsity": ["false"],
             "padding": {"pad_m": ["false"], "pad_n": ["false"], "pad_k": ["false"]},
             "persistent": ["false"],
+            "reduction_strategy": ["reduction"],
         }
 
     def _get_tile_configs(self, fast_mode=False):
@@ -235,40 +236,7 @@ class GemmKernelBuilder:
 
     def _generate_trait_combinations(self):
         """Generate all combinations of traits"""
-        if "traits" in self.config:
-            # Old format
-            traits = self.config["traits"]
-            pipelines = traits["pipelines"]
-            epilogues = traits["epilogues"]
-            schedulers = traits["schedulers"]
-
-            padding = self.config["padding"]
-            persistent = self.config["persistent"]
-
-            all_combinations = list(
-                itertools.product(
-                    pipelines,
-                    epilogues,
-                    schedulers,
-                    padding["pad_m"],
-                    padding["pad_n"],
-                    padding["pad_k"],
-                    persistent,
-                )
-            )
-
-            # Filter out unsupported trait combinations
-            combinations = []
-            for combo in all_combinations:
-                pipeline, epilogue, scheduler = combo[:3]
-                if is_trait_combination_valid(pipeline, epilogue, scheduler):
-                    combinations.append(combo)
-                else:
-                    logging.debug(
-                        f"Skipping unsupported trait combination: {pipeline}-{epilogue}-{scheduler}"
-                    )
-
-        elif "trait_config" in self.config:
+        if "trait_config" in self.config:
             # New format
             trait_config = self.config["trait_config"]
 
@@ -281,6 +249,9 @@ class GemmKernelBuilder:
             persistent_values = trait_config.get("persistent", {}).get(
                 "values", [False]
             )
+            reduction_strategy_value = trait_config.get("reduction_strategy", {}).get(
+                "values", ["reduction"]
+            )
 
             all_combinations = list(
                 itertools.product(
@@ -291,22 +262,23 @@ class GemmKernelBuilder:
                     pad_n_values,
                     pad_k_values,
                     persistent_values,
+                    reduction_strategy_value,
                 )
             )
 
             # Filter out unsupported trait combinations
             combinations = []
             for combo in all_combinations:
-                pipeline, epilogue, scheduler = combo[:3]
-                if is_trait_combination_valid(pipeline, epilogue, scheduler):
+                pipeline, epilogue, scheduler, reduction_strategy = combo[:4]
+                if is_trait_combination_valid(pipeline, epilogue, scheduler, reduction_strategy):
                     combinations.append(combo)
                 else:
                     logging.debug(
-                        f"Skipping unsupported trait combination: {pipeline}-{epilogue}-{scheduler}"
+                        f"Skipping unsupported trait combination: {pipeline}-{epilogue}-{scheduler}-{reduction_strategy}"
                     )
         else:
             # Fallback to minimal default
-            combinations = [("mem", "default", "intrawave", False, False, False, False)]
+            combinations = [("compv3", "cshuffle", "intrawave", "reduction_strategy", False, False, False, False)]
 
         return combinations
 
@@ -358,10 +330,11 @@ class GemmKernelBuilder:
             pad_n,
             pad_k,
             persistent,
+            reduction_strategy,
         ) = trait_combo
 
         # Create kernel name with proper boolean capitalization
-        kernel_name = f"{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}"
+        kernel_name = f"{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}_{reduction_strategy}"
 
         # Create tile configuration string
         tile_str = (
@@ -386,6 +359,11 @@ class GemmKernelBuilder:
             "intrawave": "ck_tile::GemmPipelineScheduler::Intrawave",
             "interwave": "ck_tile::GemmPipelineScheduler::Interwave",
             "default": "ck_tile::GemmPipelineScheduler::Default",
+        }
+
+        reduction_strategy_map = {
+            "atomic": "ck_tile::StreamKReductionStrategy::Atomic",
+            "reduction": "ck_tile::StreamKReductionStrategy::Reduction",
         }
 
         # Determine accumulator type based on datatype
@@ -461,12 +439,11 @@ struct SelectedKernel {{
     static constexpr bool NumWaveGroup       = 1;
 
     static constexpr bool TransposeC = false;
-    static constexpr bool UsePersistentKernel = false;
+    static constexpr bool UsePersistentKernel = {"true" if persistent == "true" else "false"};
     static constexpr bool UseStructuredSparsity = false;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
+    static constexpr ck_tile::StreamKReductionStrategy reduction_strategy = {reduction_strategy_map.get(reduction_strategy, "ck_tile::StreamKReductionStrategy::Reduction")};
 
-    static constexpr ck_tile::StreamKReductionStrategy reduction_strategy =
-                 ck_tile::StreamKReductionStrategy::Atomic;
     // Tile shape
     using TileShape = ck_tile::TileGemmShape<
         ck_tile::sequence<TileM, TileN, TileK>,
@@ -474,10 +451,9 @@ struct SelectedKernel {{
         ck_tile::sequence<WarpTileM, WarpTileN, WarpTileK>>;
     
     // Tile partitioner
-    using TilePartitioner = ck_tile::StreamKTilePartitioner<TileShape, reduction_strategy>;
+    using TilePartitioner = ck_tile::StreamKTilePartitioner_v2<TileShape, reduction_strategy, UsePersistentKernel>;
     
     // Traits
-    using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout, NumWaveGroups>;
     using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
                                                                  kPadN,
                                                                  kPadK,
@@ -497,14 +473,9 @@ struct SelectedKernel {{
         BDataType,
         AccDataType,
         TileShape,
-        Traits>;
+        GemmUniversalTraits>;
     
-    // Base pipeline for hot loop detection
-    using BaseGemmPipeline = {base_pipeline_map.get(pipeline, "ck_tile::BaseGemmPipelineAgBgCrMem")}<GemmPipelineProblem>;
-
-    static float launch(const ck_tile::StreamKHostArgs& args, const ck_tile::stream_config& stream) {{
-        float ave_time{{0}};
-
+    static float launch(const ck_tile::reboot::StreamKHostArgs& args, const ck_tile::stream_config& stream) {{
         const auto Run = [&](const auto memory_operation_) {{
             constexpr auto memory_operation = memory_operation_.value;
             constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
@@ -519,41 +490,37 @@ struct SelectedKernel {{
             using GemmPipeline = {pipeline_impl_map.get(pipeline, "ck_tile::GemmPipelineAgBgCrCompV3")}<UniversalGemmProblem>;
             
             // Epilogue
-"""
-
-        # Add epilogue configuration based on type
-        instance_code += """            using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<
-            ADataType,
-            BDataType,
-            ck_tile::tuple<>,  // DsDataType
-            AccDataType,
-            CDataType,
-            ck_tile::tuple<>,  // DsLayout
-            CLayout,
-            ck_tile::element_wise::PassThrough,
-            TilePartitioner::MPerBlock,  // kM_
-            TilePartitioner::NPerBlock,  // kN_
-            WarpPerBlock_M,              // MWave_
-            WarpPerBlock_N,              // NWave_
-            WarpTileM,                   // MPerXdl_
-            WarpTileN,                   // NPerXdl_
-            WarpTileK,                   // KPerXdl_
-            TransposeC,                  // isCTransposed_
-            memory_operation,            // MemoryOperation_
-            NumWaveGroups>;              // kNumWaveGroups_
+            using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<
+                ADataType,
+                BDataType,
+                ck_tile::tuple<>,  // DsDataType
+                AccDataType,
+                CDataType,
+                ck_tile::tuple<>,  // DsLayout
+                CLayout,
+                ck_tile::element_wise::PassThrough,
+                TilePartitioner::MPerBlock,  // kM_
+                TilePartitioner::NPerBlock,  // kN_
+                WarpPerBlock_M,              // MWave_
+                WarpPerBlock_N,              // NWave_
+                WarpTileM,                   // MPerXdl_
+                WarpTileN,                   // NPerXdl_
+                WarpTileK,                   // KPerXdl_
+                TransposeC,                  // isCTransposed_
+                memory_operation,            // MemoryOperation_
+                NumWaveGroups>;              // kNumWaveGroups_
         
-        using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;
-"""
+            using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;
 
-        instance_code += f"""
-            
             // Kernel type
-            using GemmKernel = ck_tile::StreamKKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+            using GemmKernel = ck_tile::reboot::StreamKKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             
             // Make kernel arguments
-            const int occupancy             = 1;
-            const int num_cu                = 104;
-            auto kargs = GemmKernel::MakeKernelArgs(args, num_cu, occupancy);
+            auto kargs = GemmKernel::MakeKernelArgs(args);
+            const auto workspace_size = GemmKernel::GetWorkSpaceSize(kargs);
+            ck_tile::DeviceMem workspace_data(workspace_size);
+            workspace_data.SetZero();
+            kargs.workspace_ptr = workspace_data.GetDeviceBuffer();
             
             if (!GemmKernel::IsSupportedArgument(kargs)) {{
                 throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!");
@@ -564,23 +531,52 @@ struct SelectedKernel {{
             const dim3 blocks = GemmKernel::BlockSize();
             
             if(stream.log_level_ > 0) {{
-                std::cout << "Launching kernel with args: " << GemmKernel::GetName() << '\\n'
-                          << "grid: {{" << grids.x << ", " << grids.y << ", " << grids.z << "}}"
-                          << ", blocks: {{" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}}"
+                std::cout << "Launching kernel with args: " << GemmKernel::GetName() << "\\n"
+                          << "shape: " << TileShape::GetName() << "\\n"
+                          << "problem: " << UniversalGemmProblem::GetName() << "\\n"
+                          << "pipeline: " << GemmPipeline::GetName() << "\\n"
+                          << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
+                          << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z << "}"
                           << std::endl;
             }}
+
+            auto reset_data_buffers = [&]() {{
+                if(reduction_strategy == ck_tile::StreamKReductionStrategy::Atomic)
+                {{
+                    // Clear the output C tensor results after each repetition of the kernel
+                    hipGetErrorString(hipMemsetAsync(
+                        args.e_ptr, 0, args.M * args.N * sizeof(CDataType), stream.stream_id_));
+                }}
+                else if(reduction_strategy == ck_tile::StreamKReductionStrategy::Reduction)
+                {{
+                    // Reset sk flags to zero before each repetition of the kernel
+                    workspace_data.SetZero();
+                }}
+            }};
+
             
             // Launch kernel
-            ave_time = ck_tile::launch_kernel(
+            float ave_time = ck_tile::launch_kernel_time_mask(
                 stream,
+                reset_data_buffers,
                 ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
-            
             return ave_time;
+            
+            // ck_tile::index_t num_wgs_per_tile = kargs.tile_partitioner.estimate_num_wgs_per_tile();
+            // return std::make_tuple(ave_time, num_wgs_per_tile);
         }};
 
 
-        return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                       ck_tile::memory_operation_enum::atomic_add>{{}});
+        if constexpr(ck_tile::StreamKReductionStrategy::Atomic == reduction_strategy)
+        {{
+            return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                                  ck_tile::memory_operation_enum::atomic_add>{{}});
+        }}
+        else // We are using ck_tile::StreamKReductionStrategy::Reduction
+        {{
+            return Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                                  ck_tile::memory_operation_enum::set>{{}});
+        }}
     }}
 }};
 """
@@ -708,10 +704,11 @@ struct SelectedKernel {{
                     pad_n,
                     pad_k,
                     persistent,
+                    reduction_strategy,
                 ) = trait_combo
 
                 # Create kernel name with proper boolean capitalization
-                kernel_name = f"gemm_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}"
+                kernel_name = f"gemm_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}_{reduction_strategy}"
 
                 # Create tile configuration string
                 tile_str = f"{tile_config['tile_m']}x{tile_config['tile_n']}x{tile_config['tile_k']}_"
@@ -758,33 +755,33 @@ struct SelectedKernel {{
         self.generate_individual(num_workers)
 
 
-def _generate_single_kernel_individual(work_item):
-    """Worker function to generate a single individual kernel file"""
-    tile_config, trait_combo, working_path, datatype, layout = work_item
+    def _generate_single_kernel_individual(work_item):
+        """Worker function to generate a single individual kernel file"""
+        tile_config, trait_combo, working_path, datatype, layout = work_item
 
-    # Create a temporary builder instance for this worker
-    builder = GemmKernelBuilder(working_path, datatype, layout)
+        # Create a temporary builder instance for this worker
+        builder = GemmKernelBuilder(working_path, datatype, layout)
 
-    try:
-        kernel_name, instance_code = builder._generate_kernel_instance(
-            tile_config, trait_combo
-        )
+        try:
+            kernel_name, instance_code = builder._generate_kernel_instance(
+                tile_config, trait_combo
+            )
 
-        # Create simplified filename without the "gemm_" prefix
-        # Remove "gemm_" from the beginning of kernel_name for the filename
-        simplified_name = kernel_name
-        if simplified_name.startswith("gemm_"):
-            simplified_name = simplified_name[5:]  # Remove "gemm_" prefix
+            # Create simplified filename without the "gemm_" prefix
+            # Remove "gemm_" from the beginning of kernel_name for the filename
+            simplified_name = kernel_name
+            if simplified_name.startswith("gemm_"):
+                simplified_name = simplified_name[5:]  # Remove "gemm_" prefix
 
-        # Write individual header file
-        header_file = working_path / f"streamk_gemm_single_{simplified_name}.hpp"
-        with open(header_file, "w") as f:
-            f.write(instance_code)
+            # Write individual header file
+            header_file = working_path / f"gemm_streamk_single_{simplified_name}.hpp"
+            with open(header_file, "w") as f:
+                f.write(instance_code)
 
-        return (kernel_name, trait_combo, tile_config)
-    except Exception as e:
-        print(f"Error generating individual kernel: {e}")
-        return None
+            return (kernel_name, trait_combo, tile_config)
+        except Exception as e:
+            print(f"Error generating individual kernel: {e}")
+            return None
 
 
 def main():
@@ -868,10 +865,11 @@ def main():
             trait_parts[0],  # pipeline
             trait_parts[1],  # epilogue
             trait_parts[2],  # scheduler
-            trait_parts[3] == "True",  # pad_m
-            trait_parts[4] == "True",  # pad_n
-            trait_parts[5] == "True",  # pad_k
-            trait_parts[6] == "True",  # persistent
+            trait_parts[3] == "false",  # pad_m
+            trait_parts[4] == "false",  # pad_n
+            trait_parts[5] == "false",  # pad_k
+            trait_parts[6] ,  # persistent
+            trait_parts[7],  # reduction_strategy
         )
 
         # Generate the kernel
@@ -884,7 +882,7 @@ def main():
         if simplified_name.startswith("gemm_"):
             simplified_name = simplified_name[5:]
 
-        header_file = builder.working_path / f"streamk_gemm_single_{simplified_name}.hpp"
+        header_file = builder.working_path / f"gemm_streamk_single_{simplified_name}.hpp"
         with open(header_file, "w") as f:
             f.write(instance_code)
 

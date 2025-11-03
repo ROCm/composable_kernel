@@ -9,7 +9,7 @@
 
 #include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "benchmark_gemm.hpp"
+#include "gemm_streamk_benchmark.hpp"
 
 class GemmProfiler
 {
@@ -22,26 +22,27 @@ class GemmProfiler
 
     // Overload for single kernel benchmarking
     void benchmark(GemmProblem& gemm_problem,
-                   std::function<float(const ck_tile::StreamKHostArgs&,
+                   std::function<float(const ck_tile::reboot::StreamKHostArgs&,
                                        const ck_tile::stream_config&)> kernel_func)
     {
         // Create a vector with a single callable that returns both name and time
-        std::vector<std::function<std::tuple<std::string, float>(ck_tile::StreamKHostArgs&,
+        std::vector<std::function<std::tuple<std::string, float>(ck_tile::reboot::StreamKHostArgs&,
                                                                  const ck_tile::stream_config&)>>
             callables;
 
-        callables.push_back(
-            [kernel_func](ck_tile::StreamKHostArgs& args, const ck_tile::stream_config& stream) {
-                float time = kernel_func(args, stream);
-                return std::make_tuple(std::string(KERNEL_NAME), time);
-            });
+        callables.push_back([kernel_func](ck_tile::reboot::StreamKHostArgs& args,
+                                          const ck_tile::stream_config& stream) {
+            float time = kernel_func(args, stream);
+            return std::make_tuple(std::string(KERNEL_NAME), time);
+        });
 
         benchmark(gemm_problem, callables);
     }
 
-    void benchmark(GemmProblem& gemm_problem,
-                   std::vector<std::function<std::tuple<std::string, float>(
-                       ck_tile::StreamKHostArgs&, const ck_tile::stream_config&)>>& callables)
+    void
+    benchmark(GemmProblem& gemm_problem,
+              std::vector<std::function<std::tuple<std::string, float>(
+                  ck_tile::reboot::StreamKHostArgs&, const ck_tile::stream_config&)>>& callables)
     {
         const ALayout layout_a = ALayout{};
         const BLayout layout_b = BLayout{};
@@ -108,17 +109,15 @@ class GemmProfiler
         c_m_n_dev_buf.SetZero();
         c_m_n_dev_result.SetZero();
 
-        ck_tile::StreamKHostArgs gemm_args{a_m_k_dev_buf.GetDeviceBuffer(),
-                                           b_k_n_dev_buf.GetDeviceBuffer(),
-                                           c_m_n_dev_buf.GetDeviceBuffer(),
-                                           gemm_problem.m_,
-                                           gemm_problem.n_,
-                                           gemm_problem.k_,
-                                           gemm_problem.stride_a_,
-                                           gemm_problem.stride_b_,
-                                           gemm_problem.stride_c_,
-                                           ck_tile::StreamKReductionStrategy::Atomic,
-                                           0xffffffff};
+        ck_tile::reboot::StreamKHostArgs gemm_args{a_m_k_dev_buf.GetDeviceBuffer(),
+                                                   b_k_n_dev_buf.GetDeviceBuffer(),
+                                                   c_m_n_dev_buf.GetDeviceBuffer(),
+                                                   gemm_problem.m_,
+                                                   gemm_problem.n_,
+                                                   gemm_problem.k_,
+                                                   gemm_problem.stride_a_,
+                                                   gemm_problem.stride_b_,
+                                                   gemm_problem.stride_c_};
 
         ck_tile::HostTensor<CDataType> c_m_n_host_result(ck_tile::host_tensor_descriptor(
             gemm_problem.m_, gemm_problem.n_, gemm_problem.stride_c_, is_row_major(layout_c)));

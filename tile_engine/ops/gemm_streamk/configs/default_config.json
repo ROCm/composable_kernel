@@ -93,7 +93,12 @@
         },
         "persistent": {
             "values": [
-                false
+                false, true
+            ]
+        },
+        "reduction_strategy": {
+            "values": [
+                "reduction", "atomic"
             ]
         }
     }

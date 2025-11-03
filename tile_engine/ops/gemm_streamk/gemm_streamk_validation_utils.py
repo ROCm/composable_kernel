@@ -107,10 +107,10 @@ WARP_TILE_SUPPORTED_COMBINATIONS = {
 
 # Unsupported trait combinations
 TRAIT_UNSUPPORTED_COMBINATIONS = {
-    ("compv3", "cshuffle", "interwave"),
-    ("compv3", "default", "interwave"),
-    ("compv4", "cshuffle", "interwave"),
-    ("compv4", "default", "interwave"),
+    ("compv3", "cshuffle", "interwave", "reduction"),
+    ("compv3", "default", "interwave", "reduction"),
+    ("compv3", "cshuffle", "interwave", "atomic"),
+    ("compv3", "default", "interwave", "atomic"),
 }
 
 
@@ -150,9 +150,9 @@ def get_gpu_name_by_id(gpu_id: int = 0) -> str:
     return ""
 
 
-def is_trait_combination_valid(pipeline: str, epilogue: str, scheduler: str) -> bool:
+def is_trait_combination_valid(pipeline: str, epilogue: str, scheduler: str, reduction_strategy: str) -> bool:
     """Check if a trait combination is valid."""
-    return (pipeline, epilogue, scheduler) not in TRAIT_UNSUPPORTED_COMBINATIONS
+    return (pipeline, epilogue, scheduler, reduction_strategy) not in TRAIT_UNSUPPORTED_COMBINATIONS
 
 
 def validate_warp_configuration(warp_m: int, warp_n: int, warp_k: int) -> bool:

@@ -11,7 +11,7 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
-#include "gemm_common.hpp"
+#include "gemm_streamk_common.hpp"
 #include "utility/validation.hpp"
 
 // Data types and Layouts are defined by the generated kernel headers

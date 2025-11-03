@@ -11,12 +11,12 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
-#include "gemm_profiler.hpp"
-#include "gemm_common.hpp"
+#include "gemm_streamk_profiler.hpp"
+#include "gemm_streamk_common.hpp"
 
 // The kernel header is included via the compile command line with -include flag
 // It defines SelectedKernel struct and KERNEL_NAME
-// DataTypeTraits are now defined in gemm_common.hpp
+// DataTypeTraits are now defined in gemm_streamk_common.hpp
 
 // Create argument parser
 inline auto create_args(int argc, char* argv[])
@@ -137,7 +137,7 @@ void benchmark_gemm_single(const ck_tile::ArgParser& arg_parser)
     try
     {
         // Create a lambda that wraps the kernel launch
-        auto kernel_func = [](const ck_tile::StreamKHostArgs& args,
+        auto kernel_func = [](const ck_tile::reboot::StreamKHostArgs& args,
                               const ck_tile::stream_config& stream) {
             return SelectedKernel::launch(args, stream);
         };

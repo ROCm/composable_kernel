@@ -28,8 +28,7 @@ struct StreamKHostArgs : public ck_tile::UniversalGemmHostArgs<>
                                           index_t K_,
                                           index_t stride_A_,
                                           index_t stride_B_,
-                                          index_t stride_C_,
-                                          StreamKReductionStrategy reduction_strategy_)
+                                          index_t stride_C_)
         : UniversalGemmHostArgs<>({a_ptr_},
                                   {b_ptr_},
                                   {/*ds_ptr*/},
@@ -41,12 +40,9 @@ struct StreamKHostArgs : public ck_tile::UniversalGemmHostArgs<>
                                   {stride_A_},
                                   {stride_B_},
                                   {/*stride_Ds_*/},
-                                  stride_C_),
-          reduction_strategy{reduction_strategy_}
+                                  stride_C_)
     {
     }
-
-    ck_tile::StreamKReductionStrategy reduction_strategy;
 };
 
 /**
@@ -133,7 +129,6 @@ struct StreamKKernel
                                       host_args.stride_Ds,
                                       host_args.stride_E,
                                       host_args.k_batch},
-              reduction_strategy{host_args.reduction_strategy},
               // The workspace pointer is set to nullptr because we must first
               // instantiate the TilePartitioner to get the necessary size
               workspace_ptr{nullptr},
@@ -141,10 +136,6 @@ struct StreamKKernel
 
         {
         }
-        /**
-         * @brief The strategy used by work groups to compute final results in C tensor.
-         */
-        StreamKReductionStrategy reduction_strategy;
         /**
          * @brief  A pointer to a buffer in device memory for accumulating partial via reduction
          * strategy.

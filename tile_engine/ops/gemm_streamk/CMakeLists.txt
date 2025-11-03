@@ -39,16 +39,16 @@ function(create_individual_gemm_target datatype layout trait tile_config config_
     list(GET warp_tile_parts 1 warp_tile_n)
     list(GET warp_tile_parts 2 warp_tile_k)
     
-    set(target_name "benchmark_streamk_gemm_${datatype}_${layout}_${trait}_${tile_config}")
+    set(target_name "benchmark_gemm_streamk_${datatype}_${layout}_${trait}_${tile_config}")
     set(working_path "${CMAKE_CURRENT_BINARY_DIR}/${datatype}/${layout}")
     
     # Generate the single instance header for this kernel
-    set(instance_header "${working_path}/streamk_gemm_single_${datatype}_${layout}_${trait}_${tile_config}.hpp")
+    set(instance_header "${working_path}/gemm_streamk_single_${datatype}_${layout}_${trait}_${tile_config}.hpp")
     
     # Add custom command to generate the header file at build time
     add_custom_command(
         OUTPUT ${instance_header}
-        COMMAND ${Python3_EXECUTABLE} ${GEMM_SOURCE_DIR}/streamk_gemm_instance_builder.py
+        COMMAND ${Python3_EXECUTABLE} ${GEMM_SOURCE_DIR}/gemm_streamk_instance_builder.py
                 --working_path ${working_path}
                 --datatype ${datatype}
                 --layout ${layout}
@@ -57,13 +57,13 @@ function(create_individual_gemm_target datatype layout trait tile_config config_
                 --kernel_name "${datatype}_${layout}_${trait}_${tile_config}"
                 --tile_config "${tile_config}"
                 --trait_combo "${trait}"
-        DEPENDS ${GEMM_SOURCE_DIR}/streamk_gemm_instance_builder.py ${config_json}
+        DEPENDS ${GEMM_SOURCE_DIR}/gemm_streamk_instance_builder.py ${config_json}
         COMMENT "Generating ${instance_header}"
     )
     
     # Create the executable
     add_executable(${target_name} 
-        ${GEMM_SOURCE_DIR}/benchmark_streamk_gemm_single.cpp
+        ${GEMM_SOURCE_DIR}/gemm_streamk_benchmark_single.cpp
         ${instance_header}
     )
     
@@ -90,10 +90,10 @@ function(create_individual_gemm_target datatype layout trait tile_config config_
     )
     
     # Add to collection targets
-    add_dependencies(benchmark_streamk_gemm_all ${target_name})
-    add_dependencies(benchmark_streamk_gemm_${datatype} ${target_name})
-    add_dependencies(benchmark_streamk_gemm_${layout} ${target_name})
-    add_dependencies(benchmark_streamk_gemm_${datatype}_${layout} ${target_name})
+    add_dependencies(benchmark_gemm_streamk_all ${target_name})
+    add_dependencies(benchmark_gemm_streamk_${datatype} ${target_name})
+    add_dependencies(benchmark_gemm_streamk_${layout} ${target_name})
+    add_dependencies(benchmark_gemm_streamk_${datatype}_${layout} ${target_name})
     
     # Add to trait-specific targets
     string(REPLACE "_" ";" trait_parts ${trait})
@@ -101,9 +101,9 @@ function(create_individual_gemm_target datatype layout trait tile_config config_
     list(GET trait_parts 1 epilogue)
     list(GET trait_parts 2 scheduler)
     
-    add_dependencies(benchmark_streamk_gemm_${pipeline} ${target_name})
-    add_dependencies(benchmark_streamk_gemm_${epilogue} ${target_name})
-    add_dependencies(benchmark_streamk_gemm_${scheduler} ${target_name})
+    add_dependencies(benchmark_gemm_streamk_${pipeline} ${target_name})
+    add_dependencies(benchmark_gemm_streamk_${epilogue} ${target_name})
+    add_dependencies(benchmark_gemm_streamk_${scheduler} ${target_name})
 endfunction()
 
 # Function to build individual GEMM targets
@@ -153,7 +153,7 @@ function(build_individual_gemm_targets datatype layout)
     message(STATUS "  Working path: ${working_path}")
     message(STATUS "  Config file: ${json_blob}")
     message(STATUS "  Python executable: ${Python3_EXECUTABLE}")
-    message(STATUS "  Script path: ${CMAKE_CURRENT_LIST_DIR}/streamk_gemm_instance_builder.py")
+    message(STATUS "  Script path: ${CMAKE_CURRENT_LIST_DIR}/gemm_streamk_instance_builder.py")
     
     # Create working directory first
     file(MAKE_DIRECTORY ${working_path})
@@ -161,7 +161,7 @@ function(build_individual_gemm_targets datatype layout)
     # First, just list the kernels (fast operation)
     message(STATUS "  Listing kernel configurations...")
     execute_process(
-        COMMAND ${Python3_EXECUTABLE} -u ${CMAKE_CURRENT_LIST_DIR}/streamk_gemm_instance_builder.py
+        COMMAND ${Python3_EXECUTABLE} -u ${CMAKE_CURRENT_LIST_DIR}/gemm_streamk_instance_builder.py
                 --working_path ${working_path}
                 --datatype ${datatype}
                 --layout ${layout}
@@ -249,22 +249,22 @@ else()
     endif()
 
     # Create master collection targets
-    add_custom_target(benchmark_streamk_gemm_all)
+    add_custom_target(benchmark_gemm_streamk_all)
 
     # Create datatype collection targets
     foreach(dt IN LISTS GEMM_DATATYPE)
-        add_custom_target(benchmark_streamk_gemm_${dt})
+        add_custom_target(benchmark_gemm_streamk_${dt})
     endforeach()
 
     # Create layout collection targets
     foreach(l IN LISTS GEMM_LAYOUT)
-        add_custom_target(benchmark_streamk_gemm_${l})
+        add_custom_target(benchmark_gemm_streamk_${l})
     endforeach()
 
     # Create combined collection targets
     foreach(dt IN LISTS GEMM_DATATYPE)
         foreach(l IN LISTS GEMM_LAYOUT)
-            add_custom_target(benchmark_streamk_gemm_${dt}_${l})
+            add_custom_target(benchmark_gemm_streamk_${dt}_${l})
         endforeach()
     endforeach()
 
@@ -275,15 +275,15 @@ else()
     set(GEMM_SCHEDULERS "intrawave;interwave")
 
     foreach(pipeline IN LISTS GEMM_PIPELINES)
-        add_custom_target(benchmark_streamk_gemm_${pipeline})
+        add_custom_target(benchmark_gemm_streamk_${pipeline})
     endforeach()
 
     foreach(epilogue IN LISTS GEMM_EPILOGUES)
-        add_custom_target(benchmark_streamk_gemm_${epilogue})
+        add_custom_target(benchmark_gemm_streamk_${epilogue})
     endforeach()
 
     foreach(scheduler IN LISTS GEMM_SCHEDULERS)
-        add_custom_target(benchmark_streamk_gemm_${scheduler})
+        add_custom_target(benchmark_gemm_streamk_${scheduler})
     endforeach()
 
     # Build individual targets for each datatype/layout combination
