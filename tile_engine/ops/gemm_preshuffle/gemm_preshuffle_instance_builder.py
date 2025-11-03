@@ -1,6 +1,3 @@
-## Copyright © Advanced Micro Devices, Inc. or its affiliates.
-## SPDX-License-Identifier: MIT
-
 import argparse
 import os
 import json
@@ -8,15 +5,33 @@ import itertools
 import logging
 import multiprocessing
 import concurrent.futures
-
 from pathlib import Path
+import importlib.util
 
-from commons.validation_utils import (
-    is_tile_config_valid,
-    is_trait_combination_valid,
-    get_dtype_string,
-    get_abc_layouts,
-)
+
+def _import_validation_utils():
+    """Import validation utilities from commons directory."""
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+
+    # Load the module dynamically
+    spec = importlib.util.spec_from_file_location(
+        "validation_utils", os.path.join(parent_dir, "commons", "validation_utils.py")
+    )
+    validation_utils = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(validation_utils)
+
+    return validation_utils
+
+
+# Import validation functions
+_validation_utils = _import_validation_utils()
+is_tile_config_valid = _validation_utils.is_tile_config_valid
+is_trait_combination_valid = _validation_utils.is_trait_combination_valid
+get_dtype_string = _validation_utils.get_dtype_string
+get_abc_layouts = _validation_utils.get_abc_layouts
+
+logging.basicConfig(level=logging.INFO)
 
 
 class GemmPreshuffleKernelBuilder:
@@ -305,6 +320,8 @@ class GemmPreshuffleKernelBuilder:
             b_datatype = self.datatype
             c_datatype = self.datatype
 
+            layout = self.layout
+
             # Special handling for certain data types
             if self.datatype in ["fp8", "bf8"]:
                 c_datatype = "fp16"
@@ -324,6 +341,7 @@ class GemmPreshuffleKernelBuilder:
                 b_datatype,
                 c_datatype,
                 pipeline,
+                layout,
                 self.gpu_target,
             )
 
