@@ -138,6 +138,45 @@ enum class BlockGemmPipelineVersion
     V5
 };
 
+enum struct BlockGemmPipelineScheduler
+{
+    INTRAWAVE,
+    INTERWAVE,
+};
+
+// Enums for the gridwise GEMM pipeline versions.
+enum class GridwiseGemmPipelineVersion
+{
+    V1,
+    V2,
+    V3, // Only used in stream-K implementation
+    V4,
+    WEIGHT_ONLY
+};
+
+// Enums for the GEMM specialization.
+enum struct GemmSpecialization
+{
+    // Gemm
+    Default,
+    MPadding,
+    NPadding,
+    KPadding,
+    MNPadding,
+    MKPadding,
+    NKPadding,
+    MNKPadding,
+    // Gemm + Gemm
+    OPadding,
+    MOPadding,
+    NOPadding,
+    KOPadding,
+    MNOPadding,
+    MKOPadding,
+    NKOPadding,
+    MNKOPadding
+};
+
 // Enums for the forward convolution specialization.
 enum class ConvFwdSpecialization
 {
@@ -145,6 +184,12 @@ enum class ConvFwdSpecialization
     FILTER_1X1_PAD0,
     FILTER_1X1_STRIDE1_PAD0,
     FILTER_3x3
+};
+
+enum class LoopScheduler
+{
+    DEFAULT,
+    INTERWAVE
 };
 
 } // namespace ck_tile::builder
