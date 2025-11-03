@@ -375,7 +375,7 @@ constexpr builder::ElementwiseOperation elementwise_op()
 /// @tparam Instance - A Device Kernel object type.
 /// @return A `builder::GemmPadding` enum value corresponding to kernel padding.
 template <typename Instance>
-constexpr builder::GemmPadding gemm_padding()
+constexpr builder::GemmPadding gemm_spec()
 {
     using InstTraits = InstanceTraits<Instance>;
     using enum builder::GemmPadding;
@@ -483,7 +483,7 @@ struct ConvTraits<Instance>
         elementwise_op<typename InstTraits::CDEElementwiseOperation>();
 
     /// @brief The GEMM specialization used by the kernel - padding
-    static constexpr auto gemm_padding = gemm_padding<Instance>();
+    static constexpr auto gemm_padding = gemm_spec<Instance>();
     /// @brief The convolution-specific specialization (e.g., Default, 1x1).
     static constexpr auto conv_specialization = conv_spec<Instance>();
 
