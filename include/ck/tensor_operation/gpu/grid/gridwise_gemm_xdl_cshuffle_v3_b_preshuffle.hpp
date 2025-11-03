@@ -674,25 +674,6 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
                 a_k_split_offset = blockIdx.z * karg.KRead * karg.StrideA;
             }
 
-            if constexpr(is_same_v<tensor_layout::gemm::RowMajor, BLayout>)
-            {
-                b_k_split_offset = blockIdx.z * karg.KRead * karg.StrideB;
-            }
-            else if constexpr(is_same_v<tensor_layout::gemm::ColumnMajor, BLayout>)
-            {
-                if constexpr(!PermuteB)
-                {
-                    // b_k_split_offset = blockIdx.z * karg.KRead / BPackedSize;
-
-                    b_k_split_offset = blockIdx.z * karg.KRead * NLane / BPackedSize;
-                }
-                else
-                {
-                    const int k0_offset = karg.KRead * karg.N;
-                    b_k_split_offset    = blockIdx.z * k0_offset / BPackedSize;
-                }
-            }
-
             if(blockIdx.z < static_cast<uint32_t>(karg.KBatch - 1))
             {
                 karg.K = karg.KRead;
@@ -713,7 +694,6 @@ struct GridwiseGemm_xdl_cshuffle_v3_b_preshuffle
         }
 
         index_t a_k_split_offset;
-        index_t b_k_split_offset;
         index_t c_reduce_offset;
     };
 
