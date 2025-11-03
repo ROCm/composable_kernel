@@ -1297,8 +1297,6 @@ struct ThreadwiseTensorSliceTransfer_v4
                         const DstOriginIdx&,
                         DstBuffer& dst_buf) const
     {
-        // if(threadIdx.x == 0 && blockIdx.x == 0)
-        //     printf("%s\n\n", __PRETTY_FUNCTION__);
         static_assert(SrcDesc::IsKnownAtCompileTime() && DstDesc::IsKnownAtCompileTime(),
                       "wrong! SrcDesc and DstDesc need to known at compile-time");
 

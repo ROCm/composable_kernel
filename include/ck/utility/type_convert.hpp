@@ -79,7 +79,6 @@ inline __host__ __device__ constexpr bhalf_t bf16_convert_rtn<bhalf_t, float>(fl
     constexpr uint32_t rounding_bias      = uint32_t((1 << 15) - 1);
 
     return uint16_t((u.int32 + first_bf16_mantisa_bit + rounding_bias) >> 16);
-    // return uint16_t((u.int32) >> 16);
 #endif
 }
 
@@ -136,7 +135,6 @@ inline __host__ __device__ constexpr bhalf_t type_convert<bhalf_t, float>(float 
 #if CK_USE_RNE_BF16_CONVERSION
     return bf16_convert_rtn<bhalf_t>(x);
 #else
-    // error: static_cast drops too much precision
     return uint16_t(static_cast<uint32_t>(x) >> 16);
 #endif
 }

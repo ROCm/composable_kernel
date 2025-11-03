@@ -926,31 +926,6 @@ struct BlockwiseGemmXdlopsBF16X3_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                         const BBlockBuffer& b_block_buf,
                         CThreadBuffer& c_thread_buf) const
     {
-        // if(threadIdx.x == 0 && blockIdx.x == 0)
-        //     printf("%s\n\n", __PRETTY_FUNCTION__);
-        // if(threadIdx.x == 0 && blockIdx.x == 0)
-        //     printf("MPerBlock: %d, NPerBlock: %d, KPerBlock: %d, A_K0: %d, B_K0: %d, A_K1: %d, "
-        //            "B_K1: %d, MWaves: %d, NWaves: %d, WaveSize: %d, KPerThread: %d\n",
-        //            MPerBlock,
-        //            NPerBlock,
-        //            KPerBlock,
-        //            A_K0,
-        //            B_K0,
-        //            A_K1,
-        //            B_K1,
-        //            MWaves,
-        //            NWaves,
-        //            WaveSize,
-        //            KPerThread);
-        // printf("a thead size: %ld; b thead size: %ld\n",
-        //        a_thread_desc_.GetElementSpaceSize().value,
-        //        b_thread_desc_.GetElementSpaceSize().value);
-        // if(threadIdx.x == 0 && blockIdx.x == 0)
-        //     printf("a_block_buf: %d , %d, %d, %d \n", a_block_buf[0], a_block_buf[1],
-        //     a_block_buf[2], a_block_buf[3]);
-        // if(threadIdx.x == 0 && blockIdx.x == 0)
-        //     printf("b_block_buf: %d , %d, %d, %d \n", b_block_buf[0], b_block_buf[1],
-        //     b_block_buf[2], b_block_buf[3]);
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatA>(
             a_thread_desc_.GetElementSpaceSize());
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatB>(
@@ -992,21 +967,6 @@ struct BlockwiseGemmXdlopsBF16X3_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                     b_thread_buf_small(Number<i>{}) = type_convert<DataTypeB, FloatB>(
                         b_thread_buf[i] - type_convert<FloatB, DataTypeB>(b_thread_buf_big[i]));
                 });
-                // if(threadIdx.x == 0 && blockIdx.x == 0)
-                //     printf("a thead: %.10f, %.10f, %.10f, %.10f\n a big: %.10f, %.10f, %.10f, "
-                //            "%.10f\n a small: %.10f, %.10f, %.10f, %.10f\n",
-                //            a_thread_buf[I0],
-                //            a_thread_buf[I1],
-                //            a_thread_buf[I2],
-                //            a_thread_buf[I3],
-                //            type_convert<FloatA, DataTypeA>(a_thread_buf_big[I0]),
-                //            type_convert<FloatA, DataTypeA>(a_thread_buf_big[I1]),
-                //            type_convert<FloatA, DataTypeA>(a_thread_buf_big[I2]),
-                //            type_convert<FloatA, DataTypeA>(a_thread_buf_big[I3]),
-                //            type_convert<FloatA, DataTypeA>(a_thread_buf_small[I0]),
-                //            type_convert<FloatA, DataTypeA>(a_thread_buf_small[I1]),
-                //            type_convert<FloatA, DataTypeA>(a_thread_buf_small[I2]),
-                //            type_convert<FloatA, DataTypeA>(a_thread_buf_small[I3]));
 
                 static_for<0, KPerThread, KPack>{}([&](auto k) {
                     // why another register buffer? for index?
@@ -1105,53 +1065,41 @@ constexpr auto BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector()
 {
     if constexpr(LoopSched == LoopScheduler::Default)
     {
-        // if constexpr(is_same_v<FloatA, float> && is_same_v<FloatB, float> &&
-        //              is_same_v<ComputeTypeA, tf32_t> && is_same_v<ComputeTypeB, tf32_t>)
-        // {
-        //     return BlockwiseGemmXdlopsBF16X3_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
-        //                                                                      FloatA,
-        //                                                                      FloatB,
-        //                                                                      FloatAcc,
-        //                                                                      AK0MK1BlockDesc,
-        //                                                                      BK0NK1BlockDesc,
-        //                                                                      MPerXDL,
-        //                                                                      NPerXDL,
-        //                                                                      MRepeat,
-        //                                                                      NRepeat,
-        //                                                                      KPack,
-        //                                                                      ComputeTypeA,
-        //                                                                      ComputeTypeB>{};
-        // }
-        // else
-        // {
-        //     return BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
-        //                                                                FloatA,
-        //                                                                FloatB,
-        //                                                                FloatAcc,
-        //                                                                AK0MK1BlockDesc,
-        //                                                                BK0NK1BlockDesc,
-        //                                                                MPerXDL,
-        //                                                                NPerXDL,
-        //                                                                MRepeat,
-        //                                                                NRepeat,
-        //                                                                KPack,
-        //                                                                ComputeTypeA,
-        //                                                                ComputeTypeB>{};
-        // }
-
-        return BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
-                                                                   FloatA,
-                                                                   FloatB,
-                                                                   FloatAcc,
-                                                                   AK0MK1BlockDesc,
-                                                                   BK0NK1BlockDesc,
-                                                                   MPerXDL,
-                                                                   NPerXDL,
-                                                                   MRepeat,
-                                                                   NRepeat,
-                                                                   KPack,
-                                                                   ComputeTypeA,
-                                                                   ComputeTypeB>{};
+#if((defined(__gfx12__) || defined(__gfx11__) || defined(__gfx950__)) && !defined(__gfx942__))
+        if constexpr(is_same_v<FloatA, float> && is_same_v<FloatB, float> &&
+                     is_same_v<ComputeTypeA, tf32_t> && is_same_v<ComputeTypeB, tf32_t>)
+        {
+            return BlockwiseGemmXdlopsBF16X3_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
+                                                                             FloatA,
+                                                                             FloatB,
+                                                                             FloatAcc,
+                                                                             AK0MK1BlockDesc,
+                                                                             BK0NK1BlockDesc,
+                                                                             MPerXDL,
+                                                                             NPerXDL,
+                                                                             MRepeat,
+                                                                             NRepeat,
+                                                                             KPack,
+                                                                             ComputeTypeA,
+                                                                             ComputeTypeB>{};
+        }
+        else
+#endif
+        {
+            return BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
+                                                                       FloatA,
+                                                                       FloatB,
+                                                                       FloatAcc,
+                                                                       AK0MK1BlockDesc,
+                                                                       BK0NK1BlockDesc,
+                                                                       MPerXDL,
+                                                                       NPerXDL,
+                                                                       MRepeat,
+                                                                       NRepeat,
+                                                                       KPack,
+                                                                       ComputeTypeA,
+                                                                       ComputeTypeB>{};
+        }
     }
     else if constexpr(LoopSched == LoopScheduler::Interwave)
     {

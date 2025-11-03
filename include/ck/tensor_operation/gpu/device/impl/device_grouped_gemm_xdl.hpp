@@ -40,22 +40,6 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                             const CDEElementwiseOperation c_element_op)
 {
 #if defined(__gfx9__) || defined(__gfx11__) || defined(__gfx12__)
-    // if(threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0)
-    //     printf("GridDim: (%u,%u,%u), BlockIdx: (%u,%u,%u), BlockDim: (%u,%u,%u), ThreadIdx:
-    //     "
-    //            "(%u,%u,%u)\n",
-    //            gridDim.x,
-    //            gridDim.y,
-    //            gridDim.z,
-    //            blockIdx.x,
-    //            blockIdx.y,
-    //            blockIdx.z,
-    //            blockDim.x,
-    //            blockDim.y,
-    //            blockDim.z,
-    //            threadIdx.x,
-    //            threadIdx.y,
-    //            threadIdx.z);
     if constexpr(GridwiseGemm::template IsValidCompilationParameter<>())
     {
         __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
@@ -588,8 +572,6 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                      hipStream_t cpy_stream            = nullptr,
                      hipEvent_t cpy_event              = nullptr)
         {
-            // std::cout << __PRETTY_FUNCTION__ << "\n";
-
             bool has_main_k_block_loop = true;
 
             for(std::size_t i = 0; i < arg.gemm_desc_kernel_arg_.size(); i++)
@@ -678,8 +660,6 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                                                             CDEElementwiseOperation,
                                                             has_main_k_block_loop_>;
 
-                // std::cout << "grid_size_:" << arg.grid_size_ << ", BlockSize:" << BlockSize
-                //           << std::endl;
                 return launch_and_time_kernel(
                     stream_config,
                     kernel,
@@ -844,7 +824,6 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
 
     size_t GetWorkSpaceSize(const BaseArgument* p_arg) const override
     {
-        // TODO: need workspace for tf32x3?
         auto p_arg_ = dynamic_cast<const Argument*>(p_arg);
         if(p_arg_)
         {
