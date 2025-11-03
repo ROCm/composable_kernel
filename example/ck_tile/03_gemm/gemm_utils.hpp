@@ -12,13 +12,6 @@
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/utility/json_dump.hpp"
 
-#define CK_TILE_PIPELINE_COMPUTE_V3 1
-#define CK_TILE_PIPELINE_MEMORY 2
-#define CK_TILE_PIPELINE_COMPUTE_V4 3
-#define CK_TILE_PIPELINE_COMPUTE_V5 4
-#define CK_TILE_PIPELINE_COMPUTE_V6 5
-#define CK_TILE_PIPELINE_PRESHUFFLE_V2 6
-
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()
 {
@@ -69,7 +62,7 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
     static constexpr ck_tile::index_t TileParitionerM01      = 4;
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
-    static constexpr ck_tile::index_t Pipeline      = CK_TILE_PIPELINE_COMPUTE_V3;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
     static constexpr bool Preshuffle                = false;
     static constexpr bool TiledMMAPermuteN          = false;
@@ -91,9 +84,9 @@ struct GemmConfigMemoryInterwave : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = sizeof(PrecType) == 2 ? 8 : 16;
 
-    static constexpr bool DoubleSmemBuffer     = false;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_MEMORY;
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Interwave;
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::MEMORY;
+    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Interwave;
 };
 
 template <typename PrecType>
@@ -111,8 +104,8 @@ struct GemmConfigMemoryIntrawave : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = sizeof(PrecType) == 2 ? 8 : 16;
 
-    static constexpr bool DoubleSmemBuffer     = false;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_MEMORY;
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::MEMORY;
 };
 
 template <typename PrecType>
@@ -131,8 +124,8 @@ struct GemmConfigComputeV3 : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
 
-    static constexpr bool DoubleSmemBuffer     = false;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
 };
 
 template <typename PrecType>
@@ -150,8 +143,8 @@ struct GemmConfigComputeV3_1 : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
 
-    static constexpr bool DoubleSmemBuffer     = false;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
 };
 
 template <typename PrecType>
@@ -169,8 +162,8 @@ struct GemmConfigComputeV3_2 : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
 
-    static constexpr bool DoubleSmemBuffer     = false;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
 
     static constexpr int kBlockPerCu = 2;
 };
@@ -190,8 +183,8 @@ struct GemmConfigComputeV3_WMMA : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
-    static constexpr bool DoubleSmemBuffer     = false;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V3;
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V3;
 
     static constexpr int kBlockPerCu = 2;
 };
@@ -213,8 +206,8 @@ struct GemmConfigComputeV4 : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
 
-    static constexpr bool DoubleSmemBuffer     = true;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V4;
+    static constexpr bool DoubleSmemBuffer          = true;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V4;
 };
 
 template <typename PrecType>
@@ -232,8 +225,8 @@ struct GemmConfigComputeV4_1 : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
 
-    static constexpr bool DoubleSmemBuffer     = true;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_COMPUTE_V4;
+    static constexpr bool DoubleSmemBuffer          = true;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V4;
 };
 
 template <typename PrecType>
@@ -252,7 +245,7 @@ struct GemmConfigComputeV5 : public GemmConfigBase
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
 
     static constexpr bool DoubleSmemBuffer          = false;
-    static constexpr ck_tile::index_t Pipeline      = CK_TILE_PIPELINE_COMPUTE_V5;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V5;
     static constexpr ck_tile::index_t NumWaveGroups = 2;
 };
 
@@ -272,7 +265,7 @@ struct GemmConfigComputeV6 : public GemmConfigBase
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 
     static constexpr bool DoubleSmemBuffer          = false;
-    static constexpr ck_tile::index_t Pipeline      = CK_TILE_PIPELINE_COMPUTE_V6;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::COMPUTE_V6;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
 };
 
@@ -291,13 +284,13 @@ struct GemmConfigPreshuffleDecode : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile_flatmm<PrecType, M_Warp_Tile>();
 
-    static constexpr int kBlockPerCu           = 1;
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
-    static constexpr bool Preshuffle           = true;
-    static constexpr bool DoubleSmemBuffer     = true;
-    static constexpr int N_Repeat              = N_Tile / N_Warp_Tile / N_Warp;
-    static constexpr bool TiledMMAPermuteN     = N_Repeat % 2 == 0;
+    static constexpr int kBlockPerCu                = 1;
+    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Default;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::PRESHUFFLE_V2;
+    static constexpr bool Preshuffle                = true;
+    static constexpr bool DoubleSmemBuffer          = true;
+    static constexpr int N_Repeat                   = N_Tile / N_Warp_Tile / N_Warp;
+    static constexpr bool TiledMMAPermuteN          = N_Repeat % 2 == 0;
 };
 
 template <typename PrecType>
@@ -315,13 +308,13 @@ struct GemmConfigPreshufflePrefill : public GemmConfigBase
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile_flatmm<PrecType, M_Warp_Tile>();
 
-    static constexpr int kBlockPerCu           = 2;
-    static constexpr auto Scheduler            = ck_tile::GemmPipelineScheduler::Default;
-    static constexpr ck_tile::index_t Pipeline = CK_TILE_PIPELINE_PRESHUFFLE_V2;
-    static constexpr bool Preshuffle           = true;
-    static constexpr bool DoubleSmemBuffer     = true;
-    static constexpr int N_Repeat              = N_Tile / N_Warp_Tile / N_Warp;
-    static constexpr bool TiledMMAPermuteN     = N_Repeat % 2 == 0;
+    static constexpr int kBlockPerCu                = 2;
+    static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Default;
+    static constexpr ck_tile::GemmPipeline Pipeline = ck_tile::GemmPipeline::PRESHUFFLE_V2;
+    static constexpr bool Preshuffle                = true;
+    static constexpr bool DoubleSmemBuffer          = true;
+    static constexpr int N_Repeat                   = N_Tile / N_Warp_Tile / N_Warp;
+    static constexpr bool TiledMMAPermuteN          = N_Repeat % 2 == 0;
 };
 
 template <typename PrecType>
@@ -465,11 +458,11 @@ struct DataTypeTraits<ck_tile::int8_t>
     static constexpr const char* name = "int8";
 };
 
-template <ck_tile::index_t PipelineId>
+template <ck_tile::GemmPipeline PipelineId>
 struct PipelineTypeTraits;
 
 template <>
-struct PipelineTypeTraits<CK_TILE_PIPELINE_MEMORY>
+struct PipelineTypeTraits<ck_tile::GemmPipeline::MEMORY>
 {
     template <typename PipelineProblem>
     using GemmPipeline = ck_tile::GemmPipelineAgBgCrMem<PipelineProblem>;
@@ -478,7 +471,7 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_MEMORY>
 };
 
 template <>
-struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V3>
+struct PipelineTypeTraits<ck_tile::GemmPipeline::COMPUTE_V3>
 {
     template <typename PipelineProblem>
     using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>;
@@ -487,7 +480,7 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V3>
 };
 
 template <>
-struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V4>
+struct PipelineTypeTraits<ck_tile::GemmPipeline::COMPUTE_V4>
 {
     template <typename PipelineProblem>
     using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV4<PipelineProblem>;
@@ -496,7 +489,7 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V4>
 };
 
 template <>
-struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V5>
+struct PipelineTypeTraits<ck_tile::GemmPipeline::COMPUTE_V5>
 {
     template <typename PipelineProblem>
     using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV5<PipelineProblem>;
@@ -505,7 +498,7 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V5>
 };
 
 template <>
-struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V6>
+struct PipelineTypeTraits<ck_tile::GemmPipeline::COMPUTE_V6>
 {
     template <typename PipelineProblem>
     using GemmPipeline = ck_tile::GemmPipelineAgBgCrCompV6<PipelineProblem>;
@@ -514,7 +507,7 @@ struct PipelineTypeTraits<CK_TILE_PIPELINE_COMPUTE_V6>
 };
 
 template <>
-struct PipelineTypeTraits<CK_TILE_PIPELINE_PRESHUFFLE_V2>
+struct PipelineTypeTraits<ck_tile::GemmPipeline::PRESHUFFLE_V2>
 {
     template <typename PipelineProblem>
     using GemmPipeline = ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2<PipelineProblem>;
