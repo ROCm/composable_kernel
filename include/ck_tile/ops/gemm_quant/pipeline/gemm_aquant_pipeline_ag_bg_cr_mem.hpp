@@ -86,6 +86,10 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrMem<Prob
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
     using CDataType      = remove_cvref_t<typename Problem::CDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
+    using QuantGroupSize = remove_cvref_t<typename Problem::QuantGroupSize>;
+
+    static_assert(QuantGroupSize::kM == 1, "no block for M supported yet!");
+    static_assert(QuantGroupSize::kN == 1, "only M/K blocks for AQuant kernel!");
 
     using I0 = number<0>;
     using I1 = number<1>;
@@ -106,12 +110,11 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrMem<Prob
 
     using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
 
-    static constexpr index_t BlockSize      = Problem::kBlockSize;
-    static constexpr index_t MPerBlock      = BlockGemmShape::kM;
-    static constexpr index_t NPerBlock      = BlockGemmShape::kN;
-    static constexpr index_t KPerBlock      = BlockGemmShape::kK;
-    static constexpr index_t QuantGroupSize = Problem::kQuantGroupSize;
-    static constexpr index_t KPerBlockAQ    = BlockGemmShape::kK / QuantGroupSize;
+    static constexpr index_t BlockSize   = Problem::kBlockSize;
+    static constexpr index_t MPerBlock   = BlockGemmShape::kM;
+    static constexpr index_t NPerBlock   = BlockGemmShape::kN;
+    static constexpr index_t KPerBlock   = BlockGemmShape::kK;
+    static constexpr index_t KPerBlockAQ = BlockGemmShape::kK / QuantGroupSize::kK;
 
     static constexpr index_t GetVectorSizeA() { return Policy::template GetVectorSizeA<Problem>(); }
     static constexpr index_t GetVectorSizeB() { return Policy::template GetVectorSizeB<Problem>(); }
@@ -147,7 +150,7 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrMem<Prob
                       BlockSize,
                       concat('x', WaveNumM, WaveNumN),
                       concat('x', BlockGemm::WarpGemm::kM, BlockGemm::WarpGemm::kN, BlockGemm::WarpGemm::kK),
-                      concat('x', kPadM, kPadN, kPadK), "QuantGroupSize", QuantGroupSize,
+                      concat('x', kPadM, kPadN, kPadK), QuantGroupSize::GetName(),
                       Scheduler == GemmPipelineScheduler::Interwave ? "interwave" : "intrawave"); // else Intrawave
         // clang-format on
     }
@@ -204,7 +207,7 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrMem<Prob
             << "\n"
             << "A/B LDS read inst: " << A_LDS_Read_Inst_Num << ", " << B_LDS_Read_Inst_Num << "\n"
             << "C MFMA inst: " << C_MFMA_Inst_Num << "\n"
-            << "QuantGroupSize: " << QuantGroupSize << "\n"
+            << "QuantGroupSize: " << QuantGroupSize::GetName() << "\n"
             << "KPack: " << BlockGemm::Traits::KPack << "\n"
             << "PrefetchStages: " << PrefetchStages << "\n";
         return str.str();
