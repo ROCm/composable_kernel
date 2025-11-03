@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/reduce.hpp"
@@ -30,8 +30,8 @@ auto create_args(int argc, char* argv[])
         .insert("c", "512", "c dimension")
         .insert("v", "1", "cpu validation or not")
         .insert("prec", "fp16", "precision")
-        // .insert("warmup", "5", "cold iter")
-        // .insert("repeat", "20", "hot iter")
+        .insert("warmup", "5", "cold iter")
+        .insert("repeat", "20", "hot iter")
         .insert("warmup", "0", "cold iter")
         .insert("repeat", "1", "hot iter")
         .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
@@ -71,7 +71,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<YDataType> y_host_add_ref({N, C}, {C, 1});
     ck_tile::HostTensor<YDataType> y_host_max_ref({N, C}, {C, 1});
     auto y_host_ref_tuple = ck_tile::make_tuple(y_host_add_ref, y_host_max_ref);
-    using YRefTuple       = decltype(y_host_ref_tuple);
 
     ck_tile::HostTensor<YDataType> y_host_add_dev({N, C}, {C, 1});
     ck_tile::HostTensor<YDataType> y_host_max_dev({N, C}, {C, 1});
@@ -80,7 +79,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     const auto number_operations = y_host_dev_tuple.size();
 
     std::vector<YDataType> h(number_operations * N * C);
-    std::fill(h.begin(), h.end(), static_cast<YDataType>(0.0f)); // TODO: Fill it in with the identify element
 
     auto y_buf_size = number_operations *
                       y_host_dev_tuple.at(ck_tile::number<0>{}).get_element_space_size_in_bytes();
@@ -88,26 +86,22 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     const auto output_tensor_offset = N * C;
 
-    // This needs to be atomic operations as multiple blocks may write to the same output element
-    // auto blockwise_acc_ops = ck_tile::tuple<decltype(atomicAdd), decltype(atomicAdd)>{}; // TODO: make this work
-    // size_t cluster_size = 3; // TODO: calculate automatically
-    // size_t cluster_size_m = 3;
-    // size_t cluster_size_k = 3;
+    const ck_tile::index_t reduce_total_length = H * W;
 
-    // TODO:
-    // [] Atomic ADD function or a tuple of it, for each operations
-    // [X] Provide number of cluster (possible calculate it based on the other inputs sizes)
+    // Operations
+    auto reduce_ops = ck_tile::make_tuple(ck_tile::ReduceOp::Add{}, ck_tile::ReduceOp::Add{}); // Intra block reductions
+    auto elementwise_ops = ck_tile::make_tuple(ck_tile::element_wise::PassThrough{}, ck_tile::element_wise::UnarySquare{}); // Elementwise
+                                                                                            // ops
+    auto accumulator_elementwise_ops = ck_tile::make_tuple(ck_tile::element_wise::PassThrough{},
+                   ck_tile::element_wise::UnaryDivide{reduce_total_length}); // Accumulator Elementiwise ops on reduction, intra block
+    auto inter_block_reduce_ops = ck_tile::make_tuple(ck_tile::ReduceOp::Add{}, ck_tile::ReduceOp::Add{}); // Inter block reduction
 
     ck_tile::FillUniformDistribution<XDataType>{-5.f, 5.f}(x_host);
-    // ck_tile::FillUniformDistribution<XDataType>{1.f, 1.f}(x_host);
-    // ck_tile::FillUniformDistribution<XDataType>{1.f, 2.f}(x_host);
 
     ck_tile::DeviceMem x_buf(x_host.get_element_space_size_in_bytes());
 
     x_buf.ToDevice(x_host.data());
-    y_buf.ToDevice(h.data()); // Initialize the output buffer with operations' identity element
 
-    using ReduceOps  = ck_tile::tuple<ck_tile::ReduceOp::Add, ck_tile::ReduceOp::Add>;
     using BlockWarps = ck_tile::sequence<4, 1>;
     using BlockTile  = ck_tile::sequence<128, 128>;
     using WarpTile   = ck_tile::sequence<32, 128>;
@@ -118,24 +112,26 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     using Shape = ck_tile::Reduce2dShape<BlockWarps, BlockTile, WarpTile, Vector>;
     using Problem =
-        ck_tile::Reduce2dMultiBlockProblem<XDataType, ComputeDataType, YDataType, Shape, ReduceOps>;
+        ck_tile::Reduce2dProblem<XDataType, ComputeDataType, YDataType, Shape, decltype(reduce_ops)>;
 
-    using Kernel                      = ck_tile::MultiReduceMultiblock<Problem>;
+    using Kernel = ck_tile::MultiReduceMultiblock<Problem>;
 
     // Determine block group size for multi-block reduction
-    // TODO: it should be in a helper function somewhere else
-    const ck_tile::index_t reduce_total_length = H * W;
-    int K_BlockTileSize = BlockTile::at(1);
-    int num_block_tile_iterations, block_group_size;
-    // int num_block_tile_iterations = std::max(1, static_cast<int>(std::ceil((reduce_total_length - 1.0) / (127.0 * K_BlockTileSize)))); // Ensure at most 128 blocks in a group
-    // int block_group_size = (reduce_total_length + (K_BlockTileSize * num_block_tile_iterations) - 1) /
-    //                 (K_BlockTileSize * num_block_tile_iterations);
+    int K_BlockTileSize                        = BlockTile::at(1);
+    int num_block_tile_iterations;
+    int block_group_size;
+
     Kernel::CalculateBlockGroupParams(
         reduce_total_length, K_BlockTileSize, num_block_tile_iterations, block_group_size);
+
     const ck_tile::index_t kBlockSize = Kernel::BlockSize();
-    ck_tile::index_t kGridSize = (kept_dim_len_prod + BlockTile::at(ck_tile::number<0>{}) - 1) /
-                                 BlockTile::at(ck_tile::number<0>{})*block_group_size;
-    std::cout << "Block group size: " << block_group_size << ", Num block tile iterations: " << num_block_tile_iterations << ", Reduce total length: " << reduce_total_length << std::endl;
+    ck_tile::index_t kGridSize =
+            ((kept_dim_len_prod + Shape::Block_M - 1) / Shape::Block_M) *
+            block_group_size;
+
+    std::cout << "Block group size: " << block_group_size
+              << ", Num block tile iterations: " << num_block_tile_iterations
+              << ", Reduce total length: " << reduce_total_length << std::endl;
     std::cout << "grid size " << kGridSize << ", block size " << kBlockSize << std::endl;
 
     // Create input tensor shape and strides
@@ -149,22 +145,23 @@ bool run(const ck_tile::ArgParser& arg_parser)
         throw std::runtime_error("Wrong! Arguments not supported!\n");
     }
 
+    // Init the output data with identity values respective to each reduce op
+    ck_tile::static_for<0, number_operations, 1>{}([&](auto i) {
+        constexpr auto op       = reduce_ops.at(i);
+        const auto identity_val = op.template GetIdentityValue<YDataType>();
+        const auto output_number_elements = N * C;
+        std::fill(h.begin() + i * output_number_elements,
+                    h.begin() + (i + 1) * output_number_elements,
+                    identity_val);
+    });
 
-    // TODO: clearn the output buffer, use launch_kernel_time_mask see the splitk example
-    // auto clear_gemm_output = [&]() {
-    //         hipGetErrorString(hipMemset(
-    //             ws_args.c_ptr, 0, args.M * args.N * sizeof(WorkspaceType), s.stream_id_));
-    // };
-
-    auto noop = [](auto&) { }; // TODO: check for the passthrough function
-    auto square_divide = [reduce_total_length] __host__ __device__ (auto& element) {
-        element = element * element / reduce_total_length;
+   auto clear_output_buffer = [&]() {
+        y_buf.ToDevice(h.data());
     };
 
-    auto elementwise_ops = ck_tile::make_tuple(noop, square_divide);
-
-    float ave_time = launch_kernel(
+    float ave_time = launch_kernel_time_mask(
         ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
+        clear_output_buffer,
         ck_tile::make_kernel<kBlockPerCu>(Kernel{},
                                           kGridSize,
                                           kBlockSize,
@@ -176,16 +173,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                           kept_dim,
                                           reduce_dims,
                                           output_tensor_offset,
-                                          block_group_size,
-                                          num_block_tile_iterations,
-                                          elementwise_ops // TODO: Move it to Problem?
-                                        ));
-                                        //   blockwise_acc_ops));
+                                          elementwise_ops,
+                                          accumulator_elementwise_ops,
+                                          inter_block_reduce_ops
+                                          )
 
-    // float ave_time = launch_kernel_time_mask(
-    //     ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
-
-    // );
+    );
 
     std::size_t num_btype = sizeof(XDataType) * N * C * H * W + sizeof(YDataType) * N * C;
 
@@ -198,8 +191,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     if(do_validation)
     {
         // reference
-        ck_tile::reference_multiple_reduce<XDataType, ComputeDataType, YDataType>(
-            x_host, y_host_ref_tuple, ReduceOps{}, kept_dim, reduce_dims, elementwise_ops);
+        ck_tile::reference_multiple_reduce_multiblock<XDataType, ComputeDataType, YDataType>(
+            x_host, y_host_ref_tuple, reduce_ops, kept_dim, reduce_dims, elementwise_ops, accumulator_elementwise_ops, inter_block_reduce_ops, block_group_size);
         std::cout << "Read " << y_buf_size / 10 << " Bytes from the device" << std::endl;
 
         // Transfer data from device and check error for each operation
@@ -208,14 +201,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
             std::memcpy(y_host_dev_tuple.get(ck_tile::number<i>{}).data(),
                         h.data() + i * output_tensor_offset,
                         output_tensor_offset * sizeof(YDataType));
-            std::cout << "Checking operation " << i << ": " << std::endl;            
+            std::cout << "Checking operation " << i << ": " << std::endl;
 
             bool pass_op = ck_tile::check_err(y_host_dev_tuple.get(ck_tile::number<i>{}),
-                                       y_host_ref_tuple.get(ck_tile::number<i>{}));
+                                              y_host_ref_tuple.get(ck_tile::number<i>{}));
 
-            if (pass_op){
+            if(pass_op)
+            {
                 std::cout << "✅" << std::endl;
-            } 
+            }
             pass &= pass_op;
         });
 
@@ -236,7 +230,5 @@ int main(int argc, char* argv[])
     if(data_type == "fp16")
     {
         return run<ck_tile::half_t>(arg_parser) ? 0 : -2;
-    } /*else {
-        return run<float>(arg_parser) ? 0 : -2;
-    }*/
+    }
 }

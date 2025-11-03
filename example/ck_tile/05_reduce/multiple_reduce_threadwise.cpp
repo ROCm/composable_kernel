@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/reduce.hpp"
@@ -69,14 +69,21 @@ bool run(const ck_tile::ArgParser& arg_parser)
     ck_tile::HostTensor<YDataType> y_host_add_ref({N, C}, {C, 1});
     ck_tile::HostTensor<YDataType> y_host_max_ref({N, C}, {C, 1});
     auto y_host_ref_tuple = ck_tile::make_tuple(y_host_add_ref, y_host_max_ref);
-    using YRefTuple       = decltype(y_host_ref_tuple);
 
     ck_tile::HostTensor<YDataType> y_host_add_dev({N, C}, {C, 1});
     ck_tile::HostTensor<YDataType> y_host_max_dev({N, C}, {C, 1});
     auto y_host_dev_tuple = ck_tile::make_tuple(y_host_add_dev, y_host_max_dev);
-    // using YTuple = decltype(y_host_dev_tuple);
 
-    const auto number_operations = y_host_dev_tuple.size(); // y_host_dev_tuple.size();
+    const auto number_operations = y_host_dev_tuple.size();
+
+    const ck_tile::index_t reduce_total_length = H * W;
+    auto reduce_ops = ck_tile::make_tuple(ck_tile::ReduceOp::Add{}, 
+                                            ck_tile::ReduceOp::Add{}); // Intra block reductions
+    auto elementwise_ops = ck_tile::make_tuple(ck_tile::element_wise::PassThrough{}, 
+                                                ck_tile::element_wise::UnarySquare{}); // Elementwise ops
+    auto accumulator_elementwise_ops = ck_tile::make_tuple(ck_tile::element_wise::PassThrough{},
+                                         ck_tile::element_wise::UnaryDivide{reduce_total_length}); // Accumulator Elementiwise ops on reduction, intra block
+
 
     auto y_buf_size = number_operations *
                       y_host_dev_tuple.at(ck_tile::number<0>{}).get_element_space_size_in_bytes();
@@ -90,7 +97,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     x_buf.ToDevice(x_host.data());
 
-    using ReduceOps  = ck_tile::tuple<ck_tile::ReduceOp::Add, ck_tile::ReduceOp::Max>;
     using BlockWarps = ck_tile::sequence<4, 1>;
     using BlockTile  = ck_tile::sequence<128, 128>;
     using WarpTile   = ck_tile::sequence<32, 128>;
@@ -104,7 +110,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     using Shape = ck_tile::Reduce2dShape<BlockWarps, BlockTile, WarpTile, Vector>;
     using Problem =
-        ck_tile::Reduce2dProblem<XDataType, ComputeDataType, YDataType, Shape, ReduceOps>;
+        ck_tile::Reduce2dProblem<XDataType, ComputeDataType, YDataType, Shape, decltype(reduce_ops)>;
 
     using Kernel                      = ck_tile::MultiReduceThreadWise<Problem>;
     const ck_tile::index_t kBlockSize = Kernel::BlockSize();
@@ -132,7 +138,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                           input_strides,
                                           kept_dim,
                                           reduce_dims,
-                                          output_tensor_offset));
+                                          output_tensor_offset,
+                                          elementwise_ops,
+                                          accumulator_elementwise_ops));
 
     std::size_t num_btype = sizeof(XDataType) * N * C * H * W + sizeof(YDataType) * N * C;
 
@@ -148,7 +156,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         // reference
         ck_tile::reference_multiple_reduce<XDataType, ComputeDataType, YDataType>(
-            x_host, y_host_ref_tuple, ReduceOps{}, kept_dim, reduce_dims);
+            x_host, y_host_ref_tuple, reduce_ops, kept_dim, reduce_dims, elementwise_ops, accumulator_elementwise_ops);
         std::cout << "Read " << y_buf_size / 10 << " Bytes from the device" << std::endl;
 
         // Transfer data from device and check error for each operation
