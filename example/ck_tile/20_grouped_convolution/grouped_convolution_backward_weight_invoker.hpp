@@ -171,8 +171,21 @@ struct GroupedConvolutionBackwardWeightInvoker
                           << ", Vector size C: " << ConvEpilogue::GetVectorSizeC() << std::endl;
             }
 
-            ave_time = ck_tile::launch_kernel(
-                s, ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+            auto preprocess = [&]() {
+                if(args.k_batch > 1)
+                {
+                    ck_tile::hip_check_error(
+                        hipMemsetAsync(kargs.wei_ptr,
+                                       0,
+                                       args.template GetWeightByte<WeiDataType>(),
+                                       s.stream_id_));
+                }
+            };
+
+            ave_time = ck_tile::launch_kernel_time_mask(
+                s,
+                preprocess,
+                ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 
             return ave_time;
         };
