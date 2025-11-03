@@ -31,11 +31,8 @@ struct MultiReduceMultiblock
     static constexpr index_t kBlockSize = Problem::BlockShape::BlockSize;
 
     static constexpr auto thread_cluster_desc = make_cluster_descriptor(
-        ck_tile::sequence<
-            Problem::BlockShape::Block_M / Problem::BlockShape::ThreadTile_M,
-            Problem::BlockShape::Block_N /
-                Problem::BlockShape::
-                    ThreadTile_N>{});
+        ck_tile::sequence<Problem::BlockShape::Block_M / Problem::BlockShape::ThreadTile_M,
+                          Problem::BlockShape::Block_N / Problem::BlockShape::ThreadTile_N>{});
 
     CK_TILE_HOST static constexpr auto BlockSize()
     {
@@ -48,18 +45,22 @@ struct MultiReduceMultiblock
                                                               int& block_group_size)
     {
 
-        constexpr int max_block_group_size = 128; // Maximum 128, as in CK. It balances between latency (i.e. limiting stalls when performing the atomic operation) and block parallelism.
+        constexpr int max_block_group_size =
+            128; // Maximum 128, as in CK. It balances between latency (i.e. limiting stalls when
+                 // performing the atomic operation) and block parallelism.
 
-        num_block_tile_iterations = (reduce_total_length +
-                                    (Problem::BlockShape::Block_N * max_block_group_size) - 1) /
-                                (Problem::BlockShape::Block_N * max_block_group_size);
+        num_block_tile_iterations =
+            (reduce_total_length + (Problem::BlockShape::Block_N * max_block_group_size) - 1) /
+            (Problem::BlockShape::Block_N * max_block_group_size);
 
-        if(num_block_tile_iterations == 0) {
+        if(num_block_tile_iterations == 0)
+        {
             num_block_tile_iterations = 1;
         }
 
-        block_group_size = (reduce_total_length + (Problem::BlockShape::Block_N * num_block_tile_iterations) - 1) /
-                            (Problem::BlockShape::Block_N * num_block_tile_iterations);
+        block_group_size =
+            (reduce_total_length + (Problem::BlockShape::Block_N * num_block_tile_iterations) - 1) /
+            (Problem::BlockShape::Block_N * num_block_tile_iterations);
     }
 
     private:
@@ -113,12 +114,13 @@ struct MultiReduceMultiblock
                                    InterblockReduceOps interblock_reduce_ops) const
     {
 
-        static_assert(ElementwiseOps::size() == Problem::ReduceOp::size()
-                        && AccumulatorOps::size() == Problem::ReduceOp::size()
-                        && InterblockReduceOps::size() == Problem::ReduceOp::size(),
-                      "Error: All operations tuple size must match the number of reduction operations");
+        static_assert(
+            ElementwiseOps::size() == Problem::ReduceOp::size() &&
+                AccumulatorOps::size() == Problem::ReduceOp::size() &&
+                InterblockReduceOps::size() == Problem::ReduceOp::size(),
+            "Error: All operations tuple size must match the number of reduction operations");
 
-        using S = typename Problem::BlockShape;
+        using S         = typename Problem::BlockShape;
         auto reduce_ops = typename Problem::ReduceOp{};
 
         const auto number_operations = reduce_ops.size();
@@ -168,8 +170,7 @@ struct MultiReduceMultiblock
 
         const auto custom_padding_values = ck_tile::apply(
             [](auto... args) {
-                return ck_tile::make_tuple(
-                    args.template GetIdentityValue<XDataType>()...);
+                return ck_tile::make_tuple(args.template GetIdentityValue<XDataType>()...);
             },
             reduce_ops); // Get the identity element for each operation
 
@@ -177,12 +178,8 @@ struct MultiReduceMultiblock
             CalculateInputVectorSize<InputShape, ReduceDims>(); // Move at "vectorization" steps if
                                                                 // continuous otherwise 1 step
 
-        auto desc =
-            make_naive_tensor_descriptor(input_shape,
-                                         input_strides,
-                                         number<x_tensor_vector_size>{},
-                                         number<1>{});
-
+        auto desc = make_naive_tensor_descriptor(
+            input_shape, input_strides, number<x_tensor_vector_size>{}, number<1>{});
 
         __shared__ char smem[Policy::template GetSmemSize<Problem>()]; // shared memory reused by
                                                                        // the different operations
@@ -200,84 +197,74 @@ struct MultiReduceMultiblock
         index_t m_offset = S::Block_M * block_group_id;
         index_t n_offset = S::Block_N * num_n_tile_iteration * block_local_id;
 
-        static_for<0, number_operations, 1>{}(
-            [&](auto i) {
+        static_for<0, number_operations, 1>{}([&](auto i) {
+            auto buffer_view = make_buffer_view<address_space_enum::global>(
+                p_x,
+                desc.get_element_space_size(),
+                custom_padding_values.get(number<i>{})); // Input tensor buffer view
 
-                auto buffer_view = make_buffer_view<address_space_enum::global>(
-                    p_x,
-                    desc.get_element_space_size(),
-                    custom_padding_values.get(
-                        number<i>{})); // Input tensor buffer view
+            const auto x_tensor = tensor_view<decltype(buffer_view), decltype(desc)>{
+                buffer_view, desc}; // Tensor view over the buffer view and tensor descriptor
+            const auto transformed_x_tensor = pad_tensor_view(
+                transform_tensor_view(x_tensor,
+                                      make_tuple(kept_merge_transform, reduce_merge_transform),
+                                      make_tuple(kept_dim, reduce_dims),
+                                      make_tuple(sequence<0>{}, sequence<1>{})),
+                make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
+                sequence<0, 1>{});
 
-                const auto x_tensor = tensor_view<decltype(buffer_view), decltype(desc)>{
-                    buffer_view, desc}; // Tensor view over the buffer view and tensor descriptor
-                const auto transformed_x_tensor = pad_tensor_view(
-                    transform_tensor_view(x_tensor,
-                                        make_tuple(kept_merge_transform, reduce_merge_transform),
-                                        make_tuple(kept_dim, reduce_dims),
-                                        make_tuple(sequence<0>{}, sequence<1>{})),
-                    make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
-                    sequence<0, 1>{}); 
+            auto x_window = make_tile_window(
+                transformed_x_tensor,
+                make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
+                {m_offset, n_offset},
+                Policy::template MakeXBlockTileDistribution<Problem>()); // Input tile windows
+                                                                         // and prep the block
 
+            using ComputeDataTensorType = decltype(cast_tile<ComputeDataType>(load_tile(x_window)));
 
-                auto x_window = make_tile_window(
-                    transformed_x_tensor,
-                    make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
-                    {m_offset, n_offset},
-                    Policy::template MakeXBlockTileDistribution<Problem>()); // Input tile windows
-                                                                             // and prep the block
+            auto y_compute = block_reduce2d.template MakeYBlockTile<ComputeDataTensorType>();
 
-                using ComputeDataTensorType = decltype(cast_tile<ComputeDataType>(
-                    load_tile(x_window)));
+            set_tile(y_compute,
+                     reduce_ops.get(number<i>{}).template GetIdentityValue<ComputeDataType>());
 
-                auto y_compute = block_reduce2d.template MakeYBlockTile<ComputeDataTensorType>();
+            for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
+            {
+                auto x = load_tile(x_window);
 
-                set_tile(y_compute,
-                         reduce_ops.get(number<i>{}).template GetIdentityValue<ComputeDataType>());
+                // Apply the elementwise operation before the reduction
+                auto x_compute = cast_tile<ComputeDataType>(x);
 
-                for(int iN = __builtin_amdgcn_readfirstlane(0); iN < num_n_tile_iteration; ++iN)
-                {
-                    auto x = load_tile(x_window);
+                tile_elementwise_inout(elementwise_ops.get(number<i>{}), x_compute, x_compute);
 
-                    // Apply the elementwise operation before the reduction
-                    auto x_compute = cast_tile<ComputeDataType>(x);
+                block_reduce2d(x_compute, y_compute, reduce_ops.get(number<i>{}));
 
-                    tile_elementwise_inout(elementwise_ops.get(number<i>{}), x_compute, x_compute);
+                move_tile_window(x_window, {0, S::Block_N});
+            }
 
-                    block_reduce2d(x_compute, y_compute, reduce_ops.get(number<i>{}));
+            block_reduce2d_sync(y_compute, reduce_ops.get(number<i>{}));
+            block_reduce2d_cross_warp_sync(
+                y_compute, static_cast<void*>(smem), reduce_ops.get(number<i>{}));
 
-                    move_tile_window(x_window, {0, S::Block_N});
-                }
+            if(thread_n_cluster_id == 0)
+            {
+                tile_elementwise_inout(accumulator_ops.get(number<i>{}), y_compute, y_compute);
 
-                block_reduce2d_sync(y_compute, reduce_ops.get(number<i>{}));
-                block_reduce2d_cross_warp_sync(
-                    y_compute, static_cast<void*>(smem), reduce_ops.get(number<i>{}));
+                // 1. Get the pointer to the output buffer for this tile window
+                auto* p_y_tile = p_y_tuple + (i * output_tensor_offset) +
+                                 S::Block_M * block_group_id +
+                                 y_compute.get_thread_buffer_size() * thread_m_cluster_id;
 
-                if(thread_n_cluster_id == 0)
-                {
-                    tile_elementwise_inout(
-                        accumulator_ops.get(number<i>{}),
-                        y_compute,
-                        y_compute);
+                // 2. Cast y_compute to thread_buffer<YDataType, N> (N = tile size)
+                auto y_thread_buf = cast_tile<YDataType>(y_compute).get_thread_buffer();
 
-                    // 1. Get the pointer to the output buffer for this tile window
-                    auto* p_y_tile = p_y_tuple + (i * output_tensor_offset) 
-                        + S::Block_M * block_group_id
-                        + y_compute.get_thread_buffer_size() * thread_m_cluster_id;
-
-
-                    // 2. Cast y_compute to thread_buffer<YDataType, N> (N = tile size)
-                    auto y_thread_buf = cast_tile<YDataType>(y_compute).get_thread_buffer();
-
-                    // 3. Atomically operation between the register tile and DRAM
-                    auto atomic_ops =
-                        interblock_reduce_ops.get(number<i>{})
-                            .template GetAtomic<YDataType, y_thread_buf.N>(); // TODO: check if we
-                                                                              // need YDataType
-                    atomic_ops(p_y_tile, y_thread_buf);
-                }
-
-            });
+                // 3. Atomically operation between the register tile and DRAM
+                auto atomic_ops =
+                    interblock_reduce_ops.get(number<i>{})
+                        .template GetAtomic<YDataType, y_thread_buf.N>(); // TODO: check if we
+                                                                          // need YDataType
+                atomic_ops(p_y_tile, y_thread_buf);
+            }
+        });
     }
 
     /// @brief Validates if the given arguments are supported by the 2D multi reduction kernel.

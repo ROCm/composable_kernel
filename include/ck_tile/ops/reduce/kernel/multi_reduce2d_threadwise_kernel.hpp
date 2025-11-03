@@ -112,8 +112,7 @@ struct MultiReduceThreadWise
 
         const auto custom_padding_values = ck_tile::apply(
             [](auto... args) {
-                return ck_tile::make_tuple(
-                    args.template GetIdentityValue<XDataType>()...);
+                return ck_tile::make_tuple(args.template GetIdentityValue<XDataType>()...);
             },
             reduce_ops); // Get the identity element for each operation
 
@@ -121,10 +120,8 @@ struct MultiReduceThreadWise
             CalculateInputVectorSize<InputShape, ReduceDims>(); // Move at "vectorization" steps if
                                                                 // continuous otherwise 1 step
 
-        auto desc = make_naive_tensor_descriptor(input_shape,
-                                                 input_strides,
-                                                 number<x_tensor_vector_size>{},
-                                                 number<1>{});
+        auto desc = make_naive_tensor_descriptor(
+            input_shape, input_strides, number<x_tensor_vector_size>{}, number<1>{});
 
         const auto kept_strides = [&]() {
             return generate_tuple(
@@ -163,12 +160,10 @@ struct MultiReduceThreadWise
 
         index_t num_n_tile_iteration = __builtin_amdgcn_readfirstlane(integer_divide_ceil(
             total_reduce_len, S::Block_N)); // Figure out the number of iterations needed to cover
-                                             // the reduced dimension with Block size N
+                                            // the reduced dimension with Block size N
 
-        auto block_reduce2d =
-            Policy::template GetBlockReduce2d<Problem>(); 
-        auto block_reduce2d_sync =
-            Policy::template GetBlockReduce2dSync<Problem>(); 
+        auto block_reduce2d      = Policy::template GetBlockReduce2d<Problem>();
+        auto block_reduce2d_sync = Policy::template GetBlockReduce2dSync<Problem>();
         auto block_reduce2d_cross_warp_sync =
             Policy::template GetBlockReduce2dCrossWarpSync<Problem>();
 
@@ -176,19 +171,18 @@ struct MultiReduceThreadWise
             auto buffer_view = make_buffer_view<address_space_enum::global>(
                 p_x,
                 desc.get_element_space_size(),
-                custom_padding_values.get(
-                    number<i>{})); // Input tensor buffer view
+                custom_padding_values.get(number<i>{})); // Input tensor buffer view
 
             const auto x_tensor = tensor_view<decltype(buffer_view), decltype(desc)>{
                 buffer_view, desc}; // Tensor view over the buffer view and tensor descriptor
             const auto transformed_x_tensor = pad_tensor_view(
                 transform_tensor_view(x_tensor,
-                                    make_tuple(kept_merge_transform, reduce_merge_transform),
-                                    make_tuple(kept_dim, reduce_dims),
-                                    make_tuple(sequence<0>{}, sequence<1>{})),
+                                      make_tuple(kept_merge_transform, reduce_merge_transform),
+                                      make_tuple(kept_dim, reduce_dims),
+                                      make_tuple(sequence<0>{}, sequence<1>{})),
                 make_tuple(number<S::Block_M>{}, number<S::Block_N>{}),
-                sequence<0, 1>{}); // Specify how transform the input tensor to 2D (kept, reduced) and pad
-                                // to block size
+                sequence<0, 1>{}); // Specify how transform the input tensor to 2D (kept, reduced)
+                                   // and pad to block size
 
             auto x_window = make_tile_window(
                 transformed_x_tensor,

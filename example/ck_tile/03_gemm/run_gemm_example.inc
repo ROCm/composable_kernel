@@ -254,6 +254,15 @@ bool do_verify(const ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
     return pass;
 }
 
+std::tuple<ck_tile::index_t, ck_tile::index_t, ck_tile::index_t>
+parse_gemm_size(ck_tile::ArgParser& arg_parser)
+{
+    ck_tile::index_t M = arg_parser.get_int("m");
+    ck_tile::index_t N = arg_parser.get_int("n");
+    ck_tile::index_t K = arg_parser.get_int("k");
+    return std::make_tuple(M, N, K);
+}
+
 template <typename GemmConfig,
           typename Invoker,
           typename ADataType,

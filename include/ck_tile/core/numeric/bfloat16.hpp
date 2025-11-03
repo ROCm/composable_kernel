@@ -168,8 +168,12 @@ uint16_t float_to_bf16_rtn_asm(float f)
     static constexpr uint32_t FP32_NAN            = 0x7fff0000;
     static constexpr uint32_t ROUND_BIAS_FOR_BF16 = 0x7fff;
 
+#if defined(__GFX9__)
     using uint32x2_t = uint32_t __attribute__((ext_vector_type(2)));
     uint32x2_t check_nan;
+#else
+    uint32_t check_nan;
+#endif
     uint32_t tmp;
     asm volatile("\n \
             v_cmp_u_f32 %0, %2, %2 \n \
@@ -204,8 +208,12 @@ uint16_t float_to_bf16_rta_asm(float f)
     const uint32_t low_nan = 0x7fff;
     const uint32_t hi_nan  = 0x7fff0000;
 
+#if defined(__GFX9__)
     using uint32x2_t = uint32_t __attribute__((ext_vector_type(2)));
     uint32x2_t check_nan;
+#else
+    uint32_t check_nan;
+#endif
 
     asm volatile("v_cmp_u_f32 %[s_cnan], %[v_x], %[v_x] \n"
                  "v_add3_u32 %[v_x], %[v_x], %[v_blo], 1 \n"

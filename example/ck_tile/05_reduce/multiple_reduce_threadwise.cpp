@@ -77,13 +77,15 @@ bool run(const ck_tile::ArgParser& arg_parser)
     const auto number_operations = y_host_dev_tuple.size();
 
     const ck_tile::index_t reduce_total_length = H * W;
-    auto reduce_ops = ck_tile::make_tuple(ck_tile::ReduceOp::Add{}, 
-                                            ck_tile::ReduceOp::Add{}); // Intra block reductions
-    auto elementwise_ops = ck_tile::make_tuple(ck_tile::element_wise::PassThrough{}, 
-                                                ck_tile::element_wise::UnarySquare{}); // Elementwise ops
-    auto accumulator_elementwise_ops = ck_tile::make_tuple(ck_tile::element_wise::PassThrough{},
-                                         ck_tile::element_wise::UnaryDivide{reduce_total_length}); // Accumulator Elementiwise ops on reduction, intra block
-
+    auto reduce_ops                            = ck_tile::make_tuple(ck_tile::ReduceOp::Add{},
+                                          ck_tile::ReduceOp::Add{}); // Intra block reductions
+    auto elementwise_ops =
+        ck_tile::make_tuple(ck_tile::element_wise::PassThrough{},
+                            ck_tile::element_wise::UnarySquare{}); // Elementwise ops
+    auto accumulator_elementwise_ops = ck_tile::make_tuple(
+        ck_tile::element_wise::PassThrough{},
+        ck_tile::element_wise::UnaryDivide{
+            reduce_total_length}); // Accumulator Elementiwise ops on reduction, intra block
 
     auto y_buf_size = number_operations *
                       y_host_dev_tuple.at(ck_tile::number<0>{}).get_element_space_size_in_bytes();
@@ -108,9 +110,9 @@ bool run(const ck_tile::ArgParser& arg_parser)
                                  BlockTile::at(ck_tile::number<0>{});
     std::cout << "grid size " << kGridSize << std::endl;
 
-    using Shape = ck_tile::Reduce2dShape<BlockWarps, BlockTile, WarpTile, Vector>;
-    using Problem =
-        ck_tile::Reduce2dProblem<XDataType, ComputeDataType, YDataType, Shape, decltype(reduce_ops)>;
+    using Shape   = ck_tile::Reduce2dShape<BlockWarps, BlockTile, WarpTile, Vector>;
+    using Problem = ck_tile::
+        Reduce2dProblem<XDataType, ComputeDataType, YDataType, Shape, decltype(reduce_ops)>;
 
     using Kernel                      = ck_tile::MultiReduceThreadWise<Problem>;
     const ck_tile::index_t kBlockSize = Kernel::BlockSize();
@@ -156,7 +158,13 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
         // reference
         ck_tile::reference_multiple_reduce<XDataType, ComputeDataType, YDataType>(
-            x_host, y_host_ref_tuple, reduce_ops, kept_dim, reduce_dims, elementwise_ops, accumulator_elementwise_ops);
+            x_host,
+            y_host_ref_tuple,
+            reduce_ops,
+            kept_dim,
+            reduce_dims,
+            elementwise_ops,
+            accumulator_elementwise_ops);
         std::cout << "Read " << y_buf_size / 10 << " Bytes from the device" << std::endl;
 
         // Transfer data from device and check error for each operation

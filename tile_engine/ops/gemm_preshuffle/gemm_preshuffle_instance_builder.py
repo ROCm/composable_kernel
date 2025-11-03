@@ -1,3 +1,6 @@
+## Copyright © Advanced Micro Devices, Inc. or its affiliates.
+## SPDX-License-Identifier: MIT
+
 import argparse
 import os
 import json
@@ -95,67 +98,87 @@ class GemmPreshuffleKernelBuilder:
 
     def _get_tile_configs(self, fast_mode=False):
         """Get tile configurations for the current datatype and layout"""
-        if "tile_configs" in self.config:
-            # Old format
-            return (
-                self.config["tile_configs"].get(self.datatype, {}).get(self.layout, [])
+
+        tile_config = self.config["tile_config"]
+
+        # Generate values in the config if default range is given
+        if tile_config.get("tile_m").get("values") is None:
+            tile_config.get("tile_m")["values"] = self._generate_values(
+                tile_config.get("tile_m").get("min"),
+                tile_config.get("tile_m").get("max"),
+                tile_config.get("tile_m").get("step"),
             )
-        elif "tile_config" in self.config:
-            # New format - generate combinations from individual parameter values
-            tile_config = self.config["tile_config"]
+        if tile_config.get("tile_n").get("values") is None:
+            tile_config.get("tile_n")["values"] = self._generate_values(
+                tile_config.get("tile_n").get("min"),
+                tile_config.get("tile_n").get("max"),
+                tile_config.get("tile_n").get("step"),
+            )
+        if tile_config.get("tile_k").get("values") is None:
+            tile_config.get("tile_k")["values"] = self._generate_values(
+                tile_config.get("tile_k").get("min"),
+                tile_config.get("tile_k").get("max"),
+                tile_config.get("tile_k").get("step"),
+            )
 
-            # Get all possible values for each parameter
-            tile_m_values = tile_config.get("tile_m", {}).get("values", [256])
-            tile_n_values = tile_config.get("tile_n", {}).get("values", [256])
-            tile_k_values = tile_config.get("tile_k", {}).get("values", [32])
-            warp_m_values = tile_config.get("warp_m", {}).get("values", [2])
-            warp_n_values = tile_config.get("warp_n", {}).get("values", [2])
-            warp_k_values = tile_config.get("warp_k", {}).get("values", [1])
-            warp_tile_m_values = tile_config.get("warp_tile_m", {}).get("values", [32])
-            warp_tile_n_values = tile_config.get("warp_tile_n", {}).get("values", [32])
-            warp_tile_k_values = tile_config.get("warp_tile_k", {}).get("values", [32])
+        # Get all possible values for each parameter
+        tile_m_values = tile_config.get("tile_m").get("values")
+        tile_n_values = tile_config.get("tile_n").get("values")
+        tile_k_values = tile_config.get("tile_k").get("values")
+        warp_m_values = tile_config.get("warp_m").get("values")
+        warp_n_values = tile_config.get("warp_n").get("values")
+        warp_k_values = tile_config.get("warp_k").get("values")
+        warp_tile_m_values = tile_config.get("warp_tile_m").get("values")
+        warp_tile_n_values = tile_config.get("warp_tile_n").get("values")
+        warp_tile_k_values = tile_config.get("warp_tile_k").get("values")
 
-            # Generate all combinations
-            configs = []
-            for tile_m in tile_m_values:
-                for tile_n in tile_n_values:
-                    for tile_k in tile_k_values:
-                        for warp_m in warp_m_values:
-                            for warp_n in warp_n_values:
-                                for warp_k in warp_k_values:
-                                    for warp_tile_m in warp_tile_m_values:
-                                        for warp_tile_n in warp_tile_n_values:
-                                            for warp_tile_k in warp_tile_k_values:
-                                                # Validate configuration
-                                                if self._validate_tile_config(
-                                                    tile_m,
-                                                    tile_n,
-                                                    tile_k,
-                                                    warp_m,
-                                                    warp_n,
-                                                    warp_k,
-                                                    warp_tile_m,
-                                                    warp_tile_n,
-                                                    warp_tile_k,
-                                                    fast_mode=fast_mode,
-                                                ):
-                                                    configs.append(
-                                                        {
-                                                            "tile_m": tile_m,
-                                                            "tile_n": tile_n,
-                                                            "tile_k": tile_k,
-                                                            "warp_m": warp_m,
-                                                            "warp_n": warp_n,
-                                                            "warp_k": warp_k,
-                                                            "warp_tile_m": warp_tile_m,
-                                                            "warp_tile_n": warp_tile_n,
-                                                            "warp_tile_k": warp_tile_k,
-                                                        }
-                                                    )
-            return configs
-        else:
-            # Fallback to default
-            return []
+        # Generate all combinations
+        configs = []
+        for tile_m in tile_m_values:
+            for tile_n in tile_n_values:
+                for tile_k in tile_k_values:
+                    for warp_m in warp_m_values:
+                        for warp_n in warp_n_values:
+                            for warp_k in warp_k_values:
+                                for warp_tile_m in warp_tile_m_values:
+                                    for warp_tile_n in warp_tile_n_values:
+                                        for warp_tile_k in warp_tile_k_values:
+                                            # Validate configuration
+                                            if self._validate_tile_config(
+                                                tile_m,
+                                                tile_n,
+                                                tile_k,
+                                                warp_m,
+                                                warp_n,
+                                                warp_k,
+                                                warp_tile_m,
+                                                warp_tile_n,
+                                                warp_tile_k,
+                                                fast_mode=fast_mode,
+                                            ):
+                                                configs.append(
+                                                    {
+                                                        "tile_m": tile_m,
+                                                        "tile_n": tile_n,
+                                                        "tile_k": tile_k,
+                                                        "warp_m": warp_m,
+                                                        "warp_n": warp_n,
+                                                        "warp_k": warp_k,
+                                                        "warp_tile_m": warp_tile_m,
+                                                        "warp_tile_n": warp_tile_n,
+                                                        "warp_tile_k": warp_tile_k,
+                                                    }
+                                                )
+        return configs
+
+    def _generate_values(self, min_val, max_val, step):
+        """Generate a list of values from min to max with the given step"""
+        values = []
+        val = min_val
+        while val <= max_val:
+            values.append(val)
+            val += step
+        return values
 
     def _generate_trait_combinations(self):
         """Generate all combinations of traits"""
@@ -270,6 +293,12 @@ class GemmPreshuffleKernelBuilder:
 
             return True
         else:
+            # Validate preshuffle specific constraints
+            if self.config.get("permute_n"):
+                valid = (tile_n / warp_tile_n / warp_n) % 2 == 0
+                if not valid:
+                    return False
+
             # Full validation for generation
             # Determine data types for validation
             a_datatype = self.datatype
@@ -299,7 +328,7 @@ class GemmPreshuffleKernelBuilder:
             )
 
     def _generate_kernel_instance(
-        self, tile_config, trait_combo, k_block_per_cu, is_header=True
+        self, tile_config, trait_combo, k_block_per_cu, permute_n, is_header=True
     ):
         """Generate a single kernel instance"""
         (
@@ -328,13 +357,11 @@ class GemmPreshuffleKernelBuilder:
 
         # Map pipeline names to the correct pipeline implementation
         pipeline_impl_map = {
-            "preshufflev1": "ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV1",
             "preshufflev2": "ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2",
         }
 
         # Map pipeline names to base pipeline for hot loop detection
         base_pipeline_map = {
-            "preshufflev1": "ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV1",
             "preshufflev2": "ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2",
         }
 
@@ -349,9 +376,9 @@ class GemmPreshuffleKernelBuilder:
         acc_type = "float"
 
         # Determine output type
-        c_type = get_dtype_string(self.datatype)
+        c_type = self.datatype
         if self.datatype in ["fp8", "bf8"]:
-            c_type = "ck_tile::fp16_t"
+            c_type = "fp16"
 
         # Determine layouts based on self.layout
         a_layout, b_layout, c_layout = get_abc_layouts(self.layout)
@@ -374,7 +401,7 @@ class GemmPreshuffleKernelBuilder:
 using ADataType = {get_dtype_string(self.datatype)};
 using BDataType = {get_dtype_string(self.datatype)};
 using AccDataType = {acc_type};
-using CDataType = {c_type};
+using CDataType = {get_dtype_string(c_type)};
 
 using ALayout = {a_layout};
 using BLayout = {b_layout};
@@ -407,6 +434,8 @@ struct SelectedKernel {{
     static constexpr bool UseStructuredSparsity = false;
     static constexpr bool Preshuffle = true;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
+
+    static constexpr bool PermuteN     = {"true" if permute_n else "false"};
 
     // Tile shape
     using TileShape = ck_tile::TileGemmShape<
@@ -485,7 +514,10 @@ struct SelectedKernel {{
                 WarpTileK,                   // KPerXdl_
                 TransposeC,                  // isCTransposed_
                 memory_operation,            // MemoryOperation_
-                NumWaveGroups>;              // kNumWaveGroups_
+                NumWaveGroups,               // kNumWaveGroups_
+                false,                       // FixedVectorSize_
+                1,                           // VectorSizeC_
+                PermuteN>;                   // isPermuteN_
             
             using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;
 """
@@ -580,6 +612,7 @@ struct SelectedKernel {{
         tile_configs = self._get_tile_configs()
         trait_combos = self._generate_trait_combinations()
         k_block_per_cu = self.config.get("k_block_per_cu")
+        permute_n = self.config.get("permute_n")
 
         # Prepare work items for parallel processing
         work_items = []
@@ -590,6 +623,7 @@ struct SelectedKernel {{
                         tile_config,
                         trait_combo,
                         k_block_per_cu,
+                        permute_n,
                         self.working_path,
                         self.datatype,
                         self.layout,
@@ -681,21 +715,29 @@ struct SelectedKernel {{
 
 def _generate_single_kernel_individual(work_item):
     """Worker function to generate a single individual kernel file"""
-    tile_config, trait_combo, k_block_per_cu, working_path, datatype, layout = work_item
+    (
+        tile_config,
+        trait_combo,
+        k_block_per_cu,
+        permute_n,
+        working_path,
+        datatype,
+        layout,
+    ) = work_item
 
     # Create a temporary builder instance for this worker
     builder = GemmPreshuffleKernelBuilder(working_path, datatype, layout)
 
     try:
         kernel_name, instance_code = builder._generate_kernel_instance(
-            tile_config, trait_combo, k_block_per_cu
+            tile_config, trait_combo, k_block_per_cu, permute_n
         )
 
-        # Create simplified filename without the "gemm_" prefix
-        # Remove "gemm_" from the beginning of kernel_name for the filename
+        # Create simplified filename without the "gemm_preshuffle_" prefix
+        # Remove "gemm_preshuffle_" from the beginning of kernel_name for the filename
         simplified_name = kernel_name
-        if simplified_name.startswith("gemm_"):
-            simplified_name = simplified_name[5:]  # Remove "gemm_" prefix
+        if simplified_name.startswith("gemm_preshuffle_"):
+            simplified_name = simplified_name[16:]  # Remove "gemm_preshuffle_" prefix
 
         # Write individual header file
         header_file = working_path / f"gemm_single_{simplified_name}.hpp"
@@ -727,7 +769,7 @@ def main():
     parser.add_argument(
         "--layout",
         required=True,
-        choices=["rcr", "rrr", "ccr", "crr"],
+        choices=["rcr"],
         help="Matrix layout",
     )
     parser.add_argument("--config_json", required=True, help="Configuration JSON file")
@@ -735,7 +777,9 @@ def main():
         "--num_workers", type=int, help="Number of parallel workers (default: auto)"
     )
     parser.add_argument(
-        "--gen_individual", action="store_true", help="Generate individual kernel files"
+        "--gen_all_individual",
+        action="store_true",
+        help="Generate individual kernel files",
     )
     parser.add_argument(
         "--gen_single", action="store_true", help="Generate a single kernel file"
@@ -763,7 +807,7 @@ def main():
     assert len(layout_parts) == 3, (
         f"Invalid layout string: {args.layout} (must be 3 characters like 'rcr' where r stands for row major and c stands for column major)"
     )
-    assert layout_parts[0] == "r" and layout_parts[1] == "c", (
+    assert layout_parts[0] in ["r"] and layout_parts[1] in ["c"], (
         f"Invalid matrix_a layout : {layout_parts[0]} or matrix_b layout: {layout_parts[1]} (matrix_a must be 'r' for row major and matrix_b must be 'c' for column major as it is the only supported layout for preshuffle)"
     )
     assert layout_parts[2] == "r", (
@@ -816,10 +860,11 @@ def main():
         )
 
         k_block_per_cu = builder.config.get("k_block_per_cu")
+        permute_n = builder.config.get("permute_n")
 
         # Generate the kernel
         kernel_name, instance_code = builder._generate_kernel_instance(
-            tile_config, trait_combo, k_block_per_cu
+            tile_config, trait_combo, k_block_per_cu, permute_n
         )
 
         # Write the file
@@ -835,13 +880,13 @@ def main():
 
         print(f"Generated {header_file}")
 
-    elif args.gen_individual:
+    elif args.gen_all_individual:
         # Generate all individual kernel files
         builder.run(args.num_workers)
         pass
     else:
         parser.error(
-            "Must specify one of: --list_kernels, --gen_individual, or --gen_single"
+            "Must specify one of: --list_kernels, --gen_all_individual, or --gen_single"
         )
 
 

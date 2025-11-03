@@ -225,16 +225,15 @@ template <typename XDataType,
           typename ElementWiseOps,
           typename AccElementWiseOps,
           typename InterBlockReduceOps>
-CK_TILE_HOST void
-reference_multiple_reduce_multiblock(const HostTensor<XDataType>& x_tensor,
-                                     YRefTuple& y_tensor_tuple,
-                                     ReduceOps reduce_ops,
-                                     KeptDim kept_dim,
-                                     ReduceDims reduce_dims,
-                                     ElementWiseOps elementwise_ops,
-                                     AccElementWiseOps accumulator_ops,
-                                     InterBlockReduceOps inter_block_reduce_ops,
-                                     ck_tile::index_t num_blocks)
+CK_TILE_HOST void reference_multiple_reduce_multiblock(const HostTensor<XDataType>& x_tensor,
+                                                       YRefTuple& y_tensor_tuple,
+                                                       ReduceOps reduce_ops,
+                                                       KeptDim kept_dim,
+                                                       ReduceDims reduce_dims,
+                                                       ElementWiseOps elementwise_ops,
+                                                       AccElementWiseOps accumulator_ops,
+                                                       InterBlockReduceOps inter_block_reduce_ops,
+                                                       ck_tile::index_t num_blocks)
 {
     const auto& x_lengths = x_tensor.mDesc.get_lengths();
 
@@ -253,8 +252,7 @@ reference_multiple_reduce_multiblock(const HostTensor<XDataType>& x_tensor,
         auto& y_tensor = y_tensor_tuple.template at<i>();
         for(auto& val : y_tensor.mData)
         {
-            val = inter_block_reduce_ops.template at<i>()
-                        .template GetIdentityValue<YDataType>();
+            val = inter_block_reduce_ops.template at<i>().template GetIdentityValue<YDataType>();
         }
     });
 
