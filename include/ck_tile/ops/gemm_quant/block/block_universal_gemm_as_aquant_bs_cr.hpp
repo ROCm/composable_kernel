@@ -46,7 +46,7 @@ struct BlockGemmAQuantBase
 
 // A is block window on shared memory
 // AQ (scale tensor) is block distributed tensor.
-// Consecutive kQuantGroupSize elements of A are quantized with a separate scale.
+// Consecutive QuantGroupSize elements of A are quantized with a separate scale.
 // B is block window on shared memory
 // C is block distributed tensor
 template <typename Problem_,
@@ -66,16 +66,16 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
         using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
         using CDataType       = remove_cvref_t<typename Problem::CDataType>;
         using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
+        using QuantGroupSize  = remove_cvref_t<typename Problem::QuantGroupSize>;
 
-        static constexpr index_t kQuantGroupSize = Problem::kQuantGroupSize;
-        static constexpr index_t kBlockSize      = Problem::kBlockSize;
-        static constexpr auto Scheduler          = Problem::Scheduler;
+        static constexpr index_t kBlockSize = Problem::kBlockSize;
+        static constexpr auto Scheduler     = Problem::Scheduler;
 
         // Threadblock GEMM tile size
         static constexpr index_t MPerBlock  = BlockGemmShape::kM;
         static constexpr index_t NPerBlock  = BlockGemmShape::kN;
         static constexpr index_t KPerBlock  = BlockGemmShape::kK;
-        static constexpr index_t AQPerBlock = KPerBlock / kQuantGroupSize;
+        static constexpr index_t AQPerBlock = KPerBlock / QuantGroupSize::kK;
 
         static constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WarpGemm               = remove_cvref_t<decltype(config.template at<0>())>;
@@ -101,20 +101,20 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
         static constexpr index_t KIterPerWarp = KPerBlock / WarpGemm::kK;
 
         static constexpr index_t QScalesPerBlockRow =
-            (KPerBlock + kQuantGroupSize - 1) / kQuantGroupSize;
+            integer_divide_ceil(KPerBlock, QuantGroupSize::kK);
         static constexpr index_t QScalesPerWarpGemmRow =
-            (WarpGemm::kK + kQuantGroupSize - 1) / kQuantGroupSize;
+            integer_divide_ceil(WarpGemm::kK, QuantGroupSize::kK);
 
         static constexpr index_t KIterPerQScale = KIterPerWarp / QScalesPerBlockRow;
 
-        static_assert(kQuantGroupSize % WarpGemm::kK == 0,
-                      "Error! WarpGemm::kK should be a multiple of kQuantGroupSize");
+        static_assert(QuantGroupSize::kK % WarpGemm::kK == 0,
+                      "Error! WarpGemm::kK should be a multiple of QuantGroupSize");
         static_assert(QScalesPerWarpGemmRow == 1,
-                      "Error! kQuantGroupSize shouldn't be smaller than WarpGemm::kK");
+                      "Error! QuantGroupSize shouldn't be smaller than WarpGemm::kK");
         static_assert(KIterPerWarp % QScalesPerBlockRow == 0,
                       "Error! KItersPerWarp should be a multiple of QscalesPerBlockRow");
 
-        static_assert(KPerBlock / kQuantGroupSize > 0,
+        static_assert(KPerBlock / QuantGroupSize::kK > 0,
                       "Error! Each row of blockgemm should have a separate scale");
 
         static_assert(MIterPerWarp * MWarp * WarpGemm::kM == MPerBlock,

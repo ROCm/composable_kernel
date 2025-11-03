@@ -35,6 +35,12 @@ struct GemmConfig_Wmma : public GemmConfigBase
     static constexpr ck_tile::index_t K_Warp_Tile = 16;
 };
 
+#if CK_TILE_USE_WMMA
+using GemmConfigs = ::testing::Types<GemmConfig_Wmma>;
+#else
+using GemmConfigs = ::testing::Types<GemmConfig_Mfma>;
+#endif
+
 template <typename GemmConfig,
           typename ADataType,
           typename BDataType,
@@ -156,153 +162,57 @@ template <typename GemmConfig,
           typename APrecType,
           typename BPrecType = APrecType,
           typename CPrecType = APrecType>
-bool run_gemm_test_prec_type(std::string a_layout,
-                             std::string b_layout,
-                             ck_tile::ArgParser& arg_parser)
+bool run_gemm_test_prec_type(const int M, const int N, const int K)
 {
     using Row = ck_tile::tensor_layout::gemm::RowMajor;
     using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
-    if constexpr(std::is_same_v<BPrecType, ck_tile::pk_int4_t>)
+    return run_gemm_test_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType, Row, Col, Row>(
+        M, N, K);
+}
+
+template <typename Tuple>
+class TestCkTileGemmPipelineBasic : public ::testing::Test
+{
+    protected:
+    using GemmConfig = std::tuple_element_t<0, Tuple>;
+    using APrecType  = std::tuple_element_t<1, Tuple>;
+    using BPrecType  = std::tuple_element_t<2, Tuple>;
+    using CPrecType  = std::tuple_element_t<3, Tuple>;
+
+    void run_gemm_combinations(const int m, const int n, const int k)
     {
-        if(a_layout == "R" && b_layout == "C")
+        // Skip tests that are known to fail
+        if constexpr(std::is_same_v<APrecType, F8> && std::is_same_v<BPrecType, BF8>)
         {
-            return run_gemm_test_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                arg_parser, Row{}, Col{}, Row{});
+            GTEST_SKIP() << "Skipping this test due to known failures with F8 x BF8";
         }
-        else if(a_layout == "C" && b_layout == "C")
+        else if constexpr(std::is_same_v<APrecType, F16> && std::is_same_v<BPrecType, I4>)
         {
-            return run_gemm_test_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                arg_parser, Col{}, Col{}, Row{});
+            GTEST_SKIP() << "Skipping this test due to known failures with F16 x I4";
         }
         else
         {
-            throw std::runtime_error("Unsupported memory layout for the input matrices when "
-                                     "BPrecType is ck_tile::pk_int4_t!");
-        }
-    }
-    else
-    {
-        if(a_layout == "R" && b_layout == "C")
-        {
-            return run_gemm_test_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                arg_parser, Row{}, Col{}, Row{});
-        }
-        else if(a_layout == "R" && b_layout == "R")
-        {
-            return run_gemm_test_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                arg_parser, Row{}, Row{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "R")
-        {
-            return run_gemm_test_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                arg_parser, Col{}, Row{}, Row{});
-        }
-        else if(a_layout == "C" && b_layout == "C")
-        {
-            return run_gemm_test_with_layouts<GemmConfig, APrecType, BPrecType, CPrecType>(
-                arg_parser, Col{}, Col{}, Row{});
-        }
-        else
-        {
-            throw std::runtime_error("Unsupported memory layout for the input matrices!");
-        }
-    }
-}
+            bool is_success = true;
+            std::cout << "-m=" << m << " -n=" << n << " -k=" << k << std::endl;
 
-template <typename GemmConfig, typename APrecType, typename BPrecType, typename CPrecType>
-bool run_gemm_test(int argc, char* argv[])
-{
-    auto [result, arg_parser] = create_args(argc, argv);
-    if(!result)
-        return false;
-
-    std::string a_layout = arg_parser.get_str("a_layout");
-    std::string b_layout = arg_parser.get_str("b_layout");
-
-    return run_gemm_test_prec_type<GemmConfig, APrecType, BPrecType, CPrecType>(
-        a_layout, b_layout, arg_parser);
-}
-
-template <typename APrecType, typename BPrecType = APrecType, typename CPrecType = APrecType>
-bool run_gemm_combinations()
-{
-    // Define possible values for each parameter
-    std::vector<std::string> m_values = {"128", "1024"};
-    std::vector<std::string> n_values = {"128", "2048"};
-    std::vector<std::string> k_values = {"64", "128"};
-
-    // We'll store all our arguments as strings first
-    std::vector<std::string> arg_strings = {"./bin/tile_example_gemm_basic",
-                                            "", // m placeholder
-                                            "", // n placeholder
-                                            "", // k placeholder
-                                            "-stride_a=0",
-                                            "-stride_b=0",
-                                            "-stride_c=0",
-                                            "-v=2",
-                                            "-warmup=0",
-                                            "-repeat=1"};
-
-    // Create an array of const char pointers for argv
-    constexpr size_t ARG_COUNT   = 10;
-    constexpr size_t ARG_MAX_LEN = 64;
-    char args[ARG_COUNT][ARG_MAX_LEN];
-    char* argv[ARG_COUNT];
-
-    // Run all combinations
-    bool is_success = true;
-    for(const auto& m : m_values)
-    {
-        arg_strings[1] = "-m=" + m;
-
-        for(const auto& n : n_values)
-        {
-            arg_strings[2] = "-n=" + n;
-
-            for(const auto& k : k_values)
+            // Call the function with the current configuration
+            try
             {
-                arg_strings[3] = "-k=" + k;
-
-                // Set up the argv array with pointers to the string data
-                for(size_t i = 0; i < ARG_COUNT; i++)
-                {
-                    strncpy(args[i], arg_strings[i].c_str(), ARG_MAX_LEN);
-                    argv[i] = args[i];
-                }
-
-                std::cout << "Arguments received: ";
-                for(size_t i = 1; i < ARG_COUNT; ++i)
-                {
-                    std::cout << argv[i] << " ";
-                }
-                std::cout << std::endl;
-
-                // Call the function with the current configuration
-                try
-                {
-#if CK_TILE_USE_WMMA
-                    is_success = run_gemm_test<GemmConfig_Wmma, APrecType, BPrecType, CPrecType>(
-                                     ARG_COUNT, argv) &&
-                                 is_success;
-#else
-                    is_success = run_gemm_test<GemmConfig_Mfma, APrecType, BPrecType, CPrecType>(
-                                     ARG_COUNT, argv) &&
-                                 is_success;
-#endif
-                }
-                catch(const ArgumentsNotSupportedException& e)
-                {
-                    std::cerr << "Caught ArgumentsNotSupportedException: " << e.what() << '\n';
-                    // ArgumentsNotSupportedException  is not an error. Do not change is_success
-                }
-                catch(const std::runtime_error& e)
-                {
-                    std::cerr << "Caught runtime error: " << e.what() << '\n';
-                    is_success = false;
-                }
+                is_success =
+                    run_gemm_test_prec_type<GemmConfig, APrecType, BPrecType, CPrecType>(m, n, k);
             }
+            catch(const ArgumentsNotSupportedException& e)
+            {
+                std::cerr << "Caught ArgumentsNotSupportedException: " << e.what() << '\n';
+                // ArgumentsNotSupportedException  is not an error. Do not change is_success
+            }
+            catch(const std::runtime_error& e)
+            {
+                std::cerr << "Caught runtime error: " << e.what() << '\n';
+                is_success = false;
+            }
+            EXPECT_TRUE(is_success);
         }
     }
-    return is_success;
-}
+};

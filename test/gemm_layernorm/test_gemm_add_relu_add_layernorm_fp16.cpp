@@ -79,11 +79,6 @@ TYPED_TEST_SUITE(TestGemmAddReluAddLayernorm, KernelTypes);
 TYPED_TEST(TestGemmAddReluAddLayernorm, Test_FP16) { this->Run(); }
 int main(int argc, char** argv)
 {
-    if(ck::is_gfx11_supported() || ck::is_gfx12_supported())
-    {
-        std::cout << "No available instance for gfx11 & gfx12." << std::endl;
-        return 0;
-    }
     testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();
 }

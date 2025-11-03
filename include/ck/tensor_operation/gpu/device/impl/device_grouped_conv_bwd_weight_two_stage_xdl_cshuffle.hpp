@@ -1886,6 +1886,14 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             }
         }
 
+        constexpr long_index_t TwoGB = (long_index_t{1} << 31);
+        if(!(arg.a_grid_desc_k0_m_k1_.GetElementSpaceSize() * sizeof(ADataType) <= TwoGB &&
+             arg.b_grid_desc_k0_n_k1_.GetElementSpaceSize() * sizeof(BDataType) <= TwoGB &&
+             arg.ce_grid_desc_m_n_.GetElementSpaceSize() * sizeof(EDataType) <= TwoGB))
+        {
+            return false;
+        }
+
         return true;
     }
 

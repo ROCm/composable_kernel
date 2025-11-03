@@ -22,7 +22,7 @@
 // on template parameters - we don't need any implementation details.
 namespace ck::tensor_operation::device {
 
-template <ck::index_t NDimSpatial,
+template <index_t NDimSpatial,
           typename ALayout,
           typename BLayout,
           typename DsLayout,
@@ -36,8 +36,8 @@ template <ck::index_t NDimSpatial,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
-          ConvolutionForwardSpecialization ConvForwardSpecialization,
-          GemmSpecialization GemmSpec,
+          ck::tensor_operation::device::ConvolutionForwardSpecialization ConvForwardSpecialization,
+          ck::tensor_operation::device::GemmSpecialization GemmSpec,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -258,6 +258,8 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultiple
     // Compute data types
     using AComputeDataType = AComputeDataType_;
     using BComputeDataType = BComputeDataType_;
+
+    static constexpr bool kDirectLoad = DirectLoad;
 
     // Static member function to generate instance string
     static std::string instance_string()

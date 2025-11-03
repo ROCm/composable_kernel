@@ -454,11 +454,8 @@ struct PassThrough
     }
 
     template <typename E, typename C, typename... Ds>
-    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const Ds&... ds) const -> void
+    CK_TILE_HOST_DEVICE auto operator()(E& e, const C& c, const Ds&...) const -> void
     {
-        // Suppress unused parameter warning for ds
-        ((void)ds, ...);
-
         // Just assign e with c
         if constexpr(std::is_same_v<E, C>)
         {
