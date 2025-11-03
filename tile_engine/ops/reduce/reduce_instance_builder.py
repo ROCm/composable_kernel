@@ -36,7 +36,6 @@ class MultiReduceBase:
         return generated_test
 
     def do_list_blobs(self):
-
         with open(
             self.working_path / Path(f"reduce_{self.name}_blobs_list.txt"), "w"
         ) as f:
@@ -104,10 +103,6 @@ class MultiReduceThreadwiseKernelBuilder(MultiReduceBase):
     def __init__(self, working_path, gpu_target, datatype, config_json=None):
         super().__init__(working_path, gpu_target, datatype, config_json)
 
-        # self.working_path = Path(working_path)
-        # self.gpu_target = gpu_target
-        # self.datatype = datatype
-
         self.name = "multiops_threadwise"
 
         self.header = "test_multi_reduce2d_threadwise_impl.hpp"
@@ -118,93 +113,10 @@ class MultiReduceMultiBlockKernelBuilder(MultiReduceBase):
     def __init__(self, working_path, gpu_target, datatype, config_json=None):
         super().__init__(working_path, gpu_target, datatype, config_json)
 
-        # self.working_path = Path(working_path)
-        # self.gpu_target = gpu_target
-        # self.datatype = datatype
-
         self.name = "multiops_multiblock"
-        # self.config = ReduceConfig(config_json) if config_json else None
 
-        # self.signature_test = {3:"Test3D_KeepDim0_ReduceDim12", 4: "Test4D_KeepDim01_ReduceDim23"}
         self.header = "test_multi_reduce2d_multiblock_impl.hpp"
         self.test_type = "TestCkTileMultiReduceMultiblock"
-
-
-#     def _generate_instances(self):
-#         if not self.config:
-#             raise ValueError("Configuration not provided.")
-
-#         instances = []
-#         for params in self.config.get_parameter_combinations():
-
-#             instance = self._create_instance(params)
-#             instances.append((instance, params))
-#         return instances  # TODO: write these instance somewhere?
-
-#     def _create_instance(self, parameters):
-
-#         generated_test = self._get_test(parameters)
-
-#         return generated_test
-
-
-#     def do_list_blobs(self):
-#         # instances = self._generate_instances(template_path, "multiblock")
-#         # for instance, params in instances:
-#         # for params in self.config.get_parameter_combinations():
-#         #     print(f"{self.name}_{params}")  # Or handle the instance code as needed
-#         with open(self.working_path / Path(f"reduce_{self.name}_blobs_list.txt"), "w") as f:
-#             combos_str = [f"{self.name}_{params}" for params in self.config.get_parameter_combinations()]
-#             f.write("\n".join(combos_str))
-#             f.write("\n")
-
-#     def do_generate_blobs(self):
-#         instances = self._generate_instances()
-#         for instance_code, params in instances:
-#             blob_filename = self.working_path / Path(f"test_{self.name}_{params}.cpp")
-#             with open(blob_filename, "w") as f:
-#                 f.write(instance_code)
-
-#     def _get_test(self, params):
-#         dimension = len(params.input_shape)
-#         signature = self.signature_test.get(dimension, None)
-
-#         if not signature:
-#             raise ValueError(f"No test signature found for input shape dimension: {dimension}")
-
-#         shape_str = [str(i) for i in params.input_shape]
-#         input_shape_arg_str = ",".join(shape_str)
-#         input_shape_str = "x".join(shape_str)
-
-#         t = f"""#include "{self.header}"
-
-# using Shape_BlockWarps = ck_tile::sequence<4, 1>;
-# using Shape_BlockTile  = ck_tile::sequence<{params.tile_m}, {params.tile_n}>;
-# using Shape_WarpTile   = ck_tile::sequence<{params.warp_m}, {params.warp_n}>;
-# using Shape_ThreadTile = ck_tile::sequence<{params.thread_tile_m}, {params.thread_tile_n}>;
-
-# using TestConfig =
-#     std::tuple<ck_tile::half_t, // TODO
-#                 float,          // TODO
-#                 ck_tile::half_t, // TODO
-#                 ck_tile::tuple<ck_tile::ReduceOp::Add, ck_tile::ReduceOp::Add>,
-#                 Shape_BlockWarps,
-#                 Shape_BlockTile,
-#                 Shape_WarpTile,
-#                 Shape_ThreadTile,
-#                 ck_tile::tuple<PassThrough, SquareDivide>>;
-
-# // Register the type(s) for the typed test suite
-# typedef ::testing::Types<TestConfig> TestTypes;
-# TYPED_TEST_SUITE(TestCkTileMultiReduceMultiblock, TestTypes);
-
-# TYPED_TEST(TestCkTileMultiReduceMultiblock, {signature}_{input_shape_str})
-# {{
-#     this->Run{signature}({input_shape_arg_str});
-# }}
-# """
-
-#         return t
 
 
 def main(args):
@@ -249,9 +161,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args)
-
-    # m = MultiReduceMultiBlockKernelBuilder("./", "gfx942", "float32", "configs/default_multi_reduce_multiblock_config.json")
-    # print(m.config.config_dict)
-    # print(list(m.config.get_parameter_combinations()))
-
-    # print(m.generate_instances("templates/test_multi_reduce_multiblock.cpp.template")[0])
