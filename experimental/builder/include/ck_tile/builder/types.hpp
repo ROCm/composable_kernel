@@ -128,29 +128,14 @@ enum class ElementwiseOperation
     PASS_THROUGH
 };
 
-// Enums for the current block GEMM pipeline versions.
-enum class BlockGemmPipelineVersion
+// Enums for pipeline versions & schedulers
+enum class PipelineVersion
 {
     V1,
     V2,
     V3,
     V4,
-    V5
-};
-
-enum struct BlockGemmPipelineScheduler
-{
-    INTRAWAVE,
-    INTERWAVE,
-};
-
-// Enums for the gridwise GEMM pipeline versions.
-enum class GridwiseGemmPipelineVersion
-{
-    V1,
-    V2,
-    V3, // Only used in stream-K implementation
-    V4,
+    V5,
     WEIGHT_ONLY
 };
 
@@ -223,9 +208,10 @@ enum class GemmPadding
     MNKO_PADDING,
 };
 
-enum class LoopScheduler
+enum class PipelineScheduler
 {
     DEFAULT,
+    INTRAWAVE,
     INTERWAVE
 };
 

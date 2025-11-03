@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <concepts>
 #include <ck_tile/builder/conv_builder.hpp>
 #include <ck_tile/builder/conv_factory.hpp>
 #include <ck_tile/builder/conv_signature_concepts.hpp>
@@ -12,8 +13,96 @@
 #include <ck/tensor_operation/gpu/device/convolution_backward_data_specialization.hpp>
 #include <ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp>
 #include <ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp>
+#include <ck/utility/loop_scheduler.hpp>
+#include <ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp>
 
 namespace ck_tile::reflect::conv {
+
+// Helper metafunctions to convert from ck enums to builder enums
+
+/// @brief Converts a CK BlockGemmPipelineVersion enum to a builder PipelineVersion enum.
+/// @tparam ck_ver The CK BlockGemmPipelineVersion enum value to convert.
+/// @return The corresponding builder::PipelineVersion enum value (V1, V2, V3, V4, or V5).
+/// @details This function maps CK's block GEMM pipeline version identifiers to the
+/// builder framework's standardized pipeline version enum. The pipeline version
+/// determines the strategy used for data movement and computation overlap in the
+/// GEMM kernel's main loop.
+template <ck::BlockGemmPipelineVersion ck_ver>
+constexpr auto convert_pipeline_version()
+{
+    using enum ck::BlockGemmPipelineVersion;
+    using enum builder::PipelineVersion;
+    if constexpr(ck_ver == v1)
+        return V1;
+    else if constexpr(ck_ver == v2)
+        return V2;
+    else if constexpr(ck_ver == v3)
+        return V3;
+    else if constexpr(ck_ver == v4)
+        return V4;
+    else if constexpr(ck_ver == v5)
+        return V5;
+}
+
+/// @brief Converts a CK PipelineVersion enum to a builder PipelineVersion enum.
+/// @tparam ck_ver The CK PipelineVersion enum value to convert.
+/// @return The corresponding builder::PipelineVersion enum value (V1, V2, V4, or WEIGHT_ONLY).
+/// @details This function maps CK's general pipeline version identifiers to the
+/// builder framework's standardized pipeline version enum. Note that this overload
+/// handles a different set of pipeline versions compared to the BlockGemmPipelineVersion
+/// variant, including support for specialized weight-only pipelines.
+template <ck::PipelineVersion ck_ver>
+constexpr auto convert_pipeline_version()
+{
+    using enum ck::PipelineVersion;
+    using enum builder::PipelineVersion;
+    if constexpr(ck_ver == v1)
+        return V1;
+    else if constexpr(ck_ver == v2)
+        return V2;
+    else if constexpr(ck_ver == v4)
+        return V4;
+    else if constexpr(ck_ver == weight_only)
+        return WEIGHT_ONLY;
+}
+
+/// @brief Converts a CK BlockGemmPipelineScheduler enum to a builder PipelineScheduler enum.
+/// @tparam ck_sched The CK BlockGemmPipelineScheduler enum value to convert.
+/// @return The corresponding builder::PipelineScheduler enum value (INTRAWAVE or INTERWAVE).
+/// @details This function maps CK's block GEMM pipeline scheduler identifiers to the
+/// builder framework's standardized scheduler enum. The scheduler determines how work
+/// is distributed and synchronized within and across wavefronts during pipeline execution.
+/// INTRAWAVE scheduling operates within a single wavefront, while INTERWAVE coordinates
+/// across multiple wavefronts.
+template <ck::BlockGemmPipelineScheduler ck_sched>
+constexpr auto convert_pipeline_scheduler()
+{
+    using enum ck::BlockGemmPipelineScheduler;
+    using enum builder::PipelineScheduler;
+    if constexpr(ck_sched == Intrawave)
+        return INTRAWAVE;
+    else if constexpr(ck_sched == Interwave)
+        return INTERWAVE;
+}
+
+/// @brief Converts a CK LoopScheduler enum to a builder PipelineScheduler enum.
+/// @tparam ck_sched The CK LoopScheduler enum value to convert.
+/// @return The corresponding builder::PipelineScheduler enum value (DEFAULT or INTERWAVE).
+/// @details This function maps CK's loop scheduler identifiers to the builder framework's
+/// standardized pipeline scheduler enum. The loop scheduler controls how iterations of
+/// the main computational loop are scheduled across threads. DEFAULT uses the standard
+/// scheduling strategy, while INTERWAVE enables cross-wavefront coordination for improved
+/// performance in certain scenarios.
+template <ck::LoopScheduler ck_sched>
+constexpr auto convert_pipeline_scheduler()
+{
+    using enum ck::LoopScheduler;
+    using enum builder::PipelineScheduler;
+    if constexpr(ck_sched == Default)
+        return DEFAULT;
+    else if constexpr(ck_sched == Interwave)
+        return INTERWAVE;
+}
 
 /// @brief Helper structures for organizing trait data with domain-specific naming
 
@@ -548,12 +637,12 @@ struct ConvTraits<Instance>
     {
         if constexpr(requires { T::kPipelineVersion; })
         {
-            return T::kPipelineVersion;
+            return convert_pipeline_version<T::kPipelineVersion>();
         }
         else
         {
             // Return a default or indicate not available
-            return ck::BlockGemmPipelineVersion::v1;
+            return builder::PipelineVersion::V1;
         }
     }
 
@@ -568,12 +657,16 @@ struct ConvTraits<Instance>
     {
         if constexpr(requires { T::kPipelineScheduler; })
         {
-            return T::kPipelineScheduler;
+            return convert_pipeline_scheduler<T::kPipelineScheduler>();
+        }
+        else if constexpr(requires { T::kLoopScheduler; })
+        {
+            return convert_pipeline_scheduler<T::kLoopScheduler>();
         }
         else
         {
             // Return a default or indicate not available
-            return ck::BlockGemmPipelineScheduler::Intrawave;
+            return builder::PipelineScheduler::DEFAULT;
         }
     }
 
