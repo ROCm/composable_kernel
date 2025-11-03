@@ -11,7 +11,9 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/grouped_convolution.hpp"
+#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 #include "conv_configs.hpp"
+
 using MemoryOpSet =
     std::integral_constant<ck_tile::memory_operation_enum, ck_tile::memory_operation_enum::set>;
 using MemoryOpAtomicAdd = std::integral_constant<ck_tile::memory_operation_enum,
