@@ -74,7 +74,7 @@ TEST_F(ConvTraitsTest, ConvFwdTraitsExtraction)
                          8>, // CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
             8,               // CDEBlockTransferScalarPerVector_NPerBlock
             ck::BlockGemmPipelineScheduler::Intrawave, // BlkGemmPipeSched
-            ck::BlockGemmPipelineVersion::v1,          // BlkGemmPipelineVer
+            ck::PipelineVersion::v1,                   // BlkGemmPipelineVer
             ck::half_t,                                // AComputeDataType
             ck::half_t,                                // BComputeDataType
             false>;                                    // DirectLoad
@@ -142,8 +142,8 @@ TEST_F(ConvTraitsTest, ConvFwdTraitsExtraction)
     EXPECT_EQ(Traits::c_tile_transfer.scalar_per_vector, 8);
 
     // Verify pipeline configuration
-    EXPECT_EQ(Traits::pipeline_scheduler, ck::BlockGemmPipelineScheduler::Intrawave);
-    EXPECT_EQ(Traits::pipeline_version, ck::BlockGemmPipelineVersion::v1);
+    EXPECT_EQ(Traits::pipeline_scheduler, ck_tile::builder::PipelineScheduler::INTRAWAVE);
+    EXPECT_EQ(Traits::pipeline_version, ck_tile::builder::PipelineVersion::V1);
 }
 
 // Test ConvTraits with DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
