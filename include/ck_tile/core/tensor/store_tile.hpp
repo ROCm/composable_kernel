@@ -115,14 +115,12 @@ store_tile_raw(tile_window_with_static_lengths<BottomTensorView_, WindowLengths_
 template <typename BottomTensorView_,
           typename WindowLengths_,
           typename TileDistribution_,
-          typename ReplacementPartitionIndex_,
           index_t NumCoord,
           typename DataType_>
 CK_TILE_DEVICE void
 store_tile(tile_window_with_static_distribution<BottomTensorView_,
                                                 WindowLengths_,
                                                 TileDistribution_,
-                                                ReplacementPartitionIndex_,
                                                 NumCoord>& tile_window,
            const static_distributed_tensor<DataType_, TileDistribution_>& dstr_tensor)
 {
@@ -132,14 +130,12 @@ store_tile(tile_window_with_static_distribution<BottomTensorView_,
 template <typename BottomTensorView_,
           typename WindowLengths_,
           typename TileDistribution_,
-          typename ReplacementPartitionIndex_,
           index_t NumCoord,
           typename DataType_>
 CK_TILE_DEVICE void
 store_tile_raw(tile_window_with_static_distribution<BottomTensorView_,
                                                     WindowLengths_,
                                                     TileDistribution_,
-                                                    ReplacementPartitionIndex_,
                                                     NumCoord>& tile_window,
                const static_distributed_tensor<DataType_, TileDistribution_>& dstr_tensor)
 {

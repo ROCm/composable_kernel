@@ -26,23 +26,20 @@ namespace ck_tile {
  * @note This tile window does not support single issue you need to use tile_window_linear
  *       structure for this purpose
  *
- * @tparam BottomTensorView_          Class describing & holding device tensor memory.
- * @tparam WindowLengths_             Spatial sizes of windowed view on tensor.
- * @tparam StaticTileDistribution_    Thread distribution (mapping) into Tile dimensions
- * @tparam ReplacementPartitionIndex  Replacement values of (get_warp_id(), get_lane_id()) tuple
- * @tparam NumCoord                   TBD
+ * @tparam BottomTensorView_        Class describing & holding device tensor memory.
+ * @tparam WindowLengths_           Spatial sizes of windowed view on tensor.
+ * @tparam StaticTileDistribution_  Thread distribution (mapping) into Tile dimensions
+ * @tparam NumCoord                 TBD
  */
 template <typename BottomTensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
-          typename ReplacementPartitionIndex,
           index_t NumCoord>
 struct tile_window_with_static_distribution
     : public tile_window_with_tile_dstr_base<
           tile_window_with_static_distribution<BottomTensorView_,
                                                WindowLengths_,
                                                StaticTileDistribution_,
-                                               ReplacementPartitionIndex,
                                                NumCoord>,
           BottomTensorView_,
           WindowLengths_,
@@ -52,7 +49,6 @@ struct tile_window_with_static_distribution
         tile_window_with_static_distribution<BottomTensorView_,
                                              WindowLengths_,
                                              StaticTileDistribution_,
-                                             ReplacementPartitionIndex,
                                              NumCoord>,
         BottomTensorView_,
         WindowLengths_,
@@ -87,11 +83,11 @@ struct tile_window_with_static_distribution
         if constexpr(Base::BottomTensorView::buffer_view::get_address_space() ==
                      address_space_enum::global)
         {
-            pre_computed_warp_coords_ = prepare_coords(bottom_tensor_view,
-                                                       window_origin,
-                                                       tile_distribution,
-                                                       partition_index,
-                                                       sequence<-1, 0>{});
+            auto use_lane_id_0 = partition_index;
+            use_lane_id_0[1]   = 0;
+
+            pre_computed_warp_coords_ =
+                prepare_coords(bottom_tensor_view, window_origin, tile_distribution, use_lane_id_0);
         }
     }
 
@@ -108,35 +104,18 @@ struct tile_window_with_static_distribution
     {
     }
 
-    template <typename NewReplacementPartitionIndex = ReplacementPartitionIndex>
     CK_TILE_DEVICE constexpr auto
     prepare_coords(const typename Base::BottomTensorView& bottom_tensor_view,
                    const typename Base::BottomTensorIndex& window_origin,
                    const typename Base::TileDstr& tile_distribution,
-                   decltype(get_partition_index(tile_distribution)) partition_index,
-                   NewReplacementPartitionIndex = {}) const
+                   decltype(get_partition_index(tile_distribution)) partition_index) const
     {
         array<tuple<typename Base::WindowAdaptorCoord, typename Base::BottomTensorCoord>, NumCoord>
             coords;
 
         const auto window_adaptor_thread_coord_tmp = make_tensor_adaptor_coordinate(
             tile_distribution.get_ps_ys_to_xs_adaptor(),
-            container_concat(
-                // Override partition_index with the corresponding non-negative elements (if
-                // any) from NewReplacementPartitionIndex
-                [&] {
-                    static_for<0,
-                               ck_tile::min(partition_index.size(),
-                                            NewReplacementPartitionIndex::size()),
-                               1>{}([&](auto idx) {
-                        if constexpr(0 <= NewReplacementPartitionIndex{}[idx])
-                        {
-                            partition_index[idx] = NewReplacementPartitionIndex{}[idx];
-                        }
-                    });
-                    return partition_index;
-                }(),
-                multi_index<Base::NDimY>{0}));
+            container_concat(partition_index, multi_index<Base::NDimY>{0}));
 
         typename Base::BottomTensorIndex bottom_tensor_thread_origin_idx_tmp =
             window_origin + window_adaptor_thread_coord_tmp.get_bottom_index();
@@ -201,13 +180,10 @@ struct tile_window_with_static_distribution
      *       The same thread, during vectorized reading, accesses the same set of
      *       data from A0, A1, A2, … AN.
      */
-    template <
-        typename TileWindow_,
-        typename ElementWise_,
-        index_t i_access_unsupport_ = -1,
-        bool oob_conditional_check  = true,
-        typename = std::enable_if_t<std::is_class_v<TileWindow_> && std::is_class_v<ElementWise_> &&
-                                    !is_constant_v<ElementWise_>>>
+    template <typename TileWindow_,
+              typename ElementWise_,
+              index_t i_access_unsupport_ = -1,
+              bool oob_conditional_check  = true>
     CK_TILE_DEVICE auto load(const TileWindow_& tile_window,
                              ElementWise_ elementwise,
                              number<i_access_unsupport_>          = {},
@@ -223,15 +199,11 @@ struct tile_window_with_static_distribution
         return dst_tensor;
     }
 
-    template <
-        typename DistributedTensor,
-        typename TileWindow_,
-        typename ElementWise_,
-        index_t i_access_unsupport_ = -1,
-        bool oob_conditional_check  = true,
-        typename = std::enable_if_t<std::is_class_v<std::remove_cv_t<DistributedTensor>> &&
-                                    std::is_class_v<TileWindow_> && std::is_class_v<ElementWise_> &&
-                                    !is_constant_v<ElementWise_>>>
+    template <typename DistributedTensor,
+              typename TileWindow_,
+              typename ElementWise_,
+              index_t i_access_unsupport_ = -1,
+              bool oob_conditional_check  = true>
     CK_TILE_DEVICE auto load(DistributedTensor& dst_tensor,
                              const TileWindow_& tile_window,
                              ElementWise_ elementwise,
@@ -310,9 +282,7 @@ struct tile_window_with_static_distribution
 
     template <typename DistributedTensor,
               index_t i_access_unsupport_ = -1,
-              bool oob_conditional_check  = true,
-              typename = std::enable_if_t<std::is_class_v<std::remove_cv_t<DistributedTensor>> &&
-                                          !is_constant_v<std::remove_cv_t<DistributedTensor>>>>
+              bool oob_conditional_check  = true>
     CK_TILE_DEVICE auto load(DistributedTensor& dst_tensor,
                              number<i_access_unsupport_>          = {},
                              bool_constant<oob_conditional_check> = {}) const
@@ -1044,23 +1014,17 @@ struct tile_window_with_static_distribution
 template <typename TensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
-          typename ReplacementPartitionIndex = sequence<-1, -1>,
-          index_t NumCoord                   = 1,
-          typename                           = std::enable_if_t<is_tensor_view_v<TensorView_> &&
-                                                                is_tile_distribution_v<StaticTileDistribution_> &&
-                                                                is_sequence_v<ReplacementPartitionIndex>>>
+          index_t NumCoord = 1>
 CK_TILE_DEVICE constexpr auto
 make_tile_window(const TensorView_& tensor_view,
                  const WindowLengths_& window_lengths,
                  const multi_index<TensorView_::get_num_of_dimension()>& origin,
                  const StaticTileDistribution_& tile_distribution,
-                 ReplacementPartitionIndex = {},
-                 number<NumCoord>          = {})
+                 number<NumCoord> = {})
 {
     return tile_window_with_static_distribution<remove_cvref_t<TensorView_>,
                                                 remove_cvref_t<WindowLengths_>,
                                                 remove_cvref_t<StaticTileDistribution_>,
-                                                ReplacementPartitionIndex,
                                                 NumCoord>{
         tensor_view, window_lengths, origin, tile_distribution};
 }
@@ -1068,24 +1032,20 @@ make_tile_window(const TensorView_& tensor_view,
 template <typename TensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
-          typename ReplacementPartitionIndex = sequence<-1, -1>,
-          index_t NumCoord                   = 1,
-          typename                           = std::enable_if_t<is_tensor_view_v<TensorView_> &&
-                                                                is_tile_distribution_v<StaticTileDistribution_> &&
-                                                                is_sequence_v<ReplacementPartitionIndex>>>
+          index_t NumCoord = 1,
+          typename         = std::enable_if_t<is_tensor_view_v<TensorView_> &&
+                                              is_tile_distribution_v<StaticTileDistribution_>>>
 CK_TILE_DEVICE constexpr auto
 make_tile_window(const TensorView_& tensor_view,
                  const WindowLengths_& window_lengths,
                  const multi_index<TensorView_::get_num_of_dimension()>& origin,
                  const StaticTileDistribution_& tile_distribution,
                  decltype(get_partition_index(tile_distribution)) partition_index,
-                 ReplacementPartitionIndex = {},
-                 number<NumCoord>          = {})
+                 number<NumCoord> = {})
 {
     return tile_window_with_static_distribution<remove_cvref_t<TensorView_>,
                                                 remove_cvref_t<WindowLengths_>,
                                                 remove_cvref_t<StaticTileDistribution_>,
-                                                ReplacementPartitionIndex,
                                                 NumCoord>{
         tensor_view, window_lengths, origin, tile_distribution, partition_index};
 }
@@ -1094,23 +1054,17 @@ make_tile_window(const TensorView_& tensor_view,
 template <typename TensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
-          typename ReplacementPartitionIndex = sequence<-1, -1>,
-          index_t NumCoord                   = 1,
-          typename                           = std::enable_if_t<is_tensor_view_v<TensorView_> &&
-                                                                is_tile_distribution_v<StaticTileDistribution_> &&
-                                                                is_sequence_v<ReplacementPartitionIndex>>>
+          index_t NumCoord = 1>
 CK_TILE_DEVICE auto
 make_tile_window_raw(const TensorView_& tensor_view,
                      const WindowLengths_& window_lengths,
                      const multi_index<TensorView_::get_num_of_dimension()>& origin,
                      const StaticTileDistribution_& tile_distribution,
-                     ReplacementPartitionIndex = {},
-                     number<NumCoord>          = {})
+                     number<NumCoord> = {})
 {
     auto w = tile_window_with_static_distribution<remove_cvref_t<TensorView_>,
                                                   remove_cvref_t<WindowLengths_>,
                                                   remove_cvref_t<StaticTileDistribution_>,
-                                                  ReplacementPartitionIndex,
                                                   NumCoord>{
         tensor_view, window_lengths, origin, tile_distribution};
     w.init_raw();
@@ -1120,18 +1074,15 @@ make_tile_window_raw(const TensorView_& tensor_view,
 template <typename TensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
-          typename ReplacementPartitionIndex_,
           index_t NumCoord>
 CK_TILE_DEVICE void move_tile_window(
     tile_window_with_static_distribution<TensorView_,
                                          WindowLengths_,
                                          StaticTileDistribution_,
-                                         ReplacementPartitionIndex_,
                                          NumCoord>& window,
     const typename tile_window_with_static_distribution<TensorView_,
                                                         WindowLengths_,
                                                         StaticTileDistribution_,
-                                                        ReplacementPartitionIndex_,
                                                         NumCoord>::BottomTensorIndex& step)
 {
     window.move(step);
@@ -1140,24 +1091,20 @@ CK_TILE_DEVICE void move_tile_window(
 template <typename TensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
-          typename ReplacementPartitionIndex_,
           index_t NumCoord>
 CK_TILE_DEVICE void move_tile_window(
     tuple<tile_window_with_static_distribution<TensorView_,
                                                WindowLengths_,
                                                StaticTileDistribution_,
-                                               ReplacementPartitionIndex_,
                                                NumCoord>>& window,
     const typename tile_window_with_static_distribution<TensorView_,
                                                         WindowLengths_,
                                                         StaticTileDistribution_,
-                                                        ReplacementPartitionIndex_,
                                                         NumCoord>::BottomTensorIndex& step)
 {
     using T = tuple<tile_window_with_static_distribution<TensorView_,
                                                          WindowLengths_,
                                                          StaticTileDistribution_,
-                                                         ReplacementPartitionIndex_,
                                                          NumCoord>>;
 
     static constexpr auto N = T::size();
@@ -1258,9 +1205,7 @@ struct tile_window_with_static_lengths
     }
 };
 
-template <typename TensorView_,
-          typename WindowLengths_,
-          typename = std::enable_if_t<is_tensor_view_v<TensorView_>>>
+template <typename TensorView_, typename WindowLengths_>
 CK_TILE_DEVICE constexpr auto
 make_tile_window(const TensorView_& tensor_view,
                  const WindowLengths_& window_lengths,
@@ -1284,72 +1229,48 @@ make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths
         tile_window.get_bottom_tensor_view(), tile_window.get_window_lengths(), origin};
 }
 
-template <typename TensorView,
-          typename WindowLengths,
-          typename StaticTileDistribution,
-          typename ReplacementPartitionIndex = sequence<-1, -1>,
-          typename = std::enable_if_t<is_tile_distribution_v<StaticTileDistribution> &&
-                                      is_sequence_v<ReplacementPartitionIndex>>>
+template <typename TensorView, typename WindowLengths, typename StaticTileDistribution>
 CK_TILE_DEVICE constexpr auto
 make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
                  const multi_index<TensorView::get_num_of_dimension()>& origin,
-                 const StaticTileDistribution& tile_distribution,
-                 ReplacementPartitionIndex = {})
+                 const StaticTileDistribution& tile_distribution)
 {
     return make_tile_window(tile_window.get_bottom_tensor_view(),
                             tile_window.get_window_lengths(),
                             origin,
-                            tile_distribution,
-                            ReplacementPartitionIndex{});
+                            tile_distribution);
 }
 
-template <typename TensorView,
-          typename WindowLengths,
-          typename StaticTileDistribution,
-          typename ReplacementPartitionIndex = sequence<-1, -1>,
-          typename = std::enable_if_t<is_tile_distribution_v<StaticTileDistribution> &&
-                                      is_sequence_v<ReplacementPartitionIndex>>>
+template <typename TensorView, typename WindowLengths, typename StaticTileDistribution>
+CK_TILE_DEVICE constexpr auto
+make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
+                 const StaticTileDistribution& tile_distribution)
+{
+    return make_tile_window(tile_window.get_bottom_tensor_view(),
+                            tile_window.get_window_lengths(),
+                            tile_window.get_window_origin(),
+                            tile_distribution);
+}
+
+template <typename TensorView, typename WindowLengths, typename StaticTileDistribution>
 CK_TILE_DEVICE constexpr auto
 make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
                  const StaticTileDistribution& tile_distribution,
-                 ReplacementPartitionIndex = {})
+                 decltype(get_partition_index(tile_distribution)) partition_index)
 {
     return make_tile_window(tile_window.get_bottom_tensor_view(),
                             tile_window.get_window_lengths(),
                             tile_window.get_window_origin(),
                             tile_distribution,
-                            ReplacementPartitionIndex{});
+                            partition_index);
 }
 
-template <typename TensorView,
-          typename WindowLengths,
-          typename StaticTileDistribution,
-          typename ReplacementPartitionIndex = sequence<-1, -1>,
-          typename = std::enable_if_t<is_tile_distribution_v<StaticTileDistribution> &&
-                                      is_sequence_v<ReplacementPartitionIndex>>>
-CK_TILE_DEVICE constexpr auto
-make_tile_window(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
-                 const StaticTileDistribution& tile_distribution,
-                 decltype(get_partition_index(tile_distribution)) partition_index,
-                 ReplacementPartitionIndex = {})
-{
-    return make_tile_window(tile_window.get_bottom_tensor_view(),
-                            tile_window.get_window_lengths(),
-                            tile_window.get_window_origin(),
-                            tile_distribution,
-                            partition_index,
-                            ReplacementPartitionIndex{});
-}
-
-template <typename TensorView,
-          typename WindowLengths,
-          typename StaticTileDistribution,
-          typename ReplacementPartitionIndex = sequence<-1, -1>>
+template <typename TensorView, typename WindowLengths, typename StaticTileDistribution>
 CK_TILE_DEVICE constexpr auto
 make_tile_window_raw(const tile_window_with_static_lengths<TensorView, WindowLengths>& tile_window,
                      const StaticTileDistribution& tile_distribution)
 {
-    auto w = make_tile_window(tile_window, tile_distribution, ReplacementPartitionIndex{});
+    auto w = make_tile_window(tile_window, tile_distribution);
     w.init_raw();
     return w;
 }
@@ -1367,14 +1288,12 @@ template <typename NewTensorView_,
           typename OldTensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
-          typename ReplacementPartitionIndex_,
           index_t NumCoord = 1>
 CK_TILE_DEVICE auto
 replace_bottom_tensor_view(const NewTensorView_& new_tensor_view,
                            const tile_window_with_static_distribution<OldTensorView_,
                                                                       WindowLengths_,
                                                                       StaticTileDistribution_,
-                                                                      ReplacementPartitionIndex_,
                                                                       NumCoord>& tile_window)
 {
     return make_tile_window(new_tensor_view,
@@ -1407,22 +1326,19 @@ struct is_tile_window_with_static_distribution : std::false_type
 /**
  * @brief Specialization for `tile_window_with_static_distribution` to evaluate to `true_type`.
  *
- * @tparam BottomTensorView_          Class describing & holding device tensor memory.
- * @tparam WindowLengths_             Spatial sizes of windowed view on tensor.
- * @tparam StaticTileDistribution_    Thread distribution (mapping) into Tile dimensions
- * @tparam ReplacementPartitionIndex  Replacement values of (get_warp_id(), get_lane_id()) tuple
- * @tparam NumCoord                   TBD
+ * @tparam BottomTensorView_ Bottom tensor view type of the tile window.
+ * @tparam WindowLengths_ Static window lengths.
+ * @tparam StaticTileDistribution_ Tile distribution policy.
+ * @tparam NumCoord Number of coordinate dimensions.
  */
 template <typename BottomTensorView_,
           typename WindowLengths_,
           typename StaticTileDistribution_,
-          typename ReplacementPartitionIndex,
           index_t NumCoord>
 struct is_tile_window_with_static_distribution<
     tile_window_with_static_distribution<BottomTensorView_,
                                          WindowLengths_,
                                          StaticTileDistribution_,
-                                         ReplacementPartitionIndex,
                                          NumCoord>> : std::true_type
 {
 };
