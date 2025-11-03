@@ -50,13 +50,10 @@ auto create_args(int argc, char* argv[])
                 "scale factor of S. 0 means equal to 1/sqrt(hdim).\n"
                 "note when squant=1, this value will be modified")
         .insert("logits_soft_cap", "0", "attention logits soft capping value.")
-        .insert("squant",
-                "auto",
-                "if using static quantization fusion or not. auto: fp8 will default use squant, "
-                "other will not\n"
-                "0: no static quant(not implemented) 1: apply scale_p and scale_o with respect to "
-                "P and O.\n"
-                "calculate scale_s, scale_p, scale_o auto")
+        .insert("quant",
+                "0",
+                "if using quantization or not.\n"
+                "0: no quant 1: per-tensor quant 2: block scaling.\n")
         .insert("iperm",
                 "1",
                 "permute input\n"
@@ -162,12 +159,7 @@ auto run(const ck_tile::ArgParser& arg_parser)
     std::string init_method          = arg_parser.get_str("init");
     uint32_t seed                    = arg_parser.get_uint32("seed");
 
-    bool squant = [&]() {
-        if(arg_parser.get_str("squant") == "auto")
-            return std::is_same_v<DataTypeConfig, FmhaFwdFp8>;
-        else
-            return arg_parser.get_bool("squant");
-    }();
+    int quant = arg_parser.get_bool("quant");
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,
@@ -208,7 +200,7 @@ auto run(const ck_tile::ArgParser& arg_parser)
                                         drop_offset,
                                         drop_prefs,
                                         mask_str,
-                                        squant,
+                                        quant,
                                         is_rotary_interleaved,
                                         num_splits,
                                         init_method,

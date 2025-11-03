@@ -178,7 +178,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         uint64_t drop_offset,
                         bool drop_prefs,
                         std::string mask_str,
-                        bool squant,
+                        int quant,
                         bool is_rotary_interleaved,
                         ck_tile::index_t num_splits,
                         std::string init_method,
@@ -705,7 +705,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
     float scale_p = 1.f;
     float scale_o = 1.f;
-    if(squant)
+    if(quant)
     {
         float q_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<QDataType>::max());
         float k_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<KDataType>::max());
@@ -816,7 +816,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
               << (seqlen_kpads[0] < 0 ? ""
                                       : (std::string("(") + std::to_string(seqlen_kpads[0]) + ")"))
               << ", d:" << hdim_q << "/" << hdim_v << ", scale_s:" << scale_s << ", bias:" << bias
-              << ", p_drop:" << p_drop << ", lse:" << lse << ", squant:" << squant
+              << ", p_drop:" << p_drop << ", lse:" << lse << ", quant:" << quant
               << ", mask:" << mask << ", v:" << (is_v_rowmajor ? "r" : "c");
 #if CK_TILE_FMHA_FWD_APPENDKV_API
     if(0 < rotary_dim)
@@ -908,7 +908,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
             traits.mask_type           = mask.type;
             traits.bias_type           = bias.type;
             traits.has_lse             = lse;
-            traits.do_fp8_static_quant = squant;
+            traits.do_fp8_static_quant = quant == 1;
 
             if constexpr(std::is_same_v<fmha_fwd_traits, std::decay_t<decltype(traits)>>)
             {
@@ -1774,7 +1774,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
                                    scale_s,
                                    p_drop,
                                    lse,
-                                   squant,
+                                   quant,
                                    bias.type == bias_enum::elementwise_bias
                                        ? "elementwise_bias"
                                        : (bias.type == bias_enum::alibi ? "alibi" : "no_bias"),
