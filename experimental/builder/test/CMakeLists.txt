@@ -35,7 +35,9 @@ add_ck_builder_test(test_ckb_get_instance_string
 # Testing the fwd convolution builder requires kernel compilation.
 # To enable parallel compilation, the individual tests are split into separate files.
 add_ck_builder_test(test_ckb_build_fwd_instances
-    conv/test_ckb_conv_fwd_1d_bf16.cpp    
+    conv/test_ckb_conv_fwd_1d_fp16.cpp
+    conv/test_ckb_conv_fwd_1d_bf16.cpp
+    conv/test_ckb_conv_fwd_1d_i8.cpp    
     conv/test_ckb_conv_fwd_2d_bf16.cpp
     conv/test_ckb_conv_fwd_2d_fp16.cpp
     conv/test_ckb_conv_fwd_2d_fp32.cpp

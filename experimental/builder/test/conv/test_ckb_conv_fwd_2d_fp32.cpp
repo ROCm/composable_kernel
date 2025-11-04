@@ -19,10 +19,11 @@ TEST(FwdConvInstances,
     constexpr ThreadBlock FwdThreadBlock{.block_size = 256,
                                          .tile_size  = {.m = 128, .n = 128, .k = 32}};
 
-    run_test<FwdConvSignature,
-             FwdThreadBlock,
-             BlockGemmPipelineVersion::V4,
-             ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0>();
+    run_test_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<
+        FwdConvSignature,
+        FwdThreadBlock,
+        BlockGemmPipelineVersion::V4,
+        ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0>();
 }
 
 } // namespace ck_tile::builder::testing

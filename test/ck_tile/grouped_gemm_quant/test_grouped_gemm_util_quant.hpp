@@ -93,6 +93,8 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
         constexpr ck_tile::index_t TileParitionerGroupNum = 8;
         constexpr ck_tile::index_t TileParitionerM01      = 4;
 
+        using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
+
         using GemmShape =
             ck_tile::TileGemmShape<ck_tile::sequence<GroupedGemKernelParam::M_Tile,
                                                      GroupedGemKernelParam::N_Tile,
@@ -135,7 +137,7 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                                                    AccDataType,
                                                    GemmShape,
                                                    GemmUniversalTraits,
-                                                   128>, // QuantGroupSize
+                                                   QuantGroupSize>,
                 ck_tile::GemmRowColTensorQuantPipelineProblem<ADataType,
                                                               BDataType,
                                                               AccDataType,
@@ -257,6 +259,8 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
         std::vector<std::unique_ptr<ck_tile::DeviceMem>> c_m_n_dev_buf;
         std::vector<std::unique_ptr<ck_tile::DeviceMem>> aq_dev_buf;
         std::vector<std::unique_ptr<ck_tile::DeviceMem>> bq_dev_buf;
+
+        using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
 
         a_m_k_dev_buf.reserve(group_count);
         b_k_n_dev_buf.reserve(group_count);
@@ -495,7 +499,7 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                                               BDataType,
                                               AccDataType,
                                               CDataType,
-                                              128,
+                                              QuantGroupSize,
                                               false>(
                     a_m_k_tensors[i], bq_tensors[i], b_k_n_tensors[i], c_m_n_host_ref);
             }
