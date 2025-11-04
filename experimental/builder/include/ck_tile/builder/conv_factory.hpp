@@ -1015,6 +1015,16 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
                   "specialization.");
     static_assert(SpecifiesGemmSpecialization<AlgorithmType>,
                   "The convolution algorithm descriptor must specify gemm specialization.");
+    static_assert(SpecifiesDlThreadConfig<AlgorithmType>,
+                  "DL algorithm must specify thread config.");
+    static_assert(SpecifiesDlThreadCluster<AlgorithmType>,
+                  "DL algorithm must specify thread cluster.");
+    static_assert(SpecifiesDlBlockTransferA<AlgorithmType>,
+                  "DL algorithm must specify A block transfer.");
+    static_assert(SpecifiesDlBlockTransferB<AlgorithmType>,
+                  "DL algorithm must specify B block transfer.");
+    static_assert(SpecifiesDlCThreadTransfer<AlgorithmType>,
+                  "DL algorithm must specify C thread transfer.");
 
     static constexpr auto FWD_CONV_SPECIALIZATION =
         factory_internal::SetFwdConvSpecialization<ALGORITHM>();
@@ -1023,40 +1033,57 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 
     static constexpr auto BLOCK = factory_internal::SetThreadBlockInfo<ALGORITHM>();
 
-    // DL-specific hardcoded parameters based on the example from convnd_fwd_dl_fp16.cpp
-    // These can be made configurable in the future
-    static constexpr ck::index_t K0PerBlock  = 16;
-    static constexpr ck::index_t K1          = 2;
-    static constexpr ck::index_t M1PerThread = 4;
-    static constexpr ck::index_t N1PerThread = 4;
-    static constexpr ck::index_t KPerThread  = 1;
+    // DL-specific parameters from algorithm descriptor
+    static constexpr auto DL_THREAD_CFG      = ALGORITHM.dl_thread_config;
+    static constexpr ck::index_t K0PerBlock  = DL_THREAD_CFG.k0_per_block;
+    static constexpr ck::index_t K1          = DL_THREAD_CFG.k1;
+    static constexpr ck::index_t M1PerThread = DL_THREAD_CFG.m1_per_thread;
+    static constexpr ck::index_t N1PerThread = DL_THREAD_CFG.n1_per_thread;
+    static constexpr ck::index_t KPerThread  = DL_THREAD_CFG.k_per_thread;
 
-    // Thread cluster configuration
-    using M1N1ThreadClusterM1Xs = ck::Sequence<8, 2>;
-    using M1N1ThreadClusterN1Xs = ck::Sequence<8, 2>;
+    // Thread cluster from descriptor
+    static constexpr auto DL_CLUSTER = ALGORITHM.dl_thread_cluster;
+    using M1N1ThreadClusterM1Xs      = to_sequence_v<DL_CLUSTER.m1_xs>;
+    using M1N1ThreadClusterN1Xs      = to_sequence_v<DL_CLUSTER.n1_xs>;
 
-    // A Block Transfer - K0_M0_M1_K1 tensor format
-    using ABlockTransferThreadSliceLengths_K0_M0_M1_K1   = ck::Sequence<8, 1, 1, 2>;
-    using ABlockTransferThreadClusterLengths_K0_M0_M1_K1 = ck::Sequence<2, 1, 128, 1>;
-    using ABlockTransferThreadClusterArrangeOrder        = ck::Sequence<1, 2, 0, 3>;
-    using ABlockTransferSrcAccessOrder                   = ck::Sequence<1, 2, 0, 3>;
-    using ABlockTransferSrcVectorTensorLengths_K0_M0_M1_K1        = ck::Sequence<4, 1, 1, 2>;
-    using ABlockTransferSrcVectorTensorContiguousDimOrder         = ck::Sequence<1, 2, 0, 3>;
-    using ABlockTransferDstVectorTensorLengths_K0_M0_M1_K1        = ck::Sequence<1, 1, 1, 2>;
+    // A Block Transfer from descriptor - K0_M0_M1_K1 tensor format
+    static constexpr auto DL_A_TRANSFER = ALGORITHM.dl_block_transfer_a;
+    using ABlockTransferThreadSliceLengths_K0_M0_M1_K1 =
+        to_sequence_v<DL_A_TRANSFER.thread_slice_lengths>;
+    using ABlockTransferThreadClusterLengths_K0_M0_M1_K1 =
+        to_sequence_v<DL_A_TRANSFER.thread_cluster_lengths>;
+    using ABlockTransferThreadClusterArrangeOrder =
+        to_sequence_v<DL_A_TRANSFER.thread_cluster_arrange_order>;
+    using ABlockTransferSrcAccessOrder = to_sequence_v<DL_A_TRANSFER.src_access_order>;
+    using ABlockTransferSrcVectorTensorLengths_K0_M0_M1_K1 =
+        to_sequence_v<DL_A_TRANSFER.src_vector_tensor_lengths>;
+    using ABlockTransferSrcVectorTensorContiguousDimOrder =
+        to_sequence_v<DL_A_TRANSFER.src_vector_tensor_contiguous_dim_order>;
+    using ABlockTransferDstVectorTensorLengths_K0_M0_M1_K1 =
+        to_sequence_v<DL_A_TRANSFER.dst_vector_tensor_lengths>;
 
-    // B Block Transfer - K0_N0_N1_K1 tensor format
-    using BBlockTransferThreadSliceLengths_K0_N0_N1_K1   = ck::Sequence<8, 1, 1, 2>;
-    using BBlockTransferThreadClusterLengths_K0_N0_N1_K1 = ck::Sequence<2, 1, 128, 1>;
-    using BBlockTransferThreadClusterArrangeOrder        = ck::Sequence<1, 2, 0, 3>;
-    using BBlockTransferSrcAccessOrder                   = ck::Sequence<1, 2, 0, 3>;
-    using BBlockTransferSrcVectorTensorLengths_K0_N0_N1_K1        = ck::Sequence<4, 1, 1, 2>;
-    using BBlockTransferSrcVectorTensorContiguousDimOrder         = ck::Sequence<1, 2, 0, 3>;
-    using BBlockTransferDstVectorTensorLengths_K0_N0_N1_K1        = ck::Sequence<1, 1, 1, 2>;
+    // B Block Transfer from descriptor - K0_N0_N1_K1 tensor format
+    static constexpr auto DL_B_TRANSFER = ALGORITHM.dl_block_transfer_b;
+    using BBlockTransferThreadSliceLengths_K0_N0_N1_K1 =
+        to_sequence_v<DL_B_TRANSFER.thread_slice_lengths>;
+    using BBlockTransferThreadClusterLengths_K0_N0_N1_K1 =
+        to_sequence_v<DL_B_TRANSFER.thread_cluster_lengths>;
+    using BBlockTransferThreadClusterArrangeOrder =
+        to_sequence_v<DL_B_TRANSFER.thread_cluster_arrange_order>;
+    using BBlockTransferSrcAccessOrder = to_sequence_v<DL_B_TRANSFER.src_access_order>;
+    using BBlockTransferSrcVectorTensorLengths_K0_N0_N1_K1 =
+        to_sequence_v<DL_B_TRANSFER.src_vector_tensor_lengths>;
+    using BBlockTransferSrcVectorTensorContiguousDimOrder =
+        to_sequence_v<DL_B_TRANSFER.src_vector_tensor_contiguous_dim_order>;
+    using BBlockTransferDstVectorTensorLengths_K0_N0_N1_K1 =
+        to_sequence_v<DL_B_TRANSFER.dst_vector_tensor_lengths>;
 
-    // C Thread Transfer
-    using CThreadTransferSrcDstAccessOrder = ck::Sequence<0, 1, 2, 3, 4, 5>;
-    static constexpr ck::index_t CThreadTransferSrcDstVectorDim      = 5;
-    static constexpr ck::index_t CThreadTransferDstScalarPerVector   = 4;
+    // C Thread Transfer from descriptor
+    static constexpr auto DL_C_TRANSFER    = ALGORITHM.dl_c_thread_transfer;
+    using CThreadTransferSrcDstAccessOrder = to_sequence_v<DL_C_TRANSFER.src_dst_access_order>;
+    static constexpr ck::index_t CThreadTransferSrcDstVectorDim = DL_C_TRANSFER.src_dst_vector_dim;
+    static constexpr ck::index_t CThreadTransferDstScalarPerVector =
+        DL_C_TRANSFER.dst_scalar_per_vector;
 
     // The DL forward convolution kernel class instance
     using Instance = ck::tensor_operation::device::DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK<

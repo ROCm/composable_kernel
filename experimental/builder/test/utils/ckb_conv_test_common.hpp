@@ -235,4 +235,75 @@ constexpr void run_test_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle()
     EXPECT_NE(invoker_ptr, nullptr);
 }
 
+template <ConvSignature FwdConvSignature,
+          ThreadBlock FwdThreadBlock,
+          ConvFwdSpecialization FwdConvSpecialization>
+constexpr void run_test_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK()
+{
+    // DL thread configuration
+    constexpr DlThreadConfig DlThreadCfg{
+        .k0_per_block = 16, .k1 = 2, .m1_per_thread = 4, .n1_per_thread = 4, .k_per_thread = 1};
+
+    // DL thread cluster
+    constexpr DlThreadCluster DlCluster{.m1_xs = {8, 2}, .n1_xs = {8, 2}};
+
+    // DL A block transfer - K0_M0_M1_K1 format
+    constexpr DlBlockTransferK0M0M1K1 DlBlockTransferA{
+        .thread_slice_lengths                   = {8, 1, 1, 2},
+        .thread_cluster_lengths                 = {2, 1, 128, 1},
+        .thread_cluster_arrange_order           = {1, 2, 0, 3},
+        .src_access_order                       = {1, 2, 0, 3},
+        .src_vector_tensor_lengths              = {4, 1, 1, 2},
+        .src_vector_tensor_contiguous_dim_order = {1, 2, 0, 3},
+        .dst_vector_tensor_lengths              = {1, 1, 1, 2}};
+
+    // DL B block transfer - K0_N0_N1_K1 format
+    constexpr DlBlockTransferK0N0N1K1 DlBlockTransferB{
+        .thread_slice_lengths                   = {8, 1, 1, 2},
+        .thread_cluster_lengths                 = {2, 1, 128, 1},
+        .thread_cluster_arrange_order           = {1, 2, 0, 3},
+        .src_access_order                       = {1, 2, 0, 3},
+        .src_vector_tensor_lengths              = {4, 1, 1, 2},
+        .src_vector_tensor_contiguous_dim_order = {1, 2, 0, 3},
+        .dst_vector_tensor_lengths              = {1, 1, 1, 2}};
+
+    // DL C thread transfer
+    constexpr DlCThreadTransfer DlCTransfer{.src_dst_access_order  = {0, 1, 2, 3, 4, 5},
+                                            .src_dst_vector_dim    = 5,
+                                            .dst_scalar_per_vector = 4};
+
+    constexpr ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK FwdConvAlgorithm{
+        .thread_block         = FwdThreadBlock,
+        .fwd_specialization   = FwdConvSpecialization,
+        .gemm_specialization  = GemmSpecialization::MNKPadding,
+        .dl_thread_config     = DlThreadCfg,
+        .dl_thread_cluster    = DlCluster,
+        .dl_block_transfer_a  = DlBlockTransferA,
+        .dl_block_transfer_b  = DlBlockTransferB,
+        .dl_c_thread_transfer = DlCTransfer};
+
+    using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
+
+    auto instance = typename Builder::Instance{};
+
+    const auto kernel_string = instance.GetTypeString();
+    std::cout << "Generated kernel: " << kernel_string << std::endl;
+    EXPECT_GT(kernel_string.size(), 0);
+
+    EXPECT_TRUE(kernel_string.starts_with("DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK"));
+
+    // Verify specialization is correct
+    if(FwdConvSpecialization == ConvFwdSpecialization::DEFAULT)
+        EXPECT_TRUE(kernel_string.find("Default") != std::string::npos);
+    else if(FwdConvSpecialization == ConvFwdSpecialization::FILTER_1X1_PAD0)
+        EXPECT_TRUE(kernel_string.find("Filter1x1Pad0") != std::string::npos);
+    else if(FwdConvSpecialization == ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0)
+        EXPECT_TRUE(kernel_string.find("Filter1x1Stride1Pad0") != std::string::npos);
+    else if(FwdConvSpecialization == ConvFwdSpecialization::FILTER_3x3)
+        EXPECT_TRUE(kernel_string.find("Filter3x3") != std::string::npos);
+
+    const auto invoker_ptr = instance.MakeInvokerPointer();
+    EXPECT_NE(invoker_ptr, nullptr);
+}
+
 } // namespace ck_tile::builder::test_utils
