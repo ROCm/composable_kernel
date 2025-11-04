@@ -14,7 +14,7 @@
 #include "grouped_convolution_forward_invoker.hpp"
 #include "run_grouped_convolution_fwd_bias_clamp_example.inc"
 
-template <template <typename PrecType> typename GemmConfig>
+template <template <typename PrecType> typename ConvConfig>
 int run_grouped_conv_fwd_bias_clamp_example(int argc, char* argv[])
 {
     using Invoker = GroupedConvolutionForwardInvoker;
@@ -31,14 +31,14 @@ int run_grouped_conv_fwd_bias_clamp_example(int argc, char* argv[])
     if(data_type == "fp16")
     {
         return run_grouped_conv_fwd_bias_clamp_example_prec_type<Invoker,
-                                                                 GemmConfig<ck_tile::half_t>,
+                                                                 ConvConfig<ck_tile::half_t>,
                                                                  ck_tile::half_t>(
             in_layout, wei_layout, out_layout, argc, argv);
     }
     else if(data_type == "bf16")
     {
         return run_grouped_conv_fwd_bias_clamp_example_prec_type<Invoker,
-                                                                 GemmConfig<ck_tile::bf16_t>,
+                                                                 ConvConfig<ck_tile::bf16_t>,
                                                                  ck_tile::bf16_t>(
             in_layout, wei_layout, out_layout, argc, argv);
     }

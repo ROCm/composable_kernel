@@ -63,7 +63,6 @@ template <index_t NDimSpatial_,
           index_t VectorSizeB_      = 1,
           index_t VectorSizeC_      = 1,
           index_t NumGroupsToMerge_ = 1,
-          typename CDElementwise_   = PassThrough,
           bool EnableSplitImage_    = false>
 struct GroupedConvTraits
 {
@@ -83,7 +82,6 @@ struct GroupedConvTraits
     using WeiLayout                                               = WeiLayout_;
     using DsLayout                                                = DsLayout_;
     using OutLayout                                               = OutLayout_;
-    using CDElementwise                                           = CDElementwise_;
     using GroupedConvImplicitGemmTraitsFwd =
         TileGemmTraits<true,
                        true,
