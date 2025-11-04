@@ -1,5 +1,5 @@
 #include "utils/ckb_conv_test_configs.hpp"
-#include "utils/ckb_conv_test_common.hpp"
+#include "utils/ckb_conv_test_utils.hpp"
 
 namespace {
 
@@ -26,7 +26,11 @@ TEST(FwdConvInstances,
         .block_gemm          = BlockGemmDesc_v3_intrawave};
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
-    run_test<Builder>();
+    run_test<Builder>({"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3",
+                      "256, 256, 256, 32",
+                      "Filter1x1Pad0",
+                      "BlkGemmPipelineScheduler: Intrawave",
+                      "BlkGemmPipelineVersion: v3"});
 }
 
 } // namespace

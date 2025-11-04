@@ -1,5 +1,5 @@
 #include "utils/ckb_conv_test_configs.hpp"
-#include "utils/ckb_conv_test_common.hpp"
+#include "utils/ckb_conv_test_utils.hpp"
 
 namespace {
 
@@ -29,12 +29,10 @@ TEST(FwdConvInstances,
         .loop_scheduler             = LoopScheduler::DEFAULT};
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
-
-    const auto& asserts = InstanceNameAsserts{}
-                            .StartsWith("DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle")
-                            .Contains("Default");
-
-    run_test<Builder>(asserts);
+    run_test<Builder>({
+        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle", 
+        "64, 64, 32, 32",
+        "Default"});
 }
 
 } // namespace
