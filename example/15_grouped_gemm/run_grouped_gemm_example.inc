@@ -260,7 +260,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             pass &= ck::utils::check_err(c_device_result_converted, c_host_tensors[i]);
 
 #else
-            pass &= ck::utils::check_err(c_device_tensors[i], c_host_tensors[i]);
+            pass &= ck::utils::check_err<Tensor<EDataType>, Tensor<EDataType>, ComputeDataType>(
+                c_device_tensors[i], c_host_tensors[i]);
 #endif
         }
     }

@@ -1025,10 +1025,16 @@ template <index_t BlockSize,
           typename ComputeTypeB = FloatB>
 constexpr auto BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector()
 {
+
+#if defined(__gfx12__) || defined(__gfx11__) || defined(__gfx950__)
+    constexpr bool is_supported_arch = true;
+#else
+    constexpr bool is_supported_arch = false;
+#endif
+
     if constexpr(LoopSched == LoopScheduler::Default)
     {
-#if((defined(__gfx12__) || defined(__gfx11__) || defined(__gfx950__)) && !defined(__gfx942__))
-        if constexpr(is_same_v<FloatA, float> && is_same_v<FloatB, float> &&
+        if constexpr(is_supported_arch && is_same_v<FloatA, float> && is_same_v<FloatB, float> &&
                      is_same_v<ComputeTypeA, tf32_t> && is_same_v<ComputeTypeB, tf32_t>)
         {
             return BlockwiseGemmXdlopsBF16X3_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
