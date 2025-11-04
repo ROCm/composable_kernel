@@ -1,5 +1,6 @@
 import json
 
+
 class ReduceConfig:
     def __init__(self, config_json_path: str):
         self.config_json_path = config_json_path
