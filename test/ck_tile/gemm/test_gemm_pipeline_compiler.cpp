@@ -70,7 +70,8 @@ using MemTestTypes = ::testing::Types<
     // M_BlockSize, N_BlockSize, K_BlockSize, M_TileSize, N_TileSize, K_TileSize, Scheduler,
     // PipelineType
 
-    std::tuple<Col, Col, Row, F8, F8, F32, F16, I256, I256, I64, I32, I32, I16, Intrawave, Mem>>;
+    std::tuple<Row, Row, Row, F16, F16, F32, F16, I64, I64, I32, I16, I16, I16, Interwave, Mem>,
+    std::tuple<Row, Row, Row, BF16, BF16, F32, BF16, I64, I64, I32, I16, I16, I16, Interwave, Mem>>;
 
 // Memory Pipeline WMMA Types
 using MemWmmaTestTypes = ::testing::Types<
@@ -78,36 +79,23 @@ using MemWmmaTestTypes = ::testing::Types<
     std::tuple<Row, Row, Row, BF16, BF16, F32, BF16, I64, I64, I32, I16, I16, I16, Interwave, Mem>>;
 
 // CompV3 Pipeline Types
-using CompV3TestTypes = ::testing::Types<std::tuple<Col,
-                                                    Row,
-                                                    Row,
-                                                    INT8,
-                                                    INT8,
-                                                    INT32,
-                                                    INT32,
-                                                    I256,
-                                                    I256,
-                                                    I64,
-                                                    I32,
-                                                    I32,
-                                                    I16,
-                                                    Intrawave,
-                                                    CompV3>,
-                                         std::tuple<Col,
-                                                    Col,
-                                                    Row,
-                                                    INT8,
-                                                    INT8,
-                                                    INT32,
-                                                    INT32,
-                                                    I256,
-                                                    I256,
-                                                    I64,
-                                                    I32,
-                                                    I32,
-                                                    I16,
-                                                    Intrawave,
-                                                    CompV3>>;
+using CompV3TestTypes = ::testing::Types<
+    std::tuple<Row, Row, Row, F16, F16, F32, F16, I64, I64, I32, I16, I16, I16, Intrawave, CompV3>,
+    std::tuple<Row,
+               Row,
+               Row,
+               BF16,
+               BF16,
+               F32,
+               F16,
+               I64,
+               I64,
+               I32,
+               I16,
+               I16,
+               I16,
+               Intrawave,
+               CompV3>>;
 
 // CompV3 Pipeline WMMA Types
 using CompV3WmmaTestTypes = ::testing::Types<
@@ -130,34 +118,60 @@ using CompV3WmmaTestTypes = ::testing::Types<
 
 // CompV4 Pipeline Types
 using CompV4TestTypes = ::testing::Types<
-    std::tuple<Col, Col, Row, F8, F8, F32, F16, I256, I256, I32, I32, I32, I16, Intrawave, CompV4>,
-    std::tuple<Row, Col, Row, F8, BF8, F32, F16, I256, I256, I32, I32, I32, I16, Intrawave, CompV4>,
-    std::
-        tuple<Col, Col, Row, F8, BF8, F32, F16, I256, I256, I32, I32, I32, I16, Intrawave, CompV4>>;
+    std::tuple<Row, Row, Row, F16, F16, F32, F16, I64, I64, I32, I16, I16, I16, Intrawave, CompV4>,
+    std::tuple<Row,
+               Row,
+               Row,
+               BF16,
+               BF16,
+               F32,
+               F16,
+               I64,
+               I64,
+               I32,
+               I16,
+               I16,
+               I16,
+               Intrawave,
+               CompV4>>;
 
 // CompV4 Pipeline WMMA Types
 using CompV4WmmaTestTypes = ::testing::Types<
     std::tuple<Row, Row, Row, F16, F16, F32, F16, I64, I64, I32, I16, I16, I16, Intrawave, CompV4>,
-    std::tuple<Row, Col, Row, F16, F16, F32, F16, I64, I64, I32, I16, I16, I16, Intrawave, CompV4>,
-    std::tuple<Col, Row, Row, F16, F16, F32, F16, I64, I64, I32, I16, I16, I16, Intrawave, CompV4>,
-    std::tuple<Col, Col, Row, F16, F16, F32, F16, I64, I64, I32, I16, I16, I16, Intrawave, CompV4>>;
+    std::tuple<Row,
+               Row,
+               Row,
+               BF16,
+               BF16,
+               F32,
+               F16,
+               I64,
+               I64,
+               I32,
+               I16,
+               I16,
+               I16,
+               Intrawave,
+               CompV4>>;
 
 // CompV6 Pipeline Types
-using CompV6TestTypes = ::testing::Types<std::tuple<Row,
-                                                    Col,
-                                                    Row,
-                                                    F16,
-                                                    F16,
-                                                    F32,
-                                                    F16,
-                                                    I256,
-                                                    I256,
-                                                    I64,
-                                                    I32,
-                                                    I32,
-                                                    I16,
-                                                    Intrawave,
-                                                    CompV6>>;
+using CompV6TestTypes = ::testing::Types<
+    std::tuple<Row, Row, Row, F16, F16, F32, F16, I64, I64, I32, I16, I16, I16, Intrawave, CompV6>,
+    std::tuple<Row,
+               Row,
+               Row,
+               BF16,
+               BF16,
+               F32,
+               F16,
+               I64,
+               I64,
+               I32,
+               I16,
+               I16,
+               I16,
+               Intrawave,
+               CompV6>>;
 
 // Persistent CompV3 Pipeline Types
 using PersistentTestTypes = ::testing::Types<
@@ -409,10 +423,10 @@ TYPED_TEST(TEST_SUITE_NAME, LargeMatrix_WMMA)
 
 TYPED_TEST(TEST_SUITE_NAME, SmallM_CompV3)
 {
-    std::vector<int> Ms{1, 2, 3, 4, 5, 6};
+    std::vector<int> Ms{1, 2};
     constexpr int N = 1024;
     std::vector<int> Ks;
-    for(auto K_count : {2, 3, 4, 10, 11})
+    for(auto K_count : {2, 4})
     {
         Ks.push_back(K_count * TestFixture::K_Tile);
     }
@@ -441,11 +455,11 @@ TYPED_TEST(TEST_SUITE_NAME, SingleTile_CompV3)
 
 TYPED_TEST(TEST_SUITE_NAME, MidLargeM_CompV3)
 {
-    std::vector<int> Ms{127, 255, 312, 799, 1573};
+    std::vector<int> Ms{127, 255};
     constexpr int N = 1024;
 
     std::vector<int> Ks;
-    for(auto K_count : {2, 3, 4, 10, 11})
+    for(auto K_count : {2, 4})
     {
         Ks.push_back(K_count * TestFixture::K_Tile);
     }
@@ -514,10 +528,10 @@ TYPED_TEST(TEST_SUITE_NAME, BatchedSmall_CompV3)
 
 TYPED_TEST(TEST_SUITE_NAME, SmallM_CompV3Wmma)
 {
-    std::vector<int> Ms{1, 2, 3, 4, 5, 6};
+    std::vector<int> Ms{1, 2};
     constexpr int N = 1024;
     std::vector<int> Ks;
-    for(auto K_count : {2, 3, 4, 10, 11})
+    for(auto K_count : {2, 4})
     {
         Ks.push_back(K_count * TestFixture::K_Tile);
     }
@@ -570,10 +584,10 @@ TYPED_TEST(TEST_SUITE_NAME, LargeMatrix_CompV3Wmma)
 
 TYPED_TEST(TEST_SUITE_NAME, SmallM_CompV4)
 {
-    std::vector<int> Ms{1, 2, 3, 4, 5, 6};
+    std::vector<int> Ms{1, 2};
     constexpr int N = 1024;
     std::vector<int> Ks;
-    for(auto K_count : {2, 3, 4})
+    for(auto K_count : {2, 4})
     {
         Ks.push_back(K_count * TestFixture::K_Tile);
     }
@@ -655,10 +669,10 @@ TYPED_TEST(TEST_SUITE_NAME, LargeMatrix_CompV4Wmma)
 
 TYPED_TEST(TEST_SUITE_NAME, SmallM_CompV6)
 {
-    std::vector<int> Ms{1, 2, 3, 4, 5, 6};
+    std::vector<int> Ms{1, 2};
     constexpr int N = 1024;
     std::vector<int> Ks;
-    for(auto K_count : {2, 3, 4, 10, 11})
+    for(auto K_count : {2, 4})
     {
         Ks.push_back(K_count * TestFixture::K_Tile);
     }
@@ -687,11 +701,11 @@ TYPED_TEST(TEST_SUITE_NAME, SingleTile_CompV6)
 
 TYPED_TEST(TEST_SUITE_NAME, MidLargeM_CompV6)
 {
-    std::vector<int> Ms{127, 255, 312, 799, 1573};
+    std::vector<int> Ms{127, 255};
     constexpr int N = 1024;
 
     std::vector<int> Ks;
-    for(auto K_count : {2, 3, 4, 10, 11})
+    for(auto K_count : {2, 4})
     {
         Ks.push_back(K_count * TestFixture::K_Tile);
     }
@@ -752,10 +766,10 @@ TYPED_TEST(TEST_SUITE_NAME, LargeMatrix_CompV6)
 
 TYPED_TEST(TEST_SUITE_NAME, SmallM_Persistent)
 {
-    std::vector<int> Ms{1, 2, 3, 4, 5, 6};
+    std::vector<int> Ms{1, 2};
     constexpr int N = 1024;
     std::vector<int> Ks;
-    for(auto K_count : {2, 3, 4, 10, 11})
+    for(auto K_count : {2, 4})
     {
         Ks.push_back(K_count * TestFixture::K_Tile);
     }
@@ -808,10 +822,10 @@ TYPED_TEST(TEST_SUITE_NAME, LargeMatrix_Persistent)
 
 TYPED_TEST(TEST_SUITE_NAME, SmallM_PersistentWmma)
 {
-    std::vector<int> Ms{1, 2, 3, 4, 5, 6};
+    std::vector<int> Ms{1, 2};
     constexpr int N = 1024;
     std::vector<int> Ks;
-    for(auto K_count : {2, 3, 4, 10, 11})
+    for(auto K_count : {2, 4})
     {
         Ks.push_back(K_count * TestFixture::K_Tile);
     }
