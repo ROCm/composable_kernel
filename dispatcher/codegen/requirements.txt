@@ -1,0 +1,32 @@
+# CK Tile GEMM Codegen Requirements
+# Install with: pip install -r requirements.txt
+
+# Core dependencies (required)
+numpy>=1.20.0
+
+# ML Auto-Tuner (required for ml_autotuner.py)
+xgboost>=1.7.0
+pandas>=1.3.0
+scikit-learn>=1.0.0
+
+# Optional: For better performance
+# xgboost[gpu]>=1.7.0  # GPU-accelerated XGBoost
+
+# Optional: For visualization
+matplotlib>=3.4.0
+seaborn>=0.11.0
+
+# Optional: For advanced data processing
+scipy>=1.7.0
+
+# Development dependencies (optional)
+pytest>=7.0.0
+pytest-cov>=3.0.0
+black>=22.0.0
+flake8>=4.0.0
+mypy>=0.950
+
+# Documentation (optional)
+sphinx>=4.5.0
+sphinx-rtd-theme>=1.0.0
+
