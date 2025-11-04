@@ -60,8 +60,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
     using BaseGemmPipeline = std::conditional_t<
         GemmConfig::PreshuffleB == true,
         ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>,
-        ck_tile::BaseAQuantGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>; // memory pipeline
-                                                                           // hardcoded for aquant
+        ck_tile::BaseAQuantGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>;
 
     const ck_tile::index_t K_split =
         (args.K + GemmConfig::K_Tile - 1) / GemmConfig::K_Tile * GemmConfig::K_Tile;
@@ -252,6 +251,21 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
         {
             return run_gemm_example_with_layouts<GemmConfig, TypeConfig, QuantGroupSize, QuantMode>(
                 argc, argv, Row{}, Row{}, Col{}, Col{}, Row{});
+        }
+        if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
+        {
+            if(a_layout == "R" && b_layout == "R")
+            {
+                return run_gemm_example_with_layouts<GemmConfig,
+                                                     TypeConfig,
+                                                     QuantGroupSize,
+                                                     QuantMode>(
+                    argc, argv, Row{}, Row{}, Row{}, Row{}, Row{});
+            }
+            else
+            {
+                throw std::runtime_error("Unsupported memory layout for the input matrices!");
+            }
         }
         else
         {
