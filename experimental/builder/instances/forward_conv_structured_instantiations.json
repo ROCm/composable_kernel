@@ -1,0 +1,302 @@
+{
+  "metadata": {
+    "description": "Forward convolution kernel instantiations structured for C++ concept compliance",
+    "version": "1.0",
+    "total_instantiations": 1000,
+    "notes": "Each instantiation is represented as a JSON object with signature and algorithm fields that map to C++ structs satisfying ConvSignatureDescriptor and ConvAlgorithmDescriptor concepts"
+  },
+  "instantiations": [
+    {
+      "id": 0,
+      "source_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_fwd/device_grouped_conv_fwd_xdl_dynamic_op_instance.hpp",
+      "line": 54,
+      "signature": {
+        "spatial_dim": 2,
+        "direction": "FORWARD",
+        "layout": {
+          "input": "GNHWC",
+          "weight": "GKYXC",
+          "output": "GNHWK"
+        },
+        "data_type": {
+          "input": "BF16",
+          "weight": "BF16",
+          "accumulator": "F32",
+          "shuffle": "BF16",
+          "output": "BF16"
+        },
+        "elementwise_operation": "PASS_THROUGH",
+        "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle"
+      },
+      "algorithm": {
+        "thread_block": {
+          "block_size": 64,
+          "tile_size": {
+            "m": 64,
+            "n": 64,
+            "k": 32
+          }
+        },
+        "gridwise_gemm": {
+          "ak1": 8,
+          "bk1": 8,
+          "m_per_xdl": 32,
+          "n_per_xdl": 32,
+          "m_xdl_per_wave": 2,
+          "n_xdl_per_wave": 2
+        },
+        "block_transfer": {
+          "block_transfer_a": {
+            "k0": 4,
+            "m_n": 16,
+            "k1": 1
+          },
+          "block_transfer_b": {
+            "k0": 4,
+            "m_n": 16,
+            "k1": 1
+          },
+          "thread_cluster_dims_c": {
+            "m_block": 1,
+            "m_wave_per_xdl": 16,
+            "n_block": 1,
+            "n_wave_per_xdl": 4
+          },
+          "lds_transfer_a": {
+            "src_vector_dim": 2,
+            "src_scalar_per_vector": 1,
+            "lds_dst_scalar_per_vector": 8,
+            "is_direct_load": false,
+            "lds_padding": true
+          },
+          "lds_transfer_b": {
+            "src_vector_dim": 2,
+            "src_scalar_per_vector": 1,
+            "lds_dst_scalar_per_vector": 8,
+            "is_direct_load": false,
+            "lds_padding": true
+          },
+          "epilogue_c": {
+            "m_xdl_per_wave_per_shuffle": 1,
+            "n_xdl_per_wave_per_shuffle": 1,
+            "scalar_per_vector": 1
+          },
+          "block_transfer_access_order_a": {
+            "order": [1, 0, 2]
+          },
+          "block_transfer_access_order_b": {
+            "order": [1, 0, 2]
+          },
+          "src_access_order_a": {
+            "order": [1, 0, 2]
+          },
+          "src_access_order_b": {
+            "order": [1, 0, 2]
+          }
+        },
+        "pipeline_version": "V1",
+        "fwd_specialization": "DEFAULT",
+        "num_gemm_k_prefetch_stage": 1,
+        "gemm_spec": "GemmMNKPadding",
+        "lds_extra": {
+          "a_block_lds_extra_m": 1,
+          "b_block_lds_extra_n": 1
+        }
+      }
+    },
+    {
+      "id": 1,
+      "source_file": "library/include/ck/library/tensor_operation_instance/gpu/grouped_conv_fwd/device_grouped_conv_fwd_xdl_dynamic_op_instance.hpp",
+      "line": 56,
+      "signature": {
+        "spatial_dim": 2,
+        "direction": "FORWARD",
+        "layout": {
+          "input": "GNHWC",
+          "weight": "GKYXC",
+          "output": "GNHWK"
+        },
+        "data_type": {
+          "input": "BF16",
+          "weight": "BF16",
+          "accumulator": "F32",
+          "shuffle": "BF16",
+          "output": "BF16"
+        },
+        "elementwise_operation": "PASS_THROUGH",
+        "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle"
+      },
+      "algorithm": {
+        "thread_block": {
+          "block_size": 64,
+          "tile_size": {
+            "m": 64,
+            "n": 32,
+            "k": 32
+          }
+        },
+        "gridwise_gemm": {
+          "ak1": 8,
+          "bk1": 8,
+          "m_per_xdl": 32,
+          "n_per_xdl": 32,
+          "m_xdl_per_wave": 2,
+          "n_xdl_per_wave": 1
+        },
+        "block_transfer": {
+          "block_transfer_a": {
+            "k0": 4,
+            "m_n": 16,
+            "k1": 1
+          },
+          "block_transfer_b": {
+            "k0": 4,
+            "m_n": 16,
+            "k1": 1
+          },
+          "thread_cluster_dims_c": {
+            "m_block": 1,
+            "m_wave_per_xdl": 16,
+            "n_block": 1,
+            "n_wave_per_xdl": 4
+          },
+          "lds_transfer_a": {
+            "src_vector_dim": 2,
+            "src_scalar_per_vector": 8,
+            "lds_dst_scalar_per_vector": 8,
+            "is_direct_load": false,
+            "lds_padding": true
+          },
+          "lds_transfer_b": {
+            "src_vector_dim": 2,
+            "src_scalar_per_vector": 8,
+            "lds_dst_scalar_per_vector": 8,
+            "is_direct_load": false,
+            "lds_padding": true
+          },
+          "epilogue_c": {
+            "m_xdl_per_wave_per_shuffle": 1,
+            "n_xdl_per_wave_per_shuffle": 1,
+            "scalar_per_vector": 1
+          },
+          "block_transfer_access_order_a": {
+            "order": [1, 0, 2]
+          },
+          "block_transfer_access_order_b": {
+            "order": [1, 0, 2]
+          },
+          "src_access_order_a": {
+            "order": [1, 0, 2]
+          },
+          "src_access_order_b": {
+            "order": [1, 0, 2]
+          }
+        },
+        "pipeline_version": "V1",
+        "fwd_specialization": "DEFAULT",
+        "num_gemm_k_prefetch_stage": 1,
+        "gemm_spec": "GemmMNKPadding",
+        "lds_extra": {
+          "a_block_lds_extra_m": 1,
+          "b_block_lds_extra_n": 1
+        }
+      }
+    }
+  ],
+  "schema": {
+    "description": "JSON schema describing the structure of instantiation objects",
+    "signature": {
+      "spatial_dim": "integer (1, 2, or 3)",
+      "direction": "enum (FORWARD, BACKWARD_DATA, BACKWARD_WEIGHT)",
+      "layout": {
+        "input": "string (e.g., GNHWC, NGCHW, etc.)",
+        "weight": "string (e.g., GKYXC, GKCYX, etc.)",
+        "output": "string (e.g., GNHWK, NGKHW, etc.)"
+      },
+      "data_type": {
+        "input": "enum (FP32, FP16, BF16, FP8, I8, U8)",
+        "weight": "enum (FP32, FP16, BF16, FP8, I8, U8)",
+        "accumulator": "enum (FP32, FP16, BF16, FP8, I8, U8)",
+        "shuffle": "enum (FP32, FP16, BF16, FP8, I8, U8)",
+        "output": "enum (FP32, FP16, BF16, FP8, I8, U8)"
+      },
+      "elementwise_operation": "enum (BIAS, BIAS_CLAMP, BIAS_BNORM_CLAMP, BILINEAR, CLAMP, SCALE, PASS_THROUGH)",
+      "device_operation": "string (DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle, etc.)"
+    },
+    "algorithm": {
+      "thread_block": {
+        "block_size": "integer",
+        "tile_size": {
+          "m": "integer",
+          "n": "integer",
+          "k": "integer"
+        }
+      },
+      "gridwise_gemm": {
+        "ak1": "integer",
+        "bk1": "integer",
+        "m_per_xdl": "integer",
+        "n_per_xdl": "integer",
+        "m_xdl_per_wave": "integer",
+        "n_xdl_per_wave": "integer"
+      },
+      "block_transfer": {
+        "block_transfer_a": {
+          "k0": "integer",
+          "m_n": "integer",
+          "k1": "integer"
+        },
+        "block_transfer_b": {
+          "k0": "integer",
+          "m_n": "integer",
+          "k1": "integer"
+        },
+        "thread_cluster_dims_c": {
+          "m_block": "integer",
+          "m_wave_per_xdl": "integer",
+          "n_block": "integer",
+          "n_wave_per_xdl": "integer"
+        },
+        "lds_transfer_a": {
+          "src_vector_dim": "integer",
+          "src_scalar_per_vector": "integer",
+          "lds_dst_scalar_per_vector": "integer",
+          "is_direct_load": "boolean",
+          "lds_padding": "boolean"
+        },
+        "lds_transfer_b": {
+          "src_vector_dim": "integer",
+          "src_scalar_per_vector": "integer",
+          "lds_dst_scalar_per_vector": "integer",
+          "is_direct_load": "boolean",
+          "lds_padding": "boolean"
+        },
+        "epilogue_c": {
+          "m_xdl_per_wave_per_shuffle": "integer",
+          "n_xdl_per_wave_per_shuffle": "integer",
+          "scalar_per_vector": "integer"
+        },
+        "block_transfer_access_order_a": {
+          "order": "array of 3 integers"
+        },
+        "block_transfer_access_order_b": {
+          "order": "array of 3 integers"
+        },
+        "src_access_order_a": {
+          "order": "array of 3 integers"
+        },
+        "src_access_order_b": {
+          "order": "array of 3 integers"
+        }
+      },
+      "pipeline_version": "enum (V1, V2, V3, V4, V5)",
+      "fwd_specialization": "enum (DEFAULT, FILTER_1X1_PAD0, FILTER_1X1_STRIDE1_PAD0, FILTER_3X3)",
+      "num_gemm_k_prefetch_stage": "integer",
+      "gemm_spec": "string",
+      "lds_extra": {
+        "a_block_lds_extra_m": "integer",
+        "b_block_lds_extra_n": "integer"
+      }
+    }
+  }
+}
