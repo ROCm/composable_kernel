@@ -25,6 +25,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
     using CDataType       = remove_cvref_t<typename Problem::CDataType>;
     using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
     using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
+    using QuantGroupSize  = remove_cvref_t<typename Problem::QuantGroupSize>;
 
     using ALayout  = remove_cvref_t<typename Problem::ALayout>;
     using BLayout  = remove_cvref_t<typename Problem::BLayout>;
@@ -68,10 +69,10 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
 
     using Base::m_preload;
 
-    static constexpr index_t QuantGroupSize = Problem::kQuantGroupSize;
-    static constexpr index_t KPerBlockBQ    = BlockGemmShape::kK / QuantGroupSize;
+    static constexpr index_t KPerBlockBQ =
+        integer_divide_ceil(BlockGemmShape::kK, QuantGroupSize::kK);
     static constexpr index_t QScalesPerBlockRow =
-        (kKPerBlock + QuantGroupSize - 1) / QuantGroupSize;
+        integer_divide_ceil(kKPerBlock, QuantGroupSize::kK);
 
     static constexpr index_t GetVectorSizeBQ()
     {
@@ -89,7 +90,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                       BlockSize,
                       concat('x', WaveNumM, WaveNumN),
                       concat('x', Base::GetVectorSizeA(), Base::GetVectorSizeB(), GetVectorSizeBQ()),
-                      concat('x', kPadM, kPadN, kPadK), QuantGroupSize);
+                      concat('x', kPadM, kPadN, kPadK), QuantGroupSize::GetName());
         // clang-format on
     }
 

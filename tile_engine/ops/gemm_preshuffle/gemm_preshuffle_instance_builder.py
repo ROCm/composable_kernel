@@ -357,13 +357,11 @@ class GemmPreshuffleKernelBuilder:
 
         # Map pipeline names to the correct pipeline implementation
         pipeline_impl_map = {
-            "preshufflev1": "ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV1",
             "preshufflev2": "ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV2",
         }
 
         # Map pipeline names to base pipeline for hot loop detection
         base_pipeline_map = {
-            "preshufflev1": "ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV1",
             "preshufflev2": "ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2",
         }
 
