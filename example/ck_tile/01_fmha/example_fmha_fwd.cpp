@@ -159,7 +159,7 @@ auto run(const ck_tile::ArgParser& arg_parser)
     std::string init_method          = arg_parser.get_str("init");
     uint32_t seed                    = arg_parser.get_uint32("seed");
 
-    int quant = arg_parser.get_bool("quant");
+    int quant = arg_parser.get_int("quant");
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,

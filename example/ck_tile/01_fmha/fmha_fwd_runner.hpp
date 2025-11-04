@@ -148,6 +148,41 @@ int override_num_splits_if_necessary(
 
     return num_splits;
 }
+class QuantizertoFp8
+{
+    private:
+    bool i_perm;
+
+    public:
+    QuantizertoFp8(bool i_perm_) : i_perm(i_perm_) {};
+    template <typename SrcTensor, typename DstTensor, typename ScaleTensor>
+    void quantize(const SrcTensor& in, DstTensor&, ScaleTensor&, size_t block_size_)
+    {
+        size_t batch   = in.get_length(0);
+        size_t head    = in.get_length(i_perm ? 1 : 2);
+        size_t seq_len = in.get_length(i_perm ? 2 : 1);
+        size_t hdim    = in.get_length(3);
+        std::cout << "batch: " << batch << " head: " << head << " seq_len: " << seq_len
+                  << " hdim: " << hdim << std::endl;
+        size_t num_blocks_ = (seq_len + block_size_ - 1) / block_size_;
+        
+        for(size_t b = 0; b < batch; ++b){
+            for(size_t h = 0; h < head; ++h)
+            {
+                for(size_t block = 0; block < num_blocks_; ++block)
+                {
+                    // get block max value
+                    for(size_t s = block * num_blocks_;
+                        s < (block + 1) * num_blocks_ && s < seq_len;
+                        ++s)
+                    {
+
+                    }
+                }
+            }
+        }
+    }
+};
 
 template <typename DataTypeConfig>
 fwd_result fmha_fwd_run(mode_enum mode,
@@ -205,6 +240,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
         else
             static_assert(false);
     }();
+
+    constexpr ck_tile::index_t block_scale_m_ = 128;
 
     if(nhead_k < 0)
         nhead_k = nhead;
@@ -546,6 +583,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
                    : get_lengths(i_perm, max_num_page_blocks, nhead_k, hdim_v, page_block_size))
             : (is_v_rowmajor ? get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_v)
                              : get_lengths(i_perm, shape_batch, nhead_k, hdim_v, shape_seqlen_k)));
+    ck_tile::HostTensor<QDataType> q_scale(std::array<ck_tile::index_t, 3>{
+        shape_batch, nhead, ck_tile::integer_divide_ceil(nhead, shape_seqlen_q / block_scale_m_)});
     ck_tile::HostTensor<VDataType> vnew_host(
         0 < seqlen_knew
             ? (is_v_rowmajor ? get_lengths(i_perm, batch, nhead_k, seqlen_knew, hdim_v)
@@ -705,7 +744,13 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
     float scale_p = 1.f;
     float scale_o = 1.f;
-    if(quant)
+    if(quant == 2)
+    {
+        QuantizertoFp8 quantizer(i_perm);
+        quantizer.quantize(q_host, q_host, q_scale, block_scale_m_);
+        return fwd_result::invalid_args;
+    }
+    else if(quant == 1)
     {
         float q_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<QDataType>::max());
         float k_dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<KDataType>::max());
@@ -908,7 +953,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
             traits.mask_type           = mask.type;
             traits.bias_type           = bias.type;
             traits.has_lse             = lse;
-            traits.do_fp8_static_quant = quant == 1;
+            traits.do_fp8_static_quant = quant > 0;
 
             if constexpr(std::is_same_v<fmha_fwd_traits, std::decay_t<decltype(traits)>>)
             {
