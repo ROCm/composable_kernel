@@ -77,15 +77,17 @@ bool run(const ck_tile::ArgParser& arg_parser)
     const auto number_operations = y_host_dev_tuple.size();
 
     const ck_tile::index_t reduce_total_length = H * W;
-    auto reduce_ops                            = ck_tile::make_tuple(ck_tile::ReduceOp::Add{},
-                                          ck_tile::ReduceOp::Add{}); // Intra block reductions
+
+    // Two operations: one do a sum reduction, the other computing the mean square
+    auto reduce_ops =
+        ck_tile::make_tuple(ck_tile::ReduceOp::Add{}, ck_tile::ReduceOp::Add{}); // reductions ops
     auto elementwise_ops =
         ck_tile::make_tuple(ck_tile::element_wise::PassThrough{},
                             ck_tile::element_wise::UnarySquare{}); // Elementwise ops
-    auto accumulator_elementwise_ops = ck_tile::make_tuple(
-        ck_tile::element_wise::PassThrough{},
-        ck_tile::element_wise::UnaryDivide{
-            reduce_total_length}); // Accumulator Elementiwise ops on reduction, intra block
+    auto accumulator_elementwise_ops =
+        ck_tile::make_tuple(ck_tile::element_wise::PassThrough{},
+                            ck_tile::element_wise::UnaryDivide{
+                                reduce_total_length}); // Accumulator Elementiwise ops on reduction,
 
     auto y_buf_size = number_operations *
                       y_host_dev_tuple.at(ck_tile::number<0>{}).get_element_space_size_in_bytes();

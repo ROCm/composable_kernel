@@ -88,16 +88,22 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
     const ck_tile::index_t reduce_total_length = H * W;
 
-    // Operations
-    auto reduce_ops      = ck_tile::make_tuple(ck_tile::ReduceOp::Add{},
-                                          ck_tile::ReduceOp::Add{}); // Intra block reductions
+    // Operations: one doing a sum reduction, the other computing the mean square
+    // In the case of mean square:
+    // 1. The element wise operation squares each element before reduction
+    // 2. The reduction operation sum the squared element
+    // 3. The accumulator element wise operation divides the result by the total number of reduced
+    // elements (intra block operation)
+    // 4. The partial result is updated across blocks using inter block reduction, a sum.
+    auto reduce_ops =
+        ck_tile::make_tuple(ck_tile::ReduceOp::Add{}, ck_tile::ReduceOp::Add{}); // reductions
     auto elementwise_ops = ck_tile::make_tuple(ck_tile::element_wise::PassThrough{},
                                                ck_tile::element_wise::UnarySquare{}); // Elementwise
                                                                                       // ops
     auto accumulator_elementwise_ops = ck_tile::make_tuple(
         ck_tile::element_wise::PassThrough{},
         ck_tile::element_wise::UnaryDivide{
-            reduce_total_length}); // Accumulator Elementiwise ops on reduction, intra block
+            reduce_total_length}); // Accumulator Elementwise ops on reduction, intra block
     auto inter_block_reduce_ops = ck_tile::make_tuple(
         ck_tile::ReduceOp::Add{}, ck_tile::ReduceOp::Add{}); // Inter block reduction
 
@@ -122,6 +128,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using Kernel = ck_tile::MultiReduceMultiblock<Problem>;
 
     // Determine block group size for multi-block reduction
+    // block_group_size records how many blocks participate to a reduction (input data dependent)
+    //  , for efficiency reasons this size if limited to a maximum of 128. If this is not sufficient
+    //  to process the whole reduction, each thread will to process multiple thread tile
+    //  a num_block_tile_iterations times
     int K_BlockTileSize = BlockTile::at(1);
     int num_block_tile_iterations;
     int block_group_size;
