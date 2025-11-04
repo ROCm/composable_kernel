@@ -32,8 +32,6 @@ auto create_args(int argc, char* argv[])
         .insert("prec", "fp16", "precision")
         .insert("warmup", "5", "cold iter")
         .insert("repeat", "20", "hot iter")
-        .insert("warmup", "0", "cold iter")
-        .insert("repeat", "1", "hot iter")
         .insert("json", "0", "0: No Json, 1: Dump Results in Json format")
         .insert("jsonfile", "multi_reduce_multiblock.json", "json file name to dump results");
 

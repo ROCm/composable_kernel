@@ -273,7 +273,7 @@ class TestCkTileMultiReduceMultiblock : public ::testing::Test
         std::vector<ck_tile::index_t> input_shape   = {dim0, dim1, dim2};
         std::vector<ck_tile::index_t> input_strides = {dim1 * dim2, dim2, 1};
 
-        // Output shape and strides (keep dim0)
+        // Output shape and strides (keep dim0, dim1)
         std::vector<ck_tile::index_t> output_shape   = {dim0, dim1};
         std::vector<ck_tile::index_t> output_strides = {dim1, 1};
 
@@ -333,7 +333,7 @@ class TestCkTileMultiReduceMultiblock : public ::testing::Test
         std::vector<ck_tile::index_t> input_shape   = {N, H, W, C};
         std::vector<ck_tile::index_t> input_strides = {H * W * C, W * C, C, 1};
 
-        // Output shape and strides (keep dim0, dim1)
+        // Output shape and strides (keep dim0, dim3)
         std::vector<ck_tile::index_t> output_shape   = {N, C};
         std::vector<ck_tile::index_t> output_strides = {C, 1};
 

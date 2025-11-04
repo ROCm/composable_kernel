@@ -124,8 +124,8 @@ def main(args):
         "multiops_threadwise": {"class": MultiReduceThreadwiseKernelBuilder},
         "multiops_multiblock": {"class": MultiReduceMultiBlockKernelBuilder},
     }
-    if args.variant and not (args.list_blobs or args.gen_blobs):
-        raise ValueError("Please provide a Reduction Kernel variant")
+    if not (args.list_blobs or args.gen_blobs):
+        raise ValueError("Please provide a list or generate blobs.")
 
     builder = variants.get(args.variant)
     builder_instance = builder["class"](
