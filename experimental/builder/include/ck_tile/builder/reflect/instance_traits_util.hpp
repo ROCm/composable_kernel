@@ -13,7 +13,7 @@
 #include <string_view>
 #include <sstream>
 #include <type_traits>
-#include <limits.h>
+#include <climits>
 #include <cmath>
 #include <ostream>
 #include <iostream>
