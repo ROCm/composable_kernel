@@ -688,6 +688,12 @@ struct DeviceGroupedGemm_Xdl_Multi_ABD_Fixed_NK
 
     static bool IsSupportedArgument(const Argument& arg)
     {
+        // Split-K autodeduction is not supported
+        if(arg.k_batch_ < 1)
+        {
+            return false;
+        }
+
         if(ck::type_convert<ck::index_t>(arg.gemm_desc_kernel_arg_.size()) != arg.group_count_)
         {
             return false;

@@ -1,3 +1,6 @@
+// Copyright © Advanced Micro Devices, Inc. or its affiliates.
+// SPDX-License-Identifier: MIT
+
 #ifdef CK_ENABLE_JSON_DUMP
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wzero-as-null-pointer-constant"

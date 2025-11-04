@@ -333,8 +333,8 @@ struct BlockUniversalGemmAsBsCr
                   bool ALoadTranspose = false,
                   bool BLoadTranspose = false>
         CK_TILE_DEVICE void operator()(CBlockTensor& c_block_tensor,
-                                       [[maybe_unused]] ASmemBlockWindow& a_block_window,
-                                       [[maybe_unused]] BSmemBlockWindow& b_block_window,
+                                       const ASmemBlockWindow&,
+                                       const BSmemBlockWindow&,
                                        bool_constant<ALoadTranspose> = {},
                                        bool_constant<BLoadTranspose> = {})
         {
