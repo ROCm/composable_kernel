@@ -412,10 +412,21 @@ struct GroupedConvolutionBackwardWeightKernel
     {
         constexpr auto NumGroupsToMerge = GroupedConvTraitsType_::NumGroupsToMerge;
         // clang-format off
-        if (NumGroupsToMerge > 1)
-            return concat('_', "grouped_convolution_backward_weight", gemm_prec_str<InDataType, WeiDataType>, GemmPipeline::GetName(), "merge", NumGroupsToMerge);
-        else
-            return concat('_', "grouped_convolution_backward_weight", gemm_prec_str<InDataType, WeiDataType>, GemmPipeline::GetName());
+        if (NumGroupsToMerge > 1) {
+            return concat('_', "grouped_convolution_backward_weight", 
+                gemm_prec_str<InDataType, WeiDataType>(),
+                "gemm",
+                GemmPipeline::GetName(),
+                "epilogue",
+                EpiloguePipeline::GetName());
+        } else {
+            return concat('_', "grouped_convolution_backward_weight", 
+                gemm_prec_str<InDataType, WeiDataType>(),
+                "gemm",
+                GemmPipeline::GetName(),
+                "epilogue",
+                EpiloguePipeline::GetName(), "merge", NumGroupsToMerge);
+        }
         // clang-format on
     }
 

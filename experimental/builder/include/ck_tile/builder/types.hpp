@@ -48,12 +48,72 @@ enum class GroupConvLayout3D
     NGCDHW_GKCZYX_NGKDHW,
 };
 
+struct GroupConvLayout
+{
+    union
+    {
+        GroupConvLayout1D _1d;
+        GroupConvLayout2D _2d;
+        GroupConvLayout3D _3d;
+    };
+
+    constexpr GroupConvLayout(GroupConvLayout1D layout) : _1d(layout) {}
+    constexpr GroupConvLayout(GroupConvLayout2D layout) : _2d(layout) {}
+    constexpr GroupConvLayout(GroupConvLayout3D layout) : _3d(layout) {}
+};
+
 // Direction of the convolution operation.
 enum class ConvDirection
 {
     FORWARD,
     BACKWARD_DATA,
     BACKWARD_WEIGHT
+};
+
+// Forward convolution device operations.
+enum class FwdGroupConvDeviceOperation
+{
+    DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK,
+    DeviceGroupedConvFwdMultipleD_Wmma_CShuffle,
+    DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle,
+    DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3,
+    DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
+};
+
+// Backward data convolution device operations.
+enum class BwdDataGroupConvDeviceOperation
+{
+    DeviceGroupedConvBwdDataMultipleD,
+    DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle,
+    DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1
+};
+
+// Backward weight convolution device operations.
+enum class BwdWeightGroupConvDeviceOperation
+{
+    DeviceGroupedConvBwdWeight,
+    DeviceGroupedConvBwdWeight_Dl,
+    DeviceGroupedConvBwdWeight_Xdl_CShuffle,
+    DeviceGroupedConvBwdWeight_Xdl_CShuffleV3,
+    DeviceGroupedConvBwdWeight_Wmma_CShuffle,
+    DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle,
+    DeviceGroupedConvBwdWeightMultipleD,
+    DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle,
+};
+
+// Structural type for device operation
+struct GroupConvDeviceOp
+{
+    union
+    {
+        FwdGroupConvDeviceOperation _fwd;
+        BwdDataGroupConvDeviceOperation _bwd_data;
+        BwdWeightGroupConvDeviceOperation _bwd_weight;
+    };
+
+    constexpr GroupConvDeviceOp(FwdGroupConvDeviceOperation op) : _fwd(op) {}
+    constexpr GroupConvDeviceOp(BwdDataGroupConvDeviceOperation op) : _bwd_data(op) {}
+    constexpr GroupConvDeviceOp(BwdWeightGroupConvDeviceOperation op) : _bwd_weight(op) {}
 };
 
 // Fused element-wise operations.
@@ -78,6 +138,45 @@ enum class BlockGemmPipelineVersion
     V5
 };
 
+enum struct BlockGemmPipelineScheduler
+{
+    INTRAWAVE,
+    INTERWAVE,
+};
+
+// Enums for the gridwise GEMM pipeline versions.
+enum class GridwiseGemmPipelineVersion
+{
+    V1,
+    V2,
+    V3, // Only used in stream-K implementation
+    V4,
+    WEIGHT_ONLY
+};
+
+// Enums for the GEMM specialization.
+enum struct GemmSpecialization
+{
+    // Gemm
+    Default,
+    MPadding,
+    NPadding,
+    KPadding,
+    MNPadding,
+    MKPadding,
+    NKPadding,
+    MNKPadding,
+    // Gemm + Gemm
+    OPadding,
+    MOPadding,
+    NOPadding,
+    KOPadding,
+    MNOPadding,
+    MKOPadding,
+    NKOPadding,
+    MNKOPadding
+};
+
 // Enums for the forward convolution specialization.
 enum class ConvFwdSpecialization
 {
@@ -85,6 +184,12 @@ enum class ConvFwdSpecialization
     FILTER_1X1_PAD0,
     FILTER_1X1_STRIDE1_PAD0,
     FILTER_3x3
+};
+
+enum class LoopScheduler
+{
+    DEFAULT,
+    INTERWAVE
 };
 
 } // namespace ck_tile::builder

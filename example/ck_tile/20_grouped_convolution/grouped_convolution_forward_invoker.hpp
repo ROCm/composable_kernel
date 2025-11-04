@@ -1,5 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
+// Regular grouped convolution invoker (no split-image)
+// This invoker demonstrates regular convolution without split-image.
+// It always uses Kernel<false> (split-image disabled).
+// For large images that require split-image, use
+// grouped_convolution_forward_split_image_invoker.hpp
+
 #pragma once
 
 #include "grouped_convolution_utils.hpp"
@@ -21,6 +28,10 @@ struct GroupedConvolutionForwardInvoker
     static float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs<CDElementWise>& args,
                                   const ck_tile::stream_config& s)
     {
+        if(s.log_level_ > 0)
+        {
+            std::cout << "[INVOKER] grouped_conv_fwd called, NDimSpatial=" << NDimSpatial << "\n";
+        }
         constexpr int kBlockPerCu = 1;
 
         // Implicit GEMM Traits
@@ -90,6 +101,7 @@ struct GroupedConvolutionForwardInvoker
                                       1,
                                       std::multiplies<ck_tile::index_t>());
 
+        // Split-K parameters
         const ck_tile::index_t k_grain     = args.k_batch * GemmConfig::K_Tile;
         const ck_tile::index_t K_split     = (gemm_k + k_grain - 1) / k_grain * GemmConfig::K_Tile;
         const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
@@ -97,6 +109,9 @@ struct GroupedConvolutionForwardInvoker
         const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
         float ave_time{0};
 
+        // =====================================================================
+        // Regular Convolution: Simple, no split-image
+        // =====================================================================
         const auto Run =
             [&](const auto has_hot_loop_, const auto tail_number_, const auto memory_operation_) {
                 constexpr bool has_hot_loop_v   = has_hot_loop_.value;
@@ -179,18 +194,30 @@ struct GroupedConvolutionForwardInvoker
                 return ave_time;
             };
 
+        // =====================================================================
+        // Split-K lambda
+        // =====================================================================
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
             if(args.k_batch == 1)
             {
-                Run(has_hot_loop_, tail_number_, MemoryOpSet{});
+                Run.template operator()(has_hot_loop_, tail_number_, MemoryOpSet{});
             }
             else
             {
-                Run(has_hot_loop_, tail_number_, MemoryOpAtomicAdd{});
+                Run.template operator()(has_hot_loop_, tail_number_, MemoryOpAtomicAdd{});
             }
         };
 
+        // =====================================================================
+        // Regular Convolution Example: ALWAYS uses regular path (Kernel<false>)
+        // =====================================================================
+        // This example demonstrates regular convolution without split-image.
+        // For large images that don't fit in memory, use
+        // grouped_convolution_forward_split_image.cpp
+
+        // Launch kernel using regular path (no split-image)
         BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
+
         return ave_time;
     }
 };

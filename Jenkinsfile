@@ -12,14 +12,6 @@ def show_node_info() {
     """
 }
 
-// Error patterns to scan build logs for specific failure types and send detailed notifications.
-def failurePatterns = [
-    [pattern: /login attempt to .* failed with status: 401 Unauthorized/, description: "Docker registry authentication failed"],
-    [pattern: /docker login failed/, description: "Docker login failed"],
-    [pattern: /HTTP request sent .* 404 Not Found/, description: "HTTP request failed with 404"],
-    [pattern: /cat: .* No such file or directory/, description: "GPU not found"],
-]
-
 // Given a pattern, check if the log contains the pattern and return the context.
 def checkForPattern(pattern, log) {
     def lines = log.split('\n')
@@ -42,8 +34,18 @@ def checkForPattern(pattern, log) {
     return [found: false, matchedLine: "", context: ""]
 }
 
-// Scan build logs and send notifications
+// Scan the build logs for failures and send notifications.
 def sendFailureNotifications() {
+    // Error patterns to scan build logs for specific failure types and send detailed notifications.
+    def failurePatterns = [
+        [pattern: /login attempt to .* failed with status: 401 Unauthorized/, description: "Docker registry authentication failed"],
+        [pattern: /docker login failed/, description: "Docker login failed"],
+        [pattern: /HTTP request sent .* 404 Not Found/, description: "HTTP request failed with 404"],
+        [pattern: /cat: .* No such file or directory/, description: "GPU not found"],
+        [pattern: /GPU not found/, description: "GPU not found"],
+        [pattern: /Could not connect to Redis at .* Connection timed out/, description: "Redis connection timed out"]
+    ]
+    
     // Get the build log.
     def buildLog = sh(script: 'wget -q --no-check-certificate -O - ' + BUILD_URL + 'consoleText', returnStdout: true)
     // Check for patterns in the log.
@@ -1640,14 +1642,9 @@ pipeline {
                                            ninja -j64 benchmark_gemm_preshuffle_all && \
                                            python3 ../tile_engine/ops/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" \
                                            --warmup 5 --repeat 5 --verbose --json results.json && \
-                                           ninja -j64 benchmark_gemm_multi_d_fp16_rrrr && \
-                                           ./bin/benchmark_gemm_multi_d_fp16_rrrr && \
-                                           ninja -j64 benchmark_gemm_multi_d_fp16_ccrr && \
-                                           ./bin/benchmark_gemm_multi_d_fp16_ccrr && \
-                                           ninja -j64 benchmark_gemm_multi_d_fp16_crrr && \
-                                           ./bin/benchmark_gemm_multi_d_fp16_crrr && \
-                                           ninja -j64 benchmark_gemm_multi_d_fp16_rcrr && \
-                                           ./bin/benchmark_gemm_multi_d_fp16_rcrr """
+                                           ninja -j64 benchmark_gemm_multi_d_all && \
+                                           python3 ../tile_engine/ops/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" \
+                                           --warmup 5 --repeat 5 --verbose --json results.json """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1680,14 +1677,9 @@ pipeline {
                                            ninja -j64 benchmark_gemm_preshuffle_all && \
                                            python3 ../tile_engine/ops/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" \
                                            --warmup 5 --repeat 5 --verbose --json results.json && \
-                                           ninja -j64 benchmark_gemm_multi_d_fp16_rrrr && \
-                                           ./bin/benchmark_gemm_multi_d_fp16_rrrr && \
-                                           ninja -j64 benchmark_gemm_multi_d_fp16_ccrr && \
-                                           ./bin/benchmark_gemm_multi_d_fp16_ccrr && \
-                                           ninja -j64 benchmark_gemm_multi_d_fp16_crrr && \
-                                           ./bin/benchmark_gemm_multi_d_fp16_crrr && \
-                                           ninja -j64 benchmark_gemm_multi_d_fp16_rcrr && \
-                                           ./bin/benchmark_gemm_multi_d_fp16_rcrr """
+                                           ninja -j64 benchmark_gemm_multi_d_all && \
+                                           python3 ../tile_engine/ops/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" \
+                                           --warmup 5 --repeat 5 --verbose --json results.json """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
