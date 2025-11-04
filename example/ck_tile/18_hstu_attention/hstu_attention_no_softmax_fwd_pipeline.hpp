@@ -448,6 +448,27 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
                 });
             }
 
+            __builtin_amdgcn_sched_barrier(0x00000001);
+
+            using v_shuffled_tile_type = decltype(make_static_distributed_tensor<QKVDataType>(
+                Policy::template MakeShuffledVRegTileDistribution<Problem>()));
+
+            v_shuffled_tile_type v_shuffled_tile;
+
+            shuffle_tile(v_shuffled_tile, v_tiles[number<0>{}]);
+
+            // check whether first V-LdsBufer overlap with last K-LdsBuffer,
+            // this does not occur when k1_loops == 2 and NumKVLdsBuffers == 4
+            if constexpr((k1_loops - 1) % NumKVLdsBuffers == 2 % NumKVLdsBuffers)
+            {
+                __builtin_amdgcn_s_barrier();
+            };
+
+            store_tile(v_lds_windows[number<2 % NumKVLdsBuffers>{}],
+                       tile_elementwise_in(v_element_func, v_shuffled_tile));
+
+            __builtin_amdgcn_sched_barrier(0x00000001);
+
             tile_elementwise_inout(f_silu, pcomp_tile);
 
             tile_elementwise_inout([&](auto& x) { x = x * type_convert<CompDataType>(scale_p); },
@@ -466,28 +487,8 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
 
             auto p = cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, pcomp_tile));
 
-            using v_shuffled_tile_type = decltype(make_static_distributed_tensor<QKVDataType>(
-                Policy::template MakeShuffledVRegTileDistribution<Problem>()));
-
-            statically_indexed_array<v_shuffled_tile_type, k1_loops> v_shuffled_tiles;
-
-            static_for<0, k1_loops, 1>{}(
-                [&](auto i_k1) { shuffle_tile(v_shuffled_tiles[i_k1], v_tiles[i_k1]); });
-
-            // check whether first V-LdsBufer overlap with last K-LdsBuffer,
-            // this does not occur when k1_loops == 2 and NumKVLdsBuffers == 4
-            if constexpr((k1_loops - 1) % NumKVLdsBuffers == 2 % NumKVLdsBuffers)
-            {
-                __builtin_amdgcn_s_barrier();
-            };
-
             // STAGE 3, Gemm_1 ( O = P@V )
             static_for<0, k1_loops, 1>{}([&](auto i_k1) {
-                store_tile(v_lds_windows[number<(i_k1 + 2) % NumKVLdsBuffers>{}],
-                           tile_elementwise_in(v_element_func, v_shuffled_tiles[i_k1]));
-
-                __builtin_amdgcn_sched_barrier(0x00000001);
-
                 // load k_tiles used by next iteration
                 k_tiles[i_k1] = load_tile(k_dram_window);
                 move_tile_window(k_dram_window, {kK1, 0});
@@ -500,6 +501,17 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVS
                     o_acc,
                     get_slice_tile(p, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}),
                     v_lds_windows[number<(i_k1 + 2) % NumKVLdsBuffers>{}]);
+
+                if constexpr(i_k1 < k1_loops - 1)
+                {
+                    __builtin_amdgcn_sched_barrier(0x00000001);
+
+                    shuffle_tile(v_shuffled_tile, v_tiles[number<i_k1 + 1>{}]);
+                    store_tile(v_lds_windows[number<(i_k1 + 3) % NumKVLdsBuffers>{}],
+                               tile_elementwise_in(v_element_func, v_shuffled_tile));
+
+                    __builtin_amdgcn_sched_barrier(0x00000001);
+                };
             });
 
             // check whether last V-LdsBuffer overlap with first K-LdsBuffer,
