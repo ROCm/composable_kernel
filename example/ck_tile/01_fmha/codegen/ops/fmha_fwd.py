@@ -10,7 +10,7 @@ from collections import OrderedDict
 from functools import partial
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import ClassVar, List, Optional, Tuple
+from typing import Callable, ClassVar, Iterable, List, Optional, Tuple
 
 from codegen.arch import ArchTrait, get_factories_for_targets
 from codegen.cmake_config import GEN_DIR
@@ -120,6 +120,9 @@ float fmha_fwd_<trait_{F_idx}, {F_arch.tag}>(const ck_tile::stream_config& s, fm
 
 #endif // !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
 """
+
+FMHA_FWD_V3_KERNEL_HEADER = "<this is fmha fwd v3 kernel header>"
+FMHA_FWD_V3_KERNEL_BODY_TEMPLATE = "<this is fmha fwd v3 kernel body>"
 
 FMHA_FWD_API_FILENAME = "fmha_fwd_api.cpp"
 FMHA_FWD_API = """
@@ -639,16 +642,145 @@ class FmhaFwdKernel:
 
 @dataclass
 class FmhaFwdV3Kernel(FmhaFwdKernel):
-    KERNEL_BODY_TEMPLATE: ClassVar[str] = FMHA_FWD_KERNEL_BODY_TEMPLATE
+    KERNEL_HEADER: ClassVar[str] = FMHA_FWD_V3_KERNEL_HEADER
+    KERNEL_BODY_TEMPLATE: ClassVar[str] = FMHA_FWD_V3_KERNEL_BODY_TEMPLATE
 
 
-def create_kernel(pipeline: FmhaFwdPipeline, *args, **kwargs) -> FmhaFwdKernel:
-    ctor = FmhaFwdV3Kernel if pipeline.tag == "qr_async_trload_v3" else FmhaFwdKernel
-    builder = partial(ctor, F_pipeline=pipeline)
-    return builder(*args, **kwargs)
+@dataclass
+class ProblemContext:
+    dtype: str
+    mode: str
+    hdim: int
+    hdim_v: int
 
 
-class KernelComponentFactoryGfx9:
+@dataclass
+class KernelContext:
+    arch: ArchTrait
+    tile: FmhaFwdTileSize
+    pipeline: FmhaFwdPipeline
+    mask_impl: str
+
+
+CompatibilityRule = Callable[[ProblemContext, KernelContext], bool]
+
+
+def is_compatible(
+    problem_ctx: ProblemContext,
+    kernel_ctx: KernelContext,
+    rules: Iterable[CompatibilityRule],
+    *,
+    short_circuit: bool = True,
+) -> bool:
+    if short_circuit:
+        for rule in rules:
+            if not rule(problem_ctx, kernel_ctx):
+                return False
+        return True
+    return all(rule(problem_ctx, kernel_ctx) for rule in rules)
+
+
+def create_kernel(
+    problem_ctx: ProblemContext, kernel_ctx: KernelContext
+) -> FmhaFwdKernel:
+    ctor = (
+        FmhaFwdV3Kernel
+        if kernel_ctx.pipeline.tag == "qr_async_trload_v3"
+        else FmhaFwdKernel
+    )
+    return ctor(
+        F_idx=0,
+        F_dtype=problem_ctx.dtype,
+        F_mode=problem_ctx.mode,
+        F_hdim=problem_ctx.hdim,
+        F_arch=kernel_ctx.arch,
+        F_tile=kernel_ctx.tile,
+        F_pipeline=kernel_ctx.pipeline,
+        mask_impl=kernel_ctx.mask_impl,
+    )
+
+
+class CompatibilityRuleFactory:
+    @staticmethod
+    def get_rules() -> list[CompatibilityRule]:
+        # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
+        def check_mode(problem_ctx: ProblemContext, kernel_ctx: KernelContext) -> bool:
+            if problem_ctx.mode == "group":
+                if (
+                    kernel_ctx.pipeline.F_spad != "t"
+                    or kernel_ctx.pipeline.F_skpad != "t"
+                ):
+                    return False
+            return True
+
+        def check_hdim(problem_ctx: ProblemContext, kernel_ctx: KernelContext) -> bool:
+            # NOTE: this is used to speedup deepseek prefill case, we don't gen training
+            if (problem_ctx.hdim, problem_ctx.hdim_v) == (192, 128):
+                if (
+                    kernel_ctx.pipeline.F_bias != "no"
+                    or kernel_ctx.pipeline.F_dropout == "t"
+                ):
+                    False
+            return True
+
+        def check_feature(
+            problem_ctx: ProblemContext, kernel_ctx: KernelContext
+        ) -> bool:
+            # logits_soft_cap is only allowed if no bias
+            if not (
+                (
+                    kernel_ctx.pipeline.F_logits == "t"
+                    and kernel_ctx.pipeline.F_bias == "no"
+                )
+                or kernel_ctx.pipeline.F_logits == "f"
+            ):
+                return False
+            return True
+
+        return [check_mode, check_hdim, check_feature]
+
+
+class CompatibilityRuleFactoryGfx9(CompatibilityRuleFactory):
+    @staticmethod
+    def get_rules() -> list[CompatibilityRule]:
+        rules = CompatibilityRuleFactory.get_rules()
+
+        def check_hdim_tile_for_non_fp32(
+            problem_ctx: ProblemContext, kernel_ctx: KernelContext
+        ) -> bool:
+            if kernel_ctx.arch.name.startswith("gfx9") and problem_ctx.dtype != "fp32":
+                # TODO: update if >=gfx11 archs get qr_async and qr_async_trload support
+                if kernel_ctx.pipeline.tag != "qr_async_trload" and (
+                    (
+                        (problem_ctx.hdim, problem_ctx.hdim_v) == (128, 128)
+                        and kernel_ctx.tile.F_bn0 != 128
+                    )
+                    or (
+                        (problem_ctx.hdim, problem_ctx.hdim_v) != (128, 128)
+                        and kernel_ctx.tile.F_bm0 != 128
+                    )
+                ):
+                    # non qr_async_trload only support km0=128 tile size when hdim is not 128
+                    # non qr_async only support kn0=128 tile size when hdim is 128
+                    return False
+                if kernel_ctx.pipeline.tag == "qr_async_trload" and (
+                    (
+                        (problem_ctx.hdim, problem_ctx.hdim_v) == (128, 128)
+                        and kernel_ctx.tile.F_bn0 == 128
+                    )
+                    or (
+                        (problem_ctx.hdim, problem_ctx.hdim_v)
+                        not in [(64, 64), (128, 128)]
+                    )
+                ):
+                    return False
+            return True
+
+        rules.append(check_hdim_tile_for_non_fp32)
+        return rules
+
+
+class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
     arch = ArchTrait(
         "gfx9", preprocessor_check="defined(__gfx9__) && !defined(__gfx950__)"
     )
@@ -761,7 +893,9 @@ class KernelComponentFactoryGfx9:
         return pipelines
 
 
-class KernelComponentFactoryGfx950(KernelComponentFactoryGfx9):
+class KernelComponentFactoryGfx950(
+    KernelComponentFactoryGfx9, CompatibilityRuleFactoryGfx9
+):
     arch = ArchTrait("gfx950")
 
     @staticmethod
@@ -791,7 +925,7 @@ class KernelComponentFactoryGfx950(KernelComponentFactoryGfx9):
         return pipelines
 
 
-class KernelComponentFactoryGfx12:
+class KernelComponentFactoryGfx12(CompatibilityRuleFactory):
     arch = ArchTrait("gfx12")
 
     @staticmethod
@@ -847,7 +981,7 @@ class KernelComponentFactoryGfx12:
         return pipelines
 
 
-class CustomFactory(KernelComponentFactoryGfx9):
+class CustomFactory(KernelComponentFactoryGfx9, CompatibilityRuleFactoryGfx9):
     @staticmethod
     def get_hdim_tile_size_dict(dtype: str) -> Optional[dict]:
         result = KernelComponentFactoryGfx9.get_hdim_tile_size_dict(dtype)
@@ -890,56 +1024,32 @@ def get_fwd_blobs(
         for ((hdim, hdim_v), tiles), mode in itertools.product(
             d.items(), MODE_MAP.keys()
         ):
+            if optdim_list != [-1]:
+                if hdim not in optdim_list:
+                    continue
             for tile, next_tile in zip(tiles, tiles[1:]):
                 assert next_tile.F_bm0 >= tile.F_bm0, (
                     "Tiles must be ordered by increasing bm0"
                 )
+
             for tile, pipeline in itertools.product(
                 tiles, factory.get_pipelines(dtype, hdim, hdim_v, receipt, mask_impl)
             ):
-                if mode == "group":
-                    if pipeline.F_spad != "t" or pipeline.F_skpad != "t":
-                        # in group mode, spad/skpad must be true, since we can't predict if seqlen of current batch need pad or not
-                        continue
-                if (hdim, hdim_v) == (192, 128):
-                    # NOTE: this is used to speedup deepseek prefill case, we don't gen training
-                    if pipeline.F_bias != "no" or pipeline.F_dropout == "t":
-                        continue
-                if factory.arch.name.startswith("gfx9") and dtype != "fp32":
-                    # TODO: update if >=gfx11 archs get qr_async and qr_async_trload support
-                    if pipeline.tag != "qr_async_trload" and (
-                        ((hdim, hdim_v) == (128, 128) and tile.F_bn0 != 128)
-                        or ((hdim, hdim_v) != (128, 128) and tile.F_bm0 != 128)
-                    ):
-                        # non qr_async_trload only support km0=128 tile size when hdim is not 128
-                        # non qr_async only support kn0=128 tile size when hdim is 128
-                        continue
-                    if pipeline.tag == "qr_async_trload" and (
-                        ((hdim, hdim_v) == (128, 128) and tile.F_bn0 == 128)
-                        or ((hdim, hdim_v) not in [(64, 64), (128, 128)])
-                    ):
-                        continue
-                # logits_soft_cap is only allowed if no bias
-                if not (
-                    (pipeline.F_logits == "t" and pipeline.F_bias == "no")
-                    or pipeline.F_logits == "f"
+                problem_ctx = ProblemContext(
+                    dtype=dtype, mode=mode, hdim=hdim, hdim_v=hdim_v
+                )
+                kernel_ctx = KernelContext(
+                    arch=factory.arch, tile=tile, pipeline=pipeline, mask_impl=mask_impl
+                )
+                rules = factory.get_rules()
+                if not is_compatible(
+                    problem_ctx, kernel_ctx, rules, short_circuit=True
                 ):
                     continue
-                k = create_kernel(
-                    pipeline,
-                    F_arch=factory.arch,
-                    F_idx=0,
-                    F_hdim=hdim,
-                    F_dtype=dtype,
-                    F_mode=mode,
-                    F_tile=tile,
-                    mask_impl=mask_impl,
-                )
+
+                k = create_kernel(problem_ctx, kernel_ctx)
                 if kernel_filter != "":
                     if not fnmatch.fnmatch(k.name, kernel_filter):
-                        continue
-                if optdim_list != [-1]:
-                    if hdim not in optdim_list:
                         continue
                 # 2 - Flash attention integration
                 if receipt in (2, 3):
