@@ -1,3 +1,6 @@
+// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
 #include "utils/ckb_conv_test_common.hpp"
 
 using namespace ck_tile::builder::test_utils;
