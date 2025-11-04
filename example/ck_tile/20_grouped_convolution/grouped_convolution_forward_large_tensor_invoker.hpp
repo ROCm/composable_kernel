@@ -315,7 +315,6 @@ struct GroupedConvolutionForwardInvoker
             auto kargs = Kernel::MakeKernelArgs(args);
 
             // Populate split-image metadata ONLY if using split-image kernel
-            // Populate split-image metadata ONLY if using split-image kernel
             if constexpr(EnableSplitImage)
             {
                 kargs.num_spatial_pieces        = total_pieces;
