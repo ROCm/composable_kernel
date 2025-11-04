@@ -44,13 +44,13 @@ class TestCkTileMultiReduceMultiblock : public ::testing::Test
                         KeptDimSeq kept_dims,
                         ReduceDimSeq reduce_dims)
     {
-        static_assert(ReduceOpsType::size() == ElementwiseOpsType::size() &&
-                        ReduceOpsType::size() == AccumulatorOpsType::size() &&
-                        ReduceOpsType::size() == InterBlockReduceOpsType::size(),
-                    "Error: All operations tuple size must match the number of reduction operations");
+        static_assert(
+            ReduceOpsType::size() == ElementwiseOpsType::size() &&
+                ReduceOpsType::size() == AccumulatorOpsType::size() &&
+                ReduceOpsType::size() == InterBlockReduceOpsType::size(),
+            "Error: All operations tuple size must match the number of reduction operations");
 
-        const auto number_operations =
-            ReduceOpsType::size();
+        const auto number_operations = ReduceOpsType::size();
 
         ck_tile::HostTensor<XDataType> h_x(input_shape, input_strides);
 
@@ -97,8 +97,7 @@ class TestCkTileMultiReduceMultiblock : public ::testing::Test
         });
 
         d_x_mem.ToDevice(h_x.data());
-        d_y_mem.ToDevice(
-            h.data());
+        d_y_mem.ToDevice(h.data());
 
         using Problem = ck_tile::Reduce2dProblem<XDataType,
                                                  ComputeDataType,

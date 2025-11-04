@@ -16,7 +16,6 @@
 
 #include "test_multi_reduce2d_multiblock_impl.hpp"
 
-
 // Shape parameters for different test configurations
 using Shape1_BlockWarps = ck_tile::sequence<4, 1>;
 using Shape1_BlockTile  = ck_tile::sequence<128, 128>;
@@ -41,8 +40,9 @@ using TestConfig_F16_Add_MeanSquare = std::tuple<
     float,
     ck_tile::half_t,
     ck_tile::tuple<ck_tile::ReduceOp::Add, ck_tile::ReduceOp::Add>, // Intra block reductions
-    ck_tile::tuple<ck_tile::element_wise::PassThrough, ck_tile::element_wise::UnarySquare>, // Elementwise
-                                                                                            // ops
+    ck_tile::tuple<ck_tile::element_wise::PassThrough,
+                   ck_tile::element_wise::UnarySquare>, // Elementwise
+                                                        // ops
     ck_tile::tuple<ck_tile::element_wise::PassThrough,
                    ck_tile::element_wise::UnaryDivide>, // Accumulator Elementiwise ops, intra block
     ck_tile::tuple<ck_tile::ReduceOp::Add, ck_tile::ReduceOp::Add>, // Inter block reduction
@@ -50,7 +50,6 @@ using TestConfig_F16_Add_MeanSquare = std::tuple<
     Shape1_BlockTile,
     Shape1_WarpTile,
     Shape1_ThreadTile>;
-
 
 using TestTypes = ::testing::Types<TestConfig_F16_Add, TestConfig_F16_Add_MeanSquare>;
 

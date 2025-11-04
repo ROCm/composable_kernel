@@ -27,6 +27,5 @@ inline ck_tile::element_wise::UnarySquare make_elementwise_op(int32_t,
 template <typename... Ops>
 auto make_elementwise_ops_tuple(int32_t total_reduce_elements, ck_tile::tuple<Ops...>)
 {
-    return ck_tile::make_tuple(
-        make_elementwise_op(total_reduce_elements, Ops{})...);
+    return ck_tile::make_tuple(make_elementwise_op(total_reduce_elements, Ops{})...);
 }

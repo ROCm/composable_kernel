@@ -83,10 +83,10 @@ class TestCkTileMultiReduceThreadwise : public ::testing::Test
 
         // Problem and kernel setup
         using Problem = ck_tile::Reduce2dProblem<XDataType,
-                                                      ComputeDataType,
-                                                      YDataType,
-                                                      TestReduce2dShape,
-                                                      ReduceOpsType>;
+                                                 ComputeDataType,
+                                                 YDataType,
+                                                 TestReduce2dShape,
+                                                 ReduceOpsType>;
 
         using Kernel = ck_tile::MultiReduceThreadWise<Problem>;
 
@@ -149,7 +149,6 @@ class TestCkTileMultiReduceThreadwise : public ::testing::Test
         //     total_reduce_elements);
         // const auto atol = ck_tile::get_absolute_threshold<XDataType, YDataType, ComputeDataType>(
         //     5.0f, total_reduce_elements);
-
 
         // Unfortunately due to the non-sequenciality, down-casting on the output buffer
         // and further operations on this buffer, the error is compounding at a faster
