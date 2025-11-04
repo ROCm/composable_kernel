@@ -7,7 +7,6 @@ import fnmatch
 import itertools
 import os
 from collections import OrderedDict
-from functools import partial
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, ClassVar, Iterable, List, Optional, Tuple
@@ -656,7 +655,6 @@ class ProblemContext:
 
 @dataclass
 class KernelContext:
-    arch: ArchTrait
     tile: FmhaFwdTileSize
     pipeline: FmhaFwdPipeline
     mask_impl: str
@@ -681,7 +679,7 @@ def is_compatible(
 
 
 def create_kernel(
-    problem_ctx: ProblemContext, kernel_ctx: KernelContext
+    arch: ArchTrait, problem_ctx: ProblemContext, kernel_ctx: KernelContext
 ) -> FmhaFwdKernel:
     ctor = (
         FmhaFwdV3Kernel
@@ -690,10 +688,10 @@ def create_kernel(
     )
     return ctor(
         F_idx=0,
+        F_arch=arch,
         F_dtype=problem_ctx.dtype,
         F_mode=problem_ctx.mode,
         F_hdim=problem_ctx.hdim,
-        F_arch=kernel_ctx.arch,
         F_tile=kernel_ctx.tile,
         F_pipeline=kernel_ctx.pipeline,
         mask_impl=kernel_ctx.mask_impl,
@@ -748,7 +746,7 @@ class CompatibilityRuleFactoryGfx9(CompatibilityRuleFactory):
         def check_hdim_tile_for_non_fp32(
             problem_ctx: ProblemContext, kernel_ctx: KernelContext
         ) -> bool:
-            if kernel_ctx.arch.name.startswith("gfx9") and problem_ctx.dtype != "fp32":
+            if problem_ctx.dtype != "fp32":
                 # TODO: update if >=gfx11 archs get qr_async and qr_async_trload support
                 if kernel_ctx.pipeline.tag != "qr_async_trload" and (
                     (
@@ -1008,6 +1006,121 @@ def get_factory(target: str):
     raise Exception(f"Unsupported device target {target}")
 
 
+@dataclass(frozen=True)
+class Product:
+    name: str
+    rule: CompatibilityRule
+
+    def __call__(self, problem_ctx: ProblemContext, kernel_ctx: KernelContext) -> bool:
+        return self.rule(problem_ctx, kernel_ctx)
+
+
+def get_product(receipt: int) -> Product:
+    # Flash attention integration
+    if receipt in (2, 3):
+
+        def fit(problem_ctx: ProblemContext, kernel_ctx: KernelContext) -> bool:
+            cond = problem_ctx.dtype in ["fp16", "bf16"]
+            cond &= kernel_ctx.pipeline.F_vlayout == "row"
+            cond &= kernel_ctx.pipeline.F_bias in ["no", "alibi"]
+            cond &= kernel_ctx.pipeline.F_squant == "f"
+            cond &= kernel_ctx.pipeline.F_skip == "f"
+            return cond
+
+        return Product(name="Flash attention integration", rule=fit)
+    # PyTorch integration
+    elif receipt == 4:
+
+        def fit(problem_ctx: ProblemContext, kernel_ctx: KernelContext) -> bool:
+            cond = problem_ctx.dtype in ["fp16", "bf16"]
+            cond &= kernel_ctx.pipeline.F_vlayout == "row"
+            cond &= kernel_ctx.pipeline.F_bias in ["no", "bias"]
+            cond &= kernel_ctx.pipeline.F_squant == "f"
+            cond &= problem_ctx.mode == "batch"
+            cond &= kernel_ctx.pipeline.F_skip == "f"
+            cond &= kernel_ctx.pipeline.F_logits == "f"
+            return cond
+
+        return Product(name="PyTorch integration", rule=fit)
+    # Aiter(mha_fwd) integration
+    elif receipt == 100:
+
+        def fit(problem_ctx: ProblemContext, kernel_ctx: KernelContext) -> bool:
+            cond = problem_ctx.dtype in ["fp16", "bf16", "fp8bf16"]
+            cond &= problem_ctx.mode == "group"
+            cond &= kernel_ctx.pipeline.F_vlayout == "row"
+            if problem_ctx.dtype == "fp8bf16":
+                cond &= problem_ctx.hdim == 128
+            return cond
+
+        return Product(name="Aiter(mha_fwd) integration", rule=fit)
+    # Aiter(mha_varlen_fwd) integration
+    elif receipt == 200:
+
+        def fit(problem_ctx: ProblemContext, kernel_ctx: KernelContext) -> bool:
+            cond = problem_ctx.dtype in ["fp16", "bf16", "fp8bf16"]
+            cond &= problem_ctx.mode == "group"
+            cond &= kernel_ctx.pipeline.F_vlayout == "row"
+            if problem_ctx.dtype == "fp8bf16":
+                cond &= problem_ctx.hdim == 128
+            return cond
+
+        return Product(name="Aiter(mha_varlen_fwd) integration", rule=fit)
+    # aiter::mha_fwd C++ api integration
+    elif receipt == 600:
+
+        def fit(problem_ctx: ProblemContext, kernel_ctx: KernelContext) -> bool:
+            cond = problem_ctx.dtype in ["fp16", "bf16", "fp8bf16"]
+            cond &= kernel_ctx.pipeline.F_vlayout == "row"
+            if problem_ctx.dtype == "fp8bf16":
+                cond &= problem_ctx.hdim == 128
+            return cond
+
+        return Product(name="aiter::mha_fwd C++ api integration", rule=fit)
+    elif receipt == 888:
+
+        def fit(problem_ctx: ProblemContext, kernel_ctx: KernelContext) -> bool:
+            cond = problem_ctx.dtype in ["fp8", "fp8bf16", "fp8fp32"]
+            cond &= kernel_ctx.pipeline.F_vlayout == "row"
+            cond &= problem_ctx.hdim == 128
+            return cond
+
+        return Product(name="receipt = 888", rule=fit)
+    # fp32 only, all variations
+    elif receipt == 800:
+
+        def fit(problem_ctx: ProblemContext, kernel_ctx: KernelContext) -> bool:
+            cond = problem_ctx.dtype == "fp32"
+            cond &= kernel_ctx.pipeline.F_skip == "f"
+            cond &= kernel_ctx.pipeline.F_logits == "f"
+            return cond
+
+        return Product(name="fp32 only, all variations", rule=fit)
+    # fp32 only, minimal set of parameters
+    elif receipt == 801:
+
+        def fit(problem_ctx: ProblemContext, kernel_ctx: KernelContext) -> bool:
+            cond = problem_ctx.dtype == "fp32"
+            cond &= problem_ctx.hdim in [48, 128]
+            cond &= problem_ctx.mode == "batch"
+            cond &= kernel_ctx.pipeline.F_bias == "no"
+            cond &= kernel_ctx.pipeline.F_lse == "f"
+            cond &= kernel_ctx.pipeline.F_dropout == "f"
+            cond &= kernel_ctx.pipeline.F_skip == "f"
+            cond &= kernel_ctx.pipeline.F_logits == "f"
+            cond &= kernel_ctx.pipeline.F_mask == "s_no"
+            return cond
+
+        return Product(name="fp32 only, minimal set of parameters", rule=fit)
+    # Don't build fp32 by default
+    else:
+
+        def fit(problem_ctx: ProblemContext, kernel_ctx: KernelContext) -> bool:
+            return problem_ctx.dtype != "fp32"
+
+        return Product(name="Default", rule=fit)
+
+
 def get_fwd_blobs(
     targets: List[str], kernel_filter: Optional[str], receipt, optdim_list, mask_impl
 ) -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
@@ -1039,94 +1152,19 @@ def get_fwd_blobs(
                     dtype=dtype, mode=mode, hdim=hdim, hdim_v=hdim_v
                 )
                 kernel_ctx = KernelContext(
-                    arch=factory.arch, tile=tile, pipeline=pipeline, mask_impl=mask_impl
+                    tile=tile, pipeline=pipeline, mask_impl=mask_impl
                 )
                 rules = factory.get_rules()
+                product = get_product(receipt)
+
                 if not is_compatible(
-                    problem_ctx, kernel_ctx, rules, short_circuit=True
+                    problem_ctx, kernel_ctx, [*rules, product], short_circuit=True
                 ):
                     continue
 
-                k = create_kernel(problem_ctx, kernel_ctx)
+                k = create_kernel(factory.arch, problem_ctx, kernel_ctx)
                 if kernel_filter != "":
                     if not fnmatch.fnmatch(k.name, kernel_filter):
-                        continue
-                # 2 - Flash attention integration
-                if receipt in (2, 3):
-                    cond = dtype in ["fp16", "bf16"]
-                    cond &= pipeline.F_vlayout == "row"
-                    cond &= pipeline.F_bias in ["no", "alibi"]
-                    cond &= pipeline.F_squant == "f"
-                    cond &= pipeline.F_skip == "f"
-                    if not cond:
-                        continue
-                # PyTorch integration
-                elif receipt == 4:
-                    cond = dtype in ["fp16", "bf16"]
-                    cond &= pipeline.F_vlayout == "row"
-                    cond &= pipeline.F_bias in ["no", "bias"]
-                    cond &= pipeline.F_squant == "f"
-                    cond &= mode == "batch"
-                    cond &= pipeline.F_skip == "f"
-                    cond &= pipeline.F_logits == "f"
-                    if not cond:
-                        continue
-                # Aiter(mha_fwd) integration
-                elif receipt == 100:
-                    cond = dtype in ["fp16", "bf16", "fp8bf16"]
-                    cond &= mode == "batch"
-                    cond &= pipeline.F_vlayout == "row"
-                    if dtype == "fp8bf16":
-                        cond &= hdim == 128
-                    if not cond:
-                        continue
-                # Aiter(mha_varlen_fwd) integration
-                elif receipt == 200:
-                    cond = dtype in ["fp16", "bf16", "fp8bf16"]
-                    cond &= mode == "group"
-                    cond &= pipeline.F_vlayout == "row"
-                    if dtype == "fp8bf16":
-                        cond &= hdim == 128
-                    if not cond:
-                        continue
-                # aiter::mha_fwd C++ api integration
-                elif receipt == 600:
-                    cond = dtype in ["fp16", "bf16", "fp8bf16"]
-                    cond &= pipeline.F_vlayout == "row"
-                    if dtype == "fp8bf16":
-                        cond &= hdim == 128
-                    if not cond:
-                        continue
-                elif receipt == 888:
-                    cond = dtype in ["fp8", "fp8bf16", "fp8fp32"]
-                    cond &= pipeline.F_vlayout == "row"
-                    cond &= hdim == 128
-                    if not cond:
-                        continue
-
-                # fp32 only, all variations
-                if receipt == 800:
-                    cond = dtype == "fp32"
-                    cond &= pipeline.F_skip == "f"
-                    cond &= pipeline.F_logits == "f"
-                    if not cond:
-                        continue
-                # fp32 only, minimal set of parameters
-                elif receipt == 801:
-                    cond = dtype == "fp32"
-                    cond &= hdim in [48, 128]
-                    cond &= mode == "batch"
-                    cond &= pipeline.F_bias == "no"
-                    cond &= pipeline.F_lse == "f"
-                    cond &= pipeline.F_dropout == "f"
-                    cond &= pipeline.F_skip == "f"
-                    cond &= pipeline.F_logits == "f"
-                    cond &= pipeline.F_mask == "s_no"
-                    if not cond:
-                        continue
-                else:
-                    # Don't build fp32 by default
-                    if dtype == "fp32":
                         continue
 
                 api_pool.register_traits(k.api_trait())
