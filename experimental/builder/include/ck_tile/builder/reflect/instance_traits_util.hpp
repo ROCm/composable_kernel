@@ -1,5 +1,5 @@
+// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 // Utility functions and helpers for instance_traits.hpp
 // Contains helper functions to convert types, enums, and sequences to string representations.
@@ -21,6 +21,7 @@
 #include <ck_tile/ops/common/tensor_layout.hpp>
 #include <ck/tensor_operation/gpu/element/element_wise_operation.hpp>
 #include <ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp>
+#include <ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp>
 #include <ck/tensor_operation/gpu/device/gemm_specialization.hpp>
 
 namespace ck_tile::reflect::detail {
@@ -108,6 +109,20 @@ conv_fwd_spec_name(ck::tensor_operation::device::ConvolutionForwardSpecializatio
     case Filter1x1Stride1Pad0: return "Filter1x1Stride1Pad0";
     case Filter1x1Pad0: return "Filter1x1Pad0";
     case Filter3x3: return "Filter3x3";
+    case OddC: return "OddC";
+    }
+}
+
+// Convert ConvolutionBackwardWeightSpecialization enum to string
+constexpr std::string_view conv_bwd_weight_spec_name(
+    ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization spec)
+{
+    using enum ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization;
+    switch(spec)
+    {
+    case Default: return "Default";
+    case Filter1x1Stride1Pad0: return "Filter1x1Stride1Pad0";
+    case Filter1x1Pad0: return "Filter1x1Pad0";
     case OddC: return "OddC";
     }
 }
