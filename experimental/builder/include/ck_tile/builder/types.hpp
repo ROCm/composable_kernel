@@ -171,14 +171,14 @@ enum class ConvFwdSpecialization
     FILTER_3x3
 };
 
-// Enums for the bacward data convolution specialization.
+// Enums for the backward data convolution specialization.
 enum class ConvBwdDataSpecialization
 {
     DEFAULT,
     FILTER_1X1_STRIDE1_PAD0,
 };
 
-// Enums for the bacward weight convolution specialization.
+// Enums for the backward weight convolution specialization.
 enum class ConvBwdWeightSpecialization
 {
     DEFAULT,
