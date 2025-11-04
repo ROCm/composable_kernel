@@ -1,4 +1,4 @@
-// Copyright © Advanced Micro Devices, Inc., or its affiliates.
+// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
 // Compile-time reflection for CK device kernel instances.

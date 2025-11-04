@@ -1,4 +1,4 @@
-// Copyright © Advanced Micro Devices, Inc., or its affiliates.
+// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
 #include "utils/ckb_conv_test_common.hpp"
