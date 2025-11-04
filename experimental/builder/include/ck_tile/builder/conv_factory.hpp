@@ -36,6 +36,7 @@
 
 #pragma once
 
+#include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_dl_multiple_d_nhwc_kyxc_nhwk.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_d_wmma_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle_v3.hpp"
@@ -988,6 +989,119 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         C_BLOCK_TRANSFER.scalar_per_vector,
         LOOP_SCHEDULER,
         GRIDWISE_GEMM_PIPELINE_VERSION>;
+};
+
+// Factory specialization for DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK instance
+// of a grouped forward convolution kernel using Direct Load (DL) approach.
+template <ConvSignatureDescriptor auto SIGNATURE,
+          ConvAlgorithmDescriptor auto ALGORITHM,
+          StringLiteral VERSION>
+    requires ConvDirectionIsForward<SIGNATURE> &&
+             ConvDeviceOpIs_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK<SIGNATURE>
+struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
+{
+    static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
+    using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE.layout,
+                                                                     SPATIAL_DIM,
+                                                                     ConvDirection::FORWARD>());
+    using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
+    using Ops           = factory_internal::ElementwiseOps<SIGNATURE.elementwise_operation>;
+    using AlgorithmType = decltype(ALGORITHM);
+
+    static_assert(SpecifiesThreadBlock<AlgorithmType>,
+                  "The convolution algorithm descriptor must specify thread block info.");
+    static_assert(SpecifiesFwdConcSpecialization<AlgorithmType>,
+                  "The convolution algorithm descriptor must specify forward convolution "
+                  "specialization.");
+    static_assert(SpecifiesGemmSpecialization<AlgorithmType>,
+                  "The convolution algorithm descriptor must specify gemm specialization.");
+
+    static constexpr auto FWD_CONV_SPECIALIZATION =
+        factory_internal::SetFwdConvSpecialization<ALGORITHM>();
+    static constexpr auto GEMM_SPECIALIZATION =
+        factory_internal::SetGemmSpecialization<ALGORITHM>();
+
+    static constexpr auto BLOCK = factory_internal::SetThreadBlockInfo<ALGORITHM>();
+
+    // DL-specific hardcoded parameters based on the example from convnd_fwd_dl_fp16.cpp
+    // These can be made configurable in the future
+    static constexpr ck::index_t K0PerBlock  = 16;
+    static constexpr ck::index_t K1          = 2;
+    static constexpr ck::index_t M1PerThread = 4;
+    static constexpr ck::index_t N1PerThread = 4;
+    static constexpr ck::index_t KPerThread  = 1;
+
+    // Thread cluster configuration
+    using M1N1ThreadClusterM1Xs = ck::Sequence<8, 2>;
+    using M1N1ThreadClusterN1Xs = ck::Sequence<8, 2>;
+
+    // A Block Transfer - K0_M0_M1_K1 tensor format
+    using ABlockTransferThreadSliceLengths_K0_M0_M1_K1   = ck::Sequence<8, 1, 1, 2>;
+    using ABlockTransferThreadClusterLengths_K0_M0_M1_K1 = ck::Sequence<2, 1, 128, 1>;
+    using ABlockTransferThreadClusterArrangeOrder        = ck::Sequence<1, 2, 0, 3>;
+    using ABlockTransferSrcAccessOrder                   = ck::Sequence<1, 2, 0, 3>;
+    using ABlockTransferSrcVectorTensorLengths_K0_M0_M1_K1        = ck::Sequence<4, 1, 1, 2>;
+    using ABlockTransferSrcVectorTensorContiguousDimOrder         = ck::Sequence<1, 2, 0, 3>;
+    using ABlockTransferDstVectorTensorLengths_K0_M0_M1_K1        = ck::Sequence<1, 1, 1, 2>;
+
+    // B Block Transfer - K0_N0_N1_K1 tensor format
+    using BBlockTransferThreadSliceLengths_K0_N0_N1_K1   = ck::Sequence<8, 1, 1, 2>;
+    using BBlockTransferThreadClusterLengths_K0_N0_N1_K1 = ck::Sequence<2, 1, 128, 1>;
+    using BBlockTransferThreadClusterArrangeOrder        = ck::Sequence<1, 2, 0, 3>;
+    using BBlockTransferSrcAccessOrder                   = ck::Sequence<1, 2, 0, 3>;
+    using BBlockTransferSrcVectorTensorLengths_K0_N0_N1_K1        = ck::Sequence<4, 1, 1, 2>;
+    using BBlockTransferSrcVectorTensorContiguousDimOrder         = ck::Sequence<1, 2, 0, 3>;
+    using BBlockTransferDstVectorTensorLengths_K0_N0_N1_K1        = ck::Sequence<1, 1, 1, 2>;
+
+    // C Thread Transfer
+    using CThreadTransferSrcDstAccessOrder = ck::Sequence<0, 1, 2, 3, 4, 5>;
+    static constexpr ck::index_t CThreadTransferSrcDstVectorDim      = 5;
+    static constexpr ck::index_t CThreadTransferDstScalarPerVector   = 4;
+
+    // The DL forward convolution kernel class instance
+    using Instance = ck::tensor_operation::device::DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK<
+        SPATIAL_DIM,
+        typename Types::ADataType,
+        typename Types::BDataType,
+        typename Types::DsDataTypes,
+        typename Types::EDataType,
+        typename Types::AccDataType,
+        typename Layouts::ALayout,
+        typename Layouts::BLayout,
+        typename Layouts::DsLayout,
+        typename Layouts::ELayout,
+        typename Ops::AElementwiseOp,
+        typename Ops::BElementwiseOp,
+        typename Ops::CDEElementwiseOp,
+        FWD_CONV_SPECIALIZATION,
+        GEMM_SPECIALIZATION,
+        BLOCK.block_size,
+        BLOCK.per_block.m,
+        BLOCK.per_block.n,
+        K0PerBlock,
+        K1,
+        M1PerThread,
+        N1PerThread,
+        KPerThread,
+        M1N1ThreadClusterM1Xs,
+        M1N1ThreadClusterN1Xs,
+        ABlockTransferThreadSliceLengths_K0_M0_M1_K1,
+        ABlockTransferThreadClusterLengths_K0_M0_M1_K1,
+        ABlockTransferThreadClusterArrangeOrder,
+        ABlockTransferSrcAccessOrder,
+        ABlockTransferSrcVectorTensorLengths_K0_M0_M1_K1,
+        ABlockTransferSrcVectorTensorContiguousDimOrder,
+        ABlockTransferDstVectorTensorLengths_K0_M0_M1_K1,
+        BBlockTransferThreadSliceLengths_K0_N0_N1_K1,
+        BBlockTransferThreadClusterLengths_K0_N0_N1_K1,
+        BBlockTransferThreadClusterArrangeOrder,
+        BBlockTransferSrcAccessOrder,
+        BBlockTransferSrcVectorTensorLengths_K0_N0_N1_K1,
+        BBlockTransferSrcVectorTensorContiguousDimOrder,
+        BBlockTransferDstVectorTensorLengths_K0_N0_N1_K1,
+        CThreadTransferSrcDstAccessOrder,
+        CThreadTransferSrcDstVectorDim,
+        CThreadTransferDstScalarPerVector>;
 };
 
 } // namespace ck_tile::builder
