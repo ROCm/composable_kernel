@@ -27,10 +27,10 @@ TEST(FwdConvInstances,
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
     run_test<Builder>({"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3",
-                      "256, 128, 128, 32",
-                      "Filter1x1Stride1Pad0",
-                      "BlkGemmPipelineScheduler: Intrawave",
-                      "BlkGemmPipelineVersion: v4"});
+                       "256, 128, 128, 32",
+                       "Filter1x1Stride1Pad0",
+                       "BlkGemmPipelineScheduler: Intrawave",
+                       "BlkGemmPipelineVersion: v4"});
 }
 
 } // namespace

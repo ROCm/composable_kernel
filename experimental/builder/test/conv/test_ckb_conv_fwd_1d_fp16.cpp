@@ -29,10 +29,8 @@ TEST(FwdConvInstances,
         .loop_scheduler             = LoopScheduler::DEFAULT};
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
-    run_test<Builder>({
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle", 
-        "64, 64, 32, 32",
-        "Default"});
+    run_test<Builder>(
+        {"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle", "64, 64, 32, 32", "Default"});
 }
 
 } // namespace

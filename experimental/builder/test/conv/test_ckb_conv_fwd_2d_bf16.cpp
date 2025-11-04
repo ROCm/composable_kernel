@@ -1,7 +1,7 @@
 #include "utils/ckb_conv_test_configs.hpp"
 #include "utils/ckb_conv_test_utils.hpp"
 
-namespace{
+namespace {
 
 using namespace ck_tile::builder::test_utils;
 
@@ -27,12 +27,11 @@ TEST(FwdConvInstances,
         .block_gemm          = BlockGemmDesc_v1_intrawave};
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
-    run_test<Builder>({
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3",
-        "256, 256, 256, 32",
-        "Default",
-        "BlkGemmPipelineScheduler: Intrawave",
-        "BlkGemmPipelineVersion: v1"});
+    run_test<Builder>({"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3",
+                       "256, 256, 256, 32",
+                       "Default",
+                       "BlkGemmPipelineScheduler: Intrawave",
+                       "BlkGemmPipelineVersion: v1"});
 }
 
 // 2D BF16 NHWGC (channels-last) with Pipeline V5 and FILTER_3x3
@@ -58,8 +57,8 @@ TEST(FwdConvInstances,
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
     run_test<Builder>({"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3",
-                      "Filter3x3",
-                      "BlkGemmPipelineVersion: v5"});
+                       "Filter3x3",
+                       "BlkGemmPipelineVersion: v5"});
 }
 
 } // namespace

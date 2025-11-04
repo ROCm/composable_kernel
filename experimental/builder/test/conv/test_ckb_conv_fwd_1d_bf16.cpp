@@ -2,7 +2,7 @@
 #include "utils/ckb_conv_test_utils.hpp"
 
 namespace {
-    
+
 using namespace ck_tile::builder::test_utils;
 
 // 1D BF16 (channels-first) with Pipeline V2 and FILTER_1X1_STRIDE1_PAD0 specialization and SCALE
@@ -28,12 +28,11 @@ TEST(FwdConvInstances,
         .block_gemm          = BlockGemmDesc_v2_intrawave};
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
-    run_test<Builder>({
-        "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3",
-        "256, 256, 256, 32", 
-        "Filter1x1Stride1Pad0", 
-        "BlkGemmPipelineScheduler: Intrawave",
-        "BlkGemmPipelineVersion: v2"});
+    run_test<Builder>({"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3",
+                       "256, 256, 256, 32",
+                       "Filter1x1Stride1Pad0",
+                       "BlkGemmPipelineScheduler: Intrawave",
+                       "BlkGemmPipelineVersion: v2"});
 }
 
 } // namespace
