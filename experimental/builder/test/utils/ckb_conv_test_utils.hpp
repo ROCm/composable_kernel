@@ -14,7 +14,6 @@ namespace ck_tile::builder::test_utils {
 using namespace ck_tile::builder;
 using namespace test;
 
-
 // Common test implementation
 template <typename Builder>
 constexpr void run_test(const std::vector<std::string>& kernel_instance_components)
@@ -28,7 +27,7 @@ constexpr void run_test(const std::vector<std::string>& kernel_instance_componen
     const auto invoker_ptr = instance.MakeInvokerPointer();
     EXPECT_NE(invoker_ptr, nullptr);
 
-    for (const auto& component : kernel_instance_components)
+    for(const auto& component : kernel_instance_components)
     {
         EXPECT_THAT(kernel_string, ::testing::HasSubstr(component));
     }

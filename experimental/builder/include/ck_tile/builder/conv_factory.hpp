@@ -299,35 +299,23 @@ consteval BlockGemmSpec SetBlockGemm()
 
     switch(BG.scheduler)
     {
-        case BlockGemmPipelineScheduler::INTRAWAVE:
-            scheduler = ck::BlockGemmPipelineScheduler::Intrawave;
-            break;
-        case BlockGemmPipelineScheduler::INTERWAVE:
-            scheduler = ck::BlockGemmPipelineScheduler::Interwave;
-            break;
-        default:
-            throw "Unknown BlockGemmPipelineScheduler";
+    case BlockGemmPipelineScheduler::INTRAWAVE:
+        scheduler = ck::BlockGemmPipelineScheduler::Intrawave;
+        break;
+    case BlockGemmPipelineScheduler::INTERWAVE:
+        scheduler = ck::BlockGemmPipelineScheduler::Interwave;
+        break;
+    default: throw "Unknown BlockGemmPipelineScheduler";
     }
 
     switch(BG.pipeline_version)
     {
-        case BlockGemmPipelineVersion::V1:
-            version = ck::BlockGemmPipelineVersion::v1;
-            break;
-        case BlockGemmPipelineVersion::V2:
-            version = ck::BlockGemmPipelineVersion::v2;
-            break;
-        case BlockGemmPipelineVersion::V3:
-            version = ck::BlockGemmPipelineVersion::v3;
-            break;
-        case BlockGemmPipelineVersion::V4:
-            version = ck::BlockGemmPipelineVersion::v4;
-            break;
-        case BlockGemmPipelineVersion::V5:
-            version = ck::BlockGemmPipelineVersion::v5;
-            break;
-        default:
-            throw "Unknown BlockGemmPipelineVersion";
+    case BlockGemmPipelineVersion::V1: version = ck::BlockGemmPipelineVersion::v1; break;
+    case BlockGemmPipelineVersion::V2: version = ck::BlockGemmPipelineVersion::v2; break;
+    case BlockGemmPipelineVersion::V3: version = ck::BlockGemmPipelineVersion::v3; break;
+    case BlockGemmPipelineVersion::V4: version = ck::BlockGemmPipelineVersion::v4; break;
+    case BlockGemmPipelineVersion::V5: version = ck::BlockGemmPipelineVersion::v5; break;
+    default: throw "Unknown BlockGemmPipelineVersion";
     }
 
     return BlockGemmSpec{.pipeline_version = version, .scheduler = scheduler};
@@ -436,15 +424,12 @@ template <ConvAlgorithmDescriptor auto ALGORITHM>
 consteval ck::LoopScheduler SetLoopScheduler()
 {
     constexpr auto loop_scheduler = ALGORITHM.loop_scheduler;
-    using ck_loop_sched = ck::LoopScheduler;
+    using ck_loop_sched           = ck::LoopScheduler;
     switch(loop_scheduler)
     {
-        case LoopScheduler::DEFAULT:
-            return ck_loop_sched::Default;
-        case LoopScheduler::INTERWAVE:
-            return ck_loop_sched::Interwave;
-        default:
-            throw "Unknown LoopScheduler";
+    case LoopScheduler::DEFAULT: return ck_loop_sched::Default;
+    case LoopScheduler::INTERWAVE: return ck_loop_sched::Interwave;
+    default: throw "Unknown LoopScheduler";
     }
 }
 
@@ -452,21 +437,16 @@ template <ConvAlgorithmDescriptor auto ALGORITHM>
 consteval ck::PipelineVersion SetGridwiseGemmPipelineVersion()
 {
     constexpr auto pipeline_version = ALGORITHM.gridwise_gemm.pipeline_version;
-    using ck_pipeline = ck::PipelineVersion;
+    using ck_pipeline               = ck::PipelineVersion;
     switch(pipeline_version)
     {
-        case GridwiseGemmPipelineVersion::V1:
-            return ck_pipeline::v1;
-        case GridwiseGemmPipelineVersion::V2:
-            return ck_pipeline::v2;
-        case GridwiseGemmPipelineVersion::V4:
-            return ck_pipeline::v4;
-        case GridwiseGemmPipelineVersion::WEIGHT_ONLY:
-            return ck_pipeline::weight_only;
-        case GridwiseGemmPipelineVersion::V3:
-            throw "GridwiseGemmPipelineVersion::V3 is used only for stream-K.";
-        default:
-            throw "Unknown GridwiseGemmPipelineVersion";
+    case GridwiseGemmPipelineVersion::V1: return ck_pipeline::v1;
+    case GridwiseGemmPipelineVersion::V2: return ck_pipeline::v2;
+    case GridwiseGemmPipelineVersion::V4: return ck_pipeline::v4;
+    case GridwiseGemmPipelineVersion::WEIGHT_ONLY: return ck_pipeline::weight_only;
+    case GridwiseGemmPipelineVersion::V3:
+        throw "GridwiseGemmPipelineVersion::V3 is used only for stream-K.";
+    default: throw "Unknown GridwiseGemmPipelineVersion";
     }
 }
 
@@ -474,44 +454,27 @@ template <ConvAlgorithmDescriptor auto ALGORITHM>
 consteval ck::tensor_operation::device::GemmSpecialization SetGemmSpecialization()
 {
     constexpr auto gemm_spec = ALGORITHM.gemm_specialization;
-    using ck_gemm_spec = ck::tensor_operation::device::GemmSpecialization; 
+    using ck_gemm_spec       = ck::tensor_operation::device::GemmSpecialization;
 
     switch(gemm_spec)
     {
-        case GemmSpecialization::Default:
-            return ck_gemm_spec::Default;
-        case GemmSpecialization::MPadding:
-            return ck_gemm_spec::MPadding;
-        case GemmSpecialization::NPadding:
-            return ck_gemm_spec::NPadding;
-        case GemmSpecialization::KPadding:
-            return ck_gemm_spec::KPadding;
-        case GemmSpecialization::MNPadding:
-            return ck_gemm_spec::MNPadding;
-        case GemmSpecialization::MKPadding:
-            return ck_gemm_spec::MKPadding;
-        case GemmSpecialization::NKPadding:
-            return ck_gemm_spec::NKPadding;
-        case GemmSpecialization::MNKPadding:
-            return ck_gemm_spec::MNKPadding;
-        case GemmSpecialization::OPadding:
-            return ck_gemm_spec::OPadding;
-        case GemmSpecialization::MOPadding:
-            return ck_gemm_spec::MOPadding;
-        case GemmSpecialization::NOPadding:
-            return ck_gemm_spec::NOPadding;
-        case GemmSpecialization::KOPadding:
-            return ck_gemm_spec::KOPadding;
-        case GemmSpecialization::MNOPadding:
-            return ck_gemm_spec::MNOPadding;
-        case GemmSpecialization::MKOPadding:
-            return ck_gemm_spec::MKOPadding;
-        case GemmSpecialization::NKOPadding:
-            return ck_gemm_spec::NKOPadding;
-        case GemmSpecialization::MNKOPadding:
-            return ck_gemm_spec::MNKOPadding;
-        default:
-            throw "Unknown GemmSpecialization";
+    case GemmSpecialization::Default: return ck_gemm_spec::Default;
+    case GemmSpecialization::MPadding: return ck_gemm_spec::MPadding;
+    case GemmSpecialization::NPadding: return ck_gemm_spec::NPadding;
+    case GemmSpecialization::KPadding: return ck_gemm_spec::KPadding;
+    case GemmSpecialization::MNPadding: return ck_gemm_spec::MNPadding;
+    case GemmSpecialization::MKPadding: return ck_gemm_spec::MKPadding;
+    case GemmSpecialization::NKPadding: return ck_gemm_spec::NKPadding;
+    case GemmSpecialization::MNKPadding: return ck_gemm_spec::MNKPadding;
+    case GemmSpecialization::OPadding: return ck_gemm_spec::OPadding;
+    case GemmSpecialization::MOPadding: return ck_gemm_spec::MOPadding;
+    case GemmSpecialization::NOPadding: return ck_gemm_spec::NOPadding;
+    case GemmSpecialization::KOPadding: return ck_gemm_spec::KOPadding;
+    case GemmSpecialization::MNOPadding: return ck_gemm_spec::MNOPadding;
+    case GemmSpecialization::MKOPadding: return ck_gemm_spec::MKOPadding;
+    case GemmSpecialization::NKOPadding: return ck_gemm_spec::NKOPadding;
+    case GemmSpecialization::MNKOPadding: return ck_gemm_spec::MNKOPadding;
+    default: throw "Unknown GemmSpecialization";
     }
 }
 
@@ -519,21 +482,15 @@ template <ConvAlgorithmDescriptor auto ALGORITHM>
 consteval ck::BlockGemmPipelineVersion SetBlockGemmPipelineVersion()
 {
     constexpr auto version = ALGORITHM.pipeline_version;
-    using ck_block_gemm = ck::BlockGemmPipelineVersion;
+    using ck_block_gemm    = ck::BlockGemmPipelineVersion;
     switch(version)
     {
-        case BlockGemmPipelineVersion::V1:
-            return ck_block_gemm::v1;
-        case BlockGemmPipelineVersion::V2:
-            return ck_block_gemm::v2;
-        case BlockGemmPipelineVersion::V3:
-            return ck_block_gemm::v3;
-        case BlockGemmPipelineVersion::V4:
-            return ck_block_gemm::v4;
-        case BlockGemmPipelineVersion::V5:
-            return ck_block_gemm::v5;
-        default:
-            throw "Unknown BlockGemmPipelineVersion";
+    case BlockGemmPipelineVersion::V1: return ck_block_gemm::v1;
+    case BlockGemmPipelineVersion::V2: return ck_block_gemm::v2;
+    case BlockGemmPipelineVersion::V3: return ck_block_gemm::v3;
+    case BlockGemmPipelineVersion::V4: return ck_block_gemm::v4;
+    case BlockGemmPipelineVersion::V5: return ck_block_gemm::v5;
+    default: throw "Unknown BlockGemmPipelineVersion";
     }
 }
 
@@ -541,19 +498,14 @@ template <ConvAlgorithmDescriptor auto ALGORITHM>
 consteval ck::tensor_operation::device::ConvolutionForwardSpecialization SetFwdConvSpecialization()
 {
     constexpr auto specialization = ALGORITHM.fwd_specialization;
-    using ck_conv_spec = ck::tensor_operation::device::ConvolutionForwardSpecialization;
+    using ck_conv_spec            = ck::tensor_operation::device::ConvolutionForwardSpecialization;
     switch(specialization)
     {
-        case ConvFwdSpecialization::DEFAULT:
-            return ck_conv_spec::Default;
-        case ConvFwdSpecialization::FILTER_1X1_PAD0:
-            return ck_conv_spec::Filter1x1Pad0;
-        case ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0:
-            return ck_conv_spec::Filter1x1Stride1Pad0;
-        case ConvFwdSpecialization::FILTER_3x3:
-            return ck_conv_spec::Filter3x3;
-        default:
-            throw "Unknown ConvFwdSpecialization";
+    case ConvFwdSpecialization::DEFAULT: return ck_conv_spec::Default;
+    case ConvFwdSpecialization::FILTER_1X1_PAD0: return ck_conv_spec::Filter1x1Pad0;
+    case ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0: return ck_conv_spec::Filter1x1Stride1Pad0;
+    case ConvFwdSpecialization::FILTER_3x3: return ck_conv_spec::Filter3x3;
+    default: throw "Unknown ConvFwdSpecialization";
     }
 }
 
