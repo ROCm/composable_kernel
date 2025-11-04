@@ -31,21 +31,20 @@ struct StreamKTilePartitionerBase
 
     StreamKTilePartitionerBase(index_t m, index_t n, index_t k, index_t grid);
 
-    private:
     /**
      * @brief Calculates the total space needed for the partials buffer.
      *
      * @param acc_element_bytes  The number of bytes for the accumulator data type used in the GEMM.
      * @return index_t           The number of bytes needed for the partials buffer.
      */
-    CK_TILE_HOST index_t get_partials_buffer_size(index_t acc_element_bytes) const noexcept;
+    CK_TILE_HOST_DEVICE index_t get_partials_buffer_size(index_t acc_element_bytes) const noexcept;
 
     /**
      * @brief Calculates the total space needed for the flags buffer.
      *
      * @return index_t The number of bytes needed for the flags buffer.
      */
-    CK_TILE_HOST index_t get_flags_buffer_size() const noexcept;
+    CK_TILE_HOST_DEVICE index_t get_flags_buffer_size() const noexcept;
 
     public:
     /**
@@ -123,7 +122,7 @@ struct StreamKTilePartitionerBase
      * @param acc_element_bytes  The number of bytes for the accumulator data type used in the GEMM.
      * @return index_t           The number of bytes needed for the partials and flags buffers.
      */
-    CK_TILE_HOST index_t get_workspace_size(index_t acc_element_bytes) const noexcept;
+    CK_TILE_HOST_DEVICE index_t get_workspace_size(index_t acc_element_bytes) const noexcept;
 
     /**
      * @brief Returns the number of macro tiles in the C tensor.
@@ -186,6 +185,11 @@ struct StreamKTilePartitionerBase
      */
     CK_TILE_HOST_DEVICE index_t get_n() const noexcept;
 
+    /**
+     * @brief Returns an estimate of the number of workgroups writing to the same macro tile in C.
+     */
+    CK_TILE_HOST index_t estimate_num_wgs_per_tile() const noexcept;
+
     protected:
     index_t num_tiles_;
     index_t grid_;
@@ -246,6 +250,7 @@ struct StreamKTilePartitioner_v2<BlockGemmShapeType, ReductionStrategyType, true
                               ck_tile::index_t grid);
 
     public:
+    static constexpr bool PERSISTENT = true;
     /**
      * @brief Calculates the launching grid size for the Stream-K kernel. In the Persistent
      * case, no extra workgroups are allocated for the data parallel section, making the grid
@@ -292,6 +297,7 @@ struct StreamKTilePartitioner_v2<BlockGemmShapeType, ReductionStrategyType, fals
                               ck_tile::index_t grid);
 
     public:
+    static constexpr bool PERSISTENT = false;
     /**
      * @brief Calculates the launching grid size for the Stream-K kernel. In the Non-Persistent
      * case, extra workgroups are allocated for the data parallel section, making the grid

@@ -3,7 +3,7 @@
 #pragma once
 
 template <ck_tile::index_t NDimSpatial,
-          typename GemmConfig,
+          typename ConvConfig,
           typename Invoker,
           typename InDataType,
           typename WeiDataType,
@@ -12,12 +12,12 @@ template <ck_tile::index_t NDimSpatial,
           typename InLayout,
           typename WeiLayout,
           typename OutLayout>
-float invoke_grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args,
+float invoke_grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs<>& args,
                               int n_warmup,
                               int n_repeat)
 {
     float ave_time = Invoker::template grouped_conv_fwd<NDimSpatial,
-                                                        GemmConfig,
+                                                        ConvConfig,
                                                         InDataType,
                                                         WeiDataType,
                                                         AccDataType,
@@ -39,7 +39,7 @@ float invoke_grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs& args,
 }
 
 template <ck_tile::index_t NDimSpatial,
-          typename GemmConfig,
+          typename ConvConfig,
           typename Invoker,
           typename InDataType,
           typename WeiDataType = InDataType,
@@ -128,12 +128,12 @@ int run_grouped_conv_fwd_example_with_layouts(
     weight_dev_buf.ToDevice(weight.data());
     output_dev_buf.SetZero();
 
-    ck_tile::GroupedConvFwdHostArgs args(conv_param,
-                                         input_dev_buf.GetDeviceBuffer(),
-                                         weight_dev_buf.GetDeviceBuffer(),
-                                         {},
-                                         output_dev_buf.GetDeviceBuffer(),
-                                         kbatch);
+    ck_tile::GroupedConvFwdHostArgs<> args(conv_param,
+                                           input_dev_buf.GetDeviceBuffer(),
+                                           weight_dev_buf.GetDeviceBuffer(),
+                                           {},
+                                           output_dev_buf.GetDeviceBuffer(),
+                                           kbatch);
 
     std::cout << "Run Grouped Conv Fwd kernel" << std::endl;
     std::cout << "input: " << input.mDesc << std::endl;
@@ -141,7 +141,7 @@ int run_grouped_conv_fwd_example_with_layouts(
     std::cout << "output: " << output.mDesc << std::endl;
 
     invoke_grouped_conv_fwd<NDimSpatial,
-                            GemmConfig,
+                            ConvConfig,
                             Invoker,
                             InDataType,
                             WeiDataType,
@@ -193,7 +193,7 @@ int run_grouped_conv_fwd_example_with_layouts(
 }
 
 template <typename Invoker,
-          typename GemmConfig,
+          typename ConvConfig,
           typename InPrecType,
           typename WeiPrecType = InPrecType,
           typename OutPrecType = InPrecType>
@@ -215,7 +215,7 @@ int run_grouped_conv_fwd_example_prec_type(
     if(in_layout == "NWGC" && wei_layout == "GKXC" && out_layout == "NWGK")
     {
         return run_grouped_conv_fwd_example_with_layouts<ck_tile::number<1>{},
-                                                         GemmConfig,
+                                                         ConvConfig,
                                                          Invoker,
                                                          InPrecType,
                                                          WeiPrecType,
@@ -225,7 +225,7 @@ int run_grouped_conv_fwd_example_prec_type(
     else if(in_layout == "NHWGC" && wei_layout == "GKYXC" && out_layout == "NHWGK")
     {
         return run_grouped_conv_fwd_example_with_layouts<ck_tile::number<2>{},
-                                                         GemmConfig,
+                                                         ConvConfig,
                                                          Invoker,
                                                          InPrecType,
                                                          WeiPrecType,
@@ -235,7 +235,7 @@ int run_grouped_conv_fwd_example_prec_type(
     else if(in_layout == "NDHWGC" && wei_layout == "GKZYXC" && out_layout == "NDHWGK")
     {
         return run_grouped_conv_fwd_example_with_layouts<ck_tile::number<3>{},
-                                                         GemmConfig,
+                                                         ConvConfig,
                                                          Invoker,
                                                          InPrecType,
                                                          WeiPrecType,

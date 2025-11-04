@@ -1076,7 +1076,7 @@ struct tile_window_with_static_lengths
                 using ThreadBuf = thread_buffer<DataType, 2>;
                 auto buf        = tensor_view.template get_vectorized_elements<ThreadBuf>(coord, 0);
                 auto value      = buf.at(number<0>{}); // Extract first element from thread buffer
-                printf("  %s[%d,%d] = %f", label, i, j, static_cast<float>(value));
+                printf("  %s[%d,%d] = %f", label, i, j, type_convert<float>(value));
             }
             printf("\n");
         }
@@ -1151,6 +1151,33 @@ CK_TILE_DEVICE void move_tile_window(
         step)
 {
     window.move(step);
+}
+
+template <typename NewTensorView_,
+          typename OldTensorView_,
+          typename WindowLengths_,
+          typename StaticTileDistribution_,
+          index_t NumCoord = 1>
+CK_TILE_DEVICE auto
+replace_bottom_tensor_view(const NewTensorView_& new_tensor_view,
+                           const tile_window_with_static_distribution<OldTensorView_,
+                                                                      WindowLengths_,
+                                                                      StaticTileDistribution_,
+                                                                      NumCoord>& tile_window)
+{
+    return make_tile_window(new_tensor_view,
+                            tile_window.get_window_lengths(),
+                            tile_window.get_window_origin(),
+                            tile_window.get_tile_distribution());
+}
+
+template <typename NewTensorView_, typename OldTensorView_, typename WindowLengths_>
+CK_TILE_DEVICE auto replace_bottom_tensor_view(
+    const NewTensorView_& new_tensor_view,
+    const tile_window_with_static_lengths<OldTensorView_, WindowLengths_>& tile_window)
+{
+    return make_tile_window(
+        new_tensor_view, tile_window.get_window_lengths(), tile_window.get_window_origin());
 }
 
 /**

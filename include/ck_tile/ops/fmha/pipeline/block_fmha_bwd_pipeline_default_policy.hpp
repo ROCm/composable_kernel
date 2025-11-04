@@ -7,7 +7,6 @@
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_problem.hpp"
 #include "ck_tile/ops/gemm/pipeline/tile_gemm_shape.hpp"
-#include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v1_custom_policy.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_areg_bsmem_creg_v1.hpp"
@@ -683,26 +682,26 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakePostQGradAccDramTileDistribution()
     {
-        using AccDataType = remove_cvref_t<typename Problem::AccDataType>;
-
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kMPerBlock = Problem::kM0;
         constexpr index_t kKPerBlock = Problem::kQKHeaddim;
 
-        constexpr index_t K1 = 16 / sizeof(AccDataType);
-        constexpr index_t K0 = kKPerBlock / K1;
+        constexpr index_t K2 = GetAlignmentPostQGradAcc<Problem>();
+        constexpr index_t K1 = min(kKPerBlock / K2, get_warp_size());
+        constexpr index_t K0 = kKPerBlock / (K1 * K2);
 
-        constexpr index_t M2 = get_warp_size() / K0;
+        constexpr index_t M2 = get_warp_size() / K1;
         constexpr index_t M1 = kBlockSize / get_warp_size();
         constexpr index_t M0 = kMPerBlock / (M1 * M2);
 
         constexpr auto dstr = make_static_tile_distribution(
-            tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<1>, sequence<M0, M1, M2>, sequence<K0, K1>>,
-                                       tuple<sequence<2>, sequence<2, 3>>,
-                                       tuple<sequence<1>, sequence<2, 0>>,
-                                       sequence<1, 2, 3>,
-                                       sequence<0, 0, 1>>{});
+            tile_distribution_encoding<
+                sequence<>,
+                tuple<sequence<1>, sequence<M0, M1, M2>, sequence<K0, K1, K2>>,
+                tuple<sequence<2>, sequence<2, 3>>,
+                tuple<sequence<1>, sequence<2, 1>>,
+                sequence<1, 2, 3, 3>,
+                sequence<0, 0, 0, 2>>{});
         static_assert(container_reduce(dstr.get_lengths(), std::multiplies<index_t>{}, 1) ==
                       kMPerBlock * kKPerBlock);
         return dstr;
@@ -711,27 +710,25 @@ struct BlockFmhaBwdPipelineDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakePostQGradDramTileDistribution()
     {
-        using AccDataType = remove_cvref_t<typename Problem::AccDataType>;
-
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kMPerBlock = Problem::kM0;
         constexpr index_t kKPerBlock = Problem::kQKHeaddim;
 
-        constexpr index_t K1 = 16 / sizeof(AccDataType);
-        constexpr index_t K0 = kKPerBlock / K1;
+        constexpr index_t K2 = GetAlignmentPostQGrad<Problem>();
+        constexpr index_t K1 = min(kKPerBlock / K2, get_warp_size());
+        constexpr index_t K0 = kKPerBlock / (K1 * K2);
 
-        constexpr index_t M2 = get_warp_size() / K0;
+        constexpr index_t M2 = get_warp_size() / K1;
         constexpr index_t M1 = kBlockSize / get_warp_size();
         constexpr index_t M0 = kMPerBlock / (M1 * M2);
 
         constexpr auto dstr = make_static_tile_distribution(
             tile_distribution_encoding<sequence<>,
-                                       tuple<sequence<M0, M1, M2>, sequence<K0, K1>>,
+                                       tuple<sequence<M0, M1, M2>, sequence<K0, K1, K2>>,
                                        tuple<sequence<1>, sequence<1, 2>>,
-                                       tuple<sequence<1>, sequence<2, 0>>,
-                                       sequence<1, 2>,
-                                       sequence<0, 1>>{});
-
+                                       tuple<sequence<1>, sequence<2, 1>>,
+                                       sequence<1, 2, 2>,
+                                       sequence<0, 0, 2>>{});
         static_assert(container_reduce(dstr.get_lengths(), std::multiplies<index_t>{}, 1) ==
                       kMPerBlock * kKPerBlock);
         return dstr;
