@@ -272,7 +272,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v3<BlockGemmPipelineSched
 
                     if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
                     {
-                        __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+                        __builtin_amdgcn_sched_group_barrier(
+                            0x100, ds_read_a_mfma_rate, 0); // DS read
                     }
                 });
             });
@@ -287,7 +288,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v3<BlockGemmPipelineSched
                     }
                     if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
                     {
-                        __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+                        __builtin_amdgcn_sched_group_barrier(
+                            0x100, ds_read_a_mfma_rate, 0); // DS read
                     }
                 });
             });
@@ -303,7 +305,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v3<BlockGemmPipelineSched
                     }
                     if constexpr(imfma >= (num_mfma_perstage - num_ds_read_a_mfma_perstage))
                     {
-                        __builtin_amdgcn_sched_group_barrier(0x100, ds_read_a_mfma_rate, 0); // DS read
+                        __builtin_amdgcn_sched_group_barrier(
+                            0x100, ds_read_a_mfma_rate, 0); // DS read
                     }
                 });
             });

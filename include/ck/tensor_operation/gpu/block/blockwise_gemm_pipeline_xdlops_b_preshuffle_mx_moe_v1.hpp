@@ -202,8 +202,9 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v1<BlockGemmPipelineSched
     {
         constexpr auto num_ds_read_inst_a     = HotLoopInstList::A_LDS_Read_Inst_Num;
         constexpr auto num_buffer_load_inst_a = HotLoopInstList::A_Buffer_Load_Inst_Num;
-        constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num * MWaves + num_buffer_load_a_scale + num_buffer_load_b_scale;
-        constexpr auto mfma_interleave        = MPerXDL == 32 ? 1 : 2;
+        constexpr auto num_buffer_load_inst_b = HotLoopInstList::B_Buffer_Load_Inst_Num * MWaves +
+                                                num_buffer_load_a_scale + num_buffer_load_b_scale;
+        constexpr auto mfma_interleave = MPerXDL == 32 ? 1 : 2;
         // B global
         static_for<0, num_buffer_load_inst_b, 1>{}([&](auto i) {
             ignore = i;
@@ -283,7 +284,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v1<BlockGemmPipelineSched
         const BScaleGridBuffer& b_scale_grid_buf,
         index_t num_loop) const
     {
-        ignore            = b_block_bufs;
+        ignore = b_block_bufs;
         __builtin_amdgcn_sched_barrier(0);
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ComputeTypeA>(
             a_thread_desc_.GetElementSpaceSize());
@@ -364,15 +365,20 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v1<BlockGemmPipelineSched
                     [&](auto chunk) {
                         constexpr auto a_k_step_chunk =
                             k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
-                        a_thread_copy_.Run(
-                            a_block_desc_m0_m1_m2_m3_k,
-                            make_tuple(
-                                Number<m0 / MXdlPack>{}, I0, Number<m0 % MXdlPack>{}, I0, Number<a_k_step_chunk>{}),
-                            a_block_buf,
-                            a_thread_desc_,
-                            make_tuple(
-                                Number<m0 / MXdlPack>{}, I0, Number<m0 % MXdlPack>{}, k, Number<chunk * KThreadChunk>{}),
-                            a_thread_buf);
+                        a_thread_copy_.Run(a_block_desc_m0_m1_m2_m3_k,
+                                           make_tuple(Number<m0 / MXdlPack>{},
+                                                      I0,
+                                                      Number<m0 % MXdlPack>{},
+                                                      I0,
+                                                      Number<a_k_step_chunk>{}),
+                                           a_block_buf,
+                                           a_thread_desc_,
+                                           make_tuple(Number<m0 / MXdlPack>{},
+                                                      I0,
+                                                      Number<m0 % MXdlPack>{},
+                                                      k,
+                                                      Number<chunk * KThreadChunk>{}),
+                                           a_thread_buf);
                     });
             });
         });
@@ -388,18 +394,14 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v1<BlockGemmPipelineSched
             do
             {
                 auto LoopFunc = [&](auto scale_comp_buf, auto scale_mem_buf) {
-
                     b_blockwise_copy.Run(b_grid_desc,
                                          b_grid_buf,
                                          b_block_desc,
                                          b_block_origin_idx,
                                          b_thread_bufs(scale_mem_buf));
-                                        
+
                     block_sync_lds();
-                    a_blockwise_copy.Run(a_grid_desc,
-                        a_grid_buf,
-                        a_block_desc,
-                        a_block_buf);
+                    a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf);
                     // Prefetch a_scales
                     static_for<0, MRepeat / MXdlPack, 1>{}([&](auto m0) {
                         static_for<0, KRepeat / KXdlPack, 1>{}([&](auto k0) {
@@ -527,7 +529,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v1<BlockGemmPipelineSched
                                     c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                             });
                         });
-                        
                     });
 
                     block_sync_lds();
@@ -536,20 +537,27 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v1<BlockGemmPipelineSched
                         static_for<0, KRepeat, 1>{}([&](auto k) {
                             constexpr auto k_step = k * xdlops_gemm.KPerXdlops / APackedSize *
                                                     (APackedSize * KPack / xdlops_gemm.K1PerXdlops);
-                            static_for<0, xdlops_gemm.K1PerXdlops / (APackedSize * KThreadChunk), 1>{}(
-                                [&](auto chunk) {
-                                    constexpr auto a_k_step_chunk =
-                                        k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
-                                    a_thread_copy_.Run(
-                                        a_block_desc_m0_m1_m2_m3_k,
-                                        make_tuple(
-                                            Number<m0 / MXdlPack>{}, I0, Number<m0 % MXdlPack>{}, I0, Number<a_k_step_chunk>{}),
-                                        a_block_buf,
-                                        a_thread_desc_,
-                                        make_tuple(
-                                            Number<m0 / MXdlPack>{}, I0, Number<m0 % MXdlPack>{}, k, Number<chunk * KThreadChunk>{}),
-                                        a_thread_buf);
-                                });
+                            static_for<0,
+                                       xdlops_gemm.K1PerXdlops / (APackedSize * KThreadChunk),
+                                       1>{}([&](auto chunk) {
+                                constexpr auto a_k_step_chunk =
+                                    k_step +
+                                    chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
+                                a_thread_copy_.Run(a_block_desc_m0_m1_m2_m3_k,
+                                                   make_tuple(Number<m0 / MXdlPack>{},
+                                                              I0,
+                                                              Number<m0 % MXdlPack>{},
+                                                              I0,
+                                                              Number<a_k_step_chunk>{}),
+                                                   a_block_buf,
+                                                   a_thread_desc_,
+                                                   make_tuple(Number<m0 / MXdlPack>{},
+                                                              I0,
+                                                              Number<m0 % MXdlPack>{},
+                                                              k,
+                                                              Number<chunk * KThreadChunk>{}),
+                                                   a_thread_buf);
+                            });
                         });
                     });
                     HotLoopScheduler();
@@ -570,10 +578,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v1<BlockGemmPipelineSched
                 b_grid_desc, b_grid_buf, b_block_desc, b_block_origin_idx, b_thread_bufs(I1));
 
             block_sync_lds();
-            a_blockwise_copy.Run(a_grid_desc,
-                                a_grid_buf,
-                                a_block_desc,
-                                a_block_buf);
+            a_blockwise_copy.Run(a_grid_desc, a_grid_buf, a_block_desc, a_block_buf);
             // Prefetch a_scales
             static_for<0, MRepeat / MXdlPack, 1>{}([&](auto m0) {
                 static_for<0, KRepeat / KXdlPack, 1>{}([&](auto k0) {
@@ -615,7 +620,6 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v1<BlockGemmPipelineSched
                     static_for<0, NRepeat, 1>{}([&](auto n0) {
                         constexpr auto in_major = n0 / NXdlPack;
                         constexpr auto in_minor = n0 % NXdlPack;
-
 
                         constexpr index_t a_scale_offset =
                             a_scale_thread_desc.CalculateOffset(make_tuple(im_major, ik_major, I0));
@@ -678,7 +682,7 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v1<BlockGemmPipelineSched
                             c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
                     });
                 });
-                
+
                 // constexpr auto lds_buf = m0.value >= SwitchM ? I1 : I0;
             });
             __builtin_amdgcn_s_waitcnt(async_vmcnt_encoding);
@@ -691,16 +695,22 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_v1<BlockGemmPipelineSched
                     static_for<0, xdlops_gemm.K1PerXdlops / (APackedSize * KThreadChunk), 1>{}(
                         [&](auto chunk) {
                             constexpr auto a_k_step_chunk =
-                                k_step + chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
-                            a_thread_copy_.Run(
-                                a_block_desc_m0_m1_m2_m3_k,
-                                make_tuple(
-                                    Number<m0 / MXdlPack>{}, I0, Number<m0 % MXdlPack>{}, I0, Number<a_k_step_chunk>{}),
-                                a_block_buf,
-                                a_thread_desc_,
-                                make_tuple(
-                                    Number<m0 / MXdlPack>{}, I0, Number<m0 % MXdlPack>{}, k, Number<chunk * KThreadChunk>{}),
-                                a_thread_buf);
+                                k_step +
+                                chunk * KThreadChunk * xdlops_gemm.mfma_instr.num_input_blks;
+                            a_thread_copy_.Run(a_block_desc_m0_m1_m2_m3_k,
+                                               make_tuple(Number<m0 / MXdlPack>{},
+                                                          I0,
+                                                          Number<m0 % MXdlPack>{},
+                                                          I0,
+                                                          Number<a_k_step_chunk>{}),
+                                               a_block_buf,
+                                               a_thread_desc_,
+                                               make_tuple(Number<m0 / MXdlPack>{},
+                                                          I0,
+                                                          Number<m0 % MXdlPack>{},
+                                                          k,
+                                                          Number<chunk * KThreadChunk>{}),
+                                               a_thread_buf);
                         });
                 });
             });
