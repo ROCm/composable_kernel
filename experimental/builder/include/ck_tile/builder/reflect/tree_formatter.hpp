@@ -5,10 +5,6 @@
 #include <type_traits>
 #include <vector>
 
-#include <ck_tile/builder/conv_signature.hpp>
-#include <ck_tile/builder/conv_traits.hpp>
-#include <ck_tile/builder/reflect/instance_traits_util.hpp>
-
 namespace ck_tile::reflect {
 
 // Helper class for formatting hierarchical tree structures with proper indentation
@@ -97,7 +93,7 @@ class TreeFormatter
         }
 
         // Write the content using fold expression with direct stream insertion
-        (oss_ << std::forward<Args>(args), ...);
+        ((oss_ << std::forward<Args>(args)), ...);
 
         oss_ << '\n';
 

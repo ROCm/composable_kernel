@@ -14,7 +14,7 @@
 #include <ck_tile/builder/reflect/tree_formatter.hpp>
 
 /// @file conv_description.hpp
-/// @brief
+/// @brief Provides human-readable descriptions of ConvBuilder configurations
 
 namespace ck_tile::reflect::conv {
 
@@ -74,7 +74,7 @@ struct ConvDescription
         f.writeLine(2, "Weights elementwise operation: ", signature.weight_element_op);
         f.writeLast(2, "Output elementwise operation: ", signature.output_element_op);
 
-        f.writeLast(1, "Algorithm");
+        f.writeLine(1, "Algorithm");
         // Compute Block section
         f.writeLine(2, "Thread block size: ", algorithm.thread_block_size);
         f.writeLine(2, "Data tile size: ",
@@ -86,7 +86,7 @@ struct ConvDescription
         // Pipeline section
         f.writeLine(2, "Pipeline version: ", algorithm.pipeline_version);
         f.writeLine(2, "Pipeline scheduler: ", algorithm.pipeline_scheduler);
-        f.writeLast(2, "Warp Gemm parameters: ");
+        f.writeLine(2, "Warp Gemm parameters: ");
         f.writeLine(3, "subtile size: ",
                     algorithm.warp_gemm.gemm_m, "×", algorithm.warp_gemm.gemm_n);
         f.writeLast(3, "Number of warp gemm iterations: ",
@@ -95,7 +95,7 @@ struct ConvDescription
         // Memory Access section
         f.writeLine(2, "Memory access:");
         
-        f.writeLast(2, "A Tile transfer: ");
+        f.writeLine(2, "A Tile transfer: ");
         f.writeLine(3, "Tile dimensions: ",
                     algorithm.a_tile_transfer.tile_dimensions.k0, "×",
                     algorithm.a_tile_transfer.tile_dimensions.m_or_n, "×",
@@ -119,7 +119,7 @@ struct ConvDescription
         f.writeLast(3, "LDS data layout padding (to prevent bank conflicts): ",
                     algorithm.a_tile_transfer.transfer_params.dst_scalar_per_vector_k1);
 
-        f.writeLast(2, "B Tile transfer: ");
+        f.writeLine(2, "B Tile transfer: ");
         f.writeLine(3, "Tile dimensions: ",
             algorithm.b_tile_transfer.tile_dimensions.k0, "×",
             algorithm.b_tile_transfer.tile_dimensions.m_or_n, "×",
@@ -154,7 +154,7 @@ struct ConvDescription
                     algorithm.c_tile_transfer.thread_cluster_dims[3], "");
         f.writeLast(3, "Vector access (GMEM write) instruction size: ",
                     algorithm.c_tile_transfer.scalar_per_vector);
-                        
+        // f.writeLast(1);
         return f.getString();
     }
 
@@ -201,16 +201,16 @@ ConvDescription Describe()
                                        .input_element_op    = Traits::input_element_op,
                                        .weight_element_op   = Traits::weight_element_op,
                                        .output_element_op   = Traits::output_element_op},
-        .algorithm = GemmAlgorithmInfo{thread_block_size = Traits::thread_block_size,
-                                       tile_dims = Traits::tile_dims,
-                                       warp_gemm = Traits::warp_gemm,
-                                       a_tile_transfer = Traits::a_tile_transfer,
-                                       b_tile_transfer = Traits::b_tile_transfer,
-                                       c_tile_transfer = Traits::c_tile_transfer,
-                                       pipeline_version = Traits::pipeline_version,
-                                       pipeline_scheduler = Traits::pipeline_scheduler,
-                                       conv_specialization = Traits::conv_specialization,
-                                       padding = Traits::padding}};
+        .algorithm = GemmAlgorithmInfo{.thread_block_size = Traits::thread_block_size,
+                                       .tile_dims = Traits::tile_dims,
+                                       .warp_gemm = Traits::warp_gemm,
+                                       .a_tile_transfer = Traits::a_tile_transfer,
+                                       .b_tile_transfer = Traits::b_tile_transfer,
+                                       .c_tile_transfer = Traits::c_tile_transfer,
+                                       .pipeline_version = Traits::pipeline_version,
+                                       .pipeline_scheduler = Traits::pipeline_scheduler,
+                                       .conv_specialization = Traits::conv_specialization,
+                                       .padding = Traits::gemm_padding}};
 }
 
 // Backward compatibility: Create ConvDescription from Builder type
