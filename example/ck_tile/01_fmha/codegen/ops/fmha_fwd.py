@@ -110,7 +110,7 @@ float fmha_fwd_<trait_{F_idx}, {F_arch.tag}>(const ck_tile::stream_config& s, fm
 {{
     using k_ = fmha_kernel_{F_idx};
     if(s.log_level_ > 0)
-        std::cout << ", " << k_::GetName() << std::flush;
+        std::cout << ", {F_kname}" << std::flush;
     auto [kargs, grids] = fmha_fwd_create_kargs_and_grids<k_>(a);
     const dim3 blocks                      = k_::BlockSize();
     constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
@@ -555,6 +555,7 @@ class FmhaFwdKernel:
     def render(self) -> str:
         return type(self).KERNEL_HEADER + type(self).KERNEL_BODY_TEMPLATE.format(
             F_idx=self.F_idx,
+            F_kname=self.name,
             F_arch=self.F_arch,
             F_hdim=self.F_hdim,
             F_dtype=FWD_DTYPE_MAP[self.F_dtype],
