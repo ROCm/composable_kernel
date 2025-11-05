@@ -336,6 +336,7 @@ struct HostTensor
 {
     using Descriptor = HostTensorDescriptor;
     using Data       = std::vector<T>;
+    using DataType   = T;
 
     template <typename X>
     HostTensor(std::initializer_list<X> lens) : mDesc(lens), mData(get_element_space_size())

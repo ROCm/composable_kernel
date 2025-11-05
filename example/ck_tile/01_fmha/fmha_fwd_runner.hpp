@@ -148,39 +148,108 @@ int override_num_splits_if_necessary(
 
     return num_splits;
 }
-class QuantizertoFp8
+class BlockQuantizer
 {
     private:
     bool i_perm;
 
     public:
-    QuantizertoFp8(bool i_perm_) : i_perm(i_perm_) {};
+    BlockQuantizer(bool i_perm_) : i_perm(i_perm_) {};
+
     template <typename SrcTensor, typename DstTensor, typename ScaleTensor>
-    void quantize(const SrcTensor& in, DstTensor&, ScaleTensor&, size_t block_size_)
+    void quantize(const SrcTensor& in, DstTensor& out, ScaleTensor& block_scale, size_t block_size_)
     {
+        using InDataType  = typename std::remove_reference_t<decltype(in)>::DataType;
+        using OutDataType = typename std::remove_reference_t<decltype(out)>::DataType;
+        float dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<InDataType>::max());
         size_t batch   = in.get_length(0);
         size_t head    = in.get_length(i_perm ? 1 : 2);
         size_t seq_len = in.get_length(i_perm ? 2 : 1);
         size_t hdim    = in.get_length(3);
-        std::cout << "batch: " << batch << " head: " << head << " seq_len: " << seq_len
-                  << " hdim: " << hdim << std::endl;
         size_t num_blocks_ = (seq_len + block_size_ - 1) / block_size_;
-        
+        std::cout << "batch: " << batch << " head: " << head << " seq_len: " << seq_len
+                  << " hdim: " << hdim << " dtype_max: " << dtype_max
+                  << " num_blocks_: " << num_blocks_ << std::endl;
+
         for(size_t b = 0; b < batch; ++b){
             for(size_t h = 0; h < head; ++h)
             {
                 for(size_t block = 0; block < num_blocks_; ++block)
                 {
                     // get block max value
+                    float max_value = ck_tile::type_convert<float>(ck_tile::numeric<InDataType>::min());
+                    for(size_t s = block * block_size_;
+                        s < (block + 1) * block_size_ && s < seq_len;
+                        ++s)
+                    {
+                        for(size_t d = 0; d < hdim; ++d)
+                        {
+                            std::vector<size_t> idx = {b, h, s, d};
+                            if(!i_perm)
+                                idx = {b, s, h, d};
+                            float val = ck_tile::type_convert<float>(in(idx));
+                            if(val > max_value)
+                                max_value = val;
+                        }
+                    }
+                    // calculate block scale
+                    float scale = dtype_max / max_value;
+                    block_scale(b,h,block) = scale;
+                    std::cout << "block: " << block << " scale: " << scale << " max_value: " << max_value << " block_scale: " << block_scale << std::endl;
+                    
+                    //quant
+                    for(size_t s = block * block_size_;
+                        s < (block + 1) * block_size_ && s < seq_len;
+                        ++s)
+                    {
+                        for(size_t d = 0; d < hdim; ++d)
+                        {
+                            std::vector<size_t> idx = {b, h, s, d};
+                            if(!i_perm)
+                                idx = {b, s, h, d};
+                            float val = ck_tile::type_convert<float>(in(idx));
+                            out(idx) = ck_tile::type_convert<OutDataType>(val * scale);
+                        }
+                    }
+                }      
+            }
+        }
+    }
+
+    template <typename SrcTensor, typename DstTensor, typename ScaleTensor>
+    void dequantize(const SrcTensor& in, DstTensor& out, ScaleTensor& block_scale, size_t block_size_)
+    {
+        using OutDataType = typename std::remove_reference_t<decltype(out)>::DataType;
+        size_t batch   = in.get_length(0);
+        size_t head    = in.get_length(i_perm ? 1 : 2);
+        size_t seq_len = in.get_length(i_perm ? 2 : 1);
+        size_t hdim    = in.get_length(3);
+        size_t num_blocks_ = (seq_len + block_size_ - 1) / block_size_;
+
+        //dequant
+        for(size_t b = 0; b < batch; ++b){
+            for(size_t h = 0; h < head; ++h)
+            {
+                for(size_t block = 0; block < num_blocks_; ++block)
+                {
+                    float scale = block_scale(b, h, block);
                     for(size_t s = block * num_blocks_;
                         s < (block + 1) * num_blocks_ && s < seq_len;
                         ++s)
                     {
-
+                        for(size_t d = 0; d < hdim; ++d)
+                        {
+                            std::vector<size_t> idx = {b, h, s, d};
+                            if(!i_perm)
+                                idx = {b, s, h, d};
+                            float val   = ck_tile::type_convert<float>(in(idx));
+                            out(idx)    = ck_tile::type_convert<OutDataType>(val / scale);
+                        }
                     }
                 }
             }
         }
+        
     }
 };
 
@@ -242,6 +311,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
     }();
 
     constexpr ck_tile::index_t block_scale_m_ = 128;
+    constexpr ck_tile::index_t block_scale_n_ = 128;
 
     if(nhead_k < 0)
         nhead_k = nhead;
@@ -567,10 +637,14 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
     ck_tile::HostTensor<QDataType> q_host(
         get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, hdim_q));
+    ck_tile::HostTensor<float> q_scale(std::array<ck_tile::index_t, 3>{
+        shape_batch, nhead, ck_tile::integer_divide_ceil(shape_seqlen_q, block_scale_m_)});
     ck_tile::HostTensor<KDataType> k_host(
         0 < page_block_size
             ? get_lengths(i_perm, max_num_page_blocks, nhead_k, page_block_size, hdim_q)
             : get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_q));
+    ck_tile::HostTensor<float> k_scale(std::array<ck_tile::index_t, 3>{
+        shape_batch, nhead_k, ck_tile::integer_divide_ceil(shape_seqlen_k, block_scale_n_)});
     /// NOTICE: always use same shape for knew_host & vnew_host in batch/group mode
     ck_tile::HostTensor<KDataType> knew_host(
         0 < seqlen_knew
@@ -583,8 +657,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
                    : get_lengths(i_perm, max_num_page_blocks, nhead_k, hdim_v, page_block_size))
             : (is_v_rowmajor ? get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_v)
                              : get_lengths(i_perm, shape_batch, nhead_k, hdim_v, shape_seqlen_k)));
-    ck_tile::HostTensor<QDataType> q_scale(std::array<ck_tile::index_t, 3>{
-        shape_batch, nhead, ck_tile::integer_divide_ceil(nhead, shape_seqlen_q / block_scale_m_)});
+    ck_tile::HostTensor<float> v_scale(std::array<ck_tile::index_t, 3>{
+        shape_batch, nhead_k, ck_tile::integer_divide_ceil(shape_seqlen_k, block_scale_n_)});
     ck_tile::HostTensor<VDataType> vnew_host(
         0 < seqlen_knew
             ? (is_v_rowmajor ? get_lengths(i_perm, batch, nhead_k, seqlen_knew, hdim_v)
@@ -746,9 +820,12 @@ fwd_result fmha_fwd_run(mode_enum mode,
     float scale_o = 1.f;
     if(quant == 2)
     {
-        QuantizertoFp8 quantizer(i_perm);
+        // q_host.savetxt("./q_org.txt");
+        BlockQuantizer quantizer(i_perm);
         quantizer.quantize(q_host, q_host, q_scale, block_scale_m_);
-        return fwd_result::invalid_args;
+        quantizer.quantize(k_host, k_host, k_scale, block_scale_n_);
+        quantizer.quantize(v_host, v_host, v_scale, block_scale_n_);
+        // return fwd_result::invalid_args;
     }
     else if(quant == 1)
     {
@@ -843,6 +920,18 @@ fwd_result fmha_fwd_run(mode_enum mode,
     alibi_slope_buf.ToDevice(alibi_slope_host.data());
     block_table_buf.ToDevice(block_table_host.data());
     cache_batch_idx_buf.ToDevice(cache_batch_idx_host.data());
+
+    if(quant == 2)
+    {
+        //dequant data for host
+        BlockQuantizer quantizer(i_perm);
+        // q_host.savetxt("./q_quant.txt");
+        quantizer.dequantize(q_host, q_host, q_scale, block_scale_m_);
+        // q_host.savetxt("./q_dequant.txt");
+        quantizer.dequantize(k_host, k_host, k_scale, block_scale_n_);
+        quantizer.dequantize(v_host, v_host, v_scale, block_scale_n_);
+        return fwd_result::invalid_args;
+    }
 
     // clang-format off
     auto layout_str = [&](bool permute){
