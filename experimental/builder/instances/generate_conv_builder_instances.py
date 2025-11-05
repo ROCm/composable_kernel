@@ -35,7 +35,7 @@ def map_layout(layout_str: Any, spatial_dim: int) -> str:
             'NGCW_GKCX_NGKW': 'GroupConvLayout1D::NGCW_GKCX_NGKW'
         }
         mapped = layout_map.get(layout_str, "/* UNKNOWN */")
-        return f'GroupConvLayout{{._1d = {mapped}}}'
+        return mapped
     elif spatial_dim == 2:
         layout_map = {
             'GNHWC_GKYXC_GNHWK': 'GroupConvLayout2D::GNHWC_GKYXC_GNHWK',
@@ -45,7 +45,7 @@ def map_layout(layout_str: Any, spatial_dim: int) -> str:
         }
         layout_key = f"{layout_str['input']}_{layout_str['weight']}_{layout_str['output']}"
         mapped = layout_map.get(layout_key, "/* UNKNOWN */")
-        return f'GroupConvLayout{{._2d = {mapped}}}'
+        return mapped
     elif spatial_dim == 3:
         layout_map = {
             'GNDHWC_GKZYXC_GNDHWK': 'GroupConvLayout3D::GNDHWC_GKZYXC_GNDHWK',
@@ -54,7 +54,7 @@ def map_layout(layout_str: Any, spatial_dim: int) -> str:
         }
         layout_key = f"{layout_str['input']}_{layout_str['weight']}_{layout_str['output']}"
         mapped = layout_map.get(layout_key, "/* UNKNOWN */")
-        return f'GroupConvLayout{{._3d = {mapped}}}'
+        return mapped
     return 'GroupConvLayout{}'
 
 def map_direction(direction: str) -> str:
@@ -370,6 +370,17 @@ using namespace ck_tile::builder::test;
         idx = inst['id']
         sig_code = generate_signature_struct(inst['signature'], idx)
         
+        # Skip the scale-add instances, we cannot correctly generate those.
+        if 'scaleadd' in inst['source_file']:
+            print(f"\t\033[33m  Skipping scale-add instance {idx} from {inst['source_file']}:{inst['line']}\033[0m")
+            continue
+
+        # Skip FP8 instances for now
+        dt = inst['signature']['data_type']
+        if dt['input'] == 'FP8' or dt['weight'] == 'FP8' or dt['output'] == 'FP8':
+            print(f"\t\033[33m  Skipping FP8 instance {idx} from {inst['source_file']}:{inst['line']}\033[0m")
+            continue
+
         # Determine algorithm type and generate appropriate struct
         device_op = inst['algorithm']['device_operation']
         algo_type = inst['algorithm']['algorithm_type']
