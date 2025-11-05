@@ -583,7 +583,7 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                BElementwiseOperation b_element_op,
                                CDEElementwiseOperation cde_element_op,
                                EpilogueArgument& epilogue_args,
-                               const index_t k_id)
+                               const index_t k_id = 0)
     {
         const auto as_grid_desc_ak0_m_ak1 = MakeAsGridDescriptor_AK0_M_AK1(
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideAs, problem.AK0);
