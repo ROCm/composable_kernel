@@ -95,66 +95,67 @@ struct ConvDescription
         // Memory Access section
         f.writeLine(2, "Memory access:");
         
-        f.writeLine(2, "A Tile transfer: ");
-        f.writeLine(3, "Tile dimensions: ",
+        f.writeLine(3, "A Tile transfer: ");
+        f.writeLine(4, "Tile dimensions: ",
                     algorithm.a_tile_transfer.tile_dimensions.k0, "×",
                     algorithm.a_tile_transfer.tile_dimensions.m_or_n, "×",
                     algorithm.a_tile_transfer.tile_dimensions.k1, "×");
-        f.writeLine(3, "The innermost K subdimension size: ",
+        f.writeLine(4, "The innermost K subdimension size: ",
                     algorithm.a_tile_transfer.transfer_params.k1);
-        f.writeLine(3, "Spatial thread distribution over the data tile: ",
+        f.writeLine(4, "Spatial thread distribution over the data tile: ",
                     algorithm.a_tile_transfer.transfer_params.thread_cluster_order[0], "×",
                     algorithm.a_tile_transfer.transfer_params.thread_cluster_order[1], "×",
                     algorithm.a_tile_transfer.transfer_params.thread_cluster_order[2]);
-        f.writeLine(3, "The order of accessing data tile axes: ",
+        f.writeLine(4, "The order of accessing data tile axes: ",
                     algorithm.a_tile_transfer.transfer_params.src_access_order[0], "×",
                     algorithm.a_tile_transfer.transfer_params.src_access_order[1], "×",
                     algorithm.a_tile_transfer.transfer_params.src_access_order[2]);
-        f.writeLine(3, "Vectorized memory access axis index (with contiguous memory): ",
+        f.writeLine(4, "Vectorized memory access axis index (with contiguous memory): ",
                     algorithm.a_tile_transfer.transfer_params.src_vector_dim);
-        f.writeLine(3, "Vector access (GMEM read) instruction size: ",
+        f.writeLine(4, "Vector access (GMEM read) instruction size: ",
                     algorithm.a_tile_transfer.transfer_params.src_scalar_per_vector);
-        f.writeLine(3, "Vector access (LDS write) instruction size: ",
+        f.writeLine(4, "Vector access (LDS write) instruction size: ",
                     algorithm.a_tile_transfer.transfer_params.dst_scalar_per_vector_k1);
-        f.writeLast(3, "LDS data layout padding (to prevent bank conflicts): ",
+        f.writeLast(4, "LDS data layout padding (to prevent bank conflicts): ",
                     algorithm.a_tile_transfer.transfer_params.dst_scalar_per_vector_k1);
 
-        f.writeLine(2, "B Tile transfer: ");
-        f.writeLine(3, "Tile dimensions: ",
+        f.writeLine(3, "B Tile transfer: ");
+        f.writeLine(4, "Tile dimensions: ",
             algorithm.b_tile_transfer.tile_dimensions.k0, "×",
             algorithm.b_tile_transfer.tile_dimensions.m_or_n, "×",
             algorithm.b_tile_transfer.tile_dimensions.k1, "×");
-        f.writeLine(3, "The innermost K subdimension size: ",
+        f.writeLine(4, "The innermost K subdimension size: ",
                     algorithm.b_tile_transfer.transfer_params.k1);
-        f.writeLine(3, "Spatial thread distribution over the data tile: ",
+        f.writeLine(4, "Spatial thread distribution over the data tile: ",
                     algorithm.b_tile_transfer.transfer_params.thread_cluster_order[0], "×",
                     algorithm.b_tile_transfer.transfer_params.thread_cluster_order[1], "×",
                     algorithm.b_tile_transfer.transfer_params.thread_cluster_order[2]);
-        f.writeLine(3, "The order of accessing data tile axes: ",
+        f.writeLine(4, "The order of accessing data tile axes: ",
                     algorithm.b_tile_transfer.transfer_params.src_access_order[0], "×",
                     algorithm.b_tile_transfer.transfer_params.src_access_order[1], "×",
                     algorithm.b_tile_transfer.transfer_params.src_access_order[2]);
-                    f.writeLine(3, "Vectorized memory access axis index (with contiguous memory): ",
+        f.writeLine(4, "Vectorized memory access axis index (with contiguous memory): ",
                     algorithm.b_tile_transfer.transfer_params.src_vector_dim);
-        f.writeLine(3, "Vector access (GMEM read) instruction size: ",
+        f.writeLine(4, "Vector access (GMEM read) instruction size: ",
                     algorithm.b_tile_transfer.transfer_params.src_scalar_per_vector);
-        f.writeLine(3, "Vector access (LDS write) instruction size: ",
+        f.writeLine(4, "Vector access (LDS write) instruction size: ",
                     algorithm.b_tile_transfer.transfer_params.dst_scalar_per_vector_k1);
-        f.writeLast(3, "LDS data layout padding (to prevent bank conflicts): ",
+        f.writeLast(4, "LDS data layout padding (to prevent bank conflicts): ",
                     algorithm.b_tile_transfer.transfer_params.dst_scalar_per_vector_k1);
 
-        f.writeLast(2, "C Tile transfer: ");
-        f.writeLine(3, "Data shuffle (number of gemm instructions per iteration): ",
+        f.writeLast(3, "C Tile transfer: ");
+        f.writeLine(4, "Data shuffle (number of gemm instructions per iteration): ",
                     algorithm.c_tile_transfer.shuffle_params.m_gemms_per_shuffle, "",
                     algorithm.c_tile_transfer.shuffle_params.n_gemms_per_shuffle, "");
-        f.writeLine(3, "Spatial thread distribution used to store data: ",
+        f.writeLine(4, "Spatial thread distribution used to store data: ",
                     algorithm.c_tile_transfer.thread_cluster_dims[0], "",
                     algorithm.c_tile_transfer.thread_cluster_dims[1], "",
                     algorithm.c_tile_transfer.thread_cluster_dims[2], "",
                     algorithm.c_tile_transfer.thread_cluster_dims[3], "");
-        f.writeLast(3, "Vector access (GMEM write) instruction size: ",
+        f.writeLast(4, "Vector access (GMEM write) instruction size: ",
                     algorithm.c_tile_transfer.scalar_per_vector);
-        // f.writeLast(1);
+        f.writeLast(2);
+        f.writeLast(1);
         return f.getString();
     }
 
