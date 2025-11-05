@@ -19,7 +19,7 @@
 namespace ck_tile {
 
 /// @brief The Grouped Convolution kernel device arguments.
-template <typename GroupedConvTraitsType_>
+template <typename GroupedConvTraitsType_, typename CDElementwise_>
 struct GroupedConvFwdKernelArgs
 {
 
@@ -31,7 +31,7 @@ struct GroupedConvFwdKernelArgs
                                GroupedConvTraitsType_::VectorSizeC,
                                GroupedConvTraitsType_::NumGroupsToMerge,
                                true>; // Split N enabled
-    using CDElementwise                 = typename GroupedConvTraitsType_::CDElementwise;
+    using CDElementwise                 = CDElementwise_;
     static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
 
     template <
@@ -434,14 +434,13 @@ struct GroupedConvFwdKernelArgs
 ///                                     multiplication implementation. It is responsible for storing
 ///                                     results calculated by @ref GemmPipeline_ "GemmPipeline" to
 ///                                     the output C tensor in global memory.
-template <bool EnableSplitImage_,
-          typename GroupedConvTraitsType_,
+template <typename GroupedConvTraitsType_,
           typename TilePartitioner_,
           typename GemmPipeline_,
           typename EpiloguePipeline_>
 struct GroupedConvolutionForwardKernel
 {
-    static constexpr bool EnableSplitImage = EnableSplitImage_;
+    static constexpr bool EnableSplitImage = GroupedConvTraitsType_::EnableSplitImage;
     static constexpr index_t NDimSpatial   = GroupedConvTraitsType_::NDimSpatial;
     static constexpr ConvolutionSpecialization ConvSpecialization =
         GroupedConvTraitsType_::ConvSpecialization;
@@ -470,7 +469,8 @@ struct GroupedConvolutionForwardKernel
 
     using CDElementwise = typename EpiloguePipeline::CDElementwise;
 
-    using GroupedConvFwdKernelArgsSpecialized = GroupedConvFwdKernelArgs<GroupedConvTraitsType_>;
+    using GroupedConvFwdKernelArgsSpecialized =
+        GroupedConvFwdKernelArgs<GroupedConvTraitsType_, CDElementwise>;
 
     static constexpr bool IsSplitKSupported = false;
 
