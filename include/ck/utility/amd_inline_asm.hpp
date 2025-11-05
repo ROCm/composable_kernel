@@ -431,5 +431,29 @@ __device__ void amd_assembly_outer_product_1x4(int8x16_t a,
                                    c3);
 }
 #endif
+
+// s_buffer_loads
+inline __device__ int32_t
+amd_assembly_s_buffer_load_b32(__amdgpu_buffer_rsrc_t src_wave_buffer_resource, unsigned int offset)
+{
+    int32_t result;
+    asm volatile("s_buffer_load_b32 %0, %1, %2"
+                 : "=s"(result)
+                 : "s"(src_wave_buffer_resource), "s"(offset)
+                 : "memory");
+    return result;
+}
+
+inline __device__ int32x2_t
+amd_assembly_s_buffer_load_b64(__amdgpu_buffer_rsrc_t src_wave_buffer_resource, unsigned int offset)
+{
+    int32x2_t result;
+    asm volatile("s_buffer_load_b64 %0, %1, %2"
+                 : "=s"(result)
+                 : "s"(src_wave_buffer_resource), "s"(offset)
+                 : "memory");
+    return result;
+}
+
 } // namespace ck
 #endif
