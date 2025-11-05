@@ -605,9 +605,15 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
 
 /*
  * @brief blockwise gemm xdlops with bf16x3 simulate tf32
- * in/out/acc are all float;
- * one input is separated to 2 bf16 registers.
- * 3 xdlops gemm output regs are same, as accumulation of 3 xdlops gemm results.
+ *    in/out/acc are all float;
+ * step:
+ *    separate one input to 2 bf16 registers:
+ *      in_bf16_big = f32_to_bf16(in_f32)
+ *      in_bf16_small = in_f32 - in_bf16_big
+ *    run 3 xdlops gemm: all the accumulator registers of gemm are same.
+ *      out_f32 = A_bf16_big * B_bf16_big
+ *      out_f32 += A_bf16_small * B_bf16_big
+ *      out_f32 += A_bf16_big * B_bf16_small
  */
 template <index_t BlockSize,
           typename FloatA,
@@ -804,7 +810,7 @@ template <index_t BlockSize,
 constexpr auto BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector()
 {
 
-#if defined(__gfx12__) || defined(__gfx11__) || defined(__gfx950__)
+#if defined(__gfx950__)
     constexpr bool is_supported_arch = true;
 #else
     constexpr bool is_supported_arch = false;

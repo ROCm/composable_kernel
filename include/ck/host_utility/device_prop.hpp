@@ -131,8 +131,7 @@ inline bool is_wmma_supported()
 
 inline bool is_tf32_supported()
 {
-    return ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950" ||
-           is_gfx12_supported() || is_gfx11_supported();
+    return ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950";
 }
 
 } // namespace ck

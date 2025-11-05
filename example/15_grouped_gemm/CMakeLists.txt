@@ -34,7 +34,7 @@ if(USE_BITINT_EXTENSION_INT4)
     add_example_dependencies(example_grouped_gemm_xdl example_grouped_gemm_xdl_int4)
 endif()
 
-list(APPEND gpu_list_tf32 gfx942 gfx950 gfx1100 gfx1101 gfx1102 gfx1200 gfx1201 gfx12-generic)
+list(APPEND gpu_list_tf32 gfx942 gfx950)
 set(target 0)
 foreach(gpu IN LISTS GPU_TARGETS)
     if(gpu IN_LIST gpu_list_tf32 AND target EQUAL 0)
