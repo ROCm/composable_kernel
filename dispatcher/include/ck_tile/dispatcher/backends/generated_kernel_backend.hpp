@@ -6,9 +6,7 @@
 #include "ck_tile/dispatcher/kernel_instance.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
-#include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
 #include <hip/hip_runtime.h>
-#include <sstream>
 
 namespace ck_tile {
 namespace dispatcher {
@@ -17,28 +15,22 @@ namespace backends {
 /**
  * Kernel instance wrapper for unified_gemm_codegen.py generated kernels
  * 
- * These kernels have structure:
- * - Types defined outside: using ADataType = ...; using BDataType = ...;
- * - struct SelectedKernel with static constexpr config and launch() method
- * - constexpr const char* KERNEL_NAME = "...";
- * 
- * This is different from tile_engine style where everything is in SelectedKernel.
+ * These kernels have:
+ * - namespace {kernel_name}_ns { ... }
+ * - struct SelectedKernel with static launch() method
+ * - Type aliases: ADataType, BDataType, CDataType, AccDataType
  */
-template <typename SelectedKernelType,
-          typename ADataType_,
-          typename BDataType_,
-          typename CDataType_,
-          typename AccDataType_>
-class GeneratedTileKernelInstance : public KernelInstance
+template <typename SelectedKernelType>
+class GeneratedKernelInstance : public KernelInstance
 {
 public:
-    using ADataType = ADataType_;
-    using BDataType = BDataType_;
-    using CDataType = CDataType_;
-    using AccDataType = AccDataType_;
     using SelectedKernel = SelectedKernelType;
+    using ADataType = typename SelectedKernel::ADataType;
+    using BDataType = typename SelectedKernel::BDataType;
+    using CDataType = typename SelectedKernel::CDataType;
+    using AccDataType = typename SelectedKernel::AccDataType;
     
-    GeneratedTileKernelInstance(const KernelKey& key, const std::string& name)
+    GeneratedKernelInstance(const KernelKey& key, const std::string& name)
         : key_(key), name_(name)
     {
     }
@@ -47,7 +39,7 @@ public:
 
     bool supports(const Problem& problem) const override
     {
-        // Check dimension divisibility if padding not enabled
+        // Check dimension divisibility based on padding flags
         constexpr bool pad_m = SelectedKernel::kPadM;
         constexpr bool pad_n = SelectedKernel::kPadN;
         constexpr bool pad_k = SelectedKernel::kPadK;
@@ -57,7 +49,7 @@ public:
             return true;  // Padding enabled - supports any size
         }
 
-        // Check divisibility
+        // Check divisibility for dimensions without padding
         constexpr int tile_m = SelectedKernel::TileM;
         constexpr int tile_n = SelectedKernel::TileN;
         constexpr int tile_k = SelectedKernel::TileK;
@@ -83,13 +75,12 @@ public:
     {
         (void)d_ptrs;  // Not used in basic GEMM
         
-        // Create arguments using constructor (correct order!)
-        // Order from GemmHostArgs constructor: a_ptr, b_ptr, e_ptr, k_batch, M, N, K, stride_A, stride_B, stride_E
+        // Create arguments using constructor
         ck_tile::GemmHostArgs args(
             a_ptr,              // a_ptr
             b_ptr,              // b_ptr
             c_ptr,              // e_ptr/c_ptr
-            problem.k_batch,    // k_batch (4th argument!)
+            problem.k_batch,    // k_batch
             problem.M,          // M
             problem.N,          // N
             problem.K,          // K
@@ -102,7 +93,7 @@ public:
         ck_tile::stream_config stream_cfg;
         stream_cfg.stream_id_ = reinterpret_cast<hipStream_t>(stream);
         stream_cfg.time_kernel_ = true;
-        stream_cfg.log_level_ = 0;  // No logging for performance
+        stream_cfg.log_level_ = 0;
         stream_cfg.cold_niters_ = 5;  // Warmup iterations
         stream_cfg.nrepeat_ = 10;     // Measurement iterations
         stream_cfg.is_gpu_timer_ = true;
@@ -130,20 +121,6 @@ private:
     KernelKey key_;
     std::string name_;
 };
-
-/// Helper function to create a generated tile kernel instance wrapper
-template <typename SelectedKernel,
-          typename ADataType,
-          typename BDataType,
-          typename CDataType,
-          typename AccDataType>
-std::shared_ptr<KernelInstance> create_generated_tile_kernel(
-    const KernelKey& key,
-    const std::string& name)
-{
-    return std::make_shared<GeneratedTileKernelInstance<
-        SelectedKernel, ADataType, BDataType, CDataType, AccDataType>>(key, name);
-}
 
 } // namespace backends
 } // namespace dispatcher

@@ -4,6 +4,7 @@
 #include "ck_tile/dispatcher/dispatcher.hpp"
 #include <stdexcept>
 #include <sstream>
+#include <iostream>
 
 namespace ck_tile {
 namespace dispatcher {

@@ -13,9 +13,9 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../python'))
 
 try:
     import _dispatcher_native as cpp
-    print("✓ C++ extension loaded successfully")
+    print("OK C++ extension loaded successfully")
 except ImportError as e:
-    print(f"✗ Failed to load C++ extension: {e}")
+    print(f"FAIL Failed to load C++ extension: {e}")
     print("  Build with: cmake -DBUILD_DISPATCHER_PYTHON=ON")
     print(f"  Module should be at: {os.path.dirname(__file__)}/../python/_dispatcher_native*.so")
     sys.exit(1)
@@ -104,7 +104,7 @@ def test_dispatcher_core_api():
     # Test 5: Test selection strategies
     print("\n5. Setting selection strategy...")
     dispatcher.set_strategy(cpp.SelectionStrategy.FirstFit)
-    print("   ✓ FirstFit strategy set")
+    print("   OK FirstFit strategy set")
     
     # Test 6: Test heuristic
     print("\n6. Testing heuristic function...")
@@ -116,9 +116,9 @@ def test_dispatcher_core_api():
             return ["128x128x64_2x2x1_32x32x16_nopers"]
     
     dispatcher.set_heuristic(size_heuristic)
-    print("   ✓ Heuristic function registered")
+    print("   OK Heuristic function registered")
     
-    print("\n✓ All core API tests passed!")
+    print("\nOK All core API tests passed!")
     return True
 
 def print_system_info():
@@ -184,15 +184,15 @@ def main():
     print("="*70)
     
     if success:
-        print("\n✓ Python bindings are working correctly!")
-        print("✓ Core dispatcher API is accessible from Python")
+        print("\nOK Python bindings are working correctly!")
+        print("OK Core dispatcher API is accessible from Python")
         print("\nNext steps for GPU execution:")
         print("  1. Generate CK Tile kernels: cmake --build . --target generate_tile_gemm_kernels")
         print("  2. Create C++ registration code (see examples/)")
         print("  3. Build with GPU support: cmake -DGPU_TARGETS=gfx942")
         print("  4. Use PyTorch/CuPy for GPU memory management")
     else:
-        print("\n✗ Some tests failed")
+        print("\nFAIL Some tests failed")
         return 1
     
     return 0

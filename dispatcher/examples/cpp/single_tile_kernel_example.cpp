@@ -126,11 +126,12 @@ int main(int argc, char** argv)
     // Create dispatcher
     Dispatcher dispatcher;
     
-    // Test problem sizes
+    // Test problem sizes to validate timing
     std::vector<std::tuple<int, int, int>> test_sizes = {
-        {256, 256, 256},
         {512, 512, 512},
-        {1024, 1024, 1024}
+        {1024, 1024, 1024},
+        {2048, 2048, 2048},
+        {4096, 4096, 4096}
     };
     
     std::cout << "Testing problem sizes:\n";
@@ -163,11 +164,12 @@ int main(int argc, char** argv)
         // Execute via dispatcher
         float time_ms = dispatcher.run(a_dev, b_dev, c_dev, problem, nullptr);
         
-        float gflops = (2.0f * M * N * K) / (time_ms * 1e6);
+        // Calculate performance
+        float tflops = (2.0f * M * N * K) / (time_ms * 1e9);
         
         std::cout << "  " << M << "x" << N << "x" << K << ": "
                   << time_ms << " ms | "
-                  << gflops << " GFLOPS\n";
+                  << tflops << " TFLOPS\n";
         
         // Cleanup
         HIP_CHECK(hipFree(a_dev));
@@ -176,7 +178,7 @@ int main(int argc, char** argv)
     }
     
     std::cout << "\n======================================================================\n";
-    std::cout << "✓ REAL CK Tile kernel executed successfully via dispatcher!\n";
+    std::cout << "OK REAL CK Tile kernel executed successfully via dispatcher!\n";
     std::cout << "======================================================================\n";
     
     return 0;

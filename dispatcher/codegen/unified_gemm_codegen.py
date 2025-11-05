@@ -143,12 +143,12 @@ class TypeMappings:
     """Centralized type mappings for code generation"""
     
     DTYPE_TO_CK = {
-        'fp16': 'ck_tile::half_t',
-        'bf16': 'ck_tile::bf16_t',
+        'fp16': 'fp16_t',
+        'bf16': 'bf16_t',
         'fp32': 'float',
-        'fp8': 'ck_tile::fp8_t',
-        'bf8': 'ck_tile::bf8_t',
-        'int8': 'ck_tile::int8_t',
+        'fp8': 'fp8_t',
+        'bf8': 'bf8_t',
+        'int8': 'int8_t',
     }
     
     DTYPE_TO_DISPATCHER = {
@@ -161,8 +161,8 @@ class TypeMappings:
     }
     
     LAYOUT_TO_CK = {
-        'r': 'ck_tile::tensor_layout::gemm::RowMajor',
-        'c': 'ck_tile::tensor_layout::gemm::ColumnMajor',
+        'r': 'tensor_layout::gemm::RowMajor',
+        'c': 'tensor_layout::gemm::ColumnMajor',
     }
     
     LAYOUT_TO_DISPATCHER = {
@@ -171,15 +171,15 @@ class TypeMappings:
     }
     
     PIPELINE_TO_CK = {
-        'mem': 'ck_tile::GemmPipelineAgBgCrMem',
-        'compv3': 'ck_tile::GemmPipelineAgBgCrCompV3',
-        'compv4': 'ck_tile::GemmPipelineAgBgCrCompV4',
+        'mem': 'GemmPipelineAgBgCrMem',
+        'compv3': 'GemmPipelineAgBgCrCompV3',
+        'compv4': 'GemmPipelineAgBgCrCompV4',
     }
     
     PIPELINE_TO_BASE = {
-        'mem': 'ck_tile::BaseGemmPipelineAgBgCrMem',
-        'compv3': 'ck_tile::BaseGemmPipelineAgBgCrCompV3',
-        'compv4': 'ck_tile::BaseGemmPipelineAgBgCrCompV4',
+        'mem': 'BaseGemmPipelineAgBgCrMem',
+        'compv3': 'BaseGemmPipelineAgBgCrCompV3',
+        'compv4': 'BaseGemmPipelineAgBgCrCompV4',
     }
     
     PIPELINE_TO_DISPATCHER = {
@@ -189,9 +189,9 @@ class TypeMappings:
     }
     
     SCHEDULER_TO_CK = {
-        'intrawave': 'ck_tile::GemmPipelineScheduler::Intrawave',
-        'interwave': 'ck_tile::GemmPipelineScheduler::Interwave',
-        'default': 'ck_tile::GemmPipelineScheduler::Default',
+        'intrawave': 'GemmPipelineScheduler::Intrawave',
+        'interwave': 'GemmPipelineScheduler::Interwave',
+        'default': 'GemmPipelineScheduler::Default',
     }
     
     SCHEDULER_TO_DISPATCHER = {
@@ -257,7 +257,7 @@ class CKTileKernelGenerator:
         kernel_name = KernelNaming.generate(config, self.datatype, self.layout)
         
         return f"""{self._header(kernel_name, config)}
-{self._types(config)}
+{self._types(config, kernel_name)}
 {self._selected_kernel_struct(config, kernel_name)}
 """
     
@@ -283,7 +283,7 @@ class CKTileKernelGenerator:
         
         return includes
     
-    def _types(self, config: KernelConfig) -> str:
+    def _types(self, config: KernelConfig, kernel_name: str) -> str:
         """Generate type definitions"""
         output_dtype = self.tm.get_output_dtype(self.datatype)
         
@@ -308,33 +308,42 @@ using CLayout = {self.tm.LAYOUT_TO_CK[self.layout[2]]};
             d_layouts = ", ".join(["CLayout"] * config.num_d_tensors)
             types += f"""
 // Multi-D types
-using DsDataType = ck_tile::tuple<{d_types}>;
-using DsLayout = ck_tile::tuple<{d_layouts}>;
-using ElementWiseFn = ck_tile::element_wise::{config.elementwise_op};
+using DsDataType = tuple<{d_types}>;
+using DsLayout = tuple<{d_layouts}>;
+using ElementWiseFn = element_wise::{config.elementwise_op};
 """
         
         return types
     
     def _selected_kernel_struct(self, config: KernelConfig, kernel_name: str) -> str:
-        """Generate SelectedKernel struct"""
+        """Generate SelectedKernel struct with unique name"""
         t = config.tile
         tr = config.trait
+        
+        # Generate unique struct name from kernel name
+        struct_name = f"Kernel_{kernel_name}"
         
         return f"""
 constexpr const char* KERNEL_NAME = "{kernel_name}";
 
-struct SelectedKernel {{
+struct {struct_name} {{
+    // Data types (required by backend as member types)
+    using ADataType = ::ADataType;
+    using BDataType = ::BDataType;
+    using CDataType = ::CDataType;
+    using AccDataType = ::AccDataType;
+    
     // Configuration
-    static constexpr ck_tile::index_t BlockSize = {config.block_size};
-    static constexpr ck_tile::index_t TileM = {t.tile_m};
-    static constexpr ck_tile::index_t TileN = {t.tile_n};
-    static constexpr ck_tile::index_t TileK = {t.tile_k};
-    static constexpr ck_tile::index_t WarpPerBlock_M = {t.warp_m};
-    static constexpr ck_tile::index_t WarpPerBlock_N = {t.warp_n};
-    static constexpr ck_tile::index_t WarpPerBlock_K = {t.warp_k};
-    static constexpr ck_tile::index_t WarpTileM = {t.warp_tile_m};
-    static constexpr ck_tile::index_t WarpTileN = {t.warp_tile_n};
-    static constexpr ck_tile::index_t WarpTileK = {t.warp_tile_k};
+    static constexpr index_t BlockSize = {config.block_size};
+    static constexpr index_t TileM = {t.tile_m};
+    static constexpr index_t TileN = {t.tile_n};
+    static constexpr index_t TileK = {t.tile_k};
+    static constexpr index_t WarpPerBlock_M = {t.warp_m};
+    static constexpr index_t WarpPerBlock_N = {t.warp_n};
+    static constexpr index_t WarpPerBlock_K = {t.warp_k};
+    static constexpr index_t WarpTileM = {t.warp_tile_m};
+    static constexpr index_t WarpTileN = {t.warp_tile_n};
+    static constexpr index_t WarpTileK = {t.warp_tile_k};
     
     // Traits
     static constexpr bool kPadM = {str(tr.pad_m).lower()};
@@ -345,36 +354,39 @@ struct SelectedKernel {{
     static constexpr bool DoubleSmemBuffer = {str(tr.pipeline == "compv4").lower()};
     static constexpr bool UseStructuredSparsity = false;
     static constexpr bool Preshuffle = {str(config.preshuffle).lower()};
-    static constexpr ck_tile::index_t NumWaveGroups = {config.num_wave_groups};
+    static constexpr index_t NumWaveGroups = {config.num_wave_groups};
     
     {self._tile_types(config)}
     {self._launch_function(config)}
 }};
+
+// Alias for tile_engine style compatibility (when used with -include)
+using SelectedKernel = {struct_name};
 """
     
     def _tile_types(self, config: KernelConfig) -> str:
         """Generate tile type definitions"""
         return """// Tile shape
-    using TileShape = ck_tile::TileGemmShape<
-        ck_tile::sequence<TileM, TileN, TileK>,
-        ck_tile::sequence<WarpPerBlock_M, WarpPerBlock_N, WarpPerBlock_K>,
-        ck_tile::sequence<WarpTileM, WarpTileN, WarpTileK>,
+    using TileShape = TileGemmShape<
+        sequence<TileM, TileN, TileK>,
+        sequence<WarpPerBlock_M, WarpPerBlock_N, WarpPerBlock_K>,
+        sequence<WarpTileM, WarpTileN, WarpTileK>,
         false, false>;
     
-    using TilePartitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<TileShape, 8, 4>;
-    using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout, NumWaveGroups>;
-    using GemmPipelineProblem = ck_tile::GemmPipelineProblem<ADataType, BDataType, AccDataType, TileShape, Traits>;
+    using TilePartitioner = GemmSpatiallyLocalTilePartitioner<TileShape, 8, 4>;
+    using Traits = TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout, NumWaveGroups>;
+    using GemmPipelineProblem = GemmPipelineProblem<ADataType, BDataType, AccDataType, TileShape, Traits>;
     using BaseGemmPipeline = """ + self.tm.PIPELINE_TO_BASE[config.trait.pipeline] + """<GemmPipelineProblem>;"""
     
     def _launch_function(self, config: KernelConfig) -> str:
         """Generate launch function"""
         return f"""
-    static float launch(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{
-        const ck_tile::index_t k_grain = args.k_batch * TileK;
-        const ck_tile::index_t K_split = (args.K + k_grain - 1) / k_grain * TileK;
-        const ck_tile::index_t num_loop = TilePartitioner::GetLoopNum(K_split);
+    static float launch(const GemmHostArgs& args, const stream_config& stream) {{
+        const index_t k_grain = args.k_batch * TileK;
+        const index_t K_split = (args.K + k_grain - 1) / k_grain * TileK;
+        const index_t num_loop = TilePartitioner::GetLoopNum(K_split);
         const bool has_hot_loop = BaseGemmPipeline::BlockHasHotloop(num_loop);
-        const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
+        const TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
         
         float ave_time{{0}};
         
@@ -384,9 +396,9 @@ struct SelectedKernel {{
             constexpr auto scheduler = {self.tm.SCHEDULER_TO_CK[config.trait.scheduler]};
             [[maybe_unused]] constexpr auto memory_operation = memory_operation_.value;
             
-            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
+            using UniversalGemmProblem = UniversalGemmPipelineProblem<
                 ADataType, BDataType, AccDataType, TileShape,
-                ck_tile::TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
+                TileGemmUniversalTraits<kPadM, kPadN, kPadK, DoubleSmemBuffer,
                                                 ALayout, BLayout, CLayout, TransposeC,
                                                 UseStructuredSparsity, UsePersistentKernel,
                                                 NumWaveGroups, Preshuffle>,
@@ -406,41 +418,27 @@ struct SelectedKernel {{
             const dim3 blocks = GemmKernel::BlockSize();
             
             constexpr int kBlockPerCu = {config.k_block_per_cu};
-            ave_time = ck_tile::launch_kernel(stream,
-                ck_tile::make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
+            ave_time = launch_kernel(stream,
+                make_kernel<kBlockPerCu>(GemmKernel{{}}, grids, blocks, 0, kargs));
             
             return ave_time;
         }};
         
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {{
             if(args.k_batch == 1) {{
-                Run(has_hot_loop_, tail_number_,
-                    ck_tile::integral_constant<ck_tile::memory_operation_enum, ck_tile::memory_operation_enum::set>{{}});
+                Run(has_hot_loop_,
+                    tail_number_,
+                    integral_constant<memory_operation_enum,
+                                            memory_operation_enum::set>{{}});
             }} else {{
-                Run(has_hot_loop_, tail_number_,
-                    ck_tile::integral_constant<ck_tile::memory_operation_enum, ck_tile::memory_operation_enum::atomic_add>{{}});
+                Run(has_hot_loop_,
+                    tail_number_,
+                    integral_constant<memory_operation_enum,
+                                            memory_operation_enum::atomic_add>{{}});
             }}
-            return ave_time;
         }};
-        
-        if(has_hot_loop) {{
-            if(tail_num == ck_tile::TailNumber::One) {{
-                RunSplitk(ck_tile::bool_constant<true>{{}}, 
-                         ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::One>{{}});
-            }} else if(tail_num == ck_tile::TailNumber::Full) {{
-                RunSplitk(ck_tile::bool_constant<true>{{}}, 
-                         ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{{}});
-            }}
-        }} else {{
-            if(tail_num == ck_tile::TailNumber::One) {{
-                RunSplitk(ck_tile::bool_constant<false>{{}}, 
-                         ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::One>{{}});
-            }} else if(tail_num == ck_tile::TailNumber::Full) {{
-                RunSplitk(ck_tile::bool_constant<false>{{}}, 
-                         ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Full>{{}});
-            }}
-        }}
-        
+
+        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
         return ave_time;
     }}"""
     
@@ -448,30 +446,30 @@ struct SelectedKernel {{
         """Generate epilogue code"""
         if config.variant == GemmVariant.MULTI_D:
             return """
-            using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<
+            using EpilogueProblem = CShuffleEpilogueProblem<
                 ADataType, BDataType, DsDataType, AccDataType, CDataType,
                 DsLayout, CLayout, ElementWiseFn,
                 TilePartitioner::MPerBlock, TilePartitioner::NPerBlock,
                 WarpPerBlock_M, WarpPerBlock_N, WarpTileM, WarpTileN, WarpTileK,
                 TransposeC, memory_operation, NumWaveGroups>;
-            using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;"""
+            using GemmEpilogue = CShuffleEpilogue<EpilogueProblem>;"""
         elif config.trait.epilogue == "cshuffle":
             return """
-            using EpilogueProblem = ck_tile::CShuffleEpilogueProblem<
-                ADataType, BDataType, ck_tile::tuple<>, AccDataType, CDataType,
-                ck_tile::tuple<>, CLayout, ck_tile::element_wise::PassThrough,
+            using EpilogueProblem = CShuffleEpilogueProblem<
+                ADataType, BDataType, tuple<>, AccDataType, CDataType,
+                tuple<>, CLayout, element_wise::PassThrough,
                 TilePartitioner::MPerBlock, TilePartitioner::NPerBlock,
                 WarpPerBlock_M, WarpPerBlock_N, WarpTileM, WarpTileN, WarpTileK,
                 TransposeC, memory_operation, NumWaveGroups>;
-            using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;"""
+            using GemmEpilogue = CShuffleEpilogue<EpilogueProblem>;"""
         else:
             return """
-            using EpilogueProblem = ck_tile::DefaultGemm2DEpilogueProblem<
-                ADataType, BDataType, ck_tile::tuple<>, AccDataType, CDataType,
-                ck_tile::tuple<>, CLayout, ck_tile::element_wise::PassThrough,
+            using EpilogueProblem = DefaultGemm2DEpilogueProblem<
+                ADataType, BDataType, tuple<>, AccDataType, CDataType,
+                tuple<>, CLayout, element_wise::PassThrough,
                 TilePartitioner::MPerBlock, TilePartitioner::NPerBlock,
                 kPadM, kPadN, WarpTileM, WarpTileN, WarpTileK, TransposeC>;
-            using GemmEpilogue = ck_tile::DefaultGemm2DEpilogue<EpilogueProblem>;"""
+            using GemmEpilogue = DefaultGemm2DEpilogue<EpilogueProblem>;"""
 
 
 # ============================================================================
@@ -497,13 +495,27 @@ class DispatcherWrapperGenerator:
 #pragma once
 
 #include "ck_tile/dispatcher.hpp"
+#include "ck_tile/dispatcher/backends/generated_kernel_backend.hpp"
 #include "{rel_path}"
 
 namespace ck_tile {{
 namespace dispatcher {{
 namespace generated {{
 
+using ::ck_tile::dispatcher::KernelInstancePtr;
+using ::ck_tile::dispatcher::KernelKey;
+using ::ck_tile::dispatcher::DataType;
+using ::ck_tile::dispatcher::LayoutTag;
+using ::ck_tile::dispatcher::Pipeline;
+using ::ck_tile::dispatcher::Scheduler;
+using ::ck_tile::dispatcher::Epilogue;
+using Priority = ::ck_tile::dispatcher::Registry::Priority;
+namespace backends = ::ck_tile::dispatcher::backends;
+
 inline KernelInstancePtr make_{kernel_name}(std::uint16_t gfx_arch = 942) {{
+    // Use the unique kernel struct name
+    using KernelStruct = Kernel_{kernel_name};
+    
     KernelKey key;
     
     // Signature
@@ -537,12 +549,11 @@ inline KernelInstancePtr make_{kernel_name}(std::uint16_t gfx_arch = 942) {{
     key.algorithm.num_wave_groups = {config.num_wave_groups};
     
     key.gfx_arch = gfx_arch;
-    key.structured_sparsity = false;
     
-    return std::make_shared<TileKernelInstance<SelectedKernel>>(key, "{kernel_name}");
+    return std::make_shared<backends::GeneratedKernelInstance<KernelStruct>>(key, "{kernel_name}");
 }}
 
-}}}}
+}}}}}}
 """
 
 
@@ -798,9 +809,12 @@ class UnifiedGemmCodegen:
 namespace ck_tile {{
 namespace dispatcher {{
 
+using ::ck_tile::dispatcher::Registry;
+using Priority = ::ck_tile::dispatcher::Registry::Priority;
+
 inline void register_all_tile_gemm_kernels(
     std::uint16_t gfx_arch = 942,
-    Registry::Priority priority = Registry::Priority::Normal)
+    Priority priority = Priority::Normal)
 {{
     auto& registry = Registry::instance();
     {registrations}
