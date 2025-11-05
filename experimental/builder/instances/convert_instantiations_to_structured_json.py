@@ -63,10 +63,10 @@ def parse_xdl_cshuffle_params(params: List[str]) -> Dict[str, Any]:
                 "shuffle": map_data_type(params[8]) if len(params) > 8 else "FP32",
                 "output": map_data_type(params[10]) if len(params) > 10 else "FP32"
             },
-            "elementwise_operation": "PASS_THROUGH",
-            "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle"
+            "elementwise_operation": "PASS_THROUGH"
         },
         "algorithm": {
+            "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
             "algorithm_type": "XDL",
             "thread_block": {
                 "block_size": int(params[17]) if len(params) > 17 else 256,
@@ -183,10 +183,10 @@ def parse_xdl_cshuffle_v3_params(params: List[str]) -> Dict[str, Any]:
                 "shuffle": map_data_type(params[8]) if len(params) > 8 else "FP32",
                 "output": map_data_type(params[10]) if len(params) > 10 else "FP32"
             },
-            "elementwise_operation": "PASS_THROUGH",
-            "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3"
+            "elementwise_operation": "PASS_THROUGH"
         },
         "algorithm": {
+            "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3",
             "algorithm_type": "XDL",
             "thread_block": {
                 "block_size": int(params[16]) if len(params) > 16 else 256,
@@ -311,10 +311,10 @@ def parse_xdl_cshuffle_params_with_lds_extra(params: List[str]) -> Dict[str, Any
                 "shuffle": map_data_type(params[8]) if len(params) > 8 else "FP32",
                 "output": map_data_type(params[10]) if len(params) > 10 else "FP32"
             },
-            "elementwise_operation": "PASS_THROUGH",
-            "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle"
+            "elementwise_operation": "PASS_THROUGH"
         },
         "algorithm": {
+            "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
             "algorithm_type": "XDL",
             "thread_block": {
                 "block_size": int(params[17]) if len(params) > 17 else 256,
@@ -427,10 +427,10 @@ def parse_wmma_cshuffle_params(params: List[str]) -> Dict[str, Any]:
                 "shuffle": map_data_type(params[8]) if len(params) > 8 else "FP16",
                 "output": map_data_type(params[10]) if len(params) > 10 else "FP16"
             },
-            "elementwise_operation": "PASS_THROUGH",
-            "device_operation": "DeviceGroupedConvFwdMultipleD_Wmma_CShuffle"
+            "elementwise_operation": "PASS_THROUGH"
         },
         "algorithm": {
+            "device_operation": "DeviceGroupedConvFwdMultipleD_Wmma_CShuffle",
             "algorithm_type": "WMMA",
             "thread_block": {
                 "block_size": int(params[17]) if len(params) > 17 else 128,
@@ -648,11 +648,11 @@ def convert_instantiations(input_file: str, output_file: str):
                     "shuffle": "enum (FP32, FP16, BF16, FP8, I8, I32, U8)",
                     "output": "enum (FP32, FP16, BF16, FP8, I8, I32, U8)"
                 },
-                "elementwise_operation": "enum (BIAS, BIAS_CLAMP, BIAS_BNORM_CLAMP, BILINEAR, CLAMP, SCALE, PASS_THROUGH)",
-                "device_operation": "string (DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle, DeviceGroupedConvFwdMultipleD_Wmma_CShuffle, etc.)"
+                "elementwise_operation": "enum (BIAS, BIAS_CLAMP, BIAS_BNORM_CLAMP, BILINEAR, CLAMP, SCALE, PASS_THROUGH)"
             },
             "algorithm_xdl": {
                 "description": "Algorithm schema for XDL-based operations (algorithm_type = 'XDL')",
+                "device_operation": "string (DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle, DeviceGroupedConvFwdMultipleD_Wmma_CShuffle, etc.)",
                 "algorithm_type": "string literal 'XDL'",
                 "gridwise_xdl_gemm": {
                     "ak1": "integer - A matrix K dimension vectorization",
@@ -666,6 +666,7 @@ def convert_instantiations(input_file: str, output_file: str):
             },
             "algorithm_wmma": {
                 "description": "Algorithm schema for WMMA-based operations (algorithm_type = 'WMMA')",
+                "device_operation": "string (DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle, DeviceGroupedConvFwdMultipleD_Wmma_CShuffle, etc.)",
                 "algorithm_type": "string literal 'WMMA'",
                 "gridwise_wmma_gemm": {
                     "k1": "integer - K dimension vectorization",
