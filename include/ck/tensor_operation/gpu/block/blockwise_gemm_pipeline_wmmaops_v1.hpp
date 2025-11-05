@@ -1321,8 +1321,14 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
     }
 
     protected:
-    static constexpr auto b_thread_desc_ = make_naive_tensor_descriptor_packed(
-        make_tuple(I1, I1, I1, Number<NRepeat>{}, I1, Number<KRepeat>{}, Number<B_K1>{}));
+    static constexpr auto b_thread_desc_ =
+        make_naive_tensor_descriptor_packed(make_tuple(Number<KPack / B_K1 / B_KRow>{},
+                                                       I1,
+                                                       I1,
+                                                       Number<NRepeat>{},
+                                                       I1,
+                                                       Number<KRepeat>{},
+                                                       Number<B_K1>{}));
 
     using Base::a_thread_copy_;
     using Base::a_thread_desc_;

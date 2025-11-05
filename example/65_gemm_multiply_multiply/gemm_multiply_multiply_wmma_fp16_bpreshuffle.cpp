@@ -209,12 +209,6 @@ int main(int argc, char* argv[])
         exit(0);
     }
 
-    // temp disable on gfx11
-    if(ck::is_gfx11_supported())
-    {
-        return 0;
-    }
-
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             using namespace ck::literals;
