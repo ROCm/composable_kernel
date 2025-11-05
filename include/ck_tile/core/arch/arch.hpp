@@ -168,7 +168,7 @@ struct WaitcntLayoutLegacy
     CK_TILE_DEVICE static constexpr index_t pack_vm(index_t c)
     {
         c &= VM_MASK;
-        return ((c & 0xF) << 0) | (((c & 0x30) >> 4) << 10);
+        return ((c & 0xF) << 0) | ((c & 0x30) << 10);
     }
     CK_TILE_DEVICE static constexpr index_t pack_lgkm(index_t c) { return ((c & LGKM_MASK) << 8); }
     CK_TILE_DEVICE static constexpr index_t pack_exp(index_t c) { return ((c & EXP_MASK) << 4); }
