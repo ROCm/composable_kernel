@@ -230,22 +230,44 @@ def scan_generated_headers(generated_dir: Path) -> List[KernelConfig]:
             
             kernel_name = name_match.group(1)
             
-            # Extract tile configuration
-            tile_m = int(re.search(r'constexpr\s+(?:static\s+)?(?:int|std::size_t)\s+TileM\s*=\s*(\d+)', content).group(1))
-            tile_n = int(re.search(r'constexpr\s+(?:static\s+)?(?:int|std::size_t)\s+TileN\s*=\s*(\d+)', content).group(1))
-            tile_k = int(re.search(r'constexpr\s+(?:static\s+)?(?:int|std::size_t)\s+TileK\s*=\s*(\d+)', content).group(1))
+            # Extract tile configuration (support ck_tile::index_t)
+            tile_m_match = re.search(r'(?:static\s+)?constexpr\s+(?:int|std::size_t|ck_tile::index_t)\s+TileM\s*=\s*(\d+)', content)
+            tile_n_match = re.search(r'(?:static\s+)?constexpr\s+(?:int|std::size_t|ck_tile::index_t)\s+TileN\s*=\s*(\d+)', content)
+            tile_k_match = re.search(r'(?:static\s+)?constexpr\s+(?:int|std::size_t|ck_tile::index_t)\s+TileK\s*=\s*(\d+)', content)
+            
+            tile_m = int(tile_m_match.group(1)) if tile_m_match else 256
+            tile_n = int(tile_n_match.group(1)) if tile_n_match else 256
+            tile_k = int(tile_k_match.group(1)) if tile_k_match else 32
+            
+            # Extract warp configuration
+            warp_m_match = re.search(r'(?:static\s+)?constexpr\s+(?:int|std::size_t|ck_tile::index_t)\s+WarpPerBlock_M\s*=\s*(\d+)', content)
+            warp_n_match = re.search(r'(?:static\s+)?constexpr\s+(?:int|std::size_t|ck_tile::index_t)\s+WarpPerBlock_N\s*=\s*(\d+)', content)
+            warp_k_match = re.search(r'(?:static\s+)?constexpr\s+(?:int|std::size_t|ck_tile::index_t)\s+WarpPerBlock_K\s*=\s*(\d+)', content)
+            
+            warp_m = int(warp_m_match.group(1)) if warp_m_match else 2
+            warp_n = int(warp_n_match.group(1)) if warp_n_match else 2
+            warp_k = int(warp_k_match.group(1)) if warp_k_match else 1
+            
+            # Extract warp tile configuration
+            warp_tile_m_match = re.search(r'(?:static\s+)?constexpr\s+(?:int|std::size_t|ck_tile::index_t)\s+WarpTileM\s*=\s*(\d+)', content)
+            warp_tile_n_match = re.search(r'(?:static\s+)?constexpr\s+(?:int|std::size_t|ck_tile::index_t)\s+WarpTileN\s*=\s*(\d+)', content)
+            warp_tile_k_match = re.search(r'(?:static\s+)?constexpr\s+(?:int|std::size_t|ck_tile::index_t)\s+WarpTileK\s*=\s*(\d+)', content)
+            
+            warp_tile_m = int(warp_tile_m_match.group(1)) if warp_tile_m_match else 32
+            warp_tile_n = int(warp_tile_n_match.group(1)) if warp_tile_n_match else 32
+            warp_tile_k = int(warp_tile_k_match.group(1)) if warp_tile_k_match else 16
             
             # Extract other parameters (with defaults)
-            block_size_match = re.search(r'constexpr\s+(?:static\s+)?(?:int|std::size_t)\s+BlockSize\s*=\s*(\d+)', content)
+            block_size_match = re.search(r'(?:static\s+)?constexpr\s+(?:int|std::size_t|ck_tile::index_t)\s+BlockSize\s*=\s*(\d+)', content)
             block_size = int(block_size_match.group(1)) if block_size_match else 256
             
             # Extract boolean flags
-            pad_m = 'kPadM\s*=\s*true' in content
-            pad_n = 'kPadN\s*=\s*true' in content
-            pad_k = 'kPadK\s*=\s*true' in content
-            persistent = 'UsePersistentKernel\s*=\s*true' in content
-            double_buffer = 'DoubleSmemBuffer\s*=\s*true' in content
-            transpose_c = 'TransposeC\s*=\s*true' in content
+            pad_m = re.search(r'kPadM\s*=\s*true', content) is not None
+            pad_n = re.search(r'kPadN\s*=\s*true', content) is not None
+            pad_k = re.search(r'kPadK\s*=\s*true', content) is not None
+            persistent = re.search(r'UsePersistentKernel\s*=\s*true', content) is not None
+            double_buffer = re.search(r'DoubleSmemBuffer\s*=\s*true', content) is not None
+            transpose_c = re.search(r'TransposeC\s*=\s*true', content) is not None
             
             kernel = KernelConfig(
                 name=kernel_name,

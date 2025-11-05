@@ -3,18 +3,22 @@
 
 /// Python bindings for CK Tile Dispatcher using pybind11
 
-#include "ck_tile/dispatcher.hpp"
-#include "ck_tile/dispatcher/backends/backend_base.hpp"
-#include "ck_tile/dispatcher/backends/tile_backend.hpp"
-#include "ck_tile/dispatcher/backends/library_backend.hpp"
+#include "ck_tile/dispatcher/dispatcher.hpp"
+#include "ck_tile/dispatcher/registry.hpp"
+#include "ck_tile/dispatcher/kernel_instance.hpp"
+#include "ck_tile/dispatcher/kernel_key.hpp"
+#include "ck_tile/dispatcher/problem.hpp"
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <pybind11/functional.h>
 
+// Note: GPU-specific backend implementations (tile_backend.hpp) are not included
+// to avoid compilation issues. Only expose core dispatcher API to Python.
+
 namespace py = pybind11;
 using namespace ck_tile::dispatcher;
 
-PYBIND11_MODULE(_ck_dispatcher_cpp, m) {
+PYBIND11_MODULE(_dispatcher_native, m) {
     m.doc() = R"pbdoc(
         CK Tile Dispatcher C++ Extension
         ---------------------------------
@@ -142,7 +146,6 @@ PYBIND11_MODULE(_ck_dispatcher_cpp, m) {
         .def_readwrite("signature", &KernelKey::signature)
         .def_readwrite("algorithm", &KernelKey::algorithm)
         .def_readwrite("gfx_arch", &KernelKey::gfx_arch)
-        .def_readwrite("structured_sparsity", &KernelKey::structured_sparsity)
         .def("encode_identifier", &KernelKey::encode_identifier)
         .def("__eq__", [](const KernelKey& a, const KernelKey& b) { return a == b; })
         .def("__ne__", [](const KernelKey& a, const KernelKey& b) { return a != b; })
@@ -160,14 +163,15 @@ PYBIND11_MODULE(_ck_dispatcher_cpp, m) {
             return "<KernelInstance name='" + k.get_name() + "'>";
         });
     
-    // Registry
+    // Registry Priority
     py::enum_<Registry::Priority>(m, "Priority")
         .value("Low", Registry::Priority::Low)
         .value("Normal", Registry::Priority::Normal)
         .value("High", Registry::Priority::High)
         .export_values();
     
-    py::class_<Registry>(m, "Registry")
+    // Registry - Use std::unique_ptr as holder to avoid destructor issues with singleton
+    py::class_<Registry, std::unique_ptr<Registry, py::nodelete>>(m, "Registry")
         .def_static("instance", &Registry::instance, py::return_value_policy::reference)
         .def("register_kernel", &Registry::register_kernel,
              py::arg("instance"), py::arg("priority") = Registry::Priority::Normal)
@@ -195,60 +199,12 @@ PYBIND11_MODULE(_ck_dispatcher_cpp, m) {
         .def("set_strategy", &Dispatcher::set_strategy)
         .def("select_kernel", &Dispatcher::select_kernel)
         // Note: run() methods require device pointers, typically called from C++ side
-        .def("__repr__", []() {
+        .def("__repr__", [](const Dispatcher&) {
             return "<Dispatcher>";
         });
     
-    // Backend types
-    py::enum_<backends::BackendType>(m, "BackendType")
-        .value("Tile", backends::BackendType::Tile)
-        .value("Library", backends::BackendType::Library)
-        .value("JIT", backends::BackendType::JIT)
-        .value("Unknown", backends::BackendType::Unknown)
-        .export_values();
-    
-    // KernelInstance (abstract base)
-    py::class_<backends::KernelInstance, std::shared_ptr<backends::KernelInstance>>(m, "KernelInstanceCpp")
-        .def("get_key", &backends::KernelInstance::get_key, py::return_value_policy::reference)
-        .def("supports", &backends::KernelInstance::supports)
-        .def("get_name", &backends::KernelInstance::get_name)
-        .def("get_backend_type", &backends::KernelInstance::get_backend_type)
-        .def("get_metadata", &backends::KernelInstance::get_metadata)
-        .def("run", [](backends::KernelInstance& self,
-                      std::uintptr_t a_ptr,
-                      std::uintptr_t b_ptr,
-                      std::uintptr_t c_ptr,
-                      const Problem& problem,
-                      std::uintptr_t stream_ptr) {
-            return self.run(reinterpret_cast<const void*>(a_ptr),
-                          reinterpret_cast<const void*>(b_ptr),
-                          reinterpret_cast<void*>(c_ptr),
-                          problem,
-                          reinterpret_cast<hipStream_t>(stream_ptr));
-        }, py::arg("a_ptr"), py::arg("b_ptr"), py::arg("c_ptr"), 
-           py::arg("problem"), py::arg("stream_ptr") = 0)
-        .def("__repr__", [](const backends::KernelInstance& k) {
-            return "<KernelInstanceCpp name='" + k.get_name() + "'>";
-        });
-    
-    // TileBackend
-    py::class_<backends::TileBackend>(m, "TileBackendCpp")
-        .def(py::init<>())
-        .def("discover_kernels", &backends::TileBackend::discover_kernels)
-        .def("get_backend_type", &backends::TileBackend::get_backend_type)
-        .def("__repr__", []() {
-            return "<TileBackendCpp>";
-        });
-    
-    // LibraryBackend
-    py::class_<backends::LibraryBackend>(m, "LibraryBackendCpp")
-        .def(py::init<>())
-        .def("discover_kernels", &backends::LibraryBackend::discover_kernels)
-        .def("enumerate_operations", &backends::LibraryBackend::enumerate_operations)
-        .def("get_backend_type", &backends::LibraryBackend::get_backend_type)
-        .def("__repr__", []() {
-            return "<LibraryBackendCpp>";
-        });
+    // Version info
+    m.attr("__version__") = "1.0.0";
 }
 
 

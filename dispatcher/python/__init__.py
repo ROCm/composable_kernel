@@ -5,17 +5,33 @@ High-level Python bindings for the CK Tile GEMM dispatcher.
 
 Example:
     >>> import ck_tile_dispatcher as ckd
-    >>> dispatcher = ckd.Dispatcher()
-    >>> dispatcher.register_kernels("fp16_rcr_essential")
-    >>> result = dispatcher.gemm(A, B)
+    >>> 
+    >>> # Simple API - everything automated
+    >>> from ck_tile_dispatcher import SimpleGemmAPI
+    >>> gemm = SimpleGemmAPI()
+    >>> gemm.ensure_kernels_ready()
+    >>> result = gemm.execute(M=1024, N=1024, K=1024)
+    >>> 
+    >>> # Or use one-liner
+    >>> from ck_tile_dispatcher import quick_gemm
+    >>> result = quick_gemm(M=2048, N=2048, K=2048)
 """
 
 __version__ = "1.0.0"
 __author__ = "AMD CK Tile Team"
 
-# Import core functionality
-from .core import (
+# Import high-level API (primary interface)
+from .dispatcher_api import (
     Dispatcher,
+    SimpleGemmAPI,
+    generate_kernels,
+    quick_gemm,
+    list_available_presets,
+)
+
+# Import legacy core functionality
+from .core import (
+    Dispatcher as LegacyDispatcher,  # Keep for backward compatibility
     Problem,
     KernelKey,
     DataType,
@@ -103,8 +119,14 @@ from .backends import (
 )
 
 __all__ = [
+    # High-Level API (New)
+    "Dispatcher",  # Main dispatcher class
+    "SimpleGemmAPI",
+    "generate_kernels",
+    "quick_gemm",
+    "list_available_presets",
+    
     # Core
-    "Dispatcher",
     "Problem",
     "KernelKey",
     "DataType",

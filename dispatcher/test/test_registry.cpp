@@ -1,79 +1,30 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
-/// Unit tests for Registry
+/// Unit tests for Registry using Google Test
 
 #include "ck_tile/dispatcher/registry.hpp"
-#include "ck_tile/dispatcher/kernel_key.hpp"
-#include <cassert>
-#include <iostream>
+#include "test_mock_kernel.hpp"
+#include <gtest/gtest.h>
 
 using namespace ck_tile::dispatcher;
+using namespace ck_tile::dispatcher::test;
 
-// Mock kernel instance for testing
-class MockKernelInstance : public KernelInstance {
-public:
-    MockKernelInstance(const KernelKey& key, const std::string& name)
-        : key_(key), name_(name) {}
-    
-    const KernelKey& get_key() const override { return key_; }
-    bool supports(const Problem&) const override { return true; }
-    std::string get_name() const override { return name_; }
-    
-    float run(const void*, const void*, void*, const void**, const Problem&, void*) const override {
-        return 0.0f;
-    }
-    
-    bool validate(const void*, const void*, const void*, const void**, const Problem&, float) const override {
-        return true;
-    }
-
-private:
-    KernelKey key_;
-    std::string name_;
-};
-
-KernelKey make_test_key(int tile_m)
-{
-    KernelKey key;
-    key.signature.dtype_a = DataType::FP16;
-    key.signature.elementwise_op = "PassThrough";
-    key.signature.num_d_tensors = 0;
-    key.algorithm.tile_shape.m = tile_m;
-    key.algorithm.tile_shape.n = 256;
-    key.algorithm.tile_shape.k = 32;
-    key.algorithm.wave_shape.m = 2;
-    key.algorithm.wave_shape.n = 2;
-    key.algorithm.wave_shape.k = 1;
-    key.algorithm.warp_tile_shape.m = 32;
-    key.algorithm.warp_tile_shape.n = 32;
-    key.algorithm.warp_tile_shape.k = 16;
-    key.algorithm.persistent = false;
-    key.gfx_arch = 942;
-    return key;
-}
-
-void test_registry_registration()
-{
-    std::cout << "Test: Registry registration... ";
-    
-    Registry registry;
+TEST(RegistryTest, Registration) {
+    Registry& registry = Registry::instance();
+    registry.clear();
     
     auto key = make_test_key(256);
     auto kernel = std::make_shared<MockKernelInstance>(key, "test_kernel");
     
     bool registered = registry.register_kernel(kernel);
-    assert(registered);
-    assert(registry.size() == 1);
-    
-    std::cout << "PASSED\n";
+    EXPECT_TRUE(registered);
+    EXPECT_EQ(registry.size(), 1);
 }
 
-void test_registry_lookup()
-{
-    std::cout << "Test: Registry lookup... ";
-    
-    Registry registry;
+TEST(RegistryTest, Lookup) {
+    Registry& registry = Registry::instance();
+    registry.clear();
     
     auto key = make_test_key(256);
     auto kernel = std::make_shared<MockKernelInstance>(key, "test_kernel");
@@ -81,28 +32,24 @@ void test_registry_lookup()
     
     // Lookup by key
     auto found = registry.lookup(key);
-    assert(found != nullptr);
-    assert(found->get_name() == "test_kernel");
+    ASSERT_NE(found, nullptr);
+    EXPECT_EQ(found->get_name(), "test_kernel");
     
     // Lookup by identifier
     std::string id = key.encode_identifier();
     auto found2 = registry.lookup(id);
-    assert(found2 != nullptr);
-    assert(found2->get_name() == "test_kernel");
+    ASSERT_NE(found2, nullptr);
+    EXPECT_EQ(found2->get_name(), "test_kernel");
     
     // Lookup non-existent
     auto key2 = make_test_key(128);
     auto not_found = registry.lookup(key2);
-    assert(not_found == nullptr);
-    
-    std::cout << "PASSED\n";
+    EXPECT_EQ(not_found, nullptr);
 }
 
-void test_registry_priority()
-{
-    std::cout << "Test: Registry priority... ";
-    
-    Registry registry;
+TEST(RegistryTest, Priority) {
+    Registry& registry = Registry::instance();
+    registry.clear();
     
     auto key = make_test_key(256);
     auto kernel1 = std::make_shared<MockKernelInstance>(key, "kernel_low");
@@ -113,27 +60,25 @@ void test_registry_priority()
     
     // Try to register with normal priority (should replace)
     bool replaced = registry.register_kernel(kernel2, Registry::Priority::Normal);
-    assert(replaced);
+    EXPECT_TRUE(replaced);
     
     auto found = registry.lookup(key);
-    assert(found->get_name() == "kernel_high");
+    ASSERT_NE(found, nullptr);
+    EXPECT_EQ(found->get_name(), "kernel_high");
     
     // Try to register with low priority again (should fail)
     auto kernel3 = std::make_shared<MockKernelInstance>(key, "kernel_low2");
     bool not_replaced = registry.register_kernel(kernel3, Registry::Priority::Low);
-    assert(!not_replaced);
+    EXPECT_FALSE(not_replaced);
     
     found = registry.lookup(key);
-    assert(found->get_name() == "kernel_high");
-    
-    std::cout << "PASSED\n";
+    ASSERT_NE(found, nullptr);
+    EXPECT_EQ(found->get_name(), "kernel_high");
 }
 
-void test_registry_get_all()
-{
-    std::cout << "Test: Registry get_all... ";
-    
-    Registry registry;
+TEST(RegistryTest, GetAll) {
+    Registry& registry = Registry::instance();
+    registry.clear();
     
     auto key1 = make_test_key(256);
     auto key2 = make_test_key(128);
@@ -144,16 +89,12 @@ void test_registry_get_all()
     registry.register_kernel(kernel2);
     
     auto all = registry.get_all();
-    assert(all.size() == 2);
-    
-    std::cout << "PASSED\n";
+    EXPECT_EQ(all.size(), 2);
 }
 
-void test_registry_filter()
-{
-    std::cout << "Test: Registry filter... ";
-    
-    Registry registry;
+TEST(RegistryTest, Filter) {
+    Registry& registry = Registry::instance();
+    registry.clear();
     
     // Create kernels with different tile sizes
     for (int tile_m : {128, 256, 512}) {
@@ -168,41 +109,49 @@ void test_registry_filter()
         return k.get_key().algorithm.tile_shape.m >= 256;
     });
     
-    assert(large_tiles.size() == 2);
-    
-    std::cout << "PASSED\n";
+    EXPECT_EQ(large_tiles.size(), 2);
 }
 
-void test_registry_clear()
-{
-    std::cout << "Test: Registry clear... ";
-    
-    Registry registry;
+TEST(RegistryTest, Clear) {
+    Registry& registry = Registry::instance();
+    registry.clear();
     
     auto key = make_test_key(256);
     auto kernel = std::make_shared<MockKernelInstance>(key, "test_kernel");
     registry.register_kernel(kernel);
     
-    assert(registry.size() == 1);
+    EXPECT_EQ(registry.size(), 1);
     
     registry.clear();
-    assert(registry.size() == 0);
-    
-    std::cout << "PASSED\n";
+    EXPECT_EQ(registry.size(), 0);
 }
 
-int main()
-{
-    std::cout << "=== Registry Unit Tests ===\n\n";
+TEST(RegistryTest, MultipleKernels) {
+    Registry& registry = Registry::instance();
+    registry.clear();
     
-    test_registry_registration();
-    test_registry_lookup();
-    test_registry_priority();
-    test_registry_get_all();
-    test_registry_filter();
-    test_registry_clear();
+    // Register multiple kernels
+    for (int i = 0; i < 10; ++i) {
+        auto key = make_test_key(256 + i);
+        auto kernel = std::make_shared<MockKernelInstance>(key, "kernel_" + std::to_string(i));
+        registry.register_kernel(kernel);
+    }
     
-    std::cout << "\n=== All Registry tests PASSED ===\n";
-    return 0;
+    EXPECT_EQ(registry.size(), 10);
+    
+    // Verify all can be looked up
+    for (int i = 0; i < 10; ++i) {
+        auto key = make_test_key(256 + i);
+        auto found = registry.lookup(key);
+        ASSERT_NE(found, nullptr);
+        EXPECT_EQ(found->get_name(), "kernel_" + std::to_string(i));
+    }
 }
 
+TEST(RegistryTest, Singleton) {
+    Registry& reg1 = Registry::instance();
+    Registry& reg2 = Registry::instance();
+    
+    // Should be the same instance
+    EXPECT_EQ(&reg1, &reg2);
+}

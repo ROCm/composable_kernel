@@ -10,10 +10,22 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Find HIP for headers (needed for validation kernels)
+find_package(hip QUIET)
+if(NOT hip_FOUND)
+    list(APPEND CMAKE_PREFIX_PATH /opt/rocm /opt/rocm/hip)
+    find_package(hip REQUIRED)
+endif()
+
 # Dispatcher library
 add_library(ck_tile_dispatcher
     src/registry.cpp
     src/dispatcher.cpp
+)
+
+# Enable PIC for Python bindings
+set_target_properties(ck_tile_dispatcher PROPERTIES
+    POSITION_INDEPENDENT_CODE ON
 )
 
 target_include_directories(ck_tile_dispatcher
@@ -28,6 +40,11 @@ target_include_directories(ck_tile_dispatcher
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
         $<INSTALL_INTERFACE:include>
 )
+
+# Link against HIP headers if available
+if(hip_FOUND)
+    target_link_libraries(ck_tile_dispatcher PUBLIC hip::host)
+endif()
 
 # Compiler warnings
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
@@ -56,6 +73,12 @@ endif()
 # Optional: Codegen for tile_engine integration
 option(DISPATCHER_AUTO_GENERATE_WRAPPERS "Auto-generate wrappers from tile_engine" OFF)
 add_subdirectory(codegen)
+
+# Optional: Build examples
+option(BUILD_DISPATCHER_EXAMPLES "Build dispatcher examples" OFF)
+if(BUILD_DISPATCHER_EXAMPLES)
+    add_subdirectory(examples)
+endif()
 
 # If codegen is enabled, add generated include directory
 if(DISPATCHER_AUTO_GENERATE_WRAPPERS AND DISPATCHER_GENERATED_INCLUDE_DIR)

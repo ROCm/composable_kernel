@@ -3,11 +3,37 @@
 
 cmake_minimum_required(VERSION 3.16)
 
-# Test executables
+# Include Google Test setup
+# Note: gtest.cmake is in ${PROJECT_SOURCE_DIR}/cmake, should be on CMAKE_MODULE_PATH
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/gtest.cmake")
+    include(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/gtest.cmake)
+else()
+    include(gtest)
+endif()
+
+# Mock kernel instance for testing (shared across tests)
+add_library(dispatcher_test_utils STATIC
+    test_mock_kernel.cpp
+)
+
+target_include_directories(dispatcher_test_utils PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+)
+
+target_link_libraries(dispatcher_test_utils PRIVATE
+    ck_tile_dispatcher
+)
+
+# Test executables using Google Test
 set(TEST_SOURCES
     test_kernel_key.cpp
     test_problem.cpp
     test_registry.cpp
+    test_dispatcher.cpp
+    test_tile_backend.cpp
+    test_integration_e2e.cpp
 )
 
 foreach(test_source ${TEST_SOURCES})
@@ -17,9 +43,17 @@ foreach(test_source ${TEST_SOURCES})
     # Create test executable
     add_executable(${test_name} ${test_source})
     
-    # Link against dispatcher library
+    # Link against dispatcher library and test utils
     target_link_libraries(${test_name} PRIVATE
         ck_tile_dispatcher
+        dispatcher_test_utils
+        GTest::gtest_main
+    )
+    
+    # Suppress gtest warnings
+    target_compile_options(${test_name} PRIVATE
+        -Wno-global-constructors
+        -Wno-undef
     )
     
     # Add to CTest

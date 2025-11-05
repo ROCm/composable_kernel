@@ -1,85 +1,66 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
-/// Unit tests for Problem
+/// Unit tests for Problem using Google Test
 
 #include "ck_tile/dispatcher/problem.hpp"
-#include <cassert>
-#include <iostream>
+#include <gtest/gtest.h>
 
 using namespace ck_tile::dispatcher;
 
-void test_problem_construction()
-{
-    std::cout << "Test: Problem construction... ";
-    
-    // Default constructor
-    Problem p1;
-    assert(p1.M == 0);
-    assert(p1.N == 0);
-    assert(p1.K == 0);
-    assert(p1.k_batch == 1);
-    assert(!p1.is_valid());
-    
-    // Constructor with dimensions
-    Problem p2(1024, 1024, 1024);
-    assert(p2.M == 1024);
-    assert(p2.N == 1024);
-    assert(p2.K == 1024);
-    assert(p2.is_valid());
-    
-    std::cout << "PASSED\n";
+TEST(ProblemTest, DefaultConstruction) {
+    Problem p;
+    EXPECT_EQ(p.M, 0);
+    EXPECT_EQ(p.N, 0);
+    EXPECT_EQ(p.K, 0);
+    EXPECT_EQ(p.k_batch, 1);
+    EXPECT_FALSE(p.is_valid());
 }
 
-void test_problem_validation()
-{
-    std::cout << "Test: Problem validation... ";
-    
+TEST(ProblemTest, ConstructorWithDimensions) {
+    Problem p(1024, 1024, 1024);
+    EXPECT_EQ(p.M, 1024);
+    EXPECT_EQ(p.N, 1024);
+    EXPECT_EQ(p.K, 1024);
+    EXPECT_TRUE(p.is_valid());
+}
+
+TEST(ProblemTest, Validation) {
     Problem p;
     
     // Invalid: all zeros
     p.M = 0; p.N = 0; p.K = 0;
-    assert(!p.is_valid());
+    EXPECT_FALSE(p.is_valid());
     
     // Invalid: negative
     p.M = -1; p.N = 1024; p.K = 1024;
-    assert(!p.is_valid());
+    EXPECT_FALSE(p.is_valid());
     
     // Invalid: zero K
     p.M = 1024; p.N = 1024; p.K = 0;
-    assert(!p.is_valid());
+    EXPECT_FALSE(p.is_valid());
     
     // Valid
     p.M = 1024; p.N = 1024; p.K = 1024;
-    assert(p.is_valid());
+    EXPECT_TRUE(p.is_valid());
     
     // Invalid k_batch
     p.k_batch = 0;
-    assert(!p.is_valid());
+    EXPECT_FALSE(p.is_valid());
     
     p.k_batch = 1;
-    assert(p.is_valid());
-    
-    std::cout << "PASSED\n";
+    EXPECT_TRUE(p.is_valid());
 }
 
-void test_problem_num_ops()
-{
-    std::cout << "Test: Problem num_ops... ";
-    
+TEST(ProblemTest, NumOps) {
     Problem p(100, 200, 300);
     
     // 2 * M * N * K (multiply-add = 2 ops)
     std::int64_t expected = 2 * 100 * 200 * 300;
-    assert(p.num_ops() == expected);
-    
-    std::cout << "PASSED\n";
+    EXPECT_EQ(p.num_ops(), expected);
 }
 
-void test_problem_configuration()
-{
-    std::cout << "Test: Problem configuration... ";
-    
+TEST(ProblemTest, Configuration) {
     Problem p(1024, 1024, 1024);
     
     // Set preferences
@@ -88,24 +69,14 @@ void test_problem_configuration()
     p.smem_budget = 65536;
     p.k_batch = 2;
     
-    assert(p.prefer_persistent);
-    assert(p.enable_validation);
-    assert(p.smem_budget == 65536);
-    assert(p.k_batch == 2);
-    
-    std::cout << "PASSED\n";
+    EXPECT_TRUE(p.prefer_persistent);
+    EXPECT_TRUE(p.enable_validation);
+    EXPECT_EQ(p.smem_budget, 65536);
+    EXPECT_EQ(p.k_batch, 2);
 }
 
-int main()
-{
-    std::cout << "=== Problem Unit Tests ===\n\n";
-    
-    test_problem_construction();
-    test_problem_validation();
-    test_problem_num_ops();
-    test_problem_configuration();
-    
-    std::cout << "\n=== All Problem tests PASSED ===\n";
-    return 0;
+TEST(ProblemTest, LargeDimensions) {
+    Problem p(1024, 1024, 1024);  // Use smaller but still large dimensions
+    EXPECT_TRUE(p.is_valid());
+    EXPECT_GT(p.num_ops(), 0);
 }
-

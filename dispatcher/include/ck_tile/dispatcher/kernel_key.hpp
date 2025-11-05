@@ -123,7 +123,6 @@ struct KernelKey {
     } algorithm;
 
     std::uint16_t gfx_arch;   // e.g. 942 for gfx942
-    bool structured_sparsity; // true if kernel expects 2:4 sparsity masks
 
     /// Generate a unique string identifier for this kernel configuration
     /// Format matches tile_engine naming convention for registry lookup
@@ -145,7 +144,7 @@ struct KernelKey {
             oss << "_" << signature.elementwise_op;
         if(signature.num_d_tensors > 0)
             oss << "_d" << unsigned(signature.num_d_tensors);
-        if(structured_sparsity)
+        if(signature.structured_sparsity)
             oss << "_sparse";
         if(algorithm.preshuffle)
             oss << "_preshuffle";
@@ -184,7 +183,7 @@ struct KernelKey {
                         algorithm.scheduler,
                         algorithm.block_size,
                         gfx_arch,
-                        structured_sparsity,
+                        signature.structured_sparsity,
                         algorithm.persistent,
                         algorithm.double_buffer,
                         algorithm.preshuffle,

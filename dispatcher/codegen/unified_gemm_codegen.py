@@ -274,7 +274,9 @@ class CKTileKernelGenerator:
 #include "ck_tile/ops/gemm/kernel/gemm_kernel.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/epilogue/default_2d_epilogue.hpp"
-#include "ck_tile/ops/epilogue/cshuffle_epilogue.hpp""""
+#include "ck_tile/ops/epilogue/cshuffle_epilogue.hpp"
+
+"""
         
         if config.variant == GemmVariant.MULTI_D:
             includes += '\n#include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"'
@@ -286,6 +288,9 @@ class CKTileKernelGenerator:
         output_dtype = self.tm.get_output_dtype(self.datatype)
         
         types = f"""
+// Use ck_tile namespace for generated code
+using namespace ck_tile;
+
 // Data types
 using ADataType = {self.tm.DTYPE_TO_CK[self.datatype]};
 using BDataType = {self.tm.DTYPE_TO_CK[self.datatype]};
@@ -410,10 +415,10 @@ struct SelectedKernel {{
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {{
             if(args.k_batch == 1) {{
                 Run(has_hot_loop_, tail_number_,
-                    ck_tile::integral_constant<ck_tile::MemoryOperation, ck_tile::MemoryOperation::Set>{{}});
+                    ck_tile::integral_constant<ck_tile::memory_operation_enum, ck_tile::memory_operation_enum::set>{{}});
             }} else {{
                 Run(has_hot_loop_, tail_number_,
-                    ck_tile::integral_constant<ck_tile::MemoryOperation, ck_tile::MemoryOperation::AtomicAdd>{{}});
+                    ck_tile::integral_constant<ck_tile::memory_operation_enum, ck_tile::memory_operation_enum::atomic_add>{{}});
             }}
             return ave_time;
         }};
