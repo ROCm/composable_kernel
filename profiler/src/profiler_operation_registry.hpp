@@ -74,6 +74,6 @@ class ProfilerOperationRegistry final
 #define PP_CONCAT(x, y) PP_CONCAT_IMPL(x, y)
 #define PP_CONCAT_IMPL(x, y) x##y
 
-#define REGISTER_PROFILER_OPERATION(name, description, operation)              \
-    static const bool PP_CONCAT(operation_registration_result_, __COUNTER__) = \
+#define REGISTER_PROFILER_OPERATION(name, description, operation)                            \
+    __extension__ static const bool PP_CONCAT(operation_registration_result_, __COUNTER__) = \
         ::ProfilerOperationRegistry::GetInstance().Add(name, description, operation)
