@@ -9,7 +9,7 @@ if(NOT CONV_INSTANCE_SOURCES)
 endif()
 
 # Add all generated instance files as a library
-add_library(ckb_instances STATIC ${CONV_INSTANCE_SOURCES})
+add_library(ckb_instances SHARED ${CONV_INSTANCE_SOURCES})
 
 target_include_directories(ckb_instances PUBLIC
   ${PROJECT_SOURCE_DIR}/include
