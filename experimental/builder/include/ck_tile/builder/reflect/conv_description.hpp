@@ -58,8 +58,7 @@ struct ConvDescription
     std::string brief() const
     {
         std::ostringstream oss;
-        oss << signature.spatial_dim << "D " << builder::ConvDirectionToString(signature.direction)
-            << " convolution";
+        oss << signature.spatial_dim << "D " << signature.direction << " convolution";
         return oss.str();
     }
 
@@ -78,31 +77,84 @@ struct ConvDescription
         f.writeLast(1, "Algorithm");
         // Compute Block section
         f.writeLine(2, "Thread block size: ", algorithm.thread_block_size);
-        f.writeLine(2,
-                    "Data tile size: " algorithm.tile_dims.m,
-                    "×",
-                    algorithm.tile_dims.n,
-                    "×",
+        f.writeLine(2, "Data tile size: ",
+                    algorithm.tile_dims.m, "×", 
+                    algorithm.tile_dims.n, "×",
                     algorithm.tile_dims.k);
-        f.writeLine(2, "Warp Gemm parameters: "),
-            f.writeLine(
-                3, "subtile size: ", algorithm.warp_gemm.gemm_m, "×", algorithm.warp_gemm.gemm_n);
-        f.writeLine(3,
-                    "Number of warp gemm iterations: ",
-                    algorithm.warp_gemm.m_iter,
-                    "×",
-                    algorithm.warp_gemm.n_iter, );
-
-        // Memory Layout section
-        f.writeLine(2, "Memory Layout:");
-        f.writeLine(3, "A-Transfer: ", );
-        f.writeLine(3, "B-Transfer: ", );
-        f.writeLast(3, "C-Transfer: ", );
-
+        f.writeLine(2, "Gemm padding: ", algorithm.padding);
+        f.writeLine(2, "Convolution specialization: ", algorithm.conv_specialization);
         // Pipeline section
         f.writeLine(2, "Pipeline version: ", algorithm.pipeline_version);
-        f.writeLast(2, "Pipeline scheduler: ", algorithm.pipeline_scheduler);
+        f.writeLine(2, "Pipeline scheduler: ", algorithm.pipeline_scheduler);
+        f.writeLast(2, "Warp Gemm parameters: ");
+        f.writeLine(3, "subtile size: ",
+                    algorithm.warp_gemm.gemm_m, "×", algorithm.warp_gemm.gemm_n);
+        f.writeLast(3, "Number of warp gemm iterations: ",
+                    algorithm.warp_gemm.m_iter, "×", algorithm.warp_gemm.n_iter);
 
+        // Memory Access section
+        f.writeLine(2, "Memory access:");
+        
+        f.writeLast(2, "A Tile transfer: ");
+        f.writeLine(3, "Tile dimensions: ",
+                    algorithm.a_tile_transfer.tile_dimensions.k0, "×",
+                    algorithm.a_tile_transfer.tile_dimensions.m_or_n, "×",
+                    algorithm.a_tile_transfer.tile_dimensions.k1, "×");
+        f.writeLine(3, "The innermost K subdimension size: ",
+                    algorithm.a_tile_transfer.transfer_params.k1);
+        f.writeLine(3, "Spatial thread distribution over the data tile: ",
+                    algorithm.a_tile_transfer.transfer_params.thread_cluster_order[0], "×",
+                    algorithm.a_tile_transfer.transfer_params.thread_cluster_order[1], "×",
+                    algorithm.a_tile_transfer.transfer_params.thread_cluster_order[2]);
+        f.writeLine(3, "The order of accessing data tile axes: ",
+                    algorithm.a_tile_transfer.transfer_params.src_access_order[0], "×",
+                    algorithm.a_tile_transfer.transfer_params.src_access_order[1], "×",
+                    algorithm.a_tile_transfer.transfer_params.src_access_order[2]);
+        f.writeLine(3, "Vectorized memory access axis index (with contiguous memory): ",
+                    algorithm.a_tile_transfer.transfer_params.src_vector_dim);
+        f.writeLine(3, "Vector access (GMEM read) instruction size: ",
+                    algorithm.a_tile_transfer.transfer_params.src_scalar_per_vector);
+        f.writeLine(3, "Vector access (LDS write) instruction size: ",
+                    algorithm.a_tile_transfer.transfer_params.dst_scalar_per_vector_k1);
+        f.writeLast(3, "LDS data layout padding (to prevent bank conflicts): ",
+                    algorithm.a_tile_transfer.transfer_params.dst_scalar_per_vector_k1);
+
+        f.writeLast(2, "B Tile transfer: ");
+        f.writeLine(3, "Tile dimensions: ",
+            algorithm.b_tile_transfer.tile_dimensions.k0, "×",
+            algorithm.b_tile_transfer.tile_dimensions.m_or_n, "×",
+            algorithm.b_tile_transfer.tile_dimensions.k1, "×");
+        f.writeLine(3, "The innermost K subdimension size: ",
+                    algorithm.b_tile_transfer.transfer_params.k1);
+        f.writeLine(3, "Spatial thread distribution over the data tile: ",
+                    algorithm.b_tile_transfer.transfer_params.thread_cluster_order[0], "×",
+                    algorithm.b_tile_transfer.transfer_params.thread_cluster_order[1], "×",
+                    algorithm.b_tile_transfer.transfer_params.thread_cluster_order[2]);
+        f.writeLine(3, "The order of accessing data tile axes: ",
+                    algorithm.b_tile_transfer.transfer_params.src_access_order[0], "×",
+                    algorithm.b_tile_transfer.transfer_params.src_access_order[1], "×",
+                    algorithm.b_tile_transfer.transfer_params.src_access_order[2]);
+                    f.writeLine(3, "Vectorized memory access axis index (with contiguous memory): ",
+                    algorithm.b_tile_transfer.transfer_params.src_vector_dim);
+        f.writeLine(3, "Vector access (GMEM read) instruction size: ",
+                    algorithm.b_tile_transfer.transfer_params.src_scalar_per_vector);
+        f.writeLine(3, "Vector access (LDS write) instruction size: ",
+                    algorithm.b_tile_transfer.transfer_params.dst_scalar_per_vector_k1);
+        f.writeLast(3, "LDS data layout padding (to prevent bank conflicts): ",
+                    algorithm.b_tile_transfer.transfer_params.dst_scalar_per_vector_k1);
+
+        f.writeLast(2, "C Tile transfer: ");
+        f.writeLine(3, "Data shuffle (number of gemm instructions per iteration): ",
+                    algorithm.c_tile_transfer.shuffle_params.m_gemms_per_shuffle, "",
+                    algorithm.c_tile_transfer.shuffle_params.n_gemms_per_shuffle, "");
+        f.writeLine(3, "Spatial thread distribution used to store data: ",
+                    algorithm.c_tile_transfer.thread_cluster_dims[0], "",
+                    algorithm.c_tile_transfer.thread_cluster_dims[1], "",
+                    algorithm.c_tile_transfer.thread_cluster_dims[2], "",
+                    algorithm.c_tile_transfer.thread_cluster_dims[3], "");
+        f.writeLast(3, "Vector access (GMEM write) instruction size: ",
+                    algorithm.c_tile_transfer.scalar_per_vector);
+                        
         return f.getString();
     }
 
@@ -142,40 +194,23 @@ ConvDescription Describe()
     using Traits = ConvTraits<Instance>;
 
     return ConvDescription{
-        .signature = ConvSignatureInfo{.spatial_dim = Traits::spatial_dim,
-                                       .direction   = Traits::direction,
-                                       .layout      = Traits::layout,
-                                       .data_type   = Traits::data_type},
-        .algorithm = GemmAlgorithmInfo{
-            .block  = DataTileInfo{.block_size = Traits::block.block_size,
-                                   .m          = Traits::block.per_block.m,
-                                   .n          = Traits::block.per_block.n,
-                                   .k          = Traits::block.per_block.k},
-            .tuning = TuningInfo{.ak1            = Traits::tuning.ak1,
-                                 .bk1            = Traits::tuning.bk1,
-                                 .m_per_xdl      = Traits::tuning.m_per_xdl,
-                                 .n_per_xdl      = Traits::tuning.n_per_dxl,
-                                 .m_xdl_per_wave = Traits::tuning.m_xdl_per_wave,
-                                 .n_xdl_per_wave = Traits::tuning.n_xdl_per_wave},
-            .a_transfer =
-                TileTransferInfo{.k0     = Traits::a_block_transfer.thread_cluster_dims[0],
-                                 .m_or_n = Traits::a_block_transfer.thread_cluster_dims[1],
-                                 .k1     = Traits::a_block_transfer.thread_cluster_dims[2]},
-            .b_transfer =
-                TileTransferInfo{.k0     = Traits::b_block_transfer.thread_cluster_dims[0],
-                                 .m_or_n = Traits::b_block_transfer.thread_cluster_dims[1],
-                                 .k1     = Traits::b_block_transfer.thread_cluster_dims[2]},
-            .c_transfer =
-                CBlockTransferInfo{
-                    .m_xdl_per_wave_per_shuffle =
-                        Traits::c_block_transfer.m_xdl_per_wave_per_shuffle,
-                    .n_xdl_per_wave_per_shuffle =
-                        Traits::c_block_transfer.n_xdl_per_wave_per_shuffle,
-                    .m_block        = Traits::c_block_transfer.thread_cluster_dims[0],
-                    .m_wave_per_xdl = Traits::c_block_transfer.thread_cluster_dims[1],
-                    .n_block        = Traits::c_block_transfer.thread_cluster_dims[2],
-                    .n_wave_per_xdl = Traits::c_block_transfer.thread_cluster_dims[3]},
-            .pipeline = Traits::pipeline_version}};
+        .signature = ConvSignatureInfo{.spatial_dim         = Traits::spatial_dim,
+                                       .direction           = Traits::direction,
+                                       .layout              = Traits::layout,
+                                       .data_type           = Traits::data_type,
+                                       .input_element_op    = Traits::input_element_op,
+                                       .weight_element_op   = Traits::weight_element_op,
+                                       .output_element_op   = Traits::output_element_op},
+        .algorithm = GemmAlgorithmInfo{thread_block_size = Traits::thread_block_size,
+                                       tile_dims = Traits::tile_dims,
+                                       warp_gemm = Traits::warp_gemm,
+                                       a_tile_transfer = Traits::a_tile_transfer,
+                                       b_tile_transfer = Traits::b_tile_transfer,
+                                       c_tile_transfer = Traits::c_tile_transfer,
+                                       pipeline_version = Traits::pipeline_version,
+                                       pipeline_scheduler = Traits::pipeline_scheduler,
+                                       conv_specialization = Traits::conv_specialization,
+                                       padding = Traits::padding}};
 }
 
 // Backward compatibility: Create ConvDescription from Builder type
