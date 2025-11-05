@@ -25,7 +25,7 @@ TEST(FwdConvInstances,
 
     run_test_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<FwdConvSignature,
                                                              FwdThreadBlock,
-                                                             BlockGemmPipelineVersion::V1,
+                                                             PipelineVersion::V1,
                                                              ConvFwdSpecialization::DEFAULT>();
 }
 
@@ -47,7 +47,7 @@ TEST(FwdConvInstances,
 
     run_test_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<FwdConvSignature,
                                                              FwdThreadBlock,
-                                                             BlockGemmPipelineVersion::V5,
+                                                             PipelineVersion::V5,
                                                              ConvFwdSpecialization::FILTER_3x3>();
 }
 
