@@ -739,17 +739,20 @@ class CompatibilityRuleFactory:
 
 
 class CompatibilityRuleFactoryGfx9(CompatibilityRuleFactory):
-    @staticmethod
-    def get_rules() -> list[CompatibilityRule]:
+    _AVAILABLE_PIPELINES = frozenset({"qr", "qr_async", "qs"})
+
+    @classmethod
+    def get_rules(cls) -> list[CompatibilityRule]:
         rules = CompatibilityRuleFactory.get_rules()
 
-        def check_hdim_tile_for_non_fp32(
+        def check_hdim_tile(
             problem_ctx: ProblemContext, kernel_ctx: KernelContext
         ) -> bool:
             if problem_ctx.dtype != "fp32":
                 # TODO: update if >=gfx11 archs get qr_async and qr_async_trload support
-                if kernel_ctx.pipeline.tag != "qr_async_trload" and (
-                    (
+                if (
+                    kernel_ctx.pipeline.tag in cls._AVAILABLE_PIPELINES
+                    and (
                         (problem_ctx.hdim, problem_ctx.hdim_v) == (128, 128)
                         and kernel_ctx.tile.F_bn0 != 128
                     )
@@ -761,20 +764,54 @@ class CompatibilityRuleFactoryGfx9(CompatibilityRuleFactory):
                     # non qr_async_trload only support km0=128 tile size when hdim is not 128
                     # non qr_async only support kn0=128 tile size when hdim is 128
                     return False
-                if kernel_ctx.pipeline.tag == "qr_async_trload" and (
-                    (
-                        (problem_ctx.hdim, problem_ctx.hdim_v) == (128, 128)
-                        and kernel_ctx.tile.F_bn0 == 128
-                    )
-                    or (
-                        (problem_ctx.hdim, problem_ctx.hdim_v)
-                        not in [(64, 64), (128, 128)]
-                    )
-                ):
-                    return False
             return True
 
-        rules.append(check_hdim_tile_for_non_fp32)
+        rules.append(check_hdim_tile)
+        return rules
+
+
+class CompatibilityRuleFactoryGfx950(CompatibilityRuleFactoryGfx9):
+    _AVAILABLE_PIPELINES = (
+        CompatibilityRuleFactoryGfx9._AVAILABLE_PIPELINES
+        | frozenset({"qr_async_trload", "qr_async_trload_v3"})
+    )
+
+    @classmethod
+    def get_rules(cls) -> list[CompatibilityRule]:
+        rules = CompatibilityRuleFactoryGfx9.get_rules()
+
+        def check_tile_pipeline(
+            problem_ctx: ProblemContext, kernel_ctx: KernelContext
+        ) -> bool:
+            if kernel_ctx.pipeline.tag == "qr_async_trload" and (
+                (
+                    (problem_ctx.hdim, problem_ctx.hdim_v) == (128, 128)
+                    and kernel_ctx.tile.F_bn0 == 128
+                )
+                or (
+                    (problem_ctx.hdim, problem_ctx.hdim_v) not in [(64, 64), (128, 128)]
+                )
+            ):
+                return False
+
+            # only qr_async_trload_v3 use km0=256 & 8-warps
+            is_v3_dedicated_tile = (
+                kernel_ctx.tile.F_bm0 == 256
+                and (kernel_ctx.tile.F_rm0 * kernel_ctx.tile.F_rn0 * kernel_ctx.tile.F_rk0) == 8
+                and (kernel_ctx.tile.F_rm1 * kernel_ctx.tile.F_rn1 * kernel_ctx.tile.F_rk1) == 8
+            )  # fmt: skip
+            is_v3_pipeline = kernel_ctx.pipeline.tag == "qr_async_trload_v3"
+            return is_v3_dedicated_tile == is_v3_pipeline
+
+        # qr_async_trload_v3 only support batch mode for now
+        def check_mode_pipeline(
+            problem_ctx: ProblemContext, kernel_ctx: KernelContext
+        ) -> bool:
+            if kernel_ctx.pipeline.tag == "qr_async_trload_v3":
+                return problem_ctx.mode == "batch"
+            return True
+
+        rules.extend([check_tile_pipeline, check_mode_pipeline])
         return rules
 
 
@@ -900,9 +937,19 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
 
 
 class KernelComponentFactoryGfx950(
-    KernelComponentFactoryGfx9, CompatibilityRuleFactoryGfx9
+    KernelComponentFactoryGfx9, CompatibilityRuleFactoryGfx950
 ):
     arch = ArchTrait("gfx950")
+
+    @classmethod
+    def get_hdim_tile_size_dict(cls, dtype: str) -> Optional[dict]:
+        result = KernelComponentFactoryGfx9.get_hdim_tile_size_dict(dtype)
+        if dtype in cls._DT_FP16_BF16:
+            # add tile for qr_async_trload_v3
+            if (128, 128) in result.keys():
+                result[(128, 128)].append(
+                    FmhaFwdTileSize(256, 32, 128, 128, 32, 128,  8, 1, 1,  8, 1, 1,  32, 32, 16,  32, 32, 16,  -1))  # fmt: skip
+        return result
 
     @classmethod
     def get_pipelines(
@@ -931,10 +978,12 @@ class KernelComponentFactoryGfx950(
                     pipelines.append(FmhaFwdPipeline("qr_async_trload", "row", "f", "f", "f", "f", logits, bias, lse, dropout, squant, mask, skip, "t"))  # fmt: skip
                     pipelines.append(FmhaFwdPipeline("qr_async_trload", "row", "f", "f", "t", "t", logits, bias, lse, dropout, squant, mask, skip, "t"))  # fmt: skip
             """
-            # qr_async_trload_v3 only supports (generic) causal mask
-            for mask in ["no", "causal"]:
-                pipelines.append(FmhaFwdPipeline("qr_async_trload_v3", "row", "t", "t", "t", "t",
-                    F_logits="f", F_bias="no", F_lse="f", F_dropout="f", F_squant="f", F_mask=mask, F_skip="f", F_trload="t"))  # fmt: skip
+            # qr_async_trload_v3 only supports hdim=hdim_v=128 for now
+            if (hdim, hdim_v) == (128, 128):
+                # qr_async_trload_v3 only supports (generic) causal mask
+                for mask in ["no", "causal"]:
+                    pipelines.append(FmhaFwdPipeline("qr_async_trload_v3", "row", "t", "t", "t", "t",
+                        F_logits="f", F_bias="no", F_lse="f", F_dropout="f", F_squant=squant, F_mask=mask, F_skip="f", F_trload="t"))  # fmt: skip
             """
         return pipelines
 
