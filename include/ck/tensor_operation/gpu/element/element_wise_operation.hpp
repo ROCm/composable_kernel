@@ -73,7 +73,7 @@ struct AddReluAdd
     __host__ __device__ constexpr void operator()<half_t, float, half_t, half_t>(
         half_t& y, const float& x0, const half_t& x1, const half_t& x2) const
     {
-        float y_float;
+        float y_float = 0.0;
         (*this)(y_float, x0, x1, x2);
         y = y_float;
     }
