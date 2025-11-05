@@ -1,5 +1,5 @@
+// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -66,50 +66,6 @@ enum class ConvDirection
     FORWARD,
     BACKWARD_DATA,
     BACKWARD_WEIGHT
-};
-
-// Forward convolution device operations.
-enum class FwdGroupConvDeviceOperation
-{
-    DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK,
-    DeviceGroupedConvFwdMultipleD_Wmma_CShuffle,
-    DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle,
-    DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3,
-    DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
-};
-
-// Backward data convolution device operations.
-enum class BwdDataGroupConvDeviceOperation
-{
-    DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1,
-    DeviceGroupedConvBwdDataMultipleD,
-    DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle
-};
-
-// Backward weight convolution device operations.
-enum class BwdWeightGroupConvDeviceOperation
-{
-    DeviceGroupedConvBwdWeight,
-    DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle,
-    DeviceGroupedConvBwdWeight_Xdl_CShuffle,
-    DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle,
-    DeviceGroupedConvBwdWeight_Wmma_CShuffle,
-    DeviceGroupedConvBwdWeight_Xdl_CShuffleV3,
-    DeviceGroupedConvBwdWeightMultipleD,
-    DeviceGroupedConvBwdWeight_Dl
-};
-
-// Structural type for device operation
-struct GroupConvDeviceOp {
-    union {
-        FwdGroupConvDeviceOperation _fwd;
-        BwdDataGroupConvDeviceOperation _bwd_data;
-        BwdWeightGroupConvDeviceOperation _bwd_weight;
-    };
-    
-    constexpr GroupConvDeviceOp(FwdGroupConvDeviceOperation op) : _fwd(op) {}
-    constexpr GroupConvDeviceOp(BwdDataGroupConvDeviceOperation op) : _bwd_data(op) {}
-    constexpr GroupConvDeviceOp(BwdWeightGroupConvDeviceOperation op) : _bwd_weight(op) {}
 };
 
 // Fused element-wise operations.

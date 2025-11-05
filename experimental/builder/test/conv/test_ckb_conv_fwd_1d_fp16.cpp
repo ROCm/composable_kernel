@@ -1,8 +1,12 @@
-#include "utils/ckb_conv_test_common.hpp"
+// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
+#include "utils/ckb_conv_test_configs.hpp"
+#include "utils/ckb_conv_test_utils.hpp"
+
+namespace {
 
 using namespace ck_tile::builder::test_utils;
-
-namespace ck_tile::builder::testing {
 
 // 1D FP16 (channels-last) with DEFAULT specialization
 TEST(FwdConvInstances,
@@ -13,16 +17,21 @@ TEST(FwdConvInstances,
         .direction             = ConvDirection::FORWARD,
         .layout                = GroupConvLayout1D::NWGC_GKXC_NWGK,
         .data_type             = DataType::FP16,
-        .elementwise_operation = ElementwiseOperation::PASS_THROUGH,
-        .device_operation =
-            FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle};
+        .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
 
-    constexpr ThreadBlock FwdThreadBlock{.block_size = 64,
-                                         .tile_size  = {.m = 64, .n = 32, .k = 32}};
+    constexpr ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle FwdConvAlgorithm{
+        .thread_block               = FwdThreadBlock_64x32x32,
+        .gridwise_gemm              = FwdGemmParams_Xdl_2x1_per_wave,
+        .block_transfer             = FwdBlockTransfer_4x16x1,
+        .fwd_specialization         = ConvFwdSpecialization::DEFAULT,
+        .gemm_specialization        = GemmSpecialization::MNKPadding,
+        .num_gemm_k_prefetch_stages = 1,
+        .num_groups_to_merge        = 2,
+        .loop_scheduler             = LoopScheduler::DEFAULT};
 
-    run_test_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<FwdConvSignature,
-                                                          FwdThreadBlock,
-                                                          ConvFwdSpecialization::DEFAULT>();
+    using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
+    run_test<Builder>(
+        {"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle", "64, 64, 32, 32", "Default"});
 }
 
-} // namespace ck_tile::builder::testing
+} // namespace

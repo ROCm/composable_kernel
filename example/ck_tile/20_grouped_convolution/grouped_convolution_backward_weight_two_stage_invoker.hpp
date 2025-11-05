@@ -29,10 +29,9 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
         using GemmShape = ck_tile::TileGemmShape<
             ck_tile::sequence<ConvConfig::M_Tile, ConvConfig::N_Tile, ConvConfig::K_Tile>,
             ck_tile::sequence<ConvConfig::M_Warp, ConvConfig::N_Warp, ConvConfig::K_Warp>,
-            ck_tile::
-                sequence<ConvConfig::M_Warp_Tile, ConvConfig::N_Warp_Tile, ConvConfig::K_Warp_Tile>,
-            ConvConfig::PermuteA,
-            ConvConfig::PermuteB>;
+            ck_tile::sequence<ConvConfig::M_Warp_Tile,
+                              ConvConfig::N_Warp_Tile,
+                              ConvConfig::K_Warp_Tile>>;
 
         constexpr ck_tile::index_t VectorSizeA = 4;
         constexpr ck_tile::index_t VectorSizeB = 8;
@@ -62,7 +61,7 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
             typename GroupedConvTraitsType::GroupedConvImplicitGemmTraitsBwdWeight::BsLayout,
             typename GroupedConvTraitsType::GroupedConvImplicitGemmTraitsBwdWeight::CLayout,
             ConvConfig::TransposeC,
-            ConvConfig::UseStructuredSparsity,
+            false,
             false, // Persistent,
             ConvConfig::NumWaveGroups>;
 

@@ -1,5 +1,5 @@
+// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -95,7 +95,7 @@ concept AccessOrderDescriptor = requires(T t) {
     { t.order } -> std::convertible_to<std::array<size_t, 3>>;
 };
 
-// No requirements yet for a ConvAlgorithm concept.
+// Base requirement for all ConvAlgorithm concepts, i.e., all conv algorithm concepts must meet this concept.
 template <typename T>
 concept ConvAlgorithmDescriptor = std::is_class_v<T>;
 
@@ -182,5 +182,50 @@ template <typename T>
 concept SpecifiesLoopScheduler = requires {
     { T::loop_scheduler } -> std::convertible_to<LoopScheduler>;
 };
+
+/******************************************** */
+/* Concepts for the different device ops */
+/******************************************** */
+
+template <typename T>
+concept DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 = 
+    ConvAlgorithmDescriptor<T> &&
+    SpecifiesThreadBlock<T> && 
+    SpecifiesGridwiseXdlGemm<T> &&
+    SpecifiesBlockTransfer<T> && 
+    SpecifiesLdsTransfer<T> &&
+    SpecifiesThreadClusterAccessOrder<T> && 
+    SpecifiesSourceAccessOrder<T> &&
+    SpecifiesBlockGemm<T> && 
+    SpecifiesGemmSpecialization<T>;
+
+template <typename T>
+concept DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle =
+    ConvAlgorithmDescriptor<T> &&
+    SpecifiesThreadBlock<T> && 
+    SpecifiesGridwiseXdlGemm<T> &&
+    SpecifiesBlockTransfer<T> && 
+    SpecifiesLdsTransfer<T> &&
+    SpecifiesThreadClusterAccessOrder<T> && 
+    SpecifiesSourceAccessOrder<T> &&
+    SpecifiesFwdConcSpecialization<T> &&
+    SpecifiesGemmSpecialization<T> &&
+    SpecifiesNumPrefetchStages<T> &&
+    SpecifiesNumGroupsToMerge<T> &&
+    SpecifiesLoopScheduler<T>;
+
+template <typename T>
+concept DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle = 
+    ConvAlgorithmDescriptor<T> &&
+    SpecifiesThreadBlock<T> && 
+    SpecifiesGridwiseWmmaGemm<T> &&
+    SpecifiesBlockTransfer<T> && 
+    SpecifiesLdsTransfer<T> &&
+    SpecifiesThreadClusterAccessOrder<T> && 
+    SpecifiesSourceAccessOrder<T> &&
+    SpecifiesFwdConcSpecialization<T> &&
+    SpecifiesGemmSpecialization<T> &&
+    SpecifiesNumPrefetchStages<T> &&
+    SpecifiesLoopScheduler<T>;
 
 } // namespace ck_tile::builder
