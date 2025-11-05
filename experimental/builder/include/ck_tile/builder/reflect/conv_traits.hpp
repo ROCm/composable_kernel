@@ -186,7 +186,7 @@ struct WarpShuffleParams
                              ///< per shuffle iteration.
 };
 
-/// @brief Information for the output tile transfer (CShuffle).
+/// @brief Information for the output tile transfer.
 /// @details Describes how the final computed tile (C matrix) is written out from
 /// LDS to global memory, including shuffling, thread clustering, and vectorization.
 struct OutputTileTransferInfo

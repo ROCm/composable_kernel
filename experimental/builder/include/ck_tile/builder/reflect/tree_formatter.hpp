@@ -67,36 +67,6 @@ class TreeFormatter
     std::ostringstream oss_;
     std::vector<bool> is_last_at_level_; // Tracks which levels have ended
 
-    // Helper to format individual arguments with automatic type conversion
-    template <typename T>
-    void formatArg(const T& arg)
-    {
-        if constexpr(std::is_same_v<std::remove_cv_t<std::remove_reference_t<T>>,
-                                    builder::DataType>)
-        {
-            oss_ << builder::DataTypeToString(arg);
-        }
-        else if constexpr(std::is_same_v<std::remove_cv_t<std::remove_reference_t<T>>,
-                                         builder::ConvDirection>)
-        {
-            oss_ << builder::ConvDirectionToString(arg);
-        }
-        else if constexpr(std::is_same_v<std::remove_cv_t<std::remove_reference_t<T>>,
-                                         builder::GroupConvLayout>)
-        {
-            oss_ << builder::LayoutToString(arg);
-        }
-        else if constexpr(std::is_same_v<std::remove_cv_t<std::remove_reference_t<T>>,
-                                         ck::BlockGemmPipelineVersion>)
-        {
-            oss_ << builder::detail::pipeline_version_name(arg);
-        }
-        else
-        {
-            oss_ << arg; // Default: just stream it
-        }
-    }
-
     // Implementation of line writing with tree symbols
     template <typename... Args>
     void writeLineImpl(int indent_level, bool is_last, Args&&... args)
@@ -126,8 +96,8 @@ class TreeFormatter
             oss_ << (is_last ? "└─ " : "├─ ");
         }
 
-        // Write the content using fold expression with formatArg
-        (formatArg(std::forward<Args>(args)), ...);
+        // Write the content using fold expression with direct stream insertion
+        (oss_ << std::forward<Args>(args), ...);
 
         oss_ << '\n';
 
