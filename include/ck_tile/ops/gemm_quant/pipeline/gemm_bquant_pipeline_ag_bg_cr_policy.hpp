@@ -34,29 +34,67 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         using BQLayout       = remove_cvref_t<typename Problem::BQLayout>;
         using BlockGemmShape = typename Problem::BlockGemmShape;
 
-        constexpr index_t BlockSize   = Problem::kBlockSize;
-        constexpr index_t NPerBlock   = Problem::BlockGemmShape::kN;
-        constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
-        constexpr index_t KPerBlockBQ = KPerBlock / Problem::kQuantGroupSize;
-        constexpr index_t VecLoadSize = GetVectorSizeBQ<Problem>();
-        using WarpTile                = typename Problem::BlockGemmShape::WarpTile;
-        using WarpGemm                = WarpGemmDispatcher<typename Problem::ComputeDataType,
-                                                           typename Problem::ComputeDataType,
-                                                           typename Problem::CDataType,
-                                                           WarpTile::at(I0),
-                                                           WarpTile::at(I1),
-                                                           WarpTile::at(I2),
-                                                           Problem::TransposeC>;
+        constexpr index_t BlockSize    = Problem::kBlockSize;
+        constexpr index_t NPerBlock    = Problem::BlockGemmShape::kN;
+        constexpr index_t KPerBlock    = Problem::BlockGemmShape::kK;
+        constexpr index_t KPerBlockBQ  = KPerBlock / Problem::kQuantGroupSize;
+        constexpr index_t VecLoadSize  = GetVectorSizeBQ<Problem>();
+        constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
+
+        using WarpTile = typename Problem::BlockGemmShape::WarpTile;
+        using WarpGemm = WarpGemmDispatcher<typename Problem::ComputeDataType,
+                                            typename Problem::ComputeDataType,
+                                            typename Problem::CDataType,
+                                            WarpTile::at(I0),
+                                            WarpTile::at(I1),
+                                            WarpTile::at(I2),
+                                            Problem::TransposeC>;
+        // constexpr index_t num_warps = NPerBlock / WarpGemm::kN;
 
         static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
-        using TileEncodingPattern = tile_distribution_encoding_pattern_bq<BlockGemmShape,
-                                                                          WarpGemm,
-                                                                          BlockSize,
-                                                                          KPerBlockBQ,
-                                                                          NPerBlock,
-                                                                          VecLoadSize>;
+        if(get_block_id() == 0 && get_thread_id() == 0)
+        {
+            printf("BlockSize: %d,  KPerBlockBQ(YPerTile): %d, NPerBlock(XPerTile): %d, "
+                   "VecLoadSize: %d\n",
+                   BlockSize,
+                   KPerBlockBQ,
+                   NPerBlock,
+                   VecLoadSize);
+        }
+        if constexpr(PreshuffleQuant)
+        {
+            if(get_block_id() == 0 && get_thread_id() == 0)
+            {
+                printf("Inside PreshuffleQuant\n BlockSize: %d,  YPerTile: %d, XPerTile: %d, "
+                       "VecLoadSize: %d\n",
+                       BlockSize,
+                       NPerBlock / WarpGemm::kN,
+                       ck_tile::integer_least_multiple(WarpGemm::kN * KPerBlockBQ, get_warp_size()),
+                       VecLoadSize);
+            }
+            using TileEncodingPattern =
+                tile_distribution_encoding_pattern_bq<BlockGemmShape,
+                                                      WarpGemm,
+                                                      BlockSize,
+                                                      NPerBlock / WarpGemm::kN, // 64/16 = 4
+                                                      ck_tile::integer_least_multiple(
+                                                          WarpGemm::kN * KPerBlockBQ,
+                                                          get_warp_size()), //(32, 64) = 64
+                                                      VecLoadSize,
+                                                      PreshuffleQuant>;
+            return TileEncodingPattern::make_2d_static_tile_distribution();
+        }
+        else
+        {
+            using TileEncodingPattern = tile_distribution_encoding_pattern_bq<BlockGemmShape,
+                                                                              WarpGemm,
+                                                                              BlockSize,
+                                                                              KPerBlockBQ, // 2
+                                                                              NPerBlock,   // 64
+                                                                              VecLoadSize>;
 
-        return TileEncodingPattern::make_2d_static_tile_distribution();
+            return TileEncodingPattern::make_2d_static_tile_distribution();
+        }
     }
 
     template <typename Problem>

@@ -92,8 +92,8 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                 using TileEncodingPattern = tile_distribution_encoding_pattern_aq<BlockGemmShape,
                                                                                   WarpGemm,
                                                                                   BlockSize,
-                                                                                  MPerBlock,
-                                                                                  KPerBlockAQ,
+                                                                                  MPerBlock,   // 16
+                                                                                  KPerBlockAQ, // 2
                                                                                   KPerBlockAQ,
                                                                                   VecLoadSize,
                                                                                   PreshuffleQuant>;

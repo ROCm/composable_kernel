@@ -50,6 +50,8 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
     static constexpr index_t kQuantGroupSize = Problem::kQuantGroupSize;
     static constexpr index_t kBlockSize      = Problem::kBlockSize;
 
+    static constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
+
     static constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
     static constexpr index_t NIterPerWarp =
         BlockTile::at(idxN) / (WarpTile::at(idxN) * BlockWarps::at(idxN));
@@ -182,16 +184,70 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
                                                    c_warp_y_index_zeros)) /
                                CBlockTensor::PackedSize>{};
 
-                    constexpr index_t reg_offset = nIter * KPerBlockBQ + kQScale;
+                    if constexpr(PreshuffleQuant)
+                    {
+                        constexpr index_t reg_offset = nIter;
+                        static_for<0, WG::kM * WG::kN / warp_size, 1>{}([&](auto c_row) {
+                            auto pull_from_lane =
+                                (__lane_id() & (WG::kN - 1)) * KPerBlockBQ + kQScale;
+                            auto& scale_reg = bq_block_tensor.get_thread_buffer()[reg_offset];
+                            // cross lane ops
+                            uint32_t scale_reg_dword;
 
-                    auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
-                    float scale_reg_f = cvt_scale_to_fp32(scale_reg);
+                            if constexpr(std::is_same_v<BQDataType, float>)
+                            {
+                                scale_reg_dword = ck_tile::bit_cast<uint32_t>(scale_reg);
+                            }
+                            else
+                            {
+                                scale_reg_dword = static_cast<uint32_t>(scale_reg);
+                            }
 
-                    static_for<0, WG::kM * WG::kN / warp_size, 1>{}([&](auto c_row) {
-                        auto& c_ref = c_block_tensor.get_thread_buffer()[tbuf_offset + c_row];
-                        const auto acc_val = c_acc(mIter)(nIter).get_thread_buffer()[c_row];
-                        c_ref              = c_ref + acc_val * scale_reg_f;
-                    });
+                            int gathered_scale_reg = __builtin_amdgcn_ds_bpermute(
+                                pull_from_lane << 2, __builtin_bit_cast(int, scale_reg_dword));
+
+                            float scale_reg_f = cvt_scale_to_fp32(gathered_scale_reg);
+                            if(get_block_id() == 0 && get_thread_id() == 0)
+                            {
+                                printf("scale_reg_f: %f, reg_offset: %d, MIterPerWarp: %d, "
+                                       "NIterPerWarp: %d, mIter: %d, nIter:%d, kQScale: %d\n",
+                                       scale_reg_f,
+                                       reg_offset,
+                                       MIterPerWarp,
+                                       NIterPerWarp,
+                                       static_cast<int>(mIter),
+                                       static_cast<int>(nIter),
+                                       static_cast<int>(kQScale));
+                            }
+                            auto& c_ref = c_block_tensor.get_thread_buffer()[tbuf_offset + c_row];
+                            const auto acc_val = c_acc(mIter)(nIter).get_thread_buffer()[c_row];
+                            c_ref              = c_ref + acc_val * scale_reg_f;
+                        });
+                    }
+                    else
+                    {
+                        constexpr index_t reg_offset = nIter * KPerBlockBQ + kQScale;
+                        auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
+                        float scale_reg_f = cvt_scale_to_fp32(scale_reg);
+                        if(get_block_id() == 0 && get_thread_id() == 0)
+                        {
+                            printf("scale_reg_f: %f, reg_offset: %d, MIterPerWarp: %d, "
+                                   "NIterPerWarp: %d, mIter: %d, nIter:%d, kQScale: %d\n",
+                                   scale_reg_f,
+                                   reg_offset,
+                                   MIterPerWarp,
+                                   NIterPerWarp,
+                                   static_cast<int>(mIter),
+                                   static_cast<int>(nIter),
+                                   static_cast<int>(kQScale));
+                        }
+
+                        static_for<0, WG::kM * WG::kN / warp_size, 1>{}([&](auto c_row) {
+                            auto& c_ref = c_block_tensor.get_thread_buffer()[tbuf_offset + c_row];
+                            const auto acc_val = c_acc(mIter)(nIter).get_thread_buffer()[c_row];
+                            c_ref              = c_ref + acc_val * scale_reg_f;
+                        });
+                    }
                 });
             });
         });

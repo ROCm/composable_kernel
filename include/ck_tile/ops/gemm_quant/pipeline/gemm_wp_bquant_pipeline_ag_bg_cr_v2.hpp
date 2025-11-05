@@ -69,7 +69,8 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
     using Base::m_preload;
 
     static constexpr index_t QuantGroupSize = Problem::kQuantGroupSize;
-    static constexpr index_t KPerBlockBQ    = BlockGemmShape::kK / QuantGroupSize;
+    static constexpr bool PreshuffleQuant   = Problem::Traits::PreshuffleQuant;
+    static constexpr index_t KPerBlockBQ    = BlockGemmShape::kK / QuantGroupSize; // 256/128
     static constexpr index_t QScalesPerBlockRow =
         (kKPerBlock + QuantGroupSize - 1) / QuantGroupSize;
 
@@ -236,7 +237,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
         // BQ DRAM window for load
         auto bq_copy_dram_window =
             make_tile_window(bq_dram_block_window_tmp.get_bottom_tensor_view(),
-                             make_tuple(number<KPerBlockBQ>{}, number<kNPerBlock>{}),
+                             bq_dram_block_window_tmp.get_window_lengths(),
                              bq_dram_block_window_tmp.get_window_origin(),
                              PipelinePolicy::template MakeBQDramTileDistribution<Problem>());
 
@@ -269,8 +270,15 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
         BQBlockTile bq_block_tile, bq_block_tile_2;
         bq_block_tile = load_tile(bq_copy_dram_window);
         // move BQ to tile 1
-        move_tile_window(bq_copy_dram_window, {KPerBlockBQ, 0});
-
+        if constexpr(PreshuffleQuant)
+        {
+            move_tile_window(bq_copy_dram_window,
+                             {kNPerBlock / BlockGemmShape::WarpTile::at(number<1>{}), 0});
+        }
+        else
+        {
+            move_tile_window(bq_copy_dram_window, {KPerBlockBQ, 0});
+        }
         // Prefill A0
         auto a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
         store_tile(a_copy_lds_window_ping, a_block_tile_tmp);
@@ -318,7 +326,15 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
             move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
 
             bq_block_tile_2 = load_tile(bq_copy_dram_window);
-            move_tile_window(bq_copy_dram_window, {KPerBlockBQ, 0});
+            if constexpr(PreshuffleQuant)
+            {
+                move_tile_window(bq_copy_dram_window,
+                                 {kNPerBlock / BlockGemmShape::WarpTile::at(number<1>{}), 0});
+            }
+            else
+            {
+                move_tile_window(bq_copy_dram_window, {KPerBlockBQ, 0});
+            }
 
             // Prefill A(2i+1)
             a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);
@@ -360,7 +376,15 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
             move_tile_window(b_flat_dram_window, {0, BlockGemmShape::flatKPerBlock});
 
             bq_block_tile = load_tile(bq_copy_dram_window);
-            move_tile_window(bq_copy_dram_window, {KPerBlockBQ, 0});
+            if constexpr(PreshuffleQuant)
+            {
+                move_tile_window(bq_copy_dram_window,
+                                 {kNPerBlock / BlockGemmShape::WarpTile::at(number<1>{}), 0});
+            }
+            else
+            {
+                move_tile_window(bq_copy_dram_window, {KPerBlockBQ, 0});
+            }
 
             // Prefill A(2i+2)
             a_block_tile_tmp = tile_elementwise_in(a_element_func, a_block_tile);

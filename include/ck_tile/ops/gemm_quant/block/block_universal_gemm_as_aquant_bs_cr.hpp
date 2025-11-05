@@ -364,7 +364,14 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                         {
                             if(get_block_id() == 0 && get_thread_id() == 0)
                             {
-                                printf("Here WarpGemm::kM == 16\n");
+                                printf("\nHere WarpGemm::kM == 16\n");
+                                printf("lane_id(): %u,  Traits::WarpGemm::kN: %d, c_row: %u, "
+                                       "Traits::QScalesPerBlockRow: %d, kQScale: %d\n",
+                                       __lane_id(),
+                                       Traits::WarpGemm::kN,
+                                       c_row,
+                                       Traits::QScalesPerBlockRow,
+                                       kQScale);
                             }
                             pull_from_lane =
                                 (__lane_id() / Traits::WarpGemm::kN * kTileRowsOfCPerThread +

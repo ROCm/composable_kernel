@@ -37,7 +37,7 @@ auto shuffle_bq(const ck_tile::HostTensor<T>* t, int block_bq_k)
     }
     ck_tile::HostTensor<T> t_view({n_, bqk_ / block_bq_k, block_bq_k});
     std::copy(t->begin(), t->end(), t_view.begin());
-    return ck_tile::reference_permute(t_view, {1, 2, 0});
+    return ck_tile::reference_permute(t_view, {1, 0, 2});
 }
 
 template <typename GemmConfig, typename T>

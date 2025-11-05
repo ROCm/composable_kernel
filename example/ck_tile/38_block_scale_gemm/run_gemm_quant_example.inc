@@ -221,13 +221,14 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::HostTensor<CDataType> c_m_n_dev_result(
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
-    printf("M = %d, N = %d, K = %d, AQK = %d, BQK = %d, stride_AQ = %d\n",
+    printf("M = %d, N = %d, K = %d, AQK = %d, BQK = %d, stride_AQ = %d, stride_BQ = %d\n",
            M,
            N,
            K,
            AQK,
            BQK,
-           stride_AQ);
+           stride_AQ,
+           stride_BQ);
     // Create AQ tensor with appropriate shape
     std::unique_ptr<ck_tile::HostTensor<AQDataType>> aq_tensor_ptr = nullptr;
     if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped ||
