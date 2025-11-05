@@ -62,8 +62,8 @@ struct GroupedConvolutionForwardInvoker
 
         using TilePartitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<
             GemmShape,
-            GroupedConvTraitsTypeDefault::FixedGemmParams::TileParitionerGroupNum,
-            GroupedConvTraitsTypeDefault::FixedGemmParams::TileParitionerM01>;
+            GroupedConvTraitsTypeDefault::FixedGemmParams::TilePartitionerGroupNum,
+            GroupedConvTraitsTypeDefault::FixedGemmParams::TilePartitionerM01>;
 
         using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<
             GroupedConvTraitsTypeDefault::FixedGemmParams::kPadM,

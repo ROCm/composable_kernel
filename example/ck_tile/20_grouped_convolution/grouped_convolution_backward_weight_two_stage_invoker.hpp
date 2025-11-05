@@ -45,8 +45,8 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
 
         using TilePartitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<
             GemmShape,
-            GroupedConvTraitsType::FixedGemmParams::TileParitionerGroupNum,
-            GroupedConvTraitsType::FixedGemmParams::TileParitionerM01>;
+            GroupedConvTraitsType::FixedGemmParams::TilePartitionerGroupNum,
+            GroupedConvTraitsType::FixedGemmParams::TilePartitionerM01>;
 
         using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<
             GroupedConvTraitsType::FixedGemmParams::kPadM,

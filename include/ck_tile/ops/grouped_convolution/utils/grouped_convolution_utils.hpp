@@ -77,15 +77,15 @@ struct GroupedConvTraits
     // Fixed values for Implicit GEMM
     struct FixedGemmParams
     {
-        static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
-        static constexpr ck_tile::index_t TileParitionerM01      = 4;
-        static constexpr bool kPadM                              = true;
-        static constexpr bool kPadN                              = true;
-        static constexpr bool kPadK                              = true;
-        static constexpr bool TransposeC                         = false;
-        static constexpr bool FixedVectorSize                    = true;
-        static constexpr bool UseStructuredSparsity              = false;
-        static constexpr bool Persistent                         = false;
+        static constexpr ck_tile::index_t TilePartitionerGroupNum = 8;
+        static constexpr ck_tile::index_t TilePartitionerM01      = 4;
+        static constexpr bool kPadM                               = true;
+        static constexpr bool kPadN                               = true;
+        static constexpr bool kPadK                               = true;
+        static constexpr bool TransposeC                          = false;
+        static constexpr bool FixedVectorSize                     = true;
+        static constexpr bool UseStructuredSparsity               = false;
+        static constexpr bool Persistent                          = false;
         using ELayout = ck_tile::tensor_layout::gemm::RowMajor;
     };
     // Compile time parameters
