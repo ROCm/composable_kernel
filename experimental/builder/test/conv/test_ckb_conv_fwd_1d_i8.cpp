@@ -17,9 +17,7 @@ TEST(FwdConvInstances,
         .direction             = ConvDirection::FORWARD,
         .layout                = GroupConvLayout1D::GNWC_GKXC_GNWK,
         .data_type             = DataType::I8,
-        .elementwise_operation = ElementwiseOperation::PASS_THROUGH,
-        .device_operation =
-            FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleD_Wmma_CShuffle};
+        .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
 
     constexpr ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle FwdConvAlgorithm{
         .thread_block               = FwdThreadBlock_64x64x64,

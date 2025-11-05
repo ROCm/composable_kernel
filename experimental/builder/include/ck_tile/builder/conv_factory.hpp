@@ -517,7 +517,12 @@ namespace ck_tile::builder {
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           auto VERSION>
-struct ConvFactory;
+struct ConvFactory
+{
+    // This will trigger if a specialization for the given convolution direction is not found.
+    // We should always catch this in an earlier validation check.
+    static_assert(false, "Unsupported device operation.");
+};
 
 // Factory specialization for DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 instance
 // of a grouped forward convolution kernel.
@@ -525,7 +530,7 @@ template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
     requires ConvDirectionIsForward<SIGNATURE> &&
-             ConvDeviceOpIs_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<SIGNATURE>
+             DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<decltype(ALGORITHM)>
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
@@ -536,26 +541,6 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
     using Ops           = factory_internal::ElementwiseOps<SIGNATURE.elementwise_operation>;
     using AlgorithmType = decltype(ALGORITHM);
 
-    static_assert(SpecifiesThreadBlock<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify thread block info.");
-    static_assert(SpecifiesGridwiseXdlGemm<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify gridwise GEMM info.");
-    static_assert(SpecifiesBlockTransfer<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify block transfer info.");
-    static_assert(SpecifiesLdsTransfer<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify LDS transfer info.");
-    static_assert(
-        SpecifiesThreadClusterAccessOrder<AlgorithmType>,
-        "The convolution algorithm descriptor must specify thread cluster access order info.");
-    static_assert(SpecifiesSourceAccessOrder<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify source access order info.");
-    static_assert(SpecifiesBlockGemm<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify block gemm pipeline.");
-    static_assert(SpecifiesFwdConcSpecialization<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify forward convolution "
-                  "specialization.");
-    static_assert(SpecifiesGemmSpecialization<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify gemm specialization.");
     static_assert(ALGORITHM.block_transfer.lds_transfer_a.is_direct_load ==
                       ALGORITHM.block_transfer.lds_transfer_b.is_direct_load,
                   "A and B block transfers must both be direct load or not.");
@@ -647,7 +632,7 @@ template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
     requires ConvDirectionIsForward<SIGNATURE> &&
-             ConvDeviceOpIs_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<SIGNATURE>
+             DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<decltype(ALGORITHM)>
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
@@ -657,31 +642,6 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
     using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
     using Ops           = factory_internal::ElementwiseOps<SIGNATURE.elementwise_operation>;
     using AlgorithmType = decltype(ALGORITHM);
-
-    static_assert(SpecifiesThreadBlock<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify thread block info.");
-    static_assert(SpecifiesGridwiseXdlGemm<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify gridwise GEMM info.");
-    static_assert(SpecifiesBlockTransfer<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify block transfer info.");
-    static_assert(SpecifiesLdsTransfer<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify LDS transfer info.");
-    static_assert(
-        SpecifiesThreadClusterAccessOrder<AlgorithmType>,
-        "The convolution algorithm descriptor must specify thread cluster access order info.");
-    static_assert(SpecifiesSourceAccessOrder<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify source access order info.");
-    static_assert(SpecifiesFwdConcSpecialization<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify forward convolution "
-                  "specialization.");
-    static_assert(SpecifiesGemmSpecialization<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify gemm specialization.");
-    static_assert(SpecifiesNumPrefetchStages<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify number of prefetch stages.");
-    static_assert(SpecifiesLoopScheduler<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify loop scheduler.");
-    static_assert(SpecifiesNumGroupsToMerge<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify number of groups to merge.");
 
     static constexpr auto FWD_CONV_SPECIALIZATION =
         factory_internal::SetFwdConvSpecialization<ALGORITHM>();
@@ -769,7 +729,7 @@ template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
     requires ConvDirectionIsForward<SIGNATURE> &&
-             ConvDeviceOpIs_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle<SIGNATURE>
+             DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle<decltype(ALGORITHM)>
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
@@ -779,27 +739,6 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
     using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
     using Ops           = factory_internal::ElementwiseOps<SIGNATURE.elementwise_operation>;
     using AlgorithmType = decltype(ALGORITHM);
-
-    static_assert(SpecifiesThreadBlock<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify thread block info.");
-    static_assert(SpecifiesGridwiseWmmaGemm<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify gridwise GEMM info.");
-    static_assert(SpecifiesBlockTransfer<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify block transfer info.");
-    static_assert(SpecifiesLdsTransfer<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify LDS transfer info.");
-    static_assert(
-        SpecifiesThreadClusterAccessOrder<AlgorithmType>,
-        "The convolution algorithm descriptor must specify thread cluster access order info.");
-    static_assert(SpecifiesSourceAccessOrder<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify source access order info.");
-    static_assert(SpecifiesFwdConcSpecialization<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify forward convolution "
-                  "specialization.");
-    static_assert(SpecifiesNumPrefetchStages<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify number of prefetch stages.");
-    static_assert(SpecifiesLoopScheduler<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify loop scheduler.");
 
     static constexpr auto FWD_CONV_SPECIALIZATION =
         factory_internal::SetFwdConvSpecialization<ALGORITHM>();
