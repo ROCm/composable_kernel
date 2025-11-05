@@ -196,7 +196,7 @@ concept DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 =
     SpecifiesLdsTransfer<T> &&
     SpecifiesThreadClusterAccessOrder<T> && 
     SpecifiesSourceAccessOrder<T> &&
-    SpecifiesFwdConcSpecialization<T>
+    SpecifiesFwdConcSpecialization<T> &&
     SpecifiesGemmSpecialization<T> &&
     SpecifiesBlockGemm<T>;
 
