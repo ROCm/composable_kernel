@@ -166,6 +166,33 @@ struct waitcnt_arg
         static_assert(cnt >= 0 && !(cnt >> 6), "valid range is [0..63]");
         return MAX & cnt;
     }
+#elif defined(__gfx11__)
+    // exp : [2:0], lgkm: [9:4], vm: [15:10]
+    CK_TILE_DEVICE static constexpr index_t MAX = 0b111111'111111'0000;
+
+    CK_TILE_DEVICE static constexpr index_t kMaxVmCnt   = 0b111111;
+    CK_TILE_DEVICE static constexpr index_t kMaxExpCnt  = 0b111;
+    CK_TILE_DEVICE static constexpr index_t kMaxLgkmCnt = 0b111111;
+
+    template <index_t cnt>
+    CK_TILE_DEVICE static constexpr index_t from_vmcnt()
+    {
+        static_assert(cnt >= 0 && !(cnt >> 6), "valid range is [0..63]");
+        return MAX & (cnt << 10);
+    }
+
+    template <index_t cnt>
+    CK_TILE_DEVICE static constexpr index_t from_expcnt()
+    {
+        return 0; // no export in MI series
+    }
+
+    template <index_t cnt>
+    CK_TILE_DEVICE static constexpr index_t from_lgkmcnt()
+    {
+        static_assert(cnt >= 0 && !(cnt >> 6), "valid range is [0..63]");
+        return MAX & (cnt << 4);
+    }
 #else
     // bit numbers (hex) -------------------------> FE'DC'BA98'7'654'3210
     // [V]M [E]XP [L]GKM counters and [U]NUSED ---> VV'UU'LLLL'U'EEE'VVVV
