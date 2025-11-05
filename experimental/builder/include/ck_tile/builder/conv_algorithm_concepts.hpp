@@ -196,8 +196,9 @@ concept DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 =
     SpecifiesLdsTransfer<T> &&
     SpecifiesThreadClusterAccessOrder<T> && 
     SpecifiesSourceAccessOrder<T> &&
-    SpecifiesBlockGemm<T> && 
-    SpecifiesGemmSpecialization<T>;
+    SpecifiesFwdConcSpecialization<T>
+    SpecifiesGemmSpecialization<T> &&
+    SpecifiesBlockGemm<T>;
 
 template <typename T>
 concept DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle =
