@@ -380,7 +380,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
         {
             // STAGE 1, Gemm_0 ( S = Q@K )
             static_for<0, k1_loops, 1>{}([&](auto i_k1) {
-                store_tile(k_lds_write_windows[i_k1],
+                store_tile(k_lds_write_windows[number<i_k1 % NumKVLdsBuffers>{}],
                            tile_elementwise_in(k_element_func, k_tiles[i_k1]));
 
                 __builtin_amdgcn_sched_barrier(0x00000001);
@@ -493,7 +493,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
                 gemm_1(
                     o_acc,
                     get_slice_tile(p, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}),
-                    v_lds_windows[number<i_k1 + 2>{}]);
+                    v_lds_windows[number<(i_k1 + 2) % NumKVLdsBuffers>{}]);
             });
         } while(seqlen_k_curr < seqlen_k_end);
 
