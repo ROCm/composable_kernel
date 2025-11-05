@@ -24,6 +24,8 @@ from codegen.cpp_symbol_map import (
     FWD_DTYPE_MAP,
     BIAS_MAP,
     get_mask_map,
+    get_mask_cpp_type,
+    get_mask_cpp_check_expr,
 )
 from codegen.utils import check_duplicates_and_paddings, if_, indent, update_file
 
@@ -120,8 +122,8 @@ float fmha_fwd_<trait_{F_idx}, {F_arch.tag}>(const ck_tile::stream_config& s, fm
 #endif // !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
 """
 
-FMHA_FWD_V3_KERNEL_HEADER = "<this is fmha fwd v3 kernel header>"
-FMHA_FWD_V3_KERNEL_BODY_TEMPLATE = "<this is fmha fwd v3 kernel body>"
+FMHA_FWD_V3_KERNEL_HEADER = "// this is fmha fwd v3 kernel header\n"
+FMHA_FWD_V3_KERNEL_BODY_TEMPLATE = "// this is fmha fwd v3 kernel body\n"
 
 FMHA_FWD_API_FILENAME = "fmha_fwd_api.cpp"
 FMHA_FWD_API = """
@@ -255,7 +257,7 @@ class FmhaFwdApiTrait:
     def scheck(self) -> str:
         if self.mode == "group":
             return "true/*group mode spad always true*/"  # group mode only generate spad/skpad == true
-        if self.pipeline_tag in ["qr_async", "qr_async_trload"]:
+        if self.pipeline_tag in ["qr_async", "qr_async_trload", "qr_async_trload_v3"]:
             if self.spad == "t":
                 return "true"  # always support
             else:
@@ -288,7 +290,7 @@ class FmhaFwdApiTrait:
                 return f"true /*a.seqlen_k % {self.bn0} != 0*/"  # TODO: order of get_pipelines() matters! (ugly)
             else:
                 return f"(a.cu_seqlen_k_ptr == nullptr) && (a.seqlen_k != 0 && a.seqlen_k % {self.bn0} == 0)"
-        elif self.pipeline_tag == "qr_async_trload":
+        elif self.pipeline_tag in ["qr_async_trload", "qr_async_trload_v3"]:
             if self.skpad == "t":
                 return "true"
             else:
@@ -304,7 +306,7 @@ class FmhaFwdApiTrait:
                 return f"a.hdim_q % {vec} == 0"
             else:
                 assert False
-        elif self.pipeline_tag in ["qr", "qs", "qr_async_trload"]:
+        elif self.pipeline_tag in ["qr", "qs", "qr_async_trload", "qr_async_trload_v3"]:
             bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
             if self.dpad == "t":
                 return f"true /*a.hdim_q % {bk0submax} != 0*/"  # TODO: order of get_pipelines() matters! (ugly)
@@ -321,7 +323,7 @@ class FmhaFwdApiTrait:
                 return f"a.hdim_v % {vec} == 0"
             else:
                 assert False
-        elif self.pipeline_tag in ["qr", "qs", "qr_async_trload"]:
+        elif self.pipeline_tag in ["qr", "qs", "qr_async_trload", "qr_async_trload_v3"]:
             bk0submax = K0_MAX_SUBMAX_MAP[self.bk0max]
             if self.dvpad == "t":
                 return f"true /*a.hdim_v % {bk0submax} != 0*/"  # TODO: order of get_pipelines() matters! (ugly)
@@ -423,9 +425,8 @@ class FmhaFwdPipeline:
 
 
 class FmhaFwdApiPool:
-    def __init__(self, mask_impl):
+    def __init__(self):
         self.pool = OrderedDict()
-        self.mask_impl = mask_impl
 
     def register_traits(self, trait: FmhaFwdApiTrait) -> None:
         hdim = trait.hdim, trait.bn1
@@ -457,8 +458,8 @@ class FmhaFwdApiPool:
                             F_vlayout=LAYOUT_MAP[trait.vlayout],
                             F_pipeline_enum=PIPELINE_ENUM_MAP[trait.pipeline_tag],
                             F_logits=BOOL_MAP[trait.logits],
-                            F_mask=get_mask_map(self.mask_impl)[trait.mask],
-                            F_mask_check=get_mask_check_map(self.mask_impl)[trait.mask],
+                            F_mask=get_mask_cpp_type(trait.mask),
+                            F_mask_check=get_mask_cpp_check_expr(trait.mask),
                             F_bias_check=BIAS_CHECK_MAP[trait.bias],
                             F_bias=BIAS_MAP[trait.bias],
                             F_lse=BOOL_MAP[trait.lse],
@@ -547,13 +548,12 @@ class FmhaFwdKernel:
     F_mode: str  # value from MODE_MAP
     F_tile: FmhaFwdTileSize
     F_pipeline: FmhaFwdPipeline
-    mask_impl: str
 
-    KERNEL_HEADER: ClassVar[str] = FMHA_FWD_KERNEL_HEADER
-    KERNEL_BODY_TEMPLATE: ClassVar[str] = FMHA_FWD_KERNEL_BODY_TEMPLATE
+    _KERNEL_HEADER: ClassVar[str] = FMHA_FWD_KERNEL_HEADER
+    _KERNEL_BODY_TEMPLATE: ClassVar[str] = FMHA_FWD_KERNEL_BODY_TEMPLATE
 
     def render(self) -> str:
-        return type(self).KERNEL_HEADER + type(self).KERNEL_BODY_TEMPLATE.format(
+        return type(self)._KERNEL_HEADER + type(self)._KERNEL_BODY_TEMPLATE.format(
             F_idx=self.F_idx,
             F_kname=self.name,
             F_arch=self.F_arch,
@@ -590,7 +590,7 @@ class FmhaFwdKernel:
             F_skip=BOOL_MAP[self.F_pipeline.F_skip],
             F_occupancy=self.F_tile.F_occupancy,
             F_pipeline_enum=PIPELINE_ENUM_MAP[self.F_pipeline.tag],
-            F_mask=get_mask_map(self.mask_impl)[self.F_pipeline.F_mask],
+            F_mask=get_mask_cpp_type(self.F_pipeline.F_mask),
             F_mode=MODE_MAP[self.F_mode],
             F_pipeline=PIPELINE_MAP[self.F_pipeline.tag],
             F_trload=BOOL_MAP[self.F_pipeline.F_trload],
@@ -642,8 +642,8 @@ class FmhaFwdKernel:
 
 @dataclass
 class FmhaFwdV3Kernel(FmhaFwdKernel):
-    KERNEL_HEADER: ClassVar[str] = FMHA_FWD_V3_KERNEL_HEADER
-    KERNEL_BODY_TEMPLATE: ClassVar[str] = FMHA_FWD_V3_KERNEL_BODY_TEMPLATE
+    _KERNEL_HEADER: ClassVar[str] = FMHA_FWD_V3_KERNEL_HEADER
+    _KERNEL_BODY_TEMPLATE: ClassVar[str] = FMHA_FWD_V3_KERNEL_BODY_TEMPLATE
 
 
 @dataclass
@@ -695,7 +695,6 @@ def create_kernel(
         F_hdim=problem_ctx.hdim,
         F_tile=kernel_ctx.tile,
         F_pipeline=kernel_ctx.pipeline,
-        mask_impl=kernel_ctx.mask_impl,
     )
 
 
@@ -931,6 +930,12 @@ class KernelComponentFactoryGfx950(
                 ):
                     pipelines.append(FmhaFwdPipeline("qr_async_trload", "row", "f", "f", "f", "f", logits, bias, lse, dropout, squant, mask, skip, "t"))  # fmt: skip
                     pipelines.append(FmhaFwdPipeline("qr_async_trload", "row", "f", "f", "t", "t", logits, bias, lse, dropout, squant, mask, skip, "t"))  # fmt: skip
+            """
+            # qr_async_trload_v3 only supports (generic) causal mask
+            for mask in ["no", "causal"]:
+                pipelines.append(FmhaFwdPipeline("qr_async_trload_v3", "row", "t", "t", "t", "t",
+                    F_logits="f", F_bias="no", F_lse="f", F_dropout="f", F_squant="f", F_mask=mask, F_skip="f", F_trload="t"))  # fmt: skip
+            """
         return pipelines
 
 
@@ -1146,7 +1151,7 @@ def get_fwd_blobs(
     targets: List[str], kernel_filter: Optional[str], receipt, optdim_list, mask_impl
 ) -> Tuple[FmhaFwdApiPool, List[FmhaFwdKernel]]:
     gen = list()
-    api_pool = FmhaFwdApiPool(mask_impl)
+    api_pool = FmhaFwdApiPool()
 
     factories = get_factories_for_targets(targets, get_factory)
 
