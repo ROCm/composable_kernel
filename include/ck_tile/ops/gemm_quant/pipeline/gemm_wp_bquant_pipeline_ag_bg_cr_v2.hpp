@@ -25,6 +25,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
     using CDataType       = remove_cvref_t<typename Problem::CDataType>;
     using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
     using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
+    using QuantGroupSize  = remove_cvref_t<typename Problem::QuantGroupSize>;
 
     using ALayout  = remove_cvref_t<typename Problem::ALayout>;
     using BLayout  = remove_cvref_t<typename Problem::BLayout>;
@@ -68,10 +69,10 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
 
     using Base::m_preload;
 
-    static constexpr index_t QuantGroupSize = Problem::kQuantGroupSize;
-    static constexpr index_t KPerBlockBQ    = BlockGemmShape::kK / QuantGroupSize;
+    static constexpr index_t KPerBlockBQ =
+        integer_divide_ceil(BlockGemmShape::kK, QuantGroupSize::kK);
     static constexpr index_t QScalesPerBlockRow =
-        (kKPerBlock + QuantGroupSize - 1) / QuantGroupSize;
+        integer_divide_ceil(kKPerBlock, QuantGroupSize::kK);
 
     static constexpr index_t GetVectorSizeBQ()
     {
@@ -89,7 +90,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                       BlockSize,
                       concat('x', WaveNumM, WaveNumN),
                       concat('x', Base::GetVectorSizeA(), Base::GetVectorSizeB(), GetVectorSizeBQ()),
-                      concat('x', kPadM, kPadN, kPadK), QuantGroupSize);
+                      concat('x', kPadM, kPadN, kPadK), QuantGroupSize::GetName());
         // clang-format on
     }
 
@@ -458,6 +459,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                                    void* p_smem_ping,
                                    void* p_smem_pong) const
     {
+
         return operator()<TailNum>(
             a_dram_block_window_tmp,
             [](const ADataType& a) { return a; },
@@ -466,6 +468,32 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
             num_loop,
             p_smem_ping,
             p_smem_pong);
+    }
+
+    template <typename ADramBlockWindowTmp,
+              typename BFlatBlockWindowTmp,
+              typename BQDramBlockWindowTmp>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                   const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
+                                   index_t num_loop,
+                                   TailNumber tail_number,
+                                   void* p_smem_ping,
+                                   void* p_smem_pong) const
+    {
+        const auto RunPipeline = [&](auto bool_val, auto tail_num_) {
+            (void)bool_val; // Suppress unused parameter warning
+            constexpr auto tail_num = tail_num_.value;
+            return operator()<tail_num>(
+                a_dram_block_window_tmp,
+                [](const ADataType& a) { return a; },
+                b_flat_dram_block_window_tmp,
+                bq_dram_block_window_tmp,
+                num_loop,
+                p_smem_ping,
+                p_smem_pong);
+        };
+        return Base::TailHandler(RunPipeline, true, tail_number);
     }
 };
 } // namespace ck_tile
