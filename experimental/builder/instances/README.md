@@ -4,7 +4,7 @@ This directory contains the experimental ConvBuilder system for generating convo
 
 ## Overview
 
-The ConvBuilder provides a declarative way to instantiate all 753 forward convolution kernels from the legacy device operation templates by:
+The ConvBuilder provides a declarative way to instantiate forward convolution kernels from the legacy device operation templates by:
 1. Reading structured JSON descriptions of device op instantiations
 2. Generating compile-time C++ ConvBuilder instantiations
 3. Building kernels through the ConvBuilder factory system
@@ -20,13 +20,14 @@ experimental/builder/
 │   └── conv_algorithm_concepts.hpp         # Algorithm concepts and types
 ├── test/impl/                              # Concrete types implementing concepts
 │   ├── conv_signature_types.hpp            # ConvSignature struct
-│   └── conv_algorithm_types.hpp            # Algorithm structs (V3, Standard XDL, WMMA)
+│   └── conv_algorithm_types.hpp            # Algorithm structs
 ├── instances/                              # JSON instantiation database
 │   └── forward_conv_structured_instantiations.json                           
 │   └── generate_conv_builder_instances.py  # Code generation scripts
-└── codegen/                                # Generated C++ files (created by script)
-    ├── CMakeLists.txt
-    └── conv_instances_batch_*.cpp
+└── codegen/                                
+    ├── CMakeLists.txt                      # Shared lib definition
+    └── instance_registry.hpp               # Singleton registry for the generated instances.
+    └── conv_instances_batch_*.cpp          # Generated C++ files (created by script)
 ```
 
 ## Strategy
@@ -87,22 +88,6 @@ python3 experimental/builder/scripts/generate_conv_builder_instances.py --help
 make ckb_instances
 ```
 
-### Use in Your Code
-
-```cpp
-#include "experimental/builder/codegen/conv_instances_batch_00.cpp"
-
-using namespace ck_tile::builder::generated::batch_0;
-
-// Access a specific kernel instance
-using MyKernel = Instance_0;
-
-// The Instance type provides:
-// - RunKernel() method
-// - MakeArgument() method  
-// - GetDeviceKernelInfo() method
-```
-
 ## Architecture Details
 
 ### C++20 Concepts
@@ -122,15 +107,6 @@ The system uses C++20 concepts for compile-time validation:
 - `DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<T>`: V3 algorithm concept
 - `DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<T>`: Standard XDL concept
 - `DeviceGroupedConvFwdMultipleD_Wmma_CShuffle<T>`: WMMA concept
-
-
-## Future Enhancements
-
-- Generate backward data/weight convolution instances
-- Add filtering/selection mechanisms to build only needed kernels
-- Runtime kernel selection based on signature matching
-- Integration with profiler for automatic tuning
-- Support for dynamic instantiation patterns
 
 ## Development
 
