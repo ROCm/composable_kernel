@@ -78,3 +78,6 @@ __pycache__/
 # The experimental/builder directory should be tracked despite matching build*
 !experimental/builder
 !experimental/builder/**
+
+# Ignore the generated .cpp files for the CK Builder
+experimental/builder/generated/*.cpp
