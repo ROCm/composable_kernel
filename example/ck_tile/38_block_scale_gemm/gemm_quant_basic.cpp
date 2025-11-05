@@ -36,19 +36,20 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
 
     using TilePartitioner = ck_tile::GemmTile1DPartitioner<GemmShape>;
 
-    using GemmTraits = ck_tile::TileGemmQuantTraits<GemmConfig::kPadM,
-                                                    GemmConfig::kPadN,
-                                                    GemmConfig::kPadK,
-                                                    GemmConfig::PreshuffleQuant,
-                                                    GemmConfig::PreshuffleB,
-                                                    ALayout,
-                                                    BLayout,
-                                                    CLayout,
-                                                    QuantMode,
-                                                    ALayout, // for AQLayout
-                                                    BLayout, // for BQLayout
-                                                    false,
-                                                    GemmConfig::DoubleSmemBuffer>;
+    using GemmTraits =
+        ck_tile::TileGemmQuantTraits<GemmConfig::kPadM,
+                                     GemmConfig::kPadN,
+                                     GemmConfig::kPadK,
+                                     GemmConfig::PreshuffleQuant,
+                                     GemmConfig::PreshuffleB,
+                                     ALayout,
+                                     BLayout,
+                                     CLayout,
+                                     QuantMode,
+                                     ck_tile::tensor_layout::gemm::RowMajor,    // for AQLayout
+                                     ck_tile::tensor_layout::gemm::ColumnMajor, // for BQLayout
+                                     false,
+                                     GemmConfig::DoubleSmemBuffer>;
 
     using GemmPipelineProblem = ck_tile::GemmPipelineProblemBase<typename TypeConfig::ADataType,
                                                                  typename TypeConfig::BDataType,
@@ -243,8 +244,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
             "Preshuffling weight matrix is not supported for AQuant or RowColQuant");
     }
 
-    if constexpr(std::is_same_v<typename TypeConfig::ADataType, ck_tile::pk_int4_t> ||
-                 std::is_same_v<typename TypeConfig::ADataType, ck_tile::fp8_t> ||
+    if constexpr(std::is_same_v<typename TypeConfig::ADataType, ck_tile::fp8_t> ||
                  std::is_same_v<typename TypeConfig::ADataType, ck_tile::bf8_t>)
     {
         if(a_layout == "R" && b_layout == "C")
@@ -261,6 +261,22 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
                                                      QuantGroupSize,
                                                      QuantMode>(
                     argc, argv, Row{}, Row{}, Row{}, Row{}, Row{});
+            }
+            // else if(a_layout == "C" && b_layout == "C")
+            // {
+            //     return run_gemm_example_with_layouts<GemmConfig,
+            //                                          TypeConfig,
+            //                                          QuantGroupSize,
+            //                                          QuantMode>(
+            //         argc, argv, Col{}, Col{}, Col{}, Col{}, Col{});
+            // }
+            else if(a_layout == "C" && b_layout == "R")
+            {
+                return run_gemm_example_with_layouts<GemmConfig,
+                                                     TypeConfig,
+                                                     QuantGroupSize,
+                                                     QuantMode>(
+                    argc, argv, Col{}, Row{}, Row{}, Col{}, Row{});
             }
             else
             {
