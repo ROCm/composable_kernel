@@ -21,13 +21,13 @@
 #include "fmha_fwd_v3.hpp"
 #include "mask.hpp"
 
-#define INST_FMHA_FWD_V3_DISPATCH(kernel_traits)                                              \
-    template <>                                                                               \
-    float fmha_fwd_v3_kernel_dispatch<kernel_traits, ck_tile::gfx950_t>(                      \
-        const ck_tile::stream_config& config, fmha_fwd_args args)                             \
-    {                                                                                         \
-        return fmha_fwd_v3_kernel_launch<get_fmha_fwd_v3_kernel<kernel_traits>::type>(config, \
-                                                                                      args);  \
+#define INST_FMHA_FWD_V3_DISPATCH(kernel_traits)                                                \
+    template <>                                                                                 \
+    float fmha_fwd_<kernel_traits, ck_tile::gfx950_t>(const ck_tile::stream_config& config,     \
+                                                      fmha_fwd_args args)                       \
+    {                                                                                           \
+        return fmha_fwd_v3_kernel_launch<ck_tile::get_fmha_fwd_v3_kernel<kernel_traits>::type>( \
+            config, args);                                                                      \
     }
 
 namespace ck_tile {
@@ -198,8 +198,5 @@ float fmha_fwd_v3_kernel_launch(const ck_tile::stream_config& config, fmha_fwd_a
 
     return launch_kernel(config, make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
 }
-
-template <typename KernelTraits, typename Arch = void>
-float fmha_fwd_v3_kernel_dispatch(const ck_tile::stream_config&, fmha_fwd_args);
 
 } // namespace ck_tile

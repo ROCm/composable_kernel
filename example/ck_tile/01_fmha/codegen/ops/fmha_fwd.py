@@ -977,14 +977,13 @@ class KernelComponentFactoryGfx950(
                 ):
                     pipelines.append(FmhaFwdPipeline("qr_async_trload", "row", "f", "f", "f", "f", logits, bias, lse, dropout, squant, mask, skip, "t"))  # fmt: skip
                     pipelines.append(FmhaFwdPipeline("qr_async_trload", "row", "f", "f", "t", "t", logits, bias, lse, dropout, squant, mask, skip, "t"))  # fmt: skip
-            """
+
             # qr_async_trload_v3 only supports hdim=hdim_v=128 for now
             if (hdim, hdim_v) == (128, 128):
                 # qr_async_trload_v3 only supports (generic) causal mask
                 for mask in ["no", "causal"]:
-                    pipelines.append(FmhaFwdPipeline("qr_async_trload_v3", "row", "t", "t", "t", "t",
+                    pipelines.append(FmhaFwdPipeline("qr_async_trload_v3", "row", "t", "t", "f", "f",
                         F_logits="f", F_bias="no", F_lse="f", F_dropout="f", F_squant=squant, F_mask=mask, F_skip="f", F_trload="t"))  # fmt: skip
-            """
         return pipelines
 
 

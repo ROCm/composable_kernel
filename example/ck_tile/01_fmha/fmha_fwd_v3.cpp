@@ -15,13 +15,13 @@ float fmha_fwd_v3(fmha_fwd_traits traits, fmha_fwd_args args, const ck_tile::str
         {
             using kernel_traits = fmha_fwd_v3_kernel_traits<FmhaFwdFp16, false, false>;
 
-            return fmha_fwd_v3_kernel_dispatch<kernel_traits, ck_tile::gfx950_t>(config, args);
+            return fmha_fwd_<kernel_traits, ck_tile::gfx950_t>(config, args);
         }
         else
         {
             using kernel_traits = fmha_fwd_v3_kernel_traits<FmhaFwdFp16, false, true>;
 
-            return fmha_fwd_v3_kernel_dispatch<kernel_traits, ck_tile::gfx950_t>(config, args);
+            return fmha_fwd_<kernel_traits, ck_tile::gfx950_t>(config, args);
         }
     }
     else if(traits.data_type.compare("bf16") == 0)
@@ -30,13 +30,13 @@ float fmha_fwd_v3(fmha_fwd_traits traits, fmha_fwd_args args, const ck_tile::str
         {
             using kernel_traits = fmha_fwd_v3_kernel_traits<FmhaFwdBf16, false, false>;
 
-            return fmha_fwd_v3_kernel_dispatch<kernel_traits, ck_tile::gfx950_t>(config, args);
+            return fmha_fwd_<kernel_traits, ck_tile::gfx950_t>(config, args);
         }
         else
         {
             using kernel_traits = fmha_fwd_v3_kernel_traits<FmhaFwdBf16, false, true>;
 
-            return fmha_fwd_v3_kernel_dispatch<kernel_traits, ck_tile::gfx950_t>(config, args);
+            return fmha_fwd_<kernel_traits, ck_tile::gfx950_t>(config, args);
         }
     }
 

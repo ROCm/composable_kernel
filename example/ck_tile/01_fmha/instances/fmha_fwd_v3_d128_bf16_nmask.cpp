@@ -4,10 +4,6 @@
 #include "fmha_fwd_v3.hpp"
 #include "fmha_fwd_v3_impl.hpp"
 
-namespace ck_tile {
-
-using kernel_traits = fmha_fwd_v3_kernel_traits<FmhaFwdBf16, false, false>;
+using kernel_traits = ck_tile::fmha_fwd_v3_kernel_traits<FmhaFwdBf16, false, false>;
 
 INST_FMHA_FWD_V3_DISPATCH(kernel_traits)
-
-} // namespace ck_tile

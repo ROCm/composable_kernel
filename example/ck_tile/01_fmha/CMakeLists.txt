@@ -7,7 +7,7 @@ if(NOT INST_TARGETS)
 endif()
 
 # validate user-specified fmha_fwd API list
-set(FMHA_FWD_KNOWN_APIS "fwd;fwd_splitkv;fwd_appendkv;pagedkv_prefill")
+set(FMHA_FWD_KNOWN_APIS "fwd")
 set(FMHA_FWD_ENABLE_APIS "fwd" CACHE STRING
   "semicolon-separated list of APIs to generate (${FMHA_FWD_KNOWN_APIS}) & link, or \"all\".")
 if(BUILD_TESTING)
@@ -44,7 +44,7 @@ set(FMHA_FWD_CODE_GEN_COMMON_ARGS
   ${CMAKE_CURRENT_LIST_DIR}/generate.py
   --targets ${FMHA_TARGETS_ARG}
   --api ${FMHA_FWD_APIS}
-  --optdim 32,64,128,256
+  --optdim 128
   # --filter fmha_fwd...
 )
 set(FMHA_BWD_CODE_GEN_COMMON_ARGS
@@ -108,11 +108,16 @@ add_custom_command(
 set(FMHA_FWD_INSTANCES "tile_fmha_fwd_instances")
 set(FMHA_BWD_INSTANCES "tile_fmha_bwd_instances")
 
+file(GLOB FMHA_FWD_V3_INSTANCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_LIST_DIR}/instances/*.cpp"
+)
+
 message(DEBUG "adding instances ${FMHA_FWD_INSTANCES}")
 add_library(${FMHA_FWD_INSTANCES} OBJECT EXCLUDE_FROM_ALL)
 target_include_directories(${FMHA_FWD_INSTANCES} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-target_sources(${FMHA_FWD_INSTANCES} PRIVATE ${FMHA_FWD_GEN_BLOBS})
+target_sources(${FMHA_FWD_INSTANCES} PRIVATE ${FMHA_FWD_GEN_BLOBS} ${FMHA_FWD_V3_INSTANCES})
 set_source_files_properties(${FMHA_FWD_GEN_BLOBS} PROPERTIES LANGUAGE HIP)
+set_source_files_properties(${FMHA_FWD_V3_INSTANCES} PROPERTIES LANGUAGE HIP)
 set_property(TARGET ${FMHA_FWD_INSTANCES} PROPERTY HIP_ARCHITECTURES ${INST_TARGETS})
 
 message(DEBUG "adding instances ${FMHA_BWD_INSTANCES}")
@@ -129,7 +134,7 @@ set(FMHA_BWD_INTERFACE_COMPILE_OPTIONS)
 
 # NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
 #       ... because they are auto-generated
-list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -Wno-undefined-func-template)
+list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -Wno-undefined-func-template --save-temps -Wno-gnu-line-marker)
 list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -Wno-undefined-func-template)
 
 # Allow comparing floating points directly in order to check sentinel values
@@ -210,9 +215,6 @@ message(DEBUG "adding example ${EXAMPLE_FMHA_FWD_V3}")
 
 add_executable(${EXAMPLE_FMHA_FWD_V3} EXCLUDE_FROM_ALL example_fmha_fwd_v3.cpp)
 target_include_directories(${EXAMPLE_FMHA_FWD_V3} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-file(GLOB FMHA_FWD_V3_INSTANCES CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_LIST_DIR}/instances/*.cpp"
-)
 target_sources(${EXAMPLE_FMHA_FWD_V3} PRIVATE
   fmha_fwd_v3.cpp
   ${FMHA_FWD_V3_INSTANCES}
@@ -223,6 +225,7 @@ list(APPEND EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS
   -fgpu-flush-denormals-to-zero
   -Wno-undefined-func-template
   --save-temps
+  -Wno-gnu-line-marker
 )
 set(EXAMPLE_FMHA_FWD_V3_COMPILE_DEFINITIONS)
 
