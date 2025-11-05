@@ -45,6 +45,7 @@ struct UnifiedAttentionKernel
     // BLOCK_Q is the block size for q seqlen
     /// static constexpr index_t BLOCK_Q = UnifiedAttentionPipeline::BLOCK_Q;
     static constexpr index_t BLOCK_M = UnifiedAttentionPipeline::BLOCK_M;
+    static constexpr index_t BLOCK_Q = UnifiedAttentionPipeline::BLOCK_Q;
     // BLOCK size for K seqlen
     static constexpr index_t BLOCK_SIZE = UnifiedAttentionPipeline::BLOCK_SIZE;
 
@@ -281,7 +282,7 @@ struct UnifiedAttentionKernel
 
         const index_t num_queries_per_kv = kargs.num_queries_per_kv;
 
-        const index_t BLOCK_Q = BLOCK_M / num_queries_per_kv;
+        // const index_t BLOCK_Q = BLOCK_M / num_queries_per_kv;
         // for simplicity, batch stride we just modify the pointer
         // const index_t num_head_q = kargs.num_head_q;
         
@@ -357,12 +358,12 @@ struct UnifiedAttentionKernel
                 make_tuple(cur_batch_query_len, num_queries_per_kv, HEAD_SIZE),
                 make_tuple(kargs.query_stride_0, kargs.query_stride_1, 1),
                 number<UnifiedAttentionPipeline::kAlignmentQ>{},
-                number<1>{});
+                number<2>{});
 
             const auto q_dram_pad = pad_tensor_view( // aling seqlen with BLOCK_Q and head dim with HEAD_SIZE_PADDED
                 q_dram_base,
                 // block sizes
-                make_tuple(BLOCK_Q, 1, HEAD_SIZE_PADDED),
+                make_tuple(number<BLOCK_Q>{}, number<1>{}, number<HEAD_SIZE_PADDED>{}),
                 sequence<true, false, kPadHeadDimQ>{}
             ); // pads to (seq_len_padded, num_head_q, HEAD_SIZE_PADDED)
 
@@ -372,13 +373,15 @@ struct UnifiedAttentionKernel
                             make_merge_transform(
                                 make_tuple(query_len_padded, num_queries_per_kv)
                             ),
-                            make_pass_through_transform(HEAD_SIZE_PADDED)
+                            make_pass_through_transform(number<HEAD_SIZE_PADDED>{})
                         ),
                         make_tuple(sequence<0, 1>{}, sequence<2>{}),
                         make_tuple(sequence<0>{}, sequence<1>{})
             ); // flattens the first two dims, head idx is the fastest changing dim in the merged dim
+            
             return q_dram_merged;
         }();
+        // static_assert(q_dram.desc_[number<0>{}] == 0, "q_dram.get_bottom_tensor_view()[number<0>{}] == 0");
 
         // Q has the shape (k_head, seq_len, num_queries_per_kv, head_dim)
         // stride for dim 0 (num_queries_per_kv * head_dim, head_dim, 1)

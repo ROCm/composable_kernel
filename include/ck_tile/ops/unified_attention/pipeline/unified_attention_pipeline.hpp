@@ -269,6 +269,7 @@ struct UnifiedAttentionPipeline
     static constexpr ck_tile::index_t kBlockSize = Problem::kBlockSize;
 
     static constexpr ck_tile::index_t BLOCK_M           = UnifiedAttentionShape::BLOCK_M;
+    static constexpr ck_tile::index_t BLOCK_Q           = UnifiedAttentionShape::BLOCK_Q;
     
     static constexpr ck_tile::index_t BLOCK_SIZE           = UnifiedAttentionShape::BLOCK_SIZE;
     static constexpr ck_tile::index_t HEAD_SIZE           = UnifiedAttentionShape::HEAD_SIZE;
@@ -443,6 +444,7 @@ struct UnifiedAttentionPipeline
         auto q_dram_window = make_tile_window_linear(
             q_dram_block_window_tmp, Policy::template MakeQRegTileDistribution<Problem>());
 
+        // auto q_dram_window = q_dram_block_window_tmp;
         // reduction function for softmax
         const auto f_max = [](auto e0, auto e1) { return max(e0, e1); };
         const auto f_sum = [](auto e0, auto e1) { return e0 + e1; };
