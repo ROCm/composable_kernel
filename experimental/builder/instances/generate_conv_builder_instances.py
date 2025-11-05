@@ -4,7 +4,7 @@ Generate C++ source files with ConvBuilder instantiations from JSON.
 
 This script reads forward_conv_structured_instantiations.json and generates
 batched C++ files containing compile-time ConvBuilder instantiations for all
-753 device operation entries.
+device operation entries.
 """
 
 import json
@@ -353,8 +353,8 @@ def generate_cpp_file(batch_idx: int, instantiations: List[Dict], output_dir: Pa
 // Batch {batch_idx} of convolution builder instantiations
 
 #include "ck_tile/builder/conv_builder.hpp"
-#include "ck_tile/builder/test/impl/conv_signature_types.hpp"
-#include "ck_tile/builder/test/impl/conv_algorithm_types.hpp"
+#include "conv_signature_types.hpp"
+#include "conv_algorithm_types.hpp"
 
 namespace ck_tile::builder::generated::batch_{batch_idx} {{
 
@@ -476,10 +476,10 @@ def main():
     
     parser = argparse.ArgumentParser(description='Generate ConvBuilder instantiations from JSON')
     parser.add_argument('--json', type=str,
-                       default='experimental/builder/instances/forward_conv_structured_instantiations.json',
+                       default='./forward_conv_structured_instantiations.json',
                        help='Path to JSON file')
     parser.add_argument('--output', type=str,
-                       default='experimental/builder/generated',
+                       default='../codegen',
                        help='Output directory for generated files')
     parser.add_argument('--batch-size', type=int, default=50,
                        help='Number of instantiations per C++ file')
@@ -503,10 +503,6 @@ def main():
         generate_cmake_file(output_dir, cpp_files)
     
     print("\n✓ Code generation complete!")
-    print(f"\nTo build:")
-    print(f"  cd build")
-    print(f"  cmake .. -DBUILD_TESTING=ON")
-    print(f"  make ck_builder_generated_instances")
     
     return 0
 

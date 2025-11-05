@@ -24,7 +24,7 @@ experimental/builder/
 ├── instances/                              # JSON instantiation database
 │   └── forward_conv_structured_instantiations.json                           
 │   └── generate_conv_builder_instances.py  # Code generation scripts
-└── generated/                              # Generated C++ files (created by script)
+└── codegen/                                # Generated C++ files (created by script)
     ├── CMakeLists.txt
     └── conv_instances_batch_*.cpp
 ```
@@ -33,7 +33,7 @@ experimental/builder/
 
 ### JSON-to-C++ Mapping
 
-The JSON file contains 753 convolution instantiations, each with:
+The JSON file contains convolution instantiations, each with:
 - **Signature**: Mathematical interface (spatial dim, direction, layouts, data types, elementwise op)
 - **Algorithm**: Implementation parameters (block sizes, tiling, pipeline configuration)
 
@@ -83,20 +83,14 @@ python3 experimental/builder/scripts/generate_conv_builder_instances.py --help
 ### Build Generated Instances
 
 ```bash
-# Create build directory
-mkdir -p build && cd build
-
-# Configure CMake
-cmake .. -DBUILD_TESTING=ON
-
 # Build the generated instances library
-make ck_builder_generated_instances
+make ckb_instances
 ```
 
 ### Use in Your Code
 
 ```cpp
-#include "experimental/builder/generated/conv_instances_batch_00.cpp"
+#include "experimental/builder/codegen/conv_instances_batch_00.cpp"
 
 using namespace ck_tile::builder::generated::batch_0;
 
@@ -146,7 +140,7 @@ To add a new instantiation:
 3. Rebuild
 
 To modify the generator:
-1. Edit `scripts/generate_conv_builder_instances.py`
+1. Edit `instances/generate_conv_builder_instances.py`
 2. Test with `--batch-size 5` for quick iteration
 3. Regenerate and verify build
 
