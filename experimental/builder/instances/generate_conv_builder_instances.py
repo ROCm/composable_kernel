@@ -355,11 +355,13 @@ def generate_cpp_file(batch_idx: int, instantiations: List[Dict], output_dir: Pa
 #include "ck_tile/builder/conv_builder.hpp"
 #include "conv_signature_types.hpp"
 #include "conv_algorithm_types.hpp"
+#include "instance_registry.hpp"
 
 namespace ck_tile::builder::generated::batch_{batch_idx} {{
 
 using namespace ck_tile::builder;
 using namespace ck_tile::builder::test;
+using namespace ck_tile::builder::registry;
 
 """
     
@@ -398,7 +400,7 @@ using namespace ck_tile::builder::test;
         structs_code.append("")
         
         builder_typedefs.append(f"using Builder_{idx} = ConvBuilder<sig_{idx}, algo_{idx}>;")
-        builder_typedefs.append(f"using Instance_{idx} = Builder_{idx}::Instance;")
+        builder_typedefs.append(f"static AutoRegister<Builder_{idx}> reg_{idx}(\"batch_{batch_idx}_instance_{idx}\");")
         builder_typedefs.append("")
     
     footer = f"""}} // namespace ck_tile::builder::generated::batch_{batch_idx}
