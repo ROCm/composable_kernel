@@ -1096,7 +1096,7 @@ struct QuantGemmKernel
                     return make_tile_window(bq_pad_view,
                                             make_tuple(number<tile_window_height>{},
                                                        number<tile_window_width>{}), // 4, 64
-                                            {0, block_n_idx * tile_window_width});
+                                            {block_n_idx * tile_window_height, 0});
                 }
                 else
                 {
@@ -1284,11 +1284,12 @@ struct QuantGemmKernel
                 {
                     printf("In RunGemm2LDS, before GemmPipeline call for BQuantGrouped\n");
                     bq_block_window.template print_tile_window_range<BQDataType>(
-                        0, 8, 0, 64, /*0, 2, 0, 128,*/ "bq block window");
+                        0, 16, 0, 64, /*0, 2, 0, 128,*/ "bq block window");
                 }
                 return GemmPipeline{}.template operator()(a_block_window,
                                                           b_block_window,
                                                           bq_block_window,
+                                                          kargs.N,
                                                           num_loop,
                                                           smem_ptr_0,
                                                           smem_ptr_1);

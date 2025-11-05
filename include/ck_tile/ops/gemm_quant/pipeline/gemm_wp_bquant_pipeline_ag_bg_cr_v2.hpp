@@ -107,6 +107,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                                    const AElementFunction& a_element_func,
                                    const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                    const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
+                                   index_t n,
                                    index_t num_loop,
                                    void* p_smem_ping,
                                    void* p_smem_pong) const
@@ -273,7 +274,9 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
         if constexpr(PreshuffleQuant)
         {
             move_tile_window(bq_copy_dram_window,
-                             {kNPerBlock / BlockGemmShape::WarpTile::at(number<1>{}), 0});
+                             {ck_tile::integer_least_multiple(n, kNPerBlock) /
+                                  BlockGemmShape::WarpTile::at(number<1>{}),
+                              0});
         }
         else
         {
@@ -329,7 +332,9 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
             if constexpr(PreshuffleQuant)
             {
                 move_tile_window(bq_copy_dram_window,
-                                 {kNPerBlock / BlockGemmShape::WarpTile::at(number<1>{}), 0});
+                                 {ck_tile::integer_least_multiple(n, kNPerBlock) /
+                                      BlockGemmShape::WarpTile::at(number<1>{}),
+                                  0});
             }
             else
             {
@@ -379,7 +384,9 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
             if constexpr(PreshuffleQuant)
             {
                 move_tile_window(bq_copy_dram_window,
-                                 {kNPerBlock / BlockGemmShape::WarpTile::at(number<1>{}), 0});
+                                 {ck_tile::integer_least_multiple(n, kNPerBlock) /
+                                      BlockGemmShape::WarpTile::at(number<1>{}),
+                                  0});
             }
             else
             {
@@ -478,6 +485,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                    const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
+                                   index_t n,
                                    index_t num_loop,
                                    void* p_smem_ping,
                                    void* p_smem_pong) const
@@ -487,6 +495,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
             [](const ADataType& a) { return a; },
             b_flat_dram_block_window_tmp,
             bq_dram_block_window_tmp,
+            n,
             num_loop,
             p_smem_ping,
             p_smem_pong);

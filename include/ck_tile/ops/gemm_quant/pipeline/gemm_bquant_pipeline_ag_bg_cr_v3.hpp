@@ -235,9 +235,11 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                                        const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                        const BElementFunction& b_element_func,
                                        const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
+                                       index_t n,
                                        index_t num_loop,
                                        void* p_smem) const
         {
+            (void)n; // unused variable
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
                     std::is_same_v<BDataType,
@@ -460,6 +462,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                    const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
+                                   index_t n,
                                    index_t num_loop,
                                    void* p_smem) const
     {
@@ -469,6 +472,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
             b_dram_block_window_tmp,
             [](const BDataType& b) { return b; },
             bq_dram_block_window_tmp,
+            n,
             num_loop,
             p_smem);
     }
@@ -496,6 +500,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                    const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
+                                   index_t n,
                                    index_t num_loop,
                                    bool has_hot_loop,
                                    TailNumber tail_number,
@@ -510,6 +515,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                 b_dram_block_window_tmp,
                 [](const BDataType& b) { return b; },
                 bq_dram_block_window_tmp,
+                n,
                 num_loop,
                 p_smem);
         };
