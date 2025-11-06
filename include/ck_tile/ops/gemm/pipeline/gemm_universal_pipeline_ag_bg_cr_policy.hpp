@@ -394,13 +394,10 @@ struct UniversalGemmBasePolicy
     template <typename Problem, bool IsWave32Host = false>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeA()
     {
-        using AsLayout              = remove_cvref_t<typename Problem::AsLayoutTuple>;
-        using AsDataType            = remove_cvref_t<typename Problem::AsDataTypeTuple>;
+        using ALayout               = remove_cvref_t<typename Problem::ALayout>;
+        using ADataType             = remove_cvref_t<typename Problem::ADataType>;
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
-
-        using ALayout   = remove_cvref_t<std::tuple_element_t<number<0>{}, AsLayout>>;
-        using ADataType = remove_cvref_t<std::tuple_element_t<number<0>{}, AsDataType>>;
 
         if constexpr(std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor>)
         {

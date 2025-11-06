@@ -34,19 +34,20 @@ CK_TILE_DEVICE auto load_tile(const TileWindow_& tile_window,
  *       and an elementwise function. For each A = A0, A1… AN, the elementwise function
  *       is additionally applied during a single read.
  */
-template <typename TileWindow_,
+template <typename TileWindows_,
           typename ElementWise_,
-          index_t i_access           = -1,
-          bool oob_conditional_check = true>
-CK_TILE_DEVICE auto load_tile_with_elementwise(const TileWindow_& tile_window,
+          index_t i_access                                                       = -1,
+          bool oob_conditional_check                                             = true,
+          typename std::enable_if_t<is_detected<is_tuple, TileWindows_>::value>* = nullptr>
+CK_TILE_DEVICE auto load_tile_with_elementwise(const TileWindows_& tile_windows,
                                                ElementWise_ elementwise,
                                                number<i_access>                     = {},
                                                bool_constant<oob_conditional_check> = {})
 {
     // TODO: Tile windows should works with unknow number of params
     // Load element_wise API works only when the input typle is a tuple-tyupe
-    return tile_window[number<0>{}].load(
-        tile_window, elementwise, number<i_access>{}, bool_constant<oob_conditional_check>{});
+    return tile_windows[number<0>{}].load(
+        tile_windows, elementwise, number<i_access>{}, bool_constant<oob_conditional_check>{});
 }
 
 template <typename DistributedTensor_,

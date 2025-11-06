@@ -150,12 +150,13 @@ struct tile_window_with_static_distribution
     }
 
     template <typename DistributedTensor,
-              typename TileWindow_,
+              typename TileWindows_,
               typename ElementWise_,
-              index_t i_access_unsupport_ = -1,
-              bool oob_conditional_check  = true>
+              index_t i_access_unsupport_                                            = -1,
+              bool oob_conditional_check                                             = true,
+              typename std::enable_if_t<is_detected<is_tuple, TileWindows_>::value>* = nullptr>
     CK_TILE_DEVICE auto load(DistributedTensor& dst_tensor,
-                             const TileWindow_& tile_window,
+                             const TileWindows_& tile_windows,
                              ElementWise_ elementwise,
                              number<i_access_unsupport_>          = {},
                              bool_constant<oob_conditional_check> = {}) const
@@ -166,14 +167,14 @@ struct tile_window_with_static_distribution
         using SFC_Ys   = typename Traits::SFC_Ys;
 
         constexpr auto tile_dstr   = typename Base::TileDstr{};
-        constexpr auto sizeOfTuple = TileWindow_::size();
+        constexpr auto sizeOfTuple = TileWindows_::size();
         //  loop over thread tensor space [y0, y1, ...]
         static_for<0, NumCoord, 1>{}([&](auto iCoord) {
             /// TODO: use structure binding (to be captured later) if compiled in C++20
             auto window_adaptor_thread_coord =
-                tile_window[number<0>{}].pre_computed_coords_[iCoord][I0];
+                tile_windows[number<0>{}].pre_computed_coords_[iCoord][I0];
             auto bottom_tensor_thread_coord =
-                tile_window[number<0>{}].pre_computed_coords_[iCoord][I1];
+                tile_windows[number<0>{}].pre_computed_coords_[iCoord][I1];
 
             static_for<0, NumAccessPerCoord, 1>{}([&](auto iCoordAccess) {
                 constexpr auto iAccess = number<iCoord * NumAccessPerCoord + iCoordAccess>{};
@@ -184,7 +185,7 @@ struct tile_window_with_static_distribution
                 // read from bottom tensor
                 const auto idx_vec_value = generate_tuple(
                     [&](auto jj) {
-                        return tile_window[number<jj>{}]
+                        return tile_windows[number<jj>{}]
                             .get_bottom_tensor_view()
                             .template get_vectorized_elements<vector_t>(
                                 bottom_tensor_thread_coord,

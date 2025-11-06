@@ -100,11 +100,12 @@ struct GemmPipelineAgBgCrImplBase
         return make_tuple(std::move(a_lds_block), std::move(b_lds_block));
     }
 
-    template <typename DramBlockWindowTmp,
-              typename std::enable_if_t<is_detected<is_tuple, DramBlockWindowTmp>::value, bool>* =
+    template <typename DramBlockWindowTmps,
+              typename std::enable_if_t<is_detected<is_tuple, DramBlockWindowTmps>::value, bool>* =
                   nullptr>
-    CK_TILE_DEVICE constexpr auto CopyADramWindow(const DramBlockWindowTmp& dram_block_window_tmp,
-                                                  const array<index_t, 2>& offset = {0, 0}) const
+    CK_TILE_DEVICE constexpr auto
+    MakeCopyADramWindow(const DramBlockWindowTmps& dram_block_window_tmps,
+                        const array<index_t, 2>& offset = {0, 0}) const
     {
         constexpr bool is_col_major = std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
 
@@ -114,20 +115,21 @@ struct GemmPipelineAgBgCrImplBase
         auto a_copy_dram_window = generate_tuple(
             [&](auto idx) {
                 return make_tile_window(
-                    dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view(),
+                    dram_block_window_tmps[number<idx>{}].get_bottom_tensor_view(),
                     make_tuple(YPerTile{}, XPerTile{}),
-                    dram_block_window_tmp[number<idx>{}].get_window_origin() + offset,
+                    dram_block_window_tmps[number<idx>{}].get_window_origin() + offset,
                     Policy::template MakeADramTileDistribution<Problem>());
             },
-            number<DramBlockWindowTmp::size()>{});
+            number<DramBlockWindowTmps::size()>{});
         return std::move(a_copy_dram_window);
     }
 
     template <typename DramBlockWindowTmp,
               typename std::enable_if_t<!is_detected<is_tuple, DramBlockWindowTmp>::value, bool>* =
                   nullptr>
-    CK_TILE_DEVICE constexpr auto CopyADramWindow(const DramBlockWindowTmp& dram_block_window_tmp,
-                                                  const array<index_t, 2>& offset = {0, 0}) const
+    CK_TILE_DEVICE constexpr auto
+    MakeCopyADramWindow(const DramBlockWindowTmp& dram_block_window_tmp,
+                        const array<index_t, 2>& offset = {0, 0}) const
     {
         constexpr bool is_col_major = std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
 
@@ -143,11 +145,12 @@ struct GemmPipelineAgBgCrImplBase
         return std::move(a_copy_dram_window);
     }
 
-    template <typename DramBlockWindowTmp,
-              typename std::enable_if_t<is_detected<is_tuple, DramBlockWindowTmp>::value, bool>* =
+    template <typename DramBlockWindowTmps,
+              typename std::enable_if_t<is_detected<is_tuple, DramBlockWindowTmps>::value, bool>* =
                   nullptr>
-    CK_TILE_DEVICE constexpr auto CopyBDramWindow(const DramBlockWindowTmp& dram_block_window_tmp,
-                                                  const array<index_t, 2>& offset = {0, 0}) const
+    CK_TILE_DEVICE constexpr auto
+    MakeCopyBDramWindow(const DramBlockWindowTmps& dram_block_window_tmps,
+                        const array<index_t, 2>& offset = {0, 0}) const
     {
         constexpr bool is_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
 
@@ -157,20 +160,21 @@ struct GemmPipelineAgBgCrImplBase
         auto a_copy_dram_window = generate_tuple(
             [&](auto idx) {
                 return make_tile_window(
-                    dram_block_window_tmp[number<idx>{}].get_bottom_tensor_view(),
+                    dram_block_window_tmps[number<idx>{}].get_bottom_tensor_view(),
                     make_tuple(YPerTile{}, XPerTile{}),
-                    dram_block_window_tmp[number<idx>{}].get_window_origin() + offset,
+                    dram_block_window_tmps[number<idx>{}].get_window_origin() + offset,
                     Policy::template MakeBDramTileDistribution<Problem>());
             },
-            number<DramBlockWindowTmp::size()>{});
+            number<DramBlockWindowTmps::size()>{});
         return std::move(a_copy_dram_window);
     }
 
     template <typename DramBlockWindowTmp,
               typename std::enable_if_t<!is_detected<is_tuple, DramBlockWindowTmp>::value, bool>* =
                   nullptr>
-    CK_TILE_DEVICE constexpr auto CopyBDramWindow(const DramBlockWindowTmp& dram_block_window_tmp,
-                                                  const array<index_t, 2>& offset = {0, 0}) const
+    CK_TILE_DEVICE constexpr auto
+    MakeCopyBDramWindow(const DramBlockWindowTmp& dram_block_window_tmp,
+                        const array<index_t, 2>& offset = {0, 0}) const
     {
         constexpr bool is_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
 
@@ -193,7 +197,7 @@ struct GemmPipelineAgBgCrImplBase
                                               const array<index_t, 2>& offset = {0, 0}) const
     {
         // A DRAM tile window for load
-        auto a_copy_dram_window = CopyADramWindow(a_dram_block_window_tmp, offset);
+        auto a_copy_dram_window = MakeCopyADramWindow(a_dram_block_window_tmp, offset);
 
         // A LDS tile window for store
         auto a_lds_shape = []() {
@@ -228,7 +232,7 @@ struct GemmPipelineAgBgCrImplBase
                                               const array<index_t, 2>& offset = {0, 0}) const
     {
         // A DRAM tile window for load
-        auto b_copy_dram_window = CopyBDramWindow(b_dram_block_window_tmp, offset);
+        auto b_copy_dram_window = MakeCopyBDramWindow(b_dram_block_window_tmp, offset);
 
         // TODO: Do we really need those two tile windows???
         // They're exactly same...
