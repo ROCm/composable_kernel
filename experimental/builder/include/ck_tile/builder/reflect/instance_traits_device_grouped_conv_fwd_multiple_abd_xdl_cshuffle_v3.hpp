@@ -15,6 +15,7 @@
 #pragma once
 
 #include "instance_traits.hpp"
+#include "instance_traits_util.hpp"
 
 // Forward declaration to avoid circular dependency.
 // This file will be included by the device implementation header, so we cannot include
