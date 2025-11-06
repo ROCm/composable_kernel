@@ -299,23 +299,22 @@ consteval BlockGemmSpec SetBlockGemm()
 
     switch(BG.scheduler)
     {
-    case BlockGemmPipelineScheduler::INTRAWAVE:
-        scheduler = ck::BlockGemmPipelineScheduler::Intrawave;
-        break;
-    case BlockGemmPipelineScheduler::INTERWAVE:
-        scheduler = ck::BlockGemmPipelineScheduler::Interwave;
-        break;
-    default: throw "Unknown BlockGemmPipelineScheduler";
+    case PipelineScheduler::INTRAWAVE: scheduler = ck::BlockGemmPipelineScheduler::Intrawave; break;
+    case PipelineScheduler::INTERWAVE: scheduler = ck::BlockGemmPipelineScheduler::Interwave; break;
+    case PipelineScheduler::DEFAULT: throw "Block GEMM scheduler must be Intrawave or Interwave.";
+    default: throw "Unknown PipelineScheduler";
     }
 
     switch(BG.pipeline_version)
     {
-    case BlockGemmPipelineVersion::V1: version = ck::BlockGemmPipelineVersion::v1; break;
-    case BlockGemmPipelineVersion::V2: version = ck::BlockGemmPipelineVersion::v2; break;
-    case BlockGemmPipelineVersion::V3: version = ck::BlockGemmPipelineVersion::v3; break;
-    case BlockGemmPipelineVersion::V4: version = ck::BlockGemmPipelineVersion::v4; break;
-    case BlockGemmPipelineVersion::V5: version = ck::BlockGemmPipelineVersion::v5; break;
-    default: throw "Unknown BlockGemmPipelineVersion";
+    case PipelineVersion::V1: version = ck::BlockGemmPipelineVersion::v1; break;
+    case PipelineVersion::V2: version = ck::BlockGemmPipelineVersion::v2; break;
+    case PipelineVersion::V3: version = ck::BlockGemmPipelineVersion::v3; break;
+    case PipelineVersion::V4: version = ck::BlockGemmPipelineVersion::v4; break;
+    case PipelineVersion::V5: version = ck::BlockGemmPipelineVersion::v5; break;
+    case PipelineVersion::WEIGHT_ONLY:
+        throw "PipelineVersion::WEIGHT_ONLY is not supported for block GEMM.";
+    default: throw "Unknown PipelineVersion";
     }
 
     return BlockGemmSpec{.pipeline_version = version, .scheduler = scheduler};
@@ -427,9 +426,10 @@ consteval ck::LoopScheduler SetLoopScheduler()
     using ck_loop_sched           = ck::LoopScheduler;
     switch(loop_scheduler)
     {
-    case LoopScheduler::DEFAULT: return ck_loop_sched::Default;
-    case LoopScheduler::INTERWAVE: return ck_loop_sched::Interwave;
-    default: throw "Unknown LoopScheduler";
+    case PipelineScheduler::DEFAULT: return ck_loop_sched::Default;
+    case PipelineScheduler::INTERWAVE: return ck_loop_sched::Interwave;
+    case PipelineScheduler::INTRAWAVE: throw "LoopScheduler must be either DEFAULT or INTERWAVE.";
+    default: throw "Unknown PipelineScheduler";
     }
 }
 
@@ -440,12 +440,12 @@ consteval ck::PipelineVersion SetGridwiseGemmPipelineVersion()
     using ck_pipeline               = ck::PipelineVersion;
     switch(pipeline_version)
     {
-    case GridwiseGemmPipelineVersion::V1: return ck_pipeline::v1;
-    case GridwiseGemmPipelineVersion::V2: return ck_pipeline::v2;
-    case GridwiseGemmPipelineVersion::V4: return ck_pipeline::v4;
-    case GridwiseGemmPipelineVersion::WEIGHT_ONLY: return ck_pipeline::weight_only;
-    case GridwiseGemmPipelineVersion::V3:
-        throw "GridwiseGemmPipelineVersion::V3 is used only for stream-K.";
+    case PipelineVersion::V1: return ck_pipeline::v1;
+    case PipelineVersion::V2: return ck_pipeline::v2;
+    case PipelineVersion::V3: throw "PipelineVersion::V3 is used only for stream-K.";
+    case PipelineVersion::V4: return ck_pipeline::v4;
+    case PipelineVersion::V5: throw "PipelineVersion::V5 cannot be used for gridwise GEMM.";
+    case PipelineVersion::WEIGHT_ONLY: return ck_pipeline::weight_only;
     default: throw "Unknown GridwiseGemmPipelineVersion";
     }
 }
@@ -482,15 +482,15 @@ template <ConvAlgorithmDescriptor auto ALGORITHM>
 consteval ck::BlockGemmPipelineVersion SetBlockGemmPipelineVersion()
 {
     constexpr auto version = ALGORITHM.pipeline_version;
-    using ck_block_gemm    = ck::BlockGemmPipelineVersion;
+    using ck_pipeline      = ck::BlockGemmPipelineVersion;
     switch(version)
     {
-    case BlockGemmPipelineVersion::V1: return ck_block_gemm::v1;
-    case BlockGemmPipelineVersion::V2: return ck_block_gemm::v2;
-    case BlockGemmPipelineVersion::V3: return ck_block_gemm::v3;
-    case BlockGemmPipelineVersion::V4: return ck_block_gemm::v4;
-    case BlockGemmPipelineVersion::V5: return ck_block_gemm::v5;
-    default: throw "Unknown BlockGemmPipelineVersion";
+    case PipelineVersion::V1: return ck_pipeline::v1;
+    case PipelineVersion::V2: return ck_pipeline::v2;
+    case PipelineVersion::V3: return ck_pipeline::v3;
+    case PipelineVersion::V4: return ck_pipeline::v4;
+    case PipelineVersion::V5: return ck_pipeline::v5;
+    default: throw "Unknown block GEMM PipelineVersion";
     }
 }
 

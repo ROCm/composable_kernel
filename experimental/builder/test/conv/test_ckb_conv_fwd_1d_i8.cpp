@@ -26,7 +26,7 @@ TEST(FwdConvInstances,
         .fwd_specialization         = ConvFwdSpecialization::DEFAULT,
         .gemm_specialization        = GemmSpecialization::MNKPadding,
         .num_gemm_k_prefetch_stages = 1,
-        .loop_scheduler             = LoopScheduler::DEFAULT};
+        .loop_scheduler             = PipelineScheduler::DEFAULT};
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
     run_test<Builder>(
