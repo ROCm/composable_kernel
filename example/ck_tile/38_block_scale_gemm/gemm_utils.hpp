@@ -10,6 +10,7 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/gemm_quant.hpp"
+#include "get_k_warp_tile.hpp"
 
 #define CK_TILE_SUPPORTED_QUANT_GROUPS(X) \
     X(1, 1, 64)    /* 1D */               \
@@ -20,22 +21,7 @@
     X(1, 128, 128) /* 2D N=128 */
 
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
-constexpr ck_tile::index_t get_k_warp_tile()
-{
-#if defined(CK_GFX950_SUPPORT)
-    constexpr bool is_8bit_float =
-        std::is_same_v<PrecType, ck_tile::fp8_t> || std::is_same_v<PrecType, ck_tile::bf8_t>;
-    if constexpr(M_Warp_Tile == 32)
-        return is_8bit_float ? 64 : 16;
-    else
-        return is_8bit_float ? 128 : 32;
-#else
-    if constexpr(M_Warp_Tile == 32)
-        return 16;
-    else
-        return 32;
-#endif
-}
+
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_from_preshuffled_warp_tile()
 {
