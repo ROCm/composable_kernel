@@ -383,6 +383,12 @@ using namespace ck_tile::builder::registry;
             print(f"\t\033[33m  Skipping FP8 instance {idx} from {inst['source_file']}:{inst['line']}\033[0m")
             continue
 
+        # Skip small number fo instances that do not build correctly
+        skip_indices = [570, 587, 609]
+        if idx in skip_indices:
+            print(f"\t\033[33m  Skipping instance {idx} from {inst['source_file']}:{inst['line']} since we cannot build it.\033[0m")
+            continue
+
         # Determine algorithm type and generate appropriate struct
         device_op = inst['algorithm']['device_operation']
         algo_type = inst['algorithm']['algorithm_type']
