@@ -1,5 +1,5 @@
+// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -24,15 +24,33 @@ concept ThreadBlockDescriptor = requires(T t) {
     { t.tile_size.k } -> std::convertible_to<size_t>;
 };
 
-// Concept for parameters that describe a gridwise GEMM problem.
+// Concept for parameters that describe a gridwise XDL GEMM problem.
 template <typename T>
-concept GridwiseGemmDescriptor = requires(T t) {
+concept GridwiseXdlGemmDescriptor = requires(T t) {
     { t.ak1 } -> std::convertible_to<size_t>;
     { t.bk1 } -> std::convertible_to<size_t>;
     { t.m_per_xdl } -> std::convertible_to<size_t>;
     { t.n_per_xdl } -> std::convertible_to<size_t>;
     { t.m_xdl_per_wave } -> std::convertible_to<size_t>;
     { t.n_xdl_per_wave } -> std::convertible_to<size_t>;
+};
+
+// Concept for parameter that describe block GEMM problem.
+template <typename T>
+concept BlockGemmDescriptor = requires(T t) {
+    { t.pipeline_version } -> std::convertible_to<PipelineVersion>;
+    { t.scheduler } -> std::convertible_to<PipelineScheduler>;
+};
+
+// Concept for parameters that describe a gridwise WMMA GEMM problem.
+template <typename T>
+concept GridwiseWmmaGemmDescriptor = requires(T t) {
+    { t.k1 } -> std::convertible_to<size_t>;
+    { t.m_per_wmma } -> std::convertible_to<size_t>;
+    { t.n_per_wmma } -> std::convertible_to<size_t>;
+    { t.m_wmma_per_wave } -> std::convertible_to<size_t>;
+    { t.n_wmma_per_wave } -> std::convertible_to<size_t>;
+    { t.pipeline_version } -> std::convertible_to<PipelineVersion>;
 };
 
 // Concept for vectorized data transfer for convolution input tensors.
@@ -66,8 +84,8 @@ concept LdsTransferDescriptor = requires(T t) {
 // LDS).
 template <typename T>
 concept EpilogueDescriptor = requires(T t) {
-    { t.m_xdl_per_wave_per_shuffle } -> std::convertible_to<size_t>;
-    { t.n_xdl_per_wave_per_shuffle } -> std::convertible_to<size_t>;
+    { t.m_per_wave_per_shuffle } -> std::convertible_to<size_t>;
+    { t.n_per_wave_per_shuffle } -> std::convertible_to<size_t>;
     { t.scalar_per_vector } -> std::convertible_to<size_t>;
 };
 
@@ -77,7 +95,7 @@ concept AccessOrderDescriptor = requires(T t) {
     { t.order } -> std::convertible_to<std::array<size_t, 3>>;
 };
 
-// No requirements yet for a ConvAlogorithm concept.
+// No requirements yet for a ConvAlgorithm concept.
 template <typename T>
 concept ConvAlgorithmDescriptor = std::is_class_v<T>;
 
@@ -91,10 +109,16 @@ concept SpecifiesThreadBlock = requires {
     { T::thread_block } -> ThreadBlockDescriptor;
 };
 
-// Concept to check if a struct specifies gridwise GEMM info.
+// Concept to check if a struct specifies gridwise XDL GEMM info.
 template <typename T>
-concept SpecifiesGridwiseGemm = requires {
-    { T::gridwise_gemm } -> GridwiseGemmDescriptor;
+concept SpecifiesGridwiseXdlGemm = requires {
+    { T::gridwise_gemm } -> GridwiseXdlGemmDescriptor;
+};
+
+// Concept to check if a struct specifies gridwise WMMA GEMM info.
+template <typename T>
+concept SpecifiesGridwiseWmmaGemm = requires {
+    { T::gridwise_gemm } -> GridwiseWmmaGemmDescriptor;
 };
 
 // Concept to check if a struct specifies convolution input and output block transfer info.
@@ -127,15 +151,36 @@ concept SpecifiesSourceAccessOrder = requires(T t) {
     { T::block_transfer.src_access_order_b } -> AccessOrderDescriptor;
 };
 
-// Concept to check if struct specifies block_gemm_pipeline_version.
+// Concept to check if struct specifies block GEMM.
 template <typename T>
-concept SpecifiesGemmPipelineVersion = requires {
-    { T::pipeline_version } -> std::convertible_to<BlockGemmPipelineVersion>;
+concept SpecifiesBlockGemm = requires {
+    { T::block_gemm.pipeline_version } -> std::convertible_to<PipelineVersion>;
+    { T::block_gemm.scheduler } -> std::convertible_to<PipelineScheduler>;
 };
 
 template <typename T>
 concept SpecifiesFwdConcSpecialization = requires {
     { T::fwd_specialization } -> std::convertible_to<ConvFwdSpecialization>;
+};
+
+template <typename T>
+concept SpecifiesGemmSpecialization = requires {
+    { T::gemm_specialization } -> std::convertible_to<GemmSpecialization>;
+};
+
+template <typename T>
+concept SpecifiesNumPrefetchStages = requires {
+    { T::num_gemm_k_prefetch_stages } -> std::convertible_to<size_t>;
+};
+
+template <typename T>
+concept SpecifiesNumGroupsToMerge = requires {
+    { T::num_groups_to_merge } -> std::convertible_to<size_t>;
+};
+
+template <typename T>
+concept SpecifiesLoopScheduler = requires {
+    { T::loop_scheduler } -> std::convertible_to<PipelineScheduler>;
 };
 
 } // namespace ck_tile::builder

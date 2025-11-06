@@ -1,5 +1,5 @@
+// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 // InstanceTraits specialization for DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
 //
@@ -32,8 +32,8 @@ template <ck::index_t NDimSpatial,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
-          ConvolutionForwardSpecialization ConvForwardSpecialization,
-          GemmSpecialization GemmSpec,
+          ck::tensor_operation::device::ConvolutionForwardSpecialization ConvForwardSpecialization,
+          ck::tensor_operation::device::GemmSpecialization GemmSpec,
           ck::index_t NumGemmKPrefetchStage,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
@@ -65,7 +65,7 @@ template <ck::index_t NDimSpatial,
           ck::index_t CDEBlockTransferScalarPerVector_NPerBlock,
           typename AComputeDataType,
           typename BComputeDataType,
-          LoopScheduler LoopSched,
+          ck::LoopScheduler LoopSched,
           ck::index_t NumGroupsToMerge>
 struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle;
 
@@ -269,17 +269,17 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultiple
         oss << "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle";
 
         // Template parameters in exact order matching InstanceTraits member order
-        oss << "<" << kSpatialDim;                           // 1. NDimSpatial
-        oss << "," << detail::layout_name<ALayout>();        // 2. ALayout
-        oss << "," << detail::layout_name<BLayout>();        // 3. BLayout
-        oss << "," << detail::tuple_name<DsLayout>();        // 4. DsLayout
-        oss << "," << detail::layout_name<ELayout>();        // 5. ELayout
-        oss << "," << detail::type_name<ADataType>();        // 6. ADataType
-        oss << "," << detail::type_name<BDataType>();        // 7. BDataType
-        oss << "," << detail::type_name<AccDataType>();      // 8. AccDataType
-        oss << "," << detail::type_name<CShuffleDataType>(); // 9. CShuffleDataType
-        oss << "," << detail::tuple_name<DsDataType>();      // 10. DsDataType
-        oss << "," << detail::type_name<EDataType>();        // 11. EDataType
+        oss << "<" << kSpatialDim;                                  // 1. NDimSpatial
+        oss << "," << detail::layout_name<ALayout>();               // 2. ALayout
+        oss << "," << detail::layout_name<BLayout>();               // 3. BLayout
+        oss << "," << detail::tuple_name<DsLayout>();               // 4. DsLayout
+        oss << "," << detail::layout_name<ELayout>();               // 5. ELayout
+        oss << "," << detail::type_or_type_tuple_name<ADataType>(); // 6. ADataType
+        oss << "," << detail::type_or_type_tuple_name<BDataType>(); // 7. BDataType
+        oss << "," << detail::type_name<AccDataType>();             // 8. AccDataType
+        oss << "," << detail::type_name<CShuffleDataType>();        // 9. CShuffleDataType
+        oss << "," << detail::tuple_name<DsDataType>();             // 10. DsDataType
+        oss << "," << detail::type_name<EDataType>();               // 11. EDataType
         oss << ","
             << detail::elementwise_op_name<AElementwiseOperation>(); // 12. AElementwiseOperation
         oss << ","

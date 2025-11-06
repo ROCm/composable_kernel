@@ -2,12 +2,12 @@
   "tile_config": {
     "tile_m": {
       "values": [
-        256
+        64
       ]
     },
     "tile_n": {
       "values": [
-        256
+        192
       ]
     },
     "tile_k": {
@@ -42,24 +42,24 @@
     },
     "warp_tile_k": {
       "values": [
-        16
+        8
       ]
     }
   },
   "trait_config": {
     "pipeline": {
       "values": [
-        "compv3"
+        "compv4"
       ]
     },
     "scheduler": {
       "values": [
-        "intrawave"      
+        "intrawave"
       ]
     },
     "epilogue": {
       "values": [
-        "cshuffle"      
+        "cshuffle"
       ]
     },
     "pad_m": {
@@ -76,6 +76,12 @@
       "values": [
         false
       ]
+    },
+    "persistent": {
+        "values": [
+            true
+        ]
     }
-  }
+  },
+  "k_block_per_cu": 1
 }
