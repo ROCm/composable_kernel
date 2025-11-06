@@ -512,6 +512,9 @@ def cmake_build(Map conf=[:]){
                 echo "=== PRE-BUILD SCCACHE DEBUG ==="
                 ../script/debug_sccache_performance.sh pre_build_\$(date +%Y%m%d_%H%M%S)
                 
+                echo "=== CACHE KEY ANALYSIS ==="
+                ../script/analyze_cache_keys.sh pre_build_\$(date +%Y%m%d_%H%M%S)
+                
                 echo "=== STARTING CONTINUOUS MONITORING ==="
                 ../script/monitor_sccache_during_build.sh build_monitor &
                 MONITOR_PID=\$!
@@ -540,13 +543,16 @@ def cmake_build(Map conf=[:]){
                 
                 ../script/debug_sccache_performance.sh post_build_\$(date +%Y%m%d_%H%M%S)
                 
+                echo "=== POST-BUILD CACHE KEY ANALYSIS ==="
+                ../script/analyze_cache_keys.sh post_build_\$(date +%Y%m%d_%H%M%S)
+                
                 # Archive monitoring logs
-                ls -la *monitor*.log 2>/dev/null || echo "No monitor logs found"
+                ls -la *monitor*.log *cache_key*.log 2>/dev/null || echo "No debug logs found"
             """
             
             // Archive the debug logs
             try {
-                archiveArtifacts artifacts: "build/*monitor*.log,build/sccache_debug*.log", allowEmptyArchive: true
+                archiveArtifacts artifacts: "build/*monitor*.log,build/sccache_debug*.log,build/cache_key_analysis*.log", allowEmptyArchive: true
             } catch (Exception e) {
                 echo "Could not archive sccache debug logs: ${e.getMessage()}"
             }

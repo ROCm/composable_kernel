@@ -82,5 +82,55 @@ echo "=== SCCACHE ENVIRONMENT ===" | tee -a "$LOG_FILE"
 env | grep -E "(SCCACHE|ROCM|HIP)" | sort | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 
+# Cache key components analysis
+echo "=== CACHE KEY COMPONENTS ANALYSIS ===" | tee -a "$LOG_FILE"
+
+# 1. Compiler binary hash
+if [ -f "${ROCM_PATH}/bin/hipcc" ]; then
+    HIPCC_HASH=$(md5sum "${ROCM_PATH}/bin/hipcc" | cut -d' ' -f1)
+    echo "hipcc binary hash: ${HIPCC_HASH}" | tee -a "$LOG_FILE"
+else
+    echo "hipcc binary not found at ${ROCM_PATH}/bin/hipcc" | tee -a "$LOG_FILE"
+fi
+
+# 2. Custom cache buster (architecture-specific)
+echo "SCCACHE_C_CUSTOM_CACHE_BUSTER: ${SCCACHE_C_CUSTOM_CACHE_BUSTER:-not set}" | tee -a "$LOG_FILE"
+
+# 3. Extra files (compiler fingerprint)
+if [ -f "${SCCACHE_EXTRAFILES}" ]; then
+    EXTRAFILES_HASH=$(md5sum "${SCCACHE_EXTRAFILES}" | cut -d' ' -f1)
+    echo "SCCACHE_EXTRAFILES hash: ${EXTRAFILES_HASH}" | tee -a "$LOG_FILE"
+    echo "SCCACHE_EXTRAFILES content hash components:" | tee -a "$LOG_FILE"
+    while IFS= read -r line; do
+        echo "  $line" | tee -a "$LOG_FILE"
+    done < "${SCCACHE_EXTRAFILES}"
+else
+    echo "SCCACHE_EXTRAFILES not found" | tee -a "$LOG_FILE"
+fi
+
+# 4. Current working directory and build flags
+echo "Current working directory: $(pwd)" | tee -a "$LOG_FILE"
+echo "CMAKE flags that affect cache keys:" | tee -a "$LOG_FILE"
+env | grep -E "(CMAKE_|CXXFLAGS|CFLAGS)" | sort | tee -a "$LOG_FILE"
+
+# 5. Test cache key generation with a simple file
+echo "=== CACHE KEY TEST ===" | tee -a "$LOG_FILE"
+cat > /tmp/test_cache_key.cpp << 'EOF'
+#include <iostream>
+int main() { return 0; }
+EOF
+
+if command -v sccache &> /dev/null && [ -n "${SCCACHE_REDIS}" ]; then
+    echo "Testing cache key generation with simple file..." | tee -a "$LOG_FILE"
+    # Enable verbose logging temporarily
+    export SCCACHE_LOG=trace
+    timeout 30 sccache hipcc -c /tmp/test_cache_key.cpp -o /tmp/test_cache_key.o 2>&1 | grep -E "(cache key|Cache key)" | head -5 | tee -a "$LOG_FILE"
+    unset SCCACHE_LOG
+    rm -f /tmp/test_cache_key.cpp /tmp/test_cache_key.o
+else
+    echo "Cannot test cache key - sccache not available or Redis not configured" | tee -a "$LOG_FILE"
+fi
+
+echo "" | tee -a "$LOG_FILE"
 echo "=== DEBUG COMPLETE ===" | tee -a "$LOG_FILE"
 echo "Log saved to: $LOG_FILE" | tee -a "$LOG_FILE"
