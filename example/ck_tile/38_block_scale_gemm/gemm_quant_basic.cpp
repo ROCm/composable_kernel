@@ -325,7 +325,6 @@ int run_gemm_example(int argc, char* argv[])
                 "Unsupported quantization mode! Use 'aquant', 'bquant', 'tensor' or 'rowcol'");
         }
     }
-    /*
     else if(data_type == "bf8")
     {
         using TypeConfig =
@@ -452,7 +451,7 @@ int run_gemm_example(int argc, char* argv[])
             throw std::runtime_error(
                 "Unsupported quantization mode for this datatype! Use 'bquant'.");
         }
-    }*/
+    }
     else
     {
         throw std::runtime_error("Unsupported data type for this operation !!!");
@@ -461,6 +460,5 @@ int run_gemm_example(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
-    // return !run_gemm_example<GemmConfigPreshuffleQuant>(argc, argv);
     return !run_gemm_example<GemmConfigPreshuffleB_Bquant_decode>(argc, argv);
 }

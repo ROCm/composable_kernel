@@ -74,17 +74,17 @@ struct tile_distribution_encoding_pattern_aq : public tile_distribution_encoding
     {
         if constexpr(PreshuffleQuant)
         {
-            if(get_block_id() == 0 && get_thread_id() == 0)
-            {
-                printf("YperTile: %d, XPerTile: %d, MWarps: %d, NWarps: %d, MIterPerWarp: %d, "
-                       "warp_size: %d\n",
-                       YPerTile,     // 1
-                       XPerTile,     // 64
-                       MWarps,       // 1
-                       NWarps,       // 4
-                       MIterPerWarp, // 1
-                       warp_size);   // 64
-            }
+            // if(get_block_id() == 0 && get_thread_id() == 0)
+            // {
+            //     printf("YperTile: %d, XPerTile: %d, MWarps: %d, NWarps: %d, MIterPerWarp: %d, "
+            //            "warp_size: %d\n",
+            //            YPerTile,     // 1
+            //            XPerTile,     // 64
+            //            MWarps,       // 1
+            //            NWarps,       // 4
+            //            MIterPerWarp, // 1
+            //            warp_size);   // 64
+            // }
             // # of elements per thread
             static_assert(XPerTile >= warp_size && XPerTile % warp_size == 0);
             constexpr index_t X1 = warp_size;
@@ -206,17 +206,17 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
 
     CK_TILE_HOST_DEVICE static constexpr auto make_2d_static_tile_distribution()
     {
-        if(get_block_id() == 0 && get_thread_id() == 0)
-        {
-            printf("YperTile: %d, XPerTile: %d, MWarps: %d, NWarps: %d, NIterPerWarp: %d, "
-                   "warp_size: %d\n",
-                   YPerTile,
-                   XPerTile,
-                   MWarps,
-                   NWarps,
-                   NIterPerWarp,
-                   warp_size);
-        }
+        // if(get_block_id() == 0 && get_thread_id() == 0)
+        // {
+        //     printf("YperTile: %d, XPerTile: %d, MWarps: %d, NWarps: %d, NIterPerWarp: %d, "
+        //            "warp_size: %d\n",
+        //            YPerTile,
+        //            XPerTile,
+        //            MWarps,
+        //            NWarps,
+        //            NIterPerWarp,
+        //            warp_size);
+        // }
         if constexpr(PreshuffleQuant)
         {
             constexpr index_t X1 = warp_size;            // 64
