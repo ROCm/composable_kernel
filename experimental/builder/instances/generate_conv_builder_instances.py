@@ -89,22 +89,22 @@ def map_gemm_specialization(spec: str) -> str:
 def map_loop_scheduler(sched: str) -> str:
     """Map JSON loop_scheduler to C++ LoopScheduler enum"""
     sched_map = {
-        'DEFAULT': 'LoopScheduler::DEFAULT',
-        'INTERWAVE': 'LoopScheduler::INTERWAVE'
+        'DEFAULT': 'PipelineScheduler::DEFAULT',
+        'INTERWAVE': 'PipelineScheduler::INTERWAVE'
     }
     return sched_map.get(sched, f'LoopScheduler::{sched}')
 
 def map_block_gemm_pipeline_version(ver: str) -> str:
     """Map JSON block_gemm pipeline_version to C++ BlockGemmPipelineVersion enum"""
-    return f'BlockGemmPipelineVersion::{ver}'
+    return f'PipelineVersion::{ver}'
 
 def map_block_gemm_scheduler(sched: str) -> str:
     """Map JSON block_gemm scheduler to C++ BlockGemmPipelineScheduler enum"""
-    return f'BlockGemmPipelineScheduler::{sched}'
+    return f'PipelineScheduler::{sched}'
 
 def map_gridwise_gemm_pipeline_version(ver: str) -> str:
-    """Map JSON gridwise_gemm pipeline_version to C++ GridwiseGemmPipelineVersion enum"""
-    return f'GridwiseGemmPipelineVersion::{ver}'
+    """Map JSON gridwise_gemm pipeline_version to C++ PipelineVersion enum"""
+    return f'PipelineVersion::{ver}'
 
 def format_array(arr: List) -> str:
     """Format array for C++ initialization"""
