@@ -14,6 +14,10 @@ cmake -DCK_PROFILER_OP_FILTER="^grouped_gemm$" <other options> ..
 
 Both `CK_PROFILER_OP_FILTER` and `CK_PROFILER_INSTANCE_FILTER` accept regex patterns. Default builds all operations.
 
+To find the complete list of operations, run the following command:
+```bash
+find profiler/src -name "profile_*.cpp" | sed 's|profiler/src/profile_||' | sed 's|.cpp||' | sort
+```
 ## Profiler GEMM UNIVERSAL kernels
 ```bash
 # arg1: tensor operation (gemm_universal: Universal GEMM)
