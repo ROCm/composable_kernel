@@ -1,5 +1,5 @@
+// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 // Utility functions and helpers for instance_traits.hpp
 // Contains helper functions to convert types, enums, and sequences to string representations.
@@ -9,9 +9,11 @@
 
 #include <array>
 #include <string>
+#include <concepts>
 #include <string_view>
 #include <sstream>
 #include <type_traits>
+#include <climits>
 #include <ck/utility/data_type.hpp>
 #include <ck/utility/sequence.hpp>
 #include <ck/utility/blkgemmpipe_scheduler.hpp>
@@ -21,6 +23,7 @@
 #include <ck_tile/ops/common/tensor_layout.hpp>
 #include <ck/tensor_operation/gpu/element/element_wise_operation.hpp>
 #include <ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp>
+#include <ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp>
 #include <ck/tensor_operation/gpu/device/gemm_specialization.hpp>
 
 namespace ck_tile::reflect::detail {
@@ -108,6 +111,20 @@ conv_fwd_spec_name(ck::tensor_operation::device::ConvolutionForwardSpecializatio
     case Filter1x1Stride1Pad0: return "Filter1x1Stride1Pad0";
     case Filter1x1Pad0: return "Filter1x1Pad0";
     case Filter3x3: return "Filter3x3";
+    case OddC: return "OddC";
+    }
+}
+
+// Convert ConvolutionBackwardWeightSpecialization enum to string
+constexpr std::string_view conv_bwd_weight_spec_name(
+    ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization spec)
+{
+    using enum ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization;
+    switch(spec)
+    {
+    case Default: return "Default";
+    case Filter1x1Stride1Pad0: return "Filter1x1Stride1Pad0";
+    case Filter1x1Pad0: return "Filter1x1Pad0";
     case OddC: return "OddC";
     }
 }
@@ -354,6 +371,32 @@ constexpr std::string type_or_type_tuple_name()
     {
         return std::string(type_name<T>());
     }
+}
+
+/// @brief Makes a case insensitive comparison of two string views.
+/// @param a First string view
+/// @param b Second string view
+/// @return Whether two string views a equal case insensitive
+constexpr bool case_insensitive_equal(std::string_view a, std::string_view b)
+{
+    if(a.size() != b.size())
+        return false;
+
+    for(size_t i = 0; i < a.size(); ++i)
+    {
+        char c1 = a[i];
+        char c2 = b[i];
+
+        // Convert to lowercase for comparison
+        if(c1 >= 'A' && c1 <= 'Z')
+            c1 += 32;
+        if(c2 >= 'A' && c2 <= 'Z')
+            c2 += 32;
+
+        if(c1 != c2)
+            return false;
+    }
+    return true;
 }
 
 } // namespace ck_tile::reflect::detail

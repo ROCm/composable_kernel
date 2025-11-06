@@ -1,5 +1,5 @@
+// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 // A factory for instantiating CK convolution kernels.
 //
@@ -297,42 +297,42 @@ constexpr BlockGemmSpec SetBlockGemm()
     ck::BlockGemmPipelineScheduler scheduler;
     ck::BlockGemmPipelineVersion version;
 
-    if constexpr(BG.scheduler == BlockGemmPipelineScheduler::INTRAWAVE)
+    if constexpr(BG.scheduler == PipelineScheduler::INTRAWAVE)
     {
         scheduler = ck::BlockGemmPipelineScheduler::Intrawave;
     }
-    else if constexpr(BG.scheduler == BlockGemmPipelineScheduler::INTERWAVE)
+    else if constexpr(BG.scheduler == PipelineScheduler::INTERWAVE)
     {
         scheduler = ck::BlockGemmPipelineScheduler::Interwave;
     }
     else
     {
-        static_assert(false, "Unknown BlockGemmPipelineScheduler");
+        static_assert(false, "Unknown PipelineScheduler");
     }
 
-    if constexpr(BG.pipeline_version == BlockGemmPipelineVersion::V1)
+    if constexpr(BG.pipeline_version == PipelineVersion::V1)
     {
         version = ck::BlockGemmPipelineVersion::v1;
     }
-    else if constexpr(BG.pipeline_version == BlockGemmPipelineVersion::V2)
+    else if constexpr(BG.pipeline_version == PipelineVersion::V2)
     {
         version = ck::BlockGemmPipelineVersion::v2;
     }
-    else if constexpr(BG.pipeline_version == BlockGemmPipelineVersion::V3)
+    else if constexpr(BG.pipeline_version == PipelineVersion::V3)
     {
         version = ck::BlockGemmPipelineVersion::v3;
     }
-    else if constexpr(BG.pipeline_version == BlockGemmPipelineVersion::V4)
+    else if constexpr(BG.pipeline_version == PipelineVersion::V4)
     {
         version = ck::BlockGemmPipelineVersion::v4;
     }
-    else if constexpr(BG.pipeline_version == BlockGemmPipelineVersion::V5)
+    else if constexpr(BG.pipeline_version == PipelineVersion::V5)
     {
         version = ck::BlockGemmPipelineVersion::v5;
     }
     else
     {
-        static_assert(false, "Unknown BlockGemmPipelineVersion");
+        static_assert(false, "Unknown PipelineVersion");
     }
 
     return BlockGemmSpec{.pipeline_version = version, .scheduler = scheduler};
@@ -442,17 +442,17 @@ consteval ck::LoopScheduler SetLoopScheduler()
 {
     constexpr auto loop_scheduler = ALGORITHM.loop_scheduler;
 
-    if constexpr(loop_scheduler == LoopScheduler::DEFAULT)
+    if constexpr(loop_scheduler == PipelineScheduler::DEFAULT)
     {
         return ck::LoopScheduler::Default;
     }
-    else if constexpr(loop_scheduler == LoopScheduler::INTERWAVE)
+    else if constexpr(loop_scheduler == PipelineScheduler::INTERWAVE)
     {
         return ck::LoopScheduler::Interwave;
     }
     else
     {
-        static_assert(false, "Unknown LoopScheduler");
+        static_assert(false, "Unknown PipelineScheduler");
     }
 }
 
@@ -460,29 +460,29 @@ template <ConvAlgorithmDescriptor auto ALGORITHM>
 consteval ck::PipelineVersion SetGridwiseGemmPipelineVersion()
 {
     constexpr auto pipeline_version = ALGORITHM.gridwise_gemm.pipeline_version;
-    if constexpr(pipeline_version == GridwiseGemmPipelineVersion::V1)
+    if constexpr(pipeline_version == PipelineVersion::V1)
     {
         return ck::PipelineVersion::v1;
     }
-    else if constexpr(pipeline_version == GridwiseGemmPipelineVersion::V2)
+    else if constexpr(pipeline_version == PipelineVersion::V2)
     {
         return ck::PipelineVersion::v2;
     }
-    else if constexpr(pipeline_version == GridwiseGemmPipelineVersion::V3)
+    else if constexpr(pipeline_version == PipelineVersion::V3)
     {
         static_assert(false, "V3 is used only for stream-K.");
     }
-    else if constexpr(pipeline_version == GridwiseGemmPipelineVersion::V4)
+    else if constexpr(pipeline_version == PipelineVersion::V4)
     {
         return ck::PipelineVersion::v4;
     }
-    else if constexpr(pipeline_version == GridwiseGemmPipelineVersion::WEIGHT_ONLY)
+    else if constexpr(pipeline_version == PipelineVersion::WEIGHT_ONLY)
     {
         return ck::PipelineVersion::weight_only;
     }
     else
     {
-        static_assert(false, "Unknown GridwiseGemmPipelineVersion");
+        static_assert(false, "Unknown PipelineVersion");
     }
 }
 
@@ -566,29 +566,29 @@ consteval ck::BlockGemmPipelineVersion SetBlockGemmPipelineVersion()
 {
     constexpr auto version = ALGORITHM.pipeline_version;
 
-    if constexpr(version == BlockGemmPipelineVersion::V1)
+    if constexpr(version == PipelineVersion::V1)
     {
         return ck::BlockGemmPipelineVersion::v1;
     }
-    else if constexpr(version == BlockGemmPipelineVersion::V2)
+    else if constexpr(version == PipelineVersion::V2)
     {
         return ck::BlockGemmPipelineVersion::v2;
     }
-    else if constexpr(version == BlockGemmPipelineVersion::V3)
+    else if constexpr(version == PipelineVersion::V3)
     {
         return ck::BlockGemmPipelineVersion::v3;
     }
-    else if constexpr(version == BlockGemmPipelineVersion::V4)
+    else if constexpr(version == PipelineVersion::V4)
     {
         return ck::BlockGemmPipelineVersion::v4;
     }
-    else if constexpr(version == BlockGemmPipelineVersion::V5)
+    else if constexpr(version == PipelineVersion::V5)
     {
         return ck::BlockGemmPipelineVersion::v5;
     }
     else
     {
-        static_assert(false, "Unknown BlockGemmPipelineVersion");
+        static_assert(false, "Unknown PipelineVersion");
     }
 }
 

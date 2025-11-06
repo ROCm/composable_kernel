@@ -12,12 +12,11 @@
 #include "ck_tile/ops/gemm_quant.hpp"
 
 #define CK_TILE_SUPPORTED_QUANT_GROUPS(X) \
-    X(1, 1, 64)    /* 1D */               \
-    X(1, 1, 128)   /* 1D */               \
-    X(1, 8, 128)   /* 2D N=8  */          \
-    X(1, 32, 128)  /* 2D N=32 */          \
-    X(1, 64, 128)  /* 2D N=64 */          \
-    X(1, 128, 128) /* 2D N=128 */
+    X(1, 1, 64)   /* 1D */                \
+    X(1, 1, 128)  /* 1D */                \
+    X(1, 8, 128)  /* 2D N=8  */           \
+    X(1, 32, 128) /* 2D N=32 */           \
+    X(1, 64, 128) /* 2D N=64 */
 
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()
