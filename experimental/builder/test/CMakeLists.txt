@@ -67,6 +67,9 @@ add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_dynamic_op test
 add_ck_builder_test(test_conv_traits
     conv/test_conv_traits.cpp)
 
+add_ck_builder_test(test_conv_description
+    test_conv_description.cpp)
+
 # Function to add all test_ckb targets to a list
 function(collect_test_ckb_targets result_var)
     # Get all targets in current directory
