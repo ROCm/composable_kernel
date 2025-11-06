@@ -245,7 +245,8 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     }
 
     if constexpr(std::is_same_v<typename TypeConfig::ADataType, ck_tile::fp8_t> ||
-                 std::is_same_v<typename TypeConfig::ADataType, ck_tile::bf8_t>)
+                 std::is_same_v<typename TypeConfig::ADataType, ck_tile::bf8_t> ||
+                 std::is_same_v<typename TypeConfig::ADataType, ck_tile::pk_int4_t>)
     {
         if(a_layout == "R" && b_layout == "C")
         {
@@ -262,21 +263,21 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
                                                      QuantMode>(
                     argc, argv, Row{}, Row{}, Row{}, Row{}, Row{});
             }
-            // else if(a_layout == "C" && b_layout == "C")
-            // {
-            //     return run_gemm_example_with_layouts<GemmConfig,
-            //                                          TypeConfig,
-            //                                          QuantGroupSize,
-            //                                          QuantMode>(
-            //         argc, argv, Col{}, Col{}, Col{}, Col{}, Col{});
-            // }
             else if(a_layout == "C" && b_layout == "R")
             {
-                return run_gemm_example_with_layouts<GemmConfig,
-                                                     TypeConfig,
-                                                     QuantGroupSize,
-                                                     QuantMode>(
-                    argc, argv, Col{}, Row{}, Row{}, Col{}, Row{});
+                if constexpr(!std::is_same_v<typename TypeConfig::ADataType, ck_tile::pk_int4_t>)
+                {
+                    return run_gemm_example_with_layouts<GemmConfig,
+                                                         TypeConfig,
+                                                         QuantGroupSize,
+                                                         QuantMode>(
+                        argc, argv, Col{}, Row{}, Row{}, Col{}, Row{});
+                }
+                else
+                {
+                    throw std::runtime_error(
+                        "Unsupported memory layout (C,R) for pk_int4_t data type!");
+                }
             }
             else
             {
