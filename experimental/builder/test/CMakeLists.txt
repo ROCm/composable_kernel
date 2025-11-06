@@ -78,7 +78,7 @@ add_ck_builder_test(test_ckb_conv_builder
     test_fwd_instance_traits.cpp
     test_bwd_data_instance_traits.cpp
     test_instance_traits_util.cpp
-
+    test_memory_manager.cpp
     unit_conv_elementwise_op.cpp
     unit_conv_tensor_layout.cpp
     unit_conv_tensor_type.cpp
