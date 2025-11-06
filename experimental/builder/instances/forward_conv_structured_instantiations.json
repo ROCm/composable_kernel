@@ -9542,7 +9542,7 @@
           "shuffle": "BF16",
           "output": "BF16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -9654,7 +9654,7 @@
           "shuffle": "BF16",
           "output": "BF16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -9766,7 +9766,7 @@
           "shuffle": "BF16",
           "output": "BF16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -9878,7 +9878,7 @@
           "shuffle": "BF16",
           "output": "BF16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -9990,7 +9990,7 @@
           "shuffle": "BF16",
           "output": "BF16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -10102,7 +10102,7 @@
           "shuffle": "BF16",
           "output": "BF16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -10214,7 +10214,7 @@
           "shuffle": "BF16",
           "output": "BF16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -10326,7 +10326,7 @@
           "shuffle": "BF16",
           "output": "BF16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -10438,7 +10438,7 @@
           "shuffle": "BF16",
           "output": "BF16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -10550,7 +10550,7 @@
           "shuffle": "BF16",
           "output": "BF16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -10662,7 +10662,7 @@
           "shuffle": "BF16",
           "output": "BF16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -10774,7 +10774,7 @@
           "shuffle": "BF16",
           "output": "BF16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -10886,7 +10886,7 @@
           "shuffle": "BF16",
           "output": "BF16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -10998,7 +10998,7 @@
           "shuffle": "BF16",
           "output": "BF16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -11110,7 +11110,7 @@
           "shuffle": "BF16",
           "output": "BF16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -11222,7 +11222,7 @@
           "shuffle": "BF16",
           "output": "BF16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -11334,7 +11334,7 @@
           "shuffle": "FP16",
           "output": "FP16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -11446,7 +11446,7 @@
           "shuffle": "FP16",
           "output": "FP16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -11558,7 +11558,7 @@
           "shuffle": "FP16",
           "output": "FP16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -11670,7 +11670,7 @@
           "shuffle": "FP16",
           "output": "FP16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -11782,7 +11782,7 @@
           "shuffle": "FP16",
           "output": "FP16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -11894,7 +11894,7 @@
           "shuffle": "FP16",
           "output": "FP16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -12006,7 +12006,7 @@
           "shuffle": "FP16",
           "output": "FP16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -12118,7 +12118,7 @@
           "shuffle": "FP16",
           "output": "FP16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -12230,7 +12230,7 @@
           "shuffle": "FP16",
           "output": "FP16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -12342,7 +12342,7 @@
           "shuffle": "FP16",
           "output": "FP16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -12454,7 +12454,7 @@
           "shuffle": "FP16",
           "output": "FP16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -12566,7 +12566,7 @@
           "shuffle": "FP16",
           "output": "FP16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -12678,7 +12678,7 @@
           "shuffle": "FP16",
           "output": "FP16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -12790,7 +12790,7 @@
           "shuffle": "FP16",
           "output": "FP16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -12902,7 +12902,7 @@
           "shuffle": "FP16",
           "output": "FP16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -13014,7 +13014,7 @@
           "shuffle": "FP16",
           "output": "FP16"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -13126,7 +13126,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -13238,7 +13238,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -13350,7 +13350,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -13462,7 +13462,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -13574,7 +13574,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -13686,7 +13686,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -13798,7 +13798,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -13910,7 +13910,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -14022,7 +14022,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -14134,7 +14134,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -14246,7 +14246,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -14358,7 +14358,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -14470,7 +14470,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -14582,7 +14582,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -14694,7 +14694,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -14806,7 +14806,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -14918,7 +14918,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -15030,7 +15030,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -15142,7 +15142,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -15254,7 +15254,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -15366,7 +15366,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -15478,7 +15478,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -15590,7 +15590,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -15702,7 +15702,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -15814,7 +15814,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -15926,7 +15926,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -16038,7 +16038,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -16150,7 +16150,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -16262,7 +16262,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -16374,7 +16374,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -16486,7 +16486,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -16598,7 +16598,7 @@
           "shuffle": "FP32",
           "output": "FP32"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -16710,7 +16710,7 @@
           "shuffle": "I8",
           "output": "I8"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -16822,7 +16822,7 @@
           "shuffle": "I8",
           "output": "I8"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -16934,7 +16934,7 @@
           "shuffle": "I8",
           "output": "I8"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -17046,7 +17046,7 @@
           "shuffle": "I8",
           "output": "I8"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -17158,7 +17158,7 @@
           "shuffle": "I8",
           "output": "I8"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -17270,7 +17270,7 @@
           "shuffle": "I8",
           "output": "I8"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -17382,7 +17382,7 @@
           "shuffle": "I8",
           "output": "I8"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -17494,7 +17494,7 @@
           "shuffle": "I8",
           "output": "I8"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -17606,7 +17606,7 @@
           "shuffle": "I8",
           "output": "I8"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -17718,7 +17718,7 @@
           "shuffle": "I8",
           "output": "I8"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -17830,7 +17830,7 @@
           "shuffle": "I8",
           "output": "I8"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -17942,7 +17942,7 @@
           "shuffle": "I8",
           "output": "I8"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -18054,7 +18054,7 @@
           "shuffle": "I8",
           "output": "I8"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -18166,7 +18166,7 @@
           "shuffle": "I8",
           "output": "I8"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -18278,7 +18278,7 @@
           "shuffle": "I8",
           "output": "I8"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
@@ -18390,7 +18390,7 @@
           "shuffle": "I8",
           "output": "I8"
         },
-        "elementwise_operation": "PASS_THROUGH"
+        "elementwise_operation": "SCALE"
       },
       "algorithm": {
         "device_operation": "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle",
