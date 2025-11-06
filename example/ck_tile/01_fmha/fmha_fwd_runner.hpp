@@ -159,27 +159,29 @@ class BlockQuantizer
     template <typename SrcTensor, typename DstTensor, typename ScaleTensor>
     void quantize(const SrcTensor& in, DstTensor& out, ScaleTensor& block_scale, size_t block_size_)
     {
-        using InDataType  = typename std::remove_reference_t<decltype(in)>::DataType;
-        using OutDataType = typename std::remove_reference_t<decltype(out)>::DataType;
-        float dtype_max = ck_tile::type_convert<float>(ck_tile::numeric<InDataType>::max());
-        size_t batch   = in.get_length(0);
-        size_t head    = in.get_length(i_perm ? 1 : 2);
-        size_t seq_len = in.get_length(i_perm ? 2 : 1);
-        size_t hdim    = in.get_length(3);
+        using InDataType   = typename std::remove_reference_t<decltype(in)>::DataType;
+        using OutDataType  = typename std::remove_reference_t<decltype(out)>::DataType;
+        float dtype_max    = ck_tile::type_convert<float>(ck_tile::numeric<InDataType>::max());
+        size_t batch       = in.get_length(0);
+        size_t head        = in.get_length(i_perm ? 1 : 2);
+        size_t seq_len     = in.get_length(i_perm ? 2 : 1);
+        size_t hdim        = in.get_length(3);
         size_t num_blocks_ = (seq_len + block_size_ - 1) / block_size_;
-        std::cout << "batch: " << batch << " head: " << head << " seq_len: " << seq_len
-                  << " hdim: " << hdim << " dtype_max: " << dtype_max
-                  << " num_blocks_: " << num_blocks_ << std::endl;
+        // std::cout << "batch: " << batch << " head: " << head << " seq_len: " << seq_len
+        //           << " hdim: " << hdim << " dtype_max: " << dtype_max
+        //           << " num_blocks_: " << num_blocks_ << std::endl;
         std::random_device rd;
         std::mt19937 gen(rd());
         std::uniform_real_distribution<float> dis(0.5, 2.0f);
-        for(size_t b = 0; b < batch; ++b){
+        for(size_t b = 0; b < batch; ++b)
+        {
             for(size_t h = 0; h < head; ++h)
             {
                 for(size_t block = 0; block < num_blocks_; ++block)
                 {
                     // get block max value
-                    float max_value = ck_tile::type_convert<float>(ck_tile::numeric<InDataType>::min());
+                    float max_value =
+                        ck_tile::type_convert<float>(ck_tile::numeric<InDataType>::min());
                     for(size_t s = block * block_size_;
                         s < (block + 1) * block_size_ && s < seq_len;
                         ++s)
@@ -196,11 +198,12 @@ class BlockQuantizer
                     }
                     // calculate block scale
                     max_value += dis(gen);
-                    float scale = dtype_max / max_value;
-                    block_scale(b,h,block) = scale;
-                    std::cout << "block: " << block << " scale: " << scale << " max_value: " << max_value << " block_scale: " << block_scale << std::endl;
-                    
-                    //quant
+                    float scale              = dtype_max / max_value;
+                    block_scale(b, h, block) = scale;
+                    // std::cout << "block: " << block << " scale: " << scale << " max_value: " <<
+                    // max_value << " block_scale: " << block_scale << std::endl;
+
+                    // quant
                     for(size_t s = block * block_size_;
                         s < (block + 1) * block_size_ && s < seq_len;
                         ++s)
@@ -211,26 +214,28 @@ class BlockQuantizer
                             if(!i_perm)
                                 idx = {b, s, h, d};
                             float val = ck_tile::type_convert<float>(in(idx));
-                            out(idx) = ck_tile::type_convert<OutDataType>(val * scale);
+                            out(idx)  = ck_tile::type_convert<OutDataType>(val * scale);
                         }
                     }
-                }      
+                }
             }
         }
     }
 
     template <typename SrcTensor, typename DstTensor, typename ScaleTensor>
-    void dequantize(const SrcTensor& in, DstTensor& out, ScaleTensor& block_scale, size_t block_size_)
+    void
+    dequantize(const SrcTensor& in, DstTensor& out, ScaleTensor& block_scale, size_t block_size_)
     {
-        using OutDataType = typename std::remove_reference_t<decltype(out)>::DataType;
-        size_t batch   = in.get_length(0);
-        size_t head    = in.get_length(i_perm ? 1 : 2);
-        size_t seq_len = in.get_length(i_perm ? 2 : 1);
-        size_t hdim    = in.get_length(3);
+        using OutDataType  = typename std::remove_reference_t<decltype(out)>::DataType;
+        size_t batch       = in.get_length(0);
+        size_t head        = in.get_length(i_perm ? 1 : 2);
+        size_t seq_len     = in.get_length(i_perm ? 2 : 1);
+        size_t hdim        = in.get_length(3);
         size_t num_blocks_ = (seq_len + block_size_ - 1) / block_size_;
 
-        //dequant
-        for(size_t b = 0; b < batch; ++b){
+        // dequant
+        for(size_t b = 0; b < batch; ++b)
+        {
             for(size_t h = 0; h < head; ++h)
             {
                 for(size_t block = 0; block < num_blocks_; ++block)
@@ -245,14 +250,13 @@ class BlockQuantizer
                             std::vector<size_t> idx = {b, h, s, d};
                             if(!i_perm)
                                 idx = {b, s, h, d};
-                            float val   = ck_tile::type_convert<float>(in(idx));
-                            out(idx)    = ck_tile::type_convert<OutDataType>(val / scale);
+                            float val = ck_tile::type_convert<float>(in(idx));
+                            out(idx)  = ck_tile::type_convert<OutDataType>(val / scale);
                         }
                     }
                 }
             }
         }
-        
     }
 };
 
@@ -651,8 +655,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
         0 < page_block_size
             ? get_lengths(i_perm, max_num_page_blocks, nhead_k, page_block_size, hdim_q)
             : get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_q));
-    ck_tile::HostTensor<float> k_scale(std::array<ck_tile::index_t, 3>{
-        shape_batch, nhead_k, num_block_scale_n});
+    ck_tile::HostTensor<float> k_scale(
+        std::array<ck_tile::index_t, 3>{shape_batch, nhead_k, num_block_scale_n});
     /// NOTICE: always use same shape for knew_host & vnew_host in batch/group mode
     ck_tile::HostTensor<KDataType> knew_host(
         0 < seqlen_knew
@@ -665,8 +669,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
                    : get_lengths(i_perm, max_num_page_blocks, nhead_k, hdim_v, page_block_size))
             : (is_v_rowmajor ? get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_v)
                              : get_lengths(i_perm, shape_batch, nhead_k, hdim_v, shape_seqlen_k)));
-    ck_tile::HostTensor<float> v_scale(std::array<ck_tile::index_t, 3>{
-        shape_batch, nhead_k, num_block_scale_n});
+    ck_tile::HostTensor<float> v_scale(
+        std::array<ck_tile::index_t, 3>{shape_batch, nhead_k, num_block_scale_n});
     ck_tile::HostTensor<VDataType> vnew_host(
         0 < seqlen_knew
             ? (is_v_rowmajor ? get_lengths(i_perm, batch, nhead_k, seqlen_knew, hdim_v)
@@ -906,7 +910,6 @@ fwd_result fmha_fwd_run(mode_enum mode,
     ck_tile::DeviceMem k_scale_buf(k_scale.get_element_space_size_in_bytes());
     ck_tile::DeviceMem v_scale_buf(v_scale.get_element_space_size_in_bytes());
 
-
     q_buf.ToDevice(q_host.data());
     k_buf.ToDevice(k_host.data());
     v_buf.ToDevice(v_host.data());
@@ -940,7 +943,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
     if(quant == 2)
     {
-        //dequant data for host
+        // dequant data for host
         BlockQuantizer quantizer(i_perm);
         // q_host.savetxt("./q_quant.txt");
         quantizer.dequantize(q_host, q_host, q_scale, block_scale_m_);
@@ -1125,6 +1128,9 @@ fwd_result fmha_fwd_run(mode_enum mode,
         const ck_tile::index_t nhead_stride_lse_acc = (num_splits * shape_seqlen_q_lse);
         const ck_tile::index_t nhead_stride_o_acc   = (num_splits * shape_seqlen_q * hdim_v);
         const ck_tile::index_t nhead_stride_o       = (o_perm ? shape_seqlen_q * hdim_v : hdim_v);
+        const ck_tile::index_t nhead_stride_q_scale = num_block_scale_m;
+        const ck_tile::index_t nhead_stride_k_scale = num_block_scale_n;
+        const ck_tile::index_t nhead_stride_v_scale = num_block_scale_n;
         // setup batch_stride_* arguments
         const ck_tile::index_t batch_stride_q = (nhead * shape_seqlen_q * hdim_q);
         const ck_tile::index_t batch_stride_k =
@@ -1142,6 +1148,9 @@ fwd_result fmha_fwd_run(mode_enum mode,
         const ck_tile::index_t batch_stride_o_acc = (nhead * num_splits * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_o     = (nhead * shape_seqlen_q * hdim_v);
         const ck_tile::index_t batch_stride_block_table = (max_num_page_blocks / batch);
+        const ck_tile::index_t batch_stride_q_scale     = num_block_scale_m * nhead;
+        const ck_tile::index_t batch_stride_k_scale     = num_block_scale_n * nhead_k;
+        const ck_tile::index_t batch_stride_v_scale     = num_block_scale_n * nhead_k;
         // setup split_stride_* arguments (only used in split-kv kernel)
         const ck_tile::index_t split_stride_lse_acc = (shape_seqlen_q);
         const ck_tile::index_t split_stride_o_acc   = (shape_seqlen_q * hdim_v);
@@ -1235,6 +1244,27 @@ fwd_result fmha_fwd_run(mode_enum mode,
 
             if constexpr(std::is_same_v<fmha_fwd_args, std::decay_t<decltype(args)>>)
             {
+                if(quant == 2)
+                {
+                    args.q_scale_ptr =
+                        reinterpret_cast<const float*>(q_scale_buf.GetDeviceBuffer());
+                    args.k_scale_ptr =
+                        reinterpret_cast<const float*>(k_scale_buf.GetDeviceBuffer());
+                    args.v_scale_ptr =
+                        reinterpret_cast<const float*>(v_scale_buf.GetDeviceBuffer());
+
+                    args.nhead_stride_q_scale = nhead_stride_q_scale;
+                    args.nhead_stride_k_scale = nhead_stride_k_scale;
+                    args.nhead_stride_v_scale = nhead_stride_v_scale;
+
+                    args.batch_stride_q_scale = batch_stride_q_scale;
+                    args.batch_stride_k_scale = batch_stride_k_scale;
+                    args.batch_stride_v_scale = batch_stride_v_scale;
+
+                    args.block_scale_m = block_scale_m_;
+                    args.block_scale_n = block_scale_n_;
+                }
+
                 args.rand_val_ptr = randval_buf.GetDeviceBuffer();
 
                 args.stride_randval       = stride_randval;

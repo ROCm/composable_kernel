@@ -156,6 +156,27 @@ struct FmhaFwdKernel
         ck_tile::index_t nhead_stride_o;
     };
 
+    struct FmhaFwdCommonBlockScaleKargs
+    {
+        const float* q_scale_ptr = nullptr;
+        const float* k_scale_ptr = nullptr;
+        const float* v_scale_ptr = nullptr;
+
+        ck_tile::index_t nhead_stride_q_scale;
+        ck_tile::index_t nhead_stride_k_scale;
+        ck_tile::index_t nhead_stride_v_scale;
+
+        ck_tile::index_t block_scale_m;
+        ck_tile::index_t block_scale_n;
+    };
+
+    struct FmhaFwdBatchBlockScaleKargs : public FmhaFwdCommonBlockScaleKargs
+    {
+        ck_tile::index_t batch_stride_q_scale;
+        ck_tile::index_t batch_stride_k_scale;
+        ck_tile::index_t batch_stride_v_scale;
+    };
+
     struct FmhaFwdLogitsSoftCapKargs
     {
         FmhaFwdLogitsSoftCapKargs() = default;
@@ -287,7 +308,8 @@ struct FmhaFwdKernel
           std::conditional_t<kStoreLSE, FmhaFwdCommonLSEKargs, FmhaFwdEmptyKargs<2>>,
           std::conditional_t<kDoFp8StaticQuant, FmhaFwdFp8StaticQuantKargs, FmhaFwdEmptyKargs<3>>,
           std::conditional_t<kHasDropout, FmhaFwdBatchModeDropoutKargs, FmhaFwdEmptyKargs<4>>,
-          std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>
+          std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>,
+          std::conditional_t<kDoFp8StaticQuant, FmhaFwdBatchBlockScaleKargs, FmhaFwdEmptyKargs<6>>
     {
         ck_tile::index_t batch_stride_q;
         ck_tile::index_t batch_stride_k;
@@ -342,6 +364,9 @@ struct FmhaFwdKernel
                   void* rand_val_ptr,
                   void* lse_ptr,
                   void* o_ptr,
+                  const float* q_scale_ptr,
+                  const float* k_scale_ptr,
+                  const float* v_scale_ptr,
                   ck_tile::index_t seqlen_q,
                   ck_tile::index_t seqlen_k,
                   ck_tile::index_t hdim_q,
@@ -365,6 +390,9 @@ struct FmhaFwdKernel
                   ck_tile::index_t nhead_stride_randval,
                   ck_tile::index_t nhead_stride_lse,
                   ck_tile::index_t nhead_stride_o,
+                  ck_tile::index_t nhead_stride_q_scale,
+                  ck_tile::index_t nhead_stride_k_scale,
+                  ck_tile::index_t nhead_stride_v_scale,
                   ck_tile::index_t batch_stride_q,
                   ck_tile::index_t batch_stride_k,
                   ck_tile::index_t batch_stride_v,
@@ -372,6 +400,9 @@ struct FmhaFwdKernel
                   ck_tile::index_t batch_stride_randval,
                   ck_tile::index_t batch_stride_lse,
                   ck_tile::index_t batch_stride_o,
+                  ck_tile::index_t batch_stride_q_scale,
+                  ck_tile::index_t batch_stride_k_scale,
+                  ck_tile::index_t batch_stride_v_scale,
                   ck_tile::index_t window_size_left,
                   ck_tile::index_t window_size_right,
                   ck_tile::index_t mask_type,
@@ -379,6 +410,8 @@ struct FmhaFwdKernel
                   bool s_randval,
                   std::variant<std::pair<uint64_t, uint64_t>, std::pair<const void*, const void*>>
                       drop_seed_offset,
+                  ck_tile::index_t block_scale_m,
+                  ck_tile::index_t block_scale_n,
                   const ck_tile::index_t* cu_seqlen_q_ptr  = nullptr,
                   const ck_tile::index_t* cu_seqlen_kv_ptr = nullptr)
     {
@@ -411,6 +444,7 @@ struct FmhaFwdKernel
                     {},               // placeholder for fp8_static_quant args
                     {},               // placeholder for dropout
                     {},               // placeholder for logits_soft_cap
+                    {},               // palceholder for quant scale
                     batch_stride_q,
                     batch_stride_k,
                     batch_stride_v,
@@ -471,6 +505,24 @@ struct FmhaFwdKernel
             kargs.init_logits_soft_cap(logits_soft_cap);
         }
 
+        if constexpr(kDoFp8StaticQuant)
+        {
+            kargs.q_scale_ptr = q_scale_ptr;
+            kargs.k_scale_ptr = k_scale_ptr;
+            kargs.v_scale_ptr = v_scale_ptr;
+
+            kargs.nhead_stride_q_scale = nhead_stride_q_scale;
+            kargs.nhead_stride_k_scale = nhead_stride_k_scale;
+            kargs.nhead_stride_v_scale = nhead_stride_v_scale;
+
+            kargs.batch_stride_q_scale = batch_stride_q_scale;
+            kargs.batch_stride_k_scale = batch_stride_k_scale;
+            kargs.batch_stride_v_scale = batch_stride_v_scale;
+
+            kargs.block_scale_m = block_scale_m;
+            kargs.block_scale_n = block_scale_n;
+        }
+
         kargs.cu_seqlen_q_ptr  = cu_seqlen_q_ptr;
         kargs.cu_seqlen_kv_ptr = cu_seqlen_kv_ptr;
         return kargs;
@@ -486,6 +538,9 @@ struct FmhaFwdKernel
               void* rand_val_ptr,
               void* lse_ptr,
               void* o_ptr,
+              const float* q_scale_ptr,
+              const float* k_scale_ptr,
+              const float* v_scale_ptr,
               ck_tile::index_t seqlen_q,
               ck_tile::index_t seqlen_k,
               ck_tile::index_t hdim_q,
@@ -509,6 +564,9 @@ struct FmhaFwdKernel
               ck_tile::index_t nhead_stride_randval,
               ck_tile::index_t nhead_stride_lse,
               ck_tile::index_t nhead_stride_o,
+              ck_tile::index_t nhead_stride_q_scale,
+              ck_tile::index_t nhead_stride_k_scale,
+              ck_tile::index_t nhead_stride_v_scale,
               ck_tile::index_t batch_stride_q,
               ck_tile::index_t batch_stride_k,
               ck_tile::index_t batch_stride_v,
@@ -516,12 +574,17 @@ struct FmhaFwdKernel
               ck_tile::index_t batch_stride_randval,
               ck_tile::index_t batch_stride_lse,
               ck_tile::index_t batch_stride_o,
+              ck_tile::index_t batch_stride_q_scale,
+              ck_tile::index_t batch_stride_k_scale,
+              ck_tile::index_t batch_stride_v_scale,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
               ck_tile::index_t mask_type,
               float p_drop,
               bool s_randval,
               const std::tuple<uint64_t, uint64_t>& drop_seed_offset,
+              ck_tile::index_t block_scale_m,
+              ck_tile::index_t block_scale_n,
               const ck_tile::index_t* cu_seqlen_q_ptr  = nullptr,
               const ck_tile::index_t* cu_seqlen_kv_ptr = nullptr)
     {
@@ -533,6 +596,9 @@ struct FmhaFwdKernel
             rand_val_ptr,
             lse_ptr,
             o_ptr,
+            q_scale_ptr,
+            k_scale_ptr,
+            v_scale_ptr,
             seqlen_q,
             seqlen_k,
             hdim_q,
@@ -556,6 +622,9 @@ struct FmhaFwdKernel
             nhead_stride_randval,
             nhead_stride_lse,
             nhead_stride_o,
+            nhead_stride_q_scale,
+            nhead_stride_k_scale,
+            nhead_stride_v_scale,
             batch_stride_q,
             batch_stride_k,
             batch_stride_v,
@@ -563,12 +632,17 @@ struct FmhaFwdKernel
             batch_stride_randval,
             batch_stride_lse,
             batch_stride_o,
+            batch_stride_q_scale,
+            batch_stride_k_scale,
+            batch_stride_v_scale,
             window_size_left,
             window_size_right,
             mask_type,
             p_drop,
             s_randval,
             std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)),
+            block_scale_m,
+            block_scale_n,
             cu_seqlen_q_ptr,
             cu_seqlen_kv_ptr);
     }
@@ -583,6 +657,9 @@ struct FmhaFwdKernel
               void* rand_val_ptr,
               void* lse_ptr,
               void* o_ptr,
+              const float* q_scale_ptr,
+              const float* k_scale_ptr,
+              const float* v_scale_ptr,
               ck_tile::index_t seqlen_q,
               ck_tile::index_t seqlen_k,
               ck_tile::index_t hdim_q,
@@ -606,6 +683,9 @@ struct FmhaFwdKernel
               ck_tile::index_t nhead_stride_randval,
               ck_tile::index_t nhead_stride_lse,
               ck_tile::index_t nhead_stride_o,
+              ck_tile::index_t nhead_stride_q_scale,
+              ck_tile::index_t nhead_stride_k_scale,
+              ck_tile::index_t nhead_stride_v_scale,
               ck_tile::index_t batch_stride_q,
               ck_tile::index_t batch_stride_k,
               ck_tile::index_t batch_stride_v,
@@ -613,12 +693,17 @@ struct FmhaFwdKernel
               ck_tile::index_t batch_stride_randval,
               ck_tile::index_t batch_stride_lse,
               ck_tile::index_t batch_stride_o,
+              ck_tile::index_t batch_stride_q_scale,
+              ck_tile::index_t batch_stride_k_scale,
+              ck_tile::index_t batch_stride_v_scale,
               ck_tile::index_t window_size_left,
               ck_tile::index_t window_size_right,
               ck_tile::index_t mask_type,
               float p_drop,
               bool s_randval,
               const std::tuple<const void*, const void*>& drop_seed_offset,
+              ck_tile::index_t block_scale_m,
+              ck_tile::index_t block_scale_n,
               const ck_tile::index_t* cu_seqlen_q_ptr  = nullptr,
               const ck_tile::index_t* cu_seqlen_kv_ptr = nullptr)
     {
@@ -630,6 +715,9 @@ struct FmhaFwdKernel
             rand_val_ptr,
             lse_ptr,
             o_ptr,
+            q_scale_ptr,
+            k_scale_ptr,
+            v_scale_ptr,
             seqlen_q,
             seqlen_k,
             hdim_q,
@@ -653,6 +741,9 @@ struct FmhaFwdKernel
             nhead_stride_randval,
             nhead_stride_lse,
             nhead_stride_o,
+            nhead_stride_q_scale,
+            nhead_stride_k_scale,
+            nhead_stride_v_scale,
             batch_stride_q,
             batch_stride_k,
             batch_stride_v,
@@ -660,12 +751,17 @@ struct FmhaFwdKernel
             batch_stride_randval,
             batch_stride_lse,
             batch_stride_o,
+            batch_stride_q_scale,
+            batch_stride_k_scale,
+            batch_stride_v_scale,
             window_size_left,
             window_size_right,
             mask_type,
             p_drop,
             s_randval,
             std::make_pair(std::get<0>(drop_seed_offset), std::get<1>(drop_seed_offset)),
+            block_scale_m,
+            block_scale_n,
             cu_seqlen_q_ptr,
             cu_seqlen_kv_ptr);
     }

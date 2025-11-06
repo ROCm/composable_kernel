@@ -196,6 +196,10 @@ struct fmha_fwd_args
     const void* seqstart_padded_q_ptr = nullptr; // [batch+1]
     const void* seqstart_padded_k_ptr = nullptr; // [batch+1]
 
+    const float* q_scale_ptr = nullptr;
+    const float* k_scale_ptr = nullptr;
+    const float* v_scale_ptr = nullptr;
+
     ck_tile::index_t seqlen_q;
     ck_tile::index_t seqlen_k;
     ck_tile::index_t batch;
@@ -224,6 +228,9 @@ struct fmha_fwd_args
     ck_tile::index_t nhead_stride_randval;
     ck_tile::index_t nhead_stride_lse;
     ck_tile::index_t nhead_stride_o;
+    ck_tile::index_t nhead_stride_q_scale;
+    ck_tile::index_t nhead_stride_k_scale;
+    ck_tile::index_t nhead_stride_v_scale;
     ck_tile::index_t batch_stride_q;
     ck_tile::index_t batch_stride_k;
     ck_tile::index_t batch_stride_v;
@@ -231,11 +238,17 @@ struct fmha_fwd_args
     ck_tile::index_t batch_stride_randval;
     ck_tile::index_t batch_stride_lse;
     ck_tile::index_t batch_stride_o;
+    ck_tile::index_t batch_stride_q_scale;
+    ck_tile::index_t batch_stride_k_scale;
+    ck_tile::index_t batch_stride_v_scale;
 
     ck_tile::index_t window_size_left;
     ck_tile::index_t window_size_right;
     ck_tile::index_t mask_type;
     ck_tile::index_t min_seqlen_q;
+
+    ck_tile::index_t block_scale_m;
+    ck_tile::index_t block_scale_n;
 
     float p_drop;
     bool s_randval;
@@ -596,6 +609,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.rand_val_ptr,
                                              args.lse_ptr,
                                              args.o_ptr,
+                                             args.q_scale_ptr,
+                                             args.k_scale_ptr,
+                                             args.v_scale_ptr,
                                              args.seqlen_q,
                                              args.seqlen_k,
                                              args.hdim_q,
@@ -619,6 +635,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.nhead_stride_randval,
                                              args.nhead_stride_lse,
                                              args.nhead_stride_o,
+                                             args.nhead_stride_q_scale,
+                                             args.nhead_stride_k_scale,
+                                             args.nhead_stride_v_scale,
                                              args.batch_stride_q,
                                              args.batch_stride_k,
                                              args.batch_stride_v,
@@ -626,12 +645,17 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.batch_stride_randval,
                                              args.batch_stride_lse,
                                              args.batch_stride_o,
+                                             args.batch_stride_q_scale,
+                                             args.batch_stride_k_scale,
+                                             args.batch_stride_v_scale,
                                              args.window_size_left,
                                              args.window_size_right,
                                              args.mask_type,
                                              args.p_drop,
                                              args.s_randval,
                                              args.drop_seed_offset,
+                                             args.block_scale_m,
+                                             args.block_scale_n,
                                              args.cu_seqlen_q_ptr,
                                              args.cu_seqlen_kv_ptr);
         }
