@@ -569,6 +569,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.seqstart_q_ptr,
                                              args.seqstart_k_ptr,
                                              args.seqlen_k_ptr,
+                                             args.q_scale_ptr,
+                                             args.k_scale_ptr,
+                                             args.v_scale_ptr,
                                              args.hdim_q,
                                              args.hdim_v,
                                              args.nhead_q,
@@ -590,6 +593,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.nhead_stride_randval,
                                              args.nhead_stride_lse,
                                              args.nhead_stride_o,
+                                             args.nhead_stride_q_scale,
+                                             args.nhead_stride_k_scale,
+                                             args.nhead_stride_v_scale,
                                              args.window_size_left,
                                              args.window_size_right,
                                              args.mask_type,
@@ -597,6 +603,8 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.p_drop,
                                              args.s_randval,
                                              args.drop_seed_offset,
+                                             args.block_scale_m,
+                                             args.block_scale_n,
                                              args.seqstart_padded_q_ptr,
                                              args.seqstart_padded_k_ptr);
         }
