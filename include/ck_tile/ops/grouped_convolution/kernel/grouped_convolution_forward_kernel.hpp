@@ -19,7 +19,7 @@
 namespace ck_tile {
 
 /// @brief The Grouped Convolution kernel device arguments.
-template <typename GroupedConvTraitsType_>
+template <typename GroupedConvTraitsType_, typename CDElementwise_>
 struct GroupedConvFwdKernelArgs
 {
 
@@ -31,7 +31,7 @@ struct GroupedConvFwdKernelArgs
                                GroupedConvTraitsType_::VectorSizeC,
                                GroupedConvTraitsType_::NumGroupsToMerge,
                                true>; // Split N enabled
-    using CDElementwise                 = typename GroupedConvTraitsType_::CDElementwise;
+    using CDElementwise                 = CDElementwise_;
     static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
 
     template <
@@ -469,7 +469,8 @@ struct GroupedConvolutionForwardKernel
 
     using CDElementwise = typename EpiloguePipeline::CDElementwise;
 
-    using GroupedConvFwdKernelArgsSpecialized = GroupedConvFwdKernelArgs<GroupedConvTraitsType_>;
+    using GroupedConvFwdKernelArgsSpecialized =
+        GroupedConvFwdKernelArgs<GroupedConvTraitsType_, CDElementwise>;
 
     static constexpr bool IsSplitKSupported = false;
 
