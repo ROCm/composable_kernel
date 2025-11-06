@@ -507,7 +507,50 @@ def cmake_build(Map conf=[:]){
 
     dir("build"){
         //build CK
+        if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null") {
+            sh """
+                echo "=== PRE-BUILD SCCACHE DEBUG ==="
+                ../script/debug_sccache_performance.sh pre_build_\$(date +%Y%m%d_%H%M%S)
+                
+                echo "=== STARTING CONTINUOUS MONITORING ==="
+                ../script/monitor_sccache_during_build.sh build_monitor &
+                MONITOR_PID=\$!
+                echo "Monitor PID: \$MONITOR_PID"
+                echo \$MONITOR_PID > monitor.pid
+            """
+        }
+        
+        def build_start_time = System.currentTimeMillis()
         sh cmd
+        def build_end_time = System.currentTimeMillis()
+        def build_duration = (build_end_time - build_start_time) / 1000
+        echo "Build completed in ${build_duration} seconds"
+        
+        if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null") {
+            sh """
+                echo "=== POST-BUILD SCCACHE DEBUG ==="
+                echo "Build duration: ${build_duration} seconds"
+                
+                # Stop monitoring
+                if [ -f monitor.pid ]; then
+                    MONITOR_PID=\$(cat monitor.pid)
+                    kill \$MONITOR_PID 2>/dev/null || echo "Monitor already stopped"
+                    rm -f monitor.pid
+                fi
+                
+                ../script/debug_sccache_performance.sh post_build_\$(date +%Y%m%d_%H%M%S)
+                
+                # Archive monitoring logs
+                ls -la *monitor*.log 2>/dev/null || echo "No monitor logs found"
+            """
+            
+            // Archive the debug logs
+            try {
+                archiveArtifacts artifacts: "build/*monitor*.log,build/sccache_debug*.log", allowEmptyArchive: true
+            } catch (Exception e) {
+                echo "Could not archive sccache debug logs: ${e.getMessage()}"
+            }
+        }
         //run tests except when NO_CK_BUILD or BUILD_LEGACY_OS are set
         if(!setup_args.contains("NO_CK_BUILD") && !params.BUILD_LEGACY_OS){
             if ((setup_args.contains("gfx9") && params.NINJA_BUILD_TRACE) || params.BUILD_INSTANCES_ONLY){
