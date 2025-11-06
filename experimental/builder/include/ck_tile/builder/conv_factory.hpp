@@ -299,14 +299,9 @@ consteval BlockGemmSpec SetBlockGemm()
 
     switch(BG.scheduler)
     {
-    case PipelineScheduler::INTRAWAVE:
-        scheduler = ck::BlockGemmPipelineScheduler::Intrawave;
-        break;
-    case PipelineScheduler::INTERWAVE:
-        scheduler = ck::BlockGemmPipelineScheduler::Interwave;
-        break;
-    case PipelineScheduler::DEFAULT:
-        throw "Block GEMM scheduler must be Intrawave or Interwave.";
+    case PipelineScheduler::INTRAWAVE: scheduler = ck::BlockGemmPipelineScheduler::Intrawave; break;
+    case PipelineScheduler::INTERWAVE: scheduler = ck::BlockGemmPipelineScheduler::Interwave; break;
+    case PipelineScheduler::DEFAULT: throw "Block GEMM scheduler must be Intrawave or Interwave.";
     default: throw "Unknown PipelineScheduler";
     }
 
@@ -447,11 +442,9 @@ consteval ck::PipelineVersion SetGridwiseGemmPipelineVersion()
     {
     case PipelineVersion::V1: return ck_pipeline::v1;
     case PipelineVersion::V2: return ck_pipeline::v2;
-    case PipelineVersion::V3:
-        throw "PipelineVersion::V3 is used only for stream-K.";
+    case PipelineVersion::V3: throw "PipelineVersion::V3 is used only for stream-K.";
     case PipelineVersion::V4: return ck_pipeline::v4;
-    case PipelineVersion::V5: 
-        throw "PipelineVersion::V5 cannot be used for gridwise GEMM.";
+    case PipelineVersion::V5: throw "PipelineVersion::V5 cannot be used for gridwise GEMM.";
     case PipelineVersion::WEIGHT_ONLY: return ck_pipeline::weight_only;
     default: throw "Unknown GridwiseGemmPipelineVersion";
     }
@@ -489,7 +482,7 @@ template <ConvAlgorithmDescriptor auto ALGORITHM>
 consteval ck::BlockGemmPipelineVersion SetBlockGemmPipelineVersion()
 {
     constexpr auto version = ALGORITHM.pipeline_version;
-    using ck_pipeline    = ck::BlockGemmPipelineVersion;
+    using ck_pipeline      = ck::BlockGemmPipelineVersion;
     switch(version)
     {
     case PipelineVersion::V1: return ck_pipeline::v1;
