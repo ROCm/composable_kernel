@@ -378,10 +378,10 @@ using namespace ck_tile::builder::registry;
             continue
 
         # Skip FP8 instances for now
-        dt = inst['signature']['data_type']
-        if dt['input'] == 'FP8' or dt['weight'] == 'FP8' or dt['output'] == 'FP8':
-            print(f"\t\033[33m  Skipping FP8 instance {idx} from {inst['source_file']}:{inst['line']}\033[0m")
-            continue
+        # dt = inst['signature']['data_type']
+        # if dt['input'] == 'FP8' or dt['weight'] == 'FP8' or dt['output'] == 'FP8':
+        #     print(f"\t\033[33m  Skipping FP8 instance {idx} from {inst['source_file']}:{inst['line']}\033[0m")
+        #     continue
 
         # Skip small number fo instances that do not build correctly
         skip_indices = [570, 587, 609]
