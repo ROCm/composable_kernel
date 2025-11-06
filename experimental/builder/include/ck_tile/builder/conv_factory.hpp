@@ -244,6 +244,19 @@ struct ConvTensorTypes<DataType::I8>
     using EDataType        = int8_t;
 };
 
+template <>
+struct ConvTensorTypes<DataType::FP8>
+{
+    using ADataType        = ck::f8_t;
+    using AComputeType     = ck::f8_t;
+    using BDataType        = ck::f8_t;
+    using BComputeType     = ck::f8_t;
+    using CShuffleDataType = ck::f8_t;
+    using DsDataTypes      = ck::Tuple<>;
+    using AccDataType      = float;
+    using EDataType        = ck::f8_t;
+};
+
 template <ElementwiseOperation T>
 struct ElementwiseOps
 {
