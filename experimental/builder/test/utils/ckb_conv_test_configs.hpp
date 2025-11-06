@@ -12,7 +12,7 @@ namespace ck_tile::builder::test_utils {
 using namespace ck_tile::builder;
 using namespace test;
 
-constexpr BlockTransferABC FwdBlockTransfer_4x64_1{
+constexpr BlockTransferABC FwdBlockTransfer_4x64x1{
     .block_transfer_a              = {.k0 = 4, .m_n = 64, .k1 = 1},
     .block_transfer_b              = {.k0 = 4, .m_n = 64, .k1 = 1},
     .thread_cluster_dims_c         = {.m_block        = 1,
@@ -29,6 +29,31 @@ constexpr BlockTransferABC FwdBlockTransfer_4x64_1{
                                       .lds_dst_scalar_per_vector = 8,
                                       .is_direct_load            = false,
                                       .lds_padding               = false},
+    .epilogue_c                    = {.m_per_wave_per_shuffle = 1,
+                                      .n_per_wave_per_shuffle = 1,
+                                      .scalar_per_vector      = 8},
+    .block_transfer_access_order_a = {1, 0, 2},
+    .block_transfer_access_order_b = {1, 0, 2},
+    .src_access_order_a            = {1, 0, 2},
+    .src_access_order_b            = {1, 0, 2}};
+
+constexpr BlockTransferABC FwdBlockTransfer_4x64x1_fp8{
+    .block_transfer_a              = {.k0 = 4, .m_n = 64, .k1 = 1},
+    .block_transfer_b              = {.k0 = 4, .m_n = 64, .k1 = 1},
+    .thread_cluster_dims_c         = {.m_block        = 1,
+                                      .m_wave_per_xdl = 32,
+                                      .n_block        = 1,
+                                      .n_wave_per_xdl = 8},
+    .lds_transfer_a                = {.src_vector_dim            = 2,
+                                      .src_scalar_per_vector     = 8,
+                                      .lds_dst_scalar_per_vector = 8,
+                                      .is_direct_load            = false,
+                                      .lds_padding               = true},
+    .lds_transfer_b                = {.src_vector_dim            = 2,
+                                      .src_scalar_per_vector     = 8,
+                                      .lds_dst_scalar_per_vector = 8,
+                                      .is_direct_load            = false,
+                                      .lds_padding               = true},
     .epilogue_c                    = {.m_per_wave_per_shuffle = 1,
                                       .n_per_wave_per_shuffle = 1,
                                       .scalar_per_vector      = 8},
@@ -90,6 +115,9 @@ constexpr BlockTransferABC FwdBlockTransfer_4x32x1{
 constexpr GridwiseXdlGemm FwdGemmParams_Xdl_4x4_per_wave{
     .ak1 = 8, .bk1 = 8, .m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 4, .n_xdl_per_wave = 4};
 
+constexpr GridwiseXdlGemm FwdGemmParams_Xdl_4x2_per_wave{
+    .ak1 = 8, .bk1 = 8, .m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 4, .n_xdl_per_wave = 2};
+
 constexpr GridwiseXdlGemm FwdGemmParams_Xdl_2x1_per_wave{
     .ak1 = 8, .bk1 = 8, .m_per_xdl = 32, .n_per_xdl = 32, .m_xdl_per_wave = 2, .n_xdl_per_wave = 1};
 
@@ -102,6 +130,9 @@ constexpr GridwiseWmmaGemm FwdGemmParams_Wmma_2x1_per_wave{.k1               = 8
 
 constexpr ThreadBlock FwdThreadBlock_256x256x32{.block_size = 256,
                                                 .tile_size  = {.m = 256, .n = 256, .k = 32}};
+
+constexpr ThreadBlock FwdThreadBlock_256x128x32{.block_size = 256,
+                                                .tile_size  = {.m = 256, .n = 128, .k = 32}};
 
 constexpr ThreadBlock FwdThreadBlock_128x128x32{.block_size = 256,
                                                 .tile_size  = {.m = 128, .n = 128, .k = 32}};
