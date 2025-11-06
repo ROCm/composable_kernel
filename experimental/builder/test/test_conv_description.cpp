@@ -20,67 +20,57 @@ namespace ckt = ck_tile::test;
 // This includes dimensionality, direction, data layout, and data type.
 struct ConvSignature
 {
-    int spatial_dim = 2;
-    ckb::ConvDirection direction = ckb::ConvDirection::FORWARD;
-    ckb::GroupConvLayout layout = ckb::GroupConvLayout2D::GNHWC_GKYXC_GNHWK;
-    ckb::DataType data_type = ckb::DataType::FP16;
+    int spatial_dim                                 = 2;
+    ckb::ConvDirection direction                    = ckb::ConvDirection::FORWARD;
+    ckb::GroupConvLayout layout                     = ckb::GroupConvLayout2D::GNHWC_GKYXC_GNHWK;
+    ckb::DataType data_type                         = ckb::DataType::FP16;
     ckb::ElementwiseOperation elementwise_operation = ckb::ElementwiseOperation::PASS_THROUGH;
-    ckb::GroupConvDeviceOp device_operation = 
+    ckb::GroupConvDeviceOp device_operation =
         ckb::FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3;
 };
 static_assert(ckb::ConvSignatureDescriptor<ConvSignature>);
 
 struct DefaultAlgorithm
 {
-    ckb::test::ThreadBlock thread_block{
-        .block_size = 256,
-        .tile_size = {.m = 256, .n = 256, .k = 32}
-    };
-    
-    ckb::test::GridwiseXdlGemm gridwise_gemm{
-        .ak1 = 8,
-        .bk1 = 8,
-        .m_per_xdl = 16,
-        .n_per_xdl = 16,
-        .m_xdl_per_wave = 4,
-        .n_xdl_per_wave = 4
-    };
-    
+    ckb::test::ThreadBlock thread_block{.block_size = 256,
+                                        .tile_size  = {.m = 256, .n = 256, .k = 32}};
+
+    ckb::test::GridwiseXdlGemm gridwise_gemm{.ak1            = 8,
+                                             .bk1            = 8,
+                                             .m_per_xdl      = 16,
+                                             .n_per_xdl      = 16,
+                                             .m_xdl_per_wave = 4,
+                                             .n_xdl_per_wave = 4};
+
     ckb::test::BlockTransferABC block_transfer{
-        .block_transfer_a = {.k0 = 4, .m_n = 256, .k1 = 8},
-        .block_transfer_b = {.k0 = 4, .m_n = 256, .k1 = 8},
-        .thread_cluster_dims_c = {.m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 8},
-        .lds_transfer_a = {
-            .src_vector_dim = 2,
-            .src_scalar_per_vector = 8,
-            .lds_dst_scalar_per_vector = 8,
-            .is_direct_load = true,
-            .lds_padding = false
-        },
-        .lds_transfer_b = {
-            .src_vector_dim = 2,
-            .src_scalar_per_vector = 8,
-            .lds_dst_scalar_per_vector = 8,
-            .is_direct_load = true,
-            .lds_padding = false
-        },
-        .epilogue_c = {
-            .m_per_wave_per_shuffle = 1,
-            .n_per_wave_per_shuffle = 1,
-            .scalar_per_vector = 8
-        },
+        .block_transfer_a              = {.k0 = 4, .m_n = 256, .k1 = 8},
+        .block_transfer_b              = {.k0 = 4, .m_n = 256, .k1 = 8},
+        .thread_cluster_dims_c         = {.m_block        = 1,
+                                          .m_wave_per_xdl = 32,
+                                          .n_block        = 1,
+                                          .n_wave_per_xdl = 8},
+        .lds_transfer_a                = {.src_vector_dim            = 2,
+                                          .src_scalar_per_vector     = 8,
+                                          .lds_dst_scalar_per_vector = 8,
+                                          .is_direct_load            = true,
+                                          .lds_padding               = false},
+        .lds_transfer_b                = {.src_vector_dim            = 2,
+                                          .src_scalar_per_vector     = 8,
+                                          .lds_dst_scalar_per_vector = 8,
+                                          .is_direct_load            = true,
+                                          .lds_padding               = false},
+        .epilogue_c                    = {.m_per_wave_per_shuffle = 1,
+                                          .n_per_wave_per_shuffle = 1,
+                                          .scalar_per_vector      = 8},
         .block_transfer_access_order_a = {.order = {0, 1, 2}},
         .block_transfer_access_order_b = {.order = {0, 1, 2}},
-        .src_access_order_a = {.order = {0, 1, 2}},
-        .src_access_order_b = {.order = {0, 1, 2}}
-    };
-    
+        .src_access_order_a            = {.order = {0, 1, 2}},
+        .src_access_order_b            = {.order = {0, 1, 2}}};
+
     ckb::ConvFwdSpecialization fwd_specialization = ckb::ConvFwdSpecialization::DEFAULT;
-    ckb::GemmSpecialization gemm_specialization = ckb::GemmSpecialization::Default;
-    ckb::test::BlockGemm block_gemm{
-        .pipeline_version = ckb::PipelineVersion::V4,
-        .scheduler = ckb::PipelineScheduler::INTRAWAVE
-    };
+    ckb::GemmSpecialization gemm_specialization   = ckb::GemmSpecialization::Default;
+    ckb::test::BlockGemm block_gemm{.pipeline_version = ckb::PipelineVersion::V4,
+                                    .scheduler        = ckb::PipelineScheduler::INTRAWAVE};
 };
 static_assert(ckb::ConvAlgorithmDescriptor<DefaultAlgorithm>);
 
@@ -146,7 +136,7 @@ TEST(ConvDescriptionTest, DefaultInstanceHasDetailedDescription)
 // NOTE: BackwardDataInstanceHasDetailedDescription test is disabled because ConvFactory
 // does not have a specialization for backward data convolutions. The test fails with:
 //   "implicit instantiation of undefined template 'ck_tile::builder::ConvFactory<...>'"
-// 
+//
 // To enable this test, a ConvFactory specialization for backward data operations must be
 // implemented first.
 //
@@ -158,20 +148,20 @@ TEST(ConvDescriptionTest, DefaultInstanceHasDetailedDescription)
 //         ckb::ConvDirection direction = ckb::ConvDirection::BACKWARD_DATA;
 //         ckb::GroupConvLayout layout  = ckb::GroupConvLayout2D::GNHWC_GKYXC_GNHWK;
 //         ckb::DataType data_type      = ckb::DataType::FP16;
-//         ckb::ElementwiseOperation elementwise_operation = ckb::ElementwiseOperation::PASS_THROUGH;
-//         ckb::GroupConvDeviceOp device_operation = 
+//         ckb::ElementwiseOperation elementwise_operation =
+//         ckb::ElementwiseOperation::PASS_THROUGH; ckb::GroupConvDeviceOp device_operation =
 //             ckb::BwdDataGroupConvDeviceOperation::DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1;
 //     };
 //     static_assert(ckb::ConvSignatureDescriptor<BackwardDataSignature>);
-// 
+//
 //     static constexpr const BackwardDataSignature SIGNATURE;
 //     static constexpr const DefaultAlgorithm ALGORITHM;
 //     using Builder = ckb::ConvBuilder<SIGNATURE, ALGORITHM>;
-// 
+//
 //     // Verify Brief works
 //     EXPECT_THAT(ckr::Describe<Builder>().brief(),
 //                 ckt::StringEqWithDiff("2D Backward Data convolution"));
-// 
+//
 //     // Verify detailed works - to be updated once ConvFactory is implemented
 //     EXPECT_THAT(ckr::Describe<Builder>().detailed(),
 //                 ckt::StringEqWithDiff("PLACEHOLDER"));

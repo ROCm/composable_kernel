@@ -310,8 +310,7 @@ inline std::ostream& operator<<(std::ostream& os, BwdDataGroupConvDeviceOperatio
     using enum BwdDataGroupConvDeviceOperation;
     switch(op)
     {
-    case DeviceGroupedConvBwdDataMultipleD:
-        return os << "DeviceGroupedConvBwdDataMultipleD";
+    case DeviceGroupedConvBwdDataMultipleD: return os << "DeviceGroupedConvBwdDataMultipleD";
     case DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle:
         return os << "DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle";
     case DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1:
@@ -325,10 +324,8 @@ inline std::ostream& operator<<(std::ostream& os, BwdWeightGroupConvDeviceOperat
     using enum BwdWeightGroupConvDeviceOperation;
     switch(op)
     {
-    case DeviceGroupedConvBwdWeight:
-        return os << "DeviceGroupedConvBwdWeight";
-    case DeviceGroupedConvBwdWeight_Dl:
-        return os << "DeviceGroupedConvBwdWeight_Dl";
+    case DeviceGroupedConvBwdWeight: return os << "DeviceGroupedConvBwdWeight";
+    case DeviceGroupedConvBwdWeight_Dl: return os << "DeviceGroupedConvBwdWeight_Dl";
     case DeviceGroupedConvBwdWeight_Xdl_CShuffle:
         return os << "DeviceGroupedConvBwdWeight_Xdl_CShuffle";
     case DeviceGroupedConvBwdWeight_Xdl_CShuffleV3:
@@ -337,8 +334,7 @@ inline std::ostream& operator<<(std::ostream& os, BwdWeightGroupConvDeviceOperat
         return os << "DeviceGroupedConvBwdWeight_Wmma_CShuffle";
     case DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle:
         return os << "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle";
-    case DeviceGroupedConvBwdWeightMultipleD:
-        return os << "DeviceGroupedConvBwdWeightMultipleD";
+    case DeviceGroupedConvBwdWeightMultipleD: return os << "DeviceGroupedConvBwdWeightMultipleD";
     case DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle:
         return os << "DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle";
     default: return os << "Unknown";
@@ -476,8 +472,9 @@ inline std::ostream& operator<<(std::ostream& os, PipelineScheduler sched)
 }
 
 // ostream operator overload for std::variant of layout types
-inline std::ostream& operator<<(std::ostream& os,
-    const std::variant<GroupConvLayout1D, GroupConvLayout2D, GroupConvLayout3D>& layout)
+inline std::ostream&
+operator<<(std::ostream& os,
+           const std::variant<GroupConvLayout1D, GroupConvLayout2D, GroupConvLayout3D>& layout)
 {
     std::visit([&os](const auto& l) { os << l; }, layout);
     return os;
@@ -485,7 +482,9 @@ inline std::ostream& operator<<(std::ostream& os,
 
 // ostream operator overload for std::variant of convolution specializations
 inline std::ostream& operator<<(std::ostream& os,
-    const std::variant<ConvFwdSpecialization, ConvBwdDataSpecialization, ConvBwdWeightSpecialization>& spec)
+                                const std::variant<ConvFwdSpecialization,
+                                                   ConvBwdDataSpecialization,
+                                                   ConvBwdWeightSpecialization>& spec)
 {
     std::visit([&os](const auto& s) { os << s; }, spec);
     return os;
