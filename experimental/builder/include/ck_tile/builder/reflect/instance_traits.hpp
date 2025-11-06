@@ -14,18 +14,9 @@
 
 #pragma once
 
-#include <array>
 #include <string>
-#include <sstream>
 #include <type_traits>
-#include <ck/utility/data_type.hpp>
-#include <ck/utility/sequence.hpp>
-#include <ck/utility/blkgemmpipe_scheduler.hpp>
-#include <ck/tensor_operation/gpu/device/tensor_layout.hpp>
-#include <ck/tensor_operation/gpu/element/element_wise_operation.hpp>
-#include <ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp>
-#include <ck/tensor_operation/gpu/device/gemm_specialization.hpp>
-#include "instance_traits_util.hpp"
+#include <concepts>
 
 namespace ck_tile::reflect {
 
