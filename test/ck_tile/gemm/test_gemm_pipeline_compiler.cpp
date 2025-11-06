@@ -20,30 +20,36 @@ class TestGemmMem : public TestCkTileGemmPipeline<T, TestGemmMem<T>>
 {
 };
 
+#if defined(CK_TILE_USE_WMMA)
 template <typename T>
 class TestGemmMemWmma : public TestCkTileGemmPipeline<T, TestGemmMemWmma<T>>
 {
 };
+#endif
 
 template <typename T>
 class TestGemmCompV3 : public TestCkTileGemmPipeline<T, TestGemmCompV3<T>>
 {
 };
 
+#if defined(CK_TILE_USE_WMMA)
 template <typename T>
 class TestGemmCompV3Wmma : public TestCkTileGemmPipeline<T, TestGemmCompV3Wmma<T>>
 {
 };
+#endif
 
 template <typename T>
 class TestGemmCompV4 : public TestCkTileGemmPipeline<T, TestGemmCompV4<T>>
 {
 };
 
+#if defined(CK_TILE_USE_WMMA)
 template <typename T>
 class TestGemmCompV4Wmma : public TestCkTileGemmPipeline<T, TestGemmCompV4Wmma<T>>
 {
 };
+#endif
 
 template <typename T>
 class TestGemmCompV6 : public TestCkTileGemmPipeline<T, TestGemmCompV6<T>>
@@ -55,10 +61,12 @@ class TestGemmPersistent : public TestCkTileGemmPipeline<T, TestGemmPersistent<T
 {
 };
 
+#if defined(CK_TILE_USE_WMMA)
 template <typename T>
 class TestGemmPersistentWmma : public TestCkTileGemmPipeline<T, TestGemmPersistentWmma<T>>
 {
 };
+#endif
 
 // ----------------------------------------------------------------------------
 // Type Definitions for Each Pipeline Configuration
@@ -73,10 +81,12 @@ using MemTestTypes = ::testing::Types<
     std::tuple<Row, Row, Row, F16, F16, F32, F16, I64, I64, I32, I16, I16, I16, Interwave, Mem>,
     std::tuple<Row, Row, Row, BF16, BF16, F32, BF16, I64, I64, I32, I16, I16, I16, Interwave, Mem>>;
 
+#if defined(CK_TILE_USE_WMMA)
 // Memory Pipeline WMMA Types
 using MemWmmaTestTypes = ::testing::Types<
     std::tuple<Row, Row, Row, F16, F16, F32, F16, I64, I64, I32, I16, I16, I16, Interwave, Mem>,
     std::tuple<Row, Row, Row, BF16, BF16, F32, BF16, I64, I64, I32, I16, I16, I16, Interwave, Mem>>;
+#endif
 
 // CompV3 Pipeline Types
 using CompV3TestTypes = ::testing::Types<
@@ -97,6 +107,7 @@ using CompV3TestTypes = ::testing::Types<
                Intrawave,
                CompV3>>;
 
+#if defined(CK_TILE_USE_WMMA)
 // CompV3 Pipeline WMMA Types
 using CompV3WmmaTestTypes = ::testing::Types<
     std::tuple<Row, Row, Row, F16, F16, F32, F16, I64, I64, I32, I16, I16, I16, Intrawave, CompV3>,
@@ -115,6 +126,7 @@ using CompV3WmmaTestTypes = ::testing::Types<
                I16,
                Intrawave,
                CompV3>>;
+#endif
 
 // CompV4 Pipeline Types
 using CompV4TestTypes = ::testing::Types<
@@ -135,6 +147,7 @@ using CompV4TestTypes = ::testing::Types<
                Intrawave,
                CompV4>>;
 
+#if defined(CK_TILE_USE_WMMA)
 // CompV4 Pipeline WMMA Types
 using CompV4WmmaTestTypes = ::testing::Types<
     std::tuple<Row, Row, Row, F16, F16, F32, F16, I64, I64, I32, I16, I16, I16, Intrawave, CompV4>,
@@ -153,6 +166,7 @@ using CompV4WmmaTestTypes = ::testing::Types<
                I16,
                Intrawave,
                CompV4>>;
+#endif
 
 // CompV6 Pipeline Types
 using CompV6TestTypes = ::testing::Types<
@@ -209,6 +223,7 @@ using PersistentTestTypes = ::testing::Types<
                CompV3,
                NonPersistent>>;
 
+#if defined(CK_TILE_USE_WMMA)
 // Persistent CompV3 Pipeline WMMA Types
 using PersistentWmmaTestTypes = ::testing::Types<std::tuple<Row,
                                                             Col,
@@ -242,20 +257,29 @@ using PersistentWmmaTestTypes = ::testing::Types<std::tuple<Row,
                                                             Intrawave,
                                                             CompV3,
                                                             NonPersistent>>;
+#endif
 
 // ----------------------------------------------------------------------------
 // Test Suite Registrations
 // ----------------------------------------------------------------------------
 
 TYPED_TEST_SUITE(TestGemmMem, MemTestTypes);
+#if defined(CK_TILE_USE_WMMA)
 TYPED_TEST_SUITE(TestGemmMemWmma, MemWmmaTestTypes);
+#endif
 TYPED_TEST_SUITE(TestGemmCompV3, CompV3TestTypes);
+#if defined(CK_TILE_USE_WMMA)
 TYPED_TEST_SUITE(TestGemmCompV3Wmma, CompV3WmmaTestTypes);
+#endif
 TYPED_TEST_SUITE(TestGemmCompV4, CompV4TestTypes);
+#if defined(CK_TILE_USE_WMMA)
 TYPED_TEST_SUITE(TestGemmCompV4Wmma, CompV4WmmaTestTypes);
+#endif
 TYPED_TEST_SUITE(TestGemmCompV6, CompV6TestTypes);
 TYPED_TEST_SUITE(TestGemmPersistent, PersistentTestTypes);
+#if defined(CK_TILE_USE_WMMA)
 TYPED_TEST_SUITE(TestGemmPersistentWmma, PersistentWmmaTestTypes);
+#endif
 
 // ============================================================================
 // Memory Pipeline Tests (Mem)
@@ -385,6 +409,7 @@ TYPED_TEST(TEST_SUITE_NAME, StressTest_VeryDeepK)
 
 #undef TEST_SUITE_NAME
 
+#if defined(CK_TILE_USE_WMMA)
 // ============================================================================
 // Memory Pipeline Tests with WMMA
 // ============================================================================
@@ -413,6 +438,7 @@ TYPED_TEST(TEST_SUITE_NAME, LargeMatrix_WMMA)
 }
 
 #undef TEST_SUITE_NAME
+#endif // CK_TILE_USE_WMMA
 
 // ============================================================================
 // Compute V3 Pipeline Tests
@@ -519,6 +545,7 @@ TYPED_TEST(TEST_SUITE_NAME, BatchedSmall_CompV3)
 
 #undef TEST_SUITE_NAME
 
+#if defined(CK_TILE_USE_WMMA)
 // ============================================================================
 // Compute V3 Pipeline Tests with WMMA
 // ============================================================================
@@ -574,6 +601,7 @@ TYPED_TEST(TEST_SUITE_NAME, LargeMatrix_CompV3Wmma)
 }
 
 #undef TEST_SUITE_NAME
+#endif // CK_TILE_USE_WMMA
 
 // ============================================================================
 // Compute V4 Pipeline Tests
@@ -631,6 +659,7 @@ TYPED_TEST(TEST_SUITE_NAME, LargeMatrix_CompV4)
 
 #undef TEST_SUITE_NAME
 
+#if defined(CK_TILE_USE_WMMA)
 // ============================================================================
 // Compute V4 Pipeline Tests with WMMA
 // ============================================================================
@@ -659,6 +688,7 @@ TYPED_TEST(TEST_SUITE_NAME, LargeMatrix_CompV4Wmma)
 }
 
 #undef TEST_SUITE_NAME
+#endif // CK_TILE_USE_WMMA
 
 // ============================================================================
 // Compute V6 Pipeline Tests
@@ -813,6 +843,7 @@ TYPED_TEST(TEST_SUITE_NAME, LargeMatrix_Persistent)
 
 #undef TEST_SUITE_NAME
 
+#if defined(CK_TILE_USE_WMMA)
 // ============================================================================
 // Persistent Kernel Tests with WMMA
 // ============================================================================
@@ -868,3 +899,4 @@ TYPED_TEST(TEST_SUITE_NAME, LargeMatrix_PersistentWmma)
 }
 
 #undef TEST_SUITE_NAME
+#endif // CK_TILE_USE_WMMA
