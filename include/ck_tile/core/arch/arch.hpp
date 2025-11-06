@@ -136,66 +136,103 @@ CK_TILE_DEVICE void block_sync_load_raw(index_t cnt = 0)
 #endif
 }
 
-// https://llvm.org/docs/AMDGPU/gfx9_waitcnt.html
+struct WaitcntLayoutGfx12
+{ // s_wait_loadcnt_dscnt: mem[13:8], ds[5:0]
+    CK_TILE_DEVICE static constexpr index_t VM_MASK   = 0x3F; // mem
+    CK_TILE_DEVICE static constexpr index_t LGKM_MASK = 0x3F; // ds
+    CK_TILE_DEVICE static constexpr bool HAS_EXP      = false;
+
+    CK_TILE_DEVICE static constexpr index_t pack_vm(index_t c) { return ((c & VM_MASK) << 8); }
+    CK_TILE_DEVICE static constexpr index_t pack_lgkm(index_t c) { return ((c & LGKM_MASK) << 0); }
+    CK_TILE_DEVICE static constexpr index_t pack_exp(index_t) { return 0; }
+};
+
+struct WaitcntLayoutGfx11
+{ // vm[15:10] (6), lgkm[9:4] (6), exp unused
+    CK_TILE_DEVICE static constexpr index_t VM_MASK   = 0x3F;
+    CK_TILE_DEVICE static constexpr index_t LGKM_MASK = 0x3F;
+    CK_TILE_DEVICE static constexpr bool HAS_EXP      = false;
+
+    CK_TILE_DEVICE static constexpr index_t pack_vm(index_t c) { return ((c & VM_MASK) << 10); }
+    CK_TILE_DEVICE static constexpr index_t pack_lgkm(index_t c) { return ((c & LGKM_MASK) << 4); }
+    CK_TILE_DEVICE static constexpr index_t pack_exp(index_t) { return 0; }
+};
+
+struct WaitcntLayoutLegacy
+{ // FE'DC'BA98'7'654'3210 => VV'UU'LLLL'U'EEE'VVVV
+    CK_TILE_DEVICE static constexpr index_t VM_MASK   = 0x3F; // split: low4 + hi2
+    CK_TILE_DEVICE static constexpr index_t LGKM_MASK = 0x0F; // [11:8]
+    CK_TILE_DEVICE static constexpr index_t EXP_MASK  = 0x07; // [6:4]
+    CK_TILE_DEVICE static constexpr bool HAS_EXP      = true;
+
+    CK_TILE_DEVICE static constexpr index_t pack_vm(index_t c)
+    {
+        c &= VM_MASK;
+        return ((c & 0xF) << 0) | ((c & 0x30) << 10);
+    }
+    CK_TILE_DEVICE static constexpr index_t pack_lgkm(index_t c) { return ((c & LGKM_MASK) << 8); }
+    CK_TILE_DEVICE static constexpr index_t pack_exp(index_t c) { return ((c & EXP_MASK) << 4); }
+};
+
+// Select active layout
+#if defined(__gfx12__)
+using Waitcnt = WaitcntLayoutGfx12;
+#elif defined(__gfx11__)
+using Waitcnt = WaitcntLayoutGfx11;
+#else
+using Waitcnt = WaitcntLayoutLegacy;
+#endif
+
+//----------------------------------------------
+// Public API: only from_* (constexpr templates)
+//----------------------------------------------
 struct waitcnt_arg
 {
-#if defined(__gfx12__)
-    // use s_wait_loadcnt_dscnt in this instruction; in this instruction, ds [5:0]; mem [13:8]
-    CK_TILE_DEVICE static constexpr index_t MAX = 0b00'111111'00'111111;
-
-    CK_TILE_DEVICE static constexpr index_t kMaxVmCnt   = 0b111111;
-    CK_TILE_DEVICE static constexpr index_t kMaxExpCnt  = 0b111;
-    CK_TILE_DEVICE static constexpr index_t kMaxLgkmCnt = 0b111111;
-
-    template <index_t cnt>
-    CK_TILE_DEVICE static constexpr index_t from_vmcnt()
-    {
-        static_assert(cnt >= 0 && !(cnt >> 6), "valid range is [0..63]");
-        return MAX & (cnt << 8);
-    }
-
-    template <index_t cnt>
-    CK_TILE_DEVICE static constexpr index_t from_expcnt()
-    {
-        return 0; // no export in MI series
-    }
-
-    template <index_t cnt>
-    CK_TILE_DEVICE static constexpr index_t from_lgkmcnt()
-    {
-        static_assert(cnt >= 0 && !(cnt >> 6), "valid range is [0..63]");
-        return MAX & cnt;
-    }
+    // kMax* exposed for callers; match field widths per-arch
+#if defined(__gfx12__) || defined(__gfx11__)
+    CK_TILE_DEVICE static constexpr index_t kMaxVmCnt   = 0x3F; // 6 bits
+    CK_TILE_DEVICE static constexpr index_t kMaxLgkmCnt = 0x3F; // 6 bits
+    CK_TILE_DEVICE static constexpr index_t kMaxExpCnt  = 0x0;  // none
 #else
-    // bit numbers (hex) -------------------------> FE'DC'BA98'7'654'3210
-    // [V]M [E]XP [L]GKM counters and [U]NUSED ---> VV'UU'LLLL'U'EEE'VVVV
-    CK_TILE_DEVICE static constexpr index_t MAX = 0b11'00'1111'0'111'1111;
-
-    CK_TILE_DEVICE static constexpr index_t kMaxVmCnt   = 0b111111;
-    CK_TILE_DEVICE static constexpr index_t kMaxExpCnt  = 0b111;
-    CK_TILE_DEVICE static constexpr index_t kMaxLgkmCnt = 0b1111;
+    CK_TILE_DEVICE static constexpr index_t kMaxVmCnt   = 0x3F; // 6 bits (split)
+    CK_TILE_DEVICE static constexpr index_t kMaxLgkmCnt = 0x0F; // 4 bits
+    CK_TILE_DEVICE static constexpr index_t kMaxExpCnt  = 0x07; // 3 bits
+#endif
 
     template <index_t cnt>
     CK_TILE_DEVICE static constexpr index_t from_vmcnt()
     {
-        static_assert(cnt >= 0 && !(cnt >> 6), "valid range is [0..63]");
-        return MAX & ((cnt & 0b1111) | ((cnt & 0b110000) << 10));
-    }
-
-    template <index_t cnt>
-    CK_TILE_DEVICE static constexpr index_t from_expcnt()
-    {
-        static_assert(cnt >= 0 && !(cnt >> 3), "valid range is [0..7]");
-        return MAX & (cnt << 4);
+        static_assert((cnt & ~Waitcnt::VM_MASK) == 0, "vmcnt out of range");
+        return Waitcnt::pack_vm(cnt);
     }
 
     template <index_t cnt>
     CK_TILE_DEVICE static constexpr index_t from_lgkmcnt()
     {
-        static_assert(cnt >= 0 && !(cnt >> 4), "valid range is [0..15]");
-        return MAX & (cnt << 8);
+        static_assert((cnt & ~Waitcnt::LGKM_MASK) == 0, "lgkmcnt out of range");
+        return Waitcnt::pack_lgkm(cnt);
     }
+
+    template <index_t cnt>
+    CK_TILE_DEVICE static constexpr index_t from_expcnt()
+    {
+        if constexpr(Waitcnt::HAS_EXP)
+        {
+            // EXP_MASK only exists on legacy
+#if !defined(__gfx12__) && !defined(__gfx11__)
+            static_assert((cnt & ~Waitcnt::EXP_MASK) == 0, "expcnt out of range");
+            return Waitcnt::pack_exp(cnt);
+#else
+            (void)cnt;
+            return 0;
 #endif
+        }
+        else
+        {
+            static_assert(cnt == 0, "expcnt unsupported on this arch");
+            return 0;
+        }
+    }
 };
 
 template <index_t vmcnt   = waitcnt_arg::kMaxVmCnt,
