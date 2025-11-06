@@ -145,13 +145,13 @@ struct ConvDescription
 
         f.writeLast(3, "C Tile transfer: ");
         f.writeLine(4, "Data shuffle (number of gemm instructions per iteration): ",
-                    algorithm.c_tile_transfer.shuffle_params.m_gemms_per_shuffle, "",
-                    algorithm.c_tile_transfer.shuffle_params.n_gemms_per_shuffle, "");
+                    algorithm.c_tile_transfer.shuffle_params.m_gemms_per_shuffle, "×",
+                    algorithm.c_tile_transfer.shuffle_params.n_gemms_per_shuffle);
         f.writeLine(4, "Spatial thread distribution used to store data: ",
-                    algorithm.c_tile_transfer.thread_cluster_dims[0], "",
-                    algorithm.c_tile_transfer.thread_cluster_dims[1], "",
-                    algorithm.c_tile_transfer.thread_cluster_dims[2], "",
-                    algorithm.c_tile_transfer.thread_cluster_dims[3], "");
+                    algorithm.c_tile_transfer.thread_cluster_dims[0], "×",
+                    algorithm.c_tile_transfer.thread_cluster_dims[1], "×",
+                    algorithm.c_tile_transfer.thread_cluster_dims[2], "×",
+                    algorithm.c_tile_transfer.thread_cluster_dims[3]);
         f.writeLast(4, "Vector access (GMEM write) instruction size: ",
                     algorithm.c_tile_transfer.scalar_per_vector);
         f.writeLast(2);

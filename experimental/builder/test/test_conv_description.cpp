@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) Advanced Micro Devices, Inc. All rights reserved.
+
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
 
@@ -135,8 +136,8 @@ TEST(ConvDescriptionTest, DefaultInstanceHasDetailedDescription)
                     "│  │  │  ├─ Vector access (LDS write) instruction size: 8\n"
                     "│  │  │  └─ LDS data layout padding (to prevent bank conflicts): 8\n"
                     "│  │  └─ C Tile transfer: \n"
-                    "│  │     ├─ Data shuffle (number of gemm instructions per iteration): 11\n"
-                    "│  │     ├─ Spatial thread distribution used to store data: 13218\n"
+                    "│  │     ├─ Data shuffle (number of gemm instructions per iteration): 1×1\n"
+                    "│  │     ├─ Spatial thread distribution used to store data: 1×32×1×8\n"
                     "│  │     └─ Vector access (GMEM write) instruction size: 8\n"
                     "│  └─ \n"
                     "└─ "));
