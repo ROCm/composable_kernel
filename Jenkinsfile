@@ -509,6 +509,11 @@ def cmake_build(Map conf=[:]){
         //build CK
         if(check_host() && params.USE_SCCACHE && "${env.CK_SCCACHE}" != "null") {
             sh """
+                echo "=== MAKING SCRIPTS EXECUTABLE ==="
+                chmod +x ../script/debug_sccache_performance.sh
+                chmod +x ../script/analyze_cache_keys.sh
+                chmod +x ../script/monitor_sccache_during_build.sh
+                
                 echo "=== PRE-BUILD SCCACHE DEBUG ==="
                 ../script/debug_sccache_performance.sh pre_build_\$(date +%Y%m%d_%H%M%S)
                 
