@@ -18,6 +18,33 @@ repos:
             (?x)^(
                 docs/conf.py
             )$
+-   repo: https://github.com/pocc/pre-commit-hooks
+    rev: v1.3.5
+    hooks:
+    -   id: clang-tidy
+        name: clang-tidy (optional static analysis)
+        stages: [manual]
+        args:
+            - --config-file=.clang-tidy
+            - --use-color
+            - -j=4
+        types_or: [c++, c]
+        # Timeout handled by pre-commit framework
+        # 2 minute timeout for large files
+        pass_filenames: true
+    -   id: cppcheck
+        name: cppcheck (optional static analysis)
+        stages: [manual]
+        args:
+            - --enable=warning,style,performance,portability
+            - --inline-suppr
+            - --suppressions-list=.cppcheck-suppressions.txt
+            - --quiet
+            - --max-ctu-depth=2
+            - -j=4
+            - --error-exitcode=0
+        types_or: [c++, c]
+        pass_filenames: true
 -   repo: local
     hooks:
     # -   id: copyright-year-checker

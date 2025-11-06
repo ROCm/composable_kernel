@@ -1,0 +1,19 @@
+# CppCheck Suppressions for Composable Kernel
+# These suppressions are based on the project's CMake configuration
+
+# Configuration-related suppressions
+ConfigurationNotChecked
+constStatement
+duplicateCondition
+noExplicitConstructor
+passedByValue
+preprocessorErrorDirective
+shadowVariable
+unusedFunction
+unusedPrivateFunction
+unusedStructMember
+unmatchedSuppression
+
+# Suppress all warnings from system directories
+*:/usr/*
+*:/opt/*
