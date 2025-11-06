@@ -15,7 +15,8 @@ enum class DeviceOpType
 
     // Forward Convolution - Grouped
     GROUPED_CONV_FWD_MULTIPLE_ABD, // Maps to: DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
-    GROUPED_CONV_FWD_MULTIPLE_ABD_XDL_CSHUFFLE_V3, // Maps to: DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
+    GROUPED_CONV_FWD_MULTIPLE_ABD_XDL_CSHUFFLE_V3, // Maps to:
+                                                    // DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
 };
 
 } // namespace ck_tile::builder
