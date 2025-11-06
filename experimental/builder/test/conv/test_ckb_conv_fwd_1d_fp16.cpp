@@ -27,7 +27,7 @@ TEST(FwdConvInstances,
         .gemm_specialization        = GemmSpecialization::MNKPadding,
         .num_gemm_k_prefetch_stages = 1,
         .num_groups_to_merge        = 2,
-        .loop_scheduler             = LoopScheduler::DEFAULT};
+        .loop_scheduler             = PipelineScheduler::DEFAULT};
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
     run_test<Builder>(
