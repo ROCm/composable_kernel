@@ -11,9 +11,6 @@
 
 #include "conv_signature_types.hpp"
 
-// Export macro for dynamic library
-#define CKB_EXPORT __attribute__((visibility("default")))
-
 namespace ck_tile::builder::registry {
 
 using namespace ck_tile::builder::test;
@@ -116,44 +113,13 @@ struct AutoRegister {
 
 } // namespace ck_tile::builder::registry
 
-// C API for dynamic library usage
+#define CKB_EXPORT __attribute__((visibility("default")))
+
+// C API function declarations
 extern "C" {
-    // Get the registry instance
-    CKB_EXPORT void* ckb_get_registry() {
-        return &ck_tile::builder::registry::get_global_registry();
-    }
-    
-    // Get instance count
-    CKB_EXPORT size_t ckb_get_instance_count() {
-        return ck_tile::builder::registry::get_global_registry().get_all_instance_ids().size();
-    }
-    
-    // Get all instance IDs
-    CKB_EXPORT const char** ckb_get_all_instance_ids(size_t* count) {
-        static std::vector<std::string> ids;
-        static std::vector<const char*> c_strs;
-        
-        ids = ck_tile::builder::registry::get_global_registry().get_all_instance_ids();
-        c_strs.clear();
-        c_strs.reserve(ids.size());
-        
-        for (const auto& id : ids) {
-            c_strs.push_back(id.c_str());
-        }
-        
-        *count = c_strs.size();
-        return c_strs.data();
-    }
-    
-    // Create invoker by ID
-    CKB_EXPORT void* ckb_create_invoker(const char* instance_id) {
-        auto* entry = ck_tile::builder::registry::get_global_registry().get_instance(instance_id);
-        return entry ? entry->create_invoker() : nullptr;
-    }
-    
-    // Get type string by ID
-    CKB_EXPORT const char* ckb_get_type_string(const char* instance_id) {
-        auto* entry = ck_tile::builder::registry::get_global_registry().get_instance(instance_id);
-        return entry ? entry->type_string.c_str() : nullptr;
-    }
+    CKB_EXPORT void* ckb_get_registry();
+    CKB_EXPORT size_t ckb_get_instance_count();
+    CKB_EXPORT const char** ckb_get_all_instance_ids(size_t* count);
+    CKB_EXPORT void* ckb_create_invoker(const char* instance_id);
+    CKB_EXPORT const char* ckb_get_type_string(const char* instance_id);
 }
