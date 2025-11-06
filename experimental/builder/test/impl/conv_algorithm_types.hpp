@@ -49,14 +49,14 @@ struct GridwiseWmmaGemm
     size_t n_per_wmma      = 0;
     size_t m_wmma_per_wave = 0;
     size_t n_wmma_per_wave = 0;
-    GridwiseGemmPipelineVersion pipeline_version;
+    PipelineVersion pipeline_version;
 };
 static_assert(ckb::GridwiseWmmaGemmDescriptor<GridwiseWmmaGemm>);
 
 struct BlockGemm
 {
-    BlockGemmPipelineVersion pipeline_version;
-    BlockGemmPipelineScheduler scheduler;
+    PipelineVersion pipeline_version;
+    PipelineScheduler scheduler;
 };
 static_assert(ckb::BlockGemmDescriptor<BlockGemm>);
 
@@ -156,7 +156,7 @@ struct ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     GemmSpecialization gemm_specialization;
     size_t num_gemm_k_prefetch_stages;
     size_t num_groups_to_merge;
-    LoopScheduler loop_scheduler;
+    PipelineScheduler loop_scheduler;
 };
 static_assert(
     ckb::ConvAlgorithmDescriptor<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
@@ -191,7 +191,7 @@ struct ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
     ConvFwdSpecialization fwd_specialization;
     GemmSpecialization gemm_specialization;
     size_t num_gemm_k_prefetch_stages;
-    LoopScheduler loop_scheduler;
+    PipelineScheduler loop_scheduler;
 };
 static_assert(
     ckb::ConvAlgorithmDescriptor<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle>);
