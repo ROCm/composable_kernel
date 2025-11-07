@@ -577,7 +577,7 @@ def cmake_build(Map conf=[:]){
             
             // Archive the debug logs
             try {
-                archiveArtifacts artifacts: "build/*monitor*.log,build/sccache_debug*.log,build/cache_key_analysis*.log", allowEmptyArchive: true
+                archiveArtifacts artifacts: "*monitor*.log,sccache_debug*.log,cache_key_analysis*.log", allowEmptyArchive: true
             } catch (Exception e) {
                 echo "Could not archive sccache debug logs: ${e.getMessage()}"
             }
