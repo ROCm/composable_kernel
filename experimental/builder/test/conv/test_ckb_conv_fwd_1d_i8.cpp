@@ -12,14 +12,15 @@ using namespace ck_tile::builder::test_utils;
 TEST(FwdConvInstances,
      Create_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle_Instance_1D_FP32_ChannelsFirst_scale)
 {
-    constexpr ConvSignature FwdConvSignature{
-        .spatial_dim           = 1,
-        .direction             = ConvDirection::FORWARD,
-        .layout                = GroupConvLayout1D::GNWC_GKXC_GNWK,
-        .data_type             = DataType::I8,
-        .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
+    constexpr ConvSignature FwdConvSignature{.spatial_dim = 1,
+                                             .direction   = ConvDirection::FORWARD,
+                                             .layout      = GroupConvLayout1D::GNWC_GKXC_GNWK,
+                                             .data_type   = DataType::I8,
+                                             .elementwise_operation =
+                                                 ElementwiseOperation::PASS_THROUGH};
 
-    constexpr auto FwdConvAlgorithm = ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle{}
+    constexpr auto FwdConvAlgorithm =
+        ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle{}
             .with_thread_block(FwdThreadBlock_128_64x64x64)
             .with_gemm_config(FwdGemmParams_Wmma_2x1_per_wave)
             .with_block_transfer(FwdBlockTransfer_4x32x1)

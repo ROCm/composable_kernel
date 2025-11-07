@@ -95,7 +95,8 @@ concept AccessOrderDescriptor = requires(T t) {
     { t.order } -> std::convertible_to<std::array<size_t, 3>>;
 };
 
-// Base requirement for all ConvAlgorithm concepts, i.e., all conv algorithm concepts must meet this concept.
+// Base requirement for all ConvAlgorithm concepts, i.e., all conv algorithm concepts must meet this
+// concept.
 template <typename T>
 concept ConvAlgorithmDescriptor = std::is_class_v<T>;
 
@@ -184,7 +185,7 @@ concept SpecifiesLoopScheduler = requires {
 };
 
 template <typename T>
-concept SpecifiesLargeTensorSupport = requires { 
+concept SpecifiesLargeTensorSupport = requires {
     { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
     requires T::specialization == ConvAlgorithmSpecialization::LARGE_TENSOR;
 };
@@ -260,57 +261,32 @@ concept SpecifiesDlEpilogue = requires {
 /******************************************** */
 
 template <typename T>
-concept DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 = 
-    ConvAlgorithmDescriptor<T> &&
-    SpecifiesThreadBlock<T> && 
-    SpecifiesGridwiseXdlGemm<T> &&
-    SpecifiesBlockTransfer<T> && 
-    SpecifiesLdsTransfer<T> &&
-    SpecifiesThreadClusterAccessOrder<T> && 
-    SpecifiesSourceAccessOrder<T> &&
-    SpecifiesFwdConcSpecialization<T> &&
-    SpecifiesGemmSpecialization<T> &&
-    SpecifiesBlockGemm<T>;
+concept DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 =
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseXdlGemm<T> &&
+    SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
+    SpecifiesSourceAccessOrder<T> && SpecifiesFwdConcSpecialization<T> &&
+    SpecifiesGemmSpecialization<T> && SpecifiesBlockGemm<T>;
 
 template <typename T>
 concept DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle =
-    ConvAlgorithmDescriptor<T> &&
-    SpecifiesThreadBlock<T> && 
-    SpecifiesGridwiseXdlGemm<T> &&
-    SpecifiesBlockTransfer<T> && 
-    SpecifiesLdsTransfer<T> &&
-    SpecifiesThreadClusterAccessOrder<T> && 
-    SpecifiesSourceAccessOrder<T> &&
-    SpecifiesFwdConcSpecialization<T> &&
-    SpecifiesGemmSpecialization<T> &&
-    SpecifiesNumPrefetchStages<T> &&
-    SpecifiesNumGroupsToMerge<T> &&
-    SpecifiesLoopScheduler<T>;
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseXdlGemm<T> &&
+    SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
+    SpecifiesSourceAccessOrder<T> && SpecifiesFwdConcSpecialization<T> &&
+    SpecifiesGemmSpecialization<T> && SpecifiesNumPrefetchStages<T> &&
+    SpecifiesNumGroupsToMerge<T> && SpecifiesLoopScheduler<T>;
 
 template <typename T>
-concept DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle = 
-    ConvAlgorithmDescriptor<T> &&
-    SpecifiesThreadBlock<T> && 
-    SpecifiesGridwiseWmmaGemm<T> &&
-    SpecifiesBlockTransfer<T> && 
-    SpecifiesLdsTransfer<T> &&
-    SpecifiesThreadClusterAccessOrder<T> && 
-    SpecifiesSourceAccessOrder<T> &&
-    SpecifiesFwdConcSpecialization<T> &&
-    SpecifiesGemmSpecialization<T> &&
-    SpecifiesNumPrefetchStages<T> &&
-    SpecifiesLoopScheduler<T>;
+concept DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle =
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseWmmaGemm<T> &&
+    SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
+    SpecifiesSourceAccessOrder<T> && SpecifiesFwdConcSpecialization<T> &&
+    SpecifiesGemmSpecialization<T> && SpecifiesNumPrefetchStages<T> && SpecifiesLoopScheduler<T>;
 
 template <typename T>
-concept DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK = 
-    ConvAlgorithmDescriptor<T> &&
-    SpecifiesThreadBlock<T> && 
-    SpecifiesFwdConcSpecialization<T> &&
-    SpecifiesGemmSpecialization<T> &&
-    SpecifiesDlThreadConfig<T> &&
-    SpecifiesDlThreadCluster<T> &&
-    SpecifiesDlBlockTransfer<T> &&
-    SpecifiesDlEpilogue<T>;
+concept DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK =
+    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesFwdConcSpecialization<T> &&
+    SpecifiesGemmSpecialization<T> && SpecifiesDlThreadConfig<T> && SpecifiesDlThreadCluster<T> &&
+    SpecifiesDlBlockTransfer<T> && SpecifiesDlEpilogue<T>;
 
 template <typename T>
 concept DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor =
