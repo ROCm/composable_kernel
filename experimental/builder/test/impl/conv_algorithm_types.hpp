@@ -137,6 +137,7 @@ struct ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     size_t num_gemm_k_prefetch_stages;
     size_t num_groups_to_merge;
     PipelineScheduler loop_scheduler;
+    bool large_tensor_support{false};
 };
 
 struct ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
@@ -199,21 +200,5 @@ struct ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
     DlBlockTransfer block_transfer_b;
     DlEpilogue epilogue_c;
 };
-static_assert(
-    ckb::ConvAlgorithmDescriptor<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
-static_assert(
-    ckb::SpecifiesThreadBlock<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
-static_assert(ckb::SpecifiesFwdConcSpecialization<
-              ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
-static_assert(
-    ckb::SpecifiesGemmSpecialization<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
-static_assert(
-    ckb::SpecifiesDlThreadConfig<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
-static_assert(
-    ckb::SpecifiesDlThreadCluster<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
-static_assert(
-    ckb::SpecifiesDlBlockTransfer<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
-static_assert(
-    ckb::SpecifiesDlEpilogue<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
 
 } // namespace ck_tile::builder::test

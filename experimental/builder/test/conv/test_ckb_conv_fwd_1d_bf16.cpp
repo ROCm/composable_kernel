@@ -21,7 +21,7 @@ TEST(FwdConvInstances,
         .elementwise_operation = ElementwiseOperation::SCALE};
 
     constexpr ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 FwdConvAlgorithm{
-        .thread_block        = FwdThreadBlock_256x256x32,
+        .thread_block        = FwdThreadBlock_256_256x256x32,
         .gridwise_gemm       = FwdGemmParams_Xdl_4x4_per_wave,
         .block_transfer      = FwdBlockTransfer_4x64x1,
         .fwd_specialization  = ConvFwdSpecialization::FILTER_1X1_STRIDE1_PAD0,

@@ -240,61 +240,6 @@ inline std::ostream& operator<<(std::ostream& os, GroupConvLayout3D layout)
     }
 }
 
-inline std::ostream& operator<<(std::ostream& os, FwdGroupConvDeviceOperation op)
-{
-    using enum FwdGroupConvDeviceOperation;
-    switch(op)
-    {
-    case DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK:
-        return os << "DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK";
-    case DeviceGroupedConvFwdMultipleD_Wmma_CShuffle:
-        return os << "DeviceGroupedConvFwdMultipleD_Wmma_CShuffle";
-    case DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle:
-        return os << "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle";
-    case DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3:
-        return os << "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3";
-    case DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor:
-        return os << "DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor";
-    default: return os << "Unknown";
-    }
-}
-
-inline std::ostream& operator<<(std::ostream& os, BwdDataGroupConvDeviceOperation op)
-{
-    using enum BwdDataGroupConvDeviceOperation;
-    switch(op)
-    {
-    case DeviceGroupedConvBwdDataMultipleD: return os << "DeviceGroupedConvBwdDataMultipleD";
-    case DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle:
-        return os << "DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffle";
-    case DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1:
-        return os << "DeviceGroupedConvBwdDataMultipleD_Xdl_CShuffle_v1";
-    default: return os << "Unknown";
-    }
-}
-
-inline std::ostream& operator<<(std::ostream& os, BwdWeightGroupConvDeviceOperation op)
-{
-    using enum BwdWeightGroupConvDeviceOperation;
-    switch(op)
-    {
-    case DeviceGroupedConvBwdWeight: return os << "DeviceGroupedConvBwdWeight";
-    case DeviceGroupedConvBwdWeight_Dl: return os << "DeviceGroupedConvBwdWeight_Dl";
-    case DeviceGroupedConvBwdWeight_Xdl_CShuffle:
-        return os << "DeviceGroupedConvBwdWeight_Xdl_CShuffle";
-    case DeviceGroupedConvBwdWeight_Xdl_CShuffleV3:
-        return os << "DeviceGroupedConvBwdWeight_Xdl_CShuffleV3";
-    case DeviceGroupedConvBwdWeight_Wmma_CShuffle:
-        return os << "DeviceGroupedConvBwdWeight_Wmma_CShuffle";
-    case DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle:
-        return os << "DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle";
-    case DeviceGroupedConvBwdWeightMultipleD: return os << "DeviceGroupedConvBwdWeightMultipleD";
-    case DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle:
-        return os << "DeviceGroupedConvBwdWeightMultipleD_Xdl_CShuffle";
-    default: return os << "Unknown";
-    }
-}
-
 inline std::ostream& operator<<(std::ostream& os, ElementwiseOperation op)
 {
     using enum ElementwiseOperation;

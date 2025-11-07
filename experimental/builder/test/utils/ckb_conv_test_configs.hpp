@@ -146,25 +146,25 @@ constexpr GridwiseWmmaGemm FwdGemmParams_Wmma_2x1_per_wave{.k1               = 8
                                                            .n_wmma_per_wave  = 1,
                                                            .pipeline_version = PipelineVersion::V1};
 
-constexpr ThreadBlock FwdThreadBlock_256x256x32{.block_size = 256,
+constexpr ThreadBlock FwdThreadBlock_256_256x256x32{.block_size = 256,
                                                 .tile_size  = {.m = 256, .n = 256, .k = 32}};
 
 constexpr ThreadBlock FwdThreadBlock_256_256x128x32{.block_size = 256,
                                                 .tile_size  = {.m = 256, .n = 128, .k = 32}};
 
-constexpr ThreadBlock FwdThreadBlock_128x128x32{.block_size = 256,
+constexpr ThreadBlock FwdThreadBlock_256_128x128x32{.block_size = 256,
                                                 .tile_size  = {.m = 128, .n = 128, .k = 32}};
 
-constexpr ThreadBlock FwdThreadBlock_128x128x16{.block_size = 256,
+constexpr ThreadBlock FwdThreadBlock_256_128x128x16{.block_size = 256,
                                                 .tile_size  = {.m = 128, .n = 128, .k = 16}};
 
-constexpr ThreadBlock FwdThreadBlock_64x32x32{.block_size = 64,
+constexpr ThreadBlock FwdThreadBlock_64_64x32x32{.block_size = 64,
                                               .tile_size  = {.m = 64, .n = 32, .k = 32}};
 
 constexpr ThreadBlock FwdThreadBlock_128_128x128x32{.block_size = 128,
                                                 .tile_size  = {.m = 128, .n = 128, .k = 32}};
 
-constexpr ThreadBlock FwdThreadBlock_64x64x64{.block_size = 128,
+constexpr ThreadBlock FwdThreadBlock_128_64x64x64{.block_size = 128,
                                               .tile_size  = {.m = 64, .n = 64, .k = 64}};
 
 constexpr BlockGemm BlockGemmDesc_v1_intrawave = {.pipeline_version = PipelineVersion::V1,

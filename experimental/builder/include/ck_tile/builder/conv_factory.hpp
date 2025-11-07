@@ -651,6 +651,103 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         IS_DIRECT_LOAD>;
 };
 
+// Factory specialization for DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor instance
+// of a grouped forward convolution kernel with large tensor support (N-splitting).
+template <ConvSignatureDescriptor auto SIGNATURE,
+          ConvAlgorithmDescriptor auto ALGORITHM,
+          StringLiteral VERSION>
+    requires ConvDirectionIsForward<SIGNATURE> &&
+             DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor<decltype(ALGORITHM)> &&
+             LargeTensorSupportEnabled<ALGORITHM>
+struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
+{
+    static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
+    using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE.layout,
+                                                                     SPATIAL_DIM,
+                                                                     ConvDirection::FORWARD>());
+    using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
+    using Ops           = factory_internal::ElementwiseOps<SIGNATURE.elementwise_operation>;
+    using AlgorithmType = decltype(ALGORITHM);
+
+    static constexpr auto FWD_CONV_SPECIALIZATION =
+        factory_internal::SetFwdConvSpecialization<ALGORITHM>();
+    static constexpr auto GEMM_SPECIALIZATION =
+        factory_internal::SetGemmSpecialization<ALGORITHM>();
+    static constexpr factory_internal::ConvSpec SPECIALIZATION{.conv_spec = FWD_CONV_SPECIALIZATION,
+                                                               .gemm_spec = GEMM_SPECIALIZATION};
+
+    static constexpr auto LOOP_SCHEDULER = factory_internal::SetLoopScheduler<ALGORITHM>();
+    static constexpr auto BLOCK          = factory_internal::SetThreadBlockInfo<ALGORITHM>();
+    static constexpr auto GRIDWISE_GEMM  = ALGORITHM.gridwise_gemm;
+    static constexpr auto A_BLOCK_TRANSFER =
+        factory_internal::SetFwdConvABlockTransfer<ALGORITHM>();
+    static constexpr auto B_BLOCK_TRANSFER =
+        factory_internal::SetFwdConvBBlockTransfer<ALGORITHM>();
+    static constexpr auto C_BLOCK_TRANSFER =
+        factory_internal::SetCBlockTransfer<SIGNATURE, ALGORITHM>();
+
+    // Check limits for the algorithm parameters.
+    static_assert(InputVectorTransferLimits<A_BLOCK_TRANSFER>);
+    static_assert(InputVectorTransferLimits<B_BLOCK_TRANSFER>);
+    static_assert(OutputVectorTransferLimits<C_BLOCK_TRANSFER>);
+    static_assert(AccessOrderLimits<A_BLOCK_TRANSFER.thread_cluster_order>);
+    static_assert(AccessOrderLimits<B_BLOCK_TRANSFER.thread_cluster_order>);
+    static_assert(AccessOrderLimits<A_BLOCK_TRANSFER.src_access_order>);
+    static_assert(AccessOrderLimits<B_BLOCK_TRANSFER.src_access_order>);
+
+    // The forward convolution kernel class instance with large tensor support.
+    using Instance =
+        ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor<
+            SPATIAL_DIM,
+            typename Layouts::ALayout,
+            typename Layouts::BLayout,
+            typename Layouts::DsLayout,
+            typename Layouts::ELayout,
+            typename Types::ADataType,
+            typename Types::BDataType,
+            typename Types::AccDataType,
+            typename Types::CShuffleDataType,
+            typename Types::DsDataTypes,
+            typename Types::EDataType,
+            typename Ops::AElementwiseOp,
+            typename Ops::BElementwiseOp,
+            typename Ops::CDEElementwiseOp,
+            SPECIALIZATION.conv_spec,
+            SPECIALIZATION.gemm_spec,
+            ALGORITHM.num_gemm_k_prefetch_stages,
+            BLOCK.block_size,
+            BLOCK.per_block.m,
+            BLOCK.per_block.n,
+            BLOCK.per_block.k,
+            GRIDWISE_GEMM.ak1,
+            GRIDWISE_GEMM.bk1,
+            GRIDWISE_GEMM.m_per_xdl,
+            GRIDWISE_GEMM.n_per_xdl,
+            GRIDWISE_GEMM.m_xdl_per_wave,
+            GRIDWISE_GEMM.n_xdl_per_wave,
+            to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_dims>,
+            to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_order>,
+            to_sequence_v<A_BLOCK_TRANSFER.src_access_order>,
+            A_BLOCK_TRANSFER.src_vector_dim,
+            A_BLOCK_TRANSFER.src_scalar_per_vector,
+            A_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
+            A_BLOCK_TRANSFER.lds_padding,
+            to_sequence_v<B_BLOCK_TRANSFER.thread_cluster_dims>,
+            to_sequence_v<B_BLOCK_TRANSFER.thread_cluster_order>,
+            to_sequence_v<B_BLOCK_TRANSFER.src_access_order>,
+            B_BLOCK_TRANSFER.src_vector_dim,
+            B_BLOCK_TRANSFER.src_scalar_per_vector,
+            B_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
+            B_BLOCK_TRANSFER.lds_padding,
+            C_BLOCK_TRANSFER.m_per_wave_per_shuffle,
+            C_BLOCK_TRANSFER.n_per_wave_per_shuffle,
+            to_sequence_v<C_BLOCK_TRANSFER.thread_cluster_dims>,
+            C_BLOCK_TRANSFER.scalar_per_vector,
+            typename Types::AComputeType,
+            typename Types::BComputeType,
+            LOOP_SCHEDULER>;
+};
+
 // Factory specialization for DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle instance
 // of a grouped forward convolution kernel.
 template <ConvSignatureDescriptor auto SIGNATURE,
@@ -850,7 +947,7 @@ template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
     requires ConvDirectionIsForward<SIGNATURE> &&
-             ConvDeviceOpIs_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK<SIGNATURE>
+             DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK<decltype(ALGORITHM)>
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
@@ -860,22 +957,6 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
     using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
     using Ops           = factory_internal::ElementwiseOps<SIGNATURE.elementwise_operation>;
     using AlgorithmType = decltype(ALGORITHM);
-
-    static_assert(SpecifiesThreadBlock<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify thread block info.");
-    static_assert(SpecifiesFwdConcSpecialization<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify forward convolution "
-                  "specialization.");
-    static_assert(SpecifiesGemmSpecialization<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify gemm specialization.");
-    static_assert(SpecifiesDlThreadConfig<AlgorithmType>,
-                  "DL algorithm must specify thread config.");
-    static_assert(SpecifiesDlThreadCluster<AlgorithmType>,
-                  "DL algorithm must specify thread cluster.");
-    static_assert(SpecifiesDlBlockTransfer<AlgorithmType>,
-                  "DL algorithm must specifyblock transfer.");
-    static_assert(SpecifiesDlEpilogue<AlgorithmType>,
-                  "DL algorithm must specify epilogue.");
 
     static constexpr auto FWD_CONV_SPECIALIZATION =
         factory_internal::SetFwdConvSpecialization<ALGORITHM>();
@@ -980,125 +1061,6 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         CThreadTransferSrcDstAccessOrder,
         CThreadTransferSrcDstVectorDim,
         CThreadTransferDstScalarPerVector>;
-};
-
-// Factory specialization for DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor instance
-// of a grouped forward convolution kernel with large tensor support (N-splitting).
-template <ConvSignatureDescriptor auto SIGNATURE,
-          ConvAlgorithmDescriptor auto ALGORITHM,
-          StringLiteral VERSION>
-    requires ConvDirectionIsForward<SIGNATURE> &&
-             ConvDeviceOpIs_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor<SIGNATURE>
-struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
-{
-    static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE.layout,
-                                                                     SPATIAL_DIM,
-                                                                     ConvDirection::FORWARD>());
-    using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
-    using Ops           = factory_internal::ElementwiseOps<SIGNATURE.elementwise_operation>;
-    using AlgorithmType = decltype(ALGORITHM);
-
-    static_assert(SpecifiesThreadBlock<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify thread block info.");
-    static_assert(SpecifiesGridwiseXdlGemm<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify gridwise GEMM info.");
-    static_assert(SpecifiesBlockTransfer<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify block transfer info.");
-    static_assert(SpecifiesLdsTransfer<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify LDS transfer info.");
-    static_assert(
-        SpecifiesThreadClusterAccessOrder<AlgorithmType>,
-        "The convolution algorithm descriptor must specify thread cluster access order info.");
-    static_assert(SpecifiesSourceAccessOrder<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify source access order info.");
-    static_assert(SpecifiesFwdConcSpecialization<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify forward convolution "
-                  "specialization.");
-    static_assert(SpecifiesGemmSpecialization<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify gemm specialization.");
-    static_assert(SpecifiesNumPrefetchStages<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify number of prefetch stages.");
-    static_assert(SpecifiesLoopScheduler<AlgorithmType>,
-                  "The convolution algorithm descriptor must specify loop scheduler.");
-
-    static constexpr auto FWD_CONV_SPECIALIZATION =
-        factory_internal::SetFwdConvSpecialization<ALGORITHM>();
-    static constexpr auto GEMM_SPECIALIZATION =
-        factory_internal::SetGemmSpecialization<ALGORITHM>();
-    static constexpr factory_internal::ConvSpec SPECIALIZATION{.conv_spec = FWD_CONV_SPECIALIZATION,
-                                                               .gemm_spec = GEMM_SPECIALIZATION};
-
-    static constexpr auto LOOP_SCHEDULER = factory_internal::SetLoopScheduler<ALGORITHM>();
-    static constexpr auto BLOCK          = factory_internal::SetThreadBlockInfo<ALGORITHM>();
-    static constexpr auto GRIDWISE_GEMM  = ALGORITHM.gridwise_gemm;
-    static constexpr auto A_BLOCK_TRANSFER =
-        factory_internal::SetFwdConvABlockTransfer<ALGORITHM>();
-    static constexpr auto B_BLOCK_TRANSFER =
-        factory_internal::SetFwdConvBBlockTransfer<ALGORITHM>();
-    static constexpr auto C_BLOCK_TRANSFER =
-        factory_internal::SetCBlockTransfer<SIGNATURE, ALGORITHM>();
-
-    // Check limits for the algorithm parameters.
-    static_assert(InputVectorTransferLimits<A_BLOCK_TRANSFER>);
-    static_assert(InputVectorTransferLimits<B_BLOCK_TRANSFER>);
-    static_assert(OutputVectorTransferLimits<C_BLOCK_TRANSFER>);
-    static_assert(AccessOrderLimits<A_BLOCK_TRANSFER.thread_cluster_order>);
-    static_assert(AccessOrderLimits<B_BLOCK_TRANSFER.thread_cluster_order>);
-    static_assert(AccessOrderLimits<A_BLOCK_TRANSFER.src_access_order>);
-    static_assert(AccessOrderLimits<B_BLOCK_TRANSFER.src_access_order>);
-
-    // The forward convolution kernel class instance with large tensor support.
-    using Instance =
-        ck::tensor_operation::device::DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor<
-            SPATIAL_DIM,
-            typename Layouts::ALayout,
-            typename Layouts::BLayout,
-            typename Layouts::DsLayout,
-            typename Layouts::ELayout,
-            typename Types::ADataType,
-            typename Types::BDataType,
-            typename Types::AccDataType,
-            typename Types::CShuffleDataType,
-            typename Types::DsDataTypes,
-            typename Types::EDataType,
-            typename Ops::AElementwiseOp,
-            typename Ops::BElementwiseOp,
-            typename Ops::CDEElementwiseOp,
-            SPECIALIZATION.conv_spec,
-            SPECIALIZATION.gemm_spec,
-            ALGORITHM.num_gemm_k_prefetch_stages,
-            BLOCK.block_size,
-            BLOCK.per_block.m,
-            BLOCK.per_block.n,
-            BLOCK.per_block.k,
-            GRIDWISE_GEMM.ak1,
-            GRIDWISE_GEMM.bk1,
-            GRIDWISE_GEMM.m_per_xdl,
-            GRIDWISE_GEMM.n_per_xdl,
-            GRIDWISE_GEMM.m_xdl_per_wave,
-            GRIDWISE_GEMM.n_xdl_per_wave,
-            to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_dims>,
-            to_sequence_v<A_BLOCK_TRANSFER.thread_cluster_order>,
-            to_sequence_v<A_BLOCK_TRANSFER.src_access_order>,
-            A_BLOCK_TRANSFER.src_vector_dim,
-            A_BLOCK_TRANSFER.src_scalar_per_vector,
-            A_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
-            A_BLOCK_TRANSFER.lds_padding,
-            to_sequence_v<B_BLOCK_TRANSFER.thread_cluster_dims>,
-            to_sequence_v<B_BLOCK_TRANSFER.thread_cluster_order>,
-            to_sequence_v<B_BLOCK_TRANSFER.src_access_order>,
-            B_BLOCK_TRANSFER.src_vector_dim,
-            B_BLOCK_TRANSFER.src_scalar_per_vector,
-            B_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
-            B_BLOCK_TRANSFER.lds_padding,
-            C_BLOCK_TRANSFER.m_per_wave_per_shuffle,
-            C_BLOCK_TRANSFER.n_per_wave_per_shuffle,
-            to_sequence_v<C_BLOCK_TRANSFER.thread_cluster_dims>,
-            C_BLOCK_TRANSFER.scalar_per_vector,
-            typename Types::AComputeType,
-            typename Types::BComputeType,
-            LOOP_SCHEDULER>;
 };
 
 } // namespace ck_tile::builder

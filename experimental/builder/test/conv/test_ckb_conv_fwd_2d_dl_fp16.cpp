@@ -15,12 +15,10 @@ TEST(FwdConvInstances, Create_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK_Ins
         .direction             = ConvDirection::FORWARD,
         .layout                = GroupConvLayout2D::GNHWC_GKYXC_GNHWK,
         .data_type             = DataType::FP16,
-        .elementwise_operation = ElementwiseOperation::PASS_THROUGH,
-        .device_operation =
-            FwdGroupConvDeviceOperation::DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK};
+        .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
 
     constexpr ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK FwdConvAlgorithm{
-        .thread_block         = FwdThreadBlock_128x128x16,
+        .thread_block         = FwdThreadBlock_256_128x128x16,
         .fwd_specialization   = ConvFwdSpecialization::DEFAULT,
         .gemm_specialization  = GemmSpecialization::MNKPadding,
         .thread_config        = DlThreadConfig_16x2x4x4x1,
@@ -43,12 +41,10 @@ TEST(FwdConvInstances,
         .direction             = ConvDirection::FORWARD,
         .layout                = GroupConvLayout2D::GNHWC_GKYXC_GNHWK,
         .data_type             = DataType::FP16,
-        .elementwise_operation = ElementwiseOperation::PASS_THROUGH,
-        .device_operation =
-            FwdGroupConvDeviceOperation::DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK};
+        .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
 
     constexpr ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK FwdConvAlgorithm{
-        .thread_block         = FwdThreadBlock_128x128x16,
+        .thread_block         = FwdThreadBlock_256_128x128x16,
         .fwd_specialization   = ConvFwdSpecialization::FILTER_1X1_PAD0,
         .gemm_specialization  = GemmSpecialization::MNKPadding,
         .thread_config        = DlThreadConfig_16x2x4x4x1,
