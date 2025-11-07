@@ -5,13 +5,13 @@
 # Unsupported configurations are logged separately, not counted as crashes
 
 # Fixed parameters
-N=4096
-K=256
 NUM_EXPERTS=128
 TOPK=8
 VALIDATE=0  # Disable validation for speed
+MAX_PARALLEL_JOBS=8  # Number of tests to run in parallel
 
-# Test parameters
+# Test parameters - N and K combinations
+N_K_PAIRS=("256 4096" "4096 256")  # "N K" pairs to test
 DATA_TYPES=("fp16" "bf16" "fp8" "bf8")
 GEMM_KINDS=("gemm1_gate_only" "gemm1_gate_up" "gemm2")
 WARP_TILES=(0 1 2 3)
@@ -29,7 +29,7 @@ SUCCESS_FILE="moe_test_success.txt"
 # Initialize output files
 echo "MoE GEMM Comprehensive Test Results" > $RESULTS_FILE
 echo "Started at: $(date)" >> $RESULTS_FILE
-echo "Test Parameters: N=$N, K=$K, experts=$NUM_EXPERTS, topk=$TOPK" >> $RESULTS_FILE
+echo "Test Parameters: N/K pairs: ${N_K_PAIRS[@]}, experts=$NUM_EXPERTS, topk=$TOPK" >> $RESULTS_FILE
 echo "======================================" >> $RESULTS_FILE
 echo "" >> $RESULTS_FILE
 
@@ -60,12 +60,11 @@ run_test() {
     local gemm_kind=$2
     local warp_tile=$3
     local num_tokens=$4
+    local test_id=$5
     
-    total_tests=$((total_tests + 1))
+    test_name="N=${N} K=${K} prec=${prec} gemm_kind=${gemm_kind} warp_tile=${warp_tile} NumTokens=${num_tokens}"
     
-    test_name="prec=${prec} gemm_kind=${gemm_kind} warp_tile=${warp_tile} NumTokens=${num_tokens}"
-    
-    echo "[$total_tests] Testing: $test_name"
+    echo "[${test_id}] Testing: $test_name"
     
     # Build command
     cmd="$BINARY -experts=$NUM_EXPERTS -TopK=$TOPK -N=$N -K=$K -prec=$prec -NumTokens=$num_tokens -gemm_kind=$gemm_kind -warp_tile=$warp_tile -validate=$VALIDATE -warmup=1 -repeat=1"
@@ -151,18 +150,50 @@ run_test() {
 
 # Main test loop
 echo "Starting comprehensive MoE GEMM testing..."
-echo "Total combinations: $((${#DATA_TYPES[@]} * ${#GEMM_KINDS[@]} * ${#WARP_TILES[@]} * ${#NUM_TOKENS_VALUES[@]}))"
+total_combos=$((${#N_K_PAIRS[@]} * ${#DATA_TYPES[@]} * ${#GEMM_KINDS[@]} * ${#WARP_TILES[@]} * ${#NUM_TOKENS_VALUES[@]}))
+echo "Total combinations: $total_combos"
+echo "Running with up to $MAX_PARALLEL_JOBS parallel jobs"
 echo ""
 
-for prec in "${DATA_TYPES[@]}"; do
-    for gemm_kind in "${GEMM_KINDS[@]}"; do
-        for warp_tile in "${WARP_TILES[@]}"; do
-            for num_tokens in "${NUM_TOKENS_VALUES[@]}"; do
-                run_test "$prec" "$gemm_kind" "$warp_tile" "$num_tokens"
+test_counter=0
+
+for n_k_pair in "${N_K_PAIRS[@]}"; do
+    N=$(echo $n_k_pair | awk '{print $1}')
+    K=$(echo $n_k_pair | awk '{print $2}')
+    
+    echo "========================================"
+    echo "Testing with N=$N, K=$K"
+    echo "========================================"
+    
+    for prec in "${DATA_TYPES[@]}"; do
+        for gemm_kind in "${GEMM_KINDS[@]}"; do
+            for warp_tile in "${WARP_TILES[@]}"; do
+                for num_tokens in "${NUM_TOKENS_VALUES[@]}"; do
+                    test_counter=$((test_counter + 1))
+                    
+                    # Wait if we've reached max parallel jobs
+                    while [ $(jobs -r | wc -l) -ge $MAX_PARALLEL_JOBS ]; do
+                        sleep 0.1
+                    done
+                    
+                    # Run test in background
+                    run_test "$prec" "$gemm_kind" "$warp_tile" "$num_tokens" "$test_counter" &
+                done
             done
         done
     done
 done
+
+# Wait for all background jobs to complete
+echo ""
+echo "Waiting for all tests to complete..."
+wait
+
+# Count final results from output files
+total_tests=$(grep -c "→" $SUCCESS_FILE $CRASH_FILE $UNSUPPORTED_FILE 2>/dev/null | awk -F: '{sum+=$2} END {print sum}')
+passed_tests=$(grep -c "→ PASSED" $SUCCESS_FILE 2>/dev/null || echo 0)
+unsupported_tests=$(grep -c "→ Configuration Not Supported" $UNSUPPORTED_FILE 2>/dev/null || echo 0)
+crashed_tests=$(grep -c "→ CRASHED\|→ UNKNOWN FAILURE" $CRASH_FILE 2>/dev/null || echo 0)
 
 # Summary
 echo "======================================" >> $RESULTS_FILE
