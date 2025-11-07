@@ -460,5 +460,5 @@ int run_gemm_example(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
-    return !run_gemm_example<GemmConfigPreshuffleB_Bquant_decode>(argc, argv);
+    return !run_gemm_example<GemmConfigPreshuffleB_PreshuffleBQuant_Prefill>(argc, argv);
 }

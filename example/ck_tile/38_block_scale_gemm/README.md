@@ -64,8 +64,10 @@ User need to select correct mapping of config for each quant mode:
 |  | quant_mode as runtime argument | Config in cpp file |
 |:--------|:-----:|-------|
 | For selecting AQuant  | aquant  | GemmConfigQuant    |
-| For selecting Aquant with Preshuffle   | aquant  | GemmConfigPreshuffleQuant    |
+| For selecting AQuant with Preshuffle    | aquant  | GemmConfigPreshuffleQuant    |
 | For selecting BQuant  | bquant  | GemmConfigQuant    |
-| For selecting PreShuffle Weight matrix with Bquant | bquant | GemmConfigPreshuffleB_Bquant_decode (or) GemmConfigPreshuffleB_Bquant_prefill
+| For selecting BQuant  with Preshuffle  | bquant  | GemmConfigPreshuffleQuant    |
+| For selecting PreShuffle B with BQuant | bquant | GemmConfigPreshuffleB_BQuant_Decode (or) GemmConfigPreshuffleB_BQuant_Prefill
+| For selecting PreShuffle B with preshuffle BQuant | bquant | GemmConfigPreshuffleB_PreshuffleBQuant_Decode (or) GemmConfigPreshuffleB_PreshuffleBQuant_Prefill
 | For selecting RowCol quant  | rowcolquant  | GemmConfigRowColQuant    |
 
