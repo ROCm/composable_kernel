@@ -32,6 +32,16 @@ get_sccache_stats() {
     fi
 }
 
+# Function to check if sccache server is running
+is_sccache_running() {
+    if command -v sccache &> /dev/null; then
+        sccache --show-stats &> /dev/null
+        return $?
+    else
+        return 1
+    fi
+}
+
 # Function to test Redis connectivity
 test_redis_connectivity() {
     # Use SCCACHE_REDIS if set, otherwise construct from CK_SCCACHE
@@ -70,7 +80,7 @@ while true; do
     sleep $MONITOR_INTERVAL
     
     # Check if sccache server is still running
-    if ! pgrep -f "sccache.*--start-server" > /dev/null; then
+    if ! is_sccache_running; then
         log_with_timestamp "WARNING: sccache server not running!"
     fi
     

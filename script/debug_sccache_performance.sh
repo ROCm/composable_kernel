@@ -22,11 +22,17 @@ echo "" | tee -a "$LOG_FILE"
 
 # Check if sccache is running
 echo "=== SCCACHE SERVER STATUS ===" | tee -a "$LOG_FILE"
-if pgrep -f sccache > /dev/null; then
-    echo "sccache server is running" | tee -a "$LOG_FILE"
-    ps aux | grep sccache | grep -v grep | tee -a "$LOG_FILE"
+if command -v sccache &> /dev/null; then
+    if sccache --show-stats &> /dev/null; then
+        echo "sccache server is running" | tee -a "$LOG_FILE"
+        ps aux | grep sccache | grep -v grep | tee -a "$LOG_FILE"
+    else
+        echo "sccache server is NOT running" | tee -a "$LOG_FILE"
+        echo "Attempting to start sccache server..." | tee -a "$LOG_FILE"
+        sccache --start-server 2>&1 | tee -a "$LOG_FILE"
+    fi
 else
-    echo "sccache server is NOT running" | tee -a "$LOG_FILE"
+    echo "sccache command not found" | tee -a "$LOG_FILE"
 fi
 echo "" | tee -a "$LOG_FILE"
 
