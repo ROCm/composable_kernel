@@ -12,6 +12,24 @@ namespace ck_tile::builder::test_utils {
 using namespace ck_tile::builder;
 using namespace test;
 
+constexpr DlThreadConfig DlThreadConfig_16x2x4x4x1{
+        .k0_per_block = 16, .k1 = 2, .m1_per_thread = 4, .n1_per_thread = 4, .k_per_thread = 1};
+
+constexpr DlThreadCluster DlThreadCluster_8x2{.m1_xs = {8, 2}, .n1_xs = {8, 2}};
+
+constexpr DlBlockTransfer DlBlockTransferAB{
+    .thread_slice_lengths                   = {8, 1, 1, 2},
+    .thread_cluster_lengths                 = {2, 1, 128, 1},
+    .thread_cluster_arrange_order           = {1, 2, 0, 3},
+    .src_access_order                       = {1, 2, 0, 3},
+    .src_vector_tensor_lengths              = {4, 1, 1, 2},
+    .src_vector_tensor_contiguous_dim_order = {1, 2, 0, 3},
+    .dst_vector_tensor_lengths              = {1, 1, 1, 2}};
+
+constexpr DlEpilogue DlEpilogueC{.src_dst_access_order  = {0, 1, 2, 3, 4, 5},
+                                .src_dst_vector_dim    = 5,
+                                .dst_scalar_per_vector = 4};
+
 constexpr BlockTransferABC FwdBlockTransfer_4x64x1{
     .block_transfer_a              = {.k0 = 4, .m_n = 64, .k1 = 1},
     .block_transfer_b              = {.k0 = 4, .m_n = 64, .k1 = 1},
@@ -131,14 +149,20 @@ constexpr GridwiseWmmaGemm FwdGemmParams_Wmma_2x1_per_wave{.k1               = 8
 constexpr ThreadBlock FwdThreadBlock_256x256x32{.block_size = 256,
                                                 .tile_size  = {.m = 256, .n = 256, .k = 32}};
 
-constexpr ThreadBlock FwdThreadBlock_256x128x32{.block_size = 256,
+constexpr ThreadBlock FwdThreadBlock_256_256x128x32{.block_size = 256,
                                                 .tile_size  = {.m = 256, .n = 128, .k = 32}};
 
 constexpr ThreadBlock FwdThreadBlock_128x128x32{.block_size = 256,
                                                 .tile_size  = {.m = 128, .n = 128, .k = 32}};
 
+constexpr ThreadBlock FwdThreadBlock_128x128x16{.block_size = 256,
+                                                .tile_size  = {.m = 128, .n = 128, .k = 16}};
+
 constexpr ThreadBlock FwdThreadBlock_64x32x32{.block_size = 64,
                                               .tile_size  = {.m = 64, .n = 32, .k = 32}};
+
+constexpr ThreadBlock FwdThreadBlock_128_128x128x32{.block_size = 128,
+                                                .tile_size  = {.m = 128, .n = 128, .k = 32}};
 
 constexpr ThreadBlock FwdThreadBlock_64x64x64{.block_size = 128,
                                               .tile_size  = {.m = 64, .n = 64, .k = 64}};

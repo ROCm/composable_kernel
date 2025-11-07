@@ -13,7 +13,10 @@
 #include <string_view>
 #include <sstream>
 #include <type_traits>
-#include <climits>
+#include <limits.h>
+#include <cmath>
+#include <ostream>
+#include <iostream>
 #include <ck/utility/data_type.hpp>
 #include <ck/utility/sequence.hpp>
 #include <ck/utility/blkgemmpipe_scheduler.hpp>
