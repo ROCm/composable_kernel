@@ -2,18 +2,17 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
-"""
-Validation utilities for GEMM kernel generation.
-Extracted from tile_engine_develop for consistency.
-"""
-
 import logging
 from typing import Tuple, List
 
-# Element size mapping for different data types
-
 GEMM_PIPELINES = ["mem", "compv3", "compv4"]
+
 GEMM_PRESHUFFLE_PIPELINES = ["preshufflev2"]
+
+LAYOUT_MAP = {
+    "r": "ck_tile::tensor_layout::gemm::RowMajor",
+    "c": "ck_tile::tensor_layout::gemm::ColumnMajor",
+}
 
 ELEMENT_SIZE_MAP = {
     "fp16": 2,
@@ -25,6 +24,30 @@ ELEMENT_SIZE_MAP = {
     "int32": 4,
     "fp32": 4,
     "fp64": 8,
+}
+
+WARP_SUPPORTED_COMBINATIONS = {
+    "gfx90a": [
+        [1, 4, 1],
+        [2, 2, 1],
+        [4, 1, 1],
+    ],
+    "gfx942": [
+        [1, 4, 1],
+        [2, 2, 1],
+        [4, 1, 1],
+    ],
+    "gfx950": [
+        [1, 4, 1],
+        [2, 2, 1],
+        [4, 1, 1],
+    ],
+    "gfx1201": [
+        [2, 4, 1],
+        [1, 8, 1],
+        [8, 1, 1],
+        [4, 2, 1],
+    ],
 }
 
 GEMM_PRESHUFFLE_WARP_TILE_SUPPORTED_COMBINATIONS = {
@@ -99,32 +122,6 @@ GEMM_PRESHUFFLE_WARP_TILE_SUPPORTED_COMBINATIONS = {
     },
 }
 
-WARP_SUPPORTED_COMBINATIONS = {
-    "gfx90a": [
-        [1, 4, 1],
-        [2, 2, 1],
-        [4, 1, 1],
-    ],
-    "gfx942": [
-        [1, 4, 1],
-        [2, 2, 1],
-        [4, 1, 1],
-    ],
-    "gfx950": [
-        [1, 4, 1],
-        [2, 2, 1],
-        [4, 1, 1],
-    ],
-    "gfx1201": [
-        [2, 4, 1],
-        [1, 8, 1],
-        [8, 1, 1],
-        [4, 2, 1],
-    ],
-}
-
-# [TODO] Handle this while moving code to commons
-# Supported warp tile combinations for different GPU architectures and data types
 GEMM_WARP_TILE_SUPPORTED_COMBINATIONS = {
     "gfx90a": {
         "fp16_fp16_fp16": [
@@ -208,7 +205,6 @@ GEMM_WARP_TILE_SUPPORTED_COMBINATIONS = {
     },
 }
 
-# Unsupported trait combinations
 TRAIT_UNSUPPORTED_COMBINATIONS = {
     ("compv3", "cshuffle", "interwave"),
     ("compv3", "default", "interwave"),
@@ -412,7 +408,6 @@ def is_tile_config_valid(
     pipeline: str,
     layout: str,
     gpu_target: str,
-    trait_name: str = None,
 ) -> bool:
     """
     Comprehensive tile configuration validation.
@@ -560,12 +555,6 @@ def get_dtype_string(datatype: str) -> str:
         "fp64": "double",
     }
     return dtype_map.get(datatype, "float")
-
-
-LAYOUT_MAP = {
-    "r": "ck_tile::tensor_layout::gemm::RowMajor",
-    "c": "ck_tile::tensor_layout::gemm::ColumnMajor",
-}
 
 
 def get_abc_layouts(layout_code: str) -> Tuple[str, str, str]:
@@ -786,22 +775,24 @@ def validate_gemm(
 ) -> bool:
     # GEMM Validation
     # Validate whole workgroup cover configuration
-    wr_cover_valid, wg_cover_error = validate_whole_wg_cover_configuration(
-        tile_m,
-        tile_n,
-        tile_k,
-        warp_m,
-        warp_n,
-        warp_k,
-        layout,
-        a_datatype,
-        b_datatype,
-    )
-    if not wr_cover_valid:
-        logging.debug(
-            f"Whole workgroup cover configuration validation failed: {wg_cover_error}"
+    whole_workgroup_cover_valid, whole_workgroup_cover_error = (
+        validate_whole_wg_cover_configuration(
+            tile_m,
+            tile_n,
+            tile_k,
+            warp_m,
+            warp_n,
+            warp_k,
+            layout,
+            a_datatype,
+            b_datatype,
         )
-        return False, wg_cover_error
+    )
+    if not whole_workgroup_cover_valid:
+        logging.debug(
+            f"Whole workgroup cover configuration validation failed: {whole_workgroup_cover_error}"
+        )
+        return False, whole_workgroup_cover_error
 
     return True, ""
 
