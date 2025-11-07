@@ -4,6 +4,7 @@
 #pragma once
 
 #include "instance_traits.hpp"
+#include "instance_traits_util.hpp"
 #include "ck/tensor_operation/gpu/device/convolution_backward_weight_specialization.hpp"
 
 // Forward declaration to avoid circular dependency

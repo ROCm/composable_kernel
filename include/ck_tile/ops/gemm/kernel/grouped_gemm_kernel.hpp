@@ -190,7 +190,7 @@ struct GroupedGemmKernel
      */
     CK_TILE_HOST static auto MaxOccupancyGridSize(const stream_config& s) -> dim3
     {
-        using ConstantPointer = const void CK_CONSTANT_ADDRESS_SPACE*;
+        using ConstantPointer = const void CK_TILE_CONSTANT_ADDRESS_SPACE*;
         const auto kernel     = kentry<1, Kernel, ConstantPointer, index_t>;
         int occupancy;
         HIP_CHECK_ERROR(
@@ -518,7 +518,7 @@ struct GroupedGemmKernel
 
     // For non-persistent kernels
     template <bool U = UsePersistentKernel, typename = std::enable_if_t<!U>>
-    CK_TILE_DEVICE void operator()(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+    CK_TILE_DEVICE void operator()(const void CK_TILE_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
                                    index_t group_count) const
     {
         const index_t block_id   = ck_tile::get_block_1d_id();
@@ -541,7 +541,7 @@ struct GroupedGemmKernel
     template <bool U   = UsePersistentKernel,
               typename = std::enable_if_t<U>,
               typename = void> // extra template parameter to avoid redefinition
-    CK_TILE_DEVICE void operator()(const void CK_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
+    CK_TILE_DEVICE void operator()(const void CK_TILE_CONSTANT_ADDRESS_SPACE* gemm_descs_const,
                                    const index_t group_count) const
     {
         const index_t grid_size  = ck_tile::get_grid_size();
