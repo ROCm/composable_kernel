@@ -103,8 +103,10 @@ By default, these hooks do NOT run on every commit (they use `stages: [manual]`)
 
 To run them on specific commits:
 ```bash
-# Run all hooks including manual ones
-SKIP= git commit
+# Run manual-stage hooks before committing
+pre-commit run --hook-stage manual
+# Then commit as usual
+git commit
 ```
 
 ## Advanced Usage

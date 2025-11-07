@@ -31,6 +31,7 @@ repos:
         types_or: [c++, c]
         # Timeout handled by pre-commit framework
         # 2 minute timeout for large files
+        timeout: 120
         pass_filenames: true
     -   id: cppcheck
         name: cppcheck (optional static analysis)
