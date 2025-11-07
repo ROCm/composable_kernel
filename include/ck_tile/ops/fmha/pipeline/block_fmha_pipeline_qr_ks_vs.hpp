@@ -57,6 +57,7 @@ struct BlockFmhaPipelineQRKSVS
     static constexpr auto BiasEnum          = Problem::BiasEnum;
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
     static constexpr bool kHasDropout       = Problem::kHasDropout;
+    static constexpr bool kDoFp8StaticQuant = Problem::kDoFp8StaticQuant;
 
     using BlockGemm0 = remove_cvref_t<decltype(Policy::template GetQKBlockGemm<Problem>())>;
     static constexpr auto WarpGemmConfig =
@@ -174,7 +175,9 @@ struct BlockFmhaPipelineQRKSVS
                const AttentionVariantParams& variant_params,
                const BlockIndices& block_indices,
                void* smem_ptr,
-               DropoutType& dropout) const
+               DropoutType& dropout,
+               const float* k_scale_ptr,
+               index_t block_scale_n) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -314,8 +317,37 @@ struct BlockFmhaPipelineQRKSVS
 
         static_assert(2 <= k0_loops);
         static_assert(1 <= k1_loops);
+        const float store_scale_s = scale_s;
         do
         {
+            {
+                scale_s             = store_scale_s;
+                float k_scale = 1;
+                if constexpr(kDoFp8StaticQuant)
+                {
+                    const auto k_origin = k_dram_block_window.get_window_origin();
+                    const auto row      = k_origin.at(number<0>{});
+                    if(k_scale_ptr)
+                    {
+                        const index_t idx = row / block_scale_n;
+                        k_scale           = k_scale_ptr[idx];
+                        scale_s           = scale_s / k_scale;
+                        if(get_block_1d_id() == 1 && get_thread_local_1d_id() == 0)
+                        {
+                            printf("blockIdx.x: %d, blockIdx.y: %d,blockIdx.z: %d, row: %d, idx: "
+                                   "%d, k_scale: %f "
+                                   "\n",
+                                   blockIdx.x,
+                                   blockIdx.y,
+                                   blockIdx.z,
+                                   row,
+                                   idx,
+                                   k_scale);
+                        }
+                    }
+                }
+            }
+
             // STAGE 1, QK gemm
             auto k_dram_window = make_tile_window(
                 k_dram_block_window.get_bottom_tensor_view(),
@@ -385,7 +417,6 @@ struct BlockFmhaPipelineQRKSVS
                        k_lds_window);
                 schedule_gemm0();
             }
-
             // STAGE 2, scale_s, add bias, mask, softmax
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
@@ -745,7 +776,9 @@ struct BlockFmhaPipelineQRKSVS
                           variant_params,
                           block_indices,
                           smem_ptr,
-                          dropout);
+                          dropout,
+                          nullptr,
+                          128);
     }
 };
 

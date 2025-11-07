@@ -199,10 +199,6 @@ class BlockQuantizer
                     // calculate block scale
                     max_value += dis(gen);
                     float scale              = dtype_max / max_value;
-                    block_scale(b, h, block) = scale;
-                    // std::cout << "block: " << block << " scale: " << scale << " max_value: " <<
-                    // max_value << " block_scale: " << block_scale << std::endl;
-
                     // quant
                     for(size_t s = block * block_size_;
                         s < (block + 1) * block_size_ && s < seq_len;
@@ -217,6 +213,11 @@ class BlockQuantizer
                             out(idx)  = ck_tile::type_convert<OutDataType>(val * scale);
                         }
                     }
+                    // save scale to tensor
+                    block_scale(b, h, block) = scale;
+                    std::cout << "block: " << block << " scale: " << scale
+                              << " max_value: " << max_value << " block_scale: " << block_scale
+                              << std::endl;
                 }
             }
         }
@@ -257,6 +258,12 @@ class BlockQuantizer
                 }
             }
         }
+    }
+
+    template <typename SrcType>
+    float scale_p()
+    {
+        return ck_tile::type_convert<float>(ck_tile::numeric<SrcType>::max());
     }
 };
 
@@ -723,6 +730,10 @@ fwd_result fmha_fwd_run(mode_enum mode,
                                                           ? std::array<ck_tile::index_t, 1>{batch}
                                                           : std::array<ck_tile::index_t, 1>{1});
     float max_o = 5.0;
+
+    ck_tile::FillConstant<float>{1.0f}(q_scale);
+    ck_tile::FillConstant<float>{1.0f}(k_scale);
+    ck_tile::FillConstant<float>{1.0f}(v_scale);
     if(init_method == "ui" || init_method == "0")
     {
         ck_tile::FillUniformDistributionIntegerValue<QDataType>{-3.f, 3.f, next_seed()}(q_host);
@@ -795,12 +806,14 @@ fwd_result fmha_fwd_run(mode_enum mode,
     float scale_o = 1.f;
     if(quant == 2)
     {
-        // q_host.savetxt("./q_org.txt");
+        q_host.savetxt("./q_org.txt");
         BlockQuantizer quantizer(i_perm);
         quantizer.quantize(q_host, q_host, q_scale, block_scale_m_);
         quantizer.quantize(k_host, k_host, k_scale, block_scale_n_);
         quantizer.quantize(v_host, v_host, v_scale, block_scale_n_);
         // return fwd_result::invalid_args;
+
+        // scale_p = quantizer.scale_p<QDataType>();
     }
     else if(quant == 1)
     {
@@ -945,12 +958,12 @@ fwd_result fmha_fwd_run(mode_enum mode,
     {
         // dequant data for host
         BlockQuantizer quantizer(i_perm);
-        // q_host.savetxt("./q_quant.txt");
+        q_host.savetxt("./q_quant.txt");
         quantizer.dequantize(q_host, q_host, q_scale, block_scale_m_);
-        // q_host.savetxt("./q_dequant.txt");
+        q_host.savetxt("./q_dequant.txt");
         quantizer.dequantize(k_host, k_host, k_scale, block_scale_n_);
         quantizer.dequantize(v_host, v_host, v_scale, block_scale_n_);
-        return fwd_result::invalid_args;
+        // return fwd_result::invalid_args;
     }
 
     // clang-format off

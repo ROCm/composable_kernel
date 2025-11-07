@@ -1402,21 +1402,50 @@ struct FmhaFwdKernel
             const float* q_scale_ptr = nullptr;
             const float* k_scale_ptr = nullptr;
             const float* v_scale_ptr = nullptr;
+            float q_scale            = 1;
+            float v_scale            = 1;
             if constexpr(kDoFp8StaticQuant)
             {
-                q_scale_ptr = reinterpret_cast<const float*>(kargs.q_scale_ptr) +
-                              static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_q_scale +
-                              batch_offset_q_scale;
-                k_scale_ptr = reinterpret_cast<const float*>(kargs.k_scale_ptr) +
-                              static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_k_scale +
-                              batch_offset_k_scale;
-                v_scale_ptr = reinterpret_cast<const float*>(kargs.v_scale_ptr) +
-                              static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_v_scale +
-                              batch_offset_v_scale;
+                if(kargs.q_scale_ptr)
+                {
+                    q_scale_ptr = reinterpret_cast<const float*>(kargs.q_scale_ptr) +
+                                  static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_q_scale +
+                                  batch_offset_q_scale;
+                    k_scale_ptr = reinterpret_cast<const float*>(kargs.k_scale_ptr) +
+                                  static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) *
+                                      kargs.nhead_stride_k_scale +
+                                  batch_offset_k_scale;
+                    v_scale_ptr = reinterpret_cast<const float*>(kargs.v_scale_ptr) +
+                                  static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) *
+                                      kargs.nhead_stride_v_scale +
+                                  batch_offset_v_scale;
+
+                    size_t idx = i_m0 / kargs.block_scale_m;
+                    q_scale    = q_scale_ptr[idx];
+                    v_scale    = v_scale_ptr[idx];
+                }
+
+                if(get_block_1d_id() == 1 && get_thread_local_1d_id() == 0)
+                {
+                    size_t idx = i_m0 / kargs.block_scale_m;
+                    printf("blockIdx.x: %d, blockIdx.y: %d,blockIdx.z: %d,i_batch: %d, i_nhead: "
+                           "%d, i_nhead_k: %d, i_m0: %d, idx: %zu, q_scale: %f, v_scale: %f\n",
+                           blockIdx.x,
+                           blockIdx.y,
+                           blockIdx.z,
+                           i_batch,
+                           i_nhead,
+                           i_nhead / kargs.nhead_ratio_qk,
+                           i_m0,
+                           idx,
+                           q_scale,
+                           v_scale);
+                }
             }
-            ck_tile::ignore = q_scale_ptr;
+
+            // ck_tile::ignore = q_scale;
             ck_tile::ignore = k_scale_ptr;
-            ck_tile::ignore = v_scale_ptr;
+            // ck_tile::ignore = v_scale;
             // Q/K/V DRAM and DRAM window
             const auto q_dram = [&]() {
                 const auto q_dram_naive = make_naive_tensor_view<address_space_enum::global>(
@@ -1698,9 +1727,9 @@ struct FmhaFwdKernel
                     auto o_acc_element_func = [&]() {
                         if constexpr(std::is_same_v<ODataType, ck_tile::fp8_t>)
                             return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
-                                                     ck_tile::scales{kargs.scale_o});
+                                                     ck_tile::scales{kargs.scale_o / v_scale});
                         else
-                            return ck_tile::scales{kargs.scale_o};
+                            return ck_tile::scales{kargs.scale_o / v_scale};
                     }();
                     return FmhaPipeline{}(q_dram_window,
                                           identity{}, // q_element_func
@@ -1718,12 +1747,14 @@ struct FmhaFwdKernel
                                           o_acc_element_func,    // o_acc_element_func
                                           mask,
                                           position_encoding,
-                                          kargs.scale_s,
+                                          kargs.scale_s / q_scale,
                                           variant,
                                           variant_params,
                                           block_indices,
                                           smem_ptr,
-                                          dropout);
+                                          dropout,
+                                          k_scale_ptr,
+                                          kargs.block_scale_n);
                 }
                 else
                 {

@@ -185,7 +185,9 @@ struct BlockFmhaPipelineQRKSVSAsync
                const AttentionVariantParams& variant_params,
                const BlockIndices& block_indices,
                void* smem_ptr,
-               DropoutType& dropout) const
+               DropoutType& dropout,
+               const float*,
+               index_t) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -845,7 +847,9 @@ struct BlockFmhaPipelineQRKSVSAsync
                           variant_params,
                           block_indices,
                           smem_ptr,
-                          dropout);
+                          dropout,
+                          nullptr,
+                          128);
     }
 };
 
