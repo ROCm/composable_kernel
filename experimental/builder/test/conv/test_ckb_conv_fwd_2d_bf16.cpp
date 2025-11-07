@@ -19,13 +19,12 @@ TEST(FwdConvInstances,
         .data_type             = DataType::BF16,
         .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
 
-    constexpr ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 FwdConvAlgorithm{
-        .thread_block        = FwdThreadBlock_256_256x256x32,
-        .gridwise_gemm       = FwdGemmParams_Xdl_4x4_per_wave,
-        .block_transfer      = FwdBlockTransfer_4x64x1,
-        .fwd_specialization  = ConvFwdSpecialization::DEFAULT,
-        .gemm_specialization = GemmSpecialization::MNKPadding,
-        .block_gemm          = BlockGemmDesc_v1_intrawave};
+    constexpr auto FwdConvAlgorithm = ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3{}
+        .with_thread_block(FwdThreadBlock_256_256x256x32)
+        .with_gemm_config(FwdGemmParams_Xdl_4x4_per_wave)
+        .with_block_transfer(FwdBlockTransfer_4x64x1)
+        .with_specializations(ConvFwdSpecialization::DEFAULT, GemmSpecialization::MNKPadding)
+        .with_block_gemm(BlockGemmDesc_v1_intrawave);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
     run_test<Builder>({"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3",
@@ -46,13 +45,12 @@ TEST(FwdConvInstances,
         .data_type             = DataType::BF16,
         .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
 
-    constexpr ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 FwdConvAlgorithm{
-        .thread_block        = FwdThreadBlock_256_256x256x32,
-        .gridwise_gemm       = FwdGemmParams_Xdl_4x4_per_wave,
-        .block_transfer      = FwdBlockTransfer_4x64x1,
-        .fwd_specialization  = ConvFwdSpecialization::FILTER_3x3,
-        .gemm_specialization = GemmSpecialization::MNKPadding,
-        .block_gemm          = BlockGemmDesc_v5_intrawave};
+    constexpr auto FwdConvAlgorithm = ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3{}
+        .with_thread_block(FwdThreadBlock_256_256x256x32)
+        .with_gemm_config(FwdGemmParams_Xdl_4x4_per_wave)
+        .with_block_transfer(FwdBlockTransfer_4x64x1)
+        .with_specializations(ConvFwdSpecialization::FILTER_3x3, GemmSpecialization::MNKPadding)
+        .with_block_gemm(BlockGemmDesc_v5_intrawave);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
     run_test<Builder>({"DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3",

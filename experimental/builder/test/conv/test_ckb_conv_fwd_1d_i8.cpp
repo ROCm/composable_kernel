@@ -19,14 +19,12 @@ TEST(FwdConvInstances,
         .data_type             = DataType::I8,
         .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
 
-    constexpr ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle FwdConvAlgorithm{
-        .thread_block               = FwdThreadBlock_128_64x64x64,
-        .gridwise_gemm              = FwdGemmParams_Wmma_2x1_per_wave,
-        .block_transfer             = FwdBlockTransfer_4x32x1,
-        .fwd_specialization         = ConvFwdSpecialization::DEFAULT,
-        .gemm_specialization        = GemmSpecialization::MNKPadding,
-        .num_gemm_k_prefetch_stages = 1,
-        .loop_scheduler             = PipelineScheduler::DEFAULT};
+    constexpr auto FwdConvAlgorithm = ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle{}
+            .with_thread_block(FwdThreadBlock_128_64x64x64)
+            .with_gemm_config(FwdGemmParams_Wmma_2x1_per_wave)
+            .with_block_transfer(FwdBlockTransfer_4x32x1)
+            .with_specializations(ConvFwdSpecialization::DEFAULT, GemmSpecialization::MNKPadding)
+            .with_prefetch_config(1, 0, PipelineScheduler::DEFAULT);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
     run_test<Builder>(

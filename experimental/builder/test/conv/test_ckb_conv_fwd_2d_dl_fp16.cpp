@@ -16,16 +16,14 @@ TEST(FwdConvInstances, Create_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK_Ins
         .layout                = GroupConvLayout2D::GNHWC_GKYXC_GNHWK,
         .data_type             = DataType::FP16,
         .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
-
-    constexpr ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK FwdConvAlgorithm{
-        .thread_block         = FwdThreadBlock_256_128x128x16,
-        .fwd_specialization   = ConvFwdSpecialization::DEFAULT,
-        .gemm_specialization  = GemmSpecialization::MNKPadding,
-        .thread_config        = DlThreadConfig_16x2x4x4x1,
-        .thread_cluster       = DlThreadCluster_8x2,
-        .block_transfer_a     = DlBlockTransferAB,
-        .block_transfer_b     = DlBlockTransferAB,
-        .epilogue_c           = DlEpilogueC};
+        
+    constexpr auto FwdConvAlgorithm = ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK{}
+        .with_thread_block(FwdThreadBlock_256_128x128x16)
+        .with_specializations(ConvFwdSpecialization::DEFAULT, GemmSpecialization::MNKPadding)
+        .with_dl_thread_config(DlThreadConfig_16x2x4x4x1)
+        .with_dl_thread_cluster(DlThreadCluster_8x2)
+        .with_dl_block_transfer(DlBlockTransferAB, DlBlockTransferAB)
+        .with_dl_epilogue(DlEpilogueC);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
     run_test<Builder>({"DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK",
@@ -43,15 +41,13 @@ TEST(FwdConvInstances,
         .data_type             = DataType::FP16,
         .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
 
-    constexpr ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK FwdConvAlgorithm{
-        .thread_block         = FwdThreadBlock_256_128x128x16,
-        .fwd_specialization   = ConvFwdSpecialization::FILTER_1X1_PAD0,
-        .gemm_specialization  = GemmSpecialization::MNKPadding,
-        .thread_config        = DlThreadConfig_16x2x4x4x1,
-        .thread_cluster       = DlThreadCluster_8x2,
-        .block_transfer_a     = DlBlockTransferAB,
-        .block_transfer_b     = DlBlockTransferAB,
-        .epilogue_c           = DlEpilogueC};
+    constexpr auto FwdConvAlgorithm = ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK{}
+        .with_thread_block(FwdThreadBlock_256_128x128x16)
+        .with_specializations(ConvFwdSpecialization::FILTER_1X1_PAD0, GemmSpecialization::MNKPadding)
+        .with_dl_thread_config(DlThreadConfig_16x2x4x4x1)
+        .with_dl_thread_cluster(DlThreadCluster_8x2)
+        .with_dl_block_transfer(DlBlockTransferAB, DlBlockTransferAB)
+        .with_dl_epilogue(DlEpilogueC);
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
     run_test<Builder>({"DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK",
