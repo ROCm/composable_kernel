@@ -34,6 +34,22 @@ import os
 def get_changed_files(ref1, ref2):
     """Return a set of files changed between two git refs."""
     try:
+        # First check if we're in a git repository
+        subprocess.run(
+            ["git", "rev-parse", "--git-dir"],
+            capture_output=True,
+            check=True,
+        )
+        
+        # Check if refs exist
+        for ref in [ref1, ref2]:
+            subprocess.run(
+                ["git", "rev-parse", "--verify", ref],
+                capture_output=True,
+                check=True,
+            )
+        
+        # Get the diff
         result = subprocess.run(
             ["git", "diff", "--name-only", ref1, ref2],
             capture_output=True,
@@ -41,10 +57,16 @@ def get_changed_files(ref1, ref2):
             check=True,
         )
         files = set(line.strip() for line in result.stdout.splitlines() if line.strip())
-        return files
+        return files, None
     except subprocess.CalledProcessError as e:
-        print(f"Error running git diff: {e}")
-        sys.exit(1)
+        error_msg = f"Git operation failed: {e}"
+        print(error_msg)
+        # Try to give more helpful error messages
+        if "not a git repository" in str(e):
+            error_msg += " (not in a git repository)"
+        elif "unknown revision" in str(e):
+            error_msg += " (git ref not found)"
+        return set(), error_msg
 
 
 def load_depmap(depmap_json):
@@ -132,20 +154,32 @@ def main():
         print(f"Dependency map JSON not found: {depmap_json}")
         sys.exit(1)
 
-    changed_files = get_changed_files(ref1, ref2)
-    if not changed_files:
+    changed_files, git_error = get_changed_files(ref1, ref2)
+    if git_error:
+        print("Git diff failed - cannot determine changed files")
+        tests = []
+    elif not changed_files:
         print("No changed files detected.")
         tests = []
     else:
         file_to_executables = load_depmap(depmap_json)
         tests = select_tests(file_to_executables, changed_files, filter_mode)
 
+    # Always create the output file, even if there are errors
+    output_data = {
+        "tests_to_run": tests, 
+        "changed_files": sorted(changed_files),
+    }
+    if git_error:
+        output_data["git_error"] = git_error
+    
     with open(output_json, "w") as f:
-        json.dump(
-            {"tests_to_run": tests, "changed_files": sorted(changed_files)}, f, indent=2
-        )
+        json.dump(output_data, f, indent=2)
 
-    print(f"Exported {len(tests)} tests to run to {output_json}")
+    if git_error:
+        print(f"Exported {len(tests)} tests to run to {output_json} (git error occurred - no tests selected)")
+    else:
+        print(f"Exported {len(tests)} tests to run to {output_json}")
 
 
 if __name__ == "__main__":
