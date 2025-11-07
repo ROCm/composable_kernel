@@ -513,6 +513,7 @@ def cmake_build(Map conf=[:]){
                 chmod +x ../script/debug_sccache_performance.sh
                 chmod +x ../script/analyze_cache_keys.sh
                 chmod +x ../script/monitor_sccache_during_build.sh
+                chmod +x ../script/analyze_sccache_performance.sh
                 
                 echo "=== PRE-BUILD SCCACHE DEBUG ==="
                 ../script/debug_sccache_performance.sh pre_build_\$(date +%Y%m%d_%H%M%S)
