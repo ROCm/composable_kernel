@@ -10,9 +10,6 @@
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
-#define CK_TILE_PIPELINE_COMPUTE_V3 1
-#define CK_TILE_PIPELINE_BQUANT_COMPUTE_V3 2
-
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()
 {
@@ -28,6 +25,22 @@ constexpr ck_tile::index_t get_k_warp_tile()
         return 16;
     else
         return 32;
+#endif
+}
+
+template <typename PrecType, ck_tile::index_t M_Warp_Tile>
+constexpr ck_tile::index_t get_k_from_preshuffled_warp_tile()
+{
+#if defined(CK_GFX950_SUPPORT)
+    if constexpr(M_Warp_Tile == 32)
+        return sizeof(PrecType) == 2 ? 16 : 64;
+    else
+        return sizeof(PrecType) == 2 ? 32 : 128;
+#else
+    if constexpr(M_Warp_Tile == 32)
+        return sizeof(PrecType) == 2 ? 16 : 32;
+    else
+        return sizeof(PrecType) == 2 ? 32 : 64;
 #endif
 }
 
@@ -67,8 +80,9 @@ struct GemmConfigBase
     static constexpr ck_tile::index_t TileParitionerGroupNum = 8;
     static constexpr ck_tile::index_t TileParitionerM01      = 4;
     static constexpr auto Scheduler                 = ck_tile::GemmPipelineScheduler::Intrawave;
-    static constexpr ck_tile::index_t Pipeline      = CK_TILE_PIPELINE_COMPUTE_V3;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
+    static constexpr bool DoubleSmemBuffer          = false;
+    static constexpr bool PreshuffleB               = false;
 };
 
 template <typename PrecType>
@@ -85,10 +99,26 @@ struct GemmConfigComputeV3_2 : public GemmConfigBase
     static constexpr ck_tile::index_t M_Warp_Tile = 32;
     static constexpr ck_tile::index_t N_Warp_Tile = 32;
     static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
+};
 
-    static constexpr bool DoubleSmemBuffer = false;
+template <typename PrecType>
+struct GemmConfigPreshuffleB_Bquant_prefill : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
 
-    static constexpr int kBlockPerCu = 1;
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile =
+        get_k_from_preshuffled_warp_tile<PrecType, M_Warp_Tile>();
+
+    static constexpr bool PreshuffleB      = true;
+    static constexpr bool DoubleSmemBuffer = true;
 };
 
 using grouped_gemm_kargs = ck_tile::QuantGroupedGemmHostArgs;
@@ -118,7 +148,8 @@ auto create_args(int argc, char* argv[])
         .insert("repeat", "100", "number of iterations to benchmark the kernel.")
         .insert("group_count", "8", "group count.")
         .insert("kbatch", "1", "kbatch for SplitK")
-        .insert("quant_mode", "bquant", "Choose bquant (default), tensor, or rowcol");
+        .insert("quant_mode", "bquant", "Choose bquant (default), tensor, or rowcol")
+        .insert("init", "0", "0. Random, 2. One(s) (Constant)");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);

@@ -1,5 +1,5 @@
+// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 // This file defines the compile-time "signature" for grouped convolution operations.
 // A signature is a collection of properties that fully describe a convolution kernel's

@@ -14,7 +14,7 @@ template <typename GemmConfig,
           typename BLayout,
           typename BQLayout,
           typename CLayout,
-          uint32_t QuantGroupSize,
+          typename QuantGroupSize,
           ck_tile::QuantType QuantMode,
           typename CDEElementWise = ck_tile::element_wise::PassThrough>
 float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
@@ -113,7 +113,7 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
 
 template <typename GemmConfig,
           typename TypeConfig,
-          uint32_t QuantGroupSize,
+          typename QuantGroupSize,
           ck_tile::QuantType QuantMode,
           typename ALayout,
           typename AQLayout,
@@ -146,7 +146,7 @@ int run_gemm_example_with_layouts(int argc,
     if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped ||
                  QuantMode == ck_tile::QuantType::BQuantGrouped)
     {
-        if(K % QuantGroupSize != 0)
+        if(K % QuantGroupSize::kK != 0)
         {
             throw std::runtime_error(
                 "K must be aligned with QuantGroupSize for AQuantGrouped/BQuantGrouped mode");
@@ -155,13 +155,13 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::index_t AQK, BQK;
     if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
     {
-        AQK = K / QuantGroupSize; // Group quantization: AQK = K / GroupSize
-        BQK = 0;                  // No B quantization
+        AQK = K / QuantGroupSize::kK; // Group quantization: AQK = K / GroupSize
+        BQK = 0;                      // No B quantization
     }
     else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
     {
-        AQK = 0;                  // No A quantization
-        BQK = K / QuantGroupSize; // Group quantization: BQK = K / GroupSize
+        AQK = 0;                      // No A quantization
+        BQK = K / QuantGroupSize::kK; // Group quantization: BQK = K / GroupSize
     }
     else if constexpr(QuantMode == ck_tile::QuantType::RowColQuant ||
                       QuantMode == ck_tile::QuantType::TensorQuant)
@@ -357,7 +357,7 @@ int run_gemm_example_with_layouts(int argc,
         if constexpr(GemmConfig::PreshuffleQuant)
         {
             ck_tile::HostTensor<AQDataType> aq_shuffle_host =
-                ck_tile::shuffle_aq(aq_tensor_ptr.get(), GemmConfig::K_Tile / QuantGroupSize);
+                ck_tile::shuffle_aq(aq_tensor_ptr.get(), GemmConfig::K_Tile / QuantGroupSize::kK);
             aq_dev_buf_ptr->ToDevice(aq_shuffle_host.data());
         }
         else
