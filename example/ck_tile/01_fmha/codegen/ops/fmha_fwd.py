@@ -16,7 +16,6 @@ from codegen.cmake_config import GEN_DIR
 from codegen.cpp_symbol_map import (
     LAYOUT_MAP,
     BIAS_CHECK_MAP,
-    get_mask_check_map,
     BOOL_MAP,
     PIPELINE_MAP,
     PIPELINE_ENUM_MAP,
