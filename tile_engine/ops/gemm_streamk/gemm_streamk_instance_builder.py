@@ -9,7 +9,10 @@ import concurrent.futures
 from pathlib import Path
 import logging
 from typing import Optional
-from gemm_streamk_validation_utils import is_tile_config_valid, is_trait_combination_valid
+from gemm_streamk_validation_utils import (
+    is_tile_config_valid,
+    is_trait_combination_valid,
+)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -258,11 +261,11 @@ class GemmKernelBuilder:
                     pipelines,
                     epilogues,
                     schedulers,
+                    reduction_strategy_value,
                     pad_m_values,
                     pad_n_values,
                     pad_k_values,
                     persistent_values,
-                    reduction_strategy_value,
                 )
             )
 
@@ -270,7 +273,9 @@ class GemmKernelBuilder:
             combinations = []
             for combo in all_combinations:
                 pipeline, epilogue, scheduler, reduction_strategy = combo[:4]
-                if is_trait_combination_valid(pipeline, epilogue, scheduler, reduction_strategy):
+                if is_trait_combination_valid(
+                    pipeline, epilogue, scheduler, reduction_strategy
+                ):
                     combinations.append(combo)
                 else:
                     logging.debug(
@@ -278,7 +283,18 @@ class GemmKernelBuilder:
                     )
         else:
             # Fallback to minimal default
-            combinations = [("compv3", "cshuffle", "intrawave", "reduction_strategy", False, False, False, False)]
+            combinations = [
+                (
+                    "compv3",
+                    "cshuffle",
+                    "intrawave",
+                    "reduction_strategy",
+                    False,
+                    False,
+                    False,
+                    False,
+                )
+            ]
 
         return combinations
 
@@ -326,15 +342,15 @@ class GemmKernelBuilder:
             pipeline,
             epilogue,
             scheduler,
+            reduction_strategy,
             pad_m,
             pad_n,
             pad_k,
             persistent,
-            reduction_strategy,
         ) = trait_combo
 
         # Create kernel name with proper boolean capitalization
-        kernel_name = f"{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}_{reduction_strategy}"
+        kernel_name = f"{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{reduction_strategy}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}"
 
         # Create tile configuration string
         tile_str = (
@@ -354,13 +370,6 @@ class GemmKernelBuilder:
             "compv4": "ck_tile::GemmPipelineAgBgCrCompV4",
         }
 
-        # Map scheduler names to the correct enum values
-        scheduler_type_map = {
-            "intrawave": "ck_tile::GemmPipelineScheduler::Intrawave",
-            "interwave": "ck_tile::GemmPipelineScheduler::Interwave",
-            "default": "ck_tile::GemmPipelineScheduler::Default",
-        }
-
         reduction_strategy_map = {
             "atomic": "ck_tile::StreamKReductionStrategy::Atomic",
             "reduction": "ck_tile::StreamKReductionStrategy::Reduction",
@@ -378,13 +387,6 @@ class GemmKernelBuilder:
 
         # Determine layouts based on self.layout
         a_layout, b_layout, c_layout = self._get_abc_layouts()
-
-        # Map pipeline names to base pipeline for hot loop detection
-        base_pipeline_map = {
-            "mem": "ck_tile::BaseGemmPipelineAgBgCrMem",
-            "compv3": "ck_tile::BaseGemmPipelineAgBgCrCompV3",
-            "compv4": "ck_tile::BaseGemmPipelineAgBgCrCompV4",
-        }
 
         # Generate kernel instance code using the correct API
         pragma_line = "#pragma once\n" if is_header else ""
@@ -755,33 +757,33 @@ struct SelectedKernel {{
         self.generate_individual(num_workers)
 
 
-    def _generate_single_kernel_individual(work_item):
-        """Worker function to generate a single individual kernel file"""
-        tile_config, trait_combo, working_path, datatype, layout = work_item
+def _generate_single_kernel_individual(work_item):
+    """Worker function to generate a single individual kernel file"""
+    tile_config, trait_combo, working_path, datatype, layout = work_item
 
-        # Create a temporary builder instance for this worker
-        builder = GemmKernelBuilder(working_path, datatype, layout)
+    # Create a temporary builder instance for this worker
+    builder = GemmKernelBuilder(working_path, datatype, layout)
 
-        try:
-            kernel_name, instance_code = builder._generate_kernel_instance(
-                tile_config, trait_combo
-            )
+    try:
+        kernel_name, instance_code = builder._generate_kernel_instance(
+            tile_config, trait_combo
+        )
 
-            # Create simplified filename without the "gemm_" prefix
-            # Remove "gemm_" from the beginning of kernel_name for the filename
-            simplified_name = kernel_name
-            if simplified_name.startswith("gemm_"):
-                simplified_name = simplified_name[5:]  # Remove "gemm_" prefix
+        # Create simplified filename without the "gemm_" prefix
+        # Remove "gemm_" from the beginning of kernel_name for the filename
+        simplified_name = kernel_name
+        if simplified_name.startswith("gemm_"):
+            simplified_name = simplified_name[5:]  # Remove "gemm_" prefix
 
-            # Write individual header file
-            header_file = working_path / f"gemm_streamk_single_{simplified_name}.hpp"
-            with open(header_file, "w") as f:
-                f.write(instance_code)
+        # Write individual header file
+        header_file = working_path / f"gemm_streamk_single_{simplified_name}.hpp"
+        with open(header_file, "w") as f:
+            f.write(instance_code)
 
-            return (kernel_name, trait_combo, tile_config)
-        except Exception as e:
-            print(f"Error generating individual kernel: {e}")
-            return None
+        return (kernel_name, trait_combo, tile_config)
+    except Exception as e:
+        print(f"Error generating individual kernel: {e}")
+        return None
 
 
 def main():
@@ -865,11 +867,11 @@ def main():
             trait_parts[0],  # pipeline
             trait_parts[1],  # epilogue
             trait_parts[2],  # scheduler
-            trait_parts[3] == "false",  # pad_m
-            trait_parts[4] == "false",  # pad_n
-            trait_parts[5] == "false",  # pad_k
-            trait_parts[6] ,  # persistent
-            trait_parts[7],  # reduction_strategy
+            trait_parts[3],  # reduction_strategy
+            trait_parts[4] == "false",  # pad_m
+            trait_parts[5] == "false",  # pad_n
+            trait_parts[6] == "false",  # pad_k
+            trait_parts[7],  # persistent
         )
 
         # Generate the kernel
@@ -882,7 +884,9 @@ def main():
         if simplified_name.startswith("gemm_"):
             simplified_name = simplified_name[5:]
 
-        header_file = builder.working_path / f"gemm_streamk_single_{simplified_name}.hpp"
+        header_file = (
+            builder.working_path / f"gemm_streamk_single_{simplified_name}.hpp"
+        )
         with open(header_file, "w") as f:
             f.write(instance_code)
 

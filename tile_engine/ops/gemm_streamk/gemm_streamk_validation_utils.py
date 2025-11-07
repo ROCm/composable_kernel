@@ -150,9 +150,16 @@ def get_gpu_name_by_id(gpu_id: int = 0) -> str:
     return ""
 
 
-def is_trait_combination_valid(pipeline: str, epilogue: str, scheduler: str, reduction_strategy: str) -> bool:
+def is_trait_combination_valid(
+    pipeline: str, epilogue: str, scheduler: str, reduction_strategy: str
+) -> bool:
     """Check if a trait combination is valid."""
-    return (pipeline, epilogue, scheduler, reduction_strategy) not in TRAIT_UNSUPPORTED_COMBINATIONS
+    return (
+        pipeline,
+        epilogue,
+        scheduler,
+        reduction_strategy,
+    ) not in TRAIT_UNSUPPORTED_COMBINATIONS
 
 
 def validate_warp_configuration(warp_m: int, warp_n: int, warp_k: int) -> bool:
