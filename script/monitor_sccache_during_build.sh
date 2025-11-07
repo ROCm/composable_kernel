@@ -25,14 +25,22 @@ get_sccache_stats() {
 
 # Function to test Redis connectivity
 test_redis_connectivity() {
+    # Use SCCACHE_REDIS if set, otherwise construct from CK_SCCACHE
+    local REDIS_URL=""
     if [ -n "${SCCACHE_REDIS}" ]; then
+        REDIS_URL="${SCCACHE_REDIS}"
+    elif [ -n "${CK_SCCACHE}" ]; then
+        REDIS_URL="redis://${CK_SCCACHE}"
+    fi
+    
+    if [ -n "${REDIS_URL}" ]; then
         local start_time=$(date +%s%N)
-        local response=$(timeout 5 redis-cli -u "${SCCACHE_REDIS}" ping 2>&1) || response="TIMEOUT"
+        local response=$(timeout 5 redis-cli -u "${REDIS_URL}" ping 2>&1) || response="TIMEOUT"
         local end_time=$(date +%s%N)
         local latency=$(( (end_time - start_time) / 1000000 ))
         echo "Redis: $response (${latency}ms)"
     else
-        echo "Redis: SCCACHE_REDIS not set"
+        echo "Redis: No Redis URL available"
     fi
 }
 
@@ -40,6 +48,7 @@ log_with_timestamp "=== SCCACHE MONITORING STARTED ==="
 log_with_timestamp "PID: $$"
 log_with_timestamp "Node: ${NODE_NAME:-$(hostname)}"
 log_with_timestamp "SCCACHE_REDIS: ${SCCACHE_REDIS:-not set}"
+log_with_timestamp "CK_SCCACHE: ${CK_SCCACHE:-not set}"
 
 # Initial state
 log_with_timestamp "=== INITIAL STATE ==="

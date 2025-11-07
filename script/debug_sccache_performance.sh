@@ -31,12 +31,22 @@ echo "" | tee -a "$LOG_FILE"
 
 # Check Redis connectivity and performance
 echo "=== REDIS CONNECTIVITY TEST ===" | tee -a "$LOG_FILE"
+
+# Use SCCACHE_REDIS if set, otherwise construct from CK_SCCACHE
 if [ -n "${SCCACHE_REDIS}" ]; then
-    echo "Redis URL: ${SCCACHE_REDIS}" | tee -a "$LOG_FILE"
+    REDIS_URL="${SCCACHE_REDIS}"
+elif [ -n "${CK_SCCACHE}" ]; then
+    REDIS_URL="redis://${CK_SCCACHE}"
+else
+    REDIS_URL=""
+fi
+
+if [ -n "${REDIS_URL}" ]; then
+    echo "Redis URL: ${REDIS_URL}" | tee -a "$LOG_FILE"
     
     # Test basic connectivity
     start_time=$(date +%s%N)
-    redis_response=$(redis-cli -u "${SCCACHE_REDIS}" ping 2>&1) || redis_response="FAILED"
+    redis_response=$(redis-cli -u "${REDIS_URL}" ping 2>&1) || redis_response="FAILED"
     end_time=$(date +%s%N)
     latency=$(( (end_time - start_time) / 1000000 ))
     
@@ -46,24 +56,24 @@ if [ -n "${SCCACHE_REDIS}" ]; then
     # Test Redis performance with larger operation
     echo "Testing Redis write/read performance..." | tee -a "$LOG_FILE"
     start_time=$(date +%s%N)
-    redis-cli -u "${SCCACHE_REDIS}" set "test_key_${BUILD_ID}" "test_value_$(date)" >/dev/null 2>&1
-    redis-cli -u "${SCCACHE_REDIS}" get "test_key_${BUILD_ID}" >/dev/null 2>&1
-    redis-cli -u "${SCCACHE_REDIS}" del "test_key_${BUILD_ID}" >/dev/null 2>&1
+    redis-cli -u "${REDIS_URL}" set "test_key_${BUILD_ID}" "test_value_$(date)" >/dev/null 2>&1
+    redis-cli -u "${REDIS_URL}" get "test_key_${BUILD_ID}" >/dev/null 2>&1
+    redis-cli -u "${REDIS_URL}" del "test_key_${BUILD_ID}" >/dev/null 2>&1
     end_time=$(date +%s%N)
     redis_perf_latency=$(( (end_time - start_time) / 1000000 ))
     echo "Redis write/read/delete latency: ${redis_perf_latency}ms" | tee -a "$LOG_FILE"
     
 else
-    echo "SCCACHE_REDIS environment variable not set" | tee -a "$LOG_FILE"
+    echo "No Redis URL available (neither SCCACHE_REDIS nor CK_SCCACHE set)" | tee -a "$LOG_FILE"
 fi
 echo "" | tee -a "$LOG_FILE"
 
 # Check Redis memory status
 echo "=== REDIS MEMORY STATUS ===" | tee -a "$LOG_FILE"
-if [ -n "${SCCACHE_REDIS}" ]; then
-    redis-cli -u "${SCCACHE_REDIS}" info memory 2>&1 | grep -E "(used_memory|maxmemory|evicted_keys|keyspace)" | tee -a "$LOG_FILE"
+if [ -n "${REDIS_URL}" ]; then
+    redis-cli -u "${REDIS_URL}" info memory 2>&1 | grep -E "(used_memory|maxmemory|evicted_keys|keyspace)" | tee -a "$LOG_FILE"
 else
-    echo "Cannot check Redis memory - SCCACHE_REDIS not set" | tee -a "$LOG_FILE"
+    echo "Cannot check Redis memory - no Redis URL available" | tee -a "$LOG_FILE"
 fi
 echo "" | tee -a "$LOG_FILE"
 

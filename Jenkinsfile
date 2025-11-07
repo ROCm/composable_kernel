@@ -515,6 +515,18 @@ def cmake_build(Map conf=[:]){
                 chmod +x ../script/monitor_sccache_during_build.sh
                 chmod +x ../script/analyze_sccache_performance.sh
                 
+                echo "=== SETTING UP DEBUG ENVIRONMENT ==="
+                export CK_SCCACHE="${env.CK_SCCACHE}"
+                export SCCACHE_REDIS="redis://${env.CK_SCCACHE}"
+                export ROCM_PATH=/opt/rocm
+                export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
+                export SCCACHE_C_CUSTOM_CACHE_BUSTER="${invocation_tag}"
+                
+                echo "Environment for debug scripts:"
+                echo "CK_SCCACHE: \$CK_SCCACHE"
+                echo "SCCACHE_REDIS: \$SCCACHE_REDIS"
+                echo "SCCACHE_C_CUSTOM_CACHE_BUSTER: \$SCCACHE_C_CUSTOM_CACHE_BUSTER"
+                
                 echo "=== PRE-BUILD SCCACHE DEBUG ==="
                 ../script/debug_sccache_performance.sh pre_build_\$(date +%Y%m%d_%H%M%S)
                 
@@ -546,6 +558,13 @@ def cmake_build(Map conf=[:]){
                     kill \$MONITOR_PID 2>/dev/null || echo "Monitor already stopped"
                     rm -f monitor.pid
                 fi
+                
+                echo "=== SETTING UP DEBUG ENVIRONMENT ==="
+                export CK_SCCACHE="${env.CK_SCCACHE}"
+                export SCCACHE_REDIS="redis://${env.CK_SCCACHE}"
+                export ROCM_PATH=/opt/rocm
+                export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
+                export SCCACHE_C_CUSTOM_CACHE_BUSTER="${invocation_tag}"
                 
                 ../script/debug_sccache_performance.sh post_build_\$(date +%Y%m%d_%H%M%S)
                 
