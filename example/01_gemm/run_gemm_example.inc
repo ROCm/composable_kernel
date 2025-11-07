@@ -212,7 +212,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                                      c_m_n_host_result,
                                      "Error: Incorrect results!",
                                      get_rtol<CDataType, ComputeDataType>(),
-                                     get_atol<CDataType, ComputeDataType>());
+                                     get_atol<CDataType, ComputeDataType>(K));
 #endif
     }
 

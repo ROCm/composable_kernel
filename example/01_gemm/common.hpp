@@ -356,11 +356,18 @@ inline __host__ __device__ constexpr double get_rtol()
 }
 
 template <typename DataType, typename ComputeDataType = DataType>
-inline __host__ __device__ constexpr double get_atol()
+inline __host__ __device__ constexpr double get_atol(size_t K = 0)
 {
     if constexpr(std::is_same_v<DataType, float> && std::is_same_v<ComputeDataType, ck::tf32_t>)
     {
-        return 1e-3;
+        if(K == 0)
+        {
+            throw std::runtime_error("K is 0");
+        }
+        // tf32 has 10 mantissa bits, so epsilon = 2^(-10) = 1/1024
+        constexpr double epsilon_tf32 = 1.0 / 1024.0; // 2^(-10)
+        constexpr double epsilon_fp32 = std::numeric_limits<float>::epsilon();
+        return (epsilon_tf32 - epsilon_fp32) * K;
     }
     else if constexpr(std::is_same_v<DataType, float>)
     {
