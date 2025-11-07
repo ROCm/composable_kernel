@@ -99,6 +99,9 @@ else()
                 -Wno-unused-lambda-capture
                 -Wno-nvcc-compat
             )
+            if(CK_CXX_STANDARD GREATER_EQUAL 20)
+                list(APPEND CMAKE_COMPILER_WARNINGS -Wno-c++20-compat)
+            endif()
         else()
             if (CMAKE_${COMPILER}_COMPILER_ID MATCHES "GNU" AND ${COMPILER} MATCHES "CXX")
                 # cmake 3.5.2 does not support >=.

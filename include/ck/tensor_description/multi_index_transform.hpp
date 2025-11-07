@@ -1586,7 +1586,7 @@ struct ConvBwdDataImplicitGemmOutTransform
     Tuple<index_t, index_t, index_t, index_t>
         low_lengths_magic_divisor_shift_; // XDotSlice_K_, K_, TildeSlice_, WTildeSlice_
 
-    __host__ __device__ constexpr ConvBwdDataImplicitGemmOutTransform() = default;
+    __host__ __device__ ConvBwdDataImplicitGemmOutTransform() = default;
 
     __host__ __device__ constexpr ConvBwdDataImplicitGemmOutTransform(index_t N,
                                                                       index_t Ho,
@@ -1645,7 +1645,7 @@ struct ConvBwdDataImplicitGemmOutTransform
     template <typename UpIdx>
     __host__ __device__ constexpr auto CalculateLowerIndexN(const UpIdx& idx_up) const
     {
-        index_t NStep, HStep, WStep;
+        index_t NStep{0}, HStep{0}, WStep{0};
         // Merge
         // NStep = M_id / TildeSlice_
         NStep = MagicDivision::DoMagicDivision(idx_up[I1],

@@ -93,7 +93,6 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
         return gemm_descs.size() * sizeof(ck_tile::GemmTransKernelArg<DsDataType::size()>);
     }
 
-    template <typename ALayout, typename BLayout, typename ELayout>
     void invoke_grouped_gemm(const std::vector<grouped_gemm_kargs>& gemm_descs,
                              const ck_tile::stream_config& s,
                              void* kargs_ptr)
@@ -227,6 +226,100 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
         };
 
         BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
+    }
+
+    void invoke_grouped_gemm_persistent(const ck_tile::stream_config& s,
+                                        const ck_tile::index_t num_groups,
+                                        void* kargs_ptr,
+                                        bool splitk)
+    {
+        using GemmShape = ck_tile::TileGemmShape<
+            ck_tile::sequence<Config::M_Tile_, Config::N_Tile_, Config::K_Tile_>,
+            ck_tile::sequence<Config::M_Warp_, Config::N_Warp_, Config::K_Warp_>,
+            ck_tile::sequence<Config::M_Warp_Tile_, Config::N_Warp_Tile_, Config::K_Warp_Tile_>>;
+        using TilePartitioner = ck_tile::
+            GemmSpatiallyLocalTilePartitioner<GemmShape, TileParitionerGroupNum, TileParitionerM01>;
+        using GemmUniversalTraits =
+            ck_tile::PersistentTileGemmUniversalTraits<kPadM,
+                                                       kPadN,
+                                                       kPadK,
+                                                       Config::DoubleSmemBuffer_,
+                                                       ALayout,
+                                                       BLayout,
+                                                       ELayout>;
+
+        float ave_time{0};
+
+        const auto Run = [&](const auto memory_operation_) {
+            constexpr auto memory_operation = memory_operation_.value;
+
+            // We create the GEMM pipeline without specifying hotloop or tailnumber.
+            // These are automatically run inside the kernel based on the given input data.
+            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<ADataType,
+                                                                               BDataType,
+                                                                               AccDataType,
+                                                                               GemmShape,
+                                                                               GemmUniversalTraits,
+                                                                               Config::Scheduler_>;
+
+            using GemmPipeline = std::conditional_t<
+                Config::Pipeline_ == (PipelineType::Memory),
+                ck_tile::GemmPipelineAgBgCrMem<UniversalGemmProblem>,
+                std::conditional_t<Config::Pipeline_ == (PipelineType::CompV3),
+                                   ck_tile::GemmPipelineAgBgCrCompV3<UniversalGemmProblem>,
+                                   ck_tile::GemmPipelineAgBgCrCompV4<UniversalGemmProblem>>>;
+            using GemmEpilogue = ck_tile::CShuffleEpilogue<
+                ck_tile::CShuffleEpilogueProblem<ADataType,
+                                                 BDataType,
+                                                 DsDataType,
+                                                 AccDataType,
+                                                 EDataType,
+                                                 DsLayout,
+                                                 ELayout,
+                                                 MultiplyMultiply,
+                                                 TilePartitioner::MPerBlock,
+                                                 TilePartitioner::NPerBlock,
+                                                 Config::M_Warp_,
+                                                 Config::N_Warp_,
+                                                 Config::M_Warp_Tile_,
+                                                 Config::N_Warp_Tile_,
+                                                 Config::K_Warp_Tile_,
+                                                 UniversalGemmProblem::TransposeC,
+                                                 memory_operation>>;
+            using Kernel = ck_tile::GroupedGemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+            const dim3 blocks = Kernel::BlockSize();
+            const dim3 grids  = Kernel::MaxOccupancyGridSize(s);
+
+            if(s.log_level_ > 0)
+            {
+                std::cout << "Launching kernel: " << Kernel::GetName()
+                          << " with args:" << " grid: {" << grids.x << ", " << grids.y << ", "
+                          << grids.z << "}" << ", blocks: {" << blocks.x << ", " << blocks.y << ", "
+                          << blocks.z << "}" << std::endl;
+            }
+
+            ave_time = ck_tile::launch_kernel(
+                s,
+                ck_tile::make_kernel<Config::BlockPerCu_>(
+                    Kernel{},
+                    grids,
+                    blocks,
+                    0,
+                    ck_tile::cast_pointer_to_constant_address_space(kargs_ptr),
+                    num_groups));
+
+            return ave_time;
+        };
+        if(!splitk)
+        {
+            Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                           ck_tile::memory_operation_enum::set>{});
+        }
+        else
+        {
+            Run(ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                           ck_tile::memory_operation_enum::atomic_add>{});
+        }
     }
 
     public:
@@ -379,9 +472,43 @@ class TestCkTileGroupedGemmMultiD : public ::testing::Test
         ck_tile::DeviceMem gemm_workspace;
         gemm_workspace.Realloc(get_workspace_size(gemm_descs));
 
-        invoke_grouped_gemm<ALayout, BLayout, ELayout>(gemm_descs,
-                                                       ck_tile::stream_config{nullptr, false, 1},
-                                                       gemm_workspace.GetDeviceBuffer());
+        if constexpr(Config::Persistent_)
+        {
+            std::vector<ck_tile::GemmTransKernelArg<DsDataType::size()>> kargs;
+            void* kargs_ptr   = gemm_workspace.GetDeviceBuffer();
+            const bool splitk = gemm_descs[0].k_batch > 1;
+            for(const auto& arg : gemm_descs)
+            {
+                kargs.emplace_back(
+                    ck_tile::UniversalGemmKernelArgs<1, 1, DsDataType::size()>{{arg.a_ptr},
+                                                                               {arg.b_ptr},
+                                                                               arg.ds_ptr,
+                                                                               arg.e_ptr,
+                                                                               arg.M,
+                                                                               arg.N,
+                                                                               arg.K,
+                                                                               {arg.stride_A},
+                                                                               {arg.stride_B},
+                                                                               arg.stride_Ds,
+                                                                               arg.stride_E,
+                                                                               arg.k_batch});
+            }
+            const auto stream = ck_tile::stream_config{nullptr, false, 1};
+            ck_tile::hip_check_error(hipMemcpyWithStream(
+                kargs_ptr,
+                kargs.data(),
+                kargs.size() * sizeof(ck_tile::GemmTransKernelArg<DsDataType::size()>),
+                hipMemcpyHostToDevice,
+                stream.stream_id_));
+
+            invoke_grouped_gemm_persistent(stream, group_count, kargs_ptr, splitk);
+        }
+        else
+        {
+            invoke_grouped_gemm(gemm_descs,
+                                ck_tile::stream_config{nullptr, false, 1},
+                                gemm_workspace.GetDeviceBuffer());
+        }
 
         // Copy results back to host for validation
         for(int i = 0; i < group_count; i++)

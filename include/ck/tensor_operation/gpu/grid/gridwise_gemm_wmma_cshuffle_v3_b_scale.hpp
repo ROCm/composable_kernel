@@ -122,7 +122,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_b_scale
           ComputeTypeA,
           ComputeTypeB,
           PermuteA,
-          PermuteB>
+          PermuteB,
+          true>
 {
     using Base = GridwiseGemm_wmma_cshuffle_v3_base<
         ALayout,
@@ -174,7 +175,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_b_scale
         ComputeTypeA,
         ComputeTypeB,
         PermuteA,
-        PermuteB>;
+        PermuteB,
+        true>;
 
     using Base::I0;
     using Base::I1;
@@ -207,14 +209,9 @@ struct GridwiseGemm_wmma_cshuffle_v3_b_scale
     using Base::MakeDsGridDescriptor_M_N;
     using Base::MakeDsGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock;
 
-    using Base::GetCShuffleBlockDescriptor_MShRepeat_MPerShRepeat_NShRepeat_NPerShRepeat;
-
     using Base::MakeDEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock;
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
-
-    using Base::GetABlockDescriptor_AK0PerBlock_MPerBlock_AK1;
-    using Base::GetBBlockDescriptor_BK0PerBlock_NPerBlock_BK1;
 
     using Base::NumATensor;
     using Base::NumBTensor;
@@ -222,6 +219,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_b_scale
     using typename Base::AsGridPointer;
     using typename Base::BsGridPointer;
     using typename Base::DsGridPointer;
+    using AsDataType_ = AsDataType;
+    using BsDataType_ = BsDataType;
 
     struct Problem
     {
@@ -532,7 +531,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_b_scale
 
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum EGlobalMemoryDataOperation,
-              TailNumber TailNum>
+              TailNumber TailNum,
+              typename EpilogueArgument>
     __device__ static void Run(AsGridPointer& p_as_grid,
                                BsGridPointer& p_bs_grid,
                                DsGridPointer& p_ds_grid,
@@ -542,7 +542,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_b_scale
                                const Problem& problem,
                                AElementwiseOperation a_element_op,
                                BElementwiseOperation b_element_op,
-                               CDEElementwiseOperation cde_element_op)
+                               CDEElementwiseOperation cde_element_op,
+                               EpilogueArgument& epilogue_args)
     {
         const auto as_grid_desc_ak0_m_ak1 = MakeAsGridDescriptor_AK0_M_AK1(
             problem.M, problem.MPadded, problem.K, problem.KPadded, problem.StrideAs, problem.AK0);
@@ -592,6 +593,7 @@ struct GridwiseGemm_wmma_cshuffle_v3_b_scale
                            decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock),
                            decltype(e_grid_desc_mblock_mperblock_nblock_nperblock),
                            decltype(b_scale_struct),
+                           decltype(epilogue_args),
                            HasMainKBlockLoop,
                            EGlobalMemoryDataOperation,
                            TailNum>(p_as_grid,
@@ -609,16 +611,20 @@ struct GridwiseGemm_wmma_cshuffle_v3_b_scale
                                     block_m_id,
                                     block_n_id,
                                     num_k_block_per_scale,
-                                    b_scale_struct);
+                                    b_scale_struct,
+                                    epilogue_args);
     }
 
     // NOTE: Wrapper function to have __global__ function in common
     // between gemm_universal, b_scale, ab_scale, etc.
     template <bool HasMainKBlockLoop,
               InMemoryDataOperationEnum EGlobalMemoryDataOperation,
-              TailNumber TailNum>
-    __device__ static void
-    Run(void* p_shared, const SplitKBatchOffset& splitk_batch_offset, Argument& karg)
+              TailNumber TailNum,
+              typename EpilogueArgument>
+    __device__ static void Run(void* p_shared,
+                               const SplitKBatchOffset& splitk_batch_offset,
+                               Argument& karg,
+                               EpilogueArgument& epilogue_args)
     {
         // shift A matrices pointer for splitk
         AsGridPointer p_as_grid_splitk;
@@ -646,7 +652,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_b_scale
             karg,
             karg.a_element_op,
             karg.b_element_op,
-            karg.cde_element_op);
+            karg.cde_element_op,
+            epilogue_args);
     }
 };
 
