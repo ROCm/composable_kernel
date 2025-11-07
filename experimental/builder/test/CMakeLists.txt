@@ -43,6 +43,8 @@ add_ck_builder_test(test_ckb_build_fwd_instances
     conv/test_ckb_conv_fwd_2d_bf16.cpp
     conv/test_ckb_conv_fwd_2d_fp16.cpp
     conv/test_ckb_conv_fwd_2d_fp32.cpp
+    conv/test_ckb_conv_fwd_2d_dl_fp16.cpp
+    conv/test_ckb_conv_fwd_2d_large_tensor_fp16.cpp
     conv/test_ckb_conv_fwd_3d_bf16.cpp
     conv/test_ckb_conv_fwd_3d_fp16.cpp
     conv/test_ckb_conv_fwd_3d_fp32.cpp)
