@@ -1,10 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
-
-// This example demonstrates 2D block scale quantization (N×K) for BQuant
-// using non-preshuffled configuration.
-// NOTE: Once more 2d support is ready, we can migrate all 2d quant types to this example
-// This is currently done separately to avoid too verbose dispatching.
+// Copyright (c) , Advanced Micro Devices, Inc. All rights reserved.
 
 #include "run_gemm_quant_example.inc"
 

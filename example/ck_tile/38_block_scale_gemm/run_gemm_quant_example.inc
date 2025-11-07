@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c), Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 #include <cstring>
 #include <iostream>
 #include <ostream>
 #include <random>
-#include <stdexcept>
 #include <stdexcept>
 #include <string>
 #include <tuple>

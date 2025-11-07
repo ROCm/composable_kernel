@@ -1,14 +1,8 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
-
-// This example demonstrates 2D block scale quantization (N×K) for BQuant
-// using non-preshuffled configuration.
-// NOTE: Once more 2d support is ready, we can migrate all 2d quant types to this example
-// This is currently done separately to avoid too verbose dispatching.
+// Copyright (c) , Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cstring>
 #include <iostream>
-#include <stdexcept>
 #include <stdexcept>
 #include <string>
 #include <tuple>
@@ -22,14 +16,14 @@
 auto create_args(int argc, char* argv[])
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("h", "false", "print help message")
+    arg_parser.insert("h", "false", "Print help message")
         .insert("m", "3840", "m dimension")
         .insert("n", "4096", "n dimension")
         .insert("k", "2048", "k dimension")
-        .insert("a_layout", "R", "A tensor data layout - Row by default")
-        .insert("b_layout", "C", "B tensor data layout - Column by default")
-        .insert("bq_layout", "C", "Bq tensor data layout - Column by default")
-        .insert("c_layout", "R", "C tensor data layout - Row by default")
+        .insert("a_layout", "R", "A tensor data layout - Row or Column")
+        .insert("b_layout", "C", "B tensor data layout - Row or Column")
+        .insert("bq_layout", "C", "Bq tensor data layout - Row or Column")
+        .insert("c_layout", "R", "C tensor data layout - Row or Column")
         .insert("stride_a", "0", "Tensor A stride")
         .insert("stride_q", "0", "Tensor AQ stride")
         .insert("stride_b", "0", "Tensor B stride")
@@ -37,17 +31,17 @@ auto create_args(int argc, char* argv[])
         .insert("v", "1", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
         .insert("prec",
                 "fp8",
-                "data type. For AQuant: fp8/bf8/i4fp8/i4bf8, For Bquant: fp8/bf8/fp8i4/bf8i4")
-        .insert("warmup", "50", "number of iterations before benchmark the kernel")
-        .insert("repeat", "1000", "number of iterations to benchmark the kernel")
+                "Data type. For AQuant: fp8/bf8/i4fp8/i4bf8, For Bquant: fp8/bf8/fp8i4/bf8i4")
+        .insert("warmup", "50", "Number of iterations before benchmark the kernel")
+        .insert("repeat", "1000", "Number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
-        .insert("split_k", "1", "splitK value")
-        .insert("device", "0", "device id that will be used to run the kernel, default 0")
+        .insert("split_k", "1", "SplitK value")
+        .insert("device", "0", "Device id that will be used to run the kernel")
         .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
-        .insert("flush_cache", "true", "flush cache before running the kernel, default to true")
-        .insert("rotating_count", "1000", "rotating count, defaults to 1")
-        .insert("quant_mode", "bquant", "Choose aquant (default), bquant, tensor or rowcol")
-        .insert("preshuffleb", "false", "Enable preshuffle tensor B, default false")
+        .insert("flush_cache", "true", "Flush cache before running the kernel")
+        .insert("rotating_count", "1000", "Rotating count")
+        .insert("quant_mode", "bquant", "Choose aquant, bquant, tensor or rowcol")
+        .insert("preshuffleb", "false", "Enable preshuffle of tensor B")
         .insert("group_size",
                 "1x1x128",
                 "Quantization group size as MxNxK, e.g., 1x1x128, 1x32x128, 1x64x128");

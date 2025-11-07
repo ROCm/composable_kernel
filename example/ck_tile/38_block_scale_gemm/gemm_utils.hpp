@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) , Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -17,6 +17,8 @@ inline size_t hash_multiple_strings(const std::vector<std::string>& inputs)
     size_t combined_hash = 0;
     for(const auto& str : inputs)
     {
+        // Hash combine using golden ratio constant and bit shifts for good distribution and
+        // order-dependent mixing
         combined_hash ^= hasher(str) + 0x9e3779b9 + (combined_hash << 6) + (combined_hash >> 2);
     }
     return combined_hash;
