@@ -3,11 +3,21 @@
 # Usage: ./debug_sccache_performance.sh [build_id]
 
 BUILD_ID=${1:-$(date +%Y%m%d_%H%M%S)}
-LOG_FILE="sccache_debug_${BUILD_ID}.log"
+
+# Include stage name in log filename if available
+STAGE_SUFFIX=""
+if [ -n "${JENKINS_STAGE_NAME}" ]; then
+    # Convert stage name to filename-safe format (replace spaces and special chars with underscores)
+    STAGE_SAFE=$(echo "${JENKINS_STAGE_NAME}" | sed 's/[^a-zA-Z0-9]/_/g' | sed 's/__*/_/g' | sed 's/^_\|_$//g')
+    STAGE_SUFFIX="_${STAGE_SAFE}"
+fi
+
+LOG_FILE="logs/sccache_debug_${BUILD_ID}${STAGE_SUFFIX}.log"
 
 echo "=== SCCACHE PERFORMANCE DEBUG - ${BUILD_ID} ===" | tee -a "$LOG_FILE"
 echo "Timestamp: $(date)" | tee -a "$LOG_FILE"
 echo "Node: ${NODE_NAME:-$(hostname)}" | tee -a "$LOG_FILE"
+echo "Stage: ${JENKINS_STAGE_NAME:-unknown}" | tee -a "$LOG_FILE"
 echo "" | tee -a "$LOG_FILE"
 
 # Check if sccache is running

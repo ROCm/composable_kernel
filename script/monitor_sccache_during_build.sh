@@ -3,7 +3,16 @@
 # Usage: ./monitor_sccache_during_build.sh [log_prefix] &
 
 LOG_PREFIX=${1:-"sccache_monitor"}
-MONITOR_LOG="${LOG_PREFIX}_$(date +%Y%m%d_%H%M%S).log"
+
+# Include stage name in log filename if available
+STAGE_SUFFIX=""
+if [ -n "${JENKINS_STAGE_NAME}" ]; then
+    # Convert stage name to filename-safe format (replace spaces and special chars with underscores)
+    STAGE_SAFE=$(echo "${JENKINS_STAGE_NAME}" | sed 's/[^a-zA-Z0-9]/_/g' | sed 's/__*/_/g' | sed 's/^_\|_$//g')
+    STAGE_SUFFIX="_${STAGE_SAFE}"
+fi
+
+MONITOR_LOG="logs/${LOG_PREFIX}_$(date +%Y%m%d_%H%M%S)${STAGE_SUFFIX}.log"
 MONITOR_INTERVAL=30  # seconds
 
 echo "Starting sccache monitoring - logging to $MONITOR_LOG"
@@ -47,6 +56,7 @@ test_redis_connectivity() {
 log_with_timestamp "=== SCCACHE MONITORING STARTED ==="
 log_with_timestamp "PID: $$"
 log_with_timestamp "Node: ${NODE_NAME:-$(hostname)}"
+log_with_timestamp "Stage: ${JENKINS_STAGE_NAME:-unknown}"
 log_with_timestamp "SCCACHE_REDIS: ${SCCACHE_REDIS:-not set}"
 log_with_timestamp "CK_SCCACHE: ${CK_SCCACHE:-not set}"
 

@@ -23,6 +23,18 @@ fi
 echo "=== SCCACHE PERFORMANCE COMPARISON ==="
 echo "Fast build log: $FAST_LOG"
 echo "Slow build log: $SLOW_LOG"
+
+# Extract stage information from filenames if available
+FAST_STAGE=$(echo "$FAST_LOG" | sed -n 's/.*_\([^_]*\)\.log$/\1/p')
+SLOW_STAGE=$(echo "$SLOW_LOG" | sed -n 's/.*_\([^_]*\)\.log$/\1/p')
+
+if [ -n "$FAST_STAGE" ] && [ -n "$SLOW_STAGE" ]; then
+    echo "Fast build stage: $FAST_STAGE"
+    echo "Slow build stage: $SLOW_STAGE"
+    if [ "$FAST_STAGE" != "$SLOW_STAGE" ]; then
+        echo "WARNING: Comparing logs from different stages!"
+    fi
+fi
 echo ""
 
 # Function to extract value from log

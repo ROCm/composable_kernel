@@ -4,11 +4,21 @@
 # for what should be identical compilation units
 
 BUILD_ID=${1:-$(date +%Y%m%d_%H%M%S)}
-CACHE_KEY_LOG="cache_key_analysis_${BUILD_ID}.log"
+
+# Include stage name in log filename if available
+STAGE_SUFFIX=""
+if [ -n "${JENKINS_STAGE_NAME}" ]; then
+    # Convert stage name to filename-safe format (replace spaces and special chars with underscores)
+    STAGE_SAFE=$(echo "${JENKINS_STAGE_NAME}" | sed 's/[^a-zA-Z0-9]/_/g' | sed 's/__*/_/g' | sed 's/^_\|_$//g')
+    STAGE_SUFFIX="_${STAGE_SAFE}"
+fi
+
+CACHE_KEY_LOG="logs/cache_key_analysis_${BUILD_ID}${STAGE_SUFFIX}.log"
 
 echo "=== SCCACHE CACHE KEY ANALYSIS ===" | tee "$CACHE_KEY_LOG"
 echo "Timestamp: $(date)" | tee -a "$CACHE_KEY_LOG"
 echo "Build ID: $BUILD_ID" | tee -a "$CACHE_KEY_LOG"
+echo "Stage: ${JENKINS_STAGE_NAME:-unknown}" | tee -a "$CACHE_KEY_LOG"
 echo "" | tee -a "$CACHE_KEY_LOG"
 
 # Function to generate hash of all cache key components

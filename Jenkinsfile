@@ -516,16 +516,19 @@ def cmake_build(Map conf=[:]){
                 chmod +x ../script/analyze_sccache_performance.sh
                 
                 echo "=== SETTING UP DEBUG ENVIRONMENT ==="
+                mkdir -p logs
                 export CK_SCCACHE="${env.CK_SCCACHE}"
                 export SCCACHE_REDIS="redis://${env.CK_SCCACHE}"
                 export ROCM_PATH=/opt/rocm
                 export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
                 export SCCACHE_C_CUSTOM_CACHE_BUSTER="${invocation_tag}"
+                export JENKINS_STAGE_NAME="${env.STAGE_NAME}"
                 
                 echo "Environment for debug scripts:"
                 echo "CK_SCCACHE: \$CK_SCCACHE"
                 echo "SCCACHE_REDIS: \$SCCACHE_REDIS"
                 echo "SCCACHE_C_CUSTOM_CACHE_BUSTER: \$SCCACHE_C_CUSTOM_CACHE_BUSTER"
+                echo "JENKINS_STAGE_NAME: \$JENKINS_STAGE_NAME"
                 
                 echo "=== PRE-BUILD SCCACHE DEBUG ==="
                 ../script/debug_sccache_performance.sh pre_build_\$(date +%Y%m%d_%H%M%S)
@@ -565,6 +568,7 @@ def cmake_build(Map conf=[:]){
                 export ROCM_PATH=/opt/rocm
                 export SCCACHE_EXTRAFILES=/tmp/.sccache/rocm_compilers_hash_file
                 export SCCACHE_C_CUSTOM_CACHE_BUSTER="${invocation_tag}"
+                export JENKINS_STAGE_NAME="${env.STAGE_NAME}"
                 
                 ../script/debug_sccache_performance.sh post_build_\$(date +%Y%m%d_%H%M%S)
                 
@@ -572,12 +576,12 @@ def cmake_build(Map conf=[:]){
                 ../script/analyze_cache_keys.sh post_build_\$(date +%Y%m%d_%H%M%S)
                 
                 # Archive monitoring logs
-                ls -la *monitor*.log *cache_key*.log 2>/dev/null || echo "No debug logs found"
+                ls -la logs/*monitor*.log logs/*cache_key*.log logs/*sccache_debug*.log 2>/dev/null || echo "No debug logs found"
             """
             
             // Archive the debug logs
             try {
-                archiveArtifacts artifacts: "*monitor*.log,sccache_debug*.log,cache_key_analysis*.log", allowEmptyArchive: true
+                archiveArtifacts artifacts: "logs/*monitor*.log,logs/sccache_debug*.log,logs/cache_key_analysis*.log", allowEmptyArchive: true
             } catch (Exception e) {
                 echo "Could not archive sccache debug logs: ${e.getMessage()}"
             }
