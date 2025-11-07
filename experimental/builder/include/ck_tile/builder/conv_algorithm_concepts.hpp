@@ -183,4 +183,70 @@ concept SpecifiesLoopScheduler = requires {
     { T::loop_scheduler } -> std::convertible_to<PipelineScheduler>;
 };
 
+/******************************************** */
+/* DL-specific descriptors and requirements   */
+/******************************************** */
+
+// Concept for DL thread configuration
+template <typename T>
+concept DlThreadConfigDescriptor = requires(T t) {
+    { t.k0_per_block } -> std::convertible_to<size_t>;
+    { t.k1 } -> std::convertible_to<size_t>;
+    { t.m1_per_thread } -> std::convertible_to<size_t>;
+    { t.n1_per_thread } -> std::convertible_to<size_t>;
+    { t.k_per_thread } -> std::convertible_to<size_t>;
+};
+
+// Concept for DL thread cluster
+template <typename T>
+concept DlThreadClusterDescriptor = requires(T t) {
+    { t.m1_xs } -> std::convertible_to<std::array<size_t, 2>>;
+    { t.n1_xs } -> std::convertible_to<std::array<size_t, 2>>;
+};
+
+// Concept for DL block transfer
+template <typename T>
+concept DlBlockTransferDescriptor = requires(T t) {
+    { t.thread_slice_lengths } -> std::convertible_to<std::array<size_t, 4>>;
+    { t.thread_cluster_lengths } -> std::convertible_to<std::array<size_t, 4>>;
+    { t.thread_cluster_arrange_order } -> std::convertible_to<std::array<size_t, 4>>;
+    { t.src_access_order } -> std::convertible_to<std::array<size_t, 4>>;
+    { t.src_vector_tensor_lengths } -> std::convertible_to<std::array<size_t, 4>>;
+    { t.src_vector_tensor_contiguous_dim_order } -> std::convertible_to<std::array<size_t, 4>>;
+    { t.dst_vector_tensor_lengths } -> std::convertible_to<std::array<size_t, 4>>;
+};
+
+// Concept for DL epilogue
+template <typename T>
+concept DlEpilogueDescriptor = requires(T t) {
+    { t.src_dst_access_order } -> std::convertible_to<std::array<size_t, 6>>;
+    { t.src_dst_vector_dim } -> std::convertible_to<size_t>;
+    { t.dst_scalar_per_vector } -> std::convertible_to<size_t>;
+};
+
+// Concept to check if algorithm specifies DL thread config
+template <typename T>
+concept SpecifiesDlThreadConfig = requires {
+    { T::thread_config } -> DlThreadConfigDescriptor;
+};
+
+// Concept to check if algorithm specifies DL thread cluster
+template <typename T>
+concept SpecifiesDlThreadCluster = requires {
+    { T::thread_cluster } -> DlThreadClusterDescriptor;
+};
+
+// Concept to check if algorithm specifies DL block transfer
+template <typename T>
+concept SpecifiesDlBlockTransfer = requires {
+    { T::block_transfer_a } -> DlBlockTransferDescriptor;
+    { T::block_transfer_b } -> DlBlockTransferDescriptor;
+};
+
+// Concept to check if algorithm specifies DL C thread transfer
+template <typename T>
+concept SpecifiesDlEpilogue = requires {
+    { T::epilogue_c } -> DlEpilogueDescriptor;
+};
+
 } // namespace ck_tile::builder

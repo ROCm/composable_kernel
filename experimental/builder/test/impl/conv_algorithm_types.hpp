@@ -214,4 +214,70 @@ static_assert(
 static_assert(
     ckb::SpecifiesLoopScheduler<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle>);
 
+// DL-specific descriptors
+struct DlThreadConfig
+{
+    size_t k0_per_block;
+    size_t k1;
+    size_t m1_per_thread;
+    size_t n1_per_thread;
+    size_t k_per_thread;
+};
+static_assert(ckb::DlThreadConfigDescriptor<DlThreadConfig>);
+
+struct DlThreadCluster
+{
+    std::array<size_t, 2> m1_xs;
+    std::array<size_t, 2> n1_xs;
+};
+static_assert(ckb::DlThreadClusterDescriptor<DlThreadCluster>);
+
+struct DlBlockTransfer
+{
+    std::array<size_t, 4> thread_slice_lengths;
+    std::array<size_t, 4> thread_cluster_lengths;
+    std::array<size_t, 4> thread_cluster_arrange_order;
+    std::array<size_t, 4> src_access_order;
+    std::array<size_t, 4> src_vector_tensor_lengths;
+    std::array<size_t, 4> src_vector_tensor_contiguous_dim_order;
+    std::array<size_t, 4> dst_vector_tensor_lengths;
+};
+static_assert(ckb::DlBlockTransferDescriptor<DlBlockTransfer>);
+
+struct DlEpilogue
+{
+    std::array<size_t, 6> src_dst_access_order;
+    size_t src_dst_vector_dim;
+    size_t dst_scalar_per_vector;
+};
+static_assert(ckb::DlEpilogueDescriptor<DlEpilogue>);
+
+struct ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
+{
+    ThreadBlock thread_block;
+    ConvFwdSpecialization fwd_specialization;
+    GemmSpecialization gemm_specialization;
+    DlThreadConfig thread_config;
+    DlThreadCluster thread_cluster;
+    DlBlockTransfer block_transfer_a;
+    DlBlockTransfer block_transfer_b;
+    DlEpilogue epilogue_c;
+};
+static_assert(
+    ckb::ConvAlgorithmDescriptor<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
+static_assert(
+    ckb::SpecifiesThreadBlock<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
+static_assert(ckb::SpecifiesFwdConcSpecialization<
+              ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
+static_assert(
+    ckb::SpecifiesGemmSpecialization<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
+static_assert(
+    ckb::SpecifiesDlThreadConfig<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
+static_assert(
+    ckb::SpecifiesDlThreadCluster<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
+static_assert(
+    ckb::SpecifiesDlBlockTransfer<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
+static_assert(
+    ckb::SpecifiesDlEpilogue<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
+
 } // namespace ck_tile::builder::test
