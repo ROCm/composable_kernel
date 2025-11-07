@@ -137,7 +137,12 @@ struct ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
     size_t num_gemm_k_prefetch_stages;
     size_t num_groups_to_merge;
     PipelineScheduler loop_scheduler;
-    bool large_tensor_support{false};
+};
+
+struct ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
+{
+    ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle base_algorithm;
+    static constexpr ConvAlgorithmSpecialization specialization = ConvAlgorithmSpecialization::LARGE_TENSOR;
 };
 
 struct ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle

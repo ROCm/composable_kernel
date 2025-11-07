@@ -185,12 +185,8 @@ concept SpecifiesLoopScheduler = requires {
 
 template <typename T>
 concept SpecifiesLargeTensorSupport = requires { 
-    { T::large_tensor_support } -> std::convertible_to<bool>; 
-};
-
-template <auto Value>
-concept LargeTensorSupportEnabled = requires {
-    requires Value.large_tensor_support;
+    { T::specialization } -> std::convertible_to<ConvAlgorithmSpecialization>;
+    requires T::specialization == ConvAlgorithmSpecialization::LARGE_TENSOR;
 };
 
 /******************************************** */
@@ -318,7 +314,7 @@ concept DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK =
 
 template <typename T>
 concept DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor =
-    DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<T> &&
+    DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<decltype(T::base_algorithm)> &&
     SpecifiesLargeTensorSupport<T>;
 
 } // namespace ck_tile::builder

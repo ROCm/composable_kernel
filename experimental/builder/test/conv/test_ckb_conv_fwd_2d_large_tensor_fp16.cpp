@@ -18,16 +18,16 @@ TEST(FwdConvInstances,
         .data_type             = DataType::FP16,
         .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
 
-    constexpr ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle FwdConvAlgorithm{
-        .thread_block               = FwdThreadBlock_256_256x128x32,
-        .gridwise_gemm              = FwdGemmParams_Xdl_2x1_per_wave,
-        .block_transfer             = FwdBlockTransfer_4x16x1,
-        .fwd_specialization         = ConvFwdSpecialization::DEFAULT,
-        .gemm_specialization        = GemmSpecialization::MNKPadding,
-        .num_gemm_k_prefetch_stages = 1,
-        .num_groups_to_merge        = 1,
-        .loop_scheduler             = PipelineScheduler::DEFAULT,
-        .large_tensor_support       = true};
+    constexpr ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor FwdConvAlgorithm{
+        .base_algorithm = {
+            .thread_block               = FwdThreadBlock_256_256x128x32,
+            .gridwise_gemm              = FwdGemmParams_Xdl_2x1_per_wave,
+            .block_transfer             = FwdBlockTransfer_4x16x1,
+            .fwd_specialization         = ConvFwdSpecialization::DEFAULT,
+            .gemm_specialization        = GemmSpecialization::MNKPadding,
+            .num_gemm_k_prefetch_stages = 1,
+            .num_groups_to_merge        = 1,
+            .loop_scheduler             = PipelineScheduler::DEFAULT}};
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
     run_test<Builder>({"DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor",
@@ -46,16 +46,16 @@ TEST(
         .data_type             = DataType::FP16,
         .elementwise_operation = ElementwiseOperation::PASS_THROUGH};
 
-    constexpr ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle FwdConvAlgorithm{
-        .thread_block               = FwdThreadBlock_128_128x128x32,
-        .gridwise_gemm              = FwdGemmParams_Xdl_2x1_per_wave,
-        .block_transfer             = FwdBlockTransfer_4x16x1,
-        .fwd_specialization         = ConvFwdSpecialization::FILTER_1X1_PAD0,
-        .gemm_specialization        = GemmSpecialization::MNKPadding,
-        .num_gemm_k_prefetch_stages = 1,
-        .num_groups_to_merge        = 1,
-        .loop_scheduler             = PipelineScheduler::DEFAULT,
-        .large_tensor_support       = true};
+    constexpr ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor FwdConvAlgorithm{
+        .base_algorithm = {
+            .thread_block               = FwdThreadBlock_128_128x128x32,
+            .gridwise_gemm              = FwdGemmParams_Xdl_2x1_per_wave,
+            .block_transfer             = FwdBlockTransfer_4x16x1,
+            .fwd_specialization         = ConvFwdSpecialization::FILTER_1X1_PAD0,
+            .gemm_specialization        = GemmSpecialization::MNKPadding,
+            .num_gemm_k_prefetch_stages = 1,
+            .num_groups_to_merge        = 1,
+            .loop_scheduler             = PipelineScheduler::DEFAULT}};
 
     using Builder = ConvBuilder<FwdConvSignature, FwdConvAlgorithm>;
     run_test<Builder>({"DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor",

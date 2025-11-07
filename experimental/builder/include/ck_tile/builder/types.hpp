@@ -173,6 +173,11 @@ enum class PipelineScheduler
     INTERWAVE
 };
 
+enum class ConvAlgorithmSpecialization
+{
+    LARGE_TENSOR
+};
+
 // ostream operator overloads for enum classes
 inline std::ostream& operator<<(std::ostream& os, DataType dt)
 {
