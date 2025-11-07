@@ -23,6 +23,8 @@
 #include <ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp>
 #include <ck/tensor_operation/gpu/device/gemm_specialization.hpp>
 
+#include <ck_tile/ops/grouped_convolution.hpp>
+
 namespace ck_tile::reflect::detail {
 
 // Implementation detail for type name mapping
@@ -148,6 +150,16 @@ constexpr std::string_view pipeline_scheduler_name(ck::BlockGemmPipelineSchedule
     }
 }
 
+constexpr std::string_view pipeline_scheduler_name(ck_tile::BlockGemmPipelineScheduler sched)
+{
+    using enum ck_tile::BlockGemmPipelineScheduler;
+    switch(sched)
+    {
+    case Intrawave: return "Intrawave";
+    case Interwave: return "Interwave";
+    }
+}
+
 // Convert BlockGemmPipelineVersion enum to string
 constexpr std::string_view pipeline_version_name(ck::BlockGemmPipelineVersion ver)
 {
@@ -183,6 +195,26 @@ constexpr std::string_view loop_scheduler_name(ck::LoopScheduler sched)
     {
     case Default: return "Default";
     case Interwave: return "Interwave";
+    }
+}
+
+// Convert TailNumber enum to string
+constexpr std::string_view tail_number_name(ck_tile::TailNumber tail_num)
+{
+    using enum ck_tile::TailNumber;
+    switch(tail_num)
+    {
+    case Odd: return "Odd";
+    case Even: return "Even";
+    case One: return "One";
+    case Two: return "Two";
+    case Three: return "Three";
+    case Four: return "Four";
+    case Five: return "Five";
+    case Six: return "Six";
+    case Seven: return "Seven";
+    case Empty: return "Empty";
+    case Full: return "Full";
     }
 }
 
@@ -341,12 +373,17 @@ template <typename T>
 concept IsCkTuple =
     requires { []<typename... Ts>(ck::Tuple<Ts...>*) {}(static_cast<T*>(nullptr)); };
 
+// Concept to check if a type is a ck_tile::tuple
+template <typename T>
+concept IsCkTileTuple =
+    requires { []<typename... Ts>(ck_tile::tuple<Ts...>*) {}(static_cast<T*>(nullptr)); };
+
 // Deduces whether to use tuple_name or type_name
 // Handles both scalar data types and ck::Tuple types
 template <typename T>
 constexpr std::string type_or_type_tuple_name()
 {
-    if constexpr(IsCkTuple<T>)
+    if constexpr(IsCkTuple<T> || IsCkTileTuple<t>)
     {
         return tuple_name<T>();
     }

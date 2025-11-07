@@ -11,6 +11,7 @@
 #include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_d_xdl_large_tensor_cshuffle.hpp>
 #include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_multiple_d_wmma_cshuffle.hpp>
 #include <ck_tile/builder/reflect/instance_traits_device_grouped_conv_fwd_dl_multiple_d_nhwc_kyxc_nhwk.hpp>
+#include <ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp>
 
 namespace {
 
@@ -717,6 +718,148 @@ TEST(InstanceTraits, DlInstanceStringReturnsCorrectFormat)
                                ",1>";              // CThreadTransferDstScalarPerVector
 
     // Verify the generated string matches exactly
+    EXPECT_EQ(instance_str, expected_str);
+}
+
+
+TEST(InstanceTraits, TileInstanceStringReturnsCorrectFormat)
+{
+            using GroupedConvTraitsType = ck_tile::GroupedConvTraits<2 /*NDimSpatial*/,
+                                                                    ck_tile::ConvolutionSpecialization::Default /*ConvSpec*/,
+                                                                    ck_tile::tensor_layout::convolution::NHWGC /*InLayout*/,
+                                                                    ck_tile::tensor_layout::convolution::GKYXC /*WeiLayout*/,
+                                                                    ck_tile::tuple<> /*DsLayout*/,
+                                                                    ck_tile::tensor_layout::convolution::NHWGK /*OutLayout*/,
+                                                                    4 /*VectorSizeA*/,
+                                                                    4 /*VectorSizeB*/,
+                                                                    4 /*VectorSizeC*/,
+                                                                    1 /*NumGroupsToMerge*/,
+                                                                    false /*EnableSplitImage*/>;
+
+            using GemmShape = ck_tile::TileGemmShape<
+                                        ck_tile::sequence<128 /*M_Tile*/, 128 /*N_Tile*/, 32 /*K_Tile*/>,
+                                        ck_tile::sequence<4 /*M_Warp*/, 1 /*N_Warp*/, 1 /*K_Warp*/>,
+                                        ck_tile::sequence<16 /*M_Warp_Tile*/,
+                                                        16 /*N_Warp_Tile*/,
+                                                        16 /*K_Warp_Tile*/>>;
+
+            using TilePartitioner =
+                ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
+                                               GroupedConvTraitsType::TileParitionerGroupNum,
+                                                       GroupedConvTraitsType::TileParitionerM01>;
+
+            using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<
+                GroupedConvTraitsType::kPadM,
+                GroupedConvTraitsType::kPadN,
+                GroupedConvTraitsType::kPadK,
+                false /*DoubleSmemBuffer*/,
+                typename GroupedConvTraitsType::AsLayoutFwd,
+                typename GroupedConvTraitsType::BsLayoutFwd,
+                typename GroupedConvTraitsType::CLayoutFwd,
+            GroupedConvTraitsType::FixedGemmParams::TransposeC,
+                GroupedConvTraitsType::UseStructuredSparsity,
+                GroupedConvTraitsType::Persistent,
+                1 /*NumWaveGroups*/>;
+
+                using UniversalGemmProblem =
+                    ck_tile::UniversalGemmPipelineProblem<ck_tile::bf16_t /*InDataType*/,
+                                                          ck_tile::bf16_t /*WeiDataType*/,
+                                                          float /*AccDataType*/,
+                                                          GemmShape,
+                                                          GemmUniversalTraits,
+                                                          ck_tile::GemmPipelineScheduler::Intrawave /*scheduler*/,
+                                                          true /*has_hot_loop_v*/,
+                                                          ck_tile::TailNumber::Full /*tail_number_v*/,
+                                                          ck_tile::element_wise::PassThrough /*AElementwiseOperation*/,
+                                                          ck_tile::element_wise::PassThrough /*BElementwiseOperation*/,
+                                                          ck_tile::bf16_t /*OutDataType*/,
+                                                          GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
+                                                          GroupedConvTraitsType::VectorSizeA,
+                                                          GroupedConvTraitsType::VectorSizeB>;
+
+                using GemmPipeline = typename ck_tile::PipelineTypeTraits<
+                    Pipeline>::template GemmPipeline<UniversalGemmProblem>;
+
+                using ConvEpilogue = ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
+                    ck_tile::bf16_t /*InDataType*/,
+                    ck_tile::bf16_t /*WeiDataType*/,
+                    ck_tile::tuple<> /*DsDataType*/,
+                    float /*AccDataType*/,
+                    ck_tile::bf16_t /*OutDataType*/,
+                    typename GroupedConvTraitsType::ImplicitGemmDsLayout,
+                    typename TileGemmUniversalTraits::ELayout,
+                    ck_tile::element_wise::PassThrough /*CDElementWise*/,
+                    128 /*MPerBlock*/,
+                    128 /*NPerBlock*/,
+                    4 /*M_Warp*/,
+                    1 /*N_Warp*/,
+                    16 /*M_Warp_Tile*/,
+                    16 /*N_Warp_Tile*/,
+                    16 /*K_Warp_Tile*/,
+                         GroupedConvTraitsType::FixedGemmParams::TransposeC,
+                    ck_tile::memory_operation_enum::set /*memory_operation*/,
+                    GemmConfig::NumWaveGroups /*kNumWaveGroups*/,
+                    TileGemmUniversalTraits::FixedVectorSize,
+                    GroupedConvTraitsType::VectorSizeC>>;
+
+    using GroupedConvFwdKernel = ck_tile::GroupedConvolutionForwardKernel<GroupedConvTraitsType,
+                                                            TilePartitioner,
+                                                            GemmPipeline,
+                                                            ConvEpilogue>;
+
+    std::string instance_str = ck_tile::reflect::instance_string<GroupedConvFwdKernel>();
+
+    std::string expected_str = "DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3"
+                               "<2"             // NDimSpatial
+                               ",GNHWC"         // ALayout
+                               ",GKYXC"         // BLayout
+                               ",EmptyTuple"    // DsLayout
+                               ",GNHWK"         // ELayout
+                               ",fp16"          // ADataType
+                               ",fp16"          // BDataType
+                               ",fp32"          // AccDataType
+                               ",fp16"          // CShuffleDataType
+                               ",EmptyTuple"    // DsDataType
+                               ",fp16"          // EDataType
+                               ",PassThrough"   // AElementwiseOperation
+                               ",PassThrough"   // BElementwiseOperation
+                               ",PassThrough"   // CDEElementwiseOperation
+                               ",Default"       // ConvForwardSpecialization
+                               ",Default"       // GemmSpec
+                               ",256"           // BlockSize
+                               ",128"           // MPerBlock
+                               ",128"           // NPerBlock
+                               ",16"            // KPerBlock
+                               ",8"             // AK1
+                               ",8"             // BK1
+                               ",32"            // MPerXDL
+                               ",32"            // NPerXDL
+                               ",4"             // MXdlPerWave
+                               ",4"             // NXdlPerWave
+                               ",Seq(4,64,1)"   // ABlockTransferThreadClusterLengths
+                               ",Seq(1,0,2)"    // ABlockTransferThreadClusterArrangeOrder
+                               ",Seq(1,0,2)"    // ABlockTransferSrcAccessOrder
+                               ",2"             // ABlockTransferSrcVectorDim
+                               ",8"             // ABlockTransferSrcScalarPerVector
+                               ",8"             // ABlockTransferDstScalarPerVector_AK1
+                               ",1"             // ABlockLdsExtraM
+                               ",Seq(4,64,1)"   // BBlockTransferThreadClusterLengths
+                               ",Seq(1,0,2)"    // BBlockTransferThreadClusterArrangeOrder
+                               ",Seq(1,0,2)"    // BBlockTransferSrcAccessOrder
+                               ",2"             // BBlockTransferSrcVectorDim
+                               ",8"             // BBlockTransferSrcScalarPerVector
+                               ",8"             // BBlockTransferDstScalarPerVector_BK1
+                               ",1"             // BBlockLdsExtraN
+                               ",1"             // CShuffleMXdlPerWavePerShuffle
+                               ",1"             // CShuffleNXdlPerWavePerShuffle
+                               ",Seq(1,32,1,8)" // CDEBlockTransferClusterLengths
+                               ",8"             // CDEBlockTransferScalarPerVector_NPerBlock
+                               ",Intrawave"     // BlkGemmPipeSched
+                               ",v1"            // BlkGemmPipelineVer
+                               ",fp16"          // AComputeDataType
+                               ",fp16"          // BComputeDataType
+                               ",false>";       // DirectLoad
+
     EXPECT_EQ(instance_str, expected_str);
 }
 

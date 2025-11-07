@@ -1,0 +1,183 @@
+Built target gtest
+Built target gtest_main
+Built target gmock
+In file included from /root/workspace/ck3/experimental/builder/test/test_fwd_instance_traits.cpp:8:
+In file included from /root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits.hpp:28:
+In file included from /root/workspace/ck3/include/ck_tile/ops/grouped_convolution.hpp:8:
+In file included from /root/workspace/ck3/include/ck_tile/ops/grouped_convolution/kernel/grouped_convolution_forward_kernel.hpp:20:
+[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:36:8: [0m[0;1;31merror: [0m[1mexplicit specialization of undeclared template struct 'InstanceTraits'[0m
+   36 | [0;34mstruct[0m InstanceTraits<ck::tensor_operation::device::GroupedConvolutionForwardKernel<[0m
+      | [0;1;32m       ^             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[0m   37 |             GroupedConvTraitsType_,[0m
+      | [0;1;32m            ~~~~~~~~~~~~~~~~~~~~~~~
+[0m   38 |             TilePartitioner_,[0m
+      | [0;1;32m            ~~~~~~~~~~~~~~~~~
+[0m   39 |             GemmPipeline_,[0m
+      | [0;1;32m            ~~~~~~~~~~~~~~
+[0m   40 |             EpiloguePipeline_>>[0m
+      | [0;1;32m            ~~~~~~~~~~~~~~~~~~~
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:78:22: [0m[0;1;31merror: [0m[1mno type named 'BlockGemmPipelineScheduler' in namespace 'ck_tile'; did you mean 'ck::BlockGemmPipelineScheduler'?[0m
+   78 |     [0;34mstatic[0m [0;34mconstexpr[0m ck_tile::BlockGemmPipelineScheduler kPipelineScheduler = GemmPipeline_::Scheduler;[0m
+      | [0;1;32m                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[0m      | [0;32m                     ck::BlockGemmPipelineScheduler
+[0m[1m/root/workspace/ck3/include/ck/utility/blkgemmpipe_scheduler.hpp:24:13: [0m[0;1;36mnote: [0m'ck::BlockGemmPipelineScheduler' declared here[0m
+   24 | [0;34menum[0m [0;34mstruct[0m BlockGemmPipelineScheduler[0m
+      | [0;1;32m            ^
+[0mIn file included from /root/workspace/ck3/experimental/builder/test/test_fwd_instance_traits.cpp:8:
+In file included from /root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits.hpp:28:
+In file included from /root/workspace/ck3/include/ck_tile/ops/grouped_convolution.hpp:8:
+In file included from /root/workspace/ck3/include/ck_tile/ops/grouped_convolution/kernel/grouped_convolution_forward_kernel.hpp:20:
+[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:80:42: [0m[0;1;31merror: [0m[1mexpected member name or ';' after declaration specifiers[0m
+   80 |     [0;34mstatic[0m [0;34mconstexpr[0m ck_tile::TailNumber = GemmPipeline_::TailNum;[0m
+      | [0;1;32m    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^
+[0mIn file included from /root/workspace/ck3/experimental/builder/test/test_instance_traits_util.cpp:6:
+In file included from /root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_util.hpp:26:
+In file included from /root/workspace/ck3/include/ck_tile/ops/grouped_convolution.hpp:8:
+In file included from /root/workspace/ck3/include/ck_tile/ops/grouped_convolution/kernel/grouped_convolution_forward_kernel.hpp:20:
+[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:78:22: [0m[0;1;31merror: [0m[1mno type named 'BlockGemmPipelineScheduler' in namespace 'ck_tile'; did you mean 'ck::BlockGemmPipelineScheduler'?[0m
+   78 |     [0;34mstatic[0m [0;34mconstexpr[0m ck_tile::BlockGemmPipelineScheduler kPipelineScheduler = GemmPipeline_::Scheduler;[0m
+      | [0;1;32m                     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+[0m      | [0;32m                     ck::BlockGemmPipelineScheduler
+[0m[1m/root/workspace/ck3/include/ck/utility/blkgemmpipe_scheduler.hpp:24:13: [0m[0;1;36mnote: [0m'ck::BlockGemmPipelineScheduler' declared here[0m
+   24 | [0;34menum[0m [0;34mstruct[0m BlockGemmPipelineScheduler[0m
+      | [0;1;32m            ^
+[0mIn file included from /root/workspace/ck3/experimental/builder/test/test_instance_traits_util.cpp:6:
+In file included from /root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_util.hpp:26:
+In file included from /root/workspace/ck3/include/ck_tile/ops/grouped_convolution.hpp:8:
+In file included from /root/workspace/ck3/include/ck_tile/ops/grouped_convolution/kernel/grouped_convolution_forward_kernel.hpp:20:
+[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:80:42: [0m[0;1;31merror: [0m[1mexpected member name or ';' after declaration specifiers[0m
+   80 |     [0;34mstatic[0m [0;34mconstexpr[0m ck_tile::TailNumber = GemmPipeline_::TailNum;[0m
+      | [0;1;32m    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ ^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:102:31: [0m[0;1;31merror: [0m[1mno member named 'layout_name' in namespace 'ck_tile::detail'[0m
+  102 |         oss << [0;32m","[0m << detail::layout_name<InLayout>();               [0;33m// 3. InLayout[0m
+      | [0;1;32m                      ~~~~~~~~^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:102:43: [0m[0;1;31merror: [0m[1munexpected type name 'InLayout': expected expression[0m
+  102 |         oss << [0;32m","[0m << detail::layout_name<InLayout>();               [0;33m// 3. InLayout[0m
+      | [0;1;32m                                          ^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:102:53: [0m[0;1;31merror: [0m[1mexpected expression[0m
+  102 |         oss << [0;32m","[0m << detail::layout_name<InLayout>();               [0;33m// 3. InLayout[0m
+      | [0;1;32m                                                    ^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:102:31: [0m[0;1;31merror: [0m[1mno member named 'layout_name' in namespace 'ck_tile::detail'[0m
+  102 |         oss << [0;32m","[0m << detail::layout_name<InLayout>();               [0;33m// 3. InLayout[0m
+      | [0;1;32m                      ~~~~~~~~^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:102:43: [0m[0;1;31merror: [0m[1munexpected type name 'InLayout': expected expression[0m
+  102 |         oss << [0;32m","[0m << detail::layout_name<InLayout>();               [0;33m// 3. InLayout[0m
+      | [0;1;32m                                          ^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:102:53: [0m[0;1;31merror: [0m[1mexpected expression[0m
+  102 |         oss << [0;32m","[0m << detail::layout_name<InLayout>();               [0;33m// 3. InLayout[0m
+      | [0;1;32m                                                    ^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:103:31: [0m[0;1;31merror: [0m[1mno member named 'layout_name' in namespace 'ck_tile::detail'[0m
+  103 |         oss << [0;32m","[0m << detail::layout_name<WeiLayout>();               [0;33m// 4. BLayout[0m
+      | [0;1;32m                      ~~~~~~~~^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:103:43: [0m[0;1;31merror: [0m[1munexpected type name 'WeiLayout': expected expression[0m
+  103 |         oss << [0;32m","[0m << detail::layout_name<WeiLayout>();               [0;33m// 4. BLayout[0m
+      | [0;1;32m                                          ^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:103:54: [0m[0;1;31merror: [0m[1mexpected expression[0m
+  103 |         oss << [0;32m","[0m << detail::layout_name<WeiLayout>();               [0;33m// 4. BLayout[0m
+      | [0;1;32m                                                     ^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:103:31: [0m[0;1;31merror: [0m[1mno member named 'layout_name' in namespace 'ck_tile::detail'[0m
+  103 |         oss << [0;32m","[0m << detail::layout_name<WeiLayout>();               [0;33m// 4. BLayout[0m
+      | [0;1;32m                      ~~~~~~~~^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:103:43: [0m[0;1;31merror: [0m[1munexpected type name 'WeiLayout': expected expression[0m
+  103 |         oss << [0;32m","[0m << detail::layout_name<WeiLayout>();               [0;33m// 4. BLayout[0m
+      | [0;1;32m                                          ^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:103:54: [0m[0;1;31merror: [0m[1mexpected expression[0m
+  103 |         oss << [0;32m","[0m << detail::layout_name<WeiLayout>();               [0;33m// 4. BLayout[0m
+      | [0;1;32m                                                     ^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:104:23: [0m[0;1;31merror: [0m[1mno template named 'tuple_name' in namespace 'ck_tile::detail'; did you mean 'impl::tuple_base'?[0m
+  104 |         oss << [0;32m","[0m << detail::tuple_name<DsLayout>();               [0;33m// 5. DsLayout[0m
+      | [0;1;32m                      ^~~~~~~~~~~~~~~~~~
+[0m      | [0;32m                      impl::tuple_base
+[0m[1m/root/workspace/ck3/include/ck_tile/core/container/tuple.hpp:119:8: [0m[0;1;36mnote: [0m'impl::tuple_base' declared here[0m
+  119 | [0;34mstruct[0m tuple_base;[0m
+      | [0;1;32m       ^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:104:23: [0m[0;1;31merror: [0m[1mno template named 'tuple_name' in namespace 'ck_tile::detail'; did you mean 'impl::tuple_base'?[0m
+  104 |         oss << [0;32m","[0m << detail::tuple_name<DsLayout>();               [0;33m// 5. DsLayout[0m
+      | [0;1;32m                      ^~~~~~~~~~~~~~~~~~
+[0m      | [0;32m                      impl::tuple_base
+[0m[1m/root/workspace/ck3/include/ck_tile/core/container/tuple.hpp:119:8: [0m[0;1;36mnote: [0m'impl::tuple_base' declared here[0m
+  119 | [0;34mstruct[0m tuple_base;[0m
+      | [0;1;32m       ^
+[0mIn file included from /root/workspace/ck3/experimental/builder/test/test_fwd_instance_traits.cpp:8:
+In file included from /root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits.hpp:28:
+In file included from /root/workspace/ck3/include/ck_tile/ops/grouped_convolution.hpp:8:
+In file included from /root/workspace/ck3/include/ck_tile/ops/grouped_convolution/kernel/grouped_convolution_forward_kernel.hpp:20:
+[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:105:31: [0m[0;1;31merror: [0m[1mno member named 'layout_name' in namespace 'ck_tile::detail'[0m
+  105 |         oss << [0;32m","[0m << detail::layout_name<OutLayout>();               [0;33m// 6. ELayout[0m
+      | [0;1;32m                      ~~~~~~~~^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:105:43: [0m[0;1;31merror: [0m[1munexpected type name 'OutLayout': expected expression[0m
+  105 |         oss << [0;32m","[0m << detail::layout_name<OutLayout>();               [0;33m// 6. ELayout[0m
+      | [0;1;32m                                          ^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:105:54: [0m[0;1;31merror: [0m[1mexpected expression[0m
+  105 |         oss << [0;32m","[0m << detail::layout_name<OutLayout>();               [0;33m// 6. ELayout[0m
+      | [0;1;32m                                                     ^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:106:35: [0m[0;1;31merror: [0m[1mexpected ';' after expression[0m
+  106 |         oss << [0;32m","[0m << kVectorSizeA                               [0;33m// 7. VectorSizeA[0m
+      | [0;1;32m                                  ^
+[0m      | [0;32m                                  ;
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:107:35: [0m[0;1;31merror: [0m[1mexpected ';' after expression[0m
+  107 |         oss << [0;32m","[0m << kVectorSizeB                               [0;33m// 8. VectorSizeB[0m
+      | [0;1;32m                                  ^
+[0m      | [0;32m                                  ;
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:108:35: [0m[0;1;31merror: [0m[1mexpected ';' after expression[0m
+  108 |         oss << [0;32m","[0m << kVectorSizeC                               [0;33m// 9. VectorSizeC[0m
+      | [0;1;32m                                  ^
+[0m      | [0;32m                                  ;
+[0mIn file included from /root/workspace/ck3/experimental/builder/test/test_instance_traits_util.cpp:6:
+In file included from /root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_util.hpp:26:
+In file included from /root/workspace/ck3/include/ck_tile/ops/grouped_convolution.hpp:8:
+In file included from /root/workspace/ck3/include/ck_tile/ops/grouped_convolution/kernel/grouped_convolution_forward_kernel.hpp:20:
+[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:105:31: [0m[0;1;31merror: [0m[1mno member named 'layout_name' in namespace 'ck_tile::detail'[0m
+  105 |         oss << [0;32m","[0m << detail::layout_name<OutLayout>();               [0;33m// 6. ELayout[0m
+      | [0;1;32m                      ~~~~~~~~^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:105:43: [0m[0;1;31merror: [0m[1munexpected type name 'OutLayout': expected expression[0m
+  105 |         oss << [0;32m","[0m << detail::layout_name<OutLayout>();               [0;33m// 6. ELayout[0m
+      | [0;1;32m                                          ^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:105:54: [0m[0;1;31merror: [0m[1mexpected expression[0m
+  105 |         oss << [0;32m","[0m << detail::layout_name<OutLayout>();               [0;33m// 6. ELayout[0m
+      | [0;1;32m                                                     ^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:106:35: [0m[0;1;31merror: [0m[1mexpected ';' after expression[0m
+  106 |         oss << [0;32m","[0m << kVectorSizeA                               [0;33m// 7. VectorSizeA[0m
+      | [0;1;32m                                  ^
+[0m      | [0;32m                                  ;
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:107:35: [0m[0;1;31merror: [0m[1mexpected ';' after expression[0m
+  107 |         oss << [0;32m","[0m << kVectorSizeB                               [0;33m// 8. VectorSizeB[0m
+      | [0;1;32m                                  ^
+[0m      | [0;32m                                  ;
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:108:35: [0m[0;1;31merror: [0m[1mexpected ';' after expression[0m
+  108 |         oss << [0;32m","[0m << kVectorSizeC                               [0;33m// 9. VectorSizeC[0m
+      | [0;1;32m                                  ^
+[0m      | [0;32m                                  ;
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:121:31: [0m[0;1;31merror: [0m[1mno member named 'pipeline_scheduler_name' in namespace 'ck_tile::detail'[0m
+  121 |         oss << [0;32m","[0m << detail::pipeline_scheduler_name(kPipelineScheduler); [0;33m// 22. BlkGemmPipeSched[0m
+      | [0;1;32m                      ~~~~~~~~^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:121:31: [0m[0;1;31merror: [0m[1mno member named 'pipeline_scheduler_name' in namespace 'ck_tile::detail'[0m
+  121 |         oss << [0;32m","[0m << detail::pipeline_scheduler_name(kPipelineScheduler); [0;33m// 22. BlkGemmPipeSched[0m
+      | [0;1;32m                      ~~~~~~~~^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:123:31: [0m[0;1;31merror: [0m[1mno member named 'tail_number_name' in namespace 'ck_tile::detail'[0m
+  123 |         oss << [0;32m","[0m << detail::tail_number_name(kTailNumber);[0m
+      | [0;1;32m                      ~~~~~~~~^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:123:48: [0m[0;1;31merror: [0m[1muse of undeclared identifier 'kTailNumber'[0m
+  123 |         oss << [0;32m","[0m << detail::tail_number_name(kTailNumber);[0m
+      | [0;1;32m                                               ^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:123:31: [0m[0;1;31merror: [0m[1mno member named 'tail_number_name' in namespace 'ck_tile::detail'[0m
+  123 |         oss << [0;32m","[0m << detail::tail_number_name(kTailNumber);[0m
+      | [0;1;32m                      ~~~~~~~~^
+[0m[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:123:48: [0m[0;1;31merror: [0m[1muse of undeclared identifier 'kTailNumber'[0m
+  123 |         oss << [0;32m","[0m << detail::tail_number_name(kTailNumber);[0m
+      | [0;1;32m                                               ^
+[0m[0;1;31mfatal error: [0m[1mtoo many errors emitted, stopping now [-ferror-limit=][0m
+[1m/root/workspace/ck3/experimental/builder/include/ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp:124:31: [0m[0;1;31merror: [0m[1mno member named 'layout_name' in namespace 'ck_tile::detail'[0m
+  124 |         oss << [0;32m","[0m << detail::layout_name<AGemmLayout>();               [0;33m// 23. AGemmLayout[0m
+      | [0;1;32m                      ~~~~~~~~^
+[0m[0;1;31mfatal error: [0m[1mtoo many errors emitted, stopping now [-ferror-limit=][0m
+20 errors generated when compiling for gfx950.
+20 errors generated when compiling for gfx950.
+failed to execute:/opt/rocm-7.0.1/lib/llvm/bin/clang++  --offload-arch=gfx950  -DCK_ENABLE_BF16 -DCK_ENABLE_BF8 -DCK_ENABLE_FP16 -DCK_ENABLE_FP32 -DCK_ENABLE_FP64 -DCK_ENABLE_FP8 -DCK_ENABLE_INT8 -DCK_EXPERIMENTAL_BUILDER -DCK_GFX950_SUPPORT -DCK_TILE_USE_WMMA=0 -DCK_TIME_KERNEL=1 -DCK_USE_GFX94 -DCK_USE_NATIVE_MX_SUPPORT -DCK_USE_OCP_FP8 -DCK_USE_XDL -DDL_KERNELS -DDPP_KERNELS -DUSE_PROF_API=1 -D__HIP_PLATFORM_AMD__=1 -D__HIP_PLATFORM_HCC__=1 -I/root/workspace/ck3/library/include -I/root/workspace/ck3/include -I/root/workspace/ck3/build/include -I/root/workspace/ck3/experimental/builder/include -I/root/workspace/ck3/experimental/builder/test -isystem /root/workspace/ck3/build/_deps/gtest-src/googletest/include -isystem /root/workspace/ck3/build/_deps/gtest-src/googletest -isystem /root/workspace/ck3/build/_deps/gtest-src/googlemock/include -isystem /root/workspace/ck3/build/_deps/gtest-src/googlemock -isystem /root/workspace/ck3/build/_deps/gtest-src -O3 -DNDEBUG -std=c++20 -Wall -Wextra -Wcomment -Wendif-labels -Wformat -Winit-self -Wreturn-type -Wsequence-point -Wswitch -Wtrigraphs -Wundef -Wuninitialized -Wunreachable-code -Wunused -Wno-reserved-identifier -Wno-option-ignored -Wsign-compare -Wno-extra-semi-stmt -Wno-unused-template -Wno-missing-field-initializers -Wno-error=deprecated-declarations -Wall -Wextra -Wcomment -Wendif-labels -Wformat -Winit-self -Wreturn-type -Wsequence-point -Wswitch -Wtrigraphs -Wundef -Wuninitialized -Wunreachable-code -Wunused -Wno-reserved-identifier -Wno-option-ignored -Wsign-compare -Wno-extra-semi-stmt -Wno-unused-template -Weverything -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-conversion -Wno-double-promotion -Wno-exit-time-destructors -Wno-extra-semi -Wno-float-conversion -Wno-gnu-anonymous-struct -Wno-gnu-zero-variadic-macro-arguments -Wno-missing-prototypes -Wno-nested-anon-types -Wno-padded -Wno-return-std-move-in-c++11 -Wno-shorten-64-to-32 -Wno-sign-conversion -Wno-unknown-warning-option -Wno-unused-command-line-argument -Wno-weak-vtables -Wno-covered-switch-default -Wno-unsafe-buffer-usage -Wno-unused-lambda-capture -Wno-nvcc-compat -Wno-c++20-compat -Wno-bit-int-extension -Wno-pass-failed -Wno-switch-default -Wno-unique-object-duplication -Wno-nrvo -fno-offload-uniform-block -mllvm --lsr-drop-solution=1 -mllvm -enable-post-misched=0 -mllvm -amdgpu-coerce-illegal-types=1 -mllvm -amdgpu-early-inline-all=true -mllvm -amdgpu-function-calls=false -Werror -Weverything -fcolor-diagnostics -Wno-global-constructors -Wno-c++20-compat -x hip -MD -MT experimental/builder/test/CMakeFiles/test_ckb_conv_builder.dir/test_fwd_instance_traits.cpp.o -MF CMakeFiles/test_ckb_conv_builder.dir/test_fwd_instance_traits.cpp.o.d -o "CMakeFiles/test_ckb_conv_builder.dir/test_fwd_instance_traits.cpp.o" -c /root/workspace/ck3/experimental/builder/test/test_fwd_instance_traits.cpp
+make[3]: *** [experimental/builder/test/CMakeFiles/test_ckb_conv_builder.dir/build.make:85: experimental/builder/test/CMakeFiles/test_ckb_conv_builder.dir/test_fwd_instance_traits.cpp.o] Error 1
+make[3]: *** Waiting for unfinished jobs....
+failed to execute:/opt/rocm-7.0.1/lib/llvm/bin/clang++  --offload-arch=gfx950  -DCK_ENABLE_BF16 -DCK_ENABLE_BF8 -DCK_ENABLE_FP16 -DCK_ENABLE_FP32 -DCK_ENABLE_FP64 -DCK_ENABLE_FP8 -DCK_ENABLE_INT8 -DCK_EXPERIMENTAL_BUILDER -DCK_GFX950_SUPPORT -DCK_TILE_USE_WMMA=0 -DCK_TIME_KERNEL=1 -DCK_USE_GFX94 -DCK_USE_NATIVE_MX_SUPPORT -DCK_USE_OCP_FP8 -DCK_USE_XDL -DDL_KERNELS -DDPP_KERNELS -DUSE_PROF_API=1 -D__HIP_PLATFORM_AMD__=1 -D__HIP_PLATFORM_HCC__=1 -I/root/workspace/ck3/library/include -I/root/workspace/ck3/include -I/root/workspace/ck3/build/include -I/root/workspace/ck3/experimental/builder/include -I/root/workspace/ck3/experimental/builder/test -isystem /root/workspace/ck3/build/_deps/gtest-src/googletest/include -isystem /root/workspace/ck3/build/_deps/gtest-src/googletest -isystem /root/workspace/ck3/build/_deps/gtest-src/googlemock/include -isystem /root/workspace/ck3/build/_deps/gtest-src/googlemock -isystem /root/workspace/ck3/build/_deps/gtest-src -O3 -DNDEBUG -std=c++20 -Wall -Wextra -Wcomment -Wendif-labels -Wformat -Winit-self -Wreturn-type -Wsequence-point -Wswitch -Wtrigraphs -Wundef -Wuninitialized -Wunreachable-code -Wunused -Wno-reserved-identifier -Wno-option-ignored -Wsign-compare -Wno-extra-semi-stmt -Wno-unused-template -Wno-missing-field-initializers -Wno-error=deprecated-declarations -Wall -Wextra -Wcomment -Wendif-labels -Wformat -Winit-self -Wreturn-type -Wsequence-point -Wswitch -Wtrigraphs -Wundef -Wuninitialized -Wunreachable-code -Wunused -Wno-reserved-identifier -Wno-option-ignored -Wsign-compare -Wno-extra-semi-stmt -Wno-unused-template -Weverything -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-conversion -Wno-double-promotion -Wno-exit-time-destructors -Wno-extra-semi -Wno-float-conversion -Wno-gnu-anonymous-struct -Wno-gnu-zero-variadic-macro-arguments -Wno-missing-prototypes -Wno-nested-anon-types -Wno-padded -Wno-return-std-move-in-c++11 -Wno-shorten-64-to-32 -Wno-sign-conversion -Wno-unknown-warning-option -Wno-unused-command-line-argument -Wno-weak-vtables -Wno-covered-switch-default -Wno-unsafe-buffer-usage -Wno-unused-lambda-capture -Wno-nvcc-compat -Wno-c++20-compat -Wno-bit-int-extension -Wno-pass-failed -Wno-switch-default -Wno-unique-object-duplication -Wno-nrvo -fno-offload-uniform-block -mllvm --lsr-drop-solution=1 -mllvm -enable-post-misched=0 -mllvm -amdgpu-coerce-illegal-types=1 -mllvm -amdgpu-early-inline-all=true -mllvm -amdgpu-function-calls=false -Werror -Weverything -fcolor-diagnostics -Wno-global-constructors -Wno-c++20-compat -x hip -MD -MT experimental/builder/test/CMakeFiles/test_ckb_conv_builder.dir/test_instance_traits_util.cpp.o -MF CMakeFiles/test_ckb_conv_builder.dir/test_instance_traits_util.cpp.o.d -o "CMakeFiles/test_ckb_conv_builder.dir/test_instance_traits_util.cpp.o" -c /root/workspace/ck3/experimental/builder/test/test_instance_traits_util.cpp
+make[3]: *** [experimental/builder/test/CMakeFiles/test_ckb_conv_builder.dir/build.make:98: experimental/builder/test/CMakeFiles/test_ckb_conv_builder.dir/test_instance_traits_util.cpp.o] Error 1
+make[2]: *** [CMakeFiles/Makefile2:946710: experimental/builder/test/CMakeFiles/test_ckb_conv_builder.dir/all] Error 2
+make[1]: *** [CMakeFiles/Makefile2:946717: experimental/builder/test/CMakeFiles/test_ckb_conv_builder.dir/rule] Error 2
+make: *** [Makefile:365682: test_ckb_conv_builder] Error 2

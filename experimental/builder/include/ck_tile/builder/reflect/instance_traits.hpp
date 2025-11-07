@@ -25,6 +25,8 @@
 #include <ck/tensor_operation/gpu/element/element_wise_operation.hpp>
 #include <ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp>
 #include <ck/tensor_operation/gpu/device/gemm_specialization.hpp>
+#include <ck_tile/ops/grouped_convolution.hpp>
+#include <ck_tile/ops/gemm.hpp>
 #include "instance_traits_util.hpp"
 
 namespace ck_tile::reflect {

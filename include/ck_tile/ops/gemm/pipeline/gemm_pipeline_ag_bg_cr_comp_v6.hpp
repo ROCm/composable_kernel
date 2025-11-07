@@ -159,6 +159,13 @@ struct GemmPipelineAgBgCrCompV6 : public BaseGemmPipelineAgBgCrCompV6<Problem>
     static constexpr auto is_a_load_tr_v = bool_constant<BasePImpl::is_a_load_tr>{};
     static constexpr auto is_b_load_tr_v = bool_constant<BasePImpl::is_b_load_tr>{};
 
+    [[nodiscard]] CK_TILE_HOST static const std::string GetPipelineName()
+    {
+        // clang-format off
+        return "COMPUTE_V6";
+        // clang-format on
+    }
+
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off

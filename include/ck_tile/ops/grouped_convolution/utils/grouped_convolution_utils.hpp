@@ -6,6 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/host/convolution_parameter.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
+#include "ck_tile/ops/gemm.hpp"
 
 namespace ck_tile {
 

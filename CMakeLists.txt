@@ -37,7 +37,7 @@ include(CTest)
 
 option(ENABLE_CLANG_CPP_CHECKS "Enables clang tidy, cppcheck" ON)
 option(MIOPEN_REQ_LIBS_ONLY "Build only the MIOpen required libraries" OFF)
-option(CK_EXPERIMENTAL_BUILDER "Enable experimental builder" OFF)
+option(CK_EXPERIMENTAL_BUILDER "Enable experimental builder" ON)
 option(BUILD_MHA_LIB "Build the static library for flash attention" OFF)
 
 if(CK_EXPERIMENTAL_BUILDER)
