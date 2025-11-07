@@ -756,9 +756,7 @@ struct QuantGemmKernel
                     // {
                     //     printf("For bq_pad0_desc: \n");
                     //     printf(
-                    //         "GemmPipeline::NPerBlock: %d, GemmPipeline::KPerBlockBQ: %d\n", //
-                    //         64,
-                    //                                                                         // 2
+                    //         "GemmPipeline::NPerBlock: %d, GemmPipeline::KPerBlockBQ: %d\n",
                     //         GemmPipeline::NPerBlock,
                     //         GemmPipeline::KPerBlockBQ);
                     //     printf("ck_tile::integer_least_multiple(length, alignment) : %d\n",
@@ -1188,6 +1186,12 @@ struct QuantGemmKernel
             else if constexpr(kQuantType == QuantType::BQuantGrouped)
             {
                 const auto& bq_block_window = gemm_tile_windows.at(I3);
+                // if(get_block_id() == 0 && get_thread_id() == 0)
+                // {
+                //     printf("In RunGemm, before GemmPipeline call for BQuantGrouped\n");
+                //     bq_block_window.template print_tile_window_range<BQDataType>(
+                //         0, 8, 0, 64, "bq block window");
+                // }
                 return GemmPipeline{}.template operator()(
                     a_block_window, b_block_window, bq_block_window, kargs.N, num_loop, smem_ptr_0);
             }

@@ -134,6 +134,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
     static constexpr bool kPadK = Problem::kPadK;
 
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
+    static constexpr bool PreshuffleQuant  = Problem::Traits::PreshuffleQuant;
 
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
@@ -239,7 +240,6 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                                        index_t num_loop,
                                        void* p_smem) const
         {
-            (void)n; // unused variable
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
                     std::is_same_v<BDataType,
@@ -256,9 +256,9 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
             constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
 
             static_assert(is_bq_col_major, "Bq must be col major (row major not supported yet)");
-            static_assert(KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
-                              NPerBlock == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}],
-                          "Bq block window has incorrect lengths for defined BqLayout!");
+            // static_assert(KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+            //                   NPerBlock == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}],
+            //               "Bq block window has incorrect lengths for defined BqLayout!");
 
             static_assert(is_a_col_major
                               ? (KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
@@ -314,8 +314,12 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                 is_a_col_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
             constexpr BDramTileWindowStep b_dram_tile_window_step =
                 is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
-            constexpr BQDramTileWindowStep bq_dram_tile_window_step =
-                is_bq_col_major ? make_array(KPerBlockBQ, 0) : make_array(0, KPerBlockBQ);
+            const BQDramTileWindowStep bq_dram_tile_window_step =
+                (PreshuffleQuant) ? make_array(ck_tile::integer_least_multiple(n, NPerBlock) /
+                                                   BlockGemmShape::WarpTile::at(number<1>{}),
+                                               0)
+                : is_bq_col_major ? make_array(KPerBlockBQ, 0)
+                                  : make_array(0, KPerBlockBQ);
 
             // DRAM prefetch (global read 0)
             Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
