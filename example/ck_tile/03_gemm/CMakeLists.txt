@@ -13,6 +13,13 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a")
     list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
   endif()
   list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -mllvm -enable-noalias-to-md-conversion=0)
+  
+  option(CK_TILE_EXAMPLE_ROUTE_DISPATCHER_TO_MAKE "Route ck_tile::WarpGemmDispatcher to MakeWarpGemm in examples" OFF)
+
+  # When routing dispatcher to MakeWarpGemm is enabled, add the macro to the shared options
+  if(CK_TILE_EXAMPLE_ROUTE_DISPATCHER_TO_MAKE)
+    list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -DCK_TILE_ROUTE_WARP_GEMM_DISPATCHER_TO_MAKE)
+  endif()
   list(APPEND EXAMPLE_WEIGHT_PRESHUFFLE_COMPILE_OPTIONS -Wno-unused-local-typedef)
   list(APPEND EXAMPLE_WEIGHT_PRESHUFFLE_COMPILE_OPTIONS -Wno-gnu-line-marker)
   list(APPEND EXAMPLE_WEIGHT_PRESHUFFLE_COMPILE_OPTIONS --save-temps)

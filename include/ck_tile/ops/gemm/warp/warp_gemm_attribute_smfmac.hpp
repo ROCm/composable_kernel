@@ -81,5 +81,12 @@ struct WarpGemmAttributeSmfmac
     {
         Impl{}(c_vec, a_vec, b_vec, idx, bool_constant<post_nop_>{});
     }
+
+    CK_TILE_DEVICE CVecType operator()(const AVecType& a_vec,
+                                       const BVecType& b_vec,
+                                       const int32_t& idx) const
+    {
+        return Impl{}(a_vec, b_vec, idx);
+    }
 };
 } // namespace ck_tile

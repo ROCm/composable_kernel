@@ -6,6 +6,7 @@ set(EXAMPLE_GEMM_COMPILE_OPTIONS)
 if(CK_USE_OCP_FP8)
     list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
 endif()
+option(CK_TILE_TEST_ROUTE_DISPATCHER_TO_MAKE "Route ck_tile::WarpGemmDispatcher to MakeWarpGemm in tests" OFF)
 set(EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS)
 if(CK_USE_OCP_FP8)
     list(APPEND EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS -DCK_TILE_USE_OCP_FP8)
@@ -15,6 +16,14 @@ list(APPEND EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS
     -enable-noalias-to-md-conversion=0
 )
 set(EXAMPLE_GEMM_COMPILE_COMPUTE_ASYNC_OPTIONS ${EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS})
+
+# Build routed variants of the common options when the switch is ON
+set(EXAMPLE_GEMM_COMPILE_OPTIONS_WITHOUT_ROUTED ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+if(CK_TILE_TEST_ROUTE_DISPATCHER_TO_MAKE)
+    list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -DCK_TILE_ROUTE_WARP_GEMM_DISPATCHER_TO_MAKE)
+    list(APPEND EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS -DCK_TILE_ROUTE_WARP_GEMM_DISPATCHER_TO_MAKE)
+endif()
+
 
 if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
     if(GPU_TARGETS MATCHES "gfx94|gfx95")
@@ -58,4 +67,39 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
     endif()
 else()
     message(DEBUG "Skipping ck_tile_gemm tests for current target test_ck_tile_gemm_pipeline") 
+endif()
+
+
+# MFMA (Attribute Compose) - STRICTLY CDNA (gfx90a, gfx94x, gfx950)
+if(GPU_TARGETS MATCHES "gfx90a|gfx94|gfx95")
+    add_gtest_executable(test_ck_tile_gemm_attr_compose_int8_mfma test_warp_gemm_attr_compose_int8_mfma.cpp)
+    target_compile_options(test_ck_tile_gemm_attr_compose_int8_mfma PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS_WITHOUT_ROUTED})
+endif()
+
+# MFMA (Attribute Compose) - STRICTLY CDNA3+ (gfx94x, gfx950)
+if(GPU_TARGETS MATCHES "gfx94|gfx95")
+    add_gtest_executable(test_ck_tile_gemm_attr_compose_fp8_mfma test_warp_gemm_attr_compose_fp8_mfma.cpp)
+    target_compile_options(test_ck_tile_gemm_attr_compose_fp8_mfma PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS_WITHOUT_ROUTED})
+
+    add_gtest_executable(test_ck_tile_gemm_attr_compose_bf8_mfma test_warp_gemm_attr_compose_bf8_mfma.cpp)
+    target_compile_options(test_ck_tile_gemm_attr_compose_bf8_mfma PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS_WITHOUT_ROUTED})
+
+    add_gtest_executable(test_ck_tile_gemm_attr_compose_mixed_fp8_bf8_mfma test_warp_gemm_attr_compose_mixed_fp8_bf8_mfma.cpp)
+    target_compile_options(test_ck_tile_gemm_attr_compose_mixed_fp8_bf8_mfma PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS_WITHOUT_ROUTED})
+endif()
+
+# MFMA (Attribute Compose) - STRICTLY CDNA (gfx90a, gfx94x, gfx950)
+if(GPU_TARGETS MATCHES "gfx90a|gfx94|gfx95")
+    add_gtest_executable(test_ck_tile_gemm_attr_compose_fp16_mfma test_warp_gemm_attr_compose_fp16_mfma.cpp)
+    target_compile_options(test_ck_tile_gemm_attr_compose_fp16_mfma PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS_WITHOUT_ROUTED})
+
+    add_gtest_executable(test_ck_tile_gemm_attr_compose_bf16_mfma test_warp_gemm_attr_compose_bf16_mfma.cpp)
+    target_compile_options(test_ck_tile_gemm_attr_compose_bf16_mfma PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS_WITHOUT_ROUTED})
+endif()
+
+# --- SMFMAC Tests ---
+# SMFMAC (Attribute Compose) - STRICTLY CDNA3+ (gfx94x, gfx950)
+if(GPU_TARGETS MATCHES "gfx94|gfx95")
+    add_gtest_executable(test_ck_tile_gemm_attr_compose_fp16_smfmac test_warp_gemm_attr_compose_fp16_smfmac.cpp)
+    target_compile_options(test_ck_tile_gemm_attr_compose_fp16_smfmac PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS_WITHOUT_ROUTED})
 endif()

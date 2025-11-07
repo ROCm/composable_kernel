@@ -6,7 +6,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm.hpp"
 #include "ck_tile/ops/gemm/warp/warp_wmma_gemm.hpp"
-
+#include "ck_tile/ops/gemm/warp/detail/warp_gemm_attribute_mfma_compose.hpp"
 namespace ck_tile {
 
 namespace impl {
@@ -163,16 +163,30 @@ template <typename AType,
           bool SwizzleA                     = false,
           bool UseStructuredSparsity        = false,
           WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
-using WarpGemmDispatcher = typename impl::warp_gemm_dispatcher::Dispatcher< //
-    AType,
-    BType,
-    AccType,
-    MPerWave,
-    NPerWave,
-    KPerWave,
-    TransposeC,
-    SwizzleA,
-    UseStructuredSparsity,
-    AttrNumAccess>::Type;
+using WarpGemmDispatcher =
+#if defined(CK_TILE_ROUTE_WARP_GEMM_DISPATCHER_TO_MAKE)
+    typename MakeWarpGemm<TransposeC,
+                          SwizzleA,
+                          AType,
+                          BType,
+                          AccType,
+                          MPerWave,
+                          NPerWave,
+                          KPerWave,
+                          UseStructuredSparsity,
+                          AttrNumAccess>::Type;
+#else
+    using WarpGemmDispatcher = typename impl::warp_gemm_dispatcher::Dispatcher< //
+                            AType,
+                            BType,
+                            AccType,
+                            MPerWave,
+                            NPerWave,
+                            KPerWave,
+                            TransposeC,
+                            SwizzleA,
+                            UseStructuredSparsity,
+                            AttrNumAccess>::Type;
+#endif
 
 } // namespace ck_tile

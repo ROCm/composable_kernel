@@ -105,6 +105,38 @@ struct WarpGemmSmfmacImpl
 
         c.get_thread_buffer().template set_as<CVec>(I0, c_vec);
     }
+
+    template <typename ATensor, typename BTensor>
+    CK_TILE_DEVICE auto operator()(const ATensor& a, const BTensor& b) const
+    {
+        using CTensor = CWarpTensor;
+        static_assert(detail::is_similiar_distributed_tensor_v<ATensor, AWarpTensor> &&
+                      detail::is_similiar_distributed_tensor_v<BTensor, BWarpTensor>);
+        constexpr auto CompressionRatio = WarpGemmAttribute::kCompressionRatio;
+
+        using AVec = ext_vector_t<ADataType, ATensor::get_thread_buffer_size()>;
+        using AVecCompressed =
+            ext_vector_t<ADataType, ATensor::get_thread_buffer_size() / CompressionRatio>;
+        using BVec = ext_vector_t<BDataType, BTensor::get_thread_buffer_size()>;
+        using CVec = ext_vector_t<CDataType, CTensor::get_thread_buffer_size()>;
+
+        constexpr auto I0 = number<0>{};
+
+        auto a_vec       = a.get_thread_buffer().template get_as<AVec>()[I0];
+        const auto b_vec = b.get_thread_buffer().template get_as<BVec>()[I0];
+
+        const int32_t idx = compress_a(a_vec);
+
+        // @TODO can we simply set a_vec_pruned to a_vec[0:3]?
+        const AVecCompressed a_vec_pruned = {a_vec[0], a_vec[1], a_vec[2], a_vec[3]};
+
+        // c_vec = a_vec * b_vec[idx]
+        auto c_vec = WarpGemmAttribute{}(a_vec_pruned, b_vec, idx);
+
+        CTensor c;
+        c.get_thread_buffer().template set_as<CVec>(I0, c_vec);
+        return c;
+    }
 };
 
 } // namespace ck_tile
