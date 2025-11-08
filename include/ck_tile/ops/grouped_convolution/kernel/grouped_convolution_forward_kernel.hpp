@@ -579,7 +579,7 @@ struct GroupedConvolutionForwardKernel
                       "Specialization of instance_traits not found. Please check that a "
                       "specialization exists in file "
                       "ck_tile/builder/reflect/"
-                      "instance_traits_device_grouped_conv_bwd_weight_xdl_cshuffle.hpp "
+                      "instance_traits_tile_grouped_convolution_forward.hpp "
                       "for the given template parameters.");
         return ck_tile::reflect::instance_string<GroupedConvolutionForwardKernel>();
     }
