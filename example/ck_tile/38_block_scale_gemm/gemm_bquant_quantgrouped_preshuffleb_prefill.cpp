@@ -7,7 +7,7 @@ template <typename T>
 using GemmConfig = GemmConfigPreshuffleB_Bquant_prefill<T>;
 
 void bquant_quantgrouped_preshuffleb_instance_factory(
-    std::unordered_map<size_t, std::function<int(ck_tile::ArgParser&)>>& lut)
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut)
 {
     using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
     lut[hash_multiple_strings(
