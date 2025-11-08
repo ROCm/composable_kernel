@@ -50,18 +50,45 @@ auto create_args(int argc, char* argv[])
     return std::make_tuple(result, arg_parser);
 }
 
+auto gen_lut_key(const ck_tile::ArgParser& arg_parser)
+{
+    std::string data_type  = arg_parser.get_str("prec");
+    std::string quant_mode = arg_parser.get_str("quant_mode");
+
+    std::vector<std::string> params = {data_type, quant_mode};
+
+    if(quant_mode == "bquant")
+    {
+        std::string preshuffleb =
+            arg_parser.get_bool("preshuffleb") ? "preshuffleb" : "non-preshuffleb";
+        params.push_back(preshuffleb);
+    }
+    if(quant_mode != "rowcol" && quant_mode != "tensor")
+    {
+        // NOTE: rowcol and tensor pipeline do not use group size
+        std::string group_size_str = arg_parser.get_str("group_size");
+        params.push_back(group_size_str);
+    }
+
+    return hash_multiple_strings(params);
+}
+
 void aquant_quantgrouped_instance_factory(
-    std::unordered_map<size_t, std::function<int(ck_tile::ArgParser&)>>& lut);
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
 void bquant_quantgrouped_fp8_instance_factory(
-    std::unordered_map<size_t, std::function<int(ck_tile::ArgParser&)>>& lut);
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
 void bquant_quantgrouped_bf8_instance_factory(
-    std::unordered_map<size_t, std::function<int(ck_tile::ArgParser&)>>& lut);
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
 void bquant_quantgrouped_fp8i4_instance_factory(
-    std::unordered_map<size_t, std::function<int(ck_tile::ArgParser&)>>& lut);
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
 void bquant_quantgrouped_bf8i4_instance_factory(
-    std::unordered_map<size_t, std::function<int(ck_tile::ArgParser&)>>& lut);
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
 void bquant_quantgrouped_preshuffleb_instance_factory(
-    std::unordered_map<size_t, std::function<int(ck_tile::ArgParser&)>>& lut);
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+void quant_rowcol_instance_factory(
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
+void quant_tensor_instance_factory(
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut);
 
 int main(int argc, char* argv[])
 {
@@ -73,30 +100,21 @@ int main(int argc, char* argv[])
     }
 
     auto device_id = arg_parser.get_int("device");
-    std::printf("Device ID: %d\n", device_id);
+    std::cout << "Device ID: " << device_id << std::endl;
+    ck_tile::hip_check_error(hipSetDevice(device_id));
 
-    hipError_t err = hipSetDevice(device_id);
-    if(err != hipSuccess)
-    {
-        std::cerr << "hipSetDevice failed with error: " << hipGetErrorString(err) << std::endl;
-        return -1;
-    }
-
-    std::unordered_map<size_t, std::function<int(ck_tile::ArgParser&)>> lut;
+    std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>> lut;
     aquant_quantgrouped_instance_factory(lut);
     bquant_quantgrouped_fp8_instance_factory(lut);
     bquant_quantgrouped_bf8_instance_factory(lut);
     bquant_quantgrouped_fp8i4_instance_factory(lut);
     bquant_quantgrouped_bf8i4_instance_factory(lut);
     bquant_quantgrouped_preshuffleb_instance_factory(lut);
+    quant_rowcol_instance_factory(lut);
+    quant_tensor_instance_factory(lut);
 
-    std::string data_type  = arg_parser.get_str("prec");
-    std::string quant_mode = arg_parser.get_str("quant_mode");
-    std::string preshuffleb =
-        arg_parser.get_bool("preshuffleb") ? "preshuffleb" : "non-preshuffleb";
-    std::string group_size_str = arg_parser.get_str("group_size");
+    auto key = gen_lut_key(arg_parser);
 
-    auto key = hash_multiple_strings({data_type, quant_mode, preshuffleb, group_size_str});
     if(lut.find(key) != lut.end())
     {
         return lut[key](arg_parser);
@@ -105,8 +123,6 @@ int main(int argc, char* argv[])
     {
         std::cerr
             << "Error: Combination of prec, quant_mode, preshuffleb, and group_size not supported."
-            << " (prec: " << data_type << ", quant_mode: " << quant_mode
-            << ", preshuffleb: " << preshuffleb << ", group_size: " << group_size_str << ")"
             << std::endl;
         return -1;
     }
