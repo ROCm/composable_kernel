@@ -1,6 +1,5 @@
+// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
-
 // InstanceTraits specialization for GroupedConvolutionForwardKernel
 //
 // CRITICAL MAINTENANCE NOTE:
@@ -119,9 +118,9 @@ struct InstanceTraits<ck_tile::device::GroupedConvolutionForwardKernel<GroupedCo
         oss << "," << kMWarpTile;                                          // 18. MWarpTile
         oss << "," << kNWarpTile;                                          // 19. NWarpTile
         oss << "," << kKWarpTile;                                          // 20. KWarpTile
-        oss << "," << detail::type_name<ADataType>();                      // 22. ADataType
-        oss << "," << detail::type_name<BDataType>();                      // 23. BDataType
-        oss << "," << GemmPipeline::GetPipelineName();                     // 21. BlkGemmPipelineVer
+        oss << "," << detail::type_name<ADataType>();                      // 21. ADataType
+        oss << "," << detail::type_name<BDataType>();                      // 22. BDataType
+        oss << "," << GemmPipeline::GetPipelineName();                     // 23. BlkGemmPipelineVer
         oss << "," << detail::pipeline_scheduler_name(kPipelineScheduler); // 24. BlkGemmPipeSched
         oss << "," << kDoubleSmemBuffer;                                   // 25. NumWaveGroups
         oss << "," << kNumWaveGroups;                                      // 26. NumWaveGroups
