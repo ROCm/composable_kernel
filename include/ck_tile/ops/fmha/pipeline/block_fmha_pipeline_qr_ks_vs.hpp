@@ -462,7 +462,6 @@ struct BlockFmhaPipelineQRKSVS
 #endif
                 }
             }
-            // move_tile_window(bias_dram_window, {0, kN0});
             if constexpr(kHasSink)
             {
                 if(i_total_loops == 0)
