@@ -28,11 +28,12 @@ auto create_args(int argc, char* argv[])
         .insert("stride_q", "0", "Tensor AQ stride")
         .insert("stride_b", "0", "Tensor B stride")
         .insert("stride_c", "0", "Tensor C stride")
-        .insert("v", "1", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
+        .insert("v", "1", "0: No validation, 1: Validation on CPU, 2: Validation on GPU")
         .insert("prec",
                 "fp8",
-                "Data type. For AQuant: fp8/bf8/i4fp8/i4bf8, For Bquant: fp8/bf8/fp8i4/bf8i4")
-        .insert("warmup", "50", "Number of iterations before benchmark the kernel")
+                "Data type. For AQuant: fp8, bf8, i4fp8, or i4bf8;  for Bquant: fp8, bf8, fp8i4, "
+                "or bf8i4")
+        .insert("warmup", "50", "Number of iterations before benchmarking the kernel")
         .insert("repeat", "1000", "Number of iterations to benchmark the kernel")
         .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
         .insert("split_k", "1", "SplitK value")
