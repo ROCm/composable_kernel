@@ -1015,7 +1015,7 @@ def get_fwd_blobs(
                     cond &= pipeline.F_skip == "f"
                     cond &= pipeline.F_logits == "f"
                     cond &= pipeline.F_mask == "s_no"
-                    cond &= pipeline.F_skip == "f"
+                    cond &= pipeline.F_sink == "f"
                     if not cond:
                         continue
                 else:
