@@ -45,18 +45,18 @@ FMHA_FWD_KERNEL_BODY_TEMPLATE = """
 
 #if !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
 
-using fmha_dtype_{F_idx} = {F_dtype};
+using fmha_dtype = {F_dtype};
 
-using fmha_block_tile_{F_idx} = ck_tile::sequence<{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}>;
+using fmha_block_tile = ck_tile::sequence<{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}>;
 
-using fmha_shape_{F_idx} = ck_tile::TileFmhaShape<fmha_block_tile_{F_idx},
+using fmha_shape = ck_tile::TileFmhaShape<fmha_block_tile,
                                       ck_tile::sequence<{F_rm0}, {F_rn0}, {F_rk0}>,
                                       ck_tile::sequence<{F_wm0}, {F_wn0}, {F_wk0}>,
                                       ck_tile::sequence<{F_rm1}, {F_rn1}, {F_rk1}>,
                                       ck_tile::sequence<{F_wm1}, {F_wn1}, {F_wk1}>,
                                       {F_vlayout}>;
 
-using fmha_trait_{F_idx} = ck_tile::TileFmhaTraits<{F_spad},
+using fmha_trait = ck_tile::TileFmhaTraits<{F_spad},
                                                     {F_skpad},
                                                     {F_dpad},
                                                     {F_dvpad},
@@ -69,47 +69,47 @@ using fmha_trait_{F_idx} = ck_tile::TileFmhaTraits<{F_spad},
                                                     {F_occupancy},
                                                     {F_skip}>;
 
-using fmha_variant_{F_idx} = ck_tile::ComposedAttention<{F_logits} * ck_tile::LOGITS_SOFT_CAP, CK_TILE_FMHA_FWD_FAST_EXP2>;
+using fmha_variant = ck_tile::ComposedAttention<{F_logits} * ck_tile::LOGITS_SOFT_CAP, CK_TILE_FMHA_FWD_FAST_EXP2>;
 
-using fmha_mask_{F_idx} = {F_mask};
+using fmha_mask = {F_mask};
 
-using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaPipelineProblem<
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::QDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::KDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::VDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::SaccDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::SMPLComputeDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::BiasDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::RandValOutputDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::LSEDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::PDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::OaccDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::ODataType,
-    fmha_shape_{F_idx},
+using fmha_pipeline_problem = ck_tile::BlockFmhaPipelineProblem<
+    typename FmhaFwdTypeConfig<fmha_dtype>::QDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype>::KDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype>::VDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype>::SaccDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype>::SMPLComputeDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype>::BiasDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype>::RandValOutputDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype>::LSEDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype>::PDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype>::OaccDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype>::ODataType,
+    fmha_shape,
     {F_mode},
-    fmha_variant_{F_idx},
-    fmha_mask_{F_idx},
+    fmha_variant,
+    fmha_mask,
     {F_trload},
-    fmha_trait_{F_idx}>;
+    fmha_trait>;
 
-using fmha_pipeline_{F_idx} = {F_pipeline}<
-    fmha_pipeline_problem_{F_idx}>;
+using fmha_pipeline = {F_pipeline}<
+    fmha_pipeline_problem>;
 
-using fmha_epilogue_{F_idx} =
+using fmha_epilogue =
     ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType,
                                            typename FmhaFwdTypeConfig<{F_dtype}>::ODataType,
                                            {F_spad}, {F_dvpad}>>;
 
-using fmha_kernel_{F_idx} =
-    ck_tile::FmhaFwdKernel<fmha_pipeline_{F_idx}, fmha_epilogue_{F_idx}>;
+using fmha_kernel =
+    ck_tile::FmhaFwdKernel<fmha_pipeline, fmha_epilogue>;
 
-using trait_{F_idx} = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
-                        {F_pipeline_enum}, {F_logits}, fmha_mask_{F_idx}, {F_bias}, {F_lse}, {F_dropout}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}>;
+using trait = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
+                        {F_pipeline_enum}, {F_logits}, fmha_mask, {F_bias}, {F_lse}, {F_dropout}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}>;
 
 template<>
-float fmha_fwd_<trait_{F_idx}, {F_arch.tag}>(const ck_tile::stream_config& s, fmha_fwd_args a)
+float fmha_fwd_<trait, {F_arch.tag}>(const ck_tile::stream_config& s, fmha_fwd_args a)
 {{
-    using k_ = fmha_kernel_{F_idx};
+    using k_ = fmha_kernel;
     if(s.log_level_ > 0)
         std::cout << ", {F_kname}" << std::flush;
     auto [kargs, grids] = fmha_fwd_create_kargs_and_grids<k_>(a);
@@ -131,59 +131,59 @@ FMHA_FWD_V3_KERNEL_BODY_TEMPLATE = """
 
 #if !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
 
-using fmha_dtype_{F_idx} = {F_dtype};
+using fmha_dtype = {F_dtype};
 
-using fmha_block_tile_{F_idx} = ck_tile::sequence<{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}>;
+using fmha_block_tile = ck_tile::sequence<{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}>;
 
-using fmha_shape_{F_idx} = ck_tile::TileFmhaShape<fmha_block_tile_{F_idx},
+using fmha_shape = ck_tile::TileFmhaShape<fmha_block_tile,
                                       ck_tile::sequence<{F_rm0}, {F_rn0}, {F_rk0}>,
                                       ck_tile::sequence<{F_wm0}, {F_wn0}, {F_wk0}>,
                                       ck_tile::sequence<{F_rm1}, {F_rn1}, {F_rk1}>,
                                       ck_tile::sequence<{F_wm1}, {F_wn1}, {F_wk1}>,
                                       {F_vlayout}>;
 
-using fmha_trait_{F_idx} = ck_tile::TileFmhaFwdV3Traits<{F_spad},
+using fmha_trait = ck_tile::TileFmhaFwdV3Traits<{F_spad},
                                                     {F_skpad},
                                                     {F_dpad},
                                                     {F_dvpad},
                                                     {F_lse},
                                                     {F_occupancy}>;
 
-using fmha_mask_{F_idx} = {F_mask};
+using fmha_mask = {F_mask};
 
-using fmha_pipeline_problem_{F_idx} = ck_tile::BlockFmhaFwdV3PipelineProblem<
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::QDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::KDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::VDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::SaccDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::SMPLComputeDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::LSEDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::PDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::OaccDataType,
-    typename FmhaFwdTypeConfig<fmha_dtype_{F_idx}>::ODataType,
-    fmha_shape_{F_idx},
+using fmha_pipeline_problem = ck_tile::BlockFmhaFwdV3PipelineProblem<
+    typename FmhaFwdTypeConfig<fmha_dtype>::QDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype>::KDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype>::VDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype>::SaccDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype>::SMPLComputeDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype>::LSEDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype>::PDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype>::OaccDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype>::ODataType,
+    fmha_shape,
     {F_mode},
-    fmha_mask_{F_idx},
-    fmha_trait_{F_idx}>;
+    fmha_mask,
+    fmha_trait>;
 
-using fmha_pipeline_{F_idx} = {F_pipeline}<
-    fmha_pipeline_problem_{F_idx}>;
+using fmha_pipeline = {F_pipeline}<
+    fmha_pipeline_problem>;
 
-using fmha_epilogue_{F_idx} =
+using fmha_epilogue =
     ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType,
                                            typename FmhaFwdTypeConfig<{F_dtype}>::ODataType,
                                            {F_spad}, {F_dvpad}>>;
 
-using fmha_kernel_{F_idx} =
-    ck_tile::FmhaFwdV3Kernel<fmha_pipeline_{F_idx}, fmha_epilogue_{F_idx}>;
+using fmha_kernel =
+    ck_tile::FmhaFwdV3Kernel<fmha_pipeline, fmha_epilogue>;
 
-using trait_{F_idx} = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
-                        {F_pipeline_enum}, {F_logits}, fmha_mask_{F_idx}, {F_bias}, {F_lse}, {F_dropout}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}>;
+using trait = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
+                        {F_pipeline_enum}, {F_logits}, fmha_mask, {F_bias}, {F_lse}, {F_dropout}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}>;
 
 template<>
-float fmha_fwd_<trait_{F_idx}, {F_arch.tag}>(const ck_tile::stream_config& config, fmha_fwd_args args)
+float fmha_fwd_<trait, {F_arch.tag}>(const ck_tile::stream_config& config, fmha_fwd_args args)
 {{
-    return fmha_fwd_v3_kernel_launch<fmha_kernel_{F_idx}>(config, args);
+    return fmha_fwd_v3_kernel_launch<fmha_kernel>(config, args);
 }}
 
 #endif // !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})
@@ -606,7 +606,6 @@ class FmhaFwdTileSize:
 @dataclass
 class FmhaFwdKernel:
     F_arch: ArchTrait
-    F_idx: int  # this is not a tunable, but a counter to differentiate symbol
     F_hdim: int  # hdim
     F_dtype: str  # data type
     F_mode: str  # value from MODE_MAP
@@ -618,7 +617,6 @@ class FmhaFwdKernel:
 
     def render(self) -> str:
         return type(self)._KERNEL_HEADER + type(self)._KERNEL_BODY_TEMPLATE.format(
-            F_idx=self.F_idx,
             F_kname=self.name,
             F_arch=self.F_arch,
             F_hdim=self.F_hdim,
@@ -752,7 +750,6 @@ def create_kernel(
         else FmhaFwdKernel
     )
     return ctor(
-        F_idx=0,
         F_arch=arch,
         F_dtype=problem_ctx.dtype,
         F_mode=problem_ctx.mode,
