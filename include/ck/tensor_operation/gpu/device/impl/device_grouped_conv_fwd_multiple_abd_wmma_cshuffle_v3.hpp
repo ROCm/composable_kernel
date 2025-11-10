@@ -82,7 +82,10 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                     std::is_same_v<e_data_type, ck::bhalf_t>)))
     {
 #endif
-        __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
+        __shared__ char p_shared[GridwiseGemm::template GetSharedMemoryNumberOfByte<
+            typename GridwiseGemm::EpilogueCShuffle>()];
+
+        auto epilogue_args = typename GridwiseGemm::EpilogueCShuffle{};
 
         GridwiseGemm::template Run<AGridDesc_AK0_M_AK1,
                                    BGridDesc_BK0_N_BK1,
@@ -100,7 +103,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                             compute_ptr_offset_of_batch,
                                             compute_ptr_offset_of_n,
                                             num_k_per_block,
-                                            karg);
+                                            karg,
+                                            epilogue_args);
 #if defined(__gfx11__)
     }
 #endif
@@ -448,8 +452,9 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
         BlkGemmPipelineVer,
         AComputeDataType,
         BComputeDataType,
-        false,  // PermuteA
-        false>; // PermuteB
+        false, // PermuteA
+        false, // PermuteB
+        true>; // ForceThreadTileTransfer
 
     // TODO: Previously available template param DoElementwiseBeforeCShuffle!
 
@@ -520,8 +525,9 @@ struct DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle_V3
         AComputeDataType, // TODO: Swapped these but will probably never get verified because the
                           // only mixed precision instances are not NCHW.
 
-        false,  // PermuteB
-        false>; // PermuteA
+        false, // PermuteB
+        false, // PermuteA
+        true>; // ForceThreadTileTransfer
 
     using GridwiseGemmCTranspose =
         std::conditional_t<CTranspose, GridwiseGemmSwappedParams, GridwiseGemm>;
