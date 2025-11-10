@@ -4,7 +4,7 @@ This folder contains example for the pooling operator using ck_tile tile-program
 
 ## Tensor Descriptor Transformations
 
-The pooling kernel performs transformations to transform the input tensor into 2D format suitable for reduction. This section explains the transformation pipeline for both 2D and 3D pooling operations.
+The pooling kernel transforms the input tensor into 2D format suitable for reduction. This section explains the transformation pipeline for both 2D and 3D pooling operations.
 
 ### 3D Pooling Transformations
 
