@@ -3,7 +3,6 @@
 
 #pragma once
 #include "data_type.hpp"
-#include "amd_inline_asm.hpp"
 
 namespace ck {
 
@@ -1064,49 +1063,5 @@ __device__ void amd_direct_load_global_to_lds(const T* global_base_ptr,
 #endif
 }
 #endif
-
-template <index_t N>
-__device__ typename vector_type<int8_t, N>::type
-amd_s_buffer_load_impl_raw(__amdgpu_buffer_rsrc_t src_wave_buffer_resource,
-                           index_t src_wave_addr_offset)
-{
-    static_assert(N == 4 || N == 8, "wrong! not implemented");
-    // TODO: add other variants of s_buffer_load
-    if constexpr(N == 4)
-    {
-        int32_t tmp =
-            amd_assembly_s_buffer_load_b32(src_wave_buffer_resource, src_wave_addr_offset);
-        return bit_cast<int8x4_t>(tmp);
-    }
-    else if constexpr(N == 8)
-    {
-        int32x2_t tmp =
-            amd_assembly_s_buffer_load_b64(src_wave_buffer_resource, src_wave_addr_offset);
-        return bit_cast<int8x8_t>(tmp);
-    }
-}
-
-template <typename T, index_t N>
-__device__ typename vector_type<T, N>::type
-amd_s_buffer_load_impl(__amdgpu_buffer_rsrc_t src_wave_buffer_resource,
-                       index_t src_wave_addr_offset)
-{
-    static_assert((is_same<T, double>::value && (N == 1)) ||
-                      (is_same<T, float>::value && (N == 1 || N == 2)) ||
-                      (is_same<T, half_t>::value && (N == 2 || N == 4)) ||
-                      (is_same<T, bhalf_t>::value && (N == 2 || N == 4)) ||
-                      (is_same<T, int32_t>::value && (N == 1 || N == 2)) ||
-                      (is_same<T, f8_t>::value && (N == 4 || N == 8)) ||
-                      (is_same<T, bf8_t>::value && (N == 4 || N == 8)) ||
-                      (is_same<T, int8_t>::value && (N == 4 || N == 8)) ||
-                      (is_same<T, uint8_t>::value && (N == 4 || N == 8)) ||
-                      (is_same<T, pk_i4_t>::value && (N == 4 || N == 8)),
-                  "wrong! not implemented");
-
-    using r_t = typename vector_type<T, N>::type;
-    auto raw_data =
-        amd_s_buffer_load_impl_raw<sizeof(T) * N>(src_wave_buffer_resource, src_wave_addr_offset);
-    return bit_cast<r_t>(raw_data);
-}
 
 } // namespace ck
