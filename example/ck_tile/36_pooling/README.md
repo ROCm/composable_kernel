@@ -15,7 +15,7 @@ For 3D pooling, the input tensor has shape `(N, D, H, W, C)` where:
 - `W`: width dimension
 - `C`: channel dimension
 
-The transformations convert this 5D tensor into 2D where rows represent output positions (M) and columns represent pooling window elements (K).
+The transformations convert this 5D tensor into a 2D tensor where rows represent output positions (M) and columns represent pooling window elements (K).
 
 ```mermaid
 graph TD
