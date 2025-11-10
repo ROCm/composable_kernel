@@ -9,9 +9,14 @@
 
 #include <array>
 #include <string>
+#include <concepts>
 #include <string_view>
 #include <sstream>
 #include <type_traits>
+#include <limits.h>
+#include <cmath>
+#include <ostream>
+#include <iostream>
 #include <ck/utility/data_type.hpp>
 #include <ck/utility/sequence.hpp>
 #include <ck/utility/blkgemmpipe_scheduler.hpp>
@@ -369,6 +374,32 @@ constexpr std::string type_or_type_tuple_name()
     {
         return std::string(type_name<T>());
     }
+}
+
+/// @brief Makes a case insensitive comparison of two string views.
+/// @param a First string view
+/// @param b Second string view
+/// @return Whether two string views a equal case insensitive
+constexpr bool case_insensitive_equal(std::string_view a, std::string_view b)
+{
+    if(a.size() != b.size())
+        return false;
+
+    for(size_t i = 0; i < a.size(); ++i)
+    {
+        char c1 = a[i];
+        char c2 = b[i];
+
+        // Convert to lowercase for comparison
+        if(c1 >= 'A' && c1 <= 'Z')
+            c1 += 32;
+        if(c2 >= 'A' && c2 <= 'Z')
+            c2 += 32;
+
+        if(c1 != c2)
+            return false;
+    }
+    return true;
 }
 
 } // namespace ck_tile::reflect::detail
