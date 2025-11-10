@@ -21,11 +21,17 @@ if(has_supported_gpu)
     add_executable(tile_example_mx_flatmm EXCLUDE_FROM_ALL mxgemm/mx_flatmm.cpp ${EXAMPLE_MX_FLATMM_FILES})
     target_include_directories(tile_example_mx_flatmm PRIVATE mxgemm)
 
-    set(EXAMPLE_FLATMM_COMPILE_OPTIONS)
+    # NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
+    #       ... because they are auto-generated
+    set(EXAMPLE_FLATMM_COMPILE_OPTIONS -Wno-undefined-func-template)
     set(EXAMPLE_MOE_FLATMM_COMPILE_OPTIONS)
 
     if(CK_USE_OCP_FP8)
-        list(APPEND EXAMPLE_FLATMM_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
+        list(APPEND EXAMPLE_FLATMM_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8 --save-temps -Wno-nrvo)
+        # list(APPEND EXAMPLE_FLATMM_COMPILE_OPTIONS -emit-llvm)
+        # list(APPEND EXAMPLE_FLATMM_COMPILE_OPTIONS "SHELL: -mllvm --amdgpu-mfma-vgpr-form=1")
+        # list(APPEND EXAMPLE_FLATMM_COMPILE_OPTIONS "SHELL: -mllvm -greedy-reverse-local-assignment=1 -mllvm --amdgpu-use-amdgpu-trackers=1")
+        
     endif()
 
     target_compile_options(tile_example_flatmm_basic PRIVATE ${EXAMPLE_FLATMM_COMPILE_OPTIONS})
