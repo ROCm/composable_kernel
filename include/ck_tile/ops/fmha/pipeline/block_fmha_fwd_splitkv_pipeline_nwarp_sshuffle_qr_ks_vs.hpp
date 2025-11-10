@@ -301,7 +301,6 @@ struct BlockFmhaFwdSplitKVPipelineNWarpSShuffleQRKSVS
 
         const index_t physical_seqlen_k_start = logical_seqlen_k_start + kv_l2p_offset;
         const index_t physical_seqlen_k_end   = logical_seqlen_k_end + kv_l2p_offset;
-        // const index_t physical_sink_end =  sink_seq_end + kv_l2p_offset;
         // make sure the first tile is completely located in page-block (page-block size should be
         // divisible by kN0)
         // relationship between each *_start variables: aligned_physical_seqlen_k_start <=
