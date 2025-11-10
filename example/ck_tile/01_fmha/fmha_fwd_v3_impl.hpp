@@ -32,27 +32,6 @@
 
 namespace ck_tile {
 
-template <typename DataType>
-struct fmha_fwd_v3_problem_traits;
-
-template <>
-struct fmha_fwd_v3_problem_traits<FmhaFwdFp16>
-{
-    using qkvp_dtype = ck_tile::half_t;
-    using acc_dtype  = float;
-    using o_dtype    = ck_tile::half_t;
-    using lse_dtype  = float;
-};
-
-template <>
-struct fmha_fwd_v3_problem_traits<FmhaFwdBf16>
-{
-    using qkvp_dtype = ck_tile::bf16_t;
-    using acc_dtype  = float;
-    using o_dtype    = ck_tile::bf16_t;
-    using lse_dtype  = float;
-};
-
 template <typename DataType, bool kIsGroupMode, bool kIsMasking>
 using fmha_fwd_v3_kernel_traits =
     fmha_fwd_traits_<128,
@@ -82,7 +61,7 @@ using fmha_fwd_v3_kernel_traits =
 template <typename KernelTraits>
 struct get_fmha_fwd_v3_kernel
 {
-    using data_type                    = KernelTraits::DataType;
+    using fmha_dtype                   = KernelTraits::DataType;
     static constexpr bool kIsGroupMode = KernelTraits::kIsGroupMode;
 
     //                                    M0   N0  K0   N1   K1
@@ -102,36 +81,47 @@ struct get_fmha_fwd_v3_kernel
                                      fmha_warp_gemm_shape,
                                      KernelTraits::kIsVLayoutRowMajor>;
 
-    using fmha_traits = TileFmhaFwdV3Traits<KernelTraits::kPadS,     // kPadSeqLenQ
-                                            KernelTraits::kPadSK,    // kPadSeqLenK
-                                            KernelTraits::kPadD,     // kPadHeadDimQ
-                                            KernelTraits::kPadDv,    // kPadHeadDimV
-                                            KernelTraits::kStoreLse, // kStoreLSE
-                                            -1                       // kBlockPerCu
-                                            >;
+    using fmha_traits = ck_tile::TileFmhaTraits<KernelTraits::kPadSK,
+                                                KernelTraits::kPadSK,
+                                                KernelTraits::kPadD,
+                                                KernelTraits::kPadDv,
+                                                false,
+                                                ck_tile::BlockAttentionBiasEnum::NO_BIAS,
+                                                false,
+                                                false,
+                                                false,
+                                                false,
+                                                -1,
+                                                false>;
+
+    using fmha_variant = ck_tile::ComposedAttention<false * ck_tile::LOGITS_SOFT_CAP>;
 
     using fmha_mask = KernelTraits::FmhaMask;
 
     using fmha_pipeline_problem =
-        BlockFmhaFwdV3PipelineProblem<typename fmha_fwd_v3_problem_traits<data_type>::qkvp_dtype,
-                                      typename fmha_fwd_v3_problem_traits<data_type>::qkvp_dtype,
-                                      typename fmha_fwd_v3_problem_traits<data_type>::qkvp_dtype,
-                                      typename fmha_fwd_v3_problem_traits<data_type>::acc_dtype,
-                                      typename fmha_fwd_v3_problem_traits<data_type>::acc_dtype,
-                                      typename fmha_fwd_v3_problem_traits<data_type>::lse_dtype,
-                                      typename fmha_fwd_v3_problem_traits<data_type>::qkvp_dtype,
-                                      typename fmha_fwd_v3_problem_traits<data_type>::acc_dtype,
-                                      typename fmha_fwd_v3_problem_traits<data_type>::o_dtype,
-                                      fmha_shape,
-                                      kIsGroupMode,
-                                      fmha_mask,
-                                      fmha_traits>;
+        BlockFmhaPipelineProblem<typename FmhaFwdTypeConfig<fmha_dtype>::QDataType,
+                                 typename FmhaFwdTypeConfig<fmha_dtype>::KDataType,
+                                 typename FmhaFwdTypeConfig<fmha_dtype>::VDataType,
+                                 typename FmhaFwdTypeConfig<fmha_dtype>::SaccDataType,
+                                 typename FmhaFwdTypeConfig<fmha_dtype>::SMPLComputeDataType,
+                                 typename FmhaFwdTypeConfig<fmha_dtype>::BiasDataType,
+                                 typename FmhaFwdTypeConfig<fmha_dtype>::RandValOutputDataType,
+                                 typename FmhaFwdTypeConfig<fmha_dtype>::LSEDataType,
+                                 typename FmhaFwdTypeConfig<fmha_dtype>::PDataType,
+                                 typename FmhaFwdTypeConfig<fmha_dtype>::OaccDataType,
+                                 typename FmhaFwdTypeConfig<fmha_dtype>::ODataType,
+                                 fmha_shape,
+                                 kIsGroupMode,
+                                 fmha_variant,
+                                 fmha_mask,
+                                 true,
+                                 fmha_traits>;
 
     using fmha_pipeline = BlockFmhaFwdV3Pipeline<fmha_pipeline_problem>;
 
     using epilogue = Default2DEpilogue<
-        Default2DEpilogueProblem<typename fmha_fwd_v3_problem_traits<data_type>::acc_dtype,
-                                 typename fmha_fwd_v3_problem_traits<data_type>::o_dtype,
+        Default2DEpilogueProblem<typename FmhaFwdTypeConfig<fmha_dtype>::OaccDataType,
+                                 typename FmhaFwdTypeConfig<fmha_dtype>::ODataType,
                                  true, // kPadM
                                  true, // kPadM
                                  true  // UseRawStore

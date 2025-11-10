@@ -56,7 +56,7 @@ using fmha_shape = ck_tile::TileFmhaShape<fmha_block_tile,
                                       ck_tile::sequence<{F_wm1}, {F_wn1}, {F_wk1}>,
                                       {F_vlayout}>;
 
-using fmha_trait = ck_tile::TileFmhaTraits<{F_spad},
+using fmha_traits = ck_tile::TileFmhaTraits<{F_spad},
                                                     {F_skpad},
                                                     {F_dpad},
                                                     {F_dvpad},
@@ -90,14 +90,14 @@ using fmha_pipeline_problem = ck_tile::BlockFmhaPipelineProblem<
     fmha_variant,
     fmha_mask,
     {F_trload},
-    fmha_trait>;
+    fmha_traits>;
 
 using fmha_pipeline = {F_pipeline}<
     fmha_pipeline_problem>;
 
 using fmha_epilogue =
-    ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType,
-                                           typename FmhaFwdTypeConfig<{F_dtype}>::ODataType,
+    ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<typename FmhaFwdTypeConfig<fmha_dtype>::OaccDataType,
+                                           typename FmhaFwdTypeConfig<fmha_dtype>::ODataType,
                                            {F_spad}, {F_dvpad}>>;
 
 using fmha_kernel =
@@ -142,36 +142,48 @@ using fmha_shape = ck_tile::TileFmhaShape<fmha_block_tile,
                                       ck_tile::sequence<{F_wm1}, {F_wn1}, {F_wk1}>,
                                       {F_vlayout}>;
 
-using fmha_trait = ck_tile::TileFmhaFwdV3Traits<{F_spad},
+using fmha_traits = ck_tile::TileFmhaTraits<{F_spad},
                                                     {F_skpad},
                                                     {F_dpad},
                                                     {F_dvpad},
+                                                    {F_logits},
+                                                    {F_bias},
+                                                    false,
                                                     {F_lse},
-                                                    {F_occupancy}>;
+                                                    {F_dropout},
+                                                    {F_squant},
+                                                    {F_occupancy},
+                                                    {F_skip}>;
+
+using fmha_variant = ck_tile::ComposedAttention<{F_logits} * ck_tile::LOGITS_SOFT_CAP, CK_TILE_FMHA_FWD_FAST_EXP2>;
 
 using fmha_mask = {F_mask};
 
-using fmha_pipeline_problem = ck_tile::BlockFmhaFwdV3PipelineProblem<
+using fmha_pipeline_problem = ck_tile::BlockFmhaPipelineProblem<
     typename FmhaFwdTypeConfig<fmha_dtype>::QDataType,
     typename FmhaFwdTypeConfig<fmha_dtype>::KDataType,
     typename FmhaFwdTypeConfig<fmha_dtype>::VDataType,
     typename FmhaFwdTypeConfig<fmha_dtype>::SaccDataType,
     typename FmhaFwdTypeConfig<fmha_dtype>::SMPLComputeDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype>::BiasDataType,
+    typename FmhaFwdTypeConfig<fmha_dtype>::RandValOutputDataType,
     typename FmhaFwdTypeConfig<fmha_dtype>::LSEDataType,
     typename FmhaFwdTypeConfig<fmha_dtype>::PDataType,
     typename FmhaFwdTypeConfig<fmha_dtype>::OaccDataType,
     typename FmhaFwdTypeConfig<fmha_dtype>::ODataType,
     fmha_shape,
     {F_mode},
+    fmha_variant,
     fmha_mask,
-    fmha_trait>;
+    {F_trload},
+    fmha_traits>;
 
 using fmha_pipeline = {F_pipeline}<
     fmha_pipeline_problem>;
 
 using fmha_epilogue =
-    ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<typename FmhaFwdTypeConfig<{F_dtype}>::OaccDataType,
-                                           typename FmhaFwdTypeConfig<{F_dtype}>::ODataType,
+    ck_tile::Default2DEpilogue<ck_tile::Default2DEpilogueProblem<typename FmhaFwdTypeConfig<fmha_dtype>::OaccDataType,
+                                           typename FmhaFwdTypeConfig<fmha_dtype>::ODataType,
                                            {F_spad}, {F_dvpad}>>;
 
 using fmha_kernel =
