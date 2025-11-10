@@ -146,8 +146,15 @@ struct BlockGemmARegBSmemTrLoadCRegV2Hack_1
 
             __builtin_amdgcn_sched_barrier(0);
 
-            static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
-                static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+            static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+                // read C warp tensor from C block tensor
+                CWarpTensor c_warp_tensor;
+
+                c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
+                    merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                    merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
+
+                static_for<0, KIterPerWarp, 1>{}([&](auto kIter) {
                     // read A warp tensor from A block tensor
                     AWarpTensor a_warp_tensor;
 
@@ -155,22 +162,15 @@ struct BlockGemmARegBSmemTrLoadCRegV2Hack_1
                         merge_sequences(sequence<mIter, kIter>{}, a_warp_y_index_zeros),
                         merge_sequences(sequence<1, 1>{}, a_warp_y_lengths));
 
-                    // read C warp tensor from C block tensor
-                    CWarpTensor c_warp_tensor;
-
-                    c_warp_tensor.get_thread_buffer() = c_block_tensor.get_y_sliced_thread_data(
-                        merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-                        merge_sequences(sequence<1, 1>{}, c_warp_y_lengths));
-
                     // warp GEMM
                     WG{}(c_warp_tensor, a_warp_tensor, b_warp_tensors[nIter][kIter]);
-
-                    // write C warp tensor into C block tensor
-                    c_block_tensor.set_y_sliced_thread_data(
-                        merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
-                        merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
-                        c_warp_tensor.get_thread_buffer());
                 });
+
+                // write C warp tensor into C block tensor
+                c_block_tensor.set_y_sliced_thread_data(
+                    merge_sequences(sequence<mIter, nIter>{}, c_warp_y_index_zeros),
+                    merge_sequences(sequence<1, 1>{}, c_warp_y_lengths),
+                    c_warp_tensor.get_thread_buffer());
             });
         });
     }
