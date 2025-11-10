@@ -706,10 +706,11 @@ class KernelComponentFactoryGfx9:
         pipelines = []
         if dtype in ["fp32"]:
             squant = "f"
-            for logits, mask, bias, lse, dropout, skip in itertools.product(
+            for logits, mask, bias, lse, dropout, skip, sink in itertools.product(
                 ["t", "f"],
                 get_mask_map(mask_impl).keys(),
                 BIAS_MAP.keys(),
+                ["t", "f"],
                 ["t", "f"],
                 ["t", "f"],
                 ["t", "f"],

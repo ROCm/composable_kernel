@@ -751,7 +751,11 @@ class KernelComponentFactoryBase:
         pipelines = []
         if dtype in ["fp16", "bf16"]:
             for logits, mask, bias, pagedkv, sink in itertools.product(
-                ["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys(), ["t", "f"], ["t", "f"]
+                ["t", "f"],
+                get_mask_map(mask_impl).keys(),
+                BIAS_MAP.keys(),
+                ["t", "f"],
+                ["t", "f"],
             ):
                 pipelines.append(Pipeline("qr", "row", "f", "t", "f", "f", logits, bias, "t", squant, pagedkv,sink, mask))  # fmt: skip
                 pipelines.append(Pipeline("qr", "row", "t", "f", "f", "f", logits, bias, "t", squant, pagedkv,sink, mask))  # fmt: skip
