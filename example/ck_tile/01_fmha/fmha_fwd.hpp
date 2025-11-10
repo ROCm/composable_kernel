@@ -684,6 +684,63 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
 }
 
 template <typename FmhaKernel>
+auto fmha_fwd_v3_create_kargs_and_grids(fmha_fwd_args args)
+{
+    /// NOTICE: This was borrowed from Aiter. Make sure the selected remap_opt setting truly
+    /// maximizes the kernel's performance.
+    int remap_opt = 2;
+    if(args.mask_type != static_cast<int>(mask_enum::no_mask) &&
+       ((args.nhead_q % 8 != 0) || (16384 < args.seqlen_q)))
+    {
+        if(65536 <= args.seqlen_q)
+        {
+            remap_opt = 0;
+        }
+        else
+        {
+            remap_opt = 1;
+        }
+    }
+
+    auto kargs = FmhaKernel::MakeKargs(args.q_ptr,
+                                       args.k_ptr,
+                                       args.v_ptr,
+                                       nullptr, // lse_ptr
+                                       args.o_ptr,
+                                       args.seqlen_q,
+                                       args.seqlen_k,
+                                       args.hdim_q,
+                                       args.hdim_v,
+                                       args.nhead_q,
+                                       args.nhead_q / args.nhead_k,
+                                       args.scale_s,
+                                       args.stride_q,
+                                       args.stride_k,
+                                       args.stride_v,
+                                       args.stride_o,
+                                       args.nhead_stride_q,
+                                       args.nhead_stride_k,
+                                       args.nhead_stride_v,
+                                       0, // nhead_stride_lse
+                                       args.nhead_stride_o,
+                                       args.batch_stride_q,
+                                       args.batch_stride_k,
+                                       args.batch_stride_v,
+                                       0, // batch_stride_lse
+                                       args.batch_stride_o,
+                                       args.window_size_left,
+                                       args.window_size_right,
+                                       args.mask_type,
+                                       remap_opt,
+                                       static_cast<const ck_tile::index_t*>(args.cu_seqlen_q_ptr),
+                                       static_cast<const ck_tile::index_t*>(args.cu_seqlen_k_ptr));
+
+    dim3 grids = FmhaKernel::GridSize(args.batch, args.nhead_q, args.seqlen_q, args.hdim_v);
+
+    return ck_tile::make_tuple(kargs, grids);
+}
+
+template <typename FmhaKernel>
 auto fmha_fwd_pagedkv_create_kargs_and_grids(fmha_fwd_pagedkv_args args)
 {
     assert(args.nhead_q % args.nhead_k == 0);

@@ -195,7 +195,13 @@ using trait = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F_bn0}, {
 template<>
 float fmha_fwd_<trait, {F_arch.tag}>(const ck_tile::stream_config& config, fmha_fwd_args args)
 {{
-    return fmha_fwd_v3_kernel_launch<fmha_kernel>(config, args);
+    using k_ = fmha_kernel;
+    if(config.log_level_ > 0)
+        std::cout << ", {F_kname}" << std::flush;
+    auto [kargs, grids] = fmha_fwd_v3_create_kargs_and_grids<k_>(args);
+    const dim3 blocks                      = k_::BlockSize();
+    constexpr ck_tile::index_t kBlockPerCu = k_::kBlockPerCu;
+    return ck_tile::launch_kernel(config, ck_tile::make_kernel<kBlockPerCu, {F_arch.tag}>(k_{{}}, grids, blocks, 0, kargs));
 }}
 
 #endif // !defined(__HIP_DEVICE_COMPILE__) || ({F_arch.preprocessor_check})

@@ -21,13 +21,18 @@
 #include "fmha_fwd_v3.hpp"
 #include "mask.hpp"
 
-#define INST_FMHA_FWD_V3_DISPATCH(kernel_traits)                                                \
-    template <>                                                                                 \
-    float fmha_fwd_<kernel_traits, ck_tile::gfx950_t>(const ck_tile::stream_config& config,     \
-                                                      fmha_fwd_args args)                       \
-    {                                                                                           \
-        return fmha_fwd_v3_kernel_launch<ck_tile::get_fmha_fwd_v3_kernel<kernel_traits>::type>( \
-            config, args);                                                                      \
+#define INST_FMHA_FWD_V3_DISPATCH(kernel_traits)                                             \
+    template <>                                                                              \
+    float fmha_fwd_<kernel_traits, ck_tile::gfx950_t>(const ck_tile::stream_config& config,  \
+                                                      fmha_fwd_args args)                    \
+    {                                                                                        \
+        using kernel        = typename ck_tile::get_fmha_fwd_v3_kernel<kernel_traits>::type; \
+        auto [kargs, grids] = fmha_fwd_v3_create_kargs_and_grids<kernel>(args);              \
+        const dim3 blocks   = kernel::BlockSize();                                           \
+        constexpr ck_tile::index_t kBlockPerCu = kernel::kBlockPerCu;                        \
+        return ck_tile::launch_kernel(config,                                                \
+                                      ck_tile::make_kernel<kBlockPerCu, ck_tile::gfx950_t>(  \
+                                          kernel{}, grids, blocks, 0, kargs));               \
     }
 
 namespace ck_tile {
@@ -129,64 +134,5 @@ struct get_fmha_fwd_v3_kernel
 
     using type = FmhaFwdV3Kernel<fmha_pipeline, epilogue>;
 };
-
-template <typename Kernel>
-float fmha_fwd_v3_kernel_launch(const ck_tile::stream_config& config, fmha_fwd_args args)
-{
-    /// NOTICE: This was borrowed from Aiter. Make sure the selected remap_opt setting truly
-    /// maximizes the kernel's performance.
-    int remap_opt = 2;
-    if(args.mask_type != static_cast<int>(mask_enum::no_mask) &&
-       ((args.nhead_q % 8 != 0) || (16384 < args.seqlen_q)))
-    {
-        if(65536 <= args.seqlen_q)
-        {
-            remap_opt = 0;
-        }
-        else
-        {
-            remap_opt = 1;
-        }
-    }
-
-    auto kargs = Kernel::MakeKargs(args.q_ptr,
-                                   args.k_ptr,
-                                   args.v_ptr,
-                                   nullptr, // lse_ptr
-                                   args.o_ptr,
-                                   args.seqlen_q,
-                                   args.seqlen_k,
-                                   args.hdim_q,
-                                   args.hdim_v,
-                                   args.nhead_q,
-                                   args.nhead_q / args.nhead_k,
-                                   args.scale_s,
-                                   args.stride_q,
-                                   args.stride_k,
-                                   args.stride_v,
-                                   args.stride_o,
-                                   args.nhead_stride_q,
-                                   args.nhead_stride_k,
-                                   args.nhead_stride_v,
-                                   0, // nhead_stride_lse
-                                   args.nhead_stride_o,
-                                   args.batch_stride_q,
-                                   args.batch_stride_k,
-                                   args.batch_stride_v,
-                                   0, // batch_stride_lse
-                                   args.batch_stride_o,
-                                   args.window_size_left,
-                                   args.window_size_right,
-                                   args.mask_type,
-                                   remap_opt,
-                                   static_cast<const ck_tile::index_t*>(args.cu_seqlen_q_ptr),
-                                   static_cast<const ck_tile::index_t*>(args.cu_seqlen_k_ptr));
-
-    dim3 grids            = Kernel::GridSize(args.batch, args.nhead_q, args.seqlen_q, args.hdim_v);
-    constexpr dim3 blocks = Kernel::BlockSize();
-    constexpr index_t kBlockPerCu = Kernel::kBlockPerCu;
-
-    return launch_kernel(config, make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
-}
 
 } // namespace ck_tile
