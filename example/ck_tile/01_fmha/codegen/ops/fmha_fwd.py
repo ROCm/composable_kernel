@@ -1277,9 +1277,9 @@ def get_fwd_blobs(
                 if hdim not in optdim_list:
                     continue
             for tile, next_tile in zip(tiles, tiles[1:]):
-                assert (
-                    next_tile.F_bm0 >= tile.F_bm0
-                ), "Tiles must be ordered by increasing bm0"
+                assert next_tile.F_bm0 >= tile.F_bm0, (
+                    "Tiles must be ordered by increasing bm0"
+                )
 
             for tile, pipeline in itertools.product(
                 tiles, factory.get_pipelines(dtype, hdim, hdim_v, receipt, mask_impl)
