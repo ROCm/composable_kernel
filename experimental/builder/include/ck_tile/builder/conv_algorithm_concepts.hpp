@@ -1,5 +1,5 @@
+// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -38,8 +38,8 @@ concept GridwiseXdlGemmDescriptor = requires(T t) {
 // Concept for parameter that describe block GEMM problem.
 template <typename T>
 concept BlockGemmDescriptor = requires(T t) {
-    { t.pipeline_version } -> std::convertible_to<BlockGemmPipelineVersion>;
-    { t.scheduler } -> std::convertible_to<BlockGemmPipelineScheduler>;
+    { t.pipeline_version } -> std::convertible_to<PipelineVersion>;
+    { t.scheduler } -> std::convertible_to<PipelineScheduler>;
 };
 
 // Concept for parameters that describe a gridwise WMMA GEMM problem.
@@ -50,7 +50,7 @@ concept GridwiseWmmaGemmDescriptor = requires(T t) {
     { t.n_per_wmma } -> std::convertible_to<size_t>;
     { t.m_wmma_per_wave } -> std::convertible_to<size_t>;
     { t.n_wmma_per_wave } -> std::convertible_to<size_t>;
-    { t.pipeline_version } -> std::convertible_to<GridwiseGemmPipelineVersion>;
+    { t.pipeline_version } -> std::convertible_to<PipelineVersion>;
 };
 
 // Concept for vectorized data transfer for convolution input tensors.
@@ -154,8 +154,8 @@ concept SpecifiesSourceAccessOrder = requires(T t) {
 // Concept to check if struct specifies block GEMM.
 template <typename T>
 concept SpecifiesBlockGemm = requires {
-    { T::block_gemm.pipeline_version } -> std::convertible_to<BlockGemmPipelineVersion>;
-    { T::block_gemm.scheduler } -> std::convertible_to<BlockGemmPipelineScheduler>;
+    { T::block_gemm.pipeline_version } -> std::convertible_to<PipelineVersion>;
+    { T::block_gemm.scheduler } -> std::convertible_to<PipelineScheduler>;
 };
 
 template <typename T>
@@ -180,7 +180,90 @@ concept SpecifiesNumGroupsToMerge = requires {
 
 template <typename T>
 concept SpecifiesLoopScheduler = requires {
-    { T::loop_scheduler } -> std::convertible_to<LoopScheduler>;
+    { T::loop_scheduler } -> std::convertible_to<PipelineScheduler>;
+};
+
+/******************************************** */
+/* DL-specific descriptors and requirements   */
+/******************************************** */
+
+// Concept for DL thread configuration
+template <typename T>
+concept DlThreadConfigDescriptor = requires(T t) {
+    { t.k0_per_block } -> std::convertible_to<size_t>;
+    { t.k1 } -> std::convertible_to<size_t>;
+    { t.m1_per_thread } -> std::convertible_to<size_t>;
+    { t.n1_per_thread } -> std::convertible_to<size_t>;
+    { t.k_per_thread } -> std::convertible_to<size_t>;
+};
+
+// Concept for DL thread cluster
+template <typename T>
+concept DlThreadClusterDescriptor = requires(T t) {
+    { t.m1_xs } -> std::convertible_to<std::array<size_t, 2>>;
+    { t.n1_xs } -> std::convertible_to<std::array<size_t, 2>>;
+};
+
+// Concept for DL block transfer K0_M0_M1_K1 format
+template <typename T>
+concept DlBlockTransferK0M0M1K1Descriptor = requires(T t) {
+    { t.thread_slice_lengths } -> std::convertible_to<std::array<size_t, 4>>;
+    { t.thread_cluster_lengths } -> std::convertible_to<std::array<size_t, 4>>;
+    { t.thread_cluster_arrange_order } -> std::convertible_to<std::array<size_t, 4>>;
+    { t.src_access_order } -> std::convertible_to<std::array<size_t, 4>>;
+    { t.src_vector_tensor_lengths } -> std::convertible_to<std::array<size_t, 4>>;
+    { t.src_vector_tensor_contiguous_dim_order } -> std::convertible_to<std::array<size_t, 4>>;
+    { t.dst_vector_tensor_lengths } -> std::convertible_to<std::array<size_t, 4>>;
+};
+
+// Concept for DL block transfer K0_N0_N1_K1 format
+template <typename T>
+concept DlBlockTransferK0N0N1K1Descriptor = requires(T t) {
+    { t.thread_slice_lengths } -> std::convertible_to<std::array<size_t, 4>>;
+    { t.thread_cluster_lengths } -> std::convertible_to<std::array<size_t, 4>>;
+    { t.thread_cluster_arrange_order } -> std::convertible_to<std::array<size_t, 4>>;
+    { t.src_access_order } -> std::convertible_to<std::array<size_t, 4>>;
+    { t.src_vector_tensor_lengths } -> std::convertible_to<std::array<size_t, 4>>;
+    { t.src_vector_tensor_contiguous_dim_order } -> std::convertible_to<std::array<size_t, 4>>;
+    { t.dst_vector_tensor_lengths } -> std::convertible_to<std::array<size_t, 4>>;
+};
+
+// Concept for DL C thread transfer
+template <typename T>
+concept DlCThreadTransferDescriptor = requires(T t) {
+    { t.src_dst_access_order } -> std::convertible_to<std::array<size_t, 6>>;
+    { t.src_dst_vector_dim } -> std::convertible_to<size_t>;
+    { t.dst_scalar_per_vector } -> std::convertible_to<size_t>;
+};
+
+// Concept to check if algorithm specifies DL thread config
+template <typename T>
+concept SpecifiesDlThreadConfig = requires {
+    { T::dl_thread_config } -> DlThreadConfigDescriptor;
+};
+
+// Concept to check if algorithm specifies DL thread cluster
+template <typename T>
+concept SpecifiesDlThreadCluster = requires {
+    { T::dl_thread_cluster } -> DlThreadClusterDescriptor;
+};
+
+// Concept to check if algorithm specifies DL A block transfer
+template <typename T>
+concept SpecifiesDlBlockTransferA = requires {
+    { T::dl_block_transfer_a } -> DlBlockTransferK0M0M1K1Descriptor;
+};
+
+// Concept to check if algorithm specifies DL B block transfer
+template <typename T>
+concept SpecifiesDlBlockTransferB = requires {
+    { T::dl_block_transfer_b } -> DlBlockTransferK0N0N1K1Descriptor;
+};
+
+// Concept to check if algorithm specifies DL C thread transfer
+template <typename T>
+concept SpecifiesDlCThreadTransfer = requires {
+    { T::dl_c_thread_transfer } -> DlCThreadTransferDescriptor;
 };
 
 } // namespace ck_tile::builder
