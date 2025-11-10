@@ -102,6 +102,8 @@ struct PerformanceResult
 struct KernelInstance
 {
     std::string name_;
+    std::string dp_persistent_;
+    std::string reduction_strategy_;
     GemmProblem problem_;
     PerformanceResult perf_result_;
 
@@ -114,6 +116,8 @@ struct KernelInstance
     {
         os << "{\n"
            << " \"name\": \"" << obj.name_ << "\",\n"
+           << " \"dp_persistent\": \"" << obj.dp_persistent_ << "\",\n"
+           << " \"reduction_strategy\": \"" << obj.reduction_strategy_ << "\",\n"
            << " \"problem\": " << obj.problem_ << ",\n"
            << " \"perf_result\": " << obj.perf_result_ << "\n"
            << "}";

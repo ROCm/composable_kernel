@@ -164,8 +164,15 @@ class GemmProfiler
                         const std::tuple<std::string, float>& kernel_run_result)
     {
         auto [name, avg_time] = kernel_run_result;
+        auto dp_persistent =
+            SelectedKernel::UsePersistentKernel ? "PersistentKernel" : "NonPersistentKernel";
+        auto reduction_strategy =
+            SelectedKernel::reduction_strategy == ck_tile::StreamKReductionStrategy::Atomic
+                ? "Atomic"
+                : "Reduction";
 
-        KernelInstance kernel_instance{name, gemm_problem, {-1.0f, -1.0f, -1.0f}};
+        KernelInstance kernel_instance{
+            name, dp_persistent, reduction_strategy, gemm_problem, {-1.0f, -1.0f, -1.0f}};
 
         // compute performance metric
         std::size_t flop     = std::size_t(2) * gemm_problem.m_ * gemm_problem.n_ * gemm_problem.k_;
@@ -244,13 +251,15 @@ class GemmProfiler
                     file << "rocm_version,device_name,"
                          << "split_k,m,n,k,stride_a,stride_b,stride_c,"
                          << "dtype_a,dtype_b,dtype_acc,dtype_c," << "layout_a,layout_b,layout_c,"
-                         << "structured_sparsity," << "name,"
-                         << "latency(ms),tflops(TFlops),bandwidth(GB/s),metric\n";
+                         << "structured_sparsity," << "dp_persistent," << "reduction_strategy,"
+                         << "name," << "latency(ms),tflops(TFlops),bandwidth(GB/s),metric\n";
                 }
 
-                const auto& problem = kernel_instance.problem_;
-                const auto& name    = kernel_instance.name_;
-                const auto& perf    = kernel_instance.perf_result_;
+                const auto& problem            = kernel_instance.problem_;
+                const auto& name               = kernel_instance.name_;
+                const auto& dp_persistent      = kernel_instance.dp_persistent_;
+                const auto& reduction_strategy = kernel_instance.reduction_strategy_;
+                const auto& perf               = kernel_instance.perf_result_;
 
                 file << get_rocm_version() << "," << ck_tile::get_device_name() << ","
                      << problem.split_k_ << "," << problem.m_ << "," << problem.n_ << ","
@@ -258,7 +267,8 @@ class GemmProfiler
                      << problem.stride_c_ << "," << problem.dtype_a_ << "," << problem.dtype_b_
                      << "," << problem.dtype_acc_ << "," << problem.dtype_c_ << ","
                      << problem.layout_a_ << "," << problem.layout_b_ << "," << problem.layout_c_
-                     << "," << problem.structured_sparsity_ << "," << name << "," << std::fixed
+                     << "," << problem.structured_sparsity_ << "," << dp_persistent << ","
+                     << reduction_strategy << "," << name << "," << std::fixed
                      << std::setprecision(4) << perf.latency_ << "," << std::fixed
                      << std::setprecision(4) << perf.tflops_ << "," << std::fixed
                      << std::setprecision(4) << perf.bandwidth_ << "," << get_metric_name(metric)

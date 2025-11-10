@@ -160,7 +160,10 @@ int main(int argc, char* argv[])
     {
         auto [result, parser] = create_args(argc, argv);
         if(!result)
+        {
+            parser.print();
             return EXIT_FAILURE;
+        }
 
         benchmark_gemm_single(parser);
         return EXIT_SUCCESS;
