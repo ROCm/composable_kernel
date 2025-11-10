@@ -3,9 +3,6 @@
 
 #pragma once
 
-#ifndef TEST_GEMM_PIPELINE_UT_CASES_INC
-#define TEST_GEMM_PIPELINE_UT_CASES_INC
-
 TYPED_TEST(TEST_SUITE_NAME, SmallM)
 {
     std::vector<int> Ms{1, 2, 3, 4, 5, 6};
@@ -31,6 +28,11 @@ TYPED_TEST(TEST_SUITE_NAME, SmallM)
             }
         }
     }
+}
+
+TYPED_TEST(TEST_SUITE_NAME, SingleTile)
+{
+    this->Run(TestFixture::M_Tile, TestFixture::N_Tile, TestFixture::K_Tile);
 }
 
 TYPED_TEST(TEST_SUITE_NAME, MidLargeM)
@@ -114,5 +116,3 @@ TYPED_TEST(TEST_SUITE_NAME, NotSupportedArgument)
 
     EXPECT_THROW((this->template Run<PadM, PadN, PadK>(M, N, K)), std::runtime_error);
 }
-
-#endif

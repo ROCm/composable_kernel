@@ -90,6 +90,11 @@ struct TopkSoftmaxWarpPerRowPipeline
                     const auto current_expert = x_indices.at(number<1>{});
                     w_(idx) =
                         current_expert >= experts ? -numeric<WeightType>::infinity() : w_(idx);
+                    if constexpr(!Problem::ActivationIsSoftmax)
+                    {
+                        // sigmoid can be pre-computed already here if not using softmax
+                        w_(idx) = WeightType(1) / (WeightType(1) + exp(-w_(idx)));
+                    }
                 };
                 tile_sweeper ts{w_, w_f};
                 ts();
@@ -97,10 +102,16 @@ struct TopkSoftmaxWarpPerRowPipeline
 #endif
             }();
 
-            // softmax
-            auto y = softmax(w);
-
-            topk(y, out_win, idx_win, k);
+            if constexpr(Problem::ActivationIsSoftmax)
+            {
+                auto y = softmax(w);
+                topk(y, out_win, idx_win, k);
+            }
+            else
+            {
+                // sigmoid was already pre-computed above, so only do topk now
+                topk(w, out_win, idx_win, k);
+            }
 
             // check exit
             if constexpr(Problem::LaunchType == 0)

@@ -252,15 +252,14 @@ struct SplitKTwoStageInvoker
         const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
             if(args.k_batch == 1)
             {
-                Run(has_hot_loop_, tail_number_, MemoryOpSet{});
+                return Run(has_hot_loop_, tail_number_, MemoryOpSet{});
             }
             else
             {
-                Run(has_hot_loop_, tail_number_, MemoryOpAtomicAdd{});
+                return Run(has_hot_loop_, tail_number_, MemoryOpAtomicAdd{});
             }
         };
 
-        BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
-        return ave_time;
+        return ave_time = BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
     }
 };
