@@ -907,6 +907,7 @@ fwd_result fmha_fwd_run(mode_enum mode,
             traits.has_logits_soft_cap = 0.f < logits_soft_cap;
             traits.mask_type           = mask.type;
             traits.bias_type           = bias.type;
+            traits.has_sink            = mask.sink > 0 ? true : false;
             traits.has_lse             = lse;
             traits.do_fp8_static_quant = squant;
 

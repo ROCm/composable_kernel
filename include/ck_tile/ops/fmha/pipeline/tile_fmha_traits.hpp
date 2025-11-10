@@ -19,8 +19,9 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kStoreLSE_,
           bool kHasDropout_,
           bool kDoFp8StaticQuant_,
-          index_t kBlockPerCu_  = -1, /* overwrite occupancy if not -1 */
-          bool kSkipMinSeqlenQ_ = false /* skip min seqlen q while chunked prefill */>
+          index_t kBlockPerCu_  = -1,    /* overwrite occupancy if not -1 */
+          bool kSkipMinSeqlenQ_ = false, /* skip min seqlen q while chunked prefill */
+          bool kHasSink_        = false>
 struct TileFmhaTraits
 {
     static constexpr bool kPadSeqLenQ       = kPadSeqLenQ_;
@@ -35,6 +36,7 @@ struct TileFmhaTraits
     static constexpr bool kDoFp8StaticQuant = kDoFp8StaticQuant_;
     static constexpr index_t kBlockPerCu    = kBlockPerCu_;
     static constexpr bool kSkipMinSeqlenQ   = kSkipMinSeqlenQ_;
+    static constexpr bool kHasSink          = kHasSink_;
 };
 
 template <index_t kPadHeadDimQ_ /* paddding for hdim_q */,
@@ -64,8 +66,9 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kStoreLSE_, /* set to true if either num_splits > 1 or fwd training is running */
           bool kIsPagedKV_,
           bool kDoFp8StaticQuant_,
-          index_t kBlockPerCu_  = -1, /* overwrite occupancy if not -1 */
-          bool kSkipMinSeqlenQ_ = false /* skip min seqlen q while chunked prefill */>
+          index_t kBlockPerCu_  = -1,    /* overwrite occupancy if not -1 */
+          bool kSkipMinSeqlenQ_ = false, /* skip min seqlen q while chunked prefill */
+          bool kHasSink_        = false>
 struct TileFmhaFwdPagedKVTraits
 {
     static constexpr bool kPadSeqLenQ       = kPadSeqLenQ_;
@@ -80,6 +83,7 @@ struct TileFmhaFwdPagedKVTraits
     static constexpr bool kDoFp8StaticQuant = kDoFp8StaticQuant_;
     static constexpr index_t kBlockPerCu    = kBlockPerCu_;
     static constexpr bool kSkipMinSeqlenQ   = kSkipMinSeqlenQ_;
+    static constexpr bool kHasSink          = kHasSink_;
 };
 
 template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
@@ -94,7 +98,8 @@ template <bool kPadSeqLenQ_ /* padding for seqlen_q */,
           bool kIsPagedKV_,
           bool kHasUnevenSplits_,
           bool kMergeNumHeadGroupsSeqLenQ_ = false,
-          index_t kBlockPerCu_             = -1 /* overwrite occupancy if not -1 */>
+          index_t kBlockPerCu_             = -1, /* overwrite occupancy if not -1 */
+          bool kHasSink_                   = false>
 struct TileFmhaFwdSplitKVTraits
 {
     static constexpr bool kPadSeqLenQ       = kPadSeqLenQ_;
@@ -111,6 +116,7 @@ struct TileFmhaFwdSplitKVTraits
     static constexpr bool kHasUnevenSplits           = kHasUnevenSplits_;
     static constexpr bool kMergeNumHeadGroupsSeqLenQ = kMergeNumHeadGroupsSeqLenQ_;
     static constexpr index_t kBlockPerCu             = kBlockPerCu_;
+    static constexpr bool kHasSink                   = kHasSink_;
 };
 
 template <bool kPadSeqLenQ_ /* padding for seqlen_q */,

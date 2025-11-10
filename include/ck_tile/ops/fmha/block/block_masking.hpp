@@ -225,18 +225,36 @@ struct GenericAttentionMask
 
             if constexpr(IsLocal)
             {
-                if((i_x < sink) && (y < y_total) && ((i_y + x) > 1) && i_y < x_total)
-                    return false;
-                else
-                    return i_x < x_start || i_x >= x_end;
+                return i_x < x_start || i_x >= x_end;
             }
             else
             {
-                if((i_x < sink) && (y < y_total) && ((i_y + x) > 1) && i_y < x_total)
-                    return false;
-                else
-                    return i_x >= x_end || i_y >= y_total;
+                return i_x >= x_end || i_y >= y_total;
             }
+        }
+    }
+
+    CK_TILE_HOST_DEVICE constexpr auto IsOutOfSinkBound(index_t i_y, index_t i_x) const
+    {
+        if constexpr(!IsMasking)
+            return i_x >= x_total;
+        // no need to do min/max here, since i_x will never be < 0 or >= x_total
+        index_t x_start = -y + i_y + 1;
+        index_t x_end   = min(i_y + x, x_total);
+
+        if constexpr(IsLocal)
+        {
+            if((i_x < sink) && (y < y_total) && ((i_y + x) > 1) && i_y < x_total)
+                return false;
+            else
+                return i_x < x_start || i_x >= x_end;
+        }
+        else
+        {
+            if((i_x < sink) && (y < y_total) && ((i_y + x) > 1) && i_y < x_total)
+                return false;
+            else
+                return i_x >= x_end || i_y >= y_total;
         }
     }
 
@@ -470,11 +488,20 @@ struct SimplifiedGenericAttentionMask
         {
             index_t x_start = -y + i_y + 1;          // this could be negative, but it's fine
             index_t x_end   = min(i_y + x, x_total); // need min in case x is padded
-            if((i_x < sink) && (y < y_total) && ((i_y + x) > 1) && i_y < x_total)
-                return false;
-            else
-                return i_x < x_start || i_x >= x_end || i_y >= y_total;
+            return i_x < x_start || i_x >= x_end || i_y >= y_total;
         }
+    }
+
+    CK_TILE_HOST_DEVICE constexpr auto IsOutOfSinkBound(index_t i_y, index_t i_x) const
+    {
+        if constexpr(!IsMasking)
+            return i_x >= x_total;
+        index_t x_start = -y + i_y + 1;          // this could be negative, but it's fine
+        index_t x_end   = min(i_y + x, x_total); // need min in case x is padded
+        if((i_x < sink) && (y < y_total) && ((i_y + x) > 1) && i_y < x_total)
+            return false;
+        else
+            return i_x < x_start || i_x >= x_end || i_y >= y_total;
     }
 
     // if current tile is at the edge, means need per-pixel mask check.
