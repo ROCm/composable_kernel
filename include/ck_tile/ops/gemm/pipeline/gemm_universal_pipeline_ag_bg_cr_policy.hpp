@@ -545,6 +545,8 @@ struct UniversalGemmBasePolicy
                                                       VecLoadSize,
                                                       getATileAccessPattern(),
                                                       NumWaveGroups>;
+            CK_PRINT<TileEncodingPattern>();
+            CK_PRINT<typename remove_cvref_t<decltype(TileEncodingPattern::make_2d_static_tile_distribution())>::DstrEncode>();
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }
         // Tile: KPerBlock X MPerBlock

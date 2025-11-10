@@ -444,11 +444,15 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             constexpr auto b_lds_load_tile_distr =
                 make_static_tile_distribution(BlockGemm::MakeBBlockDistributionEncode());
 
+            // CK_PRINT<typename decltype(a_lds_load_tile_distr)::DstrEncode>();
+
             // A DRAM tile window for load
             // A LDS tile window for store
             // A LDS tile for block GEMM
             auto&& [a_copy_dram_window, a_copy_lds_window, a_lds_gemm_window] =
                 Base::GetAWindows(a_dram_block_window_tmp, a_lds_block, a_lds_load_tile_distr);
+
+            // CK_PRINT<typename remove_cvref_t<decltype(a_copy_dram_window[number<0>{}])>::Base::TileDstr::DstrEncode>();
 
             // B DRAM tile window for load
             // B LDS tile window for store
@@ -477,6 +481,10 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
             // A1, … AN. The values A0, A1, … AN are read by the same thread.
             auto elementwise_As_res =
                 load_tile_with_elementwise(a_copy_dram_window, a_element_func);
+
+            
+            // CK_PRINT<typename decltype(elementwise_As_res)::StaticTileDistribution::DstrEncode>();
+            // CK_PRINT<typename remove_cvref_t<decltype(a_copy_dram_window[number<0>{}])>::Base::TileDstr::DstrEncode>();
 
             // Move each A — the enhanced function move_tile_window is executed, which takes a tuple
             // as input.

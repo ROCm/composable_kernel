@@ -59,6 +59,10 @@ struct GemmPipelineAgBgCrImplBase
                                      const ElementFunction& element_func) const
     {
         const auto block_tile_tmp = tile_elementwise_in(element_func, src_block_tile);
+        ignore = lds_tile_window;
+        ignore = src_block_tile;
+        ignore = element_func;
+        ignore = block_tile_tmp;
         store_tile(lds_tile_window, block_tile_tmp);
     }
 
@@ -66,6 +70,10 @@ struct GemmPipelineAgBgCrImplBase
     CK_TILE_DEVICE void LocalPrefill(DstTileWindow& lds_tile_window,
                                      const SrcBlockTile& src_block_tile) const
     {
+        ignore = lds_tile_window;
+        ignore = src_block_tile;
+        // CK_PRINT<typename remove_cvref_t<decltype(src_block_tile)>::StaticTileDistribution::DstrEncode>();
+
         store_tile(lds_tile_window, src_block_tile);
     }
 
@@ -74,10 +82,12 @@ struct GemmPipelineAgBgCrImplBase
                                       const SrcTileWindow& lds_tile_window,
                                       bool_constant<LoadTranspose> = {}) const
     {
-        if constexpr(LoadTranspose)
-            dst_block_tile = load_tile_transpose(lds_tile_window);
-        else
-            load_tile(dst_block_tile, lds_tile_window);
+        // if constexpr(LoadTranspose)
+        //     dst_block_tile = load_tile_transpose(lds_tile_window);
+        // else
+        //     load_tile(dst_block_tile, lds_tile_window);
+        ignore = dst_block_tile;
+        ignore = lds_tile_window;
     }
 
     CK_TILE_DEVICE auto GetABLdsTensorViews(void* p_smem) const

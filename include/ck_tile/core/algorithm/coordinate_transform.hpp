@@ -1326,8 +1326,21 @@ struct xor_t : public base_transform<2, 2>
 
         idx_low(number<0>{}) = idx_up[number<0>{}];
 
+        // original (1.0 rate):
+        // idx_low(number<1>{}) =
+        //     idx_up[number<1>{}] ^ (idx_up[number<0>{}] % up_lengths_[number<1>{}]);
+        // 0.5 rate
+        // idx_low(number<1>{}) =
+        //     idx_up[number<1>{}] ^ (2 * idx_up[number<0>{}]) % up_lengths_[number<1>{}];
         idx_low(number<1>{}) =
-            idx_up[number<1>{}] ^ (idx_up[number<0>{}] % up_lengths_[number<1>{}]);
+             idx_up[number<1>{}] ^ (2 * idx_up[number<0>{}] % up_lengths_[number<1>{}]);
+        // if (threadIdx.x < 64)
+        // {
+        //     printf("lane: %u | idx_low: (%d, %d) | idx_up: (%d, %d)\n", 
+        //         __lane_id(), 
+        //         idx_low[number<0>{}], idx_low[number<1>{}], 
+        //         idx_up[number<0>{}], idx_up[number<1>{}]);
+        // }
     }
 
     template <typename LowIdxDiff, typename UpIdxDiff, typename LowIdx, typename UpIdx>
