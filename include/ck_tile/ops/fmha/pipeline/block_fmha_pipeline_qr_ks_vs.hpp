@@ -232,8 +232,6 @@ struct BlockFmhaPipelineQRKSVS
         clear_tile(l);
 
         const auto q_origin = q_dram_window.get_window_origin();
-        // const auto [seqlen_k_start, seqlen_k_end] =
-        //    mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
 
         const auto [sink_seq_end, seqlen_k_start, seqlen_k_end] = [&mask, &q_origin]() {
             if constexpr(kHasSink)
