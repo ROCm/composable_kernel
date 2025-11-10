@@ -274,9 +274,8 @@ struct GemmSpatiallyLocalTilePartitioner
      * @param NUM_XCDS          number of XCDs
      * @return index_t  The id after XCD remap
      */
-    CK_TILE_HOST_DEVICE static auto RemapXCD(index_t block_1d_id,
-                                             index_t total_num_tiles,
-                                             index_t NUM_XCDS = 8) noexcept -> index_t
+    CK_TILE_HOST_DEVICE static auto
+    RemapXCD(index_t block_1d_id, index_t total_num_tiles, index_t NUM_XCDS = 8) noexcept -> index_t
     {
         // Number of ids per XCD in the new arrangement
         index_t ids_per_xcd = (total_num_tiles + NUM_XCDS - 1) / NUM_XCDS;
