@@ -8,6 +8,20 @@
 set -e  # Exit on error
 set +x  # Disable command echo (even if called with bash -x)
 
+# Trap to kill all background jobs on script exit/interruption
+cleanup() {
+    echo ""
+    echo "Cleaning up background processes..."
+    # Kill all jobs in the current process group
+    jobs -p | xargs -r kill 2>/dev/null || true
+    wait 2>/dev/null || true
+    echo "Cleanup complete."
+    exit 1
+}
+
+# Set up trap for common termination signals
+trap cleanup SIGINT SIGTERM EXIT
+
 echo "=========================================="
 echo "CK Convolution Test Dataset Generator"
 echo "=========================================="
@@ -18,7 +32,7 @@ if ! python3 -c "import torch" 2>/dev/null; then
     echo "PyTorch not found. Creating virtual environment..."
     
     # Create a virtual environment in the current directory
-    VENV_DIR="./pytorch_venv"
+    VENV_DIR="./.venv"
     if [ ! -d "$VENV_DIR" ]; then
         python3 -m venv $VENV_DIR || {
             echo "ERROR: Failed to create virtual environment."
@@ -66,11 +80,37 @@ if ! $PYTHON_CMD -c "import torch; import sys; sys.exit(0 if torch.cuda.is_avail
     echo "Continuing anyway to generate placeholder data..."
 fi
 
+# Parse command line arguments
+CONFIG_MODE="full"  # Default configuration mode: 'small', 'half' or 'full'
+MAX_PARALLEL_JOBS=1  # Default number of parallel jobs
+
+# Process arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -j)
+            MAX_PARALLEL_JOBS="$2"
+            shift 2
+            ;;
+        -j*)
+            MAX_PARALLEL_JOBS="${1#-j}"
+            shift
+            ;;
+        small|half|full)
+            CONFIG_MODE="$1"
+            shift
+            ;;
+        *)
+            echo "Usage: $0 [small|half|full] [-j <num_jobs>]"
+            echo "  Configuration modes: small, half, full (default: full)"
+            echo "  -j <num_jobs>: Number of parallel jobs (default: 4)"
+            exit 1
+            ;;
+    esac
+done
+
 # Configuration
 OUTPUT_DIR="generated_datasets"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-# Get configuration mode from command line argument (default: full)
-CONFIG_MODE="${1:-full}"  # Configuration mode: 'small', 'half' or 'full'
 
 # Colors
 RED='\033[0;31m'
@@ -128,7 +168,8 @@ rocm-smi --showdriverversion || true
 echo ""
 echo "Step 2: Running 2D/3D models and capturing MIOpen commands"
 echo "-----------------------------------------"
-
+echo "Using up to $MAX_PARALLEL_JOBS parallel jobs"
+echo ""
 
 # Process 2D models from CSV configuration file
 echo "Processing 2D models from $OUTPUT_DIR/model_configs_2d.csv..."
@@ -140,6 +181,9 @@ CURRENT_CONFIG=0
 echo "Total configurations to process: $TOTAL_CONFIGS"
 echo ""
 
+# Array to track background job PIDs
+declare -a job_pids=()
+
 # Read 2D configurations from CSV (skip comments and header)
 while IFS=',' read -r config_name model batch_size channels height width precision; do
     # Skip comments and empty lines
@@ -150,20 +194,43 @@ while IFS=',' read -r config_name model batch_size channels height width precisi
     # Increment counter
     CURRENT_CONFIG=$((CURRENT_CONFIG + 1))
     
-    
     # Build configuration command
     CONFIG="--model $model --batch-size $batch_size --channels $channels --height $height --width $width --precision $precision"
     CONFIG_NAME="$config_name"
     
-    echo -e "${GREEN}[${CURRENT_CONFIG}/${TOTAL_CONFIGS}]${NC} ${CYAN}2D${NC} ${YELLOW}$CONFIG_NAME${NC}"
+    echo -e "${GREEN}[${CURRENT_CONFIG}/${TOTAL_CONFIGS}]${NC} ${CYAN}2D${NC} ${YELLOW}$CONFIG_NAME${NC} - Starting in background"
     
-    # Actual run with logging (suppress stdout, only capture stderr with MIOpen commands)
-    MIOPEN_ENABLE_LOGGING_CMD=1 $PYTHON_CMD run_model_with_miopen.py \
-        --model $model --batch-size $batch_size --channels $channels --height $height --width $width --precision $precision \
-        > /dev/null 2>> $OUTPUT_DIR/${model}_miopen_log_2d.txt || true 
-
+    # Run in background
+    (
+        MIOPEN_ENABLE_LOGGING_CMD=1 $PYTHON_CMD run_model_with_miopen.py \
+            --model $model --batch-size $batch_size --channels $channels --height $height --width $width --precision $precision \
+            > /dev/null 2>> $OUTPUT_DIR/${model}_miopen_log_2d.txt || true
+        echo -e "${GREEN}[DONE]${NC} ${CYAN}2D${NC} ${YELLOW}$CONFIG_NAME${NC}"
+    ) &
+    
+    job_pids+=($!)
+    
+    # Limit number of parallel jobs
+    if [ ${#job_pids[@]} -ge $MAX_PARALLEL_JOBS ]; then
+        # Wait for any job to complete
+        wait -n
+        # Remove completed jobs from array
+        for i in "${!job_pids[@]}"; do
+            if ! kill -0 "${job_pids[$i]}" 2>/dev/null; then
+                unset 'job_pids[$i]'
+            fi
+        done
+        job_pids=("${job_pids[@]}")  # Re-index array
+    fi
 
 done < $OUTPUT_DIR/model_configs_2d.csv
+
+# Wait for all remaining 2D jobs to complete
+echo "Waiting for remaining 2D jobs to complete..."
+wait
+
+echo "All 2D models processed!"
+echo ""
 
 # Process 3D models from CSV configuration file
 echo "Processing 3D models from $OUTPUT_DIR/model_configs_3d.csv..."
@@ -175,6 +242,9 @@ CURRENT_3D_CONFIG=0
 echo "Total 3D configurations to process: $TOTAL_3D_CONFIGS"
 echo ""
 
+# Reset job tracking array
+declare -a job_pids=()
+
 # Read 3D configurations from CSV (skip comments and header)
 while IFS=',' read -r config_name model batch_size channels temporal_size height width precision; do
     # Skip comments and empty lines  
@@ -185,20 +255,43 @@ while IFS=',' read -r config_name model batch_size channels temporal_size height
     # Increment counter
     CURRENT_3D_CONFIG=$((CURRENT_3D_CONFIG + 1))
     
-
     # Build configuration command for 3D models
     CONFIG="--model $model --batch-size $batch_size --channels $channels --temporal-size $temporal_size --height $height --width $width --precision $precision"
     CONFIG_NAME="$config_name"
     
-    echo -e "${GREEN}[${CURRENT_3D_CONFIG}/${TOTAL_3D_CONFIGS}]${NC} ${CYAN}3D${NC} ${YELLOW}$CONFIG_NAME${NC}"
+    echo -e "${GREEN}[${CURRENT_3D_CONFIG}/${TOTAL_3D_CONFIGS}]${NC} ${CYAN}3D${NC} ${YELLOW}$CONFIG_NAME${NC} - Starting in background"
     
+    # Run in background
+    (
+        MIOPEN_ENABLE_LOGGING_CMD=1 $PYTHON_CMD run_model_with_miopen.py \
+            --model $model --batch-size $batch_size --channels $channels --temporal-size $temporal_size --height $height --width $width --precision $precision \
+            > /dev/null 2>> $OUTPUT_DIR/${model}_miopen_log_3d.txt || true
+        echo -e "${GREEN}[DONE]${NC} ${CYAN}3D${NC} ${YELLOW}$CONFIG_NAME${NC}"
+    ) &
     
-    # Actual run with logging (suppress stdout, only capture stderr with MIOpen commands)
-    MIOPEN_ENABLE_LOGGING_CMD=1 $PYTHON_CMD run_model_with_miopen.py \
-        --model $model --batch-size $batch_size --channels $channels --temporal-size $temporal_size --height $height --width $width --precision $precision \
-        > /dev/null 2>> $OUTPUT_DIR/${model}_miopen_log_3d.txt || true
+    job_pids+=($!)
+    
+    # Limit number of parallel jobs
+    if [ ${#job_pids[@]} -ge $MAX_PARALLEL_JOBS ]; then
+        # Wait for any job to complete
+        wait -n
+        # Remove completed jobs from array
+        for i in "${!job_pids[@]}"; do
+            if ! kill -0 "${job_pids[$i]}" 2>/dev/null; then
+                unset 'job_pids[$i]'
+            fi
+        done
+        job_pids=("${job_pids[@]}")  # Re-index array
+    fi
 
 done < $OUTPUT_DIR/model_configs_3d.csv
+
+# Wait for all remaining 3D jobs to complete
+echo "Waiting for remaining 3D jobs to complete..."
+wait
+
+echo "All 3D models processed!"
+echo ""
 
 
 echo ""
@@ -296,6 +389,9 @@ fi
 if [ -f "conv_test_set_3d_dataset.csv" ]; then
     COUNT_3D=$(grep -v "^#" conv_test_set_3d_dataset.csv | tail -n +2 | wc -l)
 fi
+
+# Disable trap on successful completion
+trap - SIGINT SIGTERM EXIT
 
 echo ""
 echo "=========================================="
