@@ -83,6 +83,11 @@ __pycache__/
 
 .cache/
 
+# Generated test data
+test_data/*
+!test_data/*.py
+!test_data/*.sh
+
 # Exceptions to build* patterns above
 # The experimental/builder directory should be tracked despite matching build*
 !experimental/builder
