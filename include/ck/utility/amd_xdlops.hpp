@@ -1636,7 +1636,7 @@ struct intrin_mfma_f32_16x16x32bf8f8<16, 16>
     }
 };
 
-/******************* tf32  *************************************/
+/******************* tf32 on gfx942 *************************************/
 template <index_t MPerWave, index_t NPerWave>
 struct intrin_mfma_f32_16x16x8xf32;
 
@@ -1676,5 +1676,142 @@ struct intrin_mfma_f32_32x32x4xf32<32, 32>
 #endif
     }
 };
+/******************* tf32 on gfx942 end *********************************/
 
+/******************* tf32 on gfx950 *************************************/
+/* bf16x3 simulate tf32: input/output/accumulator are all float;        */
+/* step:                                                                */
+/*  1. separate one input to 2 bf16 registers:                          */
+/*      in_bf16_big = f32_to_bf16(in_f32)                               */
+/*      in_bf16_small = in_f32 - in_bf16_big                            */
+/*  2. run 3 xdlops gemm: the accumulator of each gemm is the same.     */
+/*      out_f32 = A_bf16_big * B_bf16_big                               */
+/*      out_f32 += A_bf16_small * B_bf16_big                            */
+/*      out_f32 += A_bf16_big * B_bf16_small                            */
+/************************************************************************/
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_f32_16x16x32xf32;
+
+template <>
+struct intrin_mfma_f32_16x16x32xf32<16, 16>
+{
+    template <class FloatC>
+    __device__ static void Run(const float8_t& reg_a, const float8_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx950__)
+        using I0 = Number<0>;
+        vector_type<float, 8> reg_a_v(reg_a);
+        vector_type<float, 8> reg_b_v(reg_b);
+
+        vector_type<bhalf_t, 8> v_reg_a_bf16_big;
+        vector_type<bhalf_t, 8> v_reg_a_bf16_small;
+        vector_type<bhalf_t, 8> v_reg_b_bf16_big;
+        vector_type<bhalf_t, 8> v_reg_b_bf16_small;
+
+        static_for<0, 8, 1>{}([&](auto k) {
+            using IK = Number<k>;
+            v_reg_a_bf16_big.template AsType<bhalf_t>()(k) =
+                type_convert<bhalf_t, float>(reg_a_v.template AsType<float>()[IK{}]);
+            v_reg_a_bf16_small.template AsType<bhalf_t>()(k) = type_convert<bhalf_t, float>(
+                reg_a_v.template AsType<float>()[IK{}] -
+                type_convert<float, bhalf_t>(v_reg_a_bf16_big.template AsType<bhalf_t>()[IK{}]));
+            v_reg_b_bf16_big.template AsType<bhalf_t>()(k) =
+                type_convert<bhalf_t, float>(reg_b_v.template AsType<float>()[IK{}]);
+            v_reg_b_bf16_small.template AsType<bhalf_t>()(k) = type_convert<bhalf_t, float>(
+                reg_b_v.template AsType<float>()[IK{}] -
+                type_convert<float, bhalf_t>(v_reg_b_bf16_big.template AsType<bhalf_t>()[IK{}]));
+        });
+
+        reg_c.template AsType<float4_t>()(I0{}) = __builtin_amdgcn_mfma_f32_16x16x32_bf16(
+            v_reg_a_bf16_big.template AsType<bhalf8_t>()[I0{}],
+            v_reg_b_bf16_small.template AsType<bhalf8_t>()[I0{}],
+            reg_c.template AsType<float4_t>()[I0{}],
+            0,
+            0,
+            0);
+        reg_c.template AsType<float4_t>()(I0{}) = __builtin_amdgcn_mfma_f32_16x16x32_bf16(
+            v_reg_a_bf16_small.template AsType<bhalf8_t>()[I0{}],
+            v_reg_b_bf16_big.template AsType<bhalf8_t>()[I0{}],
+            reg_c.template AsType<float4_t>()[I0{}],
+            0,
+            0,
+            0);
+        reg_c.template AsType<float4_t>()(I0{}) = __builtin_amdgcn_mfma_f32_16x16x32_bf16(
+            v_reg_a_bf16_big.template AsType<bhalf8_t>()[I0{}],
+            v_reg_b_bf16_big.template AsType<bhalf8_t>()[I0{}],
+            reg_c.template AsType<float4_t>()[I0{}],
+            0,
+            0,
+            0);
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif // defined(__gfx950__)
+    }
+};
+
+template <index_t MPerWave, index_t NPerWave>
+struct intrin_mfma_f32_32x32x16xf32;
+
+template <>
+struct intrin_mfma_f32_32x32x16xf32<32, 32>
+{
+    template <class FloatC>
+    __device__ static void Run(const float8_t& reg_a, const float8_t& reg_b, FloatC& reg_c)
+    {
+#if defined(__gfx950__)
+        using I0 = Number<0>;
+        vector_type<float, 8> reg_a_v(reg_a);
+        vector_type<float, 8> reg_b_v(reg_b);
+
+        vector_type<bhalf_t, 8> v_reg_a_bf16_big;
+        vector_type<bhalf_t, 8> v_reg_a_bf16_small;
+        vector_type<bhalf_t, 8> v_reg_b_bf16_big;
+        vector_type<bhalf_t, 8> v_reg_b_bf16_small;
+
+        static_for<0, 8, 1>{}([&](auto k) {
+            using IK = Number<k>;
+            v_reg_a_bf16_big.template AsType<bhalf_t>()(k) =
+                type_convert<bhalf_t, float>(reg_a_v.template AsType<float>()[IK{}]);
+            v_reg_a_bf16_small.template AsType<bhalf_t>()(k) = type_convert<bhalf_t, float>(
+                reg_a_v.template AsType<float>()[IK{}] -
+                type_convert<float, bhalf_t>(v_reg_a_bf16_big.template AsType<bhalf_t>()[IK{}]));
+            v_reg_b_bf16_big.template AsType<bhalf_t>()(k) =
+                type_convert<bhalf_t, float>(reg_b_v.template AsType<float>()[IK{}]);
+            v_reg_b_bf16_small.template AsType<bhalf_t>()(k) = type_convert<bhalf_t, float>(
+                reg_b_v.template AsType<float>()[IK{}] -
+                type_convert<float, bhalf_t>(v_reg_b_bf16_big.template AsType<bhalf_t>()[IK{}]));
+        });
+
+        reg_c.template AsType<float16_t>()(I0{}) = __builtin_amdgcn_mfma_f32_32x32x16_bf16(
+            v_reg_a_bf16_big.template AsType<bhalf8_t>()[I0{}],
+            v_reg_b_bf16_small.template AsType<bhalf8_t>()[I0{}],
+            reg_c.template AsType<float16_t>()[I0{}],
+            0,
+            0,
+            0);
+        reg_c.template AsType<float16_t>()(I0{}) = __builtin_amdgcn_mfma_f32_32x32x16_bf16(
+            v_reg_a_bf16_small.template AsType<bhalf8_t>()[I0{}],
+            v_reg_b_bf16_big.template AsType<bhalf8_t>()[I0{}],
+            reg_c.template AsType<float16_t>()[I0{}],
+            0,
+            0,
+            0);
+        reg_c.template AsType<float16_t>()(I0{}) = __builtin_amdgcn_mfma_f32_32x32x16_bf16(
+            v_reg_a_bf16_big.template AsType<bhalf8_t>()[I0{}],
+            v_reg_b_bf16_big.template AsType<bhalf8_t>()[I0{}],
+            reg_c.template AsType<float16_t>()[I0{}],
+            0,
+            0,
+            0);
+#else
+        ignore = reg_a;
+        ignore = reg_b;
+        ignore = reg_c;
+#endif // defined(__gfx950__)
+    }
+};
+
+/******************* tf32 on gfx950 end ************************************/
 } // namespace ck

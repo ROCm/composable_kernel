@@ -307,6 +307,10 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                         const BBlockBuffer& b_block_buf,
                         CThreadBuffer& c_thread_buf) const
     {
+        // if(threadIdx.x == 0 && blockIdx.x == 0)
+        // {
+        //     printf("BlockwiseGemmXdlops: Run\n");
+        // }
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ElementDataTypeA>(
             a_thread_desc_.GetElementSpaceSize());
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ElementDataTypeB>(
@@ -615,183 +619,187 @@ struct BlockwiseGemmXdlopsInterwave_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
  *      out_f32 += A_bf16_small * B_bf16_big
  *      out_f32 += A_bf16_big * B_bf16_small
  */
-template <index_t BlockSize,
-          typename FloatA,
-          typename FloatB,
-          typename FloatAcc,
-          typename AK0MK1BlockDesc,
-          typename BK0NK1BlockDesc,
-          index_t MPerXDL,
-          index_t NPerXDL,
-          index_t MRepeat,
-          index_t NRepeat,
-          index_t KPack,
-          typename ComputeTypeA = FloatA,
-          typename ComputeTypeB = FloatB>
-struct BlockwiseGemmXdlopsBF16X3_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
-    : public BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
-                                                                 FloatA,
-                                                                 FloatB,
-                                                                 FloatAcc,
-                                                                 AK0MK1BlockDesc,
-                                                                 BK0NK1BlockDesc,
-                                                                 MPerXDL,
-                                                                 NPerXDL,
-                                                                 MRepeat,
-                                                                 NRepeat,
-                                                                 KPack,
-                                                                 ComputeTypeA,
-                                                                 ComputeTypeB>
-{
-    using Base = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
-                                                                     FloatA,
-                                                                     FloatB,
-                                                                     FloatAcc,
-                                                                     AK0MK1BlockDesc,
-                                                                     BK0NK1BlockDesc,
-                                                                     MPerXDL,
-                                                                     NPerXDL,
-                                                                     MRepeat,
-                                                                     NRepeat,
-                                                                     KPack,
-                                                                     ComputeTypeA,
-                                                                     ComputeTypeB>;
+// template <index_t BlockSize,
+//           typename FloatA,
+//           typename FloatB,
+//           typename FloatAcc,
+//           typename AK0MK1BlockDesc,
+//           typename BK0NK1BlockDesc,
+//           index_t MPerXDL,
+//           index_t NPerXDL,
+//           index_t MRepeat,
+//           index_t NRepeat,
+//           index_t KPack,
+//           typename ComputeTypeA = FloatA,
+//           typename ComputeTypeB = FloatB>
+// struct BlockwiseGemmXdlops_BF16X3_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
+//     : public BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
+//                                                                  FloatA,
+//                                                                  FloatB,
+//                                                                  FloatAcc,
+//                                                                  AK0MK1BlockDesc,
+//                                                                  BK0NK1BlockDesc,
+//                                                                  MPerXDL,
+//                                                                  NPerXDL,
+//                                                                  MRepeat,
+//                                                                  NRepeat,
+//                                                                  KPack,
+//                                                                  ComputeTypeA,
+//                                                                  ComputeTypeB>
+// {
+//     using Base = BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
+//                                                                      FloatA,
+//                                                                      FloatB,
+//                                                                      FloatAcc,
+//                                                                      AK0MK1BlockDesc,
+//                                                                      BK0NK1BlockDesc,
+//                                                                      MPerXDL,
+//                                                                      NPerXDL,
+//                                                                      MRepeat,
+//                                                                      NRepeat,
+//                                                                      KPack,
+//                                                                      ComputeTypeA,
+//                                                                      ComputeTypeB>;
 
-    using Base::a_block_desc_m0_m1_m2_k;
-    using Base::b_block_desc_n0_n1_n2_k;
-    using Base::c_thread_desc_;
-    using Base::I0;
-    using Base::I1;
-    using Base::KPerThread;
+//     using Base::a_block_desc_m0_m1_m2_k;
+//     using Base::b_block_desc_n0_n1_n2_k;
+//     using Base::c_thread_desc_;
+//     using Base::I0;
+//     using Base::I1;
+//     using Base::KPerThread;
 
-    // hard code to bf16. Both input reg and mfma type are bf16.
-    using DataTypeA = bhalf_t;
-    using DataTypeB = bhalf_t;
+//     // hard code to bf16. Both input reg and mfma type are bf16.
+//     using DataTypeA = bhalf_t;
+//     using DataTypeB = bhalf_t;
 
-    static constexpr auto xdlops_gemm =
-        XdlopsGemm<DataTypeA, MPerXDL, NPerXDL, KPack, DataTypeB, false, false>{};
+//     static constexpr auto xdlops_gemm =
+//         XdlopsGemm<DataTypeA, MPerXDL, NPerXDL, KPack, DataTypeB, false, false>{};
 
-    template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer>
-    __device__ void Run(const ABlockBuffer& a_block_buf,
-                        const BBlockBuffer& b_block_buf,
-                        CThreadBuffer& c_thread_buf) const
-    {
-        auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatA>(
-            a_thread_desc_.GetElementSpaceSize());
-        auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatB>(
-            b_thread_desc_.GetElementSpaceSize());
-        auto a_thread_buf_big = make_static_buffer<AddressSpaceEnum::Vgpr, DataTypeA>(
-            a_thread_desc_.GetElementSpaceSize());
-        auto b_thread_buf_big = make_static_buffer<AddressSpaceEnum::Vgpr, DataTypeB>(
-            b_thread_desc_.GetElementSpaceSize());
-        auto a_thread_buf_small = make_static_buffer<AddressSpaceEnum::Vgpr, DataTypeA>(
-            a_thread_desc_.GetElementSpaceSize());
-        auto b_thread_buf_small = make_static_buffer<AddressSpaceEnum::Vgpr, DataTypeB>(
-            b_thread_desc_.GetElementSpaceSize());
+//     template <typename ABlockBuffer, typename BBlockBuffer, typename CThreadBuffer>
+//     __device__ void Run(const ABlockBuffer& a_block_buf,
+//                         const BBlockBuffer& b_block_buf,
+//                         CThreadBuffer& c_thread_buf) const
+//     {
+//         // if(threadIdx.x == 0 && blockIdx.x == 0)
+//         // {
+//         //     printf("BlockwiseGemmXdlops_bf16x3: Run\n");
+//         // }
+//         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatA>(
+//             a_thread_desc_.GetElementSpaceSize());
+//         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, FloatB>(
+//             b_thread_desc_.GetElementSpaceSize());
+//         auto a_thread_buf_big = make_static_buffer<AddressSpaceEnum::Vgpr, DataTypeA>(
+//             a_thread_desc_.GetElementSpaceSize());
+//         auto b_thread_buf_big = make_static_buffer<AddressSpaceEnum::Vgpr, DataTypeB>(
+//             b_thread_desc_.GetElementSpaceSize());
+//         auto a_thread_buf_small = make_static_buffer<AddressSpaceEnum::Vgpr, DataTypeA>(
+//             a_thread_desc_.GetElementSpaceSize());
+//         auto b_thread_buf_small = make_static_buffer<AddressSpaceEnum::Vgpr, DataTypeB>(
+//             b_thread_desc_.GetElementSpaceSize());
 
-        static_for<0, MRepeat, 1>{}([&](auto m0) {
-            // read A
-            a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
-                               make_tuple(m0, I0, I0, I0),
-                               a_block_buf,
-                               a_thread_desc_,
-                               make_tuple(I0, I0, I0, I0),
-                               a_thread_buf);
-            static_for<0, a_thread_desc_.GetElementSpaceSize().value, 1>{}([&](auto i) {
-                a_thread_buf_big(Number<i>{})   = type_convert<DataTypeA, FloatA>(a_thread_buf[i]);
-                a_thread_buf_small(Number<i>{}) = type_convert<DataTypeA, FloatA>(
-                    a_thread_buf[i] - type_convert<FloatA, DataTypeA>(a_thread_buf_big[i]));
-            });
+//         static_for<0, MRepeat, 1>{}([&](auto m0) {
+//             // read A
+//             a_thread_copy_.Run(a_block_desc_m0_m1_m2_k,
+//                                make_tuple(m0, I0, I0, I0),
+//                                a_block_buf,
+//                                a_thread_desc_,
+//                                make_tuple(I0, I0, I0, I0),
+//                                a_thread_buf);
+//             static_for<0, a_thread_desc_.GetElementSpaceSize().value, 1>{}([&](auto i) {
+//                 a_thread_buf_big(Number<i>{})   = type_convert<DataTypeA, FloatA>(a_thread_buf[i]);
+//                 a_thread_buf_small(Number<i>{}) = type_convert<DataTypeA, FloatA>(
+//                     a_thread_buf[i] - type_convert<FloatA, DataTypeA>(a_thread_buf_big[i]));
+//             });
 
-            static_for<0, NRepeat, 1>{}([&](auto n0) {
-                // read B
-                b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
-                                   make_tuple(n0, I0, I0, I0),
-                                   b_block_buf,
-                                   b_thread_desc_,
-                                   make_tuple(I0, I0, I0, I0),
-                                   b_thread_buf);
-                static_for<0, b_thread_desc_.GetElementSpaceSize().value, 1>{}([&](auto i) {
-                    b_thread_buf_big(Number<i>{}) =
-                        type_convert<DataTypeB, FloatB>(b_thread_buf[i]);
-                    b_thread_buf_small(Number<i>{}) = type_convert<DataTypeB, FloatB>(
-                        b_thread_buf[i] - type_convert<FloatB, DataTypeB>(b_thread_buf_big[i]));
-                });
+//             static_for<0, NRepeat, 1>{}([&](auto n0) {
+//                 // read B
+//                 b_thread_copy_.Run(b_block_desc_n0_n1_n2_k,
+//                                    make_tuple(n0, I0, I0, I0),
+//                                    b_block_buf,
+//                                    b_thread_desc_,
+//                                    make_tuple(I0, I0, I0, I0),
+//                                    b_thread_buf);
+//                 static_for<0, b_thread_desc_.GetElementSpaceSize().value, 1>{}([&](auto i) {
+//                     b_thread_buf_big(Number<i>{}) =
+//                         type_convert<DataTypeB, FloatB>(b_thread_buf[i]);
+//                     b_thread_buf_small(Number<i>{}) = type_convert<DataTypeB, FloatB>(
+//                         b_thread_buf[i] - type_convert<FloatB, DataTypeB>(b_thread_buf_big[i]));
+//                 });
 
-                static_for<0, KPerThread, KPack>{}([&](auto k) {
-                    // why another register buffer? for index?
-                    vector_type<DataTypeA, KPack> a_thread_vec_big;
-                    vector_type<DataTypeB, KPack> b_thread_vec_big;
-                    vector_type<DataTypeA, KPack> a_thread_vec_small;
-                    vector_type<DataTypeB, KPack> b_thread_vec_small;
+//                 static_for<0, KPerThread, KPack>{}([&](auto k) {
+//                     // why another register buffer? for index?
+//                     vector_type<DataTypeA, KPack> a_thread_vec_big;
+//                     vector_type<DataTypeB, KPack> b_thread_vec_big;
+//                     vector_type<DataTypeA, KPack> a_thread_vec_small;
+//                     vector_type<DataTypeB, KPack> b_thread_vec_small;
 
-                    static_for<0, KPack, 1>{}([&](auto i) {
-                        auto a_idx =
-                            Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{};
-                        auto b_idx =
-                            Number<b_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{};
-                        a_thread_vec_big.template AsType<DataTypeA>()(i) = a_thread_buf_big[a_idx];
-                        b_thread_vec_big.template AsType<DataTypeB>()(i) = b_thread_buf_big[b_idx];
-                        a_thread_vec_small.template AsType<DataTypeA>()(i) =
-                            a_thread_buf_small[a_idx];
-                        b_thread_vec_small.template AsType<DataTypeB>()(i) =
-                            b_thread_buf_small[b_idx];
-                    });
+//                     static_for<0, KPack, 1>{}([&](auto i) {
+//                         auto a_idx =
+//                             Number<a_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{};
+//                         auto b_idx =
+//                             Number<b_thread_desc_.CalculateOffset(make_tuple(0, 0, 0, k + i))>{};
+//                         a_thread_vec_big.template AsType<DataTypeA>()(i) = a_thread_buf_big[a_idx];
+//                         b_thread_vec_big.template AsType<DataTypeB>()(i) = b_thread_buf_big[b_idx];
+//                         a_thread_vec_small.template AsType<DataTypeA>()(i) =
+//                             a_thread_buf_small[a_idx];
+//                         b_thread_vec_small.template AsType<DataTypeB>()(i) =
+//                             b_thread_buf_small[b_idx];
+//                     });
 
-                    using mfma_input_type_a =
-                        typename vector_type<DataTypeA, xdlops_gemm.K1PerXdlops>::type;
-                    using mfma_input_type_b =
-                        typename vector_type<DataTypeB, xdlops_gemm.K1PerXdlops>::type;
+//                     using mfma_input_type_a =
+//                         typename vector_type<DataTypeA, xdlops_gemm.K1PerXdlops>::type;
+//                     using mfma_input_type_b =
+//                         typename vector_type<DataTypeB, xdlops_gemm.K1PerXdlops>::type;
 
-                    constexpr index_t c_offset =
-                        c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
+//                     constexpr index_t c_offset =
+//                         c_thread_desc_.CalculateOffset(make_tuple(m0, n0, 0));
 
-                    xdlops_gemm.Run(a_thread_vec_big.template AsType<mfma_input_type_a>(),
-                                    b_thread_vec_small.template AsType<mfma_input_type_b>(),
-                                    c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
-                    xdlops_gemm.Run(a_thread_vec_small.template AsType<mfma_input_type_a>(),
-                                    b_thread_vec_big.template AsType<mfma_input_type_b>(),
-                                    c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
-                    xdlops_gemm.Run(a_thread_vec_big.template AsType<mfma_input_type_a>(),
-                                    b_thread_vec_big.template AsType<mfma_input_type_b>(),
-                                    c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
-                });
-            });
-        });
-    }
+//                     xdlops_gemm.Run(a_thread_vec_big.template AsType<mfma_input_type_a>(),
+//                                     b_thread_vec_small.template AsType<mfma_input_type_b>(),
+//                                     c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+//                     xdlops_gemm.Run(a_thread_vec_small.template AsType<mfma_input_type_a>(),
+//                                     b_thread_vec_big.template AsType<mfma_input_type_b>(),
+//                                     c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+//                     xdlops_gemm.Run(a_thread_vec_big.template AsType<mfma_input_type_a>(),
+//                                     b_thread_vec_big.template AsType<mfma_input_type_b>(),
+//                                     c_thread_buf.GetVectorTypeReference(Number<c_offset>{}));
+//                 });
+//             });
+//         });
+//     }
 
-    protected:
-    // A[M0, M1, M2, KPerThread]
-    static constexpr auto a_thread_desc_ =
-        make_naive_tensor_descriptor_packed(make_tuple(I1, I1, I1, Number<KPerThread>{}));
+//     protected:
+//     // A[M0, M1, M2, KPerThread]
+//     static constexpr auto a_thread_desc_ =
+//         make_naive_tensor_descriptor_packed(make_tuple(I1, I1, I1, Number<KPerThread>{}));
 
-    // B[N0, N1, N2, KPerThread]
-    static constexpr auto b_thread_desc_ =
-        make_naive_tensor_descriptor_packed(make_tuple(I1, I1, I1, Number<KPerThread>{}));
+//     // B[N0, N1, N2, KPerThread]
+//     static constexpr auto b_thread_desc_ =
+//         make_naive_tensor_descriptor_packed(make_tuple(I1, I1, I1, Number<KPerThread>{}));
 
-    using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatA,
-                                                         FloatA,
-                                                         decltype(a_block_desc_m0_m1_m2_k),
-                                                         decltype(a_thread_desc_),
-                                                         Sequence<1, 1, 1, KPerThread>,
-                                                         Sequence<0, 1, 2, 3>,
-                                                         3,
-                                                         Base::A_K1,
-                                                         Base::A_K1>;
+//     using AThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatA,
+//                                                          FloatA,
+//                                                          decltype(a_block_desc_m0_m1_m2_k),
+//                                                          decltype(a_thread_desc_),
+//                                                          Sequence<1, 1, 1, KPerThread>,
+//                                                          Sequence<0, 1, 2, 3>,
+//                                                          3,
+//                                                          Base::A_K1,
+//                                                          Base::A_K1>;
 
-    using BThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatB,
-                                                         FloatB,
-                                                         decltype(b_block_desc_n0_n1_n2_k),
-                                                         decltype(b_thread_desc_),
-                                                         Sequence<1, 1, 1, KPerThread>,
-                                                         Sequence<0, 1, 2, 3>,
-                                                         3,
-                                                         Base::B_K1,
-                                                         Base::B_K1>;
+//     using BThreadCopy = ThreadwiseTensorSliceTransfer_v4<FloatB,
+//                                                          FloatB,
+//                                                          decltype(b_block_desc_n0_n1_n2_k),
+//                                                          decltype(b_thread_desc_),
+//                                                          Sequence<1, 1, 1, KPerThread>,
+//                                                          Sequence<0, 1, 2, 3>,
+//                                                          3,
+//                                                          Base::B_K1,
+//                                                          Base::B_K1>;
 
-    AThreadCopy a_thread_copy_{Base::CalculateAThreadOriginDataIndex()};
-    BThreadCopy b_thread_copy_{Base::CalculateBThreadOriginDataIndex()};
-};
+//     AThreadCopy a_thread_copy_{Base::CalculateAThreadOriginDataIndex()};
+//     BThreadCopy b_thread_copy_{Base::CalculateBThreadOriginDataIndex()};
+// };
 
 template <index_t BlockSize,
           typename FloatA,
@@ -810,47 +818,47 @@ template <index_t BlockSize,
 constexpr auto BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector()
 {
 
-#if defined(__gfx950__)
-    constexpr bool is_supported_arch = true;
-#else
-    constexpr bool is_supported_arch = false;
-#endif
+// #if defined(__gfx950__)
+//     constexpr bool is_supported_arch = true;
+// #else
+//     constexpr bool is_supported_arch = false;
+// #endif
 
     if constexpr(LoopSched == LoopScheduler::Default)
     {
-        if constexpr(is_supported_arch && is_same_v<FloatA, float> && is_same_v<FloatB, float> &&
-                     is_same_v<ComputeTypeA, tf32_t> && is_same_v<ComputeTypeB, tf32_t>)
-        {
-            return BlockwiseGemmXdlopsBF16X3_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
-                                                                             FloatA,
-                                                                             FloatB,
-                                                                             FloatAcc,
-                                                                             AK0MK1BlockDesc,
-                                                                             BK0NK1BlockDesc,
-                                                                             MPerXDL,
-                                                                             NPerXDL,
-                                                                             MRepeat,
-                                                                             NRepeat,
-                                                                             KPack,
-                                                                             ComputeTypeA,
-                                                                             ComputeTypeB>{};
-        }
-        else
-        {
-            return BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
-                                                                       FloatA,
-                                                                       FloatB,
-                                                                       FloatAcc,
-                                                                       AK0MK1BlockDesc,
-                                                                       BK0NK1BlockDesc,
-                                                                       MPerXDL,
-                                                                       NPerXDL,
-                                                                       MRepeat,
-                                                                       NRepeat,
-                                                                       KPack,
-                                                                       ComputeTypeA,
-                                                                       ComputeTypeB>{};
-        }
+        // if constexpr(is_supported_arch && is_same_v<FloatA, float> && is_same_v<FloatB, float> &&
+        //              is_same_v<ComputeTypeA, tf32_t> && is_same_v<ComputeTypeB, tf32_t>)
+        // {
+        //     return BlockwiseGemmXdlops_BF16X3_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
+        //                                                                       FloatA,
+        //                                                                       FloatB,
+        //                                                                       FloatAcc,
+        //                                                                       AK0MK1BlockDesc,
+        //                                                                       BK0NK1BlockDesc,
+        //                                                                       MPerXDL,
+        //                                                                       NPerXDL,
+        //                                                                       MRepeat,
+        //                                                                       NRepeat,
+        //                                                                       KPack,
+        //                                                                       ComputeTypeA,
+        //                                                                       ComputeTypeB>{};
+        // }
+        // else
+        // {
+        return BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,
+                                                                   FloatA,
+                                                                   FloatB,
+                                                                   FloatAcc,
+                                                                   AK0MK1BlockDesc,
+                                                                   BK0NK1BlockDesc,
+                                                                   MPerXDL,
+                                                                   NPerXDL,
+                                                                   MRepeat,
+                                                                   NRepeat,
+                                                                   KPack,
+                                                                   ComputeTypeA,
+                                                                   ComputeTypeB>{};
+            // }
     }
     else if constexpr(LoopSched == LoopScheduler::Interwave)
     {
