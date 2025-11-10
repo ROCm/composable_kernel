@@ -59,7 +59,7 @@ struct unified_attention_kernel_traits
     static constexpr bool is_masking         = IsMasking;
 
     //                                    BLOCK_M BLOCK_Q   BLOCK_SIZE  HEAD_SIZE
-    using unified_attention_block_tile      = sequence<128, 32, 128, 128>;
+    using unified_attention_block_tile      = sequence<256, 64, 128, 128>;
     using unified_attention_warp_gemm_shape = sequence<32, 32, 16>;
     using unified_attention_block_warps     = sequence<8, 1, 1>;
 

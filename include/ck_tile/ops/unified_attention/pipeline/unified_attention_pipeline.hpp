@@ -277,8 +277,7 @@ struct UnifiedAttentionPipeline
 
     static_assert(HEAD_SIZE_PADDED <= 256, "hdim bigger than 256 is not suitable for this pipeline!");
 
-    static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK  = Problem::kPadSeqLenK;
+    // static constexpr bool kPadSeqLenQ  = Problem::kPadSeqLenQ;
     static constexpr bool kPadHeadDimQ = Problem::kPadHeadDim;
     static constexpr bool kPadHeadDimV = Problem::kPadHeadDim;
     // static constexpr bool kStoreLSE    = Problem::kStoreLSE;
@@ -385,6 +384,8 @@ struct UnifiedAttentionPipeline
                                    [[maybe_unused]] const KElementFunction& k_element_func,
                                    const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
                                    [[maybe_unused]] const VElementFunction& v_element_func,
+                                   const index_t num_blocks,
+                                   const index_t num_blocks_start,
                                    const void* block_tables_ptr,
                                    index_t block_table_offset,
                                    [[maybe_unused]] const SAccElementFunction& s_acc_element_func,
@@ -540,16 +541,18 @@ struct UnifiedAttentionPipeline
         clear_tile(l);
 
         const auto q_origin = q_dram_window.get_window_origin();
-        const auto [seqlen_k_start, seqlen_k_end] =
-            mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<BLOCK_M>{}, number<BLOCK_SIZE>{});
+        // const auto [seqlen_k_start, seqlen_k_end] =
+        //     mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<BLOCK_M>{}, number<BLOCK_SIZE>{});
 
-        const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, BLOCK_SIZE);
-        index_t kv_token_start    = seqlen_k_start;
+        // const auto num_total_loop = integer_divide_ceil(seqlen_k_end - seqlen_k_start, BLOCK_SIZE);
+        const auto num_total_loop = num_blocks;
+        // index_t kv_token_start    = seqlen_k_start;
 
+        // TODO check is paddings kPadSeqLenK
         // check early exit if no work to do
-        if constexpr(FmhaMask::IsMasking || kPadSeqLenK)
+        if constexpr(FmhaMask::IsMasking)
         {
-            if(num_total_loop <= 0)
+            if(num_total_loop - num_blocks_start <= 0)
             {
                 
 
@@ -559,7 +562,7 @@ struct UnifiedAttentionPipeline
             }
         }
 
-        index_t i_total_loops      = 0;
+        index_t i_total_loops      = num_blocks_start;
         const ck_tile::index_t* block_tables_ptr_ = reinterpret_cast<const ck_tile::index_t*>(block_tables_ptr);
         index_t kv_blk_idx = block_tables_ptr_[block_table_offset + i_total_loops]; 
         index_t kv_blk_idx_prev = 0; 
@@ -889,10 +892,10 @@ struct UnifiedAttentionPipeline
         };
 
         auto fmha_mask = [&](auto sp_reg_idx) {
-            if constexpr(kPadSeqLenK || FmhaMask::IsMasking)
+            if constexpr(FmhaMask::IsMasking)
             {
                 bool need_perpixel_check = mask.IsEdgeTile(
-                    q_origin.at(number<0>{}), kv_token_start, number<BLOCK_M>{}, number<BLOCK_SIZE>{});
+                    q_origin.at(number<0>{}), i_total_loops * BLOCK_SIZE, number<BLOCK_M>{}, number<BLOCK_SIZE>{});
                 if(need_perpixel_check)
                 {
                     set_tile_if(sp(sp_reg_idx).sp_compute,
@@ -900,7 +903,7 @@ struct UnifiedAttentionPipeline
                                 [&](auto tile_idx) {
                                     const auto row =
                                         q_origin.at(number<0>{}) + tile_idx.at(number<0>{});
-                                    const auto col = kv_token_start + tile_idx.at(number<1>{});
+                                    const auto col = i_total_loops * BLOCK_SIZE + tile_idx.at(number<1>{});
                                     return mask.IsOutOfBound(row, col);
                                 });
                 }
@@ -975,6 +978,7 @@ struct UnifiedAttentionPipeline
                     __builtin_amdgcn_s_barrier();
                     __builtin_amdgcn_sched_barrier(0);
                     cl_load(memK, K_w0_lds_wr_idx, V_w0_lds_rd_idx);
+                    // TODO what is this???
                     Scheduler::schedule(cl_p, number<1>{});
                     fmha_mask(xdl_SP_p01_reg_idx);
 
@@ -1003,7 +1007,7 @@ struct UnifiedAttentionPipeline
                     cl_load(memV, V_w0_lds_wr_idx, K_w0_lds_rd_idx);
 
                     Scheduler::schedule(cl_p, number<3>{});
-                    kv_token_start += BLOCK_SIZE;
+                    // kv_token_start += BLOCK_SIZE;
                     if(num_total_loop <= ++i_total_loops)
                     {
                         result = false;
@@ -1050,7 +1054,7 @@ struct UnifiedAttentionPipeline
                     Scheduler::schedule(cl_p, number<2>{});
                     fmha_mask(xdl_SP_p01_reg_idx);
 
-                    kv_token_start += BLOCK_SIZE;
+                    // kv_token_start += BLOCK_SIZE;
                     if(num_total_loop <= ++i_total_loops)
                     {
                         result = false;
@@ -1128,7 +1132,7 @@ struct UnifiedAttentionPipeline
             fmha_alu0(number<0>{});
             fmha_alu_D_upd();
 
-            kv_token_start += BLOCK_SIZE;
+            // kv_token_start += BLOCK_SIZE;
             ++i_total_loops;
             if(num_total_loop <= i_total_loops)
             {
@@ -1207,6 +1211,8 @@ struct UnifiedAttentionPipeline
     CK_TILE_DEVICE auto operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*K0 tile
                                    const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*K0 tile
                                    const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
+                                   const index_t num_blocks,
+                                   const index_t num_blocks_start,
                                    const void* block_tables_ptr,
                                    index_t block_table_offset,
                                    FmhaMask mask,
@@ -1221,6 +1227,8 @@ struct UnifiedAttentionPipeline
                           identity{},
                           v_dram_block_window_tmp,
                           identity{},
+                          num_blocks,
+                          num_blocks_start,
                           block_tables_ptr,
                           block_table_offset,
                           identity{},

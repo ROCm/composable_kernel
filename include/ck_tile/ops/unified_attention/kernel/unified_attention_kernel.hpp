@@ -319,16 +319,24 @@ struct UnifiedAttentionKernel
         const index_t query_pos = q_block_local_idx * BLOCK_Q;
         const index_t seq_len = kargs.seq_lens_ptr[seq_idx];
 
-        // const index_t context_len = seq_len - cur_batch_query_len;
+        const index_t context_len = seq_len - cur_batch_query_len;
 
-        // const index_t max_seq_prefix_len = (
-        //     context_len
-        //     + q_block_local_idx * BLOCK_Q
-        //     + (BLOCK_M - 1) // num_queries_per_kv
-        //     + 1
-        // );
+        index_t _max_seq_prefix_len = (
+            context_len
+            + q_block_local_idx * BLOCK_Q
+            + (BLOCK_M - 1) // num_queries_per_kv
+            + 1
+        );
 
+        if (seq_len < _max_seq_prefix_len) {
+            _max_seq_prefix_len = seq_len;
+        }
 
+        const auto max_seq_prefix_len = _max_seq_prefix_len;
+        const index_t num_blocks = (max_seq_prefix_len + BLOCK_SIZE - 1) / BLOCK_SIZE;
+
+        // TODO sliding window
+        const index_t num_blocks_start = 0;
         index_t kv_head_offset = kv_head_idx * kargs.stride_k_cache_2;
         
         // Q/K/V DRAM and DRAM window
@@ -473,6 +481,8 @@ struct UnifiedAttentionKernel
             return UnifiedAttentionPipeline{}(q_dram_window,
                                   k_dram_window,
                                   v_dram_window,
+                                  num_blocks,
+                                  num_blocks_start,
                                   kargs.block_tables_ptr,
                                   block_table_offset, 
                                   mask,
