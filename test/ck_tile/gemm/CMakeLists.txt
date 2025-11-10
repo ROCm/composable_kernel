@@ -22,6 +22,12 @@ else()
     message(DEBUG "Skipping ck_tile_gemm tests for current target")
 endif()
 
+
+if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
+    add_gtest_executable(test_gemm_pipeline_compiler test_gemm_pipeline_compiler.cpp)
+    target_compile_options(test_gemm_pipeline_compiler PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+endif()
+
 if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     add_gtest_executable(test_ck_tile_gemm_pipeline_universal_fp8 test_gemm_pipeline_universal_fp8.cpp)
     add_gtest_executable(test_ck_tile_gemm_pipeline_universal_bf8 test_gemm_pipeline_universal_bf8.cpp)
