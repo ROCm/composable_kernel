@@ -160,6 +160,7 @@ unsigned get_num_thread_blocks(unsigned batch, unsigned nheads, unsigned max_seq
 } // namespace
 """
 FMHA_FWD_API_FUNC_TEMPLATE = """
+namespace {{
 float {F_func_name}([[maybe_unused]] fmha_fwd_traits t, [[maybe_unused]] fmha_fwd_args a, [[maybe_unused]] const ck_tile::stream_config& s) {{
     float r = -1;
 
@@ -179,11 +180,17 @@ float {F_func_name}([[maybe_unused]] fmha_fwd_traits t, [[maybe_unused]] fmha_fw
 {F_dispatch}
     return r;
 }}
+}} // namespace
 """
-FMHA_FWD_API_FOOTER = """
-float fmha_fwd(fmha_fwd_traits traits, fmha_fwd_args args, const ck_tile::stream_config& config) {
-    return autogen_fmha_fwd_v2(traits, args, config);
-}
+FMHA_FWD_API_FOOTER_TEMPLATE = """
+float fmha_fwd(fmha_fwd_traits traits, fmha_fwd_args args, const ck_tile::stream_config& config) {{
+    const bool can_dispatch_v3 = false;
+    if ({F_is_v3_enabled} and can_dispatch_v3) {{
+        return fmha_fwd_v3(traits, args, config);
+    }} else {{
+        return fmha_fwd_v2(traits, args, config);
+    }}
+}}
 """
 
 FMHA_FWD_API_PER_ARCH = """{F_if}({F_arch.device_name_check}) {{
@@ -444,16 +451,35 @@ class FmhaFwdApiPool:
         check_duplicates_and_paddings(ts, trait)
         ts.append(copy.copy(trait))
 
-    def render(
-        self, func_name, filter: Optional[Callable[[FmhaFwdApiTrait], bool]] = None
-    ) -> str:
-        if filter is None:
+    def get_num_traits(
+        self, filter_fn: Optional[Callable[[FmhaFwdApiTrait], bool]] = None
+    ) -> int:
+        if filter_fn is None:
 
             def accept_all(trait: FmhaFwdApiTrait) -> bool:
                 return True
 
-            filter = accept_all
+            filter_fn = accept_all
 
+        return sum(
+            sum(1 for trait in pool_by_hdim if filter_fn(trait))
+            for pool_by_arch in self.pool.values()
+            for pool_by_dtype in pool_by_arch.values()
+            for pool_by_hdim in pool_by_dtype.values()
+        )
+
+    def render(
+        self, func_name, filter_fn: Optional[Callable[[FmhaFwdApiTrait], bool]] = None
+    ) -> str:
+        if filter_fn is None:
+
+            def accept_all(trait: FmhaFwdApiTrait) -> bool:
+                return True
+
+            filter_fn = accept_all
+
+        # TODO: Stop generating empty if-clauses. To fix this, skip iterating over
+        # dictionaries that have no traits, and avoid assigning i_* to them.
         per_arch = str()
         for i_arch, (arch, pool_by_arch) in enumerate(self.pool.items()):
             per_dtypes = str()
@@ -465,7 +491,7 @@ class FmhaFwdApiPool:
                     max_bm0 = max((t.bm0 for t in pool_by_hdim), default=0)
                     inners = str()
                     for i_trait, trait in enumerate(
-                        [trait for trait in pool_by_hdim if filter(trait)]
+                        [trait for trait in pool_by_hdim if filter_fn(trait)]
                     ):
                         inners += FMHA_FWD_API_INNER_DISPATCH.format(
                             F_if=if_(i_trait),
@@ -1278,9 +1304,13 @@ def write_fwd_api(
 
     content = (
         FMHA_FWD_API_HEADER
-        + api_pool.render("autogen_fmha_fwd_v2", filter=accept_only_v2)
-        + api_pool.render("autogen_fmha_fwd_v3", filter=accept_only_v3)
-        + FMHA_FWD_API_FOOTER
+        + api_pool.render("fmha_fwd_v2", filter_fn=accept_only_v2)
+        + api_pool.render("fmha_fwd_v3", filter_fn=accept_only_v3)
+        + FMHA_FWD_API_FOOTER_TEMPLATE.format(
+            F_is_v3_enabled=BOOL_MAP[
+                0 < api_pool.get_num_traits(filter_fn=accept_only_v3)
+            ]
+        )
     )
     update_file(autogen_dir / FMHA_FWD_API_FILENAME, content)
 
