@@ -10,6 +10,25 @@ namespace ck {
 #define __gfx94__
 #endif
 
+// Helper function to convert float vector to bf16 vectors (big and small parts)
+// This is used by both tf32 and xf32 implementations
+template <index_t VecSize>
+__device__ __forceinline__ void
+convert_float_to_bf16_pairs(const vector_type<float, VecSize>& reg_f32,
+                            vector_type<bhalf_t, VecSize>& reg_bf16_big,
+                            vector_type<bhalf_t, VecSize>& reg_bf16_small)
+{
+    static_for<0, VecSize, 1>{}([&](auto k) {
+        using IK = Number<k>;
+        reg_bf16_big.template AsType<bhalf_t>()(k) =
+            type_convert<bhalf_t, float>(reg_f32.template AsType<float>()[IK{}]);
+        reg_bf16_small.template AsType<bhalf_t>()(k) = type_convert<bhalf_t, float>(
+            reg_f32.template AsType<float>()[IK{}] -
+            type_convert<float, bhalf_t>(reg_bf16_big.template AsType<bhalf_t>()[IK{}]));
+    });
+}
+/* */
+
 // fp32
 template <index_t MPerWave, index_t NPerWave>
 struct intrin_mfma_f32_32x32x1f32;
@@ -1666,7 +1685,33 @@ struct intrin_mfma_f32_32x32x4xf32<32, 32>
     template <class FloatC>
     __device__ static void Run(const float2_t& reg_a, const float2_t& reg_b, FloatC& reg_c)
     {
-#if defined(__gfx94__)
+#if defined(__gfx950__)
+        // simulation: details is same as tf32 on gfx950
+        using I0 = Number<0>;
+        vector_type<float, 2> reg_a_v(reg_a);
+        vector_type<float, 2> reg_b_v(reg_b);
+
+        vector_type<bhalf_t, 2> v_reg_a_bf16_big;
+        vector_type<bhalf_t, 2> v_reg_a_bf16_small;
+        vector_type<bhalf_t, 2> v_reg_b_bf16_big;
+        vector_type<bhalf_t, 2> v_reg_b_bf16_small;
+
+        convert_float_to_bf16_pairs(reg_a_v, v_reg_a_bf16_big, v_reg_a_bf16_small);
+        convert_float_to_bf16_pairs(reg_b_v, v_reg_b_bf16_big, v_reg_b_bf16_small);
+
+        // Run 3 times: big*big, small*big, big*small
+        intrin_mfma_f32_32x32x4bf16<32, 32>::Run(
+            v_reg_a_bf16_small.template AsType<bhalf2_t>()[I0{}],
+            v_reg_b_bf16_big.template AsType<bhalf2_t>()[I0{}],
+            reg_c);
+        intrin_mfma_f32_32x32x4bf16<32, 32>::Run(
+            v_reg_a_bf16_big.template AsType<bhalf2_t>()[I0{}],
+            v_reg_b_bf16_small.template AsType<bhalf2_t>()[I0{}],
+            reg_c);
+        intrin_mfma_f32_32x32x4bf16<32, 32>::Run(v_reg_a_bf16_big.template AsType<bhalf2_t>()[I0{}],
+                                                 v_reg_b_bf16_big.template AsType<bhalf2_t>()[I0{}],
+                                                 reg_c);
+#elif defined(__gfx94__)
         reg_c.template AsType<float16_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_32x32x4_xf32(
             reg_a, reg_b, reg_c.template AsType<float16_t>()[Number<0>{}], 0, 0, 0);
 #else
@@ -1676,10 +1721,9 @@ struct intrin_mfma_f32_32x32x4xf32<32, 32>
 #endif
     }
 };
-/******************* tf32 on gfx942 end *********************************/
 
-/******************* tf32 on gfx950 *************************************/
-/* bf16x3 simulate tf32: input/output/accumulator are all float;        */
+/******************* tf32/xf32 on gfx950 ********************************/
+/* bf16x3 simulate tf32/xf32: input/output/accumulator are all float;   */
 /* step:                                                                */
 /*  1. separate one input to 2 bf16 registers:                          */
 /*      in_bf16_big = f32_to_bf16(in_f32)                               */
@@ -1708,41 +1752,22 @@ struct intrin_mfma_f32_16x16x32xf32<16, 16>
         vector_type<bhalf_t, 8> v_reg_b_bf16_big;
         vector_type<bhalf_t, 8> v_reg_b_bf16_small;
 
-        static_for<0, 8, 1>{}([&](auto k) {
-            using IK = Number<k>;
-            v_reg_a_bf16_big.template AsType<bhalf_t>()(k) =
-                type_convert<bhalf_t, float>(reg_a_v.template AsType<float>()[IK{}]);
-            v_reg_a_bf16_small.template AsType<bhalf_t>()(k) = type_convert<bhalf_t, float>(
-                reg_a_v.template AsType<float>()[IK{}] -
-                type_convert<float, bhalf_t>(v_reg_a_bf16_big.template AsType<bhalf_t>()[IK{}]));
-            v_reg_b_bf16_big.template AsType<bhalf_t>()(k) =
-                type_convert<bhalf_t, float>(reg_b_v.template AsType<float>()[IK{}]);
-            v_reg_b_bf16_small.template AsType<bhalf_t>()(k) = type_convert<bhalf_t, float>(
-                reg_b_v.template AsType<float>()[IK{}] -
-                type_convert<float, bhalf_t>(v_reg_b_bf16_big.template AsType<bhalf_t>()[IK{}]));
-        });
+        convert_float_to_bf16_pairs(reg_a_v, v_reg_a_bf16_big, v_reg_a_bf16_small);
+        convert_float_to_bf16_pairs(reg_b_v, v_reg_b_bf16_big, v_reg_b_bf16_small);
 
-        reg_c.template AsType<float4_t>()(I0{}) = __builtin_amdgcn_mfma_f32_16x16x32_bf16(
-            v_reg_a_bf16_big.template AsType<bhalf8_t>()[I0{}],
-            v_reg_b_bf16_small.template AsType<bhalf8_t>()[I0{}],
-            reg_c.template AsType<float4_t>()[I0{}],
-            0,
-            0,
-            0);
-        reg_c.template AsType<float4_t>()(I0{}) = __builtin_amdgcn_mfma_f32_16x16x32_bf16(
+        // Run 3 times: big*big, small*big, big*small
+        intrin_mfma_f32_16x16x32bf16<16, 16>::Run(
             v_reg_a_bf16_small.template AsType<bhalf8_t>()[I0{}],
             v_reg_b_bf16_big.template AsType<bhalf8_t>()[I0{}],
-            reg_c.template AsType<float4_t>()[I0{}],
-            0,
-            0,
-            0);
-        reg_c.template AsType<float4_t>()(I0{}) = __builtin_amdgcn_mfma_f32_16x16x32_bf16(
+            reg_c);
+        intrin_mfma_f32_16x16x32bf16<16, 16>::Run(
+            v_reg_a_bf16_big.template AsType<bhalf8_t>()[I0{}],
+            v_reg_b_bf16_small.template AsType<bhalf8_t>()[I0{}],
+            reg_c);
+        intrin_mfma_f32_16x16x32bf16<16, 16>::Run(
             v_reg_a_bf16_big.template AsType<bhalf8_t>()[I0{}],
             v_reg_b_bf16_big.template AsType<bhalf8_t>()[I0{}],
-            reg_c.template AsType<float4_t>()[I0{}],
-            0,
-            0,
-            0);
+            reg_c);
 #else
         ignore = reg_a;
         ignore = reg_b;
@@ -1770,41 +1795,22 @@ struct intrin_mfma_f32_32x32x16xf32<32, 32>
         vector_type<bhalf_t, 8> v_reg_b_bf16_big;
         vector_type<bhalf_t, 8> v_reg_b_bf16_small;
 
-        static_for<0, 8, 1>{}([&](auto k) {
-            using IK = Number<k>;
-            v_reg_a_bf16_big.template AsType<bhalf_t>()(k) =
-                type_convert<bhalf_t, float>(reg_a_v.template AsType<float>()[IK{}]);
-            v_reg_a_bf16_small.template AsType<bhalf_t>()(k) = type_convert<bhalf_t, float>(
-                reg_a_v.template AsType<float>()[IK{}] -
-                type_convert<float, bhalf_t>(v_reg_a_bf16_big.template AsType<bhalf_t>()[IK{}]));
-            v_reg_b_bf16_big.template AsType<bhalf_t>()(k) =
-                type_convert<bhalf_t, float>(reg_b_v.template AsType<float>()[IK{}]);
-            v_reg_b_bf16_small.template AsType<bhalf_t>()(k) = type_convert<bhalf_t, float>(
-                reg_b_v.template AsType<float>()[IK{}] -
-                type_convert<float, bhalf_t>(v_reg_b_bf16_big.template AsType<bhalf_t>()[IK{}]));
-        });
+        convert_float_to_bf16_pairs(reg_a_v, v_reg_a_bf16_big, v_reg_a_bf16_small);
+        convert_float_to_bf16_pairs(reg_b_v, v_reg_b_bf16_big, v_reg_b_bf16_small);
 
-        reg_c.template AsType<float16_t>()(I0{}) = __builtin_amdgcn_mfma_f32_32x32x16_bf16(
-            v_reg_a_bf16_big.template AsType<bhalf8_t>()[I0{}],
-            v_reg_b_bf16_small.template AsType<bhalf8_t>()[I0{}],
-            reg_c.template AsType<float16_t>()[I0{}],
-            0,
-            0,
-            0);
-        reg_c.template AsType<float16_t>()(I0{}) = __builtin_amdgcn_mfma_f32_32x32x16_bf16(
+        // Run 3 times: big*big, small*big, big*small
+        intrin_mfma_f32_32x32x16bf16<32, 32>::Run(
             v_reg_a_bf16_small.template AsType<bhalf8_t>()[I0{}],
             v_reg_b_bf16_big.template AsType<bhalf8_t>()[I0{}],
-            reg_c.template AsType<float16_t>()[I0{}],
-            0,
-            0,
-            0);
-        reg_c.template AsType<float16_t>()(I0{}) = __builtin_amdgcn_mfma_f32_32x32x16_bf16(
+            reg_c);
+        intrin_mfma_f32_32x32x16bf16<32, 32>::Run(
+            v_reg_a_bf16_big.template AsType<bhalf8_t>()[I0{}],
+            v_reg_b_bf16_small.template AsType<bhalf8_t>()[I0{}],
+            reg_c);
+        intrin_mfma_f32_32x32x16bf16<32, 32>::Run(
             v_reg_a_bf16_big.template AsType<bhalf8_t>()[I0{}],
             v_reg_b_bf16_big.template AsType<bhalf8_t>()[I0{}],
-            reg_c.template AsType<float16_t>()[I0{}],
-            0,
-            0,
-            0);
+            reg_c);
 #else
         ignore = reg_a;
         ignore = reg_b;
@@ -1813,5 +1819,5 @@ struct intrin_mfma_f32_32x32x16xf32<32, 32>
     }
 };
 
-/******************* tf32 on gfx950 end ************************************/
+/******************* tf32/xf32 on gfx950 end ************************************/
 } // namespace ck
