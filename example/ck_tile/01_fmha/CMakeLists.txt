@@ -57,10 +57,15 @@ set(FMHA_BWD_CODE_GEN_COMMON_ARGS
 )
 
 # Reduce building time by disabling instances that are not currently used in the gtests
+# TODO: Consider to use a special receipt for testing only, or even two receipts: a small subset of
+# instances for quick CI runs and a larger subset for scheduled runs (the tests skip tests when
+# there is no corresponding instance for parameters).
 if(BUILD_TESTING)
+  # Filters are in the order of FMHA_FWD_KNOWN_APIS: fwd,fwd_splitkv_combine@fwd_splitkv,fwd_appendkv,pagedkv_prefill
   list(APPEND FMHA_FWD_CODE_GEN_COMMON_ARGS --filter *_nlogits*_nskip*,*@*_nlogits*_nbias*,*,*_nlogits*_nskip*_pagedkv)
 endif()
 
+# generate a list of kernels, but not actually emit files at config sta
 execute_process(
   COMMAND ${Python3_EXECUTABLE} ${FMHA_FWD_CODE_GEN_COMMON_ARGS}
   --list_blobs ${CMAKE_CURRENT_BINARY_DIR}/fwd_blob_list.txt
@@ -79,6 +84,8 @@ if(ret AND NOT ret EQUAL 0)
   message(FATAL_ERROR "CK Tile FMHA FAILED to generate a list of BWD kernels via Python.")
 endif()
 
+# NOTE: for cmake, the FMHA_FWD_GEN_BLOBS/FMHA_BWD_GEN_BLOBS files must be in the same directory
+#       as current cmake list, otherwise will not figure out the dependency properly
 file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/fwd_blob_list.txt FMHA_FWD_GEN_BLOBS)
 file(STRINGS ${CMAKE_CURRENT_BINARY_DIR}/bwd_blob_list.txt FMHA_BWD_GEN_BLOBS)
 
@@ -120,11 +127,17 @@ set(FMHA_BWD_PRIVATE_COMPILE_OPTIONS)
 set(FMHA_FWD_INTERFACE_COMPILE_OPTIONS)
 set(FMHA_BWD_INTERFACE_COMPILE_OPTIONS)
 
+# NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
+#       ... because they are auto-generated
 list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -Wno-undefined-func-template)
 list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -Wno-undefined-func-template)
+
+# Allow comparing floating points directly in order to check sentinel values
 list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -Wno-float-equal)
 list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -Wno-float-equal)
 
+# NOTE: this is dangerous since will change the whole kernel to flush denormals
+#       WIP with compiler team for an exp2 intrinsic..., then remove this
 if(NOT DEFINED FMHA_FWD_FAST_EXP2)
   set(FMHA_FWD_FAST_EXP2 ON)
 endif()
@@ -136,29 +149,34 @@ else()
 endif()
 list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -fgpu-flush-denormals-to-zero)
 
+# conditionally enable call to the fwd_splitkv API in fmha_fwd example and tests
 if("fwd_splitkv" IN_LIST FMHA_FWD_ENABLE_APIS)
   list(APPEND FMHA_FWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_SPLITKV_API=1)
 else()
   list(APPEND FMHA_FWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_SPLITKV_API=0)
 endif()
 
+# conditionally enable call to the fwd_appendkv API in fmha_fwd example and tests
 if("fwd_appendkv" IN_LIST FMHA_FWD_ENABLE_APIS)
   list(APPEND FMHA_FWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=1)
 else()
   list(APPEND FMHA_FWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_APPENDKV_API=0)
 endif()
 
+# conditionally enable call to the pagedkv_prefill API in fmha_fwd example and tests
 if("pagedkv_prefill" IN_LIST FMHA_FWD_ENABLE_APIS)
   list(APPEND FMHA_FWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_PAGEDKV_API=1)
 else()
   list(APPEND FMHA_FWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_FMHA_FWD_PAGEDKV_API=0)
 endif()
 
+# conditionally specify the use of OCP_FP8
 if(CK_USE_OCP_FP8)
   list(APPEND FMHA_FWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
   list(APPEND FMHA_FWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
 endif()
 
+# use RTN_ASM on float to bfloat16 conversion by default, align with FA upstream
 list(APPEND FMHA_BWD_PRIVATE_COMPILE_OPTIONS -DCK_TILE_FLOAT_TO_BFLOAT16_DEFAULT=3)
 list(APPEND FMHA_BWD_INTERFACE_COMPILE_OPTIONS -DCK_TILE_FLOAT_TO_BFLOAT16_DEFAULT=3)
 
@@ -173,11 +191,15 @@ set(EXAMPLE_FMHA_FWD "tile_example_fmha_fwd")
 set(EXAMPLE_FMHA_BWD "tile_example_fmha_bwd")
 
 message(DEBUG "adding example ${EXAMPLE_FMHA_FWD}")
+# not using add_example_executable() to add this target, since we don't want this to be included in
+# "make all/install/check"
 add_executable(${EXAMPLE_FMHA_FWD} EXCLUDE_FROM_ALL example_fmha_fwd.cpp)
 target_link_libraries(${EXAMPLE_FMHA_FWD} ${FMHA_FWD_INSTANCES})
 target_include_directories(${EXAMPLE_FMHA_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 
 message(DEBUG "adding example ${EXAMPLE_FMHA_BWD}")
+# not using add_example_executable() to add this target, since we don't want this to be included in
+# "make all/install/check"
 add_executable(${EXAMPLE_FMHA_BWD} EXCLUDE_FROM_ALL example_fmha_bwd.cpp)
 target_link_libraries(${EXAMPLE_FMHA_BWD} ${FMHA_BWD_INSTANCES})
 target_include_directories(${EXAMPLE_FMHA_BWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
@@ -189,7 +211,7 @@ message(DEBUG "adding example ${EXAMPLE_FMHA_FWD_V3}")
 add_executable(${EXAMPLE_FMHA_FWD_V3} EXCLUDE_FROM_ALL example_fmha_fwd_v3.cpp)
 target_include_directories(${EXAMPLE_FMHA_FWD_V3} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 file(GLOB FMHA_FWD_V3_INSTANCES CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_LIST_DIR}/instances/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/instances/fmha*.cpp"
 )
 target_sources(${EXAMPLE_FMHA_FWD_V3} PRIVATE
   fmha_fwd_v3.cpp
@@ -217,16 +239,16 @@ endif()
 target_compile_options(${EXAMPLE_FMHA_FWD_V3} PRIVATE ${EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS})
 target_compile_definitions(${EXAMPLE_FMHA_FWD_V3} PRIVATE ${EXAMPLE_FMHA_FWD_V3_COMPILE_DEFINITIONS})
 
-# ==========================
-# add unified_attention example
-# ==========================
+
+
+# add unified_attention example (modeled after fmha_fwd_v3 example)
 set(EXAMPLE_UNIFIED_ATTENTION "tile_example_unified_attention")
 message(DEBUG "adding example ${EXAMPLE_UNIFIED_ATTENTION}")
 
 add_executable(${EXAMPLE_UNIFIED_ATTENTION} EXCLUDE_FROM_ALL example_unified_attention.cpp)
 target_include_directories(${EXAMPLE_UNIFIED_ATTENTION} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 file(GLOB UNIFIED_ATTENTION_INSTANCES CONFIGURE_DEPENDS
-    "${CMAKE_CURRENT_LIST_DIR}/instances/*.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/instances/unified*.cpp"
 )
 target_sources(${EXAMPLE_UNIFIED_ATTENTION} PRIVATE
   unified_attention.cpp
@@ -239,6 +261,23 @@ list(APPEND EXAMPLE_UNIFIED_ATTENTION_COMPILE_OPTIONS
   -Wno-undefined-func-template
   --save-temps
 )
-target_compile_options(${EXAMPLE_UNIFIED_ATTENTION} PRIVATE ${EXAMPLE_UNIFIED_ATTENTION_COMPILE_OPTIONS})
+set(EXAMPLE_UNIFIED_ATTENTION_COMPILE_DEFINITIONS)
 
+check_cxx_compiler_flag("-mllvm --amdgpu-disable-packed-fp32=1" HAS_DISABLE_PACKED_FP32)
+if(HAS_DISABLE_PACKED_FP32)
+  list(APPEND EXAMPLE_UNIFIED_ATTENTION_COMPILE_OPTIONS
+    -mllvm --amdgpu-disable-packed-fp32=1
+  )
+  list(APPEND EXAMPLE_UNIFIED_ATTENTION_COMPILE_DEFINITIONS
+    -DCK_TILE_DISABLE_PACKED_FP32=1
+  )
+endif()
+
+target_compile_options(${EXAMPLE_UNIFIED_ATTENTION} PRIVATE ${EXAMPLE_UNIFIED_ATTENTION_COMPILE_OPTIONS})
+target_compile_definitions(${EXAMPLE_UNIFIED_ATTENTION} PRIVATE ${EXAMPLE_UNIFIED_ATTENTION_COMPILE_DEFINITIONS})
+
+# TODO: we have to turn off this global prop, otherwise the progress bar generated
+# by cmake will print too many files, execvp: /bin/sh: Argument list too long
+# however, this property may affect global
+# TODO: consider codegen a makefile by us
 set_property(GLOBAL PROPERTY RULE_MESSAGES OFF)

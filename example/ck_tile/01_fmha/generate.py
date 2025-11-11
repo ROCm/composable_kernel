@@ -35,6 +35,7 @@ handlers = dict(
         for op in ops
     ]
 )
+print(handlers)
 assert 0 < len(handlers)
 
 
