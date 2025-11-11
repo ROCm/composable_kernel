@@ -45,7 +45,7 @@ StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::StreamKTi
 }
 
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
-CK_TILE_HOST index_t
+CK_TILE_HOST_DEVICE index_t
 StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_partials_buffer_size(
     index_t acc_element_bytes) const noexcept
 {
@@ -53,7 +53,7 @@ StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_parti
 }
 
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
-CK_TILE_HOST index_t
+CK_TILE_HOST_DEVICE index_t
 StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_flags_buffer_size()
     const noexcept
 {
@@ -116,7 +116,7 @@ StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_outpu
 }
 
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
-CK_TILE_HOST index_t
+CK_TILE_HOST_DEVICE index_t
 StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>::get_workspace_size(
     index_t acc_element_bytes) const noexcept
 {

@@ -425,6 +425,11 @@ struct DeviceGemm_Xdl_CShuffleV3_BPreshuffle : public DeviceGemmV2BPreshuffle<AL
             return false;
         }
 
+        if(arg.N % NPerBlock != 0 || arg.K % KPerBlock != 0)
+        {
+            return false;
+        }
+
         if(get_warp_size() == 64)
         {
             if constexpr(NXdlPerWave64 > 0)
