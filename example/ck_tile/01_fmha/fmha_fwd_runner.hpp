@@ -172,7 +172,7 @@ class BlockQuantizer
                   << " num_blocks_: " << num_blocks_ << std::endl;
         std::random_device rd;
         std::mt19937 gen(rd());
-        std::uniform_real_distribution<float> dis(2.0f, 2.0f);
+        std::uniform_real_distribution<float> dis(0.5f, 2.0f);
         for(size_t b = 0; b < batch; ++b)
         {
             for(size_t h = 0; h < head; ++h)
@@ -214,7 +214,7 @@ class BlockQuantizer
                         }
                     }
                     // save scale to tensor
-                    block_scale(b, h, block) = scale;
+                    block_scale(b, h, block) = 1.0f / scale;
                     std::cout << "block: " << block << " scale: " << scale
                               << " max_value: " << max_value << " block_scale: " << block_scale
                               << std::endl;
@@ -252,7 +252,7 @@ class BlockQuantizer
                             if(!i_perm)
                                 idx = {b, s, h, d};
                             float val = ck_tile::type_convert<float>(in(idx));
-                            out(idx)  = ck_tile::type_convert<OutDataType>(val / scale);
+                            out(idx)  = ck_tile::type_convert<OutDataType>(val * scale);
                         }
                     }
                 }
@@ -806,17 +806,32 @@ fwd_result fmha_fwd_run(mode_enum mode,
     float scale_o = 1.f;
     if(quant == 2)
     {
-        q_host.savetxt("./q_org.txt");
-        k_host.savetxt("./k_org.txt");
-        v_host.savetxt("./v_org.txt");
-        BlockQuantizer quantizer(i_perm);
-        quantizer.quantize(q_host, q_host, q_scale, block_scale_m_);
-        quantizer.quantize(k_host, k_host, k_scale, block_scale_n_);
-        // quantizer.quantize(v_host, v_host, v_scale, block_scale_n_);
-        // scale_p = quantizer.scale_p<QDataType>();
-        q_host.savetxt("./q_quant.txt");
-        k_host.savetxt("./k_quant.txt");
-        v_host.savetxt("./v_quant.txt");
+        ck_tile::FillUniformDistributionIntegerValue<float>{1.f, 10.f, next_seed()}(q_scale);
+        ck_tile::FillUniformDistributionIntegerValue<float>{1.f, 10.f, next_seed()}(k_scale);
+        ck_tile::FillUniformDistributionIntegerValue<float>{1.f, 10.f, next_seed()}(v_scale);
+        
+        {   //debug info
+            std::cout << "q_scale: " << q_scale << " k_scale: " << k_scale
+                      << " v_scale: " << v_scale << std::endl;
+
+            ck_tile::HostTensor<float> q_host_deq(
+                get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, hdim_q));
+            ck_tile::HostTensor<float> k_host_deq(
+                0 < page_block_size
+                    ? get_lengths(i_perm, max_num_page_blocks, nhead_k, page_block_size, hdim_q)
+                    : get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_q));
+            ck_tile::HostTensor<float> v_host_deq(
+                0 < page_block_size
+                    ? get_lengths(i_perm, max_num_page_blocks, nhead_k, page_block_size, hdim_q)
+                    : get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_q));
+            BlockQuantizer quantizer(i_perm);
+            quantizer.dequantize(q_host, q_host_deq, q_scale, block_scale_m_);
+            quantizer.dequantize(k_host, k_host_deq, k_scale, block_scale_n_);
+            quantizer.dequantize(v_host, v_host_deq, v_scale, block_scale_n_);
+            q_host_deq.savetxt("./q_deq.txt");
+            k_host_deq.savetxt("./k_deq.txt");
+            v_host_deq.savetxt("./v_deq.txt");
+        }
     }
     else if(quant == 1)
     {
@@ -1525,18 +1540,6 @@ fwd_result fmha_fwd_run(mode_enum mode,
             uint8_t(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
         float rp_undrop = 1.0 / p_undrop;
 
-        if(quant == 2)
-        {
-            // dequant data for host
-            BlockQuantizer quantizer(i_perm);
-            quantizer.dequantize(q_host, q_host, q_scale, block_scale_m_);
-            quantizer.dequantize(k_host, k_host, k_scale, block_scale_n_);
-            // quantizer.dequantize(v_host, v_host, v_scale, block_scale_n_);
-            q_host.savetxt("./q_dequant.txt");
-            k_host.savetxt("./k_dequant.txt");
-            v_host.savetxt("./v_dequant.txt");
-            // scale_s = scale_s / 48.0 / 48.0;
-        }
         for(ck_tile::index_t wb = 0; wb < batch; ++wb)
         {
             ck_tile::index_t real_seqlen_q = seqstart_q_host[wb + 1] - seqstart_q_host[wb];
@@ -1723,14 +1726,34 @@ fwd_result fmha_fwd_run(mode_enum mode,
 #endif
 
             // reference
-            ck_tile::
-                reference_batched_gemm<QDataType, KDataType, SaccDataType, SMPLComputeDataType>(
+            if(quant == 2)
+            {
+                ck_tile::reference_batched_quant_gemm<QDataType,
+                                                      KDataType,
+                                                      SaccDataType,
+                                                      SMPLComputeDataType>(
                     q_host_ref,
                     k_host_ref,
                     s_host_ref,
-                    ck_tile::identity{},
-                    ck_tile::identity{},
-                    ck_tile::scales(scale_s));
+                    ck_tile::idx_identity{},
+                    ck_tile::idx_identity{},
+                    [&q_scale, &k_scale, scale_s, wb](auto idx, auto value) {
+                        return value * scale_s *
+                               q_scale(wb, std::get<0>(idx), std::get<1>(idx) / 128) *
+                               k_scale(wb, std::get<0>(idx), std::get<2>(idx) / 128);
+                    });
+            }
+            else
+            {
+                ck_tile::
+                    reference_batched_gemm<QDataType, KDataType, SaccDataType, SMPLComputeDataType>(
+                        q_host_ref,
+                        k_host_ref,
+                        s_host_ref,
+                        ck_tile::identity{},
+                        ck_tile::identity{},
+                        ck_tile::scales(scale_s));
+            }
 
             if(0.f < logits_soft_cap)
             {
@@ -1888,13 +1911,31 @@ fwd_result fmha_fwd_run(mode_enum mode,
                 }
             }
 
-            ck_tile::reference_batched_gemm<PDataType, VDataType, OaccDataType, ODataType>(
-                p_host_ref,
-                v_host_ref,
-                o_host_ref,
-                ck_tile::identity{},
-                ck_tile::identity{},
-                oacc_element_func);
+            if(quant == 2)
+            {
+                ck_tile::
+                    reference_batched_quant_gemm<PDataType, VDataType, OaccDataType, ODataType>(
+                        p_host_ref,
+                        v_host_ref,
+                        o_host_ref,
+                        ck_tile::idx_identity{},
+                        [&v_scale, wb](auto idx, auto value) {
+                            // idx: b, m, n, k --> h, sq, d, sk
+                            return ck_tile::type_convert<float>(value) *
+                                   v_scale(wb, std::get<0>(idx), std::get<2>(idx) / 128);
+                        },
+                        ck_tile::idx_identity{});
+            }
+            else
+            {
+                ck_tile::reference_batched_gemm<PDataType, VDataType, OaccDataType, ODataType>(
+                    p_host_ref,
+                    v_host_ref,
+                    o_host_ref,
+                    ck_tile::identity{},
+                    ck_tile::identity{},
+                    oacc_element_func);
+            }
 
             ck_tile::HostTensor<ODataType> o_host_result({nhead, real_seqlen_q, hdim_v});
             // clang-format off

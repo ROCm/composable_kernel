@@ -319,37 +319,20 @@ struct BlockFmhaPipelineQRKSVS
 
         static_assert(2 <= k0_loops);
         static_assert(1 <= k1_loops);
-        const float store_scale_s = scale_s;
+        // const float store_scale_s = scale_s;
         do
         {
+            float k_scale = 1.0f;
+            if constexpr(kDoFp8StaticQuant)
             {
-                scale_s       = store_scale_s;
-                float k_scale = 1;
-                if constexpr(kDoFp8StaticQuant)
+                const auto k_origin = k_dram_block_window.get_window_origin();
+                const auto row      = k_origin.at(number<0>{});
+                if(k_scale_ptr)
                 {
-                    const auto k_origin = k_dram_block_window.get_window_origin();
-                    const auto row      = k_origin.at(number<0>{});
-                    if(k_scale_ptr)
-                    {
-                        const index_t idx = row / block_scale_n;
-                        k_scale           = k_scale_ptr[idx];
-                        scale_s           = scale_s / k_scale;
-                        if(get_block_1d_id() == 0 && get_thread_local_1d_id() == 0)
-                        {
-                            printf("blockIdx.x: %d, blockIdx.y: %d,blockIdx.z: %d, row: %d, idx: "
-                                   "%d, k_scale: %f "
-                                   "\n",
-                                   blockIdx.x,
-                                   blockIdx.y,
-                                   blockIdx.z,
-                                   row,
-                                   idx,
-                                   k_scale);
-                        }
-                    }
+                    const index_t idx = row / block_scale_n;
+                    k_scale           = k_scale_ptr[idx];
                 }
             }
-
             // STAGE 1, QK gemm
             auto k_dram_window = make_tile_window(
                 k_dram_block_window.get_bottom_tensor_view(),
@@ -419,6 +402,15 @@ struct BlockFmhaPipelineQRKSVS
                        k_lds_window);
                 schedule_gemm0();
             }
+            // dequant
+            if constexpr(kDoFp8StaticQuant)
+            {
+                if(k_scale_ptr)
+                {
+                    tile_elementwise_inout([k_scale](auto& x) { x = x * k_scale; }, s_acc);
+                }
+            }
+
             // STAGE 2, scale_s, add bias, mask, softmax
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
@@ -690,13 +682,14 @@ struct BlockFmhaPipelineQRKSVS
             }
             // o_acc += o_acc_tmp;
             // o_acc += tile_elementwise_in(scale(1.0f / v_scale), o_acc_tmp);
-            ck_tile::ignore = v_scale;
+            // ck_tile::ignore = v_scale;
             sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
                 sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
                     constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                    o_acc(i_j_idx) += o_acc_tmp(i_j_idx); // / v_scale;
+                    o_acc(i_j_idx) += o_acc_tmp(i_j_idx) * v_scale;
                 });
             });
+
         } while(++i_total_loops < num_total_loop);
 
         // store lse

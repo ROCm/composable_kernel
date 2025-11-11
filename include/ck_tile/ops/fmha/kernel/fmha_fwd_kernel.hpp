@@ -1403,7 +1403,6 @@ struct FmhaFwdKernel
             const float* k_scale_ptr = nullptr;
             const float* v_scale_ptr = nullptr;
             float q_scale            = 1;
-            float v_scale            = 1;
             if constexpr(kDoFp8StaticQuant)
             {
                 if(kargs.q_scale_ptr)
@@ -1422,24 +1421,6 @@ struct FmhaFwdKernel
 
                     size_t idx = i_m0 / kargs.block_scale_m;
                     q_scale    = q_scale_ptr[idx];
-                    v_scale    = v_scale_ptr[idx];
-                }
-
-                if(get_block_1d_id() == 0 && get_thread_local_1d_id() == 0)
-                {
-                    size_t idx = i_m0 / kargs.block_scale_m;
-                    printf("blockIdx.x: %d, blockIdx.y: %d,blockIdx.z: %d,i_batch: %d, i_nhead: "
-                           "%d, i_nhead_k: %d, i_m0: %d, idx: %zu, q_scale: %f, v_scale: %f\n",
-                           blockIdx.x,
-                           blockIdx.y,
-                           blockIdx.z,
-                           i_batch,
-                           i_nhead,
-                           i_nhead / kargs.nhead_ratio_qk,
-                           i_m0,
-                           idx,
-                           q_scale,
-                           v_scale);
                 }
             }
 
@@ -1747,7 +1728,7 @@ struct FmhaFwdKernel
                                           o_acc_element_func,    // o_acc_element_func
                                           mask,
                                           position_encoding,
-                                          kargs.scale_s / q_scale,
+                                          kargs.scale_s * q_scale,
                                           variant,
                                           variant_params,
                                           block_indices,
