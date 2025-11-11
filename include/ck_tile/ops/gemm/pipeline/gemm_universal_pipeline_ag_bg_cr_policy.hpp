@@ -109,8 +109,8 @@ struct UniversalGemmBasePolicy
                                                           MPerBlock,
                                                           VecLoadSize,
                                                           getATileAccessPattern()>;
-                // AK1
-                constexpr auto AK1 = number<VecLoadSize>{};
+                // AK1: the shuffled tile dstr has shape <X1, Y2>, use Y2 as AK1
+                constexpr auto AK1 = number<TileEncodingPattern::Y2>{};
                 constexpr auto AK0 = number<KPerBlock / AK1>{};
                 // How the M dimension is split across threads
                 constexpr auto M0 = TileEncodingPattern::X0; // # of threads in M dim
@@ -120,7 +120,7 @@ struct UniversalGemmBasePolicy
                 using WarpTile         = typename Problem::BlockGemmShape::WarpTile;
                 constexpr auto MPerXdl = number<WarpTile::at(I0)>{};
 
-                // Number of threads covering K dimension
+                // Number of threads covering K dimension  
                 constexpr auto KThreadWrite     = TileEncodingPattern::Y0 * TileEncodingPattern::Y1;
                 constexpr auto K0PerThreadWrite = AK0 / KThreadWrite;
                 constexpr auto KThreadRead      = get_warp_size() / MPerXdl;
@@ -132,8 +132,7 @@ struct UniversalGemmBasePolicy
                                                    ? 1
                                                    : LdsBanksWidth / (AK1 * M0 * sizeof(ADataType));
                 constexpr auto KThreadReadPerm =
-                    ((kfold * K0PerThreadWrite / K0PerThreadRead) > 1 &&
-                     (kfold * K0PerThreadWrite / K0PerThreadRead) < KThreadRead)
+                    (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
                         ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
                         : KThreadRead;
 
@@ -297,8 +296,8 @@ struct UniversalGemmBasePolicy
                                                           NPerBlock,
                                                           VecLoadSize,
                                                           getBTileAccessPattern()>;
-                // BK1
-                constexpr auto BK1 = number<VecLoadSize>{};
+                // BK1: the shuffled tile dstr has shape <X1, Y2>, use Y2 as BK1
+                constexpr auto BK1 = number<TileEncodingPattern::Y2>{};
                 constexpr auto BK0 = number<KPerBlock / BK1>{};
 
                 // How threads access data on N dim
@@ -310,6 +309,7 @@ struct UniversalGemmBasePolicy
                 constexpr auto NPerXdl = number<WarpTile::at(I1)>{};
 
                 // Number of threads covering K dimension
+                // constexpr auto KThreadWrite     = TileEncodingPattern::Y2;
                 constexpr auto KThreadWrite     = TileEncodingPattern::Y0 * TileEncodingPattern::Y1;
                 constexpr auto K0PerThreadWrite = BK0 / KThreadWrite;
                 constexpr auto KThreadRead      = get_warp_size() / NPerXdl;
@@ -321,8 +321,7 @@ struct UniversalGemmBasePolicy
                                                    ? 1
                                                    : LdsBanksWidth / (BK1 * N0 * sizeof(BDataType));
                 constexpr auto KThreadReadPerm =
-                    ((kfold * K0PerThreadWrite / K0PerThreadRead) > 1 &&
-                     (kfold * K0PerThreadWrite / K0PerThreadRead) < KThreadRead)
+                    (kfold * K0PerThreadWrite / K0PerThreadRead) > 1
                         ? KThreadRead / (kfold * K0PerThreadWrite / K0PerThreadRead)
                         : KThreadRead;
 
