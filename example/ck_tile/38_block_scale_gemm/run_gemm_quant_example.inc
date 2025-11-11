@@ -42,19 +42,20 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
 
     using TilePartitioner = ck_tile::GemmTile1DPartitioner<GemmShape>;
 
-    using GemmTraits = ck_tile::TileGemmQuantTraits<GemmConfig::kPadM,
-                                                    GemmConfig::kPadN,
-                                                    GemmConfig::kPadK,
-                                                    GemmConfig::PreshuffleQuant,
-                                                    GemmConfig::PreshuffleB,
-                                                    ALayout,
-                                                    BLayout,
-                                                    CLayout,
-                                                    QuantMode,
-                                                    ck_tile::tensor_layout::gemm::RowMajor,    // for AQLayout
-                                                    ck_tile::tensor_layout::gemm::ColumnMajor, // for BQLayout
-                                                    false,
-                                                    GemmConfig::DoubleSmemBuffer>;
+    using GemmTraits =
+        ck_tile::TileGemmQuantTraits<GemmConfig::kPadM,
+                                     GemmConfig::kPadN,
+                                     GemmConfig::kPadK,
+                                     GemmConfig::PreshuffleQuant,
+                                     GemmConfig::PreshuffleB,
+                                     ALayout,
+                                     BLayout,
+                                     CLayout,
+                                     QuantMode,
+                                     ck_tile::tensor_layout::gemm::RowMajor,    // for AQLayout
+                                     ck_tile::tensor_layout::gemm::ColumnMajor, // for BQLayout
+                                     false,
+                                     GemmConfig::DoubleSmemBuffer>;
 
     using GemmPipelineProblem = ck_tile::GemmPipelineProblemBase<typename TypeConfig::ADataType,
                                                                  typename TypeConfig::BDataType,
@@ -794,31 +795,33 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
         }
         if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
         {
-                if(a_layout == "R" && b_layout == "R")
+            if(a_layout == "R" && b_layout == "R")
+            {
+                return run_gemm_example_with_layouts<GemmConfig,
+                                                     TypeConfig,
+                                                     QuantGroupSize,
+                                                     QuantMode>(
+                    arg_parser, Row{}, Row{}, Row{}, Col{}, Row{});
+            }
+            else if(a_layout == "C" && b_layout == "R")
+            {
+                if constexpr(!std::is_same_v<typename TypeConfig::ADataType, ck_tile::pk_int4_t>)
                 {
-                    return run_gemm_example_with_layouts<GemmConfig, TypeConfig, QuantGroupSize, QuantMode>(
-                        arg_parser, Row{}, Row{}, Row{}, Col{}, Row{});
-                }
-                else if(a_layout == "C" && b_layout == "R")
-                {
-                    if constexpr(!std::is_same_v<typename TypeConfig::ADataType, ck_tile::pk_int4_t>)
-                    {
-                        return run_gemm_example_with_layouts<GemmConfig,
-                                                             TypeConfig,
-                                                             QuantGroupSize,
-                                                             QuantMode>(
-                            arg_parser, Col{}, Row{}, Row{}, Col{}, Row{});
-                    }
-                    else
-                    {
-                        throw std::runtime_error(
-                            "CR layout is not supported for this int4 datatype!");
-                    }
+                    return run_gemm_example_with_layouts<GemmConfig,
+                                                         TypeConfig,
+                                                         QuantGroupSize,
+                                                         QuantMode>(
+                        arg_parser, Col{}, Row{}, Row{}, Col{}, Row{});
                 }
                 else
                 {
-                    throw std::runtime_error("Unsupported memory layout for the input matrices!");
+                    throw std::runtime_error("CR layout is not supported for this int4 datatype!");
                 }
+            }
+            else
+            {
+                throw std::runtime_error("Unsupported memory layout for the input matrices!");
+            }
         }
         else
         {
