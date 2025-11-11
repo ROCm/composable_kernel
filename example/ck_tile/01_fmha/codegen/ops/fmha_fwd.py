@@ -100,8 +100,11 @@ using fmha_epilogue =
                                            typename FmhaFwdTypeConfig<fmha_dtype>::ODataType,
                                            {F_spad}, {F_dvpad}>>;
 
-using fmha_kernel =
-    ck_tile::FmhaFwdKernel<fmha_pipeline, fmha_epilogue>;
+using fmha_kernel = std::conditional_t<
+    {F_pipeline_enum} == ck_tile::BlockFmhaPipelineEnum::QRKSVS_ASYNC_TRLOAD_V3,
+    ck_tile::FmhaFwdV3Kernel<fmha_pipeline, fmha_epilogue>,
+    ck_tile::FmhaFwdKernel<fmha_pipeline, fmha_epilogue>
+>;
 
 using trait = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
                         {F_pipeline_enum}, {F_logits}, fmha_mask, {F_bias}, {F_lse}, {F_dropout}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}>;
@@ -186,8 +189,11 @@ using fmha_epilogue =
                                            typename FmhaFwdTypeConfig<fmha_dtype>::ODataType,
                                            {F_spad}, {F_dvpad}>>;
 
-using fmha_kernel =
-    ck_tile::FmhaFwdV3Kernel<fmha_pipeline, fmha_epilogue>;
+using fmha_kernel = std::conditional_t<
+    {F_pipeline_enum} == ck_tile::BlockFmhaPipelineEnum::QRKSVS_ASYNC_TRLOAD_V3,
+    ck_tile::FmhaFwdV3Kernel<fmha_pipeline, fmha_epilogue>,
+    ck_tile::FmhaFwdKernel<fmha_pipeline, fmha_epilogue>
+>;
 
 using trait = fmha_fwd_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
                         {F_pipeline_enum}, {F_logits}, fmha_mask, {F_bias}, {F_lse}, {F_dropout}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_trload}, {F_skip}>;
