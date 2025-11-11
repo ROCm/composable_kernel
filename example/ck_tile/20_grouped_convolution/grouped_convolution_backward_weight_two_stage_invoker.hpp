@@ -7,7 +7,7 @@
 struct GroupedConvolutionBackwardWeightTwoStageInvoker
 {
     template <ck_tile::index_t NDimSpatial,
-              typename GemmConfig,
+              typename ConvConfig,
               typename InDataType,
               typename WeiDataType,
               typename AccDataType,
@@ -23,64 +23,60 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
     {
         using WorkspaceDataType = float;
 
-        constexpr int kBlockPerCu = 1;
-
         // Implicit GEMM Traits
         using GemmShape = ck_tile::TileGemmShape<
-            ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
-            ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,
-            ck_tile::
-                sequence<GemmConfig::M_Warp_Tile, GemmConfig::N_Warp_Tile, GemmConfig::K_Warp_Tile>,
-            GemmConfig::PermuteA,
-            GemmConfig::PermuteB>;
+            ck_tile::sequence<ConvConfig::M_Tile, ConvConfig::N_Tile, ConvConfig::K_Tile>,
+            ck_tile::sequence<ConvConfig::M_Warp, ConvConfig::N_Warp, ConvConfig::K_Warp>,
+            ck_tile::sequence<ConvConfig::M_Warp_Tile,
+                              ConvConfig::N_Warp_Tile,
+                              ConvConfig::K_Warp_Tile>>;
 
-        constexpr ck_tile::index_t VectorSizeA = 4;
-        constexpr ck_tile::index_t VectorSizeB = 8;
-        constexpr ck_tile::index_t VectorSizeC = 8;
-
-        constexpr auto ConvSpec = ck_tile::ConvolutionSpecialization::Default;
-        using TilePartitioner =
-            ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
-                                                       GemmConfig::TileParitionerGroupNum,
-                                                       GemmConfig::TileParitionerM01>;
+        constexpr auto ConvSpec     = ck_tile::ConvolutionSpecialization::Default;
         using GroupedConvTraitsType = ck_tile::GroupedConvTraits<NDimSpatial,
                                                                  ConvSpec,
                                                                  InLayout,
                                                                  WeiLayout,
                                                                  DsLayout,
                                                                  OutLayout,
-                                                                 VectorSizeA,
-                                                                 VectorSizeB,
-                                                                 VectorSizeC>;
+                                                                 ConvConfig::VectorSizeA,
+                                                                 ConvConfig::VectorSizeB,
+                                                                 ConvConfig::VectorSizeC,
+                                                                 ConvConfig::NumGroupsToMerge>;
+
+        using TilePartitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<
+            GemmShape,
+            GroupedConvTraitsType::FixedGemmParams::TilePartitionerGroupNum,
+            GroupedConvTraitsType::FixedGemmParams::TilePartitionerM01>;
 
         using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<
-            GemmConfig::kPadM,
-            GemmConfig::kPadN,
-            GemmConfig::kPadK,
-            GemmConfig::DoubleSmemBuffer,
-            typename GroupedConvTraitsType::GroupedConvImplicitGemmTraitsBwdWeight::AsLayout,
-            typename GroupedConvTraitsType::GroupedConvImplicitGemmTraitsBwdWeight::BsLayout,
-            typename GroupedConvTraitsType::GroupedConvImplicitGemmTraitsBwdWeight::CLayout,
-            GemmConfig::TransposeC,
-            GemmConfig::UseStructuredSparsity,
-            false, // Persistent,
-            GemmConfig::NumWaveGroups>;
+            GroupedConvTraitsType::FixedGemmParams::kPadM,
+            GroupedConvTraitsType::FixedGemmParams::kPadN,
+            GroupedConvTraitsType::FixedGemmParams::kPadK,
+            ConvConfig::DoubleSmemBuffer,
+            typename GroupedConvTraitsType::AsLayoutBwdWeight,
+            typename GroupedConvTraitsType::BsLayoutBwdWeight,
+            typename GroupedConvTraitsType::CLayoutBwdWeight,
+            GroupedConvTraitsType::FixedGemmParams::TransposeC,
+            GroupedConvTraitsType::FixedGemmParams::UseStructuredSparsity,
+            GroupedConvTraitsType::FixedGemmParams::Persistent,
+            ConvConfig::NumWaveGroups>;
 
         using GemmPipelineProblem = ck_tile::GemmPipelineProblem<
             OutDataType,
             InDataType,
             AccDataType,
             GemmShape,
-            typename GroupedConvTraitsType::GroupedConvImplicitGemmTraitsBwdWeight,
+            typename GroupedConvTraitsType::template GroupedConvImplicitGemmTraitsBwdWeight<
+                ConvConfig::NumWaveGroups>,
             ck_tile::element_wise::PassThrough,
             ck_tile::element_wise::PassThrough,
             WeiDataType,
-            true,
-            VectorSizeA,
-            VectorSizeB>;
+            GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
+            GroupedConvTraitsType::VectorSizeA,
+            GroupedConvTraitsType::VectorSizeB>;
 
         using BaseGemmPipeline = typename PipelineTypeTraits<
-            GemmConfig::Pipeline>::template UniversalGemmPipeline<GemmPipelineProblem>;
+            ConvConfig::Pipeline>::template UniversalGemmPipeline<GemmPipelineProblem>;
 
         const ck_tile::index_t gemm_k =
             args.N_ * std::accumulate(args.output_spatial_lengths_.begin(),
@@ -88,8 +84,8 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                                       1,
                                       std::multiplies<ck_tile::index_t>());
 
-        const ck_tile::index_t k_grain     = args.k_batch * GemmConfig::K_Tile;
-        const ck_tile::index_t K_split     = (gemm_k + k_grain - 1) / k_grain * GemmConfig::K_Tile;
+        const ck_tile::index_t k_grain     = args.k_batch * ConvConfig::K_Tile;
+        const ck_tile::index_t K_split     = (gemm_k + k_grain - 1) / k_grain * ConvConfig::K_Tile;
         const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
         const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
         const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
@@ -100,27 +96,27 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                              const auto memory_operation_) {
             constexpr bool has_hot_loop_v   = has_hot_loop_.value;
             constexpr auto tail_number_v    = tail_number_.value;
-            constexpr auto scheduler        = GemmConfig::Scheduler;
+            constexpr auto scheduler        = ConvConfig::Scheduler;
             constexpr auto memory_operation = memory_operation_.value;
 
-            using UniversalGemmProblem =
-                ck_tile::UniversalGemmPipelineProblem<OutDataType,
-                                                      InDataType,
-                                                      AccDataType,
-                                                      GemmShape,
-                                                      GemmUniversalTraits,
-                                                      scheduler,
-                                                      has_hot_loop_v,
-                                                      tail_number_v,
-                                                      ck_tile::element_wise::PassThrough,
-                                                      ck_tile::element_wise::PassThrough,
-                                                      WeiDataType,
-                                                      true,
-                                                      VectorSizeA,
-                                                      VectorSizeB>;
+            using UniversalGemmProblem = ck_tile::UniversalGemmPipelineProblem<
+                OutDataType,
+                InDataType,
+                AccDataType,
+                GemmShape,
+                GemmUniversalTraits,
+                scheduler,
+                has_hot_loop_v,
+                tail_number_v,
+                ck_tile::element_wise::PassThrough,
+                ck_tile::element_wise::PassThrough,
+                WeiDataType,
+                GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
+                GroupedConvTraitsType::VectorSizeA,
+                GroupedConvTraitsType::VectorSizeB>;
 
             using GemmPipeline = typename PipelineTypeTraits<
-                GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
+                ConvConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
 
             using ConvEpilogue = ck_tile::CShuffleEpilogue<ck_tile::CShuffleEpilogueProblem<
                 OutDataType, // A: Out
@@ -129,19 +125,19 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                 AccDataType,
                 WorkspaceDataType, // C: Workspace  normally Out
                 typename GroupedConvTraitsType::ImplicitGemmDsLayout,
-                ck_tile::tensor_layout::gemm::RowMajor,
+                typename GroupedConvTraitsType::FixedGemmParams::ELayout,
                 CDEElementWise,
                 TilePartitioner::MPerBlock,
                 TilePartitioner::NPerBlock,
-                GemmConfig::M_Warp,
-                GemmConfig::N_Warp,
-                GemmConfig::M_Warp_Tile,
-                GemmConfig::N_Warp_Tile,
-                GemmConfig::K_Warp_Tile,
+                ConvConfig::M_Warp,
+                ConvConfig::N_Warp,
+                ConvConfig::M_Warp_Tile,
+                ConvConfig::N_Warp_Tile,
+                ConvConfig::K_Warp_Tile,
                 GemmPipelineProblem::TransposeC,
                 memory_operation,
-                1,
-                true,
+                ConvConfig::NumWaveGroups,
+                GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
                 GroupedConvTraitsType::VectorSizeC>>;
 
             using Kernel = ck_tile::GroupedConvolutionBackwardWeightKernel<GroupedConvTraitsType,
@@ -236,16 +232,17 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
             ave_time = ck_tile::launch_kernel_time_mask(
                 s,
                 preprocess,
-                ck_tile::make_kernel<kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs),
-                ck_tile::make_kernel<kBlockPerCu>(ElementwiseKernel{},
-                                                  kGridSize,
-                                                  kBlockSize,
-                                                  0,
-                                                  input_size,
-                                                  ck_tile::make_tuple(shape[1], 1), // Input Stride
-                                                  ck_tile::make_tuple(shape[1], 1), // Output Stride
-                                                  input_tensors,
-                                                  static_cast<WeiDataType*>(c_ptr)));
+                ck_tile::make_kernel<ConvConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs),
+                ck_tile::make_kernel<ConvConfig::kBlockPerCu>(
+                    ElementwiseKernel{},
+                    kGridSize,
+                    kBlockSize,
+                    0,
+                    input_size,
+                    ck_tile::make_tuple(shape[1], 1), // Input Stride
+                    ck_tile::make_tuple(shape[1], 1), // Output Stride
+                    input_tensors,
+                    static_cast<WeiDataType*>(c_ptr)));
 
             return ave_time;
         };

@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include <string>
+
 namespace ck {
 namespace tensor_operation {
 namespace device {

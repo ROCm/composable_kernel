@@ -3,6 +3,8 @@
 
 #pragma once
 
+#include "ck_tile/core/config.hpp"
+
 #if !CK_TILE_USE_BUFFER_ADDRESSING_BUILTIN
 
 #include "ck_tile/core/numeric/integer.hpp"

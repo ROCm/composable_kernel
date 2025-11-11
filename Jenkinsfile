@@ -12,13 +12,65 @@ def show_node_info() {
     """
 }
 
-// Error patterns to scan build logs for specific failure types and send detailed notifications.
-def failurePatterns = [
-    [pattern: /login attempt to .* failed with status: 401 Unauthorized/, description: "Docker registry authentication failed"],
-    [pattern: /docker login failed/, description: "Docker login failed"],
-    [pattern: /HTTP request sent .* 404 Not Found/, description: "HTTP request failed with 404"],
-    [pattern: /cat: .* No such file or directory/, description: "GPU not found"],
-]
+// Given a pattern, check if the log contains the pattern and return the context.
+def checkForPattern(pattern, log) {
+    def lines = log.split('\n')
+    for (int i = 0; i < lines.size(); i++) {
+        if (lines[i] =~ pattern) {
+            echo "Found pattern match in log for ${pattern}"
+            
+            // Get the two lines before and after failure.
+            def contextStart = Math.max(0, i - 2)
+            def contextEnd = Math.min(lines.size() - 1, i + 2)
+            def contextLines = []
+            for (int j = contextStart; j <= contextEnd; j++) {
+                contextLines.add(lines[j])
+            }
+            
+            return [found: true, matchedLine: lines[i], context: contextLines.join('\n')]
+        }
+    }
+    echo "No pattern match found in log for ${pattern}"
+    return [found: false, matchedLine: "", context: ""]
+}
+
+// Scan the build logs for failures and send notifications.
+def sendFailureNotifications() {
+    // Error patterns to scan build logs for specific failure types and send detailed notifications.
+    def failurePatterns = [
+        [pattern: /login attempt to .* failed with status: 401 Unauthorized/, description: "Docker registry authentication failed"],
+        [pattern: /docker login failed/, description: "Docker login failed"],
+        [pattern: /HTTP request sent .* 404 Not Found/, description: "HTTP request failed with 404"],
+        [pattern: /cat: .* No such file or directory/, description: "GPU not found"],
+        [pattern: /GPU not found/, description: "GPU not found"],
+        [pattern: /Could not connect to Redis at .* Connection timed out/, description: "Redis connection timed out"]
+    ]
+    
+    // Get the build log.
+    def buildLog = sh(script: 'wget -q --no-check-certificate -O - ' + BUILD_URL + 'consoleText', returnStdout: true)
+    // Check for patterns in the log.
+    def foundPatterns = []
+    for (patternMap in failurePatterns) {
+        def result = checkForPattern(patternMap.pattern, buildLog)
+        if (result.found) {
+            foundPatterns.add([
+                description: patternMap.description,
+                matchedLine: result.matchedLine,
+                context: result.context
+            ])
+        }
+    }
+    // Send a notification for each matched failure pattern.
+    for (patternMap in foundPatterns) {
+        withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
+        sh '''
+            curl -X POST "${WEBHOOK_URL}" \
+            -H 'Content-Type: application/json' \
+            -d '{"text": "\\n\\n**Build Failed**\\n\\n**Issues detected:** ''' + patternMap.description + '''\\n\\n**Log context:**\\n```\\n''' + patternMap.context.replace("'", "\\'") + '''\\n```\\n\\n**Job:** ''' + env.JOB_NAME + '''\\n\\n**Build:** #''' + env.BUILD_NUMBER + '''\\n\\n**URL:** ''' + env.RUN_DISPLAY_URL + '''"}'
+        '''
+        }
+    }
+}
 
 class Version {
     int major, minor, patch
@@ -1535,6 +1587,25 @@ pipeline {
                         cleanWs()
                     }
                 }
+                stage("Run CK_TILE_FMHA Tests on gfx1201")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.RUN_CK_TILE_FMHA_TESTS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx1201") }
+                    environment{
+                        setup_args = "NO_CK_BUILD"
+                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx12-generic && \
+                                           make -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
+                                           cd ../ &&
+                                           example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx1201 """
+                    }
+                    steps{
+                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        cleanWs()
+                    }
+                }
             }
         }
         stage("Run TILE_ENGINE_GEMM Tests")
@@ -1571,14 +1642,9 @@ pipeline {
                                            ninja -j64 benchmark_gemm_preshuffle_all && \
                                            python3 ../tile_engine/ops/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" \
                                            --warmup 5 --repeat 5 --verbose --json results.json && \
-                                           ninja -j64 benchmark_gemm_multi_d_fp16_rrrr && \
-                                           ./bin/benchmark_gemm_multi_d_fp16_rrrr && \
-                                           ninja -j64 benchmark_gemm_multi_d_fp16_ccrr && \
-                                           ./bin/benchmark_gemm_multi_d_fp16_ccrr && \
-                                           ninja -j64 benchmark_gemm_multi_d_fp16_crrr && \
-                                           ./bin/benchmark_gemm_multi_d_fp16_crrr && \
-                                           ninja -j64 benchmark_gemm_multi_d_fp16_rcrr && \
-                                           ./bin/benchmark_gemm_multi_d_fp16_rcrr """
+                                           ninja -j64 benchmark_gemm_multi_d_all && \
+                                           python3 ../tile_engine/ops/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" \
+                                           --warmup 5 --repeat 5 --verbose --json results.json """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1611,14 +1677,9 @@ pipeline {
                                            ninja -j64 benchmark_gemm_preshuffle_all && \
                                            python3 ../tile_engine/ops/gemm_preshuffle/gemm_preshuffle_benchmark.py . --problem-sizes "1024,1024,1024" \
                                            --warmup 5 --repeat 5 --verbose --json results.json && \
-                                           ninja -j64 benchmark_gemm_multi_d_fp16_rrrr && \
-                                           ./bin/benchmark_gemm_multi_d_fp16_rrrr && \
-                                           ninja -j64 benchmark_gemm_multi_d_fp16_ccrr && \
-                                           ./bin/benchmark_gemm_multi_d_fp16_ccrr && \
-                                           ninja -j64 benchmark_gemm_multi_d_fp16_crrr && \
-                                           ./bin/benchmark_gemm_multi_d_fp16_crrr && \
-                                           ninja -j64 benchmark_gemm_multi_d_fp16_rcrr && \
-                                           ./bin/benchmark_gemm_multi_d_fp16_rcrr """
+                                           ninja -j64 benchmark_gemm_multi_d_all && \
+                                           python3 ../tile_engine/ops/gemm_multi_d/gemm_multi_d_benchmark.py . --problem-sizes "1024,1024,1024" \
+                                           --warmup 5 --repeat 5 --verbose --json results.json """
                     }
                     steps{
                         buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
@@ -1775,10 +1836,11 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx90a") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx90a" -DCMAKE_CXX_FLAGS=" -O3 " """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx90a" -DCK_CXX_STANDARD="17" -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx90a" \
+                                           -DCK_CXX_STANDARD="17" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
                                            -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
@@ -1841,7 +1903,7 @@ pipeline {
                     }
                     agent{ label 'miopen && (gfx1101 || gfx1100)' }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx11-generic" -DUSE_OPT_GFX11=ON -DCMAKE_CXX_FLAGS=" -O3 " """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx11-generic" -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx11-generic" \
@@ -1862,7 +1924,7 @@ pipeline {
                     }
                     agent{ label rocmnode("gfx1201") }
                     environment{
-                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx12-generic" -DUSE_OPT_GFX12=ON -DCMAKE_CXX_FLAGS=" -O3 " """
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx12-generic" -DCMAKE_CXX_FLAGS=" -O3 " """
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx12-generic" \
@@ -1926,30 +1988,7 @@ pipeline {
         failure {
             node(rocmnode("nogpu")) {
                 script {
-                    // Get the build log.
-                    def buildLog = sh(script: 'wget -q --no-check-certificate -O - ' + BUILD_URL + 'consoleText', returnStdout: true)
-                    // Check for patterns in the log.
-                    def foundPatterns = []
-                    for (patternMap in failurePatterns) {
-                        def result = checkForPattern(patternMap.pattern, buildLog)
-                        if (result.found) {
-                            foundPatterns.add([
-                                description: patternMap.description,
-                                matchedLine: result.matchedLine,
-                                context: result.context
-                            ])
-                        }
-                    }
-                    // Send a notification for each matched failure pattern.
-                    for (patternMap in foundPatterns) {
-                        withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
-                        sh '''
-                            curl -X POST "${WEBHOOK_URL}" \
-                            -H 'Content-Type: application/json' \
-                            -d '{"text": "\\n\\n**Build Failed**\\n\\n**Issues detected:** ''' + patternMap.description + '''\\n\\n**Log context:**\\n```\\n''' + patternMap.context.replace("'", "\\'") + '''\\n```\\n\\n**Job:** ''' + env.JOB_NAME + '''\\n\\n**Build:** #''' + env.BUILD_NUMBER + '''\\n\\n**URL:** ''' + env.RUN_DISPLAY_URL + '''"}'
-                        '''
-                        }
-                    }                    
+                    sendFailureNotifications()
                 }
             }
         }

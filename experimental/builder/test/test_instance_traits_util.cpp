@@ -1,5 +1,5 @@
+// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
@@ -199,6 +199,14 @@ TEST(InstanceTraitsUtil, PipelineVersionNameReturnsCorrectStrings)
                 ElementsAre("v1", "v2", "v3", "v4", "v5"));
 }
 
+TEST(InstanceTraitsUtil, LoopSchedulerNameReturnsCorrectStrings)
+{
+    using enum ck::LoopScheduler;
+    EXPECT_THAT((std::vector<std::string_view>{loop_scheduler_name(Default),
+                                               loop_scheduler_name(Interwave)}),
+                ElementsAre("Default", "Interwave"));
+}
+
 TEST(InstanceTraitsUtil, TupleNameReturnsEmptyTupleForEmptyTuple)
 {
     EXPECT_EQ(tuple_name<ck::Tuple<>>(), "EmptyTuple");
@@ -257,6 +265,16 @@ TEST(InstanceTraitsUtil, SequenceNameReturnsSeqStringForTwoValueSequence)
 TEST(InstanceTraitsUtil, SequenceNameReturnsSeqStringForMultipleValueSequence)
 {
     EXPECT_EQ((sequence_name<ck::Sequence<256, 128, 64, 32, 16>>()), "Seq(256,128,64,32,16)");
+}
+
+TEST(InstanceTraitsUtil, TypeOrTypeTupleNameReturnsCorrectStringForScalarDataType)
+{
+    EXPECT_EQ(type_or_type_tuple_name<float>(), "fp32");
+}
+
+TEST(InstanceTraitsUtil, TypeOrTypeTupleNameReturnsCorrectStringForTupleOfDataTypes)
+{
+    EXPECT_EQ((type_or_type_tuple_name<ck::Tuple<ck::half_t, float>>()), "Tuple(fp16,fp32)");
 }
 
 } // namespace

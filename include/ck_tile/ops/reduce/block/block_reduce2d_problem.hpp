@@ -7,12 +7,17 @@
 
 namespace ck_tile {
 
-template <typename XDataType_, typename ComputeDataType_, typename BlockShape_>
+template <typename XDataType_,
+          typename ComputeDataType_,
+          typename BlockShape_,
+          bool OutputIndex_ = false>
 struct BlockReduce2dProblem
 {
     using XDataType       = remove_cvref_t<XDataType_>;
     using ComputeDataType = remove_cvref_t<ComputeDataType_>;
     using BlockShape      = remove_cvref_t<BlockShape_>;
+
+    static constexpr bool kOutputIndex = OutputIndex_;
 };
 
 } // namespace ck_tile
