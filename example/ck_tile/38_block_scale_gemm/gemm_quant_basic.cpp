@@ -22,7 +22,7 @@ template <typename GemmConfig,
           typename CDEElementWise>
 float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::stream_config& s)
 {
-    static_assert(std::is_same_v<CLayout, ck_tile::tensor_layout::gemm::RowMajor>);
+    // Support both row-major and column-major C layout
     using ComputeDataType = std::conditional_t<QuantMode == ck_tile::QuantType::AQuantGrouped ||
                                                    QuantMode == ck_tile::QuantType::RowColQuant,
                                                typename TypeConfig::BDataType,
@@ -60,12 +60,12 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
     using BaseGemmPipeline = std::conditional_t<
         GemmConfig::PreshuffleB == true,
         ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>,
-        ck_tile::BaseAQuantGemmPipelineAgBgCrMem<GemmPipelineProblem>>; // memory pipeline hardcoded
-                                                                        // for aquant
+        ck_tile::BaseAQuantGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>;
 
     const ck_tile::index_t K_split =
         (args.K + GemmConfig::K_Tile - 1) / GemmConfig::K_Tile * GemmConfig::K_Tile;
-    const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
+    const ck_tile::index_t num_loop = TilePartitioner::GetLoopNum(K_split);
+    std::cout << __func__ << "num_loop =" << num_loop << std::endl;
     const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
     const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
 
@@ -73,6 +73,8 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
         constexpr bool has_hot_loop_v = has_hot_loop_.value;
         constexpr auto tail_number_v  = tail_number_.value;
         constexpr bool transpose_c    = false;
+
+        std::cout << __func__ << "num_loop =" << num_loop << std::endl;
 
         // row-col and tensor quants use the regular pipeline, A/B quants use their own
         using PipelineProblem = std::conditional_t<
@@ -120,8 +122,8 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
             ck_tile::GemmPipelineAgBgCrCompV3<PipelineProblem>,
             std::conditional_t<
                 QuantMode == ck_tile::QuantType::AQuantGrouped,
-                ck_tile::AQuantGemmPipelineAgBgCrMem<PipelineProblem>, // memory pipeline hardcoded
-                                                                       // for aquant
+                ck_tile::AQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
+
                 std::conditional_t<GemmConfig::PreshuffleB == true,
                                    ck_tile::WPQuantBPipelineAgBgCrV2<PipelineProblem>,
                                    ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>>>;
@@ -250,8 +252,15 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     {
         if(a_layout == "R" && b_layout == "C")
         {
+            std::cout << __func__ << " A: Row, B: Col, C: Row" << std::endl;
             return run_gemm_example_with_layouts<GemmConfig, TypeConfig, QuantGroupSize, QuantMode>(
                 argc, argv, Row{}, Row{}, Col{}, Col{}, Row{});
+        }
+        else if(a_layout == "C" && b_layout == "C")
+        {
+            std::cout << __func__ << " A: Col, B: Col, C: Row (C-C-R layout)" << std::endl;
+            return run_gemm_example_with_layouts<GemmConfig, TypeConfig, QuantGroupSize, QuantMode>(
+                argc, argv, Col{}, Col{}, Col{}, Col{}, Row{});
         }
         else
         {
@@ -281,11 +290,13 @@ int run_gemm_example(int argc, char* argv[])
 
     if(data_type == "fp8")
     {
+        std::cout << __func__ << " fp8" << std::endl;
         using TypeConfig =
             decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t, float>{});
 
         if(quant_mode == "aquant")
         {
+            std::cout << __func__ << " aquant" << std::endl;
             return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
                                               TypeConfig,
                                               128,
@@ -457,5 +468,6 @@ int run_gemm_example(int argc, char* argv[])
 
 int main(int argc, char* argv[])
 {
-    return !run_gemm_example<GemmConfigPreshuffleB_Bquant_prefill>(argc, argv);
+    std::cout << __func__ << std::endl;
+    return !run_gemm_example<GemmConfigQuant>(argc, argv);
 }

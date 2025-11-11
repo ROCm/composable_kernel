@@ -18,13 +18,13 @@ struct GemmAQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetVectorSizeAQ()
     {
-        using AQLayout                = remove_cvref_t<typename Problem::AQLayout>;
+        // using AQLayout                = remove_cvref_t<typename Problem::AQLayout>;
         using AQDataType              = remove_cvref_t<typename Problem::AQDataType>;
         constexpr index_t MPerBlock   = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock   = Problem::BlockGemmShape::kK;
         constexpr index_t KPerBlockAQ = KPerBlock / Problem::kQuantGroupSize;
 
-        static_assert(std::is_same_v<AQLayout, ck_tile::tensor_layout::gemm::RowMajor>);
+        // static_assert(std::is_same_v<AQLayout, ck_tile::tensor_layout::gemm::RowMajor>);
         return GetABQGlobalVectorLoadSize<Problem, AQDataType, MPerBlock, KPerBlockAQ>();
     }
 

@@ -48,8 +48,8 @@ CK_TILE_HOST_DEVICE static constexpr auto GetABQGlobalVectorLoadSize()
 template <typename BlockGemmShape,
           typename WarpGemm,
           index_t BlockSize,
-          index_t YPerTile,
-          index_t XPerTile,
+          index_t YPerTile, // MPerBlock
+          index_t XPerTile, // KPerBlock / QuantGroupSize
           index_t KPerBlockAQ,
           index_t VecSize,
           bool PreshuffleQuant>

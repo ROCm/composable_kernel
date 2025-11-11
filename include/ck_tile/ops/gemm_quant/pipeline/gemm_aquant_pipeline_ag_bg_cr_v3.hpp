@@ -240,6 +240,13 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                                        index_t num_loop,
                                        void* p_smem) const
         {
+            if(get_thread_id() == 0 && get_block_id() == 0)
+            {
+                printf("AQuantGemmPipelineAgBgCrCompV3 operator()<Intrawave>\n");
+                printf("HasHotLoop: %d\n", HasHotLoop);
+                printf("TailNum: %d\n", static_cast<int>(TailNum));
+                printf("num_loop: %d\n", num_loop);
+            }
             static_assert(
                 std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>> &&
                     std::is_same_v<BDataType,
@@ -324,6 +331,20 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
             Base::GlobalPrefetch(b_block_tile, b_copy_dram_window, b_dram_tile_window_step);
             Base::GlobalPrefetch(
                 aq_block_tile[currIdx], aq_copy_dram_window, aq_dram_tile_window_step);
+
+            if(get_block_id() == 0 && get_thread_id() < 2)
+            {
+                auto tbuffer             = aq_block_tile[currIdx].get_thread_buffer();
+                auto elements_per_thread = tbuffer.size();
+
+                for(index_t i = 0; i < elements_per_thread; i++)
+                {
+                    printf("thread id: %d, aq_block_tile[%d] = %d\n",
+                           get_thread_id(),
+                           i,
+                           static_cast<int>(tbuffer[i]));
+                }
+            }
 
             tile_elementwise_inout([](auto& c) { c = 0; }, c_block_tile);
 

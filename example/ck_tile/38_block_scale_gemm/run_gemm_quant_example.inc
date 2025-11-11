@@ -143,6 +143,8 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::index_t N = arg_parser.get_int("n");
     ck_tile::index_t K = arg_parser.get_int("k");
 
+    std::cout << __func__ << " M =" << M << " N =" << N << " K =" << K << std::endl;
+
     if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped ||
                  QuantMode == ck_tile::QuantType::BQuantGrouped)
     {
@@ -157,6 +159,7 @@ int run_gemm_example_with_layouts(int argc,
     {
         AQK = K / QuantGroupSize; // Group quantization: AQK = K / GroupSize
         BQK = 0;                  // No B quantization
+        std::cout << __func__ << " AQK =" << AQK << std::endl;
     }
     else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
     {
@@ -197,6 +200,8 @@ int run_gemm_example_with_layouts(int argc,
     {
         stride_AQ = ck_tile::get_default_stride(M, AQK, stride_AQ, is_row_major(aq_layout));
         stride_BQ = 0; // No B quantization
+        std::cout << __func__ << " stride_AQ =" << stride_AQ << " stride_BQ =" << stride_BQ
+                  << std::endl;
     }
     else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
     {
@@ -281,8 +286,16 @@ int run_gemm_example_with_layouts(int argc,
             {
                 ck_tile::FillUniformDistribution<ADataType>{-2.0f, 3.0f, fill_seed(gen)}(a_m_k);
             }
-            ck_tile::FillUniformDistribution<AQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
-                *aq_tensor_ptr);
+            // Fill AQ with unique incrementing values starting from 1.0
+            AQDataType value = 1.0f;
+            for(ck_tile::index_t m = 0; m < M; ++m)
+            {
+                for(ck_tile::index_t k = 0; k < AQK; ++k)
+                {
+                    (*aq_tensor_ptr)(m, k) = static_cast<AQDataType>(value);
+                    value += 0.1f;
+                }
+            }
             ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f, fill_seed(gen)}(b_k_n);
         }
         else
@@ -416,6 +429,19 @@ int run_gemm_example_with_layouts(int argc,
         else
             bq_dev_buf_ptr->ToDevice(bq_tensor_ptr->data());
     }
+
+    // print aq_tensor_ptr and bkn
+    std::cout << __func__ << " aq_tensor_ptr:" << std::endl;
+    std::cout << *aq_tensor_ptr << std::endl;
+    std::cout << std::endl;
+    std::cout << __func__ << " b_k_n:" << std::endl;
+    std::cout << "lengths {";
+    ck_tile::LogRange(std::cout, b_k_n.get_lengths(), ", ");
+    std::cout << "}" << std::endl;
+    std::cout << "strides {";
+    ck_tile::LogRange(std::cout, b_k_n.get_strides(), ", ");
+    std::cout << "}" << std::endl;
+    std::cout << std::endl;
 
     invoke_gemm<GemmConfig,
                 TypeConfig,
