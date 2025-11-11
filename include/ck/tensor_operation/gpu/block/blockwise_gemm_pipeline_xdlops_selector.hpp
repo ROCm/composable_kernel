@@ -31,127 +31,184 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           index_t NPerXDL,
           index_t MRepeat,
           index_t NRepeat,
-          index_t KPack>
+          index_t KPack,
+          bool DirectLoad = false>
 constexpr auto BlockGemmPipeline_Selector()
 {
-    if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+    if constexpr(DirectLoad)
     {
-        return BlockwiseGemmXdlops_pipeline_v1<BlkGemmPipeSche,
-                                               BlockSize,
-                                               ADataType,
-                                               BDataType,
-                                               ComputeDataType,
-                                               AccDataType,
-                                               ATileDesc,
-                                               BTileDesc,
-                                               AMmaTileDesc,
-                                               BMmaTileDesc,
-                                               ABlockTransferSrcScalarPerVector,
-                                               BBlockTransferSrcScalarPerVector,
-                                               MPerBlock,
-                                               NPerBlock,
-                                               KPerBlock,
-                                               MPerXDL,
-                                               NPerXDL,
-                                               MRepeat,
-                                               NRepeat,
-                                               KPack>{};
-    }
-    else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
-    {
-        return BlockwiseGemmXdlops_pipeline_v2<BlkGemmPipeSche,
-                                               BlockSize,
-                                               ADataType,
-                                               BDataType,
-                                               ComputeDataType,
-                                               AccDataType,
-                                               ATileDesc,
-                                               BTileDesc,
-                                               AMmaTileDesc,
-                                               BMmaTileDesc,
-                                               ABlockTransferSrcScalarPerVector,
-                                               BBlockTransferSrcScalarPerVector,
-                                               MPerBlock,
-                                               NPerBlock,
-                                               KPerBlock,
-                                               MPerXDL,
-                                               NPerXDL,
-                                               MRepeat,
-                                               NRepeat,
-                                               KPack>{};
-    }
-    else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
-    {
-        return BlockwiseGemmXdlops_pipeline_v3<BlkGemmPipeSche,
-                                               BlockSize,
-                                               ADataType,
-                                               BDataType,
-                                               ComputeDataType,
-                                               AccDataType,
-                                               ATileDesc,
-                                               BTileDesc,
-                                               AMmaTileDesc,
-                                               BMmaTileDesc,
-                                               ABlockTransferSrcScalarPerVector,
-                                               BBlockTransferSrcScalarPerVector,
-                                               MPerBlock,
-                                               NPerBlock,
-                                               KPerBlock,
-                                               MPerXDL,
-                                               NPerXDL,
-                                               MRepeat,
-                                               NRepeat,
-                                               KPack>{};
-    }
-    else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
-    {
-        return BlockwiseGemmXdlops_pipeline_v4<BlkGemmPipeSche,
-                                               BlockSize,
-                                               ADataType,
-                                               BDataType,
-                                               ComputeDataType,
-                                               AccDataType,
-                                               ATileDesc,
-                                               BTileDesc,
-                                               AMmaTileDesc,
-                                               BMmaTileDesc,
-                                               ABlockTransferSrcScalarPerVector,
-                                               BBlockTransferSrcScalarPerVector,
-                                               MPerBlock,
-                                               NPerBlock,
-                                               KPerBlock,
-                                               MPerXDL,
-                                               NPerXDL,
-                                               MRepeat,
-                                               NRepeat,
-                                               KPack>{};
-    }
-    else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v5)
-    {
-        return BlockwiseGemmXdlops_pipeline_v5<BlkGemmPipeSche,
-                                               BlockSize,
-                                               ADataType,
-                                               BDataType,
-                                               ComputeDataType,
-                                               AccDataType,
-                                               ATileDesc,
-                                               BTileDesc,
-                                               AMmaTileDesc,
-                                               BMmaTileDesc,
-                                               ABlockTransferSrcScalarPerVector,
-                                               BBlockTransferSrcScalarPerVector,
-                                               MPerBlock,
-                                               NPerBlock,
-                                               KPerBlock,
-                                               MPerXDL,
-                                               NPerXDL,
-                                               MRepeat,
-                                               NRepeat,
-                                               KPack>{};
+        if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+        {
+            return BlockwiseGemmXdlopsDirectLoad_pipeline_v1<BlkGemmPipeSche,
+                                                             BlockSize,
+                                                             ADataType,
+                                                             BDataType,
+                                                             ComputeDataType,
+                                                             AccDataType,
+                                                             ATileDesc,
+                                                             BTileDesc,
+                                                             AMmaTileDesc,
+                                                             BMmaTileDesc,
+                                                             ABlockTransferSrcScalarPerVector,
+                                                             BBlockTransferSrcScalarPerVector,
+                                                             MPerBlock,
+                                                             NPerBlock,
+                                                             KPerBlock,
+                                                             MPerXDL,
+                                                             NPerXDL,
+                                                             MRepeat,
+                                                             NRepeat,
+                                                             KPack>{};
+        }
+        else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
+        {
+            return BlockwiseGemmXdlopsDirectLoad_pipeline_v4<BlkGemmPipeSche,
+                                                             BlockSize,
+                                                             ADataType,
+                                                             BDataType,
+                                                             ComputeDataType,
+                                                             AccDataType,
+                                                             ATileDesc,
+                                                             BTileDesc,
+                                                             AMmaTileDesc,
+                                                             BMmaTileDesc,
+                                                             ABlockTransferSrcScalarPerVector,
+                                                             BBlockTransferSrcScalarPerVector,
+                                                             MPerBlock,
+                                                             NPerBlock,
+                                                             KPerBlock,
+                                                             MPerXDL,
+                                                             NPerXDL,
+                                                             MRepeat,
+                                                             NRepeat,
+                                                             KPack>{};
+        }
+        else
+        {
+            std::cerr << "BlockGemmPipeline configuration is not available" << std::endl;
+        }
     }
     else
     {
-        std::cerr << "BlockGemmPipeline configuration is not available" << std::endl;
+        if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
+        {
+            return BlockwiseGemmXdlops_pipeline_v1<BlkGemmPipeSche,
+                                                   BlockSize,
+                                                   ADataType,
+                                                   BDataType,
+                                                   ComputeDataType,
+                                                   AccDataType,
+                                                   ATileDesc,
+                                                   BTileDesc,
+                                                   AMmaTileDesc,
+                                                   BMmaTileDesc,
+                                                   ABlockTransferSrcScalarPerVector,
+                                                   BBlockTransferSrcScalarPerVector,
+                                                   MPerBlock,
+                                                   NPerBlock,
+                                                   KPerBlock,
+                                                   MPerXDL,
+                                                   NPerXDL,
+                                                   MRepeat,
+                                                   NRepeat,
+                                                   KPack>{};
+        }
+        else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v2)
+        {
+            return BlockwiseGemmXdlops_pipeline_v2<BlkGemmPipeSche,
+                                                   BlockSize,
+                                                   ADataType,
+                                                   BDataType,
+                                                   ComputeDataType,
+                                                   AccDataType,
+                                                   ATileDesc,
+                                                   BTileDesc,
+                                                   AMmaTileDesc,
+                                                   BMmaTileDesc,
+                                                   ABlockTransferSrcScalarPerVector,
+                                                   BBlockTransferSrcScalarPerVector,
+                                                   MPerBlock,
+                                                   NPerBlock,
+                                                   KPerBlock,
+                                                   MPerXDL,
+                                                   NPerXDL,
+                                                   MRepeat,
+                                                   NRepeat,
+                                                   KPack>{};
+        }
+        else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
+        {
+            return BlockwiseGemmXdlops_pipeline_v3<BlkGemmPipeSche,
+                                                   BlockSize,
+                                                   ADataType,
+                                                   BDataType,
+                                                   ComputeDataType,
+                                                   AccDataType,
+                                                   ATileDesc,
+                                                   BTileDesc,
+                                                   AMmaTileDesc,
+                                                   BMmaTileDesc,
+                                                   ABlockTransferSrcScalarPerVector,
+                                                   BBlockTransferSrcScalarPerVector,
+                                                   MPerBlock,
+                                                   NPerBlock,
+                                                   KPerBlock,
+                                                   MPerXDL,
+                                                   NPerXDL,
+                                                   MRepeat,
+                                                   NRepeat,
+                                                   KPack>{};
+        }
+        else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v4)
+        {
+            return BlockwiseGemmXdlops_pipeline_v4<BlkGemmPipeSche,
+                                                   BlockSize,
+                                                   ADataType,
+                                                   BDataType,
+                                                   ComputeDataType,
+                                                   AccDataType,
+                                                   ATileDesc,
+                                                   BTileDesc,
+                                                   AMmaTileDesc,
+                                                   BMmaTileDesc,
+                                                   ABlockTransferSrcScalarPerVector,
+                                                   BBlockTransferSrcScalarPerVector,
+                                                   MPerBlock,
+                                                   NPerBlock,
+                                                   KPerBlock,
+                                                   MPerXDL,
+                                                   NPerXDL,
+                                                   MRepeat,
+                                                   NRepeat,
+                                                   KPack>{};
+        }
+        else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v5)
+        {
+            return BlockwiseGemmXdlops_pipeline_v5<BlkGemmPipeSche,
+                                                   BlockSize,
+                                                   ADataType,
+                                                   BDataType,
+                                                   ComputeDataType,
+                                                   AccDataType,
+                                                   ATileDesc,
+                                                   BTileDesc,
+                                                   AMmaTileDesc,
+                                                   BMmaTileDesc,
+                                                   ABlockTransferSrcScalarPerVector,
+                                                   BBlockTransferSrcScalarPerVector,
+                                                   MPerBlock,
+                                                   NPerBlock,
+                                                   KPerBlock,
+                                                   MPerXDL,
+                                                   NPerXDL,
+                                                   MRepeat,
+                                                   NRepeat,
+                                                   KPack>{};
+        }
+        else
+        {
+            std::cerr << "BlockGemmPipeline configuration is not available" << std::endl;
+        }
     }
 }
 

@@ -1,5 +1,5 @@
+// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 // InstanceTraits specialization for DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
 //
@@ -15,6 +15,7 @@
 #pragma once
 
 #include "instance_traits.hpp"
+#include "instance_traits_util.hpp"
 
 // Forward declaration to avoid circular dependency.
 // This file will be included by the device implementation header, so we cannot include
@@ -22,7 +23,7 @@
 // on template parameters - we don't need any implementation details.
 namespace ck::tensor_operation::device {
 
-template <ck::index_t NDimSpatial,
+template <index_t NDimSpatial,
           typename ALayout,
           typename BLayout,
           typename DsLayout,
@@ -36,8 +37,8 @@ template <ck::index_t NDimSpatial,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
-          ConvolutionForwardSpecialization ConvForwardSpecialization,
-          GemmSpecialization GemmSpec,
+          ck::tensor_operation::device::ConvolutionForwardSpecialization ConvForwardSpecialization,
+          ck::tensor_operation::device::GemmSpecialization GemmSpec,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
           ck::index_t NPerBlock,
@@ -69,7 +70,8 @@ template <ck::index_t NDimSpatial,
           ck::BlockGemmPipelineScheduler BlkGemmPipeSched,
           ck::BlockGemmPipelineVersion BlkGemmPipelineVer,
           typename AComputeDataType,
-          typename BComputeDataType>
+          typename BComputeDataType,
+          bool DirectLoad>
 struct DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3;
 
 } // namespace ck::tensor_operation::device
@@ -124,7 +126,8 @@ template <ck::index_t NDimSpatial,
           ck::BlockGemmPipelineScheduler BlkGemmPipeSched,
           ck::BlockGemmPipelineVersion BlkGemmPipelineVer,
           typename AComputeDataType_,
-          typename BComputeDataType_>
+          typename BComputeDataType_,
+          bool DirectLoad>
 struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<
     NDimSpatial,
     ALayout_,
@@ -173,7 +176,8 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultiple
     BlkGemmPipeSched,
     BlkGemmPipelineVer,
     AComputeDataType_,
-    BComputeDataType_>>
+    BComputeDataType_,
+    DirectLoad>>
 {
     // Spatial dimension
     static constexpr int kSpatialDim = NDimSpatial;
@@ -256,6 +260,8 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultiple
     using AComputeDataType = AComputeDataType_;
     using BComputeDataType = BComputeDataType_;
 
+    static constexpr bool kDirectLoad = DirectLoad;
+
     // Static member function to generate instance string
     static std::string instance_string()
     {
@@ -336,6 +342,7 @@ struct InstanceTraits<ck::tensor_operation::device::DeviceGroupedConvFwdMultiple
         oss << "," << detail::pipeline_version_name(kPipelineVersion);     // 46. BlkGemmPipelineVer
         oss << "," << detail::type_name<AComputeDataType>();               // 47. AComputeDataType
         oss << "," << detail::type_name<BComputeDataType>();               // 48. BComputeDataType
+        oss << "," << (DirectLoad ? "true" : "false");                     // 49. DirectLoad
         oss << ">";
 
         return oss.str();

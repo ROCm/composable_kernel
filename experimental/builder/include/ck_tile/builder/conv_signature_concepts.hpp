@@ -1,5 +1,5 @@
+// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 // This file defines the compile-time "signature" for grouped convolution operations.
 // A signature is a collection of properties that fully describe a convolution kernel's
@@ -21,6 +21,7 @@
 #include <type_traits>
 
 #include "ck_tile/builder/types.hpp"
+#include "ck_tile/builder/conv_signature_predicates.hpp"
 
 namespace ck_tile::builder {
 
@@ -40,16 +41,21 @@ template <DataType T>
 concept ConvDataType = (T == DataType::FP32) || (T == DataType::FP16) || (T == DataType::BF16) ||
                        (T == DataType::FP8) || (T == DataType::I8) || (T == DataType::U8);
 
+template <typename T>
+concept ConvDeviceOp = std::same_as<std::remove_cvref_t<T>, GroupConvDeviceOp>;
+
+template <typename T>
+concept ConvLayout = std::same_as<std::remove_cvref_t<T>, GroupConvLayout>;
+
 // Concept for a type that defines a convolution's operational signature.
 template <typename T>
 concept ConvSignatureDescriptor = requires(T t) {
     { t.spatial_dim } -> std::convertible_to<unsigned int>;
     { t.direction } -> std::convertible_to<ConvDirection>;
-    requires std::convertible_to<decltype(t.layout), GroupConvLayout1D> ||
-                 std::convertible_to<decltype(t.layout), GroupConvLayout2D> ||
-                 std::convertible_to<decltype(t.layout), GroupConvLayout3D>;
+    { t.layout } -> ConvLayout;
     { t.data_type } -> std::convertible_to<DataType>;
     { t.elementwise_operation } -> std::convertible_to<ElementwiseOperation>;
+    { t.device_operation } -> ConvDeviceOp;
 };
 
 // Concept to validate a convolution signature's values.
@@ -57,18 +63,7 @@ template <auto Sig>
 concept ValidConvSignature = requires {
     requires ConvSpatialDim<Sig.spatial_dim>;
     requires ConvDataType<Sig.data_type>;
+    requires IsValidConvDeviceOp<Sig>;
 };
-
-// Predicate for forward convolution.
-template <auto Sig>
-concept ConvDirectionIsForward = (Sig.direction == ConvDirection::FORWARD);
-
-// Predicate for backward data convolution.
-template <auto Sig>
-concept ConvDirectionIsBackwardData = (Sig.direction == ConvDirection::BACKWARD_DATA);
-
-// Predicate for backward weight convolution.
-template <auto Sig>
-concept ConvDirectionIsBackwardWeight = (Sig.direction == ConvDirection::BACKWARD_WEIGHT);
 
 } // namespace ck_tile::builder

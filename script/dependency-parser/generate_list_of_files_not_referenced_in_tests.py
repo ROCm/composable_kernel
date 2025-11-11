@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 
+## Copyright © Advanced Micro Devices, Inc. or its affiliates.
+## SPDX-License-Identifier: MIT
+
 # This script generate list of files that are not referenced from any test (list in JSON format)
 # Script only looks at not referenced files from three directories: include, library and profiler
 # CK needs to be built with ability to use dependency parser and generate dependencies

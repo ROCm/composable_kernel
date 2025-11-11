@@ -37,7 +37,25 @@ cmake                                                                           
 
 ## Building and testing
 
-During development, build and test from the CK build directory with
+During development, all CK Builder tests can be built with command
+
 ```sh
-ninja test_conv_builder && bin/test_conv_builder
+ninja test_ckb_all
 ```
+
+To execute all tests, run
+
+```sh
+ls bin/test_ckb_* | xargs -n1 sh -c
+```
+
+Some tests involve building old CK convolution factories, which will take a long time.
+Hence, one might want to build only single test targets. For example
+
+```sh
+ninja test_ckb_conv_builder && bin/test_ckb_conv_builder
+```
+
+When adding new tests, please follow the convention where the CMake build target starts with a prefix `test_ckb`.
+This allows us to filter out the CK Builder tests from the set full CK repository tests.
+Also, the `test_ckb_all` target that builds all CK Builder tests relies on having the `test_ckb` prefix on the CMake build targets.

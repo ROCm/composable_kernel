@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) , Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -10,6 +10,19 @@
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 #include "ck_tile/ops/gemm_quant.hpp"
+
+inline size_t hash_multiple_strings(const std::vector<std::string>& inputs)
+{
+    std::hash<std::string> hasher;
+    size_t combined_hash = 0;
+    for(const auto& str : inputs)
+    {
+        // Hash combine using golden ratio constant and bit shifts for good distribution and
+        // order-dependent mixing
+        combined_hash ^= hasher(str) + 0x9e3779b9 + (combined_hash << 6) + (combined_hash >> 2);
+    }
+    return combined_hash;
+}
 
 template <typename PrecType, ck_tile::index_t M_Warp_Tile>
 constexpr ck_tile::index_t get_k_warp_tile()
@@ -215,6 +228,22 @@ struct GemmConfigPreshuffleB_BQuant_Prefill : public GemmConfigBase
 };
 
 template <typename PrecType>
+struct GemmConfigBQuantPrefill : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
+};
+
+template <typename PrecType>
 struct GemmConfigPreshuffleB_PreshuffleBQuant_Prefill : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 128;
@@ -304,34 +333,3 @@ struct DataTypeTraits<ck_tile::int8_t>
 {
     static constexpr const char* name = "int8";
 };
-
-auto create_args(int argc, char* argv[])
-{
-    ck_tile::ArgParser arg_parser;
-    arg_parser.insert("m", "3840", "m dimension")
-        .insert("n", "4096", "n dimension")
-        .insert("k", "2048", "k dimension")
-        .insert("a_layout", "R", "A tensor data layout - Row by default")
-        .insert("b_layout", "C", "B tensor data layout - Column by default")
-        .insert("bq_layout", "C", "Bq tensor data layout - Column by default")
-        .insert("c_layout", "R", "C tensor data layout - Row by default")
-        .insert("stride_a", "0", "Tensor A stride")
-        .insert("stride_q", "0", "Tensor AQ stride")
-        .insert("stride_b", "0", "Tensor B stride")
-        .insert("stride_c", "0", "Tensor C stride")
-        .insert("v", "1", "0. No validation, 1. Validation on CPU, 2. Validation on GPU")
-        .insert("prec",
-                "fp8",
-                "data type. For AQuant: fp8/bf8/i4fp8/i4bf8, For Bquant: fp8/bf8/fp8i4/bf8i4")
-        .insert("warmup", "0", "number of iterations before benchmark the kernel")
-        .insert("repeat", "1", "number of iterations to benchmark the kernel")
-        .insert("timer", "gpu", "gpu:gpu timer, cpu:cpu timer")
-        .insert("split_k", "1", "splitK value")
-        .insert("init", "0", "0:random, 1:linear, 2:constant(1)")
-        .insert("flush_cache", "true", "flush cache before running the kernel, defaults to true")
-        .insert("rotating_count", "0", "rotating count, defaults to 1")
-        .insert("quant_mode", "aquant", "Choose aquant (default), bquant, tensor or rowcol");
-
-    bool result = arg_parser.parse(argc, argv);
-    return std::make_tuple(result, arg_parser);
-}
