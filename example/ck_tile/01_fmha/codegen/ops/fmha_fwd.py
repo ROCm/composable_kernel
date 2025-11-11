@@ -447,8 +447,11 @@ class FmhaFwdApiPool:
     def render(
         self, func_name, filter: Optional[Callable[[FmhaFwdApiTrait], bool]] = None
     ) -> str:
-        accept_all = lambda _trait: True
         if filter is None:
+
+            def accept_all(trait: FmhaFwdApiTrait) -> bool:
+                return True
+
             filter = accept_all
 
         per_arch = str()
