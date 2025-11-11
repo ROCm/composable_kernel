@@ -655,7 +655,7 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
                                                                      SPATIAL_DIM,
                                                                      ConvDirection::FORWARD>());
     using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
-    using Ops           = factory_internal::ElementwiseOps<SIGNATURE.elementwise_operation>;
+    using Ops           = factory_internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
     using AlgorithmType = decltype(ALGORITHM);
 
     static_assert(SpecifiesThreadBlock<AlgorithmType>,

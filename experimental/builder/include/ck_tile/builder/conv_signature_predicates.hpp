@@ -11,20 +11,54 @@
 namespace ck_tile::builder {
 
 /**********************************************
+ * constexpr helper functions for optional parameters
+ **********************************************/
+
+template <auto Sig>
+concept ProvidesElementwiseOperation = requires {Sig.elementwiseOperation;};
+
+template <auto Sig>
+concept ProvidesConvolutionDirection = requires {Sig.direction;};
+
+template <auto Sig>
+constexpr auto get_elementwise_operation() {
+    if constexpr(ProvidesElementwiseOperation<Sig>)
+    {
+        return Sig.elementwise_operation;
+    }
+    else
+    {
+        return ElementwiseOperation::PASS_THROUGH;
+    }
+}
+
+template <auto Sig>
+constexpr auto get_conv_direction() {
+    if constexpr(ProvidesConvolutionDirection<Sig>)
+    {
+        return Sig.direction;
+    }
+    else
+    {
+        return ConvDirection::FORWARD;
+    }
+}
+
+/**********************************************
  * Conv Direction Predicates
  **********************************************/
 
 // Predicate for forward convolution.
 template <auto Sig>
-concept ConvDirectionIsForward = (Sig.direction == ConvDirection::FORWARD);
+concept ConvDirectionIsForward = (get_conv_direction<Sig>() == ConvDirection::FORWARD);
 
 // Predicate for backward data convolution.
 template <auto Sig>
-concept ConvDirectionIsBackwardData = (Sig.direction == ConvDirection::BACKWARD_DATA);
+concept ConvDirectionIsBackwardData = (get_conv_direction<Sig>() == ConvDirection::BACKWARD_DATA);
 
 // Predicate for backward weight convolution.
 template <auto Sig>
-concept ConvDirectionIsBackwardWeight = (Sig.direction == ConvDirection::BACKWARD_WEIGHT);
+concept ConvDirectionIsBackwardWeight = (get_conv_direction<Sig>() == ConvDirection::BACKWARD_WEIGHT);
 
 /**********************************************
  * Conv Fwd Device Op Predicates
