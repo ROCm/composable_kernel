@@ -478,15 +478,25 @@ class FmhaFwdApiPool:
 
             filter_fn = accept_all
 
-        # TODO: Stop generating empty if-clauses. To fix this, skip iterating over
-        # dictionaries that have no traits, and avoid assigning i_* to them.
+        def has_traits(node) -> bool:
+            """Recursively traverse nested OrderedDicts and lists to determine if any FmhaFwdApiTrait satisfies filter_fn()."""
+            if isinstance(node, list):
+                return any(filter_fn(elem) for elem in node)
+            elif isinstance(node, OrderedDict):
+                return any(has_traits(val) for val in node.values())
+            return False
+
         per_arch = str()
-        for i_arch, (arch, pool_by_arch) in enumerate(self.pool.items()):
+        for i_arch, (arch, pool_by_arch) in enumerate(
+            item for item in self.pool.items() if has_traits(item[1])
+        ):
             per_dtypes = str()
-            for i_dtype, (dtype, pool_by_dtype) in enumerate(pool_by_arch.items()):
+            for i_dtype, (dtype, pool_by_dtype) in enumerate(
+                item for item in pool_by_arch.items() if has_traits(item[1])
+            ):
                 per_hdim_case = str()
                 for i_hdim, ((hdim, hdim_v), pool_by_hdim) in enumerate(
-                    pool_by_dtype.items()
+                    item for item in pool_by_dtype.items() if has_traits(item[1])
                 ):
                     max_bm0 = max((t.bm0 for t in pool_by_hdim), default=0)
                     inners = str()
