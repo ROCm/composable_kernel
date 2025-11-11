@@ -996,6 +996,28 @@ struct mfma_type<MfmaInstr::mfma_f32_16x16x8xf32>
 };
 
 template <>
+struct mfma_type<MfmaInstr::mfma_f32_32x32x4xf32>
+{
+    static constexpr index_t wave_size           = 64;        // fixed
+    static constexpr index_t m_per_blk           = 32;        // from the instruction
+    static constexpr index_t n_per_blk           = 32;        // from the instruction
+    static constexpr index_t num_threads_per_blk = n_per_blk; // 32
+    static constexpr index_t num_regs_per_blk    = m_per_blk * n_per_blk / wave_size; // 16
+    static constexpr index_t num_input_blks      = m_per_blk / num_regs_per_blk;      // 2
+    static constexpr index_t group_size          = 4; // corresponding to CD rows mapping
+    static constexpr index_t num_groups_per_blk  = 4;
+    static constexpr index_t num_output_blks     = 1;
+    static constexpr index_t k_per_blk           = 2;
+    static constexpr bool is_k_reduction         = true;
+    // AB register size: 2, CD register size: 16
+    template <index_t MPerXdlops, index_t NPerXdlops, class FloatA, class FloatB, class FloatC>
+    __device__ void run(const FloatA& a, const FloatB& b, FloatC& reg_c) const
+    {
+        intrin_mfma_f32_32x32x4xf32<MPerXdlops, NPerXdlops>::Run(a, b, reg_c);
+    }
+};
+
+template <>
 struct mfma_type<MfmaInstr::mfma_f32_32x32x16xf32>
 {
     // gfx950 specific: use bf16x3 simulate tf32
