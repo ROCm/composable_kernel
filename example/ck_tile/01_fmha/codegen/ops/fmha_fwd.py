@@ -433,8 +433,7 @@ class FmhaFwdApiPool:
         check_duplicates_and_paddings(ts, trait)
         ts.append(copy.copy(trait))
 
-    @property
-    def api(self) -> str:
+    def render(self) -> str:
         per_arch = str()
         for i_arch, (arch, pool_by_arch) in enumerate(self.pool.items()):
             per_dtypes = str()
@@ -1247,7 +1246,7 @@ def write_single_fwd_kernel(kernel: FmhaFwdKernel, autogen_dir: Path) -> None:
 
 
 def write_fwd_api(api_pool: FmhaFwdApiPool, autogen_dir: Path) -> None:
-    update_file(autogen_dir / FMHA_FWD_API_FILENAME, api_pool.api)
+    update_file(autogen_dir / FMHA_FWD_API_FILENAME, api_pool.render())
 
 
 def write_blobs(
