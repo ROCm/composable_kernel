@@ -1312,15 +1312,17 @@ def write_fwd_api(
     def accept_only_v2(trait: FmhaFwdApiTrait) -> bool:
         return not accept_only_v3(trait)
 
-    content = (
-        FMHA_FWD_API_HEADER
-        + api_pool.render("fmha_fwd_v2", filter_fn=accept_only_v2)
-        + api_pool.render("fmha_fwd_v3", filter_fn=accept_only_v3)
-        + FMHA_FWD_API_FOOTER_TEMPLATE.format(
-            F_is_v3_enabled=BOOL_MAP[
-                0 < api_pool.get_num_traits(filter_fn=accept_only_v3)
-            ]
-        )
+    content = "".join(
+        [
+            FMHA_FWD_API_HEADER,
+            api_pool.render("fmha_fwd_v2", filter_fn=accept_only_v2),
+            api_pool.render("fmha_fwd_v3", filter_fn=accept_only_v3),
+            FMHA_FWD_API_FOOTER_TEMPLATE.format(
+                F_is_v3_enabled=BOOL_MAP[
+                    0 < api_pool.get_num_traits(filter_fn=accept_only_v3)
+                ]
+            ),
+        ]
     )
     update_file(autogen_dir / FMHA_FWD_API_FILENAME, content)
 
