@@ -141,11 +141,11 @@ struct UnifiedAttentionPipelineDefaultPolicy
         constexpr index_t NumIssues  = kNPerBlock / (LaneGroups * NumWarps);
         static_assert(NumIssues == kNPerBlock * kKPerBlock / (kBlockSize * KVector));
 
-        constexpr index_t N0 = NumIssues; // 8
+        constexpr index_t N0 = NumIssues;  // 8
         constexpr index_t N1 = LaneGroups; // 2
-        constexpr index_t N2 = NumWarps; // 8
-        constexpr index_t K0 = LanesPerK; // 32
-        constexpr index_t K1 = KVector; // 4
+        constexpr index_t N2 = NumWarps;   // 8
+        constexpr index_t K0 = LanesPerK;  // 32
+        constexpr index_t K1 = KVector;    // 4
 
         return make_static_tile_distribution(
             tile_distribution_encoding<sequence<1>,
@@ -259,13 +259,13 @@ struct UnifiedAttentionPipelineDefaultPolicy
             }
         }();
 
-        using BlockGemmPolicy =
-            BlockGemmARegBRegCRegV2CustomPolicy<typename Problem::QDataType,
-                                                typename Problem::KDataType,
-                                                typename Problem::SaccDataType,
-                                                typename Problem::UnifiedAttentionShape::Gemm0BlockWarps,
-                                                decltype(warp_gemm),
-                                                GemmLoopOrder::MNK>;
+        using BlockGemmPolicy = BlockGemmARegBRegCRegV2CustomPolicy<
+            typename Problem::QDataType,
+            typename Problem::KDataType,
+            typename Problem::SaccDataType,
+            typename Problem::UnifiedAttentionShape::Gemm0BlockWarps,
+            decltype(warp_gemm),
+            GemmLoopOrder::MNK>;
 
         return BlockGemmARegBRegCRegV2<GemmProblem, BlockGemmPolicy>{};
     }
@@ -287,24 +287,25 @@ struct UnifiedAttentionPipelineDefaultPolicy
                                            typename Problem::UnifiedAttentionShape::Gemm1WarpTile>>;
         /// NOTICE: in order to use load_tile_transpose() later for V tiles, we have to pass
         /// WGAttrNumAccessEnum::Double instead of WGAttrNumAccessEnum::Single
-        using WarpGemm = WarpGemmDispatcher<typename Problem::PDataType,
-                                            typename Problem::VDataType,
-                                            typename Problem::OaccDataType,
-                                            Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<0>{}),
-                                            Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<1>{}),
-                                            Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<2>{}),
-                                            true,
-                                            false,
-                                            false,
-                                            WGAttrNumAccessEnum::Double>;
+        using WarpGemm =
+            WarpGemmDispatcher<typename Problem::PDataType,
+                               typename Problem::VDataType,
+                               typename Problem::OaccDataType,
+                               Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<0>{}),
+                               Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<1>{}),
+                               Problem::UnifiedAttentionShape::Gemm1WarpTile::at(number<2>{}),
+                               true,
+                               false,
+                               false,
+                               WGAttrNumAccessEnum::Double>;
 
-        using BlockGemmPolicy =
-            BlockGemmARegBRegCRegV2CustomPolicy<typename Problem::PDataType,
-                                                typename Problem::VDataType,
-                                                typename Problem::OaccDataType,
-                                                typename Problem::UnifiedAttentionShape::Gemm1BlockWarps,
-                                                WarpGemm,
-                                                GemmLoopOrder::MNK>;
+        using BlockGemmPolicy = BlockGemmARegBRegCRegV2CustomPolicy<
+            typename Problem::PDataType,
+            typename Problem::VDataType,
+            typename Problem::OaccDataType,
+            typename Problem::UnifiedAttentionShape::Gemm1BlockWarps,
+            WarpGemm,
+            GemmLoopOrder::MNK>;
         return BlockGemmARegBRegCRegV2<GemmProblem, BlockGemmPolicy>{};
     }
 

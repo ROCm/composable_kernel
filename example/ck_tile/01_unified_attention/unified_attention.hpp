@@ -52,24 +52,26 @@ struct unified_attention_args
     index_t stride_v_cache_1;
     index_t stride_v_cache_2;
     index_t stride_v_cache_3;
-    
+
     void* o_ptr;
     index_t output_stride_0;
     index_t output_stride_1;
 
     const int32_t* block_tables_ptr;
     index_t block_table_stride;
-    const int32_t* seq_lens_ptr; // seq len in each batch
+    const int32_t* seq_lens_ptr;        // seq len in each batch
     const int32_t* query_start_len_ptr; // [num_seqs+1]
 
     index_t num_seqs; // number of batches for q
 };
 
-std::ostream& operator<<(std::ostream& stream, const unified_attention_args::data_type_enum& data_type);
+std::ostream& operator<<(std::ostream& stream,
+                         const unified_attention_args::data_type_enum& data_type);
 
 // return value:
 //   first  = whether the kernel was launched (true = launched, false = skipped)
 //   second = elapsed time (ms) of the kernel launch, valid only if first == true
-std::pair<bool, float> unified_attention(const unified_attention_args& args, const stream_config& config);
+std::pair<bool, float> unified_attention(const unified_attention_args& args,
+                                         const stream_config& config);
 
 } // namespace ck_tile

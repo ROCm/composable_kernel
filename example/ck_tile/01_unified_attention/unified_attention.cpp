@@ -7,7 +7,8 @@
 
 namespace ck_tile {
 
-std::ostream& operator<<(std::ostream& stream, const unified_attention_args::data_type_enum& data_type)
+std::ostream& operator<<(std::ostream& stream,
+                         const unified_attention_args::data_type_enum& data_type)
 {
     switch(data_type)
     {
@@ -17,14 +18,16 @@ std::ostream& operator<<(std::ostream& stream, const unified_attention_args::dat
     }
 }
 
-std::pair<bool, float> unified_attention(const unified_attention_args& args, const stream_config& config)
+std::pair<bool, float> unified_attention(const unified_attention_args& args,
+                                         const stream_config& config)
 {
     if(args.data_type == unified_attention_args::data_type_enum::fp16)
     {
         if(args.mask_type == static_cast<int>(mask_enum::no_mask))
         {
             using kernel_traits =
-                unified_attention_kernel_traits<unified_attention_args::data_type_enum::fp16, false>;
+                unified_attention_kernel_traits<unified_attention_args::data_type_enum::fp16,
+                                                false>;
 
             return unified_attention_kernel_dispatch<kernel_traits>(args, config);
         }
@@ -41,7 +44,8 @@ std::pair<bool, float> unified_attention(const unified_attention_args& args, con
         if(args.mask_type == static_cast<int>(mask_enum::no_mask))
         {
             using kernel_traits =
-                unified_attention_kernel_traits<unified_attention_args::data_type_enum::bf16, false>;
+                unified_attention_kernel_traits<unified_attention_args::data_type_enum::bf16,
+                                                false>;
 
             return unified_attention_kernel_dispatch<kernel_traits>(args, config);
         }

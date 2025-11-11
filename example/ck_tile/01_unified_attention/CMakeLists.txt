@@ -187,36 +187,42 @@ if(NOT INST_TARGETS)
   return()
 endif()
 
-set(EXAMPLE_FMHA_FWD_V3 "tile_example_unified_attention")
-message(DEBUG "adding example ${EXAMPLE_FMHA_FWD_V3}")
+set(EXAMPLE_UNIFIED_ATTENTION "tile_example_unified_attention")
+message(DEBUG "adding example ${EXAMPLE_UNIFIED_ATTENTION}")
 
-add_executable(${EXAMPLE_FMHA_FWD_V3} EXCLUDE_FROM_ALL example_unified_attention.cpp)
-target_include_directories(${EXAMPLE_FMHA_FWD_V3} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
-file(GLOB FMHA_FWD_V3_INSTANCES CONFIGURE_DEPENDS
+add_executable(${EXAMPLE_UNIFIED_ATTENTION} EXCLUDE_FROM_ALL example_unified_attention.cpp)
+target_include_directories(${EXAMPLE_UNIFIED_ATTENTION} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+file(GLOB UNIFIED_ATTENTION_INSTANCES CONFIGURE_DEPENDS
   "${CMAKE_CURRENT_LIST_DIR}/instances/*.cpp"
 )
-target_sources(${EXAMPLE_FMHA_FWD_V3} PRIVATE
+target_sources(${EXAMPLE_UNIFIED_ATTENTION} PRIVATE
   unified_attention.cpp
-  ${FMHA_FWD_V3_INSTANCES}
+  ${UNIFIED_ATTENTION_INSTANCES}
 )
 
-set(EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS)
-list(APPEND EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS
+set(EXAMPLE_UNIFIED_ATTENTION_COMPILE_OPTIONS)
+list(APPEND EXAMPLE_UNIFIED_ATTENTION_COMPILE_OPTIONS
   -fgpu-flush-denormals-to-zero
   -Wno-undefined-func-template
   --save-temps
 )
-set(EXAMPLE_FMHA_FWD_V3_COMPILE_DEFINITIONS)
+set(EXAMPLE_UNIFIED_ATTENTION_COMPILE_DEFINITIONS)
 
 check_cxx_compiler_flag("-mllvm --amdgpu-disable-packed-fp32=1" HAS_DISABLE_PACKED_FP32)
 if(HAS_DISABLE_PACKED_FP32)
-  list(APPEND EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS
+  list(APPEND EXAMPLE_UNIFIED_ATTENTION_COMPILE_OPTIONS
   -mllvm --amdgpu-disable-packed-fp32=1
   )
-  list(APPEND EXAMPLE_FMHA_FWD_V3_COMPILE_DEFINITIONS
+  list(APPEND EXAMPLE_UNIFIED_ATTENTION_COMPILE_DEFINITIONS
   -DCK_TILE_DISABLE_PACKED_FP32=1
   )
 endif()
 
-target_compile_options(${EXAMPLE_FMHA_FWD_V3} PRIVATE ${EXAMPLE_FMHA_FWD_V3_COMPILE_OPTIONS})
-target_compile_definitions(${EXAMPLE_FMHA_FWD_V3} PRIVATE ${EXAMPLE_FMHA_FWD_V3_COMPILE_DEFINITIONS})
+target_compile_options(${EXAMPLE_UNIFIED_ATTENTION} PRIVATE ${EXAMPLE_UNIFIED_ATTENTION_COMPILE_OPTIONS})
+target_compile_definitions(${EXAMPLE_UNIFIED_ATTENTION} PRIVATE ${EXAMPLE_UNIFIED_ATTENTION_COMPILE_DEFINITIONS})
+
+# TODO: we have to turn off this global prop, otherwise the progress bar generated
+# by cmake will print too many files, execvp: /bin/sh: Argument list too long
+# however, this property may affect global
+# TODO: consider codegen a makefile by us
+set_property(GLOBAL PROPERTY RULE_MESSAGES OFF)

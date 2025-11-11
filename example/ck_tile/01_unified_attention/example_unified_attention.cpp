@@ -93,20 +93,20 @@ struct Problem
 {
     explicit Problem(const ck_tile::ArgParser& args)
     {
-        data_type = args.get_str("prec") == "fp16"
-                        ? ck_tile::unified_attention_args::data_type_enum::fp16
-                        : ck_tile::unified_attention_args::data_type_enum::bf16;
-        batch     = args.get_int("b");
-        max_seqlen_q = args.get_int("s");
+        data_type       = args.get_str("prec") == "fp16"
+                              ? ck_tile::unified_attention_args::data_type_enum::fp16
+                              : ck_tile::unified_attention_args::data_type_enum::bf16;
+        batch           = args.get_int("b");
+        max_seqlen_q    = args.get_int("s");
         max_context_len = args.get_int("s_k");
-        num_blks  = args.get_int("nb");
-        BLOCK_SIZE = args.get_int("bs");
-        nhead_q  = args.get_int("h");
-        nhead_kv = args.get_int("h_k");
+        num_blks        = args.get_int("nb");
+        BLOCK_SIZE      = args.get_int("bs");
+        nhead_q         = args.get_int("h");
+        nhead_kv        = args.get_int("h_k");
 
-        hdim          = args.get_int("d");
+        hdim       = args.get_int("d");
         query_lens = args.get_int_vec("query_lens");
-        kv_lens = args.get_int_vec("kv_lens");
+        kv_lens    = args.get_int_vec("kv_lens");
 
         // Calculate scale_s
         scale_s = args.get_float("scale_s");
@@ -114,14 +114,15 @@ struct Problem
             scale_s = 1.0f / ck_tile::sqrt(static_cast<float>(hdim));
 
         // Initialize other scales
-        scale = args.get_float("scale");
+        scale   = args.get_float("scale");
         scale_k = args.get_float("scale_k");
         scale_v = args.get_float("scale_v");
 
         // Calculate sums of query_lens and kv_lens if provided
         // int64_t kv_lens_sum = 0;
 
-        for (const auto& len : query_lens) {
+        for(const auto& len : query_lens)
+        {
             num_tokens += len;
         }
 
@@ -130,10 +131,7 @@ struct Problem
         // }
     }
 
-    std::vector<ck_tile::index_t> get_query_shape() const
-    {
-        return {num_tokens, nhead_q, hdim};
-    }
+    std::vector<ck_tile::index_t> get_query_shape() const { return {num_tokens, nhead_q, hdim}; }
 
     std::vector<ck_tile::index_t> get_key_shape() const
     {
@@ -145,11 +143,7 @@ struct Problem
         return {num_blks, BLOCK_SIZE, nhead_kv, hdim};
     }
 
-    std::vector<ck_tile::index_t> get_output_shape() const
-    {
-        return {num_tokens, nhead_q, hdim};
-
-    }
+    std::vector<ck_tile::index_t> get_output_shape() const { return {num_tokens, nhead_q, hdim}; }
 
     ck_tile::unified_attention_args::data_type_enum data_type;
     ck_tile::index_t batch;
@@ -209,7 +203,6 @@ auto generate_qkv(const Problem& problem,
     return std::make_tuple(q, k, v);
 }
 
-
 // namespace host {
 // template <typename AccDataType,
 //           typename PDataType,
@@ -231,81 +224,82 @@ auto generate_qkv(const Problem& problem,
 //                            const VElementOp& v_element_op        = {},
 //                            const SAccElementOp& s_acc_element_op = {})
 // {
-    // const int batch_size = q_bshd.mDesc.get_lengths()[0];
-    // const int seqlen_q   = q_bshd.mDesc.get_lengths()[1];
-    // const int seqlen_kv  = k_bshd.mDesc.get_lengths()[1];
-    // const int nhead_q    = q_bshd.mDesc.get_lengths()[2];
-    // const int nhead_kv   = k_bshd.mDesc.get_lengths()[2];
-    // const int hdim_qk    = q_bshd.mDesc.get_lengths()[3];
-    // const int hdim_v     = v_bshd.mDesc.get_lengths()[3];
+// const int batch_size = q_bshd.mDesc.get_lengths()[0];
+// const int seqlen_q   = q_bshd.mDesc.get_lengths()[1];
+// const int seqlen_kv  = k_bshd.mDesc.get_lengths()[1];
+// const int nhead_q    = q_bshd.mDesc.get_lengths()[2];
+// const int nhead_kv   = k_bshd.mDesc.get_lengths()[2];
+// const int hdim_qk    = q_bshd.mDesc.get_lengths()[3];
+// const int hdim_v     = v_bshd.mDesc.get_lengths()[3];
 
-    // const int nr = nhead_q / nhead_kv;
+// const int nr = nhead_q / nhead_kv;
 
-    // ck_tile::HostTensor<QDataType> q_host_ref({nhead_q, seqlen_q, hdim_qk});
-    // ck_tile::HostTensor<KDataType> k_host_ref({nhead_q, seqlen_kv, hdim_qk});
-    // ck_tile::HostTensor<VDataType> v_host_ref({nhead_q, hdim_v, seqlen_kv});
-    // ck_tile::HostTensor<ODataType> o_host_ref({nhead_q, seqlen_q, hdim_v});
+// ck_tile::HostTensor<QDataType> q_host_ref({nhead_q, seqlen_q, hdim_qk});
+// ck_tile::HostTensor<KDataType> k_host_ref({nhead_q, seqlen_kv, hdim_qk});
+// ck_tile::HostTensor<VDataType> v_host_ref({nhead_q, hdim_v, seqlen_kv});
+// ck_tile::HostTensor<ODataType> o_host_ref({nhead_q, seqlen_q, hdim_v});
 
-    // ck_tile::HostTensor<AccDataType> s_host_ref({nhead_q, seqlen_q, seqlen_kv});
-    // ck_tile::HostTensor<PDataType> p_host_ref({nhead_q, seqlen_q, seqlen_kv});
+// ck_tile::HostTensor<AccDataType> s_host_ref({nhead_q, seqlen_q, seqlen_kv});
+// ck_tile::HostTensor<PDataType> p_host_ref({nhead_q, seqlen_q, seqlen_kv});
 
-    // // do computation for each batch
-    // for(int b = 0; b < batch_size; ++b)
-    // {
-    //     // copy per-batch data from input tensors
-    //     // clang-format off
-    //     q_host_ref.ForEach([&](auto& self, auto idx) { self(idx) = q_bshd(b, idx[1], idx[0]     , idx[2]); });
-    //     k_host_ref.ForEach([&](auto& self, auto idx) { self(idx) = k_bshd(b, idx[1], idx[0] / nr, idx[2]); });
-    //     v_host_ref.ForEach([&](auto& self, auto idx) { self(idx) = v_bshd(b, idx[2], idx[0] / nr, idx[1]); });
-    //     // clang-format on
-    //     ck_tile::reference_batched_gemm<QDataType, KDataType, AccDataType>(
-    //         q_host_ref, k_host_ref, s_host_ref, q_element_op, k_element_op, s_acc_element_op);
+// // do computation for each batch
+// for(int b = 0; b < batch_size; ++b)
+// {
+//     // copy per-batch data from input tensors
+//     // clang-format off
+//     q_host_ref.ForEach([&](auto& self, auto idx) { self(idx) = q_bshd(b, idx[1], idx[0]     ,
+//     idx[2]); }); k_host_ref.ForEach([&](auto& self, auto idx) { self(idx) = k_bshd(b, idx[1],
+//     idx[0] / nr, idx[2]); }); v_host_ref.ForEach([&](auto& self, auto idx) { self(idx) =
+//     v_bshd(b, idx[2], idx[0] / nr, idx[1]); });
+//     // clang-format on
+//     ck_tile::reference_batched_gemm<QDataType, KDataType, AccDataType>(
+//         q_host_ref, k_host_ref, s_host_ref, q_element_op, k_element_op, s_acc_element_op);
 
-    //     if(mask.type == mask_enum::no_mask)
-    //     {
-    //         ck_tile::reference_batched_masking(s_host_ref, FmhaMasks::NoMask{seqlen_q, seqlen_kv});
-    //     }
-    //     else if(mask.type == mask_enum::window_generic)
-    //     {
-    //         ck_tile::reference_batched_masking(
-    //             s_host_ref,
-    //             ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
-    //                 mask.left, mask.right, seqlen_q, seqlen_kv));
-    //     }
-    //     else
-    //     {
-    //         // if left window size is negative, means causal
-    //         // else means generic (for current batch)
-    //         if(mask.left < 0)
-    //             ck_tile::reference_batched_masking(
-    //                 s_host_ref,
-    //                 ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::CausalMask>(
-    //                     mask.left,
-    //                     mask.right,
-    //                     seqlen_q,
-    //                     seqlen_kv,
-    //                     mask.type == mask_enum::mask_top_left));
-    //         else
-    //             ck_tile::reference_batched_masking(
-    //                 s_host_ref,
-    //                 ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
-    //                     mask.left,
-    //                     mask.right,
-    //                     seqlen_q,
-    //                     seqlen_kv,
-    //                     mask.type == mask_enum::mask_top_left));
-    //     }
+//     if(mask.type == mask_enum::no_mask)
+//     {
+//         ck_tile::reference_batched_masking(s_host_ref, FmhaMasks::NoMask{seqlen_q, seqlen_kv});
+//     }
+//     else if(mask.type == mask_enum::window_generic)
+//     {
+//         ck_tile::reference_batched_masking(
+//             s_host_ref,
+//             ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
+//                 mask.left, mask.right, seqlen_q, seqlen_kv));
+//     }
+//     else
+//     {
+//         // if left window size is negative, means causal
+//         // else means generic (for current batch)
+//         if(mask.left < 0)
+//             ck_tile::reference_batched_masking(
+//                 s_host_ref,
+//                 ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::CausalMask>(
+//                     mask.left,
+//                     mask.right,
+//                     seqlen_q,
+//                     seqlen_kv,
+//                     mask.type == mask_enum::mask_top_left));
+//         else
+//             ck_tile::reference_batched_masking(
+//                 s_host_ref,
+//                 ck_tile::make_generic_attention_mask_from_lr_window<FmhaMasks::GenericMask>(
+//                     mask.left,
+//                     mask.right,
+//                     seqlen_q,
+//                     seqlen_kv,
+//                     mask.type == mask_enum::mask_top_left));
+//     }
 
-    //     ck_tile::reference_batched_softmax<AccDataType, AccDataType>(
-    //         s_host_ref, p_host_ref, ck_tile::identity{});
+//     ck_tile::reference_batched_softmax<AccDataType, AccDataType>(
+//         s_host_ref, p_host_ref, ck_tile::identity{});
 
-    //     ck_tile::reference_batched_gemm<PDataType, VDataType, AccDataType>(
-    //         p_host_ref, v_host_ref, o_host_ref, ck_tile::identity{}, v_element_op);
+//     ck_tile::reference_batched_gemm<PDataType, VDataType, AccDataType>(
+//         p_host_ref, v_host_ref, o_host_ref, ck_tile::identity{}, v_element_op);
 
-    //     // copy resulting per-batch data to the output tensor
-    //     o_host_ref.ForEach(
-    //         [&](auto& self, auto idx) { o_bshd(b, idx[1], idx[0], idx[2]) = self(idx); });
-    // }
+//     // copy resulting per-batch data to the output tensor
+//     o_host_ref.ForEach(
+//         [&](auto& self, auto idx) { o_bshd(b, idx[1], idx[0], idx[2]) = self(idx); });
+// }
 // }
 // } // namespace host
 
@@ -328,20 +322,20 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
 
     ck_tile::unified_attention_args args{};
 
-    args.data_type     = problem.data_type;
-    args.num_seqs         = problem.batch;
+    args.data_type = problem.data_type;
+    args.num_seqs  = problem.batch;
     // args.seqlen_q      = problem.seqlen_q;
     // args.seqlen_k      = problem.seqlen_k;
-    args.num_head_q       = problem.nhead_q;
-    args.num_queries_per_kv       = problem.nhead_q / problem.nhead_kv;
-    args.mask_type = 2;
-    args.hdim       = problem.hdim;
+    args.num_head_q         = problem.nhead_q;
+    args.num_queries_per_kv = problem.nhead_q / problem.nhead_kv;
+    args.mask_type          = 2;
+    args.hdim               = problem.hdim;
 
     args.num_blks = problem.num_blks;
 
     // args.query_lens = problem.query_lens
     // args.kv_lens = problem.kv_lens
-    args.q_ptr = q_buf.GetDeviceBuffer();
+    args.q_ptr          = q_buf.GetDeviceBuffer();
     args.query_stride_0 = problem.hdim * problem.nhead_q;
     args.query_stride_0 = problem.hdim;
 
@@ -352,13 +346,13 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     args.stride_k_cache_2 = problem.hdim;
     args.stride_k_cache_3 = 1;
 
-    args.v_ptr = v_buf.GetDeviceBuffer();
+    args.v_ptr            = v_buf.GetDeviceBuffer();
     args.stride_v_cache_0 = args.stride_k_cache_0;
     args.stride_v_cache_1 = args.stride_k_cache_1;
     args.stride_v_cache_2 = args.stride_k_cache_2;
     args.stride_v_cache_3 = args.stride_k_cache_3;
 
-    args.o_ptr = o_buf.GetDeviceBuffer();
+    args.o_ptr           = o_buf.GetDeviceBuffer();
     args.output_stride_0 = args.query_stride_0;
     args.output_stride_1 = args.query_stride_1;
 
@@ -380,13 +374,13 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
         return eff;
     };
 
-    const auto eff_query_lens  = make_effective_vec(problem.query_lens, 1024);
-    const auto eff_kv_lens = make_effective_vec(problem.kv_lens, 1024);
+    const auto eff_query_lens = make_effective_vec(problem.query_lens, 1024);
+    const auto eff_kv_lens    = make_effective_vec(problem.kv_lens, 1024);
 
     args.num_tokens = std::accumulate(eff_query_lens.begin(), eff_query_lens.end(), 0);
 
     // Calculate cumulative sums for kernel arguments if varlen is used
-    std::vector<ck_tile::index_t> cu_query_lens ;
+    std::vector<ck_tile::index_t> cu_query_lens;
 
     auto calculate_cumulative = [&](const std::vector<ck_tile::index_t>& per_batch_vec,
                                     std::vector<ck_tile::index_t>& cum_vec) {
@@ -403,14 +397,16 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     seq_lens_buf.ToDevice(eff_kv_lens.data());
     query_start_len_buf.ToDevice(cu_query_lens.data());
 
-    args.seq_lens_ptr =reinterpret_cast<const ck_tile::index_t*>(seq_lens_buf.GetDeviceBuffer());
-    args.query_start_len_ptr =reinterpret_cast<const ck_tile::index_t*>(query_start_len_buf.GetDeviceBuffer());
-
+    args.seq_lens_ptr = reinterpret_cast<const ck_tile::index_t*>(seq_lens_buf.GetDeviceBuffer());
+    args.query_start_len_ptr =
+        reinterpret_cast<const ck_tile::index_t*>(query_start_len_buf.GetDeviceBuffer());
 
     auto max_element = [&](const std::vector<ck_tile::index_t>& opt_vec) {
         ck_tile::index_t max = opt_vec[0];
-        for (ck_tile::index_t i: opt_vec) {
-            if (i > max){
+        for(ck_tile::index_t i : opt_vec)
+        {
+            if(i > max)
+            {
                 max = i;
             }
         }
@@ -419,10 +415,12 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
 
     ck_tile::index_t max_kv_len = max_element(eff_kv_lens);
 
-    ck_tile::index_t max_num_blocks_per_seq =  (max_kv_len + problem.BLOCK_SIZE - 1) / problem.BLOCK_SIZE;
+    ck_tile::index_t max_num_blocks_per_seq =
+        (max_kv_len + problem.BLOCK_SIZE - 1) / problem.BLOCK_SIZE;
 
     // Create block_tables
-    ck_tile::DeviceMem block_tables_buf(problem.batch * max_num_blocks_per_seq * sizeof(ck_tile::index_t));
+    ck_tile::DeviceMem block_tables_buf(problem.batch * max_num_blocks_per_seq *
+                                        sizeof(ck_tile::index_t));
 
     // Allocate host memory for block_tables
     std::vector<ck_tile::index_t> block_tables_host(problem.batch * max_num_blocks_per_seq);
@@ -430,7 +428,8 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     // Fill block_tables with random integers between 0 and num_blocks-1
     std::mt19937 rng(run_config.seed ? *run_config.seed : std::random_device{}());
     std::uniform_int_distribution<ck_tile::index_t> dist(0, problem.num_blks - 1);
-    for (size_t i = 0; i < block_tables_host.size(); ++i) {
+    for(size_t i = 0; i < block_tables_host.size(); ++i)
+    {
         block_tables_host[i] = dist(rng);
     }
 
@@ -438,9 +437,9 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     block_tables_buf.ToDevice(block_tables_host.data());
 
     // Set pointer in args
-    args.block_tables_ptr = reinterpret_cast<const ck_tile::index_t*>(block_tables_buf.GetDeviceBuffer());
+    args.block_tables_ptr =
+        reinterpret_cast<const ck_tile::index_t*>(block_tables_buf.GetDeviceBuffer());
     args.block_table_stride = max_num_blocks_per_seq;
-
 
     ck_tile::stream_config stream_config{nullptr,
                                          true,
@@ -476,7 +475,8 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     // std::cout << "] b:" << problem.batch << ", h:" << problem.nhead_q << "/" << problem.nhead_kv
     //           << ", s:" << problem.seqlen_q << "/" << problem.seqlen_k << ", d:" << problem.hdim
     //           << ", scale_s:" << problem.sacle_s << ", mask:" << problem.mask << std::fixed
-    //           << ", " << std::setprecision(3) << time << " ms, " << std::setprecision(2) << tflops
+    //           << ", " << std::setprecision(3) << time << " ms, " << std::setprecision(2) <<
+    //           tflops
     //           << " TFlops" << std::endl;
 
     // if(!run_config.verify)
@@ -548,7 +548,6 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     //         }
     //     }
     // }
-    
 
     // ck_tile::HostTensor<DataType> o(problem.get_output_shape());
     // o_buf.FromDevice(o.data());

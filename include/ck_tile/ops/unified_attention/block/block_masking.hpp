@@ -86,19 +86,22 @@ struct GenericAttentionMask
     static constexpr const char* name = impl::MaskName<IsMasking, IsLocal>::name;
 
     // New constructor accepting repeat_idx with default value 1
-    CK_TILE_HOST_DEVICE GenericAttentionMask(index_t y_total_, index_t x_total_, index_t repeat_idx_ = 1)
+    CK_TILE_HOST_DEVICE
+    GenericAttentionMask(index_t y_total_, index_t x_total_, index_t repeat_idx_ = 1)
         : GenericAttentionMask(0, 0, y_total_, x_total_, repeat_idx_)
     {
     }
 
     CK_TILE_HOST_DEVICE
-    GenericAttentionMask(index_t y_, index_t x_, index_t y_total_, index_t x_total_, index_t repeat_idx_ = 1)
+    GenericAttentionMask(
+        index_t y_, index_t x_, index_t y_total_, index_t x_total_, index_t repeat_idx_ = 1)
         : y(y_), x(x_), y_total(y_total_), x_total(x_total_), repeat_idx(repeat_idx_)
     {
     }
 
     template <typename MaskCoordinates>
-    CK_TILE_HOST_DEVICE GenericAttentionMask(const MaskCoordinates& mask_coord, index_t repeat_idx_ = 1)
+    CK_TILE_HOST_DEVICE GenericAttentionMask(const MaskCoordinates& mask_coord,
+                                             index_t repeat_idx_ = 1)
         : y(mask_coord.at(number<0>{})),
           x(mask_coord.at(number<1>{})),
           y_total(mask_coord.at(number<2>{})),
@@ -248,12 +251,11 @@ struct GenericAttentionMask
         }
     }
 
-private:
+    private:
     index_t y, x;
     index_t y_total, x_total;
     index_t repeat_idx;
 };
-
 
 // TODO: prefer use this function in host code
 // can convert from the FA style left/right to our generic coordinate
@@ -289,7 +291,7 @@ make_generic_attention_mask_from_lr_window(index_t left_size,
                                            index_t y_total,
                                            index_t x_total,
                                            index_t repeat_idx = 1,
-                                           bool is_top_left = true)
+                                           bool is_top_left   = true)
 {
     auto r = make_generic_attention_mask_coordinates_from_lr_window(
         left_size, right_size, y_total, x_total, is_top_left);
