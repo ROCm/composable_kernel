@@ -28,5 +28,5 @@ add_subdirectory(38_block_scale_gemm)
 add_subdirectory(39_copy)
 add_subdirectory(40_streamk_gemm)
 add_subdirectory(41_batched_contraction)
-add_subdirectory(45_bf16_mxfp4_blockscale_gemm)
+add_subdirectory(45_mxfp4_gemm)
 
