@@ -181,6 +181,9 @@ float {F_func_name}([[maybe_unused]] fmha_fwd_traits t, [[maybe_unused]] fmha_fw
 }}
 """
 FMHA_FWD_API_FOOTER = """
+float fmha_fwd(fmha_fwd_traits traits, fmha_fwd_args args, const ck_tile::stream_config& config) {
+    return autogen_fmha_fwd_v2(traits, args, config);
+}
 """
 
 FMHA_FWD_API_PER_ARCH = """{F_if}({F_arch.device_name_check}) {{
@@ -1260,8 +1263,22 @@ def write_single_fwd_kernel(kernel: FmhaFwdKernel, autogen_dir: Path) -> None:
     update_file(autogen_dir / kernel.filename, kernel.render())
 
 
-def write_fwd_api(api_pool: FmhaFwdApiPool, autogen_dir: Path) -> None:
-    content = FMHA_FWD_API_HEADER + api_pool.render("fmha_fwd") + FMHA_FWD_API_FOOTER
+def write_fwd_api(
+    api_pool: FmhaFwdApiPool,
+    autogen_dir: Path,
+) -> None:
+    def accept_only_v3(trait: FmhaFwdApiTrait) -> bool:
+        return trait.pipeline_tag == "qr_async_trload_v3"
+
+    def accept_only_v2(trait: FmhaFwdApiTrait) -> bool:
+        return not accept_only_v3(trait)
+
+    content = (
+        FMHA_FWD_API_HEADER
+        + api_pool.render("autogen_fmha_fwd_v2", filter=accept_only_v2)
+        + api_pool.render("autogen_fmha_fwd_v3", filter=accept_only_v3)
+        + FMHA_FWD_API_FOOTER
+    )
     update_file(autogen_dir / FMHA_FWD_API_FILENAME, content)
 
 
