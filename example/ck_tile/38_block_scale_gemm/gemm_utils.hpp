@@ -228,22 +228,6 @@ struct GemmConfigPreshuffleB_BQuant_Prefill : public GemmConfigBase
 };
 
 template <typename PrecType>
-struct GemmConfigBQuantPrefill : public GemmConfigBase
-{
-    static constexpr ck_tile::index_t M_Tile = 128;
-    static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
-
-    static constexpr ck_tile::index_t M_Warp = 1;
-    static constexpr ck_tile::index_t N_Warp = 4;
-    static constexpr ck_tile::index_t K_Warp = 1;
-
-    static constexpr ck_tile::index_t M_Warp_Tile = 16;
-    static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
-};
-
-template <typename PrecType>
 struct GemmConfigPreshuffleB_PreshuffleBQuant_Prefill : public GemmConfigBase
 {
     static constexpr ck_tile::index_t M_Tile = 128;
@@ -262,6 +246,40 @@ struct GemmConfigPreshuffleB_PreshuffleBQuant_Prefill : public GemmConfigBase
     static constexpr bool PreshuffleB      = true;
     static constexpr bool DoubleSmemBuffer = true;
     static constexpr bool PreshuffleQuant  = true;
+};
+
+template <typename PrecType>
+struct GemmConfigBQuantPrefill : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
+};
+
+template <typename PrecType>
+struct GemmConfigBQuantPreshuffleQuantPrefill : public GemmConfigBase
+{
+    static constexpr ck_tile::index_t M_Tile = 128;
+    static constexpr ck_tile::index_t N_Tile = 128;
+    static constexpr ck_tile::index_t K_Tile = 128 / sizeof(PrecType);
+
+    static constexpr ck_tile::index_t M_Warp = 1;
+    static constexpr ck_tile::index_t N_Warp = 4;
+    static constexpr ck_tile::index_t K_Warp = 1;
+
+    static constexpr ck_tile::index_t M_Warp_Tile = 16;
+    static constexpr ck_tile::index_t N_Warp_Tile = 16;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<PrecType, M_Warp_Tile>();
+
+    static constexpr bool PreshuffleQuant = true;
 };
 
 template <typename ADataType_,

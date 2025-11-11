@@ -356,7 +356,7 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
                         {
                             constexpr index_t reg_offset = nIter;
                             auto pull_from_lane =
-                                (__lane_id() & (WarpGemm::kN - 1)) * Traits::BQPerBlock + kQScale;
+                                (__lane_id() & (WarpGemm::kN - 1)) * Traits::KQPerBlock + kQScale;
                             auto& scale_reg = bq_block_tensor.get_thread_buffer()[reg_offset];
                             // cross lane ops
                             uint32_t scale_reg_dword;

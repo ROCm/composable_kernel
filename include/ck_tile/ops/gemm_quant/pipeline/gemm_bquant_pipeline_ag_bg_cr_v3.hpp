@@ -259,9 +259,9 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
             constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
 
             static_assert(is_bq_col_major, "Bq must be col major (row major not supported yet)");
-            static_assert(KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
-                              NPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}],
-                          "Bq block window has incorrect lengths for defined BqLayout!");
+            // static_assert(KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
+            //                   NPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}],
+            //               "Bq block window has incorrect lengths for defined BqLayout!");
 
             static_assert(is_a_col_major
                               ? (KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&

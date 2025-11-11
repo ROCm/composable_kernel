@@ -1074,7 +1074,7 @@ struct QuantGemmKernel
                 {
                     static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
                     using QuantGroupSize   = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
-                    constexpr auto block_n = TilePartitioner::NPerBlock;                       // 64
+                    constexpr auto block_n = TilePartitioner::NPerBlock / QuantGroupSize::kN;  // 64
                     constexpr auto warp_n = TilePartitioner::BlockGemmShape::WarpTile::at(I1); // 16
                     constexpr auto bqk_per_block =
                         TilePartitioner::KPerBlock / QuantGroupSize::kK; // 256/128=2
