@@ -151,10 +151,20 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
     static constexpr auto AK1Number = Number<AK1Value>{};
     static constexpr auto BK1Number = Number<BK1Value>{};
 
-    static constexpr index_t KPack = math::max(
-        math::lcm(AK1Number, BK1Number),
+    static constexpr index_t KPerWmmaBlk =
         WmmaSelector<ComputeTypeA, ComputeTypeB, AccDataType, MPerWmma, NPerWmma>::selected_wmma
-            .k_per_wmma);
+            .k_per_blk;
+
+    static constexpr index_t KInnerA = ck::math::integer_divide_ceil(AK1Value, KPerWmmaBlk);
+
+    static constexpr index_t KInnerB = ck::math::integer_divide_ceil(BK1Value, KPerWmmaBlk);
+
+    static constexpr index_t KInner = ck::math::min(KInnerA, KInnerB);
+
+    static constexpr index_t KPack =
+        KInner *
+        WmmaSelector<ComputeTypeA, ComputeTypeB, AccDataType, MPerWmma, NPerWmma>::selected_wmma
+            .k_per_wmma;
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -218,6 +228,9 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                               KPerBlock,
                               MPerWmma,
                               AK1Value,
+                              KPack,
+                              KInner,
+                              KPerWmmaBlk,
                               UseBlockPaddingA,
                               PermuteA,
                               ABlockTransferThreadClusterLengths_AK0_M_AK1,
@@ -251,6 +264,9 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                               KPerBlock,
                               NPerWmma,
                               BK1Value,
+                              KPack,
+                              KInner,
+                              KPerWmmaBlk,
                               UseBlockPaddingB,
                               PermuteB,
                               BBlockTransferThreadClusterLengths_BK0_N_BK1,
@@ -563,7 +579,8 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
                                                            NPerWmma,
                                                            MRepeat,
                                                            NRepeat,
-                                                           KPack>())>;
+                                                           KPack,
+                                                           KInner>())>;
 
     // Used to create obj in global function and pass it to Run method
     using EpilogueCShuffle =
