@@ -159,8 +159,8 @@ unsigned get_num_thread_blocks(unsigned batch, unsigned nheads, unsigned max_seq
 }
 } // namespace
 """
-FMHA_FWD_API_BODY_TEMPLATE = """
-float fmha_fwd([[maybe_unused]] fmha_fwd_traits t, [[maybe_unused]] fmha_fwd_args a, [[maybe_unused]] const ck_tile::stream_config& s) {{
+FMHA_FWD_API_FUNC_TEMPLATE = """
+float {F_func_name}([[maybe_unused]] fmha_fwd_traits t, [[maybe_unused]] fmha_fwd_args a, [[maybe_unused]] const ck_tile::stream_config& s) {{
     float r = -1;
 
     [[maybe_unused]] const float min_cu_util_rate = 0.8; // minimum CU utilization rate
@@ -179,6 +179,8 @@ float fmha_fwd([[maybe_unused]] fmha_fwd_traits t, [[maybe_unused]] fmha_fwd_arg
 {F_dispatch}
     return r;
 }}
+"""
+FMHA_FWD_API_FOOTER = """
 """
 
 FMHA_FWD_API_PER_ARCH = """{F_if}({F_arch.device_name_check}) {{
@@ -439,7 +441,9 @@ class FmhaFwdApiPool:
         check_duplicates_and_paddings(ts, trait)
         ts.append(copy.copy(trait))
 
-    def render(self, filter: Optional[Callable[[FmhaFwdApiTrait], bool]] = None) -> str:
+    def render(
+        self, func_name, filter: Optional[Callable[[FmhaFwdApiTrait], bool]] = None
+    ) -> str:
         accept_all = lambda _trait: True
         if filter is None:
             filter = accept_all
@@ -506,7 +510,9 @@ class FmhaFwdApiPool:
                 F_arch=arch,
                 F_dtype_case=indent(per_dtypes),
             )
-        return FMHA_FWD_API_BODY_TEMPLATE.format(F_dispatch=indent(per_arch))
+        return FMHA_FWD_API_FUNC_TEMPLATE.format(
+            F_func_name=func_name, F_dispatch=indent(per_arch)
+        )
 
 
 @dataclass
@@ -1255,7 +1261,7 @@ def write_single_fwd_kernel(kernel: FmhaFwdKernel, autogen_dir: Path) -> None:
 
 
 def write_fwd_api(api_pool: FmhaFwdApiPool, autogen_dir: Path) -> None:
-    content = FMHA_FWD_API_HEADER + api_pool.render()
+    content = FMHA_FWD_API_HEADER + api_pool.render("fmha_fwd") + FMHA_FWD_API_FOOTER
     update_file(autogen_dir / FMHA_FWD_API_FILENAME, content)
 
 
