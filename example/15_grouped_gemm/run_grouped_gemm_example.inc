@@ -97,6 +97,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
     std::size_t flop = 0, num_btype = 0;
 
+    double max_acc_value = 1.0;
     for(std::size_t i = 0; i < gemm_descs.size(); i++)
     {
         a_tensors.push_back(Tensor<ADataType>(f_host_tensor_descriptor(
@@ -127,6 +128,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         case 1:
             a_tensors[i].GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
             b_tensors[i].GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
+            max_acc_value = 10.0;
             break;
         case 2:
             a_tensors[i].GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
@@ -260,8 +262,12 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             pass &= ck::utils::check_err(c_device_result_converted, c_host_tensors[i]);
 
 #else
-            pass &= ck::utils::check_err<Tensor<EDataType>, Tensor<EDataType>, ComputeDataType>(
-                c_device_tensors[i], c_host_tensors[i]);
+            auto atol =
+                ck::utils::get_absolute_threshold<ComputeDataType, EDataType>(max_acc_value);
+            auto rtol =
+                ck::utils::get_relative_threshold<ComputeDataType, EDataType>(max_acc_value);
+            pass &= ck::utils::check_err(
+                c_device_tensors[i], c_host_tensors[i], "Error: Incorrect results!", rtol, atol);
 #endif
         }
     }

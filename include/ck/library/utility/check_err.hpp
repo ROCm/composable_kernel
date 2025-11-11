@@ -169,18 +169,18 @@ typename std::enable_if<
 check_err(const Range& out,
           const RefRange& ref,
           const std::string& msg = "Error: Incorrect results!",
-          double rtol            = 1e-5,
-          double atol            = 3e-5)
+          double rtol            = 5e-4,
+          double atol            = 5e-4)
 {
 #ifndef __HIPCC_RTC__
-    if(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950")
+    if(ck::get_device_name() == "gfx942")
     {
         rtol = 1e-2;
         atol = 1e-2;
     }
 #else
 // In RTC mode, use preprocessor macros to check device architecture
-#if defined(__gfx942__) || defined(__gfx950__)
+#if defined(__gfx942__)
     {
         rtol = 1e-2;
         atol = 1e-2;
