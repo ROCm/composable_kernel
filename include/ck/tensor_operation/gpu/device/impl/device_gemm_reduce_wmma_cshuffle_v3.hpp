@@ -424,13 +424,13 @@ struct DeviceGemmReduce_Wmma_CShuffleV3 : public DeviceGemmReduce<0, ReduceOpera
         if constexpr(std::is_same_v<ComputeTypeA, f8_t> || std::is_same_v<ComputeTypeA, bf8_t> ||
                      std::is_same_v<ComputeTypeB, f8_t> || std::is_same_v<ComputeTypeB, bf8_t>)
         {
-            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
-            {
-                std::cout << "FP8 and BF8 not supported on gfx11! " << __FILE__ << ":" << __LINE__
-                          << ", in function: " << __func__ << std::endl;
-            }
             if(ck::is_gfx11_supported())
             {
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                {
+                    std::cout << "FP8 and BF8 not supported on gfx11! " << __FILE__ << ":"
+                              << __LINE__ << ", in function: " << __func__ << std::endl;
+                }
                 return false;
             }
         }
