@@ -307,10 +307,6 @@ struct BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1
                         const BBlockBuffer& b_block_buf,
                         CThreadBuffer& c_thread_buf) const
     {
-        // if(threadIdx.x == 0 && blockIdx.x == 0)
-        // {
-        //     printf("BlockwiseGemmXdlops: Run\n");
-        // }
         auto a_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ElementDataTypeA>(
             a_thread_desc_.GetElementSpaceSize());
         auto b_thread_buf = make_static_buffer<AddressSpaceEnum::Vgpr, ElementDataTypeB>(

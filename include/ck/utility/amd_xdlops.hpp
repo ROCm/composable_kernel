@@ -1633,7 +1633,7 @@ struct intrin_mfma_f32_16x16x32bf8f8<16, 16>
     template <class FloatC>
     __device__ static void Run(const bf8x8_t& reg_a, const f8x8_t& reg_b, FloatC& reg_c)
     {
-#if defined(__gfx94__)
+#if defined(__gfx942__)
         reg_c.template AsType<float4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_16x16x32_bf8_fp8(
             bit_cast<int64_t>(reg_a),
             bit_cast<int64_t>(reg_b),
@@ -1665,7 +1665,7 @@ struct intrin_mfma_f32_16x16x8xf32<16, 16>
     template <class FloatC>
     __device__ static void Run(const float2_t& reg_a, const float2_t& reg_b, FloatC& reg_c)
     {
-#if defined(__gfx94__)
+#if defined(__gfx942__)
         reg_c.template AsType<float4_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_16x16x8_xf32(
             reg_a, reg_b, reg_c.template AsType<float4_t>()[Number<0>{}], 0, 0, 0);
 #else
@@ -1685,33 +1685,7 @@ struct intrin_mfma_f32_32x32x4xf32<32, 32>
     template <class FloatC>
     __device__ static void Run(const float2_t& reg_a, const float2_t& reg_b, FloatC& reg_c)
     {
-#if defined(__gfx950__)
-        // simulation: details is same as tf32 on gfx950
-        using I0 = Number<0>;
-        vector_type<float, 2> reg_a_v(reg_a);
-        vector_type<float, 2> reg_b_v(reg_b);
-
-        vector_type<bhalf_t, 2> v_reg_a_bf16_big;
-        vector_type<bhalf_t, 2> v_reg_a_bf16_small;
-        vector_type<bhalf_t, 2> v_reg_b_bf16_big;
-        vector_type<bhalf_t, 2> v_reg_b_bf16_small;
-
-        convert_float_to_bf16_pairs(reg_a_v, v_reg_a_bf16_big, v_reg_a_bf16_small);
-        convert_float_to_bf16_pairs(reg_b_v, v_reg_b_bf16_big, v_reg_b_bf16_small);
-
-        // Run 3 times: big*big, small*big, big*small
-        intrin_mfma_f32_32x32x4bf16<32, 32>::Run(
-            v_reg_a_bf16_small.template AsType<bhalf2_t>()[I0{}],
-            v_reg_b_bf16_big.template AsType<bhalf2_t>()[I0{}],
-            reg_c);
-        intrin_mfma_f32_32x32x4bf16<32, 32>::Run(
-            v_reg_a_bf16_big.template AsType<bhalf2_t>()[I0{}],
-            v_reg_b_bf16_small.template AsType<bhalf2_t>()[I0{}],
-            reg_c);
-        intrin_mfma_f32_32x32x4bf16<32, 32>::Run(v_reg_a_bf16_big.template AsType<bhalf2_t>()[I0{}],
-                                                 v_reg_b_bf16_big.template AsType<bhalf2_t>()[I0{}],
-                                                 reg_c);
-#elif defined(__gfx94__)
+#if defined(__gfx94__)
         reg_c.template AsType<float16_t>()(Number<0>{}) = __builtin_amdgcn_mfma_f32_32x32x4_xf32(
             reg_a, reg_b, reg_c.template AsType<float16_t>()[Number<0>{}], 0, 0, 0);
 #else

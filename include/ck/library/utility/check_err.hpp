@@ -173,20 +173,20 @@ check_err(const Range& out,
           double atol            = 3e-5)
 {
 #ifndef __HIPCC_RTC__
-    if(ck::get_device_name() == "gfx942")
+    if(ck::get_device_name() == "gfx942" || ck::get_device_name() == "gfx950")
     {
         rtol = 1e-2;
         atol = 1e-2;
     }
 #else
 // In RTC mode, use preprocessor macros to check device architecture
-#if defined(__gfx942__)
+#if defined(__gfx942__) || defined(__gfx950__)
     {
         rtol = 1e-2;
         atol = 1e-2;
     }
 #endif
-#endif
+#endif // __HIPCC_RTC__
     if(out.size() != ref.size())
     {
         std::cerr << msg << " out.size() != ref.size(), :" << out.size() << " != " << ref.size()
