@@ -1425,7 +1425,7 @@ struct FmhaFwdKernel
                     v_scale    = v_scale_ptr[idx];
                 }
 
-                if(get_block_1d_id() == 1 && get_thread_local_1d_id() == 0)
+                if(get_block_1d_id() == 0 && get_thread_local_1d_id() == 0)
                 {
                     size_t idx = i_m0 / kargs.block_scale_m;
                     printf("blockIdx.x: %d, blockIdx.y: %d,blockIdx.z: %d,i_batch: %d, i_nhead: "
@@ -1727,9 +1727,9 @@ struct FmhaFwdKernel
                     auto o_acc_element_func = [&]() {
                         if constexpr(std::is_same_v<ODataType, ck_tile::fp8_t>)
                             return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
-                                                     ck_tile::scales{kargs.scale_o / v_scale});
+                                                     ck_tile::scales{kargs.scale_o});
                         else
-                            return ck_tile::scales{kargs.scale_o / v_scale};
+                            return ck_tile::scales{kargs.scale_o};
                     }();
                     return FmhaPipeline{}(q_dram_window,
                                           identity{}, // q_element_func
@@ -1754,6 +1754,8 @@ struct FmhaFwdKernel
                                           smem_ptr,
                                           dropout,
                                           k_scale_ptr,
+                                          v_scale_ptr,
+                                          kargs.block_scale_m,
                                           kargs.block_scale_n);
                 }
                 else

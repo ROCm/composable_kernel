@@ -177,6 +177,8 @@ struct BlockFmhaPipelineQRKSVS
                void* smem_ptr,
                DropoutType& dropout,
                const float* k_scale_ptr,
+               const float* v_scale_ptr,
+               index_t,
                index_t block_scale_n) const
     {
         static_assert(
@@ -321,7 +323,7 @@ struct BlockFmhaPipelineQRKSVS
         do
         {
             {
-                scale_s             = store_scale_s;
+                scale_s       = store_scale_s;
                 float k_scale = 1;
                 if constexpr(kDoFp8StaticQuant)
                 {
@@ -332,7 +334,7 @@ struct BlockFmhaPipelineQRKSVS
                         const index_t idx = row / block_scale_n;
                         k_scale           = k_scale_ptr[idx];
                         scale_s           = scale_s / k_scale;
-                        if(get_block_1d_id() == 1 && get_thread_local_1d_id() == 0)
+                        if(get_block_1d_id() == 0 && get_thread_local_1d_id() == 0)
                         {
                             printf("blockIdx.x: %d, blockIdx.y: %d,blockIdx.z: %d, row: %d, idx: "
                                    "%d, k_scale: %f "
@@ -628,18 +630,33 @@ struct BlockFmhaPipelineQRKSVS
                 store_tile(v_lds_window,
                            tile_elementwise_in(v_element_func, v_prefetch)); // store the prefetch
             }
+
+            float v_scale = 1.0f;
+            if constexpr(kDoFp8StaticQuant)
+            {
+                const auto v_origin = v_dram_window.get_window_origin();
+                const auto col      = v_origin.at(number<1>{});
+                if(v_scale_ptr)
+                {
+                    const index_t idx = col / block_scale_n;
+                    v_scale           = v_scale_ptr[idx];
+                }
+            }
+
             move_tile_window(v_dram_window, {0, kK1});
 
             const auto p =
                 cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
 
             // STAGE 3, KV gemm
+            auto o_acc_tmp = decltype(o_acc){};
+            clear_tile(o_acc_tmp);
             if constexpr(k1_loops > 1)
             {
                 static_for<0, k1_loops - 1, 1>{}([&](auto i_k1) {
                     const auto v = load_tile(v_dram_window); // load next v
                     block_sync_lds();
-                    gemm_1(o_acc,
+                    gemm_1(o_acc_tmp,
                            get_slice_tile(
                                p, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}),
                            v_lds_window);
@@ -666,11 +683,20 @@ struct BlockFmhaPipelineQRKSVS
             // tail
             {
                 block_sync_lds();
-                gemm_1(o_acc,
+                gemm_1(o_acc_tmp,
                        get_slice_tile(p, sequence<0, (k1_loops - 1) * kK1>{}, sequence<kM0, kN0>{}),
                        v_lds_window);
                 block_sync_lds();
             }
+            // o_acc += o_acc_tmp;
+            // o_acc += tile_elementwise_in(scale(1.0f / v_scale), o_acc_tmp);
+            ck_tile::ignore = v_scale;
+            sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
+                sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
+                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
+                    o_acc(i_j_idx) += o_acc_tmp(i_j_idx); // / v_scale;
+                });
+            });
         } while(++i_total_loops < num_total_loop);
 
         // store lse
@@ -778,6 +804,8 @@ struct BlockFmhaPipelineQRKSVS
                           smem_ptr,
                           dropout,
                           nullptr,
+                          nullptr,
+                          128,
                           128);
     }
 };

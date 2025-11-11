@@ -187,6 +187,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                void* smem_ptr,
                DropoutType& dropout,
                const float*,
+               const float*,
+               index_t,
                index_t) const
     {
         static_assert(
@@ -849,6 +851,8 @@ struct BlockFmhaPipelineQRKSVSAsync
                           smem_ptr,
                           dropout,
                           nullptr,
+                          nullptr,
+                          128,
                           128);
     }
 };

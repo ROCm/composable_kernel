@@ -167,12 +167,12 @@ class BlockQuantizer
         size_t seq_len     = in.get_length(i_perm ? 2 : 1);
         size_t hdim        = in.get_length(3);
         size_t num_blocks_ = (seq_len + block_size_ - 1) / block_size_;
-        // std::cout << "batch: " << batch << " head: " << head << " seq_len: " << seq_len
-        //           << " hdim: " << hdim << " dtype_max: " << dtype_max
-        //           << " num_blocks_: " << num_blocks_ << std::endl;
+        std::cout << "batch: " << batch << " head: " << head << " seq_len: " << seq_len
+                  << " hdim: " << hdim << " dtype_max: " << dtype_max
+                  << " num_blocks_: " << num_blocks_ << std::endl;
         std::random_device rd;
         std::mt19937 gen(rd());
-        std::uniform_real_distribution<float> dis(0.5, 2.0f);
+        std::uniform_real_distribution<float> dis(2.0f, 2.0f);
         for(size_t b = 0; b < batch; ++b)
         {
             for(size_t h = 0; h < head; ++h)
@@ -198,7 +198,7 @@ class BlockQuantizer
                     }
                     // calculate block scale
                     max_value += dis(gen);
-                    float scale              = dtype_max / max_value;
+                    float scale = dtype_max / max_value;
                     // quant
                     for(size_t s = block * block_size_;
                         s < (block + 1) * block_size_ && s < seq_len;
@@ -242,8 +242,8 @@ class BlockQuantizer
                 for(size_t block = 0; block < num_blocks_; ++block)
                 {
                     float scale = block_scale(b, h, block);
-                    for(size_t s = block * num_blocks_;
-                        s < (block + 1) * num_blocks_ && s < seq_len;
+                    for(size_t s = block * block_size_;
+                        s < (block + 1) * block_size_ && s < seq_len;
                         ++s)
                     {
                         for(size_t d = 0; d < hdim; ++d)
@@ -807,13 +807,16 @@ fwd_result fmha_fwd_run(mode_enum mode,
     if(quant == 2)
     {
         q_host.savetxt("./q_org.txt");
+        k_host.savetxt("./k_org.txt");
+        v_host.savetxt("./v_org.txt");
         BlockQuantizer quantizer(i_perm);
         quantizer.quantize(q_host, q_host, q_scale, block_scale_m_);
         quantizer.quantize(k_host, k_host, k_scale, block_scale_n_);
-        quantizer.quantize(v_host, v_host, v_scale, block_scale_n_);
-        // return fwd_result::invalid_args;
-
+        // quantizer.quantize(v_host, v_host, v_scale, block_scale_n_);
         // scale_p = quantizer.scale_p<QDataType>();
+        q_host.savetxt("./q_quant.txt");
+        k_host.savetxt("./k_quant.txt");
+        v_host.savetxt("./v_quant.txt");
     }
     else if(quant == 1)
     {
@@ -953,18 +956,6 @@ fwd_result fmha_fwd_run(mode_enum mode,
     q_scale_buf.ToDevice(q_scale.data());
     k_scale_buf.ToDevice(k_scale.data());
     v_scale_buf.ToDevice(v_scale.data());
-
-    if(quant == 2)
-    {
-        // dequant data for host
-        BlockQuantizer quantizer(i_perm);
-        q_host.savetxt("./q_quant.txt");
-        quantizer.dequantize(q_host, q_host, q_scale, block_scale_m_);
-        q_host.savetxt("./q_dequant.txt");
-        quantizer.dequantize(k_host, k_host, k_scale, block_scale_n_);
-        quantizer.dequantize(v_host, v_host, v_scale, block_scale_n_);
-        // return fwd_result::invalid_args;
-    }
 
     // clang-format off
     auto layout_str = [&](bool permute){
@@ -1534,6 +1525,18 @@ fwd_result fmha_fwd_run(mode_enum mode,
             uint8_t(std::floor(p_undrop * std::numeric_limits<uint8_t>::max()));
         float rp_undrop = 1.0 / p_undrop;
 
+        if(quant == 2)
+        {
+            // dequant data for host
+            BlockQuantizer quantizer(i_perm);
+            quantizer.dequantize(q_host, q_host, q_scale, block_scale_m_);
+            quantizer.dequantize(k_host, k_host, k_scale, block_scale_n_);
+            // quantizer.dequantize(v_host, v_host, v_scale, block_scale_n_);
+            q_host.savetxt("./q_dequant.txt");
+            k_host.savetxt("./k_dequant.txt");
+            v_host.savetxt("./v_dequant.txt");
+            // scale_s = scale_s / 48.0 / 48.0;
+        }
         for(ck_tile::index_t wb = 0; wb < batch; ++wb)
         {
             ck_tile::index_t real_seqlen_q = seqstart_q_host[wb + 1] - seqstart_q_host[wb];
@@ -1899,7 +1902,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
             if(o_perm) o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b_idx, idx[0], idx[1] + query_offset, idx[2]); });
             else       o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b_idx, idx[1] + query_offset, idx[0], idx[2]); });
             // clang-format on
-
+            o_host_result.savetxt("o_host_result.txt");
+            o_host_ref.savetxt("o_host_ref.txt");
             auto [rtol, atol] = get_elimit<DataTypeConfig>(init_method);
             bool cur_pass     = ck_tile::check_err(o_host_result,
                                                o_host_ref,
