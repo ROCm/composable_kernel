@@ -51,8 +51,8 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                                     BLayout,
                                                     CLayout,
                                                     QuantMode,
-                                                    ALayout, // for AQLayout
-                                                    BLayout, // for BQLayout
+                                                    ck_tile::tensor_layout::gemm::RowMajor,    // for AQLayout
+                                                    ck_tile::tensor_layout::gemm::ColumnMajor, // for BQLayout
                                                     false,
                                                     GemmConfig::DoubleSmemBuffer>;
 
@@ -791,6 +791,34 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
         {
             return run_gemm_example_with_layouts<GemmConfig, TypeConfig, QuantGroupSize, QuantMode>(
                 arg_parser, Row{}, Row{}, Col{}, Col{}, Row{});
+        }
+        if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
+        {
+                if(a_layout == "R" && b_layout == "R")
+                {
+                    return run_gemm_example_with_layouts<GemmConfig, TypeConfig, QuantGroupSize, QuantMode>(
+                        arg_parser, Row{}, Row{}, Row{}, Col{}, Row{});
+                }
+                else if(a_layout == "C" && b_layout == "R")
+                {
+                    if constexpr(!std::is_same_v<typename TypeConfig::ADataType, ck_tile::pk_int4_t>)
+                    {
+                        return run_gemm_example_with_layouts<GemmConfig,
+                                                             TypeConfig,
+                                                             QuantGroupSize,
+                                                             QuantMode>(
+                            arg_parser, Col{}, Row{}, Row{}, Col{}, Row{});
+                    }
+                    else
+                    {
+                        throw std::runtime_error(
+                            "CR layout is not supported for this int4 datatype!");
+                    }
+                }
+                else
+                {
+                    throw std::runtime_error("Unsupported memory layout for the input matrices!");
+                }
         }
         else
         {
