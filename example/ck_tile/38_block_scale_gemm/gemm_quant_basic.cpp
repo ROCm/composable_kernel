@@ -419,6 +419,10 @@ int dispatch_group_size_ct(int m, int n, int k, F&& f)
 
 int main(int argc, char* argv[])
 {
+#if CK_TILE_USE_WMMA
+    return !run_gemm_example<GemmConfigBQuantPrefill_Wmma>(argc, argv);
+#else
     // Use non-preshuffled GemmConfig for 2D block scale support
     return !run_gemm_example<GemmConfigBQuantPrefill>(argc, argv);
+#endif
 }
