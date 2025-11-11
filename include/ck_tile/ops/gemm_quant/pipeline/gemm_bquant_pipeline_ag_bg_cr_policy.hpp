@@ -55,25 +55,14 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
         static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
         if constexpr(PreshuffleQuant)
         {
-            // if(get_block_id() == 0 && get_thread_id() == 0)
-            // {
-            //     printf("Inside PreshuffleQuant\n BlockSize: %d,  YPerTile: %d, XPerTile: %d, "
-            //            "VecLoadSize: %d\n",
-            //            BlockSize,
-            //            NPerBlock / WarpGemm::kN,
-            //            ck_tile::integer_least_multiple(WarpGemm::kN * KPerBlockBQ,
-            //            get_warp_size()), VecLoadSize);
-            // }
-            using TileEncodingPattern =
-                tile_distribution_encoding_pattern_bq<BlockGemmShape,
-                                                      WarpGemm,
-                                                      BlockSize,
-                                                      NPerBlock / WarpGemm::kN, // 64/16 = 4
-                                                      ck_tile::integer_least_multiple(
-                                                          WarpGemm::kN * KPerBlockBQ,
-                                                          get_warp_size()), //(32, 64) = 64
-                                                      VecLoadSize,
-                                                      PreshuffleQuant>;
+            using TileEncodingPattern = tile_distribution_encoding_pattern_bq<
+                BlockGemmShape,
+                WarpGemm,
+                BlockSize,
+                NPerBlock / WarpGemm::kN,
+                ck_tile::integer_least_multiple(WarpGemm::kN * KPerBlockBQ, get_warp_size()),
+                VecLoadSize,
+                PreshuffleQuant>;
             return TileEncodingPattern::make_2d_static_tile_distribution();
         }
         else

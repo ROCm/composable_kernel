@@ -74,17 +74,6 @@ struct tile_distribution_encoding_pattern_aq : public tile_distribution_encoding
     {
         if constexpr(PreshuffleQuant)
         {
-            // if(get_block_id() == 0 && get_thread_id() == 0)
-            // {
-            //     printf("YperTile: %d, XPerTile: %d, MWarps: %d, NWarps: %d, MIterPerWarp: %d, "
-            //            "warp_size: %d\n",
-            //            YPerTile,     // 1
-            //            XPerTile,     // 64
-            //            MWarps,       // 1
-            //            NWarps,       // 4
-            //            MIterPerWarp, // 1
-            //            warp_size);   // 64
-            // }
             // # of elements per thread
             static_assert(XPerTile >= warp_size && XPerTile % warp_size == 0);
             constexpr index_t X1 = warp_size;
@@ -95,21 +84,20 @@ struct tile_distribution_encoding_pattern_aq : public tile_distribution_encoding
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<NWarps>,
                                            tuple<sequence<Y0, Y1>, sequence<X0, X1>>,
-                                           tuple<sequence<1, 0>, sequence<2>>, //(MWarp, NWarp),
-                                                                               //(X1)
-                                           tuple<sequence<1, 0>, sequence<1>>, //(1, 4), (64)
-                                           sequence<1, 2>,                     // (1), (64/64) = 1
+                                           tuple<sequence<1, 0>, sequence<2>>,
+                                           tuple<sequence<1, 0>, sequence<1>>,
+                                           sequence<1, 2>,
                                            sequence<0, 0>>{});
         }
         else
         {
             // # of elements per thread
-            constexpr index_t X = XPerTile; // 2
+            constexpr index_t X = XPerTile;
 
             constexpr index_t Y0 = 1;
-            constexpr index_t Y1 = MIterPerWarp ? MIterPerWarp : 1; // 1
-            constexpr index_t Y2 = MWarps;                          // 1
-            constexpr index_t Y3 = WarpGemm::kM;                    // 16
+            constexpr index_t Y1 = MIterPerWarp ? MIterPerWarp : 1;
+            constexpr index_t Y2 = MWarps;
+            constexpr index_t Y3 = WarpGemm::kM;
             static_assert(Y3 >= WarpGemm::kM,
                           "Scales for all rows must be available within the warp.");
             static_assert(Y0 * Y1 * Y2 * Y3 == YPerTile,
@@ -117,10 +105,9 @@ struct tile_distribution_encoding_pattern_aq : public tile_distribution_encoding
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<NWarps>,
                                            tuple<sequence<Y0, Y1, Y2, Y3>, sequence<X>>,
-                                           tuple<sequence<1, 0>, sequence<1, 1>>, //(MWarp, NWarp),
-                                                                                  //(Y0, Y3)
-                                           tuple<sequence<2, 0>, sequence<0, 3>>, //(1, 4), (1, 16)
-                                           sequence<1, 2>, //(1, 2(in X direction))
+                                           tuple<sequence<1, 0>, sequence<1, 1>>,
+                                           tuple<sequence<2, 0>, sequence<0, 3>>,
+                                           sequence<1, 2>,
                                            sequence<1, 0>>{});
         }
     }
@@ -229,18 +216,17 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
     {
         if constexpr(PreshuffleQuant)
         {
-            constexpr index_t X1 = warp_size;            // 64
-            constexpr index_t X0 = XPerTile / warp_size; // 64/64 = 1
-            constexpr index_t Y1 = NWarps;               // 4
-            constexpr index_t Y0 = YPerTile / Y1;        // 4/4 = 1
+            constexpr index_t X1 = warp_size;
+            constexpr index_t X0 = XPerTile / warp_size;
+            constexpr index_t Y1 = NWarps;
+            constexpr index_t Y0 = YPerTile / Y1;
 
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<MWarps>,
                                            tuple<sequence<Y0, Y1>, sequence<X0, X1>>,
-                                           tuple<sequence<0, 1>, sequence<2>>, //(MWarp, NWarp),
-                                                                               //(warp_size)
-                                           tuple<sequence<0, 1>, sequence<1>>, //(1, 4), (64)
-                                           sequence<1, 2>,                     // (1), (64/64) = 1
+                                           tuple<sequence<0, 1>, sequence<2>>,
+                                           tuple<sequence<0, 1>, sequence<1>>,
+                                           sequence<1, 2>,
                                            sequence<0, 0>>{});
         }
         else

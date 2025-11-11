@@ -11,7 +11,7 @@ auto shuffle_aq(const ck_tile::HostTensor<T>* t, int block_aq_k)
     }
     int m_   = t->get_lengths()[0];
     int aqk_ = t->get_lengths()[1];
-    // printf("m_: %d, aqk_: %d, block_aq_k: %d\n", m_, aqk_, block_aq_k);
+
     if(aqk_ % block_aq_k != 0)
     {
         throw std::runtime_error("shuffle_aq needs a aqk of multiple times of block_aq_k.");
@@ -30,7 +30,7 @@ auto shuffle_bq(const ck_tile::HostTensor<T>* t, int block_bq_k)
     }
     int bqk_ = t->get_lengths()[0];
     int n_   = t->get_lengths()[1];
-    // printf("bqk_: %d, n_: %d, block_bq_k: %d\n", bqk_, n_, block_bq_k);
+
     if(bqk_ % block_bq_k != 0)
     {
         throw std::runtime_error("shuffle_bq needs a bqk of multiple times of block_bq_k.");

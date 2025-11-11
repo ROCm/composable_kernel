@@ -64,6 +64,7 @@ args:
 -rotating_count    Rotating count (default:1000)
     -quant_mode    Choose aquant, bquant, tensor or rowcol (default:bquant)
    -preshuffleb    Enable preshuffle of tensor B (default:false)
+-preshufflequant   Enable preshuffle of quant tensor (defualt:false)
     -group_size    Quantization group size as MxNxK, e.g., 1x1x128, 1x32x128, 1x64x128 (default:1x1x128)
 ```
 

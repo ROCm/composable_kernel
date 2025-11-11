@@ -374,18 +374,7 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
                                 pull_from_lane << 2, __builtin_bit_cast(int, scale_reg_dword));
 
                             float scale_reg_f = Base::cvt_scale_to_fp32(gathered_scale_reg);
-                            // if(get_block_id() == 0 && get_warp_id() == 0 && get_thread_id() == 0)
-                            // {
-                            //     printf("scale_reg_f: %f, reg_offset: %d, MIterPerWarp: %d, "
-                            //            "NIterPerWarp: %d, mIter: %d, nIter:%d, kQScale: %d\n",
-                            //            scale_reg_f,
-                            //            reg_offset,
-                            //            MIterPerWarp,
-                            //            NIterPerWarp,
-                            //            static_cast<int>(mIter),
-                            //            static_cast<int>(nIter),
-                            //            static_cast<int>(kQScale));
-                            // }
+
                             static_for<0, WarpGemm::kM * WarpGemm::kN / warp_size, 1>{}(
                                 [&](auto c_row) {
                                     c_block_tensor.get_thread_buffer()[tbuf_offset + c_row] +=
