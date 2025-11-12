@@ -52,4 +52,18 @@ struct DetermineWarpPrecType<ck_tile::bf16_t, ck_tile::fp8_t>
 {
     using prec_type = float;
 };
+
+// For fp8 x fp16 or fp16 x fp8, convert fp8 to float
+template <>
+struct DetermineWarpPrecType<ck_tile::fp8_t, ck_tile::half_t>
+{
+    using prec_type = float;
+};
+
+// For fp8 x fp16 or fp16 x fp8, convert fp16 to float
+template <>
+struct DetermineWarpPrecType<ck_tile::half_t, ck_tile::fp8_t>
+{
+    using prec_type = float;
+};
 }; // namespace ck_tile
