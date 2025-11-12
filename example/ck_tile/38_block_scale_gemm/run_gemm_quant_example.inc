@@ -624,9 +624,19 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         if constexpr(GemmConfig::PreshuffleB && GemmConfig::TiledMMAPermuteN)
         {
             printf("Preshuffle BQ with TiledMMAPermuteN \n");
-            ck_tile::HostTensor<BQDataType> bq_shuffle_host =
-                ck_tile::shuffle_bq_permuteN<GemmConfig>(*bq_tensor_ptr);
-            bq_dev_buf_ptr->ToDevice(bq_shuffle_host.data());
+            ck_tile::HostTensor<BQDataType> bq_permuted_host =
+                ck_tile::bq_permuteN<GemmConfig>(*bq_tensor_ptr);
+
+            if constexpr(GemmConfig::PreshuffleQuant)
+            {
+                ck_tile::HostTensor<BQDataType> bq_shuffle_host =
+                    ck_tile::shuffle_bq(&bq_permuted_host, GemmConfig::K_Tile / QuantGroupSize::kK);
+                bq_dev_buf_ptr->ToDevice(bq_shuffle_host.data());
+            }
+            else
+            {
+                bq_dev_buf_ptr->ToDevice(bq_permuted_host.data());
+            }
         }
         else if constexpr(GemmConfig::PreshuffleQuant)
         {
