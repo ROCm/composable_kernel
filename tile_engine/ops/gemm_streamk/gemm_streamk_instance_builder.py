@@ -441,7 +441,7 @@ struct SelectedKernel {{
     static constexpr bool NumWaveGroup       = 1;
 
     static constexpr bool TransposeC = false;
-    static constexpr bool UsePersistentKernel = {"true" if persistent == "true" else "false"};
+    static constexpr bool UsePersistentKernel = {"true" if str(persistent).lower() == "true" else "false"};
     static constexpr bool UseStructuredSparsity = false;
     static constexpr ck_tile::index_t NumWaveGroups = 1;
     static constexpr ck_tile::StreamKReductionStrategy reduction_strategy = {reduction_strategy_map.get(reduction_strategy, "ck_tile::StreamKReductionStrategy::Reduction")};
