@@ -176,6 +176,7 @@ struct BlockFmhaPipelineQRKSVS
                const BlockIndices& block_indices,
                void* smem_ptr,
                DropoutType& dropout,
+               const float q_scale,
                const float* k_scale_ptr,
                const float* v_scale_ptr,
                index_t,
@@ -407,7 +408,7 @@ struct BlockFmhaPipelineQRKSVS
             {
                 if(k_scale_ptr)
                 {
-                    tile_elementwise_inout([k_scale](auto& x) { x = x * k_scale; }, s_acc);
+                    tile_elementwise_inout([q_scale, k_scale](auto& x) { x = x * q_scale * k_scale; }, s_acc);
                 }
             }
 
@@ -640,18 +641,39 @@ struct BlockFmhaPipelineQRKSVS
             const auto p =
                 cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
 
+            auto wrapper_gemm1 = [&](auto& acc, auto a, auto b) {
+                if constexpr(kDoFp8StaticQuant)
+                {
+                    auto acc0 = gemm_1(a, b);
+                    tile_elementwise_inout(
+                        [&v_scale](auto& o, auto o0) {
+                            // asm volatile(";wrapper_gemm1\n\tv_mul_f32_e32 %0, %1, %2"
+                            //              : "=v"(o)
+                            //              : "s"(v_scale), "v"(o0)
+                            //              : "memory");
+                            o += o0 * v_scale;
+                        },
+                        acc,
+                        acc0);
+                }
+                else
+                {
+                    gemm_1(acc, a, b);
+                };
+            };
             // STAGE 3, KV gemm
-            auto o_acc_tmp = decltype(o_acc){};
-            clear_tile(o_acc_tmp);
+            // auto o_acc_tmp = decltype(o_acc){};
+            // clear_tile(o_acc_tmp);
             if constexpr(k1_loops > 1)
             {
                 static_for<0, k1_loops - 1, 1>{}([&](auto i_k1) {
                     const auto v = load_tile(v_dram_window); // load next v
                     block_sync_lds();
-                    gemm_1(o_acc_tmp,
-                           get_slice_tile(
-                               p, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}),
-                           v_lds_window);
+                    wrapper_gemm1(o_acc,
+                                  get_slice_tile(p,
+                                                 sequence<0, i_k1 * kK1>{},
+                                                 sequence<kM0, (i_k1 + 1) * kK1>{}),
+                                  v_lds_window);
                     block_sync_lds();
                     if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
                     {
@@ -675,20 +697,21 @@ struct BlockFmhaPipelineQRKSVS
             // tail
             {
                 block_sync_lds();
-                gemm_1(o_acc_tmp,
-                       get_slice_tile(p, sequence<0, (k1_loops - 1) * kK1>{}, sequence<kM0, kN0>{}),
-                       v_lds_window);
+                wrapper_gemm1(
+                    o_acc,
+                    get_slice_tile(p, sequence<0, (k1_loops - 1) * kK1>{}, sequence<kM0, kN0>{}),
+                    v_lds_window);
                 block_sync_lds();
             }
             // o_acc += o_acc_tmp;
             // o_acc += tile_elementwise_in(scale(1.0f / v_scale), o_acc_tmp);
             // ck_tile::ignore = v_scale;
-            sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
-                sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
-                    constexpr auto i_j_idx = make_tuple(idx0, idx1);
-                    o_acc(i_j_idx) += o_acc_tmp(i_j_idx) * v_scale;
-                });
-            });
+            // sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
+            //     sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
+            //         constexpr auto i_j_idx = make_tuple(idx0, idx1);
+            //         o_acc(i_j_idx) += o_acc_tmp(i_j_idx) * v_scale;
+            //     });
+            // });
 
         } while(++i_total_loops < num_total_loop);
 
@@ -796,6 +819,7 @@ struct BlockFmhaPipelineQRKSVS
                           block_indices,
                           smem_ptr,
                           dropout,
+                          1.0f,
                           nullptr,
                           nullptr,
                           128,

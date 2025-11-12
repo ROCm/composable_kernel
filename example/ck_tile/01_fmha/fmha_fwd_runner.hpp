@@ -167,9 +167,9 @@ class BlockQuantizer
         size_t seq_len     = in.get_length(i_perm ? 2 : 1);
         size_t hdim        = in.get_length(3);
         size_t num_blocks_ = (seq_len + block_size_ - 1) / block_size_;
-        std::cout << "batch: " << batch << " head: " << head << " seq_len: " << seq_len
-                  << " hdim: " << hdim << " dtype_max: " << dtype_max
-                  << " num_blocks_: " << num_blocks_ << std::endl;
+        // std::cout << "batch: " << batch << " head: " << head << " seq_len: " << seq_len
+        //           << " hdim: " << hdim << " dtype_max: " << dtype_max
+        //           << " num_blocks_: " << num_blocks_ << std::endl;
         std::random_device rd;
         std::mt19937 gen(rd());
         std::uniform_real_distribution<float> dis(0.5f, 2.0f);
@@ -215,9 +215,9 @@ class BlockQuantizer
                     }
                     // save scale to tensor
                     block_scale(b, h, block) = 1.0f / scale;
-                    std::cout << "block: " << block << " scale: " << scale
-                              << " max_value: " << max_value << " block_scale: " << block_scale
-                              << std::endl;
+                    // std::cout << "block: " << block << " scale: " << scale
+                    //           << " max_value: " << max_value << " block_scale: " << block_scale
+                    //           << std::endl;
                 }
             }
         }
@@ -806,32 +806,13 @@ fwd_result fmha_fwd_run(mode_enum mode,
     float scale_o = 1.f;
     if(quant == 2)
     {
-        ck_tile::FillUniformDistributionIntegerValue<float>{1.f, 10.f, next_seed()}(q_scale);
-        ck_tile::FillUniformDistributionIntegerValue<float>{1.f, 10.f, next_seed()}(k_scale);
-        ck_tile::FillUniformDistributionIntegerValue<float>{1.f, 10.f, next_seed()}(v_scale);
-        
-        {   //debug info
-            std::cout << "q_scale: " << q_scale << " k_scale: " << k_scale
-                      << " v_scale: " << v_scale << std::endl;
-
-            ck_tile::HostTensor<float> q_host_deq(
-                get_lengths(i_perm, shape_batch, nhead, shape_seqlen_q, hdim_q));
-            ck_tile::HostTensor<float> k_host_deq(
-                0 < page_block_size
-                    ? get_lengths(i_perm, max_num_page_blocks, nhead_k, page_block_size, hdim_q)
-                    : get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_q));
-            ck_tile::HostTensor<float> v_host_deq(
-                0 < page_block_size
-                    ? get_lengths(i_perm, max_num_page_blocks, nhead_k, page_block_size, hdim_q)
-                    : get_lengths(i_perm, shape_batch, nhead_k, shape_seqlen_k, hdim_q));
-            BlockQuantizer quantizer(i_perm);
-            quantizer.dequantize(q_host, q_host_deq, q_scale, block_scale_m_);
-            quantizer.dequantize(k_host, k_host_deq, k_scale, block_scale_n_);
-            quantizer.dequantize(v_host, v_host_deq, v_scale, block_scale_n_);
-            q_host_deq.savetxt("./q_deq.txt");
-            k_host_deq.savetxt("./k_deq.txt");
-            v_host_deq.savetxt("./v_deq.txt");
-        }
+        BlockQuantizer quantizer(i_perm);
+        quantizer.quantize(q_host, q_host, q_scale, block_scale_m_);
+        quantizer.quantize(k_host, k_host, k_scale, block_scale_n_);
+        quantizer.quantize(v_host, v_host, v_scale, block_scale_n_);
+        q_host.savetxt("./q_quant.txt");
+        k_host.savetxt("./k_quant.txt");
+        v_host.savetxt("./v_quant.txt");
     }
     else if(quant == 1)
     {
@@ -1737,10 +1718,10 @@ fwd_result fmha_fwd_run(mode_enum mode,
                     s_host_ref,
                     ck_tile::idx_identity{},
                     ck_tile::idx_identity{},
-                    [&q_scale, &k_scale, scale_s, wb](auto idx, auto value) {
+                    [&](auto idx, auto value) {
                         return value * scale_s *
                                q_scale(wb, std::get<0>(idx), std::get<1>(idx) / 128) *
-                               k_scale(wb, std::get<0>(idx), std::get<2>(idx) / 128);
+                               k_scale(wb, std::get<0>(idx) / nr, std::get<2>(idx) / 128);
                     });
             }
             else
@@ -1919,10 +1900,9 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         v_host_ref,
                         o_host_ref,
                         ck_tile::idx_identity{},
-                        [&v_scale, wb](auto idx, auto value) {
-                            // idx: b, m, n, k --> h, sq, d, sk
+                        [&v_scale, wb, nr](auto idx, auto value) {
                             return ck_tile::type_convert<float>(value) *
-                                   v_scale(wb, std::get<0>(idx), std::get<2>(idx) / 128);
+                                   v_scale(wb, std::get<0>(idx) / nr, std::get<2>(idx) / 128);
                         },
                         ck_tile::idx_identity{});
             }
