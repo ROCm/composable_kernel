@@ -6,6 +6,34 @@
 #include "gemm_utils.hpp"
 
 namespace ck_tile::experimental::builder {
+
+template<ck_tile::index_t kMPerBlock,
+         ck_tile::index_t kNPerBlock,
+         ck_tile::index_t kKPerBlock,
+         ck_tile::index_t GroupNum,
+         ck_tile::index_t M01>
+struct TilePartitionerResolver
+{
+    struct GemmShapeTmp
+    {
+        static constexpr auto kM = kMPerBlock;
+        static constexpr auto kN = kNPerBlock;
+        static constexpr auto kK = kKPerBlock;
+    };
+    using Type = ck_tile::GemmSpatiallyLocalTilePartitioner<
+        GemmShapeTmp,
+        GroupNum,
+        M01>;
+};
+
+template<ck_tile::index_t kMPerBlock,
+         ck_tile::index_t kNPerBlock,
+         ck_tile::index_t kKPerBlock,
+         ck_tile::index_t GroupNum,
+         ck_tile::index_t M01>
+using TilePartitionerType =
+    typename TilePartitionerResolver<kMPerBlock, kNPerBlock, kKPerBlock, GroupNum, M01>::Type;
+
 template <class AlgorithmMetadata, class InputMetadata>
 struct UniversalFactory
 {
@@ -23,10 +51,12 @@ struct UniversalFactory
                                AlgorithmMetadata::PermuteA::value,
                                AlgorithmMetadata::PermuteB::value>;
 
-    using TilePartitioner =
-        ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
-                                                   AlgorithmMetadata::TileParitionerGroupNum::value,
-                                                   AlgorithmMetadata::TileParitionerM01::value>;
+    using TilePartitioner = TilePartitionerType<
+        AlgorithmMetadata::M_Tile::value,
+        AlgorithmMetadata::N_Tile::value,
+        AlgorithmMetadata::K_Tile::value,
+        AlgorithmMetadata::TilePartitionerGroupNum::value,
+        AlgorithmMetadata::TilePartitionerM01::value>;
 
     using Traits = ck_tile::TileGemmTraits<AlgorithmMetadata::kPadM::value,
                                            AlgorithmMetadata::kPadN::value,
@@ -81,14 +111,14 @@ struct UniversalFactory
                                          typename InputMetadata::InputDsLayout,
                                          typename InputMetadata::InputELayout,
                                          typename InputMetadata::InputCDEElementWise,
-                                         TilePartitioner::MPerBlock,
-                                         TilePartitioner::NPerBlock,
+                                         AlgorithmMetadata::M_Tile::value,
+                                         AlgorithmMetadata::N_Tile::value,
                                          AlgorithmMetadata::M_Warp::value,
                                          AlgorithmMetadata::N_Warp::value,
                                          AlgorithmMetadata::M_Warp_Tile::value,
                                          AlgorithmMetadata::N_Warp_Tile::value,
                                          AlgorithmMetadata::K_Warp_Tile::value,
-                                         UniversalGemmProblem::TransposeC,
+                                         AlgorithmMetadata::TransposeC::value,
                                          AlgorithmMetadata::MemoryOperation::value,
                                          AlgorithmMetadata::NumWaveGroups::value>>;
 
@@ -204,10 +234,10 @@ struct UniversalInvoker
 
                 using Scheduler = ck_tile::integral_constant<decltype(GemmConfig::Scheduler),
                                                              GemmConfig::Scheduler>;
-                using TileParitionerGroupNum =
+                using TilePartitionerGroupNum =
                     ck_tile::integral_constant<decltype(GemmConfig::TileParitionerGroupNum),
                                                GemmConfig::TileParitionerGroupNum>;
-                using TileParitionerM01 =
+                using TilePartitionerM01 =
                     ck_tile::integral_constant<decltype(GemmConfig::TileParitionerM01),
                                                GemmConfig::TileParitionerM01>;
                 using Pipeline = ck_tile::integral_constant<decltype(GemmConfig::Pipeline),
