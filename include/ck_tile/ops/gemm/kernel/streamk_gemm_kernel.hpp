@@ -662,7 +662,7 @@ struct StreamKKernel
         hip_check_error(
             hipOccupancyMaxActiveBlocksPerMultiprocessor(&occupancy, kernel, kBlockSize, 0));
 
-        return occupancy;
+        return max(occupancy, 1);
     }
 };
 } // namespace reboot
