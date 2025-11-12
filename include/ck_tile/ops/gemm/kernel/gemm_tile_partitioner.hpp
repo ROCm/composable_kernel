@@ -265,6 +265,14 @@ struct GemmSpatiallyLocalTilePartitioner
         return integer_divide_ceil(K, KPerBlock);
     }
 
+    CK_TILE_HOST static index_t GetLoopNum2(index_t K, index_t split_K)
+    {
+        // const index_t k_grain     = split_K * KPerBlock;
+        // const index_t K_per_split     = integer_divide_ceil(K, k_grain) * KPerBlock;
+        // return GetLoopNum(K_per_split);
+        return integer_divide_ceil(K, split_K * KPerBlock);
+    }
+
     /**
      * @brief Calculate workgroup 1D index mapping into 2D output C-tile space.
      *

@@ -26,6 +26,40 @@ struct TilePartitionerResolver
         M01>;
 };
 
+// parameterize on the pipeline type
+template<auto PipelineId>
+struct HotLoopDescription;
+
+template<>
+struct HotLoopDescription<CK_TILE_PIPELINE_COMPUTE_V3>
+{
+    static constexpr index_t PrefetchStages = 2;
+
+    CK_TILE_HOST static constexpr bool has_hot_loop(index_t num_loop)
+    {
+        return num_loop > PrefetchStages;
+    }
+
+    CK_TILE_HOST static constexpr ck_tile::TailNumber get_tail_num(index_t num_loop)
+    {
+        if(has_hot_loop(num_loop))
+        {
+            return ck_tile::TailNumber::Full;
+        }
+        else
+        {
+            if(num_loop == 1)
+            {
+                return ck_tile::TailNumber::Odd;
+            }
+            else
+            {
+                return ck_tile::TailNumber::Even;
+            }
+        }
+    }
+};
+
 template<ck_tile::index_t kMPerBlock,
          ck_tile::index_t kNPerBlock,
          ck_tile::index_t kKPerBlock,
@@ -163,16 +197,10 @@ struct UniversalInvoker
     static float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s)
 
     {
-        // const ck_tile::index_t k_grain     = args.k_batch * GemmConfig::K_Tile;
-        // const ck_tile::index_t K_split     = (args.K + k_grain - 1) / k_grain *
-        // GemmConfig::K_Tile; const ck_tile::index_t num_loop    =
-        // TilePartitioner::GetLoopNum(K_split); const bool has_hot_loop            =
-        // BaseGemmPipeline::BlockHasHotloop(num_loop); const ck_tile::TailNumber tail_num =
-        // BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
-
-        // const ck_tile::index_t num_loop = 64;
-        const bool has_hot_loop            = true;
-        const ck_tile::TailNumber tail_num = ck_tile::TailNumber::Full;
+        using TilePartitioner = ck_tile::experimental::builder::TilePartitionerType<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile, GemmConfig::TileParitionerGroupNum, GemmConfig::TileParitionerM01>;
+        const ck_tile::index_t num_loop = TilePartitioner::GetLoopNum2(args.K, args.k_batch);
+        const bool has_hot_loop            = ck_tile::experimental::builder::HotLoopDescription<CK_TILE_PIPELINE_COMPUTE_V3>::has_hot_loop(num_loop);
+        const ck_tile::TailNumber tail_num = ck_tile::experimental::builder::HotLoopDescription<CK_TILE_PIPELINE_COMPUTE_V3>::get_tail_num(num_loop);
 
         float ave_time{0};
 
@@ -260,65 +288,6 @@ struct UniversalInvoker
                 using InputELayout        = ELayout;
                 using InputCDEElementWise = CDEElementWise;
             };
-
-            // if(s.log_level_ > 0)
-            // {
-            //     std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
-            //               << "shape: " << GemmShape::GetName() << '\n'
-            //               << "problem: " << UniversalGemmProblem::GetName() << '\n'
-            //               << "pipeline: " << GemmPipeline::GetName() << '\n'
-            //               << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
-            //               << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
-            //               << "}" << std::endl;
-            // }
-
-            // Declare rotating_mem_ptr here so it stays in scope until it is needed
-            // std::unique_ptr<ck_tile::RotatingMemWrapper<ADataType, BDataType>> rotating_mem_ptr;
-            // std::function<void()> preprocess;
-
-            // auto clear_gemm_output = [&]() {
-            //     if(args.k_batch > 1)
-            //         hipGetErrorString(hipMemsetAsync(
-            //             args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
-            // };
-
-            // if(s.flush_cache_)
-            // {
-            //     std::cout << "Flushing cache..." << std::endl;
-
-            //     ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
-            //         args.M, args.K, args.stride_A, is_row_major(ALayout{})));
-            //     ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
-            //         args.K, args.N, args.stride_B, is_row_major(BLayout{})));
-
-            //     auto size_a_buffer = a_m.get_element_space_size_in_bytes();
-            //     auto size_b_buffer = b_n.get_element_space_size_in_bytes();
-
-            //     rotating_mem_ptr =
-            //         std::make_unique<ck_tile::RotatingMemWrapper<ADataType, BDataType>>(
-            //             kargs.as_ptr[0],
-            //             kargs.bs_ptr[0],
-            //             s.rotating_count_,
-            //             size_a_buffer,
-            //             size_b_buffer);
-            //     rotating_mem_ptr->Print();
-
-            //     preprocess = [&]() {
-            //         ck_tile::flush_icache();
-            //         rotating_mem_ptr->Next();
-            //         clear_gemm_output();
-            //     };
-            // }
-            // else
-            // {
-            //     preprocess = clear_gemm_output;
-            // }
-
-            // ave_time = ck_tile::launch_kernel_time_mask(
-            //     s,
-            //     preprocess,
-            //     ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0,
-            //     kargs));
 
             ave_time = ck_tile::launch_kernel(
                 s, ck_tile::experimental::builder::UniversalFactory<Algo, Inp>::make_kernel(args, s));
