@@ -885,16 +885,14 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
         "gfx9", preprocessor_check="defined(__gfx9__) && !defined(__gfx950__)"
     )
 
-    _DT_FP32 = frozenset({"fp32"})
-    _DT_FP16_BF16 = frozenset({"fp16", "bf16"})
-    _DT_FP8_FP8BF16 = frozenset({"fp8", "fp8bf16"})
-    _DT_FP8FP32 = frozenset({"fp8fp32"})
+    _DT_FP32 = ("fp32",)
+    _DT_FP16_BF16 = ("fp16", "bf16")
+    _DT_FP8_FP8BF16 = ("fp8", "fp8bf16")
+    _DT_FP8FP32 = ("fp8fp32",)
 
     @classmethod
-    def supported_dtypes(cls) -> frozenset[str]:
-        return frozenset().union(
-            cls._DT_FP32, cls._DT_FP16_BF16, cls._DT_FP8_FP8BF16, cls._DT_FP8FP32
-        )
+    def supported_dtypes(cls) -> Tuple[str]:
+        return cls._DT_FP32 + cls._DT_FP16_BF16 + cls._DT_FP8_FP8BF16 + cls._DT_FP8FP32
 
     # TODO: design a more practical way to do it
     # this is current supported tile size per hdim
@@ -991,7 +989,7 @@ class KernelComponentFactoryGfx9(CompatibilityRuleFactoryGfx9):
                         pipelines.append(FmhaFwdPipeline("qr_async", "row", "t", "t", "t", "t", logits, bias, lse, dropout, squant, mask, skip, "f"))  # fmt: skip
                     if receipt == 1 and bias != "bias":
                         pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, lse, dropout, squant, mask, skip, "f"))  # fmt: skip # TODO: cover arbitraty hdim# fmt: skip
-        elif dtype in cls._DT_FP8_FP8BF16 | cls._DT_FP8FP32:
+        elif dtype in cls._DT_FP8_FP8BF16 or dtype in cls._DT_FP8FP32:
             # no need lse/dropout kernels
             for logits, squant, mask, bias in itertools.product(
                 ["f"], ["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()
@@ -1055,15 +1053,13 @@ class KernelComponentFactoryGfx950(
 class KernelComponentFactoryGfx12(CompatibilityRuleFactory):
     arch = ArchTrait("gfx12")
 
-    _DT_FP16_BF16 = frozenset({"fp16", "bf16"})
-    _DT_FP8_FP8BF16 = frozenset({"fp8", "fp8bf16"})
-    _DT_FP8FP32 = frozenset({"fp8fp32"})
+    _DT_FP16_BF16 = ("fp16", "bf16")
+    _DT_FP8_FP8BF16 = ("fp8", "fp8bf16")
+    _DT_FP8FP32 = ("fp8fp32",)
 
     @classmethod
-    def supported_dtypes(cls) -> frozenset[str]:
-        return frozenset().union(
-            cls._DT_FP16_BF16, cls._DT_FP8_FP8BF16, cls._DT_FP8FP32
-        )
+    def supported_dtypes(cls) -> Tuple[str]:
+        return cls._DT_FP16_BF16 + cls._DT_FP8_FP8BF16 + cls._DT_FP8FP32
 
     @classmethod
     def get_hdim_tile_size_dict(cls, dtype: str) -> Optional[dict]:
