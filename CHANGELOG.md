@@ -32,7 +32,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 
 ### Upcoming changes
 
-* Composable Kernel will start introducing C++20-only features in an upcoming release and no longer support C++17 builds. Please ensure your build environment supports C++20.
+* To enhance capabilities and user experience, Composable Kernel will adopt C++20 features in ROCm 8.0, updating the minimum compiler requirement to C++20. Please ensure your development environment meets this requirement for a seamless transition.
 
 ## Composable Kernel 1.1.0 for ROCm 7.1.0
 
