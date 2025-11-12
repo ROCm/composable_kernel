@@ -53,6 +53,7 @@ template <
     typename InElementwiseOperation,
     typename WeiElementwiseOperation,
     typename OutElementwiseOperation,
+    ck_tile::ConvolutionSpecialization ConvSpec,
     int kBlockPerCu,
     ck_tile::index_t M_Tile,
     ck_tile::index_t N_Tile,
@@ -87,7 +88,7 @@ struct GroupedConvolutionBackwardDataInvoker :
             GemmConfigBase::PermuteA,
             GemmConfigBase::PermuteB>;
 
-    static constexpr auto ConvSpec = ck_tile::ConvolutionSpecialization::Default;
+    //static constexpr auto ConvSpec = ck_tile::ConvolutionSpecialization::Default;
 
     using TilePartitioner =
             ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
@@ -199,11 +200,23 @@ struct GroupedConvolutionBackwardDataInvoker :
 
     float Run(const ck_tile::GroupedConvBwdDataHostArgs& args, bool time_kernel, int n_warmup=5, int n_repeat=50) const override
     {
-        const ck_tile::index_t gemm_k =
-            args.N_ * std::accumulate(args.output_spatial_lengths_.begin(),
-                                      args.output_spatial_lengths_.end(),
-                                      1,
-                                      std::multiplies<ck_tile::index_t>());
+        ck_tile::index_t  KGroups = 1;
+        for(int i=0; i<args.num_dim_spatial_;i++) {
+            ck_tile::index_t tilde = args.conv_filter_dilations_[i] / gcd(args.conv_filter_strides_[i], args.conv_filter_dilations_[i]);
+            KGroups *= tilde;
+        }
+
+        // const auto ZTilde             = ConvStrideD / GcdStrideDilationD;
+        // const auto YTilde             = ConvStrideH / GcdStrideDilationH;
+        // const auto XTilde             = ConvStrideW / GcdStrideDilationW;
+
+        const ck_tile::index_t gemm_k = args.K_ * KGroups;
+            // args.N_ * std::accumulate(args.output_spatial_lengths_.begin(),
+            //                           args.output_spatial_lengths_.end(),
+            //                           1,
+            //                           std::multiplies<ck_tile::index_t>());
+
+        //printf("gemm_k: %d\n", gemm_k);
 
         const ck_tile::index_t k_grain     = args.k_batch * K_Tile;
         const ck_tile::index_t K_split     = (gemm_k + k_grain - 1) / k_grain * K_Tile;

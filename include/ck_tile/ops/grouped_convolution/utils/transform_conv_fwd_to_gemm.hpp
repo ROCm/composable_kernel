@@ -670,9 +670,9 @@ struct TransformConvFwdToGemm
 
     {
         IndexType HiStride_       = Wi_ * G_ * C_;
-        IndexType WiStride_       = G_ * C_;
-        IndexType CStrideTensorA_ = 1;
-        IndexType NStrideTensorA_ = Di_ * Hi_ * Wi_ * G_ * C_;
+        [[maybe_unused]] IndexType WiStride_       = G_ * C_;
+        [[maybe_unused]] IndexType CStrideTensorA_ = 1;
+        [[maybe_unused]] IndexType NStrideTensorA_ = Di_ * Hi_ * Wi_ * G_ * C_;
         IndexType GStrideTensorA_ = C_;
 
         if constexpr(ConvSpecialization == ConvolutionSpecialization::Filter1x1Stride1Pad0)
@@ -680,17 +680,24 @@ struct TransformConvFwdToGemm
             if constexpr(NumGroupsToMerge == 1)
             {
                 const auto in_gemmm_gemmk_desc = make_naive_tensor_descriptor(
-                    make_tuple(N_, Ho_, Wo_, C_),
-                    make_tuple(NStrideTensorA_, HiStride_, WiStride_, CStrideTensorA_),
+                    make_tuple(N_ * Ho_ * Wo_, C_),
+                    make_tuple(WiStride_, CStrideTensorA_),
                     number<VectorSizeA>{},
                     I1);
+                
+                return in_gemmm_gemmk_desc;
+                // const auto in_gemmm_gemmk_desc = make_naive_tensor_descriptor(
+                //     make_tuple(N_, Ho_, Wo_, C_),
+                //     make_tuple(NStrideTensorA_, HiStride_, WiStride_, CStrideTensorA_),
+                //     number<VectorSizeA>{},
+                //     I1);
 
-                return transform_tensor_descriptor(
-                    in_gemmm_gemmk_desc,
-                    make_tuple(make_merge_transform(make_tuple(N_, Ho_, Wo_)),
-                               make_pass_through_transform(C_)),
-                    make_tuple(sequence<0, 1, 2>{}, sequence<3>{}),
-                    make_tuple(sequence<0>{}, sequence<1>{}));
+                // return transform_tensor_descriptor(
+                //     in_gemmm_gemmk_desc,
+                //     make_tuple(make_merge_transform(make_tuple(N_, Ho_, Wo_)),
+                //                make_pass_through_transform(C_)),
+                //     make_tuple(sequence<0, 1, 2>{}, sequence<3>{}),
+                //     make_tuple(sequence<0>{}, sequence<1>{}));
             }
             else
             {

@@ -90,8 +90,8 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
         ck_tile::FillMonotonicSeq<OutDataType>{}(output);
         break;
     case 2:
-        ck_tile::FillUniformDistribution<InDataType>{1.f, 1.f}(input);
-        ck_tile::FillUniformDistribution<OutDataType>{1.f, 1.f}(output);
+        ck_tile::FillUniformDistribution<InDataType>{0.f, 1.f}(input);
+        ck_tile::FillUniformDistribution<OutDataType>{0.f, 1.f}(output);
         break;
     default:
         input.SetZero();
@@ -143,6 +143,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     weight_host_ref.SetZero();
     if (do_verification)
     {
+        printf("before ref\n");
         ck_tile::reference_grouped_conv_bwd_weight<NDimSpatial, InDataType, WeiDataType, OutDataType>(
                             input,
                             weight_host_ref,
@@ -151,6 +152,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                             conv_param.conv_filter_dilations_,
                             conv_param.input_left_pads_,
                             conv_param.input_right_pads_);
+        printf("after ref\n");
     }
 
 

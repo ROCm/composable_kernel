@@ -126,6 +126,10 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
 
     index_t num_kernel = 0;
     bool all_pass = true;
+
+    // tmp enforce instance
+    // instance_index = -1;
+
     for(auto& op : ops)
     {
         ck_tile::DeviceMem input_dev_buf(input.get_element_space_size_in_bytes());
@@ -222,7 +226,7 @@ bool profile_grouped_conv_fwd_impl(int do_verification,
         }
         else 
         {
-            std::cout << op->GetName(args) << " does not support this problem." << std::endl;
+            //std::cout << op->GetName(args) << " does not support this problem." << std::endl;
         }
     }
 

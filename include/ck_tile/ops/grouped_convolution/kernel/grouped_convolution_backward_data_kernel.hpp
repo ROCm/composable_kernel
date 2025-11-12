@@ -471,7 +471,7 @@ template <typename GroupedConvTraitsType_,
           typename EpiloguePipeline_>
 struct GroupedConvolutionBackwardDataKernel
 {
-    static constexpr index_t NDimSpatial = GroupedConvTraitsType_::NDimSpatial_;
+    static constexpr index_t NDimSpatial = GroupedConvTraitsType_::NDimSpatial;
     static constexpr ConvolutionSpecialization ConvSpecialization =
         GroupedConvTraitsType_::ConvSpecialization;
     using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
@@ -517,10 +517,23 @@ struct GroupedConvolutionBackwardDataKernel
     static_assert(std::is_same_v<GemmCLayout, tensor_layout::gemm::RowMajor>,
                   "Not supported C GEMM layout!");
 
+    static const std::string specToStr(ConvolutionSpecialization convspec) {
+        if(convspec == ConvolutionSpecialization::Filter1x1Stride1Pad0) {
+            return "Filter1x1Stride1Pad0";
+        } else if(convspec == ConvolutionSpecialization::Filter1x1Pad0) {
+            return "Filter1x1Pad0";
+        } else if(convspec == ConvolutionSpecialization::Filter3x3) {
+            return "Filter3x3";
+        } else {
+            return "Default";
+        }
+    }
+
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
         return concat('_', "grouped_convolution_backward_data", 
+            "spec", specToStr(ConvSpecialization),
             gemm_prec_str<InDataType, WeiDataType>(), 
             "gemm",
             GemmPipeline::GetName(),

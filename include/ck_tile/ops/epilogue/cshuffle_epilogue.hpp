@@ -207,7 +207,7 @@ struct CShuffleEpilogue
         }
         else
         {
-            constexpr index_t num_xdl_shuffles = GetVectorSizeC() / elem_per_thread;
+            constexpr index_t num_xdl_shuffles = GetVectorSizeC() / elem_per_thread; // nie na odwrot?
             if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
             {
                 static_assert((kMPerBlock % (MPerXdl * MWave) == 0) &&
@@ -226,8 +226,9 @@ struct CShuffleEpilogue
             }
         }
     }();
-    static constexpr index_t NumMXdlPerWavePerShuffle = std::get<0>(shuffle_tile_tuple);
-    static constexpr index_t NumNXdlPerWavePerShuffle = std::get<1>(shuffle_tile_tuple);
+
+    static constexpr index_t NumMXdlPerWavePerShuffle = 1;//std::get<0>(shuffle_tile_tuple); // probably always should be 1,1
+    static constexpr index_t NumNXdlPerWavePerShuffle = 1;//std::get<1>(shuffle_tile_tuple);
 
     static constexpr auto MNPerIterationShuffle = [] {
         constexpr index_t m_val = MPerXdl * MWave * NumMXdlPerWavePerShuffle;
@@ -588,6 +589,9 @@ struct CShuffleEpilogue
                                    const ScaleM& scale_m = {},
                                    const ScaleN& scale_n = {})
     {
+        // if(threadIdx.x == 0) {
+        //     printf("second");
+        // }
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
 
         auto lds_tile = make_static_distributed_tensor<AccDataType>(LdsTileDistr);
@@ -608,6 +612,38 @@ struct CShuffleEpilogue
             {0, 0});
 
         constexpr index_t num_access = SFC::get_num_of_access();
+
+        // if (threadIdx.x == 0) {
+        //     constexpr index_t elem_per_thread = MPerXdl * NPerXdl / get_warp_size();
+        //     constexpr index_t num_xdl_shuffles = GetVectorSizeC() / elem_per_thread;
+
+        //     constexpr index_t m_val = MPerXdl * MWave * NumMXdlPerWavePerShuffle;
+        //     constexpr index_t n_val = NPerXdl * NWave * NumNXdlPerWavePerShuffle;
+
+        //     printf("MPerXdl: %d\n", MPerXdl);
+        //     printf("MWave: %d\n", MWave);
+        //     printf("NumMXdlPerWavePerShuffle: %d\n", NumMXdlPerWavePerShuffle);
+
+        //     printf("NPerXdl: %d\n", NPerXdl);
+        //     printf("NWave: %d\n", NWave);
+        //     printf("NumNXdlPerWavePerShuffle: %d\n", NumNXdlPerWavePerShuffle);
+
+        //     printf("num_xdl_shuffles: %d\n", num_xdl_shuffles);
+        //     printf("min(num_xdl_shuffles, kMPerBlock / (MPerXdl * MWave)): %d\n", min(num_xdl_shuffles, kMPerBlock / (MPerXdl * MWave)));
+        
+        //     printf("m_val: %d\n", m_val);
+        //     printf("n_val: %d\n", n_val);
+
+        //     printf("MPerXdl*MWave: %d", MPerXdl * MWave);
+        //     printf("NPerXdl*NWave: %d", NPerXdl * NWave);
+        // }
+
+        // if(threadIdx.x == 0) {
+        //     printf("MPerIterationShuffle: %d\n", MPerIterationShuffle);
+        //     printf("NPerIterationShuffle: %d\n", NPerIterationShuffle);
+        //     printf("num_access: %d\n", num_access);
+        //     printf("GetVectorSizeC: %d\n", GetVectorSizeC());
+        // }
 
         static_assert(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
                       "Currently, the CShuffle Epilogue only supports the Row Major Output layout");

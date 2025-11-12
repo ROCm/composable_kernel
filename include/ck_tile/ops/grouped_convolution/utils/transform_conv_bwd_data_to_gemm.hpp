@@ -9,7 +9,7 @@
 namespace ck_tile {
 
 template <index_t NDimSpatial,
-          ConvolutionSpecialization ConvolutionSpecialization,
+          ConvolutionSpecialization ConvSpec,
           index_t VectorSizeA,
           index_t VectorSizeB,
           index_t VectorSizeC,
@@ -484,10 +484,17 @@ struct TransformConvBwdDataToGemm
 
         // TODO Add support for NumGroupsToMerge > 1
 
-        return make_naive_tensor_descriptor(make_tuple(N_, Ho_, Wo_, K_),
-                                            make_tuple(NStride, HoStride, WoStride, KStride),
-                                            number<VectorSizeA>{},
-                                            I1);
+        if constexpr(ConvSpec == ConvolutionSpecialization::Filter1x1Stride1Pad0) {
+            return make_naive_tensor_descriptor(make_tuple(N_ * Ho_ * Wo_, K_),
+                                                make_tuple(WoStride, KStride),
+                                                number<VectorSizeA>{},
+                                                I1);
+        } else {
+            return make_naive_tensor_descriptor(make_tuple(N_, Ho_, Wo_, K_),
+                                                make_tuple(NStride, HoStride, WoStride, KStride),
+                                                number<VectorSizeA>{},
+                                                I1);
+        }
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 2, bool>::type = false>
@@ -500,20 +507,34 @@ struct TransformConvBwdDataToGemm
         constexpr auto CStride = I1;
 
         // TODO Add support for NumGroupsToMerge > 1
-        return make_naive_tensor_descriptor(make_tuple(N_, Hi_, Wi_, C_),
-                                            make_tuple(NStride, HiStride, WiStride, CStride),
-                                            number<VectorSizeC>{},
-                                            I1);
+        if constexpr(ConvSpec == ConvolutionSpecialization::Filter1x1Stride1Pad0) {
+            return make_naive_tensor_descriptor(make_tuple(N_ * Hi_ * Wi_, C_),
+                                                make_tuple(WiStride, CStride),
+                                                number<VectorSizeC>{},
+                                                I1);
+        } else {
+            return make_naive_tensor_descriptor(make_tuple(N_, Hi_, Wi_, C_),
+                                                make_tuple(NStride, HiStride, WiStride, CStride),
+                                                number<VectorSizeC>{},
+                                                I1);
+        }
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 2, bool>::type = false>
     CK_TILE_HOST auto make_wei_grid_desc() const
     {
         // GKYXC
-        return make_naive_tensor_descriptor(make_tuple(K_, Y_, X_, C_),
-                                            make_tuple(C_ * X_ * Y_, C_ * X_, C_, I1),
-                                            number<VectorSizeB>{},
-                                            I1);
+        if constexpr(ConvSpec == ConvolutionSpecialization::Filter1x1Stride1Pad0) {
+            return make_naive_tensor_descriptor(make_tuple(K_, C_),
+                                                make_tuple(C_, I1),
+                                                number<VectorSizeB>{},
+                                                I1);
+        } else {
+            return make_naive_tensor_descriptor(make_tuple(K_, Y_, X_, C_),
+                                                make_tuple(C_ * X_ * Y_, C_ * X_, C_, I1),
+                                                number<VectorSizeB>{},
+                                                I1);
+        }
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 3, bool>::type = false>
@@ -706,8 +727,16 @@ struct TransformConvBwdDataToGemm
         const auto XDotSlice = integer_divide_ceil(X_ - IdxXTilde_, XTilde_);
 
         const auto out_grid_desc = make_out_grid_desc<NDimSpatial>();
-        const auto in_grid_desc  = make_in_grid_desc<NDimSpatial>();
         const auto wei_grid_desc = make_wei_grid_desc<NDimSpatial>();
+        const auto in_grid_desc  = make_in_grid_desc<NDimSpatial>();
+
+        if constexpr(ConvSpec == ConvolutionSpecialization::Filter1x1Stride1Pad0) {
+            return make_tuple(out_grid_desc,
+                            wei_grid_desc,
+                            in_grid_desc);
+        } else {
+
+
 
         // A: output tensor comes in K_M
         const auto out_n_hop_wop_k_grid_desc = transform_tensor_descriptor(
@@ -851,6 +880,7 @@ struct TransformConvBwdDataToGemm
         return make_tuple(out_gemmm_gemmkraw_grid_desc,
                           wei_gemmn_gemmkraw_grid_desc,
                           in_gemmmraw_gemmnraw_grid_desc);
+        }
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 3, bool>::type = false>

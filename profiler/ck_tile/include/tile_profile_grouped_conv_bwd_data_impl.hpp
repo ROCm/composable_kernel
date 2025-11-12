@@ -90,8 +90,8 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
         ck_tile::FillMonotonicSeq<OutDataType>{}(output);
         break;
     case 2:
-        ck_tile::FillUniformDistribution<WeiDataType>{1.f, 1.f}(weight);
-        ck_tile::FillUniformDistribution<OutDataType>{1.f, 1.f}(output);
+        ck_tile::FillUniformDistribution<WeiDataType>{0.f, 1.f}(weight);
+        ck_tile::FillUniformDistribution<OutDataType>{0.f, 1.f}(output);
         break;
     default:
         input.SetZero();
@@ -143,6 +143,7 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
     input_host_ref.SetZero();
     if (do_verification)
     {
+        printf("before ref\n");
         ck_tile::reference_grouped_conv_bwd_data<NDimSpatial, InDataType, WeiDataType, OutDataType>(
                             input_host_ref,
                             weight,
@@ -151,9 +152,10 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
                             conv_param.conv_filter_dilations_,
                             conv_param.input_left_pads_,
                             conv_param.input_right_pads_);
+        printf("after ref\n");
     }
 
-
+    //instance_index = 0;
     index_t num_kernel = 0;
     bool all_pass = true;
     for(auto& op : ops)
@@ -163,13 +165,22 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
             auto split_k_value     = split_k_list[split_k_id];
             auto split_k_param_str = std::to_string(split_k_value);
 
+            printf("before mem init\n");
+
+            printf("input memsize: %lu\n", input.get_element_space_size_in_bytes());
             ck_tile::DeviceMem input_dev_buf(input.get_element_space_size_in_bytes());
+            printf("weight memsize: %lu\n", weight.get_element_space_size_in_bytes());
             ck_tile::DeviceMem weight_dev_buf(weight.get_element_space_size_in_bytes());
+            printf("output memsize: %lu\n", output.get_element_space_size_in_bytes());
             ck_tile::DeviceMem output_dev_buf(output.get_element_space_size_in_bytes());
+
+            printf("before memset\n");
 
             input_dev_buf.SetZero();
             weight_dev_buf.ToDevice(weight.data());
             output_dev_buf.ToDevice(output.data());
+
+            printf("after memset\n");
 
             ck_tile::GroupedConvBwdDataHostArgs args(conv_param,
                                                input_dev_buf.GetDeviceBuffer(),
@@ -177,6 +188,8 @@ bool profile_grouped_conv_bwd_data_impl(int do_verification,
                                                {},
                                                output_dev_buf.GetDeviceBuffer(),
                                                split_k_value);
+
+            printf("after args\n");
 
             // Split-K autodeduction is not supported.                                   
             if(op->IsSupportedArgument(args) && split_k_value >= 1)

@@ -43,6 +43,9 @@ using DeviceOpFwd2DF16 = GroupedConvolutionForwardBaseInvoker<2,
 void add_grouped_conv2d_fwd_bf16_instances(std::vector<std::unique_ptr<DeviceOpFwd2DBF16>>& instances);
 void add_grouped_conv2d_fwd_bf16_instances_2(std::vector<std::unique_ptr<DeviceOpFwd2DBF16>>& instances);
 void add_grouped_conv2d_fwd_bf16_instances_3(std::vector<std::unique_ptr<DeviceOpFwd2DBF16>>& instances);
+void add_grouped_conv2d_fwd_bf16_instances_4(std::vector<std::unique_ptr<DeviceOpFwd2DBF16>>& instances);
+void add_grouped_conv2d_fwd_bf16_instances_5(std::vector<std::unique_ptr<DeviceOpFwd2DBF16>>& instances);
+void add_grouped_conv2d_fwd_bf16_instances_6(std::vector<std::unique_ptr<DeviceOpFwd2DBF16>>& instances);
 
 void add_grouped_conv2d_fwd_f16_instances(std::vector<std::unique_ptr<DeviceOpFwd2DF16>>& instances);
 
@@ -108,6 +111,9 @@ struct DeviceOperationInstanceFactory<GroupedConvolutionForwardBaseInvoker<
                     add_grouped_conv2d_fwd_bf16_instances(op_ptrs);
                     add_grouped_conv2d_fwd_bf16_instances_2(op_ptrs);
                     add_grouped_conv2d_fwd_bf16_instances_3(op_ptrs);
+                    add_grouped_conv2d_fwd_bf16_instances_4(op_ptrs);
+                    add_grouped_conv2d_fwd_bf16_instances_5(op_ptrs);
+                    add_grouped_conv2d_fwd_bf16_instances_6(op_ptrs);
                 }
                 else
                 {

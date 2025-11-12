@@ -34,19 +34,16 @@ def extract_template_parameters(template_str):
     return params
 
 
-input_path = "inputkernel.txt"
-output_path = "outputkernel.txt"
+input_path = "inputkernel_fwd.txt"
+output_path = "outputkernel_fwd.txt"
 
 with open(input_path, 'r') as f:
     lines = f.readlines()
 
 for line in lines:
-
-    # Example usage
-    #input_str = "        DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,   F16,   F16,     F32,      F16,    DsDataTypes,   F16, PassThrough, PassThrough, OutElementOp,       ConvSpec, GemmMNKPadding,        1,    64,    32,    64,    32,   8,   8,   32,   32,    1,    2,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,              2,              8,              8,         1,     S<4, 16, 1>,     S<1, 0, 2>,     S<1, 0, 2>,             2,              8,              8,         1,           1,           1,               S<1, 16, 1, 4>,               8>"
-
+    print(1)
     params = extract_template_parameters(line)
-
+    print(1)
     NDimSpatial     = params[0]
     ALayout         = params[1]
     BLayout         = params[2]
@@ -93,7 +90,7 @@ for line in lines:
     CBlockTransferClusterLengths        = params[43]
     CBlockTransferScalarPerVector       = params[44]
 
-
+    print(1)
     KBlockPerCu = 1
     MWarp = int(MPerBlock) // (int(MPerXDL) * int(MXdlPerWave))
     NWarp = int(NPerBlock) // (int(NPerXDL) * int(NXdlPerWave))
@@ -103,15 +100,20 @@ for line in lines:
     GemmPipelineVersion = "CK_TILE_PIPELINE_COMPUTE_V3"
 
     pipelines = ["CK_TILE_PIPELINE_MEMORY", "CK_TILE_PIPELINE_COMPUTE_V3", "CK_TILE_PIPELINE_COMPUTE_V4"]
+    convspecs = ["Filter1x1Stride1Pad0", "Filter1x1Pad0", "Filter3x3", "Default"]
 
     for pipeline in pipelines:
-        DoubleSMemBuffer = 'false' if pipeline != 'CK_TILE_PIPELINE_COMPUTE_V4' else 'true'
-        with open(output_path, 'a') as f:
-            f.write(f'GroupedConvolutionForwardInvoker<{NDimSpatial},   {ALayout},   {BLayout},     {ELayout},   {ADataType},'
-            f'{BDataType},   {EDataType},    {AElementwiseOp},       {BElementwiseOp},       {CElementwiseOp},'
-            f'{KBlockPerCu},     {MPerBlock},      {NPerBlock},     {KPerBlock},     {MWarp},    {NWarp},    {KWarp},'
-            f'{MPerXDL},     {NPerXDL},      {KPerXdl},      {ABlockTransferSrcScalarPerVector},    {BBlockTransferSrcScalarPerVector},'
-            f'{CBlockTransferScalarPerVector}, {DoubleSMemBuffer}, {pipeline}>,\n')
+        print(1)
+        for convSpec in convspecs:
+            DoubleSMemBuffer = 'false' if pipeline != 'CK_TILE_PIPELINE_COMPUTE_V4' else 'true'
+            with open(output_path, 'a') as f:
+                f.write(f'GroupedConvolutionForwardInvoker<{NDimSpatial},   {ALayout},   {BLayout},     {ELayout},   {ADataType},'
+                f'{BDataType},   {EDataType},    {AElementwiseOp},       {BElementwiseOp},       {CElementwiseOp}, ConvolutionSpecialization::{convSpec}'
+                f'{KBlockPerCu},     {MPerBlock},      {NPerBlock},     {KPerBlock},     {MWarp},    {NWarp},    {KWarp},'
+                f'{MPerXDL},     {NPerXDL},      {KPerXdl},      {ABlockTransferSrcScalarPerVector},    {BBlockTransferSrcScalarPerVector},'
+                f'{CBlockTransferScalarPerVector}, {DoubleSMemBuffer}, {pipeline}>,\n')
+
+            print(1)
 
 
 # print(params[0])

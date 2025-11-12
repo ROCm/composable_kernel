@@ -53,6 +53,7 @@ template <
     typename InElementwiseOperation,
     typename WeiElementwiseOperation,
     typename OutElementwiseOperation,
+    ck_tile::ConvolutionSpecialization ConvSpec,
     int kBlockPerCu,
     ck_tile::index_t M_Tile,
     ck_tile::index_t N_Tile,
@@ -87,7 +88,7 @@ struct GroupedConvolutionForwardInvoker :
             GemmConfigBase::PermuteA,
             GemmConfigBase::PermuteB>;
 
-    static constexpr auto ConvSpec = ck_tile::ConvolutionSpecialization::Default;
+    //static constexpr auto ConvSpec = ck_tile::ConvolutionSpecialization::Default;
 
     using TilePartitioner =
             ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
@@ -181,6 +182,11 @@ struct GroupedConvolutionForwardInvoker :
             true,
             GroupedConvTraitsType::VectorSizeC>>;
 
+            // std::cout << std::endl << "Vector size A: " << GemmPipeline::GetVectorSizeA()
+            //                   << ", Vector size B: " << GemmPipeline::GetVectorSizeB()
+            //                   << ", Vector size C: " << ConvEpilogue::GetVectorSizeC() << std::endl;
+
+
         return ck_tile::GroupedConvolutionForwardKernel<GroupedConvTraitsType,
                                                             TilePartitioner,
                                                             GemmPipeline,
@@ -226,6 +232,9 @@ struct GroupedConvolutionForwardInvoker :
             auto kargs   = Kernel::MakeKernelArgs(args);
             const dim3 grids  = Kernel::GridSize(args);
             const dim3 blocks = Kernel::BlockSize();
+
+            // std::cout << grids.x << " " << grids.y << " " << grids.z << std::endl;
+            // std::cout << std::endl << has_hot_loop_v << " " << static_cast<int>(tail_number_.value) << " " << gemm_k << " " << num_loop;
                    
             ck_tile::stream_config s {nullptr, time_kernel, 1, n_warmup, n_repeat};
 
