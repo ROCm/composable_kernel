@@ -407,8 +407,8 @@ struct UnifiedAttentionPipeline
             BLOCK_M == QDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                 BLOCK_SIZE == KDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
                 HEAD_SIZE_PADDED == KDramBlockWindowTmp{}.get_window_lengths()[number<1>{}] &&
-                HEAD_SIZE_PADDED == VDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
-                BLOCK_SIZE == VDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
+                BLOCK_SIZE == VDramBlockWindowTmp{}.get_window_lengths()[number<0>{}] &&
+                HEAD_SIZE_PADDED == VDramBlockWindowTmp{}.get_window_lengths()[number<1>{}],
             "wrong!");
 
         static_assert(sizeof(SaccDataType) * BLOCK_SIZE <= GetSmemSize());
@@ -428,8 +428,8 @@ struct UnifiedAttentionPipeline
         auto o_lds = make_tensor_view<address_space_enum::lds>(
             reinterpret_cast<PDataType*>(static_cast<char*>(smem_ptr)),
             MakeSimpleLdsDesc<BLOCK_M, BLOCK_SIZE>());
-        [[maybe_unused]] auto o_lds_window =
-            make_tile_window(o_lds, make_tuple(number<BLOCK_M>{}, number<BLOCK_SIZE>{}), {0, 0});
+        [[maybe_unused]] auto o_lds_window = make_tile_window(
+            o_lds, make_tuple(number<BLOCK_M>{}, number<HEAD_SIZE_PADDED>{}), {0, 0});
 
         auto m_lds = make_tensor_view<address_space_enum::lds>(
             reinterpret_cast<SMPLComputeDataType*>(static_cast<char*>(smem_ptr) +
@@ -826,11 +826,11 @@ struct UnifiedAttentionPipeline
             {
                 gemm_1(o_acc,
                        get_slice_tile(sp(sp_reg_idx).p,
-                                      sequence<0, (k1_loops - 1) * HEAD_SIZE_PADDED>{},
-                                      sequence<BLOCK_M, k1_loops * HEAD_SIZE_PADDED>{}),
+                                      sequence<0, (k1_loops - 1) * BLOCK_SIZE>{},
+                                      sequence<BLOCK_M, k1_loops * BLOCK_SIZE>{}),
                        get_slice_tile(kv_tile.v_tile,
-                                      sequence<0, (k1_loops - 1) * HEAD_SIZE_PADDED>{},
-                                      sequence<BLOCK_SIZE, k1_loops * HEAD_SIZE_PADDED>{}));
+                                      sequence<0, (k1_loops - 1) * BLOCK_SIZE>{},
+                                      sequence<BLOCK_SIZE, k1_loops * BLOCK_SIZE>{}));
             }
         };
 
