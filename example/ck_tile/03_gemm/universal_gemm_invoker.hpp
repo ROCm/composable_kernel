@@ -14,14 +14,14 @@ template<ck_tile::index_t kMPerBlock,
          ck_tile::index_t M01>
 struct TilePartitionerResolver
 {
-    struct GemmShapeTmp
+    struct GemmBlockTileShape
     {
         static constexpr auto kM = kMPerBlock;
         static constexpr auto kN = kNPerBlock;
         static constexpr auto kK = kKPerBlock;
     };
     using Type = ck_tile::GemmSpatiallyLocalTilePartitioner<
-        GemmShapeTmp,
+        GemmBlockTileShape,
         GroupNum,
         M01>;
 };
