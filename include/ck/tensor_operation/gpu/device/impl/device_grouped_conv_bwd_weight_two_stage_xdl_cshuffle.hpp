@@ -814,16 +814,23 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                 (Conv_N_ * output_spatial_acum) % (KPerBlock * k_batch_) == 0;
             // Check if there is KPading and we can divide N * OutSpatialDims by k_batch
             split_k_offset_a_hack_ =
-                (Conv_N_ * output_spatial_acum) % k_batch_ == 0 && is_k_not_paded &&
+                k_batch_ > 1 && (Conv_N_ * output_spatial_acum) % k_batch_ == 0 && is_k_not_paded &&
                 is_NSpatialGC_GKSpatial_NSpatialGK<InLayout, WeiLayout, OutLayout>();
             // Check if there is KPading and we can divide N by k_batch
             split_k_offset_b_hack_ =
-                Conv_N_ % k_batch_ == 0 && is_k_not_paded &&
+                k_batch_ > 1 && Conv_N_ % k_batch_ == 0 && is_k_not_paded &&
                 is_NSpatialGC_GKSpatial_NSpatialGK<InLayout, WeiLayout, OutLayout>();
 
-            split_k_stride_a_ =
-                a_g_n_k_wos_strides[NDimSpatial + I2] * (Conv_N_ * output_spatial_acum) / k_batch_;
-            split_k_stride_b_ = b_g_n_c_wis_strides[I1] * Conv_N_ / k_batch_;
+            // Calculate stride from descriptor size
+            // NOTE: GetElementSpaceSize() returns the full size even when KBatchIndex=1,
+            // so we need to divide by k_batch_ to get the per-batch stride when the hack is enabled
+            split_k_stride_a_ = a_grid_desc_k0_m_k1_.GetElementSpaceSize();
+            if(split_k_offset_a_hack_)
+                split_k_stride_a_ /= k_batch_;
+
+            split_k_stride_b_ = b_grid_desc_k0_n_k1_.GetElementSpaceSize();
+            if(split_k_offset_b_hack_)
+                split_k_stride_b_ /= k_batch_;
         }
 
         std::size_t GetWorkspaceATensorSizeBytes() const

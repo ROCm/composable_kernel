@@ -65,7 +65,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                           const long_index_t split_k_stride_a,
                                           const long_index_t split_k_stride_b,
                                           bool split_k_offset_a_hack,
-                                          bool split_k_offset_b_hack)
+                                          bool split_k_offset_b_hack,
+                                          index_t k_batch)
 {
 #if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx11__) || \
     defined(__gfx12__)
@@ -96,7 +97,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                                       split_k_stride_a,
                                                       split_k_stride_b,
                                                       split_k_offset_a_hack,
-                                                      split_k_offset_b_hack);
+                                                      split_k_offset_b_hack,
+                                                      k_batch);
     }
 #else
     ignore = p_a_grid;
@@ -115,6 +117,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
     ignore = split_k_stride_b;
     ignore = split_k_offset_a_hack;
     ignore = split_k_offset_b_hack;
+    ignore = k_batch;
 
     compute_ptr_offset_of_batch.GetAPtrOffset(0);
     compute_ptr_offset_of_batch.GetBPtrOffset(0);
@@ -587,6 +590,19 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                 k_batch_ = split_k;
             }
 
+            const index_t output_spatial_acum = ck::accumulate_n<index_t>(
+                output_spatial_lengths_.begin(), NDimSpatial, 1, std::multiplies<>());
+            const bool is_k_not_paded =
+                (Conv_N_ * output_spatial_acum) % (K0PerBlock * K1 * k_batch_) == 0;
+            // Check if there is KPading and we can divide N * OutSpatialDims by k_batch
+            split_k_offset_a_hack_ =
+                k_batch_ > 1 && (Conv_N_ * output_spatial_acum) % k_batch_ == 0 && is_k_not_paded &&
+                is_NSpatialGC_GKSpatial_NSpatialGK<InLayout, WeiLayout, OutLayout>();
+            // Check if there is KPading and we can divide N by k_batch
+            split_k_offset_b_hack_ =
+                k_batch_ > 1 && Conv_N_ % k_batch_ == 0 && is_k_not_paded &&
+                is_NSpatialGC_GKSpatial_NSpatialGK<InLayout, WeiLayout, OutLayout>();
+
             const auto descs =
                 conv_to_gemm_transformer
                     .template MakeABCGridDescriptor_A_K0_M_K1_B_K0_N_K1_C_M_N<NDimSpatial>(
@@ -603,11 +619,24 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                         conv_filter_dilations,
                         input_left_pads,
                         input_right_pads,
-                        k_batch_);
+                        k_batch_,
+                        split_k_offset_a_hack_,
+                        split_k_offset_b_hack_);
 
             a_grid_desc_kbatch_k0_m_k1_ = descs[I0];
             b_grid_desc_kbatch_k0_n_k1_ = descs[I1];
             c_grid_desc_m_n_            = descs[I2];
+
+            // Calculate stride from descriptor size
+            // NOTE: GetElementSpaceSize() returns the full size even when KBatchIndex=1,
+            // so we need to divide by k_batch_ to get the per-batch stride when the hack is enabled
+            split_k_stride_a_ = a_grid_desc_kbatch_k0_m_k1_.GetElementSpaceSize();
+            if(split_k_offset_a_hack_)
+                split_k_stride_a_ /= k_batch_;
+
+            split_k_stride_b_ = b_grid_desc_kbatch_k0_n_k1_.GetElementSpaceSize();
+            if(split_k_offset_b_hack_)
+                split_k_stride_b_ /= k_batch_;
 
             block_2_ctile_map_ =
                 GridwiseGemm64::MakeCBlockClusterAdaptor(c_grid_desc_m_n_, M01, N01, k_batch_);
@@ -650,23 +679,6 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                 elementwise_block_2_ctile_map_transpose_e_ = Block2TileMapTranspose{
                     e_in_transpose_desc_.GetLength(I0), e_in_transpose_desc_.GetLength(I1)};
             }
-
-            const index_t output_spatial_acum = ck::accumulate_n<index_t>(
-                output_spatial_lengths_.begin(), NDimSpatial, 1, std::multiplies<>());
-            const bool is_k_not_paded =
-                (Conv_N_ * output_spatial_acum) % (K0PerBlock * K1 * k_batch_) == 0;
-            // Check if there is KPading and we can divide N * OutSpatialDims by k_batch
-            split_k_offset_a_hack_ =
-                (Conv_N_ * output_spatial_acum) % k_batch_ == 0 && is_k_not_paded &&
-                is_NSpatialGC_GKSpatial_NSpatialGK<InLayout, WeiLayout, OutLayout>();
-            // Check if there is KPading and we can divide N by k_batch
-            split_k_offset_b_hack_ =
-                Conv_N_ % k_batch_ == 0 && is_k_not_paded &&
-                is_NSpatialGC_GKSpatial_NSpatialGK<InLayout, WeiLayout, OutLayout>();
-
-            split_k_stride_a_ =
-                a_g_n_k_wos_strides[NDimSpatial + I2] * (Conv_N_ * output_spatial_acum) / k_batch_;
-            split_k_stride_b_ = b_g_n_c_wis_strides[I1] * Conv_N_ / k_batch_;
         }
 
         std::size_t GetWorkspaceATensorSizeBytes() const
@@ -913,7 +925,8 @@ struct DeviceGroupedConvBwdWeight_Xdl_CShuffle
                     arg.split_k_stride_a_,
                     arg.split_k_stride_b_,
                     arg.split_k_offset_a_hack_,
-                    arg.split_k_offset_b_hack_);
+                    arg.split_k_offset_b_hack_,
+                    arg.k_batch_);
             };
 
             if(has_main_k0_block_loop)

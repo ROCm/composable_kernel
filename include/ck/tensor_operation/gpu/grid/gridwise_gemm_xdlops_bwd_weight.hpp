@@ -164,7 +164,12 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                   const AElementwiseOperation a_element_op,
                                   const BElementwiseOperation b_element_op,
                                   const CElementwiseOperation c_element_op,
-                                  const CBlockClusterAdaptor c_block_cluster_adaptor)
+                                  const CBlockClusterAdaptor c_block_cluster_adaptor,
+                                  const long_index_t split_k_stride_a,
+                                  const long_index_t split_k_stride_b,
+                                  bool split_k_offset_a_hack,
+                                  bool split_k_offset_b_hack,
+                                  index_t k_batch)
 {
 #if defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx94__) || defined(__gfx11__) || \
     defined(__gfx12__)
@@ -182,7 +187,12 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                                       a_element_op,
                                                       b_element_op,
                                                       c_element_op,
-                                                      c_block_cluster_adaptor);
+                                                      c_block_cluster_adaptor,
+                                                      split_k_stride_a,
+                                                      split_k_stride_b,
+                                                      split_k_offset_a_hack,
+                                                      split_k_offset_b_hack,
+                                                      k_batch);
     }
 #else
     ignore = p_a_grid;
@@ -195,6 +205,11 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
     ignore = b_element_op;
     ignore = c_element_op;
     ignore = c_block_cluster_adaptor;
+    ignore = split_k_stride_a;
+    ignore = split_k_stride_b;
+    ignore = split_k_offset_a_hack;
+    ignore = split_k_offset_b_hack;
+    ignore = k_batch;
 #endif // end of if (defined(__gfx908__) || defined(__gfx90a__))
 }
 
@@ -662,7 +677,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
                                const long_index_t split_k_stride_a,
                                const long_index_t split_k_stride_b,
                                bool split_k_offset_a_hack,
-                               bool split_k_offset_b_hack)
+                               bool split_k_offset_b_hack,
+                               index_t k_batch)
     {
         const auto K0 = a_b_k0_m_k1_grid_desc.GetLength(I1);
 
@@ -677,10 +693,8 @@ struct GridwiseGemm_bk0mk1_bk0nk1_mn_xdlops_bwd_weight
         const long_index_t split_k_offset_b =
             split_k_offset_b_hack ? k_batch_id * split_k_stride_b : 0;
 
-        const long_index_t a_space_size_divisor =
-            split_k_offset_a_hack ? a_b_k0_m_k1_grid_desc.GetLength(I0) : 1;
-        const long_index_t b_space_size_divisor =
-            split_k_offset_b_hack ? a_b_k0_m_k1_grid_desc.GetLength(I0) : 1;
+        const long_index_t a_space_size_divisor = split_k_offset_a_hack ? k_batch : 1;
+        const long_index_t b_space_size_divisor = split_k_offset_b_hack ? k_batch : 1;
 
         const auto a_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
             p_a_grid + split_k_offset_a,
