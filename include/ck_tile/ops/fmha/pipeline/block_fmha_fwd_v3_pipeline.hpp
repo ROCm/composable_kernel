@@ -293,9 +293,10 @@ struct BlockFmhaFwdV3Pipeline
     static constexpr auto BiasEnum          = Problem::BiasEnum;
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
     static constexpr bool kHasDropout       = Problem::kHasDropout;
-
-    static_assert((kHasLogitsSoftCap == false && BiasEnum == BlockAttentionBiasEnum::NO_BIAS &&
-                   kStoreLSE == false),
+    static constexpr bool kDoFp8StaticQuant = Problem::kDoFp8StaticQuant;
+    static constexpr bool kSkipMinSeqlenQ   = Problem::kSkipMinSeqlenQ;
+    static_assert((!kHasLogitsSoftCap && BiasEnum == BlockAttentionBiasEnum::NO_BIAS &&
+                   !kStoreLSE && !kHasDropout && !kDoFp8StaticQuant && !kSkipMinSeqlenQ),
                   "enable unsupported features");
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
