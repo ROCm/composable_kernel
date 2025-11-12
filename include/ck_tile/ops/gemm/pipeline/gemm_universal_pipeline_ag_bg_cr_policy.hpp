@@ -120,7 +120,7 @@ struct UniversalGemmBasePolicy
                 using WarpTile         = typename Problem::BlockGemmShape::WarpTile;
                 constexpr auto MPerXdl = number<WarpTile::at(I0)>{};
 
-                // Number of threads covering K dimension  
+                // Number of threads covering K dimension
                 constexpr auto KThreadWrite     = TileEncodingPattern::Y0 * TileEncodingPattern::Y1;
                 constexpr auto K0PerThreadWrite = AK0 / KThreadWrite;
                 constexpr auto KThreadRead      = get_warp_size() / MPerXdl;
