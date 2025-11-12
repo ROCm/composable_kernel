@@ -1,3 +1,6 @@
+// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
 #include "utils/ckb_conv_test_common.hpp"
 
 using namespace ck_tile::builder::test_utils;
@@ -23,7 +26,7 @@ TEST(FwdConvInstances,
     run_test_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3<
         FwdConvSignature,
         FwdThreadBlock,
-        BlockGemmPipelineVersion::V4,
+        PipelineVersion::V4,
         ConvFwdSpecialization::FILTER_1X1_PAD0>();
 }
 
