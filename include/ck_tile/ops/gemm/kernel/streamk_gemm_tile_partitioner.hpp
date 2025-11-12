@@ -22,11 +22,10 @@ template <typename BlockGemmShapeType,
           StreamKReductionStrategy ReductionStrategyType = StreamKReductionStrategy::Atomic>
 struct StreamKTilePartitionerBase
 {
-    using BlockGemmShape = BlockGemmShapeType;
 
-    static constexpr index_t MPerBlock                          = BlockGemmShape::kM;
-    static constexpr index_t NPerBlock                          = BlockGemmShape::kN;
-    static constexpr index_t KPerBlock                          = BlockGemmShape::kK;
+    static constexpr index_t MPerBlock                          = BlockGemmShapeType::kM;
+    static constexpr index_t NPerBlock                          = BlockGemmShapeType::kN;
+    static constexpr index_t KPerBlock                          = BlockGemmShapeType::kK;
     static constexpr StreamKReductionStrategy ReductionStrategy = ReductionStrategyType;
 
     StreamKTilePartitionerBase(index_t m, index_t n, index_t k, index_t grid);

@@ -386,11 +386,9 @@ template <typename BlockGemmShapeType,
           uint32_t TileSwizzleSubM                   = 8>
 struct StreamKTilePartitioner
 {
-    using BlockGemmShape = BlockGemmShapeType;
-
-    static constexpr uint32_t MPerBlock = BlockGemmShape::kM;
-    static constexpr uint32_t NPerBlock = BlockGemmShape::kN;
-    static constexpr uint32_t KPerBlock = BlockGemmShape::kK;
+    static constexpr uint32_t MPerBlock = BlockGemmShapeType::kM;
+    static constexpr uint32_t NPerBlock = BlockGemmShapeType::kN;
+    static constexpr uint32_t KPerBlock = BlockGemmShapeType::kK;
 
     CK_TILE_HOST_DEVICE StreamKTilePartitioner() noexcept = delete;
 
