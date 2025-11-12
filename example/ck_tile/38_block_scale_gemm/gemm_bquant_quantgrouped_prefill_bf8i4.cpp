@@ -19,11 +19,13 @@ void bquant_quantgrouped_bf8i4_instance_factory(
                                                     ck_tile::pk_int4_t,
                                                     ck_tile::half_t,
                                                     ck_tile::bf8_t>{});
+#ifndef CK_GFX950_SUPPORT
     lut[hash_multiple_strings({"bf8i4", "bquant", "non-preshuffleb", "1x1x64"})] =
         [](const ck_tile::ArgParser& arg_parser) {
             using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 64>>;
             return RUN_GEMM_EXAMPLE_PREC_TYPE;
         };
+#endif
     lut[hash_multiple_strings({"bf8i4", "bquant", "non-preshuffleb", "1x1x128"})] =
         [](const ck_tile::ArgParser& arg_parser) {
             using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
