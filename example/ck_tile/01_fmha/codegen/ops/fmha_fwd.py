@@ -508,7 +508,9 @@ class FmhaFwdApiPool:
                 for i_hdim, ((hdim, hdim_v), pool_by_hdim) in enumerate(
                     item for item in pool_by_dtype.items() if has_traits(item[1])
                 ):
-                    max_bm0 = max((t.bm0 for t in pool_by_hdim), default=0)
+                    max_bm0 = max(
+                        (t.bm0 for t in pool_by_hdim if filter_fn(t)), default=0
+                    )
                     inners = str()
                     for i_trait, trait in enumerate(
                         [trait for trait in pool_by_hdim if filter_fn(trait)]
