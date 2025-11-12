@@ -810,9 +810,6 @@ fwd_result fmha_fwd_run(mode_enum mode,
         quantizer.quantize(q_host, q_host, q_scale, block_scale_m_);
         quantizer.quantize(k_host, k_host, k_scale, block_scale_n_);
         quantizer.quantize(v_host, v_host, v_scale, block_scale_n_);
-        q_host.savetxt("./q_quant.txt");
-        k_host.savetxt("./k_quant.txt");
-        v_host.savetxt("./v_quant.txt");
     }
     else if(quant == 1)
     {
@@ -1720,8 +1717,9 @@ fwd_result fmha_fwd_run(mode_enum mode,
                     ck_tile::idx_identity{},
                     [&](auto idx, auto value) {
                         return value * scale_s *
-                               q_scale(wb, std::get<0>(idx), std::get<1>(idx) / 128) *
-                               k_scale(wb, std::get<0>(idx) / nr, std::get<2>(idx) / 128);
+                               q_scale(wb, std::get<0>(idx), std::get<1>(idx) / block_scale_m_) *
+                               k_scale(
+                                   wb, std::get<0>(idx) / nr, std::get<2>(idx) / block_scale_n_);
                     });
             }
             else
@@ -1900,9 +1898,11 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         v_host_ref,
                         o_host_ref,
                         ck_tile::idx_identity{},
-                        [&v_scale, wb, nr](auto idx, auto value) {
+                        [&v_scale, wb, nr, block_scale_n_](auto idx, auto value) {
                             return ck_tile::type_convert<float>(value) *
-                                   v_scale(wb, std::get<0>(idx) / nr, std::get<2>(idx) / 128);
+                                   v_scale(wb,
+                                           std::get<0>(idx) / nr,
+                                           std::get<2>(idx) / block_scale_n_);
                         },
                         ck_tile::idx_identity{});
             }

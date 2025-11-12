@@ -408,7 +408,8 @@ struct BlockFmhaPipelineQRKSVS
             {
                 if(k_scale_ptr)
                 {
-                    tile_elementwise_inout([q_scale, k_scale](auto& x) { x = x * q_scale * k_scale; }, s_acc);
+                    tile_elementwise_inout(
+                        [q_scale, k_scale](auto& x) { x = x * q_scale * k_scale; }, s_acc);
                 }
             }
 
@@ -646,15 +647,7 @@ struct BlockFmhaPipelineQRKSVS
                 {
                     auto acc0 = gemm_1(a, b);
                     tile_elementwise_inout(
-                        [&v_scale](auto& o, auto o0) {
-                            // asm volatile(";wrapper_gemm1\n\tv_mul_f32_e32 %0, %1, %2"
-                            //              : "=v"(o)
-                            //              : "s"(v_scale), "v"(o0)
-                            //              : "memory");
-                            o += o0 * v_scale;
-                        },
-                        acc,
-                        acc0);
+                        [&v_scale](auto& o, auto o0) { o += o0 * v_scale; }, acc, acc0);
                 }
                 else
                 {
@@ -703,16 +696,6 @@ struct BlockFmhaPipelineQRKSVS
                     v_lds_window);
                 block_sync_lds();
             }
-            // o_acc += o_acc_tmp;
-            // o_acc += tile_elementwise_in(scale(1.0f / v_scale), o_acc_tmp);
-            // ck_tile::ignore = v_scale;
-            // sweep_tile_span(o_spans[number<0>{}], [&](auto idx0) {
-            //     sweep_tile_span(o_spans[number<1>{}], [&](auto idx1) {
-            //         constexpr auto i_j_idx = make_tuple(idx0, idx1);
-            //         o_acc(i_j_idx) += o_acc_tmp(i_j_idx) * v_scale;
-            //     });
-            // });
-
         } while(++i_total_loops < num_total_loop);
 
         // store lse
