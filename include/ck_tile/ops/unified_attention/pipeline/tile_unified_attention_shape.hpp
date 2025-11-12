@@ -47,9 +47,9 @@ struct TileUnifiedAttentionShape
 
     static constexpr index_t NumWarps = max(NumGemm0Warps, NumGemm1Warps);
 
-    static constexpr index_t BLOCK_M = BlockTile::at(number<0>{}); // tile size along the flattened batch dimension (: num_queries_per_kv * BS)
-    static constexpr index_t BLOCK_Q = BlockTile::at(number<1>{}); // tile size along the flattened batch dimension (: num_queries_per_kv * BS)
-    // static constexpr index_t BLOCK_M = BlockTile::at(number<1>{}); // tile size along q seqlen * num_queries_per_kv (q_head//kv_head)
+    static constexpr index_t BLOCK_M = BlockTile::at(number<0>{}); // tile size along the flattened batch dimension (num_queries_per_kv * B)
+    static constexpr index_t BLOCK_Q = BlockTile::at(number<1>{}); // tile size along the batch dimension (B)
+    // static constexpr index_t BLOCK_M = BlockTile::at(number<1>{}); 
     static constexpr index_t BLOCK_SIZE = BlockTile::at(number<2>{}); //  BLOCK size for K seqlen
     static constexpr index_t HEAD_SIZE = BlockTile::at(number<3>{}); //  BLOCK size for K seqlen
 
