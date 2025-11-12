@@ -444,6 +444,21 @@ struct null_tensor_view
 {
 };
 
+template <typename T>
+struct is_tensor_view : std::false_type
+{
+};
+template <typename BufferView, typename TensorDesc, memory_operation_enum DstInMemOp>
+struct is_tensor_view<tensor_view<BufferView, TensorDesc, DstInMemOp>> : std::true_type
+{
+};
+template <>
+struct is_tensor_view<null_tensor_view> : std::true_type
+{
+};
+template <typename T>
+inline constexpr bool is_tensor_view_v = is_tensor_view<T>::value;
+
 template <address_space_enum BufferAddressSpace = address_space_enum::generic,
           memory_operation_enum DstInMemOp      = memory_operation_enum::set,
           amd_buffer_coherence_enum Coherence   = amd_buffer_coherence_enum::coherence_default,
