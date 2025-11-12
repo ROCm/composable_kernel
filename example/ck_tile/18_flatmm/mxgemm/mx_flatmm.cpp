@@ -172,42 +172,47 @@ auto create_args(int argc, char* argv[])
     return std::make_tuple(result, arg_parser);
 }
 
-template <class FlatmmConfig, class IterSrc, class IterDst>
-void preShuffleWeight(const IterSrc src, IterDst dst, int N, int K)
+template <ck_tile::index_t N_Warp_Tile, typename dtype>
+auto preShuffleWeight(ck_tile::HostTensor<dtype>& src)
 {
-    int KPack = 16;
-    int NLane = FlatmmConfig::N_Warp_Tile;
-    int KLane = 64 / NLane;
-    int K_pk  = K / 2;
-    int K0    = K_pk / (KLane * KPack);
+    auto src_lengths          = src.get_lengths();
+    const int K               = src_lengths[0];
+    const int N               = src_lengths[1];
+    constexpr int packed_size = ck_tile::numeric_traits<dtype>::PackedSize;
+    int KPack                 = 16 * packed_size; // fp4:32 or fp8:16
+    int NLane                 = N_Warp_Tile;
+    int KLane                 = 64 / NLane;
+    int K0                    = K / (KLane * KPack);
+
+    ck_tile::HostTensor<dtype> shuffled(ck_tile::HostTensorDescriptor({N * K}, {1}));
+
     // K -> K0 KLane KPack
     // N -> N0 NLane
     // N, K -> N0 K0 KLane NLane KPack
-    int tempk;
     for(int n = 0; n < N; ++n)
     {
-        for(int k = 0; k < K_pk; ++k)
+        for(int k = 0; k < K; k += packed_size)
         {
             int n0 = n / NLane;
             int n1 = n % NLane;
 
-            int k0 = k / (KLane * KPack);
-            tempk  = k % (KLane * KPack);
-            int k1 = tempk / KPack;
-            int k2 = tempk % KPack;
+            int k0    = k / (KLane * KPack);
+            int tempk = k % (KLane * KPack);
+            int k1    = tempk / KPack;
+            int k2    = tempk % KPack;
 
             int outputIndex = n0 * KPack * NLane * KLane * K0 + k0 * KPack * NLane * KLane +
                               k1 * KPack * NLane + n1 * KPack + k2;
 
-            dst[outputIndex] = src[n * K_pk + k];
+            shuffled(outputIndex) = src(k, n);
         }
     }
+    return shuffled;
 }
 
-template <class FlatmmConfig, bool KLast, typename Src>
-auto preShuffleScale(Src& src)
+template <class FlatmmConfig, bool KLast, typename dtype>
+auto preShuffleScale(ck_tile::HostTensor<dtype>& src)
 {
-    using dtype      = typename Src::Data::value_type;
     auto src_lengths = src.get_lengths();
     const auto MN    = KLast ? src_lengths[0] : src_lengths[1];
     const auto K     = KLast ? src_lengths[1] : src_lengths[0];
