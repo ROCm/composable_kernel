@@ -126,8 +126,8 @@ struct UniversalGemmBasePolicy
                 constexpr auto KThreadRead      = get_warp_size() / MPerXdl;
                 constexpr auto K0PerThreadRead  = AK0 / KThreadRead;
 
-                // check if we exceed all 32banks width - (32x4B)
-                constexpr auto LdsBanksWidth = 128;
+                // check if we exceed all LDS banks
+                constexpr auto LdsBanksWidth = get_n_lds_banks() * get_n_words_per_128b();
                 constexpr auto kfold         = (AK1 * M0 * sizeof(ADataType) > LdsBanksWidth)
                                                    ? 1
                                                    : LdsBanksWidth / (AK1 * M0 * sizeof(ADataType));
@@ -309,14 +309,13 @@ struct UniversalGemmBasePolicy
                 constexpr auto NPerXdl = number<WarpTile::at(I1)>{};
 
                 // Number of threads covering K dimension
-                // constexpr auto KThreadWrite     = TileEncodingPattern::Y2;
                 constexpr auto KThreadWrite     = TileEncodingPattern::Y0 * TileEncodingPattern::Y1;
                 constexpr auto K0PerThreadWrite = BK0 / KThreadWrite;
                 constexpr auto KThreadRead      = get_warp_size() / NPerXdl;
                 constexpr auto K0PerThreadRead  = BK0 / KThreadRead;
 
-                // check if we exceed all 32banks width - (32x4B)
-                constexpr auto LdsBanksWidth = 128;
+                // check if we exceed all LDS banks
+                constexpr auto LdsBanksWidth = get_n_lds_banks() * get_n_words_per_128b();
                 constexpr auto kfold         = (BK1 * N0 * sizeof(BDataType) > LdsBanksWidth)
                                                    ? 1
                                                    : LdsBanksWidth / (BK1 * N0 * sizeof(BDataType));
