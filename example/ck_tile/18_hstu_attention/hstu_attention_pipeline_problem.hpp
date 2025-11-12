@@ -47,6 +47,9 @@ struct HstuAttentionFwdPipelineProblem
     static constexpr bool kUseSoftmax = kUseSoftmax_;
     static constexpr bool kUseTrLoad  = kUseTrLoad_;
 
+    // ToDo: should we define kUseTrLoad and kLoadWholeQTileOnceThrough Lds here ?
+    static constexpr bool kLoadWholeQTileOnceThroughLds = kUseTrLoad ? true : false;
+
     using HstuAttentionTileSetting = remove_cvref_t<AttentionTileSetting_>;
 
     using Traits = remove_cvref_t<Traits_>;

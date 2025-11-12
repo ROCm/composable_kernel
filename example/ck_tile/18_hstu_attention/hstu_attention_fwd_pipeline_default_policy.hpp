@@ -119,7 +119,9 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
         using QDataType = remove_cvref_t<typename Problem::QKVDataType>;
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
-        constexpr index_t kMPerBlock = GetQKBlockGemmSingleRepM<Problem>();
+        constexpr index_t kMPerBlock = Problem::kLoadWholeQTileOnceThroughLds
+                                           ? Problem::HstuAttentionTileSetting::kM0
+                                           : GetQKBlockGemmSingleRepM<Problem>();
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kSubQKHeaddim;
 
         constexpr index_t MaxVectorSize = 16 / sizeof(QDataType);
@@ -246,7 +248,9 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeQLdsBlockDescriptor()
     {
-        constexpr index_t kMPerBlock = GetQKBlockGemmSingleRepM<Problem>();
+        constexpr index_t kMPerBlock = Problem::kLoadWholeQTileOnceThroughLds
+                                           ? Problem::HstuAttentionTileSetting::kM0
+                                           : GetQKBlockGemmSingleRepM<Problem>();
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kSubQKHeaddim;
         constexpr index_t kKPack     = GetSmemKPackQ<Problem>();
         constexpr index_t kKVector   = GetAlignmentQ<Problem>();
@@ -336,6 +340,38 @@ struct HstuAttentionFwdPipelineQRKSVSDefaultPolicy
 
         constexpr index_t kBlockSize = Problem::kBlockSize;
         constexpr index_t kMPerBlock = GetQKBlockGemmSingleRepM<Problem>();
+        constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kSubQKHeaddim;
+
+        constexpr index_t MaxVectorSize = 16 / sizeof(QKVDataType);
+
+        constexpr index_t ElemPerThread = (kMPerBlock * kKPerBlock) / kBlockSize;
+        static_assert(0 < ElemPerThread);
+        constexpr index_t kMaxVecLoad = min(ElemPerThread, MaxVectorSize);
+
+        constexpr index_t KPerThread     = kMaxVecLoad;
+        constexpr index_t KThreads       = kKPerBlock / KPerThread;
+        constexpr index_t MThreadPerWarp = get_warp_size() / KThreads;
+        constexpr index_t NumWarps       = kBlockSize / get_warp_size();
+        constexpr index_t MPerThread     = kMPerBlock / (MThreadPerWarp * NumWarps);
+
+        // for Q-Tile [64, 128], the encoding is [4W * 4T * 4E,   16T * 8E]
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<1>,
+                                       tuple<sequence<NumWarps, MThreadPerWarp, MPerThread>,
+                                             sequence<KThreads, KPerThread>>,
+                                       tuple<sequence<1>, sequence<1, 2>>,
+                                       tuple<sequence<0>, sequence<1, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<2, 1>>{});
+    }
+
+    template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto MakeQDramTileDistribution()
+    {
+        using QKVDataType = remove_cvref_t<typename Problem::QKVDataType>;
+
+        constexpr index_t kBlockSize = Problem::kBlockSize;
+        constexpr index_t kMPerBlock = Problem::HstuAttentionTileSetting::kM0;
         constexpr index_t kKPerBlock = Problem::HstuAttentionTileSetting::kSubQKHeaddim;
 
         constexpr index_t MaxVectorSize = 16 / sizeof(QKVDataType);
