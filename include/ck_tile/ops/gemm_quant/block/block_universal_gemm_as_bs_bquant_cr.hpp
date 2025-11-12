@@ -25,13 +25,11 @@ struct BlockGemmBQuantBase
         float scale_reg_f = 0.f;
         if constexpr(std::is_same_v<BQDataType, ck_tile::fp8_t>)
         {
-            scale_reg_f =
-                ck_tile::element_wise::amd_assembly_fp8_to_fp32(static_cast<uint32_t>(scale));
+            scale_reg_f = __builtin_amdgcn_cvt_f32_fp8(static_cast<uint32_t>(scale), 0);
         }
         else if constexpr(std::is_same_v<BQDataType, ck_tile::bf8_t>)
         {
-            scale_reg_f =
-                ck_tile::element_wise::amd_assembly_bf8_to_fp32(static_cast<uint32_t>(scale));
+            scale_reg_f = __builtin_amdgcn_cvt_f32_bf8(static_cast<uint32_t>(scale), 0);
         }
         else if constexpr(std::is_same_v<BQDataType, float>)
         {
