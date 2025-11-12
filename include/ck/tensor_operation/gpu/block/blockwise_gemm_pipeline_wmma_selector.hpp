@@ -28,6 +28,7 @@ template <BlockGemmPipelineVersion BlkGemmPipelineVer,
           index_t MRepeat,
           index_t NRepeat,
           index_t KPack,
+          index_t KInner,
           bool TransposeC = false>
 constexpr auto BlockGemmPipeline_Selector()
 {
@@ -52,6 +53,7 @@ constexpr auto BlockGemmPipeline_Selector()
                                                 MRepeat,
                                                 NRepeat,
                                                 KPack,
+                                                KInner,
                                                 TransposeC>{};
     }
     else if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
@@ -75,6 +77,7 @@ constexpr auto BlockGemmPipeline_Selector()
                                                 MRepeat,
                                                 NRepeat,
                                                 KPack,
+                                                KInner,
                                                 TransposeC>{};
     }
     else
