@@ -344,8 +344,8 @@ struct ABTransferWaveTiles
         return grid_desc.GetLength(I1) * KPack;
     }
 
-    template <typename LDSType>
-    __device__ static auto GetBuffer(LDSType* p_shared_AB, std::size_t size)
+    template <typename LDSType, typename IndexType>
+    __device__ static auto GetBuffer(LDSType* p_shared_AB, const IndexType& size)
     {
         return make_dynamic_buffer<AddressSpaceEnum::Lds>(p_shared_AB, size);
     }

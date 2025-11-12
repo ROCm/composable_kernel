@@ -128,8 +128,8 @@ struct ABTransferThreadTilesPreShuffle
         return make_multi_index(0, 0, 0, 0, 0, KRepeat, 0);
     }
 
-    template <typename LDSType>
-    __device__ static auto GetBuffer(LDSType*, const auto& size)
+    template <typename LDSType, typename IndexType>
+    __device__ static auto GetBuffer(LDSType*, const IndexType& size)
     {
         return make_static_buffer<AddressSpaceEnum::Vgpr, LDSType>(size);
     }
