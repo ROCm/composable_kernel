@@ -2,9 +2,7 @@
 
 Documentation for Composable Kernel available at [https://rocm.docs.amd.com/projects/composable_kernel/en/latest/](https://rocm.docs.amd.com/projects/composable_kernel/en/latest/).
 
-## (Unreleased) Composable Kernel for ROCm
-
-### Added 
+## Composable Kernel 1.2.0 for ROCm 7.2.0
 
 ### Added
 * Added support for mixed precision fp8 x bf8 universal GEMM and weight preshuffle GEMM
@@ -31,6 +29,10 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 * Removed `BlockSize` in `make_kernel` and `CShuffleEpilogueProblem` to support Wave32 in CK_TILE (#2594)
 * Added an optional template parameter `Arch` (`gfx9_t`, `gfx12_t` etc.) to `make_kernel` to support linking multiple object files that have the same kernel compiled for different architectures.
 * FMHA examples and tests can be built for multiple architectures (gfx9, gfx950, gfx12) at the same time.
+
+### Upcoming changes
+
+* Composable Kernel will start introducing C++20-only features in an upcoming release and no longer support C++17 builds. Please ensure your build environment supports C++20.
 
 ## Composable Kernel 1.1.0 for ROCm 7.1.0
 
