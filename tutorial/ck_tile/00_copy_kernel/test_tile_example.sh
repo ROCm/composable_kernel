@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-BIN="${BIN:-../../../build/bin/tile_example_copy}"
+BIN="${BIN:-../../../build/bin/tile_tutorial_copy_kernel}"
 WARMUP="${WARMUP:-20}"
 REPEAT="${REPEAT:-100}"
 VALIDATE="${VALIDATE:-1}"
