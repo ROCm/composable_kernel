@@ -364,10 +364,7 @@ inline __host__ __device__ constexpr double get_atol(size_t K = 0)
         {
             throw std::runtime_error("K is 0");
         }
-        // tf32 has 10 mantissa bits, so epsilon = 2^(-10) = 1/1024
-        constexpr double epsilon_tf32 = 1.0 / 1024.0; // 2^(-10)
-        constexpr double epsilon_fp32 = std::numeric_limits<float>::epsilon();
-        return (epsilon_tf32 - epsilon_fp32) * K;
+        return 1e-3 * std::log2(K);
     }
     else if constexpr(std::is_same_v<DataType, float>)
     {

@@ -73,11 +73,15 @@ inline __host__ __device__ constexpr double get_rtol()
 }
 
 template <typename DataType, typename GemmType = DataType>
-inline __host__ __device__ constexpr double get_atol()
+inline __host__ __device__ constexpr double get_atol(std::size_t K_reduce)
 {
     if constexpr(std::is_same_v<DataType, float> && std::is_same_v<GemmType, ck::tf32_t>)
     {
-        return 1e-2;
+        if(K_reduce == 0)
+        {
+            throw std::runtime_error("K_reduce is 0");
+        }
+        return 1e-3 * std::log2(K_reduce);
     }
     else if constexpr(std::is_same_v<DataType, float>)
     {
@@ -145,6 +149,9 @@ bool run_grouped_conv_fwd(bool do_verification,
     std::cout << "in: " << in.mDesc << std::endl;
     std::cout << "wei: " << wei.mDesc << std::endl;
     std::cout << "out: " << out_host.mDesc << std::endl;
+    const auto& wei_lengths = wei.mDesc.GetLengths();
+    auto K_reduce =
+        wei_lengths[1] * wei_lengths[2] * wei_lengths[3] * wei_lengths[4] * wei_lengths[5];
 
     switch(init_method)
     {
@@ -263,7 +270,7 @@ bool run_grouped_conv_fwd(bool do_verification,
                                     out_host,
                                     "Error: incorrect results!",
                                     get_rtol<OutDataType, ComputeDataType>(),
-                                    get_atol<OutDataType, ComputeDataType>());
+                                    get_atol<OutDataType, ComputeDataType>(K_reduce));
     }
 
     return true;
