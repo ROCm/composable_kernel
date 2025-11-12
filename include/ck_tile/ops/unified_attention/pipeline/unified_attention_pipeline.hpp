@@ -850,11 +850,11 @@ struct UnifiedAttentionPipeline
             {
                 gemm_1(o_acc,
                        get_slice_tile(sp(sp_reg_idx).p,
-                                      sequence<0, (k1_loops - 1) * HEAD_SIZE_PADDED>{},
-                                      sequence<BLOCK_M, k1_loops * HEAD_SIZE_PADDED>{}),
+                                      sequence<0, (k1_loops - 1) * BLOCK_SIZE>{},
+                                      sequence<BLOCK_M, k1_loops * BLOCK_SIZE>{}),
                        get_slice_tile(kv_tile.v_tile,
-                                      sequence<0, (k1_loops - 1) * HEAD_SIZE_PADDED>{},
-                                      sequence<BLOCK_SIZE, k1_loops * HEAD_SIZE_PADDED>{}));
+                                      sequence<0, (k1_loops - 1) * BLOCK_SIZE>{},
+                                      sequence<BLOCK_SIZE, k1_loops * BLOCK_SIZE>{}));
                 fmha_alu0(number<1>{} - sp_reg_idx);
             }
         };
