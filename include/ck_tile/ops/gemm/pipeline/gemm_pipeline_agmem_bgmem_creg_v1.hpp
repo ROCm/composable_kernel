@@ -70,6 +70,13 @@ struct GemmPipelineAGmemBGmemCRegV1
 
     static constexpr index_t kLdsAlignmentInBytes = 16;
 
+    [[nodiscard]] CK_TILE_HOST static const std::string GetPipelineName()
+    {
+        // clang-format off
+        return "BASIC_V1";
+        // clang-format on
+    }
+
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
         // clang-format off
