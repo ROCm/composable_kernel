@@ -202,9 +202,7 @@ struct UniversalInvoker
         const bool has_hot_loop            = ck_tile::experimental::builder::HotLoopDescription<CK_TILE_PIPELINE_COMPUTE_V3>::has_hot_loop(num_loop);
         const ck_tile::TailNumber tail_num = ck_tile::experimental::builder::HotLoopDescription<CK_TILE_PIPELINE_COMPUTE_V3>::get_tail_num(num_loop);
 
-        float ave_time{0};
-
-        const auto kernel_launch_visitor = [&](const auto has_hot_loop_,
+        const auto kernel_launch_visitor = [&args, &s](const auto has_hot_loop_,
                                                const auto tail_number_,
                                                const auto memory_operation_) {
             struct Algo
@@ -289,7 +287,7 @@ struct UniversalInvoker
                 using InputCDEElementWise = CDEElementWise;
             };
 
-            ave_time = ck_tile::launch_kernel(
+            float ave_time = ck_tile::launch_kernel(
                 s, ck_tile::experimental::builder::UniversalFactory<Algo, Inp>::make_kernel(args, s));
 
             return ave_time;
@@ -356,7 +354,7 @@ struct UniversalInvoker
             }
         };
 
-        ave_time = std::visit(
+        float ave_time = std::visit(
             kernel_launch_visitor,
             make_bool_variant(has_hot_loop),
             make_tailnum_variant(tail_num),
