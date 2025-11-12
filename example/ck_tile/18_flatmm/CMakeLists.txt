@@ -27,12 +27,9 @@ if(has_supported_gpu)
     set(EXAMPLE_MOE_FLATMM_COMPILE_OPTIONS)
 
     if(CK_USE_OCP_FP8)
-        list(APPEND EXAMPLE_FLATMM_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8 --save-temps -Wno-nrvo)
-        # list(APPEND EXAMPLE_FLATMM_COMPILE_OPTIONS -emit-llvm)
-        # list(APPEND EXAMPLE_FLATMM_COMPILE_OPTIONS "SHELL: -mllvm --amdgpu-mfma-vgpr-form=1")
-        # list(APPEND EXAMPLE_FLATMM_COMPILE_OPTIONS "SHELL: -mllvm -greedy-reverse-local-assignment=1 -mllvm --amdgpu-use-amdgpu-trackers=1")
-        
+        list(APPEND EXAMPLE_FLATMM_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
     endif()
+    # list(APPEND EXAMPLE_FLATMM_COMPILE_OPTIONS --save-temps -Wno-nrvo)
 
     target_compile_options(tile_example_flatmm_basic PRIVATE ${EXAMPLE_FLATMM_COMPILE_OPTIONS})
     target_compile_options(tile_example_mixed_prec_flatmm PRIVATE ${EXAMPLE_FLATMM_COMPILE_OPTIONS})

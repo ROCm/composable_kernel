@@ -136,7 +136,7 @@ float invoke_mx_flatmm(ck_tile::DeviceMem& a_dev_buf,
     float tflops     = static_cast<float>(flop) / 1.E9 / ave_time;
     float gb_per_sec = num_byte / 1.E6 / ave_time;
 
-    std::cout << "Run MXFP4_Flatmm kernel " //
+    std::cout << "Run " << ck_tile::gemm_prec_str<ADataType, BDataType>() << " Flatmm kernel " //
               << " M = " << M << " N = " << N << " K = " << K << " StrideA = " << stride_A
               << " StrideB = " << stride_B << " StrideC = " << stride_C << " : " << ave_time
               << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
@@ -266,7 +266,6 @@ auto preShuffleScale(ck_tile::HostTensor<dtype>& src)
 
 #include "run_mx_flatmm.inc"
 
-template <typename FlatmmConfig>
 int run_mx_flatmm_example(int argc, char* argv[])
 {
     auto [result, arg_parser] = create_args(argc, argv);
@@ -283,13 +282,13 @@ int run_mx_flatmm_example(int argc, char* argv[])
 
     if(a_layout == "R" && b_layout == "C")
     {
-        if(mx_prec == "fp4xfp4")
+        if(mx_prec == "fp4" || mx_prec == "fp4xfp4")
         {
             if(persistent_opt == 0)
                 return run_mx_flatmm_with_layouts<ck_tile::pk_fp4_t,
                                                   ck_tile::pk_fp4_t,
                                                   ck_tile::fp16_t,
-                                                  FlatmmConfig,
+                                                  MXfp4_FlatmmConfig16,
                                                   false>(argc, argv, Row{}, Col{}, Row{});
             else
                 throw std::runtime_error("Only non-persistent kernels are supported currently!");
@@ -298,9 +297,16 @@ int run_mx_flatmm_example(int argc, char* argv[])
         {
             throw std::runtime_error("Only support fp4xfp4 now!");
         }
-        else if(mx_prec == "fp8xfp8")
+        if(mx_prec == "fp8" || mx_prec == "fp8xfp8")
         {
-            throw std::runtime_error("Only support fp4xfp4 now!");
+            if(persistent_opt == 0)
+                return run_mx_flatmm_with_layouts<ck_tile::fp8_t,
+                                                  ck_tile::fp8_t,
+                                                  ck_tile::fp16_t,
+                                                  MXfp8_FlatmmConfig16,
+                                                  false>(argc, argv, Row{}, Col{}, Row{});
+            else
+                throw std::runtime_error("Only support non-persistent kernel now!");
         }
         else
         {
@@ -311,7 +317,8 @@ int run_mx_flatmm_example(int argc, char* argv[])
     {
         throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
     }
-    return -1;
+    // -Wunreachable-code-return
+    // return -1;
 }
 
 int main(int argc, char* argv[])
@@ -324,7 +331,7 @@ int main(int argc, char* argv[])
         int warp_tile = arg_parser.get_int("warp_tile");
         if(warp_tile == 0)
         {
-            return run_mx_flatmm_example<MXfp4_FlatmmConfig16>(argc, argv);
+            return run_mx_flatmm_example(argc, argv);
         }
         else if(warp_tile == 1)
         {
