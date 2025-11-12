@@ -815,9 +815,8 @@ class CompatibilityRuleFactoryGfx9(CompatibilityRuleFactory):
         ) -> bool:
             if problem_ctx.dtype != "fp32":
                 # TODO: update if >=gfx11 archs get qr_async and qr_async_trload support
-                if (
-                    kernel_ctx.pipeline.tag in cls._AVAILABLE_PIPELINES
-                    and (
+                if kernel_ctx.pipeline.tag in cls._AVAILABLE_PIPELINES and (
+                    (
                         (problem_ctx.hdim, problem_ctx.hdim_v) == (128, 128)
                         and kernel_ctx.tile.F_bn0 != 128
                     )
