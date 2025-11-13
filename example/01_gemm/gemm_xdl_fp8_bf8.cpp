@@ -5,8 +5,6 @@
 
 #include "ck/tensor_operation/gpu/device/impl/device_gemm_xdl_cshuffle.hpp"
 
-#define EXAMPLE_WITH_COMPUTE_DATATYPE
-
 using ADataType        = ck::f8_t;
 using BDataType        = ck::bf8_t;
 using CDataType        = ck::half_t;
@@ -68,5 +66,3 @@ int main(int argc, char* argv[])
 
     return !run_gemm_example(argc, argv);
 }
-
-#undef EXAMPLE_WITH_COMPUTE_DATATYPE
