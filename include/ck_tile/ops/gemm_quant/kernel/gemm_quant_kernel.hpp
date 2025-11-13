@@ -240,7 +240,10 @@ struct QuantGemmKernel
         return dim3(TilePartitioner::GridSize(M, N), 1, KBatch);
     }
 
-    CK_TILE_HOST static constexpr auto BlockSize() { return dim3(kBlockSize); }
+    CK_TILE_HOST static auto BlockSize()
+    {
+        return is_wave32() ? dim3(kBlockSize / 2) : dim3(kBlockSize);
+    }
 
     CK_TILE_HOST static constexpr QuantGemmKernelArgs
     MakeKernelArgs(const QuantGemmHostArgs& hostArgs)
