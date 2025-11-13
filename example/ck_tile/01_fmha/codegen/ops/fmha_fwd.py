@@ -190,11 +190,11 @@ float fmha_fwd(fmha_fwd_traits traits, fmha_fwd_args args, const ck_tile::stream
     const bool can_dispatch_v3 =
         (device_name.compare(0, 6, "gfx950") == 0) and
         (traits.data_type.compare("fp16") == 0 or traits.data_type.compare("bf16") == 0) and
-        (not traits.is_group_mode) and traits.is_v_rowmajor and (not traits.has_logits_soft_cap) and
+        traits.is_v_rowmajor and (not traits.has_logits_soft_cap) and
         (traits.bias_type == bias_enum::no_bias) and (not traits.has_lse) and
         (not traits.has_dropout) and (not traits.do_fp8_static_quant) and
         (not traits.skip_min_seqlen_q) and (not is_swa) and (args.nhead_q % args.nhead_k == 0) and
-        (args.hdim_q == 128) and (args.hdim_v == 128) and (4096 <= args.max_seqlen_q);
+        (args.hdim_q == 128) and (args.hdim_v == 128);
     if ({F_is_v3_enabled} and can_dispatch_v3) {{
         return fmha_fwd_v3(traits, args, config);
     }} else {{
@@ -867,15 +867,7 @@ class CompatibilityRuleFactoryGfx950(CompatibilityRuleFactoryGfx9):
             is_v3_pipeline = kernel_ctx.pipeline.tag == "qr_async_trload_v3"
             return is_v3_dedicated_tile == is_v3_pipeline
 
-        # qr_async_trload_v3 only support batch mode for now
-        def check_mode_pipeline(
-            problem_ctx: ProblemContext, kernel_ctx: KernelContext
-        ) -> bool:
-            if kernel_ctx.pipeline.tag == "qr_async_trload_v3":
-                return problem_ctx.mode == "batch"
-            return True
-
-        rules.extend([check_tile_pipeline, check_mode_pipeline])
+        rules.extend([check_tile_pipeline])
         return rules
 
 
@@ -1326,7 +1318,9 @@ def write_fwd_api(
             api_pool.render("fmha_fwd_v3", filter_fn=accept_only_v3),
             FMHA_FWD_API_FOOTER_TEMPLATE.format(
                 F_is_v3_enabled=BOOL_MAP[
-                    0 < api_pool.get_num_traits(filter_fn=accept_only_v3)
+                    # NOTE: enable v3 pipelines when ready
+                    # 0 < api_pool.get_num_traits(filter_fn=accept_only_v3)
+                    False
                 ]
             ),
         ]
