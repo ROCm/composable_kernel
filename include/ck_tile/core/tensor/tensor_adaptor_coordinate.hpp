@@ -13,7 +13,6 @@
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
 #include "ck_tile/core/utility/print.hpp"
-#include "ck_tile/core/utility/debug.hpp"
 
 namespace ck_tile {
 
