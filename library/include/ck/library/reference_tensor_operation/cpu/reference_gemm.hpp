@@ -145,7 +145,10 @@ struct ReferenceGemm : public device::BaseOperator
                         arg.b_element_op_(v_b, arg.b_k_n_(k, n));
                     }
 
-                    if(is_same_v<ComputeTypeA, ck::tf32_t> && is_same_v<ComputeTypeB, ck::tf32_t>)
+                    if constexpr(is_same_v<ADataType, float> && is_same_v<BDataType, float> &&
+                                 is_same_v<CDataType, float> && is_same_v<AccDataType, float> &&
+                                 is_same_v<ComputeTypeA, ck::tf32_t> &&
+                                 is_same_v<ComputeTypeB, ck::tf32_t>)
                     {
                         if(arg.device_name_ == "gfx942")
                         {

@@ -5,7 +5,7 @@
 
 // use macro to minimize code change
 #ifndef EXAMPLE_WITH_COMPUTE_DATATYPE
-using ComputeDataType = AccDataType;
+using ComputeTypeA = AccDataType;
 #endif
 
 template <typename ProblemType>
@@ -213,8 +213,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         pass &= ck::utils::check_err(c_m_n_device_result,
                                      c_m_n_host_result,
                                      "Error: Incorrect results!",
-                                     get_rtol<CDataType, ComputeDataType>(),
-                                     get_atol<CDataType, ComputeDataType>());
+                                     get_rtol<CDataType, ComputeTypeA>(),
+                                     get_atol<CDataType, ComputeTypeA>());
 #endif
     }
 
@@ -244,8 +244,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         pass &= ck::utils::check_err(c_m_n_device_result,
                                      c_m_n_device_ref_result,
                                      "Error: Incorrect results!",
-                                     get_rtol<CDataType, ComputeDataType>(),
-                                     get_atol<CDataType, ComputeDataType>());
+                                     get_rtol<CDataType, ComputeTypeA>(),
+                                     get_atol<CDataType, ComputeTypeA>());
     }
 
     return pass == true;
