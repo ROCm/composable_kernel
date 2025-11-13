@@ -619,7 +619,6 @@ template <index_t BlockSize,
           typename ComputeTypeB = FloatB>
 constexpr auto BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_Selector()
 {
-
     if constexpr(LoopSched == LoopScheduler::Default)
     {
         return BlockwiseGemmXdlops_k0mk1_k0nk1_m0n0m1n1m2m3m4n2_v1<BlockSize,

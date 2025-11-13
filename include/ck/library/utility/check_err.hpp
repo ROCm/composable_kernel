@@ -19,7 +19,6 @@
 #include "ck/host_utility/io.hpp"
 
 #include "ck/library/utility/ranges.hpp"
-#include "ck/host_utility/device_prop.hpp"
 
 namespace ck {
 namespace utils {

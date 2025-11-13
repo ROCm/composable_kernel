@@ -10,6 +10,9 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+#include "ck/host_utility/device_prop.hpp"
+
+
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
@@ -243,6 +246,7 @@ bool run_grouped_conv_fwd(bool do_verification,
                                                                      0,
                                                                      ComputeDataType>();
 
+        auto device_name  = ck::get_device_name();
         auto ref_invoker  = ref_conv.MakeInvoker();
         auto ref_argument = ref_conv.MakeArgument(in,
                                                   wei,
@@ -257,7 +261,7 @@ bool run_grouped_conv_fwd(bool do_verification,
                                                   {},
                                                   {},
                                                   {},
-                                                  ck::get_device_name());
+                                                  device_name);
 
         ref_invoker.Run(ref_argument);
 
