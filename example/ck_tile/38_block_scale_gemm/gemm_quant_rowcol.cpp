@@ -4,7 +4,7 @@
 #include "run_gemm_quant_example.inc"
 
 template <typename T>
-using GemmConfig = GemmConfigQuant<T>;
+using GemmConfig = GemmConfigQuantDecode<T>;
 
 void quant_rowcol_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut)
