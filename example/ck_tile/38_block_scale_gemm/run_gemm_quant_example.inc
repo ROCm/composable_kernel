@@ -61,12 +61,15 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                                                  GemmTraits,
                                                                  ComputeDataType>;
 
-    // This example only supports BQuant (no AQuant)
-    // For non-preshuffled BQuant, use BaseBQuantGemmPipelineAgBgCrCompV3
+    // NOTE: BaseAQuantGemmPipelineAgBgCrMem is utilized when GemmConfig::PreshuffleB is set to
+    // false. This choice is due to the suboptimal performance of
+    // BaseBQuantGemmPipelineAgBgCrCompV3. The suspected cause is inefficiencies in the TailHandler
+    // of BaseBQuantGemmPipelineAgBgCrCompV3. Until the issue is resolved,
+    // BaseAQuantGemmPipelineAgBgCrMem is used, despite the name being somewhat misleading.
     using BaseGemmPipeline = std::conditional_t<
         GemmConfig::PreshuffleB == true,
         ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>,
-        ck_tile::BaseBQuantGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>;
+        ck_tile::BaseAQuantGemmPipelineAgBgCrMem<GemmPipelineProblem>>;
 
     const ck_tile::index_t K_split =
         (args.K + GemmConfig::K_Tile - 1) / GemmConfig::K_Tile * GemmConfig::K_Tile;
