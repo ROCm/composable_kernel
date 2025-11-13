@@ -6,6 +6,7 @@
 #include <iostream>
 #include <sstream>
 
+#include "ck/host_utility/device_prop.hpp"
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -39,15 +40,14 @@ struct ReferenceGemm : public device::BaseOperator
                  Tensor<CDataType>& c_m_n,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
-                 CElementwiseOperation c_element_op,
-                 const ::std::string& device_name = "unknown")
+                 CElementwiseOperation c_element_op)
             : a_m_k_{a_m_k},
               b_k_n_{b_k_n},
               c_m_n_{c_m_n},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
               c_element_op_{c_element_op},
-              device_name_{device_name}
+              device_name_{ck::get_device_name()}
         {
         }
 
@@ -58,7 +58,7 @@ struct ReferenceGemm : public device::BaseOperator
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
-        const ::std::string& device_name_; // the device which this gemm is compared with
+        ::std::string device_name_; // the device which this gemm is compared with
     };
 
     // Invoker
@@ -218,10 +218,9 @@ struct ReferenceGemm : public device::BaseOperator
                              Tensor<CDataType>& c_m_n,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
-                             CElementwiseOperation c_element_op,
-                             const ::std::string& device_name = "unknown")
+                             CElementwiseOperation c_element_op)
     {
-        return Argument{a_m_k, b_k_n, c_m_n, a_element_op, b_element_op, c_element_op, device_name};
+        return Argument{a_m_k, b_k_n, c_m_n, a_element_op, b_element_op, c_element_op};
     }
 
     static auto MakeInvoker() { return Invoker{}; }

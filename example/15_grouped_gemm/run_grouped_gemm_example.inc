@@ -39,8 +39,6 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 #endif
     int group_count = problem_size.group_count;
 
-    auto device_name = ck::get_device_name();
-
     // GEMM shape
     std::vector<ck::tensor_operation::device::GemmDesc> gemm_descs;
     std::vector<const void*> p_a, p_b;
@@ -252,8 +250,7 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
                                                       c_host_tensors[i],
                                                       a_element_op,
                                                       b_element_op,
-                                                      c_element_op,
-                                                      device_name);
+                                                      c_element_op);
 
             ref_invoker.Run(ref_argument);
 

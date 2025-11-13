@@ -14,6 +14,8 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 
+#include "ck/host_utility/device_prop.hpp"
+
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/fill.hpp"
@@ -79,8 +81,7 @@ struct ReferenceConvFwd : public device::BaseOperator
             OutElementwiseOperation out_element_op,
             const std::array<Tensor<InDataType>, NumAElementwiseTensor>& elementwise_a_tensors,
             const std::array<Tensor<WeiDataType>, NumBElementwiseTensor>& elementwise_b_tensors,
-            const std::array<Tensor<OutDataType>, NumDElementwiseTensor>& elementwise_d_tensors,
-            const ::std::string& device_name = "unknown")
+            const std::array<Tensor<OutDataType>, NumDElementwiseTensor>& elementwise_d_tensors)
             : input_{input},
               weight_{weight},
               output_{output},
@@ -94,7 +95,7 @@ struct ReferenceConvFwd : public device::BaseOperator
               in_element_op_{in_element_op},
               wei_element_op_{wei_element_op},
               out_element_op_{out_element_op},
-              device_name_{device_name}
+              device_name_{ck::get_device_name()}
         {
         }
 
@@ -114,7 +115,7 @@ struct ReferenceConvFwd : public device::BaseOperator
         InElementwiseOperation in_element_op_;
         WeiElementwiseOperation wei_element_op_;
         OutElementwiseOperation out_element_op_;
-        const ::std::string& device_name_; // the device which this conv is compared with
+        ::std::string device_name_; // the device which this conv is compared with
     };
 
     struct Invoker : public device::BaseInvoker
@@ -526,8 +527,7 @@ struct ReferenceConvFwd : public device::BaseOperator
         OutElementwiseOperation out_element_op,
         const std::array<Tensor<InDataType>, NumAElementwiseTensor>& elementwise_a_tensors  = {},
         const std::array<Tensor<WeiDataType>, NumBElementwiseTensor>& elementwise_b_tensors = {},
-        const std::array<Tensor<OutDataType>, NumDElementwiseTensor>& elementwise_d_tensors = {},
-        const ::std::string& device_name = "unknown")
+        const std::array<Tensor<OutDataType>, NumDElementwiseTensor>& elementwise_d_tensors = {})
     {
         return Argument{input,
                         weight,
@@ -541,8 +541,7 @@ struct ReferenceConvFwd : public device::BaseOperator
                         out_element_op,
                         elementwise_a_tensors,
                         elementwise_b_tensors,
-                        elementwise_d_tensors,
-                        device_name};
+                        elementwise_d_tensors};
     }
 
     static auto MakeInvoker() { return Invoker{}; }
