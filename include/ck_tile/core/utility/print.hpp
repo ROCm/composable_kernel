@@ -35,7 +35,7 @@ struct str_literal
         return str_literal<Xs..., Ys...>{};
     }
 
-    template <index_t N, char... Ys>
+    template <size_t N, char... Ys>
     CK_TILE_HOST_DEVICE static constexpr auto duplicate_n(const str_literal<Ys...> sep)
     {
         if constexpr(N == 0)
