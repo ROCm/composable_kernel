@@ -33,12 +33,27 @@ template <typename Derived>
 struct UniversalGemmBasePolicy
 {
 #if defined(__gfx950__)
+    // The combination of pk_int4_t and transposed loading causes numerical errors.
+    // Therefore do not use transposed loading in this case.
     template <typename Problem>
-    static constexpr bool is_a_load_tr =
-        std::is_same_v<remove_cvref_t<typename Problem::ALayout>, tensor_layout::gemm::ColumnMajor>;
+    static constexpr bool is_a_load_tr = []() {
+        using BDataType = remove_cvref_t<typename Problem::BDataType>;
+        if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            return false;
+        else
+            return std::is_same_v<remove_cvref_t<typename Problem::ALayout>,
+                                  tensor_layout::gemm::ColumnMajor>;
+    }();
+
     template <typename Problem>
-    static constexpr bool is_b_load_tr =
-        std::is_same_v<remove_cvref_t<typename Problem::BLayout>, tensor_layout::gemm::RowMajor>;
+    static constexpr bool is_b_load_tr = []() {
+        using BDataType = remove_cvref_t<typename Problem::BDataType>;
+        if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            return false;
+        else
+            return std::is_same_v<remove_cvref_t<typename Problem::BLayout>,
+                                  tensor_layout::gemm::RowMajor>;
+    }();
 #else
     template <typename Problem>
     static constexpr bool is_a_load_tr = false;
@@ -707,8 +722,15 @@ struct UniversalGemmPipelineAgBgCrPolicy
             : vector_size * 4 == thread_elements              ? WGAttrNumAccessEnum::Quad
                                                               : WGAttrNumAccessEnum::Invalid;
 
-        using WarpGemm = WarpGemmDispatcher<typename Problem::ComputeDataType,
-                                            typename Problem::ComputeDataType,
+        using ADataType = remove_cvref_t<typename Problem::ADataType>;
+        using BDataType = remove_cvref_t<typename Problem::BDataType>;
+        using ATypeToUse =
+            std::conditional_t<std::is_same_v<ADataType, pk_int4_t>, BDataType, ADataType>;
+        using BTypeToUse =
+            std::conditional_t<std::is_same_v<BDataType, pk_int4_t>, ADataType, BDataType>;
+
+        using WarpGemm = WarpGemmDispatcher<ATypeToUse,
+                                            BTypeToUse,
                                             typename Problem::CDataType,
                                             WarpTile::at(I0),
                                             WarpTile::at(I1),
@@ -718,8 +740,8 @@ struct UniversalGemmPipelineAgBgCrPolicy
                                             Problem::UseStructuredSparsity,
                                             wg_attr_num_access>;
 
-        using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<typename Problem::ADataType,
-                                                                      typename Problem::BDataType,
+        using BlockGemmPolicy = BlockGemmASmemBSmemCRegV1CustomPolicy<ATypeToUse,
+                                                                      BTypeToUse,
                                                                       typename Problem::CDataType,
                                                                       BlockWarps,
                                                                       WarpGemm>;
