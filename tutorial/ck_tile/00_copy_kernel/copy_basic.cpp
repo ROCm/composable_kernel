@@ -54,10 +54,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     x_buf.ToDevice(x_host.data());
 
     // Define tile configuration
-    using ThreadTile = ck_tile::sequence<1, 4>;   // per-thread tile size along M and N
-    using WaveTile   = ck_tile::sequence<64, 4>;  // wave size along M and N dimension
-    using BlockWaves = ck_tile::sequence<4, 1>;   // number of waves along M dimension
-    using BlockTile  = ck_tile::sequence<512, 4>; // block size along M and N dimension
+    using ThreadTile = ck_tile::sequence<1, 4>;  // per-thread tile size along M and N
+    using WaveTile   = ck_tile::sequence<64, 4>; // per-wave tile size along M and N dimension
+    using BlockWaves = ck_tile::sequence<4, 1>; // number of waves per block along M and N dimension
+    using BlockTile  = ck_tile::sequence<512, 4>; // per-block tile size along M and N dimension
 
     // Calculate grid size
     ck_tile::index_t kGridSize =
@@ -68,14 +68,14 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using Shape   = ck_tile::TileCopyShape<BlockWaves, BlockTile, WaveTile, ThreadTile>;
     using Problem = ck_tile::TileCopyProblem<XDataType, Shape>;
     using Policy  = ck_tile::TileCopyPolicy<Problem>;
-    using Kernel  = ck_tile::ElementWiseTileCopyKernel<Problem, Policy>;
-    // using Kernel  = ck_tile::TileCopyKernel<Problem, Policy>;
-    // using Kernel = ck_tile::TileCopyKernel_LDS<Problem, Policy>;
+    using Kernel  = ck_tile::ElementWiseTileCopyKernel<Problem, Policy>; // operates on element by
+                                                                         // element basis.
 
-    // question: Why do we not have a pipeline?
-    // answer: For basic copy operation, pipeline is not needed.
-    // we intentionally do not use pipeline for this example and let the kernel be composite of
-    // Problem and Policy
+    // We also implement two variations of the copy kernel:
+    // 1. TileCopyKernel: This is the basic copy kernel that operates on tile by tile basis.
+    // 2. TileCopyKernel_LDS: This is the copy kernel that operates on tile by tile basis and uses
+    // the LDS. using Kernel  = ck_tile::TileCopyKernel<Problem, Policy>; using Kernel =
+    // ck_tile::TileCopyKernel_LDS<Problem, Policy>;
 
     auto blockSize = Kernel::BlockSize();
 
