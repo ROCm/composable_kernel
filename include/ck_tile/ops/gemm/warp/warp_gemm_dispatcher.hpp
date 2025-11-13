@@ -10,7 +10,7 @@
 namespace ck_tile {
 
 namespace impl {
-namespace wrap_gemm_dispatcher {
+namespace warp_gemm_dispatcher {
 
 // C++20 using enum
 static inline constexpr auto ESingle = WGAttrNumAccessEnum::Single;
@@ -151,7 +151,7 @@ template<> struct Dispatcher<int8_t, int8_t, int32_t, 16, 16, 32,  true> { using
 template<bool TransposeC> struct Dispatcher<int8_t, int8_t, int32_t, 16, 16, 16, TransposeC, false> { using Type = WarpGemmWmma_i32_16x16x16_i8_i8<TransposeC>;};
 
 // clang-format on
-} // namespace wrap_gemm_dispatcher
+} // namespace warp_gemm_dispatcher
 } // namespace impl
 
 template <typename AType,
@@ -164,7 +164,7 @@ template <typename AType,
           bool SwizzleA                     = false,
           bool UseStructuredSparsity        = false,
           WGAttrNumAccessEnum AttrNumAccess = WGAttrNumAccessEnum::Single>
-using WarpGemmDispatcher = typename impl::wrap_gemm_dispatcher::Dispatcher< //
+using WarpGemmDispatcher = typename impl::warp_gemm_dispatcher::Dispatcher< //
     AType,
     BType,
     AccType,

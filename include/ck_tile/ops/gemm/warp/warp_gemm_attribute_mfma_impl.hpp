@@ -1575,7 +1575,7 @@ struct WarpGemmAttributeMfmaImpl_f32_16x16x128_f8f6f4
             else if constexpr(std::is_same_v<decltype(dtype), pk_fp4_t>)
                 return make_tuple(number<4>{}, int32x4_t{});
             else
-                static_assert("Unsupported data type for mfma scale");
+                static_assert(false, "Unsupported data type for mfma scale");
         };
         auto dtype2code = [&](auto dtype) { return dtype2conf(dtype)(number<0>{}); };
         auto dtype2vec  = [&](auto dtype) { return dtype2conf(dtype)(number<1>{}); };
@@ -1587,7 +1587,7 @@ struct WarpGemmAttributeMfmaImpl_f32_16x16x128_f8f6f4
             else if constexpr(sizeof(x) == 32)
                 return x;
             else
-                static_assert("Unexpected vector size for mfma scale");
+                static_assert(false, "Unexpected vector size for mfma scale");
         };
 
         auto arg_a         = bit_cast<decltype(dtype2vec(ADataType{}))>(a_vec);
