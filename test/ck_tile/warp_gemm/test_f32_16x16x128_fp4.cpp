@@ -2,11 +2,6 @@
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <gtest/gtest.h>
-#include <hip/hip_runtime.h>
-#include <algorithm>
-#include "ck_tile/ops/gemm/warp/warp_gemm_attribute_mfma_impl.hpp"
-#include "ck_tile/ops/gemm/warp/warp_gemm_attribute_mfma.hpp"
-// For real kernel run and verification
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
@@ -37,11 +32,8 @@ struct WGDispCase
     static constexpr WGAttrNumAccessEnum kNA = NA;
 };
 
-
-using WGDispatcherTypesList = ::testing::Types<
-    WGDispCase<ck_tile::pk_fp4_t, ck_tile::pk_fp4_t, float, 16, 16, 128, false>
-   // , WGDispCase<ck_tile::pk_fp4_t, ck_tile::pk_fp4_t, float, 16, 16, 128, false, false, false, WGAttrNumAccessEnum::Quad>
-    >;
+using WGDispatcherTypesList =
+    ::testing::Types<WGDispCase<ck_tile::pk_fp4_t, ck_tile::pk_fp4_t, float, 16, 16, 128, false>>;
 
 template <typename AType,
           typename BType,
@@ -56,22 +48,44 @@ template <typename AType,
 struct WarpGemmKernel
 {
     static constexpr int kBlockSize = 64;
-    __device__ void operator()(const AType* A, const BType* B, CType* C) const
-    { 
-        using WarpGemm = ck_tile::WarpGemmDispatcher<AType, BType, CType, 
-                M, N, K, TransposeC, SwizzleA, UseStructuredSparsity, NumAccess>;
+    __device__ void operator()(const AType* A,
+                               const BType* B,
+                               CType* C,
+                               const ck_tile::e8m0_t ScaleA,
+                               const ck_tile::e8m0_t ScaleB) const
+    {
+        using WarpGemm = ck_tile::WarpGemmDispatcher<AType,
+                                                     BType,
+                                                     CType,
+                                                     M,
+                                                     N,
+                                                     K,
+                                                     TransposeC,
+                                                     SwizzleA,
+                                                     UseStructuredSparsity,
+                                                     NumAccess>;
 
         // A: [M,K] row-major (packed)
-        const auto a_view =
-            ck_tile::make_naive_tensor_view_packed<ck_tile::address_space_enum::global>(
-                const_cast<AType*>(A), ck_tile::make_tuple(M, K));
+        const auto a_view = ck_tile::make_naive_tensor_view<ck_tile::address_space_enum::global>(
+            const_cast<AType*>(A),
+            ck_tile::make_tuple(M, K),
+            ck_tile::make_tuple(K, ck_tile::number<1>{}),
+            ck_tile::number<K>{},
+            ck_tile::number<1>{});
         // B: expose as logical [N,K] with strides (1, N) over the original row-major [K,N] buffer
         const auto b_view = ck_tile::make_naive_tensor_view<ck_tile::address_space_enum::global>(
-            const_cast<BType*>(B), ck_tile::make_tuple(N, K), ck_tile::make_tuple(1, N));
+            const_cast<BType*>(B),
+            ck_tile::make_tuple(N, K),
+            ck_tile::make_tuple(ck_tile::number<1>{}, N),
+            ck_tile::number<N>{},
+            ck_tile::number<1>{});
         // C: [M,N] row-major (packed)
-        const auto c_view =
-            ck_tile::make_naive_tensor_view_packed<ck_tile::address_space_enum::global>(
-                const_cast<CType*>(C), ck_tile::make_tuple(M, N));
+        const auto c_view = ck_tile::make_naive_tensor_view<ck_tile::address_space_enum::global>(
+            const_cast<CType*>(C),
+            ck_tile::make_tuple(M, N),
+            ck_tile::make_tuple(N, ck_tile::number<1>{}),
+            ck_tile::number<N>{},
+            ck_tile::number<1>{});
 
         using AWarpTensor = typename WarpGemm::AWarpTensor;
         using BWarpTensor = typename WarpGemm::BWarpTensor;
@@ -94,7 +108,12 @@ struct WarpGemmKernel
         ck_tile::load_tile(b_tile, b_win);
 
         CWarpTensor c_tile;
-        c_tile = WarpGemm{}(a_tile, b_tile);
+
+        // TODO: integrate opsel and multiple e8m0 into tool to reduce code complexity.
+        auto scale_a = static_cast<int32_t>(ScaleA.get());
+        auto scale_b = static_cast<int32_t>(ScaleB.get());
+        WarpGemm{}.template operator()<0, 0>(c_tile, a_tile, b_tile, scale_a, scale_b);
+
         ck_tile::store_tile(c_win, c_tile);
     }
 };
@@ -102,6 +121,8 @@ struct WarpGemmKernel
 template <typename Case>
 static void RunWarpGemmCase(const ck_tile::HostTensor<typename Case::AType>& A,
                             const ck_tile::HostTensor<typename Case::BType>& B,
+                            const ck_tile::e8m0_t ScaleA,
+                            const ck_tile::e8m0_t ScaleB,
                             ck_tile::HostTensor<typename Case::AccType>& C)
 {
     using AType = typename Case::AType;
@@ -131,24 +152,24 @@ static void RunWarpGemmCase(const ck_tile::HostTensor<typename Case::AType>& A,
                                   Case::kNA>;
 
     (void)ck_tile::launch_kernel(
-        ck_tile::stream_config{nullptr, true},
+        ck_tile::stream_config{nullptr, true, 0, 0, 1},
         ck_tile::make_kernel(Kernel{},
                              grid,
                              block,
                              0,
                              static_cast<const AType*>(Ad.GetDeviceBuffer()),
                              static_cast<const BType*>(Bd.GetDeviceBuffer()),
-                             static_cast<CType*>(Cd.GetDeviceBuffer())));
+                             static_cast<CType*>(Cd.GetDeviceBuffer()),
+                             ScaleA,
+                             ScaleB));
 
     Cd.FromDevice(C.mData.data());
 }
-
 
 template <typename Case>
 class WGRuntimeTest : public ::testing::Test
 {
 };
-
 
 TYPED_TEST_SUITE(WGRuntimeTest, WGDispatcherTypesList);
 
@@ -159,26 +180,34 @@ TYPED_TEST(WGRuntimeTest, Compare_Dispatcher_MakeWG)
     using AType = typename Case::AType;
     using BType = typename Case::BType;
     using CType = typename Case::AccType;
+    using ck_tile::e8m0_t;
 
     constexpr index_t M = Case::MPerWave;
     constexpr index_t N = Case::NPerWave;
     constexpr index_t K = Case::KPerWave;
 
-    ck_tile::HostTensor<AType> A({M/2, K/2});
-    ck_tile::HostTensor<BType> B({K/2, N/2});
+    ck_tile::HostTensor<AType> A({M, K});
+    ck_tile::HostTensor<BType> B({K, N});
     ck_tile::HostTensor<CType> C({M, N});
 
-    // Note:pk_fp4_t packed_size = 2
-    for(index_t m = 0; m < M; ++m)
-        for(index_t k = 0; k < K; ++k)
-            A(m, k) = ck_tile::type_convert<AType>((m + 1) * 0.1f + (k + 1) * 0.01f);
+    ck_tile::FillConstant<AType>{AType(1.f)}(A);
+    ck_tile::FillConstant<AType>{AType(1.f)}(B);
 
-    for(index_t k0 = 0; k0 < K; ++k0)
-        for(index_t n = 0; n < N; ++n)
-            B(k0, n) = ck_tile::type_convert<BType>((k0 + 1) * 0.2f - (n + 1) * 0.03f);
+    auto ScaleA = ck_tile::e8m0_t{1.0f};
+    auto ScaleB = ck_tile::e8m0_t{1.0f};
 
     C.SetZero();
-	RunWarpGemmCase<Case>(A, B, C); 
+    RunWarpGemmCase<Case>(A, B, ScaleA, ScaleB, C);
 
-    //EXPECT_TRUE(ck_tile::check_err(C, C_ref, "Dispatcher vs Reference mismatch", 0, 0));
+    ck_tile::HostTensor<e8m0_t> sA({M, 1}); // Just 1 scale for all K
+    ck_tile::HostTensor<e8m0_t> sB({1, N});
+    ck_tile::HostTensor<CType> C_ref({M, N});
+    C_ref.SetZero();
+
+    ck_tile::FillConstant<e8m0_t>{e8m0_t(1.f)}(sA);
+    ck_tile::FillConstant<e8m0_t>{e8m0_t(1.f)}(sB);
+
+    ck_tile::reference_mx_gemm<AType, BType, e8m0_t, CType, CType>(A, B, C_ref, sA, sB);
+
+    EXPECT_TRUE(ck_tile::check_err(C, C_ref, "Warp gemm result error."));
 }
