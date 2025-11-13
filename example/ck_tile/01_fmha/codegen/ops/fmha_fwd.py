@@ -1173,7 +1173,7 @@ def get_product(receipt: int) -> Product:
 
         def fit(problem_ctx: ProblemContext, kernel_ctx: KernelContext) -> bool:
             cond = problem_ctx.dtype in ["fp16", "bf16", "fp8bf16"]
-            cond &= problem_ctx.mode == "group"
+            cond &= problem_ctx.mode == "batch"
             cond &= kernel_ctx.pipeline.F_vlayout == "row"
             if problem_ctx.dtype == "fp8bf16":
                 cond &= problem_ctx.hdim == 128
