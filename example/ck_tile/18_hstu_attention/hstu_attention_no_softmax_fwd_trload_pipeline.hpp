@@ -120,8 +120,6 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
               typename VDramBlockWindowTmp,
               typename BiasDramBlockWindowTmp,
               typename QElementFunction,
-              typename KElementFunction,
-              typename VElementFunction,
               typename BiasElementFunction,
               typename SAccElementFunction,
               typename PComputeElementFunction,
@@ -130,10 +128,8 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
     CK_TILE_DEVICE auto
     operator()(const QDramBlockWindowTmp& q_dram_block_window_tmp, // M0*kSubQKHeaddim tile
                const QElementFunction& q_element_func,
-               const KDramBlockWindowTmp& k_dram_block_window_tmp, // N0*kSubQKHeaddim tile
-               const KElementFunction& k_element_func,
-               const VDramBlockWindowTmp& v_dram_block_window_tmp, // N1*K1 tile
-               const VElementFunction& v_element_func,
+               const KDramBlockWindowTmp& k_dram_block_window_tmp,       // N0*kSubQKHeaddim tile
+               const VDramBlockWindowTmp& v_dram_block_window_tmp,       // N1*K1 tile
                const BiasDramBlockWindowTmp& bias_dram_block_window_tmp, // M0*N0 tile
                const BiasElementFunction& bias_element_func,
                const SAccElementFunction& s_acc_element_func,
@@ -145,9 +141,6 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
                void* smem_ptr,
                DropoutType& dropout) const
     {
-        ignore = q_element_func;
-        ignore = k_element_func;
-
         static_assert(
             std::is_same_v<QKVDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
                 std::is_same_v<QKVDataType,
@@ -357,8 +350,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
         {
             // STAGE 1, Gemm_0 ( S = Q@K )
             static_for<0, k1_loops, 1>{}([&](auto i_k1) {
-                store_tile(k_lds_write_windows[number<i_k1 % NumKVLdsBuffers>{}],
-                           tile_elementwise_in(k_element_func, k_tiles[i_k1]));
+                store_tile(k_lds_write_windows[number<i_k1 % NumKVLdsBuffers>{}], k_tiles[i_k1]);
 
                 __builtin_amdgcn_sched_barrier(0x00000001);
 
@@ -453,7 +445,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
             // STAGE 3, Gemm_1 ( O = P@V )
             static_for<0, k1_loops, 1>{}([&](auto i_k1) {
                 store_tile(v_lds_windows[number<(i_k1 + 2) % NumKVLdsBuffers>{}],
-                           tile_elementwise_in(v_element_func, v_tiles[number<i_k1>{}]));
+                           v_tiles[number<i_k1>{}]);
 
                 __builtin_amdgcn_sched_barrier(0x00000001);
 
@@ -498,9 +490,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
         return operator()(q_dram_block_window_tmp,
                           identity{},
                           k_dram_block_window_tmp,
-                          identity{},
                           v_dram_block_window_tmp,
-                          identity{},
                           bias_dram_block_window_tmp,
                           identity{},
                           identity{},
