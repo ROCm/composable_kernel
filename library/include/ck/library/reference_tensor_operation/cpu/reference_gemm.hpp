@@ -39,13 +39,15 @@ struct ReferenceGemm : public device::BaseOperator
                  Tensor<CDataType>& c_m_n,
                  AElementwiseOperation a_element_op,
                  BElementwiseOperation b_element_op,
-                 CElementwiseOperation c_element_op)
+                 CElementwiseOperation c_element_op,
+                 const ::std::string& device_name = "unknown")
             : a_m_k_{a_m_k},
               b_k_n_{b_k_n},
               c_m_n_{c_m_n},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
-              c_element_op_{c_element_op}
+              c_element_op_{c_element_op},
+              device_name_{device_name}
         {
         }
 
@@ -56,6 +58,7 @@ struct ReferenceGemm : public device::BaseOperator
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
+        const ::std::string& device_name_; // the device which this gemm is compared with
     };
 
     // Invoker
@@ -142,8 +145,40 @@ struct ReferenceGemm : public device::BaseOperator
                         arg.b_element_op_(v_b, arg.b_k_n_(k, n));
                     }
 
-                    v_acc +=
-                        ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
+                    if(is_same_v<ComputeTypeA, ck::tf32_t> && is_same_v<ComputeTypeB, ck::tf32_t>)
+                    {
+                        if(arg.device_name_ == "gfx942")
+                        {
+                            v_acc +=
+                                ck::type_convert<AccDataType>(ck::type_convert<ck::tf32_t>(v_a)) *
+                                ck::type_convert<AccDataType>(ck::type_convert<ck::tf32_t>(v_b));
+                        }
+                        else if(arg.device_name_ == "gfx950")
+                        {
+                            ck::bhalf_t v_a_bf16_big   = ck::type_convert<ck::bhalf_t>(v_a);
+                            ck::bhalf_t v_a_bf16_small = ck::type_convert<ck::bhalf_t>(
+                                v_a - type_convert<float>(v_a_bf16_big));
+                            ck::bhalf_t v_b_bf16_big   = ck::type_convert<ck::bhalf_t>(v_b);
+                            ck::bhalf_t v_b_bf16_small = ck::type_convert<ck::bhalf_t>(
+                                v_b - type_convert<float>(v_b_bf16_big));
+
+                            v_acc += ck::type_convert<AccDataType>(v_a_bf16_big) *
+                                         ck::type_convert<AccDataType>(v_b_bf16_small) +
+                                     ck::type_convert<AccDataType>(v_a_bf16_small) *
+                                         ck::type_convert<AccDataType>(v_b_bf16_big) +
+                                     ck::type_convert<AccDataType>(v_a_bf16_big) *
+                                         ck::type_convert<AccDataType>(v_b_bf16_big);
+                        }
+                        else
+                        {
+                            throw std::runtime_error("Unsupported device: " + arg.device_name_);
+                        }
+                    }
+                    else
+                    {
+                        v_acc +=
+                            ck::type_convert<AccDataType>(v_a) * ck::type_convert<AccDataType>(v_b);
+                    }
                 }
 
                 CDataType v_c{0};
@@ -180,9 +215,10 @@ struct ReferenceGemm : public device::BaseOperator
                              Tensor<CDataType>& c_m_n,
                              AElementwiseOperation a_element_op,
                              BElementwiseOperation b_element_op,
-                             CElementwiseOperation c_element_op)
+                             CElementwiseOperation c_element_op,
+                             const ::std::string& device_name = "unknown")
     {
-        return Argument{a_m_k, b_k_n, c_m_n, a_element_op, b_element_op, c_element_op};
+        return Argument{a_m_k, b_k_n, c_m_n, a_element_op, b_element_op, c_element_op, device_name};
     }
 
     static auto MakeInvoker() { return Invoker{}; }

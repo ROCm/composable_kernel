@@ -24,6 +24,8 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
     auto StrideB = problem_size.StrideB;
     auto StrideC = problem_size.StrideC;
 
+    auto device_name = ck::get_device_name();
+
     auto f_host_tensor_descriptor =
         [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
             if constexpr(std::is_same_v<decltype(layout), ck::tensor_layout::gemm::RowMajor>)
@@ -192,7 +194,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
         auto ref_invoker = ref_gemm.MakeInvoker();
 
         auto ref_argument = ref_gemm.MakeArgument(
-            a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op);
+            a_m_k, b_k_n, c_m_n_host_result, a_element_op, b_element_op, c_element_op, device_name);
 
         std::cout << "Running verification on CPU." << std::endl;
         ref_invoker.Run(ref_argument);
@@ -212,7 +214,7 @@ bool run_gemm(const ProblemType& problem_size, const ExecutionConfig& config)
                                      c_m_n_host_result,
                                      "Error: Incorrect results!",
                                      get_rtol<CDataType, ComputeDataType>(),
-                                     get_atol<CDataType, ComputeDataType>(K));
+                                     get_atol<CDataType, ComputeDataType>());
 #endif
     }
 

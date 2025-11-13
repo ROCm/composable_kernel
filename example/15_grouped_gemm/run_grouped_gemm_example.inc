@@ -39,6 +39,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 #endif
     int group_count = problem_size.group_count;
 
+    auto device_name = ck::get_device_name();
+
     // GEMM shape
     std::vector<ck::tensor_operation::device::GemmDesc> gemm_descs;
     std::vector<const void*> p_a, p_b;
@@ -97,7 +99,6 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
     std::size_t flop = 0, num_btype = 0;
 
-    double max_acc_value = 1.0;
     for(std::size_t i = 0; i < gemm_descs.size(); i++)
     {
         a_tensors.push_back(Tensor<ADataType>(f_host_tensor_descriptor(
@@ -128,7 +129,6 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         case 1:
             a_tensors[i].GenerateTensorValue(GeneratorTensor_2<ADataType>{-5, 5});
             b_tensors[i].GenerateTensorValue(GeneratorTensor_2<BDataType>{-5, 5});
-            max_acc_value = 10.0;
             break;
         case 2:
             a_tensors[i].GenerateTensorValue(GeneratorTensor_3<ADataType>{0.0, 1.0});
@@ -239,7 +239,6 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
                                                                                 AElementOp,
                                                                                 BElementOp,
                                                                                 CDEElementOp,
-                                                                                ComputeDataType,
                                                                                 ComputeDataType>;
 
         for(std::size_t i = 0; i < gemm_descs.size(); i++)
@@ -253,7 +252,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
                                                       c_host_tensors[i],
                                                       a_element_op,
                                                       b_element_op,
-                                                      c_element_op);
+                                                      c_element_op,
+                                                      device_name);
 
             ref_invoker.Run(ref_argument);
 
@@ -262,12 +262,9 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             pass &= ck::utils::check_err(c_device_result_converted, c_host_tensors[i]);
 
 #else
-            auto atol =
-                ck::utils::get_absolute_threshold<ComputeDataType, EDataType>(max_acc_value);
-            auto rtol =
-                ck::utils::get_relative_threshold<ComputeDataType, EDataType>(max_acc_value);
-            pass &= ck::utils::check_err(
-                c_device_tensors[i], c_host_tensors[i], "Error: Incorrect results!", rtol, atol);
+            pass &= ck::utils::check_err<decltype(c_device_tensors[i]),
+                                         decltype(c_host_tensors[i]),
+                                         ComputeDataType>(c_device_tensors[i], c_host_tensors[i]);
 #endif
         }
     }

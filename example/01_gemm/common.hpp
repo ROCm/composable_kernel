@@ -356,15 +356,11 @@ inline __host__ __device__ constexpr double get_rtol()
 }
 
 template <typename DataType, typename ComputeDataType = DataType>
-inline __host__ __device__ constexpr double get_atol(size_t K = 0)
+inline __host__ __device__ constexpr double get_atol()
 {
     if constexpr(std::is_same_v<DataType, float> && std::is_same_v<ComputeDataType, ck::tf32_t>)
     {
-        if(K == 0)
-        {
-            throw std::runtime_error("K is 0");
-        }
-        return 1e-3 * std::log2(K);
+        return 1e-3;
     }
     else if constexpr(std::is_same_v<DataType, float>)
     {
