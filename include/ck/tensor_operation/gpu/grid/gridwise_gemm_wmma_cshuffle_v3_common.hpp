@@ -25,6 +25,7 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/grid/epilogue_cshuffle_v3_wmma.hpp"
 #include "ck/tensor_operation/gpu/grid/epilogue_cshuffle_v3_welford_wmma.hpp"
+#include "ck/tensor_operation/gpu/grid/epilogue_cshuffle_v3_reduce_wmma.hpp"
 
 namespace ck {
 
@@ -621,6 +622,29 @@ struct GridwiseGemm_wmma_cshuffle_v3_base
         ThisThreadBlock,
         BlockwiseGemmPipe,
         BlockSize>;
+
+    template <typename ReduceTrait>
+    using EpilogueReduceCShuffle = EpilogueReduceCShuffle<
+        DsDataType,
+        EDataType,
+        AccDataType,
+        CShuffleDataType,
+        MPerBlock,
+        NPerBlock,
+        MPerWmma,
+        NPerWmma,
+        MRepeat,
+        NRepeat,
+        CShuffleMRepeatPerShuffle,
+        CShuffleNRepeatPerShuffle,
+        CDEShuffleBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
+        CDEShuffleBlockTransferScalarPerVectors,
+        CDEElementwiseOperation,
+        ThisThreadBlock,
+        BlockwiseGemmPipe,
+        GemmSpec,
+        BlockSize,
+        ReduceTrait>;
 
     template <typename DEGridDesc>
     __device__ static constexpr auto MakeDEGridDescriptor_MBlock_MPerBlock_NBlock_NPerBlock(
