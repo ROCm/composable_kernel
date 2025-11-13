@@ -12,6 +12,7 @@
 #include "ck_tile/ops/gemm_quant.hpp"
 
 #define CK_TILE_SUPPORTED_QUANT_GROUPS(X) \
+    X(1, 1, 32)   /* 1D */                \
     X(1, 1, 64)   /* 1D */                \
     X(1, 1, 128)  /* 1D */                \
     X(1, 8, 128)  /* 2D N=8  */           \
@@ -63,8 +64,10 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
                          const ck_tile::index_t kbatch,
                          const float max_accumulated_value)
 {
-    using ComputeType =
-        std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>;
+    
+    using ComputeType = 
+        std::conditional_t<std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>, ADataType, 
+        std::conditional_t<sizeof(ADataType) < sizeof(BDataType), ADataType, BDataType>>;
     // Calculate thresholds
     const auto rtol = ck_tile::get_relative_threshold<ComputeType, CDataType, AccDataType>(
         ck_tile::integer_divide_ceil(K, kbatch));
@@ -272,6 +275,12 @@ template <>
 struct DataTypeTraits<ck_tile::bf8_t>
 {
     static constexpr const char* name = "bf8";
+};
+
+template <>
+struct DataTypeTraits<ck_tile::pk_fp4_raw_t>
+{
+    static constexpr const char* name = "pk_fp4_raw_t";
 };
 
 template <>

@@ -23,7 +23,7 @@ This folder contains examples of quant GEMMs using the ck_tile tile-programming 
 - **Preshuffled GEMM**: Shuffle the GEMM of B (weight) matrix in the warp layout and bypass the shared memory to do the GEMM calculation. Best performance solution for GEMM.
 - **TransposeC**: Transpose the C Matrix Output layout to have the best coalesced scale reading
 - **Preshuffled Quant**: Preshuffle the input matrix to load multiple Quant warp blocks along the selected dimension.
-- **Precision**: Supports fp16, bf16, fp8, bf8, int4 (for B Matrix).
+- **Precision**: Supports fp16, bf16, fp8, bf8, int4 (for B Matrix), uint8(split into two fp4 in the pipeline (for B Matrix)).
 - **Validation**: CPU/GPU validation and error tolerance options.
 
 ## build
@@ -34,8 +34,9 @@ mkdir build && cd build
 ../script/cmake-ck-dev.sh  ../ <arch>
 # Compile the quant kernels
 make tile_example_gemm_quant_basic -j
+make tile_example_gemm_quant_mxfp4 -j
 ```
-This will result in an executable `build/bin/tile_example_gemm_quant_basic`
+This will result in an executable `build/bin/tile_example_gemm_quant_basic` & `build/bin/tile_example_gemm_quant_mxfp4`
 
 ## example
 ```

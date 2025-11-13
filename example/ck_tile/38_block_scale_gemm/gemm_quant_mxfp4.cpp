@@ -337,6 +337,10 @@ int dispatch_by_data_type(const std::string& data_type,
     {
         throw std::runtime_error("This example only supports BQuant! Use --quant_mode=bquant");
     }
+     // Check if QuantGroupSize::kN is equal to 1
+    if (QuantGroupSize::kN != 1) {
+        throw std::runtime_error("This example only supports QuantGroupSize::kN equal to 1!, (e.g., Use --group_size 1x1x32)");
+    }
 
     if(data_type == "bf16f4")
     {
@@ -345,7 +349,7 @@ int dispatch_by_data_type(const std::string& data_type,
                                                         ck_tile::bf16_t,
                                                         ck_tile::pk_fp4_raw_t>{});
 
-        return run_gemm_example_prec_type<GemmConfig<ck_tile::bf16_t>,
+        return run_gemm_example_prec_type<GemmConfig<ck_tile::pk_fp4_raw_t>,
                                           TypeConfig,
                                           QuantGroupSize,
                                           ck_tile::QuantType::BQuantGrouped>(

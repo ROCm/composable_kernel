@@ -187,9 +187,10 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::index_t init_method = arg_parser.get_int("init");
     bool flush_cache             = arg_parser.get_bool("flush_cache");
     int rotating_count           = arg_parser.get_int("rotating_count");
-
+                
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
-    stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
+    stride_B = ck_tile::get_default_stride((std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>) ? (K / 2) : K, 
+                                        N, stride_B, is_row_major(b_layout));
     stride_C = ck_tile::get_default_stride(M, N, stride_C, is_row_major(CLayout{}));
 
     // Conditional stride calculation based on QuantMode
@@ -217,7 +218,9 @@ int run_gemm_example_with_layouts(int argc,
     ck_tile::HostTensor<ADataType> a_m_k(
         ck_tile::host_tensor_descriptor(M, K, stride_A, is_row_major(a_layout)));
     ck_tile::HostTensor<BDataType> b_k_n(
-        ck_tile::host_tensor_descriptor(K, N, stride_B, is_row_major(b_layout)));
+        ck_tile::host_tensor_descriptor(
+            (std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>) ? (K / 2) : K,
+            N, stride_B, is_row_major(b_layout)));
     ck_tile::HostTensor<CDataType> c_m_n_dev_result(
         ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
 
@@ -261,13 +264,23 @@ int run_gemm_example_with_layouts(int argc,
             {
                 ck_tile::FillUniformDistribution<ck_tile::pk_int4_t>{-5.0f, 5.0f, fill_seed(gen)}(
                     b_k_n);
+                ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
+                *bq_tensor_ptr);
+            }
+            else if constexpr(std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>)
+            {
+                ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f, fill_seed(gen)}(
+                    b_k_n);
+                ck_tile::FillUniformDistribution<BQDataType>{125.f, 130.f, fill_seed(gen)}(
+                    *bq_tensor_ptr);
             }
             else
             {
                 ck_tile::FillUniformDistribution<BDataType>{-2.0f, 3.0f, fill_seed(gen)}(b_k_n);
-            }
-            ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
+                ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
                 *bq_tensor_ptr);
+            }
+            
             ck_tile::FillUniformDistribution<ADataType>{-5.0f, 5.0f, fill_seed(gen)}(a_m_k);
         }
         else if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
@@ -467,7 +480,16 @@ int run_gemm_example_with_layouts(int argc,
         }
         else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
-            ck_tile::reference_gemm_quant<ADataType,
+            if constexpr(std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>)
+                ck_tile::reference_mxfp4gemm_quant<ADataType,
+                                            BQDataType,
+                                            BDataType,
+                                            AccDataType,
+                                            CDataType,
+                                            QuantGroupSize,
+                                            false>(a_m_k, *bq_tensor_ptr, b_k_n, c_m_n_host_ref);
+            else 
+                ck_tile::reference_gemm_quant<ADataType,
                                           AQDataType,
                                           BDataType,
                                           AccDataType,
