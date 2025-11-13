@@ -1723,7 +1723,7 @@ struct QuantGemmKernel
      * @param aq_ptr input AQ pointer
      * @param bq_ptr input BQ pointer
      * @param c_ptr output C pointer
-     * @param smem_ptr_0 The start memory pointer of the shared memory block.
+     * @param smem_ptr The start memory pointer of the shared memory block.
      * @param kargs GEMM kernel arguments
      * @param splitk_batch_offset splitk_batch_offset Utility structure used to calculate k batch.
      * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
@@ -1735,7 +1735,7 @@ struct QuantGemmKernel
                                        const AQDataType* aq_ptr,
                                        const BQDataType* bq_ptr,
                                        CDataType* c_ptr,
-                                       void* smem_ptr_0,
+                                       void* smem_ptr,
                                        const QuantGemmKernelArgs& kargs,
                                        const SplitKBatchOffset& splitk_batch_offset,
                                        const index_t block_idx_m,
@@ -1762,7 +1762,7 @@ struct QuantGemmKernel
                     m = kargs.M;
                 }
                 return GemmPipeline{}.template operator()(
-                    a_block_window, b_block_window, aq_block_window, num_loop, smem_ptr_0, m);
+                    a_block_window, b_block_window, aq_block_window, num_loop, smem_ptr, m);
             }
             else if constexpr(kQuantType == QuantType::BQuantGrouped)
             {
@@ -1772,7 +1772,7 @@ struct QuantGemmKernel
                     n = kargs.N;
                 }
                 return GemmPipeline{}.template operator()(
-                    a_block_window, b_block_window, bq_block_window, num_loop, smem_ptr_0, n);
+                    a_block_window, b_block_window, bq_block_window, num_loop, smem_ptr, n);
             }
             else if constexpr(kQuantType == QuantType::ABQuantGrouped)
             {
@@ -1788,7 +1788,7 @@ struct QuantGemmKernel
                                                           aq_block_window,
                                                           bq_block_window,
                                                           num_loop,
-                                                          smem_ptr_0,
+                                                          smem_ptr,
                                                           m,
                                                           n);
             }
@@ -1796,7 +1796,7 @@ struct QuantGemmKernel
                               kQuantType == QuantType::TensorQuant)
             {
                 return GemmPipeline{}.template operator()(
-                    a_block_window, b_block_window, num_loop, smem_ptr_0);
+                    a_block_window, b_block_window, num_loop, smem_ptr);
             }
         }();
 
@@ -1812,181 +1812,59 @@ struct QuantGemmKernel
                          kQuantType == QuantType::AQuantGrouped ||
                          kQuantType == QuantType::BQuantGrouped)
             {
-                EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
+                EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr);
             }
             else if constexpr(kQuantType == QuantType::RowColQuant)
             {
+                const auto& aq_block_window = gemm_tile_windows.at(I1);
+                const auto& bq_block_window = gemm_tile_windows.at(I3);
                 EpiloguePipeline{}(c_block_window,
                                    c_block_tile,
                                    c_block_window,
-                                   smem_ptr_0,
+                                   smem_ptr,
                                    aq_block_window,
                                    bq_block_window);
             }
             else if constexpr(kQuantType == QuantType::TensorQuant)
             {
+                // TODO: why doesn't readfirstlane work here?
+                // const AccDataType aq_scale =
+                //     __builtin_amdgcn_readfirstlane(type_convert<AccDataType>(*aq_ptr));
+                // const AccDataType bq_scale =
+                //     __builtin_amdgcn_readfirstlane(type_convert<AccDataType>(*bq_ptr));
                 const AccDataType aq_scale = type_convert<AccDataType>(*aq_ptr);
                 const AccDataType bq_scale = type_convert<AccDataType>(*bq_ptr);
                 EpiloguePipeline{}(
-                    c_block_window, c_block_tile, c_block_window, smem_ptr_0, aq_scale, bq_scale);
+                    c_block_window, c_block_tile, c_block_window, smem_ptr, aq_scale, bq_scale);
             }
         }
-        else
+
+        CK_TILE_DEVICE void operator()(QuantGemmKernelArgs kargs) const
         {
-            auto c_block_window = MakeCBlockWindow<memory_operation_enum::atomic_add>(
-                c_ptr, kargs, block_idx_m, block_idx_n);
+            const auto blockId  = amd_wave_read_first_lane(blockIdx.x);
+            const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockId);
+            const index_t i_m   = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
+            const index_t i_n   = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
+            const SplitKBatchOffset splitk_batch_offset(kargs);
 
-            if constexpr(kQuantType == QuantType::ABQuantGrouped ||
-                         kQuantType == QuantType::AQuantGrouped ||
-                         kQuantType == QuantType::BQuantGrouped)
-            {
-                EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
-            }
-            else if constexpr(kQuantType == QuantType::RowColQuant)
-            {
-                EpiloguePipeline{}(c_block_window,
-                                   c_block_tile,
-                                   c_block_window,
-                                   smem_ptr_0,
-                                   aq_block_window,
-                                   bq_block_window);
-            }
-            else if constexpr(kQuantType == QuantType::TensorQuant)
-            {
-                const AccDataType aq_scale = type_convert<AccDataType>(*aq_ptr);
-                const AccDataType bq_scale = type_convert<AccDataType>(*bq_ptr);
-                EpiloguePipeline{}(
-                    c_block_window, c_block_tile, c_block_window, smem_ptr_0, aq_scale, bq_scale);
-            }
-        }
-    }
-    /**
-     * @brief Runs single GEMM problem cooperatively by whole workgroup.
-     *
-     * @note RunGemm2LDS in with two shared memory buffers using the ping pong buffer mechanism.
-     *
-     * @param a_ptr input A pointer
-     * @param b_ptr input B pointer
-     * @param aq_ptr input AQ pointer
-     * @param bq_ptr input BQ pointer
-     * @param c_ptr output C pointer
-     * @param smem_ptr_0 The starting pointer of 1st shared memory block.
-     * @param smem_ptr_1 The starting pointer of 2nd shared memory block.
-     * @param kargs GEMM kernel arguments
-     * @param splitk_batch_offset Utility structure used to calculate k batch.
-     * @param block_idx_m The GEMM's output M dimension tile index processed by this workgroup.
-     * @param block_idx_n The GEMM's output N dimension tile index processed by this workgroup.
-     *
-     */
-    CK_TILE_DEVICE static void RunGemm2LDS(const ADataType* a_ptr,
-                                           const BDataType* b_ptr,
-                                           [[maybe_unused]] const AQDataType* aq_ptr,
-                                           const BQDataType* bq_ptr,
-                                           CDataType* c_ptr,
-                                           void* __restrict__ smem_ptr_0,
-                                           void* __restrict__ smem_ptr_1,
-                                           const QuantGemmKernelArgs& kargs,
-                                           const SplitKBatchOffset& splitk_batch_offset,
-                                           const index_t block_idx_m,
-                                           const index_t block_idx_n)
-    {
-        // Create block windows using specialized methods
-        const auto& a_block_window =
-            MakeABlockWindow(a_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_m);
-        const auto& b_block_window =
-            MakeBBlockWindow(b_ptr, kargs, splitk_batch_offset.splitted_k, block_idx_n);
-        const auto& bq_block_window = MakeBQBlockWindow(bq_ptr, kargs, block_idx_m, block_idx_n);
+            // Apply splitk offset to input pointers
+            const ADataType* a_ptr =
+                static_cast<const ADataType*>(kargs.a_ptr) + splitk_batch_offset.a_k_split_offset;
+            const BDataType* b_ptr =
+                static_cast<const BDataType*>(kargs.b_ptr) + splitk_batch_offset.b_k_split_offset;
+            const AQDataType* aq_ptr = static_cast<const AQDataType*>(kargs.aq_ptr);
+            const BQDataType* bq_ptr = static_cast<const BQDataType*>(kargs.bq_ptr);
+            CDataType* c_ptr         = static_cast<CDataType*>(kargs.c_ptr);
 
-        const index_t num_loop =
-            amd_wave_read_first_lane(TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k));
+            // allocate LDS
+            __shared__ char smem_ptr[GetSmemSize()];
 
-        // Run GEMM cooperatively by whole workgroup.
-        const auto& c_block_tile = [&]() {
-            if constexpr(kQuantType == QuantType::BQuantGrouped)
-            {
-                index_t n = 0;
-                if constexpr(PreshuffleQuant)
-                {
-                    n = kargs.N;
-                }
-                return GemmPipeline{}.template operator()(a_block_window,
-                                                          b_block_window,
-                                                          bq_block_window,
-                                                          num_loop,
-                                                          smem_ptr_0,
-                                                          smem_ptr_1,
-                                                          n);
-            }
-            else
-            {
-                return nullptr;
-            }
-        }();
-
-        const index_t k_batch = amd_wave_read_first_lane(kargs.k_batch);
-
-        // Run Epilogue Pipeline with k_batch dispatch
-        if constexpr(kQuantType == QuantType::BQuantGrouped)
-        {
-            if(k_batch == 1)
-            {
-                auto c_block_window = MakeCBlockWindow<memory_operation_enum::set>(
-                    c_ptr, kargs, block_idx_m, block_idx_n);
-                EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
-            }
-            else
-            {
-                auto c_block_window = MakeCBlockWindow<memory_operation_enum::atomic_add>(
-                    c_ptr, kargs, block_idx_m, block_idx_n);
-                EpiloguePipeline{}(c_block_window, c_block_tile, c_block_window, smem_ptr_0);
-            }
-        }
-    }
-
-    CK_TILE_DEVICE void operator()(QuantGemmKernelArgs kargs) const
-    {
-        const auto blockId  = amd_wave_read_first_lane(blockIdx.x);
-        const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(blockId);
-        const index_t i_m   = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
-        const index_t i_n   = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
-        const SplitKBatchOffset splitk_batch_offset(kargs);
-
-        // Apply splitk offset to input pointers
-        const ADataType* a_ptr =
-            static_cast<const ADataType*>(kargs.a_ptr) + splitk_batch_offset.a_k_split_offset;
-        const BDataType* b_ptr =
-            static_cast<const BDataType*>(kargs.b_ptr) + splitk_batch_offset.b_k_split_offset;
-        const AQDataType* aq_ptr = static_cast<const AQDataType*>(kargs.aq_ptr);
-        const BQDataType* bq_ptr = static_cast<const BQDataType*>(kargs.bq_ptr);
-        CDataType* c_ptr         = static_cast<CDataType*>(kargs.c_ptr);
-
-        // allocate LDS
-        __shared__ char smem_ptr_0[GetSmemSize()];
-
-        if constexpr(GemmPipeline::DoubleSmemBuffer == true)
-        {
-            __shared__ char smem_ptr_1[GemmPipeline::GetSmemSize()];
-
-            RunGemm2LDS(a_ptr,
-                        b_ptr,
-                        aq_ptr,
-                        bq_ptr,
-                        c_ptr,
-                        smem_ptr_0,
-                        smem_ptr_1,
-                        kargs,
-                        splitk_batch_offset,
-                        i_m,
-                        i_n);
-        }
-        else
-        {
             RunGemm(a_ptr,
                     b_ptr,
                     aq_ptr,
                     bq_ptr,
                     c_ptr,
-                    smem_ptr_0,
+                    smem_ptr,
                     kargs,
                     splitk_batch_offset,
                     i_m,

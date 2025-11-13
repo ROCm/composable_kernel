@@ -195,14 +195,16 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
     }
 
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
-    static constexpr index_t Preshuffle    = Problem::Preshuffle;
+
+    static constexpr index_t Preshuffle = Problem::Preshuffle;
     using Base::UsePersistentKernel;
 
     CK_TILE_HOST_DEVICE static constexpr auto TransposeC() { return Problem::TransposeC; }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
-        return PipelinePolicy::template GetSmemSize<Problem>();
+        constexpr index_t smem_size = PipelinePolicy::template GetSmemSize<Problem>();
+        return DoubleSmemBuffer ? 2 * smem_size : smem_size;
     }
 
     // dsread_perM: how many LDS reads want to issue in this M-iter
@@ -527,8 +529,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                                    const AElementFunction& a_element_func,
                                    const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                    index_t num_loop,
-                                   void* p_smem_ping,
-                                   void* p_smem_pong) const
+                                   void* p_smem) const
     {
         static_assert(
             std::is_same_v<ADataType, remove_cvref_t<typename ADramBlockWindowTmp::DataType>>,
@@ -552,8 +553,10 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
         __builtin_amdgcn_sched_barrier(0);
 
         // A tile in LDS
-        ADataType* p_a_lds_ping = static_cast<ADataType*>(p_smem_ping);
-        ADataType* p_a_lds_pong = static_cast<ADataType*>(p_smem_pong);
+        constexpr index_t smem_size = PipelinePolicy::template GetSmemSize<Problem>();
+        ADataType* p_a_lds_ping     = static_cast<ADataType*>(p_smem);
+        ADataType* p_a_lds_pong =
+            reinterpret_cast<ADataType*>(static_cast<char*>(p_smem) + smem_size);
 
         constexpr auto a_lds_block_desc =
             PipelinePolicy::template MakeALdsBlockDescriptor<Problem>();
@@ -1038,8 +1041,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                                    const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                    [[maybe_unused]] const BElementFunction& b_element_func,
                                    index_t num_loop,
-                                   void* p_smem_ping,
-                                   void* p_smem_pong) const
+                                   void* p_smem) const
     {
         const auto tail_number = Base::GetBlockLoopTailNum(num_loop);
 
@@ -1051,8 +1053,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                                         PassThrough,
                                         b_flat_dram_block_window_tmp[number<0>{}],
                                         num_loop,
-                                        p_smem_ping,
-                                        p_smem_pong);
+                                        p_smem);
         };
         return Base::TailHandler(RunPipeline, true, tail_number);
     }
@@ -1066,8 +1067,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                    index_t num_loop,
-                                   void* p_smem_ping,
-                                   void* p_smem_pong) const
+                                   void* p_smem) const
     {
         const auto tail_number = Base::GetBlockLoopTailNum(num_loop);
 
@@ -1079,8 +1079,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                                         PassThrough,
                                         b_flat_dram_block_window_tmp,
                                         num_loop,
-                                        p_smem_ping,
-                                        p_smem_pong);
+                                        p_smem);
         };
         return Base::TailHandler(RunPipeline, true, tail_number);
     }
@@ -1095,8 +1094,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                                    const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                    index_t num_loop,
                                    TailNumber tail_number,
-                                   void* __restrict__ p_smem_0,
-                                   void* __restrict__ p_smem_1) const
+                                   void* __restrict__ p_smem) const
     {
         const auto RunPipeline = [&](auto bool_val, auto tail_num_) {
             (void)bool_val; // Suppress unused parameter warning
@@ -1106,8 +1104,7 @@ struct WeightPreshufflePipelineAGmemBGmemCRegV2
                                         PassThrough,
                                         b_flat_dram_block_window_tmp,
                                         num_loop,
-                                        p_smem_0,
-                                        p_smem_1);
+                                        p_smem);
         };
         return Base::TailHandler(RunPipeline, true, tail_number);
     }
