@@ -26,17 +26,18 @@ using DeviceGemmV2Instance = ck::tensor_operation::device::DeviceGemm_Wmma_CShuf
     ALayout, BLayout, CLayout,
     ADataType, BDataType, CDataType, AccDataType, CShuffleDataType,
     PassThrough, PassThrough, PassThrough, GemmDefault,
-    128,
-    128, 64,
-    64, 8, 8,
+    256,
+    128, 256, 64,
+    8, 8,
     16, 16,
-    4, 2,
-    S<4, 32, 1>, S<0, 2, 1>, S<0, 2, 1>,
+    2, 8,
+    S<8, 32, 1>, S<0, 2, 1>, S<0, 2, 1>,
     1, 1, 8, 1,
-    S<4, 32, 1>, S<0, 2, 1>, S<0, 2, 1>,
+    S<8, 32, 1>, S<0, 2, 1>, S<0, 2, 1>,
     1, 1, 8, 1,
-    1, 1, S<1, 32, 1, 4>, 8,
-    ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v3>;
+    1, 1,
+    S<1, 64, 1, 4>, 8,
+    ck::BlockGemmPipelineScheduler::Intrawave, ck::BlockGemmPipelineVersion::v1>;
 // clang-format on
 
 using ReferenceGemmInstance = ck::tensor_operation::host::

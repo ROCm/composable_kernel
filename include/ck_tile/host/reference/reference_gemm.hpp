@@ -16,7 +16,7 @@ template <typename ADataType,
           typename BDataType,
           typename AccDataType,
           typename CDataType,
-          uint32_t QuantGroupSize,
+          typename QuantGroupSize,
           bool aquant,
           typename AElementOp   = ck_tile::identity,
           typename BElementOp   = ck_tile::identity,
@@ -80,12 +80,11 @@ CK_TILE_HOST void reference_gemm_quant(const HostTensor<ADataType>& a_m_k,
             v_block_acc += v_a * v_b;
 
             // Apply group dequant scale
-            if((k + 1) % QuantGroupSize == 0)
+            if((k + 1) % QuantGroupSize::kK == 0)
             {
                 float scale       = 0.f;
-                index_t outer_dim = (aquant) ? m : k / QuantGroupSize;
-                index_t inner_dim = (aquant) ? k / QuantGroupSize : n;
-
+                index_t outer_dim = (aquant) ? (m / QuantGroupSize::kM) : (k / QuantGroupSize::kK);
+                index_t inner_dim = (aquant) ? (k / QuantGroupSize::kK) : (n / QuantGroupSize::kN);
                 if constexpr(std::is_same_v<QDataType, float>)
                 {
                     scale = q(outer_dim, inner_dim);
@@ -384,6 +383,93 @@ reference_gemm_multiple_abd(const std::array<HostTensor<ADataType>, AsDataType::
 
 template <typename ADataType,
           typename BDataType,
+          typename ScaleDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename AElementOp   = ck_tile::identity,
+          typename BElementOp   = ck_tile::identity,
+          typename ACCElementOp = ck_tile::identity>
+CK_TILE_HOST void reference_mx_gemm(const HostTensor<ADataType>& a_m_k,
+                                    const HostTensor<BDataType>& b_k_n,
+                                    HostTensor<CDataType>& c_m_n,
+                                    const HostTensor<ScaleDataType>& scale_a,
+                                    const HostTensor<ScaleDataType>& scale_b,
+                                    const AElementOp&   = {},
+                                    const BElementOp&   = {},
+                                    const ACCElementOp& = {})
+{
+    static_assert(std::is_same_v<AElementOp, ck_tile::identity>);
+    static_assert(std::is_same_v<BElementOp, ck_tile::identity>);
+    static_assert(std::is_same_v<ACCElementOp, ck_tile::identity>);
+
+    const std::size_t M = a_m_k.get_length(0);
+    const std::size_t N = b_k_n.get_length(1);
+    const std::size_t K = a_m_k.get_length(1);
+
+    const std::size_t ScaleBlockSize = K / scale_a.get_length(1);
+
+    HostTensor<AccDataType> a_m_k_scaled({std::size_t(M), std::size_t(K)},
+                                         {std::size_t(K), std::size_t(1)});
+    HostTensor<AccDataType> b_k_n_scaled({std::size_t(K), std::size_t(N)},
+                                         {std::size_t(1), std::size_t(K)});
+
+    for(std::size_t m = 0; m < M; ++m)
+    {
+        for(std::size_t k = 0; k < K; ++k)
+        {
+            if constexpr(std::is_same_v<ADataType, pk_fp4_t>)
+            {
+                if(k % 2 == 1)
+                    continue; // skip odd k
+
+                auto a_f4x2  = a_m_k(m, k);
+                auto a_scale = ck_tile::type_convert<AccDataType>(scale_a(m, k / ScaleBlockSize));
+                auto a_f4_lo =
+                    ck_tile::type_convert<AccDataType>(a_f4x2.template unpack<>(number<0>{}));
+                auto a_f4_hi =
+                    ck_tile::type_convert<AccDataType>(a_f4x2.template unpack<>(number<1>{}));
+
+                a_m_k_scaled(m, k)     = a_f4_lo * a_scale;
+                a_m_k_scaled(m, k + 1) = a_f4_hi * a_scale;
+            }
+        }
+    }
+
+    for(std::size_t n = 0; n < N; n++)
+    {
+        for(std::size_t k = 0; k < K; k++)
+        {
+            if constexpr(std::is_same_v<BDataType, pk_fp4_t>)
+            {
+                if(k % 2 == 1)
+                    continue; // skip odd k
+
+                auto b_f4x2  = b_k_n(k, n);
+                auto b_scale = ck_tile::type_convert<AccDataType>(scale_b(k / ScaleBlockSize, n));
+                auto b_f4_lo =
+                    ck_tile::type_convert<AccDataType>(b_f4x2.template unpack<>(number<0>{}));
+                auto b_f4_hi =
+                    ck_tile::type_convert<AccDataType>(b_f4x2.template unpack<>(number<1>{}));
+
+                b_k_n_scaled(k, n)     = b_f4_lo * b_scale;
+                b_k_n_scaled(k + 1, n) = b_f4_hi * b_scale;
+            }
+            else
+            {
+                b_k_n_scaled(k, n) =
+                    ck_tile::type_convert<AccDataType>((b_k_n(k, n))) *
+                    ck_tile::type_convert<AccDataType>(scale_b(k / ScaleBlockSize, n));
+            }
+        }
+    }
+
+    // call reference gemm
+    reference_gemm<AccDataType, AccDataType, AccDataType, CDataType>(
+        a_m_k_scaled, b_k_n_scaled, c_m_n);
+}
+
+template <typename ADataType,
+          typename BDataType,
           typename DsDataType,
           typename AccDataType,
           typename CDataType,
@@ -480,6 +566,14 @@ __global__ void naive_gemm_kernel(ADataType* A,
                 else
                     v_a = fp32_val.lo;
             }
+            else if constexpr(std::is_same_v<ADataType, pk_fp4_t>)
+            {
+                const fp32x2_t fp32_val = pk_fp4_to_fp32x2(A[a_index / packed_size_a]);
+                if(k % 2 == 1)
+                    v_a = fp32_val.hi;
+                else
+                    v_a = fp32_val.lo;
+            }
             else
             {
                 v_a = ck_tile::type_convert<AccDataType>(A[a_index]);
@@ -492,12 +586,135 @@ __global__ void naive_gemm_kernel(ADataType* A,
                 else
                     v_b = fp32_val.lo;
             }
+            else if constexpr(std::is_same_v<BDataType, pk_fp4_t>)
+            {
+                const fp32x2_t fp32_val = pk_fp4_to_fp32x2(B[b_index / packed_size_b]);
+                if(k % 2 == 1)
+                    v_b = fp32_val.hi;
+                else
+                    v_b = fp32_val.lo;
+            }
             else
             {
                 v_b = ck_tile::type_convert<AccDataType>(B[b_index]);
             }
             acc += v_a * v_b;
         }
+
+        int c_index = (std::is_same_v<LayoutC, tensor_layout::gemm::RowMajor>)
+                          ? row * strideC + col
+                          : col * strideC + row;
+        C[c_index]  = ck_tile::type_convert<CDataType>(acc);
+    }
+}
+
+template <typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename LayoutA,
+          typename LayoutB,
+          typename LayoutC>
+__global__ void blockwise_gemm_kernel(ADataType* A,
+                                      BDataType* B,
+                                      CDataType* C,
+                                      ck_tile::index_t M,
+                                      ck_tile::index_t N,
+                                      ck_tile::index_t K,
+                                      ck_tile::index_t strideA,
+                                      ck_tile::index_t strideB,
+                                      ck_tile::index_t strideC,
+                                      ck_tile::index_t scale_granularity_m,
+                                      ck_tile::index_t scale_granularity_n,
+                                      ck_tile::index_t scale_granularity_k,
+                                      float* scale_A_ptr,
+                                      float* scale_B_ptr)
+{
+    int idx = blockIdx.x * blockDim.x + threadIdx.x;
+    int row = idx / N; // Compute row index
+    int col = idx % N; // Compute column index
+
+    if(row < M && col < N)
+    {
+        AccDataType acc = 0.0, acc_temp = 0.0;
+
+        index_t scale_A_stride = (M + scale_granularity_m - 1) / scale_granularity_m;
+        index_t scale_B_stride = (N + scale_granularity_n - 1) / scale_granularity_n;
+
+        float scale_A = 0;
+        float scale_B = 0;
+
+        for(int k = 0; k < K; ++k)
+        {
+            if(k % scale_granularity_k == 0)
+            {
+                // update acc
+                acc += acc_temp * scale_A * scale_B;
+                acc_temp = 0.0;
+                // update scale factors
+                scale_A = scale_A_ptr[(row / scale_granularity_m) +
+                                      (k / scale_granularity_k) * scale_A_stride];
+                scale_B = scale_B_ptr[(col / scale_granularity_n) +
+                                      (k / scale_granularity_k) * scale_B_stride];
+            }
+
+            constexpr index_t packed_size_a = ck_tile::numeric_traits<ADataType>::PackedSize;
+            constexpr index_t packed_size_b = ck_tile::numeric_traits<BDataType>::PackedSize;
+            // Adjust indexing based on matrix layout
+            int a_index = (std::is_same_v<LayoutA, tensor_layout::gemm::RowMajor>)
+                              ? row * strideA + k
+                              : k * strideA + row;
+            int b_index = (std::is_same_v<LayoutB, tensor_layout::gemm::ColumnMajor>)
+                              ? col * strideB + k
+                              : k * strideB + col;
+
+            AccDataType v_a;
+            AccDataType v_b;
+            if constexpr(std::is_same_v<ADataType, pk_int4_t>)
+            {
+                const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t(A[a_index / packed_size_a]);
+                if(k % 2 == 1)
+                    v_a = fp32_val.hi;
+                else
+                    v_a = fp32_val.lo;
+            }
+            else if constexpr(std::is_same_v<ADataType, pk_fp4_t>)
+            {
+                const fp32x2_t fp32_val = pk_fp4_to_fp32x2(A[a_index / packed_size_a]);
+                if(k % 2 == 1)
+                    v_a = fp32_val.hi;
+                else
+                    v_a = fp32_val.lo;
+            }
+            else
+            {
+                v_a = ck_tile::type_convert<AccDataType>(A[a_index]);
+            }
+
+            if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            {
+                const fp32x2_t fp32_val = pk_int4_t_to_fp32x2_t(B[b_index / packed_size_b]);
+                if(k % 2 == 1)
+                    v_b = fp32_val.hi;
+                else
+                    v_b = fp32_val.lo;
+            }
+            else if constexpr(std::is_same_v<BDataType, pk_fp4_t>)
+            {
+                const fp32x2_t fp32_val = pk_fp4_to_fp32x2(B[b_index / packed_size_b], 1.0f);
+                if(k % 2 == 1)
+                    v_b = fp32_val.hi;
+                else
+                    v_b = fp32_val.lo;
+            }
+            else
+            {
+                v_b = ck_tile::type_convert<AccDataType>(B[b_index]);
+            }
+            acc_temp += v_a * v_b;
+        }
+        // final accumulation
+        acc += acc_temp * scale_A * scale_B;
 
         int c_index = (std::is_same_v<LayoutC, tensor_layout::gemm::RowMajor>)
                           ? row * strideC + col
@@ -541,6 +758,51 @@ template <typename ADataType,
           typename LayoutA,
           typename LayoutB,
           typename LayoutC>
+void reference_blockwise_gemm_gpu(ADataType* a_ptr,
+                                  BDataType* b_ptr,
+                                  CDataType* c_ptr,
+                                  index_t M,
+                                  index_t N,
+                                  index_t K,
+                                  index_t stride_a,
+                                  index_t stride_b,
+                                  index_t stride_c,
+                                  index_t scale_granularity_m,
+                                  index_t scale_granularity_n,
+                                  index_t scale_granularity_k,
+                                  float* scale_A_ptr,
+                                  float* scale_B_ptr)
+{
+    int totalElements      = M * N;
+    int numThreadsPerBlock = 256; // Common choice for threads per block
+    int numBlocks          = (totalElements + numThreadsPerBlock - 1) / numThreadsPerBlock;
+
+    blockwise_gemm_kernel<ADataType, BDataType, AccDataType, CDataType, LayoutA, LayoutB, LayoutC>
+        <<<numBlocks, numThreadsPerBlock>>>(a_ptr,
+                                            b_ptr,
+                                            c_ptr,
+                                            M,
+                                            N,
+                                            K,
+                                            stride_a,
+                                            stride_b,
+                                            stride_c,
+                                            scale_granularity_m,
+                                            scale_granularity_n,
+                                            scale_granularity_k,
+                                            scale_A_ptr,
+                                            scale_B_ptr);
+
+    return;
+}
+
+template <typename ADataType,
+          typename BDataType,
+          typename AccDataType,
+          typename CDataType,
+          typename LayoutA,
+          typename LayoutB,
+          typename LayoutC>
 void reference_batched_gemm_gpu(ADataType* a_ptr,
                                 BDataType* b_ptr,
                                 CDataType* c_ptr,
@@ -571,4 +833,5 @@ void reference_batched_gemm_gpu(ADataType* a_ptr,
 
     return;
 }
+
 } // namespace ck_tile

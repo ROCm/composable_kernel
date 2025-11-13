@@ -2,6 +2,7 @@
 // Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
 #include "ck_tile/host/permute_pk_int4.hpp"
+#include "ck_tile/host/tensor_shuffle_utils.hpp"
 
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout layout_)
@@ -172,69 +173,6 @@ float invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
     return ave_time;
 }
 
-template <typename GemmConfig, typename T>
-auto shuffle_b(const ck_tile::HostTensor<T>& t)
-{
-    assert(t.get_lengths().size() == 2);
-    int n_ = t.get_lengths()[1];
-    int k_ = t.get_lengths()[0];
-
-    if(ck_tile::is_gfx12_supported())
-    {
-        constexpr int divisor      = 2;
-        constexpr int kABK1PerLane = 8;
-        constexpr int kABK0PerLane = GemmConfig::K_Warp_Tile / divisor / kABK1PerLane;
-        ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
-                                       GemmConfig::N_Warp_Tile,
-                                       k_ / GemmConfig::K_Warp_Tile,
-                                       kABK0PerLane,
-                                       divisor,
-                                       kABK1PerLane});
-        std::copy(t.begin(), t.end(), t_view.begin());
-        return ck_tile::reference_permute(t_view, {0, 2, 4, 1, 3, 5});
-    }
-    else
-    {
-        int divisor = 1;
-        if(ck_tile::is_gfx11_supported())
-        {
-            divisor = 1;
-        }
-        else
-        {
-            assert(is_wave32() == false);
-            divisor = GemmConfig::N_Warp_Tile == 32 ? 2 : 4;
-        }
-        ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
-                                       GemmConfig::N_Warp_Tile,
-                                       k_ / GemmConfig::K_Warp_Tile,
-                                       divisor,
-                                       GemmConfig::K_Warp_Tile / divisor});
-        std::copy(t.begin(), t.end(), t_view.begin());
-        return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
-    }
-}
-
-template <typename GemmConfig, typename T>
-auto shuffle_b_permuteN(const ck_tile::HostTensor<T>& t)
-{
-    assert(t.get_lengths().size() == 2);
-
-    int n_                = t.get_lengths()[1];
-    int k_                = t.get_lengths()[0];
-    constexpr int divisor = GemmConfig::N_Warp_Tile == 32 ? 2 : 4;
-    constexpr int NRepeat = GemmConfig::N_Tile / GemmConfig::N_Warp_Tile / GemmConfig::N_Warp;
-    ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Tile,
-                                   GemmConfig::N_Warp,
-                                   GemmConfig::N_Warp_Tile,
-                                   NRepeat,
-                                   k_ / GemmConfig::K_Warp_Tile,
-                                   divisor,
-                                   GemmConfig::K_Warp_Tile / divisor});
-    std::copy(t.begin(), t.end(), t_view.begin());
-    return ck_tile::reference_permute(t_view, {0, 3, 1, 4, 5, 2, 6});
-}
-
 template <typename CDataType>
 bool do_verify(const ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
                const ck_tile::HostTensor<CDataType>& c_m_n_ref,
@@ -252,6 +190,15 @@ bool do_verify(const ck_tile::HostTensor<CDataType>& c_m_n_dev_result,
     std::cout << "The " << variant << " verification result is:" << (pass ? "correct" : "fail")
               << std::endl;
     return pass;
+}
+
+std::tuple<ck_tile::index_t, ck_tile::index_t, ck_tile::index_t>
+parse_gemm_size(ck_tile::ArgParser& arg_parser)
+{
+    ck_tile::index_t M = arg_parser.get_int("m");
+    ck_tile::index_t N = arg_parser.get_int("n");
+    ck_tile::index_t K = arg_parser.get_int("k");
+    return std::make_tuple(M, N, K);
 }
 
 template <typename GemmConfig,
@@ -300,16 +247,8 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
 
     if(init_method == 0)
     {
-        if constexpr(preshuffle)
-        {
-            ck_tile::FillUniformDistribution<ADataType>{-.5f, .5f}(a_m_k);
-            ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_k_n);
-        }
-        else
-        {
-            ck_tile::FillUniformDistribution<ADataType>{-5.f, 5.f}(a_m_k);
-            ck_tile::FillUniformDistribution<BDataType>{-5.f, 5.f}(b_k_n);
-        }
+        ck_tile::FillUniformDistribution<ADataType>{-2.f, 2.f}(a_m_k);
+        ck_tile::FillUniformDistribution<BDataType>{-2.f, 2.f}(b_k_n);
     }
     else if(init_method == 1)
     {
@@ -353,6 +292,10 @@ int run_gemm_example_with_layouts(ck_tile::ArgParser& arg_parser,
             }
         }();
         // shuffled buffer B for device implementation
+        if constexpr(std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+        {
+            ck_tile::permute_vectors_i4x4_b(b_shuffle_host);
+        }
         b_k_n_dev_buf.ToDevice(b_shuffle_host.data());
     }
     else

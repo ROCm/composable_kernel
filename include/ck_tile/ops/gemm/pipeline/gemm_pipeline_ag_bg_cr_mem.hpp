@@ -21,8 +21,6 @@ struct BaseGemmPipelineAgBgCrMem
     using BDataType      = remove_cvref_t<typename Problem::BDataType>;
     using BlockGemmShape = remove_cvref_t<typename Problem::BlockGemmShape>;
 
-    static_assert(!std::is_same_v<BDataType, pk_int4_t>, "Not implemented");
-
     static constexpr index_t APackedSize =
         ck_tile::numeric_traits<remove_cvref_t<ADataType>>::PackedSize;
     static constexpr index_t BPackedSize =
@@ -174,7 +172,7 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
 
     using ADataType = remove_cvref_t<std::tuple_element_t<0, AsDataType>>;
     using BDataType = remove_cvref_t<std::tuple_element_t<0, BsDataType>>;
-
+    static_assert(!std::is_same_v<BDataType, pk_int4_t>, "Not implemented");
     using BlockGemm = remove_cvref_t<decltype(Policy::template GetBlockGemm<Problem>())>;
 
     using I0 = number<0>;
@@ -215,6 +213,13 @@ struct GemmPipelineAgBgCrMem : public BaseGemmPipelineAgBgCrMem<Problem>
 
     static constexpr auto is_a_load_tr_v = bool_constant<PipelineImplBase::is_a_load_tr>{};
     static constexpr auto is_b_load_tr_v = bool_constant<PipelineImplBase::is_b_load_tr>{};
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetPipelineName()
+    {
+        // clang-format off
+        return "MEMORY";
+        // clang-format on
+    }
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {

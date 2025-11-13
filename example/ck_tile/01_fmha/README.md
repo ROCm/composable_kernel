@@ -4,13 +4,28 @@ This folder contains example for fmha(fused multi-head attention) using ck_tile 
 
 ## build
 ```
-# in the root of ck_tile
-mkdir build && cd build
-# you can replace <arch> with the appropriate architecture (for example gfx90a or gfx942) or leave it blank
-../script/cmake-ck-dev.sh  ../ <arch>
-make tile_example_fmha_fwd -j
+# 1. In the root of composable_kernel project, create the build directory.
+[~/composable_kernel] mkdir build && cd build
+# 2. In the build directory, run the CMake wrapper script to generate the build system files. Replace <arch> with the gfx architectures string.
+[~/composable_kernel/build] ../script/cmake-ck-dev.sh .. <arch> -G Ninja
+# 3. In the build directory, run the build system recipe.
+[~/composable_kernel/build] ninja tile_example_fmha_fwd
 ```
-This will result in an executable `build/bin/tile_example_fmha_fwd`
+Running the build recipe will produce the executable `tile_example_fmha_fwd`.
+
+The executables reside in `bin` subdirectory of the build directory.
+
+This example provides recipes for `tile_example_fmha_fwd`, `tile_example_fmha_bwd`, `tile_example_fmha_fwd_v3`.
+
+> [!NOTE] 
+> `cmake-ck-dev.sh` is a CMake wrapper. 
+>
+> The first argument is the path to composable_kernel sources.
+>
+> The second argument is the gfx architectures string (e.g. "gfx950" or "gfx90a;gfx942"). 
+>
+> The remaining arguments are optional and are passed through to CMake.
+> E.g. `-G Ninja` specifies ninja as the build system.
 
 ## kernel
 The kernel template is `fmha_fwd_kernel.hpp`, this is the grid-wise op in old ck_tile's terminology. We put it here purposely, to demonstrate one can construct a kernel by using various internal component from ck_tile. We may still have an implementation under ck_tile's include path (in the future) for the kernel template.

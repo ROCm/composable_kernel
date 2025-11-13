@@ -27,8 +27,9 @@ using BF16 = ck::bhalf_t;
 using I8   = int8_t;
 using F32  = float;
 
-using Row = ck::tensor_layout::gemm::RowMajor;
-using Col = ck::tensor_layout::gemm::ColumnMajor;
+using Row    = ck::tensor_layout::gemm::RowMajor;
+using Col    = ck::tensor_layout::gemm::ColumnMajor;
+using Bypass = ck::tensor_layout::BypassLayoutVerification;
 
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using Add         = ck::tensor_operation::element_wise::Add;
@@ -110,11 +111,11 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
 
             if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
+                return HostTensorDescriptor({row, col}, {stride, 1_uz}, Bypass{});
             }
             else
             {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
+                return HostTensorDescriptor({row, col}, {1_uz, stride}, Bypass{});
             }
         };
 
@@ -220,8 +221,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         b0_tensors_device.emplace_back(std::make_unique<DeviceMem>(
             sizeof(B0DataType) * problem_size.Ns[i] * problem_size.Ks[i]));
 
-        b1_tensors_device.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(B1DataType) * problem_size.Ns[i]));
+        b1_tensors_device.emplace_back(std::make_unique<DeviceMem>(
+            sizeof(B1DataType) * problem_size.Ns[i] * problem_size.Ks[i]));
 
         d0_tensors_device.emplace_back(
             std::make_unique<DeviceMem>(sizeof(D0DataType) * problem_size.Ns[i]));

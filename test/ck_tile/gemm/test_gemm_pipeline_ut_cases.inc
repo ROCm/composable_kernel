@@ -3,15 +3,12 @@
 
 #pragma once
 
-#ifndef TEST_GEMM_PIPELINE_UT_CASES_INC
-#define TEST_GEMM_PIPELINE_UT_CASES_INC
-
 TYPED_TEST(TEST_SUITE_NAME, SmallM)
 {
     std::vector<int> Ms{1, 2, 3, 4, 5, 6};
     constexpr int N = 1024;
     std::vector<int> Ks;
-    for (auto K_count: {2, 3, 4, 10, 11}) 
+    for(auto K_count : {2, 3, 4, 10, 11})
     {
         Ks.push_back(K_count * TestFixture::K_Tile);
     }
@@ -33,13 +30,18 @@ TYPED_TEST(TEST_SUITE_NAME, SmallM)
     }
 }
 
+TYPED_TEST(TEST_SUITE_NAME, SingleTile)
+{
+    this->Run(TestFixture::M_Tile, TestFixture::N_Tile, TestFixture::K_Tile);
+}
+
 TYPED_TEST(TEST_SUITE_NAME, MidLargeM)
 {
     std::vector<int> Ms{127, 255, 312, 799, 1573};
-    constexpr int N           = 1024;
+    constexpr int N = 1024;
 
     std::vector<int> Ks;
-    for (auto K_count: {2, 3, 4, 10, 11}) 
+    for(auto K_count : {2, 3, 4, 10, 11})
     {
         Ks.push_back(K_count * TestFixture::K_Tile);
     }
@@ -51,7 +53,7 @@ TYPED_TEST(TEST_SUITE_NAME, MidLargeM)
 
     for(int M : Ms)
     {
-        for (int K: Ks)
+        for(int K : Ks)
         {
             if constexpr(std::is_same_v<typename TestFixture::ALayout,
                                         ck_tile::tensor_layout::gemm::ColumnMajor>)
@@ -114,5 +116,3 @@ TYPED_TEST(TEST_SUITE_NAME, NotSupportedArgument)
 
     EXPECT_THROW((this->template Run<PadM, PadN, PadK>(M, N, K)), std::runtime_error);
 }
-
-#endif

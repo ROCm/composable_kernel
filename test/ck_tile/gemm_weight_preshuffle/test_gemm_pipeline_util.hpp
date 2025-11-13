@@ -9,6 +9,7 @@
 #include "ck_tile/host.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include "ck_tile/host/permute_pk_int4.hpp"
+#include "ck_tile/host/tensor_shuffle_utils.hpp"
 #include "ck_tile/ops/epilogue.hpp"
 #include "ck_tile/ops/gemm.hpp"
 
@@ -35,21 +36,11 @@ auto calculate_rtol_atol(const ck_tile::index_t K,
 
 enum struct GemmPipelineType
 {
-    WeightPreshuffleV1,
     WeightPreshuffleV2
 };
 
 template <GemmPipelineType PT, typename Problem>
 struct GemmPipelineTypeSelector;
-
-template <typename Problem>
-struct GemmPipelineTypeSelector<GemmPipelineType::WeightPreshuffleV1, Problem>
-{
-    using base_pipeline = ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV1<Problem>;
-    using pipeline      = ck_tile::WeightPreshufflePipelineAGmemBGmemCRegV1<Problem>;
-
-    static constexpr auto GetName() { return "GemmPipelineAgBgCrWeightPreshuffleV1"; }
-};
 
 template <typename Problem>
 struct GemmPipelineTypeSelector<GemmPipelineType::WeightPreshuffleV2, Problem>
@@ -269,48 +260,6 @@ class TestCkTileGemmPipeline : public ::testing::Test
         k_batches_ = {1};
     }
 
-    template <typename GemmConfig, typename T>
-    auto shuffle_b(const ck_tile::HostTensor<T>& t)
-    {
-        assert(t.get_lengths().size() == 2);
-        int n_ = t.get_lengths()[1];
-        int k_ = t.get_lengths()[0];
-
-        if(ck_tile::is_gfx12_supported())
-        {
-            constexpr int divisor      = 2;
-            constexpr int kABK1PerLane = 8;
-            constexpr int kABK0PerLane = GemmConfig::K_Warp_Tile / divisor / kABK1PerLane;
-            ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
-                                           GemmConfig::N_Warp_Tile,
-                                           k_ / GemmConfig::K_Warp_Tile,
-                                           kABK0PerLane,
-                                           divisor,
-                                           kABK1PerLane});
-            std::copy(t.begin(), t.end(), t_view.begin());
-            return ck_tile::reference_permute(t_view, {0, 2, 4, 1, 3, 5});
-        }
-        else
-        {
-            int divisor = 1;
-            if(ck_tile::is_gfx11_supported())
-            {
-                divisor = 1;
-            }
-            else
-            {
-                assert(is_wave32() == false);
-                divisor = GemmConfig::N_Warp_Tile == 32 ? 2 : 4;
-            }
-            ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
-                                           GemmConfig::N_Warp_Tile,
-                                           k_ / GemmConfig::K_Warp_Tile,
-                                           divisor,
-                                           GemmConfig::K_Warp_Tile / divisor});
-            std::copy(t.begin(), t.end(), t_view.begin());
-            return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
-        }
-    }
     template <bool PadM = true, bool PadN = true, bool PadK = true, bool Preshuffle = false>
     void Run(const int M,
              const int N,

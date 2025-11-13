@@ -39,8 +39,10 @@ template <bool kPadM_,
           QuantType QuantType_,
           typename AQLayout_        = ALayout_,
           typename BQLayout_        = BLayout_,
+          bool TransposeC_          = false,
           bool DoubleSmemBuffer_    = false,
-          bool UsePersistentKernel_ = false>
+          bool UsePersistentKernel_ = false,
+          int VectorSize_           = 16>
 struct TileGemmQuantTraits
 {
     static constexpr bool kPadM = kPadM_;
@@ -49,7 +51,7 @@ struct TileGemmQuantTraits
 
     static constexpr QuantType kQuantType = QuantType_;
 
-    static constexpr int _VectorSize       = 16;
+    static constexpr int _VectorSize       = VectorSize_;
     static constexpr bool DoubleSmemBuffer = DoubleSmemBuffer_;
 
     using ALayout  = ALayout_;
@@ -62,7 +64,7 @@ struct TileGemmQuantTraits
     using AsLayout = ALayout_;
     using BsLayout = BLayout_;
 
-    static constexpr bool TransposeC            = false;
+    static constexpr bool TransposeC            = TransposeC_;
     static constexpr bool UseStructuredSparsity = false;
     static constexpr index_t NumWaveGroups      = 1;
     static constexpr bool UsePersistentKernel   = UsePersistentKernel_;

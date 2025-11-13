@@ -275,30 +275,29 @@ float gemm_stage1(const GemmSplitKHostArgs& args, const ck_tile::stream_config& 
                     hipGetErrorString(hipMemsetAsync(
                         args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
             };
-            ave_time = ck_tile::launch_kernel_time_mask(
-                s,
-                run_flush_cache,
-                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+            return ave_time = ck_tile::launch_kernel_time_mask(
+                       s,
+                       run_flush_cache,
+                       ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
+                           Kernel{}, grids, blocks, 0, kargs));
         }
         else
         {
-            ave_time = ck_tile::launch_kernel(
-                s,
-                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+            return ave_time = ck_tile::launch_kernel(s,
+                                                     ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
+                                                         Kernel{}, grids, blocks, 0, kargs));
         }
-        return ave_time;
     };
 
     const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
         // For workspace mode, always use SET operation since each K-split writes to separate memory
-        Run(has_hot_loop_,
-            tail_number_,
-            ck_tile::integral_constant<ck_tile::memory_operation_enum,
-                                       ck_tile::memory_operation_enum::set>{});
+        return Run(has_hot_loop_,
+                   tail_number_,
+                   ck_tile::integral_constant<ck_tile::memory_operation_enum,
+                                              ck_tile::memory_operation_enum::set>{});
     };
 
-    BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
-    return ave_time;
+    return ave_time = BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
 }
 
 /**
@@ -963,7 +962,7 @@ int run_gemm_example(ck_tile::ArgParser& arg_parser)
     else if(data_type == "pk_int4_t")
     {
         // TODO: Add support for bhalf_t ADataType
-        if constexpr(GemmConfig<ck_tile::half_t>::Pipeline == CK_TILE_PIPELINE_COMPUTE_V3)
+        if constexpr(GemmConfig<ck_tile::half_t>::Pipeline == ck_tile::GemmPipeline::COMPUTE_V3)
         {
             return run_gemm_example_prec_type<GemmConfig<ck_tile::half_t>,
                                               ck_tile::half_t,

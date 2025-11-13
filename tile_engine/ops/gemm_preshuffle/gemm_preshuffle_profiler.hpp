@@ -1,8 +1,11 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
 #pragma once
 
 #include "ck_tile/host/device_prop.hpp"
 #include "ck_tile/ops/gemm.hpp"
-#include "benchmark_gemm_preshuffle.hpp"
+#include "gemm_preshuffle_benchmark.hpp"
 
 class GemmProfiler
 {
@@ -17,7 +20,7 @@ class GemmProfiler
     void benchmark(GemmProblem& gemm_problem,
                    std::function<float(const ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>
                        kernel_func,
-                   const std::tuple<int, int, int>& warp_tile_dims)
+                   KernelConfig& config)
     {
         // Create a vector with a single callable that returns both name and time
         std::vector<std::function<std::tuple<std::string, float>(ck_tile::GemmHostArgs&,
@@ -30,13 +33,13 @@ class GemmProfiler
                 return std::make_tuple(std::string(KERNEL_NAME), time);
             });
 
-        benchmark(gemm_problem, callables, warp_tile_dims);
+        benchmark(gemm_problem, callables, config);
     }
 
     void benchmark(GemmProblem& gemm_problem,
                    std::vector<std::function<std::tuple<std::string, float>(
                        ck_tile::GemmHostArgs&, const ck_tile::stream_config&)>>& callables,
-                   const std::tuple<int, int, int>& warp_tile_dims)
+                   KernelConfig& config)
     {
         const ALayout layout_a = ALayout{};
         const BLayout layout_b = BLayout{};
@@ -110,11 +113,22 @@ class GemmProfiler
 
         for(const auto& callable : callables)
         {
-            ck_tile::index_t N_Warp_Tile = std::get<1>(warp_tile_dims);
-            ck_tile::index_t K_Warp_Tile = std::get<2>(warp_tile_dims);
+            ck_tile::index_t N_Warp_Tile = std::get<1>(config.warp_tile_dims);
+            ck_tile::index_t K_Warp_Tile = std::get<2>(config.warp_tile_dims);
+            ck_tile::index_t N_Tile      = std::get<1>(config.tile_dims);
+            ck_tile::index_t N_Warp      = std::get<1>(config.warp_dims);
 
-            ck_tile::HostTensor<BDataType> b_shuffle_host =
-                shuffle_b(b_k_n, N_Warp_Tile, K_Warp_Tile);
+            ck_tile::HostTensor<BDataType> b_shuffle_host = [&]() {
+                if(config.permuteN)
+                {
+                    return shuffle_b_permuteN(b_k_n, N_Warp_Tile, K_Warp_Tile, N_Tile, N_Warp);
+                }
+                else
+                {
+                    return shuffle_b(b_k_n, N_Warp_Tile, K_Warp_Tile);
+                }
+            }();
+
             b_k_n_dev_buf.ToDevice(b_shuffle_host.data());
 
             ck_tile::GemmHostArgs gemm_args = {

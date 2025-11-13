@@ -5,12 +5,13 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/gemm/block/block_wp_asmem_bsmem_creg_v1_custom_policy.hpp"
+#include "ck_tile/ops/gemm_quant/block/block_gemm_quant_common.hpp"
 
 namespace ck_tile {
 
 // A is block window on shared memory
 // BQ (scale tensor) is block distributed tensor.
-// Consecutive kQuantGroupSize elements of B are quantized with a separate scale.
+// Consecutive QuantGroupSize elements of B are quantized with a separate scale.
 // B is block window on block distributed tensor.
 // C is block distributed tensor
 template <typename Problem_, typename BlockPolicy_>
@@ -24,6 +25,10 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
     using CDataType       = remove_cvref_t<typename Problem::CDataType>;
     using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
     using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>; // TileFlatmmShape
+    using QuantGroupSize  = remove_cvref_t<typename Problem::QuantGroupSize>;
+
+    static_assert(QuantGroupSize::kM == 1, "only N/K blocks for BQuant preshuffle kernel!");
+    static_assert(QuantGroupSize::kN == 1, "no block for N supported yet!");
 
     static constexpr auto I0   = number<0>();
     static constexpr auto I1   = number<1>();
@@ -47,8 +52,7 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
     static constexpr index_t MPerBlock = BlockGemmShape::kM;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 
-    static constexpr index_t kQuantGroupSize = Problem::kQuantGroupSize;
-    static constexpr index_t kBlockSize      = Problem::kBlockSize;
+    static constexpr index_t kBlockSize = Problem::kBlockSize;
 
     static constexpr index_t MIterPerWarp = MPerBlock / (MWarp * WG::kM);
     static constexpr index_t NIterPerWarp =
@@ -58,13 +62,12 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
     static constexpr auto MIter_2nd_last =
         (MIterPerWarp >= 2) ? MIterPerWarp - 2 : MIterPerWarp - 1;
 
-    static constexpr index_t KPerBlockBQ = KPerBlock / kQuantGroupSize;
+    static constexpr index_t KPerBlockBQ = KPerBlock / QuantGroupSize::kK;
 
     static constexpr index_t QScalesPerBlockRow =
-        (KPerBlock + kQuantGroupSize - 1) / kQuantGroupSize;
-
+        integer_divide_ceil(KPerBlock, QuantGroupSize::kK);
     static constexpr index_t QScalesPerWarpGemmRow =
-        (WG::kK + kQuantGroupSize - 1) / kQuantGroupSize;
+        integer_divide_ceil(WG::kK, QuantGroupSize::kK);
 
     static constexpr index_t KIterPerQScale = KIterPerWarp / QScalesPerBlockRow;
     static constexpr index_t DsReadPreload  = 2; // default 2, preload 2 ds read
@@ -79,11 +82,11 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
         float scale_reg_f = 0.f;
         if constexpr(std::is_same_v<BQDataType, ck_tile::fp8_t>)
         {
-            scale_reg_f = element_wise::amd_assembly_fp8_to_fp32(static_cast<uint32_t>(scale));
+            scale_reg_f = __builtin_amdgcn_cvt_f32_fp8(static_cast<uint32_t>(scale), 0);
         }
         else if constexpr(std::is_same_v<BQDataType, ck_tile::bf8_t>)
         {
-            scale_reg_f = element_wise::amd_assembly_bf8_to_fp32(static_cast<uint32_t>(scale));
+            scale_reg_f = __builtin_amdgcn_cvt_f32_bf8(static_cast<uint32_t>(scale), 0);
         }
         else if constexpr(std::is_same_v<BQDataType, float>)
         {
@@ -98,21 +101,8 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
 
     CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
     {
-        constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
-            sequence<>,
-            tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
-            tuple<sequence<1, 2>>,
-            tuple<sequence<1, 1>>,
-            sequence<1, 2>,
-            sequence<0, 0>>{};
-
-        constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            c_block_outer_dstr_encoding, typename WG::CWarpDstrEncoding{});
-
-        constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
-
-        auto c_block_tensor = make_static_distributed_tensor<CDataType>(c_block_dstr);
-        return c_block_tensor;
+        return BlockGemmQuantCommon<CDataType, WG, MIterPerWarp, MWarp, NIterPerWarp, NWarp>::
+            MakeCBlockTile();
     }
 
     // C += A * B
@@ -127,62 +117,72 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
                                    BQBlockTensor& bq_block_tensor,
                                    ABlockWindow& a_warp_windows) const
     {
-        using CWarpDstr   = typename WG::CWarpDstr;
-        using CWarpTensor = typename WG::CWarpTensor;
+        using CWarpDstr = typename WG::CWarpDstr;
+        using AccTensor = typename WG::CWarpTensor;
 
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
-        static_for<0, QScalesPerBlockRow, 1>{}([&](auto kQScale) {
-            CWarpTensor c_warp_tensor;
-            static_for<0, KIterPerQScale, 1>{}([&](auto kIterInQScale) {
-                static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
-                    static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
-                        constexpr auto kIter = kQScale * KIterPerQScale + kIterInQScale;
+        statically_indexed_array<statically_indexed_array<AccTensor, NIterPerWarp>, MIterPerWarp>
+            c_acc;
 
-                        constexpr auto AwarpIter = (kIter * MIterPerWarp + mIter) % m_preload;
-
-                        // warp GEMM
-                        if constexpr(kIterInQScale == 0)
-                            c_warp_tensor = WG{}(a_warp_tensor(number<AwarpIter>{}),
-                                                 b_warp_tensor(nIter)(number<kIter>{}));
-                        else
-                            WG{}(c_warp_tensor,
-                                 a_warp_tensor(number<AwarpIter>{}),
-                                 b_warp_tensor(nIter)(number<kIter>{}));
-
-                        __builtin_amdgcn_sched_barrier(0x7F6);
-                        // preload next A from lds
-                        if constexpr((kIter * MIterPerWarp + mIter) <
-                                     (KIterPerWarp * MIterPerWarp - m_preload))
-                        {
-                            constexpr auto AmIter = (mIter + m_preload) % MIterPerWarp;
-                            constexpr auto AkIter = (kIter + (mIter + m_preload) / MIterPerWarp);
-                            a_warp_tensor(number<AwarpIter>{}) =
-                                load_tile(a_warp_windows(number<AmIter>{})(number<AkIter>{}));
-                        }
-                        // barrier
-                        if constexpr((kIter == KIterPerWarp - 1) && (mIter == MIter_2nd_last))
-                        {
-                            block_sync_lds();
-                        }
-                    });
+        auto zero_accumulators = [&] {
+            static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+                static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                    static_for<0, (WG::kM * WG::kN) / warp_size, 1>{}([&](auto i) {
+                        c_acc(mIter)(nIter).get_thread_buffer()[i] = 0.0f;
+                    }); // make sure WG::CWarpTensor exposes a clear/zero
                 });
             });
+        };
+        static_for<0, QScalesPerBlockRow, 1>{}([&](auto kQScale) {
+            zero_accumulators();
+            static_for<0, KIterPerQScale, 1>{}([&](auto kIterInQScale) {
+                constexpr auto kIter = kQScale * KIterPerQScale + kIterInQScale;
+                static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+                    constexpr auto AwarpIter = (kIter * MIterPerWarp + mIter) % m_preload;
+                    static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                        // warp GEMM
+                        WG{}(c_acc(mIter)(nIter),
+                             a_warp_tensor(number<AwarpIter>{}),
+                             b_warp_tensor(nIter)(number<kIter>{}));
+                    });
+                    __builtin_amdgcn_sched_barrier(0x7F6);
+                    // preload next A from lds
+                    if constexpr((kIter * MIterPerWarp + mIter) <
+                                 (KIterPerWarp * MIterPerWarp - m_preload))
+                    {
+                        constexpr auto AmIter = (mIter + m_preload) % MIterPerWarp;
+                        constexpr auto AkIter = (kIter + (mIter + m_preload) / MIterPerWarp);
+                        a_warp_tensor(number<AwarpIter>{}) =
+                            load_tile(a_warp_windows(number<AmIter>{})(number<AkIter>{}));
+                    }
+                    // barrier
+                    // Could be deleted
+                    if constexpr((mIter == MIter_2nd_last))
+                    {
+                        block_sync_lds();
+                    }
+                });
+            });
+            static_for<0, MIterPerWarp, 1>{}([&](auto mIter) {
+                static_for<0, NIterPerWarp, 1>{}([&](auto nIter) {
+                    constexpr auto tbuf_offset =
+                        number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(
+                                   merge_sequences(sequence<mIter, nIter>{},
+                                                   c_warp_y_index_zeros)) /
+                               CBlockTensor::PackedSize>{};
 
-            constexpr auto tbuf_offset =
-                number<typename CBlockTensor::ThreadTensorDesc{}.calculate_offset(merge_sequences(
-                           sequence<number<0>{}, number<0>{}>{}, c_warp_y_index_zeros)) /
-                       CBlockTensor::PackedSize>{};
+                    constexpr index_t reg_offset = nIter * KPerBlockBQ + kQScale;
 
-            constexpr index_t reg_offset = kQScale;
-            // nIter * KPerBlockBQ + kQScale; //((kIter * WG::kK) / kQuantGroupSize);
+                    auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
+                    float scale_reg_f = cvt_scale_to_fp32(scale_reg);
 
-            auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
-            float scale_reg_f = cvt_scale_to_fp32(scale_reg);
-
-            static_for<0, WG::kM * WG::kN / warp_size, 1>{}([&](auto c_row) {
-                c_block_tensor.get_thread_buffer()[tbuf_offset + c_row] +=
-                    (c_warp_tensor.get_thread_buffer()[c_row] * scale_reg_f);
+                    static_for<0, WG::kM * WG::kN / warp_size, 1>{}([&](auto c_row) {
+                        auto& c_ref = c_block_tensor.get_thread_buffer()[tbuf_offset + c_row];
+                        const auto acc_val = c_acc(mIter)(nIter).get_thread_buffer()[c_row];
+                        c_ref              = c_ref + acc_val * scale_reg_f;
+                    });
+                });
             });
         });
     }

@@ -4,7 +4,7 @@ The `Grouped GEMM` operators are versions of GEMM that run multiple GEMM operati
 
 ### Preshuffle and Persistence
 
-The grouped GEMM examples include two advanced optimization features:
+The grouped GEMM examples include the following advanced optimization features:
 
 #### Weight Preshuffle
 Weight preshuffle is an optimization technique that reorganizes the B matrix (weights) in memory to improve data access patterns and reduce memory bandwidth requirements. This is particularly beneficial for inference workloads where the same weights are reused across multiple batches.
@@ -21,13 +21,13 @@ Persistence mode is a GPU optimization where thread blocks remain active on the 
 - **Usage**: `invoke_gemm<ALayout, BLayout, CLayout, true>` enables persistence
 
 #### Multi-D Operations
-Multi-D operations extend the standard GEMM operation by supporting additional element-wise operations on the result tensor. This feature is particularly useful for workloads that require post-processing of the GEMM output.
+Multi-D operations extend the standard GEMM operation by supporting additional elementwise operations on the result tensor. This feature is particularly useful for workloads that require post-processing of the GEMM output.
 
 - **Implementation**: Available in `grouped_gemm_multi_d.cpp`
 - **Operation**: E = C × D₀ × D₁ (where C = A × B is the standard GEMM result)
 - **Configuration**: Uses `GemmConfigV3`, `GemmConfigV4`, `GemmConfigMemory` template configuration with 2 D tensors
-- **Data Types**: Supports fp16 
-- **Benefits**: Enables complex operations like scaling, activation functions, or other element-wise transformations in a single kernel call
+- **Data Types**: Supports fp16, fp8
+- **Benefits**: Enables complex operations like scaling, activation functions, or other elementwise transformations in a single kernel call
 - **Build Target**: `make tile_example_grouped_gemm_multi_d -j`
 
 Multi-D operations supports both persistence and non-persistence modes.
@@ -37,9 +37,7 @@ Weight preshuffle supports only on non-persistence mode.
 ```
 # in the root of ck_tile
 mkdir build && cd build
-# you can replace <arch> with the appropriate architecture (for example gfx90a or gfx942) or leave it blank
-../script/cmake-ck-dev.sh  ../ <arch>
-# The basic pipeline method on the gemm calculation
+../script/cmake-ck-dev.sh ../ <arch>
 make tile_example_grouped_gemm -j
 # The preshuffle example
 make tile_example_grouped_gemm_preshuffle -j
@@ -85,3 +83,22 @@ stride_A[i] = K[i]
 stride_B[i] = K[i]
 stride_C[i] = N[i]
 ```
+
+## Source Structure
+
+- **Kernel**: [`grouped_gemm.hpp`](grouped_gemm.hpp) (tile-programming kernel template)
+- **Executables**: [`grouped_gemm.cpp`](grouped_gemm.cpp)
+- **Build**: `CMakeLists.txt`, `run_grouped_gemm_example.inc`
+
+---
+
+## Related CK Tile Examples
+
+- [16_batched_gemm](../16_batched_gemm/README.md): Batched GEMM with tiles
+- [15_fused_moe](../15_fused_moe/README.md): Fused MoE block (uses grouped GEMM)
+- [03_gemm](../03_gemm/README.md): Single GEMM with tiles
+
+For distribution, see [`include/ck_tile/tile_program/tile_distribution/`](../../../include/ck_tile/tile_program/tile_distribution/).
+
+---
+[Back to CK Tile Examples](../README.md)

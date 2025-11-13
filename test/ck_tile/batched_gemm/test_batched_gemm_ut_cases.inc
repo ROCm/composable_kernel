@@ -31,7 +31,7 @@ TYPED_TEST(TestCkTileBatchedGemm, Basic)
 
     if(ck_tile::get_device_name() != "gfx950")
     {
-        gemmParams.emplace_back(256, 256, 128, 2);
+        gemmParams.push_back({256, 256, 128, 2});
     }
 
     for(auto& params : gemmParams)

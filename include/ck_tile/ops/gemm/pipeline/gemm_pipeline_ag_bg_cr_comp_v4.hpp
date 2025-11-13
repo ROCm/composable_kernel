@@ -27,6 +27,10 @@ struct BaseGemmPipelineAgBgCrCompV4
 
     CK_TILE_HOST_DEVICE static constexpr TailNumber GetBlockLoopTailNum(index_t num_loop)
     {
+        if(num_loop == 1)
+        {
+            return TailNumber::One;
+        }
         if(num_loop % PrefetchStages == 1)
         {
             return TailNumber::Three;
@@ -66,6 +70,11 @@ struct BaseGemmPipelineAgBgCrCompV4
             {
                 return run_func(bool_constant<false>{},
                                 integral_constant<TailNumber, TailNumber::Two>{});
+            }
+            else
+            {
+                return (run_func(bool_constant<false>{},
+                                 integral_constant<TailNumber, TailNumber::One>{}));
             }
         }
         // If execution reaches here, it's an invalid tail_number because it wasn't handled above.
@@ -162,6 +171,13 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
 
     static constexpr auto is_a_load_tr_v = bool_constant<PipelineImplBase::is_a_load_tr>{};
     static constexpr auto is_b_load_tr_v = bool_constant<PipelineImplBase::is_b_load_tr>{};
+
+    [[nodiscard]] CK_TILE_HOST static const std::string GetPipelineName()
+    {
+        // clang-format off
+        return "COMPUTE_V4";
+        // clang-format on
+    }
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
@@ -484,7 +500,7 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
             elementwise_Bs_res = load_tile_with_elementwise(b_tile_windows, b_element_func);
             move_tile_window(b_tile_windows, b_dram_tile_window_step);
 
-            if(HasHotLoop)
+            if constexpr(HasHotLoop)
             {
                 // minus 2 because we have ping-pong double buffer.
                 index_t iCounter = amd_wave_read_first_lane(num_loop - 2);
@@ -529,7 +545,6 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                         // gemm
                         block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
                         HotLoopScheduler();
-                        __builtin_amdgcn_sched_barrier(0);
                     }
                     // pong
                     {
@@ -572,7 +587,6 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                         // gemm
                         block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
                         HotLoopScheduler();
-                        __builtin_amdgcn_sched_barrier(0);
                     }
                     iCounter -= 2;
                 } while(iCounter > 1);
@@ -623,7 +637,7 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                     __builtin_amdgcn_sched_barrier(0);
                 }
             }
-            else
+            else if(TailNum == TailNumber::Two)
             {
                 // 2
                 {
@@ -631,8 +645,7 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                     Base::LocalPrefetch(a_block_tile1, a_lds_ld_window1, is_a_load_tr_v);
                     Base::LocalPrefetch(b_block_tile1, b_lds_ld_window1, is_b_load_tr_v);
                     block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
-                    static_for<0, 8, 1>{}([&](auto i) {
-                        ignore = i;
+                    static_for<0, 8, 1>{}([&](auto) {
                         __builtin_amdgcn_sched_group_barrier(0x100, 1, 0); // DS read
                         __builtin_amdgcn_sched_group_barrier(0x008, 8, 0); // MFMA
                     });
@@ -643,6 +656,12 @@ struct GemmPipelineAgBgCrCompV4 : public BaseGemmPipelineAgBgCrCompV4<Problem>
                     block_gemm(c_block_tile, a_block_tile1, b_block_tile1);
                     __builtin_amdgcn_sched_barrier(0);
                 }
+            }
+            else if(TailNum == TailNumber::One)
+            {
+                block_sync_lds();
+                block_gemm(c_block_tile, a_block_tile0, b_block_tile0);
+                __builtin_amdgcn_sched_barrier(0);
             }
             return c_block_tile;
         }
