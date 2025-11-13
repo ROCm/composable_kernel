@@ -167,7 +167,7 @@ struct UnifiedAttentionKernel
     CK_TILE_HOST static constexpr auto GridSize2D(ck_tile::index_t num_kv_heads,
                                                   ck_tile::index_t total_num_q_blocks)
     {
-        return dim3(num_kv_heads * total_num_q_blocks, 0, 0);
+        return dim3(num_kv_heads * total_num_q_blocks);
     }
 
     // CK_TILE_HOST static constexpr auto GridSize3D(ck_tile::index_t num_kv_heads,
