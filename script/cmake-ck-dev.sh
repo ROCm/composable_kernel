@@ -1,4 +1,7 @@
 #!/bin/bash
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 # exit when a command exits with non-zero status; also when an unbound variable is referenced
 set -eu
 # pipefail is supported by many shells, not supported by sh and dash

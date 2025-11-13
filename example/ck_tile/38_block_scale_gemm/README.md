@@ -33,9 +33,9 @@ mkdir build && cd build
 # you can replace <arch> with the appropriate architecture (for example gfx942) or leave it blank
 ../script/cmake-ck-dev.sh  ../ <arch>
 # Compile the quant kernels
-make tile_example_gemm_quant_basic -j
+make tile_example_gemm_quant -j
 ```
-This will result in an executable `build/bin/tile_example_gemm_quant_basic`
+This will result in an executable `build/bin/tile_example_gemm_quant`
 
 ## example
 ```
@@ -64,7 +64,7 @@ args:
 -rotating_count    Rotating count (default:1000)
     -quant_mode    Choose aquant, bquant, tensor or rowcol (default:bquant)
    -preshuffleb    Enable preshuffle of tensor B (default:false)
--preshufflequant   Enable preshuffle of quant tensor (defualt:false)
+   -preshufflequant   Enable preshuffle of quant tensor (defualt:false)
     -group_size    Quantization group size as MxNxK, e.g., 1x1x128, 1x32x128, 1x64x128 (default:1x1x128)
 ```
 
@@ -73,9 +73,9 @@ User need to select correct mapping of config for each quant mode:
 |  | quant_mode as runtime argument | Config in cpp file |
 |:--------|:-----:|-------|
 | For selecting AQuant  | aquant  | GemmConfigQuant    |
-| For selecting AQuant with Preshuffle    | aquant  | GemmConfigPreshuffleQuant    |
+| For selecting AQuant with Preshuffle quant    | aquant  | GemmConfigPreshuffleQuant    |
 | For selecting BQuant  | bquant  | GemmConfigQuant    |
-| For selecting BQuant with Preshuffle  | bquant  | GemmConfigPreshuffleQuant    |
+| For selecting BQuant with Preshuffle quant | bquant  | GemmConfigPreshuffleQuant    |
 | For selecting PreShuffle B with BQuant | bquant | GemmConfigPreshuffleB_BQuant_Decode (or) GemmConfigPreshuffleB_BQuant_Prefill
 | For selecting PreShuffle B with preshuffle BQuant | bquant | GemmConfigPreshuffleB_PreshuffleBQuant_Decode (or) GemmConfigPreshuffleB_PreshuffleBQuant_Prefill
 | For selecting RowCol quant  | rowcolquant  | GemmConfigRowColQuant    |
