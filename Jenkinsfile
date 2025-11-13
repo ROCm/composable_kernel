@@ -532,7 +532,7 @@ def cmake_build(Map conf=[:]){
                         echo "Build ckProfiler packages"
                         sh 'ninja -j64 package'
                         def arch_name = check_arch_name()
-                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_2.0.0_amd64_${arch_name}.deb"
+                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
                         stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${arch_name}"
                     }
                 }
@@ -540,7 +540,7 @@ def cmake_build(Map conf=[:]){
                     // build deb packages
                     echo "Build library package"
                     sh 'ninja -j64 package'
-                    sh 'mv composablekernel-dev_*.deb composablekernel-dev_all_targets_2.0.0_amd64.deb'
+                    sh 'mv composablekernel-dev_*.deb composablekernel-dev_all_targets_1.2.0_amd64.deb'
                     stash includes: "composablekernel-dev**.deb", name: "lib_package"
                 }
             }
@@ -557,7 +557,7 @@ def cmake_build(Map conf=[:]){
                         echo "Build ckProfiler packages"
                         sh 'ninja -j64 package'
                         def arch_name = check_arch_name()
-                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_2.0.0_amd64_${arch_name}.deb"
+                        sh "mv composablekernel-ckprofiler_*.deb composablekernel-ckprofiler_1.2.0_amd64_${arch_name}.deb"
                         stash includes: "composablekernel-ckprofiler**.deb", name: "profiler_package_${arch_name}"
                     }
                 }
