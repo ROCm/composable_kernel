@@ -44,7 +44,7 @@ struct BaseFlatmmPipelineAGmemBGmemCRegV1
         else if(TailNumber::Odd == tail_num)
             return TailHandler<DispatchHotloop, TailNumber::Odd>(run_func, has_hot_loop);
         else
-            throw std::runtime_error("Wrong TailNumber!");
+            assert(("Wrong TailNumber!", false));
     }
 };
 
