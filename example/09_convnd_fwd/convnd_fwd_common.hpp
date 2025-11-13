@@ -12,7 +12,6 @@
 
 #include "ck/host_utility/device_prop.hpp"
 
-
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/device_memory.hpp"
