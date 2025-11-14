@@ -170,38 +170,6 @@ struct mask_info
         else
         {
             throw std::invalid_argument("invalid mask value: " + str);
-            auto set_causal_top_left = [&]() {
-                tmp.type  = mask_enum::mask_top_left;
-                tmp.y     = seqlen_q;
-                tmp.x     = 1;
-                tmp.left  = -1;
-                tmp.right = 0;
-                tmp.sink  = 0;
-            };
-            auto set_causal_bottom_right = [&]() {
-                tmp.type  = mask_enum::mask_bottom_right;
-                tmp.y     = seqlen_q;
-                tmp.x     = seqlen_k - seqlen_q + 1;
-                tmp.left  = -1;
-                tmp.right = 0;
-                tmp.sink  = 0;
-            };
-            if(str == "t")
-                set_causal_top_left();
-            else if(str == "b")
-                set_causal_bottom_right();
-            else
-            {
-                tmp.type = static_cast<mask_enum>(atoi(str.c_str()));
-                if(tmp.type == mask_enum::mask_top_left)
-                {
-                    set_causal_top_left();
-                }
-                else if(tmp.type == mask_enum::mask_bottom_right)
-                {
-                    set_causal_bottom_right();
-                }
-            }
         }
         return tmp;
     }
