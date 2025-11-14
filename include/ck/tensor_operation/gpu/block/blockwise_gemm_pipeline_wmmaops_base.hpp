@@ -30,6 +30,7 @@ template <index_t BlockSize,
           index_t MRepeat,
           index_t NRepeat,
           index_t KPack,
+          index_t KInner,
           bool TransposeC = false>
 struct BlockwiseGemmWmmaops_pipeline_base
 {
@@ -38,6 +39,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
     static constexpr auto I2 = Number<2>{};
     static constexpr auto I3 = Number<3>{};
     static constexpr auto I5 = Number<5>{};
+    static constexpr auto I6 = Number<6>{};
 
     using ThisThreadBlock = ThisThreadBlock<BlockSize>;
 
@@ -54,15 +56,20 @@ struct BlockwiseGemmWmmaops_pipeline_base
     static constexpr index_t B_KRow = 1;
 #endif
 
-    static constexpr index_t A_K1 = AWmmaTileDesc{}.GetLength(I5);
-    static constexpr index_t B_K1 = BWmmaTileDesc{}.GetLength(I5);
+    static constexpr auto wmma_gemm = WmmaGemm<ComputeTypeA,
+                                               ComputeTypeB,
+                                               AccDataType,
+                                               MPerWmma,
+                                               NPerWmma,
+                                               KPack / KInner,
+                                               TransposeC>{};
+
+    static constexpr index_t KPerThread = wmma_gemm.wmma_instr.k_per_blk * KInner;
+    static constexpr index_t A_K1       = ck::math::min(AWmmaTileDesc{}.GetLength(I6), KPerThread);
+    static constexpr index_t B_K1       = ck::math::min(BWmmaTileDesc{}.GetLength(I6), KPerThread);
 
     static_assert(KPack % (A_K1 * A_KRow) == 0, "wrong!");
     static_assert(KPack % (B_K1 * B_KRow) == 0, "wrong!");
-
-    static constexpr auto wmma_gemm =
-        WmmaGemm<ComputeTypeA, ComputeTypeB, AccDataType, MPerWmma, NPerWmma, KPack, TransposeC>{};
-
     static constexpr index_t KRepeat = KPerBlock / KPack;
 
     static constexpr auto WmmaK = Number<wmma_gemm.wmma_instr.k_per_wmma>{};
@@ -191,8 +198,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
         const auto wmma_krow = 0;
 #endif
 
-        //  |KRepeat   |MRepeat|MWave    |KRow  |MLane  |KPack
-        return make_tuple(0, 0, waveId_m, wmma_krow, wmma_a_idx, 0);
+        return make_tuple(0, 0, 0, waveId_m, wmma_krow, wmma_a_idx, 0);
     }
 
     __device__ static auto CalculateBThreadOriginDataIndex()
@@ -209,8 +215,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
         const auto wmma_krow = 0;
 #endif
 
-        //  |KRepeat   |NRepeat|Nwave     |KRow  |NLane  |KPack
-        return make_tuple(0, 0, waveId_n, wmma_krow, wmma_b_idx, 0);
+        return make_tuple(0, 0, 0, waveId_n, wmma_krow, wmma_b_idx, 0);
     }
 
     template <index_t m0, index_t n0>
@@ -241,7 +246,7 @@ struct BlockwiseGemmWmmaops_pipeline_base
         return make_tuple(c_thread_m, c_thread_n);
     }
 
-    using Tuple6 = decltype(CalculateAThreadOriginDataIndex());
+    using Tuple7 = decltype(CalculateAThreadOriginDataIndex());
 
     /**
      * @brief Constructor for BlockwiseGemmWmmaops_pipeline_base.
@@ -261,8 +266,8 @@ struct BlockwiseGemmWmmaops_pipeline_base
      * repeat dimensions.
      */
     __host__ __device__
-    BlockwiseGemmWmmaops_pipeline_base(Tuple6 a_origin = CalculateAThreadOriginDataIndex(),
-                                       Tuple6 b_origin = CalculateBThreadOriginDataIndex())
+    BlockwiseGemmWmmaops_pipeline_base(Tuple7 a_origin = CalculateAThreadOriginDataIndex(),
+                                       Tuple7 b_origin = CalculateBThreadOriginDataIndex())
         : a_thread_copy_(a_origin), b_thread_copy_(b_origin)
     {
         static_assert(AWmmaTileDesc::IsKnownAtCompileTime() &&
@@ -343,10 +348,12 @@ struct BlockwiseGemmWmmaops_pipeline_base
                                                 Number<KRepeat>{},
                                                 I1,
                                                 I1,
+                                                I1,
                                                 Number<A_K1>{}),
                                      make_tuple(Number<A_K1>{},
                                                 Number<KPack / A_KRow>{},
                                                 Number<KPack / A_KRow * MRepeat>{},
+                                                I0,
                                                 I0,
                                                 I0,
                                                 I1));
@@ -357,10 +364,12 @@ struct BlockwiseGemmWmmaops_pipeline_base
                                                 Number<KRepeat>{},
                                                 I1,
                                                 I1,
+                                                I1,
                                                 Number<B_K1>{}),
                                      make_tuple(Number<B_K1>{},
                                                 Number<KPack / B_KRow>{},
                                                 Number<KPack / B_KRow * NRepeat>{},
+                                                I0,
                                                 I0,
                                                 I0,
                                                 I1));
@@ -374,9 +383,9 @@ struct BlockwiseGemmWmmaops_pipeline_base
                                          ComputeTypeA,
                                          decltype(a_block_desc_k0_m0_m1_m2_k1),
                                          decltype(a_thread_desc_),
-                                         Sequence<KPack / A_K1 / A_KRow, 1, 1, 1, 1, A_K1>,
-                                         Sequence<0, 1, 2, 3, 4, 5>,
-                                         5,
+                                         Sequence<KPack / A_K1 / A_KRow, 1, 1, 1, 1, 1, A_K1>,
+                                         Sequence<0, 1, 2, 3, 4, 5, 6>,
+                                         6,
                                          A_K1,
                                          A_K1>;
 
@@ -385,9 +394,9 @@ struct BlockwiseGemmWmmaops_pipeline_base
                                          ComputeTypeB,
                                          decltype(b_block_desc_k0_n0_n1_n2_k1),
                                          decltype(b_thread_desc_),
-                                         Sequence<KPack / B_K1 / B_KRow, 1, 1, 1, 1, B_K1>,
-                                         Sequence<0, 1, 2, 3, 4, 5>,
-                                         5,
+                                         Sequence<KPack / B_K1 / B_KRow, 1, 1, 1, 1, 1, B_K1>,
+                                         Sequence<0, 1, 2, 3, 4, 5, 6>,
+                                         6,
                                          B_K1,
                                          B_K1>;
 

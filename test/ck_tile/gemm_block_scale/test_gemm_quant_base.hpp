@@ -69,7 +69,15 @@ class TestCkTileGemmQuantBase : public ::testing::Test
         constexpr bool kPadM = false;
         constexpr bool kPadN = false;
         constexpr bool kPadK = false;
-
+        // WP pipeline requires per-thread tile size aligned to Problem::VectorLoadSize.
+        // static_assert((WG::kM * WG::kK * sizeof(ADataType) * MIterPerWarp / WaveSize) %
+        // VectorLoadSize == 0). gfx9 cards match the requirements but it fails on gfx12. so we only
+        // need to check the limitation on RDNA cards, i.e. assume wave size is 32.
+        constexpr ck_tile::index_t WaveSize     = 32;
+        constexpr ck_tile::index_t MIterPerWarp = M_Tile / (M_Warp * M_Warp_Tile);
+        constexpr bool SupportVectorSize16 =
+            (M_Warp_Tile * K_Warp_Tile * sizeof(ADataType) * MIterPerWarp / WaveSize) % 16 == 0;
+        constexpr int VectorSize = PreshuffleB ? (SupportVectorSize16 ? 16 : 8) : 16;
         using CodegenGemmShape =
             ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
                                    ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
@@ -89,7 +97,9 @@ class TestCkTileGemmQuantBase : public ::testing::Test
                                                                ALayout,
                                                                BLayout,
                                                                GemmConfig::TransposeC,
-                                                               DoubleSmemBuffer>;
+                                                               DoubleSmemBuffer,
+                                                               false,
+                                                               VectorSize>;
 
         // Let the derived class create the appropriate pipeline and epilogue
         static_cast<Derived*>(this)
