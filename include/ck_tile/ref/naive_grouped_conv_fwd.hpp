@@ -26,197 +26,161 @@ struct naive_grouped_conv_fwd_kernel
     static constexpr ck_tile::index_t kBlockSize = 256;
 
     __device__ void operator()(const InDataType* __restrict__ p_in,
-                              const WeiDataType* __restrict__ p_wei,
-                              OutDataType* __restrict__ p_out,
-                              // Tensor dimensions
-                              ck_tile::index_t G,  // number of groups
-                              ck_tile::index_t N,  // batch size
-                              ck_tile::index_t K,  // output channels per group
-                              ck_tile::index_t C,  // input channels per group
-                              // Input spatial dimensions
-                              const ck_tile::long_index_t* in_spatial_lengths,
-                              // Weight spatial dimensions
-                              const ck_tile::long_index_t* wei_spatial_lengths,
-                              // Output spatial dimensions
-                              const ck_tile::long_index_t* out_spatial_lengths,
-                              // Convolution parameters
-                              const ck_tile::long_index_t* conv_strides,
-                              const ck_tile::long_index_t* conv_dilations,
-                              const ck_tile::long_index_t* in_left_pads) const
-{
-    const ck_tile::long_index_t tid         = blockIdx.x * blockDim.x + threadIdx.x;
-    const ck_tile::long_index_t num_threads = blockDim.x * gridDim.x;
-
-    // Calculate total output elements
-    ck_tile::long_index_t output_length = G * N * K;
-    for(ck_tile::index_t i = 0; i < NDimSpatial; ++i)
+                               const WeiDataType* __restrict__ p_wei,
+                               OutDataType* __restrict__ p_out,
+                               // Tensor dimensions
+                               ck_tile::index_t G, // number of groups
+                               ck_tile::index_t N, // batch size
+                               ck_tile::index_t K, // output channels per group
+                               ck_tile::index_t C, // input channels per group
+                               // Input spatial dimensions
+                               const ck_tile::long_index_t* in_spatial_lengths,
+                               // Weight spatial dimensions
+                               const ck_tile::long_index_t* wei_spatial_lengths,
+                               // Output spatial dimensions
+                               const ck_tile::long_index_t* out_spatial_lengths,
+                               // Convolution parameters
+                               const ck_tile::long_index_t* conv_strides,
+                               const ck_tile::long_index_t* conv_dilations,
+                               const ck_tile::long_index_t* in_left_pads) const
     {
-        output_length *= out_spatial_lengths[i];
-    }
+        const ck_tile::long_index_t tid         = blockIdx.x * blockDim.x + threadIdx.x;
+        const ck_tile::long_index_t num_threads = blockDim.x * gridDim.x;
 
-    // Calculate strides for output tensor (NDHWGK or NHWGK or NWGK)
-    ck_tile::long_index_t out_strides[10]; // Max: N, D, H, W, G, K (6 dimensions)
-    ck_tile::long_index_t stride          = 1;
-    out_strides[NDimSpatial + 2]          = stride;        // K stride
-    stride *= K;
-    out_strides[NDimSpatial + 1] = stride;                 // G stride
-    stride *= G;
-    for(ck_tile::index_t i = NDimSpatial - 1; i >= 0; --i) // Spatial strides (reversed)
-    {
-        out_strides[i + 1] = stride;
-        stride *= out_spatial_lengths[i];
-    }
-    out_strides[0] = stride; // N stride
-
-    // Calculate strides for input tensor (NDHWGC or NHWGC or NWGC)
-    ck_tile::long_index_t in_strides[10];
-    stride                               = 1;
-    in_strides[NDimSpatial + 2]          = stride; // C stride
-    stride *= C;
-    in_strides[NDimSpatial + 1] = stride;          // G stride
-    stride *= G;
-    for(ck_tile::index_t i = NDimSpatial - 1; i >= 0; --i)
-    {
-        in_strides[i + 1] = stride;
-        stride *= in_spatial_lengths[i];
-    }
-    in_strides[0] = stride; // N stride
-
-    // Calculate strides for weight tensor (GKZYXC or GKYXC or GKXC)
-    ck_tile::long_index_t wei_strides[10];
-    stride                               = 1;
-    wei_strides[NDimSpatial + 2]         = stride; // C stride
-    stride *= C;
-    for(ck_tile::index_t i = NDimSpatial - 1; i >= 0; --i)
-    {
-        wei_strides[i + 2] = stride;
-        stride *= wei_spatial_lengths[i];
-    }
-    wei_strides[1] = stride; // K stride
-    stride *= K;
-    wei_strides[0] = stride; // G stride
-
-    // Grid-stride loop over all output elements
-    for(ck_tile::long_index_t ii = tid; ii < output_length; ii += num_threads)
-    {
-        // Decode linear index to multi-dimensional indices
-        ck_tile::long_index_t tmp = ii;
-        
-        // Extract N (batch)
-        ck_tile::index_t n = tmp / out_strides[0];
-        tmp -= n * out_strides[0];
-
-        // Extract spatial dimensions (D, H, W)
-        ck_tile::index_t out_spatial_idx[6]; // Max 6 spatial dimensions
+        // Calculate total output elements
+        ck_tile::long_index_t output_length = G * N * K;
         for(ck_tile::index_t i = 0; i < NDimSpatial; ++i)
         {
-            out_spatial_idx[i] = tmp / out_strides[i + 1];
-            tmp -= out_spatial_idx[i] * out_strides[i + 1];
+            output_length *= out_spatial_lengths[i];
         }
 
-        // Extract G (group)
-        ck_tile::index_t g = tmp / out_strides[NDimSpatial + 1];
-        tmp -= g * out_strides[NDimSpatial + 1];
-
-        // Extract K (output channel)
-        ck_tile::index_t k = tmp;
-
-        // Accumulate in float
-        float v_acc = 0.0f;
-
-        // Loop over input channels
-        for(ck_tile::index_t c = 0; c < C; ++c)
+        // Calculate strides for output tensor (NDHWGK or NHWGK or NWGK)
+        ck_tile::long_index_t out_strides[10]; // Max: N, D, H, W, G, K (6 dimensions)
+        ck_tile::long_index_t stride = 1;
+        out_strides[NDimSpatial + 2] = stride; // K stride
+        stride *= K;
+        out_strides[NDimSpatial + 1] = stride; // G stride
+        stride *= G;
+        for(ck_tile::index_t i = NDimSpatial - 1; i >= 0; --i) // Spatial strides (reversed)
         {
-            // Loop over filter spatial dimensions
-            if constexpr(NDimSpatial == 1)
+            out_strides[i + 1] = stride;
+            stride *= out_spatial_lengths[i];
+        }
+        out_strides[0] = stride; // N stride
+
+        // Calculate strides for input tensor (NDHWGC or NHWGC or NWGC)
+        ck_tile::long_index_t in_strides[10];
+        stride                      = 1;
+        in_strides[NDimSpatial + 2] = stride; // C stride
+        stride *= C;
+        in_strides[NDimSpatial + 1] = stride; // G stride
+        stride *= G;
+        for(ck_tile::index_t i = NDimSpatial - 1; i >= 0; --i)
+        {
+            in_strides[i + 1] = stride;
+            stride *= in_spatial_lengths[i];
+        }
+        in_strides[0] = stride; // N stride
+
+        // Calculate strides for weight tensor (GKZYXC or GKYXC or GKXC)
+        ck_tile::long_index_t wei_strides[10];
+        stride                       = 1;
+        wei_strides[NDimSpatial + 2] = stride; // C stride
+        stride *= C;
+        for(ck_tile::index_t i = NDimSpatial - 1; i >= 0; --i)
+        {
+            wei_strides[i + 2] = stride;
+            stride *= wei_spatial_lengths[i];
+        }
+        wei_strides[1] = stride; // K stride
+        stride *= K;
+        wei_strides[0] = stride; // G stride
+
+        // Grid-stride loop over all output elements
+        for(ck_tile::long_index_t ii = tid; ii < output_length; ii += num_threads)
+        {
+            // Decode linear index to multi-dimensional indices
+            ck_tile::long_index_t tmp = ii;
+
+            // Extract N (batch)
+            ck_tile::index_t n = tmp / out_strides[0];
+            tmp -= n * out_strides[0];
+
+            // Extract spatial dimensions (D, H, W)
+            ck_tile::index_t out_spatial_idx[6]; // Max 6 spatial dimensions
+            for(ck_tile::index_t i = 0; i < NDimSpatial; ++i)
             {
-                for(ck_tile::index_t x = 0; x < wei_spatial_lengths[0]; ++x)
-                {
-                    // Calculate input spatial coordinate
-                    ck_tile::long_index_t wi =
-                        static_cast<ck_tile::long_index_t>(out_spatial_idx[0] * conv_strides[0]) +
-                        static_cast<ck_tile::long_index_t>(x * conv_dilations[0]) -
-                        static_cast<ck_tile::long_index_t>(in_left_pads[0]);
-
-                    // Bounds check
-                    if(wi >= 0 && wi < in_spatial_lengths[0])
-                    {
-                        ck_tile::long_index_t in_idx =
-                            n * in_strides[0] + wi * in_strides[1] + g * in_strides[2] + c;
-                        ck_tile::long_index_t wei_idx = g * wei_strides[0] + k * wei_strides[1] +
-                                                        x * wei_strides[2] + c * wei_strides[3];
-
-                        v_acc += type_convert<float>(p_in[in_idx]) *
-                                 type_convert<float>(p_wei[wei_idx]);
-                    }
-                }
+                out_spatial_idx[i] = tmp / out_strides[i + 1];
+                tmp -= out_spatial_idx[i] * out_strides[i + 1];
             }
-            else if constexpr(NDimSpatial == 2)
-            {
-                for(ck_tile::index_t y = 0; y < wei_spatial_lengths[0]; ++y)
-                {
-                    ck_tile::long_index_t hi =
-                        static_cast<ck_tile::long_index_t>(out_spatial_idx[0] * conv_strides[0]) +
-                        static_cast<ck_tile::long_index_t>(y * conv_dilations[0]) -
-                        static_cast<ck_tile::long_index_t>(in_left_pads[0]);
 
-                    for(ck_tile::index_t x = 0; x < wei_spatial_lengths[1]; ++x)
+            // Extract G (group)
+            ck_tile::index_t g = tmp / out_strides[NDimSpatial + 1];
+            tmp -= g * out_strides[NDimSpatial + 1];
+
+            // Extract K (output channel)
+            ck_tile::index_t k = tmp;
+
+            // Accumulate in float
+            float v_acc = 0.0f;
+
+            // Loop over input channels
+            for(ck_tile::index_t c = 0; c < C; ++c)
+            {
+                // Loop over filter spatial dimensions
+                if constexpr(NDimSpatial == 1)
+                {
+                    for(ck_tile::index_t x = 0; x < wei_spatial_lengths[0]; ++x)
                     {
+                        // Calculate input spatial coordinate
                         ck_tile::long_index_t wi =
-                            static_cast<ck_tile::long_index_t>(out_spatial_idx[1] * conv_strides[1]) +
-                            static_cast<ck_tile::long_index_t>(x * conv_dilations[1]) -
-                            static_cast<ck_tile::long_index_t>(in_left_pads[1]);
+                            static_cast<ck_tile::long_index_t>(out_spatial_idx[0] *
+                                                               conv_strides[0]) +
+                            static_cast<ck_tile::long_index_t>(x * conv_dilations[0]) -
+                            static_cast<ck_tile::long_index_t>(in_left_pads[0]);
 
                         // Bounds check
-                        if(hi >= 0 && hi < in_spatial_lengths[0] && wi >= 0 &&
-                           wi < in_spatial_lengths[1])
+                        if(wi >= 0 && wi < in_spatial_lengths[0])
                         {
-                            ck_tile::long_index_t in_idx = n * in_strides[0] + hi * in_strides[1] +
-                                                           wi * in_strides[2] + g * in_strides[3] + c;
-                            ck_tile::long_index_t wei_idx = g * wei_strides[0] + k * wei_strides[1] +
-                                                            y * wei_strides[2] + x * wei_strides[3] +
-                                                            c * wei_strides[4];
+                            ck_tile::long_index_t in_idx =
+                                n * in_strides[0] + wi * in_strides[1] + g * in_strides[2] + c;
+                            ck_tile::long_index_t wei_idx = g * wei_strides[0] +
+                                                            k * wei_strides[1] +
+                                                            x * wei_strides[2] + c * wei_strides[3];
 
                             v_acc += type_convert<float>(p_in[in_idx]) *
                                      type_convert<float>(p_wei[wei_idx]);
                         }
                     }
                 }
-            }
-            else if constexpr(NDimSpatial == 3)
-            {
-                for(ck_tile::index_t z = 0; z < wei_spatial_lengths[0]; ++z)
+                else if constexpr(NDimSpatial == 2)
                 {
-                    ck_tile::long_index_t di =
-                        static_cast<ck_tile::long_index_t>(out_spatial_idx[0] * conv_strides[0]) +
-                        static_cast<ck_tile::long_index_t>(z * conv_dilations[0]) -
-                        static_cast<ck_tile::long_index_t>(in_left_pads[0]);
-
-                    for(ck_tile::index_t y = 0; y < wei_spatial_lengths[1]; ++y)
+                    for(ck_tile::index_t y = 0; y < wei_spatial_lengths[0]; ++y)
                     {
                         ck_tile::long_index_t hi =
-                            static_cast<ck_tile::long_index_t>(out_spatial_idx[1] * conv_strides[1]) +
-                            static_cast<ck_tile::long_index_t>(y * conv_dilations[1]) -
-                            static_cast<ck_tile::long_index_t>(in_left_pads[1]);
+                            static_cast<ck_tile::long_index_t>(out_spatial_idx[0] *
+                                                               conv_strides[0]) +
+                            static_cast<ck_tile::long_index_t>(y * conv_dilations[0]) -
+                            static_cast<ck_tile::long_index_t>(in_left_pads[0]);
 
-                        for(ck_tile::index_t x = 0; x < wei_spatial_lengths[2]; ++x)
+                        for(ck_tile::index_t x = 0; x < wei_spatial_lengths[1]; ++x)
                         {
                             ck_tile::long_index_t wi =
-                                static_cast<ck_tile::long_index_t>(out_spatial_idx[2] *
-                                                                   conv_strides[2]) +
-                                static_cast<ck_tile::long_index_t>(x * conv_dilations[2]) -
-                                static_cast<ck_tile::long_index_t>(in_left_pads[2]);
+                                static_cast<ck_tile::long_index_t>(out_spatial_idx[1] *
+                                                                   conv_strides[1]) +
+                                static_cast<ck_tile::long_index_t>(x * conv_dilations[1]) -
+                                static_cast<ck_tile::long_index_t>(in_left_pads[1]);
 
                             // Bounds check
-                            if(di >= 0 && di < in_spatial_lengths[0] && hi >= 0 &&
-                               hi < in_spatial_lengths[1] && wi >= 0 && wi < in_spatial_lengths[2])
+                            if(hi >= 0 && hi < in_spatial_lengths[0] && wi >= 0 &&
+                               wi < in_spatial_lengths[1])
                             {
                                 ck_tile::long_index_t in_idx =
-                                    n * in_strides[0] + di * in_strides[1] + hi * in_strides[2] +
-                                    wi * in_strides[3] + g * in_strides[4] + c;
+                                    n * in_strides[0] + hi * in_strides[1] + wi * in_strides[2] +
+                                    g * in_strides[3] + c;
                                 ck_tile::long_index_t wei_idx =
-                                    g * wei_strides[0] + k * wei_strides[1] + z * wei_strides[2] +
-                                    y * wei_strides[3] + x * wei_strides[4] + c * wei_strides[5];
+                                    g * wei_strides[0] + k * wei_strides[1] + y * wei_strides[2] +
+                                    x * wei_strides[3] + c * wei_strides[4];
 
                                 v_acc += type_convert<float>(p_in[in_idx]) *
                                          type_convert<float>(p_wei[wei_idx]);
@@ -224,12 +188,58 @@ struct naive_grouped_conv_fwd_kernel
                         }
                     }
                 }
-            }
-        }
+                else if constexpr(NDimSpatial == 3)
+                {
+                    for(ck_tile::index_t z = 0; z < wei_spatial_lengths[0]; ++z)
+                    {
+                        ck_tile::long_index_t di =
+                            static_cast<ck_tile::long_index_t>(out_spatial_idx[0] *
+                                                               conv_strides[0]) +
+                            static_cast<ck_tile::long_index_t>(z * conv_dilations[0]) -
+                            static_cast<ck_tile::long_index_t>(in_left_pads[0]);
 
-        // Convert accumulator to output type and write
-        p_out[ii] = type_convert<OutDataType>(v_acc);
-    }
+                        for(ck_tile::index_t y = 0; y < wei_spatial_lengths[1]; ++y)
+                        {
+                            ck_tile::long_index_t hi =
+                                static_cast<ck_tile::long_index_t>(out_spatial_idx[1] *
+                                                                   conv_strides[1]) +
+                                static_cast<ck_tile::long_index_t>(y * conv_dilations[1]) -
+                                static_cast<ck_tile::long_index_t>(in_left_pads[1]);
+
+                            for(ck_tile::index_t x = 0; x < wei_spatial_lengths[2]; ++x)
+                            {
+                                ck_tile::long_index_t wi =
+                                    static_cast<ck_tile::long_index_t>(out_spatial_idx[2] *
+                                                                       conv_strides[2]) +
+                                    static_cast<ck_tile::long_index_t>(x * conv_dilations[2]) -
+                                    static_cast<ck_tile::long_index_t>(in_left_pads[2]);
+
+                                // Bounds check
+                                if(di >= 0 && di < in_spatial_lengths[0] && hi >= 0 &&
+                                   hi < in_spatial_lengths[1] && wi >= 0 &&
+                                   wi < in_spatial_lengths[2])
+                                {
+                                    ck_tile::long_index_t in_idx =
+                                        n * in_strides[0] + di * in_strides[1] +
+                                        hi * in_strides[2] + wi * in_strides[3] +
+                                        g * in_strides[4] + c;
+                                    ck_tile::long_index_t wei_idx =
+                                        g * wei_strides[0] + k * wei_strides[1] +
+                                        z * wei_strides[2] + y * wei_strides[3] +
+                                        x * wei_strides[4] + c * wei_strides[5];
+
+                                    v_acc += type_convert<float>(p_in[in_idx]) *
+                                             type_convert<float>(p_wei[wei_idx]);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Convert accumulator to output type and write
+            p_out[ii] = type_convert<OutDataType>(v_acc);
+        }
     }
 };
 
@@ -275,11 +285,11 @@ CK_TILE_HOST float naive_grouped_conv_fwd(const InDataType* p_in_dev,
         output_length *= out_spatial_lengths[i];
     }
 
-    using KernelType = naive_grouped_conv_fwd_kernel<NDimSpatial, InDataType, WeiDataType, OutDataType>;
-    
+    using KernelType =
+        naive_grouped_conv_fwd_kernel<NDimSpatial, InDataType, WeiDataType, OutDataType>;
+
     constexpr ck_tile::index_t block_size = KernelType::kBlockSize;
-    const ck_tile::index_t grid_size =
-        (output_length + block_size - 1) / block_size;
+    const ck_tile::index_t grid_size      = (output_length + block_size - 1) / block_size;
 
     // Launch kernel
     float elapsed_ms = launch_kernel(
@@ -307,4 +317,3 @@ CK_TILE_HOST float naive_grouped_conv_fwd(const InDataType* p_in_dev,
 }
 
 } // namespace ck_tile
-
