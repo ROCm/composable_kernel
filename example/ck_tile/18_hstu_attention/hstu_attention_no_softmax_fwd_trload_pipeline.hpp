@@ -10,10 +10,13 @@
 
 namespace ck_tile {
 
-template <typename Problem_, typename Policy_ = HstuAttentionFwdPipelineQRKSVSDefaultPolicy>
+template <typename Problem_,
+          typename Traits_,
+          typename Policy_ = HstuAttentionFwdPipelineQRKSVSDefaultPolicy>
 struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
 {
     using Problem         = remove_cvref_t<Problem_>;
+    using Traits          = remove_cvref_t<Traits_>;
     using Policy          = remove_cvref_t<Policy_>;
     using QKVDataType     = remove_cvref_t<typename Problem::InOutDataType>;
     using GemmAccDataType = remove_cvref_t<typename Problem::GemmAccDataType>;
@@ -48,11 +51,10 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
 
     static_assert(Problem::kLoadWholeQTileOnceThroughLds == true, "Check failed!");
 
-    static constexpr bool kPadSeqLenQ   = Problem::Traits::kPadSeqLenQ;
-    static constexpr bool kPadSeqLenK   = Problem::Traits::kPadSeqLenK;
-    static constexpr bool kPadHeadDimQK = Problem::Traits::kPadHeadDimQK;
-    static constexpr bool kPadHeadDimV =
-        (kQKHeaddim < kSubQKHeaddim) ? 1 : Problem::Traits::kPadHeadDimV;
+    static constexpr bool kPadSeqLenQ   = Traits::kPadSeqLenQ;
+    static constexpr bool kPadSeqLenK   = Traits::kPadSeqLenK;
+    static constexpr bool kPadHeadDimQK = Traits::kPadHeadDimQK;
+    static constexpr bool kPadHeadDimV = (kQKHeaddim < kSubQKHeaddim) ? true : Traits::kPadHeadDimV;
 
     // last dimension vector length used to create tensor view(and decide buffer_load vector length)
     // ... together with tensor distribution. tensor dist should able to overwrite this
@@ -61,7 +63,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
     static constexpr index_t kAlignmentK =
         kPadHeadDimQK ? 1 : Policy::template GetAlignmentK<Problem>();
     static constexpr index_t kAlignmentV =
-        Problem::Traits::kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
+        Traits::kPadHeadDimV ? 1 : Policy::template GetAlignmentV<Problem>();
 
     static constexpr index_t kAlignmentO =
         kPadHeadDimV ? 1 : Policy::template GetAlignmentO<Problem>();
@@ -76,8 +78,8 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
         Policy::template GetKVBlockGemmSingleRepN<Problem>();
 
     static constexpr index_t kBlockPerCu = []() {
-        if constexpr(Problem::Traits::kBlockPerCu != -1)
-            return Problem::Traits::kBlockPerCu;
+        if constexpr(Traits::kBlockPerCu != -1)
+            return Traits::kBlockPerCu;
         else
         {
             if constexpr(kQKHeaddim == 32)
