@@ -650,18 +650,21 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                CDEElementwiseOperation cde_element_op,
                                EpilogueArgument& epilogue_args)
     {
-        Run<HasMainKBlockLoop, EGlobalMemoryDataOperation, TailNum, EpilogueArgument>(
-            p_as_grid,
-            p_bs_grid,
-            p_ds_grid,
-            p_e_grid,
-            p_shared,
-            problem,
-            DefaultBlock2CTileMap(problem),
-            a_element_op,
-            b_element_op,
-            cde_element_op,
-            epilogue_args);
+        Run<HasMainKBlockLoop,
+            EGlobalMemoryDataOperation,
+            TailNum,
+            Block2CTileMap,
+            EpilogueArgument>(p_as_grid,
+                              p_bs_grid,
+                              p_ds_grid,
+                              p_e_grid,
+                              p_shared,
+                              problem,
+                              DefaultBlock2CTileMap(problem),
+                              a_element_op,
+                              b_element_op,
+                              cde_element_op,
+                              epilogue_args);
     }
 
     // Wrapper function to have __global__ function in common
@@ -725,11 +728,15 @@ struct GridwiseGemm_wmma_cshuffle_v3
                                Argument& karg,
                                EpilogueArgument& epilogue_args)
     {
-        Run<HasMainKBlockLoop, EGlobalMemoryDataOperation, TailNum, EpilogueArgument>(
+        Run<HasMainKBlockLoop,
+            EGlobalMemoryDataOperation,
+            TailNum,
+            Block2CTileMap,
+            EpilogueArgument>(
             p_shared, splitk_batch_offset, karg, DefaultBlock2CTileMap(karg), epilogue_args);
     }
 
-    static auto DefaultBlock2CTileMap(const Problem& problem)
+    __device__ static auto DefaultBlock2CTileMap(const Problem& problem)
     {
         return Block2CTileMap{problem.M, problem.N, 4};
     }
