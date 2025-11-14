@@ -225,6 +225,7 @@ bool profile_grouped_gemm_impl(int do_verification,
         }
     }
     // profile device GEMM instances
+    int supported_instances = 0;
     for(auto& gemm_ptr : op_ptrs)
     {
         auto argument_ptr =
@@ -268,6 +269,7 @@ bool profile_grouped_gemm_impl(int do_verification,
             kbatch_list = kbatches;
         }
 
+        bool all_batch_sizes_supported = true;
         for(std::size_t j = 0; j < kbatch_list.size(); j++)
         {
             auto kbatch_curr = kbatch_list[j];
@@ -367,10 +369,25 @@ bool profile_grouped_gemm_impl(int do_verification,
             }
             else
             {
+                all_batch_sizes_supported = false;
                 std::cout << "Instance: " << gemm_name << ", does not support this GEMM problem"
                           << std::endl;
             }
         }
+
+        // If all batch sizes were supported by this instance, the instance can be marked as
+        // 'supported' for this problem
+        if(all_batch_sizes_supported)
+        {
+            ++supported_instances;
+        }
+    }
+
+    // Fail if not a single instance was supported
+    if(supported_instances == 0)
+    {
+        std::cout << "No instance found that supported all of the batch sizes." << std::endl;
+        return false;
     }
 
     if(time_kernel)
@@ -384,6 +401,7 @@ bool profile_grouped_gemm_impl(int do_verification,
         std::cout << "grouped_gemm_instance (" << instance_index << "/" << num_kernel << "): Passed"
                   << std::endl;
     }
+
     return pass;
 }
 

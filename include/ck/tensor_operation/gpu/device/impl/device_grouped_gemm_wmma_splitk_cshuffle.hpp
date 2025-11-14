@@ -710,6 +710,17 @@ struct DeviceGroupedGemmWmmaSplitKCShuffle : public DeviceGroupedGemmSplitK<ALay
     {
         auto str = std::stringstream();
 
+        std::map<BlockGemmPipelineScheduler, std::string> BlkGemmPipelineSchedulerToString{
+            {BlockGemmPipelineScheduler::Intrawave, "Intrawave"},
+            {BlockGemmPipelineScheduler::Interwave, "Interwave"}};
+
+        std::map<BlockGemmPipelineVersion, std::string> BlkGemmPipelineVersionToString{
+            {BlockGemmPipelineVersion::v1, "v1"},
+            {BlockGemmPipelineVersion::v2, "v2"},
+            {BlockGemmPipelineVersion::v3, "v3"},
+            {BlockGemmPipelineVersion::v4, "v4"},
+            {BlockGemmPipelineVersion::v5, "v5"}};
+
         // clang-format off
         str << "DeviceGroupedGemm_WmmaSplitK"
             << "<"
@@ -730,7 +741,9 @@ struct DeviceGroupedGemmWmmaSplitKCShuffle : public DeviceGroupedGemmSplitK<ALay
             << BBlockTransferSrcScalarPerVector << ", "
             << CShuffleMRepeatPerShuffle << ", "
             << CShuffleNRepeatPerShuffle << ", "
-            << getGemmSpecializationString(GemmSpec)
+            << getGemmSpecializationString(GemmSpec) << ", "
+            << BlkGemmPipelineSchedulerToString[BlkGemmPipeSched] << ", "
+            << BlkGemmPipelineVersionToString[BlkGemmPipelineVer]
             << ">";
         // clang-format on
 

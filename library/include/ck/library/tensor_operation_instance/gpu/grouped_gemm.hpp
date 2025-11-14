@@ -69,6 +69,33 @@ void add_device_grouped_gemm_wmma_universal_f16_f16_f16_km_nk_mn_instances(
                                                   PassThrough,
                                                   PassThrough>>>& instances);
 #endif // CK_ENABLE_FP16
+#if defined(CK_ENABLE_FP16) && defined(CK_ENABLE_FP8)
+void add_device_grouped_gemm_wmma_universal_f16_f8_f16_mk_kn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGroupedGemm<Row,
+                                                  Row,
+                                                  Empty_Tuple,
+                                                  Row,
+                                                  F16,
+                                                  F8,
+                                                  Empty_Tuple,
+                                                  F16,
+                                                  PassThrough,
+                                                  PassThrough,
+                                                  PassThrough>>>& instances);
+
+void add_device_grouped_gemm_wmma_universal_f8_f16_f16_mk_kn_mn_instances(
+    std::vector<std::unique_ptr<DeviceGroupedGemm<Row,
+                                                  Row,
+                                                  Empty_Tuple,
+                                                  Row,
+                                                  F8,
+                                                  F16,
+                                                  Empty_Tuple,
+                                                  F16,
+                                                  PassThrough,
+                                                  PassThrough,
+                                                  PassThrough>>>& instances);
+#endif
 #if defined(CK_ENABLE_BF16)
 void add_device_grouped_gemm_wmma_universal_bf16_bf16_bf16_mk_nk_mn_instances(
     std::vector<std::unique_ptr<DeviceGroupedGemm<Row,
@@ -545,6 +572,26 @@ struct DeviceOperationInstanceFactory<ck::tensor_operation::device::DeviceGroupe
             }
         }
 #endif // CK_ENABLE_FP16
+#if defined(CK_ENABLE_FP16) && defined(CK_ENABLE_FP8)
+        if constexpr(is_same_v<ADataType, half_t> && is_same_v<BDataType, f8_t> &&
+                     is_same_v<EDataType, half_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+                         is_same_v<ELayout, Row>)
+            {
+                add_device_grouped_gemm_wmma_universal_f16_f8_f16_mk_kn_mn_instances(op_ptrs);
+            }
+        }
+        else if constexpr(is_same_v<ADataType, f8_t> && is_same_v<BDataType, half_t> &&
+                          is_same_v<EDataType, half_t>)
+        {
+            if constexpr(is_same_v<ALayout, Row> && is_same_v<BLayout, Row> &&
+                         is_same_v<ELayout, Row>)
+            {
+                add_device_grouped_gemm_wmma_universal_f8_f16_f16_mk_kn_mn_instances(op_ptrs);
+            }
+        }
+#endif
 #if defined(CK_ENABLE_BF16)
         if constexpr(is_same_v<ADataType, bhalf_t> && is_same_v<BDataType, bhalf_t> &&
                      is_same_v<EDataType, bhalf_t>)

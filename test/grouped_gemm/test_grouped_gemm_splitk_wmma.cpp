@@ -28,6 +28,9 @@ class TestGroupedGemm : public ck::test::TestGroupedGemm<Tuple>
 
 // clang-format off
 using KernelTypes = ::testing::Types<
+    std::tuple<     Row, Row, Row, F8, F16, F16>,
+    std::tuple<     Row, Row, Row, F16, F8, F16>,
+
     std::tuple<     Row, Row, Row, F16, F16, F16>,
     std::tuple<     Row, Col, Row, F16, F16, F16>,
     std::tuple<     Col, Row, Row, F16, F16, F16>,
@@ -36,11 +39,6 @@ using KernelTypes = ::testing::Types<
     std::tuple<     Row, Col, Row, BF16, BF16, BF16>,
     std::tuple<     Col, Row, Row, BF16, BF16, BF16>,
     std::tuple<     Col, Col, Row, BF16, BF16, BF16>
-    
-    // std::tuple<     Row, Row, Row, BF16, I8, BF16>,
-    // std::tuple<     Row, Col, Row, BF16, I8, BF16>,
-    // std::tuple<     Row, Row, Row, F16, F8, F16>,
-    // std::tuple<     Row, Row, Row, F8, F16, F16>
     >;
 // clang-format on
 
