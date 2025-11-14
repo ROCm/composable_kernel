@@ -33,10 +33,9 @@ mkdir build && cd build
 # you can replace <arch> with the appropriate architecture (for example gfx942) or leave it blank
 ../script/cmake-ck-dev.sh  ../ <arch>
 # Compile the quant kernels
-make tile_example_gemm_quant_basic -j
-make tile_example_gemm_quant_mxfp4 -j
+make tile_example_gemm_quant -j
 ```
-This will result in an executable `build/bin/tile_example_gemm_quant_basic` & `build/bin/tile_example_gemm_quant_mxfp4`
+This will result in an executable `build/bin/tile_example_gemm_quant`
 
 ## example
 ```
@@ -54,7 +53,7 @@ args:
       -stride_b    Tensor B stride (default:0)
       -stride_c    Tensor C stride (default:0)
              -v    0: No validation, 1: Validation on CPU, 2: Validation on GPU (default:1)
-          -prec    Data type. For AQuant: fp8, bf8, i4fp8, or i4bf8;  for Bquant: fp8, bf8, fp8i4, or bf8i4 (default for both AQuant and Bquant: fp8)
+          -prec    Data type. For AQuant: fp8, bf8, i4fp8, or i4bf8;  for Bquant: fp8, bf8, fp8i4, bf8i4 or bf16f4 (default for both AQuant and Bquant: fp8)
         -warmup    Number of iterations before benchmarking the kernel (default:50)
         -repeat    Number of iterations to benchmark the kernel (default:1000)
          -timer    gpu:gpu timer, cpu:cpu timer (default:gpu)
