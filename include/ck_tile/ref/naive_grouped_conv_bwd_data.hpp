@@ -10,7 +10,7 @@
 
 namespace ck_tile {
 
-// Naive GPU reference for backward data grouped convolution
+// Naive GPU reference kernel struct for backward data grouped convolution
 // Computes gradient with respect to input
 // Layout: Input_grad=NDHWGC, Weight=GKZYXC, Output_grad=NDHWGK (for 3D case)
 //         Input_grad=NHWGC,  Weight=GKYXC,  Output_grad=NHWGK  (for 2D case)
@@ -22,24 +22,28 @@ template <ck_tile::index_t NDimSpatial,
           typename InDataType,
           typename WeiDataType,
           typename OutDataType>
-__global__ void naive_grouped_conv_bwd_data_kernel(InDataType* __restrict__ p_in_grad,
-                                                   const WeiDataType* __restrict__ p_wei,
-                                                   const OutDataType* __restrict__ p_out_grad,
-                                                   // Tensor dimensions
-                                                   ck_tile::index_t G, // number of groups
-                                                   ck_tile::index_t N, // batch size
-                                                   ck_tile::index_t K, // output channels per group
-                                                   ck_tile::index_t C, // input channels per group
-                                                   // Input spatial dimensions
-                                                   const ck_tile::index_t* in_spatial_lengths,
-                                                   // Weight spatial dimensions
-                                                   const ck_tile::index_t* wei_spatial_lengths,
-                                                   // Output spatial dimensions
-                                                   const ck_tile::index_t* out_spatial_lengths,
-                                                   // Convolution parameters
-                                                   const ck_tile::index_t* conv_strides,
-                                                   const ck_tile::index_t* conv_dilations,
-                                                   const ck_tile::index_t* in_left_pads)
+struct naive_grouped_conv_bwd_data_kernel
+{
+    static constexpr ck_tile::index_t kBlockSize = 256;
+
+    __device__ void operator()(InDataType* __restrict__ p_in_grad,
+                              const WeiDataType* __restrict__ p_wei,
+                              const OutDataType* __restrict__ p_out_grad,
+                              // Tensor dimensions
+                              ck_tile::index_t G, // number of groups
+                              ck_tile::index_t N, // batch size
+                              ck_tile::index_t K, // output channels per group
+                              ck_tile::index_t C, // input channels per group
+                              // Input spatial dimensions
+                              const ck_tile::long_index_t* in_spatial_lengths,
+                              // Weight spatial dimensions
+                              const ck_tile::long_index_t* wei_spatial_lengths,
+                              // Output spatial dimensions
+                              const ck_tile::long_index_t* out_spatial_lengths,
+                              // Convolution parameters
+                              const ck_tile::long_index_t* conv_strides,
+                              const ck_tile::long_index_t* conv_dilations,
+                              const ck_tile::long_index_t* in_left_pads) const
 {
     const ck_tile::long_index_t tid         = blockIdx.x * blockDim.x + threadIdx.x;
     const ck_tile::long_index_t num_threads = blockDim.x * gridDim.x;
@@ -146,8 +150,8 @@ __global__ void naive_grouped_conv_bwd_data_kernel(InDataType* __restrict__ p_in
                                                             wo * out_strides[1] +
                                                             g * out_strides[2] + k;
                             ck_tile::long_index_t wei_idx = g * wei_strides[0] +
-                                                            k * wei_strides[1] + c * wei_strides[2] +
-                                                            x * wei_strides[2];
+                                                            k * wei_strides[1] + x * wei_strides[2] +
+                                                            c * wei_strides[3];
 
                             v_acc += type_convert<float>(p_out_grad[out_idx]) *
                                      type_convert<float>(p_wei[wei_idx]);
@@ -188,8 +192,8 @@ __global__ void naive_grouped_conv_bwd_data_kernel(InDataType* __restrict__ p_in
                                             wo * out_strides[2] + g * out_strides[3] + k;
                                         ck_tile::long_index_t wei_idx =
                                             g * wei_strides[0] + k * wei_strides[1] +
-                                            c * wei_strides[2] + y * wei_strides[3] +
-                                            x * wei_strides[4];
+                                            y * wei_strides[2] + x * wei_strides[3] +
+                                            c * wei_strides[4];
 
                                         v_acc += type_convert<float>(p_out_grad[out_idx]) *
                                                  type_convert<float>(p_wei[wei_idx]);
@@ -248,8 +252,8 @@ __global__ void naive_grouped_conv_bwd_data_kernel(InDataType* __restrict__ p_in
                                                         g * out_strides[4] + k;
                                                     ck_tile::long_index_t wei_idx =
                                                         g * wei_strides[0] + k * wei_strides[1] +
-                                                        c * wei_strides[2] + z * wei_strides[3] +
-                                                        y * wei_strides[4] + x * wei_strides[5];
+                                                        z * wei_strides[2] + y * wei_strides[3] +
+                                                        x * wei_strides[4] + c * wei_strides[5];
 
                                                     v_acc += type_convert<float>(p_out_grad[out_idx]) *
                                                              type_convert<float>(p_wei[wei_idx]);
@@ -268,7 +272,8 @@ __global__ void naive_grouped_conv_bwd_data_kernel(InDataType* __restrict__ p_in
         // Convert accumulator to output type and write
         p_in_grad[ii] = type_convert<InDataType>(v_acc);
     }
-}
+    }
+};
 
 // Host-side launcher for naive grouped convolution backward data
 template <ck_tile::index_t NDimSpatial,
@@ -282,21 +287,21 @@ CK_TILE_HOST float naive_grouped_conv_bwd_data(InDataType* p_in_grad_dev,
                                                ck_tile::index_t N,
                                                ck_tile::index_t K,
                                                ck_tile::index_t C,
-                                               std::vector<ck_tile::index_t> in_spatial_lengths,
-                                               std::vector<ck_tile::index_t> wei_spatial_lengths,
-                                               std::vector<ck_tile::index_t> out_spatial_lengths,
-                                               std::vector<ck_tile::index_t> conv_strides,
-                                               std::vector<ck_tile::index_t> conv_dilations,
-                                               std::vector<ck_tile::index_t> in_left_pads,
+                                               std::vector<ck_tile::long_index_t> in_spatial_lengths,
+                                               std::vector<ck_tile::long_index_t> wei_spatial_lengths,
+                                               std::vector<ck_tile::long_index_t> out_spatial_lengths,
+                                               std::vector<ck_tile::long_index_t> conv_strides,
+                                               std::vector<ck_tile::long_index_t> conv_dilations,
+                                               std::vector<ck_tile::long_index_t> in_left_pads,
                                                ck_tile::stream_config stream_config = {})
 {
     // Copy spatial parameters to device
-    DeviceMem in_spatial_dev(in_spatial_lengths.size() * sizeof(ck_tile::index_t));
-    DeviceMem wei_spatial_dev(wei_spatial_lengths.size() * sizeof(ck_tile::index_t));
-    DeviceMem out_spatial_dev(out_spatial_lengths.size() * sizeof(ck_tile::index_t));
-    DeviceMem strides_dev(conv_strides.size() * sizeof(ck_tile::index_t));
-    DeviceMem dilations_dev(conv_dilations.size() * sizeof(ck_tile::index_t));
-    DeviceMem pads_dev(in_left_pads.size() * sizeof(ck_tile::index_t));
+    DeviceMem in_spatial_dev(in_spatial_lengths.size() * sizeof(ck_tile::long_index_t));
+    DeviceMem wei_spatial_dev(wei_spatial_lengths.size() * sizeof(ck_tile::long_index_t));
+    DeviceMem out_spatial_dev(out_spatial_lengths.size() * sizeof(ck_tile::long_index_t));
+    DeviceMem strides_dev(conv_strides.size() * sizeof(ck_tile::long_index_t));
+    DeviceMem dilations_dev(conv_dilations.size() * sizeof(ck_tile::long_index_t));
+    DeviceMem pads_dev(in_left_pads.size() * sizeof(ck_tile::long_index_t));
 
     in_spatial_dev.ToDevice(in_spatial_lengths.data());
     wei_spatial_dev.ToDevice(wei_spatial_lengths.data());
@@ -312,17 +317,16 @@ CK_TILE_HOST float naive_grouped_conv_bwd_data(InDataType* p_in_grad_dev,
         input_length *= in_spatial_lengths[i];
     }
 
-    constexpr ck_tile::index_t block_size = 256;
+    using KernelType = naive_grouped_conv_bwd_data_kernel<NDimSpatial, InDataType, WeiDataType, OutDataType>;
+    
+    constexpr ck_tile::index_t block_size = KernelType::kBlockSize;
     const ck_tile::index_t grid_size      = (input_length + block_size - 1) / block_size;
 
     // Launch kernel
-    auto kernel =
-        naive_grouped_conv_bwd_data_kernel<NDimSpatial, InDataType, WeiDataType, OutDataType>;
-
     float elapsed_ms = launch_kernel(
         stream_config,
         make_kernel(
-            kernel,
+            KernelType{},
             dim3(grid_size),
             dim3(block_size),
             0, // dynamic shared memory size
@@ -333,12 +337,12 @@ CK_TILE_HOST float naive_grouped_conv_bwd_data(InDataType* p_in_grad_dev,
             N,
             K,
             C,
-            reinterpret_cast<const ck_tile::index_t*>(in_spatial_dev.GetDeviceBuffer()),
-            reinterpret_cast<const ck_tile::index_t*>(wei_spatial_dev.GetDeviceBuffer()),
-            reinterpret_cast<const ck_tile::index_t*>(out_spatial_dev.GetDeviceBuffer()),
-            reinterpret_cast<const ck_tile::index_t*>(strides_dev.GetDeviceBuffer()),
-            reinterpret_cast<const ck_tile::index_t*>(dilations_dev.GetDeviceBuffer()),
-            reinterpret_cast<const ck_tile::index_t*>(pads_dev.GetDeviceBuffer())));
+            reinterpret_cast<const ck_tile::long_index_t*>(in_spatial_dev.GetDeviceBuffer()),
+            reinterpret_cast<const ck_tile::long_index_t*>(wei_spatial_dev.GetDeviceBuffer()),
+            reinterpret_cast<const ck_tile::long_index_t*>(out_spatial_dev.GetDeviceBuffer()),
+            reinterpret_cast<const ck_tile::long_index_t*>(strides_dev.GetDeviceBuffer()),
+            reinterpret_cast<const ck_tile::long_index_t*>(dilations_dev.GetDeviceBuffer()),
+            reinterpret_cast<const ck_tile::long_index_t*>(pads_dev.GetDeviceBuffer())));
 
     return elapsed_ms;
 }

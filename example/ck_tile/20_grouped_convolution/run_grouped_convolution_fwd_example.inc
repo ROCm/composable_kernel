@@ -192,17 +192,7 @@ int run_grouped_conv_fwd_example_with_layouts(
         ck_tile::DeviceMem output_ref_dev_buf(output.get_element_space_size_in_bytes());
         output_ref_dev_buf.SetZero();
 
-        // Extract spatial dimensions
-        std::vector<ck_tile::index_t> in_spatial_lengths;
-        std::vector<ck_tile::index_t> wei_spatial_lengths;
-        std::vector<ck_tile::index_t> out_spatial_lengths;
-
-        for(ck_tile::index_t i = 0; i < NDimSpatial; ++i)
-        {
-            in_spatial_lengths.push_back(conv_param.input_spatial_lengths_[i]);
-            wei_spatial_lengths.push_back(conv_param.filter_spatial_lengths_[i]);
-            out_spatial_lengths.push_back(conv_param.output_spatial_lengths_[i]);
-        }
+        // GPU reference uses conv_param vectors directly (they are already long_index_t)
 
         // Launch GPU reference kernel
         std::cout << "Run GPU reference kernel..." << std::endl;
@@ -214,9 +204,9 @@ int run_grouped_conv_fwd_example_with_layouts(
             conv_param.N_,
             conv_param.K_,
             conv_param.C_,
-            in_spatial_lengths,
-            wei_spatial_lengths,
-            out_spatial_lengths,
+            conv_param.input_spatial_lengths_,
+            conv_param.filter_spatial_lengths_,
+            conv_param.output_spatial_lengths_,
             conv_param.conv_filter_strides_,
             conv_param.conv_filter_dilations_,
             conv_param.input_left_pads_);
