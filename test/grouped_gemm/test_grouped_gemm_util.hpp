@@ -32,7 +32,7 @@ std::string serialize_range(const Range& range)
     return std::string(str.begin(), str.end() - 2);
 }
 
-template <typename Tuple>
+template <typename Tuple, bool FailIfNoSupportedInstances = false>
 class TestGroupedGemm : public testing::Test
 {
     protected:
@@ -142,7 +142,8 @@ class TestGroupedGemm : public testing::Test
                                                                      kbatches,
                                                                      n_warmup_,
                                                                      n_iter_,
-                                                                     instance_index);
+                                                                     instance_index,
+                                                                     FailIfNoSupportedInstances);
         EXPECT_TRUE(pass);
     }
 };

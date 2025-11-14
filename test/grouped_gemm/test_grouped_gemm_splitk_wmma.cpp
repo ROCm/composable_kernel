@@ -22,7 +22,7 @@ using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 template <typename Tuple>
-class TestGroupedGemm : public ck::test::TestGroupedGemm<Tuple>
+class TestGroupedGemm : public ck::test::TestGroupedGemm<Tuple, true>
 {
 };
 

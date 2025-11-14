@@ -42,10 +42,11 @@ bool profile_grouped_gemm_impl(int do_verification,
                                const std::vector<int>& StrideAs,
                                const std::vector<int>& StrideBs,
                                const std::vector<int>& StrideCs,
-                               const std::vector<int>& kbatches = {},
-                               int n_warmup                     = 1,
-                               int n_iter                       = 10,
-                               int instance_index               = -1)
+                               const std::vector<int>& kbatches   = {},
+                               int n_warmup                       = 1,
+                               int n_iter                         = 10,
+                               int instance_index                 = -1,
+                               bool fail_if_no_supported_instance = false)
 {
     bool pass = true;
     // TODO: Fixme - we do not pass compute data type here but need it
@@ -385,8 +386,15 @@ bool profile_grouped_gemm_impl(int do_verification,
 
     // Warn if not a single instance was supported
     if(instances_supporting_all_batch_sizes == 0)
+    {
         std::cout << "Warning! No instance found that supported all of the batch sizes."
                   << std::endl;
+
+        if(fail_if_no_supported_instance)
+        {
+            return false;
+        }
+    }
 
     if(time_kernel)
     {
