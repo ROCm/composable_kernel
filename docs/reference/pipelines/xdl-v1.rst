@@ -1,3 +1,4 @@
+.. _xdl-v1:
 
 Xdl - v1 - Intrawave
 ----------------------
@@ -32,4 +33,4 @@ The ``a_thread_copy_.Run`` function is a member of the ``ThreadwiseTensorSliceTr
 
 **full class definition**
 
-.. literalinclude:: ./blockwise_gemm_pipeline_xdlops_v1.hpp
+.. literalinclude:: ../../../include/ck/tensor_operation/gpu/block/blockwise_gemm_pipeline_xdlops_v1.hpp

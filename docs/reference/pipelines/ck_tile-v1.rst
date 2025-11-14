@@ -1,3 +1,5 @@
+.. _ck_tile-v1:
+
 ck_tile - AGmemBGmemCReg - V1 - [SCHEDULER]
 --------------------------------------------
 
@@ -16,4 +18,4 @@ The ``load_tile_with_elementwise`` function calls the ``load`` method on ``tile_
 
 **full class definition**
 
-.. literalinclude:: ./gemm_pipeline_agmem_bgmem_creg_v1.hpp
+.. literalinclude:: ../../../include/ck_tile/ops/gemm/pipeline/gemm_pipeline_agmem_bgmem_creg_v1.hpp
