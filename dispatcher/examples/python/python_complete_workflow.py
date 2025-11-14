@@ -17,7 +17,8 @@ import subprocess
 from pathlib import Path
 
 # Add Python module to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "python"))
+# File is in examples/python/, module is in python/
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "python"))
 
 from dispatcher_api import (
     Dispatcher,
@@ -39,7 +40,7 @@ def demo_1_manual_workflow():
     # Step 1: Generate kernels
     print("Step 1: Generating kernels...")
     result = dispatcher.generate_kernels(
-        datatype='fp16',
+        datatype='bf16',
         layout='rcr',
         preset='essential'
     )

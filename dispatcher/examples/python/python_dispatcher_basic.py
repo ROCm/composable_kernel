@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 # Add Python module to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "python"))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent / "python"))
 
 try:
     import _dispatcher_native as cpp
