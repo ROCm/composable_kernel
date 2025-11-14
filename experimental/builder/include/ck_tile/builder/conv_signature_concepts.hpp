@@ -76,7 +76,6 @@ concept ConvSignatureDescriptor = requires(T t) {
     { t.spatial_dim } -> std::convertible_to<unsigned int>;
     { t.layout } -> ConvLayout;
     { t.data_type } -> std::convertible_to<DataType>;
-    { t.device_operation } -> ConvDeviceOp;
     requires ElementwiseOpWellDefinedIfProvided<T>;
     requires ConvolutionDirectionWellDefinedIfProvided<T>;
 };
