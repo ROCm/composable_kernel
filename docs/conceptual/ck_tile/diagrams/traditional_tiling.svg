@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1000" height="700" xmlns="http://www.w3.org/2000/svg">
+  <!-- Title -->
+  <text x="500" y="30" font-family="Arial, sans-serif" font-size="20" font-weight="bold" text-anchor="middle" fill="#000">
+    Traditional Data-Parallel Tiling (M=384, N=384, K=512)
+  </text>
+  <text x="500" y="55" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#666">
+    GPU with 4 Compute Units • Tile Size: 128×128 • 9 Output Tiles
+  </text>
+  
+  <!-- Wave Execution Timeline - Vertical CUs, Horizontal Waves (LEFT SIDE) -->
+  <g transform="translate(95, 90)">
+    <text x="240" y="-10" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#000">CU Assignment Timeline:</text>
+    
+    <!-- Wave Labels (Horizontal) -->
+    <text x="90" y="20" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#333">Wave 0</text>
+    <text x="240" y="20" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#333">Wave 1</text>
+    <text x="390" y="20" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#E74C3C">Wave 2</text>
+    
+    <!-- Time arrow -->
+    <text x="-20" y="20" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#666">Time →</text>
+    
+    <!-- CU0 Row -->
+    <text x="-10" y="60" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="end" fill="#333">CU0</text>
+    <rect x="20" y="35" width="140" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="3"/>
+    <text x="90" y="55" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#FFF">T0</text>
+    <text x="90" y="72" font-family="Arial, sans-serif" font-size="10" text-anchor="middle" fill="#E8F5E9">K: 0-511</text>
+    
+    <rect x="170" y="35" width="140" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="3"/>
+    <text x="240" y="55" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#FFF">T4</text>
+    <text x="240" y="72" font-family="Arial, sans-serif" font-size="10" text-anchor="middle" fill="#E8F5E9">K: 0-511</text>
+    
+    <rect x="320" y="35" width="140" height="50" fill="#E74C3C" stroke="#C0392B" stroke-width="3" rx="3"/>
+    <text x="390" y="55" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#FFF">T8</text>
+    <text x="390" y="72" font-family="Arial, sans-serif" font-size="10" text-anchor="middle" fill="#FFEBEE">K: 0-511</text>
+    
+    <!-- CU1 Row -->
+    <text x="-10" y="125" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="end" fill="#333">CU1</text>
+    <rect x="20" y="100" width="140" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="3"/>
+    <text x="90" y="120" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#FFF">T1</text>
+    <text x="90" y="137" font-family="Arial, sans-serif" font-size="10" text-anchor="middle" fill="#E8F5E9">K: 0-511</text>
+    
+    <rect x="170" y="100" width="140" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="3"/>
+    <text x="240" y="120" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#FFF">T5</text>
+    <text x="240" y="137" font-family="Arial, sans-serif" font-size="10" text-anchor="middle" fill="#E8F5E9">K: 0-511</text>
+    
+    <rect x="320" y="100" width="140" height="50" fill="#BDC3C7" stroke="#95A5A6" stroke-width="2" stroke-dasharray="5,5" rx="3"/>
+    <text x="390" y="128" font-family="Arial, sans-serif" font-size="13" text-anchor="middle" fill="#7F8C8D">IDLE</text>
+    
+    <!-- CU2 Row -->
+    <text x="-10" y="190" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="end" fill="#333">CU2</text>
+    <rect x="20" y="165" width="140" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="3"/>
+    <text x="90" y="185" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#FFF">T2</text>
+    <text x="90" y="202" font-family="Arial, sans-serif" font-size="10" text-anchor="middle" fill="#E8F5E9">K: 0-511</text>
+    
+    <rect x="170" y="165" width="140" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="3"/>
+    <text x="240" y="185" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#FFF">T6</text>
+    <text x="240" y="202" font-family="Arial, sans-serif" font-size="10" text-anchor="middle" fill="#E8F5E9">K: 0-511</text>
+    
+    <rect x="320" y="165" width="140" height="50" fill="#BDC3C7" stroke="#95A5A6" stroke-width="2" stroke-dasharray="5,5" rx="3"/>
+    <text x="390" y="193" font-family="Arial, sans-serif" font-size="13" text-anchor="middle" fill="#7F8C8D">IDLE</text>
+    
+    <!-- CU3 Row -->
+    <text x="-10" y="255" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="end" fill="#333">CU3</text>
+    <rect x="20" y="230" width="140" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="3"/>
+    <text x="90" y="250" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#FFF">T3</text>
+    <text x="90" y="267" font-family="Arial, sans-serif" font-size="10" text-anchor="middle" fill="#E8F5E9">K: 0-511</text>
+    
+    <rect x="170" y="230" width="140" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="3"/>
+    <text x="240" y="250" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#FFF">T7</text>
+    <text x="240" y="267" font-family="Arial, sans-serif" font-size="10" text-anchor="middle" fill="#E8F5E9">K: 0-511</text>
+    
+    <rect x="320" y="230" width="140" height="50" fill="#BDC3C7" stroke="#95A5A6" stroke-width="2" stroke-dasharray="5,5" rx="3"/>
+    <text x="390" y="258" font-family="Arial, sans-serif" font-size="13" text-anchor="middle" fill="#7F8C8D">IDLE</text>
+    
+    <!-- Utilization Row -->
+    <text x="-10" y="315" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="end" fill="#666">Utilization</text>
+    <text x="90" y="315" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#27AE60">100%</text>
+    <text x="240" y="315" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#27AE60">100%</text>
+    <text x="390" y="315" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#E74C3C">25%</text>
+    
+    <!-- Tail Effect Highlight -->
+    <rect x="315" y="95" width="150" height="190" fill="none" stroke="#E74C3C" stroke-width="3" stroke-dasharray="8,4" rx="5"/>
+  </g>
+  
+  <!-- Legend (RIGHT SIDE) -->
+  <g transform="translate(570, 110)">
+    <text x="0" y="0" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#333">Legend:</text>
+    
+    <rect x="0" y="15" width="25" height="20" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="2"/>
+    <text x="30" y="29" font-family="Arial, sans-serif" font-size="11" fill="#333">Busy CU</text>
+    
+    <rect x="0" y="45" width="25" height="20" fill="#BDC3C7" stroke="#95A5A6" stroke-width="2" stroke-dasharray="3,3" rx="2"/>
+    <text x="30" y="59" font-family="Arial, sans-serif" font-size="11" fill="#333">Idle CU</text>
+    
+    <rect x="0" y="75" width="25" height="20" fill="#E74C3C" stroke="#C0392B" stroke-width="2" rx="2"/>
+    <text x="30" y="89" font-family="Arial, sans-serif" font-size="11" fill="#333">Tail tile</text>
+  </g>
+  
+  <!-- Arrow from CU Assignment Timeline to Output Matrix -->
+  <line x1="605" y1="240" x2="675" y2="240" stroke="#666" stroke-width="3" marker-end="url(#arrowhead)"/>
+  
+  <!-- Output Matrix Grid (RIGHT SIDE) -->
+  <g transform="translate(700, 90)">
+    <text x="130" y="-10" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#000">Output Matrix C (3×3 tiles):</text>
+    
+    <!-- Tiles -->
+    <rect x="0" y="30" width="80" height="80" fill="#4A90E2" stroke="#2C5F8D" stroke-width="2"/>
+    <text x="40" y="76" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#FFF">T0</text>
+    
+    <rect x="90" y="30" width="80" height="80" fill="#4A90E2" stroke="#2C5F8D" stroke-width="2"/>
+    <text x="130" y="76" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#FFF">T1</text>
+    
+    <rect x="180" y="30" width="80" height="80" fill="#4A90E2" stroke="#2C5F8D" stroke-width="2"/>
+    <text x="220" y="76" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#FFF">T2</text>
+    
+    <rect x="0" y="120" width="80" height="80" fill="#4A90E2" stroke="#2C5F8D" stroke-width="2"/>
+    <text x="40" y="166" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#FFF">T3</text>
+    
+    <rect x="90" y="120" width="80" height="80" fill="#4A90E2" stroke="#2C5F8D" stroke-width="2"/>
+    <text x="130" y="166" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#FFF">T4</text>
+    
+    <rect x="180" y="120" width="80" height="80" fill="#4A90E2" stroke="#2C5F8D" stroke-width="2"/>
+    <text x="220" y="166" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#FFF">T5</text>
+    
+    <rect x="0" y="210" width="80" height="80" fill="#4A90E2" stroke="#2C5F8D" stroke-width="2"/>
+    <text x="40" y="256" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#FFF">T6</text>
+    
+    <rect x="90" y="210" width="80" height="80" fill="#4A90E2" stroke="#2C5F8D" stroke-width="2"/>
+    <text x="130" y="256" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#FFF">T7</text>
+    
+    <rect x="180" y="210" width="80" height="80" fill="#E74C3C" stroke="#C0392B" stroke-width="3"/>
+    <text x="220" y="256" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#FFF">T8</text>
+    
+    <!-- Dimension labels -->
+    <text x="-15" y="85" font-family="Arial, sans-serif" font-size="11" text-anchor="start" fill="#666" transform="rotate(-90, -15, 85)">← M = 384</text>
+    <text x="0" y="305" font-family="Arial, sans-serif" font-size="11" text-anchor="start" fill="#666">N = 384 →</text>
+  </g>
+  
+  <!-- Summary Box -->
+  <g transform="translate(50, 440)">
+    <rect x="0" y="0" width="910" height="180" fill="#FFF5E6" stroke="#FF9800" stroke-width="2" rx="5"/>
+    
+    <text x="20" y="30" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#E65100">Problem: Load Imbalance - The Tail Effect</text>
+    
+    <text x="40" y="60" font-family="Arial, sans-serif" font-size="13" fill="#333">
+      • <tspan font-weight="bold">Waves 0 &amp; 1:</tspan> All 4 CUs processing tiles (100% utilization)
+    </text>
+    <text x="40" y="85" font-family="Arial, sans-serif" font-size="13" fill="#333">
+      • <tspan font-weight="bold">Wave 2:</tspan> Only CU0 working on final tile T8, CU1-3 idle (25% utilization)
+    </text>
+    <text x="40" y="110" font-family="Arial, sans-serif" font-size="13" fill="#333">
+      • <tspan font-weight="bold">Overall Efficiency:</tspan> 9 tiles / 12 CU-wave slots = 75%
+    </text>
+    <text x="40" y="135" font-family="Arial, sans-serif" font-size="13" fill="#333">
+      • <tspan font-weight="bold">Unused Resources:</tspan> 3 CU-wave slots idle in final wave
+    </text>
+    <text x="40" y="165" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#E74C3C">
+      Result: 25% of execution time unused due to load imbalance
+    </text>
+  </g>
+  
+  <!-- Arrow marker definition -->
+  <defs>
+    <marker id="arrowhead" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto">
+      <polygon points="0 0, 12 5, 0 10" fill="#666"/>
+    </marker>
+  </defs>
+</svg>
