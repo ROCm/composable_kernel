@@ -204,7 +204,7 @@ struct tile_window_with_static_distribution
               typename ElementWise_,
               index_t i_access_unsupport_ = -1,
               bool oob_conditional_check  = true>
-    CK_TILE_DEVICE auto load(DistributedTensor& dst_tensor,
+    CK_TILE_DEVICE void load(DistributedTensor& dst_tensor,
                              const TileWindow_& tile_window,
                              ElementWise_ elementwise,
                              number<i_access_unsupport_>          = {},
@@ -283,7 +283,7 @@ struct tile_window_with_static_distribution
     template <typename DistributedTensor,
               index_t i_access_unsupport_ = -1,
               bool oob_conditional_check  = true>
-    CK_TILE_DEVICE auto load(DistributedTensor& dst_tensor,
+    CK_TILE_DEVICE void load(DistributedTensor& dst_tensor,
                              number<i_access_unsupport_>          = {},
                              bool_constant<oob_conditional_check> = {}) const
     {
@@ -431,7 +431,7 @@ struct tile_window_with_static_distribution
               index_t i_access_unsupport_ = -1,
               bool oob_conditional_check  = true,
               bool pre_nop                = false>
-    CK_TILE_DEVICE auto async_load_raw(LdsTileWindow_&& lds_tile,
+    CK_TILE_DEVICE void async_load_raw(LdsTileWindow_&& lds_tile,
                                        number<i_access_unsupport_>          = {},
                                        bool_constant<oob_conditional_check> = {},
                                        bool_constant<pre_nop>               = {}) const
@@ -515,7 +515,7 @@ struct tile_window_with_static_distribution
               index_t i_access_unsupport_ = -1,
               bool oob_conditional_check  = true,
               typename = std::enable_if_t<std::is_class_v<remove_cvref_t<LdsTileWindow_>>>>
-    CK_TILE_DEVICE auto async_load_with_offset(index_t offset,
+    CK_TILE_DEVICE void async_load_with_offset(index_t offset,
                                                LdsTileWindow_&& lds_tile,
                                                number<i_access_unsupport_>          = {},
                                                bool_constant<oob_conditional_check> = {}) const
@@ -605,7 +605,7 @@ struct tile_window_with_static_distribution
               typename DistributedTensor,
               index_t i_access_unsupport_ = -1,
               bool oob_conditional_check  = true>
-    CK_TILE_DEVICE auto load_transpose_with_offset(index_t offset,
+    CK_TILE_DEVICE void load_transpose_with_offset(index_t offset,
                                                    DistributedTensor& dst_tensor,
                                                    number<i_access_unsupport_>          = {},
                                                    bool_constant<oob_conditional_check> = {}) const
