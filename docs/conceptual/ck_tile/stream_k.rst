@@ -22,8 +22,8 @@ In the traditional approach, matrix multiplication is decomposed using a hierarc
 
 1. **Output Space Partitioning**: The output matrix C (M×N) is divided into rectangular tiles, typically 128×128 or 256×128 elements
 2. **One Tile per Thread Block**: Each GPU thread block is assigned exactly one output tile
-3. **Thread Block to CU assignment**: Each GPU thread block is each assigned to one CU
-4. **Complete K-dimension Processing**: Each thread block performs multiply-accumulation of the outer-product operations of AxB, and iterates through the entire K-dimension to compute its output tile in C
+3. **Thread Block to CU assignment**: Each GPU thread block is assigned to one CU
+4. **Complete K-dimension Processing**: Each thread block performs multiply-accumulation of the outer-product operations of A × B, and iterates through the entire K-dimension to compute its output tile in C
 5. **Independent Computation**: Thread blocks work independently with no inter-block communication
 
 Tile Assignment Example
@@ -35,7 +35,7 @@ Consider a matrix multiplication with dimensions M=384, N=384, K=512 using 128×
 - If GPU has 4 compute units available:
 
   - **Wave 0 and Wave 1**: 4 tiles assigned to 4 CUs (full occupancy)
-  - **Wave 2**: 1 tiles assigned to 1 CUs (3 CUs idle - 75% waste!)
+  - **Wave 2**: 1 tile assigned to 1 CU (3 CUs idle - 75% waste!)
 
 This demonstrates the classic "tail effect" where the final wave has poor CU utilization.
 
@@ -72,7 +72,7 @@ These rarely align with perfect tile boundaries, causing persistently poor quant
 How Stream-K Works
 ------------------
 
-Stream-K employs a sophisticated "streaming" approach that augments traditional (MxN) tiling with a dynamic redistribution of work across the K-dimension of the matrix multiplication. Unlike traditional methods that assign complete M×N tiles to each thread block, Stream-K partitions work along the K-dimension (the reduction dimension) allowing for more granular load balancing.
+Stream-K employs a sophisticated "streaming" approach that augments traditional (M×N) tiling with a dynamic redistribution of work across the K-dimension of the matrix multiplication. Unlike traditional methods that assign complete M×N tiles to each thread block, Stream-K partitions work along the K-dimension (the reduction dimension) allowing for more granular load balancing.
 
 Core Mechanisms
 ~~~~~~~~~~~~~~~
@@ -141,7 +141,7 @@ Key Components
    - **Data-parallel tiles**: Traditional fixed-size work chunks assigned to single CUs for the majority of work where load balance is naturally quantized well
    - **Stream-K tiles**: Dynamically-sized work units split across multiple CUs to handle remainder tiles and balance the load in the tail region
    - **Persistent kernel pattern**: Unlike traditional kernels that launch once per tile, Stream-K may use persistent thread blocks that continuously consume work, reducing kernel launch overhead
-   - **Thread block to C tile mapping**: Assignment strategy to optimize co-locality of tile data and maximize cache efficiency.
+   - **Thread block to C tile mapping**: Assignment strategy to optimize locality of tile data and maximize cache efficiency.
 
 **Tile Partitioner**
    A sophisticated component (``TilePartitioner_StreamK``) that determines optimal work distribution based on problem geometry and hardware characteristics. It computes:
@@ -158,8 +158,8 @@ Key Components
    - **Parallel reduction**: partial results written to workspace buffers, which are combined together in a second reduction phase
 
 **Tunable Parameters**
-   - Tile size: MxN tile dimensions
-   - Block Size: The dimensions of the thread block
+   - Tile size: M×N tile dimensions
+   - Block size: The dimensions of the thread block
    - ``kPerBlock``: Amount of K-dimension processed per tile
    - Stream-K split factor: Controls granularity of K-dimension decomposition
    - Occupancy targets: Balances parallelism vs. resource usage
