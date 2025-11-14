@@ -401,4 +401,9 @@ CK_TILE_DEVICE fp16x2_t pk_add_f16(const fp16x2_t& x, const fp16x2_t& y)
     return c;
 }
 
+CK_TILE_HOST_DEVICE
+constexpr fp16x2_t fp32x2_to_fp16x2(const fp32x2_t& x)
+{
+    return fp16x2_t{float_to_fp16(x.x), float_to_fp16(x.y)};
+}
 } // namespace ck_tile
