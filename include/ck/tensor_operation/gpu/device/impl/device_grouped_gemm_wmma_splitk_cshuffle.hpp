@@ -99,7 +99,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                      splitk_batch_offset,
                                      karg,
                                      block_2_ctile_map,
-                                     epilogue_args, );
+                                     epilogue_args);
 #if defined(__gfx11__)
     }
 #endif
