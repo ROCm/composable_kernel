@@ -125,31 +125,31 @@ concept SpecifiesGridwiseWmmaGemm = requires {
 // Concept to check if a struct specifies convolution input and output block transfer info.
 template <typename T>
 concept SpecifiesBlockTransfer = requires(T t) {
-    { T::block_transfer.block_transfer_a } -> BlockTransferDescriptor;
-    { T::block_transfer.block_transfer_b } -> BlockTransferDescriptor;
-    { T::block_transfer.thread_cluster_dims_c } -> ThreadClusterDescriptor;
+    { T::transfer.a.block_transfer } -> BlockTransferDescriptor;
+    { T::transfer.b.block_transfer } -> BlockTransferDescriptor;
+    { T::transfer.c.thread_cluster_dims } -> ThreadClusterDescriptor;
 };
 
 // Concept to check if a struct specifies LDS transfer info for tensors A, B, and C.
 template <typename T>
 concept SpecifiesLdsTransfer = requires(T t) {
-    { T::block_transfer.lds_transfer_a } -> LdsTransferDescriptor;
-    { T::block_transfer.lds_transfer_b } -> LdsTransferDescriptor;
-    { T::block_transfer.epilogue_c } -> EpilogueDescriptor;
+    { T::transfer.a.lds_transfer } -> LdsTransferDescriptor;
+    { T::transfer.b.lds_transfer } -> LdsTransferDescriptor;
+    { T::transfer.c.epilogue } -> EpilogueDescriptor;
 };
 
 // Concept to check if a struct specifies thread cluster access order info.
 template <typename T>
 concept SpecifiesThreadClusterAccessOrder = requires(T t) {
-    { T::block_transfer.block_transfer_access_order_a } -> AccessOrderDescriptor;
-    { T::block_transfer.block_transfer_access_order_b } -> AccessOrderDescriptor;
+    { T::transfer.a.block_transfer_access_order } -> AccessOrderDescriptor;
+    { T::transfer.b.block_transfer_access_order } -> AccessOrderDescriptor;
 };
 
 // Concept to check if a struct specifies source access order info.
 template <typename T>
 concept SpecifiesSourceAccessOrder = requires(T t) {
-    { T::block_transfer.src_access_order_a } -> AccessOrderDescriptor;
-    { T::block_transfer.src_access_order_b } -> AccessOrderDescriptor;
+    { T::transfer.a.src_access_order } -> AccessOrderDescriptor;
+    { T::transfer.b.src_access_order } -> AccessOrderDescriptor;
 };
 
 // Concept to check if struct specifies block GEMM.
@@ -246,14 +246,14 @@ concept SpecifiesDlThreadCluster = requires {
 // Concept to check if algorithm specifies DL block transfer
 template <typename T>
 concept SpecifiesDlBlockTransfer = requires {
-    { T::block_transfer_a } -> DlBlockTransferDescriptor;
-    { T::block_transfer_b } -> DlBlockTransferDescriptor;
+    { T::transfer.a.block_transfer } -> DlBlockTransferDescriptor;
+    { T::transfer.b.block_transfer } -> DlBlockTransferDescriptor;
 };
 
 // Concept to check if algorithm specifies DL C thread transfer
 template <typename T>
 concept SpecifiesDlEpilogue = requires {
-    { T::epilogue_c } -> DlEpilogueDescriptor;
+    { T::transfer.c.epilogue } -> DlEpilogueDescriptor;
 };
 
 /******************************************** */

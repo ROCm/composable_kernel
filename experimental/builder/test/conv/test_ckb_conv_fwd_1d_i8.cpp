@@ -23,7 +23,7 @@ TEST(FwdConvInstances,
         ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle{}
             .with_thread_block(FwdThreadBlock_128_64x64x64)
             .with_gemm_config(FwdGemmParams_Wmma_2x1_per_wave)
-            .with_block_transfer(FwdBlockTransfer_4x32x1)
+            .with_transfer(FwdTransfer_4x32x1)
             .with_specializations(ConvFwdSpecialization::DEFAULT, GemmSpecialization::MNKPadding)
             .with_prefetch_config(1, 0, PipelineScheduler::DEFAULT);
 

@@ -39,8 +39,8 @@ add_ck_builder_test(test_ckb_get_instance_string
 add_ck_builder_test(test_ckb_build_fwd_instances
     conv/test_ckb_conv_fwd_1d_fp16.cpp
     conv/test_ckb_conv_fwd_1d_bf16.cpp
-    conv/test_ckb_conv_fwd_1d_i8.cpp  
-    conv/test_ckb_conv_fwd_2d_fp8.cpp  
+    conv/test_ckb_conv_fwd_1d_i8.cpp
+    conv/test_ckb_conv_fwd_2d_fp8.cpp
     conv/test_ckb_conv_fwd_2d_bf16.cpp
     conv/test_ckb_conv_fwd_2d_fp16.cpp
     conv/test_ckb_conv_fwd_2d_fp32.cpp
@@ -78,7 +78,7 @@ add_ck_builder_test(test_ckb_conv_description
 function(collect_test_ckb_targets result_var)
     # Get all targets in current directory
     get_directory_property(all_targets BUILDSYSTEM_TARGETS)
-    
+
     set(test_ckb_targets)
     foreach(target ${all_targets})
         # Check if target name starts with "test_ckb"
@@ -87,7 +87,7 @@ function(collect_test_ckb_targets result_var)
             list(APPEND test_ckb_targets ${target})
         endif()
     endforeach()
-    
+
     set(${result_var} ${test_ckb_targets} PARENT_SCOPE)
 endfunction()
 
