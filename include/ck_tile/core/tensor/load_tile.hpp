@@ -17,6 +17,19 @@
 #include "ck_tile/core/tensor/null_tensor.hpp"
 
 namespace ck_tile {
+// Per-lane read-offset tweaks allow swizzling patterns not representable by tile_distribution.
+template <typename TileWindow_,
+          index_t i_access           = -1,
+          bool oob_conditional_check = true,
+          typename                   = std::enable_if_t<std::is_class_v<TileWindow_>>>
+CK_TILE_DEVICE auto load_tile_with_offset(const TileWindow_& tile_window,
+                                          index_t offset,
+                                          number<i_access>                     = {},
+                                          bool_constant<oob_conditional_check> = {})
+{
+    return tile_window.load_with_offset(
+        offset, number<i_access>{}, bool_constant<oob_conditional_check>{});
+}
 
 template <typename TileWindow_, index_t i_access = -1, bool oob_conditional_check = true>
 CK_TILE_DEVICE auto load_tile(const TileWindow_& tile_window,
@@ -47,6 +60,23 @@ CK_TILE_DEVICE auto load_tile_with_elementwise(const TileWindow_& tile_window,
     // Load element_wise API works only when the input typle is a tuple-tyupe
     return tile_window[number<0>{}].load(
         tile_window, elementwise, number<i_access>{}, bool_constant<oob_conditional_check>{});
+}
+
+// Per-lane read-offset tweaks allow swizzling patterns not representable by tile_distribution.
+template <typename DistributedTensor_,
+          typename TileWindow_,
+          index_t i_access           = -1,
+          bool oob_conditional_check = true,
+          typename = std::enable_if_t<std::is_class_v<std::remove_cv_t<DistributedTensor_>> &&
+                                      std::is_class_v<TileWindow_>>>
+CK_TILE_DEVICE auto load_tile_with_offset(DistributedTensor_& dst_tile,
+                                          const TileWindow_& tile_window,
+                                          index_t offset,
+                                          number<i_access>                     = {},
+                                          bool_constant<oob_conditional_check> = {})
+{
+    return tile_window.load_with_offset(
+        offset, dst_tile, number<i_access>{}, bool_constant<oob_conditional_check>{});
 }
 
 template <typename DistributedTensor_,
@@ -112,6 +142,23 @@ CK_TILE_DEVICE auto load_tile_raw(T& tile,
         tile, number<i_access>{}, bool_constant<oob_conditional_check>{}, bool_constant<pre_nop>{});
 }
 
+// Per-lane read-offset tweaks allow swizzling patterns not representable by tile_distribution.
+template <typename LdsTileWindow_,
+          typename TileWindow_,
+          index_t i_access           = -1,
+          bool oob_conditional_check = true,
+          typename = std::enable_if_t<std::is_class_v<remove_cvref_t<LdsTileWindow_>> &&
+                                      std::is_class_v<TileWindow_>>>
+CK_TILE_DEVICE auto async_load_tile_with_offset(LdsTileWindow_&& lds_tile,
+                                                const TileWindow_& tile_window,
+                                                index_t offset,
+                                                number<i_access>                     = {},
+                                                bool_constant<oob_conditional_check> = {})
+{
+    return tile_window.async_load_with_offset(
+        offset, lds_tile, number<i_access>{}, bool_constant<oob_conditional_check>{});
+}
+
 template <typename LdsTileWindow_,
           typename TileWindow_,
           index_t i_access           = -1,
@@ -121,8 +168,8 @@ CK_TILE_DEVICE auto async_load_tile(LdsTileWindow_&& lds_tile,
                                     number<i_access>                     = {},
                                     bool_constant<oob_conditional_check> = {})
 {
-    return tile_window.async_load(
-        lds_tile, number<i_access>{}, bool_constant<oob_conditional_check>{});
+    return async_load_tile_with_offset(
+        lds_tile, tile_window, 0, number<i_access>{}, bool_constant<oob_conditional_check>{});
 }
 
 template <typename LdsTileWindow_,

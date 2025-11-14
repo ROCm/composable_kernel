@@ -13,49 +13,6 @@ list(APPEND EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS
 )
 set(EXAMPLE_GEMM_COMPILE_COMPUTE_ASYNC_OPTIONS ${EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS})
 
-if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx11|gfx12")
-    add_gtest_executable(test_ck_tile_gemm_pipeline_universal_int8 test_gemm_pipeline_universal_int8.cpp)
-    target_compile_options(test_ck_tile_gemm_pipeline_universal_int8 PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
-    add_gtest_executable(test_ck_tile_gemm_pipeline_universal_pk_int4 test_gemm_pipeline_universal_pk_int4.cpp)
-    target_compile_options(test_ck_tile_gemm_pipeline_universal_pk_int4 PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
-else()
-    message(DEBUG "Skipping ck_tile_gemm tests for current target")
-endif()
-
-
-if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
-    add_gtest_executable(test_gemm_pipeline_compiler test_gemm_pipeline_compiler.cpp)
-    target_compile_options(test_gemm_pipeline_compiler PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
-endif()
-
-if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
-    add_gtest_executable(test_ck_tile_gemm_pipeline_universal_fp8 test_gemm_pipeline_universal_fp8.cpp)
-    add_gtest_executable(test_ck_tile_gemm_pipeline_universal_bf8 test_gemm_pipeline_universal_bf8.cpp)
-    add_gtest_executable(test_ck_tile_gemm_pipeline_basic_fp8 test_gemm_pipeline_basic_fp8.cpp)
-    add_gtest_executable(test_ck_tile_gemm_pipeline_basic_bf8 test_gemm_pipeline_basic_bf8.cpp)
-
-    target_compile_options(test_ck_tile_gemm_pipeline_universal_fp8 PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
-    target_compile_options(test_ck_tile_gemm_pipeline_universal_bf8 PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
-    target_compile_options(test_ck_tile_gemm_pipeline_basic_fp8 PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
-    target_compile_options(test_ck_tile_gemm_pipeline_basic_bf8 PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
-else()
-    message(DEBUG "Skipping ck_tile_gemm tests for current target")
-endif()
-
-if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
-    add_gtest_executable(test_ck_tile_gemm_pipeline_universal_fp16 test_gemm_pipeline_universal_fp16.cpp)
-    target_compile_options(test_ck_tile_gemm_pipeline_universal_fp16 PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
-    target_compile_options(test_ck_tile_gemm_pipeline_universal_fp16 PRIVATE --save-temps -Wno-gnu-line-marker)
-    add_gtest_executable(test_ck_tile_gemm_pipeline_universal_bf16 test_gemm_pipeline_universal_bf16.cpp)
-    target_compile_options(test_ck_tile_gemm_pipeline_universal_bf16 PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
-    add_gtest_executable(test_ck_tile_gemm_pipeline_basic_fp16 test_gemm_pipeline_basic_fp16.cpp)
-    target_compile_options(test_ck_tile_gemm_pipeline_basic_fp16 PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
-    add_gtest_executable(test_ck_tile_gemm_pipeline_basic_bf16 test_gemm_pipeline_basic_bf16.cpp)
-    target_compile_options(test_ck_tile_gemm_pipeline_basic_bf16 PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
-else()
-    message(DEBUG "Skipping ck_tile_gemm tests for current target ")
-endif()
-
 if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
     if(GPU_TARGETS MATCHES "gfx94|gfx95")
         add_gtest_executable(test_ck_tile_gemm_pipeline_mem test_gemm_pipeline_mem.cpp)
@@ -77,7 +34,16 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
     endif()
 
     if(GPU_TARGETS MATCHES "gfx11|gfx12")
-    # On Radeon devices, build the WMMA version instead
+        # On Radeon devices, build the WMMA version instead
+        # Define architecture macros for compile-time detection
+        if(GPU_TARGETS MATCHES "gfx12")
+            list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -DARCH_GFX12)
+            list(APPEND EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS -DARCH_GFX12)
+        elseif(GPU_TARGETS MATCHES "gfx11")
+            list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -DARCH_GFX11)
+            list(APPEND EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS -DARCH_GFX11)
+        endif()
+
         add_gtest_executable(test_ck_tile_gemm_pipeline_mem_wmma test_gemm_pipeline_mem_wmma.cpp)
         add_gtest_executable(test_ck_tile_gemm_pipeline_compv3_wmma test_gemm_pipeline_compv3_wmma.cpp)
         add_gtest_executable(test_ck_tile_gemm_pipeline_compv4_wmma test_gemm_pipeline_compv4_wmma.cpp)
