@@ -5,10 +5,10 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/core/arch/arch.hpp"
-#include "ck_tile/ops/common/load_interleaved_pk_type.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_default_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/elementwise.hpp"
+#include "ck_tile/ops/gemm_quant/block/block_gemm_quant_common.hpp"
 
 namespace ck_tile {
 
@@ -24,13 +24,11 @@ struct BlockGemmBQuantBase
         float scale_reg_f = 0.f;
         if constexpr(std::is_same_v<BQDataType, ck_tile::fp8_t>)
         {
-            scale_reg_f =
-                ck_tile::element_wise::amd_assembly_fp8_to_fp32(static_cast<uint32_t>(scale));
+            scale_reg_f = __builtin_amdgcn_cvt_f32_fp8(static_cast<uint32_t>(scale), 0);
         }
         else if constexpr(std::is_same_v<BQDataType, ck_tile::bf8_t>)
         {
-            scale_reg_f =
-                ck_tile::element_wise::amd_assembly_bf8_to_fp32(static_cast<uint32_t>(scale));
+            scale_reg_f = __builtin_amdgcn_cvt_f32_bf8(static_cast<uint32_t>(scale), 0);
         }
         else if constexpr(std::is_same_v<BQDataType, float>)
         {
@@ -156,7 +154,6 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
 
     using Base = BlockGemmBQuantBase<Problem_>;
 
-    using Loader   = remove_cvref_t<InterleavedPKTypeLoader<ComputeDataType, UnaryOpSize_>>;
     using WarpGemm = remove_cvref_t<typename Traits::WarpGemm>;
 
     static constexpr index_t KIterPerWarp = Traits::KIterPerWarp;
@@ -274,26 +271,8 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
         CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
                                           const BSmemBlockWindow& b_block_window)
         {
-            if constexpr(std::is_same_v<ADataType, pk_int4_t>)
-            {
-                static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
-                              std::is_same_v<ComputeDataType, bf8_t>);
-                Loader::load_interleaved_pk_type(a_warp_tile_, a_block_window);
-            }
-            else
-            {
-                load_tile(a_warp_tile_, a_block_window);
-            }
-            if constexpr(std::is_same_v<BDataType, pk_int4_t>)
-            {
-                static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
-                              std::is_same_v<ComputeDataType, bf8_t>);
-                Loader::load_interleaved_pk_type(b_warp_tile_, b_block_window);
-            }
-            else
-            {
-                load_tile(b_warp_tile_, b_block_window);
-            }
+            load_int4_tile<ADataType, ComputeDataType, UnaryOpSize_>(a_warp_tile_, a_block_window);
+            load_int4_tile<BDataType, ComputeDataType, UnaryOpSize_>(b_warp_tile_, b_block_window);
         }
 
         // C += A * B
@@ -376,20 +355,8 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
     public:
     CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
     {
-        constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
-            sequence<>,
-            tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
-            tuple<sequence<1, 2>>,
-            tuple<sequence<1, 1>>,
-            sequence<1, 2>,
-            sequence<0, 0>>{};
-
-        constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
-        constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
-        auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
-
-        return c_block_tensor;
+        return BlockGemmQuantCommon<CDataType, WarpGemm, MIterPerWarp, MWarp, NIterPerWarp, NWarp>::
+            MakeCBlockTile();
     }
 
     template <typename ASmemBlockWindow, typename BSmemBlockWindow>

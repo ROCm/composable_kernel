@@ -12,6 +12,7 @@
 #include "ck_tile/core/container/multi_index.hpp"
 #include "ck_tile/core/numeric/math.hpp"
 #include "ck_tile/core/utility/type_traits.hpp"
+#include "ck_tile/core/utility/print.hpp"
 
 namespace ck_tile {
 
@@ -254,4 +255,115 @@ CK_TILE_HOST_DEVICE constexpr bool adaptor_coordinate_is_valid(const Adaptor& ad
            adaptor_coordinate_is_valid_assuming_top_index_is_valid(adaptor, coord);
 }
 
+namespace detail {
+template <typename PREFIX = str_literal<>, typename SUFFIX = str_literal<>>
+struct CK_PRINT_X_;
+
+template <char... PREFIXChars, char... SUFFIXChars>
+struct CK_PRINT_X_<str_literal<PREFIXChars...>, str_literal<SUFFIXChars...>>
+{
+    template <typename T>
+    struct detail;
+    template <index_t NDimHidden, typename BottomDimensionHiddenIds, typename TopDimensionHiddenIds>
+    struct detail<
+        tensor_adaptor_coordinate<NDimHidden, BottomDimensionHiddenIds, TopDimensionHiddenIds>>
+    {
+        using coord_t =
+            tensor_adaptor_coordinate<NDimHidden, BottomDimensionHiddenIds, TopDimensionHiddenIds>;
+
+        template <index_t I>
+        CK_TILE_HOST_DEVICE static constexpr auto get_hidden_format_i()
+        {
+            constexpr bool is_bottom =
+                sequence_any_of(BottomDimensionHiddenIds{}, [](auto b) { return b == I; });
+            constexpr bool is_top =
+                sequence_any_of(TopDimensionHiddenIds{}, [](auto t) { return t == I; });
+            constexpr auto d = make_str_literal("%d");
+            if constexpr(is_bottom && is_top)
+                return make_str_literal("_^") + d;
+            else if constexpr(is_bottom)
+                return make_str_literal("_") + d;
+            else if constexpr(is_top)
+                return make_str_literal("^") + d;
+            else
+                return d;
+        }
+        template <index_t N = NDimHidden>
+        CK_TILE_HOST_DEVICE static constexpr auto get_hidden_format()
+        {
+            constexpr auto sep = make_str_literal(" ");
+            if constexpr(N == 0)
+                return str_literal<>{};
+            else
+                return get_hidden_format<N - 1>() + sep + get_hidden_format_i<N - 1>();
+        }
+        CK_TILE_HOST_DEVICE static constexpr auto get_format()
+        {
+            constexpr auto d   = make_str_literal("%d");
+            constexpr auto sep = make_str_literal(" ");
+            constexpr auto bottom_fmt =
+                d.template duplicate_n<BottomDimensionHiddenIds::size()>(sep);
+            constexpr auto top_fmt    = d.template duplicate_n<TopDimensionHiddenIds::size()>(sep);
+            constexpr auto hidden_fmt = get_hidden_format();
+            return make_str_literal("[ __") + bottom_fmt + make_str_literal("__ | ^^") + top_fmt +
+                   make_str_literal("^^ | ") + hidden_fmt + make_str_literal(" ]");
+        }
+        CK_TILE_HOST_DEVICE static constexpr index_t get_num_values()
+        {
+            return BottomDimensionHiddenIds::size() + TopDimensionHiddenIds::size() + NDimHidden;
+        }
+
+        CK_TILE_HOST_DEVICE static constexpr auto get_values(const coord_t& coord)
+        {
+            return container_concat(
+                coord.get_bottom_index(), coord.get_top_index(), coord.get_hidden_index());
+        }
+    };
+
+    CK_TILE_HOST_DEVICE static constexpr auto get_prefix()
+    {
+        constexpr auto fmt_tid = make_str_literal("tid %03d: ");
+        if constexpr(sizeof...(PREFIXChars) == 0)
+            return fmt_tid;
+        else
+            return fmt_tid + make_str_literal(" ") + str_literal<PREFIXChars...>{};
+    }
+    CK_TILE_HOST_DEVICE static constexpr auto get_suffix()
+    {
+        constexpr auto lf = make_str_literal("\n");
+        if constexpr(sizeof...(SUFFIXChars) == 0)
+            return lf;
+        else
+            return str_literal<SUFFIXChars...>{} + lf;
+    }
+
+    template <char... FMTChars, typename TArgs, index_t... Is, typename... Args>
+    CK_TILE_HOST_DEVICE void impl(str_literal<FMTChars...>,
+                                  const TArgs& targs,
+                                  std::integer_sequence<index_t, Is...>,
+                                  Args&&... args) const
+    {
+        constexpr auto fmt_wrap_v = get_prefix() + str_literal<FMTChars...>{} + get_suffix();
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-nonliteral"
+        printf(fmt_wrap_v.data, get_thread_id(), args..., targs.at(number<Is>())...);
+#pragma clang diagnostic pop
+    }
+    template <typename T, typename... Args>
+    CK_TILE_HOST_DEVICE void operator()(T&& x, Args&&... args) const
+    {
+        using detail_t = detail<remove_cvref_t<T>>;
+        impl(detail_t::get_format(),
+             detail_t::get_values(std::forward<T>(x)),
+             std::make_integer_sequence<index_t, (detail_t::get_num_values())>{},
+             std::forward<Args>(args)...);
+    }
+};
+} // namespace detail
+
+template <index_t N, typename B, typename T>
+CK_TILE_HOST_DEVICE void print(const tensor_adaptor_coordinate<N, B, T>& coord)
+{
+    detail::CK_PRINT_X_<>{}(coord);
+}
 } // namespace ck_tile
