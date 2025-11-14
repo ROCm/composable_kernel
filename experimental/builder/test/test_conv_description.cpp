@@ -25,8 +25,6 @@ struct ConvSignature
     ckb::GroupConvLayout layout                     = ckb::GroupConvLayout2D::GNHWC_GKYXC_GNHWK;
     ckb::DataType data_type                         = ckb::DataType::FP16;
     ckb::ElementwiseOperation elementwise_operation = ckb::ElementwiseOperation::PASS_THROUGH;
-    ckb::GroupConvDeviceOp device_operation =
-        ckb::FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3;
 };
 static_assert(ckb::ConvSignatureDescriptor<ConvSignature>);
 
