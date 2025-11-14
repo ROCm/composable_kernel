@@ -13,7 +13,7 @@ At its core, Stream-K reimagines how matrix multiplication tiles are scheduled a
 Traditional Tiling Approach
 ----------------------------
 
-Before diving into Stream-K, it's important to understand how traditional GPU GEMMs are implemented. A typical GEMM operation C = A × B involves multiplication of input matrices A (M×K), B (K×N), to produce output matrix C (M×N). The computation of the output C can be decomposed into multiple smaller "tiles" of outer products which can then be computed efficiently in parallel. GEMMs on GPU can be parameterized in many different ways tune performance for a variety of different problem dimensions and conditions. Hyper-parameters in this space may include data types (e.g., fp32, fp16, ...), data layouts (e.g., row major, col major), tile sizes (MxN), thread block sizes, occupancy, data movement pipeline, distribution ordering, etc.
+Before diving into Stream-K, it's important to understand how traditional GPU GEMMs are implemented. A typical GEMM operation C = A × B involves multiplication of input matrices A (M×K), B (K×N), to produce output matrix C (M×N). The computation of the output C can be decomposed into multiple smaller "tiles" of outer products which can then be computed efficiently in parallel. GEMMs on GPU can be parameterized in many different ways to tune performance for a variety of different problem dimensions and conditions. Hyper-parameters in this space may include data types (e.g., fp32, fp16, ...), data layouts (e.g., row major, col major), tile sizes (MxN), thread block sizes, occupancy, data movement pipeline, distribution ordering, etc.
 
 Classical Data-Parallel Tiling
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
