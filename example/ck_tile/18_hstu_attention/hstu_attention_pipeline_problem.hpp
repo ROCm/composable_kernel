@@ -23,8 +23,7 @@ template <typename InOutDataType_,
           bool kHasCausal_,
           bool kUseSoftmax_,
           bool kUseTrLoad_, // use transposed loading to load V tile from lds to vgprs
-          typename AttentionTileSetting_,
-          typename Traits_>
+          typename AttentionTileSetting_>
 struct HstuAttentionFwdPipelineProblem
 {
     using InOutDataType   = remove_cvref_t<InOutDataType_>;
@@ -51,8 +50,6 @@ struct HstuAttentionFwdPipelineProblem
     static constexpr bool kLoadWholeQTileOnceThroughLds = kUseTrLoad ? true : false;
 
     using HstuAttentionTileSetting = remove_cvref_t<AttentionTileSetting_>;
-
-    using Traits = remove_cvref_t<Traits_>;
 
     static constexpr index_t kNumGemm0Warps = AttentionTileSetting_::NumGemm0Warps;
     static constexpr index_t kNumGemm1Warps = AttentionTileSetting_::NumGemm1Warps;
