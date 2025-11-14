@@ -1,6 +1,20 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
+/**
+ * CK Library GEMM Specializations (Phase 2 - Future)
+ * 
+ * Type-safe wrappers for CK Library pre-compiled GEMM kernels.
+ * Currently not used - reserved for Phase 2 implementation.
+ * 
+ * Status: Placeholder for future CK Library integration
+ * 
+ * Will provide:
+ * - DeviceGemm_Xdl_CShuffle integration
+ * - DeviceGemm_Xdl_SplitK integration
+ * - Batched GEMM support
+ */
+
 #pragma once
 
 #include "ck_tile/dispatcher/backends/library_backend.hpp"
@@ -12,7 +26,7 @@ namespace ck_tile {
 namespace dispatcher {
 namespace backends {
 
-/// Specialization for standard GEMM
+/// Specialization for standard GEMM (FUTURE)
 template <typename ADataType,
           typename BDataType,
           typename CDataType,

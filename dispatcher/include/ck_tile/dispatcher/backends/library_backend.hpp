@@ -1,6 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
+/**
+ * CK Library Backend (Phase 2 - Future)
+ * 
+ * This backend integrates pre-compiled kernels from CK Library.
+ * Currently not used - reserved for Phase 2 implementation.
+ * 
+ * Status: Placeholder for future CK Library integration
+ */
+
 #pragma once
 
 #include "ck_tile/dispatcher/backends/backend_base.hpp"
@@ -13,7 +22,7 @@ namespace ck_tile {
 namespace dispatcher {
 namespace backends {
 
-/// Kernel instance for CK Library pre-compiled kernels
+/// Kernel instance for CK Library pre-compiled kernels (FUTURE)
 template <typename DeviceOp>
 class LibraryKernelInstance : public KernelInstance
 {

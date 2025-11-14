@@ -1,6 +1,27 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
+/**
+ * Registry - Thread-Safe Kernel Storage
+ * 
+ * Central registry for all available kernel instances with priority-based
+ * ordering and efficient lookup.
+ * 
+ * Features:
+ * - Thread-safe registration and lookup
+ * - Priority-based ordering (High, Normal, Low)
+ * - Lookup by name or KernelKey
+ * - Filter by problem compatibility
+ * - Singleton pattern for global access
+ * 
+ * Usage:
+ *   auto& registry = Registry::instance();
+ *   registry.register_kernel(kernel, Priority::High);
+ *   auto kernel = registry.lookup("kernel_name");
+ * 
+ * Status: Production ready, thread-safe
+ */
+
 #pragma once
 
 #include "ck_tile/dispatcher/kernel_instance.hpp"

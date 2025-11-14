@@ -10,16 +10,134 @@ Complete CK Tile GEMM dispatcher with C++ and Python frontends. **Performance an
 
 ## Table of Contents
 
-1. [Validation Results](#validation-results)
-2. [Quick Start](#quick-start)
-3. [Build Instructions](#build-instructions)
+1. [Build Instructions](#build-instructions)
+2. [Python Setup](#python-setup)
+3. [Quick Start](#quick-start)
 4. [Python NumPy Integration](#python-numpy-integration)
 5. [Testing & Validation](#testing--validation)
-6. [Python API](#python-api)
-7. [C++ API](#c-api)
-8. [Examples](#examples)
-9. [File Structure](#file-structure)
-10. [Performance Summary](#performance-summary)
+6. [Validation Results](#validation-results)
+7. [Python API](#python-api)
+8. [C++ API](#c-api)
+9. [Examples](#examples)
+10. [File Structure](#file-structure)
+
+---
+
+## Build Instructions
+
+### Prerequisites
+
+- ROCm 7.0+ with HIP
+- CMake 3.16+
+- C++17 compiler (hipcc)
+- Python 3.8+ (for Python bindings)
+
+### Basic Build
+
+```bash
+cd dispatcher
+mkdir build && cd build
+
+cmake .. \
+  -D CMAKE_PREFIX_PATH=/opt/rocm \
+  -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc \
+  -D CMAKE_BUILD_TYPE=Release \
+  -D GPU_TARGETS="gfx908;gfx90a;gfx942"
+
+make -j
+```
+
+**CRITICAL:** Always use `-D CMAKE_BUILD_TYPE=Release` for correct performance!  
+**Note:** Set `GPU_TARGETS` to match your GPU architecture(s).
+
+### Full Build (Tests + Python + Examples)
+
+```bash
+cmake .. \
+  -D CMAKE_PREFIX_PATH=/opt/rocm \
+  -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc \
+  -D CMAKE_BUILD_TYPE=Release \
+  -D GPU_TARGETS="gfx908;gfx90a;gfx942" \
+  -D BUILD_DISPATCHER_TESTS=ON \
+  -D BUILD_DISPATCHER_PYTHON=ON \
+  -D BUILD_DISPATCHER_EXAMPLES=ON
+
+make -j
+
+# Run tests
+ctest  # 11/11 passing (7 mock + 4 real GPU kernels)
+```
+
+### Generate CK Tile Kernels (Optional)
+
+Kernels are automatically generated when building tests/examples. To generate manually:
+
+```bash
+cd codegen
+
+python3 unified_gemm_codegen.py \
+  --output-dir ../build/generated_kernels \
+  --datatype fp16 \
+  --layout rcr \
+  --gpu-target gfx942 \
+  --preselected fp16_rcr_essential
+
+# Generates 6 FP16 RCR GEMM kernels
+```
+
+---
+
+## Python Setup
+
+### Virtual Environment (Recommended)
+
+```bash
+cd dispatcher
+
+# Create virtual environment
+python3 -m venv venv
+
+# Activate
+source venv/bin/activate  # Linux/Mac
+# or: venv\Scripts\activate  # Windows
+
+# Install dependencies
+pip install numpy
+
+# Optional: Install in development mode
+pip install -e python/
+```
+
+### System-Wide Setup
+
+```bash
+# Install NumPy
+pip install numpy
+
+# Set PYTHONPATH for C++ extension
+export PYTHONPATH=/path/to/dispatcher/python
+
+# Or add to ~/.bashrc for persistence
+echo "export PYTHONPATH=/path/to/dispatcher/python" >> ~/.bashrc
+```
+
+### Make Python Scripts Executable
+
+```bash
+cd dispatcher
+chmod +x examples/python/*.py
+chmod +x test/*.sh
+```
+
+### Verify Python Setup
+
+```bash
+# Check C++ extension
+python3 -c "import sys; sys.path.insert(0, 'python'); import _dispatcher_native; print('OK')"
+
+# Check NumPy
+python3 -c "import numpy; print(f'NumPy {numpy.__version__}')"
+```
 
 ---
 
@@ -102,68 +220,6 @@ Dispatcher dispatcher;
 Problem problem(1024, 1024, 1024);
 float time = dispatcher.run(a_dev, b_dev, c_dev, problem);
 // Returns: 0.0186 ms / 115.5 TFLOPS
-```
-
----
-
-## Build Instructions
-
-### Prerequisites
-
-- ROCm 7.0+ with HIP
-- CMake 3.16+
-- C++17 compiler (clang++)
-- Python 3.8+ (for Python bindings)
-
-### Basic Build
-
-```bash
-cd dispatcher
-mkdir build && cd build
-
-cmake .. \
-  -D CMAKE_PREFIX_PATH=/opt/rocm \
-  -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc \
-  -D CMAKE_BUILD_TYPE=Release \
-  -D GPU_TARGETS="gfx908;gfx90a;gfx942"
-
-make -j
-```
-
-**⚠️ CRITICAL:** Always use `-D CMAKE_BUILD_TYPE=Release` for correct performance!
-**Note:** Set `GPU_TARGETS` to match your GPU architecture(s). Use semicolon-separated list for multiple targets.
-
-### Full Build (Tests + Python + Examples)
-
-```bash
-cmake .. \
-  -D CMAKE_PREFIX_PATH=/opt/rocm \
-  -D CMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc \
-  -D CMAKE_BUILD_TYPE=Release \
-  -D GPU_TARGETS="gfx908;gfx90a;gfx942" \
-  -D BUILD_DISPATCHER_TESTS=ON \
-  -D BUILD_DISPATCHER_PYTHON=ON \
-  -D BUILD_DISPATCHER_EXAMPLES=ON
-
-make -j
-
-# Run tests
-ctest  # 11/11 passing (7 mock + 4 real GPU kernels)
-```
-
-### Generate CK Tile Kernels
-
-```bash
-cd ../codegen
-
-python3 unified_gemm_codegen.py \
-  --output-dir ../build/generated_kernels \
-  --datatype fp16 \
-  --layout rcr \
-  --gpu-target gfx942 \
-  --preselected fp16_rcr_essential
-
-# Generates 6 real CK Tile GEMM kernels
 ```
 
 ---
@@ -436,14 +492,15 @@ float time = dispatcher.run_explicit(kernel_id, a, b, c, nullptr, problem);
 | `verify_data_flow.cpp` | Data transfer verification | N/A | [OK] PASS |
 | `python_gpu_helper.cpp` | Python integration helper | Configurable | [OK] PASS |
 
-### Python Examples
+### Python Examples (Streamlined - Only Real GPU)
 
 | File | Purpose | Performance | Speedup | Status |
 |------|---------|-------------|---------|--------|
-| `numpy_to_gpu_complete.py` | NumPy->GPU direct integration | 23.52 TF | 28,025x | [OK] Working |
-| `numpy_dispatcher_advanced.py` | Advanced usage + benchmarks | 319.02 TF | 380,873x | [OK] Working |
-| `python_dispatcher_basic.py` | C++ extension API demo | N/A | N/A | [OK] Working |
-| `python_invoke_dispatcher.py` | Complete workflow | 112.96 TF | N/A | [OK] Working |
+| `numpy_to_gpu_complete.py` | **Complete NumPy integration** | 23.52 TF | 28,025x | [OK] |
+| `numpy_dispatcher_advanced.py` | Benchmarks + validation | 319.02 TF | 380,873x | [OK] |
+| `python_dispatcher_basic.py` | C++ extension API reference | N/A | N/A | [OK] |
+
+**All examples use real CK Tile GEMM kernels on GPU. No mock examples.**
 
 **Python Integration Features:**
 - [OK] NumPy arrays passed directly to GPU (zero-copy via pointers)
@@ -496,21 +553,20 @@ dispatcher/
 │   ├── test_real_kernel_performance.cpp # Real GPU: Performance  
 │   └── test_real_kernel_correctness.cpp # Real GPU: Correctness  
 │
-├── examples/                     # Examples
-│   ├── cpp/                      # C++ examples
-│   │   ├── dispatcher_dynamic_lib.cpp        # Dynamic library for Python   
+├── examples/                     # Real GPU examples only
+│   ├── cpp/                      # C++ examples (6 files)
+│   │   ├── dispatcher_dynamic_lib.cpp        # Dynamic .so for Python ctypes
 │   │   ├── python_gpu_helper.cpp             # CLI helper for Python
 │   │   ├── single_tile_kernel_example.cpp    # Performance (115.5 TF)
-│   │   ├── verify_correctness.cpp            # Random matrices
-│   │   ├── test_known_matrices.cpp           # Structured matrices
-│   │   └── verify_data_flow.cpp              # Data transfer
-│   ├── python/                   # Python examples
-│   │   ├── numpy_to_gpu_complete.py          # NumPy integration (23.52 TF, 28k x)   
-│   │   ├── numpy_dispatcher_advanced.py      # Advanced (319 TF, 380k x)   
-│   │   ├── python_dispatcher_basic.py        # Extension API demo
-│   │   ├── python_invoke_dispatcher.py       # GPU workflow (112.96 TF)
-│   │   └── python_complete_workflow.py       # Original demo
-│   └── README.md                 # Examples documentation
+│   │   ├── verify_correctness.cpp            # Random matrix validation
+│   │   ├── test_known_matrices.cpp           # Structured matrix tests
+│   │   └── verify_data_flow.cpp              # Data transfer verification
+│   ├── python/                   # Python examples (3 files)
+│   │   ├── numpy_to_gpu_complete.py          # NumPy integration (23.52 TF)
+│   │   ├── numpy_dispatcher_advanced.py      # Benchmarks (319 TF)
+│   │   └── python_dispatcher_basic.py        # C++ extension API
+│   ├── README.md                 # Examples documentation
+│   └── CMakeLists.txt            # Build configuration
 │
 ├── codegen/                      # Kernel generation
 │   ├── unified_gemm_codegen.py           # Main generator  
