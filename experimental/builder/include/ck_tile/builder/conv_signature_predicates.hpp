@@ -15,13 +15,14 @@ namespace ck_tile::builder {
  **********************************************/
 
 template <auto Sig>
-concept ProvidesElementwiseOperation = requires {Sig.elementwiseOperation;};
+concept ProvidesElementwiseOperation = requires { Sig.elementwiseOperation; };
 
 template <auto Sig>
-concept ProvidesConvolutionDirection = requires {Sig.direction;};
+concept ProvidesConvolutionDirection = requires { Sig.direction; };
 
 template <auto Sig>
-constexpr auto get_elementwise_operation() {
+constexpr auto get_elementwise_operation()
+{
     if constexpr(ProvidesElementwiseOperation<Sig>)
     {
         return Sig.elementwise_operation;
@@ -33,7 +34,8 @@ constexpr auto get_elementwise_operation() {
 }
 
 template <auto Sig>
-constexpr auto get_conv_direction() {
+constexpr auto get_conv_direction()
+{
     if constexpr(ProvidesConvolutionDirection<Sig>)
     {
         return Sig.direction;
@@ -58,7 +60,8 @@ concept ConvDirectionIsBackwardData = (get_conv_direction<Sig>() == ConvDirectio
 
 // Predicate for backward weight convolution.
 template <auto Sig>
-concept ConvDirectionIsBackwardWeight = (get_conv_direction<Sig>() == ConvDirection::BACKWARD_WEIGHT);
+concept ConvDirectionIsBackwardWeight =
+    (get_conv_direction<Sig>() == ConvDirection::BACKWARD_WEIGHT);
 
 /**********************************************
  * Conv Fwd Device Op Predicates

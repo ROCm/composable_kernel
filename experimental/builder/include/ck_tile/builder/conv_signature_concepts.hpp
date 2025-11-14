@@ -49,26 +49,29 @@ concept ConvLayout = std::same_as<std::remove_cvref_t<T>, GroupConvLayout>;
 
 template <typename T>
 concept HasElementwiseOp = requires(T t) {
-    { t.elementwise_operation };    
+    { t.elementwise_operation };
 };
 
 template <typename T>
 concept HasConvolutionDirection = requires(T t) {
-    { t.direction };    
+    { t.direction };
 };
 
-// Note: it is not required to provide an ElementwiseOp, but if one is provided, check if well defined
+// Note: it is not required to provide an ElementwiseOp, but if one is provided, check if well
+// defined
 template <typename T>
 concept ElementwiseOpWellDefinedIfProvided = requires(T t) {
-    requires !HasElementwiseOp<T> ||
-    requires {{ t.elementwise_operation } -> std::convertible_to<ElementwiseOperation>;}; 
+    requires !HasElementwiseOp<T> || requires {
+        { t.elementwise_operation } -> std::convertible_to<ElementwiseOperation>;
+    };
 };
 
 // Note: it is not required to provide a convolution, but if one is provided, check if well defined
 template <typename T>
 concept ConvolutionDirectionWellDefinedIfProvided = requires(T t) {
-    requires !HasConvolutionDirection<T> ||
-    requires {{ t.direction } -> std::convertible_to<ConvDirection>;}; 
+    requires !HasConvolutionDirection<T> || requires {
+        { t.direction } -> std::convertible_to<ConvDirection>;
+    };
 };
 
 // Concept for a type that defines a convolution's operational signature.
@@ -82,7 +85,6 @@ concept ConvSignatureDescriptor = requires(T t) {
     requires ConvolutionDirectionWellDefinedIfProvided<T>;
 };
 
-
 // Concept to validate a convolution signature's values.
 template <auto Sig>
 concept ValidConvSignature = requires {
@@ -90,7 +92,5 @@ concept ValidConvSignature = requires {
     requires ConvDataType<Sig.data_type>;
     requires IsValidConvDeviceOp<Sig>;
 };
-
-
 
 } // namespace ck_tile::builder
