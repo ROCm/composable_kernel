@@ -230,10 +230,8 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
         set_tile(m, -numeric<SMPLComputeDataType>::infinity());
         clear_tile(l);
 
-        const auto q_origin               = q_dram_window.get_window_origin();
-        const auto [sink_seq_end,
-                    logical_seqlen_k_start,
-                    logical_seqlen_k_end] = [&mask, &q_origin, &num_splits, &i_split]() {
+        const auto q_origin          = q_dram_window.get_window_origin();
+        const auto tile_range_result = [&mask, &q_origin]() {
             if constexpr(kHasSink)
                 return mask.GetSinkTileRangeAlongX(
                     q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{}, num_splits, i_split);
@@ -244,6 +242,9 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                 return std::make_tuple(0, start, end);
             }
         }();
+        const auto sink_seq_end           = std::get<0>(tile_range_result);
+        const auto logical_seqlen_k_start = std::get<1>(tile_range_result);
+        const auto logical_seqlen_k_end   = std::get<2>(tile_range_result);
 
         const auto num_sink_loop = integer_divide_ceil(sink_seq_end, kN0);
 
