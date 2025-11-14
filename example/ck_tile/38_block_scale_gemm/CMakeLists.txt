@@ -20,8 +20,6 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
         gemm_quant_tensor.cpp
         )
     target_compile_options(${EXE_NAME} PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
-    add_executable(tile_example_gemm_quant_mxfp4 EXCLUDE_FROM_ALL gemm_quant_mxfp4.cpp)
-    target_compile_options(tile_example_gemm_quant_mxfp4 PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
 else()
     message(DEBUG "Skipping ck_tile quant gemm tests for current target")
 endif()
