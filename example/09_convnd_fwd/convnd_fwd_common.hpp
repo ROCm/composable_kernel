@@ -77,7 +77,7 @@ inline __host__ __device__ constexpr double get_atol()
 {
     if constexpr(std::is_same_v<DataType, float> && std::is_same_v<GemmType, ck::tf32_t>)
     {
-        return 1e-2;
+        return 1e-3;
     }
     else if constexpr(std::is_same_v<DataType, float>)
     {
