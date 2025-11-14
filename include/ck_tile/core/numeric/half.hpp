@@ -383,6 +383,7 @@ half_t log(half_t x) { return static_cast<half_t>(__logf(static_cast<float>(x)))
 #endif
 
 using fp16x2_t = _Float16 __attribute__((ext_vector_type(2)));
+using fp32x2_t = float __attribute__((ext_vector_type(2)));
 
 CK_TILE_HOST fp16x2_t pk_add_f16(const fp16x2_t& x, const fp16x2_t& y)
 {
