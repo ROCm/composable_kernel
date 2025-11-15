@@ -252,22 +252,22 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using IndexDataType        = typename TypeConfig::IndexDataType;
 
     // host verify
-    ck_tile::HostTensor<ADataType> a_host({tokens, hidden_size}, {stride, 1});
-    ck_tile::HostTensor<GDataType> g_host({experts, shared_intermediate_size_0, hidden_size});
-    ck_tile::HostTensor<DDataType> d_host({experts, hidden_size, shared_intermediate_size_1});
-    ck_tile::HostTensor<ODataType> o_host({tokens, hidden_size}, {stride, 1});
-    ck_tile::HostTensor<AScaleDataType> sa_host({tokens});
-    ck_tile::HostTensor<GScaleDataType> sg_host({shared_intermediate_size_0});
-    ck_tile::HostTensor<DScaleDataType> sd_host({shared_intermediate_size_1});
-    ck_tile::HostTensor<YSmoothScaleDataType> sy_host({shared_intermediate_size_1}); // smooth-quant
-    ck_tile::HostTensor<IndexDataType> topk_ids_host({tokens, topk});                // to be sort
-    ck_tile::HostTensor<TopkWeightDataType> topk_weight_host({tokens, topk});        // to be sort
+    ck_tile::HostTensor<ADataType> a_host({tokens, hidden_size}, {stride, 1}); //tokens=128, hidden=8192
+    ck_tile::HostTensor<GDataType> g_host({experts, shared_intermediate_size_0, hidden_size}); //experts=32, shared_intermediate_size_0=1024, hidden_size=8192
+    ck_tile::HostTensor<DDataType> d_host({experts, hidden_size, shared_intermediate_size_1}); //experts=32, hidden_size=8192, shared_intermediate_size_1=1024
+    ck_tile::HostTensor<ODataType> o_host({tokens, hidden_size}, {stride, 1}); //tokens=128, hidden=8192
+    ck_tile::HostTensor<AScaleDataType> sa_host({tokens}); // tokens=128
+    ck_tile::HostTensor<GScaleDataType> sg_host({shared_intermediate_size_0}); //shared_intermediate_size_0=1024
+    ck_tile::HostTensor<DScaleDataType> sd_host({shared_intermediate_size_1}); //shared_intermediate_size_1=1024
+    ck_tile::HostTensor<YSmoothScaleDataType> sy_host({shared_intermediate_size_1}); // smooth-quant 
+    ck_tile::HostTensor<IndexDataType> topk_ids_host({tokens, topk});                // to be sort (128, 5)
+    ck_tile::HostTensor<TopkWeightDataType> topk_weight_host({tokens, topk});        // to be sort (128, 5)
     ck_tile::HostTensor<IndexDataType> local_expert_mask_host({experts});
 
-    int max_num_tokens_padded = topk * tokens + experts * block_m - topk;
+    int max_num_tokens_padded = topk * tokens + experts * block_m - topk; // 1659
     ck_tile::HostTensor<IndexDataType> sorted_token_ids_host({max_num_tokens_padded});
     ck_tile::HostTensor<TopkWeightDataType> sorted_weight_host({max_num_tokens_padded});
-    ck_tile::HostTensor<IndexDataType> sorted_expert_ids_host(
+    ck_tile::HostTensor<IndexDataType> sorted_expert_ids_host( // 52
         {(max_num_tokens_padded + block_m - 1) / block_m});
     ck_tile::HostTensor<IndexDataType> num_sorted_tiles_host({1});
 
@@ -307,8 +307,8 @@ bool run(const ck_tile::ArgParser& arg_parser)
     }
 
     // permute weight
-    ck_tile::HostTensor<GDataType> g_perm_host = shuffle_moe_weight(g_host, prec_w, 1);
-    ck_tile::HostTensor<DDataType> d_perm_host = shuffle_moe_weight(d_host, prec_w, 1);
+    ck_tile::HostTensor<GDataType> g_perm_host = shuffle_moe_weight(g_host, prec_w, 1); // 32x64x256x4x16x8
+    ck_tile::HostTensor<DDataType> d_perm_host = shuffle_moe_weight(d_host, prec_w, 1); // 32x512x32x4x16x8
 
     // do moe sorting
     if(balance)

@@ -202,7 +202,7 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t)
         }
         else
         {
-            assert(is_wave32() == false);
+            assert(ck_tile::is_wave32() == false);
             divisor = GemmConfig::N_Warp_Tile == 32 ? 2 : 4;
         }
         ck_tile::HostTensor<T> t_view({n_ / GemmConfig::N_Warp_Tile,
