@@ -70,9 +70,6 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
 
-    static constexpr index_t kGemmSingleRepM = Policy::template GetQKBlockGemmSingleRepM<Problem>();
-    static constexpr index_t kGemmNumRepM    = kM0 / kGemmSingleRepM;
-
     // used by NRepetitions2DEpilogue
     static constexpr index_t kGemm1SingleRepN =
         Policy::template GetKVBlockGemmSingleRepN<Problem>();
@@ -318,11 +315,6 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
                 return make_null_tile_window(make_tuple(number<1>{}, number<1>{}));
         }();
 
-        using q_tile_type = decltype(make_static_distributed_tensor<QKVDataType>(
-            Policy::template MakeQRegTileDistribution<Problem>()));
-
-        q_tile_type q_tile;
-
         store_tile(q_lds_write_window, q_dram_tile);
 
         clear_tile(o_acc);
@@ -331,7 +323,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
 
         block_sync_lds();
 
-        q_tile = load_tile(q_lds_read_window);
+        auto q_tile = load_tile(q_lds_read_window);
 
         q_tile = tile_elementwise_in(q_element_func, q_tile);
 
