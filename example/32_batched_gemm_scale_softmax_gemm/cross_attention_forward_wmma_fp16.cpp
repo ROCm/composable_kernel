@@ -29,6 +29,10 @@ Gemm + Softmax + Gemm fused operation. Computes C_g_m_n = Softmax(A_g_m_k * B0_g
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
 #include "ck/host_utility/device_prop.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
