@@ -186,15 +186,15 @@ FMHA_FWD_API_FOOTER_TEMPLATE = """
 float fmha_fwd(fmha_fwd_traits traits, fmha_fwd_args args, const ck_tile::stream_config& config) {{
     const std::string device_name = ck_tile::get_device_name();
 
-    const bool is_swa = (0 < args.window_size_left) or (0 < args.window_size_right);
+    const bool is_swa = (traits.mask_type != mask_enum::no_mask) and
+                        ((0 < args.window_size_left) or (0 < args.window_size_right));
     const bool can_dispatch_v3 =
         (device_name.compare(0, 6, "gfx950") == 0) and
         (traits.data_type.compare("fp16") == 0 or traits.data_type.compare("bf16") == 0) and
         traits.is_v_rowmajor and (not traits.has_logits_soft_cap) and
         (traits.bias_type == bias_enum::no_bias) and (not traits.has_lse) and
-        (not traits.has_dropout) and (not traits.do_fp8_static_quant) and
-        (not traits.skip_min_seqlen_q) and (not is_swa) and (args.nhead_q % args.nhead_k == 0) and
-        (args.hdim_q == 128) and (args.hdim_v == 128);
+        (not traits.has_dropout) and (not traits.do_fp8_static_quant) and (not is_swa) and
+        (args.nhead_q % args.nhead_k == 0) and (args.hdim_q == 128) and (args.hdim_v == 128);
     if ({F_is_v3_enabled} and can_dispatch_v3) {{
         return fmha_fwd_v3(traits, args, config);
     }} else {{
