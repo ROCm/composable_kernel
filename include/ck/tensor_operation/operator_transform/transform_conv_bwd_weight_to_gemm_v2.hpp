@@ -326,7 +326,8 @@ struct TransformConvBwdWeightToGemmV2
         const std::array<index_t, NDimSpatial>& input_right_pads,
         const index_t batch_k,
         const bool split_k_offset_a_hack = false,
-        const bool split_k_offset_b_hack = false)
+        const bool split_k_offset_b_hack = false,
+        const bool use_full_batch_kindex = false)
     {
         using namespace ck;
 
@@ -355,9 +356,13 @@ struct TransformConvBwdWeightToGemmV2
         const index_t GemmK0 =
             math::integer_divide_ceil(GemmKTotal, GemmK1Number * K0PerBlock * GemmKBatch) *
             K0PerBlock;
-        const index_t GemmKPad     = GemmKBatch * GemmK0 * GemmK1Number;
-        const index_t KBatchIndexA = split_k_offset_a_hack ? 1 : GemmKBatch;
-        const index_t KBatchIndexB = split_k_offset_b_hack ? 1 : GemmKBatch;
+        const index_t GemmKPad = GemmKBatch * GemmK0 * GemmK1Number;
+        // When use_full_batch_kindex=true, create full-batch descriptors (V1 mode) for gridwise
+        // kernel compatibility
+        const index_t KBatchIndexA =
+            (split_k_offset_a_hack && !use_full_batch_kindex) ? 1 : GemmKBatch;
+        const index_t KBatchIndexB =
+            (split_k_offset_b_hack && !use_full_batch_kindex) ? 1 : GemmKBatch;
 
         const auto out_grid_desc = make_out_grid_desc<NDim>(N, Wo, K, output_strides);
         const auto in_grid_desc  = make_in_grid_desc<NDim>(N, Wi, C, input_strides);
@@ -501,7 +506,8 @@ struct TransformConvBwdWeightToGemmV2
         const std::array<index_t, NDimSpatial>& input_right_pads,
         const index_t batch_k,
         const bool split_k_offset_a_hack = false,
-        const bool split_k_offset_b_hack = false)
+        const bool split_k_offset_b_hack = false,
+        const bool use_full_batch_kindex = false)
     {
         using namespace ck;
 
@@ -537,9 +543,13 @@ struct TransformConvBwdWeightToGemmV2
         const index_t GemmK0 =
             math::integer_divide_ceil(GemmKTotal, GemmK1Number * K0PerBlock * GemmKBatch) *
             K0PerBlock;
-        const index_t GemmKPad     = GemmKBatch * GemmK0 * GemmK1Number;
-        const index_t KBatchIndexA = split_k_offset_a_hack ? 1 : GemmKBatch;
-        const index_t KBatchIndexB = split_k_offset_b_hack ? 1 : GemmKBatch;
+        const index_t GemmKPad = GemmKBatch * GemmK0 * GemmK1Number;
+        // When use_full_batch_kindex=true, create full-batch descriptors (V1 mode) for gridwise
+        // kernel compatibility
+        const index_t KBatchIndexA =
+            (split_k_offset_a_hack && !use_full_batch_kindex) ? 1 : GemmKBatch;
+        const index_t KBatchIndexB =
+            (split_k_offset_b_hack && !use_full_batch_kindex) ? 1 : GemmKBatch;
 
         const auto out_grid_desc = make_out_grid_desc<NDim>(N, Ho, Wo, K, output_strides);
         const auto in_grid_desc  = make_in_grid_desc<NDim>(N, Hi, Wi, C, input_strides);
@@ -691,7 +701,8 @@ struct TransformConvBwdWeightToGemmV2
         const std::array<index_t, NDimSpatial>& input_right_pads,
         const index_t batch_k,
         const bool split_k_offset_a_hack = false,
-        const bool split_k_offset_b_hack = false)
+        const bool split_k_offset_b_hack = false,
+        const bool use_full_batch_kindex = false)
     {
         using namespace ck;
 
@@ -734,9 +745,13 @@ struct TransformConvBwdWeightToGemmV2
         const index_t GemmK0 =
             math::integer_divide_ceil(GemmKTotal, GemmK1Number * K0PerBlock * GemmKBatch) *
             K0PerBlock;
-        const index_t GemmKPad     = GemmKBatch * GemmK0 * GemmK1Number;
-        const index_t KBatchIndexA = split_k_offset_a_hack ? 1 : GemmKBatch;
-        const index_t KBatchIndexB = split_k_offset_b_hack ? 1 : GemmKBatch;
+        const index_t GemmKPad = GemmKBatch * GemmK0 * GemmK1Number;
+        // When use_full_batch_kindex=true, create full-batch descriptors (V1 mode) for gridwise
+        // kernel compatibility
+        const index_t KBatchIndexA =
+            (split_k_offset_a_hack && !use_full_batch_kindex) ? 1 : GemmKBatch;
+        const index_t KBatchIndexB =
+            (split_k_offset_b_hack && !use_full_batch_kindex) ? 1 : GemmKBatch;
 
         const auto out_grid_desc = make_out_grid_desc<NDim>(N, Do, Ho, Wo, K, output_strides);
         const auto in_grid_desc  = make_in_grid_desc<NDim>(N, Di, Hi, Wi, C, input_strides);
