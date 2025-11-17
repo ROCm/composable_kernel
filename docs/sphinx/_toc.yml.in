@@ -34,6 +34,8 @@ subtrees:
     title: Composable Kernel vector utilities
   - file: reference/Composable-Kernel-wrapper.rst
     title: Composable Kernel wrapper
+  - file: reference/pipelines/index.rst
+    title: Pipeline Policies
   - file: doxygen/html/namespace_c_k.rst
     title: CK API reference 
   - file: doxygen/html/namespaceck__tile.rst
