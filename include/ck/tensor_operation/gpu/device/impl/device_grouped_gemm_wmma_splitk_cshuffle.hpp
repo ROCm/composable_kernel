@@ -107,7 +107,7 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
 #else
     ignore = gemm_descs_const;
     ignore = group_count;
-#endif // end of if (defined(__gfx9__))
+#endif // end of if(defined(__gfx11__) || defined(__gfx12__))
 }
 
 template <typename ALayout,
