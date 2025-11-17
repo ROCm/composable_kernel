@@ -62,9 +62,9 @@ struct unified_attention_kernel_traits
     static constexpr index_t BLOCK_SIZE = 32;
     static constexpr index_t HEAD_SIZE  = 128;
 
-    // TODO please fix this to support also other num_qhead_per_kvhead
-    static constexpr index_t num_qhead_per_kvhead = 4;
-    static constexpr index_t BLOCK_Q              = BLOCK_M / num_qhead_per_kvhead;
+    // TODO please fix this to support also other num_queries_per_kv
+    static constexpr index_t num_queries_per_kv = 4;
+    static constexpr index_t BLOCK_Q            = BLOCK_M / num_queries_per_kv;
 
     //                                    BLOCK_M BLOCK_Q   BLOCK_SIZE  HEAD_SIZE
     using unified_attention_block_tile      = sequence<BLOCK_M, BLOCK_Q, BLOCK_SIZE, HEAD_SIZE>;
@@ -120,6 +120,10 @@ float unified_attention_kernel_launch(const unified_attention_args& args,
                                       const stream_config& config)
 {
     index_t BLOCK_Q = Kernel::BLOCK_Q;
+    assert(args.num_queries_per_kv == Kernel::num_queries_per_kv &&
+           "argument num_queries_per_kv must equal compiled num_queries_per_kv");
+    assert(args.BLOCK_SIZE == Kernel::BLOCK_SIZE &&
+           "argument BLOCK_SIZE must equal compiled BLOCK_SIZE");
     assert(BLOCK_Q == args.num_head_q / args.num_queries_per_kv &&
            "BLOCK_Q must equal BLOCK_M / num_queries_per_kv");
     index_t total_num_q_blocks = args.num_tokens / BLOCK_Q + args.num_seqs;
