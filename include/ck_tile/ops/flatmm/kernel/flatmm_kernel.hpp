@@ -662,17 +662,21 @@ struct FlatmmKernel
 
         const auto scale_m_view = make_naive_tensor_view<address_space_enum::global>(
             kargs.scale_m_ptr.ptr,
-            make_tuple(
-                kargs.M / ScaleGranularityM,
-                ScaleGranularityKA == 0 ? 1 : splitk_batch_offset.splitted_k / ScaleGranularityKA),
+            make_tuple(kargs.M / ScaleGranularityM,
+                       ScaleGranularityKA == 0
+                           ? 1
+                           : splitk_batch_offset.splitted_k /
+                                 (ScaleGranularityKA != 0 ? ScaleGranularityKA : 1)),
             make_tuple(scale_stride_m, 0),
             number < ScaleGranularityM == 1 ? FlatmmPipeline::GetVectorSizeA() : 1 > {},
             number<1>{});
         const auto scale_n_view = make_naive_tensor_view<address_space_enum::global>(
             kargs.scale_n_ptr.ptr,
-            make_tuple(
-                ScaleGranularityKB == 0 ? 1 : (splitk_batch_offset.splitted_k / ScaleGranularityKB),
-                kargs.N / ScaleGranularityN),
+            make_tuple(ScaleGranularityKB == 0
+                           ? 1
+                           : (splitk_batch_offset.splitted_k /
+                              (ScaleGranularityKB != 0 ? ScaleGranularityKB : 1)),
+                       kargs.N / ScaleGranularityN),
             make_tuple(0, scale_stride_n),
             number < ScaleGranularityN == 1 ? FlatmmPipeline::GetVectorSizeB() : 1 > {},
             number<1>{});

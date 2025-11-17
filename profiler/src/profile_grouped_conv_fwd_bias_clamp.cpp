@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "profiler/profile_grouped_conv_fwd_bias_clamp_impl.hpp"

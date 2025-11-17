@@ -1,7 +1,6 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 import logging
-
 import unittest
 
 from ck4inductor.universal_gemm.gen_instances import (
