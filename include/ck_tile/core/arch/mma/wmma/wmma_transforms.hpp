@@ -9,7 +9,8 @@
 
 namespace ck_tile::core::arch::mma {
 
-/*! @struct DuplicateTransform
+/**
+ * @struct DuplicateTransform
  * @brief Transform to duplicate low register elements to high register elements
  */
 struct DuplicateTransform
@@ -23,7 +24,8 @@ struct DuplicateTransform
     }
 };
 
-/*! @struct PadTransform
+/**
+ * @struct PadTransform
  * @brief Transform to pad data from original type to b32 type
  */
 struct PadTransform
@@ -37,7 +39,8 @@ struct PadTransform
     }
 };
 
-/*! @struct UnpadTransform
+/**
+ * @struct UnpadTransform
  * @brief Transform to unpad data from b32 type to original type
  */
 struct UnpadTransform
@@ -50,7 +53,8 @@ struct UnpadTransform
     }
 };
 
-/*! @struct MmaDefaultTransformsGfx11
+/**
+ * @struct MmaDefaultTransformsGfx11
  * @brief Default MMA transforms for GFX11 architecture
  */
 struct MmaDefaultTransformsGfx11
@@ -61,7 +65,8 @@ struct MmaDefaultTransformsGfx11
     using DTransform = UnpadTransform;
 };
 
-/*! @struct MmaDefaultTransformsGfx12
+/**
+ * @struct MmaDefaultTransformsGfx12
  * @brief Default MMA transforms for GFX12 architecture
  */
 struct MmaDefaultTransformsGfx12
@@ -72,24 +77,34 @@ struct MmaDefaultTransformsGfx12
     using DTransform = PassThroughTransform;
 };
 
-/*! @struct MmaTransformsDefaultSelector
+/**
+ * @struct MmaTransformsDefaultSelector
  * @brief Implements the default MMA transforms selection for gfx11 targets
  * @tparam MmaOp Mma operation
- * @tparam GfxTargetId Graphics target identifier
+ * @tparam CompilerTarget The compiler target
  */
-template <MmaOpI MmaOp, amdgcn_target_arch_id GfxTargetId>
-struct MmaTransformsDefaultSelector<MmaOp, GfxTargetId, enable_if_gfx11_target_id_t<GfxTargetId>>
+template <typename MmaOp, typename CompilerTarget>
+// TODO: c++20 template <MmaOpI MmaOp, amdgcn_target_arch_id GfxTargetId>
+// TODO: c++20 requires
+struct MmaTransformsDefaultSelector<MmaOp,
+                                    CompilerTarget,
+                                    enable_if_target_family_gfx11_t<CompilerTarget>>
 {
     using SelectedTransforms = MmaDefaultTransformsGfx11;
 };
 
-/*! @struct MmaTransformsDefaultSelector
+/**
+ * @struct MmaTransformsDefaultSelector
  * @brief Implements the default MMA transforms selection for gfx12 targets
  * @tparam MmaOp Mma operation
- * @tparam GfxTargetId Graphics target identifier
+ * @tparam CompilerTarget The compiler target
  */
-template <MmaOpI MmaOp, amdgcn_target_arch_id GfxTargetId>
-struct MmaTransformsDefaultSelector<MmaOp, GfxTargetId, enable_if_gfx12_target_id_t<GfxTargetId>>
+template <typename MmaOp, typename CompilerTarget>
+// TODO: c++20 template <MmaOpI MmaOp, amdgcn_target_arch_id GfxTargetId>
+// TODO: c++20 requires
+struct MmaTransformsDefaultSelector<MmaOp,
+                                    CompilerTarget,
+                                    enable_if_target_family_gfx12_t<CompilerTarget>>
 {
     using SelectedTransforms = MmaDefaultTransformsGfx12;
 };

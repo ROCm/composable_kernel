@@ -7,7 +7,8 @@
 
 namespace ck_tile::core::arch::mma {
 
-/*! @struct MmaDefaultTransformsGfx9
+/**
+ * @struct MmaDefaultTransformsGfx9
  * @brief Implements the default MMA transforms for gfx9 targets
  */
 struct MmaDefaultTransformsGfx9
@@ -18,13 +19,18 @@ struct MmaDefaultTransformsGfx9
     using DTransform = PassThroughTransform;
 };
 
-/*! @struct MmaTransformsDefaultSelector
+/**
+ * @struct MmaTransformsDefaultSelector
  * @brief Implements the default MMA transforms selection for gfx9 targets
  * @tparam MmaOp Mma operation
- * @tparam GfxTargetId Graphics target id
+ * @tparam CompilerTarget The compiler target
  */
-template <MmaOpI MmaOp, amdgcn_target_arch_id GfxTargetId>
-struct MmaTransformsDefaultSelector<MmaOp, GfxTargetId, enable_if_gfx9_target_id_t<GfxTargetId>>
+// TODO: c++20 template <MmaOpI MmaOp, amdgcn_target_arch_id CompilerTarget>
+// TODO: c++20 requires
+template <typename MmaOp, typename CompilerTarget>
+struct MmaTransformsDefaultSelector<MmaOp,
+                                    CompilerTarget,
+                                    enable_if_target_family_gfx9_t<CompilerTarget>>
 {
     using SelectedTransforms = MmaDefaultTransformsGfx9;
 };

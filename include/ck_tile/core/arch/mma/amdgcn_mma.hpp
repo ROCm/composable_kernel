@@ -9,15 +9,17 @@
 
 namespace ck_tile::core::arch::mma {
 
-/*! @struct Unsupported
- *  @brief  Meta-tag to indicate unsupported amdgcn_mma instance.
+/**
+ * @struct Unsupported
+ * @brief  Meta-tag to indicate unsupported amdgcn_mma instance.
  */
 struct Unsupported;
 
-// /*! @concept MmaOpI
-//  * @brief  Expresses the meta-data interface required for each MmaOp policy.
-//  * @tparam MmaOp The MmaOp to be tested.
-//  */
+#if __cpp_concepts >= 201907L
+/**
+ * @concept MmaOpI
+ * @brief  Expresses the meta-data interface required for each MmaOp policy.
+ */
 template <typename MmaOp>
 concept MmaOpI = requires(MmaOp op) {
     // Requires an op context
@@ -47,23 +49,26 @@ concept MmaOpI = requires(MmaOp op) {
     } -> std::convertible_to<typename MmaOp::CVecType>;
 };
 
-// /*! @struct amdgcn_mma
-//  *  @brief  This is the default MmaOp policy.
-//  *          Instances of this class are to be used as MmaOp policies.
-//  *          Light builtin wrapper for mfma / wmma instructions. This class's job is to
-//  *          provide a uniform interface to invoke the appropriate instruction
-//  *          based on the template parameters provided. This interface is to bridge
-//  *          the gap between the ck_tile API types and the native __builtin types.
-//  *  @tparam ADataType Datatype of input A
-//  *  @tparam BDataType Datatype of input B
-//  *  @tparam CDataType Datatype of accumulator
-//  *  @tparam BlockM M-dimension of mma block
-//  *  @tparam BlockN N-dimension of mma block
-//  *  @tparam BlockK K-dimension of mma block
-//  *  @tparam CtrlFlags Control flags for mma operation
-//  *  @tparam GfxTargetId The current gfx family target of interest being compiled
-//  *  @tparam Enabler SFINAE enabler
-//  */
+#endif // __cpp_concepts >= 201907L
+
+/**
+ *  @class  amdgcn_mma
+ *  @brief  This is the default MmaOp policy.
+ *          Instances of this class are to be used as MmaOp policies.
+ *          Light builtin wrapper for mfma / wmma instructions. This class's job is to
+ *          provide a uniform interface to invoke the appropriate instruction
+ *          based on the template parameters provided. This interface is to bridge
+ *          the gap between the ck_tile API types and the native __builtin types.
+ *  @tparam ADataType Datatype of input A
+ *  @tparam BDataType Datatype of input B
+ *  @tparam CDataType Datatype of accumulator
+ *  @tparam BlockM M-dimension of mma block
+ *  @tparam BlockN N-dimension of mma block
+ *  @tparam BlockK K-dimension of mma block
+ *  @tparam CtrlFlags Control flags for mma operation
+ *  @tparam CompilerTarget The current compiler target
+ *  @tparam Enabler SFINAE enabler
+ */
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
@@ -71,7 +76,7 @@ template <typename ADataType,
           uint32_t BlockN,
           uint32_t BlockK,
           typename CtrlFlags,
-          amdgcn_target_arch_id GfxTargetId,
+          typename CompilerTarget,
           typename Enabler = void>
 struct amdgcn_mma
 {

@@ -26,8 +26,9 @@ enum struct MmaAccumPolicy
     COL_MAJOR
 };
 
-/*! @class Mma
- *  @brief Driver for the wave-tile Mma operation. Given a backend block-wise MmaOp implementation
+/**
+ * @class Mma
+ * @brief Driver for the wave-tile Mma operation. Given a backend block-wise MmaOp implementation
  * (e.g., mfma or wmma), this class performs block-wise decomposition to matrix-multiply input
  * fragments of (A: FragM x FragK) x (B: FragK x FragN) and accumulates results into output fragment
  * (C: FragM x FragN).
@@ -39,7 +40,7 @@ enum struct MmaAccumPolicy
  * @tparam FragK Mma fragment M dimension
  * @tparam AccumPolicy The block order of the accumulation registers (row major or col major block
  * order)
- * @tparam GfxTargetId The target gfx architecture id
+ * @tparam CompilerTarget The compiler target
  * @tparam MmaOp The backend wrapper class that will perform block-wise mma op (e.g., mfma or
  * wmma)
  * @tparam MmaTransforms The set of transforms to be applied to input/output fragments
@@ -57,17 +58,21 @@ template <typename ADataType,
           uint32_t FragM,
           uint32_t FragN,
           uint32_t FragK,
-          MmaAccumPolicy AccumPolicy        = MmaAccumPolicy::ROW_MAJOR,
-          amdgcn_target_arch_id GfxTargetId = get_target_arch_id(),
-          MmaOpI MmaOp                      = typename MmaDefaultSelector<ADataType,
-                                                                          BDataType,
-                                                                          CDataType,
-                                                                          FragM,
-                                                                          FragN,
-                                                                          FragK,
-                                                                          GfxTargetId>::SelectedOp,
-          MmaTransformsI MmaTransforms =
-              typename MmaTransformsDefaultSelector<MmaOp, GfxTargetId>::SelectedTransforms>
+          MmaAccumPolicy AccumPolicy = MmaAccumPolicy::ROW_MAJOR,
+          typename CompilerTarget =
+              decltype(get_compiler_target()), // TODO: c++20 amdgcn_target_arch_id GfxTargetId =
+                                               // get_compiler_target(),
+          typename MmaOp =
+              typename MmaDefaultSelector<ADataType, // TODO: c++20 MmaOpI MmaOp = typename
+                                                     // MmaDefaultSelector<ADataType,
+                                          BDataType,
+                                          CDataType,
+                                          FragM,
+                                          FragN,
+                                          FragK,
+                                          CompilerTarget>::SelectedOp,
+          typename MmaTransforms = // TODO: c++20 MmaTransformsI MmaTransforms =
+          typename MmaTransformsDefaultSelector<MmaOp, CompilerTarget>::SelectedTransforms>
 struct WaveWiseMma
 {
 

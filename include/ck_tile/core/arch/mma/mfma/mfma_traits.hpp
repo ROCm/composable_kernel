@@ -5,26 +5,30 @@
 
 namespace ck_tile::core::arch::mma {
 
-/*! @struct MfmaOp
+/**
+ * @struct MfmaOp
  * @brief Meta-tag for the MFMA operation. This will be used in the MmaOp policies to
  * identify the operation as an MFMA operation.
  */
 struct MfmaOp;
 
-// /** @struct is_mma_op_mfma
-//  * @brief Trait to check if MmaOp is an MFMA operation
-//  * @tparam MmaOp The matrix multiply-accumulate operation type to check
-//  */
+/**
+ * @class is_mma_op_mfma
+ * @brief Trait to check if MmaOp is an MFMA operation
+ * @tparam MmaOp The matrix multiply-accumulate operation type to check
+ */
 template <typename MmaOp, typename = void>
 struct is_mma_op_mfma : std::false_type
 {
 };
 
-/** @struct is_mma_op_mfma
+/**
+ * @struct is_mma_op_mfma
  * @brief MmaOp specialization for MFMA operations, confirming the OpType matches MfmaOp
  * @tparam MmaOp The matrix multiply-accumulate operation type to check
  */
 template <typename MmaOp>
+// TODO: c++20 requires
 struct is_mma_op_mfma<MmaOp, std::enable_if_t<std::is_same_v<typename MmaOp::OpType, MfmaOp>>>
     : std::true_type
 {

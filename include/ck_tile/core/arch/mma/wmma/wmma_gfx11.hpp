@@ -35,12 +35,13 @@ namespace ck_tile::core::arch::mma {
 // For flexibility, it is recommended that for each backend wrapper it supports at least
 // one packed register for each input to be able to process smaller K values by padding.
 
-// /*! @struct DefaultWmmaFlags
-//  * @brief Generates default WMMA control flags based on data types.
-//  * @tparam ADataType Data type of matrix A
-//  * @tparam BDataType Data type of matrix B
-//  * @tparam DataTypeAccum Data type of the accumulator
-//  */
+/**
+ * @class DefaultWmmaFlags
+ * @brief Generates default WMMA control flags based on data types.
+ * @tparam ADataType Data type of matrix A
+ * @tparam BDataType Data type of matrix B
+ * @tparam CDataType Data type of the accumulator
+ */
 template <typename ADataType, typename BDataType, typename CDataType>
 struct DefaultWmmaCtrlFlags
 {
@@ -58,13 +59,16 @@ struct DefaultWmmaCtrlFlags
     constexpr static WmmaCtrlFlags AccumBits = WmmaCtrlFlags::LOW;
 };
 
-/*! @struct amdgcn_mma
+/**
+ * @struct amdgcn_mma
  * @brief Specialization of amdgcn_mma for fp16_t, fp16_t, fp32_t MMA operation on GFX11
  * architecture.
  * @tparam CtrlFlags Control flags for the WMMA operation
- * @tparam GfxTargetId Graphics target identifier
+ * @tparam CompilerTarget Current compiler target
  */
-template <typename CtrlFlags, amdgcn_target_arch_id GfxTargetId>
+// TODO: c++20 template <CtrlFlagsGfx11I CtrlFlags, amdgcn_target CompilerTarget>
+// TODO: c++20 requires
+template <typename CtrlFlags, typename CompilerTarget>
 struct amdgcn_mma<fp16_t,
                   fp16_t,
                   fp32_t,
@@ -72,8 +76,8 @@ struct amdgcn_mma<fp16_t,
                   16u,
                   16u,
                   CtrlFlags,
-                  GfxTargetId,
-                  enable_if_gfx11_target_id_t<GfxTargetId>>
+                  CompilerTarget,
+                  enable_if_target_family_gfx11_t<CompilerTarget>>
 {
     // Wmma operation type
     using OpType = WmmaOp;

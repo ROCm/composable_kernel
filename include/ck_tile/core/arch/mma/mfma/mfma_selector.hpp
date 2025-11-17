@@ -14,28 +14,32 @@
 
 namespace ck_tile::core::arch::mma {
 
-// /*! @struct MfmaDefaultSelector
-//  * @brief Implements a default MFMA selector strategy for gfx9 target architectures.
-//  * This implements the K dimension search strategy to find the largest supported MFMA
-//  * instruction for the given M/N block sizes and datatypes.
-//  * If no supported instruction is found, falls back to an unsupported pass-through
-//  implementation.
-//  * @tparam ADataType Data type of matrix A
-//  * @tparam BDataType Data type of matrix B
-//  * @tparam CDataType Data type of the accumulator
-//  * @tparam BlockM Block M dimension size
-//  * @tparam BlockN Block N dimension size
-//  * @tparam BlockKTest Current Block K dimension size to test
-//  * @tparam GfxTargetId Target architecture ID
-//  */
+/**
+ * @class MfmaDefaultSelector
+ * @brief Implements a default MFMA selector strategy for gfx9 target architectures.
+ * This implements the K dimension search strategy to find the largest supported MFMA
+ * instruction for the given M/N block sizes and datatypes.
+ * If no supported instruction is found, falls back to an unsupported pass-through
+ implementation.
+ * @tparam ADataType Data type of matrix A
+ * @tparam BDataType Data type of matrix B
+ * @tparam CDataType Data type of the accumulator
+ * @tparam BlockM Block M dimension size
+ * @tparam BlockN Block N dimension size
+ * @tparam BlockKTest Current Block K dimension size to test
+ * @tparam CompilerTarget The compiler target
+ * @note Here we assume that BlockKTest is always a power-of-two integer.
+ *       The search strategy starts from a maximum BlockKTest size down to 1u by halving
+ *       each time.
+ */
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
           uint32_t BlockM,
           uint32_t BlockN,
           uint32_t BlockKTest,
-          amdgcn_target_arch_id GfxTargetId>
-    requires(is_gfx9_arch_id(GfxTargetId) && is_power_of_two_integer(BlockKTest))
+          typename CompilerTarget> // TODO: c++20 amdgcn_target_arch_id CompilerTarget>
+// TODO: c++20 requires(is_gfx9_arch_id(CompilerTarget) && is_power_of_two_integer(BlockKTest))
 struct MfmaDefaultSelector
 {
     private:
@@ -48,7 +52,7 @@ struct MfmaDefaultSelector
                    BlockN,
                    BlockKTest,
                    DefaultMfmaCtrlFlags, // By default, let's assume no special flags for MFMA
-                   GfxTargetId>;
+                   CompilerTarget>;
     using CandidateTraits = MmaOpTraits<CandidateOp>;
 
     public:
@@ -63,10 +67,11 @@ struct MfmaDefaultSelector
                                                                        BlockM,
                                                                        BlockN,
                                                                        BlockKTest / 2u,
-                                                                       GfxTargetId>::SelectedOp>;
+                                                                       CompilerTarget>::SelectedOp>;
 };
 
-/*! @struct MfmaDefaultSelector
+/**
+ * @struct MfmaDefaultSelector
  * @brief Implements the base case for the default MFMA selector when no supported instruction is
  * found.
  * @tparam ADataType Data type of matrix A
@@ -74,15 +79,15 @@ struct MfmaDefaultSelector
  * @tparam CDataType Data type of the accumulator
  * @tparam BlockM Block M dimension size
  * @tparam BlockN Block N dimension size
- * @tparam GfxTargetId Target architecture ID
+ * @tparam CompilerTarget The compiler target
  */
 template <typename ADataType,
           typename BDataType,
           typename CDataType,
           uint32_t BlockM,
           uint32_t BlockN,
-          amdgcn_target_arch_id GfxTargetId>
-struct MfmaDefaultSelector<ADataType, BDataType, CDataType, BlockM, BlockN, 1u, GfxTargetId>
+          typename CompilerTarget> // TODO: c++20 amdgcn_target_arch_id CompilerTarget>
+struct MfmaDefaultSelector<ADataType, BDataType, CDataType, BlockM, BlockN, 1u, CompilerTarget>
 {
     // Default unsupported pass-through if no instruction is found
     using SelectedOp =
@@ -93,10 +98,11 @@ struct MfmaDefaultSelector<ADataType, BDataType, CDataType, BlockM, BlockN, 1u, 
                    BlockN,
                    1u,
                    DefaultMfmaCtrlFlags, // By default, let's assume no special flags for MFMA
-                   GfxTargetId>;
+                   CompilerTarget>;
 };
 
-/*! @struct MmaDefaultSelector
+/**
+ * @struct MmaDefaultSelector
  * @brief Implements the gfx9 default MMA selector strategy for wave-wise MMA decomposition.
  * This implements the M/N block size search strategy to find the largest supported MFMA
  * instruction for the given datatypes.
@@ -107,7 +113,7 @@ struct MfmaDefaultSelector<ADataType, BDataType, CDataType, BlockM, BlockN, 1u, 
  * @tparam FragM Size of the M dimension of the fragment to decompose
  * @tparam FragN Size of the N dimension of the fragment to decompose
  * @tparam FragK Size of the K dimension of the fragment to decompose
- * @tparam GfxTargetId Target architecture ID
+ * @tparam CompilerTarget The compiler target
  */
 template <typename ADataType,
           typename BDataType,
@@ -115,32 +121,40 @@ template <typename ADataType,
           uint32_t FragM,
           uint32_t FragN,
           uint32_t FragK,
-          amdgcn_target_arch_id GfxTargetId>
+          typename CompilerTarget> // TODO: c++20 amdgcn_target_arch_id CompilerTarget>
 struct MmaDefaultSelector<ADataType,
                           BDataType,
                           CDataType,
                           FragM,
                           FragN,
                           FragK,
-                          GfxTargetId,
-                          enable_if_gfx9_target_id_t<GfxTargetId>>
+                          CompilerTarget,
+                          enable_if_target_family_gfx9_t<CompilerTarget>>
 {
     private:
     // Provide the default depth-K search strategy for each class of common MFMA shapes.
     // Start searching from the largest K dimension MFMA shape down to the smallest.
     using CandidateOp4x4 =
-        typename MfmaDefaultSelector<ADataType, BDataType, CDataType, 4u, 4u, 4u, GfxTargetId>::
+        typename MfmaDefaultSelector<ADataType, BDataType, CDataType, 4u, 4u, 4u, CompilerTarget>::
             SelectedOp;
-    using CandidateOp16x16 =
-        typename MfmaDefaultSelector<ADataType, BDataType, CDataType, 16u, 16u, 128u, GfxTargetId>::
-            SelectedOp;
-    using CandidateOp32x32 =
-        typename MfmaDefaultSelector<ADataType, BDataType, CDataType, 32u, 32u, 64u, GfxTargetId>::
-            SelectedOp;
+    using CandidateOp16x16 = typename MfmaDefaultSelector<ADataType,
+                                                          BDataType,
+                                                          CDataType,
+                                                          16u,
+                                                          16u,
+                                                          128u,
+                                                          CompilerTarget>::SelectedOp;
+    using CandidateOp32x32 = typename MfmaDefaultSelector<ADataType,
+                                                          BDataType,
+                                                          CDataType,
+                                                          32u,
+                                                          32u,
+                                                          64u,
+                                                          CompilerTarget>::SelectedOp;
 
     // Default operation triggers pass-through
     using DefaultOp =
-        typename MfmaDefaultSelector<ADataType, BDataType, CDataType, 1u, 1u, 1u, GfxTargetId>::
+        typename MfmaDefaultSelector<ADataType, BDataType, CDataType, 1u, 1u, 1u, CompilerTarget>::
             SelectedOp;
 
     // Traits for each candidate

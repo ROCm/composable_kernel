@@ -281,127 +281,6 @@
 #define CK_TILE_ENC_SUPPORT_Y_TO_R 0
 #endif
 
-// Defines CK_TILE specific architecture symbols
-// Guarantee the following symbols are defined to either 0 or 1:
-// CK_TILE_ARCH_GFX908
-// CK_TILE_ARCH_GFX90A
-// CK_TILE_ARCH_GFX942
-// CK_TILE_ARCH_GFX950
-// CK_TILE_ARCH_GFX1100
-// CK_TILE_ARCH_GFX1101
-// CK_TILE_ARCH_GFX1102
-// CK_TILE_ARCH_GFX1151
-// CK_TILE_ARCH_GFX1200
-// CK_TILE_ARCH_GFX1201
-// CK_TILE_ARCH_HOST
-// TODO: Replace specific instances of __gfxXYZW___ with CK_TILE_ARCH_GFXXYZW
-#if defined(__HIP_DEVICE_COMPILE__) && __HIP_DEVICE_COMPILE__
-#define CK_TILE_DEVICE_COMPILE 1
-#else
-#define CK_TILE_DEVICE_COMPILE 0
-#endif
-#if defined(__gfx908__) && CK_TILE_DEVICE_COMPILE
-#define CK_TILE_ARCH_GFX908 __gfx908__
-#elif defined(__gfx90a__) && CK_TILE_DEVICE_COMPILE
-#define CK_TILE_ARCH_GFX90A __gfx90a__
-#elif defined(__gfx942__) && CK_TILE_DEVICE_COMPILE
-#define CK_TILE_ARCH_GFX942 __gfx942__
-#elif defined(__gfx950__) && CK_TILE_DEVICE_COMPILE
-#define CK_TILE_ARCH_GFX950 __gfx950__
-#elif defined(__gfx1100__) && CK_TILE_DEVICE_COMPILE
-#define CK_TILE_ARCH_GFX1100 __gfx1100__
-#elif defined(__gfx1101__) && CK_TILE_DEVICE_COMPILE
-#define CK_TILE_ARCH_GFX1101 __gfx1101__
-#elif defined(__gfx1102__) && CK_TILE_DEVICE_COMPILE
-#define CK_TILE_ARCH_GFX1102 __gfx1102__
-#elif defined(__gfx1151__) && CK_TILE_DEVICE_COMPILE
-#define CK_TILE_ARCH_GFX1151 __gfx1151__
-#elif defined(__gfx1200__) && CK_TILE_DEVICE_COMPILE
-#define CK_TILE_ARCH_GFX1200 __gfx1200__
-#elif defined(__gfx1201__) && CK_TILE_DEVICE_COMPILE
-#define CK_TILE_ARCH_GFX1201 __gfx1201__
-#elif !CK_TILE_DEVICE_COMPILE
-#define CK_TILE_ARCH_HOST 1
-#else
-static_assert(0, "Unsupported architecture"); // TODO: Do we want to stop the build if we don't
-                                              // support the architecture?
-#endif
-
-#if !defined(CK_TILE_ARCH_GFX908)
-#define CK_TILE_ARCH_GFX908 0
-#endif
-#if !defined(CK_TILE_ARCH_GFX90A)
-#define CK_TILE_ARCH_GFX90A 0
-#endif
-#if !defined(CK_TILE_ARCH_GFX942)
-#define CK_TILE_ARCH_GFX942 0
-#endif
-#if !defined(CK_TILE_ARCH_GFX950)
-#define CK_TILE_ARCH_GFX950 0
-#endif
-#if !defined(CK_TILE_ARCH_GFX1100)
-#define CK_TILE_ARCH_GFX1100 0
-#endif
-#if !defined(CK_TILE_ARCH_GFX1101)
-#define CK_TILE_ARCH_GFX1101 0
-#endif
-#if !defined(CK_TILE_ARCH_GFX1102)
-#define CK_TILE_ARCH_GFX1102 0
-#endif
-#if !defined(CK_TILE_ARCH_GFX1151)
-#define CK_TILE_ARCH_GFX1151 0
-#endif
-#if !defined(CK_TILE_ARCH_GFX1200)
-#define CK_TILE_ARCH_GFX1200 0
-#endif
-#if !defined(CK_TILE_ARCH_GFX1201)
-#define CK_TILE_ARCH_GFX1201 0
-#endif
-#if !defined(CK_TILE_ARCH_HOST)
-#define CK_TILE_ARCH_HOST 0
-#endif
-
-// Defines CK_TILE grouped architecture symbols
-// Guarantee the following symbols are defined to either 0 or 1:
-// CK_TILE_ARCH_GFX9
-// CK_TILE_ARCH_GFX11
-// CK_TILE_ARCH_GFX12
-// CK_TILE_WAVE64_MODE
-// CK_TILE_WAVE32_MODE
-// NOTE: Wave mode on the host MUST be determined with the HIP API @runtime.
-// TODO: Replace specific instances of __gfxXY__ with grouped architecture symbols
-// CK_TILE_ARCH_GFXXY
-#if CK_TILE_ARCH_GFX908 || CK_TILE_ARCH_GFX90A || CK_TILE_ARCH_GFX942 || CK_TILE_ARCH_GFX950
-#define CK_TILE_ARCH_GFX9 1
-#define CK_TILE_WAVE64_MODE 1
-#endif
-
-#if CK_TILE_ARCH_GFX1100 || CK_TILE_ARCH_GFX1101 || CK_TILE_ARCH_GFX1102 || CK_TILE_ARCH_GFX1151
-#define CK_TILE_ARCH_GFX11 1
-#define CK_TILE_WAVE32_MODE 1
-#endif
-
-#if CK_TILE_ARCH_GFX1200 || CK_TILE_ARCH_GFX1201
-#define CK_TILE_ARCH_GFX12 1
-#define CK_TILE_WAVE32_MODE 1
-#endif
-
-#if !defined(CK_TILE_ARCH_GFX9)
-#define CK_TILE_ARCH_GFX9 0
-#endif
-#if !defined(CK_TILE_ARCH_GFX11)
-#define CK_TILE_ARCH_GFX11 0
-#endif
-#if !defined(CK_TILE_ARCH_GFX12)
-#define CK_TILE_ARCH_GFX12 0
-#endif
-#if !defined(CK_TILE_WAVE64_MODE)
-#define CK_TILE_WAVE64_MODE 0
-#endif
-#if !defined(CK_TILE_WAVE32_MODE)
-#define CK_TILE_WAVE32_MODE 0
-#endif
-
 // Mark unsupported features with a deprecation warning in debug builds
 #if defined(NDEBUG)
 #define CK_TILE_UNSUPPORTED_IMPL(MSG)
@@ -409,22 +288,234 @@ static_assert(0, "Unsupported architecture"); // TODO: Do we want to stop the bu
 #define CK_TILE_UNSUPPORTED_IMPL(MSG) __attribute__((deprecated(MSG)))
 #endif
 
-// Sanity checks
-// TODO: Verify this is actually the case we want to enforce:
-// gfx9: wave64 only
-// gfx11: wave32 only
-// gfx12: wave32 only
-#if CK_TILE_ARCH_GFX9
-static_assert(!static_cast<bool>(CK_TILE_WAVE32_MODE) && static_cast<bool>(CK_TILE_WAVE64_MODE),
-              "CK_TILE supports only wave64 for gfx9 arch");
-#endif
+namespace ck_tile::core {
+/**
+ * @struct amdgcn_device_compiler_state
+ * @brief Defines compiler states for supported AMDGCN devices.
+ * @var CK_TILE_HOST_COMPILE Indicates if the compilation is for the host.
+ * @var CK_TILE_DEVICE_COMPILE Indicates if the compilation is for AMDGCN device.
+ * @var CK_TILE_ARCH_GFX908 Indicates if the compiler target architecture is GFX908.
+ * @var CK_TILE_ARCH_GFX90A Indicates if the compiler target architecture is GFX90A.
+ * @var CK_TILE_ARCH_GFX942 Indicates if the compiler target architecture is GFX942.
+ * @var CK_TILE_ARCH_GFX950 Indicates if the compiler target architecture is GFX950.
+ * @var CK_TILE_ARCH_GFX1030 Indicates if the compiler target architecture is GFX1030.
+ * @var CK_TILE_ARCH_GFX1031 Indicates if the compiler target architecture is GFX1031.
+ * @var CK_TILE_ARCH_GFX1032 Indicates if the compiler target architecture is GFX1032.
+ * @var CK_TILE_ARCH_GFX1034 Indicates if the compiler target architecture is GFX1034.
+ * @var CK_TILE_ARCH_GFX1035 Indicates if the compiler target architecture is GFX1035.
+ * @var CK_TILE_ARCH_GFX1036 Indicates if the compiler target architecture is GFX1036.
+ * @var CK_TILE_ARCH_GFX10_3_GENERIC Indicates if the compiler target architecture is GFX10.3
+ * generic.
+ * @var CK_TILE_ARCH_GFX1100 Indicates if the compiler target architecture is GFX1100.
+ * @var CK_TILE_ARCH_GFX1101 Indicates if the compiler target architecture is GFX1101.
+ * @var CK_TILE_ARCH_GFX1102 Indicates if the compiler target architecture is GFX1102.
+ * @var CK_TILE_ARCH_GFX1151 Indicates if the compiler target architecture is GFX1151.
+ * @var CK_TILE_ARCH_GFX1152 Indicates if the compiler target architecture is GFX1152.
+ * @var CK_TILE_ARCH_GFX11_GENERIC Indicates if the compiler target architecture is GFX11 generic.
+ * @var CK_TILE_ARCH_GFX1200 Indicates if the compiler target architecture is GFX1200.
+ * @var CK_TILE_ARCH_GFX1201 Indicates if the compiler target architecture is GFX1201.
+ * @var CK_TILE_ARCH_GFX12_GENERIC Indicates if the compiler target architecture is GFX12 generic.
+ */
+struct amdgcn_compiler_target_state
+{
+    // Determine if we are compiling for device or host
+#if defined(__HIP_DEVICE_COMPILE__) && __HIP_DEVICE_COMPILE__
+    static constexpr bool CK_TILE_DEVICE_COMPILE = true;
+    static constexpr bool CK_TILE_HOST_COMPILE   = false;
+#else
+    static constexpr bool CK_TILE_DEVICE_COMPILE = false;
+    static constexpr bool CK_TILE_HOST_COMPILE   = true;
+#endif // __HIP_DEVICE_COMPILE__ && __HIP_DEVICE_COMPILE__
 
-#if CK_TILE_ARCH_GFX11
-static_assert(static_cast<bool>(CK_TILE_WAVE32_MODE) && !static_cast<bool>(CK_TILE_WAVE64_MODE),
-              "CK_TILE supports only wave32 for gfx11 arch");
-#endif
+    // GFX9
+#if defined(__gfx908__)
+    static constexpr bool CK_TILE_ARCH_GFX908 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX908 = false;
+#endif // __gfx908__
 
-#if CK_TILE_ARCH_GFX12
-static_assert(static_cast<bool>(CK_TILE_WAVE32_MODE) && !static_cast<bool>(CK_TILE_WAVE64_MODE),
-              "CK_TILE supports only wave32 for gfx12 arch");
-#endif
+#if defined(__gfx90a__)
+    static constexpr bool CK_TILE_ARCH_GFX90A = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX90A = false;
+#endif // __gfx90a__
+
+#if defined(__gfx942__)
+    static constexpr bool CK_TILE_ARCH_GFX942 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX942 = false;
+#endif // __gfx942__
+
+#if defined(__gfx950__)
+    static constexpr bool CK_TILE_ARCH_GFX950 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX950 = false;
+#endif // __gfx950__
+
+    // GFX10
+#if defined(__gfx1030__)
+    static constexpr bool CK_TILE_ARCH_GFX1030 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1030 = false;
+#endif // __gfx1030__
+
+#if defined(__gfx1031__)
+    static constexpr bool CK_TILE_ARCH_GFX1031 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1031 = false;
+#endif // __gfx1031__
+
+#if defined(__gfx1032__)
+    static constexpr bool CK_TILE_ARCH_GFX1032 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1032 = false;
+#endif // __gfx1032__
+
+#if defined(__gfx1034__)
+    static constexpr bool CK_TILE_ARCH_GFX1034 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1034 = false;
+#endif // __gfx1034__
+
+#if defined(__gfx1035__)
+    static constexpr bool CK_TILE_ARCH_GFX1035 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1035 = false;
+#endif // __gfx1035__
+
+#if defined(__gfx1036__)
+    static constexpr bool CK_TILE_ARCH_GFX1036 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1036 = false;
+#endif // __gfx1036__
+
+#if defined(__gfx10_3_generic__)
+    static constexpr bool CK_TILE_ARCH_GFX10_3_GENERIC = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX10_3_GENERIC = false;
+#endif // __gfx10_3_generic__
+
+    // GFX11
+#if defined(__gfx1100__)
+    static constexpr bool CK_TILE_ARCH_GFX1100 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1100 = false;
+#endif // __gfx1100__
+
+#if defined(__gfx1101__)
+    static constexpr bool CK_TILE_ARCH_GFX1101 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1101 = false;
+#endif // __gfx1101__
+
+#if defined(__gfx1102__)
+    static constexpr bool CK_TILE_ARCH_GFX1102 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1102 = false;
+#endif // __gfx1102__
+
+#if defined(__gfx1103__)
+    static constexpr bool CK_TILE_ARCH_GFX1103 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1103 = false;
+#endif // __gfx1103__
+
+#if defined(__gfx1150__)
+    static constexpr bool CK_TILE_ARCH_GFX1150 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1150 = false;
+#endif // __gfx1150__
+
+#if defined(__gfx1151__)
+    static constexpr bool CK_TILE_ARCH_GFX1151 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1151 = false;
+#endif // __gfx1151__
+
+#if defined(__gfx1152__)
+    static constexpr bool CK_TILE_ARCH_GFX1152 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1152 = false;
+#endif // __gfx1152__
+
+#if defined(__gfx11_generic__)
+    static constexpr bool CK_TILE_ARCH_GFX11_GENERIC = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX11_GENERIC = false;
+#endif // __gfx11_generic__
+
+    // GFX12
+#if defined(__gfx1200__)
+    static constexpr bool CK_TILE_ARCH_GFX1200 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1200 = false;
+#endif // __gfx1200__
+
+#if defined(__gfx1201__)
+    static constexpr bool CK_TILE_ARCH_GFX1201 = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX1201 = false;
+#endif // __gfx1201__
+
+#if defined(__gfx12_generic__)
+    static constexpr bool CK_TILE_ARCH_GFX12_GENERIC = true;
+#else
+    static constexpr bool CK_TILE_ARCH_GFX12_GENERIC = false;
+#endif // __gfx12_generic__
+};
+
+/**
+ * @brief Helper to count the number of times an item is contained within a list of values
+ * @tparam T The type of the search value
+ * @tparam Ts The types of the search list values
+ * @param search The value to search for
+ * @param searchList The list of values to search in
+ * @return true if the search value is in the search list, false otherwise
+ */
+template <typename T, typename... Ts>
+// TODO: c++20 concept    requires((std::is_convertible<Ts, T>::value && ...) && (sizeof...(Ts) >=
+// 1))
+CK_TILE_HOST_DEVICE static constexpr uint32_t count_values_of(T search, Ts... searchList)
+{
+    static_assert((std::is_convertible<Ts, T>::value && ...),
+                  "All search list values must be convertible to the search value type");
+    static_assert(sizeof...(Ts) >= 1, "At least one value must be provided to search in");
+
+    return (static_cast<uint32_t>(search == static_cast<T>(searchList)) + ...);
+}
+
+#define CK_TILE_COMPILER_TARGETS_LIST                               \
+    amdgcn_compiler_target_state::CK_TILE_ARCH_GFX908,              \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX90A,          \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX942,          \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX950,          \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1030,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1031,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1032,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1034,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1035,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1036,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX10_3_GENERIC, \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1100,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1101,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1102,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1103,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1150,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1151,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1152,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX11_GENERIC,   \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1200,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX1201,         \
+        amdgcn_compiler_target_state::CK_TILE_ARCH_GFX12_GENERIC
+
+// Sanity check: make sure only one target architecture is defined during device compile
+static_assert(!amdgcn_compiler_target_state::CK_TILE_DEVICE_COMPILE ||
+                  count_values_of(true, CK_TILE_COMPILER_TARGETS_LIST) == 1u,
+              "Only one target architecture can be defined during device compile");
+
+// Sanity check: make sure no device target architecture is defined during host compile
+static_assert(!amdgcn_compiler_target_state::CK_TILE_HOST_COMPILE ||
+                  count_values_of(true, CK_TILE_COMPILER_TARGETS_LIST) == 0u,
+              "No device target architecture can be defined during host compile");
+
+} // namespace ck_tile::core

@@ -4,7 +4,8 @@
 
 namespace ck_tile::core::arch::mma {
 
-/*! @struct PassThroughTransform
+/**
+ * @struct PassThroughTransform
  * @brief A no-op transform that passes through the input as-is.
  */
 struct PassThroughTransform
@@ -16,19 +17,23 @@ struct PassThroughTransform
     }
 };
 
-// /*! @struct MmaTransformsDefaultSelector
-//  *  @brief  Default selector for MmaTransforms based on MmaOp and GfxTargetId.
-//  *  @tparam MmaOp The Mma operation type.
-//  *  @tparam GfxTargetId The target architecture ID.
-//  *  @tparam Enable SFINAE parameter for specialization.
-//  */
-template <MmaOpI MmaOp, amdgcn_target_arch_id GfxTargetId, typename Enable = void>
+/**
+ *  @class MmaTransformsDefaultSelector
+ *  @brief  Default selector for MmaTransforms based on MmaOp and CompilerTarget
+ *  @tparam MmaOp The Mma operation type
+ *  @tparam CompilerTarget The compiler target
+ *  @tparam Enable SFINAE parameter for specialization
+ */
+template <typename MmaOp, typename CompilerTarget, typename Enable = void>
+// TODO: c++20 template <MmaOpI MmaOp, amdgcn_target_arch_id CompilerTarget, typename Enable = void>
 struct MmaTransformsDefaultSelector;
 
-// /*! @concept MmaTransformsI
-//  *  @brief  Expresses the interface of required members for each MmaTransforms type.
-//  *  @tparam MmaTransforms The MmaTransforms type to be tested.
-//  */
+#if __cpp_concepts >= 201907L
+
+/**
+ * @concept MmaTransformsI
+ * @brief  Expresses the interface of required members for each MmaTransforms type.
+ */
 template <typename MmaTransforms>
 concept MmaTransformsI = requires(MmaTransforms transforms) {
     // Transforms should define TransformA, TransformB, TransformC, and TransformD types
@@ -37,5 +42,7 @@ concept MmaTransformsI = requires(MmaTransforms transforms) {
     typename MmaTransforms::CTransform;
     typename MmaTransforms::DTransform;
 };
+
+#endif // __cpp_concepts >= 201907L
 
 } // namespace ck_tile::core::arch::mma

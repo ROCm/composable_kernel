@@ -5,8 +5,9 @@
 
 namespace ck_tile::core::arch::mma {
 
-/*! @enum WmmaCtrlFlags
- *  @brief Common wmma control flags for gfx11 and gfx12
+/**
+ * @enum WmmaCtrlFlags
+ * @brief Common wmma control flags for gfx11 and gfx12
  */
 enum struct WmmaCtrlFlags : bool
 {

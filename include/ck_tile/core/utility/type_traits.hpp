@@ -137,9 +137,13 @@ struct is_any_of<CompareTo, FirstType, Rest...>
  * @return true if the search value is in the search list, false otherwise
  */
 template <typename T, typename... Ts>
-    requires((std::is_convertible<Ts, T>::value && ...) && (sizeof...(Ts) >= 1))
+// TODO: c++20    requires((std::is_convertible<Ts, T>::value && ...) && (sizeof...(Ts) >= 1))
 CK_TILE_HOST_DEVICE static constexpr bool is_any_value_of(T search, Ts... searchList)
 {
+    static_assert((std::is_convertible<Ts, T>::value && ...),
+                  "All searchList values must be convertible to the type of search");
+    static_assert(sizeof...(Ts) >= 1, "searchList must contain at least one value");
+
     return ((search == static_cast<T>(searchList)) || ...);
 }
 

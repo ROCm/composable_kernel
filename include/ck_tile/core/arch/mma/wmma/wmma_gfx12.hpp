@@ -19,13 +19,16 @@ namespace ck_tile::core::arch::mma {
 // For flexibility, it is recommended that for each backend wrapper it supports at least
 // one packed register for each input to be able to process smaller K values by padding.
 
-/*! @struct amdgcn_mma
+/**
+ * @struct amdgcn_mma
  * @brief Specialization of amdgcn_wmma for fp16_t, fp16_t, fp32_t MMA operation on GFX12
  * architecture.
  * @tparam CtrlFlags Control flags for the WMMA operation
- * @tparam GfxTargetId Graphics target identifier
+ * @tparam CompilerTarget Current compiler target
  */
-template <typename CtrlFlags, amdgcn_target_arch_id GfxTargetId>
+// TODO: c++20 template <CtrlFlagsGfx12I CtrlFlags, amdgcn_target CompilerTarget>
+// TODO: c++20 requires
+template <typename CtrlFlags, typename CompilerTarget>
 struct amdgcn_mma<fp16_t,
                   fp16_t,
                   fp32_t,
@@ -33,8 +36,8 @@ struct amdgcn_mma<fp16_t,
                   16u,
                   16u,
                   CtrlFlags,
-                  GfxTargetId,
-                  enable_if_gfx12_target_id_t<GfxTargetId>>
+                  CompilerTarget,
+                  enable_if_target_family_gfx12_t<CompilerTarget>>
 {
     // Wmma operation type
     using OpType = WmmaOp;

@@ -3,6 +3,7 @@
 
 #include <hip/hip_runtime.h>
 #include <gtest/gtest.h>
+
 #include "ck_tile/core/arch/arch.hpp"
 #include "ck_tile/core/arch/mma/amdgcn_mma.hpp"
 #include "ck_tile/core/arch/mma/mma_selector.hpp"
@@ -14,34 +15,30 @@ using namespace ck_tile;
 using namespace ck_tile::core::arch;
 using namespace ck_tile::core::arch::mma;
 
-// Dummy control flags for testing
+// Dummy values for testing
+constexpr uint32_t DummyTargetIdVal = 55555u;
+using DummyCompilerTarget = amdgcn_target<static_cast<amdgcn_target_id>(DummyTargetIdVal)>;
+struct DummyOpType;
 struct DummyCtrlFlags
 {
 };
 
-constexpr uint32_t DummyGfxTargetIdVal = 55555u;
-
-// Spoof a new dummy architecture ID for testing
-constexpr amdgcn_target_arch_id DummyGfxTargetId =
-    static_cast<amdgcn_target_arch_id>(DummyGfxTargetIdVal);
-
-// Define a new dummy op type
-struct DummyOpType;
-
-/*! @brief Returns true if the given arch_id is a gfx11 architecture */
-constexpr bool is_dummy_arch_id(amdgcn_target_arch_id arch_id)
+/** @brief Returns true if the given target id matches the dummy */
+constexpr bool is_dummy_target(DummyCompilerTarget dummy)
 {
-    return static_cast<uint32_t>(arch_id) == DummyGfxTargetIdVal;
+    return static_cast<uint32_t>(dummy.TARGET_ID) == DummyTargetIdVal;
 }
 
 // Enable if for dummy architecture ID
-template <amdgcn_target_arch_id GfxTargetId>
-using enable_if_dummy_arch_id_t = std::enable_if_t<is_dummy_arch_id(GfxTargetId)>;
+// TODO: c++20 template <amdgcn_target_arch_id CompilerTarget>
+template <typename CompilerTarget>
+using enable_if_target_id_dummy_t = std::enable_if_t<is_dummy_target(CompilerTarget{})>;
 
 // Specialization of amdgcn_mma for a supported dummy architecture.
 // This way, we don't have to worry about underlying architectural details,
 // and can focus on testing the mechanism of selecting supported vs unsupported architectures.
-template <amdgcn_target_arch_id GfxTargetId>
+// TODO: c++20 template <amdgcn_target_arch_id CompilerTarget>
+template <typename CompilerTarget>
 struct amdgcn_mma<fp32_t,
                   fp32_t,
                   fp32_t,
@@ -49,8 +46,8 @@ struct amdgcn_mma<fp32_t,
                   16u,
                   16u,
                   DummyCtrlFlags,
-                  GfxTargetId,
-                  enable_if_dummy_arch_id_t<GfxTargetId>>
+                  CompilerTarget,
+                  enable_if_target_id_dummy_t<CompilerTarget>>
 {
     // Mfma operation type
     using OpType = DummyOpType;
@@ -82,9 +79,10 @@ struct amdgcn_mma<fp32_t,
 };
 
 // Have an alias so we can test supported arch vs unsupported arch
-template <amdgcn_target_arch_id GfxTargetId>
+// TODO: c++20 template <amdgcn_target_arch_id CompilerTarget>
+template <typename CompilerTarget>
 using DummyAmdgcnMma =
-    amdgcn_mma<fp32_t, fp32_t, fp32_t, 16u, 16u, 16u, DummyCtrlFlags, GfxTargetId>;
+    amdgcn_mma<fp32_t, fp32_t, fp32_t, 16u, 16u, 16u, DummyCtrlFlags, CompilerTarget>;
 
 /*! @struct MmaDefaultSelector
  * @brief For dummy Id only, instantiate tests for both MFMA and WMMA selectors so we can them both
@@ -94,7 +92,7 @@ using DummyAmdgcnMma =
  * @tparam FragM Size of the M dimension of the fragment to decompose
  * @tparam FragN Size of the N dimension of the fragment to decompose
  * @tparam FragK Size of the K dimension of the fragment to decompose
- * @tparam GfxTargetId Target architecture ID
+ * @tparam CompilerTarget The compiler target
  */
 template <typename ADataType,
           typename BDataType,
@@ -102,24 +100,26 @@ template <typename ADataType,
           uint32_t FragM,
           uint32_t FragN,
           uint32_t FragK,
-          amdgcn_target_arch_id GfxTargetId>
+          typename CompilerTarget>
+// TODO: c++20 amdgcn_target_arch_id CompilerTarget>
+// TODO: requires
 struct MmaDefaultSelector<ADataType,
                           BDataType,
                           CDataType,
                           FragM,
                           FragN,
                           FragK,
-                          GfxTargetId,
-                          enable_if_dummy_arch_id_t<GfxTargetId>>
+                          CompilerTarget,
+                          enable_if_target_id_dummy_t<CompilerTarget>>
 {
-    using SelectedOp = DummyAmdgcnMma<GfxTargetId>;
+    using SelectedOp = DummyAmdgcnMma<CompilerTarget>;
 };
 
 // Test case for supported architecture
 TEST(TestAmdgcnMma, ArchSupported)
 {
-    // Instantiate MmaOp with the dummy supported GfxTargetId
-    using MmaOp = DummyAmdgcnMma<DummyGfxTargetId>;
+    // Instantiate MmaOp with the dummy supported CompilerTarget
+    using MmaOp = DummyAmdgcnMma<DummyCompilerTarget>;
 
     EXPECT_TRUE((!std::is_same_v<typename MmaOp::OpType, Unsupported>));
 
@@ -152,11 +152,8 @@ TEST(TestAmdgcnMma, ArchSupported)
 // Test case for unsupported architecture
 TEST(TestAmdgcnMma, ArchUnsupported)
 {
-    // Use an unsupported GfxTargetId (e.g., Host)
-    constexpr auto UnsupportedGfxTargetId = amdgcn_target_arch_id::HOST;
-
-    // Instantiate MmaOp with the dummy unsupported GfxTargetId
-    using MmaOp = DummyAmdgcnMma<UnsupportedGfxTargetId>;
+    // Instantiate MmaOp with the dummy unsupported CompilerTarget (e.g., HOST)
+    using MmaOp = DummyAmdgcnMma<amdgcn_target<>>;
 
     // OpType should be Unsupported
     EXPECT_TRUE((std::is_same<typename MmaOp::OpType, Unsupported>::value));
@@ -196,7 +193,7 @@ __global__ void test_amdgcn_mma_exec_kernel(typename MmaOp::AVecType* a,
 
 TEST(TestAmdgcnMma, ArchSupportedExecDeviceOutput)
 {
-    using MmaOp    = DummyAmdgcnMma<DummyGfxTargetId>;
+    using MmaOp    = DummyAmdgcnMma<DummyCompilerTarget>;
     using DataType = fp32_t;
 
     typename MmaOp::AVecType h_a;
@@ -254,9 +251,8 @@ TEST(TestAmdgcnMma, ArchSupportedExecDeviceOutput)
 
 TEST(TestAmdgcnMma, ArchUnsupportedExecDeviceOutput)
 {
-    constexpr auto UnsupportedGfxTargetId = amdgcn_target_arch_id::HOST;
-    using MmaOp                           = DummyAmdgcnMma<UnsupportedGfxTargetId>;
-    using DataType                        = fp32_t;
+    using MmaOp    = DummyAmdgcnMma<amdgcn_target<>>;
+    using DataType = fp32_t;
 
     typename MmaOp::AVecType h_a{};
     typename MmaOp::BVecType h_b{};
@@ -305,7 +301,7 @@ TEST(TestAmdgcnMma, ArchUnsupportedExecDeviceOutput)
 // Test MmaOpParams for supported DummyAmdgcnMma, including all member variables
 TEST(TestAmdgcnMma, MmaOpParamsTraitsSupportedMembers)
 {
-    using MmaOp  = DummyAmdgcnMma<DummyGfxTargetId>;
+    using MmaOp  = DummyAmdgcnMma<DummyCompilerTarget>;
     using Traits = MmaOpParams<MmaOp>;
 
     // Check MmaOpParams members
@@ -321,9 +317,8 @@ TEST(TestAmdgcnMma, MmaOpParamsTraitsSupportedMembers)
 // Test MmaOpParams for unsupported DummyAmdgcnMma, including all member variables
 TEST(TestAmdgcnMma, MmaOpParamsUnsupportedMembers)
 {
-    constexpr auto UnsupportedGfxTargetId = amdgcn_target_arch_id::HOST;
-    using MmaOp                           = DummyAmdgcnMma<UnsupportedGfxTargetId>;
-    using Traits                          = MmaOpParams<MmaOp>;
+    using MmaOp  = DummyAmdgcnMma<amdgcn_target<>>;
+    using Traits = MmaOpParams<MmaOp>;
 
     // Check MmaOpParams members
     EXPECT_TRUE((std::is_same<typename Traits::ADataType, fp32_t>::value));
@@ -338,7 +333,7 @@ TEST(TestAmdgcnMma, MmaOpParamsUnsupportedMembers)
 // Test MmaOpTraits for supported DummyAmdgcnMma, including all member variables
 TEST(TestAmdgcnMma, MmaOpTraitsSupportedMembers)
 {
-    using MmaOp  = DummyAmdgcnMma<DummyGfxTargetId>;
+    using MmaOp  = DummyAmdgcnMma<DummyCompilerTarget>;
     using Traits = MmaOpTraits<MmaOp>;
 
     // Check MmaOpTraits member variables
@@ -364,9 +359,8 @@ TEST(TestAmdgcnMma, MmaOpTraitsSupportedMembers)
 // Test MmaOpTraits for unsupported DummyAmdgcnMma, including all member variables
 TEST(TestAmdgcnMma, MmaOpTraitsUnsupportedMembers)
 {
-    constexpr auto UnsupportedGfxTargetId = amdgcn_target_arch_id::HOST;
-    using MmaOp                           = DummyAmdgcnMma<UnsupportedGfxTargetId>;
-    using Traits                          = MmaOpTraits<MmaOp>;
+    using MmaOp  = DummyAmdgcnMma<amdgcn_target<>>;
+    using Traits = MmaOpTraits<MmaOp>;
 
     // Check MmaOpTraits member variables
     EXPECT_TRUE((std::is_same<typename Traits::OpType, Unsupported>::value));
@@ -393,10 +387,10 @@ TEST(TestAmdgcnMma, MmaDefaultSelectorSupported)
 {
     // Direct selection of the supported dummy instruction
     using SelectedMma =
-        typename MmaDefaultSelector<fp32_t, fp32_t, fp32_t, 16u, 16u, 16u, DummyGfxTargetId>::
+        typename MmaDefaultSelector<fp32_t, fp32_t, fp32_t, 16u, 16u, 16u, DummyCompilerTarget>::
             SelectedOp;
     // Should select DummyAmdgcnMma specialization
-    EXPECT_TRUE((std::is_same<SelectedMma, DummyAmdgcnMma<DummyGfxTargetId>>::value));
+    EXPECT_TRUE((std::is_same<SelectedMma, DummyAmdgcnMma<DummyCompilerTarget>>::value));
     // OpType should be DummyOpType
     EXPECT_TRUE((std::is_same<typename SelectedMma::OpType, DummyOpType>::value));
     // IsSupported should be true
@@ -407,10 +401,8 @@ TEST(TestAmdgcnMma, MmaDefaultSelectorSupported)
 TEST(TestAmdgcnMma, MmaDefaultSelectorUnsupported)
 {
     // Direct selection of the unsupported dummy instruction
-    constexpr auto UnsupportedGfxTargetId = amdgcn_target_arch_id::HOST;
     using SelectedMma =
-        MmaDefaultSelector<fp32_t, fp32_t, fp32_t, 16u, 16u, 16u, UnsupportedGfxTargetId>::
-            SelectedOp;
+        MmaDefaultSelector<fp32_t, fp32_t, fp32_t, 16u, 16u, 16u, amdgcn_target<>>::SelectedOp;
     // OpType should be Unsupported
     EXPECT_TRUE((std::is_same<typename SelectedMma::OpType, Unsupported>::value));
     // IsSupported should be false
@@ -423,9 +415,10 @@ TEST(TestAmdgcnMma, MmaDefaultSelectorSupportedFragment)
 {
     // Select indirectly with a fragment size of 256x128x64
     using SelectedMma =
-        MmaDefaultSelector<fp32_t, fp32_t, fp32_t, 256u, 128u, 64u, DummyGfxTargetId>::SelectedOp;
+        MmaDefaultSelector<fp32_t, fp32_t, fp32_t, 256u, 128u, 64u, DummyCompilerTarget>::
+            SelectedOp;
     // Should select DummyAmdgcnMma specialization
-    EXPECT_TRUE((std::is_same<SelectedMma, DummyAmdgcnMma<DummyGfxTargetId>>::value));
+    EXPECT_TRUE((std::is_same<SelectedMma, DummyAmdgcnMma<DummyCompilerTarget>>::value));
     // OpType should be DummyOpType
     EXPECT_TRUE((std::is_same<typename SelectedMma::OpType, DummyOpType>::value));
     // IsSupported should be true
@@ -437,7 +430,7 @@ TEST(TestAmdgcnMma, MmaDefaultSelectorUnsupportedFragment)
 {
     // This should fall back to unsupported since DummyAmdgcnMma only supports 16x16x16
     using SelectedMma =
-        MmaDefaultSelector<fp32_t, fp32_t, fp32_t, 8u, 8u, 8u, DummyGfxTargetId>::SelectedOp;
+        MmaDefaultSelector<fp32_t, fp32_t, fp32_t, 8u, 8u, 8u, DummyCompilerTarget>::SelectedOp;
     EXPECT_FALSE((std::is_same<typename SelectedMma::OpType, Unsupported>::value));
     EXPECT_TRUE(MmaOpTraits<SelectedMma>::IsSupported);
 }
@@ -445,10 +438,8 @@ TEST(TestAmdgcnMma, MmaDefaultSelectorUnsupportedFragment)
 // Test MmaDefaultSelector for a different data type (fp16_t) and unsupported arch
 TEST(TestAmdgcnMma, MmaDefaultSelectorFp16Unsupported)
 {
-    constexpr auto UnsupportedGfxTargetId = amdgcn_target_arch_id::HOST;
     using SelectedMma =
-        MmaDefaultSelector<fp16_t, fp16_t, fp16_t, 16u, 16u, 16u, UnsupportedGfxTargetId>::
-            SelectedOp;
+        MmaDefaultSelector<fp16_t, fp16_t, fp16_t, 16u, 16u, 16u, amdgcn_target<>>::SelectedOp;
     // Should select default amdgcn_mma (Unsupported)
     EXPECT_TRUE((std::is_same<typename SelectedMma::OpType, Unsupported>::value));
     EXPECT_FALSE(MmaOpTraits<SelectedMma>::IsSupported);
@@ -473,7 +464,7 @@ __global__ void test_accum_over_k(void* a, void* b, void* c, void* out)
                                         FragM,
                                         FragN,
                                         FragK,
-                                        get_target_arch_id()>;
+                                        decltype(get_compiler_target())>;
 
     using MmaOp     = typename Selector::SelectedOp;
     using MmaTraits = MmaOpTraits<MmaOp>;
@@ -507,11 +498,12 @@ TEST(TestAmdgcnMma, MmaSelector_F16_F16_F32_16x16x32_Real)
     hipDeviceProp_t devProp;
     HIP_CHECK_ERROR(hipGetDeviceProperties(&devProp, dev));
 
-    auto currentArchId = gfx_target_string_to_arch_id(devProp.gcnArchName);
+    auto currentArchId = hip_device_prop_gcn_arch_name_to_amdgcn_target_id(devProp.gcnArchName);
     bool hasDevice     = static_cast<bool>(devCount > 0);
     int deviceWarpSize = devProp.warpSize;
 
-    if(!hasDevice || !(is_cdna_arch_id(currentArchId) || is_rdna_arch_id(currentArchId)))
+    // TODO: c++20 add check for arch id
+    if(!hasDevice || (currentArchId == amdgcn_target_id::HOST))
     {
         GTEST_SKIP() << "No HIP device found. Skipping test.";
     }
@@ -532,7 +524,9 @@ TEST(TestAmdgcnMma, MmaSelector_F16_F16_F32_16x16x32_Real)
     static constexpr uint32_t BlockK = FragK;
 
     // Gfx11 has input data duplication and no accumulator padding (MultiplierC = 1)
-    bool isGfx11         = is_gfx11_arch_id(currentArchId);
+    // TODO: c++20 use is_target_family_gfx11(currentArchId)
+    bool isGfx11 = (currentArchId >= amdgcn_target_id::GFX1100) &&
+                   (currentArchId <= amdgcn_target_id::GFX11_GENERIC);
     uint32_t MultiplierA = isGfx11 ? 2 : 1;
     uint32_t MultiplierB = isGfx11 ? 2 : 1;
     uint32_t MultiplierC = 1;
@@ -601,11 +595,12 @@ TEST(TestAmdgcnMma, MmaSelector_F16_F16_F32_112x112x128_Real)
     hipDeviceProp_t devProp;
     HIP_CHECK_ERROR(hipGetDeviceProperties(&devProp, dev));
 
-    auto currentArchId = gfx_target_string_to_arch_id(devProp.gcnArchName);
+    auto currentArchId = hip_device_prop_gcn_arch_name_to_amdgcn_target_id(devProp.gcnArchName);
     bool hasDevice     = static_cast<bool>(devCount > 0);
     int deviceWarpSize = devProp.warpSize;
 
-    if(!hasDevice || !(is_cdna_arch_id(currentArchId) || is_rdna_arch_id(currentArchId)))
+    // TODO: c++20 add check for arch id
+    if(!hasDevice || (currentArchId == amdgcn_target_id::HOST))
     {
         GTEST_SKIP() << "No HIP device found. Skipping test.";
     }
@@ -629,7 +624,9 @@ TEST(TestAmdgcnMma, MmaSelector_F16_F16_F32_112x112x128_Real)
     static constexpr uint32_t BlockK = 32;
 
     // Gfx11 has input data duplication and no accumulator padding (MultiplierC = 1)
-    bool isGfx11         = is_gfx11_arch_id(currentArchId);
+    // TODO: c++20 use is_target_family_gfx11(currentArchId)
+    bool isGfx11 = (currentArchId >= amdgcn_target_id::GFX1100) &&
+                   (currentArchId <= amdgcn_target_id::GFX11_GENERIC);
     uint32_t MultiplierA = isGfx11 ? 2 : 1;
     uint32_t MultiplierB = isGfx11 ? 2 : 1;
     uint32_t MultiplierC = 1;

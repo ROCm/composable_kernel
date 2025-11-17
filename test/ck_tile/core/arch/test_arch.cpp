@@ -4,15 +4,8 @@
 #include <gtest/gtest.h>
 #include "ck_tile/core/arch/arch.hpp"
 
-namespace ck_tile {
-
-// Test amdgcn_wave_size values
-TEST(TestArch, WaveSizeValues)
-{
-    EXPECT_EQ(static_cast<uint32_t>(amdgcn_wave_size::WAVE32), 32u);
-    EXPECT_EQ(static_cast<uint32_t>(amdgcn_wave_size::WAVE64), 64u);
-    EXPECT_EQ(static_cast<uint32_t>(amdgcn_wave_size::HOST), 1u);
-}
+using namespace ck_tile;
+using namespace ck_tile::core::arch;
 
 // Test address_space_enum string conversion
 TEST(TestArch, AddressSpaceToString)
@@ -26,299 +19,377 @@ TEST(TestArch, AddressSpaceToString)
     EXPECT_STREQ(address_space_to_string(static_cast<address_space_enum>(999)), "unknown");
 }
 
-// SFINAE test struct for cdna arch id
-template <amdgcn_target_arch_id GfxTargetId, typename = void>
-struct EnableIfCdnaArchIdTest
-{
-    static bool enabled() { return false; }
-};
-template <amdgcn_target_arch_id GfxTargetId>
-struct EnableIfCdnaArchIdTest<GfxTargetId, enable_if_cdna_target_id_t<GfxTargetId>>
-{
-    static bool enabled() { return true; }
-};
+#if 1 // __cplusplus <= 201703L
 
-// SFINAE test struct for rdna arch id
-template <amdgcn_target_arch_id GfxTargetId, typename = void>
-struct EnableIfRdnaArchIdTest
+// Tests make_amdgcn_gf9_target function
+TEST(ArchTest, MakeGfx9TargetFields)
 {
-    static bool enabled() { return false; }
-};
-template <amdgcn_target_arch_id GfxTargetId>
-struct EnableIfRdnaArchIdTest<GfxTargetId, enable_if_rdna_target_id_t<GfxTargetId>>
-{
-    static bool enabled() { return true; }
-};
-
-// SFINAE test struct for gfx9 arch id
-template <amdgcn_target_arch_id GfxTargetId, typename = void>
-struct EnableIfGfx9ArchIdTest
-{
-    static bool enabled() { return false; }
-};
-template <amdgcn_target_arch_id GfxTargetId>
-struct EnableIfGfx9ArchIdTest<GfxTargetId, enable_if_gfx9_target_id_t<GfxTargetId>>
-{
-    static bool enabled() { return true; }
-};
-
-// SFINAE test struct for gfx11 arch id
-template <amdgcn_target_arch_id GfxTargetId, typename = void>
-struct EnableIfGfx11ArchIdTest
-{
-    static bool enabled() { return false; }
-};
-template <amdgcn_target_arch_id GfxTargetId>
-struct EnableIfGfx11ArchIdTest<GfxTargetId, enable_if_gfx11_target_id_t<GfxTargetId>>
-{
-    static bool enabled() { return true; }
-};
-
-// SFINAE test struct for gfx12 arch id
-template <amdgcn_target_arch_id GfxTargetId, typename = void>
-struct EnableIfGfx12ArchIdTest
-{
-    static bool enabled() { return false; }
-};
-template <amdgcn_target_arch_id GfxTargetId>
-struct EnableIfGfx12ArchIdTest<GfxTargetId, enable_if_gfx12_target_id_t<GfxTargetId>>
-{
-    static bool enabled() { return true; }
-};
-
-// SFINAE test struct for wave32 arch id
-template <amdgcn_target_arch_id GfxTargetId, typename = void>
-struct EnableIfWave32ArchIdTest
-{
-    static bool enabled() { return false; }
-};
-template <amdgcn_target_arch_id GfxTargetId>
-struct EnableIfWave32ArchIdTest<GfxTargetId, enable_if_wave32_target_id_t<GfxTargetId>>
-{
-    static bool enabled() { return true; }
-};
-
-// SFINAE test struct for wave64 arch id
-template <amdgcn_target_arch_id GfxTargetId, typename = void>
-struct EnableIfWave64ArchIdTest
-{
-    static bool enabled() { return false; }
-};
-template <amdgcn_target_arch_id GfxTargetId>
-struct EnableIfWave64ArchIdTest<GfxTargetId, enable_if_wave64_target_id_t<GfxTargetId>>
-{
-    static bool enabled() { return true; }
-};
-
-// Additional tests for all amdgcn_target_arch_id values
-TEST(TestArch, IsCdnaArchId_AllArchIds)
-{
-    EXPECT_TRUE(is_cdna_arch_id(amdgcn_target_arch_id::GFX908));
-    EXPECT_TRUE(is_cdna_arch_id(amdgcn_target_arch_id::GFX90A));
-    EXPECT_TRUE(is_cdna_arch_id(amdgcn_target_arch_id::GFX942));
-    EXPECT_TRUE(is_cdna_arch_id(amdgcn_target_arch_id::GFX950));
-    EXPECT_FALSE(is_cdna_arch_id(amdgcn_target_arch_id::GFX1100));
-    EXPECT_FALSE(is_cdna_arch_id(amdgcn_target_arch_id::GFX1101));
-    EXPECT_FALSE(is_cdna_arch_id(amdgcn_target_arch_id::GFX1102));
-    EXPECT_FALSE(is_cdna_arch_id(amdgcn_target_arch_id::GFX1151));
-    EXPECT_FALSE(is_cdna_arch_id(amdgcn_target_arch_id::GFX1200));
-    EXPECT_FALSE(is_cdna_arch_id(amdgcn_target_arch_id::GFX1201));
-    EXPECT_FALSE(is_cdna_arch_id(amdgcn_target_arch_id::HOST));
+    constexpr auto target = make_amdgcn_gfx9_target<amdgcn_target_id::GFX908>();
+    EXPECT_EQ(target.TARGET_ID, amdgcn_target_id::GFX908);
+    EXPECT_EQ(target.FAMILY_ID, amdgcn_target_family_id::GFX9);
+    EXPECT_EQ(target.ARCH_ID, amdgcn_target_arch_id::CDNA);
+    EXPECT_EQ(target.WAVE_SIZE_ID, amdgcn_target_wave_size_id::WAVE64);
 }
 
-TEST(TestArch, IsRdnaArchId_AllArchIds)
+// Tests make_amdgcn_gfx11_target function
+TEST(ArchTest, MakeGfx11TargetFields)
 {
-    EXPECT_FALSE(is_rdna_arch_id(amdgcn_target_arch_id::GFX908));
-    EXPECT_FALSE(is_rdna_arch_id(amdgcn_target_arch_id::GFX90A));
-    EXPECT_FALSE(is_rdna_arch_id(amdgcn_target_arch_id::GFX942));
-    EXPECT_FALSE(is_rdna_arch_id(amdgcn_target_arch_id::GFX950));
-    EXPECT_TRUE(is_rdna_arch_id(amdgcn_target_arch_id::GFX1100));
-    EXPECT_TRUE(is_rdna_arch_id(amdgcn_target_arch_id::GFX1101));
-    EXPECT_TRUE(is_rdna_arch_id(amdgcn_target_arch_id::GFX1102));
-    EXPECT_TRUE(is_rdna_arch_id(amdgcn_target_arch_id::GFX1151));
-    EXPECT_TRUE(is_rdna_arch_id(amdgcn_target_arch_id::GFX1200));
-    EXPECT_TRUE(is_rdna_arch_id(amdgcn_target_arch_id::GFX1201));
-    EXPECT_FALSE(is_rdna_arch_id(amdgcn_target_arch_id::HOST));
+    constexpr auto target = make_amdgcn_gfx11_target<amdgcn_target_id::GFX1100>();
+    EXPECT_EQ(target.TARGET_ID, amdgcn_target_id::GFX1100);
+    EXPECT_EQ(target.FAMILY_ID, amdgcn_target_family_id::GFX11);
+    EXPECT_EQ(target.ARCH_ID, amdgcn_target_arch_id::RDNA);
+    EXPECT_EQ(target.WAVE_SIZE_ID, amdgcn_target_wave_size_id::WAVE32);
 }
 
-TEST(TestArch, IsGfx9ArchId_AllArchIds)
+// Tests make_amdgcn_gfx12_target function
+TEST(ArchTest, MakeGfx12TargetFields)
 {
-    EXPECT_TRUE(is_gfx9_arch_id(amdgcn_target_arch_id::GFX908));
-    EXPECT_TRUE(is_gfx9_arch_id(amdgcn_target_arch_id::GFX90A));
-    EXPECT_TRUE(is_gfx9_arch_id(amdgcn_target_arch_id::GFX942));
-    EXPECT_TRUE(is_gfx9_arch_id(amdgcn_target_arch_id::GFX950));
-    EXPECT_FALSE(is_gfx9_arch_id(amdgcn_target_arch_id::GFX1100));
-    EXPECT_FALSE(is_gfx9_arch_id(amdgcn_target_arch_id::GFX1101));
-    EXPECT_FALSE(is_gfx9_arch_id(amdgcn_target_arch_id::GFX1102));
-    EXPECT_FALSE(is_gfx9_arch_id(amdgcn_target_arch_id::GFX1151));
-    EXPECT_FALSE(is_gfx9_arch_id(amdgcn_target_arch_id::GFX1200));
-    EXPECT_FALSE(is_gfx9_arch_id(amdgcn_target_arch_id::GFX1201));
-    EXPECT_FALSE(is_gfx9_arch_id(amdgcn_target_arch_id::HOST));
+    constexpr auto target = make_amdgcn_gfx12_target<amdgcn_target_id::GFX1200>();
+    EXPECT_EQ(target.TARGET_ID, amdgcn_target_id::GFX1200);
+    EXPECT_EQ(target.FAMILY_ID, amdgcn_target_family_id::GFX12);
+    EXPECT_EQ(target.ARCH_ID, amdgcn_target_arch_id::RDNA);
+    EXPECT_EQ(target.WAVE_SIZE_ID, amdgcn_target_wave_size_id::WAVE32);
 }
 
-TEST(TestArch, IsGfx11ArchId_AllArchIds)
+// Tests default amdgcn_target
+TEST(ArchTest, DefaultTargetIsHost)
 {
-    EXPECT_FALSE(is_gfx11_arch_id(amdgcn_target_arch_id::GFX908));
-    EXPECT_FALSE(is_gfx11_arch_id(amdgcn_target_arch_id::GFX90A));
-    EXPECT_FALSE(is_gfx11_arch_id(amdgcn_target_arch_id::GFX942));
-    EXPECT_FALSE(is_gfx11_arch_id(amdgcn_target_arch_id::GFX950));
-    EXPECT_TRUE(is_gfx11_arch_id(amdgcn_target_arch_id::GFX1100));
-    EXPECT_TRUE(is_gfx11_arch_id(amdgcn_target_arch_id::GFX1101));
-    EXPECT_TRUE(is_gfx11_arch_id(amdgcn_target_arch_id::GFX1102));
-    EXPECT_TRUE(is_gfx11_arch_id(amdgcn_target_arch_id::GFX1151));
-    EXPECT_FALSE(is_gfx11_arch_id(amdgcn_target_arch_id::GFX1200));
-    EXPECT_FALSE(is_gfx11_arch_id(amdgcn_target_arch_id::GFX1201));
-    EXPECT_FALSE(is_gfx11_arch_id(amdgcn_target_arch_id::HOST));
+    constexpr auto target = amdgcn_target<>{};
+    EXPECT_EQ(target.TARGET_ID, amdgcn_target_id::HOST);
+    EXPECT_EQ(target.FAMILY_ID, amdgcn_target_family_id::HOST);
+    EXPECT_EQ(target.ARCH_ID, amdgcn_target_arch_id::HOST);
+    EXPECT_EQ(target.WAVE_SIZE_ID, amdgcn_target_wave_size_id::HOST);
 }
 
-TEST(TestArch, IsGfx12ArchId_AllArchIds)
+// Tests get_compiler_target function on host
+TEST(ArchTest, GetCompilerTargetDefaultIsHost)
 {
-    EXPECT_FALSE(is_gfx12_arch_id(amdgcn_target_arch_id::GFX908));
-    EXPECT_FALSE(is_gfx12_arch_id(amdgcn_target_arch_id::GFX90A));
-    EXPECT_FALSE(is_gfx12_arch_id(amdgcn_target_arch_id::GFX942));
-    EXPECT_FALSE(is_gfx12_arch_id(amdgcn_target_arch_id::GFX950));
-    EXPECT_FALSE(is_gfx12_arch_id(amdgcn_target_arch_id::GFX1100));
-    EXPECT_FALSE(is_gfx12_arch_id(amdgcn_target_arch_id::GFX1101));
-    EXPECT_FALSE(is_gfx12_arch_id(amdgcn_target_arch_id::GFX1102));
-    EXPECT_FALSE(is_gfx12_arch_id(amdgcn_target_arch_id::GFX1151));
-    EXPECT_TRUE(is_gfx12_arch_id(amdgcn_target_arch_id::GFX1200));
-    EXPECT_TRUE(is_gfx12_arch_id(amdgcn_target_arch_id::GFX1201));
-    EXPECT_FALSE(is_gfx12_arch_id(amdgcn_target_arch_id::HOST));
+    // By default, get_compiler_target should return HOST arch id because we aren't on device
+    auto target = get_compiler_target();
+    EXPECT_EQ(target.TARGET_ID, amdgcn_target_id::HOST);
+    EXPECT_EQ(target.FAMILY_ID, amdgcn_target_family_id::HOST);
+    EXPECT_EQ(target.ARCH_ID, amdgcn_target_arch_id::HOST);
+    EXPECT_EQ(target.WAVE_SIZE_ID, amdgcn_target_wave_size_id::HOST);
 }
 
-TEST(TestArch, IsWave32ArchId_AllArchIds)
+// SFINAE test setup for incoming acceptable target architecture ids
+template <typename Target, typename = void>
+struct SFINAETestTargetIdGfx908OrGfx90a
 {
-    EXPECT_FALSE(is_wave32_arch_id(amdgcn_target_arch_id::GFX908));
-    EXPECT_FALSE(is_wave32_arch_id(amdgcn_target_arch_id::GFX90A));
-    EXPECT_FALSE(is_wave32_arch_id(amdgcn_target_arch_id::GFX942));
-    EXPECT_FALSE(is_wave32_arch_id(amdgcn_target_arch_id::GFX950));
-    EXPECT_TRUE(is_wave32_arch_id(amdgcn_target_arch_id::GFX1100));
-    EXPECT_TRUE(is_wave32_arch_id(amdgcn_target_arch_id::GFX1101));
-    EXPECT_TRUE(is_wave32_arch_id(amdgcn_target_arch_id::GFX1102));
-    EXPECT_TRUE(is_wave32_arch_id(amdgcn_target_arch_id::GFX1151));
-    EXPECT_TRUE(is_wave32_arch_id(amdgcn_target_arch_id::GFX1200));
-    EXPECT_TRUE(is_wave32_arch_id(amdgcn_target_arch_id::GFX1201));
-    EXPECT_FALSE(is_wave32_arch_id(amdgcn_target_arch_id::HOST));
+    static constexpr bool value = false;
+};
+
+// Acceptable target arch ids: GFX908, GFX90A
+template <typename Target>
+struct SFINAETestTargetIdGfx908OrGfx90a<
+    Target,
+    enable_if_target_id_t<Target, amdgcn_target_id::GFX908, amdgcn_target_id::GFX90A>>
+{
+    static constexpr bool value = true;
+};
+
+// SFINAE test setup for incoming acceptable target family ids
+template <typename Target, typename = void>
+struct SFINAETestFamilyIdGfx9
+{
+    static constexpr bool value = false;
+};
+
+// Acceptable target arch family ids: GFX9
+template <typename Target>
+struct SFINAETestFamilyIdGfx9<Target,
+                              enable_if_target_family_id_t<Target, amdgcn_target_family_id::GFX9>>
+{
+    static constexpr bool value = true;
+};
+
+// SFINAE test setup for incoming acceptable target architecture ids
+template <typename Target, typename = void>
+struct SFINAETestArchIdCdna
+{
+    static constexpr bool value = false;
+};
+
+// Acceptable target arch ids: CDNA
+template <typename Target>
+struct SFINAETestArchIdCdna<Target, enable_if_target_arch_id_t<Target, amdgcn_target_arch_id::CDNA>>
+{
+    static constexpr bool value = true;
+};
+
+// SFINAE test setup for incoming acceptable target wave size ids
+template <typename Target, typename = void>
+struct SFINAETestWaveSizeIdWave64
+{
+    static constexpr bool value = false;
+};
+
+// Acceptable target arch wave size ids: WAVE64
+template <typename Target>
+struct SFINAETestWaveSizeIdWave64<
+    Target,
+    enable_if_target_wave_size_id_t<Target, amdgcn_target_wave_size_id::WAVE64>>
+{
+    static constexpr bool value = true;
+};
+
+// Test SFINAE enablers with various architectures
+TEST(ArchTest, TestSFINAEEnablersGfx9CdnaWave64)
+{
+    static constexpr auto target = make_amdgcn_gfx9_target<amdgcn_target_id::GFX908>();
+    using Target                 = decltype(target);
+    EXPECT_EQ(true, SFINAETestTargetIdGfx908OrGfx90a<Target>::value);
+    EXPECT_EQ(true, SFINAETestFamilyIdGfx9<Target>::value);
+    EXPECT_EQ(true, SFINAETestArchIdCdna<Target>::value);
+    EXPECT_EQ(true, SFINAETestWaveSizeIdWave64<Target>::value);
 }
 
-TEST(TestArch, IsWave64ArchId_AllArchIds)
+TEST(ArchTest, TestSFINAEEnablersGfx11RdnaWave32)
 {
-    EXPECT_TRUE(is_wave64_arch_id(amdgcn_target_arch_id::GFX908));
-    EXPECT_TRUE(is_wave64_arch_id(amdgcn_target_arch_id::GFX90A));
-    EXPECT_TRUE(is_wave64_arch_id(amdgcn_target_arch_id::GFX942));
-    EXPECT_TRUE(is_wave64_arch_id(amdgcn_target_arch_id::GFX950));
-    EXPECT_FALSE(is_wave64_arch_id(amdgcn_target_arch_id::GFX1100));
-    EXPECT_FALSE(is_wave64_arch_id(amdgcn_target_arch_id::GFX1101));
-    EXPECT_FALSE(is_wave64_arch_id(amdgcn_target_arch_id::GFX1102));
-    EXPECT_FALSE(is_wave64_arch_id(amdgcn_target_arch_id::GFX1151));
-    EXPECT_FALSE(is_wave64_arch_id(amdgcn_target_arch_id::GFX1200));
-    EXPECT_FALSE(is_wave64_arch_id(amdgcn_target_arch_id::GFX1201));
-    EXPECT_FALSE(is_wave64_arch_id(amdgcn_target_arch_id::HOST));
+    static constexpr auto target = make_amdgcn_gfx11_target<amdgcn_target_id::GFX1100>();
+    using Target                 = decltype(target);
+    EXPECT_EQ(false, SFINAETestTargetIdGfx908OrGfx90a<Target>::value);
+    EXPECT_EQ(false, SFINAETestFamilyIdGfx9<Target>::value);
+    EXPECT_EQ(false, SFINAETestArchIdCdna<Target>::value);
+    EXPECT_EQ(false, SFINAETestWaveSizeIdWave64<Target>::value);
 }
 
-TEST(TestArch, EnableIfCdnaArchId_AllArchIds)
+TEST(ArchTest, TestSFINAEEnablersGfx12RdnaWave32)
 {
-    EXPECT_TRUE((EnableIfCdnaArchIdTest<amdgcn_target_arch_id::GFX908>::enabled()));
-    EXPECT_TRUE((EnableIfCdnaArchIdTest<amdgcn_target_arch_id::GFX90A>::enabled()));
-    EXPECT_TRUE((EnableIfCdnaArchIdTest<amdgcn_target_arch_id::GFX942>::enabled()));
-    EXPECT_TRUE((EnableIfCdnaArchIdTest<amdgcn_target_arch_id::GFX950>::enabled()));
-    EXPECT_FALSE((EnableIfCdnaArchIdTest<amdgcn_target_arch_id::GFX1100>::enabled()));
-    EXPECT_FALSE((EnableIfCdnaArchIdTest<amdgcn_target_arch_id::GFX1101>::enabled()));
-    EXPECT_FALSE((EnableIfCdnaArchIdTest<amdgcn_target_arch_id::GFX1102>::enabled()));
-    EXPECT_FALSE((EnableIfCdnaArchIdTest<amdgcn_target_arch_id::GFX1151>::enabled()));
-    EXPECT_FALSE((EnableIfCdnaArchIdTest<amdgcn_target_arch_id::GFX1200>::enabled()));
-    EXPECT_FALSE((EnableIfCdnaArchIdTest<amdgcn_target_arch_id::GFX1201>::enabled()));
-    EXPECT_FALSE((EnableIfCdnaArchIdTest<amdgcn_target_arch_id::HOST>::enabled()));
+    static constexpr auto target = make_amdgcn_gfx12_target<amdgcn_target_id::GFX1200>();
+    using Target                 = decltype(target);
+    EXPECT_EQ(false, SFINAETestTargetIdGfx908OrGfx90a<Target>::value);
+    EXPECT_EQ(false, SFINAETestFamilyIdGfx9<Target>::value);
+    EXPECT_EQ(false, SFINAETestArchIdCdna<Target>::value);
+    EXPECT_EQ(false, SFINAETestWaveSizeIdWave64<Target>::value);
 }
 
-TEST(TestArch, EnableIfRdnaArchId_AllArchIds)
+TEST(ArchTest, TestSFINAEEnablersHost)
 {
-    EXPECT_FALSE((EnableIfRdnaArchIdTest<amdgcn_target_arch_id::GFX908>::enabled()));
-    EXPECT_FALSE((EnableIfRdnaArchIdTest<amdgcn_target_arch_id::GFX90A>::enabled()));
-    EXPECT_FALSE((EnableIfRdnaArchIdTest<amdgcn_target_arch_id::GFX942>::enabled()));
-    EXPECT_FALSE((EnableIfRdnaArchIdTest<amdgcn_target_arch_id::GFX950>::enabled()));
-    EXPECT_TRUE((EnableIfRdnaArchIdTest<amdgcn_target_arch_id::GFX1100>::enabled()));
-    EXPECT_TRUE((EnableIfRdnaArchIdTest<amdgcn_target_arch_id::GFX1101>::enabled()));
-    EXPECT_TRUE((EnableIfRdnaArchIdTest<amdgcn_target_arch_id::GFX1102>::enabled()));
-    EXPECT_TRUE((EnableIfRdnaArchIdTest<amdgcn_target_arch_id::GFX1151>::enabled()));
-    EXPECT_TRUE((EnableIfRdnaArchIdTest<amdgcn_target_arch_id::GFX1200>::enabled()));
-    EXPECT_TRUE((EnableIfRdnaArchIdTest<amdgcn_target_arch_id::GFX1201>::enabled()));
-    EXPECT_FALSE((EnableIfRdnaArchIdTest<amdgcn_target_arch_id::HOST>::enabled()));
+    static constexpr auto target = amdgcn_target<>{};
+    using Target                 = decltype(target);
+    EXPECT_EQ(false, SFINAETestTargetIdGfx908OrGfx90a<Target>::value);
+    EXPECT_EQ(false, SFINAETestFamilyIdGfx9<Target>::value);
+    EXPECT_EQ(false, SFINAETestArchIdCdna<Target>::value);
+    EXPECT_EQ(false, SFINAETestWaveSizeIdWave64<Target>::value);
 }
 
-TEST(TestArch, EnableIfGfx9ArchId_AllArchIds)
+TEST(ArchTest, TestSFINAEEnablersGfx9CdnaWave32)
 {
-    EXPECT_TRUE((EnableIfGfx9ArchIdTest<amdgcn_target_arch_id::GFX908>::enabled()));
-    EXPECT_TRUE((EnableIfGfx9ArchIdTest<amdgcn_target_arch_id::GFX90A>::enabled()));
-    EXPECT_TRUE((EnableIfGfx9ArchIdTest<amdgcn_target_arch_id::GFX942>::enabled()));
-    EXPECT_TRUE((EnableIfGfx9ArchIdTest<amdgcn_target_arch_id::GFX950>::enabled()));
-    EXPECT_FALSE((EnableIfGfx9ArchIdTest<amdgcn_target_arch_id::GFX1100>::enabled()));
-    EXPECT_FALSE((EnableIfGfx9ArchIdTest<amdgcn_target_arch_id::GFX1101>::enabled()));
-    EXPECT_FALSE((EnableIfGfx9ArchIdTest<amdgcn_target_arch_id::GFX1102>::enabled()));
-    EXPECT_FALSE((EnableIfGfx9ArchIdTest<amdgcn_target_arch_id::GFX1151>::enabled()));
-    EXPECT_FALSE((EnableIfGfx9ArchIdTest<amdgcn_target_arch_id::GFX1200>::enabled()));
-    EXPECT_FALSE((EnableIfGfx9ArchIdTest<amdgcn_target_arch_id::GFX1201>::enabled()));
-    EXPECT_FALSE((EnableIfGfx9ArchIdTest<amdgcn_target_arch_id::HOST>::enabled()));
+    static constexpr auto target = amdgcn_target<amdgcn_target_id::GFX908,
+                                                 amdgcn_target_family_id::GFX9,
+                                                 amdgcn_target_arch_id::CDNA,
+                                                 amdgcn_target_wave_size_id::WAVE32>{};
+    using Target                 = decltype(target);
+    EXPECT_EQ(true, SFINAETestTargetIdGfx908OrGfx90a<Target>::value);
+    EXPECT_EQ(true, SFINAETestFamilyIdGfx9<Target>::value);
+    EXPECT_EQ(true, SFINAETestArchIdCdna<Target>::value);
+    EXPECT_EQ(false, SFINAETestWaveSizeIdWave64<Target>::value);
 }
 
-TEST(TestArch, EnableIfGfx11ArchId_AllArchIds)
+TEST(ArchTest, TestSFINAEEnablersMix)
 {
-    EXPECT_FALSE((EnableIfGfx11ArchIdTest<amdgcn_target_arch_id::GFX908>::enabled()));
-    EXPECT_FALSE((EnableIfGfx11ArchIdTest<amdgcn_target_arch_id::GFX90A>::enabled()));
-    EXPECT_FALSE((EnableIfGfx11ArchIdTest<amdgcn_target_arch_id::GFX942>::enabled()));
-    EXPECT_FALSE((EnableIfGfx11ArchIdTest<amdgcn_target_arch_id::GFX950>::enabled()));
-    EXPECT_TRUE((EnableIfGfx11ArchIdTest<amdgcn_target_arch_id::GFX1100>::enabled()));
-    EXPECT_TRUE((EnableIfGfx11ArchIdTest<amdgcn_target_arch_id::GFX1101>::enabled()));
-    EXPECT_TRUE((EnableIfGfx11ArchIdTest<amdgcn_target_arch_id::GFX1102>::enabled()));
-    EXPECT_TRUE((EnableIfGfx11ArchIdTest<amdgcn_target_arch_id::GFX1151>::enabled()));
-    EXPECT_FALSE((EnableIfGfx11ArchIdTest<amdgcn_target_arch_id::GFX1200>::enabled()));
-    EXPECT_FALSE((EnableIfGfx11ArchIdTest<amdgcn_target_arch_id::GFX1201>::enabled()));
-    EXPECT_FALSE((EnableIfGfx11ArchIdTest<amdgcn_target_arch_id::HOST>::enabled()));
+    static constexpr auto target = amdgcn_target<amdgcn_target_id::GFX90A,
+                                                 amdgcn_target_family_id::GFX12,
+                                                 amdgcn_target_arch_id::CDNA,
+                                                 amdgcn_target_wave_size_id::WAVE32>{};
+    using Target                 = decltype(target);
+    EXPECT_EQ(true, SFINAETestTargetIdGfx908OrGfx90a<Target>::value);
+    EXPECT_EQ(false, SFINAETestFamilyIdGfx9<Target>::value);
+    EXPECT_EQ(true, SFINAETestArchIdCdna<Target>::value);
+    EXPECT_EQ(false, SFINAETestWaveSizeIdWave64<Target>::value);
 }
 
-TEST(TestArch, EnableIfGfx12ArchId_AllArchIds)
+#elif 0 // TODO: c++20 tests
+
+// Tests make_amdgcn_gf9_target function
+TEST(ArchTest, MakeGfx9TargetFields)
 {
-    EXPECT_FALSE((EnableIfGfx12ArchIdTest<amdgcn_target_arch_id::GFX908>::enabled()));
-    EXPECT_FALSE((EnableIfGfx12ArchIdTest<amdgcn_target_arch_id::GFX90A>::enabled()));
-    EXPECT_FALSE((EnableIfGfx12ArchIdTest<amdgcn_target_arch_id::GFX942>::enabled()));
-    EXPECT_FALSE((EnableIfGfx12ArchIdTest<amdgcn_target_arch_id::GFX950>::enabled()));
-    EXPECT_FALSE((EnableIfGfx12ArchIdTest<amdgcn_target_arch_id::GFX1100>::enabled()));
-    EXPECT_FALSE((EnableIfGfx12ArchIdTest<amdgcn_target_arch_id::GFX1101>::enabled()));
-    EXPECT_FALSE((EnableIfGfx12ArchIdTest<amdgcn_target_arch_id::GFX1102>::enabled()));
-    EXPECT_FALSE((EnableIfGfx12ArchIdTest<amdgcn_target_arch_id::GFX1151>::enabled()));
-    EXPECT_TRUE((EnableIfGfx12ArchIdTest<amdgcn_target_arch_id::GFX1200>::enabled()));
-    EXPECT_TRUE((EnableIfGfx12ArchIdTest<amdgcn_target_arch_id::GFX1201>::enabled()));
-    EXPECT_FALSE((EnableIfGfx12ArchIdTest<amdgcn_target_arch_id::HOST>::enabled()));
+    constexpr auto target = make_amdgcn_gfx9_target(amdgcn_target_id::GFX908);
+    EXPECT_EQ(target.TARGET_ID, amdgcn_target_id::GFX908);
+    EXPECT_EQ(target.FAMILY_ID, amdgcn_target_family_id::GFX9);
+    EXPECT_EQ(target.ARCH_ID, amdgcn_target_arch_id::CDNA);
+    EXPECT_EQ(target.WAVE_SIZE_ID, amdgcn_target_wave_size_id::WAVE64);
 }
 
-TEST(TestArch, EnableIfWave32ArchId_AllArchIds)
+// Tests make_amdgcn_gfx11_target function
+TEST(ArchTest, MakeGfx11TargetFields)
 {
-    EXPECT_FALSE((EnableIfWave32ArchIdTest<amdgcn_target_arch_id::GFX908>::enabled()));
-    EXPECT_FALSE((EnableIfWave32ArchIdTest<amdgcn_target_arch_id::GFX90A>::enabled()));
-    EXPECT_FALSE((EnableIfWave32ArchIdTest<amdgcn_target_arch_id::GFX942>::enabled()));
-    EXPECT_FALSE((EnableIfWave32ArchIdTest<amdgcn_target_arch_id::GFX950>::enabled()));
-    EXPECT_TRUE((EnableIfWave32ArchIdTest<amdgcn_target_arch_id::GFX1100>::enabled()));
-    EXPECT_TRUE((EnableIfWave32ArchIdTest<amdgcn_target_arch_id::GFX1101>::enabled()));
-    EXPECT_TRUE((EnableIfWave32ArchIdTest<amdgcn_target_arch_id::GFX1102>::enabled()));
-    EXPECT_TRUE((EnableIfWave32ArchIdTest<amdgcn_target_arch_id::GFX1151>::enabled()));
-    EXPECT_TRUE((EnableIfWave32ArchIdTest<amdgcn_target_arch_id::GFX1200>::enabled()));
-    EXPECT_TRUE((EnableIfWave32ArchIdTest<amdgcn_target_arch_id::GFX1201>::enabled()));
-    EXPECT_FALSE((EnableIfWave32ArchIdTest<amdgcn_target_arch_id::HOST>::enabled()));
+    constexpr auto target = make_amdgcn_gfx11_target(amdgcn_target_id::GFX1100);
+    EXPECT_EQ(target.TARGET_ID, amdgcn_target_id::GFX1100);
+    EXPECT_EQ(target.FAMILY_ID, amdgcn_target_family_id::GFX11);
+    EXPECT_EQ(target.ARCH_ID, amdgcn_target_arch_id::RDNA);
+    EXPECT_EQ(target.WAVE_SIZE_ID, amdgcn_target_wave_size_id::WAVE32);
 }
 
-TEST(TestArch, EnableIfWave64ArchId_AllArchIds)
+// Tests make_amdgcn_gfx12_target function
+TEST(ArchTest, MakeGfx12TargetFields)
 {
-    EXPECT_TRUE((EnableIfWave64ArchIdTest<amdgcn_target_arch_id::GFX908>::enabled()));
-    EXPECT_TRUE((EnableIfWave64ArchIdTest<amdgcn_target_arch_id::GFX90A>::enabled()));
-    EXPECT_TRUE((EnableIfWave64ArchIdTest<amdgcn_target_arch_id::GFX942>::enabled()));
-    EXPECT_TRUE((EnableIfWave64ArchIdTest<amdgcn_target_arch_id::GFX950>::enabled()));
-    EXPECT_FALSE((EnableIfWave64ArchIdTest<amdgcn_target_arch_id::GFX1100>::enabled()));
-    EXPECT_FALSE((EnableIfWave64ArchIdTest<amdgcn_target_arch_id::GFX1101>::enabled()));
-    EXPECT_FALSE((EnableIfWave64ArchIdTest<amdgcn_target_arch_id::GFX1102>::enabled()));
-    EXPECT_FALSE((EnableIfWave64ArchIdTest<amdgcn_target_arch_id::GFX1151>::enabled()));
-    EXPECT_FALSE((EnableIfWave64ArchIdTest<amdgcn_target_arch_id::GFX1200>::enabled()));
-    EXPECT_FALSE((EnableIfWave64ArchIdTest<amdgcn_target_arch_id::GFX1201>::enabled()));
-    EXPECT_FALSE((EnableIfWave64ArchIdTest<amdgcn_target_arch_id::HOST>::enabled()));
+    constexpr auto target = make_amdgcn_gfx12_target(amdgcn_target_id::GFX1200);
+    EXPECT_EQ(target.TARGET_ID, amdgcn_target_id::GFX1200);
+    EXPECT_EQ(target.FAMILY_ID, amdgcn_target_family_id::GFX12);
+    EXPECT_EQ(target.ARCH_ID, amdgcn_target_arch_id::RDNA);
+    EXPECT_EQ(target.WAVE_SIZE_ID, amdgcn_target_wave_size_id::WAVE32);
 }
 
-} // namespace ck_tile
+// Tests default amdgcn_target
+TEST(ArchTest, DefaultTargetIsHost)
+{
+    constexpr amdgcn_target target{};
+    EXPECT_EQ(target.TARGET_ID, amdgcn_target_id::HOST);
+    EXPECT_EQ(target.FAMILY_ID, amdgcn_target_family_id::HOST);
+    EXPECT_EQ(target.ARCH_ID, amdgcn_target_arch_id::HOST);
+    EXPECT_EQ(target.WAVE_SIZE_ID, amdgcn_target_wave_size_id::HOST);
+}
+
+// Tests get_compiler_target function on host
+TEST(ArchTest, GetCompilerTargetDefaultIsHost)
+{
+    // By default, get_compiler_target should return HOST arch id because we aren't on device
+    auto target = get_compiler_target();
+    EXPECT_EQ(target.TARGET_ID, amdgcn_target_id::HOST);
+    EXPECT_EQ(target.FAMILY_ID, amdgcn_target_family_id::HOST);
+    EXPECT_EQ(target.ARCH_ID, amdgcn_target_arch_id::HOST);
+    EXPECT_EQ(target.WAVE_SIZE_ID, amdgcn_target_wave_size_id::HOST);
+}
+
+// SFINAE test setup for incoming acceptable target architecture ids
+template <amdgcn_target Target, typename = void>
+struct SFINAETestTargetIdGfx908OrGfx90a
+{
+    static constexpr bool value = false;
+};
+
+// Acceptable target arch ids: GFX908, GFX90A
+template <amdgcn_target Target>
+struct SFINAETestTargetIdGfx908OrGfx90a<
+    Target,
+    enable_if_target_id_t<Target, amdgcn_target_id::GFX908, amdgcn_target_id::GFX90A>>
+{
+    static constexpr bool value = true;
+};
+
+// SFINAE test setup for incoming acceptable target family ids
+template <amdgcn_target Target, typename = void>
+struct SFINAETestFamilyIdGfx9
+{
+    static constexpr bool value = false;
+};
+
+// Acceptable target arch family ids: GFX9
+template <amdgcn_target Target>
+struct SFINAETestFamilyIdGfx9<Target,
+                              enable_if_target_family_id_t<Target, amdgcn_target_family_id::GFX9>>
+{
+    static constexpr bool value = true;
+};
+
+// SFINAE test setup for incoming acceptable target architecture ids
+template <amdgcn_target Target, typename = void>
+struct SFINAETestArchIdCdna
+{
+    static constexpr bool value = false;
+};
+
+// Acceptable target arch ids: CDNA
+template <amdgcn_target Target>
+struct SFINAETestArchIdCdna<Target, enable_if_target_arch_id_t<Target, amdgcn_target_arch_id::CDNA>>
+{
+    static constexpr bool value = true;
+};
+
+// SFINAE test setup for incoming acceptable target wave size ids
+template <amdgcn_target Target, typename = void>
+struct SFINAETestWaveSizeIdWave64
+{
+    static constexpr bool value = false;
+};
+
+// Acceptable target arch wave size ids: WAVE64
+template <amdgcn_target Target>
+struct SFINAETestWaveSizeIdWave64<
+    Target,
+    enable_if_target_wave_size_id_t<Target, amdgcn_target_wave_size_id::WAVE64>>
+{
+    static constexpr bool value = true;
+};
+
+// Test SFINAE enablers with various architectures
+TEST(ArchTest, TestSFINAEEnablersGfx9CdnaWave64)
+{
+    static constexpr auto target =
+        amdgcn_target{.TARGET_ID    = amdgcn_target_id::GFX908,
+                      .FAMILY_ID    = amdgcn_target_family_id::GFX9,
+                      .ARCH_ID      = amdgcn_target_arch_id::CDNA,
+                      .WAVE_SIZE_ID = amdgcn_target_wave_size_id::WAVE64};
+    EXPECT_EQ(true, SFINAETestTargetIdGfx908OrGfx90a<target>::value);
+    EXPECT_EQ(true, SFINAETestFamilyIdGfx9<target>::value);
+    EXPECT_EQ(true, SFINAETestArchIdCdna<target>::value);
+    EXPECT_EQ(true, SFINAETestWaveSizeIdWave64<target>::value);
+}
+
+TEST(ArchTest, TestSFINAEEnablersGfx11RdnaWave32)
+{
+    static constexpr auto target =
+        amdgcn_target{.TARGET_ID    = amdgcn_target_id::GFX1100,
+                      .FAMILY_ID    = amdgcn_target_family_id::GFX11,
+                      .ARCH_ID      = amdgcn_target_arch_id::RDNA,
+                      .WAVE_SIZE_ID = amdgcn_target_wave_size_id::WAVE32};
+    EXPECT_EQ(false, SFINAETestTargetIdGfx908OrGfx90a<target>::value);
+    EXPECT_EQ(false, SFINAETestFamilyIdGfx9<target>::value);
+    EXPECT_EQ(false, SFINAETestArchIdCdna<target>::value);
+    EXPECT_EQ(false, SFINAETestWaveSizeIdWave64<target>::value);
+}
+
+TEST(ArchTest, TestSFINAEEnablersGfx12RdnaWave32)
+{
+    static constexpr auto target =
+        amdgcn_target{.TARGET_ID    = amdgcn_target_id::GFX1200,
+                      .FAMILY_ID    = amdgcn_target_family_id::GFX12,
+                      .ARCH_ID      = amdgcn_target_arch_id::RDNA,
+                      .WAVE_SIZE_ID = amdgcn_target_wave_size_id::WAVE32};
+    EXPECT_EQ(false, SFINAETestTargetIdGfx908OrGfx90a<target>::value);
+    EXPECT_EQ(false, SFINAETestFamilyIdGfx9<target>::value);
+    EXPECT_EQ(false, SFINAETestArchIdCdna<target>::value);
+    EXPECT_EQ(false, SFINAETestWaveSizeIdWave64<target>::value);
+}
+
+TEST(ArchTest, TestSFINAEEnablersHost)
+{
+    static constexpr auto target = amdgcn_target{.TARGET_ID    = amdgcn_target_id::HOST,
+                                                 .FAMILY_ID    = amdgcn_target_family_id::HOST,
+                                                 .ARCH_ID      = amdgcn_target_arch_id::HOST,
+                                                 .WAVE_SIZE_ID = amdgcn_target_wave_size_id::HOST};
+    EXPECT_EQ(false, SFINAETestTargetIdGfx908OrGfx90a<target>::value);
+    EXPECT_EQ(false, SFINAETestFamilyIdGfx9<target>::value);
+    EXPECT_EQ(false, SFINAETestArchIdCdna<target>::value);
+    EXPECT_EQ(false, SFINAETestWaveSizeIdWave64<target>::value);
+}
+
+TEST(ArchTest, TestSFINAEEnablersGfx9CdnaWave32)
+{
+    static constexpr auto target =
+        amdgcn_target{.TARGET_ID    = amdgcn_target_id::GFX908,
+                      .FAMILY_ID    = amdgcn_target_family_id::GFX9,
+                      .ARCH_ID      = amdgcn_target_arch_id::CDNA,
+                      .WAVE_SIZE_ID = amdgcn_target_wave_size_id::WAVE32};
+    EXPECT_EQ(true, SFINAETestTargetIdGfx908OrGfx90a<target>::value);
+    EXPECT_EQ(true, SFINAETestFamilyIdGfx9<target>::value);
+    EXPECT_EQ(true, SFINAETestArchIdCdna<target>::value);
+    EXPECT_EQ(false, SFINAETestWaveSizeIdWave64<target>::value);
+}
+
+TEST(ArchTest, TestSFINAEEnablersMix)
+{
+    static constexpr auto target =
+        amdgcn_target{.TARGET_ID    = amdgcn_target_id::GFX90A,
+                      .FAMILY_ID    = amdgcn_target_family_id::GFX12,
+                      .ARCH_ID      = amdgcn_target_arch_id::CDNA,
+                      .WAVE_SIZE_ID = amdgcn_target_wave_size_id::WAVE32};
+    EXPECT_EQ(true, SFINAETestTargetIdGfx908OrGfx90a<target>::value);
+    EXPECT_EQ(false, SFINAETestFamilyIdGfx9<target>::value);
+    EXPECT_EQ(true, SFINAETestArchIdCdna<target>::value);
+    EXPECT_EQ(false, SFINAETestWaveSizeIdWave64<target>::value);
+}
+
+#endif // __cplusplus <= 201703L

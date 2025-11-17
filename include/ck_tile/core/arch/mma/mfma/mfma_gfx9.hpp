@@ -19,7 +19,8 @@ namespace ck_tile::core::arch::mma {
 // For flexibility, it is recommended that for each backend wrapper it supports at least
 // one packed register for each input to be able to process smaller K values by padding.
 
-/*! @struct DefaultMmaCtrlFlags
+/**
+ * @struct DefaultMmaCtrlFlags
  * @brief Default MFMA flags, no broadcasting or rotation of inputs
  */
 struct DefaultMfmaCtrlFlags
@@ -29,10 +30,12 @@ struct DefaultMfmaCtrlFlags
     static constexpr uint32_t Blgp = 0; // BLGP flag, default 0
 };
 
-// /*! @concept CtrlFlagsGfx9I
-//  *  @brief  Expresses the interface of required members for each CtrlFlags type on Gfx9.
-//  *  @tparam CtrlFlags The control flags to be tested.
-//  */
+#if __cpp_concepts >= 201907L
+
+/**
+ * @concept CtrlFlagsGfx9I
+ * @brief  Expresses the interface of required members for each CtrlFlags type on Gfx9
+ */
 template <typename CtrlFlags>
 concept CtrlFlagsGfx9I = requires(CtrlFlags ctrlFlags) {
     // Flag members for Gfx9 MFMA instructions
@@ -41,16 +44,21 @@ concept CtrlFlagsGfx9I = requires(CtrlFlags ctrlFlags) {
     { CtrlFlags::Blgp } -> std::convertible_to<int>;
 };
 
-/*! @struct amdgcn_mma
+#endif // __cpp_concepts >= 201907L
+
+/**
+ * @struct amdgcn_mma
  * @brief Specialization of amdgcn_mma for MFMA on GFX9 targets
  *
  * This specialization implements the MFMA instruction for fp16_t A and B
  * matrices, and fp32_t accumulator matrix, with 16x16x16 block sizes.
  *
  * @tparam CtrlFlags Control flags for the MFMA operation
- * @tparam GfxTargetId Target architecture ID
+ * @tparam CompilerTarget Current compiler target
  */
-template <CtrlFlagsGfx9I CtrlFlags, amdgcn_target_arch_id GfxTargetId>
+// TODO: c++20 template <CtrlFlagsGfx9I CtrlFlags, amdgcn_target CompilerTarget>
+// TODO: c++20 requires
+template <typename CtrlFlags, typename CompilerTarget>
 struct amdgcn_mma<fp16_t,
                   fp16_t,
                   fp32_t,
@@ -58,8 +66,8 @@ struct amdgcn_mma<fp16_t,
                   16u,
                   16u,
                   CtrlFlags,
-                  GfxTargetId,
-                  enable_if_gfx9_target_id_t<GfxTargetId>>
+                  CompilerTarget,
+                  enable_if_target_family_gfx9_t<CompilerTarget>>
 {
     // Mfma operation type
     using OpType = MfmaOp;
@@ -95,16 +103,19 @@ struct amdgcn_mma<fp16_t,
     }
 };
 
-/*! @struct amdgcn_mma
+/**
+ * @struct amdgcn_mma
  * @brief Specialization of amdgcn_mma for MFMA on GFX950 targets
  *
  * This specialization implements the MFMA instruction for fp16_t A and B
  * matrices, and fp32_t accumulator matrix, with 16x16x32 block sizes.
  *
  * @tparam CtrlFlags Control flags for the MFMA operation
- * @tparam GfxTargetId Target architecture ID
+ * @tparam CompilerTarget Current compiler target
  */
-template <CtrlFlagsGfx9I CtrlFlags, amdgcn_target_arch_id GfxTargetId>
+// TODO: c++20 template <CtrlFlagsGfx9I CtrlFlags, amdgcn_target CompilerTarget>
+// TODO: c++20 requires
+template <typename CtrlFlags, typename CompilerTarget>
 struct amdgcn_mma<fp16_t,
                   fp16_t,
                   fp32_t,
@@ -112,8 +123,8 @@ struct amdgcn_mma<fp16_t,
                   16u,
                   32u,
                   CtrlFlags,
-                  GfxTargetId,
-                  enable_if_target_arch_id_t<GfxTargetId, amdgcn_target_arch_id::GFX950>>
+                  CompilerTarget,
+                  enable_if_target_id_t<CompilerTarget, amdgcn_target_id::GFX950>>
 {
     using OpType = MfmaOp;
 

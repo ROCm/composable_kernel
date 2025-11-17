@@ -8,43 +8,54 @@
 
 namespace ck_tile::core::arch::mma {
 
-// /*! @struct is_mma_op_supported
-//  * @brief Trait to check if MmaOp is supported
-//  * @tparam MmaOp The matrix multiply-accumulate operation type to check
-//  */
-template <MmaOpI MmaOp, typename = void>
+/**
+ * @class is_mma_op_supported
+ * @brief Trait to check if MmaOp is supported
+ * @tparam MmaOp The matrix multiply-accumulate operation type to check
+ */
+// TODO: c++20 template <MmaOpI MmaOp, typename = void>
+template <typename MmaOp, typename = void>
 struct is_mma_op_supported : std::true_type
 {
 };
 
-/*! @struct is_mma_op_supported
+/**
+ * @struct is_mma_op_supported
  * @brief The MmaOp is unsupported specialization
  * @tparam MmaOp The matrix multiply-accumulate operation type to check
  */
-template <MmaOpI MmaOp>
+// TODO: c++20 template <MmaOpI MmaOp>
+template <typename MmaOp>
+// TODO: c++20 requires
 struct is_mma_op_supported<MmaOp,
                            std::enable_if_t<std::is_same_v<typename MmaOp::OpType, Unsupported>>>
     : std::false_type
 {
 };
 
-/*! @brief Convenience evaluation of is_mma_op_supported
+/**
+ * @brief Convenience evaluation of is_mma_op_supported
  * @tparam MmaOp The matrix multiply-accumulate operation type to check
  */
-template <MmaOpI MmaOp>
+// TODO: c++20 template <MmaOpI MmaOp>
+template <typename MmaOp>
 static constexpr bool is_mma_op_supported_v = is_mma_op_supported<MmaOp>::value;
 
-// /*! @struct MmaOpParams
-//  * @brief Reflects the template parameters of a given MmaOp
-//  * @tparam MmaOp The matrix multiply-accumulate operation type to check
-//  */
-template <MmaOpI MmaOp>
+/**
+ * @class MmaOpParams
+ * @brief Reflects the template parameters of a given MmaOp
+ * @tparam MmaOp The matrix multiply-accumulate operation type to check
+ */
+// TODO: c++20 template <MmaOpI MmaOp>
+template <typename MmaOp>
 struct MmaOpParams;
 
-// /*! @concept MmaOpParamsI
-//  *  @brief  Expresses the required members for each MmaOp
-//  *  @tparam MmaOp backend policy class
-//  */
+#if __cpp_concepts >= 201907L
+
+/**
+ *  @concept MmaOpParamsI
+ *  @brief  Expresses the required members for each MmaOp
+ */
 template <typename MmaOpParams>
 concept MmaOpParamsI = requires(MmaOpParams op) {
     // Capture template parameters
@@ -59,7 +70,10 @@ concept MmaOpParamsI = requires(MmaOpParams op) {
     { MmaOpParams::GfxTargetId } -> std::convertible_to<amdgcn_target_arch_id>;
 };
 
-/*! @struct MmaOpParams
+#endif // __cpp_concepts >= 201907L
+
+/**
+ * @struct MmaOpParams
  * @brief Reflects the template parameters of a given MmaOp
  * @tparam ADataType_ Data type of matrix A
  * @tparam BDataType_ Data type of matrix B
@@ -68,7 +82,7 @@ concept MmaOpParamsI = requires(MmaOpParams op) {
  * @tparam BlockN_ Size of the N dimension
  * @tparam BlockK_ Size of the K dimension
  * @tparam CtrlFlags_ Control flags for the MMA operation
- * @tparam GfxTargetId_ Target architecture ID
+ * @tparam CompilerTarget_ The compiler target
  */
 template <typename ADataType_,
           typename BDataType_,
@@ -77,7 +91,8 @@ template <typename ADataType_,
           uint32_t BlockN_,
           uint32_t BlockK_,
           typename CtrlFlags_,
-          amdgcn_target_arch_id GfxTargetId_>
+          typename CompilerTarget_>
+// TODO: c++20 amdgcn_target_arch_id CompilerTarget_>
 struct MmaOpParams<amdgcn_mma<ADataType_,
                               BDataType_,
                               CDataType_,
@@ -85,25 +100,28 @@ struct MmaOpParams<amdgcn_mma<ADataType_,
                               BlockN_,
                               BlockK_,
                               CtrlFlags_,
-                              GfxTargetId_>>
+                              CompilerTarget_>>
 {
     // Capture incoming template parameters
-    using ADataType                                    = ADataType_;
-    using BDataType                                    = BDataType_;
-    using CDataType                                    = CDataType_;
-    static constexpr uint32_t BlockM                   = BlockM_;
-    static constexpr uint32_t BlockN                   = BlockN_;
-    static constexpr uint32_t BlockK                   = BlockK_;
-    using CtrlFlags                                    = CtrlFlags_;
-    static constexpr amdgcn_target_arch_id GfxTargetId = GfxTargetId_;
+    using ADataType                  = ADataType_;
+    using BDataType                  = BDataType_;
+    using CDataType                  = CDataType_;
+    static constexpr uint32_t BlockM = BlockM_;
+    static constexpr uint32_t BlockN = BlockN_;
+    static constexpr uint32_t BlockK = BlockK_;
+    using CtrlFlags                  = CtrlFlags_;
+    using CompilerTarget             = CompilerTarget_;
+    // TODO c++20static constexpr amdgcn_target_arch_id GfxTargetId = CompilerTarget_;
 };
 
-// /*! @struct MmaOpTraits
-//  * @brief Reflects the template parameters and static members of a given MmaOp.
-//  * @tparam MmaOp The matrix multiply-accumulate operation
-//  */
-template <MmaOpI MmaOp>
-    requires MmaOpParamsI<MmaOpParams<MmaOp>>
+/**
+ * @class MmaOpTraits
+ * @brief Reflects the template parameters and static members of a given MmaOp.
+ * @tparam MmaOp The matrix multiply-accumulate operation
+ */
+template <typename MmaOp>
+// TODO: c++20 template <MmaOpI MmaOp>
+// TODO: c++20 requires MmaOpParamsI<MmaOpParams<MmaOp>>
 struct MmaOpTraits : public MmaOpParams<MmaOp>
 {
     // Capture internal MmaOp static members
@@ -112,6 +130,7 @@ struct MmaOpTraits : public MmaOpParams<MmaOp>
     using BVecType = typename MmaOp::BVecType;
     using CVecType = typename MmaOp::CVecType;
 
+    // Capture layout parameters
     static constexpr index_t kAMBlock    = MmaOp::kAMBlock;
     static constexpr index_t kBNBlock    = MmaOp::kBNBlock;
     static constexpr index_t kAMLane     = MmaOp::kAMLane;
