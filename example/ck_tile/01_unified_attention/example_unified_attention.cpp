@@ -30,15 +30,14 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("prec", "fp16", "data type. fp16/bf16")
         .insert("b", "3", "batch size")
-        .insert("h", "8", "num head for k/v. num head for q is 4 times this")
+        .insert("h_k", "8", "num head for k/v. num head for q is 4 times this")
         // .insert("h_k",
         //         "-1",
         //         "num of head, for k/v, -1 means equal to h\n"
         //         "if not equal to h, then this is GQA/MQA case")
-        .insert("s", "1024", "max_seqlen_q")
+
         .insert("nb", "1024", "num_blks")
         .insert("bs", "128", "BLOCK_SIZE for kv")
-        .insert("s_k", "2048", "max_context_len")
         .insert("d", "128", "head dim for q & k")
         .insert("scale_s", "0", "scale factor of S. 0 means equal to 1/sqrt(hdim)")
         // TODO scale factors
@@ -73,37 +72,19 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
     return std::make_pair(result, arg_parser);
 }
 
-enum class TensorLayout
-{
-    bhsd,
-    bshd,
-};
-
-std::ostream& operator<<(std::ostream& stream, TensorLayout layout)
-{
-    switch(layout)
-    {
-    case TensorLayout::bhsd: return stream << "bhsd";
-    case TensorLayout::bshd: return stream << "bshd";
-    default: return stream << "unknown";
-    }
-}
-
 struct Problem
 {
     explicit Problem(const ck_tile::ArgParser& args)
     {
-        data_type       = args.get_str("prec") == "fp16"
-                              ? ck_tile::unified_attention_args::data_type_enum::fp16
-                              : ck_tile::unified_attention_args::data_type_enum::bf16;
-        batch           = args.get_int("b");
-        max_seqlen_q    = args.get_int("s");
-        max_context_len = args.get_int("s_k");
-        num_blks        = args.get_int("nb");
-        BLOCK_SIZE      = args.get_int("bs");
-        nhead_kv         = args.get_int("h");
+        data_type  = args.get_str("prec") == "fp16"
+                         ? ck_tile::unified_attention_args::data_type_enum::fp16
+                         : ck_tile::unified_attention_args::data_type_enum::bf16;
+        batch      = args.get_int("b");
+        num_blks   = args.get_int("nb");
+        BLOCK_SIZE = args.get_int("bs");
+        nhead_kv   = args.get_int("h_k");
         // TODO: support other GQA/MQA cases than just 4x
-        nhead_q        = nhead_kv * 4;
+        nhead_q = nhead_kv * 4;
 
         hdim       = args.get_int("d");
         query_lens = args.get_int_vec("query_lens");
@@ -119,17 +100,10 @@ struct Problem
         scale_k = args.get_float("scale_k");
         scale_v = args.get_float("scale_v");
 
-        // Calculate sums of query_lens and kv_lens if provided
-        // int64_t kv_lens_sum = 0;
-
         for(const auto& len : query_lens)
         {
             num_tokens += len;
         }
-
-        // for (const auto& len : kv_lens) {
-        //     kv_lens_sum += len;
-        // }
     }
 
     std::vector<ck_tile::index_t> get_query_shape() const { return {num_tokens, nhead_q, hdim}; }
@@ -150,8 +124,6 @@ struct Problem
     ck_tile::index_t batch;
     ck_tile::index_t num_blks;
     ck_tile::index_t BLOCK_SIZE;
-    ck_tile::index_t max_seqlen_q; // sequal seq len, in thd format
-    ck_tile::index_t max_context_len;
     ck_tile::index_t nhead_q;
     ck_tile::index_t nhead_kv;
     ck_tile::index_t hdim;
@@ -334,8 +306,6 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
 
     args.num_blks = problem.num_blks;
 
-    // args.query_lens = problem.query_lens
-    // args.kv_lens = problem.kv_lens
     args.q_ptr          = q_buf.GetDeviceBuffer();
     args.query_stride_0 = problem.hdim * problem.nhead_q;
     args.query_stride_1 = problem.hdim;

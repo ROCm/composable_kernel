@@ -58,21 +58,19 @@ struct unified_attention_kernel_traits
     static constexpr auto date_type  = DataType;
     static constexpr bool is_masking = IsMasking;
 
-    
-    static constexpr index_t BLOCK_M         = 256;
-    static constexpr index_t BLOCK_SIZE      = 32;
-    static constexpr index_t HEAD_SIZE       = 128;
-    
-    
+    static constexpr index_t BLOCK_M    = 256;
+    static constexpr index_t BLOCK_SIZE = 32;
+    static constexpr index_t HEAD_SIZE  = 128;
+
     // TODO please fix this to support also other num_qhead_per_kvhead
     static constexpr index_t num_qhead_per_kvhead = 4;
-    static constexpr index_t BLOCK_Q         = BLOCK_M / num_qhead_per_kvhead;
+    static constexpr index_t BLOCK_Q              = BLOCK_M / num_qhead_per_kvhead;
 
     //                                    BLOCK_M BLOCK_Q   BLOCK_SIZE  HEAD_SIZE
     using unified_attention_block_tile      = sequence<BLOCK_M, BLOCK_Q, BLOCK_SIZE, HEAD_SIZE>;
     using unified_attention_warp_gemm_shape = sequence<32, 32, 16>;
     // need to have 8 warps per workgroup to have warp specialization
-    using unified_attention_block_warps     = sequence<8, 1, 1>;
+    using unified_attention_block_warps = sequence<8, 1, 1>;
 
     using unified_attention_shape = TileUnifiedAttentionShape<unified_attention_block_tile,
                                                               unified_attention_block_warps,
@@ -122,9 +120,10 @@ float unified_attention_kernel_launch(const unified_attention_args& args,
                                       const stream_config& config)
 {
     index_t BLOCK_Q = Kernel::BLOCK_Q;
-    assert(BLOCK_Q == args.num_head_q / args.num_queries_per_kv && "BLOCK_Q must equal BLOCK_M / num_queries_per_kv");
+    assert(BLOCK_Q == args.num_head_q / args.num_queries_per_kv &&
+           "BLOCK_Q must equal BLOCK_M / num_queries_per_kv");
     index_t total_num_q_blocks = args.num_tokens / BLOCK_Q + args.num_seqs;
-    auto kargs = Kernel::MakeKargs(args.q_ptr,
+    auto kargs                 = Kernel::MakeKargs(args.q_ptr,
                                    args.k_ptr,
                                    args.v_ptr,
                                    args.o_ptr,
