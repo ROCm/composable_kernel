@@ -30,9 +30,9 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("prec", "fp16", "data type. fp16/bf16")
         .insert("b", "3", "batch size")
-        .insert("h", "8", "num of head, for q")
+        .insert("h", "32", "num of head, for q")
         .insert("h_k",
-                "-1",
+                "8",
                 "num of head, for k/v, -1 means equal to h\n"
                 "if not equal to h, then this is GQA/MQA case")
         .insert("s", "1024", "max_seqlen_q")
@@ -337,7 +337,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     // args.kv_lens = problem.kv_lens
     args.q_ptr          = q_buf.GetDeviceBuffer();
     args.query_stride_0 = problem.hdim * problem.nhead_q;
-    args.query_stride_0 = problem.hdim;
+    args.query_stride_1 = problem.hdim;
 
     args.k_ptr = k_buf.GetDeviceBuffer();
 
