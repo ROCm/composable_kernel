@@ -16,7 +16,7 @@ from ck4inductor.batched_universal_gemm.gen_instances import (
     gen_ops_library as gen_batched_gemm_ops_library,
 )
 from ck4inductor.ck_tile_universal_gemm.gen_instances import (
-    ops as gen_ck_tile_gemm_ops_library
+    ops as gen_ck_tile_gemm_ops_library,
 )
 
 log = logging.getLogger(__name__)
