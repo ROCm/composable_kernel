@@ -85,21 +85,22 @@ class TestCkTileGemmQuantBase : public ::testing::Test
 
         using TilePartitioner = ck_tile::GemmTile1DPartitioner<CodegenGemmShape>;
 
-        using CodegenGemmTraits = ck_tile::TileGemmQuantTraits<kPadM,
-                                                               kPadN,
-                                                               kPadK,
-                                                               PreshuffleQuant,
-                                                               PreshuffleB,
-                                                               ALayout,
-                                                               BLayout,
-                                                               CLayout,
-                                                               QuantType,
-                                                               ALayout,
-                                                               BLayout,
-                                                               GemmConfig::TransposeC,
-                                                               DoubleSmemBuffer,
-                                                               false,
-                                                               VectorSize>;
+        using CodegenGemmTraits =
+            ck_tile::TileGemmQuantTraits<kPadM,
+                                         kPadN,
+                                         kPadK,
+                                         PreshuffleQuant,
+                                         PreshuffleB,
+                                         ALayout,
+                                         BLayout,
+                                         CLayout,
+                                         QuantType,
+                                         ck_tile::tensor_layout::gemm::RowMajor,
+                                         ck_tile::tensor_layout::gemm::ColumnMajor,
+                                         GemmConfig::TransposeC,
+                                         DoubleSmemBuffer,
+                                         false,
+                                         VectorSize>;
 
         // Let the derived class create the appropriate pipeline and epilogue
         static_cast<Derived*>(this)
