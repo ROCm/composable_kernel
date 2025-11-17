@@ -213,39 +213,6 @@ def check_host() {
     }
 }
 
-def build_compiler(){
-    def compiler
-    compiler = "${params.BUILD_COMPILER}"
-    return compiler
-}
-
-def check_arch(){
-    def arch_type = 0
-    sh 'rocminfo | tee rocminfo.log'
-    if ( runShell('grep -n "gfx90a" rocminfo.log') ){
-        arch_type = 1
-    }
-    else if ( runShell('grep -n "gfx942" rocminfo.log') ) {
-        arch_type = 2
-    }
-    else if ( runShell('grep -n "gfx10" rocminfo.log') ) {
-        arch_type = 3
-    }
-    else if ( runShell('grep -n "gfx11" rocminfo.log') ) {
-        arch_type = 4
-    }
-    else if ( runShell('grep -n "gfx12" rocminfo.log') ) {
-        arch_type = 5
-    }
-    else if ( runShell('grep -n "gfx908" rocminfo.log') ) {
-        arch_type = 6
-    }
-    else if ( runShell('grep -n "gfx950" rocminfo.log') ) {
-        arch_type = 7
-    }
-    return arch_type
-}
-
 def check_arch_name(){
     def arch_name = ""
     sh 'rocminfo | tee rocminfo.log'
@@ -261,7 +228,7 @@ def check_arch_name(){
     else if ( runShell('grep -n "gfx11" rocminfo.log') ) {
         arch_name = "gfx11"
     }
-    else if ( runShell('grep -n "gfx12" rocminfo.log') ) {
+    else if ( runShell('grep -n "gfx120" rocminfo.log') ) {
         arch_name = "gfx12"
     }
     else if ( runShell('grep -n "gfx908" rocminfo.log') ) {
@@ -363,7 +330,7 @@ def buildDocker(install_prefix){
 
 def cmake_build(Map conf=[:]){
 
-    def compiler = build_compiler()
+    def compiler = params.BUILD_COMPILER
     def config_targets = conf.get("config_targets","check")
     def debug_flags = "-g -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined " + conf.get("extradebugflags", "")
     def build_envs = "CTEST_PARALLEL_LEVEL=4 " + conf.get("build_env","")
@@ -566,16 +533,11 @@ def cmake_build(Map conf=[:]){
     }
 
     //check the node gpu architecture
-    def arch = check_arch()
+    def arch_name = check_arch_name()
     if (params.RUN_CK_TILE_FMHA_TESTS){
         try{
             archiveArtifacts "perf_fmha_*.log"
-            if (arch == 1){
-                stash includes: "perf_fmha_**_gfx90a.log", name: "perf_fmha_log_gfx90a"
-            }
-            else if (arch == 2){
-                stash includes: "perf_fmha_**_gfx942.log", name: "perf_fmha_log_gfx942"
-            }
+            stash includes: "perf_fmha_**.log", name: "perf_fmha_log_${arch_name}"
         }
         catch(Exception err){
             echo "could not locate the requested artifacts: ${err.getMessage()}. will skip the stashing."
@@ -597,9 +559,6 @@ def buildHipClangJob(Map conf=[:]){
         }
         else{
             dockerOpts = "--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
-        }
-        if (conf.get("enforce_xnack_on", false)) {
-            dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
         }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg CK_SCCACHE='${env.CK_SCCACHE}' --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
         if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
@@ -628,10 +587,6 @@ def buildHipClangJob(Map conf=[:]){
         return retimage
 }
 
-def reboot(){
-    build job: 'reboot-slaves', propagate: false , parameters: [string(name: 'server', value: "${env.NODE_NAME}"),]
-}
-
 def buildHipClangJobAndReboot(Map conf=[:]){
     try{
         buildHipClangJob(conf)
@@ -641,26 +596,15 @@ def buildHipClangJobAndReboot(Map conf=[:]){
         echo 'Exception occurred: ' + e.toString()
         throw e
     }
-    finally{
-        if (!conf.get("no_reboot", false)) {
-            reboot()
-        }
-    }
 }
 
 def Build_CK(Map conf=[:]){
         show_node_info()
-
-        env.HSA_ENABLE_SDMA=0
-        env.DOCKER_BUILDKIT=1
         checkout scm
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
 
         // Jenkins is complaining about the render group
         def dockerOpts="--device=/dev/kfd --device=/dev/dri --group-add video --group-add render --cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
-        if (conf.get("enforce_xnack_on", false)) {
-            dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
-        }
         def dockerArgs = "--build-arg PREFIX=${prefixpath} --build-arg compiler_version='${params.COMPILER_VERSION}' --build-arg compiler_commit='${params.COMPILER_COMMIT}' --build-arg ROCMVERSION='${params.ROCMVERSION}' "
         if (params.COMPILER_VERSION == "amd-staging" || params.COMPILER_VERSION == "amd-mainline" || params.COMPILER_COMMIT != ""){
             // the  --env COMPRESSED_BUNDLE_FORMAT_VERSION=2 env variable is required when building code with offload-compress flag with
@@ -702,7 +646,7 @@ def Build_CK(Map conf=[:]){
                 timeout(time: 20, unit: 'HOURS')
                 {
                     //check whether to run performance tests on this node
-                    def arch = check_arch()
+                    def arch = check_arch_name()
                     cmake_build(conf)
                     if ( params.RUN_INDUCTOR_TESTS && !params.BUILD_LEGACY_OS && arch == 1 ){
                             echo "Run inductor codegen tests"
@@ -717,7 +661,7 @@ def Build_CK(Map conf=[:]){
                     // run performance tests, stash the logs, results will be processed on the master node
 					dir("script"){
                         if (params.RUN_PERFORMANCE_TESTS){
-                        if (params.RUN_FULL_QA && arch == 1){
+                        if (params.RUN_FULL_QA && arch == "gfx90a"){
                             // run full tests on gfx90a
                             echo "Run full performance tests"
                             sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx90a"
@@ -736,7 +680,7 @@ def Build_CK(Map conf=[:]){
                             archiveArtifacts "perf_mixed_gemm_gfx90a.log"
                             stash includes: "perf_**.log", name: "perf_log_gfx90a"
                         }
-                        if (params.RUN_FULL_QA && arch == 2){
+                        if (params.RUN_FULL_QA && arch == "gfx942"){
                             // run full tests on gfx942
                             echo "Run full performance tests"
                             sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx942"
@@ -755,7 +699,7 @@ def Build_CK(Map conf=[:]){
                             archiveArtifacts "perf_mixed_gemm_gfx942.log"
                             stash includes: "perf_**.log", name: "perf_log_gfx942"
                         }
-                        else if ( arch == 1 ){
+                        else if ( arch == "gfx90a" ){
                             // run standard tests on gfx90a
                             echo "Run performance tests"
                             sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx90a"
@@ -765,7 +709,7 @@ def Build_CK(Map conf=[:]){
                             archiveArtifacts "perf_resnet50_N4_gfx90a.log"
                             stash includes: "perf_**.log", name: "perf_log_gfx90a"
                         }
-                        else if ( arch == 2 ){
+                        else if ( arch == "gfx942" ){
                             // run standard tests on gfx942
                             echo "Run performance tests"
                             sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx942"
@@ -776,35 +720,35 @@ def Build_CK(Map conf=[:]){
                             stash includes: "perf_**.log", name: "perf_log_gfx942"
                         }
                         // disable performance tests on gfx1030 for now.
-                        //else if ( arch == 3){
+                        //else if ( arch == "gfx10"){
                             // run basic tests on gfx1030
                         //    echo "Run gemm performance tests"
                         //    sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx10"
                         //    archiveArtifacts "perf_onnx_gemm_gfx10.log"
                         //    stash includes: "perf_onnx_gemm_gfx10.log", name: "perf_log_gfx10"
                         //}
-                        else if ( arch == 4){
+                        else if ( arch == "gfx11"){
                             // run basic tests on gfx11
                             echo "Run gemm performance tests"
                             sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx11"
                             archiveArtifacts "perf_onnx_gemm_gfx11.log"
                             stash includes: "perf_onnx_gemm_gfx11.log", name: "perf_log_gfx11"
                         }
-                        else if ( arch == 5 ){
+                        else if ( arch == "gfx120" ){
                             // run basic tests on gfx12
                             echo "Run gemm performance tests"
                             sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx12"
                             archiveArtifacts "perf_onnx_gemm_gfx12.log"
                             stash includes: "perf_onnx_gemm_gfx12.log", name: "perf_log_gfx12"
                         }
-                        else if ( arch == 6 ){
+                        else if ( arch == "gfx908" ){
                             // run basic tests on gfx908
                             echo "Run performance tests"
                             sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx908"
                             archiveArtifacts "perf_onnx_gemm_gfx908.log"
                             stash includes: "perf_onnx_gemm_gfx908.log", name: "perf_log_gfx908"
                         }
-                        else if ( arch == 7 ){
+                        else if ( arch == "gfx950" ){
                             // run basic tests on gfx950
                             echo "Run performance tests"
                             sh "./run_gemm_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx950"
@@ -813,7 +757,7 @@ def Build_CK(Map conf=[:]){
                         }
                         }
                     }
-                    if (params.hipTensor_test && arch == 1 ){
+                    if (params.hipTensor_test && arch == "gfx90a" ){
                         // build and test hipTensor on gfx90a node
                         sh """#!/bin/bash
                             rm -rf "${params.hipTensor_branch}".zip
@@ -846,11 +790,6 @@ def Build_CK_and_Reboot(Map conf=[:]){
         echo 'Exception occurred: ' + e.toString()
         throw e
     }
-    finally{
-        if (!conf.get("no_reboot", false)) {
-            reboot()
-        }
-    }
 }
 
 def process_results(Map conf=[:]){
@@ -862,10 +801,6 @@ def process_results(Map conf=[:]){
 
     // Jenkins is complaining about the render group
     def dockerOpts="--cap-add=SYS_PTRACE --security-opt seccomp=unconfined"
-    if (conf.get("enforce_xnack_on", false)) {
-        dockerOpts = dockerOpts + " --env HSA_XNACK=1 "
-    }
-
     def variant = env.STAGE_NAME
     def retimage
 
@@ -1343,7 +1278,7 @@ pipeline {
                                 --file-filter=*.cpp --force --enable=all --output-file=ck_cppcheck.log"
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
+                        buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd)
                         archiveArtifacts "build/ck_cppcheck.log"
                         cleanWs()
                     }
@@ -1369,7 +1304,7 @@ pipeline {
                                 | xargs -n 1 -P 1 -I{} -t sh -c \'clang-format-18 -style=file {} | diff - {}\')"
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd, no_reboot:true)
+                        buildHipClangJobAndReboot(setup_args:setup_args, setup_cmd: "", build_cmd: "", execute_cmd: execute_cmd)
                         cleanWs()
                     }
                 }
@@ -1453,7 +1388,7 @@ pipeline {
                                            ./bin/test_grouped_convnd_fwd_large_cases_xdl && ./bin/test_grouped_convnd_bwd_data_xdl_large_cases && ./bin/test_grouped_convnd_fwd_bias_clamp_large_cases"""
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
                     }
                 }
@@ -1489,7 +1424,7 @@ pipeline {
                                            ./bin/test_grouped_convnd_fwd_dataset_xdl"""
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
                     }
                 }
@@ -1512,11 +1447,11 @@ pipeline {
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_args = """ cmake -DCMAKE_PREFIX_PATH=/opt/rocm -DCMAKE_CXX_COMPILER="${build_compiler()}" ../codegen && \
+                        execute_args = """ cmake -DCMAKE_PREFIX_PATH=/opt/rocm -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" ../codegen && \
                                            make -j64 check"""
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
                     }
                 }
@@ -1541,15 +1476,15 @@ pipeline {
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cmake -G Ninja -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx90a" \
-                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
-                                           -DCMAKE_HIP_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
+                                           -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
                                            example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx90a """
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
                     }
                 }
@@ -1564,15 +1499,15 @@ pipeline {
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cmake -G Ninja -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx942" \
-                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
-                                           -DCMAKE_HIP_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
+                                           -DCMAKE_HIP_COMPILER="${bparams.BUILD_COMPILER}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j128 tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
                                            example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
                     }
                 }
@@ -1587,15 +1522,15 @@ pipeline {
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cmake -G Ninja -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx950" \
-                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
-                                           -DCMAKE_HIP_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
+                                           -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j128 tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
                                            example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx950 """
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
                     }
                 }
@@ -1610,15 +1545,15 @@ pipeline {
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cmake -G Ninja -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx12-generic" \
-                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
-                                           -DCMAKE_HIP_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
+                                           -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && \
                                            ninja -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
                                            example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx1201 """
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
                     }
                 }
@@ -1642,7 +1577,7 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
-                                            -D CMAKE_CXX_COMPILER="${build_compiler()}" \
+                                            -D CMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx90a" \
                                             -D GEMM_DATATYPE="fp8;fp16" \
@@ -1663,7 +1598,7 @@ pipeline {
                                            --warmup 5 --repeat 5 --verbose --json results.json """
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
                     }
                 }
@@ -1677,7 +1612,7 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
-                                            -D CMAKE_CXX_COMPILER="${build_compiler()}" \
+                                            -D CMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx942" \
                                             -D GEMM_DATATYPE="fp8;fp16" \
@@ -1698,7 +1633,7 @@ pipeline {
                                            --warmup 5 --repeat 5 --verbose --json results.json """
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
                     }
                 }
@@ -1712,7 +1647,7 @@ pipeline {
                     environment{
                         setup_args = "NO_CK_BUILD"
                         execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
-                                            -D CMAKE_CXX_COMPILER="${build_compiler()}" \
+                                            -D CMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
                                             -D CMAKE_BUILD_TYPE=Release \
                                             -D GPU_TARGETS="gfx1201" \
                                             -D GEMM_DATATYPE="fp16" \
@@ -1723,7 +1658,7 @@ pipeline {
                                            --warmup 5 --repeat 5 --verbose --json results.json """
                     }
                     steps{
-                        buildHipClangJobAndReboot(setup_args:setup_args, no_reboot:true, build_type: 'Release', execute_cmd: execute_args)
+                        buildHipClangJobAndReboot(setup_args:setup_args, build_type: 'Release', execute_cmd: execute_args)
                         cleanWs()
                     }
                 }
@@ -1754,7 +1689,7 @@ pipeline {
                         execute_args = " "
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: " ", no_reboot:true, build_type: 'Release', docker_name: docker_name)
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: " ", build_type: 'Release', docker_name: docker_name)
                         cleanWs()
                     }
                 }
@@ -1773,7 +1708,7 @@ pipeline {
                         execute_args = " "
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: " ", no_reboot:true, build_type: 'Release', docker_name: docker_name)
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: " ", build_type: 'Release', docker_name: docker_name)
                         cleanWs()
                     }
                 }
@@ -1791,12 +1726,12 @@ pipeline {
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx942" \
-                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
-                                           -DCMAKE_HIP_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
+                                           -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                         cleanWs()
                     }
                 }
@@ -1814,12 +1749,12 @@ pipeline {
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx950" \
-                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
-                                           -DCMAKE_HIP_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
+                                           -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                         cleanWs()
                     }
                 }
@@ -1835,12 +1770,12 @@ pipeline {
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx908" \
-                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
-                                           -DCMAKE_HIP_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
+                                           -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                         cleanWs()
                     }
                 }
@@ -1857,12 +1792,12 @@ pipeline {
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx90a" \
                                            -DCK_CXX_STANDARD="17" \
-                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
-                                           -DCMAKE_HIP_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
+                                           -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                         cleanWs()
                     }
                 }
@@ -1877,17 +1812,17 @@ pipeline {
                         script {
                             def execute_args = params.NINJA_FTIME_TRACE ?
                                 """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
-                                    -DCMAKE_CXX_COMPILER="${build_compiler()}" \
-                                    -DCMAKE_HIP_COMPILER="${build_compiler()}" \
+                                    -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
+                                    -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
                                     -D CMAKE_BUILD_TYPE=Release \
                                     -D CMAKE_CXX_FLAGS=" -O3 -ftime-trace" .. && ninja -j64 """ :
                                 """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
-                                    -DCMAKE_CXX_COMPILER="${build_compiler()}" \
-                                    -DCMAKE_HIP_COMPILER="${build_compiler()}" \
+                                    -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
+                                    -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
                                     -D CMAKE_BUILD_TYPE=Release \
                                     -D CMAKE_CXX_FLAGS=" -O3 " .. && ninja -j64 """
 
-                            buildHipClangJobAndReboot(setup_cmd: "",  build_cmd: "", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, docker_name: "${env.CK_DOCKERHUB}:ck_ub24.04_rocm7.0.1")
+                            buildHipClangJobAndReboot(setup_cmd: "",  build_cmd: "", build_type: 'Release', execute_cmd: execute_args, docker_name: "${env.CK_DOCKERHUB}:ck_ub24.04_rocm7.0.1")
                         }
                         cleanWs()
                     }
@@ -1904,12 +1839,12 @@ pipeline {
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx10-3-generic" \
-                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
-                                           -DCMAKE_HIP_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
+                                           -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                         cleanWs()
                     }
                 }
@@ -1925,12 +1860,12 @@ pipeline {
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx11-generic" \
-                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
-                                           -DCMAKE_HIP_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
+                                           -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                         cleanWs()
                     }
                 }
@@ -1946,12 +1881,12 @@ pipeline {
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx12-generic" \
-                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
-                                           -DCMAKE_HIP_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
+                                           -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
-                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", no_reboot:true, build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
                         cleanWs()
                     }
                 }
