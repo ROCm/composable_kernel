@@ -11,7 +11,7 @@ Tensor Coordinates
 Overview
 ========
 
-Before diving into transforms and adaptors (see :ref:`ck_tile_transforms` and :ref:`ck_tile_adaptors`), it's essential to understand the basic coordinate system in CK Tile. MultiIndex is the fundamental building block used throughout the system - a container that extends the C++ array with additional operations for multi-dimensional indexing. Think of MultiIndex as GPS coordinates for tensors, providing a universal way to specify positions in N-dimensional space.
+Before diving into transforms and adaptors (see :ref:`ck_tile_transforms` and :ref:`ck_tile_adaptors`), understanding the basic coordinate system in CK Tile is necessary. MultiIndex is the building block used throughout the system - a container that extends the C++ array with additional operations for multi-dimensional indexing. Think of MultiIndex as GPS coordinates for tensors, providing a universal way to specify positions in N-dimensional space.
 
 MultiIndex serves as the common currency between different coordinate spaces (see :ref:`ck_tile_coordinate_systems`), enabling seamless transformation and navigation through complex tensor layouts. Every transform, adaptor, and descriptor in CK Tile operates on these coordinate containers.
 
@@ -408,10 +408,10 @@ Performance Considerations
 
 MultiIndex is designed for zero-overhead abstraction (see :ref:`ck_tile_gpu_basics` for GPU performance fundamentals):
 
-1. **Compile-Time Resolution**: When dimensions are known at compile time, all operations are inlined
-2. **Register Allocation**: Small fixed-size arrays typically stay in registers
-3. **Vectorization**: Compiler can vectorize operations on MultiIndex arrays
-4. **Memory Layout**: Contiguous storage enables efficient cache usage
+1. Compile-Time Resolution: When dimensions are known at compile time, all operations are inlined
+2. Register Allocation: Small fixed-size arrays typically stay in registers
+3. Vectorization: Compiler can vectorize operations on MultiIndex arrays
+4. Memory Layout: Contiguous storage enables efficient cache usage
 
 .. code-block:: cpp
 
@@ -443,17 +443,4 @@ MultiIndex is designed for zero-overhead abstraction (see :ref:`ck_tile_gpu_basi
         }
     };
 
-Summary
-=======
-
-MultiIndex is the foundation of CK Tile's coordinate system:
-
-- **Simple Abstraction**: Container for N integers representing position
-- **Universal Usage**: Every transform and adaptor operates on MultiIndex
-- **Type-Safe**: Compile-time size and bounds checking in C++
-- **Zero-Overhead**: Template metaprogramming ensures no runtime cost
-- **Flexible**: Supports both compile-time and runtime coordinates
-
-Understanding MultiIndex is crucial before moving to transforms and adaptors, as they all build upon this fundamental coordinate representation. The simplicity of MultiIndex belies its importance - it's the common language that allows all CK Tile components to work together seamlessly.
-
-For the complete picture of how MultiIndex fits into the CK Tile coordinate system, see :ref:`ck_tile_coordinate_systems`. For practical usage in tile distribution, see :ref:`ck_tile_tile_distribution`.
+For more information on how MultiIndex fits into the CK Tile coordinate system, see :ref:`ck_tile_coordinate_systems`. For practical usage in tile distribution, see :ref:`ck_tile_tile_distribution`.

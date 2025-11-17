@@ -11,19 +11,19 @@ Memory Swizzling with Morton Ordering
 Overview
 ========
 
-This chapter demonstrates a practical application of tensor descriptors for implementing memory swizzling patterns, specifically Morton ordering (Z-order curve) within tiles. Memory swizzling is crucial for optimizing GPU memory access patterns and reducing bank conflicts (see :ref:`ck_tile_lds_bank_conflicts`). Morton ordering provides a space-filling curve that maintains spatial locality while enabling efficient parallel access (see :ref:`ck_tile_space_filling_curve` for theoretical background).
+This chapter demonstrates a practical application of tensor descriptors for implementing memory swizzling patterns, specifically Morton ordering (Z-order curve) within tiles. Memory swizzling is used for optimizing GPU memory access patterns and reducing bank conflicts (see :ref:`ck_tile_lds_bank_conflicts`). Morton ordering provides a space-filling curve that maintains spatial locality while enabling efficient parallel access (see :ref:`ck_tile_space_filling_curve` for theoretical background).
 
 Morton ordering is widely used in:
 
-- **GPU Texture Memory**: Optimizing cache efficiency for 2D texture access
-- **Matrix Operations**: Reducing memory bank conflicts in shared memory
-- **Image Processing**: Improving locality for block-based algorithms
-- **Scientific Computing**: Enhancing data access patterns for stencil operations
+- GPU Texture Memory: Optimizing cache efficiency for 2D texture access
+- Matrix Operations: Reducing memory bank conflicts in shared memory
+- Image Processing: Improving locality for block-based algorithms
+- Scientific Computing: Enhancing data access patterns for stencil operations
 
 Understanding Morton Ordering
 =============================
 
-Morton ordering interleaves the bits of 2D coordinates to create a 1D ordering that preserves spatial locality. For a 2D coordinate (y, x), we split each coordinate into its binary bits and interleave them:
+Morton ordering interleaves the bits of 2D coordinates to create a 1D ordering that preserves spatial locality. For a 2D coordinate (y, x), each coordinate is split into its binary bits and interleaved:
 
 - y = y₁y₀ (2 bits)
 - x = x₁x₀ (2 bits)
@@ -89,7 +89,7 @@ Bit pattern breakdown:
 Stage 1: Tiling with UnmergeTransform
 ======================================
 
-First, we split our texture into tiles using tensor descriptors (see :ref:`ck_tile_descriptors` and :ref:`ck_tile_transforms`). This creates a hierarchical structure: (Y_blk, y_in, X_blk, x_in).
+First, the texture is split into tiles using tensor descriptors (see :ref:`ck_tile_descriptors` and :ref:`ck_tile_transforms`). This creates a hierarchical structure: (Y_blk, y_in, X_blk, x_in).
 
 .. code-block:: cpp
 
@@ -155,7 +155,7 @@ Example usage for an 8×8 texture with 4×4 tiles:
 Stage 2: Morton Ordering with MergeTransform
 ============================================
 
-The key insight is that MergeTransform enables Morton ordering by allowing us to reorder and merge coordinate bits. The transformation involves:
+The key insight is that MergeTransform enables Morton ordering by allowing coordinate bits to be reordered and merged. The transformation involves:
 
 1. Split coordinates into individual bits using UnmergeTransform
 2. Reorder and merge bits using MergeTransform to create the Morton index
@@ -226,7 +226,7 @@ Here's a complete implementation combining both stages:
 Memory Access Pattern Analysis
 ==============================
 
-Let's analyze the benefits of Morton ordering for different access patterns:
+The benefits of Morton ordering for different access patterns are:
 
 .. code-block:: cpp
 
@@ -406,7 +406,8 @@ Practical Applications
 
 Real-world usage of Morton ordering in CK Tile:
 
-**1. Texture Cache Optimization**
+Texture Cache Optimization
+---------------------------
 
 .. code-block:: cpp
 
@@ -442,7 +443,8 @@ Real-world usage of Morton ordering in CK Tile:
         }
     };
 
-**2. Matrix Multiplication with Swizzled Tiles**
+Matrix Multiplication with Swizzled Tiles
+------------------------------------------
 
 For complete GEMM optimization techniques, see :ref:`ck_tile_gemm_optimization`.
 
@@ -471,25 +473,5 @@ For complete GEMM optimization techniques, see :ref:`ck_tile_gemm_optimization`.
             }
         }
     };
-
-Summary
-=======
-
-Morton ordering with CK Tile provides memory optimization capabilities:
-
-- **Spatial Locality**: Z-order curve maintains 2D locality in 1D memory layout
-- **Bank Conflict Reduction**: Distributed access patterns across memory banks
-- **Cache Efficiency**: Better utilization of cache lines for 2D access patterns
-- **Mathematical Framework**: Tensor descriptors express swizzling cleanly
-- **Practical Implementation**: Bit manipulation provides reliable results
-
-Key implementation insights:
-
-1. **MergeTransform** is essential for expressing Morton bit interleaving
-2. **Manual bit manipulation** provides reliable and efficient implementation
-3. **Tiling + Morton** combines hierarchical locality with local optimization
-4. **GPU-specific tuning** adapts patterns to hardware characteristics
-
-The tensor descriptor approach provides the mathematical framework for expressing these complex memory patterns, while practical implementations often use direct bit manipulation for efficiency and reliability.
 
 For more examples of practical CK Tile usage, see :ref:`ck_tile_convolution_example`. For the underlying buffer and tensor abstractions, see :ref:`ck_tile_buffer_views` and :ref:`ck_tile_tensor_views`.

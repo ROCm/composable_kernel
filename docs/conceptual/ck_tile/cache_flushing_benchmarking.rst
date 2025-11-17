@@ -5,12 +5,12 @@ Cache Flushing for GPU Benchmarking
 Overview
 ========
 
-When benchmarking GPU kernels, accurate performance measurements require understanding and controlling cache behavior. Running a kernel multiple times with the same input data can lead to artificially fast results due to **cache hits**, where data and instructions are served from fast GPU cache rather than slow HBM (High Bandwidth Memory).
+When benchmarking GPU kernels, accurate performance measurements require understanding and controlling cache behavior. Running a kernel multiple times with the same input data can lead to artificially fast results due to cache hits, where data and instructions are served from fast GPU cache rather than slow HBM (High Bandwidth Memory).
 
 Composable Kernel provides two complementary mechanisms to ensure realistic "cold cache" performance measurements:
 
-1. **Instruction Cache Flushing** - Invalidates cached GPU instructions
-2. **Rotating Memory Buffers** - Cycles through multiple data buffer copies at different memory addresses
+1. Instruction Cache Flushing - Invalidates cached GPU instructions
+2. Rotating Memory Buffers - Cycles through multiple data buffer copies at different memory addresses
 
 This document explains how these mechanisms work and how to use them in your benchmarks.
 
@@ -64,17 +64,17 @@ Solution 1: Instruction Cache Flushing
 What is Instruction Cache?
 ---------------------------
 
-The **instruction cache (I-cache)** is a small, fast memory on each GPU compute unit that stores recently executed machine code instructions. When a thread needs to execute an instruction:
+The instruction cache (I-cache) is a small, fast memory on each GPU compute unit that stores recently executed machine code instructions. When a thread needs to execute an instruction:
 
-1. The **Program Counter (PC)** holds the instruction's memory address
+1. The Program Counter (PC) holds the instruction's memory address
 2. The GPU checks if that address exists in the I-cache
-3. **Cache HIT**: Instruction read instantly from I-cache (~4 cycles)
-4. **Cache MISS**: Instruction fetched from HBM (~400 cycles), then cached
+3. Cache HIT: Instruction read instantly from I-cache (~4 cycles)
+4. Cache MISS: Instruction fetched from HBM (~400 cycles), then cached
 
 How It Works
 ------------
 
-The GPU uses **address-based caching**: when you launch the same kernel multiple times, the kernel code resides at the same memory address, allowing the I-cache to serve cached instructions.
+The GPU uses address-based caching: when launching the same kernel multiple times, the kernel code resides at the same memory address, allowing the I-cache to serve cached instructions.
 
 .. code-block:: text
 
@@ -107,14 +107,16 @@ Located in ``include/ck_tile/host/flush_icache.hpp``:
     }
     }
 
-**Key Components:**
+Key Components
+^^^^^^^^^^^^^^
 
 - ``s_icache_inv``: AMD GPU instruction that invalidates the L1 instruction cache on the current compute unit
 - ``s_nop 0`` (×16): No-operation instructions that create a 16-cycle delay to ensure cache invalidation completes before the kernel exits
 
-**Why 16 NOPs?**
+Why 16 NOPs?
+^^^^^^^^^^^^
 
-The ``s_icache_inv`` instruction is **asynchronous** - it initiates cache invalidation but doesn't wait for completion. Without the NOPs, the kernel might exit before the flush finishes, leading to race conditions and incomplete cache invalidation.
+The ``s_icache_inv`` instruction is asynchronous - it initiates cache invalidation but doesn't wait for completion. Without the NOPs, the kernel might exit before the flush finishes, leading to race conditions and incomplete cache invalidation.
 
 Launching the Flush Kernel
 ---------------------------
@@ -138,9 +140,10 @@ From ``include/ck_tile/host/rotating_buffers.hpp``:
         HIP_CHECK_ERROR(hipGetLastError());
     }
 
-**Why 60× Over-provisioning?**
+Why 60× Over-provisioning?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The I-cache is **per-compute-unit** (CU). To flush all CUs, we must ensure every CU executes at least one instance of ``s_icache_inv``. 
+The I-cache is per-compute-unit (CU). To flush all CUs, every CU must execute at least one instance of ``s_icache_inv``. 
 
 - Launching exactly 1 block per CU doesn't guarantee 1:1 mapping due to GPU scheduler behavior
 - Launching 60 blocks per CU provides statistical certainty that every CU receives work
@@ -350,7 +353,7 @@ From ``example/ck_tile/38_block_scale_gemm/run_gemm_quant_example.inc``:
         kernel_launch    // Kernel to benchmark
     );
 
-Execution Flow
+Processing Flow
 --------------
 
 With ``flush_cache=true`` and ``rotating_count=3``, ``nrepeat=100``:
@@ -381,10 +384,5 @@ Related Files
 - ``include/ck_tile/host/rotating_buffers.hpp`` - RotatingMemWrapper implementation
 - ``include/ck_tile/host/kernel_launch.hpp`` - Timing loop integration
 
-Conclusion
-==========
-
-Accurate GPU kernel benchmarking requires careful control of cache behavior. The combination of **instruction cache flushing** (``flush_icache``) and **rotating memory buffers** (``RotatingMemWrapper``) ensures realistic "cold cache" performance measurements that represent real-world application behavior.
-
-By understanding and utilizing these mechanisms through the ``flush_cache`` command-line argument, you can obtain trustworthy performance data for optimization decisions and fair kernel comparisons.
+Accurate GPU kernel benchmarking requires careful control of cache behavior. The combination of instruction cache flushing (``flush_icache``) and rotating memory buffers (``RotatingMemWrapper``) ensures realistic "cold cache" performance measurements that represent real-world application behavior.
 

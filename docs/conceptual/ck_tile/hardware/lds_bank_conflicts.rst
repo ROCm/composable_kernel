@@ -11,7 +11,7 @@ Understanding AMD GPU LDS and Bank Conflicts
 Introduction
 ============
 
-Local Data Share (**LDS**) is AMD's shared memory within a compute unit (see :ref:`ck_tile_gpu_basics` for architecture details). It is organized into **32 or 64 banks** depending on the hardware architecture, each bank has a 4 bytes width. Understanding how memory addresses map to banks is key to avoiding **bank conflicts**.
+Local Data Share (LDS) is AMD's shared memory within a compute unit (see :ref:`ck_tile_gpu_basics` for architecture details). It is organized into 32 or 64 banks depending on the hardware architecture, each bank has a 4 bytes width. Understanding how memory addresses map to banks is important for avoiding bank conflicts.
 
 Bank Mapping
 ============
@@ -27,7 +27,7 @@ This means:
 - Addresses that differ by multiples of ``bank numbers * 4 bytes`` map to the same bank.
 - Conflicts occur when multiple threads in the same wave access the same bank **in the same cycle**.
 
-Not all the lanes can produce bank conflicts. HW divides access to LDS from wavefront into phases. Which lanes would be considered in each phase depends on the width of the instruction. Let us consider ``ds_write_b128`` as an example as it is the instruction that has the largest granularity write with the highest performance. Here access will be divided into 8 phases for 64 lane wavefront. If in 1 phase there will not be two thread access the same bank, there will bot be bank conflict:
+Not all the lanes can produce bank conflicts. HW divides access to LDS from wavefront into phases. Which lanes are considered in each phase depends on the width of the instruction. Consider ``ds_write_b128`` as an example as it is the instruction that has the largest granularity write with the highest performance. Here access will be divided into 8 phases for 64 lane wavefront. If in 1 phase there will not be two thread access the same bank, there will bot be bank conflict:
 
 - lane0~lane7
 - lane8~lane15
@@ -43,7 +43,7 @@ If within each group of lanes there is no conflict it is an LDS bank conflict fr
 Bank Access Patterns
 ====================
 
-We can simulate LDS bank access for a given set of thread addresses. Let us consider a 32 bank LDS with 4 bytes per bank. Each thread will be writing 8 2-byte elements (16 bytes total), consuming 4 banks in LDS. fp16 or bf16 are the common formats GPU kernels have to deal with. With the phase access pattern like above by default it is a bank conflict free LDS write access.
+LDS bank access can be simulated for a given set of thread addresses. Consider a 32 bank LDS with 4 bytes per bank. Each thread will be writing 8 2-byte elements (16 bytes total), consuming 4 banks in LDS. fp16 or bf16 are the common formats GPU kernels have to deal with. With the phase access pattern like above by default it is a bank conflict free LDS write access.
 
 Write Access Pattern
 --------------------
@@ -66,14 +66,14 @@ Similarly for LDS read instruction ``ds_read_b128``, when there is no bank confl
 
 then it's bank conflict-free for LDS reading.
 
-The reason we are accessing the data vertically is becasue in most LDS access we will have the MFMA instruction in the next step and the MFMA require to access the data vertically like above.
+The reason for accessing the data vertically is because in most LDS access the MFMA instruction follows in the next step and the MFMA requires accessing the data vertically like above.
 
 The LDS read access pattern illustrated below is typical for LDS usage in machine learning workloads. The read pattern can generate 4-way bank conflicts in every phase of access. You can experiment with ``row_padding`` (padding in a number of banks) to see if the problem can be solved this way, but also remember that in practice this will require additional LDS storage. The bigger the padding, the more additional storage is necessary.
 
 XOR Preshuffle: An Alternative to Padding
 =========================================
 
-Another technique to reduce LDS bank conflicts is **XOR preshuffling** (see :ref:`ck_tile_lds_index_swapping` for detailed implementation). Instead of adding padding between rows, we can permute the column indices for each row using XOR. This method can help to avoid bank conflicts without allocating extra storage in LDS.
+Another technique to reduce LDS bank conflicts is XOR preshuffling (see :ref:`ck_tile_lds_index_swapping` for detailed implementation). Instead of adding padding between rows, the column indices for each row can be permuted using XOR. This method can help to avoid bank conflicts without allocating extra storage in LDS.
 
 For a wavefront of 64 threads, if each thread writes a vector of 8 fp16 elements (16 bytes), and the row size is 64 elements, the column index for each element in a row is adjusted as follows:
 
@@ -145,9 +145,9 @@ Integration with CK Tile
 
 CK Tile automatically handles LDS bank conflict avoidance through its abstractions:
 
-1. **TileWindow** (:ref:`ck_tile_tile_window`): Automatically applies XOR preshuffling when loading/storing to LDS
-2. **StaticDistributedTensor** (:ref:`ck_tile_static_distributed_tensor`): Manages LDS allocation with proper alignment
-3. **LoadStoreTraits** (:ref:`ck_tile_load_store_traits`): Selects optimal access patterns to minimize conflicts
+1. ``TileWindow`` (:ref:`ck_tile_tile_window`): Automatically applies XOR preshuffling when loading/storing to LDS
+2. ``StaticDistributedTensor`` (:ref:`ck_tile_static_distributed_tensor`): Manages LDS allocation with proper alignment
+3. ``LoadStoreTraits`` (:ref:`ck_tile_load_store_traits`): Selects optimal access patterns to minimize conflicts
 
 Example usage in CK Tile:
 
@@ -183,17 +183,17 @@ Performance Impact
 
 Proper LDS bank conflict avoidance can have significant performance impact:
 
-- **4-way conflicts**: Can reduce effective LDS bandwidth by 75%
-- **XOR preshuffle**: Restores full bandwidth with zero storage overhead
-- **Padding**: Also effective but requires 12.5-25% more LDS storage
+- 4-way conflicts: Can reduce effective LDS bandwidth by 75%
+- XOR preshuffle: Restores full bandwidth with zero storage overhead
+- Padding: Also effective but requires 12.5-25% more LDS storage
 
 Best Practices
 ==============
 
-1. **Use CK Tile abstractions**: They automatically handle bank conflict avoidance
-2. **Prefer XOR preshuffle**: No storage overhead compared to padding
-3. **Verify with profiling**: Use rocprof to check for LDS bank conflicts
-4. **Consider access patterns**: Design algorithms with bank-friendly patterns
+1. Use CK Tile abstractions: They automatically handle bank conflict avoidance
+2. Prefer XOR preshuffle: No storage overhead compared to padding
+3. Verify with profiling: Use rocprof to check for LDS bank conflicts
+4. Consider access patterns: Design algorithms with bank-friendly patterns
 
 By understanding LDS bank conflicts and using CK Tile's automatic conflict avoidance mechanisms, developers can achieve optimal shared memory performance without manual optimization.
 

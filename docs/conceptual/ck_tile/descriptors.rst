@@ -10,10 +10,10 @@ A TensorDescriptor is the complete blueprint for a tensor. It combines a shape, 
 
 In CK Tile, TensorDescriptors serve as the foundation for all tensor operations, providing:
 
-- **Memory Layout Specification**: How data is arranged in physical memory
-- **Logical View Definition**: How the tensor appears to the programmer
-- **Transformation Pipeline**: A series of :ref:`coordinate transformations <ck_tile_coordinate_systems>`
-- **Zero-Copy Views**: Different logical representations of the same data (building on :ref:`BufferViews <ck_tile_buffer_views>` and :ref:`TensorViews <ck_tile_tensor_views>`)
+- Memory Layout Specification: How data is arranged in physical memory
+- Logical View Definition: How the tensor appears to the programmer
+- Transformation Pipeline: A series of :ref:`coordinate transformations <ck_tile_coordinate_systems>`
+- Zero-Copy Views: Different logical representations of the same data (building on :ref:`BufferViews <ck_tile_buffer_views>` and :ref:`TensorViews <ck_tile_tensor_views>`)
 
 Creating Basic Tensor Layouts
 -----------------------------
@@ -23,7 +23,7 @@ CK Tile provides several ways to create tensor descriptors for common memory lay
 Custom Strides
 ~~~~~~~~~~~~~~
 
-The most fundamental way to define a tensor is with custom strides. This gives you full control over how many elements to "jump" in memory to move to the next item along each dimension. This is particularly useful for creating padded layouts required by GPU algorithms.
+One way to define a tensor is with custom strides. This gives you full control over how many elements to "jump" in memory to move to the next item along each dimension. This is particularly useful for creating padded layouts required by GPU algorithms.
 
 .. code-block:: cpp
 
@@ -142,24 +142,25 @@ Every TensorDescriptor in CK Tile can be thought of as a **transformation pipeli
 The Initial Pipeline Stage
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-When you create a simple packed descriptor, it sets up a pipeline with a single transform:
+When creating a simple packed descriptor, it sets up a pipeline with a single transform:
 
-- **Input**: The raw, one-dimensional memory buffer (hidden dimension ID 0)
-- **Output**: The logical dimensions that you interact with (hidden dimension IDs 1, 2, ...)
+- Input: The raw, one-dimensional memory buffer (hidden dimension ID 0)
+- Output: The logical dimensions for interaction (hidden dimension IDs 1, 2, ...)
 
 This initial stage converts linear memory addresses into multi-dimensional coordinates (see :ref:`ck_tile_adaptors` for how transforms chain together).
 
 Advanced Layouts: Step-by-Step Transformation
 ---------------------------------------------
 
-The ``transform_tensor_descriptor`` function adds new stages to an existing descriptor's pipeline using :ref:`transforms <ck_tile_transforms>`. Let's walk through a detailed example.
+The ``transform_tensor_descriptor`` function adds new stages to an existing descriptor's pipeline using :ref:`transforms <ck_tile_transforms>`. The following walks through a detailed example.
 
 Goal: Transform a [2, 6] Tensor into a [2, 2, 3] View
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-We will reinterpret a 2D tensor with shape [2, 6] as a 3D tensor with shape [2, 2, 3], without changing the underlying 12-element memory buffer.
+This example reinterprets a 2D tensor with shape [2, 6] as a 3D tensor with shape [2, 2, 3], without changing the underlying 12-element memory buffer.
 
-**Step 1: Define the Base Descriptor**
+Step 1: Define the Base Descriptor
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: cpp
 
@@ -175,14 +176,16 @@ We will reinterpret a 2D tensor with shape [2, 6] as a 3D tensor with shape [2, 
    // - Produces two outputs (hidden IDs 1 and 2)
    // - These outputs become logical dimensions 0 and 1
 
-**Step 2: Define the New Transformation Stage**
+Step 2: Define the New Transformation Stage
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-To get from [2, 6] to [2, 2, 3], we need:
+To get from [2, 6] to [2, 2, 3], the following is needed:
 
-- **For logical dimension 0 (length 2)**: Preserve it with PassThroughTransform
-- **For logical dimension 1 (length 6)**: Split it with UnmergeTransform([2, 3])
+- For logical dimension 0 (length 2): Preserve it with PassThroughTransform
+- For logical dimension 1 (length 6): Split it with UnmergeTransform([2, 3])
 
-**Step 3: Apply Transformation**
+Step 3: Apply Transformation
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: cpp
 
@@ -252,14 +255,14 @@ Analysis of the Final Pipeline
    :align: center
 The pipeline now has three stages:
 
-1. **Base UnmergeTransform**: Converts raw buffer to [2, 6] layout
-2. **PassThroughTransform**: Preserves the first dimension
-3. **UnmergeTransform**: Splits the second dimension into [2, 3]
+1. Base UnmergeTransform: Converts raw buffer to [2, 6] layout
+2. PassThroughTransform: Preserves the first dimension
+3. UnmergeTransform: Splits the second dimension into [2, 3]
 
 Real-World GPU Example: 5D to 3D Block Transformation
 -----------------------------------------------------
 
-These concepts are critical in :ref:`GPU programming <ck_tile_gpu_basics>`. This example transforms a 5D tensor representing a GPU thread block's workload into a simpler 3D view using MergeTransform (see :ref:`ck_tile_thread_mapping` for thread distribution details).
+These concepts are used in :ref:`GPU programming <ck_tile_gpu_basics>`. This example transforms a 5D tensor representing a GPU thread block's workload into a simpler 3D view using MergeTransform (see :ref:`ck_tile_thread_mapping` for thread distribution details).
 
 .. code-block:: cpp
 
@@ -349,32 +352,15 @@ Tensor Slicing
        make_tuple(sequence<0>{}, sequence<1>{})
    );
 
-Key Concepts Summary
---------------------
-
-TensorDescriptors provide a key abstraction for tensor manipulation:
-
-- **Pipeline Architecture**: Each descriptor is a transformation pipeline
-- **Zero-Copy Views**: All transformations are logical, no data movement
-- **Composability**: Complex layouts built from simple transforms
-- **GPU Optimization**: Designed for efficient GPU memory access patterns
-
-Important principles:
-
-1. **Always Handle All Dimensions**: When transforming, provide a transform for each input dimension
-2. **Hidden Dimension IDs**: Track the flow of data through the pipeline
-3. **Compile-Time Resolution**: All transformations resolved at compile time
-4. **Type Safety**: Template metaprogramming ensures correctness
-
 Performance Considerations
 --------------------------
 
 When designing tensor descriptors for GPU kernels:
 
-1. **Memory Coalescing**: Ensure contiguous threads access contiguous memory
-2. **Bank Conflicts**: Avoid patterns that cause :ref:`shared memory conflicts <ck_tile_lds_bank_conflicts>`
-3. **Alignment**: Use aligned layouts for better memory throughput
-4. **Padding**: Strategic padding can improve access patterns (see :ref:`ck_tile_lds_index_swapping` for advanced techniques)
+1. Memory Coalescing: Ensure contiguous threads access contiguous memory
+2. Bank Conflicts: Avoid patterns that cause :ref:`shared memory conflicts <ck_tile_lds_bank_conflicts>`
+3. Alignment: Use aligned layouts for better memory throughput
+4. Padding: Strategic padding can improve access patterns (see :ref:`ck_tile_lds_index_swapping` for techniques)
 
 Next Steps
 ----------

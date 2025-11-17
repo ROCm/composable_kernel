@@ -11,7 +11,7 @@ Sweep Tile
 Overview
 ========
 
-Sweep operations are the clean way to iterate over distributed data in CK Tile. They complete the tile distribution workflow by providing clean, efficient iteration patterns that automatically handle all the complex indexing details. Sweep operations are like forEach() for distributed tensors - give them a function, and they'll call it for every element in the optimal order.
+Sweep operations are the way to iterate over distributed data in CK Tile. They complete the tile distribution workflow by providing efficient iteration patterns that automatically handle all the complex indexing details. Sweep operations are like forEach() for distributed tensors - providing a function allows it to be called for every element in the optimal order.
 
 The key insight is the "load once, use many times" pattern. Load X data once into registers, then sweep through Y positions while keeping X in fast memory. This maximizes data reuse and minimizes memory bandwidth requirements.
 
@@ -61,14 +61,14 @@ The key insight is the "load once, use many times" pattern. Load X data once int
 The Complete GPU Workflow
 =========================
 
-Sweep operations are the final piece of the distributed computing puzzle:
+Sweep operations complete the distributed computing workflow:
 
-1. **TileDistribution**: "Here's how to divide work"
-2. **TileWindow**: "Here's your data, loaded efficiently"
-3. **Sweep Operations**: "Here's how to process every element"
-4. **Your code**: "Thanks! *does computation*"
+1. TileDistribution: Defines how to divide work
+2. TileWindow: Provides data, loaded efficiently
+3. Sweep Operations: Defines how to process every element
+4. User code: Performs computation
 
-Without sweep operations, you need manual nested loops, complex index calculations, and risk missing elements or double-processing. With sweep operations, you get lambda-based iteration with automatic handling of all elements.
+Without sweep operations, manual nested loops, complex index calculations are needed, with risk of missing elements or double-processing. With sweep operations, lambda-based iteration with automatic handling of all elements is provided.
 
 For understanding the underlying coordinate systems, see :ref:`ck_tile_coordinate_systems`.
 
@@ -557,26 +557,3 @@ Complete workflow example:
         // 6. Store results
         output_window.store(output_tile);
     }
-
-
-SweepTile provides clean and efficient iteration over distributed data:
-Summary
-
-SweepTile provides clean and efficient iteration over distributed data:
-=======
-
-SweepTile provides clean and efficient iteration over distributed data:
-
-- **Efficiency**: Load once, use many times pattern
-- **Simplicity**: Clean lambda-based iteration abstraction
-- **Performance**: Zero overhead with perfect access patterns
-- **Flexibility**: Various sweep patterns for different algorithms
-
-Key benefits:
-
-1. **Memory Bandwidth**: Optimal reuse of loaded data
-2. **Register Pressure**: Keep hot data in fastest memory
-3. **Code Clarity**: Express algorithms naturally
-4. **Compiler Optimization**: Enable aggressive optimizations
-
-The sweep pattern is fundamental to high-performance GPU kernels, turning complex iteration patterns into simple, efficient operations. Combined with TileDistribution and TileWindow, sweep operations complete the toolkit for clean and performant GPU computing.

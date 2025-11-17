@@ -11,9 +11,9 @@ Advanced Coordinate Movement
 Overview
 ========
 
-Advanced coordinate operations form the bridge between mathematical transformations and practical tensor manipulation in CK Tile. These operations enable efficient navigation through complex tensor layouts without recalculating entire transformation chains. Understanding coordinate movement is essential for implementing high-performance GPU kernels that traverse multi-dimensional data structures.
+Coordinate operations form the bridge between mathematical transformations and practical tensor manipulation in CK Tile. These operations enable efficient navigation through complex tensor layouts without recalculating entire transformation chains. Understanding coordinate movement is important for implementing high-performance GPU kernels that traverse multi-dimensional data structures.
 
-The coordinate movement system provides two key abstractions: TensorCoordinate for descriptor-aware navigation and TensorAdaptorCoordinate for tracking positions through transformation chains. Together with movement functions, they enable advanced access patterns while maintaining optimal performance through incremental updates rather than full recalculation.
+The coordinate movement system provides two abstractions: TensorCoordinate for descriptor-aware navigation and TensorAdaptorCoordinate for tracking positions through transformation chains. Together with movement functions, they enable access patterns while maintaining optimal performance through incremental updates rather than full recalculation.
 
 For the mathematical foundations of coordinate systems, see :ref:`ck_tile_coordinate_systems`. For simpler coordinate concepts, see :ref:`ck_tile_tensor_coordinates`.
 
@@ -132,13 +132,13 @@ Creating and Using TensorCoordinate
         DataType value = tensor_data[offset];
     }
 
-Key Benefits
-------------
+Benefits
+--------
 
-1. **Context Preservation**: The coordinate maintains descriptor context for validation
-2. **Cached Calculations**: Transformation results are cached for efficiency
-3. **Type Safety**: Compile-time checking ensures coordinate-descriptor compatibility
-4. **Zero Overhead**: All operations resolve at compile time when possible
+1. Context Preservation: The coordinate maintains descriptor context for validation
+2. Cached Calculations: Transformation results are cached for efficiency
+3. Type Safety: Compile-time checking ensures coordinate-descriptor compatibility
+4. Zero Overhead: All operations resolve at compile time when possible
 
 
 TensorAdaptorCoordinate: Transform-Aware Tracking
@@ -427,17 +427,13 @@ For more details on space-filling curves and their benefits, see :ref:`ck_tile_s
         }
     }
 
-
-
-Efficient coordinate movement is critical for GPU performance:
 Performance Considerations
-
-Efficient coordinate movement is critical for GPU performance (see :ref:`ck_tile_gpu_basics` for hardware details):
 ==========================
 
-Efficient coordinate movement is critical for GPU performance:
+Efficient coordinate movement is important for GPU performance (see :ref:`ck_tile_gpu_basics` for hardware details):
 
-**1. Incremental Updates**
+Incremental Updates
+^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: cpp
 
@@ -454,7 +450,8 @@ Efficient coordinate movement is critical for GPU performance:
         move_tensor_coordinate(desc, coord, make_multi_index(1, 0));
     }
 
-**2. Movement Caching**
+Movement Caching
+^^^^^^^^^^^^^^^^
 
 .. code-block:: cpp
 
@@ -470,7 +467,8 @@ Efficient coordinate movement is critical for GPU performance:
         }
     };
 
-**3. Vectorized Movement**
+Vectorized Movement
+^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: cpp
 
@@ -522,21 +520,3 @@ Coordinate movement integrates seamlessly with other CK Tile components:
         }
     }
 
-
-
-Advanced coordinate operations provide the foundation for efficient tensor navigation in CK Tile:
-Summary
-
-Advanced coordinate operations provide the foundation for efficient tensor navigation in CK Tile:
-=======
-
-Advanced coordinate operations provide the foundation for efficient tensor navigation in CK Tile:
-
-- **TensorCoordinate**: Combines position with descriptor context for validated navigation
-- **TensorAdaptorCoordinate**: Tracks coordinates through transformation chains
-- **move_tensor_coordinate**: Enables efficient incremental updates without recalculation
-- **Movement Patterns**: Support advanced access patterns like tiling and space-filling curves
-- **Performance**: Incremental updates are orders of magnitude faster than coordinate recreation
-- **Integration**: Seamlessly works with tile windows, distributions, and other CK Tile components
-
-These operations are essential for implementing high-performance GPU kernels that can navigate complex tensor layouts efficiently. By understanding and utilizing coordinate movement, developers can create kernels that achieve optimal memory access patterns while maintaining code clarity and correctness.

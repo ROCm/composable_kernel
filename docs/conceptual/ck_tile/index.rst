@@ -10,10 +10,10 @@ Overview
 
 CK Tile provides a mathematical framework for expressing complex GPU computations through:
 
-- **Automatic Memory Coalescing**: Ensures optimal memory access patterns without manual optimization
-- **Thread Cooperation**: Coordinates work distribution across GPU's hierarchical execution model
-- **Zero-Overhead Abstractions**: Compile-time optimizations ensure no runtime performance penalty
-- **Portable Performance**: Same code achieves high performance across different GPU architectures
+- Automatic Memory Coalescing: Ensures optimal memory access patterns without manual optimization
+- Thread Cooperation: Coordinates work distribution across GPU's hierarchical thread model
+- Zero-Overhead Abstractions: Compile-time optimizations ensure no runtime performance penalty
+- Portable Performance: Same code achieves high performance across different GPU architectures
 
 Why CK Tile?
 ------------
@@ -61,46 +61,48 @@ Documentation Structure
 Learning Path
 -------------
 
-1. **Start Here**: :ref:`ck_tile_introduction`
+1. Start Here: :ref:`ck_tile_introduction`
    
-   Understand the fundamental problems CK Tile solves and why it's essential for efficient GPU programming.
+   Understand the problems CK Tile solves and why it's important for efficient GPU programming.
 
-2. **Foundation**: :ref:`ck_tile_buffer_views`
+2. Foundation: :ref:`ck_tile_buffer_views`
    
    Learn how CK Tile provides structured access to raw GPU memory across different address spaces.
 
-3. **Multi-Dimensional Views**: :ref:`ck_tile_tensor_views`
+3. Multi-Dimensional Views: :ref:`ck_tile_tensor_views`
    
    Understand how to work with multi-dimensional data structures and memory layouts.
 
-4. **Core API**: :ref:`ck_tile_distribution`
+4. Core API: :ref:`ck_tile_distribution`
    
-   Master the tile distribution system that automatically maps work to GPU threads.
+   Learn the tile distribution system that automatically maps work to GPU threads.
 
-5. **Mathematical Framework**: :ref:`ck_tile_coordinate_systems`
+5. Mathematical Framework: :ref:`ck_tile_coordinate_systems`
    
    Deep dive into the coordinate transformation system that powers CK Tile's abstractions.
 
-6. **Reference**: :ref:`ck_tile_terminology`
+6. Reference: :ref:`ck_tile_terminology`
    
    Comprehensive glossary of all terms and concepts used in CK Tile.
 
 Key Concepts at a Glance
 ------------------------
 
-**Coordinate Spaces**
+Coordinate Spaces
+~~~~~~~~~~~~~~~~~
 
-- **P-space**: Processing element coordinates (thread, warp, block)
-- **Y-space**: Local tile access patterns
-- **X-space**: Physical tensor coordinates
-- **D-space**: Linearized memory addresses
+- P-space: Processing element coordinates (thread, warp, block)
+- Y-space: Local tile access patterns
+- X-space: Physical tensor coordinates
+- D-space: Linearized memory addresses
 
-**Core Components**
+Core Components
+~~~~~~~~~~~~~~~
 
-- **BufferView**: Type-safe access to GPU memory
-- **TileDistribution**: Automatic work distribution
-- **TileWindow**: Efficient data loading/storing
-- **Encoding**: Compile-time distribution specification
+- ``BufferView``: Type-safe access to GPU memory
+- ``TileDistribution``: Automatic work distribution
+- ``TileWindow``: Efficient data loading/storing
+- ``Encoding``: Compile-time distribution specification
 
 Quick Example
 -------------
@@ -131,10 +133,10 @@ Performance Impact
 
 CK Tile enables kernels to achieve:
 
-- **>90% memory bandwidth utilization** through perfect coalescing
-- **Minimal register pressure** via efficient data distribution
-- **Zero bank conflicts** in shared memory access
-- **Portable performance** across GPU generations
+- >90% memory bandwidth utilization through coalescing
+- Minimal register pressure via efficient data distribution
+- Zero bank conflicts in shared memory access
+- Portable performance across GPU generations
 
 Next Steps
 ----------

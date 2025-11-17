@@ -8,11 +8,11 @@
 Thread Mapping - Connecting to Hardware
 ********************************************************************
 
-The final piece of the puzzle: how threads get their unique IDs and how that maps to specific data, connecting our mathematical abstractions to physical hardware.
+Thread mapping connects threads to their unique IDs and maps that to specific data, connecting mathematical abstractions to physical hardware.
 
-Up to this point, we've learned about :ref:`ck_tile_encoding_internals`, :ref:`ck_tile_transforms`, and :ref:`ck_tile_static_distributed_tensor`. But there's one crucial question remaining: **How do actual GPU threads know which data to process?**
+Given the context from :ref:`ck_tile_encoding_internals`, :ref:`ck_tile_transforms`, and :ref:`ck_tile_static_distributed_tensor`, the question remains: how do actual GPU threads know which data to process?
 
-This is where thread mapping comes in - the bridge between our mathematical abstractions and the physical hardware that executes our code. Thread mapping works closely with :ref:`ck_tile_tile_distribution` to ensure optimal performance.
+Thread mapping provides the bridge between mathematical abstractions and the physical hardware that processes the code. Thread mapping works closely with :ref:`ck_tile_tile_distribution` to ensure optimal performance.
 
 Thread Identification and Partition Indices
 ===========================================
@@ -145,19 +145,22 @@ Thread Hierarchy Structure
 
 The hardware organizes threads in a specific hierarchy (see :ref:`ck_tile_gpu_basics` for hardware details):
 
-**Block Level**: Groups of warps working together
+Block Level
+~~~~~~~~~~~
 
 - Warps per block defined by encoding (e.g., 2×2 warps)
 - Shared memory and synchronization scope
 - Block-level coordination possible
 
-**Warp Level**: Groups of threads executing in lockstep
+Warp Level
+~~~~~~~~~~
 
 - Threads per warp defined by encoding (e.g., 8×8 threads)
-- SIMD execution (all threads execute same instruction)
+- SIMD processing (all threads execute same instruction)
 - Warp-level primitives (shuffle, vote, etc.)
 
-**Thread Level**: Individual execution units
+Thread Level
+~~~~~~~~~~~~
 
 - Vector size per thread (e.g., 4×4 elements)
 - Independent register space
@@ -168,16 +171,16 @@ Thread ID Mapping
 
 Each thread gets a unique ID that maps to its position in the hierarchy. For example, in an RMSNorm configuration:
 
-- **Repeat (M, N)**: (4, 4) - Number of iterations
-- **Warps per block (M, N)**: (2, 2) - 4 warps total
-- **Threads per warp (M, N)**: (8, 8) - 64 threads per warp
-- **Vector size (M, N)**: (4, 4) - 16 elements per thread
+- Repeat (M, N): (4, 4) - Number of iterations
+- Warps per block (M, N): (2, 2) - 4 warps total
+- Threads per warp (M, N): (8, 8) - 64 threads per warp
+- Vector size (M, N): (4, 4) - 16 elements per thread
 
-This gives us:
+This configuration gives:
 
-- **Threads per block**: 256 (4 warps × 64 threads/warp)
-- **Elements per thread**: 16 (4×4 vector)
-- **Total elements**: 4096 per block
+- Threads per block: 256 (4 warps × 64 threads/warp)
+- Elements per thread: 16 (4×4 vector)
+- Total elements: 4096 per block
 
 Thread-to-Data Mapping
 ======================
@@ -240,12 +243,13 @@ Data Distribution Pattern
 
 The RMSNorm operation distributes tensor data across threads in a structured pattern:
 
-**Hierarchical Data Distribution:**
+Hierarchical Data Distribution
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- **Block Level**: Multiple iterations (repeat factor)
-- **Warp Level**: Warps process different regions
-- **Thread Level**: Threads within warp handle adjacent data
-- **Vector Level**: Each thread processes multiple elements
+- Block Level: Multiple iterations (repeat factor)
+- Warp Level: Warps process different regions
+- Thread Level: Threads within warp handle adjacent data
+- Vector Level: Each thread processes multiple elements
 
 Thread Work Assignment
 ----------------------
@@ -276,30 +280,30 @@ Warp-Level Cooperation
 
 Threads within a warp execute in lockstep (SIMD):
 
-- **Synchronization**: Automatic SIMD execution
-- **Data sharing**: Warp shuffle instructions
-- **Collective ops**: Warp-level reductions
-- **Memory access**: Coalesced patterns
+- Synchronization: Automatic SIMD processing
+- Data sharing: Warp shuffle instructions
+- Collective ops: Warp-level reductions
+- Memory access: Coalesced patterns
 
 Block-Level Cooperation
 -----------------------
 
 Threads within a block can share data and synchronize:
 
-- **Shared memory**: All threads in block can access (see :ref:`ck_tile_lds_bank_conflicts` for optimization)
-- **Synchronization**: ``__syncthreads()`` barriers
-- **Data exchange**: Through shared memory
-- **Collective operations**: Block-wide reductions
+- Shared memory: All threads in block can access (see :ref:`ck_tile_lds_bank_conflicts` for optimization)
+- Synchronization: ``__syncthreads()`` barriers
+- Data exchange: Through shared memory
+- Collective operations: Block-wide reductions
 
 Vector-Level Processing
 -----------------------
 
 Each thread processes multiple elements efficiently:
 
-- **Register efficiency**: Multiple elements in registers
-- **Memory coalescing**: Vectorized loads/stores
-- **Instruction efficiency**: SIMD operations on vectors
-- **Bandwidth utilization**: Maximum memory throughput
+- Register efficiency: Multiple elements in registers
+- Memory coalescing: Vectorized loads/stores
+- Instruction efficiency: SIMD operations on vectors
+- Bandwidth utilization: Maximum memory throughput
 
 Memory Access Patterns
 ======================
@@ -386,19 +390,21 @@ Memory Efficiency Benefits
 
 The structured thread mapping provides several memory efficiency benefits:
 
-**Memory Coalescing Benefits:**
+Memory Coalescing Benefits
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- **Adjacent access**: Threads in same warp access adjacent memory locations
-- **Cache efficiency**: Related data loaded together into cache lines
-- **Bandwidth utilization**: Maximum memory bandwidth achieved
-- **Reduced latency**: Fewer memory transactions needed
+- Adjacent access: Threads in same warp access adjacent memory locations
+- Cache efficiency: Related data loaded together into cache lines
+- Bandwidth utilization: Maximum memory bandwidth achieved
+- Reduced latency: Fewer memory transactions needed
 
-**Performance Characteristics:**
+Performance Characteristics
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-- **Predictable patterns**: Access patterns known at compile time
-- **Vectorization**: Hardware can optimize vector operations
-- **Reduced overhead**: No complex address calculations at runtime
-- **Scalability**: Pattern scales efficiently with thread count
+- Predictable patterns: Access patterns known at compile time
+- Vectorization: Hardware can optimize vector operations
+- Reduced overhead: No complex address calculations at runtime
+- Scalability: Pattern scales efficiently with thread count
 
 Practical Thread Mapping Example
 ================================
@@ -501,57 +507,53 @@ Here's a complete example showing how thread mapping works in a real CK kernel:
         });
     }
 
-Key Thread Mapping Concepts in Action
+Thread Mapping Concepts in Action
 -------------------------------------
 
-1. **Thread-to-Data Assignment**: Each thread gets a unique ``partition_idx``
-2. **Vectorized Access**: Each thread processes ``VectorSize`` elements
-3. **Warp Cooperation**: Threads within a warp perform reductions
-4. **Block Synchronization**: All threads synchronize for final result
-5. **Coalesced Memory**: Adjacent threads access adjacent memory
+1. Thread-to-Data Assignment: Each thread gets a unique ``partition_idx``
+2. Vectorized Access: Each thread processes ``VectorSize`` elements
+3. Warp Cooperation: Threads within a warp perform reductions
+4. Block Synchronization: All threads synchronize for final result
+5. Coalesced Memory: Adjacent threads access adjacent memory
 
-Key Takeaways
-=============
+Takeaways
+=========
 
-Thread mapping is the crucial bridge between mathematical abstractions and physical hardware execution:
+Thread mapping is the bridge between mathematical abstractions and physical hardware processing:
 
-**Thread Identification:**
+Thread Identification
+~~~~~~~~~~~~~~~~~~~~~
 
-1. **Hierarchical Organization**: Threads organized in blocks → warps → threads → vectors
+1. Hierarchical Organization: Threads organized in blocks → warps → threads → vectors
    
    - Each level has specific cooperation capabilities
    - Hardware provides efficient primitives at each level
    - Thread IDs map directly to data regions
-   - Predictable and efficient execution patterns
+   - Predictable and efficient processing patterns
 
-2. **Data Assignment**: Each thread gets a specific rectangular region
+2. Data Assignment: Each thread gets a specific rectangular region
    
    - Work distributed evenly across threads
    - Memory access patterns optimized for coalescing
    - Vector operations maximize throughput
    - Scalable across different hardware configurations
 
-3. **Cooperation Patterns**: Threads cooperate at multiple levels
+3. Cooperation Patterns: Threads cooperate at multiple levels
    
-   - Warp-level SIMD execution for efficiency
+   - Warp-level SIMD processing for efficiency
    - Block-level shared memory and synchronization
    - Vector-level processing for maximum throughput
    - Hierarchical coordination for complex operations
 
-**Performance Benefits:**
+Performance Benefits
+~~~~~~~~~~~~~~~~~~~~
 
-- **Memory Coalescing**: Adjacent threads access adjacent memory for optimal bandwidth
-- **Cache Efficiency**: Related data loaded together, reducing memory latency
-- **Vectorization**: Hardware can optimize multiple operations per thread
-- **Predictable Patterns**: Compile-time optimization of access patterns
+- Memory Coalescing: Adjacent threads access adjacent memory for optimal bandwidth
+- Cache Efficiency: Related data loaded together, reducing memory latency
+- Vectorization: Hardware can optimize multiple operations per thread
+- Predictable Patterns: Compile-time optimization of access patterns
 
-**Why This Matters:**
-
-Thread mapping connects all the previous concepts (encodings, transformations, distributions) to actual hardware execution. It's the final piece that makes tile distribution practical for real-world GPU programming.
-
-The RMSNorm example shows how a real operation uses these concepts to achieve optimal performance on modern GPU hardware. Every thread knows exactly what data to process, how to access it efficiently, and how to cooperate with other threads - all determined by the mathematical encoding we started with!
-
-This completes the journey from basic memory concepts to hardware-optimized execution. You now understand the complete tile distribution system from mathematical foundations to practical implementation.
+This completes the overview from basic memory concepts to hardware-optimized processing. The complete tile distribution system goes from mathematical foundations to practical implementation.
 
 Related Topics
 

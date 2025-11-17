@@ -6,9 +6,9 @@ LoadStoreTraits - Memory Access Optimization Engine
 Overview
 --------
 
-LoadStoreTraits is a critical optimization component that analyzes :ref:`tile distributions <ck_tile_tile_distribution>` to determine the most efficient memory access patterns. It serves as the intelligence behind :ref:`TileWindow's <ck_tile_tile_window>` high-performance data movement, automatically identifying the best dimension for vectorization and creating optimized access sequences using :ref:`space-filling curves <ck_tile_space_filling_curve>`.
+LoadStoreTraits is an optimization component that analyzes :ref:`tile distributions <ck_tile_tile_distribution>` to determine the most efficient memory access patterns. It serves as the intelligence behind :ref:`TileWindow's <ck_tile_tile_window>` high-performance data movement, automatically identifying the best dimension for vectorization and creating optimized access sequences using :ref:`space-filling curves <ck_tile_space_filling_curve>`.
 
-At compile time, LoadStoreTraits performs compile-time analysis of the distribution pattern to extract key information about memory access opportunities. This analysis determines how many elements can be loaded or stored in a single instruction, which dimension provides the best vectorization opportunity, and what traversal order maximizes cache utilization. The result is a set of compile-time constants and methods that guide the runtime execution of load and store operations.
+At compile time, LoadStoreTraits performs compile-time analysis of the distribution pattern to extract information about memory access opportunities. This analysis determines how many elements can be loaded or stored in a single instruction, which dimension provides the best vectorization opportunity, and what traversal order maximizes cache utilization. The result is a set of compile-time constants and methods that guide the runtime processing of load and store operations.
 
 Key Concepts
 ------------
@@ -18,9 +18,9 @@ Vectorization Selection
 
 LoadStoreTraits analyzes tensor dimensions to find the optimal one for vectorized loads/stores, prioritizing:
 
-- **Contiguous memory access** (stride = 1)
-- **Maximum vector length** based on data type and :ref:`hardware capabilities <ck_tile_gpu_basics>`
-- **Alignment requirements** for efficient memory transactions
+- Contiguous memory access (stride = 1)
+- Maximum vector length based on data type and :ref:`hardware capabilities <ck_tile_gpu_basics>`
+- Alignment requirements for efficient memory transactions
 
 Space-Filling Curve Integration
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -434,12 +434,13 @@ LoadStoreTraits adapts vector size based on multiple factors:
 Best Practices
 --------------
 
-1. **Design Distributions for Vectorization**
+Design Distributions for Vectorization
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-   .. code-block:: cpp
+.. code-block:: cpp
 
-      // Good: Inner dimension is power of 2
-      using GoodDist = tile_distribution_encoding<
+   // Good: Inner dimension is power of 2
+   using GoodDist = tile_distribution_encoding<
           sequence<>,
           tuple<sequence<4, 2>, sequence<2, 8>>,  // Inner dim = 16
           tuple<sequence<1>, sequence<1>>,
@@ -448,40 +449,29 @@ Best Practices
           sequence<1, 1>
       >;
 
-2. **Consider Data Type Size**
+Consider Data Type Size
+^^^^^^^^^^^^^^^^^^^^^^^
 
-   .. code-block:: cpp
+.. code-block:: cpp
 
-      // Adjust distribution based on data type
-      template <typename DataType>
+   // Adjust distribution based on data type
+   template <typename DataType>
       using AdaptiveDist = std::conditional_t<
           sizeof(DataType) == 2,  // FP16
           tile_distribution_encoding<...>,  // 8-wide vectors
           tile_distribution_encoding<...>   // 4-wide vectors for FP32
       >;
 
-3. **Align for Cache Lines**
+Align for Cache Lines
+^^^^^^^^^^^^^^^^^^^^^
 
-   .. code-block:: cpp
+.. code-block:: cpp
 
-      // Ensure tile dimensions align with cache lines
-      static_assert(TileDist::get_tile_n() * sizeof(float) % 64 == 0,
+   // Ensure tile dimensions align with cache lines
+   static_assert(TileDist::get_tile_n() * sizeof(float) % 64 == 0,
                     "Tile width should align to cache lines");
       
    For more optimization techniques, see :ref:`ck_tile_lds_bank_conflicts` and :ref:`ck_tile_lds_index_swapping`.
-
-Summary
--------
-
-LoadStoreTraits provides:
-
-- **Automatic vectorization analysis**: Identifies optimal dimensions and vector sizes
-- **Space-filling curve optimization**: Creates cache-friendly access patterns (see :ref:`ck_tile_space_filling_curve`)
-- **Compile-time optimization**: All analysis done at compile time for zero overhead
-- **Hardware adaptation**: Adjusts to different data types and :ref:`architectures <ck_tile_gpu_basics>`
-- **Performance transparency**: Clear metrics for memory efficiency
-
-The compile-time analysis performed by LoadStoreTraits ensures that every memory operation in CK Tile achieves near-optimal performance, making it a critical component in the high-performance computing stack.
 
 Next Steps
 ----------

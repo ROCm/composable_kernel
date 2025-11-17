@@ -11,9 +11,9 @@ Encoding Internals
 Overview
 ========
 
-The tile distribution encoding system represents the core mathematical framework that transforms high-level tensor distribution specifications into concrete, optimized GPU kernel implementations. This advanced compile-time machinery bridges the gap between abstract mathematical descriptions and executable coordinate transformations, enabling the Composable Kernel framework to generate highly efficient code for complex tensor operations.
+The tile distribution encoding system represents the core mathematical framework that transforms high-level tensor distribution specifications into concrete, optimized GPU kernel implementations. This compile-time machinery bridges the gap between abstract mathematical descriptions and coordinate transformations, enabling the Composable Kernel framework to generate highly efficient code for complex tensor operations.
 
-At its heart, the encoding system defines how multi-dimensional tensor data is distributed across GPU processing elements through a hierarchical decomposition scheme. By specifying relationships between different coordinate spaces - replication (R), hierarchical (H), partition (P), and yield (Y) dimensions (see :ref:`ck_tile_coordinate_systems` for detailed explanation) - the encoding provides a complete blueprint for data layout and access patterns that can be resolved entirely at compile time. This is the internal mechanism behind :ref:`ck_tile_tile_distribution`.
+The encoding system defines how multi-dimensional tensor data is distributed across GPU processing elements through a hierarchical decomposition scheme. By specifying relationships between different coordinate spaces - replication (R), hierarchical (H), partition (P), and yield (Y) dimensions (see :ref:`ck_tile_coordinate_systems` for detailed explanation) - the encoding provides a complete blueprint for data layout and access patterns that can be resolved entirely at compile time. This is the internal mechanism behind :ref:`ck_tile_tile_distribution`.
 
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
@@ -105,10 +105,10 @@ The tile distribution encoding employs a template-based type system that capture
 Key Template Features
 ---------------------
 
-1. **Template Metaprogramming**: All parameters are types, not values, enabling compile-time optimization
-2. **Constexpr Functions**: Everything is computed at compile time
-3. **Type Aliases**: Clean access to template parameters
-4. **Static Member Functions**: No runtime overhead
+1. Template Metaprogramming: All parameters are types, not values, enabling compile-time optimization
+2. Constexpr Functions: Everything is computed at compile time
+3. Type Aliases: Clean access to template parameters
+4. Static Member Functions: No runtime overhead
 
 Parameter Breakdown
 ===================
@@ -127,11 +127,11 @@ The ``RsLengths`` parameter defines dimensions that are replicated across proces
     // - NWarpPerBlock warps share the same A data
     // - MWarpPerBlock warps share the same B data
 
-Replication serves several critical purposes:
+Replication serves several purposes:
 
-- **Data Reuse**: Same input data needed by multiple output computations
-- **Reduction Operations**: Multiple threads collaborate on single result
-- **Memory Efficiency**: Reduces global memory bandwidth requirements
+- Data Reuse: Same input data needed by multiple output computations
+- Reduction Operations: Multiple threads collaborate on single result
+- Memory Efficiency: Reduces global memory bandwidth requirements
 
 H-Dimensions: Hierarchical Decomposition
 ----------------------------------------
@@ -154,9 +154,9 @@ The ``HsLengthss`` parameter represents hierarchical decomposition of tensor dim
 
 The decomposition enables:
 
-- **Memory Coalescing**: Aligning with warp/thread organization
-- **Register Blocking**: Tile sizes that fit in register file
-- **Shared Memory Utilization**: Tiles that exploit data reuse
+- Memory Coalescing: Aligning with warp/thread organization
+- Register Blocking: Tile sizes that fit in register file
+- Shared Memory Utilization: Tiles that exploit data reuse
 
 P-Dimensions: Partition Mapping
 -------------------------------
@@ -178,13 +178,13 @@ The ``Ps2RHssMajor`` and ``Ps2RHssMinor`` parameters define work assignment:
 
 The mapping mechanism:
 
-- **Major Index**: Which RH-dimension group (0=R, 1-N=H)
-- **Minor Index**: Component within that group
+- Major Index: Which RH-dimension group (0=R, 1-N=H)
+- Minor Index: Component within that group
 
 Y-Dimensions: Logical View Mapping
 ----------------------------------
 
-The ``Ys2RHsMajor`` and ``Ys2RHsMinor`` define the user-facing interface:
+The ``Ys2RHsMajor`` and ``Ys2RHsMinor`` define the interface:
 
 .. code-block:: cpp
 
@@ -436,16 +436,16 @@ The encoding system is designed for maximum GPU performance (see :ref:`ck_tile_g
 Memory Access Patterns
 ----------------------
 
-- **Coalescing**: Hierarchical decomposition ensures adjacent threads access adjacent memory
-- **Bank Conflicts**: Careful dimension ordering prevents shared memory conflicts (see :ref:`ck_tile_lds_bank_conflicts`)
-- **Vectorization**: Natural support for vector loads/stores (see :ref:`ck_tile_load_store_traits`)
+- Coalescing: Hierarchical decomposition ensures adjacent threads access adjacent memory
+- Bank Conflicts: Careful dimension ordering prevents shared memory conflicts (see :ref:`ck_tile_lds_bank_conflicts`)
+- Vectorization: Natural support for vector loads/stores (see :ref:`ck_tile_load_store_traits`)
 
 Register Efficiency
 -------------------
 
-- **Optimal Allocation**: Y→D linearization minimizes register usage
-- **Spill Avoidance**: Compile-time sizing prevents register spills
-- **Reuse Patterns**: Encoding enables efficient register reuse
+- Optimal Allocation: Y→D linearization minimizes register usage
+- Spill Avoidance: Compile-time sizing prevents register spills
+- Reuse Patterns: Encoding enables efficient register reuse
 
 Compile-Time Optimization
 -------------------------
@@ -472,18 +472,5 @@ Compile-Time Optimization
             }
         }
     };
-
-Summary
-=======
-
-The tile distribution encoding system demonstrates compile-time computation:
-
-- **Mathematical Foundation**: Complete specification through dimensional relationships
-- **Zero Overhead**: All computations resolve at compile time
-- **Composable Design**: Individual transforms compose into complex mappings
-- **Hardware Alignment**: Natural mapping to GPU execution hierarchy
-- **Performance Focus**: Every design decision optimizes for GPU efficiency
-
-The encoding internals show how CK Tile achieves both mathematical elegance and practical performance. By leveraging C++ template metaprogramming and careful architectural design, the framework generates code that rivals hand-optimized implementations while maintaining clarity and composability.
 
 For practical examples of how the encoding system is used, see :ref:`ck_tile_thread_mapping`. For coordinate operations that build on these encodings, see :ref:`ck_tile_coordinate_movement`.

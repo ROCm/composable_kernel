@@ -11,16 +11,16 @@ Static Distributed Tensor
 Overview
 ========
 
-Static distributed tensors represent the fundamental thread-local data containers in CK Tile's programming model. Unlike traditional GPU programming where developers manually manage thread-local arrays and coordinate access patterns, static distributed tensors provide a high-level abstraction that automatically handles data distribution across threads while maintaining the performance characteristics of register-based storage.
+Static distributed tensors represent the thread-local data containers in CK Tile's programming model. Unlike traditional GPU programming where developers manually manage thread-local arrays and coordinate access patterns, static distributed tensors provide a high-level abstraction that automatically handles data distribution across threads while maintaining the performance characteristics of register-based storage.
 
-The key innovation lies in how static distributed tensors bridge the gap between logical tensor operations and physical thread-local storage. Each thread in a workgroup owns a portion of the overall tensor data, stored in its registers or local memory. The distribution pattern follows the :ref:`tile distribution <ck_tile_tile_distribution>` rules, ensuring that collective operations across all threads reconstruct the complete logical tensor while individual threads operate only on their local portions.
+Static distributed tensors bridge the gap between logical tensor operations and physical thread-local storage. Each thread in a workgroup owns a portion of the overall tensor data, stored in its registers or local memory. The distribution pattern follows the :ref:`tile distribution <ck_tile_tile_distribution>` rules, ensuring that collective operations across all threads reconstruct the complete logical tensor while individual threads operate only on their local portions.
 
-This design enables several critical optimizations. First, it maximizes register utilization by keeping frequently accessed data in the fastest memory hierarchy. Second, it eliminates redundant memory accesses since each thread maintains its own working set. Third, it provides a clean abstraction for complex algorithms like matrix multiplication where each thread accumulates partial results that eventually combine into the final output.
+This design enables several optimizations. First, it maximizes register utilization by keeping frequently accessed data in the fastest memory hierarchy. Second, it eliminates redundant memory accesses since each thread maintains its own working set. Third, it provides a clean abstraction for complex algorithms like matrix multiplication where each thread accumulates partial results that eventually combine into the final output.
 
 Thread-Local Storage Model
 ==========================
 
-The static distributed tensor implements a advanced storage model that maps multi-dimensional tensor data to thread-local arrays:
+The static distributed tensor implements a storage model that maps multi-dimensional tensor data to thread-local arrays:
 
 .. code-block:: cpp
 
@@ -45,16 +45,16 @@ The static distributed tensor implements a advanced storage model that maps mult
 
 The storage layout follows these principles:
 
-1. **Contiguous Storage**: Each thread's data is stored in a contiguous array, optimizing register allocation and enabling vectorized operations.
+1. Contiguous Storage: Each thread's data is stored in a contiguous array, optimizing register allocation and enabling vectorized operations.
 
-2. **Deterministic Mapping**: The Y-coordinate to buffer offset mapping is computed at compile time, eliminating runtime overhead.
+2. Deterministic Mapping: The Y-coordinate to buffer offset mapping is computed at compile time, eliminating runtime overhead.
 
-3. **Alignment Guarantees**: The storage layout respects hardware alignment requirements for efficient memory operations.
+3. Alignment Guarantees: The storage layout respects hardware alignment requirements for efficient memory operations.
 
 Memory Layout and Access Patterns
 =================================
 
-Understanding how static distributed tensors organize memory is crucial for performance optimization. Consider a 2D tensor distributed across a 2D thread block:
+Understanding how static distributed tensors organize memory is important for performance optimization. Consider a 2D tensor distributed across a 2D thread block:
 
 .. code-block:: cpp
 
@@ -151,11 +151,11 @@ Static distributed tensors provide multiple indexing modes to support different 
 
 The indexing system supports several optimization strategies:
 
-1. **Compile-Time Resolution**: When indices are known at compile time, the compiler can optimize away all indexing calculations.
+1. Compile-Time Resolution: When indices are known at compile time, the compiler can optimize away all indexing calculations.
 
-2. **Vectorized Access**: Accessing multiple elements as vectors enables efficient register-to-register transfers.
+2. Vectorized Access: Accessing multiple elements as vectors enables efficient register-to-register transfers.
 
-3. **Boundary Checking**: Debug builds include automatic boundary checking to catch indexing errors early.
+3. Boundary Checking: Debug builds include automatic boundary checking to catch indexing errors early.
 
 Thread Coordination and Synchronization
 =======================================
@@ -196,20 +196,21 @@ Static distributed tensors excel at patterns where threads cooperate to process 
         }
     }
 
-Key coordination patterns include:
+Coordination patterns include:
 
-1. **Accumulation**: Each thread maintains partial results that combine to form the final answer.
+1. Accumulation: Each thread maintains partial results that combine to form the final answer.
 
-2. **Scatter/Gather**: Threads can efficiently reorganize data through coordinated read/write patterns.
+2. Scatter/Gather: Threads can efficiently reorganize data through coordinated read/write patterns.
 
-3. **Reduction**: Tree-based reduction algorithms naturally map to the distributed storage model.
+3. Reduction: Tree-based reduction algorithms naturally map to the distributed storage model.
 
 Practical Usage Patterns
 ========================
 
-Static distributed tensors shine in several common GPU programming patterns:
+Static distributed tensors are used in several common GPU programming patterns:
 
-**1. Register Blocking for Matrix Operations**
+Register Blocking for Matrix Operations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: cpp
 
@@ -229,7 +230,8 @@ Static distributed tensors shine in several common GPU programming patterns:
         }
     };
 
-**2. Warp-Level Primitives**
+Warp-Level Primitives
+~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: cpp
 
@@ -254,7 +256,8 @@ Static distributed tensors shine in several common GPU programming patterns:
         }
     };
 
-**3. Shared Memory Staging**
+Shared Memory Staging
+~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: cpp
 
@@ -287,7 +290,10 @@ Performance Considerations
 
 Optimizing static distributed tensor usage requires understanding several :ref:`performance factors <ck_tile_gpu_basics>`:
 
-**Register Pressure**: Each thread's local storage typically maps to registers. Excessive storage requirements can cause register spilling:
+Register Pressure
+~~~~~~~~~~~~~~~~~
+
+Each thread's local storage typically maps to registers. Excessive storage requirements can cause register spilling:
 
 .. code-block:: cpp
 
@@ -301,7 +307,10 @@ Optimizing static distributed tensor usage requires understanding several :ref:`
                       "Exceeds typical register budget");
     };
 
-**Memory Coalescing**: When loading/storing distributed tensors, ensure access patterns promote coalescing (see :ref:`ck_tile_gpu_basics` for details):
+Memory Coalescing
+~~~~~~~~~~~~~~~~~
+
+When loading/storing distributed tensors, ensure access patterns promote coalescing (see :ref:`ck_tile_gpu_basics` for details):
 
 .. code-block:: cpp
 
@@ -315,7 +324,10 @@ Optimizing static distributed tensor usage requires understanding several :ref:`
         }
     }
 
-**Instruction Scheduling**: Organize operations to maximize instruction-level parallelism:
+Instruction Scheduling
+~~~~~~~~~~~~~~~~~~~~~~
+
+Organize operations to maximize instruction-level parallelism:
 
 .. code-block:: cpp
 
@@ -416,15 +428,3 @@ Static distributed tensors integrate seamlessly with other CK Tile components:
         c_window.store(c_accumulator);
     }
 
-Summary
-=======
-
-Static distributed tensors provide the foundation for high-performance thread-local computation in CK Tile. By abstracting the complexities of register allocation, thread coordination, and memory access patterns, they enable developers to write clear, maintainable code that achieves peak hardware efficiency. The key benefits include:
-
-- **Automatic Distribution**: The :ref:`tile distribution <ck_tile_tile_distribution>` system handles all thread-to-data mapping
-- **Register Efficiency**: Thread-local storage maps directly to registers when possible
-- **Zero-Overhead Abstraction**: All distribution logic resolves at compile time
-- **Seamless Integration**: Works naturally with :ref:`tile windows <ck_tile_tile_window>`, :ref:`descriptors <ck_tile_descriptors>`, and other CK Tile components
-- **Performance Transparency**: The storage model makes performance characteristics clear and predictable
-
-When combined with the broader CK Tile ecosystem, static distributed tensors enable the construction of complex GPU kernels that match or exceed hand-tuned assembly performance while maintaining the clarity of high-level mathematical expressions.

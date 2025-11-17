@@ -6,7 +6,7 @@ Tile Window - Data Access Gateway
 Overview
 --------
 
-The TileWindow abstraction represents the culmination of the CK framework's approach to efficient tensor data access on GPUs. While :ref:`TileDistribution <ck_tile_tile_distribution>` determines the mapping between threads and tensor coordinates, TileWindow provides the actual mechanism for loading and storing data with optimal memory access patterns. This abstraction encapsulates the complexity of coalesced memory accesses, vectorization, and boundary handling into a clean interface that enables developers to focus on algorithmic logic rather than low-level memory management.
+The TileWindow abstraction provides the CK framework's approach to efficient tensor data access on GPUs. While :ref:`TileDistribution <ck_tile_tile_distribution>` determines the mapping between threads and tensor coordinates, TileWindow provides the actual mechanism for loading and storing data with optimal memory access patterns. This abstraction encapsulates the complexity of coalesced memory accesses, vectorization, and boundary handling into a clean interface that enables developers to focus on algorithmic logic rather than low-level memory management.
 
 At its core, TileWindow implements a distribution-aware windowing mechanism that views a subset of a larger tensor through the lens of a tile distribution. This windowing is not merely a simple sub-tensor extraction but a distribution-aware view that automatically generates the most efficient memory access patterns for the underlying hardware. The system achieves this by combining knowledge of the :ref:`tensor's layout <ck_tile_descriptors>`, the distribution pattern, and the :ref:`GPU's memory subsystem <ck_tile_gpu_basics>` characteristics to generate optimized load and store operations.
 
@@ -66,11 +66,12 @@ TileWindow Architecture
 What is a TileWindow?
 ---------------------
 
-The fundamental challenge in GPU programming lies in the gap between logical tensor operations and the physical realities of memory access. While :ref:`TileDistribution <ck_tile_tile_distribution>` solves the problem of work assignment by mapping threads to :ref:`tensor coordinates <ck_tile_coordinate_systems>`, it does not address how threads actually access the data at those coordinates. This is where TileWindow enters the picture, serving as the critical bridge between logical work assignment and physical memory operations.
+A challenge in GPU programming is the gap between logical tensor operations and the physical realities of memory access. While :ref:`TileDistribution <ck_tile_tile_distribution>` solves the problem of work assignment by mapping threads to :ref:`tensor coordinates <ck_tile_coordinate_systems>`, it does not address how threads actually access the data at those coordinates. TileWindow serves as the bridge between logical work assignment and physical memory operations.
 
 TileWindow implements a distribution-aware windowing mechanism that transforms abstract coordinate mappings into concrete memory access patterns. The abstraction understands not just which data elements each thread needs, but also how to access them in a way that maximizes memory bandwidth utilization. This involves optimized techniques such as memory coalescing, where adjacent threads access adjacent memory locations, and vectorization, where multiple elements are loaded or stored in a single transaction.
 
-**C++ Implementation Overview:**
+C++ Implementation Overview
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: cpp
 
@@ -127,11 +128,12 @@ Behind every efficient TileWindow operation lies :ref:`LoadStoreTraits <ck_tile_
 
 LoadStoreTraits performs several critical analyses:
 
-- **Vector dimension identification**: Finds which Y dimension has stride 1 for optimal vectorization
-- **Access pattern calculation**: Determines the number and order of memory operations
-- **Space-filling curve construction**: Creates an optimal traversal order for cache efficiency
+- Vector dimension identification: Finds which Y dimension has stride 1 for optimal vectorization
+- Access pattern calculation: Determines the number and order of memory operations
+- Space-filling curve construction: Creates an optimal traversal order for cache efficiency
 
-**C++ LoadStoreTraits Analysis:**
+C++ LoadStoreTraits Analysis
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: cpp
 
@@ -276,7 +278,7 @@ TileWindow Data Flow
 Creating and Using TileWindow
 -----------------------------
 
-Let's explore how to create and use a TileWindow in practice:
+The following explores how to create and use a TileWindow in practice:
 
 .. code-block:: cpp
 
@@ -322,13 +324,14 @@ The Load Operation Deep Dive
 
 The load operation is where all the compile-time analysis comes together. When you call ``window.load()``, a carefully orchestrated sequence of operations occurs:
 
-1. **Distributed tensor creation**: Automatically creates a :ref:`distributed tensor <ck_tile_static_distributed_tensor>` sized for the distribution
-2. **Coordinate calculation**: Uses precomputed coordinates for efficiency
-3. **Vectorized access**: Groups elements for vector loads based on :ref:`LoadStoreTraits <ck_tile_load_store_traits>` analysis
-4. **Memory coalescing**: Ensures adjacent threads access adjacent memory
-5. **Boundary handling**: Manages edge cases automatically
+1. Distributed tensor creation: Automatically creates a :ref:`distributed tensor <ck_tile_static_distributed_tensor>` sized for the distribution
+2. Coordinate calculation: Uses precomputed coordinates for efficiency
+3. Vectorized access: Groups elements for vector loads based on :ref:`LoadStoreTraits <ck_tile_load_store_traits>` analysis
+4. Memory coalescing: Ensures adjacent threads access adjacent memory
+5. Boundary handling: Manages edge cases automatically
 
-**C++ Load Implementation Details:**
+C++ Load Implementation Details
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: cpp
 
@@ -414,12 +417,13 @@ Memory Access Patterns
 
 One of TileWindow's key features is generating optimal memory access patterns. The system analyzes the distribution to ensure:
 
-- **Coalescing**: Adjacent threads access adjacent memory locations
-- **Vectorization**: Multiple elements loaded in single instructions
-- **Bank conflict avoidance**: Shared memory accesses avoid :ref:`conflicts <ck_tile_lds_bank_conflicts>`
-- **Cache optimization**: Access patterns maximize cache reuse
+- Coalescing: Adjacent threads access adjacent memory locations
+- Vectorization: Multiple elements loaded in single instructions
+- Bank conflict avoidance: Shared memory accesses avoid :ref:`conflicts <ck_tile_lds_bank_conflicts>`
+- Cache optimization: Access patterns maximize cache reuse
 
-**C++ Memory Pattern Analysis:**
+C++ Memory Pattern Analysis
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: cpp
 
@@ -666,29 +670,6 @@ Design distributions for optimal memory access:
        sequence<1, 1, 2, 2>,                         // Ys2RHsMajor: Y to RH major mapping
        sequence<0, 1, 0, 1>                          // Ys2RHsMinor: Y to RH minor mapping
    >;
-
-Summary
--------
-
-TileWindow provides:
-
-- **Automatic optimization**: Generates optimal memory access patterns through :ref:`LoadStoreTraits <ck_tile_load_store_traits>`
-- **Distribution awareness**: Works seamlessly with :ref:`TileDistribution <ck_tile_tile_distribution>`
-- **Space-filling curves**: Optimal traversal order for cache efficiency (see :ref:`ck_tile_space_filling_curve`)
-- **Vectorization**: Automatic multi-element operations
-- **Precomputation**: Zero-overhead :ref:`coordinate transformations <ck_tile_transforms>`
-- **Flexible windowing**: Supports various access patterns and window configurations
-- **Safety**: Automatic boundary handling
-
-Key benefits:
-
-1. **Performance**: Achieves peak memory bandwidth through coalescing and vectorization
-2. **Productivity**: Eliminates manual memory management code
-3. **Correctness**: Automatic boundary checking and handling
-4. **Composability**: Integrates cleanly with other CK abstractions
-5. **Intelligence**: LoadStoreTraits analyzes and optimizes every access
-
-The TileWindow abstraction is essential for building high-performance GPU kernels, providing a clean interface for complex memory access patterns while maintaining peak performance. The compile-time analysis performed by LoadStoreTraits ensures that every memory operation is as efficient as possible, while the space-filling curve traversal maximizes cache utilization.
 
 Next Steps
 ----------

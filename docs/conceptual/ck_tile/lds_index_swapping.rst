@@ -13,7 +13,7 @@ Overview
 
 LDS (Local Data Share) index swapping, also known as XOR preshuffle, is a critical optimization technique in CK Tile for resolving bank conflicts in shared memory. Bank conflicts occur when multiple threads in a warp attempt to access different addresses within the same memory bank simultaneously, causing serialization and performance degradation. CK Tile generalizes the XOR preshuffle technique through a compile-time coordinate transformation system that automatically handles complex access patterns.
 
-The key insight is that by transforming the logical 2D coordinates used to access LDS into a different 2D coordinate space, we can ensure that threads accessing data simultaneously hit different banks. This transformation is implemented through CK Tile's composable transform system (see :ref:`ck_tile_transforms` and :ref:`ck_tile_coordinate_systems`), making it both flexible and efficient.
+The key insight is that by transforming the logical 2D coordinates used to access LDS into a different 2D coordinate space, threads accessing data simultaneously can hit different banks. This transformation is implemented through CK Tile's composable transform system (see :ref:`ck_tile_transforms` and :ref:`ck_tile_coordinate_systems`), making it both flexible and efficient.
 
 Coordinate Transformation Pipeline
 ==================================
@@ -405,10 +405,10 @@ Performance Benefits
 
 LDS index swapping provides several key benefits:
 
-1. **Conflict-Free Access**: Eliminates or significantly reduces bank conflicts
-2. **Higher Throughput**: Enables full memory bandwidth utilization
-3. **Automatic Optimization**: Transformation parameters can be tuned per architecture
-4. **Composability**: Integrates seamlessly with other CK Tile transformations
+1. Conflict-Free Access: Eliminates or significantly reduces bank conflicts
+2. Higher Throughput: Enables full memory bandwidth utilization
+3. Automatic Optimization: Transformation parameters can be tuned per architecture
+4. Composability: Integrates seamlessly with other CK Tile transformations
 
 Advanced Configurations
 =======================
@@ -471,18 +471,5 @@ LDS index swapping works seamlessly with CK Tile's distribution system:
             }
         }
     };
-
-Summary
-=======
-
-LDS index swapping in CK Tile provides a effective and flexible solution to the bank conflict problem:
-
-- **Generalized XOR Preshuffle**: Extends the basic XOR technique through composable transforms
-- **Multi-Step Pipeline**: Coordinates flow through XOR → Unmerge → Merge transformations
-- **Automatic Optimization**: Parameters like MLdsLayer adapt to tile sizes and data types
-- **Zero Overhead**: All transformations resolve at compile time
-- **Seamless Integration**: Works naturally with other CK Tile components
-
-By understanding and utilizing LDS index swapping, developers can ensure their kernels achieve maximum shared memory bandwidth, which is often the limiting factor in GPU kernel performance. The transformation-based approach makes it easy to experiment with different swapping strategies while maintaining code clarity.
 
 For practical examples of how index swapping is used in complete kernels, see :ref:`ck_tile_swizzling_example`. For more on coordinate operations used here, see :ref:`ck_tile_coordinate_movement` and :ref:`ck_tile_tensor_coordinates`.

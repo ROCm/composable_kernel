@@ -11,7 +11,7 @@ Convolution Implementation with CK Tile
 Overview
 ========
 
-This chapter demonstrates how CK Tile's :ref:`tensor descriptor <ck_tile_descriptors>` system enables efficient convolution implementations on GPUs. Convolution operations are fundamental in deep learning, and understanding their optimization reveals how high-performance libraries achieve their efficiency. We'll progress from a naive implementation to an optimized approach using tensor descriptors, showing how they enable efficient memory access patterns for GPU acceleration.
+This chapter demonstrates how CK Tile's :ref:`tensor descriptor <ck_tile_descriptors>` system enables efficient convolution implementations on GPUs. Convolution operations are used in deep learning, and understanding their optimization reveals how high-performance libraries achieve their efficiency. This progresses from a naive implementation to an optimized approach using tensor descriptors, showing how they enable efficient memory access patterns for GPU acceleration.
 
 The key insight is that convolution can be transformed from a complex nested loop operation into a highly parallel matrix multiplication through the im2col (image to column) transformation. CK Tile's tensor descriptors provide the perfect abstraction for implementing this transformation efficiently without data duplication.
 
@@ -68,12 +68,12 @@ The key insight is that convolution can be transformed from a complex nested loo
 Understanding Sliding Windows
 =============================
 
-Before diving into convolution, it's crucial to understand how sliding windows work. In convolution, we need to extract overlapping patches from the input image. Traditional approaches would copy these patches, but CK Tile uses :ref:`tensor descriptors <ck_tile_descriptors>` to create efficient :ref:`views <ck_tile_tensor_views>` without data duplication.
+Before diving into convolution, understanding how sliding windows work is important. In convolution, the algorithm needs to extract overlapping patches from the input image. Traditional approaches would copy these patches, but CK Tile uses :ref:`tensor descriptors <ck_tile_descriptors>` to create efficient :ref:`views <ck_tile_tensor_views>` without data duplication.
 
 Simple Tiling Example
 ---------------------
 
-Let's start with non-overlapping tiles to understand the concept:
+Starting with non-overlapping tiles to understand the concept:
 
 .. code-block:: cpp
 
@@ -99,12 +99,12 @@ Let's start with non-overlapping tiles to understand the concept:
         }
     };
 
-The key insight is understanding **strides** - how many elements to skip to move to the next element in each dimension. For non-overlapping tiles, we skip by ``tile_size`` in the outer dimensions.
+The key insight is understanding strides - how many elements to skip to move to the next element in each dimension. For non-overlapping tiles, the stride is ``tile_size`` in the outer dimensions.
 
 Overlapping Windows for Convolution
 ------------------------------------
 
-For convolution, we need overlapping windows that slide by one element:
+For convolution, overlapping windows that slide by one element are needed:
 
 .. code-block:: cpp
 
@@ -141,7 +141,7 @@ The stride pattern ``[W, 1, W, 1]`` creates sliding windows:
 Naive Convolution Implementation
 ================================
 
-Let's start with the most straightforward implementation to establish our reference:
+Starting with the most straightforward implementation to establish a reference:
 
 .. code-block:: cpp
 
@@ -225,7 +225,7 @@ The tensor descriptor automatically handles the complex indexing required for ov
 Im2col Transformation
 =====================
 
-The im2col transformation converts the 4D windows tensor into a 2D matrix suitable for matrix multiplication. This is where CK Tile's :ref:`transformation system <ck_tile_transforms>` shines:
+The im2col transformation converts the 4D windows tensor into a 2D matrix suitable for matrix multiplication, using CK Tile's :ref:`transformation system <ck_tile_transforms>`:
 
 .. code-block:: cpp
 
@@ -275,7 +275,8 @@ The im2col transformation converts the 4D windows tensor into a 2D matrix suitab
         }
     };
 
-The transformation pipeline:
+The transformation pipeline follows these steps:
+
 1. Start with 4D tensor ``[OutH, OutW, K, K]``
 2. Merge spatial dimensions: ``[OutH, OutW] → NumWindows``
 3. Merge kernel dimensions: ``[K, K] → PatchSize``
@@ -440,9 +441,10 @@ The multi-channel extension naturally follows from the single-channel case:
 Performance Optimizations
 =========================
 
-CK Tile enables several key optimizations for convolution:
+CK Tile enables several optimizations for convolution:
 
-**1. Memory Coalescing**
+Memory Coalescing
+-----------------
 
 .. code-block:: cpp
 
@@ -465,7 +467,8 @@ CK Tile enables several key optimizations for convolution:
         }
     }
 
-**2. Shared Memory Tiling**
+Shared Memory Tiling
+--------------------
 
 .. code-block:: cpp
 
@@ -485,7 +488,8 @@ CK Tile enables several key optimizations for convolution:
         }
     };
 
-**3. Register Blocking**
+Register Blocking
+-----------------
 
 .. code-block:: cpp
 
@@ -543,23 +547,10 @@ The tensor descriptor approach provides optimal performance characteristics:
      - Excellent
      - High
 
-Key advantages of the CK Tile approach:
+Advantages of the CK Tile approach:
 
-1. **Zero-copy views**: Tensor descriptors create logical views without data duplication
-2. **Compile-time optimization**: All indexing calculations resolve at compile time
-3. **Hardware-aware**: Automatic alignment and vectorization based on :ref:`architecture <ck_tile_gpu_basics>`
-4. **Composability**: Complex access patterns built from simple :ref:`transformations <ck_tile_transforms>`
-5. **Performance portability**: Same code optimizes differently for different GPUs
-
-Summary
-=======
-
-This example demonstrates how CK Tile transforms convolution from a memory-bound operation with poor parallelism into a compute-bound operation that fully utilizes GPU resources. The key insights are:
-
-- **Sliding windows** can be efficiently represented using tensor descriptors with appropriate strides
-- **Im2col transformation** converts convolution to matrix multiplication without data copies  
-- **Tile distribution** enables optimal work distribution across GPU threads (see :ref:`ck_tile_tile_distribution`)
-- **Multi-channel support** extends naturally through higher-dimensional descriptors
-- **Performance optimizations** like vectorization and shared memory are seamlessly integrated (see :ref:`ck_tile_gemm_optimization` for similar techniques)
-
-The tensor descriptor system provides a unified framework for these transformations, enabling automatic generation of efficient kernels for various convolution configurations and hardware architectures. This approach forms the foundation for production deep learning frameworks' convolution implementations.
+1. Zero-copy views: Tensor descriptors create logical views without data duplication
+2. Compile-time optimization: All indexing calculations resolve at compile time
+3. Hardware-aware: Automatic alignment and vectorization based on :ref:`architecture <ck_tile_gpu_basics>`
+4. Composability: Complex access patterns built from simple :ref:`transformations <ck_tile_transforms>`
+5. Performance portability: Same code optimizes differently for different GPUs

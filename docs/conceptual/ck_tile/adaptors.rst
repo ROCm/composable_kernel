@@ -6,7 +6,7 @@ Tensor Adaptors - Chaining Transformations
 Overview
 --------
 
-While individual :ref:`transforms <ck_tile_transforms>` are effective, TensorAdaptors enable the chaining of multiple transforms together to create complex coordinate transformations. Think of adaptors as transformation pipelines that can reshape, reorder, and restructure tensors in advanced ways.
+While individual :ref:`transforms <ck_tile_transforms>` are effective, TensorAdaptors enable the chaining of multiple transforms together to create complex coordinate transformations. Adaptors serve as transformation pipelines that can reshape, reorder, and restructure tensors.
 
 TensorAdaptors serve as the bridge between individual transforms and the high-level tensor operations used in real applications. They provide a composable abstraction that allows developers to build complex data access patterns from simple building blocks.
 
@@ -63,18 +63,18 @@ Core Components
 
 Each TensorAdaptor contains:
 
-- **transforms**: List of individual :ref:`transforms <ck_tile_transforms>` to apply
-- **lower_dimension_hidden_idss**: Mappings between transform stages
-- **upper_dimension_hidden_idss**: Hidden dimension mappings for internal stages
-- **bottom_dimension_hidden_ids**: Input dimension identifiers
-- **top_dimension_hidden_ids**: Output dimension identifiers
+- ``transforms``: List of individual :ref:`transforms <ck_tile_transforms>` to apply
+- ``lower_dimension_hidden_idss``: Mappings between transform stages
+- ``upper_dimension_hidden_idss``: Hidden dimension mappings for internal stages
+- ``bottom_dimension_hidden_ids``: Input dimension identifiers
+- ``top_dimension_hidden_ids``: Output dimension identifiers
 
 The most important method of a TensorAdaptor is ``calculate_bottom_index``, which calculates the lower index from the upper index by applying transforms in reverse order.
 
 Transpose Adaptor: Dimension Reordering
 ---------------------------------------
 
-The transpose adaptor reorders tensor dimensions according to a permutation pattern. This fundamental operation forms the basis for many tensor manipulations in GPU kernels.
+The transpose adaptor reorders tensor dimensions according to a permutation pattern. This operation forms the basis for many tensor manipulations in GPU kernels.
 
 .. code-block:: cpp
 
@@ -121,7 +121,7 @@ Custom adaptors can be created by specifying exactly which transforms to use and
 Chaining Adaptors: Building Complex Transformations
 ---------------------------------------------------
 
-The real power of adaptors comes from chaining multiple transformations together to create advanced data access patterns:
+Chaining multiple transformations together creates data access patterns:
 
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
@@ -312,7 +312,8 @@ Common Transform Chains
 
 CK Tile provides several common transform chain patterns used throughout GPU kernels:
 
-**Padding for Convolution**
+Padding for Convolution
+~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: cpp
 
@@ -324,7 +325,8 @@ CK Tile provides several common transform chain patterns used throughout GPU ker
        make_tuple(sequence<0>{}, sequence<1>{})
    );
 
-**Dimension Merging for GEMM**
+Dimension Merging for GEMM
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: cpp
 
@@ -337,7 +339,8 @@ CK Tile provides several common transform chain patterns used throughout GPU ker
 
 For complete GEMM optimization strategies, see :ref:`ck_tile_gemm_optimization`.
 
-**Broadcasting for Elementwise Operations**
+Broadcasting for Elementwise Operations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: cpp
 
@@ -347,35 +350,6 @@ For complete GEMM optimization strategies, see :ref:`ck_tile_gemm_optimization`.
        make_tuple(sequence<>{}),
        make_tuple(sequence<0, 1>{})
    );
-
-Key Concepts Summary
---------------------
-
-TensorAdaptors are the coordination layer that makes complex tensor operations possible:
-
-- **Identity Adaptor**: Starting point for building transformations
-- **Transpose Adaptor**: Dimension reordering with permutation patterns
-- **Single-Stage Adaptors**: Custom transform chains with precise control
-- **Chained Adaptors**: Complex multi-stage transformation pipelines
-- **Transform Addition**: Extending existing adaptors with new transforms
-
-Core concepts to remember:
-
-- **Bottom/Top Dimensions**: Input and output coordinate spaces
-- **Hidden Dimensions**: Internal coordinate mappings between transforms
-- **Transform Chains**: Sequential application of multiple transforms
-- **Coordinate Transformation**: Bidirectional mapping between coordinate spaces
-- **Nested Transforms**: Complex multi-level transformation hierarchies
-
-Key C++ Patterns in Composable Kernel
---------------------------------------
-
-1. **Descriptor-Based Adaptors**: In CK, adaptors are typically embedded within :ref:`tensor descriptors <ck_tile_descriptors>` rather than created separately
-2. **Compile-Time Optimization**: All transformations are resolved at compile time for zero overhead
-3. **Type Safety**: Template metaprogramming ensures coordinate transformations are type-safe
-4. **GPU Optimization**: Transform chains are designed for efficient GPU memory access patterns (see :ref:`ck_tile_lds_bank_conflicts` for LDS optimization)
-
-TensorAdaptors bridge the gap between low-level transforms and high-level tensor operations, providing the flexibility to create advanced data layouts and access patterns that are essential for efficient GPU computing. They build upon the foundation of :ref:`BufferViews <ck_tile_buffer_views>` and :ref:`TensorViews <ck_tile_tensor_views>` to provide complex transformation capabilities.
 
 Next Steps
 ----------

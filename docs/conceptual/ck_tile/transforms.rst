@@ -3,31 +3,31 @@
 Individual Transform Operations
 ===============================
 
-The transformation engine is built from individual transform types that each handle specific coordinate conversions. Understanding these building blocks is essential for mastering the tile distribution system.
+The transformation engine is built from individual transform types that each handle specific coordinate conversions. Understanding these building blocks is necessary for the tile distribution system.
 
 What Are Transforms?
 --------------------
 
-Transform operations are the fundamental building blocks that convert coordinates between different dimensional spaces. Each transform operates between two :ref:`coordinate spaces <ck_tile_coordinate_systems>`:
+Transform operations are the building blocks that convert coordinates between different dimensional spaces. Each transform operates between two :ref:`coordinate spaces <ck_tile_coordinate_systems>`:
 
-- **Lower Dimension Space**: The source coordinate system
-- **Upper Dimension Space**: The target coordinate system
+- Lower Dimension Space: The source coordinate system
+- Upper Dimension Space: The target coordinate system
 
 Transform Direction
 ~~~~~~~~~~~~~~~~~~~
 
 Transforms work bidirectionally:
 
-- **Forward Transform**: Converts coordinates from the lower dimension to the upper dimension
-- **Inverse Transform**: Converts coordinates back from the upper dimension to the lower dimension
+- Forward Transform: Converts coordinates from the lower dimension to the upper dimension
+- Inverse Transform: Converts coordinates back from the upper dimension to the lower dimension
 
 Zero-Copy Logical Operations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Critical Understanding**: All transform operations happen in **logical coordinate space** only. There is **no data copying or movement** involved - this is a zero-copy system.
+All transform operations happen in logical coordinate space only. There is no data copying or movement involved - this is a zero-copy system.
 
-- **Data Storage**: The actual tensor data remains stored in memory in linear fashion, exactly as specified by the original tensor shape and strides at creation time (see :ref:`ck_tile_buffer_views` for raw memory access)
-- **Logical Mapping**: Transforms only change how we interpret and access coordinates - they create different logical views of the same underlying data (building on :ref:`ck_tile_tensor_views`)
+- Data Storage: The actual tensor data remains stored in memory in linear fashion, exactly as specified by the original tensor shape and strides at creation time (see :ref:`ck_tile_buffer_views` for raw memory access)
+- Logical Mapping: Transforms only change how to interpret and access coordinates - they create different logical views of the same underlying data (building on :ref:`ck_tile_tensor_views`)
 
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
@@ -68,11 +68,11 @@ Zero-Copy Logical Operations
 Index Calculation Operations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The transform system provides two fundamental operations for coordinate conversion:
+The transform system provides two operations for coordinate conversion:
 
-- **calculate_lower_index()**: Takes a coordinate from the **upper dimension space** and transforms it to get the corresponding index/coordinate in the **lower dimension space**. This calculates where to find the actual tensor element using the transformed coordinate system.
+- ``calculate_lower_index()``: Takes a coordinate from the upper dimension space and transforms it to get the corresponding index/coordinate in the lower dimension space. This calculates where to find the actual tensor element using the transformed coordinate system.
 
-- **calculate_upper_index()**: Takes a coordinate from the **lower dimension space** and transforms it back to get the corresponding coordinate in the **upper dimension space**. This performs the inverse transformation to recover the original coordinate representation.
+- ``calculate_upper_index()``: Takes a coordinate from the lower dimension space and transforms it back to get the corresponding coordinate in the upper dimension space. This performs the inverse transformation to recover the original coordinate representation.
 
 These operations enable bidirectional navigation between different coordinate representations of the same underlying tensor data.
 
@@ -128,7 +128,7 @@ Transform System Architecture
 MergeTransform
 --------------
 
-MergeTransform collapses multiple dimensions from the lower coordinate space into a single dimension in the upper coordinate space, effectively reducing the dimensionality of the tensor representation while preserving all data relationships. This transform is fundamental to the :ref:`tile distribution system <ck_tile_tile_distribution>`.
+MergeTransform collapses multiple dimensions from the lower coordinate space into a single dimension in the upper coordinate space, effectively reducing the dimensionality of the tensor representation while preserving all data relationships. This transform is used in the :ref:`tile distribution system <ck_tile_tile_distribution>`.
 
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
@@ -790,31 +790,6 @@ ModuloTransform applies cyclic wrapping to coordinates using modulo operations.
 .. image:: diagrams/transforms_12.svg
    :alt: Diagram
    :align: center
-Summary
--------
-
-Individual transforms provide:
-
-- **Modularity**: Each transform does one thing well
-- **Composability**: Chain transforms for complex mappings (see :ref:`ck_tile_adaptors`)
-- **Efficiency**: Compile-time optimization in C++
-- **Flexibility**: Handle any coordinate conversion need
-
-Understanding these building blocks enables you to:
-
-1. Create custom tensor views
-2. Implement efficient data access patterns
-3. Handle padding and boundaries correctly
-4. Optimize memory layouts for :ref:`GPU access <ck_tile_gpu_basics>`
-
-The C++ implementations in Composable Kernel provide:
-
-- Zero-overhead abstractions through templates
-- Compile-time composition and optimization
-- Support for complex coordinate transformations
-- Integration with GPU kernel generation
-- Foundation for :ref:`tile windows <ck_tile_tile_window>` and :ref:`load/store traits <ck_tile_load_store_traits>`
-
 Next Steps
 ----------
 

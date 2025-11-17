@@ -451,60 +451,51 @@ TileWindow Usage
 Best Practices
 --------------
 
-1. **Choose Appropriate Dimension Order**
+Choose Appropriate Dimension Order
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-   .. code-block:: cpp
+.. code-block:: cpp
 
-      // For row-major storage, use row-major traversal
-      using RowMajorSFC = space_filling_curve<2, Shape, sequence<0, 1>, ...>;
-      
-      // For column-major storage, use column-major traversal
-      using ColMajorSFC = space_filling_curve<2, Shape, sequence<1, 0>, ...>;
+   // For row-major storage, use row-major traversal
+   using RowMajorSFC = space_filling_curve<2, Shape, sequence<0, 1>, ...>;
+   
+   // For column-major storage, use column-major traversal
+   using ColMajorSFC = space_filling_curve<2, Shape, sequence<1, 0>, ...>;
 
-2. **Optimize Vector Size**
+Optimize Vector Size
+^^^^^^^^^^^^^^^^^^^^
 
-   .. code-block:: cpp
+.. code-block:: cpp
 
-      // Match vector size to cache line for optimal bandwidth
-      // See :ref:`ck_tile_lds_bank_conflicts` for cache optimization
-      constexpr index_t optimal_vector = min(
-          tensor_length_fast_dim,
-          cache_line_size / sizeof(DataType)
-      );
+   // Match vector size to cache line for optimal bandwidth
+   // See :ref:`ck_tile_lds_bank_conflicts` for cache optimization
+   constexpr index_t optimal_vector = min(
+       tensor_length_fast_dim,
+       cache_line_size / sizeof(DataType)
+   );
 
-3. **Enable Snake Pattern for Large Tensors**
+Enable Snake Pattern for Large Tensors
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-   .. code-block:: cpp
+.. code-block:: cpp
 
-      // Snake pattern helps when jumping between rows/planes
-      using CacheFriendlySFC = space_filling_curve<
-          NDim, Lengths, Order, Scalars, 
-          true  // Enable snake
-      >;
+   // Snake pattern helps when jumping between rows/planes
+   using CacheFriendlySFC = space_filling_curve<
+       NDim, Lengths, Order, Scalars, 
+       true  // Enable snake
+   >;
 
-4. **Consider Memory Layout**
+Consider Memory Layout
+^^^^^^^^^^^^^^^^^^^^^^
 
-   .. code-block:: cpp
+.. code-block:: cpp
 
-      // Align access patterns with physical memory layout
-      static_assert(
-          SFC::scalars_per_access[fastest_dim] * sizeof(DataType) 
-          % cache_line_size == 0,
-          "Vector access should align with cache lines"
-      );
-
-Summary
--------
-
-Space-filling curves provide:
-
-- **Systematic traversal**: Convert N-D access to 1D iteration
-- **Vectorization support**: Efficient use of vector load/store instructions
-- **Cache optimization**: Snake patterns and dimension ordering for locality
-- **Flexibility**: Adaptable to different :ref:`tensor shapes <ck_tile_descriptors>` and access patterns
-- **Performance**: Compile-time optimization with zero runtime overhead
-
-The advanced traversal patterns enabled by space-filling curves are fundamental to achieving high performance in GPU kernels, ensuring that memory access patterns align with :ref:`hardware capabilities <ck_tile_gpu_basics>`.
+   // Align access patterns with physical memory layout
+   static_assert(
+       SFC::scalars_per_access[fastest_dim] * sizeof(DataType) 
+       % cache_line_size == 0,
+       "Vector access should align with cache lines"
+   );
 
 Next Steps
 ----------

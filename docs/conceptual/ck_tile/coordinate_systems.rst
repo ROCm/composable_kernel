@@ -6,14 +6,14 @@ Coordinate Systems - The Mathematical Foundation
 Overview
 --------
 
-At the heart of the Composable Kernel framework lies a advanced mathematical foundation based on coordinate transformations. This foundation enables the automatic generation of optimal memory access patterns while maintaining a clear separation between algorithmic intent and hardware implementation details. The coordinate system framework represents one of CK's most key innovations, transforming the complex task of GPU work distribution into a series of well-defined mathematical transformations.
+The Composable Kernel framework uses a mathematical foundation based on coordinate transformations. This foundation enables the automatic generation of optimal memory access patterns while maintaining a clear separation between algorithmic intent and hardware implementation details. The coordinate system framework transforms the complex task of GPU work distribution into a series of well-defined mathematical transformations.
 
-Understanding these coordinate systems is essential for mastering :ref:`tile distribution <ck_tile_distribution>`. They provide the mathematical machinery that maps from abstract thread identities to concrete memory addresses, ensuring that every memory access is optimized for the underlying hardware. This systematic approach eliminates the error-prone manual calculations that plague traditional GPU programming while enabling optimizations that would be impractical to implement by hand.
+Understanding these coordinate systems is necessary for :ref:`tile distribution <ck_tile_distribution>`. They provide the mathematical machinery that maps from abstract thread identities to concrete memory addresses, ensuring that every memory access is optimized for the underlying hardware. This systematic approach eliminates the error-prone manual calculations that plague traditional GPU programming while enabling optimizations that would be impractical to implement by hand.
 
 The Five Coordinate Spaces
 --------------------------
 
-The CK framework employs five interconnected coordinate spaces, each serving a specific purpose in the journey from thread identification to memory access. These spaces work together to solve the fundamental challenge of GPU programming: efficiently distributing work across thousands of parallel threads while maintaining optimal memory access patterns.
+The CK framework employs five interconnected coordinate spaces, each serving a specific purpose in the journey from thread identification to memory access. These spaces work together to efficiently distribute work across thousands of parallel threads while maintaining optimal memory access patterns.
 
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
@@ -63,20 +63,20 @@ The CK framework employs five interconnected coordinate spaces, each serving a s
 The Challenge and Solution
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Consider a fundamental scenario: you have an 8×8 matrix and 4 GPU threads. Each thread needs to answer several critical questions:
+Consider a scenario: an 8×8 matrix and 4 GPU threads. Each thread needs to answer several questions:
 
-1. **Which thread am I?** (Thread identification)
-2. **What work should I do?** (Work assignment)
-3. **Where is my data in the tensor?** (Physical location)
-4. **How do I share data with other threads?** (Cooperation)
-5. **What's the memory address?** (Hardware access)
+1. Which thread am I? (Thread identification)
+2. What work should I do? (Work assignment)
+3. Where is my data in the tensor? (Physical location)
+4. How do I share data with other threads? (Cooperation)
+5. What's the memory address? (Hardware access)
 
 The coordinate system framework provides a systematic solution through five specialized spaces that transform from logical concepts to physical reality. Each space captures a different aspect of the computation, and the transformations between them encode the distribution strategy.
 
 P-Space: Thread Identification
 ------------------------------
 
-P-space (Partition Space) represents the foundation of the coordinate system hierarchy. This space captures the identity of each processing element within the GPU's execution model, providing a structured way to identify threads across the complex hierarchy of warps, blocks, and grids.
+P-space (Partition Space) represents the foundation of the coordinate system hierarchy. This space captures the identity of each processing element within the GPU's thread model, providing a structured way to identify threads across the complex hierarchy of warps, blocks, and grids.
 
 GPU Thread Hierarchy
 ~~~~~~~~~~~~~~~~~~~~
@@ -128,7 +128,7 @@ GPU Thread Hierarchy
 .. image:: diagrams/coordinate_systems_2.svg
    :alt: Diagram
    :align: center
-The structure of P-space directly reflects the :ref:`hardware organization <ck_tile_gpu_basics>` of modern GPUs. Each thread receives a unique P-coordinate that encodes its position within the execution hierarchy. For simple distributions, P-space might be one-dimensional, containing only a thread ID. For complex hierarchical distributions, P-space can have multiple dimensions representing different levels of the GPU's thread organization.
+The structure of P-space directly reflects the :ref:`hardware organization <ck_tile_gpu_basics>` of modern GPUs. Each thread receives a unique P-coordinate that encodes its position within the thread hierarchy. For simple distributions, P-space might be one-dimensional, containing only a thread ID. For complex hierarchical distributions, P-space can have multiple dimensions representing different levels of the GPU's thread organization.
 
 C++ Implementation
 ~~~~~~~~~~~~~~~~~~
@@ -221,7 +221,7 @@ Work Assignment Structure
 .. image:: diagrams/coordinate_systems_3.svg
    :alt: Diagram
    :align: center
-The power of Y-space lies in its ability to express different iteration patterns without changing the underlying distribution logic. A thread might traverse its Y-space in row-major order for one algorithm, column-major for another, or even use :ref:`space-filling curves <ck_tile_space_filling_curve>` for optimal cache utilization. This flexibility enables algorithm-specific optimizations while maintaining a consistent framework.
+Y-space can express different iteration patterns without changing the underlying distribution logic. A thread might traverse its Y-space in row-major order for one algorithm, column-major for another, or even use :ref:`space-filling curves <ck_tile_space_filling_curve>` for optimal cache utilization. This flexibility enables algorithm-specific optimizations while maintaining a consistent framework.
 
 Hierarchical Y-Space
 ~~~~~~~~~~~~~~~~~~~~
@@ -296,7 +296,7 @@ The relationship between X-space and physical memory involves considerations of 
 The Core Transformation: P + Y → X
 ----------------------------------
 
-The transformation from P and Y coordinates to X coordinates represents the heart of tile distribution. This transformation encodes the entire distribution strategy, determining how logical thread work maps to physical tensor locations.
+The transformation from P and Y coordinates to X coordinates is central to tile distribution. This transformation encodes the entire distribution strategy, determining how logical thread work maps to physical tensor locations.
 
 Transformation Pipeline
 ~~~~~~~~~~~~~~~~~~~~~~~
@@ -362,7 +362,7 @@ This transformation is highly configurable through the distribution encoding, en
 R-Space: Replication and Cooperation
 ------------------------------------
 
-R-space (Replication Space) introduces a advanced mechanism for expressing data sharing and cooperation patterns between threads. Unlike the other coordinate spaces which map to unique data elements, R-space enables multiple processing elements to work on the same data, facilitating efficient communication and reduction operations.
+R-space (Replication Space) introduces a mechanism for expressing data sharing and cooperation patterns between threads. Unlike the other coordinate spaces which map to unique data elements, R-space enables multiple processing elements to work on the same data, facilitating efficient communication and reduction operations.
 
 Replication Patterns
 ~~~~~~~~~~~~~~~~~~~~
@@ -399,7 +399,7 @@ Replication Patterns
        }
    }
 
-R-space enables advanced cooperation patterns that would be difficult to express otherwise. By providing a systematic way to identify which threads share data, it enables automatic generation of efficient communication patterns.
+R-space enables cooperation patterns that would be difficult to express otherwise. By providing a systematic way to identify which threads share data, it enables automatic generation of efficient communication patterns.
 
 D-Space: Memory Linearization
 -----------------------------
@@ -475,7 +475,7 @@ The linearization process must consider multiple factors:
 Complete Pipeline Example
 -------------------------
 
-Let's trace through a complete example showing how all coordinate spaces work together:
+The following example traces through how all coordinate spaces work together:
 
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
@@ -534,7 +534,7 @@ Let's trace through a complete example showing how all coordinate spaces work to
 Real-World Example: Matrix Multiplication
 -----------------------------------------
 
-To illustrate how coordinate systems work in practice, let's examine their application in :ref:`matrix multiplication <ck_tile_gemm_optimization>`:
+To illustrate how coordinate systems work in practice, the following examines their application in :ref:`matrix multiplication <ck_tile_gemm_optimization>`:
 
 .. code-block:: cpp
 
@@ -573,34 +573,28 @@ To illustrate how coordinate systems work in practice, let's examine their appli
 Performance Implications
 ------------------------
 
-The coordinate system framework enables several critical optimizations:
+The coordinate system framework enables several optimizations:
 
-**Memory Coalescing**: By carefully structuring the P+Y→X transformation, consecutive threads access consecutive memory locations, achieving optimal memory bandwidth utilization.
+Memory Coalescing
+~~~~~~~~~~~~~~~~~~
 
-**Cache Efficiency**: The Y-space traversal order can be designed to maximize cache reuse, keeping frequently accessed data in fast memory.
+By carefully structuring the P+Y→X transformation, consecutive threads access consecutive memory locations, achieving optimal memory bandwidth utilization.
 
-**Register Optimization**: The Y→D transformation enables optimal register allocation, minimizing register pressure while maximizing reuse.
+Cache Efficiency
+~~~~~~~~~~~~~~~~
 
-**Vectorization**: The coordinate transformations naturally align with vector operations, enabling efficient use of SIMD instructions.
+The Y-space traversal order can be designed to maximize cache reuse, keeping frequently accessed data in fast memory.
 
-Summary
--------
+Register Optimization
+~~~~~~~~~~~~~~~~~~~~~
 
-The coordinate system framework represents the mathematical foundation that enables CK's high performance and productivity benefits. Through the systematic transformation from thread identity (P-space) through logical work organization (Y-space) to physical tensor coordinates (X-space) and finally to linear memory addresses (D-space), this framework solves the fundamental challenges of GPU programming.
+The Y→D transformation enables optimal register allocation, minimizing register pressure while maximizing reuse.
 
-Key insights from the coordinate system framework:
+Vectorization
+~~~~~~~~~~~~~
 
-**Separation of Concerns**: Each coordinate space captures a different aspect of the computation, enabling independent optimization of each aspect while maintaining a coherent whole.
+The coordinate transformations naturally align with vector operations, enabling efficient use of SIMD instructions.
 
-**Mathematical Rigor**: The transformations between coordinate spaces are well-defined mathematical functions, enabling formal analysis and verification of distribution strategies.
-
-**Hardware Abstraction**: The framework abstracts hardware details while enabling hardware-specific optimizations, achieving both portability and performance.
-
-**Automatic Optimization**: By encoding distribution strategies as coordinate transformations, the framework enables automatic generation of optimal access patterns that would be impractical to implement manually.
-
-**Composability**: Different distribution strategies can be expressed by composing different transformations, enabling rapid experimentation and optimization.
-
-Understanding these coordinate systems is essential for mastering CK Tile. They provide the conceptual framework for reasoning about GPU computation and the practical tools for achieving optimal performance. As GPU architectures continue to evolve, this mathematical foundation ensures that CK programs can adapt and continue to achieve high performance.
 
 Next Steps
 ----------

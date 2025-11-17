@@ -13,7 +13,7 @@ This section provides in-depth coverage of hardware-specific concepts and optimi
 Overview
 ========
 
-Understanding the underlying hardware architecture is crucial for achieving optimal performance with CK Tile. This documentation covers:
+Understanding the underlying hardware architecture helps achieve optimal performance with CK Tile. This documentation covers:
 
 - AMD CDNA architecture fundamentals
 - Memory hierarchy and optimization techniques
@@ -62,30 +62,30 @@ GEMM Optimization Case Study
 - Pipeline optimization for latency hiding
 - Achieving near-peak performance with CK Tile
 
-Key Hardware Considerations
-===========================
+Hardware Considerations
+=======================
 
 When using CK Tile, keep these hardware aspects in mind:
 
 Memory Hierarchy
 ----------------
 
-1. **Global Memory**: High latency, high bandwidth
+1. Global Memory: High latency, high bandwidth
    
    - Optimize with coalesced access patterns
    - Use tile windows for automatic optimization
 
-2. **L2/Infinity Cache**: Intermediate storage
+2. L2/Infinity Cache: Intermediate storage
    
    - Benefits from spatial and temporal locality
    - CK Tile's tiling naturally improves cache hit rates
 
-3. **LDS**: Low latency, shared within CU
+3. LDS: Low latency, shared within CU
    
    - 64KB per CU, organized in 32 banks
    - CK Tile handles bank conflict avoidance
 
-4. **Registers**: Lowest latency, per-thread storage
+4. Registers: Lowest latency, per-thread storage
    
    - 512 VGPRs available per wavefront
    - CK Tile's compile-time optimization minimizes usage
