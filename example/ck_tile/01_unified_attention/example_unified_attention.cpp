@@ -30,11 +30,11 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
     ck_tile::ArgParser arg_parser;
     arg_parser.insert("prec", "fp16", "data type. fp16/bf16")
         .insert("b", "3", "batch size")
-        .insert("h", "32", "num of head, for q")
-        .insert("h_k",
-                "-1",
-                "num of head, for k/v, -1 means equal to h\n"
-                "if not equal to h, then this is GQA/MQA case")
+        .insert("h", "8", "num head for k/v. num head for q is 4 times this")
+        // .insert("h_k",
+        //         "-1",
+        //         "num of head, for k/v, -1 means equal to h\n"
+        //         "if not equal to h, then this is GQA/MQA case")
         .insert("s", "1024", "max_seqlen_q")
         .insert("nb", "1024", "num_blks")
         .insert("bs", "128", "BLOCK_SIZE for kv")
@@ -101,12 +101,9 @@ struct Problem
         max_context_len = args.get_int("s_k");
         num_blks        = args.get_int("nb");
         BLOCK_SIZE      = args.get_int("bs");
-        nhead_q         = args.get_int("h");
-        nhead_kv        = args.get_int("h_k");
-        if(nhead_kv < 0)
-        {
-            nhead_kv = nhead_q;
-        }
+        nhead_kv         = args.get_int("h");
+        // TODO: support other GQA/MQA cases than just 4x
+        nhead_q        = nhead_kv * 4;
 
         hdim       = args.get_int("d");
         query_lens = args.get_int_vec("query_lens");
