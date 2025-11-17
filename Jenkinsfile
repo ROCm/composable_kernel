@@ -1512,7 +1512,7 @@ pipeline {
                     agent{ label rocmnode("gfx90a")}
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_args = """ CXX=/opt/rocm/llvm/bin/clang++ cmake -DCMAKE_PREFIX_PATH=/opt/rocm ../codegen && \
+                        execute_args = """ cmake -DCMAKE_PREFIX_PATH=/opt/rocm -DCMAKE_CXX_COMPILER="${build_compiler()}" ../codegen && \
                                            make -j64 check"""
                     }
                     steps{
@@ -1539,8 +1539,12 @@ pipeline {
                     agent{ label rocmnode("gfx90a") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx90a && \
-                                           make -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
+                        execute_args = """ cmake -G Ninja -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
+                                           -DGPU_TARGETS="gfx90a" \
+                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_HIP_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && \
+                                           ninja -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
                                            example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx90a """
                     }
@@ -1558,8 +1562,12 @@ pipeline {
                     agent{ label rocmnode("gfx942") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx942 && \
-                                           make -j128 tile_example_fmha_fwd tile_example_fmha_bwd && \
+                        execute_args = """ cmake -G Ninja -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
+                                           -DGPU_TARGETS="gfx942" \
+                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_HIP_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && \
+                                           ninja -j128 tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
                                            example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx942 """
                     }
@@ -1577,8 +1585,12 @@ pipeline {
                     agent{ label rocmnode("gfx950") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx950 && \
-                                           make -j128 tile_example_fmha_fwd tile_example_fmha_bwd && \
+                        execute_args = """ cmake -G Ninja -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
+                                           -DGPU_TARGETS="gfx950" \
+                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_HIP_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && \
+                                           ninja -j128 tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
                                            example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx950 """
                     }
@@ -1596,8 +1608,12 @@ pipeline {
                     agent{ label rocmnode("gfx1201") }
                     environment{
                         setup_args = "NO_CK_BUILD"
-                        execute_args = """ ../script/cmake-ck-dev.sh  ../ gfx12-generic && \
-                                           make -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
+                        execute_args = """ cmake -G Ninja -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
+                                           -DGPU_TARGETS="gfx12-generic" \
+                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_HIP_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_CXX_FLAGS=" -O3 " .. && \
+                                           ninja -j64 tile_example_fmha_fwd tile_example_fmha_bwd && \
                                            cd ../ &&
                                            example/ck_tile/01_fmha/script/run_full_test.sh "CI_${params.COMPILER_VERSION}" "${env.BRANCH_NAME}" "${NODE_NAME}" gfx1201 """
                     }
@@ -1776,7 +1792,7 @@ pipeline {
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx942" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
-                                           -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
+                                           -DCMAKE_HIP_COMPILER="${build_compiler()}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
@@ -1798,8 +1814,8 @@ pipeline {
                         execute_args = """ cd ../client_example && rm -rf build && mkdir build && cd build && \
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx950" \
-                                           -DCMAKE_CXX_COMPILER=/opt/rocm/llvm/bin/clang++ \
-                                           -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
+                                           -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                           -DCMAKE_HIP_COMPILER="${build_compiler()}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
@@ -1820,7 +1836,7 @@ pipeline {
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx908" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
-                                           -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
+                                           -DCMAKE_HIP_COMPILER="${build_compiler()}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
@@ -1842,7 +1858,7 @@ pipeline {
                                            -DGPU_TARGETS="gfx90a" \
                                            -DCK_CXX_STANDARD="17" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
-                                           -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
+                                           -DCMAKE_HIP_COMPILER="${build_compiler()}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
@@ -1861,11 +1877,13 @@ pipeline {
                         script {
                             def execute_args = params.NINJA_FTIME_TRACE ?
                                 """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
-                                    -D CMAKE_CXX_COMPILER="${build_compiler()}" \
+                                    -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                    -DCMAKE_HIP_COMPILER="${build_compiler()}" \
                                     -D CMAKE_BUILD_TYPE=Release \
                                     -D CMAKE_CXX_FLAGS=" -O3 -ftime-trace" .. && ninja -j64 """ :
                                 """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
-                                    -D CMAKE_CXX_COMPILER="${build_compiler()}" \
+                                    -DCMAKE_CXX_COMPILER="${build_compiler()}" \
+                                    -DCMAKE_HIP_COMPILER="${build_compiler()}" \
                                     -D CMAKE_BUILD_TYPE=Release \
                                     -D CMAKE_CXX_FLAGS=" -O3 " .. && ninja -j64 """
 
@@ -1887,7 +1905,7 @@ pipeline {
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx10-3-generic" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
-                                           -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
+                                           -DCMAKE_HIP_COMPILER="${build_compiler()}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
@@ -1908,7 +1926,7 @@ pipeline {
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx11-generic" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
-                                           -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
+                                           -DCMAKE_HIP_COMPILER="${build_compiler()}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
@@ -1929,7 +1947,7 @@ pipeline {
                                            cmake -DCMAKE_PREFIX_PATH="${env.WORKSPACE}/install;/opt/rocm" \
                                            -DGPU_TARGETS="gfx12-generic" \
                                            -DCMAKE_CXX_COMPILER="${build_compiler()}" \
-                                           -DCMAKE_C_COMPILER=/opt/rocm/llvm/bin/clang \
+                                           -DCMAKE_HIP_COMPILER="${build_compiler()}" \
                                            -DCMAKE_CXX_FLAGS=" -O3 " .. && make -j """
                     }
                     steps{
