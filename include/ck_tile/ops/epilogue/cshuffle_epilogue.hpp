@@ -311,9 +311,9 @@ struct CShuffleEpilogue
     using CWarpDstr         = typename WG::CWarpDstr;
     using CWarpTensor       = typename WG::CWarpTensor;
     using CWarpDstrEncoding = typename WG::CWarpDstrEncoding;
-    using SFC               = space_filling_curve<sequence<kNPerBlock, kMPerBlock>,
-                                                  sequence<1, 0>,
-                                                  sequence<NPerIterationShuffle, MPerIterationShuffle>>;
+    using SFC               = space_filling_curve<sequence<YPerBlock, XPerBlock>,
+                                                  sequence<0, 1>,
+                                                  sequence<YPerIterationShuffle, XPerIterationShuffle>>;
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDescriptor()
@@ -322,15 +322,15 @@ struct CShuffleEpilogue
         if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
         {
             return make_naive_tensor_descriptor(
-                make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
-                make_tuple(number<NPerIterationShuffle>{}, number<1>{}));
+                make_tuple(number<YPerIterationShuffle>{}, number<XPerIterationShuffle>{}),
+                make_tuple(number<XPerIterationShuffle>{}, number<1>{}));
         }
         // M is contiguous dimension
         else if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::ColumnMajor>)
         {
             return make_naive_tensor_descriptor(
-                make_tuple(number<NPerIterationShuffle>{}, number<MPerIterationShuffle>{}),
-                make_tuple(number<MPerIterationShuffle>{}, number<1>{}));
+                make_tuple(number<XPerIterationShuffle>{}, number<YPerIterationShuffle>{}),
+                make_tuple(number<YPerIterationShuffle>{}, number<1>{}));
         }
         else
         {
@@ -424,17 +424,17 @@ struct CShuffleEpilogue
         constexpr auto idx_start = SFC::get_index(number<iAccess>{});
 
         // SFC with (N,M) dims and (1,0) access order returns indices in (M, N) iteration order
-        constexpr auto mIter = number<idx_start.at(number<0>{}) / (MPerIterationShuffle)>{};
-        constexpr auto nIter = number<idx_start.at(number<1>{}) / (NPerIterationShuffle)>{};
+        constexpr auto mIter = number<idx_start.at(number<0>{}) / (YPerIterationShuffle)>{};
+        constexpr auto nIter = number<idx_start.at(number<1>{}) / (XPerIterationShuffle)>{};
         constexpr auto c_warp_y_lengths =
             to_sequence(CWarpDstr{}.get_ys_to_d_descriptor().get_lengths());
         constexpr auto c_warp_y_index_zeros = uniform_sequence_gen_t<CWarpDstr::NDimY, 0>{};
 
         lds_tile.get_thread_buffer() = o_acc_tile.get_y_sliced_thread_data(
             merge_sequences(
-                sequence<mIter * NumMXdlPerWavePerShuffle, nIter * NumNXdlPerWavePerShuffle>{},
+                sequence<mIter * NumYXdlPerWavePerShuffle, nIter * NumXXdlPerWavePerShuffle>{},
                 c_warp_y_index_zeros),
-            merge_sequences(sequence<NumMXdlPerWavePerShuffle, NumNXdlPerWavePerShuffle>{},
+            merge_sequences(sequence<NumYXdlPerWavePerShuffle, NumXXdlPerWavePerShuffle>{},
                             c_warp_y_lengths));
     }
 
@@ -675,59 +675,16 @@ struct CShuffleEpilogue
         auto o_lds_block              = make_tensor_view<address_space_enum::lds>(
             static_cast<ODataType*>(p_smem), lds_block_desc);
 
-        auto in_lds_window = [&o_lds_block, &LdsTileDistr] {
-            if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
-            {
-                return make_tile_window(
-                    o_lds_block,
-                    make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
-                    {0, 0},
-                    LdsTileDistr);
-            }
-            else if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::ColumnMajor>)
-            {
-                return make_tile_window(
-                    o_lds_block,
-                    make_tuple(number<NPerIterationShuffle>{}, number<MPerIterationShuffle>{}),
-                    {0, 0},
-                    LdsTileDistr);
-            }
-            else
-            {
-                static_assert(false, "Unsupported ELayout!");
-            }
-        }();
-        // auto in_lds_window = make_tile_window(
-        //     o_lds_block,
-        //     make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
-        //     {0, 0},
-        //     LdsTileDistr);
+        auto in_lds_window = make_tile_window(
+            o_lds_block,
+            make_tuple(number<YPerIterationShuffle>{}, number<XPerIterationShuffle>{}),
+            {0, 0},
+            LdsTileDistr);
 
-        // auto out_lds_window = make_tile_window(
-        //     o_lds_block,
-        //     make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
-        //     {0, 0});
-
-        auto out_lds_window = [&o_lds_block] {
-            if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
-            {
-                return make_tile_window(
-                    o_lds_block,
-                    make_tuple(number<MPerIterationShuffle>{}, number<NPerIterationShuffle>{}),
-                    {0, 0});
-            }
-            else if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::ColumnMajor>)
-            {
-                return make_tile_window(
-                    o_lds_block,
-                    make_tuple(number<NPerIterationShuffle>{}, number<MPerIterationShuffle>{}),
-                    {0, 0});
-            }
-            else
-            {
-                static_assert(false, "Unsupported ELayout!");
-            }
-        }();
+        auto out_lds_window = make_tile_window(
+            o_lds_block,
+            make_tuple(number<YPerIterationShuffle>{}, number<XPerIterationShuffle>{}),
+            {0, 0});
 
         constexpr index_t num_access = SFC::get_num_of_access();
         // TODO: Add support for Col Major Output Layout - CShuffle Epilogue
