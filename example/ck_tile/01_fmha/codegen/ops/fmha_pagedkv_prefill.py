@@ -556,7 +556,7 @@ class KernelComponentFactoryBase:
                 BIAS_MAP.keys(),
                 ["t"],
                 ["f"],
-                ["t","f"],
+                ["t", "f"],
             ):
                 pipelines.append(FmhaFwdPipeline("qr_pagedkv", "row", "t", "f", "f", "f", logits, bias, "f", pagedkv, squant, mask, skip, sink))  # fmt: skip
                 pipelines.append(FmhaFwdPipeline("qr_pagedkv", "row", "t", "t", "f", "f", logits, bias, "f", pagedkv, squant, mask, skip, sink))  # fmt: skip
