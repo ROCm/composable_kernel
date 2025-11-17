@@ -22,23 +22,34 @@ using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 template <typename Tuple>
-class TestGroupedGemm : public ck::test::TestGroupedGemm<Tuple>
+class TestGroupedGemm : public ck::test::TestGroupedGemm<Tuple, true>
 {
 };
 
 // clang-format off
 using KernelTypes = ::testing::Types<
+
     std::tuple<     Row, Row, Row, F16, F16, F16>,
     std::tuple<     Row, Col, Row, F16, F16, F16>,
     std::tuple<     Col, Row, Row, F16, F16, F16>,
     std::tuple<     Col, Col, Row, F16, F16, F16>,
+
     std::tuple<     Row, Row, Row, BF16, BF16, BF16>,
     std::tuple<     Row, Col, Row, BF16, BF16, BF16>,
     std::tuple<     Col, Row, Row, BF16, BF16, BF16>,
+#if defined(CK_USE_WMMA)
+    // WWMA only. No reason to not have it for XDL, but the instance was not defined and it was not in the original test.
+    std::tuple<     Col, Col, Row, BF16, BF16, BF16>,
+#endif
+    
+#if defined(CK_USE_XDL)
+    // XDL only at the moment, instances for WMMA not defined
     std::tuple<     Row, Row, Row, BF16, I8, BF16>,
     std::tuple<     Row, Col, Row, BF16, I8, BF16>,
-    std::tuple<     Row, Row, Row, F16, F8, F16>,
-    std::tuple<     Row, Row, Row, F8, F16, F16>
+#endif
+
+    std::tuple<     Row, Row, Row, F8, F16, F16>,
+    std::tuple<     Row, Row, Row, F16, F8, F16>
     >;
 // clang-format on
 

@@ -23,7 +23,7 @@ set(REGRESSION_TESTS
     test_batched_gemm_bias_softmax_gemm_permute_fp16
     test_batched_gemm_softmax_gemm_permute_bf16
     test_batched_gemm_bias_softmax_gemm_permute_bf16
-    test_grouped_gemm_splitk_xdl
+    test_grouped_gemm_splitk
     test_batched_gemm_b_scale_wmma
     test_reduce_no_index
     test_reduce_with_index
