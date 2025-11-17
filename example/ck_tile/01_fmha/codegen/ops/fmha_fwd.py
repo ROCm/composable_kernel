@@ -840,8 +840,8 @@ class KernelComponentFactoryGfx12:
             for logits, squant, mask, bias in itertools.product(
                 ["f"], ["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()
             ):
-                pipelines.append(FmhaFwdPipeline("qr", "row", "f", "f", "f", "f", logits, bias, "f", "f", squant, mask, "f", "f"))  # fmt: skip
-                pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "f", "f", logits, bias, "f", "f", squant, mask, "f", "f"))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr", "row", "f", "f", "f", "f", logits, bias, "f", "f", squant, mask, "f", "f", "f"))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "f", "f", logits, bias, "f", "f", squant, mask, "f", "f", "f"))  # fmt: skip
         else:
             assert False
         return pipelines
