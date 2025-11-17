@@ -5,8 +5,6 @@
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/type_convert.hpp"
 
-using ::ck::DeviceMem;
-
 using ck::f8_convert_rne;
 using ck::f8_convert_sr;
 using ck::f8_fnuz_t;
