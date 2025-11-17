@@ -290,7 +290,7 @@
 
 namespace ck_tile::core {
 /**
- * @struct amdgcn_device_compiler_state
+ * @struct amdgcn_compiler_target_state
  * @brief Defines compiler states for supported AMDGCN devices.
  * @var CK_TILE_HOST_COMPILE Indicates if the compilation is for the host.
  * @var CK_TILE_DEVICE_COMPILE Indicates if the compilation is for AMDGCN device.

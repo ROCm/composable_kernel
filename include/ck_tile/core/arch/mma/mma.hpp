@@ -161,7 +161,7 @@ struct WaveWiseMma
                 for(uint32_t bk = 0u; bk < BlocksK; ++bk)
                 {
                     c_frag[bm][bn] =
-                        BlockWiseMmaOp::exec(c_frag[bm][bn], a_frag[bm][bk], b_frag[bn][bk]);
+                        BlockWiseMmaOp::exec(a_frag[bm][bk], b_frag[bn][bk], c_frag[bm][bn]);
                 }
             }
         }
@@ -199,7 +199,7 @@ struct WaveWiseMma
                 for(uint32_t bk = 0u; bk < BlocksK; ++bk)
                 {
                     c_frag[bm][bn] =
-                        BlockWiseMmaOp::exec(c_frag[bm][bn], a_frag[bm][bk], b_frag[bn][bk]);
+                        BlockWiseMmaOp::exec(a_frag[bm][bk], b_frag[bn][bk], c_frag[bm][bn]);
                 }
             }
         }

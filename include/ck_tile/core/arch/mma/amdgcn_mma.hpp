@@ -30,7 +30,7 @@ concept MmaOpI = requires(MmaOp op) {
     typename MmaOp::BVecType;
     typename MmaOp::CVecType;
 
-    // Captures CK-specfic layout properties
+    // Captures CK-specific layout properties
     { MmaOp::kAMBlock } -> std::convertible_to<unsigned int>;
     { MmaOp::kBNBlock } -> std::convertible_to<unsigned int>;
     { MmaOp::kAMLane } -> std::convertible_to<unsigned int>;
