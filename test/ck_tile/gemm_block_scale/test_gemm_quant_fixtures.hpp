@@ -145,9 +145,24 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     // AQuant-specific data generation
     void run_test_with_validation(ck_tile::index_t M, ck_tile::index_t N, ck_tile::index_t K)
     {
-        const ck_tile::index_t stride_A = K;
-        const ck_tile::index_t stride_B = K;
-        const ck_tile::index_t stride_C = N;
+        constexpr bool is_RRR_layout =
+            std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor> &&
+            std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>;
+        constexpr bool is_CRR_layout =
+            std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor> &&
+            std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>;
+
+        if((is_RRR_layout || is_CRR_layout) && ck_tile::get_device_name() == "gfx950")
+        {
+            GTEST_SKIP() << "RRR/CRR layouts are not supported on gfx950 for AQuantGrouped mode";
+        }
+
+        const ck_tile::index_t stride_A =
+            ck_tile::get_default_stride(M, K, 0, this->is_row_major(ALayout{}));
+        const ck_tile::index_t stride_B =
+            ck_tile::get_default_stride(K, N, 0, this->is_row_major(BLayout{}));
+        const ck_tile::index_t stride_C =
+            ck_tile::get_default_stride(M, N, 0, this->is_row_major(CLayout{}));
 
         // AQuant uses grouped quantization for A matrix
         const ck_tile::index_t AQK = ck_tile::integer_divide_ceil(K, QuantGroupSize::kK);
