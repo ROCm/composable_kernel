@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -82,9 +82,27 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
             // multiply and accumulate
             if constexpr(is_same_v<ComputeTypeA, ComputeTypeB> &&
                          is_same_v<ComputeTypeA, ck::tf32_t>)
-            { // only for tf32 now
-                v_acc += ck::type_convert<AccDataType>(ck::type_convert<ComputeTypeA>(v_a)) *
-                         ck::type_convert<AccDataType>(ck::type_convert<ComputeTypeB>(v_b));
+            {
+#if defined(__gfx942__)
+                v_acc += ck::type_convert<AccDataType>(ck::type_convert<ck::tf32_t>(v_a)) *
+                         ck::type_convert<AccDataType>(ck::type_convert<ck::tf32_t>(v_b));
+#elif defined(__gfx950__)
+                ck::bhalf_t v_a_bf16_big = ck::type_convert<ck::bhalf_t>(v_a);
+                ck::bhalf_t v_a_bf16_small =
+                    ck::type_convert<ck::bhalf_t>(v_a - type_convert<float>(v_a_bf16_big));
+                ck::bhalf_t v_b_bf16_big = ck::type_convert<ck::bhalf_t>(v_b);
+                ck::bhalf_t v_b_bf16_small =
+                    ck::type_convert<ck::bhalf_t>(v_b - type_convert<float>(v_b_bf16_big));
+
+                v_acc += ck::type_convert<AccDataType>(v_a_bf16_big) *
+                             ck::type_convert<AccDataType>(v_b_bf16_small) +
+                         ck::type_convert<AccDataType>(v_a_bf16_small) *
+                             ck::type_convert<AccDataType>(v_b_bf16_big) +
+                         ck::type_convert<AccDataType>(v_a_bf16_big) *
+                             ck::type_convert<AccDataType>(v_b_bf16_big);
+#else
+                v_acc += type_convert<AccDataType>(v_a) * type_convert<AccDataType>(v_b);
+#endif
             }
             else
             {
