@@ -174,8 +174,7 @@ struct BlockwiseGemmWmmaops_pipeline_v1<BlockGemmPipelineScheduler::Intrawave,
               typename BBlockBuffer,
               typename BBlockTransferStep,
               typename CThreadBuffer,
-              typename BScaleStruct,
-              typename enable_if<BBlockBuffer::IsDynamicBuffer(), bool>::type = false>
+              typename BScaleStruct>
     __device__ void Run(const AGridDesc& a_grid_desc,
                         const ABlockDesc& a_block_desc,
                         ABlockTransfer& a_blockwise_copy,
