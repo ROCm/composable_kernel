@@ -810,9 +810,9 @@ using enable_if_target_wave64_t =
 
 /*! @brief Returns the amdgcn_wave_size of the current compiler pass
  */
-CK_TILE_HOST_DEVICE constexpr auto get_warp_size()
+CK_TILE_HOST_DEVICE constexpr index_t get_warp_size()
 {
-    return static_cast<uint32_t>(core::arch::get_compiler_target().WAVE_SIZE_ID);
+    return static_cast<index_t>(core::arch::get_compiler_target().WAVE_SIZE_ID);
 }
 
 CK_TILE_DEVICE index_t get_grid_size() { return gridDim.x; }
