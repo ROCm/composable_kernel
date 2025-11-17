@@ -58,7 +58,8 @@
 #if defined(__gfx942__) || defined(__gfx950__) || defined(__gfx9_4_generic__)
 #define __gfx94__
 #endif
-#if defined(__gfx1010__) || defined(__gfx1011__) || defined(__gfx1012__)
+#if defined(__gfx1010__) || defined(__gfx1011__) || defined(__gfx1012__) || \
+    defined(__gfx1013__) || defined(__gfx10_1_generic__)
 #define __gfx101__
 #endif
 #if defined(__gfx1030__) || defined(__gfx1031__) || defined(__gfx1032__) || \
@@ -88,11 +89,12 @@
 
 // FMA instruction
 #ifndef __HIP_DEVICE_COMPILE__                   // for host code, define nothing
-#elif defined(__gfx906__) || defined(__gfx9__) || defined(__gfx103__) || defined(__gfx1011__) || defined(__gfx1012__) // for GPU code
+#elif defined(__gfx906__) || defined(__gfx9__) || defined(__gfx103__) || \
+      defined(__gfx1011__) || defined(__gfx1012__) // for GPU code
 #define CK_USE_AMD_V_FMAC_F32
 #define CK_USE_AMD_V_DOT2_F32_F16
 #define CK_USE_AMD_V_DOT4_I32_I8
-#elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx101__) // for GPU code
+#elif defined(__gfx803__) || defined(__gfx900__) || defined(__gfx101__)
 #define CK_USE_AMD_V_MAC_F32
 #elif defined(__gfx11__) || defined(__gfx12__)
 #define CK_USE_AMD_V_FMAC_F32

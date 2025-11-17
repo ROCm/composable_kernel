@@ -11,7 +11,7 @@
 #define __gfx94__
 #endif
 #if defined(__gfx1010__) || defined(__gfx1011__) || defined(__gfx1012__) || \
-    defined(__gfx10_1_generic__)
+    defined(__gfx1013__) || defined(__gfx10_1_generic__)
 #define __gfx101__
 #endif
 #if defined(__gfx1030__) || defined(__gfx1031__) || defined(__gfx1032__) || \
