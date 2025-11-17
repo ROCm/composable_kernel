@@ -285,12 +285,10 @@ struct BlockFmhaPipelineQRKSVSAsync
             {
                 auto [start, end] =
                     mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
-                return std::make_tuple(0, start, end);
+                return ck_tile::make_tuple(0, start, end);
             }
         }();
-        const auto sink_seq_end   = std::get<0>(tile_range_result);
-        const auto seqlen_k_start = std::get<1>(tile_range_result);
-        const auto seqlen_k_end   = std::get<2>(tile_range_result);
+        const auto [sink_seq_end, seqlen_k_start, seqlen_k_end] = tile_range_result;
 
         const auto kv_load_start = (sink_seq_end == 0 && seqlen_k_start > 0) ? seqlen_k_start : 0;
         const auto num_sink_loop = integer_divide_ceil(sink_seq_end, kN0);

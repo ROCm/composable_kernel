@@ -233,7 +233,7 @@ struct BlockFmhaPipelineQRKSVS
 
         const auto q_origin = q_dram_window.get_window_origin();
 
-        const auto [sink_seq_end, seqlen_k_start, seqlen_k_end] = [&mask, &q_origin]() {
+        const auto tile_range_result = [&mask, &q_origin]() {
             if constexpr(kHasSink)
                 return mask.GetSinkTileRangeAlongX(
                     q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
@@ -241,9 +241,10 @@ struct BlockFmhaPipelineQRKSVS
             {
                 auto [start, end] =
                     mask.GetTileRangeAlongX(q_origin.at(number<0>{}), number<kM0>{}, number<kN0>{});
-                return std::make_tuple(0, start, end);
+                return ck_tile::make_tuple(0, start, end);
             }
         }();
+        const auto [sink_seq_end, seqlen_k_start, seqlen_k_end] = tile_range_result;
 
         const auto kv_load_start = (sink_seq_end == 0 && seqlen_k_start > 0) ? seqlen_k_start : 0;
         const auto num_sink_loop = integer_divide_ceil(sink_seq_end, kN0);
