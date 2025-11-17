@@ -465,10 +465,9 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     // Count unique block indices used in block_tables_host
     std::unordered_set<ck_tile::index_t> unique_blocks(block_tables_host.begin(),
                                                        block_tables_host.end());
-    mem += unique_blocks.size() * BLOCK_SIZE * problem.nhead_kv * problem.hdim * 2 *
-           2;                                          // k and v, fp16
-    mem += problem.batch * max_num_blocks_per_seq * 4; // int32 block table
-    mem += problem.batch * 4;                          // int32 seq_lens_ptr
+    mem += unique_blocks.size() * problem.nhead_kv * problem.hdim * 2 * 2; // k and v, fp16
+    mem += problem.batch * max_num_blocks_per_seq * 4;                     // int32 block table
+    mem += problem.batch * 4;                                              // int32 seq_lens_ptr
 
     std::cout << "[" << problem.data_type << "|";
     std::cout << "] b:" << problem.batch << ", h:" << problem.nhead_q << "/" << problem.nhead_kv
