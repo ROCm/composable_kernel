@@ -40,6 +40,37 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                                     const index_t group_count)
 {
 #if(defined(__gfx11__) || defined(__gfx12__))
+    constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
+        typename GridwiseGemm::EpilogueCShuffle>();
+    __shared__ char p_shared[LDS_size];
+
+    const index_t block_id = get_block_1d_id();
+    const auto gemm_desc_ptr =
+        reinterpret_cast<const GemmDesc*>(cast_pointer_to_generic_address_space(gemm_descs_const));
+
+    // Binary search lookup to find which group this block is part of
+    index_t left     = 0;
+    index_t right    = group_count;
+    index_t group_id = index_t((left + right) / 2);
+    while((!(block_id >= gemm_desc_ptr[group_id].block_start_ &&
+             block_id < gemm_desc_ptr[group_id].block_end_)) &&
+          left <= right)
+    {
+        if(block_id < gemm_desc_ptr[group_id].block_start_)
+        {
+            right = group_id;
+        }
+        else
+        {
+            left = group_id;
+        }
+        group_id = index_t((left + right) / 2);
+    }
+
+    // NOTE: Local copy of the arg struct since SplitKBatchOffset verifies and modifies K index
+    // and thus needs a non-const reference
+    auto karg = gemm_desc_ptr[group_id].karg_;
+
 #if defined(__gfx11__)
     // gfx11 does not support *_atomic_pk_add_f16/bf16 instructions
     using c_data_type = remove_cvref_t<remove_pointer_t<decltype(karg.p_e_grid)>>;
@@ -48,36 +79,6 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
                     std::is_same_v<c_data_type, ck::bhalf_t>)))
     {
 #endif
-        constexpr index_t LDS_size = GridwiseGemm::template GetSharedMemoryNumberOfByte<
-            typename GridwiseGemm::EpilogueCShuffle>();
-        __shared__ char p_shared[LDS_size];
-
-        const index_t block_id   = get_block_1d_id();
-        const auto gemm_desc_ptr = reinterpret_cast<const GemmDesc*>(
-            cast_pointer_to_generic_address_space(gemm_descs_const));
-
-        // Binary search lookup to find which group this block is part of
-        index_t left     = 0;
-        index_t right    = group_count;
-        index_t group_id = index_t((left + right) / 2);
-        while((!(block_id >= gemm_desc_ptr[group_id].block_start_ &&
-                 block_id < gemm_desc_ptr[group_id].block_end_)) &&
-              left <= right)
-        {
-            if(block_id < gemm_desc_ptr[group_id].block_start_)
-            {
-                right = group_id;
-            }
-            else
-            {
-                left = group_id;
-            }
-            group_id = index_t((left + right) / 2);
-        }
-
-        // NOTE: Local copy of the arg struct since SplitKBatchOffset verifies and modifies K index
-        // and thus needs a non-const reference
-        auto karg                     = gemm_desc_ptr[group_id].karg_;
         const auto& block_2_ctile_map = gemm_desc_ptr[group_id].block_2_ctile_map_;
 
         // Tile index first dimension is the K batch

@@ -55,7 +55,22 @@ class TestGroupedGemm : public testing::Test
     static constexpr int n_iter_      = 1;
     std::vector<int> k_batches_;
 
-    void SetUp() override { k_batches_ = {1, 2, 3, 5, 8}; }
+    void SetUp() override
+    {
+        constexpr bool require_16bit_atomic_add =
+            std::is_same_v<EDataType, ck::half_t> || std::is_same_v<EDataType, ck::bhalf_t>;
+        if(require_16bit_atomic_add && ck::is_gfx11_supported())
+        {
+            // gfx11 does not support split-K due to missing atomic add for fp16/bf16
+            // Technically, we could still use split-K for fp32, but we currently don't have
+            // instances for it so we disable it entirely
+            k_batches_ = {1};
+        }
+        else
+        {
+            k_batches_ = {1, 2, 3, 5, 8};
+        }
+    }
 
     private:
     template <typename Layout>
