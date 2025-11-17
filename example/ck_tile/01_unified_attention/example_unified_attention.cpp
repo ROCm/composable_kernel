@@ -31,8 +31,9 @@ const ck_tile::index_t num_queries_per_kv = 4;
 auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParser>
 {
     ck_tile::ArgParser arg_parser;
-    arg_parser.insert("prec", "fp16", "data type. fp16/bf16")
-        .insert("b", "3", "batch size")
+    arg_parser
+        .insert("prec", "fp16", "data type. fp16/bf16")
+        // .insert("b", "3", "batch size")
         .insert("h_k", "8", "num head for k/v. num head for q is 4 times this")
         // .insert("h_k",
         //         "-1",
@@ -88,7 +89,6 @@ struct Problem
         data_type = args.get_str("prec") == "fp16"
                         ? ck_tile::unified_attention_args::data_type_enum::fp16
                         : ck_tile::unified_attention_args::data_type_enum::bf16;
-        batch     = args.get_int("b");
         num_blks  = args.get_int("nb");
         nhead_kv  = args.get_int("h_k");
         // TODO: support other GQA/MQA cases than just 4x
@@ -97,6 +97,7 @@ struct Problem
         hdim       = args.get_int("d");
         query_lens = args.get_int_vec("query_lens");
         kv_lens    = args.get_int_vec("kv_lens");
+        batch      = std::max(query_lens.size(), kv_lens.size());
 
         // Calculate scale_s
         scale_s = args.get_float("scale_s");
@@ -432,25 +433,49 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
     }
 
     std::size_t flop = [&] {
-        if(problem.mask.type == mask_enum::no_mask)
+        long flop_result = 0;
+
+        for(size_t b = 0; b < eff_query_lens.size(); ++b)
         {
-            return 4 * args.num_tokens * problem.nhead_q * problem.hdim;
+            long query_lens         = eff_query_lens[b];
+            long kv_lens            = eff_kv_lens[b];
+            long valid_out_elements = 0;
+
+            // Causal logic for valid output elements
+            if(query_lens > kv_lens)
+            {
+                valid_out_elements = (kv_lens * kv_lens + kv_lens) / 2;
+            }
+            else
+            {
+                valid_out_elements =
+                    query_lens * kv_lens - ((query_lens * query_lens - query_lens) / 2);
+            }
+
+            flop_result += 2 * problem.nhead_q * valid_out_elements * (problem.hdim + problem.hdim);
         }
-        else
-        {
-            /// FIXME: Use a more accurate method; for now, we’re just dividing the flop by 2.
-            return 2 * args.num_tokens * problem.nhead_q * problem.hdim;
-        }
+        return flop_result;
     }();
     // TODO fix this
     // std::size_t flop = 1;
     float tflops = static_cast<float>(flop) / 1.e9 / time;
+    long mem     = 0;
+
+    mem += problem.num_tokens * problem.nhead_q * problem.hdim * 2 * 2; // q and o, fp16
+    // Count unique block indices used in block_tables_host
+    std::unordered_set<ck_tile::index_t> unique_blocks(block_tables_host.begin(),
+                                                       block_tables_host.end());
+    mem += unique_blocks.size() * BLOCK_SIZE * problem.nhead_kv * problem.hdim * 2 *
+           2;                                          // k and v, fp16
+    mem += problem.batch * max_num_blocks_per_seq * 4; // int32 block table
+    mem += problem.batch * 4;                          // int32 seq_lens_ptr
 
     std::cout << "[" << problem.data_type << "|";
     std::cout << "] b:" << problem.batch << ", h:" << problem.nhead_q << "/" << problem.nhead_kv
               << ", d:" << problem.hdim << ", mask:" << problem.mask << std::fixed << ", "
-              << std::setprecision(3) << time << " ms, " << std::setprecision(2) << tflops
-              << " TFlops" << std::endl;
+              << std::setprecision(8) << time << " ms, " << std::setprecision(2) << tflops
+              << " TFlops, " << std::setprecision(2)
+              << (static_cast<double>(mem) / 1e12 / (time / 1e3)) << " TB/s" << std::endl;
 
     // if(!run_config.verify)
     // {
