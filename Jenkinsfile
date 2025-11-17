@@ -330,9 +330,7 @@ def buildDocker(install_prefix){
 
 def cmake_build(Map conf=[:]){
 
-    def compiler = params.BUILD_COMPILER
     def config_targets = conf.get("config_targets","check")
-    def debug_flags = "-g -fno-omit-frame-pointer -fsanitize=undefined -fno-sanitize-recover=undefined " + conf.get("extradebugflags", "")
     def build_envs = "CTEST_PARALLEL_LEVEL=4 " + conf.get("build_env","")
     def prefixpath = conf.get("prefixpath","/opt/rocm")
     def setup_args = conf.get("setup_args","")
@@ -343,10 +341,8 @@ def cmake_build(Map conf=[:]){
         setup_args = setup_args + " -DCMAKE_PREFIX_PATH=${prefixpath} "
     }
 
-    def build_type_debug = (conf.get("build_type",'release') == 'debug')
-
     //cmake_env can overwrite default CXX variables.
-    def cmake_envs = "CXX=${compiler} CXXFLAGS='-Werror' " + conf.get("cmake_ex_env","")
+    def cmake_envs = "CXX=${params.BUILD_COMPILER} CXXFLAGS='-Werror' " + conf.get("cmake_ex_env","")
 
     if(conf.get("build_install","") == "true")
     {
@@ -359,15 +355,10 @@ def cmake_build(Map conf=[:]){
         setup_args = setup_args + " -DDISABLE_DL_KERNELS=ON "
     }
 
-    if(build_type_debug){
-        setup_args = " -DCMAKE_BUILD_TYPE=debug -DCMAKE_CXX_FLAGS_DEBUG='${debug_flags}'" + setup_args
-    }else{
-        setup_args = " -DCMAKE_BUILD_TYPE=release" + setup_args
-    }
+    setup_args = " -DCMAKE_BUILD_TYPE=release" + setup_args
 
     def pre_setup_cmd = """
             #!/bin/bash
-            echo \$HSA_ENABLE_SDMA
             ulimit -c unlimited
             rm -rf build
             mkdir build
@@ -445,7 +436,7 @@ def cmake_build(Map conf=[:]){
     def build_cmd
     def execute_cmd = conf.get("execute_cmd", "")
     if(!setup_args.contains("NO_CK_BUILD")){
-        def cmake_flags = params.NINJA_FTIME_TRACE ? "-O3 -ftime-trace" : "-O3"
+        def cmake_flags = "-O3"
         if (params.NINJA_BUILD_TRACE) {
             echo "running ninja build trace"
         }
@@ -547,8 +538,6 @@ def cmake_build(Map conf=[:]){
 
 def buildHipClangJob(Map conf=[:]){
         show_node_info()
-
-        env.HSA_ENABLE_SDMA=0
         checkout scm
         def prefixpath = conf.get("prefixpath", "/opt/rocm")
 
@@ -661,63 +650,19 @@ def Build_CK(Map conf=[:]){
                     // run performance tests, stash the logs, results will be processed on the master node
 					dir("script"){
                         if (params.RUN_PERFORMANCE_TESTS){
-                        if (params.RUN_FULL_QA && arch == "gfx90a"){
-                            // run full tests on gfx90a
+                        if (params.RUN_FULL_QA && (arch == "gfx90a" || arch == "gfx942")){
+                            // run full tests on gfx90a or gfx942
                             echo "Run full performance tests"
-                            sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx90a"
-                            archiveArtifacts "perf_gemm_gfx90a.log"
-                            archiveArtifacts "perf_resnet50_N256_gfx90a.log"
-                            archiveArtifacts "perf_resnet50_N4_gfx90a.log"
-                            archiveArtifacts "perf_batched_gemm_gfx90a.log"
-                            archiveArtifacts "perf_grouped_gemm_gfx90a.log"
-                            archiveArtifacts "perf_grouped_conv_fwd_gfx90a.log"
-                            archiveArtifacts "perf_grouped_conv_bwd_data_gfx90a.log"
-                            archiveArtifacts "perf_grouped_conv_bwd_weight_gfx90a.log"
-                            archiveArtifacts "perf_gemm_bilinear_gfx90a.log"
-                            archiveArtifacts "perf_reduction_gfx90a.log"
-                            archiveArtifacts "perf_splitK_gemm_gfx90a.log"
-                            archiveArtifacts "perf_onnx_gemm_gfx90a.log"
-                            archiveArtifacts "perf_mixed_gemm_gfx90a.log"
-                            stash includes: "perf_**.log", name: "perf_log_gfx90a"
+                            sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} ${arch}"
+                            archiveArtifacts "perf_*.log"
+                            stash includes: "perf_**.log", name: "perf_log_${arch}"
                         }
-                        if (params.RUN_FULL_QA && arch == "gfx942"){
-                            // run full tests on gfx942
-                            echo "Run full performance tests"
-                            sh "./run_full_performance_tests.sh 0 QA_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx942"
-                            archiveArtifacts "perf_gemm_gfx942.log"
-                            archiveArtifacts "perf_resnet50_N256_gfx942.log"
-                            archiveArtifacts "perf_resnet50_N4_gfx942.log"
-                            archiveArtifacts "perf_batched_gemm_gfx942.log"
-                            archiveArtifacts "perf_grouped_gemm_gfx942.log"
-                            archiveArtifacts "perf_grouped_conv_fwd_gfx942.log"
-                            archiveArtifacts "perf_grouped_conv_bwd_data_gfx942.log"
-                            archiveArtifacts "perf_grouped_conv_bwd_weight_gfx942.log"
-                            archiveArtifacts "perf_gemm_bilinear_gfx942.log"
-                            archiveArtifacts "perf_reduction_gfx942.log"
-                            archiveArtifacts "perf_splitK_gemm_gfx942.log"
-                            archiveArtifacts "perf_onnx_gemm_gfx942.log"
-                            archiveArtifacts "perf_mixed_gemm_gfx942.log"
-                            stash includes: "perf_**.log", name: "perf_log_gfx942"
-                        }
-                        else if ( arch == "gfx90a" ){
-                            // run standard tests on gfx90a
+                        else if (!params.RUN_FULL_QA && (arch == "gfx90a" || arch == "gfx942")){
+                            // run standard tests on gfx90a or gfx942
                             echo "Run performance tests"
-                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx90a"
-                            archiveArtifacts "perf_gemm_gfx90a.log"
-                            archiveArtifacts "perf_onnx_gemm_gfx90a.log"
-                            archiveArtifacts "perf_resnet50_N256_gfx90a.log"
-                            archiveArtifacts "perf_resnet50_N4_gfx90a.log"
-                            stash includes: "perf_**.log", name: "perf_log_gfx90a"
-                        }
-                        else if ( arch == "gfx942" ){
-                            // run standard tests on gfx942
-                            echo "Run performance tests"
-                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} gfx942"
-                            archiveArtifacts "perf_gemm_gfx942.log"
-                            archiveArtifacts "perf_onnx_gemm_gfx942.log"
-                            archiveArtifacts "perf_resnet50_N256_gfx942.log"
-                            archiveArtifacts "perf_resnet50_N4_gfx942.log"
-                            stash includes: "perf_**.log", name: "perf_log_gfx942"
+                            sh "./run_performance_tests.sh 0 CI_${params.COMPILER_VERSION} ${env.BRANCH_NAME} ${NODE_NAME} ${arch}"
+                            archiveArtifacts "perf_*.log"
+                            stash includes: "perf_**.log", name: "perf_log_${arch}"
                         }
                         // disable performance tests on gfx1030 for now.
                         //else if ( arch == "gfx10"){
@@ -793,7 +738,6 @@ def Build_CK_and_Reboot(Map conf=[:]){
 }
 
 def process_results(Map conf=[:]){
-    env.HSA_ENABLE_SDMA=0
     checkout scm
     //use older image that has user jenkins
     def image = "${env.CK_DOCKERHUB}:ck_ub22.04_rocm6.3"
@@ -933,7 +877,6 @@ def process_results(Map conf=[:]){
 
 def run_aiter_tests(Map conf=[:]){
     show_node_info()
-    env.HSA_ENABLE_SDMA=0
     checkout scm
     //use the latest pytorch image
     def image = "${env.CK_DOCKERHUB_PRIVATE}:ck_aiter"
@@ -992,7 +935,6 @@ def run_aiter_tests(Map conf=[:]){
 
 def run_pytorch_tests(Map conf=[:]){
     show_node_info()
-    env.HSA_ENABLE_SDMA=0
     checkout scm
     //use the latest pytorch-nightly image
     def image = "${env.CK_DOCKERHUB}:ck_pytorch"
@@ -1810,17 +1752,11 @@ pipeline {
                     agent{ label rocmnode("gfx942") }
                     steps{
                         script {
-                            def execute_args = params.NINJA_FTIME_TRACE ?
-                                """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
-                                    -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
-                                    -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
-                                    -D CMAKE_BUILD_TYPE=Release \
-                                    -D CMAKE_CXX_FLAGS=" -O3 -ftime-trace" .. && ninja -j64 """ :
-                                """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
-                                    -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
-                                    -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
-                                    -D CMAKE_BUILD_TYPE=Release \
-                                    -D CMAKE_CXX_FLAGS=" -O3 " .. && ninja -j64 """
+                            def execute_args = """ cmake -G Ninja -D CMAKE_PREFIX_PATH=/opt/rocm \
+                                                -DCMAKE_CXX_COMPILER="${params.BUILD_COMPILER}" \
+                                                -DCMAKE_HIP_COMPILER="${params.BUILD_COMPILER}" \
+                                                -D CMAKE_BUILD_TYPE=Release \
+                                                -D CMAKE_CXX_FLAGS=" -O3 " .. && ninja -j64 """
 
                             buildHipClangJobAndReboot(setup_cmd: "",  build_cmd: "", build_type: 'Release', execute_cmd: execute_args, docker_name: "${env.CK_DOCKERHUB}:ck_ub24.04_rocm7.0.1")
                         }
