@@ -88,7 +88,7 @@ submodule = submodule_t()
 format_procs = []
 for x in all_files:
     dos2unix = f"python -m dos2unix {str(x)} {str(x)}"
-    clang_format = f"/opt/conda/envs/py_3.12/bin/clang-format -style=file -i {str(x)}"
+    clang_format = f"clang-format -style=file -i {str(x)}"
     # One process to avoid race conditions.
     cmd = f"{dos2unix} && {clang_format}"
     format_procs.append(
