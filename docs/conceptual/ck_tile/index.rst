@@ -47,6 +47,7 @@ Documentation Structure
    load_store_traits
    space_filling_curve
    static_distributed_tensor
+   stream_k
    convolution_example
    coordinate_movement
    lds_index_swapping

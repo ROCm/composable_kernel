@@ -1,0 +1,223 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1100" height="800" xmlns="http://www.w3.org/2000/svg">
+  <!-- Title -->
+  <text x="500" y="30" font-family="Arial, sans-serif" font-size="20" font-weight="bold" text-anchor="middle" fill="#000">
+    Stream-K Work Distribution (M=384, N=384, K=512)
+  </text>
+  <text x="500" y="55" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#666">
+    GPU with 4 Compute Units • Tile Size: 128×128×128 • K-Dimension Split into 4 slices • 36 Work Units
+  </text>
+  
+  <!-- K-Dimension Splitting Visualization -->
+  <g transform="translate(60, 90)">
+    <text x="0" y="-10" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#000">K-Dimension Decomposition:</text>
+    
+    <!-- Original K dimension -->
+    <text x="0" y="15" font-family="Arial, sans-serif" font-size="12" fill="#666">Traditional: Full K=512</text>
+    <rect x="0" y="25" width="400" height="25" fill="#27AE60" stroke="#1E8449" stroke-width="2"/>
+    <text x="200" y="42" font-family="Arial, sans-serif" font-size="10" font-weight="bold" text-anchor="middle" fill="#FFF">K: 0 → 511 (single CU processes all)</text>
+    
+    <!-- Split K dimension -->
+    <text x="0" y="75" font-family="Arial, sans-serif" font-size="12" fill="#666">Stream-K: Split into 4 slices of 128 elements each</text>
+    <rect x="0" y="85" width="100" height="25" fill="#3498DB" stroke="#2C5F8D" stroke-width="2"/>
+    <text x="50" y="102" font-family="Arial, sans-serif" font-size="10" font-weight="bold" text-anchor="middle" fill="#FFF">0-127</text>
+    
+    <rect x="100" y="85" width="100" height="25" fill="#3498DB" stroke="#2C5F8D" stroke-width="2"/>
+    <text x="150" y="102" font-family="Arial, sans-serif" font-size="10" font-weight="bold" text-anchor="middle" fill="#FFF">128-255</text>
+    
+    <rect x="200" y="85" width="100" height="25" fill="#3498DB" stroke="#2C5F8D" stroke-width="2"/>
+    <text x="250" y="102" font-family="Arial, sans-serif" font-size="10" font-weight="bold" text-anchor="middle" fill="#FFF">256-383</text>
+    
+    <rect x="300" y="85" width="100" height="25" fill="#3498DB" stroke="#2C5F8D" stroke-width="2"/>
+    <text x="350" y="102" font-family="Arial, sans-serif" font-size="10" font-weight="bold" text-anchor="middle" fill="#FFF">384-511</text>
+  </g>
+  
+  <!-- Work Units Calculation -->
+  <g transform="translate(500, 90)">
+    <text x="0" y="-10" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#000">Work Units Created:</text>
+    
+    <rect x="0" y="5" width="450" height="90" fill="#E3F2FD" stroke="#2196F3" stroke-width="2" rx="5"/>
+    
+    <text x="20" y="28" font-family="Arial, sans-serif" font-size="12" fill="#333">
+      Traditional: 9 tiles = <tspan font-weight="bold">9 work units</tspan>
+    </text>
+    
+    <text x="20" y="50" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#1976D2">
+      Stream-K: 9 tiles × 4 K-slices = 36 work units
+    </text>
+    
+    <text x="20" y="75" font-family="Arial, sans-serif" font-size="11" fill="#666">
+      → 4× finer granularity for load balancing!
+    </text>
+  </g>
+  
+  <!-- Wave Execution Timeline - Vertical CUs, Horizontal Waves -->
+  <g transform="translate(117, 240)">
+    <text x="230" y="-10" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#000">Phase 1: Stream-K Execution (9 waves, all fully utilized):</text>
+    
+    <!-- Time arrow -->
+    <text x="0" y="20" font-family="Arial, sans-serif" font-size="11" font-weight="bold" text-anchor="end" fill="#666">Time →</text>
+    
+    <!-- Wave Labels (showing samples) -->
+    <text x="65" y="20" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#333">Wave 0</text>
+    <text x="165" y="20" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#333">Wave 1</text>
+    <text x="265" y="20" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#333">Wave 2</text>
+    <text x="340" y="20" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#666">...</text>
+    <text x="415" y="20" font-family="Arial, sans-serif" font-size="12" font-weight="bold" text-anchor="middle" fill="#333">Wave 8</text>
+    
+    <!-- CU0 Row -->
+    <text x="-10" y="60" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="end" fill="#333">CU0</text>
+    <rect x="20" y="35" width="90" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="2"/>
+    <text x="65" y="58" font-family="Arial, sans-serif" font-size="15" font-weight="bold" text-anchor="middle" fill="#FFF">T0</text>
+    <text x="65" y="75" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#E8F5E9">K: 0-127</text>
+    
+    <rect x="120" y="35" width="90" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="2"/>
+    <text x="165" y="58" font-family="Arial, sans-serif" font-size="15" font-weight="bold" text-anchor="middle" fill="#FFF">T1</text>
+    <text x="165" y="75" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#E8F5E9">K: 0-127</text>
+    
+    <rect x="220" y="35" width="90" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="2"/>
+    <text x="265" y="58" font-family="Arial, sans-serif" font-size="15" font-weight="bold" text-anchor="middle" fill="#FFF">T2</text>
+    <text x="265" y="75" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#E8F5E9">K: 0-127</text>
+    
+    <text x="340" y="60" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#666">...</text>
+    
+    <rect x="370" y="35" width="90" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="2"/>
+    <text x="415" y="58" font-family="Arial, sans-serif" font-size="15" font-weight="bold" text-anchor="middle" fill="#FFF">T8</text>
+    <text x="415" y="75" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#E8F5E9">K: 0-127</text>
+    
+    <!-- CU1 Row -->
+    <text x="-10" y="120" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="end" fill="#333">CU1</text>
+    <rect x="20" y="95" width="90" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="2"/>
+    <text x="65" y="118" font-family="Arial, sans-serif" font-size="15" font-weight="bold" text-anchor="middle" fill="#FFF">T0</text>
+    <text x="65" y="135" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#E8F5E9">K: 128-255</text>
+    
+    <rect x="120" y="95" width="90" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="2"/>
+    <text x="165" y="118" font-family="Arial, sans-serif" font-size="15" font-weight="bold" text-anchor="middle" fill="#FFF">T1</text>
+    <text x="165" y="135" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#E8F5E9">K: 128-255</text>
+    
+    <rect x="220" y="95" width="90" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="2"/>
+    <text x="265" y="118" font-family="Arial, sans-serif" font-size="15" font-weight="bold" text-anchor="middle" fill="#FFF">T2</text>
+    <text x="265" y="135" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#E8F5E9">K: 128-255</text>
+    
+    <text x="340" y="120" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#666">...</text>
+    
+    <rect x="370" y="95" width="90" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="2"/>
+    <text x="415" y="118" font-family="Arial, sans-serif" font-size="15" font-weight="bold" text-anchor="middle" fill="#FFF">T8</text>
+    <text x="415" y="135" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#E8F5E9">K: 128-255</text>
+    
+    <!-- CU2 Row -->
+    <text x="-10" y="180" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="end" fill="#333">CU2</text>
+    <rect x="20" y="155" width="90" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="2"/>
+    <text x="65" y="178" font-family="Arial, sans-serif" font-size="15" font-weight="bold" text-anchor="middle" fill="#FFF">T0</text>
+    <text x="65" y="195" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#E8F5E9">K: 256-383</text>
+    
+    <rect x="120" y="155" width="90" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="2"/>
+    <text x="165" y="178" font-family="Arial, sans-serif" font-size="15" font-weight="bold" text-anchor="middle" fill="#FFF">T1</text>
+    <text x="165" y="195" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#E8F5E9">K: 256-383</text>
+    
+    <rect x="220" y="155" width="90" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="2"/>
+    <text x="265" y="178" font-family="Arial, sans-serif" font-size="15" font-weight="bold" text-anchor="middle" fill="#FFF">T2</text>
+    <text x="265" y="195" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#E8F5E9">K: 256-383</text>
+    
+    <text x="340" y="180" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#666">...</text>
+    
+    <rect x="370" y="155" width="90" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="2"/>
+    <text x="415" y="178" font-family="Arial, sans-serif" font-size="15" font-weight="bold" text-anchor="middle" fill="#FFF">T8</text>
+    <text x="415" y="195" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#E8F5E9">K: 256-383</text>
+    
+    <!-- CU3 Row -->
+    <text x="-10" y="240" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="end" fill="#333">CU3</text>
+    <rect x="20" y="215" width="90" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="2"/>
+    <text x="65" y="238" font-family="Arial, sans-serif" font-size="15" font-weight="bold" text-anchor="middle" fill="#FFF">T0</text>
+    <text x="65" y="255" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#E8F5E9">K: 384-511</text>
+    
+    <rect x="120" y="215" width="90" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="2"/>
+    <text x="165" y="238" font-family="Arial, sans-serif" font-size="15" font-weight="bold" text-anchor="middle" fill="#FFF">T1</text>
+    <text x="165" y="255" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#E8F5E9">K: 384-511</text>
+    
+    <rect x="220" y="215" width="90" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="2"/>
+    <text x="265" y="238" font-family="Arial, sans-serif" font-size="15" font-weight="bold" text-anchor="middle" fill="#FFF">T2</text>
+    <text x="265" y="255" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#E8F5E9">K: 384-511</text>
+    
+    <text x="340" y="240" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#666">...</text>
+    
+    <rect x="370" y="215" width="90" height="50" fill="#27AE60" stroke="#1E8449" stroke-width="2" rx="2"/>
+    <text x="415" y="238" font-family="Arial, sans-serif" font-size="15" font-weight="bold" text-anchor="middle" fill="#FFF">T8</text>
+    <text x="415" y="255" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#E8F5E9">K: 384-511</text>
+    
+    <!-- Utilization Row -->
+    <text x="-10" y="300" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="end" fill="#333">Util.</text>
+    <text x="65" y="300" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#27AE60">100%</text>
+    <text x="165" y="300" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#27AE60">100%</text>
+    <text x="265" y="300" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#27AE60">100%</text>
+    <text x="340" y="300" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#666">...</text>
+    <text x="415" y="300" font-family="Arial, sans-serif" font-size="13" font-weight="bold" text-anchor="middle" fill="#27AE60">100%</text>
+    
+    <!-- Phase 2: Output Matrix (to the right) -->
+    <g transform="translate(560, 0)">
+      <text x="113" y="-10" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#000">Phase 2: Accumulated Matrix C Output:</text>
+      
+      <!-- Arrow indicating continuation -->
+      <line x1="-70" y1="150" x2="-20" y2="150" stroke="#666" stroke-width="3" marker-end="url(#arrowhead)"/>
+      
+      <!-- Output matrix grid (3x3 tiles) -->
+      <g transform="translate(10, 35)">
+        <!-- Row 0 -->
+        <rect x="0" y="0" width="70" height="70" fill="#4A90E2" stroke="#2C5F8D" stroke-width="2" rx="2"/>
+        <text x="35" y="43" font-family="Arial, sans-serif" font-size="18" font-weight="bold" text-anchor="middle" fill="#FFF">T0</text>
+        
+        <rect x="78" y="0" width="70" height="70" fill="#4A90E2" stroke="#2C5F8D" stroke-width="2" rx="2"/>
+        <text x="113" y="43" font-family="Arial, sans-serif" font-size="18" font-weight="bold" text-anchor="middle" fill="#FFF">T1</text>
+        
+        <rect x="156" y="0" width="70" height="70" fill="#4A90E2" stroke="#2C5F8D" stroke-width="2" rx="2"/>
+        <text x="191" y="43" font-family="Arial, sans-serif" font-size="18" font-weight="bold" text-anchor="middle" fill="#FFF">T2</text>
+        
+        <!-- Row 1 -->
+        <rect x="0" y="78" width="70" height="70" fill="#4A90E2" stroke="#2C5F8D" stroke-width="2" rx="2"/>
+        <text x="35" y="121" font-family="Arial, sans-serif" font-size="18" font-weight="bold" text-anchor="middle" fill="#FFF">T3</text>
+        
+        <rect x="78" y="78" width="70" height="70" fill="#4A90E2" stroke="#2C5F8D" stroke-width="2" rx="2"/>
+        <text x="113" y="121" font-family="Arial, sans-serif" font-size="18" font-weight="bold" text-anchor="middle" fill="#FFF">T4</text>
+        
+        <rect x="156" y="78" width="70" height="70" fill="#4A90E2" stroke="#2C5F8D" stroke-width="2" rx="2"/>
+        <text x="191" y="121" font-family="Arial, sans-serif" font-size="18" font-weight="bold" text-anchor="middle" fill="#FFF">T5</text>
+        
+        <!-- Row 2 -->
+        <rect x="0" y="156" width="70" height="70" fill="#4A90E2" stroke="#2C5F8D" stroke-width="2" rx="2"/>
+        <text x="35" y="199" font-family="Arial, sans-serif" font-size="18" font-weight="bold" text-anchor="middle" fill="#FFF">T6</text>
+        
+        <rect x="78" y="156" width="70" height="70" fill="#4A90E2" stroke="#2C5F8D" stroke-width="2" rx="2"/>
+        <text x="113" y="199" font-family="Arial, sans-serif" font-size="18" font-weight="bold" text-anchor="middle" fill="#FFF">T7</text>
+        
+        <rect x="156" y="156" width="70" height="70" fill="#FF9800" stroke="#E65100" stroke-width="2" rx="2"/>
+        <text x="191" y="199" font-family="Arial, sans-serif" font-size="18" font-weight="bold" text-anchor="middle" fill="#FFF">T8</text>
+      </g>
+      
+      <!-- Labels -->
+      <text x="118" y="285" font-family="Arial, sans-serif" font-size="11" text-anchor="middle" fill="#E65100" font-weight="bold">
+        Accumulated tiles from 4 K-slices
+      </text>
+    </g>
+  </g>
+  
+  <!-- Arrow marker definition -->
+  <defs>
+    <marker id="arrowhead" markerWidth="12" markerHeight="10" refX="11" refY="5" orient="auto">
+      <polygon points="0 0, 12 5, 0 10" fill="#666"/>
+    </marker>
+  </defs>
+  
+  <!-- Summary Box -->
+  <g transform="translate(50, 570)">
+    <rect x="0" y="0" width="900" height="90" fill="#E8F5E9" stroke="#4CAF50" stroke-width="3" rx="5"/>
+    
+    <text x="20" y="30" font-family="Arial, sans-serif" font-size="15" font-weight="bold" fill="#2E7D32">Stream-K Solution:</text>
+    
+    <text x="40" y="55" font-family="Arial, sans-serif" font-size="12" fill="#333">
+      ✓ Phase 1: K-dimension splitting creates 36 fine-grained work units across 9 waves (perfect load balance)
+    </text>
+    <text x="40" y="75" font-family="Arial, sans-serif" font-size="12" fill="#333">
+      ✓ Phase 2: Output matrix C with T0-T7 complete, T8 accumulated from 4 K-slice partial results
+    </text>
+  </g>
+</svg>
