@@ -1095,7 +1095,7 @@ class KernelComponentFactoryGfx12(CompatibilityRuleFactory):
             ):
                 pipelines.append(FmhaFwdPipeline("qr", "row", "f", "f", "f", "f", logits, bias, lse, dropout, squant, mask, skip, "f"))  # fmt: skip
                 pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, lse, dropout, squant, mask, skip, "f"))  # fmt: skip
-        elif dtype in cls._DT_FP8_FP8BF16 | cls._DT_FP8FP32:
+        elif dtype in cls._DT_FP8_FP8BF16 or dtype in cls._DT_FP8FP32:
             # no need lse/dropout kernels
             for logits, squant, mask, bias in itertools.product(
                 ["f"], ["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()
