@@ -770,6 +770,7 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
             return run_gemm_example_with_layouts<GemmConfig, TypeConfig, QuantGroupSize, QuantMode>(
                 arg_parser, Row{}, Row{}, Col{}, Col{}, Row{});
         }
+#if !defined(CK_GFX950_SUPPORT)
         if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
         {
             if(a_layout == "R" && b_layout == "R")
@@ -800,6 +801,7 @@ int run_gemm_example_prec_type(const ck_tile::ArgParser& arg_parser)
                 throw std::runtime_error("Unsupported memory layout for the input matrices!");
             }
         }
+#endif
         else
         {
             throw std::runtime_error("Unsupported memory layout for the input matrices!");
