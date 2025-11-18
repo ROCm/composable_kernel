@@ -159,17 +159,17 @@ template <typename ALayout,
           typename ComputeTypeB                       = ComputeTypeA,
           bool PermuteA                               = false,
           bool PermuteB                               = false>
-struct DeviceGroupedGemmWmmaSplitKCShuffle : public DeviceGroupedGemmSplitK<ALayout,
-                                                                            BLayout,
-                                                                            DsLayout,
-                                                                            ELayout,
-                                                                            ADataType,
-                                                                            BDataType,
-                                                                            DsDataType,
-                                                                            EDataType,
-                                                                            AElementwiseOperation,
-                                                                            BElementwiseOperation,
-                                                                            CDEElementwiseOperation>
+struct DeviceGroupedGemm_Wmma_CShuffleV3 : public DeviceGroupedGemmSplitK<ALayout,
+                                                                          BLayout,
+                                                                          DsLayout,
+                                                                          ELayout,
+                                                                          ADataType,
+                                                                          BDataType,
+                                                                          DsDataType,
+                                                                          EDataType,
+                                                                          AElementwiseOperation,
+                                                                          BElementwiseOperation,
+                                                                          CDEElementwiseOperation>
 {
     static constexpr index_t NumDTensor = DsDataType::Size();
 
@@ -760,7 +760,7 @@ struct DeviceGroupedGemmWmmaSplitKCShuffle : public DeviceGroupedGemmSplitK<ALay
         }
         else
             throw std::runtime_error("The argument pointer is not an object of "
-                                     "DeviceGroupedGemmWmmaSplitKCShuffle::Argument structure!");
+                                     "DeviceGroupedGemm_Wmma_CShuffleV3::Argument structure!");
     }
 
     size_t GetDeviceKernelArgSize(const BaseArgument* p_arg) const override
@@ -783,7 +783,7 @@ struct DeviceGroupedGemmWmmaSplitKCShuffle : public DeviceGroupedGemmSplitK<ALay
         }
         else
             throw std::runtime_error("The argument pointer is not an object of "
-                                     "DeviceGroupedGemmWmmaSplitKCShuffle::Argument structure!");
+                                     "DeviceGroupedGemm_Wmma_CShuffleV3::Argument structure!");
     }
 
     void SetDeviceKernelArgs(BaseArgument* p_arg, void* p_dev_kernel_args) const override
