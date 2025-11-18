@@ -242,7 +242,9 @@ struct BlockFmhaFwdSplitKVPipelineQRKSVS
                 return ck_tile::make_tuple(0, start, end);
             }
         }();
-        const auto [sink_seq_end, logical_seqlen_k_start, logical_seqlen_k_end] = tile_range_result;
+        const auto sink_seq_end   = tile_range_result.get(ck_tile::number<0>{});
+        const auto logical_seqlen_k_start = tile_range_result.get(ck_tile::number<1>{});
+        const auto logical_seqlen_k_end   = tile_range_result.get(ck_tile::number<2>{});
 
         const auto num_sink_loop = integer_divide_ceil(sink_seq_end, kN0);
 

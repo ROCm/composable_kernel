@@ -288,7 +288,9 @@ struct BlockFmhaPipelineQRKSVSAsync
                 return ck_tile::make_tuple(0, start, end);
             }
         }();
-        const auto [sink_seq_end, seqlen_k_start, seqlen_k_end] = tile_range_result;
+        const auto sink_seq_end   = tile_range_result.get(ck_tile::number<0>{});
+        const auto seqlen_k_start = tile_range_result.get(ck_tile::number<1>{});
+        const auto seqlen_k_end   = tile_range_result.get(ck_tile::number<2>{});
 
         const auto kv_load_start = (sink_seq_end == 0 && seqlen_k_start > 0) ? seqlen_k_start : 0;
         const auto num_sink_loop = integer_divide_ceil(sink_seq_end, kN0);
