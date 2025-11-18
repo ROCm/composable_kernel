@@ -16,10 +16,14 @@
 #include "ck_tile/ops/grouped_convolution/utils/transform_conv_fwd_to_gemm.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/grouped_convolution_utils.hpp"
 
+#ifdef CK_EXPERIMENTAL_BUILDER
+#include "ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp"
+#endif
+
 namespace ck_tile {
 
 /// @brief The Grouped Convolution kernel device arguments.
-template <typename GroupedConvTraitsType_>
+template <typename GroupedConvTraitsType_, typename CDElementwise_>
 struct GroupedConvFwdKernelArgs
 {
 
@@ -31,7 +35,7 @@ struct GroupedConvFwdKernelArgs
                                GroupedConvTraitsType_::VectorSizeC,
                                GroupedConvTraitsType_::NumGroupsToMerge,
                                true>; // Split N enabled
-    using CDElementwise                 = typename GroupedConvTraitsType_::CDElementwise;
+    using CDElementwise                 = CDElementwise_;
     static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
 
     template <
@@ -469,7 +473,8 @@ struct GroupedConvolutionForwardKernel
 
     using CDElementwise = typename EpiloguePipeline::CDElementwise;
 
-    using GroupedConvFwdKernelArgsSpecialized = GroupedConvFwdKernelArgs<GroupedConvTraitsType_>;
+    using GroupedConvFwdKernelArgsSpecialized =
+        GroupedConvFwdKernelArgs<GroupedConvTraitsType_, CDElementwise>;
 
     static constexpr bool IsSplitKSupported = false;
 
@@ -566,6 +571,19 @@ struct GroupedConvolutionForwardKernel
             EpiloguePipeline::GetName());
         // clang-format on
     }
+
+#ifdef CK_EXPERIMENTAL_BUILDER
+    CK_TILE_HOST std::string GetInstanceString() const
+    {
+        static_assert(ck_tile::reflect::HasInstanceTraits<GroupedConvolutionForwardKernel>,
+                      "Specialization of instance_traits not found. Please check that a "
+                      "specialization exists in file "
+                      "ck_tile/builder/reflect/"
+                      "instance_traits_tile_grouped_convolution_forward.hpp "
+                      "for the given template parameters.");
+        return ck_tile::reflect::instance_string<GroupedConvolutionForwardKernel>();
+    }
+#endif
 
     CK_TILE_HOST static auto GridSize(const GroupedConvFwdKernelArgsSpecialized& kargs)
     {

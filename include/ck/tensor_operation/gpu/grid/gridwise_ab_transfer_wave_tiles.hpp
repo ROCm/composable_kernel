@@ -313,14 +313,16 @@ struct ABTransferWaveTiles
         // This is a block descriptor used to read LDS memory into register
         // It's defined in a way consistent with the existing implementation to
         // avoid changes in the pipelines
-        return make_naive_tensor_descriptor(make_tuple(Number<KPerBlock / KPack>{},
+        return make_naive_tensor_descriptor(make_tuple(I1,
                                                        Number<MNRepeat>{},
+                                                       Number<KPerBlock / KPack>{},
                                                        Number<MNWaves>{},
                                                        Number<MNKRow>{},
                                                        Number<MNPerWmma>{},
                                                        Number<ABK1Value>{}),
-                                            make_tuple(Number<KPack * MNPerWmma>{},
+                                            make_tuple(I0,
                                                        Number<KPerBlock * MNPerWmma * MNWaves>{},
+                                                       Number<KPack * MNPerWmma>{},
                                                        Number<KPerBlock * MNPerWmma>{},
                                                        Number<MNPerWmma * ABK1Value>{},
                                                        Number<ABK1Value>{},

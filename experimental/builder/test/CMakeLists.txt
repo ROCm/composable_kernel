@@ -20,6 +20,7 @@ endfunction()
 add_ck_builder_test(test_ckb_conv_builder
     test_conv_builder.cpp
     test_fwd_instance_traits.cpp
+    test_bwd_weight_instance_traits.cpp
     test_instance_traits_util.cpp)
 
 add_ck_builder_test(test_ckb_inline_diff test_inline_diff.cpp)
@@ -30,20 +31,25 @@ add_ck_builder_test(test_ckb_get_instance_string
     test_get_instance_string_fwd_grp_conv.cpp
     test_get_instance_string_fwd_grp_conv_large_tensor.cpp
     test_get_instance_string_fwd_grp_conv_wmma.cpp
-    test_get_instance_string_fwd_grp_conv_dl.cpp)
+    test_get_instance_string_fwd_grp_conv_dl.cpp
+    test_get_instance_string_bwd_weight_grp_conv_xdl.cpp)
 
 # Testing the fwd convolution builder requires kernel compilation.
 # To enable parallel compilation, the individual tests are split into separate files.
 add_ck_builder_test(test_ckb_build_fwd_instances
     conv/test_ckb_conv_fwd_1d_fp16.cpp
     conv/test_ckb_conv_fwd_1d_bf16.cpp
-    conv/test_ckb_conv_fwd_1d_i8.cpp    
+    conv/test_ckb_conv_fwd_1d_i8.cpp  
+    conv/test_ckb_conv_fwd_2d_fp8.cpp  
     conv/test_ckb_conv_fwd_2d_bf16.cpp
     conv/test_ckb_conv_fwd_2d_fp16.cpp
     conv/test_ckb_conv_fwd_2d_fp32.cpp
+    conv/test_ckb_conv_fwd_2d_dl_fp16.cpp
+    conv/test_ckb_conv_fwd_2d_large_tensor_fp16.cpp
     conv/test_ckb_conv_fwd_3d_bf16.cpp
     conv/test_ckb_conv_fwd_3d_fp16.cpp
-    conv/test_ckb_conv_fwd_3d_fp32.cpp)
+    conv/test_ckb_conv_fwd_3d_fp32.cpp
+    )
 
 function(add_ck_factory_test test_name)
     add_ck_builder_test(${test_name} ${ARGN})
@@ -61,6 +67,12 @@ add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_bias_clamp test
 add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_bias_bnorm_clamp test_ck_factory_grouped_convolution_forward_bias_bnorm_clamp.cpp)
 add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scaleadd_scaleadd_relu test_ck_factory_grouped_convolution_forward_scaleadd_scaleadd_relu.cpp)
 add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_dynamic_op test_ck_factory_grouped_convolution_forward_dynamic_op.cpp)
+
+add_ck_builder_test(test_ckb_conv_traits
+    conv/test_conv_traits.cpp)
+
+add_ck_builder_test(test_ckb_conv_description
+    test_conv_description.cpp)
 
 # Function to add all test_ckb targets to a list
 function(collect_test_ckb_targets result_var)
