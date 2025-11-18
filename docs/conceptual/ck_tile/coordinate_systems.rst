@@ -128,7 +128,7 @@ GPU Thread Hierarchy
 .. image:: diagrams/coordinate_systems_2.svg
    :alt: Diagram
    :align: center
-The structure of P-space directly reflects the :ref:`hardware organization <ck_tile_gpu_basics>` of modern GPUs. Each thread receives a unique P-coordinate that encodes its position within the thread hierarchy. For simple distributions, P-space might be one-dimensional, containing only a thread ID. For complex hierarchical distributions, P-space can have multiple dimensions representing different levels of the GPU's thread organization.
+The structure of P-space directly reflects the :ref:`hardware organization <ck_tile_gpu_basics>` of GPUs. Each thread receives a unique P-coordinate that encodes its position within the thread hierarchy. For simple distributions, P-space might be one-dimensional, containing only a thread ID. For complex hierarchical distributions, P-space can have multiple dimensions representing different levels of the GPU's thread organization.
 
 C++ Implementation
 ~~~~~~~~~~~~~~~~~~
@@ -262,7 +262,7 @@ For complex kernels, Y-space often has a hierarchical structure that mirrors the
 X-Space: Physical Tensor Coordinates
 ------------------------------------
 
-X-space represents the ground truth of data organization—the actual coordinates within the global tensor. This space directly corresponds to how users conceptualize their data: row and column indices for matrices, spatial coordinates for images, or multi-dimensional indices for general tensors.
+X-space represents the ground truth of data organization—the actual coordinates within the global tensor. This space directly corresponds to how data is conceptualized: row and column indices for matrices, spatial coordinates for images, or multi-dimensional indices for general tensors.
 
 Memory Layout Mapping
 ~~~~~~~~~~~~~~~~~~~~~
@@ -599,4 +599,4 @@ The coordinate transformations naturally align with vector operations, enabling 
 Next Steps
 ----------
 
-With a solid understanding of the coordinate system framework, you're ready to explore how these concepts are applied in practice. Return to :ref:`ck_tile_index` to continue your journey through the CK Tile documentation.
+With an understanding of the coordinate system framework, the concepts can be explored in practice. Return to :ref:`ck_tile_index` to continue through the CK Tile documentation.

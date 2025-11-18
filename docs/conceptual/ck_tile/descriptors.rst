@@ -23,7 +23,7 @@ CK Tile provides several ways to create tensor descriptors for common memory lay
 Custom Strides
 ~~~~~~~~~~~~~~
 
-One way to define a tensor is with custom strides. This gives you full control over how many elements to "jump" in memory to move to the next item along each dimension. This is particularly useful for creating padded layouts required by GPU algorithms.
+One way to define a tensor is with custom strides. This provides full control over how many elements to "jump" in memory to move to the next item along each dimension. This is particularly useful for creating padded layouts required by GPU algorithms.
 
 .. code-block:: cpp
 

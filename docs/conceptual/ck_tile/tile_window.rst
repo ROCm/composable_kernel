@@ -322,7 +322,7 @@ The following explores how to create and use a TileWindow in practice:
 The Load Operation Deep Dive
 ----------------------------
 
-The load operation is where all the compile-time analysis comes together. When you call ``window.load()``, a carefully orchestrated sequence of operations occurs:
+The load operation is where all the compile-time analysis comes together. When ``window.load()`` is called, a carefully orchestrated sequence of operations occurs:
 
 1. Distributed tensor creation: Automatically creates a :ref:`distributed tensor <ck_tile_static_distributed_tensor>` sized for the distribution
 2. Coordinate calculation: Uses precomputed coordinates for efficiency

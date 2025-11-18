@@ -217,9 +217,9 @@ Advanced Optimizations
 Matrix Fused Multiply-Add
 -------------------------
 
-From the previous discussion, it's clear that the compute-to-memory-access ratio will be a bottleneck. This means that simply optimizing for bandwidth isn't enough; computational capabilities need significant improvement. Modern GPUs address this with specialized hardware.
+From the previous discussion, it's clear that the compute-to-memory-access ratio will be a bottleneck. This means that simply optimizing for bandwidth isn't enough; computational capabilities need significant improvement. GPUs address this with specialized hardware.
 
-Modern GPUs offer dedicated **matrix (or tensor) cores** for multiplication tasks, which are often an order of magnitude or more performant than generic ALU pipelines. These cores are specifically designed to accelerate matrix operations.
+GPUs offer dedicated matrix (or tensor) cores for multiplication tasks, which are often an order of magnitude or more performant than generic ALU pipelines. These cores are specifically designed to accelerate matrix operations.
 
 To take full advantage of these specialized cores, programmers can use intrinsic instructions. These are hardware-specific functions that allow for direct access to the matrix core pipelines. There are multiple variants of these instructions; for MI300, this example uses ``__builtin_amdgcn_mfma_f32_16x16x16f16``, which is highly efficient and has a low latency of only 16 cycles.
 
@@ -381,7 +381,7 @@ Takeaways
 4. CK Tile abstractions: Automatically handle complex optimizations
 5. Hardware-aware dimensions: Choose problem sizes that map well to CU count
 
-By understanding these optimization techniques and using CK Tile's high-level abstractions, developers can achieve near-peak performance on modern GPUs without manual low-level optimization.
+By understanding these optimization techniques and using CK Tile's high-level abstractions, developers can achieve near-peak performance on GPUs without manual low-level optimization.
 
 Related Topics
 

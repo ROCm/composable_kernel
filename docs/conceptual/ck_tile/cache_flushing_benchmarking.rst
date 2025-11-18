@@ -12,7 +12,7 @@ Composable Kernel provides two complementary mechanisms to ensure realistic "col
 1. Instruction Cache Flushing - Invalidates cached GPU instructions
 2. Rotating Memory Buffers - Cycles through multiple data buffer copies at different memory addresses
 
-This document explains how these mechanisms work and how to use them in your benchmarks.
+This document explains how these mechanisms work and how to use them in benchmarks.
 
 The Problem: Hot vs. Cold Cache
 ================================
@@ -280,7 +280,7 @@ The ``flush_cache`` command-line argument controls whether cache flushing is ena
     # Disable cache flushing (hot cache benchmarking)
     ./gemm_example --flush_cache=0
 
-In your code (``run_gemm_quant_example.inc``):
+In the code (``run_gemm_quant_example.inc``):
 
 .. code-block:: cpp
 

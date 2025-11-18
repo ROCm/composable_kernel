@@ -119,7 +119,7 @@ Coordinate System Architecture
 What is Tile Distribution?
 --------------------------
 
-Before diving into code, consider the problem TileDistribution solves. In GPU programming, the challenge of efficiently distributing work across thousands of parallel threads is paramount. Consider a concrete scenario: you have a 256×256 matrix multiplication operation and 64 GPU threads organized in warps. The question becomes how to divide this computational work in a way that maximizes memory bandwidth utilization, minimizes bank conflicts, and ensures coalesced memory accesses.
+Before diving into code, consider the problem TileDistribution solves. In GPU programming, the challenge of efficiently distributing work across thousands of parallel threads is paramount. Consider a concrete scenario: a 256×256 matrix multiplication operation and 64 GPU threads organized in warps. The question becomes how to divide this computational work in a way that maximizes memory bandwidth utilization, minimizes bank conflicts, and ensures coalesced memory accesses.
 
 The traditional approach without a tile distribution framework requires programmers to manually calculate global memory addresses for each thread, implement complex index arithmetic that accounts for thread hierarchy (threads within warps, warps within blocks), handle edge cases for non-divisible matrix dimensions, and create different implementations for various matrix sizes. This manual approach is not only error-prone but also fails to adapt to different GPU architectures and their specific memory access patterns.
 

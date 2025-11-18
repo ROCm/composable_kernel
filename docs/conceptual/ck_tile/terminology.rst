@@ -178,7 +178,7 @@ The store operation must handle additional complexities compared to loads. While
 
 Sweep Tile
 ~~~~~~~~~~
-The sweep tile operation embodies a key programming paradigm for distributed tensor computation, providing a high-level iteration abstraction over the complex distribution patterns. Rather than requiring manual index calculations and nested loops, sweep tile automatically visits each element in a distributed tensor exactly once, invoking a user-provided function with the appropriate coordinates. This abstraction hides the complexity of the distribution while enabling advanced optimizations such as automatic loop unrolling, software pipelining, and register rotation.
+The sweep tile operation embodies a programming paradigm for distributed tensor computation, providing a high-level iteration abstraction over the complex distribution patterns. Rather than requiring manual index calculations and nested loops, sweep tile automatically visits each element in a distributed tensor exactly once, invoking a provided function with the appropriate coordinates. This abstraction hides the complexity of the distribution while enabling advanced optimizations such as automatic loop unrolling, software pipelining, and register rotation.
 
 The implementation of sweep tile leverages the compile-time knowledge of the distribution pattern to generate highly optimized iteration code. For simple distributions, this might result in a single unrolled loop. For complex hierarchical distributions, it might generate nested loops with carefully chosen iteration orders that maximize data reuse and minimize register pressure. These optimizations happen transparently—the caller provides the computation to perform on each element, and the framework handles the rest.
 
@@ -383,4 +383,4 @@ Related Documentation
 Next Steps
 ----------
 
-Now that you understand the terminology, explore the other conceptual documentation to deepen your understanding of CK Tile's architecture and capabilities.
+With an understanding of the terminology, explore the other conceptual documentation for CK Tile's architecture and capabilities.

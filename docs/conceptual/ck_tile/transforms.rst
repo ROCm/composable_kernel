@@ -793,7 +793,7 @@ ModuloTransform applies cyclic wrapping to coordinates using modulo operations.
 Next Steps
 ----------
 
-With an understanding of individual transforms, you can explore:
+With an understanding of individual transforms, explore:
 
 - :ref:`ck_tile_adaptors` - How to chain transforms together
 - :ref:`ck_tile_descriptors` - Complete tensor descriptions with transforms

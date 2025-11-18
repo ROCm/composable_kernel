@@ -66,7 +66,7 @@ Sweep operations complete the distributed computing workflow:
 1. TileDistribution: Defines how to divide work
 2. TileWindow: Provides data, loaded efficiently
 3. Sweep Operations: Defines how to process every element
-4. User code: Performs computation
+4. Application code: Performs computation
 
 Without sweep operations, manual nested loops, complex index calculations are needed, with risk of missing elements or double-processing. With sweep operations, lambda-based iteration with automatic handling of all elements is provided.
 

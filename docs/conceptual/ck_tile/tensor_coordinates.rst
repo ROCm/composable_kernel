@@ -174,7 +174,7 @@ CK Tile leverages C++ templates for zero-overhead abstractions:
 MultiIndex in Coordinate Flow
 =============================
 
-MultiIndex serves as the interface between user code and the transformation pipeline:
+MultiIndex serves as the interface between application code and the transformation pipeline:
 
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
@@ -184,7 +184,7 @@ MultiIndex serves as the interface between user code and the transformation pipe
       flowchart TB
           subgraph CF ["Coordinate Flow"]
               direction LR
-              UI["User Input<br/>[1, 2, 3]"] --> MI["MultiIndex<br/>Storage"]
+              UI["Input<br/>[1, 2, 3]"] --> MI["MultiIndex<br/>Storage"]
               MI --> TR["Transform<br/>Processing"]
               TR --> MO["MultiIndex<br/>Output"]
               MO --> TA["Tensor Access<br/>element(coord)"]

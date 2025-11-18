@@ -68,7 +68,7 @@ then it's bank conflict-free for LDS reading.
 
 The reason for accessing the data vertically is because in most LDS access the MFMA instruction follows in the next step and the MFMA requires accessing the data vertically like above.
 
-The LDS read access pattern illustrated below is typical for LDS usage in machine learning workloads. The read pattern can generate 4-way bank conflicts in every phase of access. You can experiment with ``row_padding`` (padding in a number of banks) to see if the problem can be solved this way, but also remember that in practice this will require additional LDS storage. The bigger the padding, the more additional storage is necessary.
+The LDS read access pattern illustrated below is typical for LDS usage in machine learning workloads. The read pattern can generate 4-way bank conflicts in every phase of access. Experimenting with ``row_padding`` (padding in a number of banks) can help solve the problem, though in practice this will require additional LDS storage. The bigger the padding, the more additional storage is necessary.
 
 XOR Preshuffle: An Alternative to Padding
 =========================================

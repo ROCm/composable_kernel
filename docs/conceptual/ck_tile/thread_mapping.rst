@@ -432,7 +432,7 @@ Here's a complete example showing how thread mapping works in a real CK kernel:
         const index_t bid = blockIdx.x;
         
         // 2. Create tile distribution encoding
-        // This would be defined based on your specific RMSNorm pattern
+        // This would be defined based on the specific RMSNorm pattern
         using Encoding = tile_distribution_encoding<
             sequence<>,                          // No replication
             tuple<sequence<4, 2>, sequence<4, 2>>, // H dimensions
@@ -466,7 +466,7 @@ Here's a complete example showing how thread mapping works in a real CK kernel:
         // 6. Each thread processes its assigned elements
         ComputeType thread_sum = 0;
         static_for<0, VectorSize, 1>{}([&](auto i) {
-            // Access pattern would depend on your tile window setup
+            // Access pattern would depend on the tile window setup
             // This is conceptual - actual implementation varies
             thread_sum += val * val;
         });

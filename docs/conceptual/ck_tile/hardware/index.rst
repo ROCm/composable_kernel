@@ -93,17 +93,17 @@ Memory Hierarchy
 Compute Resources
 -----------------
 
-1. **Wavefront Execution**: 64 threads in lockstep
+1. Wavefront Processing: 64 threads in lockstep
    
    - CK Tile ensures coalesced memory access
    - Automatic warp-level synchronization
 
-2. **Matrix Units**: Specialized MFMA instructions
+2. Matrix Units: Specialized MFMA instructions
    
    - 16x16x16 operations in 16 cycles
    - CK Tile can leverage these automatically
 
-3. **Occupancy**: Balancing threads vs resources
+3. Occupancy: Balancing threads vs resources
    
    - Register pressure affects occupancy
    - CK Tile helps through efficient register use
@@ -113,22 +113,22 @@ Performance Guidelines
 
 To achieve optimal performance with CK Tile:
 
-1. **Choose appropriate tile sizes**:
+1. Choose appropriate tile sizes
    
    - Match hardware capabilities (e.g., 256x256 for GEMM)
    - Consider LDS capacity and register pressure
 
-2. **Align problem dimensions**:
+2. Align problem dimensions
    
    - Match CU count when possible (304 for MI300)
    - Use padding for non-aligned sizes
 
-3. **Enable pipelining**:
+3. Enable pipelining
    
    - Use double buffering for latency hiding
    - CK Tile supports async operations
 
-4. **Profile and verify**:
+4. Profile and verify
    
    - Use rocprof to check for bottlenecks
    - Verify bank conflict avoidance

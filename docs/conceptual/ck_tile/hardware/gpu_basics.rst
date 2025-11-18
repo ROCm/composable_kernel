@@ -67,22 +67,22 @@ LDS (Local Data Share) is a fast, shared memory block accessible by all threads 
 vL1D
 ----
 
-The Vector L1 Data Cache (vL1D) is a high-speed, local cache within each Compute Unit (CU) of the AMD CDNA architecture. It is designed to handle memory requests from the vector units, which are responsible for parallel operations on a wavefront. Also known as the Texture Cache per Pipe (TCP), the vL1D cache works with a series of specialized units to quickly access data from memory, including an address translation unit and a tag RAM. The performance of this cache is critical for reducing memory latency and minimizing stalls in compute-intensive workloads.
+The Vector L1 Data Cache (vL1D) is a high-speed, local cache within each Compute Unit (CU) of the AMD CDNA architecture. It is designed to handle memory requests from the vector units, which are responsible for parallel operations on a wavefront. Also known as the Texture Cache per Pipe (TCP), the vL1D cache works with a series of specialized units to quickly access data from memory, including an address translation unit and a tag RAM. The performance of this cache is important for reducing memory latency and minimizing stalls in compute-intensive workloads.
 
 Implications for CK Tile
 ========================
 
-Understanding the CDNA architecture is crucial for effective use of CK Tile:
+Understanding the CDNA architecture helps with effective use of CK Tile:
 
-1. **Thread Organization**: CK Tile's hierarchical :ref:`ck_tile_thread_mapping` (blocks → warps → threads) directly maps to CDNA's hardware organization.
+1. Thread Organization: CK Tile's hierarchical :ref:`ck_tile_thread_mapping` (blocks → warps → threads) directly maps to CDNA's hardware organization.
 
-2. **Memory Hierarchy**: CK Tile's :ref:`ck_tile_buffer_views` and :ref:`ck_tile_tile_window` are designed to efficiently utilize the L2, Infinity Cache, and LDS hierarchy.
+2. Memory Hierarchy: CK Tile's :ref:`ck_tile_buffer_views` and :ref:`ck_tile_tile_window` are designed to efficiently utilize the L2, Infinity Cache, and LDS hierarchy.
 
-3. **Register Pressure**: CK Tile's compile-time optimizations help minimize VGPR usage, preventing spills to slower memory.
+3. Register Pressure: CK Tile's compile-time optimizations help minimize VGPR usage, preventing spills to slower memory.
 
-4. **Warp Execution**: CK Tile's :ref:`ck_tile_tile_distribution` ensures that threads within a warp access contiguous memory for optimal SIMD execution.
+4. Warp Processing: CK Tile's :ref:`ck_tile_tile_distribution` ensures that threads within a warp access contiguous memory for optimal SIMD processing.
 
-5. **LDS Utilization**: CK Tile's :ref:`ck_tile_static_distributed_tensor` and :ref:`ck_tile_tile_window` make effective use of the 64KB LDS per CU.
+5. LDS Utilization: CK Tile's :ref:`ck_tile_static_distributed_tensor` and :ref:`ck_tile_tile_window` make effective use of the 64KB LDS per CU.
 
 By understanding these architectural features, developers can better appreciate how CK Tile's abstractions map to hardware capabilities and why certain design decisions were made in the framework.
 

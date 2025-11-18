@@ -130,7 +130,7 @@ The operation of TensorView is translating multi-dimensional coordinates into me
       .. mermaid::
       
          flowchart LR
-             subgraph "User Input"
+             subgraph "Input"
                  Coord["Coordinate<br/>(1, 2)"]
              end
    
@@ -284,7 +284,7 @@ TensorView supports slicing operations that create new views of subsets of the d
 Vectorized Access
 ~~~~~~~~~~~~~~~~~
 
-Modern GPUs achieve maximum memory bandwidth through vectorized operations. TensorView provides native support for vector loads and stores (see :ref:`ck_tile_load_store_traits` for more details):
+GPUs achieve maximum memory bandwidth through vectorized operations. TensorView provides native support for vector loads and stores (see :ref:`ck_tile_load_store_traits` for more details):
 
 .. code-block:: cpp
 

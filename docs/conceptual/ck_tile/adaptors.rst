@@ -354,7 +354,7 @@ Broadcasting for Elementwise Operations
 Next Steps
 ----------
 
-With an understanding of how adaptors chain transforms together, you can explore:
+With an understanding of how adaptors chain transforms together, explore:
 
 - :ref:`ck_tile_descriptors` - How adaptors combine with element space to form complete tensor descriptors
 - :ref:`ck_tile_transforms` - Individual transform types and their properties

@@ -8,7 +8,7 @@ Overview
 
 The evolution of GPU computing has brought increasing computational power to modern applications, yet harnessing this power efficiently remains one of the most challenging aspects of high-performance computing. This challenge arises from a mismatch between how developers conceptualize algorithms and how GPU hardware processes them. While developers think in terms of mathematical operations on multi-dimensional data structures, GPUs operate through thousands of threads accessing memory in complex patterns that must satisfy stringent hardware constraints.
 
-This conceptual gap manifests most acutely in memory access patterns. Modern GPUs achieve their high performance through massive parallelism, with thousands of threads processing simultaneously. However, this parallelism comes with a constraint: memory bandwidth. Despite continuous improvements in computational throughput, memory bandwidth has not scaled proportionally, creating what is often called the "memory wall." The efficiency with which threads access memory determines whether a GPU kernel achieves a few percent or near 100% of the hardware's theoretical performance.
+This conceptual gap manifests most acutely in memory access patterns. GPUs achieve their high performance through massive parallelism, with thousands of threads processing simultaneously. However, this parallelism comes with a constraint: memory bandwidth. Despite continuous improvements in computational throughput, memory bandwidth has not scaled proportionally, creating what is often called the "memory wall." The efficiency with which threads access memory determines whether a GPU kernel achieves a few percent or near 100% of the hardware's theoretical performance.
 
 The Composable Kernel (CK) framework addresses this challenge through its tile distribution system, a compile-time abstraction that automatically generates optimal memory access patterns while preserving the natural expression of algorithms. This documentation explores the mathematical foundations and practical implementation of tile distribution, demonstrating how it bridges the gap between algorithmic intent and hardware reality.
 
@@ -95,11 +95,11 @@ The GPU Memory Problem
 Why Random Memory Access is Slow
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The architecture of modern GPUs represents a study in trade-offs. While these devices can execute thousands of threads simultaneously and perform trillions of floating-point operations per second, they remain constrained by the physics of memory access. Understanding this constraint helps explain why tile distribution is not merely an optimization technique but an important component of high-performance GPU computing.
+The architecture of GPUs represents a study in trade-offs. While these devices can execute thousands of threads simultaneously and perform trillions of floating-point operations per second, they remain constrained by the physics of memory access. Understanding this constraint helps explain why tile distribution is not merely an optimization technique but an important component of high-performance GPU computing.
 
 GPU memory systems are designed around the assumption of regular, predictable access patterns. The memory controller can service requests from 32 threads (a warp on AMD GPUs) in a single transaction when these threads access consecutive memory locations. This optimization, known as memory coalescing, can improve effective memory bandwidth by up to 32x compared to random access patterns. However, when threads within a warp access memory locations that are scattered throughout the address space, each access requires a separate memory transaction, reducing the effective bandwidth to a fraction of the theoretical maximum.
 
-The impact extends beyond raw bandwidth. Modern GPUs employ cache hierarchies to reduce memory latency, but these caches are effective only when access patterns exhibit spatial or temporal locality. Random access patterns defeat these optimizations, causing frequent cache misses that expose the full latency of global memory access, which can be hundreds of cycles. During these stalls, the computational units sit idle, unable to hide the latency even with the GPU's massive thread count.
+The impact extends beyond raw bandwidth. GPUs employ cache hierarchies to reduce memory latency, but these caches are effective only when access patterns exhibit spatial or temporal locality. Random access patterns defeat these optimizations, causing frequent cache misses that expose the full latency of global memory access, which can be hundreds of cycles. During these stalls, the computational units sit idle, unable to hide the latency even with the GPU's massive thread count.
 
 Furthermore, the GPU's SIMT (Single Instruction, Multiple Thread) model means that all threads in a warp must process the same instruction at the same time. When threads access memory in unpredictable patterns, the memory controller cannot optimize the requests, leading to serialization of what should be parallel operations. This serialization effect compounds with each level of the memory hierarchy, from L1 cache through L2 cache to global memory, multiplying the performance impact.
 
@@ -148,7 +148,7 @@ The lack of coordination between threads exacerbates the problem. While all thre
 
 Cache utilization suffers dramatically under this access pattern. Each thread traces a unique path through memory, with no overlap between threads' working sets. The L1 and L2 caches, designed to capture and exploit locality, instead thrash continuously as each thread's accesses evict data needed by others. The effective cache capacity approaches zero, exposing every memory access to the full latency of global memory.
 
-This approach also fails to utilize the available memory bandwidth efficiently. Modern GPUs can achieve memory bandwidths exceeding 1 TB/s, but only when accesses are properly structured. The random access pattern of the naive implementation might achieve less than 10% of this theoretical maximum, effectively reducing a high-performance GPU to the performance level of a much simpler processor.
+This approach also fails to utilize the available memory bandwidth efficiently. GPUs can achieve memory bandwidths exceeding 1 TB/s, but only when accesses are properly structured. The random access pattern of the naive implementation might achieve less than 10% of this theoretical maximum, effectively reducing a high-performance GPU to the performance level of a much simpler processor.
 
 The Tile Distribution Solution
 ------------------------------
@@ -300,4 +300,4 @@ Finally, additional topics include optimization techniques like :ref:`ck_tile_sp
 Next Steps
 ----------
 
-Continue to :ref:`ck_tile_buffer_views` to start building your understanding from the ground up.
+Continue to :ref:`ck_tile_buffer_views` for the foundational concepts.
