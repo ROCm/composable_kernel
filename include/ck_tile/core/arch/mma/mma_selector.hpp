@@ -42,7 +42,7 @@ struct MmaDefaultSelector
         amdgcn_mma<ADataType, BDataType, CDataType, FragM, FragN, FragK, void, amdgcn_target<>>;
 };
 
-#if __cpp_concepts >= 201907L
+#if defined(__cpp_concepts) && __cpp_concepts >= 201907L
 
 /**
  *  @concept MmaSelectorI
@@ -54,7 +54,7 @@ concept MmaSelectorI = requires(MmaSelector op) {
     typename MmaSelector::SelectedOp;
 };
 
-#endif // __cpp_concepts >= 201907L
+#endif // defined(__cpp_concepts) && __cpp_concepts >= 201907L
 
 } // namespace ck_tile::core::arch::mma
 

@@ -50,7 +50,7 @@ static constexpr bool is_mma_op_supported_v = is_mma_op_supported<MmaOp>::value;
 template <typename MmaOp>
 struct MmaOpParams;
 
-#if __cpp_concepts >= 201907L
+#if defined(__cpp_concepts) && __cpp_concepts >= 201907L
 
 /**
  *  @concept MmaOpParamsI
@@ -70,7 +70,7 @@ concept MmaOpParamsI = requires(MmaOpParams op) {
     { MmaOpParams::GfxTargetId } -> std::convertible_to<amdgcn_target_arch_id>;
 };
 
-#endif // __cpp_concepts >= 201907L
+#endif // defined(__cpp_concepts) && __cpp_concepts >= 201907L
 
 /**
  * @struct MmaOpParams
