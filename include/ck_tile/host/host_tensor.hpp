@@ -408,7 +408,6 @@ struct HostTensor
         return sizeof(T) * get_element_space_size();
     }
 
-    // void SetZero() { ck_tile::ranges::fill<T>(mData, 0); }
     void SetZero()
     {
         if constexpr(std::is_same_v<T, e8m0_t>)
