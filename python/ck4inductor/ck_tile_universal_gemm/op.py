@@ -1,3 +1,5 @@
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
 from dataclasses import asdict, dataclass
 
 
