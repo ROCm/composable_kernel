@@ -623,7 +623,7 @@ struct MoeFlatmmKernel
             {
                 return make_naive_tensor_view<address_space_enum::global, DstInMemOp>(
                     e_ptr,
-                    make_tuple(IsInputGemm ? kargs.NumTokens * kargs.TopK : kargs.NumToken,
+                    make_tuple(IsInputGemm ? kargs.NumTokens * kargs.TopK : kargs.NumTokens,
                                IsGateUp ? kargs.N / 2 : kargs.N),
                     make_tuple(1, kargs.stride_C),
                     number<1>{},
