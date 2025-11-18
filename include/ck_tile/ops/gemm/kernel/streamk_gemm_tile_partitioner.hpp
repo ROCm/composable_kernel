@@ -226,7 +226,7 @@ struct StreamKTilePartitionerBase
 template <typename BlockGemmShapeType,
           StreamKReductionStrategy ReductionStrategyType,
           bool Persistent>
-struct StreamKTilePartitioner_v2;
+struct StreamKTilePartitioner;
 
 /**
  * @brief Persistent Stream-K tile partitioner derived struct.
@@ -240,13 +240,13 @@ struct StreamKTilePartitioner_v2;
  * the C Tensor.
  */
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
-struct StreamKTilePartitioner_v2<BlockGemmShapeType, ReductionStrategyType, true>
+struct StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, true>
     : StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>
 {
-    StreamKTilePartitioner_v2(ck_tile::index_t m,
-                              ck_tile::index_t n,
-                              ck_tile::index_t k,
-                              ck_tile::index_t grid);
+    StreamKTilePartitioner(ck_tile::index_t m,
+                           ck_tile::index_t n,
+                           ck_tile::index_t k,
+                           ck_tile::index_t grid);
 
     public:
     static constexpr bool PERSISTENT = true;
@@ -287,13 +287,13 @@ struct StreamKTilePartitioner_v2<BlockGemmShapeType, ReductionStrategyType, true
  * the C Tensor.
  */
 template <typename BlockGemmShapeType, StreamKReductionStrategy ReductionStrategyType>
-struct StreamKTilePartitioner_v2<BlockGemmShapeType, ReductionStrategyType, false>
+struct StreamKTilePartitioner<BlockGemmShapeType, ReductionStrategyType, false>
     : StreamKTilePartitionerBase<BlockGemmShapeType, ReductionStrategyType>
 {
-    StreamKTilePartitioner_v2(ck_tile::index_t m,
-                              ck_tile::index_t n,
-                              ck_tile::index_t k,
-                              ck_tile::index_t grid);
+    StreamKTilePartitioner(ck_tile::index_t m,
+                           ck_tile::index_t n,
+                           ck_tile::index_t k,
+                           ck_tile::index_t grid);
 
     public:
     static constexpr bool PERSISTENT = false;

@@ -1,5 +1,5 @@
-// Copyright © Advanced Micro Devices, Inc., or its affiliates.
-// SPDX-License-Identifier:  MIT
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
 
 #include "ck_tile/host.hpp"
 #include "ck_tile/ops/gemm.hpp"
@@ -334,7 +334,7 @@ struct StreamKTilePartitionerV2NonPersistentExpected
 template <typename GemmShape>
 void validate_streamk_v2_persistent(
     StreamKTilePartitionerV2PersistentExpected& expected_values,
-    ck_tile::StreamKTilePartitioner_v2<GemmShape, ck_tile::StreamKReductionStrategy::Atomic, true>&
+    ck_tile::StreamKTilePartitioner<GemmShape, ck_tile::StreamKReductionStrategy::Atomic, true>&
         tile_partitioner)
 {
     EXPECT_EQ(tile_partitioner.get_dp_tiles_per_cta(), expected_values.dp_tiles_per_cta_);
@@ -346,7 +346,7 @@ void validate_streamk_v2_persistent(
 template <typename GemmShape>
 void validate_streamk_v2_nonpersistent(
     StreamKTilePartitionerV2NonPersistentExpected& expected_values,
-    ck_tile::StreamKTilePartitioner_v2<GemmShape, ck_tile::StreamKReductionStrategy::Atomic, false>&
+    ck_tile::StreamKTilePartitioner<GemmShape, ck_tile::StreamKReductionStrategy::Atomic, false>&
         tile_partitioner)
 {
     EXPECT_EQ(tile_partitioner.get_dp_ctas(), expected_values.dp_ctas_);
