@@ -44,7 +44,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 {
     using XDataType       = DataType;
     using ComputeDataType = float;
-    using YDataType       = DataType;
+    using YDataType       = float;
 
     ck_tile::index_t N = arg_parser.get_int("n");
     ck_tile::index_t H = arg_parser.get_int("h");
@@ -225,7 +225,7 @@ bool run(const ck_tile::ArgParser& arg_parser)
 
             if(pass_op)
             {
-                std::cout << "✅" << std::endl;
+                std::cout << "✅ valid results for this operation" << std::endl;
             }
             pass &= pass_op;
         });

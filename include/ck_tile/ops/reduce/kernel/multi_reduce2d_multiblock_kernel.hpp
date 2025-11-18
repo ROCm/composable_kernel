@@ -150,6 +150,8 @@ struct MultiReduceMultiblock
         CalculateBlockGroupParams(
             total_reduce_len, S::Block_N, num_n_tile_iteration, block_group_size);
 
+        constexpr index_t output_vector_size = CalculateOutputVectorSize();
+
         const auto thread_local_id = get_thread_id();
         const auto block_global_id = get_block_id();                     // Hardware block id
         const auto block_group_id  = block_global_id / block_group_size; // Logical block group id
@@ -158,8 +160,6 @@ struct MultiReduceMultiblock
 
         const auto thread_cluster_idx =
             thread_cluster_desc.calculate_bottom_index(make_tuple(thread_local_id));
-        const auto thread_m_cluster_id =
-            thread_cluster_idx[number<0>{}]; // cluster index in M dimension
         const auto thread_n_cluster_id =
             thread_cluster_idx[number<1>{}]; // cluster index in N dimension
 
@@ -249,20 +249,29 @@ struct MultiReduceMultiblock
             {
                 tile_elementwise_inout(accumulator_ops.get(number<i>{}), y_compute, y_compute);
 
-                // 1. Get the pointer to the output buffer for this tile window
-                auto* p_y_tile = p_y_tuple + (i * output_tensor_offset) +
-                                 S::Block_M * block_group_id +
-                                 y_compute.get_thread_buffer_size() * thread_m_cluster_id;
+                constexpr auto mem_op = interblock_reduce_ops.get(number<i>{}).GetAtomic();
 
-                // 2. Cast y_compute to thread_buffer<YDataType, N> (N = tile size)
-                auto y_thread_buf = cast_tile<YDataType>(y_compute).get_thread_buffer();
+                // Create output tensor view with the specific atomic operation
+                auto y_tensor_view = make_naive_tensor_view<address_space_enum::global, mem_op>(
+                    p_y_tuple + (i * output_tensor_offset) + (S::Block_M * block_group_id),
+                    make_tuple(S::Block_M), // output shape (full block size)
+                    make_tuple(1),          // output strides (contiguous)
+                    number<output_vector_size>{},
+                    number<1>{});
 
-                // 3. Atomically operation between the register tile and DRAM
-                auto atomic_ops =
-                    interblock_reduce_ops.get(number<i>{})
-                        .template GetAtomic<YDataType, y_thread_buf.N>(); // TODO: check if we
-                                                                          // need YDataType
-                atomic_ops(p_y_tile, y_thread_buf);
+                // Create tile window using y_compute's tile distribution
+                // The window origin is 0 because we're starting from the block origin
+                // The tile distribution will handle the per-thread positioning
+                auto y_window = make_tile_window(
+                    y_tensor_view,
+                    make_tuple(number<S::ThreadTile_M>{}),
+                    {0},
+                    y_compute.get_tile_distribution() // Use the distribution from y_compute
+                );
+
+                // Cast and update using the tile window (using the atomic op)
+                auto y_output = cast_tile<YDataType>(y_compute);
+                update_tile(y_window, y_output);
             }
         });
     }

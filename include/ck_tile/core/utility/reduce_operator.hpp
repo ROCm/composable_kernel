@@ -36,12 +36,9 @@ struct Add
         return type_convert<T>(y_ + x_);
     }
 
-    template <typename Elem, index_t N>
     CK_TILE_HOST_DEVICE static constexpr auto GetAtomic()
     {
-        return [](Elem* addr, const thread_buffer<Elem, N>& val) {
-            ck_tile::atomic_add_g<Elem, N>(addr, val);
-        };
+        return memory_operation_enum::atomic_add;
     }
 };
 
