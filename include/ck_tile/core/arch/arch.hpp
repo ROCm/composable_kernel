@@ -114,7 +114,7 @@ enum struct amdgcn_target_wave_size_id
 {
     WAVE32 = 32u,
     WAVE64 = 64u,
-    HOST   = 1u,
+    HOST   = 64u, // TODO: Is this correct? Should the host default to 64 or 1?
 };
 
 #if 1 //__cplusplus <= 201703L
