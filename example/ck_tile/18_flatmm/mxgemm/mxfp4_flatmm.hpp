@@ -38,3 +38,23 @@ struct MXfp4_FlatmmConfig16
     static constexpr int N_Repeat          = N_Tile / N_Warp_Tile / N_Warp;
     static constexpr bool TiledMMAPermuteN = false;
 };
+
+template <typename FlatmmConfig,
+          typename ADataType,
+          typename BDataType,
+          typename DsDatatype,
+          typename AccDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename DsLayout,
+          typename ELayout,
+          typename ScaleM,
+          typename ScaleN,
+          bool persistent,
+          typename CDEElementWise,
+          bool Splitk,
+          bool HasHotLoop,
+          ck_tile::TailNumber TailNum>
+float mx_flatmm_calc(const ck_tile::ScaleFlatmmHostArgs<ScaleM, ScaleN>& args,
+                     const ck_tile::stream_config& s);
