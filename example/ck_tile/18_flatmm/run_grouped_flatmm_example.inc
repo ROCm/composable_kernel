@@ -3,23 +3,6 @@
 
 #pragma once
 
-// mfma_type, 0:32x32, 1:16x16
-template <typename FlatmmConfig, typename T>
-auto shuffle_b(const ck_tile::HostTensor<T>& t)
-{
-    assert(t.get_lengths().size() == 2);
-    int n_                = t.get_lengths()[1];
-    int k_                = t.get_lengths()[0];
-    constexpr int divisor = FlatmmConfig::N_Warp_Tile == 32 ? 2 : 4;
-    ck_tile::HostTensor<T> t_view({n_ / FlatmmConfig::N_Warp_Tile,
-                                   FlatmmConfig::N_Warp_Tile,
-                                   k_ / FlatmmConfig::K_Warp_Tile,
-                                   divisor,
-                                   FlatmmConfig::K_Warp_Tile / divisor});
-    std::copy(t.begin(), t.end(), t_view.begin());
-    return ck_tile::reference_permute(t_view, {0, 2, 3, 1, 4});
-}
-
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
 auto calculate_rtol_atol(const ck_tile::index_t K,
                          const ck_tile::index_t kbatch,
