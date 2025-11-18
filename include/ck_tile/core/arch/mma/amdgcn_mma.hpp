@@ -15,7 +15,7 @@ namespace ck_tile::core::arch::mma {
  */
 struct Unsupported;
 
-#if __cpp_concepts >= 201907L
+#if defined(__cpp_concepts) && __cpp_concepts >= 201907L
 /**
  * @concept MmaOpI
  * @brief  Expresses the meta-data interface required for each MmaOp policy.
@@ -49,7 +49,7 @@ concept MmaOpI = requires(MmaOp op) {
     } -> std::convertible_to<typename MmaOp::CVecType>;
 };
 
-#endif // __cpp_concepts >= 201907L
+#endif // defined(__cpp_concepts) && __cpp_concepts >= 201907L
 
 /**
  *  @class  amdgcn_mma
