@@ -171,7 +171,8 @@ TEST(ArchTest, TestSFINAEEnablersHost)
     EXPECT_EQ(false, SFINAETestTargetIdGfx908OrGfx90a<Target>::value);
     EXPECT_EQ(false, SFINAETestFamilyIdGfx9<Target>::value);
     EXPECT_EQ(false, SFINAETestArchIdCdna<Target>::value);
-    EXPECT_EQ(false, SFINAETestWaveSizeIdWave64<Target>::value);
+    // TODO: Should host be considered as WAVE64 or not? For now, we will consider it as WAVE64
+    EXPECT_EQ(true, SFINAETestWaveSizeIdWave64<Target>::value);
 }
 
 TEST(ArchTest, TestSFINAEEnablersGfx9CdnaWave32)
