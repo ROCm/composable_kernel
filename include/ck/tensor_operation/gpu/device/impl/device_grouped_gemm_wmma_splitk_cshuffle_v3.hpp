@@ -68,7 +68,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, MinimumOccupancy)
     }
 
     // NOTE: Local copy of the arg struct since SplitKBatchOffset verifies and modifies K index
-    // and thus needs a non-const reference
+    // and thus needs a non-const reference. It's also not feasible to store this in global
+    // memory as different threads would be writing different K values to the same arg struct
     auto karg = gemm_desc_ptr[group_id].karg_;
 
 #if defined(__gfx11__)
@@ -365,9 +366,6 @@ struct DeviceGroupedGemm_Wmma_CShuffleV3 : public DeviceGroupedGemmSplitK<ALayou
             }
         }
 
-        // NOTE: necessary as we copy the arg struct in the kernel
-        __host__ __device__ ~Argument() override {}
-
         /**
          * @brief      Recalculate group grid size for all gemms and update B2C maps.
          *
@@ -543,52 +541,61 @@ struct DeviceGroupedGemm_Wmma_CShuffleV3 : public DeviceGroupedGemmSplitK<ALayou
             // NOTE: If at least one gemm problem has a main k0 block loop, we include it for all
             if(all_have_main_k0_block_loop || not_all_have_main_k0_block_loop_same)
             {
-                if(all_have_kbatch_gt_one)
+                // Tail number always full
+                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1 ||
+                             BlkGemmPipelineVer == BlockGemmPipelineVersion::v3)
                 {
-                    const auto kernel =
-                        kernel_grouped_gemm_wmma_splitk<GridwiseGemm,
-                                                        GemmTransKernelArg_,
-                                                        true,
-                                                        InMemoryDataOperationEnum::AtomicAdd,
-                                                        GroupedGemmBlock2ETileMap>;
+                    if(all_have_kbatch_gt_one)
+                    {
+                        const auto kernel =
+                            kernel_grouped_gemm_wmma_splitk<GridwiseGemm,
+                                                            GemmTransKernelArg_,
+                                                            true,
+                                                            InMemoryDataOperationEnum::AtomicAdd,
+                                                            GroupedGemmBlock2ETileMap>;
 
-                    Run(kernel);
-                }
-                else
-                {
-                    const auto kernel =
-                        kernel_grouped_gemm_wmma_splitk<GridwiseGemm,
-                                                        GemmTransKernelArg_,
-                                                        true,
-                                                        InMemoryDataOperationEnum::Set,
-                                                        GroupedGemmBlock2ETileMap>;
+                        Run(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel =
+                            kernel_grouped_gemm_wmma_splitk<GridwiseGemm,
+                                                            GemmTransKernelArg_,
+                                                            true,
+                                                            InMemoryDataOperationEnum::Set,
+                                                            GroupedGemmBlock2ETileMap>;
 
-                    Run(kernel);
+                        Run(kernel);
+                    }
                 }
             }
             else
             {
-                if(all_have_kbatch_gt_one)
+                // Tail number always 1
+                if constexpr(BlkGemmPipelineVer == BlockGemmPipelineVersion::v1)
                 {
-                    const auto kernel =
-                        kernel_grouped_gemm_wmma_splitk<GridwiseGemm,
-                                                        GemmTransKernelArg_,
-                                                        false,
-                                                        InMemoryDataOperationEnum::AtomicAdd,
-                                                        GroupedGemmBlock2ETileMap>;
+                    if(all_have_kbatch_gt_one)
+                    {
+                        const auto kernel =
+                            kernel_grouped_gemm_wmma_splitk<GridwiseGemm,
+                                                            GemmTransKernelArg_,
+                                                            false,
+                                                            InMemoryDataOperationEnum::AtomicAdd,
+                                                            GroupedGemmBlock2ETileMap>;
 
-                    Run(kernel);
-                }
-                else
-                {
-                    const auto kernel =
-                        kernel_grouped_gemm_wmma_splitk<GridwiseGemm,
-                                                        GemmTransKernelArg_,
-                                                        false,
-                                                        InMemoryDataOperationEnum::Set,
-                                                        GroupedGemmBlock2ETileMap>;
+                        Run(kernel);
+                    }
+                    else
+                    {
+                        const auto kernel =
+                            kernel_grouped_gemm_wmma_splitk<GridwiseGemm,
+                                                            GemmTransKernelArg_,
+                                                            false,
+                                                            InMemoryDataOperationEnum::Set,
+                                                            GroupedGemmBlock2ETileMap>;
 
-                    Run(kernel);
+                        Run(kernel);
+                    }
                 }
             }
 
