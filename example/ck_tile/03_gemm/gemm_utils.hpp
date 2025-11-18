@@ -562,3 +562,144 @@ template <typename ADataType,
           bool Persistent = false,
           typename CDEElementWise>
 float gemm(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& s);
+
+// Internal implementation with compile-time layouts
+template <typename GemmConfig,
+          typename Invoker,
+          typename ADataType,
+          typename BDataType,
+          typename CDataType,
+          typename ALayout,
+          typename BLayout,
+          typename CLayout>
+int run_gemm_example_prec_type_persistent_async_impl(ck_tile::ArgParser& arg_parser,
+                                                     const ck_tile::PersistentAsyncArgs& async_args,
+                                                     const ALayout a_layout,
+                                                     const BLayout b_layout,
+                                                     const CLayout c_layout)
+{
+    using AccDataType = float;
+
+    std::tuple<ck_tile::index_t, ck_tile::index_t, ck_tile::index_t> gemm_sizes =
+        parse_gemm_size(arg_parser);
+
+    ck_tile::GemmHostArgs args;
+    args.M = std::get<0>(gemm_sizes);
+    args.N = std::get<1>(gemm_sizes);
+    args.K = std::get<2>(gemm_sizes);
+
+    args.k_batch = arg_parser.get_int("split_k");
+
+    // Get strides from arguments
+    ck_tile::index_t stride_A = arg_parser.get_int("stride_a");
+    ck_tile::index_t stride_B = arg_parser.get_int("stride_b");
+    ck_tile::index_t stride_C = arg_parser.get_int("stride_c");
+
+    // Apply default strides
+    args.stride_A = ck_tile::get_default_stride(args.M, args.K, stride_A, is_row_major(a_layout));
+    args.stride_B = ck_tile::get_default_stride(args.K, args.N, stride_B, is_row_major(b_layout));
+    args.stride_C = ck_tile::get_default_stride(args.M, args.N, stride_C, is_row_major(c_layout));
+
+    // Prepare host tensors
+    ck_tile::HostTensor<ADataType> a_m(
+        ck_tile::host_tensor_descriptor(args.M, args.K, args.stride_A, is_row_major(a_layout)));
+    ck_tile::HostTensor<BDataType> b_n(
+        ck_tile::host_tensor_descriptor(args.K, args.N, args.stride_B, is_row_major(b_layout)));
+    ck_tile::HostTensor<CDataType> c_m_host(
+        ck_tile::host_tensor_descriptor(args.M, args.N, args.stride_C, is_row_major(c_layout)));
+    ck_tile::HostTensor<CDataType> c_m_device(
+        ck_tile::host_tensor_descriptor(args.M, args.N, args.stride_C, is_row_major(c_layout)));
+
+    // Initialize tensors
+    int init_method = arg_parser.get_int("init");
+    switch(init_method)
+    {
+    case 0: ck_tile::FillUniformDistribution<ADataType>{0.f, 1.f}(a_m); break;
+    case 1: ck_tile::FillConstant<ADataType>{static_cast<ADataType>(1)}(a_m); break;
+    }
+    switch(init_method)
+    {
+    case 0: ck_tile::FillUniformDistribution<BDataType>{0.f, 1.f}(b_n); break;
+    case 1: ck_tile::FillConstant<BDataType>{static_cast<BDataType>(1.f)}(b_n); break;
+    }
+
+    // Allocate device memory
+    ck_tile::DeviceMem a_m_dev(a_m.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem b_n_dev(b_n.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem c_m_dev(c_m_device.get_element_space_size_in_bytes());
+
+    a_m_dev.ToDevice(a_m.data());
+    b_n_dev.ToDevice(b_n.data());
+
+    args.a_ptr = a_m_dev.GetDeviceBuffer();
+    args.b_ptr = b_n_dev.GetDeviceBuffer();
+    args.c_ptr = c_m_dev.GetDeviceBuffer();
+
+    // Setup stream config - extract parameters from arg_parser
+    int n_warmup       = arg_parser.get_int("warmup");
+    int n_repeat       = arg_parser.get_int("repeat");
+    bool flush_cache   = arg_parser.get_bool("flush_cache");
+    int rotating_count = arg_parser.get_int("rotating_count");
+
+    ck_tile::stream_config stream{
+        nullptr, true, 1, n_warmup, n_repeat, true, flush_cache, rotating_count};
+
+    // Run persistent async GEMM
+    constexpr bool kPersistent = true;
+    using ElementWise          = ck_tile::element_wise::PassThrough;
+    float ave_time             = Invoker::template gemm<GemmConfig,
+                                                        ADataType,
+                                                        BDataType,
+                                                        ck_tile::tuple<>,
+                                                        AccDataType,
+                                                        CDataType,
+                                                        ALayout,
+                                                        BLayout,
+                                                        ck_tile::tuple<>,
+                                                        CLayout,
+                                                        kPersistent,
+                                                        ElementWise>(args, stream, async_args);
+
+    if(stream.log_level_ > 0)
+    {
+        std::cout << "Persistent Async GEMM completed in " << ave_time << " ms" << std::endl;
+    }
+
+    // Validation
+    int validation_mode = arg_parser.get_int("v");
+    if(validation_mode > 0)
+    {
+        c_m_dev.FromDevice(c_m_device.data());
+
+        auto err = ck_tile::get_relative_threshold<ADataType, BDataType, CDataType>();
+
+        return err > 0 ? 0 : -1;
+    }
+
+    return 0;
+}
+
+// Public wrapper that accepts string layouts and dispatches to appropriate implementation
+template <typename GemmConfig,
+          typename Invoker,
+          typename ADataType,
+          typename BDataType = ADataType,
+          typename CDataType = ADataType>
+int run_gemm_example_prec_type_persistent_async(const std::string& a_layout,
+                                                const std::string& b_layout,
+                                                ck_tile::ArgParser& arg_parser,
+                                                const ck_tile::PersistentAsyncArgs& async_args)
+{
+    (void)a_layout;
+    (void)b_layout;
+    return run_gemm_example_prec_type_persistent_async_impl<GemmConfig,
+                                                            Invoker,
+                                                            ADataType,
+                                                            BDataType,
+                                                            CDataType>(
+        arg_parser,
+        async_args,
+        ck_tile::tensor_layout::gemm::RowMajor{},
+        ck_tile::tensor_layout::gemm::RowMajor{},
+        ck_tile::tensor_layout::gemm::RowMajor{});
+}

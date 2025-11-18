@@ -4,13 +4,6 @@
 #include "ck_tile/host/permute_pk_int4.hpp"
 #include "ck_tile/host/tensor_shuffle_utils.hpp"
 
-template <typename Layout>
-static constexpr inline auto is_row_major(Layout layout_)
-{
-    return ck_tile::bool_constant<std::is_same_v<ck_tile::remove_cvref_t<decltype(layout_)>,
-                                                 ck_tile::tensor_layout::gemm::RowMajor>>{};
-}
-
 template <typename ADataType, typename BDataType, typename AccDataType, typename CDataType>
 auto calculate_rtol_atol(const ck_tile::index_t K,
                          const ck_tile::index_t kbatch,
