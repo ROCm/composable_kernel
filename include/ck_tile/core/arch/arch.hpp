@@ -808,6 +808,23 @@ using enable_if_target_wave64_t =
 
 } // namespace core::arch
 
+CK_TILE_HOST bool is_wave32()
+{
+    hipDeviceProp_t props{};
+    int device;
+    auto status = hipGetDevice(&device);
+    if(status != hipSuccess)
+    {
+        return false;
+    }
+    status = hipGetDeviceProperties(&props, device);
+    if(status != hipSuccess)
+    {
+        return false;
+    }
+    return props.major > 9;
+}
+
 /*! @brief Returns the amdgcn_wave_size of the current compiler pass
  */
 CK_TILE_HOST_DEVICE constexpr index_t get_warp_size()
