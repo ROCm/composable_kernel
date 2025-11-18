@@ -321,7 +321,7 @@ struct UnifiedAttentionKernel
         const index_t context_len = seq_len - cur_batch_query_len;
 
         index_t _max_seq_prefix_len =
-            (context_len + q_block_local_idx * BLOCK_Q + (BLOCK_M - 1) // num_queries_per_kv
+            (context_len + q_block_local_idx * BLOCK_Q + (BLOCK_M - 1)
              + 1);
 
         if(seq_len < _max_seq_prefix_len)
@@ -457,10 +457,10 @@ struct UnifiedAttentionKernel
         FmhaMask mask = [&]() {
             if constexpr(kHasMask)
                 return ck_tile::make_generic_attention_mask_from_lr_window<FmhaMask>(
-                    seq_len - cur_batch_query_len, // y (i.e. context)
-                    cur_batch_query_len,           // x (i.e. extend)
-                    seq_len,                       // y_total (x + y)
-                    cur_batch_query_len,           // x_total
+                    -1, 
+                    0,
+                    cur_batch_query_len, // y_total
+                    seq_len,           // x_total
                     num_queries_per_kv // the same sequence index is repeated num_queries_per_kv
                                        // times along x dim of the tile
                 );
