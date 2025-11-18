@@ -318,7 +318,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
         }
     }
 
-    template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
+       template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
     void RunSingle(const int M,
                    const int N,
                    const int K,
@@ -334,58 +334,12 @@ class TestCkTileGemmPipeline : public ::testing::Test
         ck_tile::index_t stride_C =
             ck_tile::get_default_stride(M, N, StrideC, is_row_major(CLayout{}));
 
-        auto f_host_tensor_descriptor = [](std::size_t row,
-                                           std::size_t col,
-                                           std::size_t stride,
-                                           auto layout) {
-            if constexpr(std::is_same_v<decltype(layout), ck_tile::tensor_layout::gemm::RowMajor>)
-            {
-                return ck_tile::HostTensorDescriptor({row, col}, {stride, 1_uz});
-            }
-            else
-            {
-                return ck_tile::HostTensorDescriptor({col, row}, {stride, 1_uz});
-            }
-        };
-
-        auto f_get_default_stride =
-            [](std::size_t row, std::size_t col, std::size_t stride, auto layout) {
-                if(stride == 0)
-                {
-                    // give a chance if stride is zero, return a default packed stride
-                    if constexpr(std::is_same_v<decltype(layout),
-                                                ck_tile::tensor_layout::gemm::RowMajor>)
-                    {
-                        return col;
-                    }
-                    else
-                    {
-                        return row;
-                    }
-                }
-                else
-                    return stride;
-            };
-
-        ck_tile::index_t stride_A = f_get_default_stride(M, K, StrideA, ALayout{});
-        ck_tile::index_t stride_B = f_get_default_stride(K, N, StrideB, BLayout{});
-        ck_tile::index_t stride_C = f_get_default_stride(M, N, StrideC, CLayout{});
-
-        ck_tile::HostTensor<ADataType> a_m_k(f_host_tensor_descriptor(M, K, stride_A, ALayout{}));
-        ck_tile::HostTensor<BDataType> b_k_n(f_host_tensor_descriptor(K, N, stride_B, BLayout{}));
+        ck_tile::HostTensor<ADataType> a_m_k(
+            ck_tile::host_tensor_descriptor(M, K, stride_A, is_row_major(ALayout{})));
+        ck_tile::HostTensor<BDataType> b_k_n(
+            ck_tile::host_tensor_descriptor(K, N, stride_B, is_row_major(BLayout{})));
         ck_tile::HostTensor<CDataType> c_m_n_dev_result(
-<<<<<<< HEAD
             ck_tile::host_tensor_descriptor(M, N, stride_C, is_row_major(CLayout{})));
-=======
-            f_host_tensor_descriptor(M, N, stride_C, CLayout{}));
->>>>>>> 05ce4e524 ([CK_TILE] TEST vector stores c col layout part1)
-
-        //std::cout << "a_m_k: ";
-        //a_m_k.print_first_n(std::cout) << '\n';
-        //std::cout << "b_k_n: ";
-        //b_k_n.print_first_n(std::cout) << '\n';
-        //std::cout << "c_m_n_dev_result: ";
-        //c_m_n_dev_result.print_first_n(std::cout) << '\n';
 
         ck_tile::FillUniformDistributionIntegerValue<ADataType>{-5, 5, 11939}(a_m_k);
         ck_tile::FillUniformDistributionIntegerValue<BDataType>{-5, 5, 11940}(b_k_n);
@@ -421,7 +375,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
                                       stride_B,
                                       stride_C};
 
-        invoke_gemm<PadM, PadN, PadK, Preshuffle>(args, ck_tile::stream_config{nullptr, false, 2});
+        invoke_gemm<PadM, PadN, PadK, Preshuffle>(args, ck_tile::stream_config{nullptr, false});
 
         c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
         bool pass = true;
@@ -432,13 +386,6 @@ class TestCkTileGemmPipeline : public ::testing::Test
 
         ck_tile::reference_gemm<ADataType, BDataType, AccDataType, CDataType>(
             a_m_k, b_k_n, c_m_n_host_ref);
-
-        //std::cout << "a_m_k: ";
-        //a_m_k.print_first_n(std::cout) << '\n';
-        //std::cout << "b_k_n: ";
-        //b_k_n.print_first_n(std::cout) << '\n';
-        //std::cout << "c_m_n_dev_result: ";
-        //c_m_n_dev_result.print_first_n(std::cout) << '\n';
 
         const float max_accumulated_value =
             *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
