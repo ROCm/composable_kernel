@@ -481,7 +481,8 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
             }
             else
             {
-                ck_tile::FillUniformDistribution<BDataType>{-2.0f, 3.0f, fill_seed(gen)}(b_k_n);
+                ck_tile::FillUniformDistribution<BDataType>{-2.0f,
+                                                            3.0f /*, fill_seed(gen)*/}(b_k_n);
             }
             ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
                 *bq_tensor_ptr);
@@ -543,7 +544,6 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         b_k_n.SetZero();
         bq_tensor_ptr->SetZero();
     }
-
     ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size_in_bytes());
     ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size_in_bytes());
     ck_tile::DeviceMem c_m_n_dev_buf(c_m_n_dev_result.get_element_space_size_in_bytes());
@@ -600,6 +600,14 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         {
             printf("PreshuffleB with TiledMMAPermuteN\n");
             b_k_n_dev = ck_tile::shuffle_b_permuteN<GemmConfig>(b_k_n);
+            printf("b_k_n_dev.get_lengths(): %lu, %lu, %lu, %lu, %lu, %lu, %lu\n",
+                   b_k_n_dev.get_lengths()[0],
+                   b_k_n_dev.get_lengths()[1],
+                   b_k_n_dev.get_lengths()[2],
+                   b_k_n_dev.get_lengths()[3],
+                   b_k_n_dev.get_lengths()[4],
+                   b_k_n_dev.get_lengths()[5],
+                   b_k_n_dev.get_lengths()[6]);
         }
         else
         {
@@ -624,8 +632,44 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         if constexpr(GemmConfig::PreshuffleB && GemmConfig::TiledMMAPermuteN)
         {
             printf("Preshuffle BQ with TiledMMAPermuteN \n");
+            for(int i = 0; i < static_cast<int>((*bq_tensor_ptr).get_lengths()[0]); i++)
+            {
+                for(int j = 0; j < static_cast<int>((*bq_tensor_ptr).get_lengths()[1]); j++)
+                {
+                    printf("(*bq_tensor_ptr)[%d][%d]: %f\n", i, j, (*bq_tensor_ptr)(i, j));
+                }
+            }
             ck_tile::HostTensor<BQDataType> bq_permuted_host =
                 ck_tile::bq_permuteN<GemmConfig>(*bq_tensor_ptr);
+            printf("bq_permuted_host.get_lengths(): %lu, %lu, %lu, %lu, %lu\n",
+                   bq_permuted_host.get_lengths()[0],
+                   bq_permuted_host.get_lengths()[1],
+                   bq_permuted_host.get_lengths()[2],
+                   bq_permuted_host.get_lengths()[3],
+                   bq_permuted_host.get_lengths()[4]);
+            for(int i = 0; i < static_cast<int>(bq_permuted_host.get_lengths()[0]); i++)
+            {
+                for(int j = 0; j < static_cast<int>(bq_permuted_host.get_lengths()[1]); j++)
+                {
+                    for(int k = 0; k < static_cast<int>(bq_permuted_host.get_lengths()[2]); k++)
+                    {
+                        for(int l = 0; l < static_cast<int>(bq_permuted_host.get_lengths()[3]); l++)
+                        {
+                            for(int m = 0; m < static_cast<int>(bq_permuted_host.get_lengths()[4]);
+                                m++)
+                            {
+                                printf("bq_permuted_host[%d][%d][%d][%d][%d]: %f\n",
+                                       i,
+                                       j,
+                                       k,
+                                       l,
+                                       m,
+                                       bq_permuted_host(i, j, k, l, m));
+                            }
+                        }
+                    }
+                }
+            }
 
             if constexpr(GemmConfig::PreshuffleQuant)
             {
