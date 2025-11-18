@@ -122,7 +122,7 @@ add_compile_options(
 # Recent change in compiler makes this warning ON by default, which led to compile errors.
 add_compile_options(-Wno-nrvo)
 
-if(NOT DISABLE_DL_KERNELS)
+if(NOT DISABLE_DL_KERNELS AND GPU_TARGETS MATCHES "gfx103|gfx10-3-generic")
     add_definitions(-DDL_KERNELS)
     set(DL_KERNELS "ON")
     set(CK_ENABLE_DL_KERNELS "ON")
@@ -683,6 +683,12 @@ if(NOT GPU_ARCHS AND USER_GPU_TARGETS AND NOT MIOPEN_REQ_LIBS_ONLY)
         PACKAGE_NAME examples
    )
    add_subdirectory(example)
+
+   add_subdirectory(tutorial)
+   rocm_package_setup_component(tutorials
+        LIBRARY_NAME composablekernel
+        PACKAGE_NAME tutorials
+   )
    add_subdirectory(tile_engine)
    if(BUILD_TESTING)
        add_subdirectory(test)

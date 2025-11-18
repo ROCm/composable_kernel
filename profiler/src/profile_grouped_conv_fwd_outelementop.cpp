@@ -1,3 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "profiler/profile_grouped_conv_fwd_outelementop_impl.hpp"
 

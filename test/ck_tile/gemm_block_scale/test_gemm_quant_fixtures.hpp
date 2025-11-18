@@ -7,6 +7,16 @@
 #include "ck_tile/host/permute_pk_int4.hpp"
 #include "ck_tile/host/tensor_shuffle_utils.hpp"
 
+template <bool is_8bit>
+constexpr ck_tile::index_t get_k_warp_tile()
+{
+#if CK_TILE_USE_WMMA
+    return 16;
+#else
+    return is_8bit ? 64 : 32;
+#endif
+}
+
 struct GemmConfigBase
 {
     static constexpr bool kPadM = false;
@@ -40,7 +50,7 @@ struct GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<false>();
 };
 
 struct GemmConfigPreshuffleQuant : public GemmConfigBase
@@ -75,7 +85,7 @@ struct GemmConfigPreshuffleBDecode : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = 64;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<true>();
 };
 
 struct GemmConfigPreshuffleBPrefill : public GemmConfigBase
@@ -94,7 +104,7 @@ struct GemmConfigPreshuffleBPrefill : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = 64;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<true>();
 };
 
 struct GemmConfigPreshuffleBPrefillTiledPermuteN : public GemmConfigPreshuffleBPrefill
@@ -132,7 +142,7 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     {
         const ck_tile::index_t stride_A = K;
         const ck_tile::index_t stride_B = K;
-        const ck_tile::index_t stride_C = M;
+        const ck_tile::index_t stride_C = N;
 
         // AQuant uses grouped quantization for A matrix
         const ck_tile::index_t AQK = ck_tile::integer_divide_ceil(K, QuantGroupSize::kK);
@@ -373,7 +383,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     {
         const ck_tile::index_t stride_A = K;
         const ck_tile::index_t stride_B = K;
-        const ck_tile::index_t stride_C = M;
+        const ck_tile::index_t stride_C = N;
 
         // BQuant uses block/grouped quantization for B matrix
         const ck_tile::index_t BQN       = ck_tile::integer_divide_ceil(N, QuantGroupSize::kN);
@@ -629,7 +639,7 @@ class TestCkTileGemmRowColQuant
     {
         const ck_tile::index_t stride_A = K;
         const ck_tile::index_t stride_B = K;
-        const ck_tile::index_t stride_C = M;
+        const ck_tile::index_t stride_C = N;
 
         // RowColQuant uses per-row and per-column scales
         const ck_tile::index_t stride_row_scales = 1;
@@ -846,7 +856,7 @@ class TestCkTileGemmTensorQuant
     {
         const ck_tile::index_t stride_A = K;
         const ck_tile::index_t stride_B = K;
-        const ck_tile::index_t stride_C = M;
+        const ck_tile::index_t stride_C = N;
 
         // TensorQuant uses single scalar scale for each tensor
         const ck_tile::index_t stride_scale_a = 1;

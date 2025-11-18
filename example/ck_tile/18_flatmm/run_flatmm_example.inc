@@ -103,7 +103,7 @@ int run_flatmm_example_with_layouts(int argc,
         }
         else
         {
-            return shuffle_b<FlatmmConfig>(b_origin_host);
+            return shuffle_b_v0<FlatmmConfig>(b_origin_host);
         }
     }();
     ck_tile::DeviceMem b_shuffle_dev_buf(b_shuffle_host.get_element_space_size_in_bytes());

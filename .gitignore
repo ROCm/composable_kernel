@@ -66,6 +66,12 @@ docs/doxygen/xml
 cmake-build*/
 build*/
 
+# LSP configuration
+.clangd
+
+# User-defined CMake presets
+CMakeUserPresets.json
+
 # Python virtualenv
 .venv/
 
