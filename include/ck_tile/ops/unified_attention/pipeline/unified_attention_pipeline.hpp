@@ -6,7 +6,6 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/unified_attention/pipeline/unified_attention_pipeline_default_policy.hpp"
 #include "ck_tile/ops/reduce/block/block_reduce.hpp"
-
 #define ENABLE_ASM_MARKER 1
 #if ENABLE_ASM_MARKER
 #define ASM_MARKER(marker)               \

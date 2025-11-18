@@ -124,7 +124,7 @@ float unified_attention_kernel_launch(const unified_attention_args& args,
            "argument num_queries_per_kv must equal compiled num_queries_per_kv");
     assert(args.BLOCK_SIZE == Kernel::BLOCK_SIZE &&
            "argument BLOCK_SIZE must equal compiled BLOCK_SIZE");
-    assert(BLOCK_Q == args.num_head_q / args.num_queries_per_kv &&
+    assert(BLOCK_Q == BLOCK_M / args.num_queries_per_kv &&
            "BLOCK_Q must equal BLOCK_M / num_queries_per_kv");
     index_t total_num_q_blocks = args.num_tokens / BLOCK_Q + args.num_seqs;
     auto kargs                 = Kernel::MakeKargs(args.q_ptr,
