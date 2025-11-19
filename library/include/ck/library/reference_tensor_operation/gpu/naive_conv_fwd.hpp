@@ -4,6 +4,8 @@
 #ifndef NAIVE_CONV_FWD_HPP
 #define NAIVE_CONV_FWD_HPP
 
+#include "ck/utility/type_convert.hpp"
+
 namespace ck {
 namespace ref {
 
@@ -64,9 +66,9 @@ __global__ void naive_conv_fwd_ndhwc_kzyxc_ndhwk(const TIn* __restrict__ p_in,
     constexpr auto wei_op = WeiElementwiseOperation{};
     constexpr auto out_op = OutElementwiseOperation{};
 
-    TIn in_val;
-    TWei wei_val;
-    TOut out_val;
+    TIn in_val   = static_cast<TIn>(0);
+    TWei wei_val = static_cast<TWei>(0);
+    TOut out_val = static_cast<TOut>(0);
 
     for(long_index_t ii = tid; ii < output_length; ii += num_threads)
     {
@@ -79,7 +81,8 @@ __global__ void naive_conv_fwd_ndhwc_kzyxc_ndhwk(const TIn* __restrict__ p_in,
         const index_t wo = k / out_strides[3];
         k -= wo * out_strides[3];
 
-        TAcc acc = static_cast<TAcc>(0);
+        // Always accumulate in float (FP8/BF8 don't support arithmetic)
+        float acc_float = 0.0f;
 
         const TIn* in_n   = p_in + static_cast<long_index_t>(n) * in_strides[0];
         const TWei* wei_k = p_wei + static_cast<long_index_t>(k) * wei_strides[0];
@@ -106,17 +109,35 @@ __global__ void naive_conv_fwd_ndhwc_kzyxc_ndhwk(const TIn* __restrict__ p_in,
                     {
                         for(index_t c = 0; c < C; ++c)
                         {
-                            in_op(in_val, in_n_di_hi_wi[c]);
-                            wei_op(wei_val, wei_k_z_y_x[c]);
-                            acc += in_val * wei_val;
+                            // Load values from memory
+                            TIn in_loaded = in_n_di_hi_wi[c];
+                            TWei wei_loaded = wei_k_z_y_x[c];
+                            
+                            // Apply element-wise operations
+                            in_op(in_val, in_loaded);
+                            wei_op(wei_val, wei_loaded);
+                            
+                            // Always convert to float for multiplication (FP8/BF8 don't support direct arithmetic)
+                            float in_f = type_convert<float>(in_val);
+                            float wei_f = type_convert<float>(wei_val);
+                            
+                            // Accumulate in float
+                            acc_float += in_f * wei_f;
                         }
                     }
                 }
             }
         }
 
-        out_op(out_val, static_cast<TOut>(acc));
-        p_out[ii] = out_val;
+        // Convert float accumulator to TAcc, then to output type
+        TAcc acc = type_convert<TAcc>(acc_float);
+        TOut result = type_convert<TOut>(acc);
+        
+        // Apply output element-wise operation (if any)
+        out_op(out_val, result);
+        
+        // Write result (use direct conversion, not element-wise result)
+        p_out[ii] = result;
     }
 }
 } // namespace ref

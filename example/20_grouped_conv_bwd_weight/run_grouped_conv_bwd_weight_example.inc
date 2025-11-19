@@ -106,8 +106,11 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
 
     invoker.Run(argument, StreamConfig{nullptr, false});
 
-    if(config.do_verification)
+    std::cout << "do_verification = " << config.do_verification << std::endl;
+    
+    if(config.do_verification == 1)
     {
+        // CPU verification
         auto ref_conv     = HostConvBwdWeightInstance<NDimSpatial>{};
         auto ref_invoker  = ref_conv.MakeInvoker();
         auto ref_argument = ref_conv.MakeArgument(in,
@@ -129,6 +132,76 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
         wei_device_buf.FromDevice(wei_device_result.mData.data());
 
         return ck::utils::check_err(wei_device_result.mData, wei_host_result.mData);
+    }
+    else if(config.do_verification == 2)
+    {
+        // GPU verification (only supports G=1, standard convolution)
+        if(conv_param.G_ != 1)
+        {
+            std::cout << "GPU verification only supports G=1 (standard convolution)" << std::endl;
+            std::cout << "Current G=" << conv_param.G_ << " not supported." << std::endl;
+            std::cout << "Use do_verification=1 for CPU verification with grouped convolution." << std::endl;
+            return true;
+        }
+        
+        std::cout << "Running GPU verification (G=1)..." << std::endl;
+        
+        DeviceMem wei_device_ref_buf(sizeof(WeiDataType) * wei_device_result.mDesc.GetElementSpaceSize());
+        wei_device_ref_buf.SetZero();
+        
+        // Extract dimensions (G=1, standard convolution)
+        ck::index_t N_val = conv_param.N_;
+        ck::index_t K_val = conv_param.K_;  // Per-group output channels
+        ck::index_t C_val = conv_param.C_;  // Per-group input channels
+        ck::index_t Di_val = (NDimSpatial >= 3) ? conv_param.input_spatial_lengths_[0] : 1;
+        ck::index_t Hi_val = (NDimSpatial >= 2) ? conv_param.input_spatial_lengths_[NDimSpatial >= 3 ? 1 : 0] : 1;
+        ck::index_t Wi_val = conv_param.input_spatial_lengths_[NDimSpatial - 1];
+        ck::index_t Z_val = (NDimSpatial >= 3) ? conv_param.filter_spatial_lengths_[0] : 1;
+        ck::index_t Y_val = (NDimSpatial >= 2) ? conv_param.filter_spatial_lengths_[NDimSpatial >= 3 ? 1 : 0] : 1;
+        ck::index_t X_val = conv_param.filter_spatial_lengths_[NDimSpatial - 1];
+        ck::index_t Do_val = (NDimSpatial >= 3) ? conv_param.output_spatial_lengths_[0] : 1;
+        ck::index_t Ho_val = (NDimSpatial >= 2) ? conv_param.output_spatial_lengths_[NDimSpatial >= 3 ? 1 : 0] : 1;
+        ck::index_t Wo_val = conv_param.output_spatial_lengths_[NDimSpatial - 1];
+        ck::index_t stride_z_val = (NDimSpatial >= 3) ? conv_param.conv_filter_strides_[0] : 1;
+        ck::index_t stride_y_val = (NDimSpatial >= 2) ? conv_param.conv_filter_strides_[NDimSpatial >= 3 ? 1 : 0] : 1;
+        ck::index_t stride_x_val = conv_param.conv_filter_strides_[NDimSpatial - 1];
+        ck::index_t dilation_z_val = (NDimSpatial >= 3) ? conv_param.conv_filter_dilations_[0] : 1;
+        ck::index_t dilation_y_val = (NDimSpatial >= 2) ? conv_param.conv_filter_dilations_[NDimSpatial >= 3 ? 1 : 0] : 1;
+        ck::index_t dilation_x_val = conv_param.conv_filter_dilations_[NDimSpatial - 1];
+        ck::index_t pad_z_val = (NDimSpatial >= 3) ? conv_param.input_left_pads_[0] : 0;
+        ck::index_t pad_y_val = (NDimSpatial >= 2) ? conv_param.input_left_pads_[NDimSpatial >= 3 ? 1 : 0] : 0;
+        ck::index_t pad_x_val = conv_param.input_left_pads_[NDimSpatial - 1];
+        
+        constexpr ck::index_t block_size = 256;
+        const ck::long_index_t weight_length = K_val * Z_val * Y_val * X_val * C_val;
+        const ck::index_t grid_size = (weight_length + block_size - 1) / block_size;
+        
+        auto gpu_ref_kernel = ck::ref::naive_conv_bwd_weight_ndhwc_kzyxc_ndhwk<InDataType, WeiDataType, OutDataType, float, InElementOp, WeiElementOp, OutElementOp>;
+        
+        hipLaunchKernelGGL(gpu_ref_kernel,
+                           dim3(grid_size), dim3(block_size), 0, nullptr,
+                           reinterpret_cast<const InDataType*>(in_device_buf.GetDeviceBuffer()),
+                           reinterpret_cast<WeiDataType*>(wei_device_ref_buf.GetDeviceBuffer()),
+                           reinterpret_cast<const OutDataType*>(out_device_buf.GetDeviceBuffer()),
+                           N_val, K_val, C_val,
+                           Di_val, Hi_val, Wi_val,
+                           Z_val, Y_val, X_val,
+                           Do_val, Ho_val, Wo_val,
+                           stride_z_val, stride_y_val, stride_x_val,
+                           dilation_z_val, dilation_y_val, dilation_x_val,
+                           pad_z_val, pad_y_val, pad_x_val);
+        
+        (void)hipDeviceSynchronize();
+        
+        std::cout << "GPU reference kernel completed, copying results..." << std::endl;
+        
+        wei_device_ref_buf.FromDevice(wei_host_result.mData.data());
+        wei_device_buf.FromDevice(wei_device_result.mData.data());
+        
+        bool pass = ck::utils::check_err(wei_device_result.mData, wei_host_result.mData);
+        std::cout << "GPU verification result: " << (pass ? "PASS ✅" : "FAIL ❌") << std::endl;
+        
+        return pass;
     }
 
     float avg_time = invoker.Run(argument, StreamConfig{nullptr, config.time_kernel});

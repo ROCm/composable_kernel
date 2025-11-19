@@ -1,0 +1,159 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
+
+#ifndef NAIVE_CONV_BWD_WEIGHT_HPP
+#define NAIVE_CONV_BWD_WEIGHT_HPP
+
+#include "ck/utility/type_convert.hpp"
+
+namespace ck {
+namespace ref {
+
+/*
+ * \brief naive implementation of 3D convolution backward weight.
+ *        Layout is (NDHWC, KZYXC, NDHWK).
+ *        Computes gradient with respect to weights.
+ *
+ * \param N number of batches
+ * \param K number of filters (output channels)
+ * \param C number of input channels
+ * \param (Di, Hi, Wi) depth, height and width dimension of input
+ * \param (Z, Y, X) depth, height and width dimensions of filter
+ * \param (Do, Ho, Wo) depth, height and width dimension of output
+ * \param (stride_z, stride_y, stride_x) strides
+ * \param (dilation_z, dilation_y, dilation_x) dilations
+ * \param (pad_z, pad_y, pad_x) pads
+ */
+template <typename TIn,
+          typename TWei,
+          typename TOut,
+          typename TAcc,
+          typename InElementwiseOperation,
+          typename WeiElementwiseOperation,
+          typename OutElementwiseOperation>
+__global__ void naive_conv_bwd_weight_ndhwc_kzyxc_ndhwk(const TIn* __restrict__ p_in,
+                                                        TWei* __restrict__ p_wei_grad,
+                                                        const TOut* __restrict__ p_out_grad,
+                                                        index_t N,
+                                                        index_t K,
+                                                        index_t C,
+                                                        index_t Di,
+                                                        index_t Hi,
+                                                        index_t Wi,
+                                                        index_t Z,
+                                                        index_t Y,
+                                                        index_t X,
+                                                        index_t Do,
+                                                        index_t Ho,
+                                                        index_t Wo,
+                                                        index_t stride_z,
+                                                        index_t stride_y,
+                                                        index_t stride_x,
+                                                        index_t dilation_z,
+                                                        index_t dilation_y,
+                                                        index_t dilation_x,
+                                                        index_t pad_z,
+                                                        index_t pad_y,
+                                                        index_t pad_x)
+{
+    const index_t tid                = blockIdx.x * blockDim.x + threadIdx.x;
+    const index_t num_threads        = blockDim.x * gridDim.x;
+    const long_index_t weight_length = K * Z * Y * X * C;
+
+    const index_t in_strides[]  = {Di * Hi * Wi * C, Hi * Wi * C, Wi * C, C};
+    const index_t out_strides[] = {Do * Ho * Wo * K, Ho * Wo * K, Wo * K, K};
+    const index_t wei_strides[] = {Z * Y * X * C, Y * X * C, X * C, C};
+
+    constexpr auto in_op  = InElementwiseOperation{};
+    constexpr auto wei_op = WeiElementwiseOperation{};
+    constexpr auto out_op = OutElementwiseOperation{};
+
+    TIn in_val;
+    TWei wei_val;
+    TOut out_val;
+
+    for(long_index_t ii = tid; ii < weight_length; ii += num_threads)
+    {
+        // Decode linear index to (k, z, y, x, c)
+        const index_t k  = ii / wei_strides[0];
+        index_t tmp      = ii - k * wei_strides[0];
+        const index_t z  = tmp / wei_strides[1];
+        tmp -= z * wei_strides[1];
+        const index_t y  = tmp / wei_strides[2];
+        tmp -= y * wei_strides[2];
+        const index_t x  = tmp / wei_strides[3];
+        tmp -= x * wei_strides[3];
+        const index_t c  = tmp;
+
+        // Always accumulate in float
+        float acc_float = 0.0f;
+
+        // Loop over batch
+        for(index_t n = 0; n < N; ++n)
+        {
+            const TIn* in_n  = p_in + static_cast<long_index_t>(n) * in_strides[0];
+            const TOut* out_n = p_out_grad + static_cast<long_index_t>(n) * out_strides[0];
+
+            // Loop over output spatial dimensions
+            for(index_t d_o = 0; d_o < Do; ++d_o)
+            {
+                // Calculate input position from output position
+                index_t di = d_o * stride_z - pad_z + z * dilation_z;
+                if(di < 0 || di >= Di)
+                    continue;
+
+                const TIn* in_n_di   = in_n + di * in_strides[1];
+                const TOut* out_n_do = out_n + d_o * out_strides[1];
+
+                for(index_t ho = 0; ho < Ho; ++ho)
+                {
+                    index_t hi = ho * stride_y - pad_y + y * dilation_y;
+                    if(hi < 0 || hi >= Hi)
+                        continue;
+
+                    const TIn* in_n_di_hi   = in_n_di + hi * in_strides[2];
+                    const TOut* out_n_do_ho = out_n_do + ho * out_strides[2];
+
+                    for(index_t wo = 0; wo < Wo; ++wo)
+                    {
+                        index_t wi = wo * stride_x - pad_x + x * dilation_x;
+                        if(wi < 0 || wi >= Wi)
+                            continue;
+
+                        // Load values from memory (like forward does)
+                        const TIn* in_ptr = in_n_di_hi + wi * in_strides[3];
+                        const TOut* out_ptr = out_n_do_ho + wo * out_strides[3];
+                        
+                        TIn in_loaded   = in_ptr[c];
+                        TOut out_loaded = out_ptr[k];
+
+                        // Apply element-wise operations
+                        in_op(in_val, in_loaded);
+                        out_op(out_val, out_loaded);
+
+                        // Convert to float for multiplication
+                        float in_f  = type_convert<float>(in_val);
+                        float out_f = type_convert<float>(out_val);
+
+                        acc_float += out_f * in_f;
+                    }
+                }
+            }
+        }
+
+        // Convert float accumulator to TAcc, then to weight type
+        TAcc acc    = type_convert<TAcc>(acc_float);
+        TWei result = type_convert<TWei>(acc);
+
+        // Apply weight element-wise operation (if any)
+        wei_op(wei_val, result);
+
+        // Write result (use direct conversion, not element-wise result)
+        p_wei_grad[ii] = result;
+    }
+}
+} // namespace ref
+} // namespace ck
+
+#endif
+
