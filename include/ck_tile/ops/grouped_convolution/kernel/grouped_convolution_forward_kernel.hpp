@@ -1002,6 +1002,14 @@ struct GroupedConvolutionForwardKernel
         OutDataType* base_c_ptr =
             static_cast<OutDataType*>(kargs.out_ptr) + group_offset_c + output_batch_offset;
 
+        // Apply group offsets to D tensors
+        std::array<const void*, NumDTensor> ds_ptr_with_offsets;
+        for(index_t d = 0; d < NumDTensor; d++)
+        {
+            ds_ptr_with_offsets[d] = static_cast<const OutDataType*>(kargs.ds_ptr[d]) +
+                                     group_offset_c + output_batch_offset;
+        }
+
         // =====================================================================
         // Split-image: Map local block to global tile index (if enabled)
         // =====================================================================
@@ -1089,7 +1097,7 @@ struct GroupedConvolutionForwardKernel
             {
                 RunGemm2LDS(a_ptr,
                             b_ptr,
-                            kargs.ds_ptr,
+                            ds_ptr_with_offsets,
                             c_ptr,
                             smem_ptr_0,
                             smem_ptr_1,
@@ -1110,7 +1118,7 @@ struct GroupedConvolutionForwardKernel
             {
                 RunGemm(a_ptr,
                         b_ptr,
-                        kargs.ds_ptr,
+                        ds_ptr_with_offsets,
                         c_ptr,
                         smem_ptr_0,
                         a_desc,
