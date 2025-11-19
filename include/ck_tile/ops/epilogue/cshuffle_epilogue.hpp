@@ -191,7 +191,7 @@ struct CShuffleEpilogue
             return VectorSizeC;
         }
         constexpr index_t max_vector_size = 16;
-        if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
+        if constexpr(IsERowMajor)
         {
             return std::min(static_cast<int>(NPerIteration),
                             static_cast<int>(max_vector_size / sizeof(ODataType)));
@@ -251,7 +251,7 @@ struct CShuffleEpilogue
         else
         {
             constexpr index_t num_xdl_shuffles = GetVectorSizeC() / elem_per_thread;
-            if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
+            if constexpr(IsERowMajor)
             {
                 static_assert((kMPerBlock % (MPerXdl * MWave) == 0) &&
                                   (kMPerBlock % num_xdl_shuffles == 0),
@@ -318,24 +318,10 @@ struct CShuffleEpilogue
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto MakeLdsBlockDescriptor()
     {
-        // N is contiguous dimension
-        if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
-        {
-            return make_naive_tensor_descriptor(
-                make_tuple(number<YPerIterationShuffle>{}, number<XPerIterationShuffle>{}),
-                make_tuple(number<XPerIterationShuffle>{}, number<1>{}));
-        }
-        // M is contiguous dimension
-        else if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::ColumnMajor>)
-        {
-            return make_naive_tensor_descriptor(
-                make_tuple(number<XPerIterationShuffle>{}, number<YPerIterationShuffle>{}),
-                make_tuple(number<YPerIterationShuffle>{}, number<1>{}));
-        }
-        else
-        {
-            static_assert(false, "Unsupported ELayout!");
-        }
+        return make_naive_tensor_descriptor(
+            make_tuple(number<YPerIterationShuffle>{}, number<XPerIterationShuffle>{}),
+            make_tuple(number<XPerIterationShuffle>{}, number<1>{}));
+
     }
 
     CK_TILE_DEVICE static constexpr auto MakeLdsDistributionEncode()
@@ -688,7 +674,7 @@ struct CShuffleEpilogue
 
         constexpr index_t num_access = SFC::get_num_of_access();
         // TODO: Add support for Col Major Output Layout - CShuffle Epilogue
-        // static_assert(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>,
+        // static_assert(IsERowMajor,
         //              "Currently, the CShuffle Epilogue only supports the Row Major Output
         //              layout");
         static_assert(GetVectorSizeC() > 1, "VectorSizeC is not greater than 1!");
