@@ -241,7 +241,7 @@ struct MoeFlatmmKernel
         IsGateUp ? TilePartitioner::NPerBlock / 2 : TilePartitioner::NPerBlock;
 
     // MXF4_Pipeline only has the of scale B and granularityK is 32
-    static constexpr bool MXFP4_Pipeline = std::is_same_v<BDataType, pk_fp4_t>;
+    static constexpr bool MXFP4_Pipeline = std::is_same_v<BDataType, pk_fp4_t> || std::is_same_v<BDataType, pk_int4_t>;
     static constexpr int MXFP4N_Pack     = 2;
     static constexpr int MXFP4K_Pack     = 2;
 

@@ -151,6 +151,16 @@ CK_TILE_HOST_DEVICE fp16x2_t pk_int4_t_to_halfx2_t(const pk_int4_t& x)
     return pk_add_f16(bit_cast<fp16x2_t>(lo), bit_cast<fp16x2_t>(SUB));
 }
 
+
+
+CK_TILE_HOST_DEVICE fp16x2_t pk_int4_t_to_halfx2_t(const pk_int4_t& x, float scale)
+{
+    auto float_vec2 = pk_int4_t_to_fp32x2_t(x);
+    float_vec2.x = float_vec2.x * scale;
+    float_vec2.y = float_vec2.y * scale;
+    return fp16x2_t{type_convert<fp16_t>(float_vec2.x), type_convert<fp16_t>(float_vec2.y)};
+}
+
 CK_TILE_HOST_DEVICE bf16x2_t pk_int4_t_to_bfloat16x2_t(const pk_int4_t& x)
 {
     uint8_t x_u8 = ck_tile::bit_cast<uint8_t>(x);
@@ -164,6 +174,14 @@ CK_TILE_HOST_DEVICE bf16x2_t pk_int4_t_to_bfloat16x2_t(const pk_int4_t& x)
     bf16x2_t res = {type_convert<bf16_t>(x_l), type_convert<bf16_t>(x_h)};
 #endif
     return res;
+}
+
+CK_TILE_HOST_DEVICE bf16x2_t pk_int4_t_to_bfloat16x2_t(const pk_int4_t& x, float scale)
+{
+    auto float_vec2 = pk_int4_t_to_fp32x2_t(x);
+    float_vec2.x = float_vec2.x * scale;
+    float_vec2.y = float_vec2.y * scale;
+    return bf16x2_t{type_convert<bf16_t>(float_vec2.x), type_convert<bf16_t>(float_vec2.y)};
 }
 
 CK_TILE_HOST_DEVICE int8x2_t pk_int4_t_to_int8x2_t(const pk_int4_t& x)
