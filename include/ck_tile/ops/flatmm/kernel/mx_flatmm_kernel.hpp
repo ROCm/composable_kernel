@@ -144,10 +144,10 @@ struct MXFlatmmKernel : FlatmmKernel<TilePartitioner_, MXFlatmmPipeline_, Epilog
         }();
 
         constexpr index_t kKPerBlock    = FlatmmPipeline::kKPerBlock;
-        constexpr index_t kNWaprTile    = BlockGemmShape::WarpTile::at(I1);
-        constexpr index_t flatKPerBlock = kKPerBlock * kNWaprTile;
+        constexpr index_t kNWarpTile    = BlockGemmShape::WarpTile::at(I1);
+        constexpr index_t flatKPerBlock = kKPerBlock * kNWarpTile;
         const index_t kFlatKBlocks      = kargs.K / kKPerBlock;
-        const index_t kFlatN            = kargs.N / kNWaprTile;
+        const index_t kFlatN            = kargs.N / kNWarpTile;
         const auto& b_flat_tensor_view  = [&]() {
             static_assert(flatKPerBlock % FlatmmPipeline::GetVectorSizeB() == 0,
                           "wrong! vector size for B tensor");

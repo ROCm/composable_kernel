@@ -293,11 +293,11 @@ int run_mx_flatmm_example(int argc, char* argv[])
             else
                 throw std::runtime_error("Only non-persistent kernels are supported currently!");
         }
-        else if(mx_prec == "fp6xfp6")
+        else if(mx_prec == "fp6" || mx_prec == "fp6xfp6")
         {
-            throw std::runtime_error("Only support fp4xfp4 now!");
+            throw std::runtime_error("fp6xfp6 is not supported.");
         }
-        if(mx_prec == "fp8" || mx_prec == "fp8xfp8")
+        else if(mx_prec == "fp8" || mx_prec == "fp8xfp8")
         {
             if(persistent_opt == 0)
                 return run_mx_flatmm_with_layouts<ck_tile::fp8_t,
