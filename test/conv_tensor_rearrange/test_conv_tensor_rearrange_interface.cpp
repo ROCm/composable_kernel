@@ -19,6 +19,8 @@
 
 #include <gtest/gtest.h>
 
+using ::ck::HostTensorDescriptor;
+
 using DataType = float;
 using ImLayout = ck::tensor_layout::convolution::GNWC;
 
