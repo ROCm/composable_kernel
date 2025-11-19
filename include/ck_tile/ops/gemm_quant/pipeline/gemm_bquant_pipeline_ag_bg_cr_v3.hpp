@@ -532,7 +532,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                                    bool has_hot_loop,
                                    TailNumber tail_number,
                                    void* p_smem,
-                                   std::true_type) const
+                                   std::false_type) const
     {
         const auto RunPipeline = [&](auto has_hot_loop_, auto tail_number_) {
             constexpr bool hot_loop = has_hot_loop_.value;
