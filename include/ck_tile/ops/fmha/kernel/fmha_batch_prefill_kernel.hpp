@@ -1005,7 +1005,7 @@ struct FmhaBatchPrefillWithPagedKVCacheKernel
                             rand_val_ptr,
                             make_tuple(kargs.seqlen_q, kargs.seqlen_k),
                             make_tuple(kargs.stride_randval, 1),
-                            number<1>{},
+                            number<FmhaPipeline::kAlignmentRandVal>{},
                             number<1>{});
 
                     return pad_tensor_view(randval_dram_naive,
