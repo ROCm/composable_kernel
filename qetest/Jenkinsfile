@@ -1,0 +1,45 @@
+def generateAndArchiveBuildTraceVisualization() {
+    // Pull image
+    def image = "ghcr.io//puppeteer/puppeteer:latest"
+    echo "Pulling image: ${image}"
+    def retimage = docker.image("${image}")
+    withDockerRegistry([ credentialsId: "", url: "" ]) {
+        retimage.pull()
+    }
+    // Create a temporary volume workspace
+    sh """#!/bin/bash
+        mkdir -p workspace
+        cp ../script/infra_helper/capture_build_trace.js ./workspace
+    """
+    def dockerOpts = "--cap-add=SYS_ADMIN -v ${PWD}/workspace:/workspace -e NODE_PATH=/home/pptruser/node_modules"
+    withDockerContainer(image: image, args: dockerOpts) {
+        timeout(time: 3, unit: 'MINUTES'){
+            try{
+                echo "Test message"
+                sh "node capture_build_trace.js"
+                sh "mv /workspace/build_trace_snapshot.png /workspace/build_trace_snapshot_${env.BUILD_NUMBER}.png"
+                archiveArtifacts "/workspace/build_trace_snapshot_*.png"
+            }
+            catch(e){
+                echo "Throwing error exception while generating build trace visualization"
+                echo 'Exception occurred: ' + e.toString()
+            }
+        }
+    }
+}
+
+pipeline {
+    agent none
+    stages{
+        stage("Build Trace Visualization Test") {
+            agent{ label rocmnode("nogpu") }
+            steps {
+                script {
+                    if (true) { // todo: check if the artifact was created before getting capture
+                        generateAndArchiveBuildTraceVisualization();
+                    }
+                }
+            }
+        }
+    }
+}
