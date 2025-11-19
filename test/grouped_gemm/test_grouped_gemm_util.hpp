@@ -53,6 +53,8 @@ class TestGroupedGemm : public testing::Test
     static constexpr bool bench_      = false; // measure kernel performance
     static constexpr int n_warmup_    = 0;
     static constexpr int n_iter_      = 1;
+
+    bool fail_if_no_supported_instances_ = FailIfNoSupportedInstances;
     std::vector<int> k_batches_;
 
     void SetUp() override
@@ -138,27 +140,28 @@ class TestGroupedGemm : public testing::Test
                    const std::vector<int>& StrideCs,
                    const std::vector<int>& kbatches)
     {
-        bool pass = ck::profiler::profile_grouped_gemm_impl<ADataType,
-                                                            BDataType,
-                                                            EDataType,
-                                                            float,
-                                                            ALayout,
-                                                            BLayout,
-                                                            ELayout>(verify_,
-                                                                     init_method_,
-                                                                     log_,
-                                                                     bench_,
-                                                                     Ms,
-                                                                     Ns,
-                                                                     Ks,
-                                                                     StrideAs,
-                                                                     StrideBs,
-                                                                     StrideCs,
-                                                                     kbatches,
-                                                                     n_warmup_,
-                                                                     n_iter_,
-                                                                     instance_index,
-                                                                     FailIfNoSupportedInstances);
+        bool pass =
+            ck::profiler::profile_grouped_gemm_impl<ADataType,
+                                                    BDataType,
+                                                    EDataType,
+                                                    float,
+                                                    ALayout,
+                                                    BLayout,
+                                                    ELayout>(verify_,
+                                                             init_method_,
+                                                             log_,
+                                                             bench_,
+                                                             Ms,
+                                                             Ns,
+                                                             Ks,
+                                                             StrideAs,
+                                                             StrideBs,
+                                                             StrideCs,
+                                                             kbatches,
+                                                             n_warmup_,
+                                                             n_iter_,
+                                                             instance_index,
+                                                             fail_if_no_supported_instances_);
         EXPECT_TRUE(pass);
     }
 };

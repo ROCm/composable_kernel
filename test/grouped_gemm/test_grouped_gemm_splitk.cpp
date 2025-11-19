@@ -22,8 +22,21 @@ using Row = ck::tensor_layout::gemm::RowMajor;
 using Col = ck::tensor_layout::gemm::ColumnMajor;
 
 template <typename Tuple>
-class TestGroupedGemm : public ck::test::TestGroupedGemm<Tuple, true>
+class TestGroupedGemm : public ck::test::TestGroupedGemm<Tuple>
 {
+    public:
+    void SetUp() override
+    {
+        ck::test::TestGroupedGemm<Tuple>::SetUp();
+
+#if defined(CK_USE_WMMA)
+        // The old XDL tests didn't fail if instances were not supported, so we want to keep that
+        // behaviour When compiling WMMA instances and WMMA is supported, then we'll fail if a
+        // specific case is not supported
+        this->fail_if_no_supported_instances_ =
+            ck::is_gfx11_supported() || ck::is_gfx12_supported();
+#endif
+    }
 };
 
 // clang-format off
