@@ -21,13 +21,22 @@ dependencies = []
 "Bug Tracker" = "https://github.com/rocm/composable_kernel/issues"
 
 [tool.setuptools]
-packages = ["ck4inductor", "ck4inductor.include", "ck4inductor.library", "ck4inductor.universal_gemm", "ck4inductor.batched_universal_gemm", "ck4inductor.grouped_conv_fwd"]
+packages = [
+    "ck4inductor", 
+    "ck4inductor.include", 
+    "ck4inductor.library", 
+    "ck4inductor.universal_gemm", 
+    "ck4inductor.batched_universal_gemm", 
+    "ck4inductor.grouped_conv_fwd",
+    "ck4inductor.ck_tile_universal_gemm",
+]
 
 [tool.setuptools.package-dir]
 ck4inductor = "python/ck4inductor"
 "ck4inductor.universal_gemm" = "python/ck4inductor/universal_gemm"
 "ck4inductor.batched_universal_gemm" = "python/ck4inductor/batched_universal_gemm"
 "ck4inductor.grouped_conv_fwd" = "python/ck4inductor/grouped_conv_fwd"
+"ck4inductor.ck_tile_universal_gemm" = "python/ck4inductor/ck_tile_universal_gemm"
 "ck4inductor.include" = "include"
 "ck4inductor.library" = "library"
 
