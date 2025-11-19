@@ -1,41 +1,81 @@
-# class GemmKernelBuilder:
-#     def __init__(self, working_path, gpu_target, datatype, layout, config_json=None)
+import os
+import json
+from pathlib import Path
 
-#     # Common methods
-#     def write_kernel_list(self)
-#     def _get_tile_configs(self, fast_mode=False)
-#     def _generate_values(self, min_val, max_val, step)
-#     def _generate_trait_combinations(self)
-#     def _validate_tile_config(self, ..., fast_mode=False)
-#     def run(self, num_workers=None)
-#     def generate_individual(self, num_workers=None)
-#     def _generate_cmake_individual_targets(self, kernel_list)
 
-#     # Abstract methods (to be implemented by derived classes)
-#     def _get_kernel_prefix(self):
-#         """Return kernel name prefix (e.g., 'gemm', 'gemm_preshuffle')"""
-#         pass
+class GemmKernelBuilder:
+    def __init__(self, working_path, gpu_target, datatype, layout, config_json=None):
+        self.working_path = Path(working_path)
+        self.gpu_target = gpu_target
+        self.datatype = datatype
+        self.layout = layout
+        self.config_json = config_json
 
-#     def _get_pipeline_maps(self):
-#         """Return pipeline implementation and base pipeline maps"""
-#         pass
+        # Create working directory if it doesn't exist
+        self.working_path.mkdir(parents=True, exist_ok=True)
 
-#     def _generate_kernel_instance(self, tile_config, trait_combo, k_block_per_cu, **kwargs):
-#         """Generate kernel instance code"""
-#         pass
+        # Load configuration
+        if config_json and os.path.exists(config_json):
+            with open(config_json, "r") as f:
+                self.config = json.load(f)
 
-#     def _get_file_names(self):
-#         """Return file names for kernel list and count files"""
-#         pass
+    def write_kernel_list(self, kernel_name_prefix):
+        """Write kernel list to file for CMake to read (with comprehensive validation)"""
+        # Get configurations using comprehensive validation
+        # tile_configs = self._get_tile_configs(fast_mode=False)
+        # trait_combos = self._generate_trait_combinations()
 
-#     def _get_cmake_function_name(self):
-#         """Return CMake function name for individual targets"""
-#         pass
+        # kernel_list = []
+        # for tile_config in tile_configs:
+        #     for trait_combo in trait_combos:
+        #         (
+        #             pipeline,
+        #             epilogue,
+        #             scheduler,
+        #             pad_m,
+        #             pad_n,
+        #             pad_k,
+        #             persistent,
+        #         ) = trait_combo
 
-#     def _validate_layout_constraints(self, layout_parts):
-#         """Validate layout-specific constraints"""
-#         pass
+        #         # Create kernel name with proper boolean capitalization
+        #         kernel_name = f"{kernel_name_prefix}_{self.datatype}_{self.layout}_{pipeline}_{epilogue}_{scheduler}_{str(pad_m).capitalize()}_{str(pad_n).capitalize()}_{str(pad_k).capitalize()}_{str(persistent).capitalize()}"
 
-#     def _get_additional_validation_constraints(self, tile_config):
-#         """Additional validation constraints specific to kernel type"""
-#         return True
+        #         # Create tile configuration string
+        #         tile_str = f"{tile_config['tile_m']}x{tile_config['tile_n']}x{tile_config['tile_k']}_"
+        #         tile_str += f"{tile_config['warp_m']}x{tile_config['warp_n']}x{tile_config['warp_k']}_"
+        #         tile_str += f"{tile_config['warp_tile_m']}x{tile_config['warp_tile_n']}x{tile_config['warp_tile_k']}"
+
+        #         kernel_name += f"_{tile_str}"
+
+        #         kernel_list.append(
+        #             {
+        #                 "name": kernel_name,
+        #                 "tile_config": tile_config,
+        #                 "trait_combo": trait_combo,
+        #             }
+        #         )
+
+        # # Write kernel count
+        # with open(self.working_path / "{kernel_name_prefix}_kernel_count.txt", "w") as f:
+        #     f.write(str(len(kernel_list)))
+
+        # # Write kernel list
+        # with open(self.working_path / "{kernel_name_prefix}_kernel_list.txt", "w") as f:
+        #     for kernel in kernel_list:
+        #         # Format: kernel_name|tile_config|trait_combo
+        #         tile_config = kernel["tile_config"]
+        #         trait_combo = kernel["trait_combo"]
+
+        #         tile_str = f"{tile_config['tile_m']}x{tile_config['tile_n']}x{tile_config['tile_k']}_"
+        #         tile_str += f"{tile_config['warp_m']}x{tile_config['warp_n']}x{tile_config['warp_k']}_"
+        #         tile_str += f"{tile_config['warp_tile_m']}x{tile_config['warp_tile_n']}x{tile_config['warp_tile_k']}"
+
+        #         trait_str = (
+        #             f"{trait_combo[0]}_{trait_combo[1]}_{trait_combo[2]}_"
+        #             + "_".join(str(x) for x in trait_combo[3:])
+        #         )
+
+        #         f.write(f"{kernel['name']}|{tile_str}|{trait_str}\n")
+
+        # print(f"Listed {len(kernel_list)} kernel configurations")
