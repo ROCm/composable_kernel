@@ -4,12 +4,11 @@ def rocmnode(name) {
 
 def generateAndArchiveBuildTraceVisualization() {
     // Pull image
-    def image = "ghcr.io//puppeteer/puppeteer:latest"
+    def image = "ghcr.io/puppeteer/puppeteer:latest"
     echo "Pulling image: ${image}"
     def retimage = docker.image("${image}")
-    withDockerRegistry([ credentialsId: "", url: "" ]) {
-        retimage.pull()
-    }
+    retimage.pull()
+
     // Create a temporary volume workspace
     sh """#!/bin/bash
         mkdir -p workspace
@@ -39,9 +38,7 @@ pipeline {
             agent{ label rocmnode("nogpu") }
             steps {
                 script {
-                    if (true) { // todo: check if the artifact was created before getting capture
-                        generateAndArchiveBuildTraceVisualization();
-                    }
+                    generateAndArchiveBuildTraceVisualization();
                 }
             }
         }
