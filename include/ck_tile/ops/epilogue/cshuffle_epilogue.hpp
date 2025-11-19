@@ -321,7 +321,6 @@ struct CShuffleEpilogue
         return make_naive_tensor_descriptor(
             make_tuple(number<YPerIterationShuffle>{}, number<XPerIterationShuffle>{}),
             make_tuple(number<XPerIterationShuffle>{}, number<1>{}));
-
     }
 
     CK_TILE_DEVICE static constexpr auto MakeLdsDistributionEncode()
@@ -654,7 +653,7 @@ struct CShuffleEpilogue
                                    const ScaleN& scale_n = {})
     {
         constexpr auto LdsTileDistr = make_static_tile_distribution(MakeLdsDistributionEncode());
-        //print(LdsTileDistr);
+        // print(LdsTileDistr);
         auto lds_tile = make_static_distributed_tensor<AccDataType>(LdsTileDistr);
 
         constexpr auto lds_block_desc = MakeLdsBlockDescriptor<Problem>();

@@ -29,7 +29,7 @@ using NonPersistent = std::false_type;
 using I16  = ck_tile::number<16>;
 using I32  = ck_tile::number<32>;
 using I64  = ck_tile::number<64>;
-using I128  = ck_tile::number<128>;
+using I128 = ck_tile::number<128>;
 using I256 = ck_tile::number<256>;
 
 // clang-format off

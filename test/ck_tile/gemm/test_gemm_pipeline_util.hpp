@@ -287,10 +287,10 @@ class TestCkTileGemmPipeline : public ::testing::Test
         {
             GTEST_SKIP() << "Unsupported data type combination for gemm pipeline test.";
         }
-        //if constexpr(PipelineType == GemmPipelineType::CompV4 ||
-        //             std::is_same_v<BDataType, ck_tile::pk_int4_t>)
+        // if constexpr(PipelineType == GemmPipelineType::CompV4 ||
+        //              std::is_same_v<BDataType, ck_tile::pk_int4_t>)
         //{
-            // Only do k_batch = 1 when pipeline is CompV4, or BDataType is I4
+        //  Only do k_batch = 1 when pipeline is CompV4, or BDataType is I4
         k_batches_ = {1};
         //}
         // else
@@ -318,7 +318,7 @@ class TestCkTileGemmPipeline : public ::testing::Test
         }
     }
 
-       template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
+    template <bool PadM, bool PadN, bool PadK, bool Preshuffle>
     void RunSingle(const int M,
                    const int N,
                    const int K,
