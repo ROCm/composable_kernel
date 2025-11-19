@@ -24,6 +24,8 @@
 #include "ck/library/tensor_operation_instance/gpu/reduce/reduce.hpp"
 #include "ck/library/utility/host_tensor.hpp"
 
+using ::ck::HostTensorDescriptor;
+
 using PassThrough   = ck::tensor_operation::element_wise::PassThrough;
 using ConvScaleRelu = ck::tensor_operation::element_wise::ScaleScaleRelu;
 using ConvScale     = ck::tensor_operation::element_wise::ScaleScalePass;
