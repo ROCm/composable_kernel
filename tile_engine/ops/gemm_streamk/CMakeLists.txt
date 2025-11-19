@@ -1,5 +1,5 @@
-set(GEMM_DATATYPE "fp8;fp16" CACHE STRING "List of datatypes for GEMM (semicolon-separated)")
-set(GEMM_LAYOUT "rcr" CACHE STRING "List of layout for GEMM (semicolon-separated)")
+set(GEMM_STREAMK_DATATYPE "fp8;fp16" CACHE STRING "List of datatypes for GEMM (semicolon-separated)")
+set(GEMM_STREAMK_LAYOUT "rcr" CACHE STRING "List of layout for GEMM (semicolon-separated)")
 set(GEMM_CONFIG_FILE "" CACHE STRING "Custom config file name (without path, must be in configs/ folder)")
 option(ENABLE_CCACHE_GEMM "Enable ccache for GEMM ops compilation" OFF)
 
@@ -206,13 +206,13 @@ endfunction()
 
 # Main build logic - Only individual builds supported
 message(STATUS "=== Starting Tile Engine StreamK GEMM Configuration ===")
-message(STATUS "GEMM_DATATYPE: ${GEMM_DATATYPE}")
-message(STATUS "GEMM_LAYOUT: ${GEMM_LAYOUT}")
+message(STATUS "GEMM_STREAMK_DATATYPE: ${GEMM_STREAMK_DATATYPE}")
+message(STATUS "GEMM_STREAMK_LAYOUT: ${GEMM_STREAMK_LAYOUT}")
 message(STATUS "SUPPORTED_GPU_TARGETS: ${SUPPORTED_GPU_TARGETS}")
 
-# Filter GPU targets to only gfx90a, gfx942, and gfx950
+# Filter GPU targets to only gfx90a, gfx942
 set(GEMM_GPU_TARGETS_INDIVIDUAL "")
-set(DESIRED_TARGETS "gfx90a;gfx942;gfx950")
+set(DESIRED_TARGETS "gfx90a;gfx942") # TODO: Add gfx950 when supported
 
 foreach(target IN LISTS SUPPORTED_GPU_TARGETS)
     if(target IN_LIST DESIRED_TARGETS)
@@ -252,18 +252,18 @@ else()
     add_custom_target(benchmark_gemm_streamk_all)
 
     # Create datatype collection targets
-    foreach(dt IN LISTS GEMM_DATATYPE)
+    foreach(dt IN LISTS GEMM_STREAMK_DATATYPE)
         add_custom_target(benchmark_gemm_streamk_${dt})
     endforeach()
 
     # Create layout collection targets
-    foreach(l IN LISTS GEMM_LAYOUT)
+    foreach(l IN LISTS GEMM_STREAMK_LAYOUT)
         add_custom_target(benchmark_gemm_streamk_${l})
     endforeach()
 
     # Create combined collection targets
-    foreach(dt IN LISTS GEMM_DATATYPE)
-        foreach(l IN LISTS GEMM_LAYOUT)
+    foreach(dt IN LISTS GEMM_STREAMK_DATATYPE)
+        foreach(l IN LISTS GEMM_STREAMK_LAYOUT)
             add_custom_target(benchmark_gemm_streamk_${dt}_${l})
         endforeach()
     endforeach()
@@ -287,8 +287,8 @@ else()
     endforeach()
 
     # Build individual targets for each datatype/layout combination
-    foreach(dt IN LISTS GEMM_DATATYPE)
-        foreach(l IN LISTS GEMM_LAYOUT)
+    foreach(dt IN LISTS GEMM_STREAMK_DATATYPE)
+        foreach(l IN LISTS GEMM_STREAMK_LAYOUT)
             build_individual_gemm_targets(${dt} ${l})
         endforeach()
     endforeach()
