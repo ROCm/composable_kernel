@@ -22,9 +22,15 @@ def generateAndArchiveBuildTraceVisualization() {
     withDockerContainer(image: image, args: dockerOpts) {
         timeout(time: 3, unit: 'MINUTES'){
             try{
-                echo "Test message"
-                sh "ls -l ~/.cache/puppeteer/"
-                sh "ls -la"
+                echo "Debugging container environment..."
+                sh "whoami"
+                sh "id"
+                sh "echo HOME = \$HOME"
+                sh "echo USER = \$USER"
+                sh "pwd"
+                sh "ls -la \$HOME || echo 'HOME directory not accessible'"
+                sh "ls -la ~/.cache/ || echo 'Cache directory not accessible'"
+                sh "ls -la /home/ || echo 'Home directory listing failed'"
                 sh "node ./script/infra_helper/capture_build_trace.js"
                 sh "mv /workspace/build_trace_snapshot.png /workspace/build_trace_snapshot_${env.BUILD_NUMBER}.png"
                 archiveArtifacts "/workspace/build_trace_snapshot_*.png"
