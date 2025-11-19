@@ -22,6 +22,10 @@
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 using ConvScale   = ck::tensor_operation::element_wise::ConvScale;
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 void print_helper_msg()
 {
     std::cout << "arg1: verification (0=no, 1=yes)\n"
