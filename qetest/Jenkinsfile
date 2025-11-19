@@ -23,10 +23,6 @@ def generateAndArchiveBuildTraceVisualization() {
         timeout(time: 3, unit: 'MINUTES'){
             try{
                 echo "Debugging container environment..."
-                sh "whoami"
-                sh "id"
-                sh "echo HOME = \$HOME"
-                sh "echo USER = \$USER"
                 sh "pwd"
                 sh "ls -la \$HOME || echo 'HOME directory not accessible'"
                 sh "ls -la ~/.cache/ || echo 'Cache directory not accessible'"
