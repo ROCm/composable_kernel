@@ -284,8 +284,9 @@ template <bf16_rounding_mode rounding =
 CK_TILE_HOST_DEVICE constexpr bfloat16_t float_to_bf16(float f, constant<rounding> = {})
 {
 // Use builtin bfloat16 conversion only on gfx950 as its predecessors do not support bf16 cvt
-// instructions, resulting in suboptimal performance.
-#if CK_TILE_USE_LLVM_BUILTIN_BF16 && defined(__gfx950__)
+// instructions, resulting in suboptimal performance; Add host side marcro check for consistency
+// during accuracy tests.
+#if CK_TILE_USE_LLVM_BUILTIN_BF16 && (defined(__gfx950__) || defined(CK_GFX950_SUPPORT))
     return static_cast<bfloat16_t>(f);
 #else
     return bit_cast<bfloat16_t>(float_to_bf16_raw(f, constant<rounding>{}));
@@ -432,10 +433,11 @@ bfloat16_t log(bfloat16_t x) { return static_cast<bfloat16_t>(__logf(static_cast
 using bf16x2_t = bfloat16_t __attribute__((ext_vector_type(2)));
 using fp32x2_t = float __attribute__((ext_vector_type(2)));
 
-CK_TILE_HOST_DEVICE
-constexpr bf16x2_t fp32x2_to_bf16x2(const fp32x2_t& x)
+template <bf16_rounding_mode rounding =
+              static_cast<bf16_rounding_mode>(CK_TILE_FLOAT_TO_BFLOAT16_DEFAULT)>
+CK_TILE_HOST_DEVICE constexpr bf16x2_t fp32x2_to_bf16x2(const fp32x2_t& x)
 {
-    return bf16x2_t{float_to_bf16(x.x), float_to_bf16(x.y)};
+    return bf16x2_t{float_to_bf16<rounding>(x.x), float_to_bf16<rounding>(x.y)};
 }
 
 } // namespace ck_tile
