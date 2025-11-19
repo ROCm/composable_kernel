@@ -7,7 +7,7 @@
 #include <hip/hip_runtime.h>
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 
-namespace ck_tile::builder::testing {
+namespace ck_tile::builder::test {
 
 struct DeviceMemoryDeleter
 {
@@ -38,4 +38,4 @@ struct TensorMemoryManager
     DeviceBuffer output_buf = nullptr;
 };
 
-} // namespace ck_tile::builder::testing
+} // namespace ck_tile::builder::test

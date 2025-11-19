@@ -10,7 +10,7 @@
 namespace {
 
 namespace ckb = ck_tile::builder;
-namespace ckt = ck_tile::builder::testing;
+namespace ckt = ck_tile::builder::test;
 
 using ::testing::IsNull;
 
@@ -21,24 +21,21 @@ struct ConvSignature
     ckb::GroupConvLayout layout;
     ckb::DataType data_type;
     ckb::ElementwiseOperation elementwise_operation;
-    ckb::GroupConvDeviceOp device_operation;
 };
 static_assert(ckb::ConvSignatureDescriptor<ConvSignature>);
 
 TEST(TensorMemoryManagerTest, BuffersInitializedToNull)
 {
-    constexpr ConvSignature kSignature = {
+    constexpr ConvSignature signature = {
         .spatial_dim           = 2,
         .direction             = ckb::ConvDirection::FORWARD,
         .layout                = ckb::GroupConvLayout2D::NHWGC_GKYXC_NHWGK,
         .data_type             = ckb::DataType::FP16,
         .elementwise_operation = ckb::ElementwiseOperation::PASS_THROUGH,
-        .device_operation =
-            ckb::FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3,
     };
-    static_assert(ckb::ValidConvSignature<kSignature>);
+    static_assert(ckb::ValidConvSignature<signature>);
 
-    ckt::TensorMemoryManager<kSignature> manager;
+    ckt::TensorMemoryManager<signature> manager;
 
     EXPECT_THAT(manager.input_buf.get(), IsNull());
     EXPECT_THAT(manager.weight_buf.get(), IsNull());
