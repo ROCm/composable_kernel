@@ -1264,7 +1264,7 @@ struct MoeFlatmmKernel
                         scatter_token_id =
                             scatter_token_id * kargs.TopK + (fused_token >> token_id_offset);
                     c_scatter_offsets[mIter][m0] = scatter_token_id * kargs.stride_C;
-                    c_scatter_valids[mIter][m0] = (scatter_token_id < kargs.NumTokens);
+                    c_scatter_valids[mIter][m0]  = (scatter_token_id < kargs.NumTokens);
                 });
             });
 
