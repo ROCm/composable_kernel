@@ -34,5 +34,4 @@ struct BlockAttentionQuantScaleEnumToStr<BlockAttentionQuantScaleEnum::BLOCKSCAL
     static constexpr const char* name = "blockscale";
 };
 
-
 } // namespace ck_tile

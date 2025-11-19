@@ -717,9 +717,9 @@ fwd_result fmha_fwd_run(mode_enum mode,
     }
     else if(qscale.type == quant_scale_enum::blockscale)
     {
-        ck_tile::FillUniformDistribution<float>{0.015f, 0.02f, next_seed()}(q_descale_host);
-        ck_tile::FillUniformDistribution<float>{0.015f, 0.02f, next_seed()}(k_descale_host);
-        ck_tile::FillUniformDistribution<float>{0.015f, 0.02f, next_seed()}(v_descale_host);
+        ck_tile::FillUniformDistribution<float>{0.012f, 0.016f, next_seed()}(q_descale_host);
+        ck_tile::FillUniformDistribution<float>{0.012f, 0.016f, next_seed()}(k_descale_host);
+        ck_tile::FillUniformDistribution<float>{0.012f, 0.016f, next_seed()}(v_descale_host);
     }
 
     iota_shuffle(block_table_host.begin(), block_table_host.end(), 0, random_engine);
@@ -1609,14 +1609,36 @@ fwd_result fmha_fwd_run(mode_enum mode,
 #endif
 
             // reference
-            ck_tile::
-                reference_batched_gemm<QDataType, KDataType, SaccDataType, SMPLComputeDataType>(
+            if(qscale.type == quant_scale_enum::blockscale)
+            {
+                ck_tile::reference_batched_quant_gemm<QDataType,
+                                                      KDataType,
+                                                      SaccDataType,
+                                                      SMPLComputeDataType>(
                     q_host_ref,
                     k_host_ref,
                     s_host_ref,
-                    ck_tile::identity{},
-                    ck_tile::identity{},
-                    ck_tile::scales(scale_s_host));
+                    ck_tile::idx_identity{},
+                    ck_tile::idx_identity{},
+                    [&](auto idx, auto value) {
+                        return value * scale_s *
+                               q_descale_host(
+                                   b_idx, std::get<0>(idx), std::get<1>(idx) / block_scale_m_) *
+                               k_descale_host(
+                                   b_idx, std::get<0>(idx) / nr, std::get<2>(idx) / block_scale_n_);
+                    });
+            }
+            else
+            {
+                ck_tile::
+                    reference_batched_gemm<QDataType, KDataType, SaccDataType, SMPLComputeDataType>(
+                        q_host_ref,
+                        k_host_ref,
+                        s_host_ref,
+                        ck_tile::identity{},
+                        ck_tile::identity{},
+                        ck_tile::scales(scale_s_host));
+            }
 
             if(0.f < logits_soft_cap)
             {
@@ -1774,13 +1796,32 @@ fwd_result fmha_fwd_run(mode_enum mode,
                 }
             }
 
-            ck_tile::reference_batched_gemm<PDataType, VDataType, OaccDataType, ODataType>(
-                p_host_ref,
-                v_host_ref,
-                o_host_ref,
-                ck_tile::identity{},
-                ck_tile::identity{},
-                oacc_element_func);
+            if(qscale.type == quant_scale_enum::blockscale)
+            {
+                ck_tile::
+                    reference_batched_quant_gemm<PDataType, VDataType, OaccDataType, ODataType>(
+                        p_host_ref,
+                        v_host_ref,
+                        o_host_ref,
+                        ck_tile::idx_identity{},
+                        [&](auto idx, auto value) {
+                            return ck_tile::type_convert<float>(value) *
+                                   v_descale_host(b_idx,
+                                                  std::get<0>(idx) / nr,
+                                                  std::get<2>(idx) / block_scale_n_);
+                        },
+                        ck_tile::idx_identity{});
+            }
+            else
+            {
+                ck_tile::reference_batched_gemm<PDataType, VDataType, OaccDataType, ODataType>(
+                    p_host_ref,
+                    v_host_ref,
+                    o_host_ref,
+                    ck_tile::identity{},
+                    ck_tile::identity{},
+                    oacc_element_func);
+            }
 
             ck_tile::HostTensor<ODataType> o_host_result({nhead, real_seqlen_q, hdim_v});
             // clang-format off

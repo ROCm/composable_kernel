@@ -1253,13 +1253,16 @@ struct FmhaFwdKernel
             const index_t i_m0 = amd_wave_read_first_lane(i_tile_m * FmhaPipeline::kM0);
             const index_t i_n1 = amd_wave_read_first_lane(i_tile_n * FmhaPipeline::kN1);
 
-            long_index_t batch_offset_q       = 0;
-            long_index_t batch_offset_k       = 0;
-            long_index_t batch_offset_v       = 0;
-            long_index_t batch_offset_bias    = 0;
-            long_index_t batch_offset_randval = 0;
-            long_index_t batch_offset_lse     = 0;
-            long_index_t batch_offset_o       = 0;
+            long_index_t batch_offset_q         = 0;
+            long_index_t batch_offset_k         = 0;
+            long_index_t batch_offset_v         = 0;
+            long_index_t batch_offset_bias      = 0;
+            long_index_t batch_offset_randval   = 0;
+            long_index_t batch_offset_lse       = 0;
+            long_index_t batch_offset_o         = 0;
+            long_index_t batch_offset_q_descale = 0;
+            long_index_t batch_offset_k_descale = 0;
+            long_index_t batch_offset_v_descale = 0;
 
             if constexpr(kIsGroupMode)
             {
@@ -1359,6 +1362,16 @@ struct FmhaFwdKernel
                         static_cast<long_index_t>(i_batch) * kargs.batch_stride_randval;
                 }
                 batch_offset_o = static_cast<long_index_t>(i_batch) * kargs.batch_stride_o;
+
+                if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+                {
+                    batch_offset_q_descale =
+                        static_cast<long_index_t>(i_batch) * kargs.batch_stride_q_descale;
+                    batch_offset_k_descale =
+                        static_cast<long_index_t>(i_batch) * kargs.batch_stride_k_descale;
+                    batch_offset_v_descale =
+                        static_cast<long_index_t>(i_batch) * kargs.batch_stride_v_descale;
+                }
 
                 // If cumulative seqlen pointers are provided, override per-batch effective lengths
                 if(kargs.cu_seqlen_q_ptr != nullptr)
@@ -1705,7 +1718,69 @@ struct FmhaFwdKernel
                                           variant_params,
                                           block_indices,
                                           smem_ptr,
-                                          dropout);
+                                          dropout,
+                                          1.0f,
+                                          nullptr,
+                                          nullptr,
+                                          128,
+                                          128);
+                }
+                else if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+                {
+                    const float* q_descale_ptr =
+                        reinterpret_cast<const float*>(kargs.q_descale_ptr) +
+                        static_cast<long_index_t>(i_nhead) * kargs.nhead_stride_q_descale +
+                        batch_offset_q_descale;
+                    const float* k_descale_ptr =
+                        reinterpret_cast<const float*>(kargs.k_descale_ptr) +
+                        static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) *
+                            kargs.nhead_stride_k_descale +
+                        batch_offset_k_descale;
+                    const float* v_descale_ptr =
+                        reinterpret_cast<const float*>(kargs.v_descale_ptr) +
+                        static_cast<long_index_t>(i_nhead / kargs.nhead_ratio_qk) *
+                            kargs.nhead_stride_v_descale +
+                        batch_offset_v_descale;
+
+                    size_t idx      = i_m0 / kargs.block_scale_m;
+                    float q_descale = q_descale_ptr[idx];
+
+                    float scale_o = 1.0;
+
+                    auto o_acc_element_func = [&]() {
+                        if constexpr(std::is_same_v<ODataType, ck_tile::fp8_t>)
+                            return ck_tile::composes(ck_tile::saturates<ck_tile::fp8_t>{},
+                                                     ck_tile::scales{scale_o});
+                        else
+                            return ck_tile::scales{scale_o};
+                    }();
+                    return FmhaPipeline{}(q_dram_window,
+                                          identity{}, // q_element_func
+                                          k_dram_window,
+                                          identity{}, // k_element_func
+                                          v_dram_window,
+                                          identity{}, // v_element_func
+                                          bias_dram_window,
+                                          identity{}, // bias_element_func
+                                          randval_dram_window,
+                                          lse_dram_window,
+                                          identity{},         // lse_element_func
+                                          identity{},         // s_acc_element_func
+                                          scales{1.0f},       // p_compute_element_func
+                                          o_acc_element_func, // o_acc_element_func
+                                          mask,
+                                          position_encoding,
+                                          kargs.scale_s,
+                                          variant,
+                                          variant_params,
+                                          block_indices,
+                                          smem_ptr,
+                                          dropout,
+                                          q_descale,
+                                          k_descale_ptr,
+                                          v_descale_ptr,
+                                          kargs.block_scale_m,
+                                          kargs.block_scale_n);
                 }
                 else
                 {

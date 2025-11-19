@@ -91,6 +91,15 @@ struct identity
     }
 };
 
+struct idx_identity
+{
+    template <typename T>
+    CK_TILE_HOST_DEVICE constexpr T&& operator()(auto, T&& arg) const noexcept
+    {
+        return std::forward<T>(arg);
+    }
+};
+
 namespace detail {
 
 // RemainLengths: sequence<...>

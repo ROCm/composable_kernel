@@ -57,6 +57,7 @@ struct BlockFmhaPipelineQRKSVS
     static constexpr auto BiasEnum          = Problem::BiasEnum;
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
     static constexpr bool kHasDropout       = Problem::kHasDropout;
+    static constexpr auto QScaleEnum        = Problem::QScaleEnum;
 
     static constexpr uint32_t DS_READ = 0x100; // Barrier for DS (data share) read
     static constexpr uint32_t MFMA    = 0x008; // Barrier for MFMA (matrix multiply-accumulate)
@@ -163,7 +164,12 @@ struct BlockFmhaPipelineQRKSVS
                const AttentionVariantParams& variant_params,
                const BlockIndices& block_indices,
                void* smem_ptr,
-               DropoutType& dropout) const
+               DropoutType& dropout,
+               const float q_descale,
+               const float* k_descale_ptr,
+               const float* v_descale_ptr,
+               index_t,
+               index_t block_scale_n) const
     {
         static_assert(
             std::is_same_v<QDataType, remove_cvref_t<typename QDramBlockWindowTmp::DataType>> &&
@@ -316,6 +322,14 @@ struct BlockFmhaPipelineQRKSVS
         static_assert(1 <= k1_loops);
         do
         {
+            float k_descale = 1.0f;
+            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+            {
+                const auto k_origin = k_dram_block_window.get_window_origin();
+                const auto row      = k_origin.at(number<0>{});
+                const index_t idx   = row / block_scale_n;
+                k_descale           = k_descale_ptr[idx];
+            }
             // STAGE 1, QK gemm
             auto k_dram_window = make_tile_window(
                 k_dram_block_window.get_bottom_tensor_view(),
@@ -386,6 +400,12 @@ struct BlockFmhaPipelineQRKSVS
                 schedule_gemm0();
             }
 
+            // dequant
+            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+            {
+                tile_elementwise_inout(
+                    [q_descale, k_descale](auto& x) { x = x * q_descale * k_descale; }, s_acc);
+            }
             // STAGE 2, scale_s, add bias, mask, softmax
             if constexpr(BiasEnum == BlockAttentionBiasEnum::ELEMENTWISE_BIAS)
             {
@@ -600,21 +620,44 @@ struct BlockFmhaPipelineQRKSVS
                 store_tile(v_lds_window,
                            tile_elementwise_in(v_element_func, v_prefetch)); // store the prefetch
             }
+
+            float v_descale = 1.0f;
+            if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+            {
+                const auto v_origin = v_dram_window.get_window_origin();
+                const auto col      = v_origin.at(number<1>{});
+                const index_t idx   = col / block_scale_n;
+                v_descale           = v_descale_ptr[idx];
+            }
+
             move_tile_window(v_dram_window, {0, kK1});
 
             const auto p =
                 cast_tile<PDataType>(tile_elementwise_in(p_compute_element_func, p_compute));
 
+            auto wrapper_gemm1 = [&](auto& acc, auto a, auto b) {
+                if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+                {
+                    auto acc0 = gemm_1(a, b);
+                    tile_elementwise_inout(
+                        [&v_descale](auto& o, auto o0) { o += o0 * v_descale; }, acc, acc0);
+                }
+                else
+                {
+                    gemm_1(acc, a, b);
+                };
+            };
             // STAGE 3, KV gemm
             if constexpr(k1_loops > 1)
             {
                 static_for<0, k1_loops - 1, 1>{}([&](auto i_k1) {
                     const auto v = load_tile(v_dram_window); // load next v
                     block_sync_lds();
-                    gemm_1(o_acc,
-                           get_slice_tile(
-                               p, sequence<0, i_k1 * kK1>{}, sequence<kM0, (i_k1 + 1) * kK1>{}),
-                           v_lds_window);
+                    wrapper_gemm1(o_acc,
+                                  get_slice_tile(p,
+                                                 sequence<0, i_k1 * kK1>{},
+                                                 sequence<kM0, (i_k1 + 1) * kK1>{}),
+                                  v_lds_window);
                     block_sync_lds();
                     if constexpr(std::is_same_v<VLayout, ck_tile::tensor_layout::gemm::RowMajor>)
                     {
@@ -638,9 +681,10 @@ struct BlockFmhaPipelineQRKSVS
             // tail
             {
                 block_sync_lds();
-                gemm_1(o_acc,
-                       get_slice_tile(p, sequence<0, (k1_loops - 1) * kK1>{}, sequence<kM0, kN0>{}),
-                       v_lds_window);
+                wrapper_gemm1(
+                    o_acc,
+                    get_slice_tile(p, sequence<0, (k1_loops - 1) * kK1>{}, sequence<kM0, kN0>{}),
+                    v_lds_window);
                 block_sync_lds();
             }
         } while(++i_total_loops < num_total_loop);
@@ -748,7 +792,12 @@ struct BlockFmhaPipelineQRKSVS
                           variant_params,
                           block_indices,
                           smem_ptr,
-                          dropout);
+                          dropout,
+                          1.0f,
+                          nullptr,
+                          nullptr,
+                          128,
+                          128);
     }
 };
 
