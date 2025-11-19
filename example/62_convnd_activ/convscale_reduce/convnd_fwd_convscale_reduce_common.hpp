@@ -23,6 +23,10 @@
 #include "ck/tensor_operation/gpu/device/reduction_operator_mapping.hpp"
 #include "ck/utility/type.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 namespace ew = ck::tensor_operation::element_wise;
 
 using PassThrough   = ew::PassThrough;

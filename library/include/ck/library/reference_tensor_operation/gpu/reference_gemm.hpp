@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -8,6 +8,7 @@
 
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 
@@ -209,20 +210,20 @@ struct ReferenceGemm : public device::BaseOperator
                                                       ComputeTypeA,
                                                       ComputeTypeB>;
 
-                return launch_and_time_kernel(stream_config,
-                                              kernel,
-                                              grid_dim,
-                                              block_dim,
-                                              0,
-                                              arg.p_a_grid_,
-                                              arg.p_b_grid_,
-                                              arg.p_c_grid_,
-                                              arg.m_,
-                                              arg.n_,
-                                              arg.k_,
-                                              arg.a_element_op_,
-                                              arg.b_element_op_,
-                                              arg.c_element_op_);
+                return ck::launch_and_time_kernel(stream_config,
+                                                  kernel,
+                                                  grid_dim,
+                                                  block_dim,
+                                                  0,
+                                                  arg.p_a_grid_,
+                                                  arg.p_b_grid_,
+                                                  arg.p_c_grid_,
+                                                  arg.m_,
+                                                  arg.n_,
+                                                  arg.k_,
+                                                  arg.a_element_op_,
+                                                  arg.b_element_op_,
+                                                  arg.c_element_op_);
             };
 
             return launch_kernel();

@@ -19,6 +19,10 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_layernorm.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 using ADataType             = ck::half_t; // Input 1
 using BDataType             = ck::half_t; // Input 2
 using XDataType             = ck::half_t;
