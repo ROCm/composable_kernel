@@ -304,7 +304,7 @@ int run_moe_gemm_example_with_layouts(int argc,
 
         const float max_accumulated_value =
             *std::max_element(c_m_n_host_ref.mData.begin(), c_m_n_host_ref.mData.end());
-        const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
+        [[maybe_unused]] const auto rtol_atol = calculate_rtol_atol<ADataType, BDataType, AccDataType, CDataType>(
             K, 1 /*kbatch*/, max_accumulated_value);
         c_m_n_ref_buf->FromDevice(c_m_n_host_ref.data());
 
