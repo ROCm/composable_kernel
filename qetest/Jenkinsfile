@@ -3,6 +3,7 @@ def rocmnode(name) {
 }
 
 def generateAndArchiveBuildTraceVisualization() {
+    try {
     // Pull image
     def image = "ghcr.io/puppeteer/puppeteer:latest"
     echo "Pulling image: ${image}"
@@ -17,6 +18,7 @@ def generateAndArchiveBuildTraceVisualization() {
         echo "Contents of current directory:"
         ls -la
         cp ./script/infra_helper/capture_build_trace.js ./workspace
+        cp ./qetest/ck_build_trace_dummy_test.json ./workspace/ck_build_trace.json
         ls -la ./workspace
     """
     def dockerOpts = "--cap-add=SYS_ADMIN -v \"\$(pwd)/workspace:/workspace\" -e NODE_PATH=/home/pptruser/node_modules"
@@ -28,6 +30,10 @@ def generateAndArchiveBuildTraceVisualization() {
     """
     
     archiveArtifacts "workspace/build_trace_snapshot_*.png"
+    } catch (Exception e) {
+        echo "Throwing error exception while generating build trace visualization"
+        echo 'Exception occurred: ' + e.toString()
+    }
 }
 
 pipeline {
