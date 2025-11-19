@@ -70,7 +70,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
 
     static constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
     static constexpr index_t KPerBlockBQ =
-        integer_divide_ceil(BlockGemmShape::kK, QuantGroupSize::kK); // 256/128
+        integer_divide_ceil(BlockGemmShape::kK, QuantGroupSize::kK);
     static constexpr index_t QScalesPerBlockRow =
         integer_divide_ceil(kKPerBlock, QuantGroupSize::kK);
 
@@ -488,9 +488,9 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                                    index_t n,
                                    index_t num_loop,
                                    void* p_smem_ping,
-                                   void* p_smem_pong) const
+                                   void* p_smem_pong,
+                                   std::true_type) const
     {
-
         return operator()<TailNum>(
             a_dram_block_window_tmp,
             [](const ADataType& a) { return a; },
@@ -508,11 +508,34 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                    const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
-                                   index_t n,
+                                   index_t num_loop,
+                                   void* p_smem_ping,
+                                   void* p_smem_pong,
+                                   std::false_type) const
+    {
+
+        return operator()<TailNum>(
+            a_dram_block_window_tmp,
+            [](const ADataType& a) { return a; },
+            b_flat_dram_block_window_tmp,
+            bq_dram_block_window_tmp,
+            0, // dummy value, won't be used
+            num_loop,
+            p_smem_ping,
+            p_smem_pong);
+    }
+
+    template <typename ADramBlockWindowTmp,
+              typename BFlatBlockWindowTmp,
+              typename BQDramBlockWindowTmp>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                   const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
                                    index_t num_loop,
                                    TailNumber tail_number,
                                    void* p_smem_ping,
-                                   void* p_smem_pong) const
+                                   void* p_smem_pong,
+                                   std::false_type) const
     {
         const auto RunPipeline = [&](auto bool_val, auto tail_num_) {
             (void)bool_val; // Suppress unused parameter warning
@@ -522,7 +545,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                 [](const ADataType& a) { return a; },
                 b_flat_dram_block_window_tmp,
                 bq_dram_block_window_tmp,
-                n,
+                0, // dummy value, won't be used
                 num_loop,
                 p_smem_ping,
                 p_smem_pong);

@@ -390,11 +390,11 @@ struct QuantGroupedGemmKernel
         const auto& c_block_tile    = GemmPipeline{}.template operator()(a_block_window,
                                                                       b_block_window,
                                                                       bq_block_window,
-                                                                      kargs.N,
                                                                       num_loop,
                                                                       tail_num,
                                                                       smem_ptr_0,
-                                                                      smem_ptr_1);
+                                                                      smem_ptr_1,
+                                                                      std::false_type{});
 
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(Base::I4);
@@ -458,11 +458,11 @@ struct QuantGroupedGemmKernel
             const auto& c_block_tile = GemmPipeline{}.template operator()(a_block_window,
                                                                           b_block_window,
                                                                           bq_block_window,
-                                                                          kargs.N,
                                                                           num_loop,
                                                                           has_hot_loop,
                                                                           tail_num,
-                                                                          smem_ptr_0);
+                                                                          smem_ptr_0,
+                                                                          std::false_type{});
 
             auto& c_block_window = gemm_tile_windows.at(Base::I4);
 

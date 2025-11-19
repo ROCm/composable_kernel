@@ -465,7 +465,8 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrMem<Prob
                                    const AQDramBlockWindowTmp& aq_dram_block_window_tmp,
                                    index_t m,
                                    index_t num_loop,
-                                   void* p_smem) const
+                                   void* p_smem,
+                                   std::true_type) const
     {
 
         return PipelineImpl<GemmPipelineScheduler::Interwave>{}
@@ -476,6 +477,28 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrMem<Prob
                 [](const BDataType& b) { return b; },
                 aq_dram_block_window_tmp,
                 m,
+                num_loop,
+                p_smem);
+    }
+    template <typename ADramBlockWindowTmp,
+              typename BDramBlockWindowTmp,
+              typename AQDramBlockWindowTmp>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                   const AQDramBlockWindowTmp& aq_dram_block_window_tmp,
+                                   index_t num_loop,
+                                   void* p_smem,
+                                   std::false_type) const
+    {
+
+        return PipelineImpl<GemmPipelineScheduler::Interwave>{}
+            .template operator()<HasHotLoop, TailNum>(
+                a_dram_block_window_tmp,
+                [](const ADataType& a) { return a; },
+                b_dram_block_window_tmp,
+                [](const BDataType& b) { return b; },
+                aq_dram_block_window_tmp,
+                0, // dummy value, won't be used
                 num_loop,
                 p_smem);
     }

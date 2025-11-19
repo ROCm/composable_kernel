@@ -259,9 +259,6 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
             constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
 
             static_assert(is_bq_col_major, "Bq must be col major (row major not supported yet)");
-            // static_assert(KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
-            //                   NPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}],
-            //               "Bq block window has incorrect lengths for defined BqLayout!");
 
             static_assert(is_a_col_major
                               ? (KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
@@ -463,6 +460,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
             return c_block_tile;
         }
     };
+    // Overload for PreshuffleQuant = true
     template <typename ADramBlockWindowTmp,
               typename BDramBlockWindowTmp,
               typename BQDramBlockWindowTmp>
@@ -471,7 +469,8 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                                    const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
                                    index_t n,
                                    index_t num_loop,
-                                   void* p_smem) const
+                                   void* p_smem,
+                                   std::true_type) const
     {
         return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
             a_dram_block_window_tmp,
@@ -484,6 +483,28 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
             p_smem);
     }
 
+    // Overload for PreshuffleQuant = false (no 'n' parameter needed)
+    template <typename ADramBlockWindowTmp,
+              typename BDramBlockWindowTmp,
+              typename BQDramBlockWindowTmp>
+    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
+                                   const BDramBlockWindowTmp& b_dram_block_window_tmp,
+                                   const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
+                                   index_t num_loop,
+                                   void* p_smem,
+                                   std::false_type) const
+    {
+        // Implementation that doesn't use 'n'
+        return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
+            a_dram_block_window_tmp,
+            [](const ADataType& a) { return a; },
+            b_dram_block_window_tmp,
+            [](const BDataType& b) { return b; },
+            bq_dram_block_window_tmp,
+            0, // dummy value, won't be used
+            num_loop,
+            p_smem);
+    }
     /// @brief Runtime pipeline dispatch operator for grouped GEMM kernels.
     ///
     /// This operator is used by grouped GEMM kernels where pipeline parameters
@@ -507,11 +528,11 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                    const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
-                                   index_t n,
                                    index_t num_loop,
                                    bool has_hot_loop,
                                    TailNumber tail_number,
-                                   void* p_smem) const
+                                   void* p_smem,
+                                   std::true_type) const
     {
         const auto RunPipeline = [&](auto has_hot_loop_, auto tail_number_) {
             constexpr bool hot_loop = has_hot_loop_.value;
@@ -522,7 +543,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                 b_dram_block_window_tmp,
                 [](const BDataType& b) { return b; },
                 bq_dram_block_window_tmp,
-                n,
+                0, // dummy value, won't be used
                 num_loop,
                 p_smem);
         };
