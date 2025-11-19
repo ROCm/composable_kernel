@@ -332,7 +332,7 @@ struct StreamKTilePartitionerV2NonPersistentExpected
 
 // Persistent
 template <typename GemmShape>
-void validate_streamk_v2_persistent(
+void validate_streamk_persistent(
     StreamKTilePartitionerV2PersistentExpected& expected_values,
     ck_tile::StreamKTilePartitioner<GemmShape, ck_tile::StreamKReductionStrategy::Atomic, true>&
         tile_partitioner)
@@ -344,7 +344,7 @@ void validate_streamk_v2_persistent(
 
 // Non-Persistent
 template <typename GemmShape>
-void validate_streamk_v2_nonpersistent(
+void validate_streamk_nonpersistent(
     StreamKTilePartitionerV2NonPersistentExpected& expected_values,
     ck_tile::StreamKTilePartitioner<GemmShape, ck_tile::StreamKReductionStrategy::Atomic, false>&
         tile_partitioner)

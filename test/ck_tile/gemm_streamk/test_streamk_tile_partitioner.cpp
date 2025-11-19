@@ -382,7 +382,7 @@ TEST(StreamKTilePartitioner_PersistentConstructor, SKOnly)
             tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     StreamKTilePartitionerV2PersistentExpected expected_values{0, 0, 3};
-    validate_streamk_v2_persistent<Config::GemmShape>(expected_values, tile_partitioner);
+    validate_streamk_persistent<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
 TEST(StreamKTilePartitioner_PersistentConstructor, DPOnly)
@@ -395,7 +395,7 @@ TEST(StreamKTilePartitioner_PersistentConstructor, DPOnly)
         tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     StreamKTilePartitionerV2PersistentExpected expected_values{2, 0, 3};
-    validate_streamk_v2_persistent<Config::GemmShape>(expected_values, tile_partitioner);
+    validate_streamk_persistent<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
 TEST(StreamKTilePartitioner_PersistentConstructor, DP2TileSK)
@@ -408,7 +408,7 @@ TEST(StreamKTilePartitioner_PersistentConstructor, DP2TileSK)
         tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     StreamKTilePartitionerV2PersistentExpected expected_values{1, 0, 3};
-    validate_streamk_v2_persistent<Config::GemmShape>(expected_values, tile_partitioner);
+    validate_streamk_persistent<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
 TEST(StreamKTilePartitioner_PersistentConstructor, EdgeCase)
@@ -421,7 +421,7 @@ TEST(StreamKTilePartitioner_PersistentConstructor, EdgeCase)
         tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     StreamKTilePartitionerV2PersistentExpected expected_values{0, 1, 4};
-    validate_streamk_v2_persistent<Config::GemmShape>(expected_values, tile_partitioner);
+    validate_streamk_persistent<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
 TEST(StreamKTilePartitioner_GridSize_Persistent, SKOnly)
@@ -460,7 +460,7 @@ TEST(StreamKTilePartitioner_NonPersistentConstructor, SKOnly)
             tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     StreamKTilePartitionerV2NonPersistentExpected expected_values{0, 0, 0, 3};
-    validate_streamk_v2_nonpersistent<Config::GemmShape>(expected_values, tile_partitioner);
+    validate_streamk_nonpersistent<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
 TEST(StreamKTilePartitioner_NonPersistentConstructor, DPOnly)
@@ -473,7 +473,7 @@ TEST(StreamKTilePartitioner_NonPersistentConstructor, DPOnly)
         tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     StreamKTilePartitionerV2NonPersistentExpected expected_values{6, 0, 6, 3};
-    validate_streamk_v2_nonpersistent<Config::GemmShape>(expected_values, tile_partitioner);
+    validate_streamk_nonpersistent<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
 TEST(StreamKTilePartitioner_NonPersistentConstructor, DP2TileSK)
@@ -486,7 +486,7 @@ TEST(StreamKTilePartitioner_NonPersistentConstructor, DP2TileSK)
         tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     StreamKTilePartitionerV2NonPersistentExpected expected_values{3, 0, 3, 3};
-    validate_streamk_v2_nonpersistent<Config::GemmShape>(expected_values, tile_partitioner);
+    validate_streamk_nonpersistent<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
 TEST(StreamKTilePartitioner_NonPersistentConstructor, EdgeCase)
@@ -499,7 +499,7 @@ TEST(StreamKTilePartitioner_NonPersistentConstructor, EdgeCase)
         tile_partitioner{Config::M, Config::N, Config::K, Config::GRID};
 
     StreamKTilePartitionerV2NonPersistentExpected expected_values{1, 0, 1, 4};
-    validate_streamk_v2_nonpersistent<Config::GemmShape>(expected_values, tile_partitioner);
+    validate_streamk_nonpersistent<Config::GemmShape>(expected_values, tile_partitioner);
 }
 
 TEST(StreamKTilePartitioner_GridSize_NonPersistent, DP2TileSK)
