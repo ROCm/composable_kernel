@@ -23,6 +23,9 @@ def generateAndArchiveBuildTraceVisualization() {
         timeout(time: 3, unit: 'MINUTES'){
             try{
                 echo "Test message"
+                sh "ls -la"
+                sh "cd /home/pptruser/"
+                sh "ls -la"
                 sh "node capture_build_trace.js"
                 sh "mv /workspace/build_trace_snapshot.png /workspace/build_trace_snapshot_${env.BUILD_NUMBER}.png"
                 archiveArtifacts "/workspace/build_trace_snapshot_*.png"
