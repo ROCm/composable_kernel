@@ -174,8 +174,8 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
                        number<M3>{},
                        number<K1>{},
                        number<K2>{}),
-            make_tuple(number<M1*(M1 * (M2 * M3 * K1 * K2) + (M1 - 1) * Pad)>{},
-                       number<K0*(M2 * M3 * K1 * K2) + (M1 - 1) * Pad>{},
+            make_tuple(number<M1*(K0 * (M2 * M3 * K1 * K2) + (K0 - 1) * Pad)>{},
+                       number<K0*(M2 * M3 * K1 * K2) + (K0 - 1) * Pad>{},
                        number<M2 * M3 * K1 * K2 + Pad>{},
                        number<M3 * K1 * K2>{},
                        number<K1 * K2>{},
@@ -420,7 +420,7 @@ struct MXF4FlatmmPipelineAgBgCrPolicy : UniversalFlatmmPipelineAgBgCrPolicy
     {
         using ADataType               = remove_cvref_t<typename Problem::ADataType>;
         constexpr index_t APackedSize = numeric_traits<ADataType>::PackedSize;
-        return sizeof(typename Problem::ADataType) *
+        return sizeof(ADataType) *
                MakeMXFP4_ALdsBlockDescriptor<Problem>().get_element_space_size() / APackedSize;
     }
 

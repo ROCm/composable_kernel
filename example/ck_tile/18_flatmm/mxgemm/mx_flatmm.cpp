@@ -317,8 +317,6 @@ int run_mx_flatmm_example(int argc, char* argv[])
     {
         throw std::runtime_error("Unsupported data layout configuration for A,B and C tensors!");
     }
-    // -Wunreachable-code-return
-    // return -1;
 }
 
 int main(int argc, char* argv[])
