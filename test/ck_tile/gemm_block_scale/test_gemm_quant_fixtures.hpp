@@ -42,7 +42,7 @@ struct GemmConfigBase
     // Default GEMM tile sizes for tests
     static constexpr ck_tile::index_t M_Tile = 16;
     static constexpr ck_tile::index_t N_Tile = 128;
-    static constexpr ck_tile::index_t K_Tile = 256;
+    static constexpr ck_tile::index_t K_Tile = 128;
 
     static constexpr ck_tile::index_t M_Warp = 1;
     static constexpr ck_tile::index_t N_Warp = 4;
@@ -382,7 +382,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     void run_test_with_validation(ck_tile::index_t M, ck_tile::index_t N, ck_tile::index_t K)
     {
         const ck_tile::index_t stride_A = K;
-        const ck_tile::index_t stride_B = K;
+        const ck_tile::index_t stride_B = std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t> ? (K / 2) : K;
         const ck_tile::index_t stride_C = N;
 
         // BQuant uses block/grouped quantization for B matrix
@@ -394,14 +394,24 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         ck_tile::HostTensor<ADataType> a_m_k(
             ck_tile::host_tensor_descriptor(M, K, stride_A, this->is_row_major(ALayout{})));
         ck_tile::HostTensor<BDataType> b_k_n(
-            ck_tile::host_tensor_descriptor(K, N, stride_B, this->is_row_major(BLayout{})));
+            ck_tile::host_tensor_descriptor(std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t> ? K / 2 : K, 
+            N, stride_B, this->is_row_major(BLayout{})));
         ck_tile::HostTensor<QDataType> bq_bqk_bqn(
             ck_tile::host_tensor_descriptor(BQK, BQN, stride_BQ, this->is_row_major(BLayout{})));
 
         // Initialize data with random values
         ck_tile::FillUniformDistribution<ADataType>{-0.5f, 0.5f}(a_m_k);
-        ck_tile::FillUniformDistribution<BDataType>{0.f, 1.f}(b_k_n);
-        ck_tile::FillUniformDistribution<QDataType>{-1.0f, 1.0f}(bq_bqk_bqn);
+        if constexpr(std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>)
+        {
+            ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f}(b_k_n);
+            ck_tile::FillUniformDistribution<QDataType>{125.f, 130.f}(bq_bqk_bqn);
+        }
+        else
+        {
+            ck_tile::FillUniformDistribution<BDataType>{0.f, 1.f}(b_k_n);
+            ck_tile::FillUniformDistribution<QDataType>{-1.0f, 1.0f}(bq_bqk_bqn);
+        }
+
         // Allocate device memory
         ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size() * sizeof(ADataType));
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size() * sizeof(BDataType));
@@ -474,13 +484,22 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         c_m_n_host_ref.SetZero();
 
         // Run reference BQuant implementation
-        ck_tile::reference_gemm_quant<ADataType,
-                                      QDataType,
-                                      BDataType,
-                                      AccDataType,
-                                      CDataType,
-                                      QuantGroupSize,
-                                      false>(a_m_k, bq_bqk_bqn, b_k_n, c_m_n_host_ref);
+        if constexpr(std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>)
+            ck_tile::reference_mxfp4gemm_quant<ADataType,
+                                               QDataType,
+                                               BDataType,
+                                               AccDataType,
+                                               CDataType,
+                                               QuantGroupSize,
+                                               false>(a_m_k, bq_bqk_bqn, b_k_n, c_m_n_host_ref);
+        else 
+            ck_tile::reference_gemm_quant<ADataType,
+                                          QDataType,
+                                          BDataType,
+                                          AccDataType,
+                                          CDataType,
+                                          QuantGroupSize,
+                                          false>(a_m_k, bq_bqk_bqn, b_k_n, c_m_n_host_ref);
 
         // Get device result
         ck_tile::HostTensor<CDataType> c_m_n_dev_result(
@@ -528,7 +547,9 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
 
         using BaseGemmPipeline = std::conditional_t<
             PreshuffleB == false,
-            ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
+            std::conditional_t<std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>,
+                ck_tile::BaseMxFp4GemmPipelineAgBgCrCompV3<GemmPipelineProblem>,
+                ck_tile::BaseGemmPipelineAgBgCrCompV3<GemmPipelineProblem>>,
             ck_tile::BaseWeightPreshufflePipelineAGmemBGmemCRegV2<GemmPipelineProblem>>;
 
         const ck_tile::index_t K_split  = (args.K + Base::K_Tile - 1) / Base::K_Tile * Base::K_Tile;
@@ -555,12 +576,15 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
 
             using GemmPipeline =
                 std::conditional_t<PreshuffleB == false,
-                                   ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>,
+                                   std::conditional_t<std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>,
+                                       ck_tile::MxFp4GemmPipelineAgBgCrCompV3<PipelineProblem>,
+                                       ck_tile::BQuantGemmPipelineAgBgCrCompV3<PipelineProblem>>,
                                    ck_tile::WPQuantBPipelineAgBgCrV2<PipelineProblem>>;
 
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
-                                                 BDataType,
+                                                 std::conditional_t<std::is_same_v<BDataType, ck_tile::pk_fp4_raw_t>,
+                                                    ADataType, BDataType>,
                                                  ck_tile::tuple<>,
                                                  AccDataType,
                                                  CDataType,

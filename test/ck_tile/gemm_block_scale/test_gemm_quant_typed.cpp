@@ -16,12 +16,15 @@ using FP8           = ck_tile::fp8_t;
 using BF8           = ck_tile::bf8_t;
 using Half          = ck_tile::half_t;
 using PkInt4        = ck_tile::pk_int4_t;
+using BF16          = ck_tile::bf16_t;
+using UInt8         = ck_tile::pk_fp4_raw_t;
 using AQuantGrouped = std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::AQuantGrouped>;
 using BQuantGrouped = std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::BQuantGrouped>;
 using RowColQuant   = std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::RowColQuant>;
 using TensorQuant   = std::integral_constant<ck_tile::QuantType, ck_tile::QuantType::TensorQuant>;
 using GroupSize     = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
 using GroupSize64   = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 64>>;
+using GroupSize32   = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 32>>;
 
 // 2d block sizes for BQuant
 using GroupSize2D8N   = ck_tile::QuantGroupShape<ck_tile::sequence<1, 8, 128>>;
@@ -38,6 +41,7 @@ using AQuantTypes = ::testing::Types<
     std::tuple<RowMajor, ColumnMajor, RowMajor, BF8, BF8, float, Half, AQuantGrouped, GemmConfigBase, GroupSize>,
     std::tuple<RowMajor, ColumnMajor, RowMajor, PkInt4, FP8, FP8, Half, AQuantGrouped, GemmConfigBase, GroupSize>,
     std::tuple<RowMajor, ColumnMajor, RowMajor, PkInt4, BF8, BF8, Half, AQuantGrouped, GemmConfigBase, GroupSize>,
+
 
     // PreshuffleQuant = false && TransposeC = true 
     std::tuple<RowMajor, ColumnMajor, RowMajor, FP8, FP8, float, Half, AQuantGrouped, GemmConfigTransposeC, GroupSize>,
@@ -66,11 +70,15 @@ using BQuantTypes = ::testing::Types<
     std::tuple<RowMajor, ColumnMajor, RowMajor, BF8, BF8,    float, Half, BQuantGrouped, GemmConfigBase, GroupSize>,
     std::tuple<RowMajor, ColumnMajor, RowMajor, FP8, PkInt4, FP8,   Half, BQuantGrouped, GemmConfigBase, GroupSize>,
     std::tuple<RowMajor, ColumnMajor, RowMajor, BF8, PkInt4, BF8,   Half, BQuantGrouped, GemmConfigBase, GroupSize>,
+    std::tuple<RowMajor, ColumnMajor, RowMajor, BF16, UInt8, UInt8, BF16, BQuantGrouped, GemmConfigBase, GroupSize>,
 
     std::tuple<RowMajor, ColumnMajor, RowMajor, FP8, FP8,    float, Half, BQuantGrouped, GemmConfigBase, GroupSize64>,
     std::tuple<RowMajor, ColumnMajor, RowMajor, BF8, BF8,    float, Half, BQuantGrouped, GemmConfigBase, GroupSize64>,
     std::tuple<RowMajor, ColumnMajor, RowMajor, FP8, PkInt4, FP8,   Half, BQuantGrouped, GemmConfigBase, GroupSize64>,
     std::tuple<RowMajor, ColumnMajor, RowMajor, BF8, PkInt4, BF8,   Half, BQuantGrouped, GemmConfigBase, GroupSize64>,
+    std::tuple<RowMajor, ColumnMajor, RowMajor, BF16, UInt8, UInt8, BF16, BQuantGrouped, GemmConfigBase, GroupSize64>,
+
+    std::tuple<RowMajor, ColumnMajor, RowMajor, BF16, UInt8, UInt8, BF16, BQuantGrouped, GemmConfigBase, GroupSize32>,
 
     // 2d cases with grouping also on the n axis
     std::tuple<RowMajor, ColumnMajor, RowMajor, FP8, FP8,    float, Half, BQuantGrouped, GemmConfigBase, GroupSize2D8N>,
