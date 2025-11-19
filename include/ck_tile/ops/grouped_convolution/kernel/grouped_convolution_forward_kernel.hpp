@@ -884,7 +884,8 @@ struct GroupedConvolutionForwardKernel
                                        const CDescType& c_desc,
                                        const index_t gemm_k,
                                        const index_t block_idx_m,
-                                       const index_t block_idx_n)
+                                       const index_t block_idx_n,
+                                       const CDElementwise& elfunc)
     {
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
@@ -907,8 +908,9 @@ struct GroupedConvolutionForwardKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I3);
 
-        EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-            c_block_window, c_block_tile, d_block_window, smem_ptr_0);
+        EpiloguePipeline{elfunc}
+            .template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+                c_block_window, c_block_tile, d_block_window, smem_ptr_0);
     }
 
     /**
@@ -942,7 +944,8 @@ struct GroupedConvolutionForwardKernel
                                            const CDescType& c_desc,
                                            const index_t gemm_k,
                                            const index_t block_idx_m,
-                                           const index_t block_idx_n)
+                                           const index_t block_idx_n,
+                                           const CDElementwise& elfunc)
     {
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
@@ -964,8 +967,9 @@ struct GroupedConvolutionForwardKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I3);
 
-        EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-            c_block_window, c_block_tile, d_block_window, smem_ptr_0);
+        EpiloguePipeline{elfunc}
+            .template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+                c_block_window, c_block_tile, d_block_window, smem_ptr_0);
     }
 
     CK_TILE_DEVICE void operator()(GroupedConvFwdKernelArgsSpecialized kargs) const
@@ -1094,7 +1098,8 @@ struct GroupedConvolutionForwardKernel
                             c_desc,
                             kargs.GemmK,
                             i_m,
-                            i_n);
+                            i_n,
+                            kargs.elfunc);
             }
         }
         else
@@ -1113,7 +1118,8 @@ struct GroupedConvolutionForwardKernel
                         c_desc,
                         kargs.GemmK,
                         i_m,
-                        i_n);
+                        i_n,
+                        kargs.elfunc);
             }
         }
     }
