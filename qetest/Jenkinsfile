@@ -16,10 +16,7 @@ def generateAndArchiveBuildTraceVisualization() {
         pwd
         echo "Contents of current directory:"
         ls -la
-        echo "Contents of parent directory:"
-        ls -la ../
-        echo "Looking for script directory:"
-        cp ../script/infra_helper/capture_build_trace.js ./workspace
+        cp ./script/infra_helper/capture_build_trace.js ./workspace
     """
     def dockerOpts = "--cap-add=SYS_ADMIN -v ${PWD}/workspace:/workspace -e NODE_PATH=/home/pptruser/node_modules"
     withDockerContainer(image: image, args: dockerOpts) {
