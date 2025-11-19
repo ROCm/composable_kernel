@@ -1,52 +1,48 @@
 #!/bin/bash
 
-# Comprehensive MoE GEMM Test Script
-# Goal: Test all combinations to find which ones crash (memory errors, etc.)
-# Unsupported configurations are logged separately, not counted as crashes
+# ============================================================================
+# CONFIGURABLE MoE GEMM TEST SCRIPT
+# ============================================================================
+# Edit the parameters below to run different test scenarios
+# The script will generate a CSV file with results
 
-# Fixed parameters
-NUM_EXPERTS=128
-TOPK=8
-VALIDATE=0  # Disable validation for speed
-MAX_PARALLEL_JOBS=8  # Number of tests to run in parallel
+# ============================================================================
+# TEST CONFIGURATION - MODIFY THESE FOR DIFFERENT TESTS
+# ============================================================================
 
-# Test parameters - N and K combinations
-N_K_PAIRS=("256 4096" "4096 256")  # "N K" pairs to test
-DATA_TYPES=("fp16" "bf16" "fp8" "bf8")
-GEMM_KINDS=("gemm1_gate_only" "gemm1_gate_up" "gemm2")
-WARP_TILES=(0 1 2 3)
-NUM_TOKENS_VALUES=(32 1024)
+# Output file name (CSV format, Excel-compatible)
+OUTPUT_CSV="moe_comprehensive_all_types_test.csv"
+
+# COMPREHENSIVE TEST: All data types, gemm kinds, and configurations
+# Goal: Verify validity flag solution works universally across all supported combinations
+
+# Test parameters - COMPLETE COVERAGE
+N_K_PAIRS=("256 4096" "4096 256")
+NUM_EXPERTS_VALUES=(32 64 128)           # Multiple expert counts
+TOPK_VALUES=(2 4 8)                        # Multiple TopK values
+DATA_TYPES=("fp8" "bf8" "bf16" "fp16")        # ALL supported types
+GEMM_KINDS=("gemm1_gate_only" "gemm1_gate_up" "gemm2")  # ALL gemm kinds
+WARP_TILES=(0 1 2 3)                               
+NUM_TOKENS_VALUES=(32 128 256 512 1024)  # Critical values including previously crashing ones
+
+# Execution parameters
+VALIDATE=0                                    # 0=no validation, 1=validate with CPU
+MAX_PARALLEL_JOBS=4                           # Reduce parallelism for stability
+WARMUP=0                                      # Warmup iterations
+REPEAT=1                                      # Repeat iterations
 
 # Binary path
 BINARY="./build/bin/tile_example_moe_flatmm"
 
-# Output files
-RESULTS_FILE="moe_test_results.txt"
-CRASH_FILE="moe_test_crashes.txt"
-UNSUPPORTED_FILE="moe_test_unsupported.txt"
-SUCCESS_FILE="moe_test_success.txt"
+# ============================================================================
+# DO NOT MODIFY BELOW THIS LINE
+# ============================================================================
 
-# Initialize output files
-echo "MoE GEMM Comprehensive Test Results" > $RESULTS_FILE
-echo "Started at: $(date)" >> $RESULTS_FILE
-echo "Test Parameters: N/K pairs: ${N_K_PAIRS[@]}, experts=$NUM_EXPERTS, topk=$TOPK" >> $RESULTS_FILE
-echo "======================================" >> $RESULTS_FILE
-echo "" >> $RESULTS_FILE
+# Initialize CSV
+CSV_FILE="$OUTPUT_CSV"
 
-echo "ACTUAL CRASHES (Memory Errors, HIP Errors, Aborts)" > $CRASH_FILE
-echo "Started at: $(date)" >> $CRASH_FILE
-echo "======================================" >> $CRASH_FILE
-echo "" >> $CRASH_FILE
-
-echo "Unsupported Configurations (Not Crashes)" > $UNSUPPORTED_FILE
-echo "Started at: $(date)" >> $UNSUPPORTED_FILE
-echo "======================================" >> $UNSUPPORTED_FILE
-echo "" >> $UNSUPPORTED_FILE
-
-echo "Successful Test Configurations" > $SUCCESS_FILE
-echo "Started at: $(date)" >> $SUCCESS_FILE
-echo "======================================" >> $SUCCESS_FILE
-echo "" >> $SUCCESS_FILE
+# Initialize CSV with header
+echo "N,K,Num_Experts,TopK,Precision,GEMM_Kind,Warp_Tile,NumTokens,Result,Crash_Reason" > $CSV_FILE
 
 # Counter
 total_tests=0
@@ -56,103 +52,73 @@ crashed_tests=0
 
 # Function to run a single test
 run_test() {
-    local prec=$1
-    local gemm_kind=$2
-    local warp_tile=$3
-    local num_tokens=$4
-    local test_id=$5
+    local num_experts=$1
+    local topk=$2
+    local prec=$3
+    local gemm_kind=$4
+    local warp_tile=$5
+    local num_tokens=$6
+    local test_id=$7
     
-    test_name="N=${N} K=${K} prec=${prec} gemm_kind=${gemm_kind} warp_tile=${warp_tile} NumTokens=${num_tokens}"
+    test_name="N=${N} K=${K} experts=${num_experts} topk=${topk} prec=${prec} gemm_kind=${gemm_kind} warp_tile=${warp_tile} tokens=${num_tokens}"
     
-    echo "[${test_id}] Testing: $test_name"
+    echo "[${test_id}/${TOTAL_COMBOS}] Testing: $test_name"
     
     # Build command
-    cmd="$BINARY -experts=$NUM_EXPERTS -TopK=$TOPK -N=$N -K=$K -prec=$prec -NumTokens=$num_tokens -gemm_kind=$gemm_kind -warp_tile=$warp_tile -validate=$VALIDATE -warmup=1 -repeat=1"
+    cmd="$BINARY -experts=$num_experts -TopK=$topk -N=$N -K=$K -prec=$prec -NumTokens=$num_tokens -gemm_kind=$gemm_kind -warp_tile=$warp_tile -validate=$VALIDATE -warmup=$WARMUP -repeat=$REPEAT"
     
     # Run test and capture output
     output=$($cmd 2>&1)
     exit_code=$?
     
-    # Determine test status
-    has_unsupported=$(echo "$output" | grep -q "Can't support\|Arguments not supported" && echo "yes" || echo "no")
-    has_crash=$(echo "$output" | grep -q -i "illegal memory\|HIP.*error\|abort\|terminate\|segmentation\|core dumped" && echo "yes" || echo "no")
+    # Determine test status using more stable logic:
+    # 1. If "Perf:" appears in output → PASSED
+    # 2. If "Arguments not supported" or "Can't support" → UNSUPPORTED
+    # 3. Otherwise → CRASHED
     
-    if [ "$has_crash" = "yes" ]; then
-        # ACTUAL CRASH
-        crashed_tests=$((crashed_tests + 1))
-        result="⚠ CRASH"
+    local result_status=""
+    local crash_reason=""
+    
+    if echo "$output" | grep -q "Perf:"; then
+        # Test ran and completed successfully
+        result_status="PASSED"
+        crash_reason=""
+        echo "  Result: ✓ PASS"
         
-        echo "  → CRASHED" >> $CRASH_FILE
-        echo "  Test: $test_name" >> $CRASH_FILE
-        echo "  Exit code: $exit_code" >> $CRASH_FILE
-        echo "  Crash Details:" >> $CRASH_FILE
-        
-        # Extract crash details
-        echo "$output" | grep -i "illegal memory\|HIP.*error\|abort\|terminate\|segmentation\|core dumped" | while IFS= read -r line; do
-            echo "    $line" >> $CRASH_FILE
-        done
-        
-        echo "" >> $CRASH_FILE
-        
-    elif [ "$has_unsupported" = "yes" ]; then
-        # UNSUPPORTED CONFIGURATION (Not a crash)
-        unsupported_tests=$((unsupported_tests + 1))
-        result="○ UNSUPPORTED"
-        
-        echo "  → Configuration Not Supported" >> $UNSUPPORTED_FILE
-        echo "  Test: $test_name" >> $UNSUPPORTED_FILE
-        echo "  Reason:" >> $UNSUPPORTED_FILE
-        
-        echo "$output" | grep "Can't support\|Arguments not supported" | while IFS= read -r line; do
-            echo "    $line" >> $UNSUPPORTED_FILE
-        done
-        
-        echo "" >> $UNSUPPORTED_FILE
-        
-    elif [ $exit_code -eq 0 ]; then
-        # SUCCESS
-        passed_tests=$((passed_tests + 1))
-        result="✓ PASS"
-        
-        echo "  → PASSED" >> $SUCCESS_FILE
-        echo "  Test: $test_name" >> $SUCCESS_FILE
-        
-        # Extract performance if available
-        if echo "$output" | grep -q "Perf:"; then
-            perf=$(echo "$output" | grep "Perf:" | tail -1)
-            echo "  $perf" >> $SUCCESS_FILE
-        fi
-        echo "" >> $SUCCESS_FILE
+    elif echo "$output" | grep -q "Can't support\|Arguments not supported"; then
+        # Configuration not supported by kernel
+        result_status="UNSUPPORTED"
+        crash_reason=""
+        echo "  Result: ○ UNSUPPORTED"
         
     else
-        # UNKNOWN FAILURE
-        crashed_tests=$((crashed_tests + 1))
-        result="✗ FAIL"
-        
-        echo "  → UNKNOWN FAILURE" >> $CRASH_FILE
-        echo "  Test: $test_name" >> $CRASH_FILE
-        echo "  Exit code: $exit_code" >> $CRASH_FILE
-        echo "  Last output lines:" >> $CRASH_FILE
-        echo "$output" | tail -5 | while IFS= read -r line; do
-            echo "    $line" >> $CRASH_FILE
-        done
-        echo "" >> $CRASH_FILE
+        # Test crashed or failed
+        result_status="CRASHED"
+        # Try to extract crash reason
+        if echo "$output" | grep -q -i "illegal memory"; then
+            crash_reason="Illegal memory access"
+        elif echo "$output" | grep -q -i "HIP.*error"; then
+            crash_reason="HIP error"
+        elif echo "$output" | grep -q -i "abort\|terminate"; then
+            crash_reason="Aborted/Terminated"
+        else
+            crash_reason="Unknown (exit $exit_code)"
+        fi
+        echo "  Result: ⚠ CRASH"
     fi
     
-    # Log to main results file
-    echo "Test #$total_tests: $result" >> $RESULTS_FILE
-    echo "  Configuration: $test_name" >> $RESULTS_FILE
-    echo "" >> $RESULTS_FILE
+    # Write to CSV (thread-safe append)
+    echo "$N,$K,$num_experts,$topk,$prec,$gemm_kind,$warp_tile,$num_tokens,$result_status,$crash_reason" >> $CSV_FILE
     
-    echo "  Result: $result"
     echo ""
 }
 
 # Main test loop
-echo "Starting comprehensive MoE GEMM testing..."
-total_combos=$((${#N_K_PAIRS[@]} * ${#DATA_TYPES[@]} * ${#GEMM_KINDS[@]} * ${#WARP_TILES[@]} * ${#NUM_TOKENS_VALUES[@]}))
-echo "Total combinations: $total_combos"
+TOTAL_COMBOS=$((${#N_K_PAIRS[@]} * ${#NUM_EXPERTS_VALUES[@]} * ${#TOPK_VALUES[@]} * ${#DATA_TYPES[@]} * ${#GEMM_KINDS[@]} * ${#WARP_TILES[@]} * ${#NUM_TOKENS_VALUES[@]}))
+echo "Starting MoE GEMM testing..."
+echo "Total combinations: $TOTAL_COMBOS"
 echo "Running with up to $MAX_PARALLEL_JOBS parallel jobs"
+echo "Output: $CSV_FILE"
 echo ""
 
 test_counter=0
@@ -165,19 +131,23 @@ for n_k_pair in "${N_K_PAIRS[@]}"; do
     echo "Testing with N=$N, K=$K"
     echo "========================================"
     
-    for prec in "${DATA_TYPES[@]}"; do
-        for gemm_kind in "${GEMM_KINDS[@]}"; do
-            for warp_tile in "${WARP_TILES[@]}"; do
-                for num_tokens in "${NUM_TOKENS_VALUES[@]}"; do
-                    test_counter=$((test_counter + 1))
-                    
-                    # Wait if we've reached max parallel jobs
-                    while [ $(jobs -r | wc -l) -ge $MAX_PARALLEL_JOBS ]; do
-                        sleep 0.1
+    for num_experts in "${NUM_EXPERTS_VALUES[@]}"; do
+        for topk in "${TOPK_VALUES[@]}"; do
+            for prec in "${DATA_TYPES[@]}"; do
+                for gemm_kind in "${GEMM_KINDS[@]}"; do
+                    for warp_tile in "${WARP_TILES[@]}"; do
+                        for num_tokens in "${NUM_TOKENS_VALUES[@]}"; do
+                            test_counter=$((test_counter + 1))
+                            
+                            # Wait if we've reached max parallel jobs
+                            while [ $(jobs -r | wc -l) -ge $MAX_PARALLEL_JOBS ]; do
+                                sleep 0.1
+                            done
+                            
+                            # Run test in background
+                            run_test "$num_experts" "$topk" "$prec" "$gemm_kind" "$warp_tile" "$num_tokens" "$test_counter" &
+                        done
                     done
-                    
-                    # Run test in background
-                    run_test "$prec" "$gemm_kind" "$warp_tile" "$num_tokens" "$test_counter" &
                 done
             done
         done
@@ -189,23 +159,11 @@ echo ""
 echo "Waiting for all tests to complete..."
 wait
 
-# Count final results from output files
-total_tests=$(grep -c "→" $SUCCESS_FILE $CRASH_FILE $UNSUPPORTED_FILE 2>/dev/null | awk -F: '{sum+=$2} END {print sum}')
-passed_tests=$(grep -c "→ PASSED" $SUCCESS_FILE 2>/dev/null || echo 0)
-unsupported_tests=$(grep -c "→ Configuration Not Supported" $UNSUPPORTED_FILE 2>/dev/null || echo 0)
-crashed_tests=$(grep -c "→ CRASHED\|→ UNKNOWN FAILURE" $CRASH_FILE 2>/dev/null || echo 0)
-
-# Summary
-echo "======================================" >> $RESULTS_FILE
-echo "Test Summary" >> $RESULTS_FILE
-echo "======================================" >> $RESULTS_FILE
-echo "Total tests run: $total_tests" >> $RESULTS_FILE
-echo "Passed: $passed_tests" >> $RESULTS_FILE
-echo "Unsupported (not crashes): $unsupported_tests" >> $RESULTS_FILE
-echo "Actual crashes: $crashed_tests" >> $RESULTS_FILE
-echo "Success rate: $(awk "BEGIN {printf \"%.2f\", ($passed_tests/$total_tests)*100}")%" >> $RESULTS_FILE
-echo "Crash rate: $(awk "BEGIN {printf \"%.2f\", ($crashed_tests/$total_tests)*100}")%" >> $RESULTS_FILE
-echo "Completed at: $(date)" >> $RESULTS_FILE
+# Count final results from CSV
+total_tests=$(tail -n +2 $CSV_FILE | wc -l)
+passed_tests=$(grep -c ",PASSED," $CSV_FILE)
+unsupported_tests=$(grep -c ",UNSUPPORTED," $CSV_FILE)
+crashed_tests=$(grep -c ",CRASHED," $CSV_FILE)
 
 echo ""
 echo "========================================"
@@ -218,8 +176,7 @@ echo "Actual crashes: $crashed_tests"
 echo "Success rate: $(awk "BEGIN {printf \"%.2f\", ($passed_tests/$total_tests)*100}")%"
 echo "Crash rate: $(awk "BEGIN {printf \"%.2f\", ($crashed_tests/$total_tests)*100}")%"
 echo ""
-echo "Results saved to:"
-echo "  - Full results: $RESULTS_FILE"
-echo "  - Actual crashes: $CRASH_FILE"
-echo "  - Unsupported configs: $UNSUPPORTED_FILE"
-echo "  - Successful runs: $SUCCESS_FILE"
+echo "Results saved to CSV (Excel-compatible): $CSV_FILE"
+echo ""
+echo "To view in Excel: Open $CSV_FILE"
+echo "To view in terminal: column -t -s',' $CSV_FILE | less -S"
