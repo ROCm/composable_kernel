@@ -216,10 +216,7 @@ CK_TILE_DEVICE fp8x8_t amd_assembly_i4_to_fp8x8(int a)
 
     uint32_t dict_sel = a & 0x07070707;
     uint32_t sign     = a >> 1;
-    asm volatile("v_and_or_b32 %0, %1, %2, %3"
-                 : "=v"(final_sel)
-                 : "v"(sign), "v"(0x04040404), "v"(0x03020100));
-
+    final_sel = (sign & 0x04040404) | 0x03020100;
     tmp_pos      = __builtin_amdgcn_perm(reg1, reg0, dict_sel);
     tmp_neg      = __builtin_amdgcn_perm(reg3, reg2, dict_sel);
     tmp_res_even = __builtin_amdgcn_perm(tmp_neg, tmp_pos, final_sel);
@@ -227,9 +224,7 @@ CK_TILE_DEVICE fp8x8_t amd_assembly_i4_to_fp8x8(int a)
     a >>= 4;
     dict_sel = a & 0x07070707;
     sign     = a >> 1;
-    asm volatile("v_and_or_b32 %0, %1, %2, %3"
-                 : "=v"(final_sel)
-                 : "v"(sign), "v"(0x04040404), "v"(0x03020100));
+    final_sel = (sign & 0x04040404) | 0x03020100;
 
     tmp_pos           = __builtin_amdgcn_perm(reg1, reg0, dict_sel);
     tmp_neg           = __builtin_amdgcn_perm(reg3, reg2, dict_sel);
@@ -308,9 +303,7 @@ CK_TILE_DEVICE bf8x8_t amd_assembly_i4_to_bf8x8(uint32_t a)
 
     uint32_t dict_sel = a & 0x07070707;
     uint32_t sign     = a >> 1;
-    asm volatile("v_and_or_b32 %0, %1, %2, %3"
-                 : "=v"(final_sel)
-                 : "v"(sign), "v"(0x04040404), "v"(0x03020100));
+    final_sel = (sign & 0x04040404) | 0x03020100;
 
     tmp_pos      = __builtin_amdgcn_perm(reg1, reg0, dict_sel);
     tmp_neg      = __builtin_amdgcn_perm(reg3, reg2, dict_sel);
@@ -319,9 +312,7 @@ CK_TILE_DEVICE bf8x8_t amd_assembly_i4_to_bf8x8(uint32_t a)
     a >>= 4;
     dict_sel = a & 0x07070707;
     sign     = a >> 1;
-    asm volatile("v_and_or_b32 %0, %1, %2, %3"
-                 : "=v"(final_sel)
-                 : "v"(sign), "v"(0x04040404), "v"(0x03020100));
+    final_sel = (sign & 0x04040404) | 0x03020100;
 
     tmp_pos           = __builtin_amdgcn_perm(reg1, reg0, dict_sel);
     tmp_neg           = __builtin_amdgcn_perm(reg3, reg2, dict_sel);

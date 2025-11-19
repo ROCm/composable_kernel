@@ -30,7 +30,14 @@ struct BaseGemmPipelineAgBgCrCompV3
     {
         if(BlockHasHotloop(num_loop))
         {
-            return TailNumber::Full;
+            if(num_loop % PrefetchStages == 0)
+            {
+                return TailNumber::Even;
+            }
+            else
+            {
+                return TailNumber::Odd;
+            }
         }
         else
         {
@@ -56,6 +63,16 @@ struct BaseGemmPipelineAgBgCrCompV3
             {
                 return run_func(bool_constant<true>{},
                                 integral_constant<TailNumber, TailNumber::Full>{});
+            }
+            else if(tail_number == TailNumber::Odd)
+            {
+                return run_func(bool_constant<true>{},
+                                integral_constant<TailNumber, TailNumber::Odd>{});
+            }
+            else if(tail_number == TailNumber::Even)
+            {
+                return run_func(bool_constant<false>{},
+                                integral_constant<TailNumber, TailNumber::Even>{});
             }
         }
         else

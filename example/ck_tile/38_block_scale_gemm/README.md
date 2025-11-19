@@ -33,9 +33,9 @@ mkdir build && cd build
 # you can replace <arch> with the appropriate architecture (for example gfx942) or leave it blank
 ../script/cmake-ck-dev.sh  ../ <arch>
 # Compile the quant kernels
-make tile_example_gemm_quant_basic -j
+make tile_example_gemm_quant -j
 ```
-This will result in an executable `build/bin/tile_example_gemm_quant_basic`
+This will result in an executable `build/bin/tile_example_gemm_quant`
 
 ## example
 ```
