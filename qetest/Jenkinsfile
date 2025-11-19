@@ -12,6 +12,7 @@ def generateAndArchiveBuildTraceVisualization() {
     // Create a temporary volume workspace
     sh """#!/bin/bash
         mkdir -p workspace
+        ls -la
         cp ../script/infra_helper/capture_build_trace.js ./workspace
     """
     def dockerOpts = "--cap-add=SYS_ADMIN -v ${PWD}/workspace:/workspace -e NODE_PATH=/home/pptruser/node_modules"
