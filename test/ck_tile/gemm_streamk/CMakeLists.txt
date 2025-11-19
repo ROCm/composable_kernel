@@ -153,6 +153,8 @@ if(GPU_TARGETS MATCHES "gfx9")
                          ${CMAKE_CURRENT_SOURCE_DIR}/extended_tests/test_gemm_streamk_reboot_fp16_nonpersistent.cpp
                          ${CMAKE_CURRENT_SOURCE_DIR}/extended_tests/test_gemm_streamk_reboot_bf16_nonpersistent.cpp
                          test_gemm_streamk_reboot_util.cpp)
+    # Use standard asm for rtn bf16 conversion instead of turncate
+    target_compile_options(test_ck_tile_streamk_reboot_extended PRIVATE -DCK_TILE_FLOAT_TO_BFLOAT16_DEFAULT=3)
     target_compile_options(test_ck_tile_streamk_smoke PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
 else()
     message(DEBUG "Skipping test_ck_tile_streamk tests for current target")
