@@ -29,9 +29,19 @@ GEMM Pipelines defined in ``include/ck/tensor_operation/gpu/block`` directory.
         lds_write(i+1)
         buffer_load(i+prefetch)    
 
-**TODO**
+:ref:`BlockwiseGemmXdlops_pipeline_v3 <xdl-v3>`
 
-- BlockwiseGemmXdlops_pipeline_v3
+.. code-block::
+
+    buffer_load(0)
+    lds_write(0) 
+    buffer_load(1)
+    lds_read(0)
+    loop:
+        lds_write(i+1)
+        buffer_load(i+2)
+        gemm(i)
+        lds_read(i+1)
 
 CK_TILE GEMM pipelines
 -------------------------
@@ -49,26 +59,52 @@ Pipelines defined in ``include/ck_tile/ops/gemm/pipeline`` directory.
         gemm(i)
         lds_write(i+1)
 
-**TODO**
+:ref:`GemmPipelineAgBgCrMem <ck_tile-mem>`
 
-- GemmPipelineAgBgCrMem
-- GemmPipelineAgBgCrCompV3
+.. code-block::
+
+    buffer_load(0)
+    lds_write(0)
+    buffer_load(1:prefetch)
+    loop:
+        lds_read(i)
+        gemm
+        lds_write(i+1)
+        buffer_load(i+prefetch)
+
+:ref:`GemmPipelineAgBgCrCompV3 <ck_tile-comp_v3>`
+
+.. code-block::
+
+    buffer_load(0)
+    lds_write(0) 
+    buffer_load(1)
+    lds_read(0)
+    loop:
+        lds_write(i+1)
+        buffer_load(i+2)
+        gemm(i)
+        lds_read(i+1)
+
 
 Documentation - Xdl Pipelines
 -------------------------------
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Xdl Pipelines
-   
-   xdl-v1
-   xdl-v2
+    :maxdepth: 2
+    :caption: Xdl Pipelines
+
+    xdl-v1
+    xdl-v2
+    xdl-v3
 
 Documentation - CK_TILE Pipelines
--------------------------------
+-----------------------------------
 
 .. toctree::
-   :maxdepth: 2
-   :caption: CK Tile Pipelines
-   
-   ck_tile-v1
+    :maxdepth: 2
+    :caption: CK Tile Pipelines
+    
+    ck_tile-v1
+    ck_tile-mem
+    ck_tile-comp_v3   
