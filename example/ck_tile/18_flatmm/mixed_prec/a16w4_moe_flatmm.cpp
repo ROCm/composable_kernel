@@ -86,7 +86,8 @@ float a16w4_moe_gemm(const MoeFlatmmHostArgs& args, const ck_tile::stream_config
                                                                FlatmmConfig::NumWaveGroups,
                                                                true>; // Preshuffle_
 
-    constexpr bool MXFP4_Pipeline = std::is_same_v<BDataType, ck_tile::pk_fp4_t>;
+    // TODO(yadai): rename to W4_Pipeline
+    constexpr bool MXFP4_Pipeline = std::is_same_v<BDataType, ck_tile::pk_fp4_t> | std::is_same_v<BDataType, ck_tile::pk_int4_t>;
 
     if constexpr(!MXFP4_Pipeline && moe_kind == ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_up)
     {
@@ -441,6 +442,22 @@ int run_a16w4_moe_flatmm_example(int argc, char* argv[])
                 return run_a16w4_moe_gemm_example_with_layouts<
                     ck_tile::bfloat16_t,
                     ck_tile::pk_fp4_t,
+                    FlatmmConfig,
+                    ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_up>(argc, argv, Row{}, Col{}, Row{});
+            }
+            else if(mixed_prec == "fp16xint4")
+            {
+                return run_a16w4_moe_gemm_example_with_layouts<
+                    ck_tile::half_t,
+                    ck_tile::pk_int4_t,
+                    FlatmmConfig,
+                    ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_up>(argc, argv, Row{}, Col{}, Row{});
+            }
+            else if(mixed_prec == "bf16xint4")
+            {
+                return run_a16w4_moe_gemm_example_with_layouts<
+                    ck_tile::bfloat16_t,
+                    ck_tile::pk_int4_t,
                     FlatmmConfig,
                     ck_tile::MoeFlatmmKind::kFFN_gemm1_gate_up>(argc, argv, Row{}, Col{}, Row{});
             }
