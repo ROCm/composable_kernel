@@ -19,24 +19,14 @@ def generateAndArchiveBuildTraceVisualization() {
         cp ./script/infra_helper/capture_build_trace.js ./workspace
     """
     def dockerOpts = "--cap-add=SYS_ADMIN -v ${PWD}/workspace:/workspace -e NODE_PATH=/home/pptruser/node_modules"
-    withDockerContainer(image: image, args: dockerOpts) {
-        timeout(time: 3, unit: 'MINUTES'){
-            try{
-                echo "Debugging container environment..."
-                sh "pwd"
-                sh "ls -la \$HOME || echo 'HOME directory not accessible'"
-                sh "ls -la ~/.cache/ || echo 'Cache directory not accessible'"
-                sh "ls -la /home/ || echo 'Home directory listing failed'"
-                sh "node ./script/infra_helper/capture_build_trace.js"
-                sh "mv /workspace/build_trace_snapshot.png /workspace/build_trace_snapshot_${env.BUILD_NUMBER}.png"
-                archiveArtifacts "/workspace/build_trace_snapshot_*.png"
-            }
-            catch(e){
-                echo "Throwing error exception while generating build trace visualization"
-                echo 'Exception occurred: ' + e.toString()
-            }
-        }
-    }
+    
+    // Run docker container directly
+    sh """
+        docker run --rm ${dockerOpts} ${image} node /workspace/capture_build_trace.js
+        mv ./workspace/build_trace_snapshot.png ./workspace/build_trace_snapshot_${env.BUILD_NUMBER}.png
+    """
+    
+    archiveArtifacts "workspace/build_trace_snapshot_*.png"
 }
 
 pipeline {
