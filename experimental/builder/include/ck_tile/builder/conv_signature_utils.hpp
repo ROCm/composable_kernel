@@ -14,13 +14,14 @@ namespace ck_tile::builder {
  **********************************************/
 
 template <auto Sig>
-concept ProvidesElementwiseOperation = requires {Sig.elementwiseOperation;};
+concept ProvidesElementwiseOperation = requires { Sig.elementwiseOperation; };
 
 template <auto Sig>
-concept ProvidesConvolutionDirection = requires {Sig.direction;};
+concept ProvidesConvolutionDirection = requires { Sig.direction; };
 
 template <auto Sig>
-constexpr auto get_elementwise_operation() {
+constexpr auto get_elementwise_operation()
+{
     if constexpr(ProvidesElementwiseOperation<Sig>)
     {
         return Sig.elementwise_operation;
@@ -32,7 +33,8 @@ constexpr auto get_elementwise_operation() {
 }
 
 template <auto Sig>
-constexpr auto get_conv_direction() {
+constexpr auto get_conv_direction()
+{
     if constexpr(ProvidesConvolutionDirection<Sig>)
     {
         return Sig.direction;

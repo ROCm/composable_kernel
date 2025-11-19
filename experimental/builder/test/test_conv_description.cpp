@@ -49,6 +49,7 @@ struct ConvSignatureWithInvalidOptionalParams
     ckb::GroupConvDeviceOp device_operation =
         ckb::FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3;
 };
+
 static_assert(!ckb::ConvSignatureDescriptor<ConvSignatureWithInvalidOptionalParams>);
 
 struct DefaultAlgorithm

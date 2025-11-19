@@ -60,7 +60,6 @@
 
 #include "ck_tile/builder/conv_signature_utils.hpp"
 
-
 namespace ck_tile::builder::factory_internal {
 
 // Type mappings from the builder FwdGroupConvLayout enum classes to the CK tensor data types.
