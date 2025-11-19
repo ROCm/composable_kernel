@@ -9,7 +9,7 @@ def generateAndArchiveBuildTraceVisualization() {
     def retimage = docker.image("${image}")
     retimage.pull()
 
-    // Create a temporary volume workspace
+    // Create a temporary workspace
     sh """#!/bin/bash
         mkdir -p workspace
         echo "Current directory:"
@@ -17,8 +17,9 @@ def generateAndArchiveBuildTraceVisualization() {
         echo "Contents of current directory:"
         ls -la
         cp ./script/infra_helper/capture_build_trace.js ./workspace
+        ls -la ./workspace
     """
-    def dockerOpts = "--cap-add=SYS_ADMIN -v ${PWD}/workspace:/workspace -e NODE_PATH=/home/pptruser/node_modules"
+    def dockerOpts = "--cap-add=SYS_ADMIN -v \"\$(pwd)/workspace:/workspace\" -e NODE_PATH=/home/pptruser/node_modules"
     
     // Run docker container directly
     sh """
