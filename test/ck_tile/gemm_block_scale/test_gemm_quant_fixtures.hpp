@@ -145,14 +145,16 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     // AQuant-specific data generation
     void run_test_with_validation(ck_tile::index_t M, ck_tile::index_t N, ck_tile::index_t K)
     {
-        constexpr bool is_RRR_layout =
+        constexpr bool is_Aquant_RRR_layout =
             std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::RowMajor> &&
-            std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>;
-        constexpr bool is_CRR_layout =
+            std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor> &&
+            QuantType == ck_tile::QuantType::AQuantGrouped;
+        constexpr bool is_Aquant_CRR_layout =
             std::is_same_v<ALayout, ck_tile::tensor_layout::gemm::ColumnMajor> &&
-            std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor>;
+            std::is_same_v<BLayout, ck_tile::tensor_layout::gemm::RowMajor> &&
+            QuantType == ck_tile::QuantType::AQuantGrouped;
 
-        if((is_RRR_layout || is_CRR_layout) && ck_tile::get_device_name() == "gfx950")
+        if((is_Aquant_RRR_layout || is_Aquant_CRR_layout) && ck_tile::get_device_name() == "gfx950")
         {
             GTEST_SKIP() << "RRR/CRR layouts are not supported on gfx950 for AQuantGrouped mode";
         }
