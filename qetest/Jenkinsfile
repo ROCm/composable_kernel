@@ -23,6 +23,7 @@ def generateAndArchiveBuildTraceVisualization() {
         timeout(time: 3, unit: 'MINUTES'){
             try{
                 echo "Test message"
+                sh "ls -l ~/.cache/puppeteer/"
                 sh "ls -la"
                 sh "node ./script/infra_helper/capture_build_trace.js"
                 sh "mv /workspace/build_trace_snapshot.png /workspace/build_trace_snapshot_${env.BUILD_NUMBER}.png"
