@@ -19,9 +19,10 @@ def generateAndArchiveBuildTraceVisualization() {
         ls -la
         cp ./script/infra_helper/capture_build_trace.js ./workspace
         cp ./qetest/ck_build_trace_dummy_test.json ./workspace/ck_build_trace.json
+        chmod 777 ./workspace
         ls -la ./workspace
     """
-    def dockerOpts = "--cap-add=SYS_ADMIN --user \$(id -u):\$(id -g) -v \"\$(pwd)/workspace:/workspace\" -e NODE_PATH=/home/pptruser/node_modules"
+    def dockerOpts = "--cap-add=SYS_ADMIN -v \"\$(pwd)/workspace:/workspace\" -e NODE_PATH=/home/pptruser/node_modules"
     
     // Run docker container directly
     sh """
