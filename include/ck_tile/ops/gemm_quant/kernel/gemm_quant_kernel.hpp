@@ -690,11 +690,11 @@ struct QuantGemmKernel
                 static_assert(std::is_same_v<BQLayout, tensor_layout::gemm::ColumnMajor>);
                 using QuantGroupSize = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
                 return make_naive_tensor_view<address_space_enum::global>(
-                        bq_ptr,
-                        make_tuple(integer_divide_ceil(kargs.N, QuantGroupSize::kN), kargs.QK_B),
-                        make_tuple(kargs.stride_BQ, 1),
-                        number<GemmPipeline::GetVectorSizeBQ()>{},
-                        number<1>{});
+                    bq_ptr,
+                    make_tuple(integer_divide_ceil(kargs.N, QuantGroupSize::kN), kargs.QK_B),
+                    make_tuple(kargs.stride_BQ, 1),
+                    number<GemmPipeline::GetVectorSizeBQ()>{},
+                    number<1>{});
             }
             else
             {
@@ -915,10 +915,8 @@ struct QuantGemmKernel
                 using QuantGroupSize = remove_cvref_t<typename GemmPipeline::QuantGroupSize>;
                 return make_tile_window(
                     bq_pad_view,
-                    make_tuple(
-                               number<TilePartitioner::NPerBlock / QuantGroupSize::kN>{},
-                               number<TilePartitioner::KPerBlock / QuantGroupSize::kK>{}
-                            ),
+                    make_tuple(number<TilePartitioner::NPerBlock / QuantGroupSize::kN>{},
+                               number<TilePartitioner::KPerBlock / QuantGroupSize::kK>{}),
                     {i_n / QuantGroupSize::kN, 0});
             }
             else

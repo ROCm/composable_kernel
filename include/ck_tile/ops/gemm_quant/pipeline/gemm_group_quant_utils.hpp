@@ -223,7 +223,7 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
             constexpr index_t Y2 = WarpGemm::kN / YPerQ; // Number of scales per warp
             constexpr index_t YR = YPerQ;                // Elements per quantization group
 
-            static_assert(Y0 * Y1 * Y2 == XPerTile, "X0, X1, X2 must cover the blocktile along X.");
+            static_assert(Y0 * Y1 * Y2 == YPerTile, "Y0, Y1, Y2 must cover the blocktile along Y.");
 
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<MWarps, XR, YR>,
@@ -238,7 +238,7 @@ struct tile_distribution_encoding_pattern_bq : public tile_distribution_encoding
             // Case 2: Medium-grained - one quantization scale per warp
             constexpr auto YR = YPerQ / WarpGemm::kN; // Scale replication factor
             constexpr auto Y1 = NWarps / YR;          // Warps per unique scale
-            constexpr auto Y0 = XPerTile / Y1;        // Iterations to cover X dimension
+            constexpr auto Y0 = YPerTile / Y1;        // Iterations to cover X dimension
             return make_static_tile_distribution(
                 tile_distribution_encoding<sequence<MWarps, YR, get_warp_size()>,
                                            tuple<sequence<Y0, Y1>, sequence<XPerTile>>,
