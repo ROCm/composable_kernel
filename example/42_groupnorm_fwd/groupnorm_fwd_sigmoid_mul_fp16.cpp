@@ -3,6 +3,10 @@
 
 #include "common.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 constexpr int Rank         = 5;
 constexpr int NumReduceDim = 3;
 
