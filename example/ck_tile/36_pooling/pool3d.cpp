@@ -31,8 +31,8 @@ auto create_args(int argc, char* argv[])
         .insert("RightPy", "1", "right padding h")
         .insert("RightPx", "1", "right padding w")
         .insert("v", "1", "cpu validation or not")
-        .insert("warmup", "5", "cold iter")
-        .insert("repeat", "10", "hot iter");
+        .insert("warmup", "20", "cold iter")
+        .insert("repeat", "100", "hot iter");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
