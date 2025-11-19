@@ -6,7 +6,7 @@ LoadStoreTraits - Memory Access Optimization Engine
 Overview
 --------
 
-LoadStoreTraits is a critical optimization component that analyzes :ref:`tile distributions <ck_tile_tile_distribution>` to determine the most efficient memory access patterns. It serves as the intelligence behind :ref:`TileWindow's <ck_tile_tile_window>` high-performance data movement, automatically identifying the best dimension for vectorization and creating optimized access sequences using :ref:`space-filling curves <ck_tile_space_filling_curve>`.
+LoadStoreTraits is a critical optimization component that analyzes :ref:`tile distributions <ck_tile_tile_distribution>` to determine the most efficient memory access patterns. It serves as the engine behind :ref:`TileWindow's <ck_tile_tile_window>` high-performance data movement, automatically identifying the best dimension for vectorization and creating optimized access sequences using :ref:`space-filling curves <ck_tile_space_filling_curve>`.
 
 At compile time, LoadStoreTraits performs compile-time analysis of the distribution pattern to extract key information about memory access opportunities. This analysis determines how many elements can be loaded or stored in a single instruction, which dimension provides the best vectorization opportunity, and what traversal order maximizes cache utilization. The result is a set of compile-time constants and methods that guide the runtime execution of load and store operations.
 
@@ -16,7 +16,7 @@ Key Concepts
 Vectorization Selection
 ~~~~~~~~~~~~~~~~~~~~~~~
 
-LoadStoreTraits analyzes tensor dimensions to find the optimal one for vectorized loads/stores, prioritizing:
+LoadStoreTraits analyzes tensor dimensions to find the optimal one for vectorized loads and stores, prioritizing:
 
 - **Contiguous memory access** (stride = 1)
 - **Maximum vector length** based on data type and :ref:`hardware capabilities <ck_tile_gpu_basics>`
@@ -30,7 +30,7 @@ The system automatically creates a :ref:`space-filling curve <ck_tile_space_fill
 Access Pattern Optimization
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-LoadStoreTraits manages the trade-off between vector size and number of memory accesses, finding the sweet spot that minimizes total memory transactions while maximizing bandwidth utilization.
+LoadStoreTraits manages the trade-off between vector size and number of memory accesses, finding a solution that minimizes total memory transactions while maximizing bandwidth utilization.
 
 C++ Implementation
 ------------------
@@ -101,10 +101,7 @@ The LoadStoreTraits class analyzes distribution patterns at compile time:
 Vectorization Selection Algorithm
 ---------------------------------
 
-LoadStoreTraits employs a advanced algorithm to select the best dimension for vectorization:
-
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
+LoadStoreTraits employs an advanced algorithm to select the best dimension for vectorization:
    
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
@@ -130,14 +127,11 @@ LoadStoreTraits employs a advanced algorithm to select the best dimension for ve
       
       
    
-   
 
 .. image:: diagrams/load_store_traits_1.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/load_store_traits_1.svg
-   :alt: Diagram
-   :align: center
+
 **Example: Comparing Different Memory Layouts**
 
 .. code-block:: cpp
@@ -182,9 +176,6 @@ LoadStoreTraits creates efficient access patterns using space-filling curves:
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
    
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
       .. mermaid::
       
          graph LR
@@ -215,14 +206,10 @@ LoadStoreTraits creates efficient access patterns using space-filling curves:
       
       
    
-   
+.. image:: diagrams/load_store_traits_2.svg
+   :alt: Diagram
+   :align: center
 
-.. image:: diagrams/load_store_traits_2.svg
-   :alt: Diagram
-   :align: center
-.. image:: diagrams/load_store_traits_2.svg
-   :alt: Diagram
-   :align: center
 **C++ Access Pattern Example:**
 
 .. code-block:: cpp
@@ -476,7 +463,7 @@ Summary
 LoadStoreTraits provides:
 
 - **Automatic vectorization analysis**: Identifies optimal dimensions and vector sizes
-- **Space-filling curve optimization**: Creates cache-friendly access patterns (see :ref:`ck_tile_space_filling_curve`)
+- **Space-filling curve optimization**: Creates cache-friendly access patterns. See :ref:`ck_tile_space_filling_curve` for more information.
 - **Compile-time optimization**: All analysis done at compile time for zero overhead
 - **Hardware adaptation**: Adjusts to different data types and :ref:`architectures <ck_tile_gpu_basics>`
 - **Performance transparency**: Clear metrics for memory efficiency
@@ -485,8 +472,6 @@ The compile-time analysis performed by LoadStoreTraits ensures that every memory
 
 Next Steps
 ----------
-
-With an understanding of LoadStoreTraits, explore:
 
 - :ref:`ck_tile_space_filling_curve` - Deep dive into traversal patterns
 - :ref:`ck_tile_tile_window` - How LoadStoreTraits enables efficient data access

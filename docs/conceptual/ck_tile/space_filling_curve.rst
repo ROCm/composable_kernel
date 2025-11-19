@@ -6,7 +6,7 @@ Space-Filling Curves - Optimal Memory Traversal
 Overview
 --------
 
-The SpaceFillingCurve class provides a systematic way to traverse multi-dimensional tensors, supporting both scalar and vectorized access patterns. This is particularly crucial for optimizing memory access patterns in :ref:`GPU kernels <ck_tile_gpu_basics>`, where the order of memory accesses can dramatically impact performance through cache utilization, memory coalescing, and prefetching effectiveness.
+The SpaceFillingCurve (SFC) class provides a systematic way to traverse multi-dimensional tensors, supporting both scalar and vectorized access patterns. This is particularly important for optimizing memory access patterns in :ref:`GPU kernels <ck_tile_gpu_basics>`, where the order of memory accesses can dramatically impact performance through cache utilization, memory coalescing, and prefetching effectiveness.
 
 A space-filling curve is a continuous curve that visits every point in a multi-dimensional space exactly once. In the context of CK Tile, it defines a mapping from a 1D access index to multi-dimensional :ref:`tensor coordinates <ck_tile_coordinate_systems>`, enabling efficient traversal patterns that maximize hardware utilization.
 
@@ -21,22 +21,22 @@ The space-filling curve defines a mapping from a 1D access index to multi-dimens
 Vectorized Access
 ~~~~~~~~~~~~~~~~~
 
-Modern :ref:`GPUs <ck_tile_gpu_basics>` support vector load/store instructions that can access multiple consecutive elements in a single operation. SpaceFillingCurve supports this by allowing specification of how many elements to access per dimension (``scalars_per_access``), enabling efficient utilization of these hardware features.
+:ref:`GPUs <ck_tile_gpu_basics>` support vector load and store instructions that can access multiple consecutive elements in a single operation. SpaceFillingCurve supports this by allowing specification of how many elements to access per dimension (``scalars_per_access``), enabling efficient utilization of these hardware features.
 
 Dimension Ordering
 ~~~~~~~~~~~~~~~~~~
 
-The order in which dimensions are traversed has profound impacts on memory access patterns. Row-major vs column-major ordering, for example, can mean the difference between sequential memory access (optimal) and strided access (potentially causing cache thrashing).
+The order in which dimensions are traversed impacts  memory access patterns. Row-major vs column-major ordering, for example, can mean the difference between the preferred sequential memory access and strided access which can potentially cause cache thrashing.
 
 Snake Patterns
 ~~~~~~~~~~~~~~
 
-Snake (or serpentine) patterns reverse the traversal direction on alternate rows/planes, keeping consecutive accesses spatially close. This pattern is particularly effective for maintaining cache locality when moving between rows or higher-dimensional boundaries.
+Snake, or serpentine, patterns reverse the traversal direction on alternate rows and planes, keeping consecutive accesses spatially close. This pattern is particularly effective for maintaining cache locality when moving between rows or higher-dimensional boundaries.
 
 Usage
 ~~~~~
 
-SFC mainly uses in the following part of CK Tile: Tile Transpose, Tile shuffling iteration, and CShuffle to both access the tile data with the discrete way the application requred and have the best cache memory coherent hit.
+SFC mainly uses Tile Transpose, Tile shuffling iteration, and CShuffle to access the tile data in the discrete way the application requires and have the best cache memory coherent hit.
 
 C++ Implementation
 ------------------
@@ -189,9 +189,6 @@ Snake Pattern for Cache Optimization
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The snake pattern reverses traversal direction on alternate rows, minimizing the distance between consecutive accesses:
-
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
    
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
@@ -231,9 +228,7 @@ The snake pattern reverses traversal direction on alternate rows, minimizing the
 .. image:: diagrams/space_filling_curve.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/space_filling_curve.svg
-   :alt: Diagram
-   :align: center
+
 .. code-block:: cpp
 
    using SnakeCurve = space_filling_curve<
@@ -499,7 +494,7 @@ Summary
 Space-filling curves provide:
 
 - **Systematic traversal**: Convert N-D access to 1D iteration
-- **Vectorization support**: Efficient use of vector load/store instructions
+- **Vectorization support**: Efficient use of vector load and store instructions
 - **Cache optimization**: Snake patterns and dimension ordering for locality
 - **Flexibility**: Adaptable to different :ref:`tensor shapes <ck_tile_descriptors>` and access patterns
 - **Performance**: Compile-time optimization with zero runtime overhead
@@ -508,8 +503,6 @@ The advanced traversal patterns enabled by space-filling curves are fundamental 
 
 Next Steps
 ----------
-
-With an understanding of space-filling curves, explore:
 
 - :ref:`ck_tile_load_store_traits` - How curves optimize memory access
 - :ref:`ck_tile_sweep_tile` - Traversing distributed tensors

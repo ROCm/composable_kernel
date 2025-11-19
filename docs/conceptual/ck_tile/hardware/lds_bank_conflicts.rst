@@ -43,12 +43,12 @@ If within each group of lanes there is no conflict it is an LDS bank conflict fr
 Bank Access Patterns
 ====================
 
-We can simulate LDS bank access for a given set of thread addresses. Let us consider a 32 bank LDS with 4 bytes per bank. Each thread will be writing 8 2-byte elements (16 bytes total), consuming 4 banks in LDS. fp16 or bf16 are the common formats GPU kernels have to deal with. With the phase access pattern like above by default it is a bank conflict free LDS write access.
+LDS bank access can be simulated for a given set of thread addresses. With a 32 bank LDS with 4 bytes per bank, each thread will be writing 8 2-byte elements (16 bytes total), consuming 4 banks in LDS. fp16 or bf16 are the common formats GPU kernels have to deal with. With the phase access pattern like above by default it is a bank conflict free LDS write access.
 
 Write Access Pattern
 --------------------
 
-For LDS write instructions like ``ds_write_b128``, the hardware naturally provides conflict-free access when threads write to consecutive addresses. Each phase of 8 lanes writes to different banks, avoiding conflicts.
+For LDS write instructions like ``ds_write_b128``, the hardware provides conflict-free access when threads write to consecutive addresses. Each phase of 8 lanes writes to different banks, avoiding conflicts.
 
 Read Access Pattern
 -------------------
@@ -66,7 +66,7 @@ Similarly for LDS read instruction ``ds_read_b128``, when there is no bank confl
 
 then it's bank conflict-free for LDS reading.
 
-The reason we are accessing the data vertically is becasue in most LDS access we will have the MFMA instruction in the next step and the MFMA require to access the data vertically like above.
+The reason for accessing the data vertically is because in most LDS access the MFMA instruction in the next step and the MFMA are requirde to access the data vertically like above.
 
 The LDS read access pattern illustrated below is typical for LDS usage in machine learning workloads. The read pattern can generate 4-way bank conflicts in every phase of access. You can experiment with ``row_padding`` (padding in a number of banks) to see if the problem can be solved this way, but also remember that in practice this will require additional LDS storage. The bigger the padding, the more additional storage is necessary.
 
@@ -92,7 +92,7 @@ where :math:`\oplus` is the bitwise XOR, and :math:`x, y` are the original posit
 C++ Implementation
 ==================
 
-Here's how CK implements XOR preshuffling in practice:
+Here's how CK implements XOR preshuffling:
 
 .. code-block:: cpp
 
@@ -143,7 +143,7 @@ Here's how CK implements XOR preshuffling in practice:
 Integration with CK Tile
 ========================
 
-CK Tile automatically handles LDS bank conflict avoidance through its abstractions:
+CK Tile handles LDS bank conflict avoidance through its abstractions:
 
 1. **TileWindow** (:ref:`ck_tile_tile_window`): Automatically applies XOR preshuffling when loading/storing to LDS
 2. **StaticDistributedTensor** (:ref:`ck_tile_static_distributed_tensor`): Manages LDS allocation with proper alignment

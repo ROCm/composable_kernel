@@ -11,7 +11,7 @@ Memory Swizzling with Morton Ordering
 Overview
 ========
 
-This chapter demonstrates a practical application of tensor descriptors for implementing memory swizzling patterns, specifically Morton ordering (Z-order curve) within tiles. Memory swizzling is crucial for optimizing GPU memory access patterns and reducing bank conflicts (see :ref:`ck_tile_lds_bank_conflicts`). Morton ordering provides a space-filling curve that maintains spatial locality while enabling efficient parallel access (see :ref:`ck_tile_space_filling_curve` for theoretical background).
+This chapter demonstrates a practical application of tensor descriptors for implementing memory swizzling patterns, specifically Morton ordering (Z-order curve) within tiles. Memory swizzling is used to optimize GPU memory access patterns and reduce :ref:`bank conflicts <ck_tile_lds_bank_conflicts>`. Morton ordering provides a space-filling curve that maintains spatial locality while enabling efficient parallel access. See :ref:`ck_tile_space_filling_curve` for more information about parallel access.
 
 Morton ordering is widely used in:
 
@@ -155,7 +155,7 @@ Example usage for an 8×8 texture with 4×4 tiles:
 Stage 2: Morton Ordering with MergeTransform
 ============================================
 
-The key insight is that MergeTransform enables Morton ordering by allowing us to reorder and merge coordinate bits. The transformation involves:
+The key insight is that MergeTransform enables Morton ordering by reordering and merging coordinate bits. The transformation involves:
 
 1. Split coordinates into individual bits using UnmergeTransform
 2. Reorder and merge bits using MergeTransform to create the Morton index
@@ -226,7 +226,7 @@ Here's a complete implementation combining both stages:
 Memory Access Pattern Analysis
 ==============================
 
-Let's analyze the benefits of Morton ordering for different access patterns:
+An analysis of the benefits of Morton ordering for different access patterns:
 
 .. code-block:: cpp
 
@@ -289,7 +289,7 @@ Let's analyze the benefits of Morton ordering for different access patterns:
 GPU Kernel Implementation
 =========================
 
-Here's a complete GPU kernel using Morton ordering for optimized memory access:
+A complete GPU kernel using Morton ordering for optimized memory access:
 
 .. code-block:: cpp
 

@@ -6,19 +6,19 @@ Buffer Views - Raw Memory Access
 Overview
 --------
 
-At the foundation of the CK Tile system lies BufferView, a compile-time abstraction that provides structured access to raw memory regions within GPU kernels. This fundamental building block serves as the bridge between the hardware's physical memory model and the higher-level abstractions that enable efficient GPU programming. BufferView encapsulates the complexity of GPU memory hierarchies while exposing a unified interface that works seamlessly across different memory address spaces—whether accessing global memory shared across the entire device, local data share (LDS) memory shared within a workgroup, or the ultra-fast register files private to each thread.
+At the foundation of the CK Tile system lies BufferView, a compile-time abstraction that provides structured access to raw memory regions within GPU kernels. This serves as the bridge between the hardware's physical memory model and the higher-level abstractions that enable efficient GPU programming. BufferView encapsulates the complexity of GPU memory hierarchies while exposing a unified interface that works seamlessly across different memory address spaces including global memory shared across the entire device, local data share (LDS) memory shared within a workgroup, or the ultra-fast register files private to each thread.
 
 BufferView serves as the foundation for :ref:`ck_tile_tensor_views`, which add multi-dimensional structure on top of raw memory access. Understanding BufferView is essential before moving on to more complex abstractions like :ref:`ck_tile_distribution` and :ref:`ck_tile_window`.
 
-The design of BufferView reflects a deep understanding of GPU architecture and the performance characteristics that distinguish efficient from inefficient memory access patterns. By providing compile-time knowledge of buffer properties through template metaprogramming, BufferView enables the compiler to generate optimal machine code for each specific use case. This zero-overhead abstraction ensures that the convenience of a high-level interface comes with no runtime performance penalty.
+By providing compile-time knowledge of buffer properties through template metaprogramming, BufferView enables the compiler to generate optimal machine code for each specific use case. This zero-overhead abstraction ensures that the convenience of a high-level interface comes with no runtime performance penalty.
 
-One of BufferView's most critical features is its advanced handling of out-of-bounds memory access. Unlike CPU programming where such accesses typically result in segmentation faults or undefined behavior, GPU programming must gracefully handle cases where threads attempt to access memory beyond allocated boundaries. BufferView provides configurable strategies for these scenarios, allowing developers to choose between returning numerical zero values or custom sentinel values for invalid accesses. This flexibility proves essential for algorithms that naturally extend beyond data boundaries, such as convolutions with padding or matrix operations with non-aligned dimensions.
+One of BufferView's most important features is its advanced handling of out-of-bounds memory access. Unlike CPU programming where such accesses typically result in segmentation faults or undefined behavior, GPU programming must gracefully handle cases where threads attempt to access memory beyond allocated boundaries. BufferView provides configurable strategies for these scenarios, where developers can choose between returning either numerical zero values or custom sentinel values for invalid accesses. This flexibility is important for algorithms that naturally extend beyond data boundaries, such as convolutions with padding or matrix operations with non-aligned dimensions.
 
-The abstraction extends beyond simple memory access to encompass both scalar and vector data types. Modern GPUs achieve their highest efficiency when loading or storing multiple data elements in a single instruction. BufferView seamlessly supports these vectorized operations, automatically selecting the appropriate hardware instructions based on the data type and access pattern. This capability transforms what would be multiple memory transactions into single, efficient operations that fully utilize the available memory bandwidth.
+The abstraction extends beyond simple memory access to encompass both scalar and vector data types. GPUs achieve their highest efficiency when loading or storing multiple data elements in a single instruction. BufferView seamlessly supports these vectorized operations, automatically selecting the appropriate hardware instructions based on the data type and access pattern. This capability transforms what would be multiple memory transactions into single, efficient operations that fully utilize the available memory bandwidth.
 
 BufferView also incorporates AMD GPU-specific optimizations that leverage unique hardware features. The AMD buffer addressing mode, for instance, provides hardware-accelerated bounds checking that ensures memory safety without the performance overhead of software-based checks. Similarly, BufferView exposes atomic operations that are crucial for parallel algorithms requiring thread-safe updates to shared data structures. These hardware-specific optimizations are abstracted behind a portable interface, ensuring that code remains maintainable while achieving optimal performance.
 
-Memory coherence and caching policies represent another layer of complexity that BufferView manages transparently. Different GPU memory spaces have different coherence guarantees and caching behaviors. Global memory accesses may be cached in L1 and L2 caches with various coherence protocols, while LDS memory provides workgroup-level coherence with specialized banking structures (see :ref:`ck_tile_lds_bank_conflicts` for details on avoiding bank conflicts). BufferView encapsulates these details, automatically applying the appropriate memory ordering constraints and cache control directives based on the target address space and operation type.
+Memory coherence and caching policies represent another layer of complexity that BufferView manages transparently. Different GPU memory spaces have different coherence guarantees and caching behaviors. Global memory accesses can be cached in L1 and L2 caches with various coherence protocols, while LDS memory provides workgroup-level coherence with specialized banking structures (see :ref:`ck_tile_lds_bank_conflicts` for details on avoiding bank conflicts). BufferView encapsulates these details, automatically applying the appropriate memory ordering constraints and cache control directives based on the target address space and operation type.
 
 Address Space Usage Patterns
 ----------------------------
@@ -77,7 +77,7 @@ C++ Implementation
 Basic Creation
 ~~~~~~~~~~~~~~
 
-The implementation of BufferView showcases the power of modern C++ template metaprogramming applied to GPU kernel development. By encoding critical properties such as buffer size and address space as template parameters, BufferView transforms what would traditionally be runtime decisions into compile-time constants. This design philosophy enables the compiler to perform aggressive optimizations, including constant propagation, loop unrolling, and instruction selection, that would be impossible with runtime parameters.
+By encoding critical properties such as buffer size and address space as template parameters, BufferView transforms what would traditionally be runtime decisions into compile-time constants. This design philosophy enables the compiler to perform aggressive optimizations, including constant propagation, loop unrolling, and instruction selection, that would be impossible with runtime parameters.
 
 The use of compile-time constants extends beyond mere optimization. When the buffer size is encoded in the type system using constructs like ``number<8>{}``, the compiler can statically verify that array accesses are within bounds, eliminate unnecessary bounds checks, and even restructure algorithms to better match the known data dimensions. This compile-time knowledge propagates through the entire computation, enabling optimizations at every level of the abstraction hierarchy.
 
@@ -129,11 +129,11 @@ The address space template parameter represents another crucial design decision.
 Out-of-Bounds Handling
 ~~~~~~~~~~~~~~~~~~~~~~
 
-The advanced out-of-bounds handling in BufferView represents a critical innovation for robust GPU programming. Traditional approaches to bounds checking often involve conditional branches that can severely impact performance on GPU architectures, where divergent execution paths within a warp lead to serialization. BufferView's approach cleanly sidesteps this problem through two carefully designed modes that maintain performance while providing predictable behavior.
+Traditional approaches to bounds checking often involve conditional branches that can severely impact performance on GPU architectures, where divergent execution paths within a warp lead to serialization. BufferView's approach sidesteps this problem through two carefully designed modes that maintain performance while providing predictable behavior.
 
 The Zero Value Mode leverages the mathematical property that zero often serves as a neutral element in computations. When an access falls outside the valid buffer range, this mode returns numerical zero without branching. This approach proves particularly effective for algorithms like convolution, where out-of-bounds accesses naturally correspond to zero-padding. The branchless implementation ensures that all threads in a warp follow the same execution path, maintaining the SIMD efficiency that is crucial for GPU performance.
 
-The Custom Value Mode extends this concept by allowing developers to specify arbitrary sentinel values for invalid accesses. This flexibility accommodates algorithms that require specific values for boundary conditions, such as using negative infinity for maximum operations or special markers for missing data. The implementation maintains the same branchless characteristics, using conditional move instructions or predicated execution to avoid divergent control flow.
+The Custom Value Mode extends this concept by letting developers specify arbitrary sentinel values for invalid accesses. This flexibility accommodates algorithms that require specific values for boundary conditions, such as using negative infinity for maximum operations or special markers for missing data. The implementation maintains the same branchless characteristics, using conditional move instructions or predicated execution to avoid divergent control flow.
 
 .. code-block:: cpp
 
@@ -164,26 +164,26 @@ Get Operations
 Scalar Access
 ~~~~~~~~~~~~~
 
-The get operations in BufferView form the cornerstone of memory access patterns in CK Tile. These operations embody a advanced understanding of GPU memory systems and the patterns that lead to optimal performance. The scalar access interface, while appearing simple, incorporates multiple layers of optimization and safety mechanisms that work together to provide both performance and correctness.
+The get operations in BufferView form the cornerstone of memory access patterns in CK Tile. These operations embody a advanced understanding of GPU memory systems and the patterns that lead to optimal performance. The scalar access interface incorporates multiple layers of optimization and safety mechanisms that work together to provide both performance and correctness.
 
 The parameter structure of scalar access operations reflects careful design choices aimed at maximizing flexibility while maintaining efficiency. The base index parameter ``i`` represents the primary offset into the buffer, expressed in terms of elements of type T rather than raw bytes. This type-aware indexing prevents common errors related to pointer arithmetic and ensures that vector types are handled correctly. The additional ``linear_offset`` parameter provides fine-grained control over the final access location, enabling complex access patterns without requiring expensive index calculations in the kernel code.
 
-The ``is_valid_element`` parameter represents a particularly clean solution to conditional memory access. Rather than using traditional if-statements that would cause warp divergence, this boolean parameter enables predicated execution where the memory access occurs unconditionally but the result is conditionally used. This approach maintains uniform control flow across all threads in a warp, preserving the SIMD execution model that is fundamental to GPU performance.
+The ``is_valid_element`` parameter provides a solution to conditional memory access. Rather than using traditional if-statements that would cause warp divergence, this boolean parameter enables predicated execution where the memory access occurs unconditionally but the result is conditionally used. This approach maintains uniform control flow across all threads in a warp, preserving the SIMD execution model that is fundamental to GPU performance.
 
-The invalid value modes provide a crucial mechanism for handling the boundary conditions that naturally arise in parallel algorithms. When ``InvalidElementUseNumericalZeroValue`` is set to true, the system returns zero for any invalid access, whether due to the ``is_valid_element`` flag or out-of-bounds indexing. This mode proves invaluable for algorithms where zero serves as a natural extension value, such as in image processing with zero-padding or sparse matrix operations where missing elements are implicitly zero.
+The invalid value modes provide a mechanism for handling the boundary conditions that arise in parallel algorithms. When ``InvalidElementUseNumericalZeroValue`` is set to true, the system returns zero for any invalid access, whether due to the ``is_valid_element`` flag or out-of-bounds indexing. This mode is important for algorithms where zero serves as a natural extension value, such as in image processing with zero-padding or sparse matrix operations where missing elements are implicitly zero.
 
 The custom invalid value mode, activated when ``InvalidElementUseNumericalZeroValue`` is false, offers additional flexibility for algorithms with specific boundary requirements. This mode returns a user-specified value for invalid accesses, accommodating use cases such as sentinel values in sorting algorithms, infinity values in optimization problems, or special markers in data processing pipelines. The implementation ensures that this flexibility comes without performance penalty, using the same branchless execution strategies as the zero mode.
 
-Out-of-bounds handling leverages AMD GPU hardware capabilities to provide safety without sacrificing performance. When AMD buffer addressing is enabled, the hardware automatically clamps memory accesses to valid ranges, preventing the segmentation faults that would occur on CPU systems. This hardware-assisted bounds checking operates at wire speed, adding no overhead to the memory access path while ensuring that kernels cannot corrupt memory outside their allocated regions.
+Out-of-bounds handling leverages AMD GPU hardware capabilities to provide safety with minimal impact to performance. When AMD buffer addressing is enabled, the hardware automatically clamps memory accesses to valid ranges, preventing the segmentation faults that would occur on CPU systems. This hardware-assisted bounds checking operates at wire speed, adding no overhead to the memory access path while ensuring that kernels cannot corrupt memory outside their allocated regions.
 
 Vector Access
 ~~~~~~~~~~~~~
 
-Vector memory operations represent one of the most critical optimizations available in modern GPU programming, and BufferView's vector access interface exposes this capability with clean simplicity. By using template parameters to specify vector types through constructs like ``ext_vector_t<float, N>``, the interface enables compile-time selection of optimal load and store instructions that can transfer multiple data elements in a single memory transaction. This vectorization is crucial for :ref:`ck_tile_load_store_traits`, which automatically selects optimal access patterns.
+Vector memory operations represent one of the most critical optimizations available in modern GPU programming, and BufferView's vector access interface exposes this capability. By using template parameters to specify vector types through constructs like ``ext_vector_t<float, N>``, the interface enables compile-time selection of optimal load and store instructions that can transfer multiple data elements in a single memory transaction. This vectorization is crucial for :ref:`ck_tile_load_store_traits`, which automatically selects optimal access patterns.
 
-The significance of vector operations extends beyond simple bandwidth improvements. Modern GPUs are designed with wide memory buses that can transfer 128, 256, or even 512 bits per transaction. When scalar operations access only 32 bits at a time, they utilize only a fraction of this available bandwidth. Vector operations align naturally with these wide buses, enabling full bandwidth utilization and reducing the total number of memory transactions required.
+The significance of vector operations extends beyond bandwidth improvements. GPUs are designed with wide memory buses that can transfer 128, 256, or even 512 bits per transaction. When scalar operations access only 32 bits at a time, they utilize only a fraction of this available bandwidth. Vector operations align with these wide buses, enabling full bandwidth utilization and reducing the total number of memory transactions required.
 
-The implementation of vector access maintains the same parameter structure as scalar operations, providing consistency across the API while automatically handling the complexities of multi-element transfers. The system manages alignment requirements, ensures that vector loads and stores use the optimal hardware instructions, and gracefully handles cases where vector operations extend beyond buffer boundaries. This transparent handling of edge cases allows developers to use vector operations confidently without manual boundary checks or special-case code for partial vectors.
+The implementation of vector access maintains the same parameter structure as scalar operations, providing consistency across the API while automatically handling the complexities of multi-element transfers. The system manages alignment requirements, ensures that vector loads and stores use the optimal hardware instructions, and handles cases where vector operations extend beyond buffer boundaries. This transparent handling of edge cases allows developers to use vector operations confidently without manual boundary checks or special-case code for partial vectors.
 
 Scalar vs Vectorized Memory Access
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -230,6 +230,7 @@ Scalar vs Vectorized Memory Access
 .. image:: diagrams/buffer_views_2.svg
    :alt: Diagram
    :align: center
+
 Understanding BufferView Indexing
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -282,6 +283,7 @@ Understanding BufferView Indexing
 .. image:: diagrams/buffer_views_3.svg
    :alt: Diagram
    :align: center
+
 C++ Get Operations
 ~~~~~~~~~~~~~~~~~~
 
@@ -339,7 +341,7 @@ Custom Value Return Mode for OOB & Invalid Access
 
 .. note::
 
-   Partial Out Of Bound (OOB) access during vector reads will return 'junk' values for the OOB access. Zero or custom invalid value is only returned for complete invalid/OOB access, i.e. when the first address of the vector is invalid.
+   Partial Out Of Bound (OOB) access during vector reads will return 'junk' values for the OOB access. Zero or custom invalid value is only returned for complete invalid/OOB access, in other words, it is only returned when the first address of the vector is invalid.
 
 Update Operations
 -----------------
@@ -411,6 +413,7 @@ Atomic vs Non-Atomic Operations
 .. image:: diagrams/buffer_views_4.svg
    :alt: Diagram
    :align: center
+
 C++ Atomic Operations
 ~~~~~~~~~~~~~~~~~~~~~
 
@@ -447,11 +450,11 @@ BufferView abstracts GPU memory hierarchies behind a concise interface. The appr
 
 BufferView offers a unified interface across global, shared, and register memory. Using the same API for each space can lower cognitive overhead, reduce certain classes of mistakes, and support code reuse via template parameters.
 
-Address spaces are encoded in types so that common errors are reported at compile time. Consistent with CK Tile’s zero-overhead design aim, we favor compile-time checks over runtime guards. The C++ type system enforces memory-space constraints and can make valid cases more amenable to compiler optimization.
+Address spaces are encoded in types so that common errors are reported at compile time. Consistent with CK Tile’s zero-overhead design aim,  compile-time checks are favored over runtime guards. The C++ type system enforces memory-space constraints and can make valid cases more amenable to compiler optimization.
 
 BufferView supports configurable handling of invalid values, optional runtime bounds checks, and conditional access patterns. It also provides atomic operations for thread-safe updates. These features are intended to cover common edge cases without adding unnecessary overhead.
 
-The true achievement of BufferView lies not in any single feature but in the harmonious integration of all these capabilities. By hiding the complexity of different memory spaces while exposing precisely the operations needed for high-performance GPU computing, BufferView establishes a pattern that the rest of CK Tile follows: compile-time abstractions that enhance rather than compromise performance. As we build upon this foundation with :ref:`ck_tile_tensor_views` and :ref:`ck_tile_distribution`, the wisdom of this approach becomes increasingly apparent—each layer adds capability while maintaining the efficiency established at the base. For hardware-specific details about memory hierarchies, see :ref:`ck_tile_gpu_basics`.
+By hiding the complexity of different memory spaces while exposing the operations needed for high-performance GPU computing, BufferView establishes a pattern that the rest of CK Tile follows: compile-time abstractions that enhance rather than compromise performance. The :ref:`ck_tile_tensor_views` and :ref:`ck_tile_distribution` add capability while maintaining the efficiency established at the base. For hardware-specific details about memory hierarchies, see :ref:`ck_tile_gpu_basics`.
 
 Next Steps
 ----------

@@ -5,13 +5,15 @@ CK Tile Conceptual Documentation
 
 Welcome to the conceptual documentation for CK Tile, the core abstraction layer of Composable Kernel that enables efficient GPU programming through compile-time coordinate transformations and tile-based data distribution.
 
+See the :ref:`ck_tile_index` for the complete CK Tile documentation structure.
+
 Overview
 --------
 
 CK Tile provides a mathematical framework for expressing complex GPU computations through:
 
 - **Automatic Memory Coalescing**: Ensures optimal memory access patterns without manual optimization
-- **Thread Cooperation**: Coordinates work distribution across GPU's hierarchical execution model
+- **Thread Cooperation**: Coordinates work distribution across the GPU's hierarchical execution model
 - **Zero-Overhead Abstractions**: Compile-time optimizations ensure no runtime performance penalty
 - **Portable Performance**: Same code achieves high performance across different GPU architectures
 
@@ -27,62 +29,34 @@ Traditional GPU programming requires manual management of:
 
 CK Tile automates all of these concerns through a unified abstraction that maps logical problem coordinates to physical GPU resources.
 
-Documentation Structure
------------------------
-
-.. toctree::
-   :maxdepth: 2
-   :caption: CK Tile Concepts
-
-   introduction_motivation
-   buffer_views
-   tensor_views
-   tile_distribution
-   coordinate_systems
-   terminology
-   adaptors
-   transforms
-   descriptors
-   tile_window
-   load_store_traits
-   space_filling_curve
-   static_distributed_tensor
-   convolution_example
-   coordinate_movement
-   lds_index_swapping
-   swizzling_example
-   tensor_coordinates
-   sweep_tile
-   encoding_internals
-   thread_mapping
-   hardware/index
 
 Learning Path
 -------------
 
 1. **Start Here**: :ref:`ck_tile_introduction`
    
-   Understand the fundamental problems CK Tile solves and why it's essential for efficient GPU programming.
+   The fundamental problems CK Tile solves and why it's essential for efficient GPU programming.
 
 2. **Foundation**: :ref:`ck_tile_buffer_views`
    
-   Learn how CK Tile provides structured access to raw GPU memory across different address spaces.
+   How CK Tile provides structured access to raw GPU memory across different address spaces.
 
 3. **Multi-Dimensional Views**: :ref:`ck_tile_tensor_views`
    
-   Understand how to work with multi-dimensional data structures and memory layouts.
+   How to work with multi-dimensional data structures and memory layouts.
 
 4. **Core API**: :ref:`ck_tile_distribution`
    
-   Master the tile distribution system that automatically maps work to GPU threads.
+   The tile distribution system that maps work to GPU threads.
 
 5. **Mathematical Framework**: :ref:`ck_tile_coordinate_systems`
    
-   Deep dive into the coordinate transformation system that powers CK Tile's abstractions.
+   The coordinate transformation system that powers CK Tile's abstractions.
 
 6. **Reference**: :ref:`ck_tile_terminology`
    
-   Comprehensive glossary of all terms and concepts used in CK Tile.
+   Glossary of all terms and concepts used in CK Tile.
+
 
 Key Concepts at a Glance
 ------------------------
@@ -125,19 +99,10 @@ Quick Example
    // Process tile efficiently
    sweep_tile(tile, [](auto idx) { /* computation */ });
 
-Performance Impact
-------------------
-
-CK Tile enables kernels to achieve:
-
-- **>90% memory bandwidth utilization** through perfect coalescing
-- **Minimal register pressure** via efficient data distribution
-- **Zero bank conflicts** in shared memory access
-- **Portable performance** across GPU generations
 
 Next Steps
 ----------
 
-Ready to dive deeper? Start with :ref:`ck_tile_introduction` to understand the motivation and core concepts behind CK Tile.
+To dive deeper, start with :ref:`ck_tile_introduction` to understand the motivation and core concepts behind CK Tile.
 
-For practical examples, see the `example/ck_tile` directory in the Composable Kernel repository.
+For practical examples, see the `example/ck_tile <https://github.com/ROCm/composable_kernel/tree/develop/example/ck_tile>`_ directory in the Composable Kernel repository.

@@ -3,12 +3,12 @@
 Individual Transform Operations
 ===============================
 
-The transformation engine is built from individual transform types that each handle specific coordinate conversions. Understanding these building blocks is essential for mastering the tile distribution system.
+The transformation engine is built from individual transform types that each handle specific coordinate conversions. 
 
 What Are Transforms?
 --------------------
 
-Transform operations are the fundamental building blocks that convert coordinates between different dimensional spaces. Each transform operates between two :ref:`coordinate spaces <ck_tile_coordinate_systems>`:
+Transform operations convert coordinates between different dimensional spaces. Each transform operates between two :ref:`coordinate spaces <ck_tile_coordinate_systems>`:
 
 - **Lower Dimension Space**: The source coordinate system
 - **Upper Dimension Space**: The target coordinate system
@@ -24,14 +24,11 @@ Transforms work bidirectionally:
 Zero-Copy Logical Operations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Critical Understanding**: All transform operations happen in **logical coordinate space** only. There is **no data copying or movement** involved - this is a zero-copy system.
+**Critical Understanding**: All transform operations happen in **logical coordinate space** only. This is a zero-copy system and there is **no data copying or movement** involved.
 
-- **Data Storage**: The actual tensor data remains stored in memory in linear fashion, exactly as specified by the original tensor shape and strides at creation time (see :ref:`ck_tile_buffer_views` for raw memory access)
-- **Logical Mapping**: Transforms only change how we interpret and access coordinates - they create different logical views of the same underlying data (building on :ref:`ck_tile_tensor_views`)
+- **Data Storage**: The actual tensor data remains stored in memory in linear fashion, exactly as specified by the original tensor shape and strides at creation time. See :ref:`ck_tile_buffer_views` for more information about raw memory access.
+- **Logical Mapping**: Transforms create different logical views of the same underlying data and only change how access coordinates are interpreted. See :ref:`ck_tile_tensor_views` for more information about tensor views.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
    
@@ -62,15 +59,13 @@ Zero-Copy Logical Operations
 .. image:: diagrams/transforms_1.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/transforms_1.svg
-   :alt: Diagram
-   :align: center
+
 Index Calculation Operations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The transform system provides two fundamental operations for coordinate conversion:
+The transform system provides two operations for coordinate conversion:
 
-- **calculate_lower_index()**: Takes a coordinate from the **upper dimension space** and transforms it to get the corresponding index/coordinate in the **lower dimension space**. This calculates where to find the actual tensor element using the transformed coordinate system.
+- **calculate_lower_index()**: Takes a coordinate from the **upper dimension space** and transforms it to get the corresponding index or coordinate in the **lower dimension space**. This calculates where to find the actual tensor element using the transformed coordinate system.
 
 - **calculate_upper_index()**: Takes a coordinate from the **lower dimension space** and transforms it back to get the corresponding coordinate in the **upper dimension space**. This performs the inverse transformation to recover the original coordinate representation.
 
@@ -79,9 +74,6 @@ These operations enable bidirectional navigation between different coordinate re
 Transform System Architecture
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
    
@@ -122,16 +114,11 @@ Transform System Architecture
 .. image:: diagrams/transforms_2.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/transforms_2.svg
-   :alt: Diagram
-   :align: center
+
 MergeTransform
 --------------
 
-MergeTransform collapses multiple dimensions from the lower coordinate space into a single dimension in the upper coordinate space, effectively reducing the dimensionality of the tensor representation while preserving all data relationships. This transform is fundamental to the :ref:`tile distribution system <ck_tile_tile_distribution>`.
-
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
+MergeTransform collapses multiple dimensions from the lower coordinate space into a single dimension in the upper coordinate space, effectively reducing the dimensionality of the tensor representation while preserving data relationships. This transform is fundamental to the :ref:`tile distribution system <ck_tile_tile_distribution>`.
    
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
@@ -163,9 +150,8 @@ MergeTransform collapses multiple dimensions from the lower coordinate space int
 .. image:: diagrams/transforms_3.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/transforms_3.svg
-   :alt: Diagram
-   :align: center
+
+
 **C++ Implementation:**
 
 .. code-block:: cpp
@@ -204,9 +190,6 @@ UnmergeTransform expands coordinates from a single dimension in the lower coordi
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
    
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
       .. mermaid::
       
          graph TB
@@ -234,9 +217,7 @@ UnmergeTransform expands coordinates from a single dimension in the lower coordi
 .. image:: diagrams/transforms_4.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/transforms_4.svg
-   :alt: Diagram
-   :align: center
+
 **C++ Implementation:**
 
 .. code-block:: cpp
@@ -282,8 +263,6 @@ EmbedTransform
 
 EmbedTransform expands linear indices from the lower coordinate space into multi-dimensional coordinates in the upper coordinate space using configurable strides, enabling flexible strided tensor layouts and sub-tensor views within larger buffers.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
    
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
@@ -315,9 +294,7 @@ EmbedTransform expands linear indices from the lower coordinate space into multi
 .. image:: diagrams/transforms_5.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/transforms_5.svg
-   :alt: Diagram
-   :align: center
+
 **C++ Implementation:**
 
 .. code-block:: cpp
@@ -355,9 +332,6 @@ ReplicateTransform creates a higher-dimensional tensor by replicating (broadcast
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
    
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
       .. mermaid::
       
          graph TB
@@ -385,9 +359,7 @@ ReplicateTransform creates a higher-dimensional tensor by replicating (broadcast
 .. image:: diagrams/transforms_6.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/transforms_6.svg
-   :alt: Diagram
-   :align: center
+   
 **C++ Implementation:**
 
 .. code-block:: cpp
@@ -431,11 +403,9 @@ ReplicateTransform creates a higher-dimensional tensor by replicating (broadcast
 OffsetTransform
 ---------------
 
-OffsetTransform shifts coordinates by a fixed offset, creating a translated view of the coordinate space. It performs simple translation operations where each coordinate in the upper space is mapped to a coordinate in the lower space by adding a constant offset.
+OffsetTransform shifts coordinates by a fixed offset, creating a translated view of the coordinate space. It performs translation operations where each coordinate in the upper space is mapped to a coordinate in the lower space by adding a constant offset.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
+
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
    
@@ -466,9 +436,7 @@ OffsetTransform shifts coordinates by a fixed offset, creating a translated view
 .. image:: diagrams/transforms_7.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/transforms_7.svg
-   :alt: Diagram
-   :align: center
+
 **C++ Implementation:**
 
 .. code-block:: cpp
@@ -518,9 +486,6 @@ No-op transform that passes coordinates unchanged. The PassThrough transform is 
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
    
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
       .. mermaid::
       
          graph TB
@@ -548,9 +513,7 @@ No-op transform that passes coordinates unchanged. The PassThrough transform is 
 .. image:: diagrams/transforms_8.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/transforms_8.svg
-   :alt: Diagram
-   :align: center
+   
 **C++ Implementation:**
 
 .. code-block:: cpp
@@ -625,9 +588,7 @@ PadTransform adds padding to tensor dimensions, mapping coordinates from upper d
 .. image:: diagrams/transforms_9.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/transforms_9.svg
-   :alt: Diagram
-   :align: center
+
 **C++ Implementation:**
 
 .. code-block:: cpp
@@ -675,9 +636,6 @@ XorTransform applies a 2D XOR mapping for specialized memory access patterns. It
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
    
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
       .. mermaid::
       
          graph TB
@@ -705,17 +663,12 @@ XorTransform applies a 2D XOR mapping for specialized memory access patterns. It
 .. image:: diagrams/transforms_10.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/transforms_10.svg
-   :alt: Diagram
-   :align: center
+
 SliceTransform
 ~~~~~~~~~~~~~~
 
 SliceTransform extracts a sub-region from a tensor dimension.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
    
@@ -746,17 +699,12 @@ SliceTransform extracts a sub-region from a tensor dimension.
 .. image:: diagrams/transforms_11.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/transforms_11.svg
-   :alt: Diagram
-   :align: center
+   
 ModuloTransform
 ~~~~~~~~~~~~~~~
 
 ModuloTransform applies cyclic wrapping to coordinates using modulo operations.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
    
@@ -782,25 +730,21 @@ ModuloTransform applies cyclic wrapping to coordinates using modulo operations.
       
       
    
-   
+.. image:: diagrams/transforms_12.svg
+   :alt: Diagram
+   :align: center
 
-.. image:: diagrams/transforms_12.svg
-   :alt: Diagram
-   :align: center
-.. image:: diagrams/transforms_12.svg
-   :alt: Diagram
-   :align: center
 Summary
 -------
 
 Individual transforms provide:
 
-- **Modularity**: Each transform does one thing well
+- **Modularity**: Each transform does one thing 
 - **Composability**: Chain transforms for complex mappings (see :ref:`ck_tile_adaptors`)
 - **Efficiency**: Compile-time optimization in C++
 - **Flexibility**: Handle any coordinate conversion need
 
-Understanding these building blocks enables you to:
+These transforms enable you to:
 
 1. Create custom tensor views
 2. Implement efficient data access patterns
@@ -817,8 +761,6 @@ The C++ implementations in Composable Kernel provide:
 
 Next Steps
 ----------
-
-With an understanding of individual transforms, you can explore:
 
 - :ref:`ck_tile_adaptors` - How to chain transforms together
 - :ref:`ck_tile_descriptors` - Complete tensor descriptions with transforms

@@ -8,11 +8,9 @@
 Thread Mapping - Connecting to Hardware
 ********************************************************************
 
-The final piece of the puzzle: how threads get their unique IDs and how that maps to specific data, connecting our mathematical abstractions to physical hardware.
+This section explains how threads get their unique IDs and how those map to specific data, and connecting mathematical abstractions to physical hardware.
 
-Up to this point, we've learned about :ref:`ck_tile_encoding_internals`, :ref:`ck_tile_transforms`, and :ref:`ck_tile_static_distributed_tensor`. But there's one crucial question remaining: **How do actual GPU threads know which data to process?**
-
-This is where thread mapping comes in - the bridge between our mathematical abstractions and the physical hardware that executes our code. Thread mapping works closely with :ref:`ck_tile_tile_distribution` to ensure optimal performance.
+Thread mapping is the bridge between the mathematical abstraction and the physical hardware that executes the code. Thread mapping works closely with :ref:`ck_tile_tile_distribution` to ensure optimal performance.
 
 Thread Identification and Partition Indices
 ===========================================
@@ -79,8 +77,6 @@ Composable Kernel abstracts thread identification into partition indices, buildi
         }
     };
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
    
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
@@ -137,29 +133,28 @@ Composable Kernel abstracts thread identification into partition indices, buildi
 .. image:: diagrams/thread_mapping_1.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/thread_mapping_1.svg
-   :alt: Diagram
-   :align: center
+
+
 Thread Hierarchy Structure
 --------------------------
 
-The hardware organizes threads in a specific hierarchy (see :ref:`ck_tile_gpu_basics` for hardware details):
+The hardware organizes threads in a specific hierarchy. See :ref:`ck_tile_gpu_basics` for hardware details.
 
 **Block Level**: Groups of warps working together
 
-- Warps per block defined by encoding (e.g., 2×2 warps)
+- Warps per block defined by encoding, for example, 2×2 warps
 - Shared memory and synchronization scope
 - Block-level coordination possible
 
 **Warp Level**: Groups of threads executing in lockstep
 
-- Threads per warp defined by encoding (e.g., 8×8 threads)
+- Threads per warp defined by encoding, for example, 8×8 threads
 - SIMD execution (all threads execute same instruction)
 - Warp-level primitives (shuffle, vote, etc.)
 
 **Thread Level**: Individual execution units
 
-- Vector size per thread (e.g., 4×4 elements)
+- Vector size per thread, for example, 4×4 elements
 - Independent register space
 - Vector operations on multiple elements
 
@@ -184,9 +179,6 @@ Thread-to-Data Mapping
 
 Once threads know their IDs, they need to map those IDs to specific data elements.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
    
@@ -232,9 +224,7 @@ Once threads know their IDs, they need to map those IDs to specific data element
 .. image:: diagrams/thread_mapping_2.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/thread_mapping_2.svg
-   :alt: Diagram
-   :align: center
+
 Data Distribution Pattern
 -------------------------
 
@@ -269,7 +259,7 @@ This pattern ensures adjacent threads access adjacent memory for optimal coalesc
 Thread Cooperation Patterns
 ===========================
 
-Threads don't work in isolation - they cooperate at different levels to achieve optimal performance.
+Threads don't work in isolation. Threads cooperate at different levels to achieve optimal performance.
 
 Warp-Level Cooperation
 ----------------------
@@ -294,7 +284,7 @@ Threads within a block can share data and synchronize:
 Vector-Level Processing
 -----------------------
 
-Each thread processes multiple elements efficiently:
+Each thread processes multiple elements:
 
 - **Register efficiency**: Multiple elements in registers
 - **Memory coalescing**: Vectorized loads/stores
@@ -304,12 +294,12 @@ Each thread processes multiple elements efficiently:
 Memory Access Patterns
 ======================
 
-The thread mapping directly affects memory access efficiency.
+The thread mapping directly affects memory access.
 
 C++ Implementation of Memory Access
 -----------------------------------
 
-Here's how CK implements efficient memory access patterns:
+Here's how CK implements memory access patterns:
 
 .. code-block:: cpp
 
@@ -406,7 +396,7 @@ Practical Thread Mapping Example
 Complete C++ Kernel Example
 ---------------------------
 
-Here's a complete example showing how thread mapping works in a real CK kernel:
+The following example shows how thread mapping works in a CK kernel:
 
 .. code-block:: cpp
 
@@ -513,7 +503,7 @@ Key Thread Mapping Concepts in Action
 Key Takeaways
 =============
 
-Thread mapping is the crucial bridge between mathematical abstractions and physical hardware execution:
+Thread mapping is the bridge between mathematical abstractions and physical hardware execution:
 
 **Thread Identification:**
 
@@ -547,11 +537,10 @@ Thread mapping is the crucial bridge between mathematical abstractions and physi
 
 **Why This Matters:**
 
-Thread mapping connects all the previous concepts (encodings, transformations, distributions) to actual hardware execution. It's the final piece that makes tile distribution practical for real-world GPU programming.
+Thread mapping connects encodings, transformations, and distributions to hardware execution. 
 
-The RMSNorm example shows how a real operation uses these concepts to achieve optimal performance on modern GPU hardware. Every thread knows exactly what data to process, how to access it efficiently, and how to cooperate with other threads - all determined by the mathematical encoding we started with!
+The RMSNorm example shows how a real operation uses these concepts to achieve optimal performance on GPU hardware. Every thread knows exactly what data to process, how to access it efficiently, and how to cooperate with other threads.
 
-This completes the journey from basic memory concepts to hardware-optimized execution. You now understand the complete tile distribution system from mathematical foundations to practical implementation.
 
 Related Topics
 

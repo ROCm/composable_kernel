@@ -4,30 +4,27 @@
 
 .. _ck_tile_lds_index_swapping:
 
-*******************
-LDS Index Swapping
-*******************
+********************************
+Load Datat Share Index Swapping
+********************************
 
 Overview
 ========
 
-LDS (Local Data Share) index swapping, also known as XOR preshuffle, is a critical optimization technique in CK Tile for resolving bank conflicts in shared memory. Bank conflicts occur when multiple threads in a warp attempt to access different addresses within the same memory bank simultaneously, causing serialization and performance degradation. CK Tile generalizes the XOR preshuffle technique through a compile-time coordinate transformation system that automatically handles complex access patterns.
+Local Data Share (LDS) index swapping, also known as XOR preshuffle, is a critical optimization technique in CK Tile for resolving bank conflicts in shared memory. Bank conflicts occur when multiple threads in a warp attempt to access different addresses within the same memory bank simultaneously, causing serialization and performance degradation. CK Tile generalizes the XOR preshuffle technique through a compile-time coordinate transformation system that automatically handles complex access patterns.
 
-The key insight is that by transforming the logical 2D coordinates used to access LDS into a different 2D coordinate space, we can ensure that threads accessing data simultaneously hit different banks. This transformation is implemented through CK Tile's composable transform system (see :ref:`ck_tile_transforms` and :ref:`ck_tile_coordinate_systems`), making it both flexible and efficient.
+The key insight is that transforming the logical 2D coordinates used to access LDS into a different 2D coordinate space ensures that threads accessing data simultaneously access different memory banks. This transformation is implemented through CK Tile's composable transform system, making it both flexible and efficient. See :ref:`ck_tile_transforms` and :ref:`ck_tile_coordinate_systems` for more information about the composable transform system.
 
 Coordinate Transformation Pipeline
 ==================================
 
-CK Tile performs coordinate transformation to bring LDS access from the original 2D position (M, K dimensions) into transformed (M', K') coordinates. The transformation involves three key steps:
+CK Tile performs coordinate transformations to bring LDS access from the original 2D position (M, K dimensions) into transformed (M', K') coordinates:
 
 Step 1: XOR Transform
 ---------------------
 
-The original K coordinate is split into K0 and K1, where K1 represents the thread vector size along the K dimension (KPack), and K0 is KPerBlock/KPack.
+The original K coordinate is split into K0 and K1, where K1 represents the thread vector size along the K dimension (KPack) and K0 is KPerBlock/KPack.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
    
@@ -66,15 +63,11 @@ The original K coordinate is split into K0 and K1, where K1 represents the threa
              style K11 fill:#fff3e0,stroke:#f57c00,stroke-width:2px
       
       
-   
-   
 
 .. image:: diagrams/lds_index_swapping_1.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/lds_index_swapping_1.svg
-   :alt: Diagram
-   :align: center
+
 The XOR transformation updates the K0 coordinate using the formula:
 
 .. code-block:: cpp
@@ -88,8 +81,6 @@ Step 2: Unmerge Transform
 
 The transformed K0' is split into L and K0'' components, creating an intermediate 4D coordinate space. This is necessary when MLdsLayer > 1, allowing multiple rows to share the same set of memory banks for better utilization with smaller tile sizes.
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
    
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
@@ -138,9 +129,7 @@ The transformed K0' is split into L and K0'' components, creating an intermediat
 .. image:: diagrams/lds_index_swapping_2.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/lds_index_swapping_2.svg
-   :alt: Diagram
-   :align: center
+
 The unmerge operation:
 
 .. code-block:: cpp
@@ -155,8 +144,6 @@ Step 3: Merge Transform
 
 The final step merges the 4D coordinates back into 2D transformed coordinates (M', K').
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
    
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
@@ -202,24 +189,17 @@ The final step merges the 4D coordinates back into 2D transformed coordinates (M
              style M11 fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
       
       
-      
-      
-   
-   
+
 
 .. image:: diagrams/lds_index_swapping_3.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/lds_index_swapping_3.svg
-   :alt: Diagram
-   :align: center
-Here's how the complete transformation chain is implemented in CK Tile:
+
+
 C++ Implementation
-
-Here's how the complete transformation chain is implemented in CK Tile using :ref:`ck_tile_descriptors` and transforms:
 ==================
 
-Here's how the complete transformation chain is implemented in CK Tile:
+Here's how the complete transformation chain is implemented in CK Tile using :ref:`ck_tile_descriptors` and transforms:
 
 .. code-block:: cpp
 
@@ -284,13 +264,11 @@ Here's how the complete transformation chain is implemented in CK Tile:
 
 
 
-Here's how LDS index swapping is used in a real GEMM kernel:
+
 Practical Usage in GEMM
+==========================
 
-Here's how LDS index swapping is used in a real GEMM kernel (see :ref:`ck_tile_gemm_optimization` for complete GEMM optimization details):
-=======================
-
-Here's how LDS index swapping is used in a real GEMM kernel:
+Here's how LDS index swapping is used in a real GEMM kernel. See :ref:`ck_tile_gemm_optimization` for more information about GEMM optimization.
 
 .. code-block:: cpp
 
@@ -436,14 +414,10 @@ Different configurations can be used based on tile sizes and data types:
     };
 
 
-
-LDS index swapping works seamlessly with CK Tile's distribution system:
 Integration with Tile Distribution
-
-LDS index swapping works seamlessly with CK Tile's distribution system (see :ref:`ck_tile_tile_distribution`):
 ==================================
 
-LDS index swapping works seamlessly with CK Tile's distribution system:
+LDS index swapping works seamlessly with CK Tile's distribution system. See :ref:`ck_tile_tile_distribution` for more information about CK Tile's distribution system.
 
 .. code-block:: cpp
 
@@ -483,6 +457,6 @@ LDS index swapping in CK Tile provides a effective and flexible solution to the 
 - **Zero Overhead**: All transformations resolve at compile time
 - **Seamless Integration**: Works naturally with other CK Tile components
 
-By understanding and utilizing LDS index swapping, developers can ensure their kernels achieve maximum shared memory bandwidth, which is often the limiting factor in GPU kernel performance. The transformation-based approach makes it easy to experiment with different swapping strategies while maintaining code clarity.
+By understanding and utilizing LDS index swapping, kernels can achieve maximum shared memory bandwidth, which is often the limiting factor in GPU kernel performance. The transformation-based approach makes it easy to experiment with different swapping strategies while maintaining code clarity.
 
 For practical examples of how index swapping is used in complete kernels, see :ref:`ck_tile_swizzling_example`. For more on coordinate operations used here, see :ref:`ck_tile_coordinate_movement` and :ref:`ck_tile_tensor_coordinates`.

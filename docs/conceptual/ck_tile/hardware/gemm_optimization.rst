@@ -13,29 +13,29 @@ Introduction to GEMMs
 
 This document illustrates key concepts of implementing a block GEMM (General Matrix Multiplication) kernel on AMD's MI300 GPU. GEMM is a fundamental building block for many machine learning workloads, including attention mechanisms and Mixture of Experts (MoE) models.
 
-The problem we will address is the standard matrix multiplication: :math:`C = A \cdot B`, where matrix A has dimensions **M x K** and matrix B has dimensions **K x N**. The resulting matrix C will have dimensions **M x N**. For simplicity and a better memory access pattern, we will assume matrix B is in a column-major format, which means its shape is logically represented as **N x K**.
+The problem addressed here is the standard matrix multiplication: :math:`C = A \cdot B`, where matrix A has dimensions **M x K** and matrix B has dimensions **K x N**. The resulting matrix C will have dimensions **M x N**. For simplicity and a better memory access pattern, it will be assumed that matrix B is in a column-major format, which means its shape is logically represented as **N x K**.
 
 Format and Dimensions
 =====================
 
-The first step in designing our kernel is to select the data format and dimensions.
+The first step in designing the kernel is to select the data format and dimensions.
 
 Data Format: bf16
 -----------------
 
-While ``float32`` is a common choice, it is often overkill for most AI applications. Its high precision is computationally expensive and can be unnecessary for model convergence. A more suitable and efficient alternative is a half-precision floating-point format. We will use **bfloat16 (bf16)**, a format that offers a significant advantage.
+While ``float32`` is a common choice, its high precision is computationally expensive and can be unnecessary for model convergence. A more suitable alternative is a half-precision floating-point format. We will use **bfloat16 (bf16)**.
 
 Bfloat16 is a 16-bit format that uses the same 8-bit exponent as ``float32``. This allows it to have the same dynamic range, which is critical for avoiding overflow and underflow during training. The key difference is that ``bf16`` uses only 7 bits for the mantissa (versus 23 bits in ``float32``), which makes it functionally equivalent to a simple right bit-shift of a 32-bit float: ``(float32 >> 16)``.
 
 Dimensions: M=4864, N=4096
 --------------------------
 
-To maximize hardware utilization, we need to choose dimensions that will utilize GPU's resources well. Let's go with **M = 4864** and **N = 4096**. The rationale behind these particular values will be explained later.
+To maximize hardware utilization, dimensions are used that utilize the GPU's resources well. For this example,  **M = 4864** and **N = 4096** are used. The rationale behind these particular values will be explained later.
 
 Input data
 ----------
 
-Our input will be uniformly distributed random data on the interval [-1, 1]:
+The input will be uniformly distributed random data on the interval [-1, 1]:
 
 .. code-block:: cpp
 
@@ -45,11 +45,11 @@ Our input will be uniformly distributed random data on the interval [-1, 1]:
 Simple Matmul
 =============
 
-On the AMD **MI300** GPU series (see :ref:`ck_tile_gpu_basics` for details), each Compute Unit (CU) contains **four SIMD units**. Each SIMD unit can execute a single **wavefront** of 64 threads in parallel. Since there are four wavefronts per CU, a CU can therefore sustain the execution of up to **256 concurrent threads**.
+On the AMD **MI300** GPU series (see :ref:`ck_tile_gpu_basics`), each Compute Unit (CU) contains **four SIMD units**. Each SIMD unit can execute a single **wavefront** of 64 threads in parallel. Since there are four wavefronts per CU, a CU can therefore sustain the execution of up to **256 concurrent threads**.
 
 These 256 threads then can be logically grouped into a **thread block**, which is responsible for computing a **sub-block (tile)** of the output matrix ``C``. A block of 256 threads can be arranged as a **16×16 thread block**, where each thread computes one element of a **16×16 tile** of the result matrix ``C``. Multiple thread blocks are then organized into a **grid**, such that the collection of blocks covers the entire output matrix.
 
-Consider a baseline matrix multiplication kernel where **each thread computes one output element** of ``C``. The CUDA/HIP launch configuration can be defined as:
+Consider a baseline matrix multiplication kernel where **each thread computes one output element** of ``C``. The HIP launch configuration can be defined as:
 
 .. code-block:: cpp
 
@@ -88,7 +88,7 @@ This kernel has a very low compute throughput according to ``rocprofv3`` profile
 Memory Bandwidth Analysis
 -------------------------
 
-In a naïve implementation of matrix multiplication, **pressure on global memory loads** quickly becomes the bottleneck. To see why, let's examine how a single **16×16 block** of the destination matrix ``C`` is computed by one block of threads within a compute unit.
+In a naïve implementation of matrix multiplication, **pressure on global memory loads** quickly becomes the bottleneck. To understand why, it is necessary to look at how a single **16×16 block** of the destination matrix ``C`` is computed by one block of threads within a compute unit.
 
 Each thread in the block is responsible for computing a single element of ``C``. To do so, it loops over the ``K`` dimension and, in every iteration, fetches **two values** from global memory:
 
@@ -102,7 +102,7 @@ This means:
 - **Total global loads** = 256 × 2K = 512K
 - **Total global stores** = 256 (one per output element in ``C``)
 
-If we were able to reuse each element of ``A`` and ``B`` perfectly (loading each only once), then the unique data required would be:
+To reuse each element of ``A`` and ``B`` perfectly (loading each only once), the unique data required would be:
 
 - Unique ``A`` elements: 16 × K = 16K
 - Unique ``B`` elements: 16 × K = 16K
@@ -112,7 +112,7 @@ If we were able to reuse each element of ``A`` and ``B`` perfectly (loading each
 - **Naïve kernel**: 512K global loads + 256 stores
 - **Ideal reuse**: 32K global loads + 256 stores
 
-This illustrates a **16× difference in memory traffic** for the same computation on a small, 16x16 block. It gets worse if we consider bigger block sizes.
+This illustrates a **16× difference in memory traffic** for the same computation on a small, 16x16 block. 
 
 What is Tiling?
 ===============
@@ -122,18 +122,18 @@ Cooperative Loading with LDS
 
 In the naïve implementation, threads within the same compute unit (CU) do not cooperate with each other at all. Each thread independently and greedily loads the row elements of ``A`` and the column elements of ``B`` that it needs in order to compute its corresponding value in ``C``.
 
-However, recall from the previous section that each CU on the MI300 has **64 KB of Local Data Share (LDS)** (see :ref:`ck_tile_lds_bank_conflicts` for optimization techniques), which acts as a shared memory space accessible by all threads in that CU. This opens the possibility of **cooperative loading**.
+Each CU on the MI300 has **64 KB of Local Data Share (LDS)** (see :ref:`ck_tile_lds_bank_conflicts` for optimization techniques) that acts as a shared memory space accessible by all threads in that CU. This opens the possibility of **cooperative loading**.
 
-Instead of having every thread repeatedly fetch its own data directly from global memory, we can have all threads **collaboratively preload** a block of data into LDS. Once in LDS, this data can be reused by many threads, reducing redundant global memory fetches.
+Instead of having every thread repeatedly fetch its own data directly from global memory, threads can **collaboratively preload** a block of data into LDS. Once in LDS, this data can be reused by many threads, reducing redundant global memory fetches.
 
-There is a limitation, though: we cannot preload entire rows or columns of ``A`` and ``B`` into LDS, since those may be very large and LDS has a fixed capacity. Instead, the solution is to load **small blocks (tiles)** of data at a time. For example, we can:
+Entire rows or columns of ``A`` and ``B`` can't be preloaded into LDS, since they might be very large and LDS has a fixed capacity. The solution is to load **small blocks (tiles)** of data at a time. For example:
 
 - Load a **16×16 tile** from ``A`` and ``B`` into LDS
 - Allow all threads in the CU to reuse the data from that tile to compute their portion of the result
 - Once done, move the tile window forward along the ``K`` dimension
 - Repeat until the entire **16×16 output block** of ``C`` is computed
 
-This technique of **tiling with cooperative loading** dramatically reduces global memory traffic and improves GPU efficiency by leveraging fast, on-chip LDS as in LDS we could have a better speed and reuse of the data.
+This technique of **tiling with cooperative loading** reduces global memory traffic and improves GPU efficiency by leveraging fast, on-chip LDS as in LDS has a better speed and reuse of the data.
 
 Tiling Mathematics
 ------------------
@@ -162,7 +162,7 @@ The **average loads per output element** (ignoring C traffic) are:
 .. math::
    \text{loads per output} = \frac{\mathrm{TILE\_M}\cdot K + \mathrm{TILE\_N}\cdot K}{\mathrm{TILE\_M} \cdot \mathrm{TILE\_N}} = K \left(\frac{1}{\mathrm{TILE\_M}} + \frac{1}{\mathrm{TILE\_N}}\right)
 
-To simplify the formula, if we consider a square tile of size T, to compute one value in C we need:
+To simplify the formula, consider a square tile of size T, to compute one value in C:
 
 - Naïve (no tiling) = 2K loads per output.
 - With tiling = 2K/T.
@@ -173,43 +173,41 @@ Example: T=16
 .. math::
    \text{loads per output} = \frac{2K}{16} = \frac{K}{8}
 
-So compared to the naïve 2K, this gives a **16× reduction** in global memory traffic per output element.
+Compared to the naïve 2K, this gives a **16× reduction** in global memory traffic per output element.
 
 LDS Usage and Tiling Efficiency
 -------------------------------
 
-How much space in LDS would this tiling use? Recall that matrices **A** and **B** store data in **bf16** format. For a small 16×16 tile:
+How much space in LDS would this tiling use? Matrices **A** and **B** store data in **bf16** format. For a small 16×16 tile:
 
 - Each matrix contains 16 × 16 = 256 elements.
 - At 2 bytes per element, each matrix occupies 256 × 2 = 512 bytes.
 - Total for A and B: 512 × 2 = 1 KB.
 
-We have much more space in LDS, so why not try a bigger tile size? We can afford 32 KB for each matrix, which allows us to increase the tile size to **256×64**. With this tile size, each compute unit (CU) will output a **256×256 block in C**. With this approach, the number of global memory reads will be **256 times smaller per element in C** compared to a brute-force approach.
+There is much more space in LDS, so why not try a bigger tile size? 32 KB for each matrix can be used, which allows the tile size to be increased to **256×64**. With this tile size, each compute unit (CU) will output a **256×256 block in C**. With this approach, the number of global memory reads will be **256 times smaller per element in C** compared to a brute-force approach.
 
 Variation of the GEMM in Inference
 ----------------------------------
 
-When we are implementing GEMM in inference, because B matrix is the weight which is static, we will preshuffle the B matrix to the warp GEMM MFMA shape to have a faster access for registers to do the MFMA operations. In this strategy we have the following optimizations:
+When implementing GEMM in inference, because B matrix is the weight which is static, the B matrix will be preshuffled to the warp GEMM MFMA shape to have a faster access for registers to do the MFMA operations. In this strategy there are the following optimizations:
 
 - Shared Memory bypass of the B Matrix.
 - Loop over the A Matrix stored in the shared memory and let B stays in the registers.
 - Ping Pong buffering for the GEMM Pipeline
 
-We could reach a 20%+ peformance raise comparing to the universal gemm in general.
-
 
 Utilization Considerations
 --------------------------
 
-Let's explain why the input dimensions **M = 4864** and **N = 4096** are convenient choices.
+This section explains why the input dimensions **M = 4864** and **N = 4096** are convenient choices.
 
-Recall that MI300 has **304 compute units (CUs)**. If we choose a tile size of **256×64**, where the **K dimension** is the one we iterate over, then the output grid size is:
+The MI300 has **304 compute units (CUs)**. If a tile size of **256×64** is chosen, where the **K dimension** is iterated over, then the output grid size is:
 
 .. code-block:: text
 
     M / 256 × N / 256 = 4864 / 256 × 4096 / 256 = 19 × 16 = 304
 
-This exactly matches the total number of compute units on the GPU. That means every CU can be fully occupied with one tile of work, and we don't need to worry about imbalance or underutilization.
+This matches the total number of compute units on the GPU. That means every CU can be fully occupied with one tile of work, and imbalance or underutilization is not as much of a concern.
 
 Advanced Optimizations
 ======================
@@ -217,26 +215,26 @@ Advanced Optimizations
 Matrix Fused Multiply-Add
 -------------------------
 
-From our previous discussion, it's clear that the compute-to-memory-access ratio will be a bottleneck. This means that simply optimizing for bandwidth isn't enough; we need to significantly improve our computational capabilities. Modern GPUs address this with specialized hardware.
+Because compute-to-memory-access ratio can be a bottleneck, optimizing for bandwidth only isn't enough.
 
-Modern GPUs offer dedicated **matrix (or tensor) cores** for multiplication tasks, which are often an order of magnitude or more performant than generic ALU pipelines. These cores are specifically designed to accelerate matrix operations.
+GPUs offer dedicated **matrix (or tensor) cores** for multiplication tasks. These cores are specifically designed to accelerate matrix operations.
 
-To take full advantage of these specialized cores, programmers can use intrinsic instructions. These are hardware-specific functions that allow for direct access to the matrix core pipelines. There are multiple variants of these instructions; for our purposes on the MI300, we will use ``__builtin_amdgcn_mfma_f32_16x16x16f16``, which is highly efficient and has a low latency of only 16 cycles.
+To take full advantage of these specialized cores, intrinsic instructions can be used. Intrinsic instructions are hardware-specific functions that allow for direct access to the matrix core pipelines. For this example, ``__builtin_amdgcn_mfma_f32_16x16x16f16``, has a low latency of only 16 cycles, will be used.
 
-The naming convention for those amdgcn intrinsics is: ``__builtin_amdgcn_mfma_<out_type>_MxNxK<in_type>``. In our case we will be using 16x16 matrices as input, and 16x16 matrices as output. These instructions work as *accumulate add*, what they effectively do is: ``D = A*B + C``. It is useful for our purpose, since we need to accumulate results over multiple tiles over K dimension.
+16x16 matrices will be used as input, and 16x16 matrices will be used as output. These instructions work as *accumulate add*, what they effectively do is: ``D = A*B + C``. This is useful in this example since results will be accumulated over multiple tiles over K dimension.
 
 Optimizing Data Flow with Pipelining
 ------------------------------------
 
 To maximize performance, the flow for this kernel uses a **pipeline** or **double buffering** to keep the compute units continuously fed with data, reducing idle time. This pipeline consists of a series of stages that process data concurrently:
 
-* **Stage 1: Global Memory to Registers:** The first stage involves pre-loading data directly from **global memory** into VGPR (Vector General Purpose Register) registers. This is the slowest part of the pipeline, so we perform this operation as early as possible.
+* **Stage 1: Global Memory to Registers:** The first stage involves pre-loading data directly from **global memory** into Vector General Purpose Registers (VGPR). This is the slowest part of the pipeline. Because of this, this operation is performed as early as possible.
 
-* **Stage 2: Registers to LDS (Shared Memory):** As data is being loaded from global memory, the next stage of the pipeline moves the data from the VGPRs into **LDS (Local Data Share)**, or shared memory. This is a crucial intermediate step that makes the data accessible to all threads within the workgroup at very low latency.
+* **Stage 2: Registers to LDS (Shared Memory):** As data is being loaded from global memory, the next stage of the pipeline moves the data from the VGPRs into **LDS (Local Data Share)**, or shared memory. This is an intermediate step that makes the data accessible to all threads within the workgroup at very low latency.
 
-* **Stage 3: LDS to Registers:** With the data now in fast on-chip LDS, the third stage begins. The data is transferred from LDS back into a different set of VGPR registers, which will serve as the direct input for the compute operations.
+* **Stage 3: LDS to Registers:** With the data now in LDS, the data is transferred from LDS back into a different set of VGPR registers, which will serve as the direct input for the compute operations.
 
-* **Stage 4: Computation with MFMA:** The final stage is the core computation. The **MFMA** (Matrix-FMA) intrinsic uses the data from the VGPRs to perform the actual matrix multiplication and accumulation.
+* **Stage 4: Computation with MFMA:** The Matrix-FMA (MFMA) intrinsic uses the data from the VGPRs to perform the actual matrix multiplication and accumulation.
 
 By using this pipelined approach, the different stages of data movement and computation happen in parallel. While the current VGPRs are being consumed by the MFMA operation, the next set of data is already being moved from LDS to another set of VGPRs, and the next tile of data is being loaded from global memory into a third set of VGPRs. This overlapping of operations is key to keeping the GPU's compute units fully utilized.
 
@@ -361,16 +359,6 @@ Here's how CK Tile implements an optimized GEMM kernel:
         c_window.store(c_reg);
     }
 
-Performance Results
-===================
-
-With proper optimization using CK Tile:
-
-- **Memory bandwidth utilization**: >90% of theoretical peak
-- **Compute utilization**: Matrix units fully saturated
-- **Overall performance**: Near-peak TFLOPS for the given precision
-
-The hotspots have shifted to matrix-related computations and ALU, global load is not a problem any longer. ``rocprofv3`` output shows that we have achieved our kernel to become compute bound where matrix multiplication operations have become the dominant workload.
 
 Key Takeaways
 =============
@@ -381,7 +369,7 @@ Key Takeaways
 4. **CK Tile abstractions**: Automatically handle complex optimizations
 5. **Hardware-aware dimensions**: Choose problem sizes that map well to CU count
 
-By understanding these optimization techniques and using CK Tile's high-level abstractions, developers can achieve near-peak performance on modern GPUs without manual low-level optimization.
+By understanding these optimization techniques and using CK Tile's high-level abstractions, developers can improve performance onGPUs without manual low-level optimization.
 
 Related Topics
 

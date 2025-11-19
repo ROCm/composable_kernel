@@ -11,9 +11,9 @@ Sweep Tile
 Overview
 ========
 
-Sweep operations are the clean way to iterate over distributed data in CK Tile. They complete the tile distribution workflow by providing clean, efficient iteration patterns that automatically handle all the complex indexing details. Sweep operations are like forEach() for distributed tensors - give them a function, and they'll call it for every element in the optimal order.
+Sweep operations are the clean way to iterate over distributed data in CK Tile. They complete the tile distribution workflow by providing clean, efficient iteration patterns that automatically handle all the complex indexing details. Sweep operations are similar to ``forEach()`` operation. Sweep operations call a function for every data element.
 
-The key insight is the "load once, use many times" pattern. Load X data once into registers, then sweep through Y positions while keeping X in fast memory. This maximizes data reuse and minimizes memory bandwidth requirements.
+Sweep operations use the "load once, use many times" pattern. Load X data once into registers, then sweep through Y positions while keeping X in fast memory. This maximizes data reuse and minimizes memory bandwidth requirements.
 
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
@@ -55,22 +55,20 @@ The key insight is the "load once, use many times" pattern. Load X data once int
 .. image:: diagrams/sweep_tile_1.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/sweep_tile_1.svg
-   :alt: Diagram
-   :align: center
+   
 The Complete GPU Workflow
 =========================
 
 Sweep operations are the final piece of the distributed computing puzzle:
 
 1. **TileDistribution**: "Here's how to divide work"
-2. **TileWindow**: "Here's your data, loaded efficiently"
+2. **TileWindow**: "Here's the data, loaded efficiently"
 3. **Sweep Operations**: "Here's how to process every element"
-4. **Your code**: "Thanks! *does computation*"
+4. **User code**: "Thanks! *does computation*"
 
-Without sweep operations, you need manual nested loops, complex index calculations, and risk missing elements or double-processing. With sweep operations, you get lambda-based iteration with automatic handling of all elements.
+Without sweep operations, manual nested loops and complex index calculations are required, increasing the risk of missing elements or double-processing. Sweep operations provide lambda-based iteration with automatic handling of all elements.
 
-For understanding the underlying coordinate systems, see :ref:`ck_tile_coordinate_systems`.
+See :ref:`ck_tile_coordinate_systems` for more information about coordinate systems.
 
 Basic Sweep Implementation
 ==========================
@@ -119,17 +117,12 @@ The fundamental sweep pattern in C++:
     }
 
 
-The sweep pattern provides significant memory efficiency benefits:
-Memory Efficiency Pattern
 
-The sweep pattern provides significant memory efficiency benefits. This is particularly important for GPU architectures (see :ref:`ck_tile_gpu_basics`) where memory bandwidth is often the limiting factor:
+Memory Efficiency Pattern
 =========================
 
-The sweep pattern provides significant memory efficiency benefits:
+The sweep pattern provides significant memory efficiency benefits. This is particularly important for GPU architectures (see :ref:`ck_tile_gpu_basics`) where memory bandwidth is often the limiting factor:
 
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
    
@@ -162,9 +155,7 @@ The sweep pattern provides significant memory efficiency benefits:
 .. image:: diagrams/sweep_tile_2.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/sweep_tile_2.svg
-   :alt: Diagram
-   :align: center
+
 Practical Sweep Patterns
 ========================
 
@@ -226,13 +217,10 @@ Pattern 3: Conditional Processing
     }
 
 
-The sweep pattern is fundamental to high-performance matrix multiplication:
 GEMM Sweep Pattern
-
-The sweep pattern is fundamental to high-performance matrix multiplication (see :ref:`ck_tile_gemm_optimization` for complete GEMM optimization details):
 ==================
 
-The sweep pattern is fundamental to high-performance matrix multiplication:
+The sweep pattern is fundamental to high-performance matrix multiplication. See :ref:`ck_tile_gemm_optimization` for more information about GEMM optimization details.
 
 .. code-block:: cpp
 
@@ -397,9 +385,6 @@ Sweep operations provide several performance benefits:
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
    
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
       .. mermaid::
       
          graph TB
@@ -436,9 +421,7 @@ Sweep operations provide several performance benefits:
 .. image:: diagrams/sweep_tile_3.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/sweep_tile_3.svg
-   :alt: Diagram
-   :align: center
+
 Compiler Optimizations
 ----------------------
 
@@ -507,9 +490,7 @@ Complete workflow example:
 .. image:: diagrams/sweep_tile_4.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/sweep_tile_4.svg
-   :alt: Diagram
-   :align: center
+
 .. code-block:: cpp
 
     template<typename DataType>
@@ -559,10 +540,7 @@ Complete workflow example:
     }
 
 
-SweepTile provides clean and efficient iteration over distributed data:
 Summary
-
-SweepTile provides clean and efficient iteration over distributed data:
 =======
 
 SweepTile provides clean and efficient iteration over distributed data:

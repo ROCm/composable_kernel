@@ -5,14 +5,14 @@ Cache Flushing for GPU Benchmarking
 Overview
 ========
 
-When benchmarking GPU kernels, accurate performance measurements require understanding and controlling cache behavior. Running a kernel multiple times with the same input data can lead to artificially fast results due to **cache hits**, where data and instructions are served from fast GPU cache rather than slow HBM (High Bandwidth Memory).
+When benchmarking GPU kernels, accurate performance measurements require understanding and controlling cache behavior. Running a kernel multiple times with the same input data can lead to artificially fast results due to **cache hits**, where data and instructions are served from fast GPU cache rather than slow High Bandwidth Memory (HBM).
 
 Composable Kernel provides two complementary mechanisms to ensure realistic "cold cache" performance measurements:
 
 1. **Instruction Cache Flushing** - Invalidates cached GPU instructions
 2. **Rotating Memory Buffers** - Cycles through multiple data buffer copies at different memory addresses
 
-This document explains how these mechanisms work and how to use them in your benchmarks.
+This document explains how these mechanisms work and how to use them in benchmarks.
 
 The Problem: Hot vs. Cold Cache
 ================================
@@ -110,11 +110,11 @@ Located in ``include/ck_tile/host/flush_icache.hpp``:
 **Key Components:**
 
 - ``s_icache_inv``: AMD GPU instruction that invalidates the L1 instruction cache on the current compute unit
-- ``s_nop 0`` (×16): No-operation instructions that create a 16-cycle delay to ensure cache invalidation completes before the kernel exits
+- ``s_nop 0`` (×16): No-operation instructions (NOPs) that create a 16-cycle delay to ensure cache invalidation completes before the kernel exits
 
 **Why 16 NOPs?**
 
-The ``s_icache_inv`` instruction is **asynchronous** - it initiates cache invalidation but doesn't wait for completion. Without the NOPs, the kernel might exit before the flush finishes, leading to race conditions and incomplete cache invalidation.
+The ``s_icache_inv`` instruction is **asynchronous**: it initiates cache invalidation but doesn't wait for completion. Without the NOPs, the kernel might exit before the flush finishes, leading to race conditions and incomplete cache invalidation.
 
 Launching the Flush Kernel
 ---------------------------
@@ -277,7 +277,7 @@ The ``flush_cache`` command-line argument controls whether cache flushing is ena
     # Disable cache flushing (hot cache benchmarking)
     ./gemm_example --flush_cache=0
 
-In your code (``run_gemm_quant_example.inc``):
+In ``run_gemm_quant_example.inc``:
 
 .. code-block:: cpp
 

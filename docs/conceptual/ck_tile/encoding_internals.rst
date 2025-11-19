@@ -13,7 +13,7 @@ Overview
 
 The tile distribution encoding system represents the core mathematical framework that transforms high-level tensor distribution specifications into concrete, optimized GPU kernel implementations. This advanced compile-time machinery bridges the gap between abstract mathematical descriptions and executable coordinate transformations, enabling the Composable Kernel framework to generate highly efficient code for complex tensor operations.
 
-At its heart, the encoding system defines how multi-dimensional tensor data is distributed across GPU processing elements through a hierarchical decomposition scheme. By specifying relationships between different coordinate spaces - replication (R), hierarchical (H), partition (P), and yield (Y) dimensions (see :ref:`ck_tile_coordinate_systems` for detailed explanation) - the encoding provides a complete blueprint for data layout and access patterns that can be resolved entirely at compile time. This is the internal mechanism behind :ref:`ck_tile_tile_distribution`.
+At its heart, the encoding system defines how multi-dimensional tensor data is distributed across GPU processing elements through a hierarchical decomposition scheme. By specifying relationships between different coordinate spaces of replication (R), hierarchical (H), partition (P), and yield (Y) dimension, the encoding provides a complete blueprint for data layout and access patterns that can be resolved entirely at compile time. This is the internal mechanism behind :ref:`ck_tile_tile_distribution`. See :ref:`ck_tile_coordinate_systems` for more information about coordinate spaces.
 
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
@@ -127,7 +127,7 @@ The ``RsLengths`` parameter defines dimensions that are replicated across proces
     // - NWarpPerBlock warps share the same A data
     // - MWarpPerBlock warps share the same B data
 
-Replication serves several critical purposes:
+Replication serves several purposes:
 
 - **Data Reuse**: Same input data needed by multiple output computations
 - **Reduction Operations**: Multiple threads collaborate on single result
@@ -201,7 +201,7 @@ The ``Ys2RHsMajor`` and ``Ys2RHsMinor`` define the user-facing interface:
 Transformation Pipeline
 =======================
 
-The encoding generates a transformation pipeline that converts coordinates (using the concepts from :ref:`ck_tile_transforms` and :ref:`ck_tile_adaptors`):
+The encoding generates a transformation pipeline that converts coordinates using the concepts from :ref:`ck_tile_transforms` and :ref:`ck_tile_adaptors`:
 
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
@@ -303,7 +303,7 @@ Transform Implementation Example
 Y to D Linearization
 ====================
 
-The Y→D descriptor handles memory layout within each thread (building on :ref:`ck_tile_descriptors` concepts):
+The Y→D descriptor handles memory layout within each thread, building on :ref:`ck_tile_descriptors` concepts:
 
 .. code-block:: cpp
 
@@ -431,14 +431,14 @@ Example 2: GEMM Distribution
 Performance Implications
 ========================
 
-The encoding system is designed for maximum GPU performance (see :ref:`ck_tile_gpu_basics` for hardware fundamentals):
+The encoding system is designed for maximum GPU performance. See :ref:`ck_tile_gpu_basics` for hardware fundamentals.
 
 Memory Access Patterns
 ----------------------
 
 - **Coalescing**: Hierarchical decomposition ensures adjacent threads access adjacent memory
-- **Bank Conflicts**: Careful dimension ordering prevents shared memory conflicts (see :ref:`ck_tile_lds_bank_conflicts`)
-- **Vectorization**: Natural support for vector loads/stores (see :ref:`ck_tile_load_store_traits`)
+- **Bank Conflicts**: Careful dimension ordering prevents shared memory conflicts. See :ref:`ck_tile_lds_bank_conflicts` for more information.
+- **Vectorization**: Natural support for vector loads and stores. See :ref:`ck_tile_load_store_traits` for more information.
 
 Register Efficiency
 -------------------
@@ -484,6 +484,6 @@ The tile distribution encoding system demonstrates compile-time computation:
 - **Hardware Alignment**: Natural mapping to GPU execution hierarchy
 - **Performance Focus**: Every design decision optimizes for GPU efficiency
 
-The encoding internals show how CK Tile achieves both mathematical elegance and practical performance. By leveraging C++ template metaprogramming and careful architectural design, the framework generates code that rivals hand-optimized implementations while maintaining clarity and composability.
+The encoding internals show how CK Tile achieves practical performance. By leveraging C++ template metaprogramming and careful architectural design, the framework generates code that rivals hand-optimized implementations while maintaining clarity and composability.
 
 For practical examples of how the encoding system is used, see :ref:`ck_tile_thread_mapping`. For coordinate operations that build on these encodings, see :ref:`ck_tile_coordinate_movement`.

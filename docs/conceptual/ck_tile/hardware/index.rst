@@ -33,39 +33,22 @@ Documentation Structure
 GPU Architecture Basics
 -----------------------
 
-:ref:`ck_tile_gpu_basics` provides a comprehensive introduction to AMD CDNA architecture, covering:
-
-- XCD (eXtreme Chiplet Design) and its implications
-- Memory hierarchy: L2 cache, Infinity Cache, and HBM
-- Compute Unit (CU) organization and components
-- Register files (VGPR/SGPR) and their constraints
-- How CK Tile maps to hardware capabilities
+:ref:`ck_tile_gpu_basics` provides an introduction to AMD CDNA architecture.
 
 LDS and Bank Conflicts
 ----------------------
 
-:ref:`ck_tile_lds_bank_conflicts` explains Local Data Share (LDS) optimization:
-
-- Understanding the 32-bank organization
-- Bank conflict patterns and their impact
-- XOR preshuffle technique for conflict-free access
-- Integration with CK Tile's automatic optimization
+:ref:`ck_tile_lds_bank_conflicts` explains Local Data Share (LDS) optimization.
 
 GEMM Optimization Case Study
 ----------------------------
 
-:ref:`ck_tile_gemm_optimization` demonstrates a complete optimization journey:
+:ref:`ck_tile_gemm_optimization` demonstrates a complete optimization journey.
 
-- From naive implementation to optimized kernel
-- Tiling strategies and their mathematical foundation
-- Using MFMA instructions for matrix operations
-- Pipeline optimization for latency hiding
-- Achieving near-peak performance with CK Tile
 
 Key Hardware Considerations
 ===========================
 
-When using CK Tile, keep these hardware aspects in mind:
 
 Memory Hierarchy
 ----------------

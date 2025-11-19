@@ -11,16 +11,20 @@ Static Distributed Tensor
 Overview
 ========
 
-Static distributed tensors represent the fundamental thread-local data containers in CK Tile's programming model. Unlike traditional GPU programming where developers manually manage thread-local arrays and coordinate access patterns, static distributed tensors provide a high-level abstraction that automatically handles data distribution across threads while maintaining the performance characteristics of register-based storage.
+Static distributed tensors represent the thread-local data containers in CK Tile's programming model. Unlike traditional GPU programming where developers manually manage thread-local arrays and coordinate access patterns, static distributed tensors provide a high-level abstraction that automatically handles data distribution across threads while maintaining the performance characteristics of register-based storage.
 
-The key innovation lies in how static distributed tensors bridge the gap between logical tensor operations and physical thread-local storage. Each thread in a workgroup owns a portion of the overall tensor data, stored in its registers or local memory. The distribution pattern follows the :ref:`tile distribution <ck_tile_tile_distribution>` rules, ensuring that collective operations across all threads reconstruct the complete logical tensor while individual threads operate only on their local portions.
+Each thread in a workgroup owns a portion of the overall tensor data, stored in its registers or local memory. The distribution pattern follows the :ref:`tile distribution <ck_tile_tile_distribution>` rules, ensuring that collective operations across all threads reconstruct the complete logical tensor while individual threads operate only on their local portions.
 
-This design enables several critical optimizations. First, it maximizes register utilization by keeping frequently accessed data in the fastest memory hierarchy. Second, it eliminates redundant memory accesses since each thread maintains its own working set. Third, it provides a clean abstraction for complex algorithms like matrix multiplication where each thread accumulates partial results that eventually combine into the final output.
+This design enables three critical optimizations:
+
+    * It maximizes register utilization by keeping frequently accessed data in the fastest memory hierarchy. 
+    * It eliminates redundant memory accesses since each thread maintains its own working set. 
+    * It provides a clean abstraction for complex algorithms like matrix multiplication where each thread accumulates partial results that eventually combine into the final output.
 
 Thread-Local Storage Model
 ==========================
 
-The static distributed tensor implements a advanced storage model that maps multi-dimensional tensor data to thread-local arrays:
+The static distributed tensor implements an advanced storage model that maps multi-dimensional tensor data to thread-local arrays:
 
 .. code-block:: cpp
 
@@ -54,7 +58,7 @@ The storage layout follows these principles:
 Memory Layout and Access Patterns
 =================================
 
-Understanding how static distributed tensors organize memory is crucial for performance optimization. Consider a 2D tensor distributed across a 2D thread block:
+Understanding how static distributed tensors organize memory is important for performance optimization. Consider a 2D tensor distributed across a 2D thread block:
 
 .. code-block:: cpp
 
@@ -88,9 +92,6 @@ The memory layout follows a hierarchical pattern:
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
    
-.. 
-   Original mermaid diagram (edit here, then run update_diagrams.py)
-   
       .. mermaid::
       
          graph TD
@@ -111,9 +112,7 @@ The memory layout follows a hierarchical pattern:
 .. image:: diagrams/static_distributed_tensor.svg
    :alt: Diagram
    :align: center
-.. image:: diagrams/static_distributed_tensor.svg
-   :alt: Diagram
-   :align: center
+
 Element Access and Indexing
 ===========================
 
@@ -207,7 +206,7 @@ Key coordination patterns include:
 Practical Usage Patterns
 ========================
 
-Static distributed tensors shine in several common GPU programming patterns:
+Static distributed tensors are useful in many common GPU programming patterns:
 
 **1. Register Blocking for Matrix Operations**
 
@@ -301,7 +300,7 @@ Optimizing static distributed tensor usage requires understanding several :ref:`
                       "Exceeds typical register budget");
     };
 
-**Memory Coalescing**: When loading/storing distributed tensors, ensure access patterns promote coalescing (see :ref:`ck_tile_gpu_basics` for details):
+**Memory Coalescing**: When loading/storing distributed tensors, ensure access patterns promote coalescing. See :ref:`ck_tile_gpu_basics` for more information about coalescing.
 
 .. code-block:: cpp
 
@@ -419,7 +418,7 @@ Static distributed tensors integrate seamlessly with other CK Tile components:
 Summary
 =======
 
-Static distributed tensors provide the foundation for high-performance thread-local computation in CK Tile. By abstracting the complexities of register allocation, thread coordination, and memory access patterns, they enable developers to write clear, maintainable code that achieves peak hardware efficiency. The key benefits include:
+Static distributed tensors provide the foundation for high-performance thread-local computation in CK Tile. By abstracting the complexities of register allocation, thread coordination, and memory access patterns, they enable developers to write clear, maintainable code that achieves hardware efficiency. The key benefits include:
 
 - **Automatic Distribution**: The :ref:`tile distribution <ck_tile_tile_distribution>` system handles all thread-to-data mapping
 - **Register Efficiency**: Thread-local storage maps directly to registers when possible
@@ -427,4 +426,4 @@ Static distributed tensors provide the foundation for high-performance thread-lo
 - **Seamless Integration**: Works naturally with :ref:`tile windows <ck_tile_tile_window>`, :ref:`descriptors <ck_tile_descriptors>`, and other CK Tile components
 - **Performance Transparency**: The storage model makes performance characteristics clear and predictable
 
-When combined with the broader CK Tile ecosystem, static distributed tensors enable the construction of complex GPU kernels that match or exceed hand-tuned assembly performance while maintaining the clarity of high-level mathematical expressions.
+When combined with the broader CK Tile ecosystem, static distributed tensors enable the construction of complex GPU kernels that match hand-tuned assembly performance while maintaining the clarity of high-level mathematical expressions.

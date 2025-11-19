@@ -6,7 +6,7 @@ Terminology Reference - Key Concepts and Definitions
 Overview
 --------
 
-The Composable Kernel framework introduces a rich vocabulary of concepts and abstractions that form the foundation of its approach to high-performance GPU computing. This terminology reference serves as a comprehensive guide to the language of CK, providing detailed explanations of each term along with practical examples of their usage in C++ code. Understanding this vocabulary is not merely an academic exercise—it represents the key to unlocking the full power of the CK framework and writing efficient, maintainable GPU kernels.
+The Composable Kernel framework introduces concepts and abstractions that form the foundation of its approach to high-performance GPU computing. This terminology reference serves as a comprehensive guide to the language of CK, providing detailed explanations of each term along with practical examples of their usage in C++ code. 
 
 The terminology of CK reflects its layered architecture, with concepts building upon one another in a logical progression. From the fundamental notion of tiles and distributions to the compile-time coordinate transformation systems, each term represents a carefully designed abstraction that serves a specific purpose in the overall framework. This reference is organized to mirror this conceptual hierarchy, starting with core concepts and progressing through increasingly specialized terminology.
 
@@ -17,19 +17,19 @@ Core Concepts
 
 Tile
 ~~~~
-The concept of a tile represents the fundamental unit of data organization in the CK framework. A tile is a contiguous block of data that is processed as a cohesive unit by a coordinated group of threads. This abstraction serves multiple critical purposes in achieving high performance on GPU architectures. By organizing data into tiles, the framework ensures that memory accesses exhibit spatial locality, enabling efficient use of cache hierarchies. The tile size is carefully chosen to balance several competing factors: it must be large enough to amortize the overhead of memory transactions, yet small enough to fit within the limited on-chip memory resources. Furthermore, tiles are designed to align with the :ref:`GPU's execution model <ck_tile_gpu_basics>`, ensuring that threads within a warp access contiguous memory locations for optimal bandwidth utilization.
+The concept of a tile represents the fundamental unit of data organization in the CK framework. A tile is a contiguous block of data that is processed as a cohesive unit by a coordinated group of threads. This abstraction serves multiple critical purposes in achieving high performance on GPU architectures. By organizing data into tiles, the framework ensures that memory accesses exhibit spatial locality, enabling efficient use of cache hierarchies. The tile size is chosen to balance several competing factors: it must be large enough to amortize the overhead of memory transactions, yet small enough to fit within the limited on-chip memory resources. Furthermore, tiles are designed to align with the :ref:`GPU's execution model <ck_tile_gpu_basics>`, ensuring that threads within a warp access contiguous memory locations for optimal bandwidth utilization.
 
 **C++ Usage**: ``using TileShape = sequence<256, 256>;``
 
 Distribution
 ~~~~~~~~~~~~
-The distribution pattern represents one of the most compile-time abstractions in the CK framework, defining the precise mapping between logical data elements and the physical processing resources that will operate on them. A distribution is far more than a simple assignment scheme—it embodies a complete strategy for achieving optimal performance on GPU hardware. The distribution determines which threads access which data elements, how those accesses are ordered to maximize memory bandwidth, and how intermediate results are shared between cooperating threads. By encoding these decisions at compile time, distributions enable the generation of highly optimized code that respects hardware constraints while maintaining algorithmic clarity. For a detailed exploration of distribution concepts, see :ref:`ck_tile_distribution`.
+The distribution pattern represents one of the most compile-time abstractions in the CK framework, defining the precise mapping between logical data elements and the physical processing resources that will operate on them. A distribution is far more than an assignment scheme—it embodies a strategy for achieving optimal performance on GPU hardware. The distribution determines which threads access which data elements, how those accesses are ordered to maximize memory bandwidth, and how intermediate results are shared between cooperating threads. By encoding these decisions at compile time, distributions enable the generation of highly optimized code that respects hardware constraints while maintaining algorithmic clarity. For a detailed exploration of distribution concepts, see :ref:`ck_tile_distribution`.
 
 **C++ Type**: ``tile_distribution<...>``
 
 Encoding
 ~~~~~~~~
-An encoding in CK represents a compile-time specification that captures the complete strategy for distributing tensor data across GPU processing elements. This specification is not merely a configuration but a mathematical description of the transformation between coordinate spaces. The encoding defines the hierarchical decomposition of work, the mapping between thread indices and data elements, and the patterns by which threads cooperate to process their assigned data. By expressing these concepts as compile-time constants, encodings enable aggressive compiler optimizations while ensuring that distribution strategies can be verified for correctness before execution.
+An encoding in CK represents a compile-time specification that captures the strategy for distributing tensor data across GPU processing elements. This specification is not merely a configuration but a mathematical description of the transformation between coordinate spaces. The encoding defines the hierarchical decomposition of work, the mapping between thread indices and data elements, and the patterns by which threads cooperate to process their assigned data. By expressing these concepts as compile-time constants, encodings enable aggressive compiler optimizations while ensuring that distribution strategies can be verified for correctness before execution.
 
 **C++ Type**: ``tile_distribution_encoding<...>``
 
@@ -380,7 +380,4 @@ Related Documentation
 - :ref:`ck_tile_buffer_views` - Raw memory access
 - :ref:`ck_tile_distribution` - Core distribution concepts
 
-Next Steps
-----------
 
-Now that you understand the terminology, explore the other conceptual documentation to deepen your understanding of CK Tile's architecture and capabilities.

@@ -11,9 +11,9 @@ Convolution Implementation with CK Tile
 Overview
 ========
 
-This chapter demonstrates how CK Tile's :ref:`tensor descriptor <ck_tile_descriptors>` system enables efficient convolution implementations on GPUs. Convolution operations are fundamental in deep learning, and understanding their optimization reveals how high-performance libraries achieve their efficiency. We'll progress from a naive implementation to an optimized approach using tensor descriptors, showing how they enable efficient memory access patterns for GPU acceleration.
+This section covers how CK Tile's :ref:`tensor descriptor <ck_tile_descriptors>` system enables efficient convolution implementations on GPUs. Convolution operations are fundamental in deep learning, and understanding their optimization reveals how high-performance libraries achieve their efficiency. This section progresses from a naive implementation to an optimized approach using tensor descriptors, showing how they enable efficient memory access patterns for GPU acceleration.
 
-The key insight is that convolution can be transformed from a complex nested loop operation into a highly parallel matrix multiplication through the im2col (image to column) transformation. CK Tile's tensor descriptors provide the perfect abstraction for implementing this transformation efficiently without data duplication.
+The key insight is that convolution can be transformed from a complex nested loop operation into a highly parallel matrix multiplication through the image to column (im2col) transformation. CK Tile's tensor descriptors provide the perfect abstraction for implementing this transformation efficiently without data duplication.
 
 .. 
    Original mermaid diagram (edit here, then run update_diagrams.py)
@@ -62,18 +62,20 @@ The key insight is that convolution can be transformed from a complex nested loo
 .. image:: diagrams/convolution_example.svg
    :alt: Diagram
    :align: center
+
 .. image:: diagrams/convolution_example.svg
    :alt: Diagram
    :align: center
+
 Understanding Sliding Windows
 =============================
 
-Before diving into convolution, it's crucial to understand how sliding windows work. In convolution, we need to extract overlapping patches from the input image. Traditional approaches would copy these patches, but CK Tile uses :ref:`tensor descriptors <ck_tile_descriptors>` to create efficient :ref:`views <ck_tile_tensor_views>` without data duplication.
+Before diving into convolution, it's crucial to understand how sliding windows work. In convolution, overlapping patches need to be extracted from the input image. Traditional approaches would copy these patches, but CK Tile uses :ref:`tensor descriptors <ck_tile_descriptors>` to create efficient :ref:`views <ck_tile_tensor_views>` without data duplication.
 
 Simple Tiling Example
 ---------------------
 
-Let's start with non-overlapping tiles to understand the concept:
+Non-overlapping tiles:
 
 .. code-block:: cpp
 
@@ -99,12 +101,12 @@ Let's start with non-overlapping tiles to understand the concept:
         }
     };
 
-The key insight is understanding **strides** - how many elements to skip to move to the next element in each dimension. For non-overlapping tiles, we skip by ``tile_size`` in the outer dimensions.
+The key insight is understanding **strides**, the number of elements to skip to move to the next element in each dimension. For non-overlapping tiles, we skip by ``tile_size`` in the outer dimensions.
 
 Overlapping Windows for Convolution
 ------------------------------------
 
-For convolution, we need overlapping windows that slide by one element:
+For convolution, overlapping windows that slide by one element are needed:
 
 .. code-block:: cpp
 
@@ -141,7 +143,7 @@ The stride pattern ``[W, 1, W, 1]`` creates sliding windows:
 Naive Convolution Implementation
 ================================
 
-Let's start with the most straightforward implementation to establish our reference:
+A straightforward implementation for reference:
 
 .. code-block:: cpp
 
@@ -440,7 +442,7 @@ The multi-channel extension naturally follows from the single-channel case:
 Performance Optimizations
 =========================
 
-CK Tile enables several key optimizations for convolution:
+CK Tile enables several optimizations for convolution:
 
 **1. Memory Coalescing**
 
@@ -554,7 +556,7 @@ Key advantages of the CK Tile approach:
 Summary
 =======
 
-This example demonstrates how CK Tile transforms convolution from a memory-bound operation with poor parallelism into a compute-bound operation that fully utilizes GPU resources. The key insights are:
+This example demonstrates how CK Tile transforms convolution from a memory-bound operation with poor parallelism into a compute-bound operation that utilizes GPU resources. The key insights are:
 
 - **Sliding windows** can be efficiently represented using tensor descriptors with appropriate strides
 - **Im2col transformation** converts convolution to matrix multiplication without data copies  
