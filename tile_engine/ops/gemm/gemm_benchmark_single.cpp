@@ -69,7 +69,10 @@ inline auto create_args(int argc, char* argv[])
                 "false",
                 "Whether to output results in JSON format only. Possible values are true or false. "
                 "Default is "
-                "false");
+                "false")
+        .insert("json_file",
+                "",
+                "The filename for JSON output. If empty, output goes to stdout. Default is empty.");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -118,8 +121,27 @@ void benchmark_single(const ck_tile::ArgParser& arg_parser)
                     arg_parser.get_int("rotating_count"),
                     arg_parser.get_bool("json_output")};
 
-    // Get the profiler instance
-    auto& profiler = GemmProfiler::instance(setting);
+    // Handle output stream - either file or stdout
+    std::string json_filename = arg_parser.get_str("json_file");
+    std::ofstream json_file_stream;
+    std::ostream* output_stream = &std::cout;
+    
+    if(!json_filename.empty())
+    {
+        json_file_stream.open(json_filename);
+        if(json_file_stream.is_open())
+        {
+            output_stream = &json_file_stream;
+        }
+        else
+        {
+            std::cerr << "Warning: Failed to open JSON file " << json_filename 
+                      << ", using stdout instead." << std::endl;
+        }
+    }
+
+    // Get the profiler instance with output stream
+    auto& profiler = GemmProfiler::instance(setting, output_stream);
 
     try
     {
