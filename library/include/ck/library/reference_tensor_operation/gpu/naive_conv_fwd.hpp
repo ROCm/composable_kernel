@@ -110,17 +110,18 @@ __global__ void naive_conv_fwd_ndhwc_kzyxc_ndhwk(const TIn* __restrict__ p_in,
                         for(index_t c = 0; c < C; ++c)
                         {
                             // Load values from memory
-                            TIn in_loaded = in_n_di_hi_wi[c];
+                            TIn in_loaded   = in_n_di_hi_wi[c];
                             TWei wei_loaded = wei_k_z_y_x[c];
-                            
+
                             // Apply element-wise operations
                             in_op(in_val, in_loaded);
                             wei_op(wei_val, wei_loaded);
-                            
-                            // Always convert to float for multiplication (FP8/BF8 don't support direct arithmetic)
-                            float in_f = type_convert<float>(in_val);
+
+                            // Always convert to float for multiplication (FP8/BF8 don't support
+                            // direct arithmetic)
+                            float in_f  = type_convert<float>(in_val);
                             float wei_f = type_convert<float>(wei_val);
-                            
+
                             // Accumulate in float
                             acc_float += in_f * wei_f;
                         }
@@ -130,12 +131,12 @@ __global__ void naive_conv_fwd_ndhwc_kzyxc_ndhwk(const TIn* __restrict__ p_in,
         }
 
         // Convert float accumulator to TAcc, then to output type
-        TAcc acc = type_convert<TAcc>(acc_float);
+        TAcc acc    = type_convert<TAcc>(acc_float);
         TOut result = type_convert<TOut>(acc);
-        
+
         // Apply output element-wise operation (if any)
         out_op(out_val, result);
-        
+
         // Write result (use direct conversion, not element-wise result)
         p_out[ii] = result;
     }

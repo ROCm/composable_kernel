@@ -10,7 +10,7 @@ namespace ck {
 namespace ref {
 
 /*
- * \brief naive implementation of 3D convolution backward data. 
+ * \brief naive implementation of 3D convolution backward data.
  *        Layout is (NDHWC, KZYXC, NDHWK).
  *        Computes gradient with respect to input.
  *
@@ -56,9 +56,9 @@ __global__ void naive_conv_bwd_data_ndhwc_kzyxc_ndhwk(TIn* __restrict__ p_in_gra
                                                       index_t pad_y,
                                                       index_t pad_x)
 {
-    const index_t tid                = blockIdx.x * blockDim.x + threadIdx.x;
-    const index_t num_threads        = blockDim.x * gridDim.x;
-    const long_index_t input_length  = N * Di * Hi * Wi * C;
+    const index_t tid               = blockIdx.x * blockDim.x + threadIdx.x;
+    const index_t num_threads       = blockDim.x * gridDim.x;
+    const long_index_t input_length = N * Di * Hi * Wi * C;
 
     const index_t in_strides[]  = {Di * Hi * Wi * C, Hi * Wi * C, Wi * C, C};
     const index_t out_strides[] = {Do * Ho * Wo * K, Ho * Wo * K, Wo * K, K};
@@ -83,12 +83,12 @@ __global__ void naive_conv_bwd_data_ndhwc_kzyxc_ndhwk(TIn* __restrict__ p_in_gra
         tmp -= hi * in_strides[2];
         const index_t wi = tmp / in_strides[3];
         tmp -= wi * in_strides[3];
-        const index_t c  = tmp;
+        const index_t c = tmp;
 
         // Always accumulate in float
         float acc_float = 0.0f;
 
-        const TOut* out_n  = p_out_grad + static_cast<long_index_t>(n) * out_strides[0];
+        const TOut* out_n = p_out_grad + static_cast<long_index_t>(n) * out_strides[0];
 
         // Loop over output channels
         for(index_t k = 0; k < K; ++k)
@@ -166,4 +166,3 @@ __global__ void naive_conv_bwd_data_ndhwc_kzyxc_ndhwk(TIn* __restrict__ p_in_gra
 } // namespace ck
 
 #endif
-
