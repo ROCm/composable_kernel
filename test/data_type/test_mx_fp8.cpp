@@ -19,6 +19,8 @@ using ck::scaled_type_convert;
 using ck::type_convert;
 using ck::fp8_impl::fp8x2_storage_t;
 
+using ::ck::DeviceMem;
+
 constexpr uint64_t test_size = 256 * 256 + 2 + 4 + 6;
 
 /**
