@@ -83,6 +83,7 @@ fi
 # Parse command line arguments
 CONFIG_MODE="full"  # Default configuration mode: 'small', 'half' or 'full'
 MAX_PARALLEL_JOBS=1  # Default number of parallel jobs
+NUM_GPUS=0  # Number of GPUs to use (0 means no GPU assignment)
 
 # Process arguments
 while [[ $# -gt 0 ]]; do
@@ -95,18 +96,51 @@ while [[ $# -gt 0 ]]; do
             MAX_PARALLEL_JOBS="${1#-j}"
             shift
             ;;
+        --gpus)
+            NUM_GPUS="$2"
+            shift 2
+            ;;
         small|half|full)
             CONFIG_MODE="$1"
             shift
             ;;
         *)
-            echo "Usage: $0 [small|half|full] [-j <num_jobs>]"
+            echo "Usage: $0 [small|half|full] [-j <num_jobs>] [--gpus <num_gpus>]"
             echo "  Configuration modes: small, half, full (default: full)"
-            echo "  -j <num_jobs>: Number of parallel jobs (default: 4)"
+            echo "  -j <num_jobs>: Number of parallel jobs (default: 1)"
+            echo "  --gpus <num_gpus>: Number of GPUs to use (e.g., 8 for GPUs 0-7)"
             exit 1
             ;;
     esac
 done
+
+# Setup GPU array if GPUs are requested
+if [ $NUM_GPUS -gt 0 ]; then
+    # Auto-detect available GPUs
+    AVAILABLE_GPUS=$(rocm-smi --showid 2>/dev/null | grep -oP 'GPU\[\K[0-9]+' | sort -n | tail -1)
+    if [ -n "$AVAILABLE_GPUS" ]; then
+        MAX_AVAILABLE=$((AVAILABLE_GPUS + 1))
+    else
+        MAX_AVAILABLE=0
+    fi
+    
+    # Validate requested GPU count
+    if [ $NUM_GPUS -gt $MAX_AVAILABLE ]; then
+        echo "WARNING: Requested $NUM_GPUS GPUs but only $MAX_AVAILABLE available. Using $MAX_AVAILABLE GPUs."
+        NUM_GPUS=$MAX_AVAILABLE
+    fi
+    
+    # Build GPU array (0 to NUM_GPUS-1)
+    GPU_ARRAY=()
+    for ((i=0; i<NUM_GPUS; i++)); do
+        GPU_ARRAY+=($i)
+    done
+    
+    echo "Using $NUM_GPUS GPU(s): ${GPU_ARRAY[*]}"
+else
+    echo "No GPU assignment specified, using default GPU behavior"
+    GPU_ARRAY=()
+fi
 
 # Configuration
 OUTPUT_DIR="generated_datasets"
@@ -183,6 +217,8 @@ echo ""
 
 # Array to track background job PIDs
 declare -a job_pids=()
+# Counter for round-robin GPU assignment
+GPU_COUNTER=0
 
 # Read 2D configurations from CSV (skip comments and header)
 while IFS=',' read -r config_name model batch_size channels height width precision; do
@@ -198,10 +234,23 @@ while IFS=',' read -r config_name model batch_size channels height width precisi
     CONFIG="--model $model --batch-size $batch_size --channels $channels --height $height --width $width --precision $precision"
     CONFIG_NAME="$config_name"
     
-    echo -e "${GREEN}[${CURRENT_CONFIG}/${TOTAL_CONFIGS}]${NC} ${CYAN}2D${NC} ${YELLOW}$CONFIG_NAME${NC} - Starting in background"
+    # Assign GPU in round-robin fashion if GPUs are specified
+    if [ $NUM_GPUS -gt 0 ]; then
+        GPU_ID=${GPU_ARRAY[$((GPU_COUNTER % NUM_GPUS))]}
+        GPU_COUNTER=$((GPU_COUNTER + 1))
+        echo -e "${GREEN}[${CURRENT_CONFIG}/${TOTAL_CONFIGS}]${NC} ${CYAN}2D${NC} ${YELLOW}$CONFIG_NAME${NC} ${PURPLE}[GPU ${GPU_ID}]${NC} - Starting in background"
+    else
+        GPU_ID=""
+        echo -e "${GREEN}[${CURRENT_CONFIG}/${TOTAL_CONFIGS}]${NC} ${CYAN}2D${NC} ${YELLOW}$CONFIG_NAME${NC} - Starting in background"
+    fi
     
     # Run in background
     (
+        # Set HIP_VISIBLE_DEVICES if GPU was assigned
+        if [ -n "$GPU_ID" ]; then
+            export HIP_VISIBLE_DEVICES=$GPU_ID
+        fi
+        
         MIOPEN_ENABLE_LOGGING_CMD=1 $PYTHON_CMD run_model_with_miopen.py \
             --model $model --batch-size $batch_size --channels $channels --height $height --width $width --precision $precision \
             > /dev/null 2>> $OUTPUT_DIR/${model}_miopen_log_2d.txt || true
@@ -244,6 +293,7 @@ echo ""
 
 # Reset job tracking array
 declare -a job_pids=()
+# GPU counter continues from 2D models for round-robin assignment
 
 # Read 3D configurations from CSV (skip comments and header)
 while IFS=',' read -r config_name model batch_size channels temporal_size height width precision; do
@@ -259,10 +309,23 @@ while IFS=',' read -r config_name model batch_size channels temporal_size height
     CONFIG="--model $model --batch-size $batch_size --channels $channels --temporal-size $temporal_size --height $height --width $width --precision $precision"
     CONFIG_NAME="$config_name"
     
-    echo -e "${GREEN}[${CURRENT_3D_CONFIG}/${TOTAL_3D_CONFIGS}]${NC} ${CYAN}3D${NC} ${YELLOW}$CONFIG_NAME${NC} - Starting in background"
+    # Assign GPU in round-robin fashion if GPUs are specified
+    if [ $NUM_GPUS -gt 0 ]; then
+        GPU_ID=${GPU_ARRAY[$((GPU_COUNTER % NUM_GPUS))]}
+        GPU_COUNTER=$((GPU_COUNTER + 1))
+        echo -e "${GREEN}[${CURRENT_3D_CONFIG}/${TOTAL_3D_CONFIGS}]${NC} ${CYAN}3D${NC} ${YELLOW}$CONFIG_NAME${NC} ${PURPLE}[GPU ${GPU_ID}]${NC} - Starting in background"
+    else
+        GPU_ID=""
+        echo -e "${GREEN}[${CURRENT_3D_CONFIG}/${TOTAL_3D_CONFIGS}]${NC} ${CYAN}3D${NC} ${YELLOW}$CONFIG_NAME${NC} - Starting in background"
+    fi
     
     # Run in background
     (
+        # Set HIP_VISIBLE_DEVICES if GPU was assigned
+        if [ -n "$GPU_ID" ]; then
+            export HIP_VISIBLE_DEVICES=$GPU_ID
+        fi
+        
         MIOPEN_ENABLE_LOGGING_CMD=1 $PYTHON_CMD run_model_with_miopen.py \
             --model $model --batch-size $batch_size --channels $channels --temporal-size $temporal_size --height $height --width $width --precision $precision \
             > /dev/null 2>> $OUTPUT_DIR/${model}_miopen_log_3d.txt || true

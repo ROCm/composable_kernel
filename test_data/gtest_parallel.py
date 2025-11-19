@@ -163,37 +163,37 @@ class Outputter(object):
 
 
 def get_available_gpus(num_gpus):
-    """Get list of available GPU indices based on HIP_VISIBLE_DEVICES and num_gpus.
+    """Get list of available GPU IDs based on HIP_VISIBLE_DEVICES and num_gpus.
 
-    Returns a list of GPU indices to use (0-based relative to HIP_VISIBLE_DEVICES).
-    If HIP_VISIBLE_DEVICES is set, we return indices 0 to min(num_gpus, len(HIP_VISIBLE_DEVICES))-1.
-    If not set, we return indices 0 to num_gpus-1.
-
-    The indices are relative to the already-filtered GPU set, so they should always
-    be 0, 1, 2, etc., not the actual physical GPU IDs.
+    Returns a list of GPU IDs to use.
+    If HIP_VISIBLE_DEVICES is set, we return the first min(num_gpus, len(HIP_VISIBLE_DEVICES)) GPU IDs from it.
+    If not set, we return GPU IDs 0 to num_gpus-1.
     """
     hip_visible = os.environ.get("HIP_VISIBLE_DEVICES", None)
 
-    if hip_visible is not None:
-        # Parse HIP_VISIBLE_DEVICES to see how many GPUs are available
+    # Treat empty string as not set
+    if hip_visible is not None and hip_visible.strip():
+        # Parse HIP_VISIBLE_DEVICES to get the list of available GPU IDs
         try:
-            available_gpu_count = len(
-                [gpu_id.strip() for gpu_id in hip_visible.split(",") if gpu_id.strip()]
-            )
+            available_gpu_ids = [
+                gpu_id.strip() for gpu_id in hip_visible.split(",") if gpu_id.strip()
+            ]
         except ValueError:
             sys.stderr.write(
-                "Warning: Invalid HIP_VISIBLE_DEVICES format, using 1 GPU\n"
+                "Warning: Invalid HIP_VISIBLE_DEVICES format, using GPU 0\n"
             )
-            available_gpu_count = 1
+            return ["0"]
 
-        # Use indices 0 to min(num_gpus, available_gpu_count)-1
-        # These are relative indices within the HIP_VISIBLE_DEVICES set
-        num_to_use = min(num_gpus, available_gpu_count)
+        # If parsing resulted in empty list, treat as not set
+        if not available_gpu_ids:
+            return [str(i) for i in range(num_gpus)]
+
+        # Use the first min(num_gpus, len(available_gpu_ids)) GPUs from the list
+        num_to_use = min(num_gpus, len(available_gpu_ids))
+        return available_gpu_ids[:num_to_use]
     else:
-        # If HIP_VISIBLE_DEVICES is not set, use indices 0 to num_gpus-1
-        num_to_use = num_gpus
-
-    return list(range(num_to_use))
+        # If HIP_VISIBLE_DEVICES is not set or empty, use GPU IDs 0 to num_gpus-1
+        return [str(i) for i in range(num_gpus)]
 
 
 def get_save_file_path():
