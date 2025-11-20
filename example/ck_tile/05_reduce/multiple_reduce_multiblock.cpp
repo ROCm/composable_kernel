@@ -130,12 +130,11 @@ bool run(const ck_tile::ArgParser& arg_parser)
     //  , for efficiency reasons this size if limited to a maximum of 128. If this is not sufficient
     //  to process the whole reduction, each thread will to process multiple thread tile
     //  a num_block_tile_iterations times
-    int K_BlockTileSize = BlockTile::at(1);
     int num_block_tile_iterations;
     int block_group_size;
 
     Kernel::CalculateBlockGroupParams(
-        reduce_total_length, K_BlockTileSize, num_block_tile_iterations, block_group_size);
+        reduce_total_length, num_block_tile_iterations, block_group_size);
 
     const ck_tile::index_t kBlockSize = Kernel::BlockSize();
     ck_tile::index_t kGridSize =

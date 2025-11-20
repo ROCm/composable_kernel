@@ -18,6 +18,48 @@
 
 namespace ck_tile {
 
+/// @brief TilePartitioner for 2D reduction operations
+template <typename BlockShape_>
+struct Reduce2dTilePartitioner
+{
+    using BlockShape = remove_cvref_t<BlockShape_>;
+
+    static constexpr index_t MPerBlock = BlockShape::Block_M;
+    static constexpr index_t NPerBlock = BlockShape::Block_N;
+
+    CK_TILE_HOST_DEVICE Reduce2dTilePartitioner() noexcept = delete;
+
+    /// @brief Construct partitioner with problem dimensions
+    /// @param M_ Output dimension size (kept dimension)
+    /// @param N_ Reduction dimension size
+    CK_TILE_HOST_DEVICE Reduce2dTilePartitioner(index_t M_, index_t N_) noexcept : M(M_), N(N_) {}
+
+    /// @brief Get output tile index for threadwise reduction
+    /// @param block_idx Block index
+    /// @return M-dimension tile index
+    CK_TILE_DEVICE auto GetOutputTileIndex(index_t block_idx) const noexcept -> index_t
+    {
+        return amd_wave_read_first_lane(block_idx);
+    }
+
+    /// @brief Get output tile index and block local ID for multi-block reduction
+    /// @param block_idx Global block index
+    /// @param block_group_size Number of blocks per output tile
+    /// @return Tuple of (tile_index, local_block_id)
+    CK_TILE_DEVICE auto
+    GetOutputTileIndexMultiBlock(index_t block_idx,
+                                 index_t block_group_size) const noexcept -> tuple<index_t, index_t>
+    {
+        const index_t tile_idx  = amd_wave_read_first_lane(block_idx / block_group_size);
+        const index_t local_idx = amd_wave_read_first_lane(block_idx % block_group_size);
+        return make_tuple(tile_idx, local_idx);
+    }
+
+    private:
+    index_t M;
+    index_t N;
+};
+
 template <typename Problem_,
           typename Policy_      = Reduce2dDefaultPolicy,
           bool ForceMultiBlock_ = false>
@@ -32,11 +74,9 @@ struct MultiReduce2d
     using ComputeDataType = ck_tile::remove_cvref_t<typename Problem::ComputeDataType>;
     using YDataType       = ck_tile::remove_cvref_t<typename Problem::YDataType>;
 
-    static constexpr index_t kBlockSize = Problem::BlockShape::BlockSize;
+    using TilePartitioner = Reduce2dTilePartitioner<typename Problem::BlockShape>;
 
-    static constexpr auto thread_cluster_desc = make_cluster_descriptor(
-        ck_tile::sequence<Problem::BlockShape::Block_M / Problem::BlockShape::ThreadTile_M,
-                          Problem::BlockShape::Block_N / Problem::BlockShape::ThreadTile_N>{});
+    static constexpr index_t kBlockSize = Problem::BlockShape::BlockSize;
 
     CK_TILE_HOST static constexpr auto BlockSize()
     {
@@ -210,18 +250,24 @@ struct MultiReduce2d
 
         constexpr index_t output_vector_size = CalculateOutputVectorSize();
 
-        const auto thread_local_id = get_thread_id();
         const auto block_global_id = get_block_id(); // Hardware block id
 
-        // Block group calculations (for multi-block case, block_group_size > 1)
-        const auto block_group_id = block_global_id / block_group_size; // Logical block group id
-        const auto block_local_id =
-            block_global_id % block_group_size; // Logical block id within the block group
-
-        const auto thread_cluster_idx =
-            thread_cluster_desc.calculate_bottom_index(make_tuple(thread_local_id));
-        const auto thread_n_cluster_id =
-            thread_cluster_idx[number<1>{}]; // cluster index in N dimension
+        // Get tile indices
+        index_t block_group_id, block_local_id;
+        if constexpr(ForceMultiBlock)
+        {
+            const auto [tile_idx, local_idx] =
+                TilePartitioner{total_reduce_len, total_reduce_len}.GetOutputTileIndexMultiBlock(
+                    block_global_id, block_group_size);
+            block_group_id = tile_idx;
+            block_local_id = local_idx;
+        }
+        else
+        {
+            block_group_id = TilePartitioner{total_reduce_len, total_reduce_len}.GetOutputTileIndex(
+                block_global_id);
+            block_local_id = 0;
+        }
 
         const auto kept_merge_transform =
             make_merge_transform(kept_lens); // Dimension(s) not reduced are being flattened
@@ -292,7 +338,17 @@ struct MultiReduce2d
             block_reduce2d_cross_warp_sync(
                 y_compute, static_cast<void*>(smem), reduce_ops.get(number<i>{}));
 
-            if(thread_n_cluster_id == 0)
+            // Determine if this thread should perform the output operation
+            // We want threads that handle the first elements in the N (reduction) dimension
+            const auto tile_dist = y_compute.get_tile_distribution();
+            const auto ps_idx    = detail::get_partition_index(tile_dist);
+            const auto rs_idx    = tile_dist.calculate_rs_index_from_ps_index(ps_idx);
+
+            // Check if this thread is responsible for the first N-dimension element
+            // In the tile distribution, dimension 1 corresponds to the N dimension
+            const bool is_first_n_thread = (rs_idx[number<1>{}] == 0);
+
+            if(is_first_n_thread)
             {
                 tile_elementwise_inout(accumulator_ops.get(number<i>{}), y_compute, y_compute);
 
