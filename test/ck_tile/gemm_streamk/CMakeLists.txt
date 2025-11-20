@@ -12,7 +12,7 @@ list(APPEND EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS
 )
 set(EXAMPLE_GEMM_COMPILE_COMPUTE_ASYNC_OPTIONS ${EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS})
 
-# Currently test_ck_tile_streamk is only built on gfx9
+# Currently test_ck_tile_streamk_smoke is only built on gfx9
 if(GPU_TARGETS MATCHES "gfx9")
 
     include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
@@ -140,6 +140,13 @@ if(GPU_TARGETS MATCHES "gfx9")
     #                     ${CMAKE_CURRENT_SOURCE_DIR}/extended_tests/mem/bf16_ccr_mem_128x128x32_2x2x1_32x32x16_NonPersistent.cpp
     #                    #${CMAKE_CURRENT_SOURCE_DIR}/extended_tests/mem/bf16_ccc_mem_128x128x32_2x2x1_32x32x16_NonPersistent.cpp
     #                     )
+    target_compile_options(test_ck_tile_streamk_smoke PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+else()
+    message(DEBUG "Skipping test_ck_tile_streamk_smoke for current target")
+endif()
+
+if(GPU_TARGETS MATCHES "gfx9|gfx11|gfx12")
+    include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
     add_gtest_executable(test_ck_tile_streamk_tile_partitioner test_streamk_tile_partitioner.cpp)
     add_gtest_executable(test_ck_tile_streamk_reboot_smoke 
                          ${CMAKE_CURRENT_SOURCE_DIR}/smoke_tests/test_gemm_streamk_reboot_fp16_persistent.cpp
@@ -153,7 +160,6 @@ if(GPU_TARGETS MATCHES "gfx9")
                          ${CMAKE_CURRENT_SOURCE_DIR}/extended_tests/test_gemm_streamk_reboot_fp16_nonpersistent.cpp
                          ${CMAKE_CURRENT_SOURCE_DIR}/extended_tests/test_gemm_streamk_reboot_bf16_nonpersistent.cpp
                          test_gemm_streamk_reboot_util.cpp)
-    target_compile_options(test_ck_tile_streamk_smoke PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
 else()
-    message(DEBUG "Skipping test_ck_tile_streamk tests for current target")
+    message(DEBUG "Skipping test_ck_tile_streamk unit tests for current target")
 endif()
