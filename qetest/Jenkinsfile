@@ -35,7 +35,7 @@ def generateAndArchiveBuildTraceVisualization() {
         archiveArtifacts "workspace/${imageName}"
 
         // Notify the channel
-        withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
+        withCredentials([string(credentialsId: 'ck_ci_build_perf_webhook_url', variable: 'WEBHOOK_URL')]) {
         sh '''
             # Convert image to base64
             IMAGE_BASE64=$(base64 -w 0 ./workspace/''' + imageName + ''')
