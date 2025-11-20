@@ -1096,32 +1096,24 @@ struct QuantGemmKernel
             if constexpr(kQuantType == QuantType::AQuantGrouped)
             {
                 const auto& aq_block_window = gemm_tile_windows.at(I1);
-                index_t m = 0;
+                index_t m                   = 0;
                 if constexpr(PreshuffleQuant)
                 {
                     m = kargs.M;
                 }
-                return GemmPipeline{}.template operator()(a_block_window,
-                                                              b_block_window,
-                                                              aq_block_window,
-                                                              num_loop,
-                                                              smem_ptr_0,
-                                                              m);
+                return GemmPipeline{}.template operator()(
+                    a_block_window, b_block_window, aq_block_window, num_loop, smem_ptr_0, m);
             }
             else if constexpr(kQuantType == QuantType::BQuantGrouped)
             {
                 const auto& bq_block_window = gemm_tile_windows.at(I3);
-                index_t n = 0;
+                index_t n                   = 0;
                 if constexpr(PreshuffleQuant)
                 {
                     n = kargs.N;
                 }
-                return GemmPipeline{}.template operator()(a_block_window,
-                                                          b_block_window,
-                                                          bq_block_window,
-                                                          num_loop,
-                                                          smem_ptr_0,
-                                                          n);
+                return GemmPipeline{}.template operator()(
+                    a_block_window, b_block_window, bq_block_window, num_loop, smem_ptr_0, n);
             }
             else if constexpr(kQuantType == QuantType::RowColQuant ||
                               kQuantType == QuantType::TensorQuant)
@@ -1209,7 +1201,7 @@ struct QuantGemmKernel
             if constexpr(kQuantType == QuantType::BQuantGrouped)
             {
                 const auto& bq_block_window = gemm_tile_windows.at(I3);
-                index_t n = 0;
+                index_t n                   = 0;
                 if constexpr(PreshuffleQuant)
                 {
                     n = kargs.N;

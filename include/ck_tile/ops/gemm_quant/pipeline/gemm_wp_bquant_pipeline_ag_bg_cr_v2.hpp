@@ -484,12 +484,12 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
               typename BFlatBlockWindowTmp,
               typename BQDramBlockWindowTmp>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
-                        const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
-                        const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
-                        index_t num_loop,
-                        void* p_smem_ping,
-                        void* p_smem_pong,
-                        index_t n = 0) const  // Default value for non-preshuffle case
+                                   const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
+                                   const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
+                                   index_t num_loop,
+                                   void* p_smem_ping,
+                                   void* p_smem_pong,
+                                   index_t n = 0) const // Default value for non-preshuffle case
     {
         return operator()<TailNum>(
             a_dram_block_window_tmp,
