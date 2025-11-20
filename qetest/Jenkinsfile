@@ -42,7 +42,7 @@ def generateAndArchiveBuildTraceVisualization() {
     withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
     sh '''
         # Convert image to base64
-        IMAGE_BASE64=$(base64 -w 0 ''' + ${imageName} + ''')
+        IMAGE_BASE64=$(base64 -w 0 ./workspace/''' + imageName + ''')
         
         curl -X POST "${WEBHOOK_URL}" \
         -H 'Content-Type: application/json' \
