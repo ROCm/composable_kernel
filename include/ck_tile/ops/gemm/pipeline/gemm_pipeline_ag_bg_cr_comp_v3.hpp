@@ -71,10 +71,6 @@ struct BaseGemmPipelineAgBgCrCompV3
                     ck_tile::bool_constant<true>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
             }
-            else
-            {
-                throw std::runtime_error("Unsupported tail number for this operation !!!");
-            }
         }
         else
         {
@@ -90,10 +86,6 @@ struct BaseGemmPipelineAgBgCrCompV3
                 return run_func(
                     ck_tile::bool_constant<false>{},
                     ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
-            }
-            else
-            {
-                throw std::runtime_error("Unsupported tail number for this operation !!!");
             }
         }
 #if defined(__HIP_DEVICE_COMPILE__)
