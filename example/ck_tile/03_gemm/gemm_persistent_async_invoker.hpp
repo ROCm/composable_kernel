@@ -15,7 +15,8 @@
  * - Producer-consumer synchronization
  * - Pivot-based tile traversal
  */
-struct PersistentAsyncInvoker
+
+struct GemmPersistentAsyncInvoker
 {
     template <typename GemmConfig,
               typename ADataType,
@@ -33,9 +34,9 @@ struct PersistentAsyncInvoker
                       const ck_tile::stream_config& s,
                       const ck_tile::PersistentAsyncArgs& async_args)
     {
-        static_assert(Persistent, "PersistentAsyncInvoker requires persistent kernel mode");
 
-        // Tile configuration
+        static_assert(Persistent, "This invoker only supports persistent GEMM.");
+
         using GemmShape = ck_tile::TileGemmShape<
             ck_tile::sequence<GemmConfig::M_Tile, GemmConfig::N_Tile, GemmConfig::K_Tile>,
             ck_tile::sequence<GemmConfig::M_Warp, GemmConfig::N_Warp, GemmConfig::K_Warp>,
@@ -45,15 +46,15 @@ struct PersistentAsyncInvoker
 
         using TilePartitioner =
             ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,
-                                                       GemmConfig::TileParitionerGroupNum,
-                                                       GemmConfig::TileParitionerM01>;
+                                                       GemmConfig::TilePartitionerGroupNum,
+                                                       GemmConfig::TilePartitionerM01>;
 
         using Traits = ck_tile::TileGemmTraits<GemmConfig::kPadM,
                                                GemmConfig::kPadN,
                                                GemmConfig::kPadK,
                                                ALayout,
                                                BLayout,
-                                               CLayout,
+                                               ELayout,
                                                GemmConfig::NumWaveGroups>;
 
         using GemmUniversalTraits =
@@ -81,7 +82,6 @@ struct PersistentAsyncInvoker
         const ck_tile::index_t num_loop    = TilePartitioner::GetLoopNum(K_split);
         const bool has_hot_loop            = BaseGemmPipeline::BlockHasHotloop(num_loop);
         const ck_tile::TailNumber tail_num = BaseGemmPipeline::GetBlockLoopTailNum(num_loop);
-
         float ave_time{0};
 
         const auto Run = [&](const auto has_hot_loop_,
@@ -104,14 +104,16 @@ struct PersistentAsyncInvoker
             using GemmPipeline = typename PipelineTypeTraits<
                 GemmConfig::Pipeline>::template GemmPipeline<UniversalGemmProblem>;
 
+            using WorkspaceType = ck_tile::remove_cvref_t<typename GemmConfig::WorkspaceType>;
+
             using GemmEpilogue = ck_tile::CShuffleEpilogue<
                 ck_tile::CShuffleEpilogueProblem<ADataType,
                                                  BDataType,
                                                  DsDataType,
                                                  AccDataType,
-                                                 CDataType,
+                                                 WorkspaceType,
                                                  DsLayout,
-                                                 CLayout,
+                                                 ELayout,
                                                  CDEElementWise,
                                                  TilePartitioner::MPerBlock,
                                                  TilePartitioner::NPerBlock,
@@ -124,19 +126,59 @@ struct PersistentAsyncInvoker
                                                  memory_operation,
                                                  GemmConfig::NumWaveGroups>>;
 
-            using Kernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+            using GemmKernel = ck_tile::GemmKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
 
-            // Create standard kernel args
-            auto kargs = Kernel::MakeKernelArgs(args);
+            ck_tile::DeviceMem ws_m_n_dev_buf(args.M * args.N * sizeof(WorkspaceType));
+            ck_tile::GemmHostArgs ws_args = ck_tile::GemmHostArgs(args);
+            auto c_ptr                    = ws_args.c_ptr;
+            ws_args.c_ptr                 = ws_m_n_dev_buf.GetDeviceBuffer();
+            auto gemm_kargs               = GemmKernel::MakeKernelArgs(ws_args);
 
-            // Use max occupancy grid for persistent kernel
-            const dim3 grids  = Kernel::MaxOccupancyGridSize(s);
-            const dim3 blocks = Kernel::BlockSize();
+            const dim3 grids  = Persistent ? GemmKernel::MaxOccupancyGridSize(s)
+                                           : GemmKernel::GridSize(args.M, args.N, args.k_batch);
+            const dim3 blocks = GemmKernel::BlockSize();
 
-            if(!Kernel::IsSupportedArgument(kargs))
+            if(!GemmKernel::IsSupportedArgument(gemm_kargs))
+            {
+                throw std::runtime_error("Wrong! Arguments not supported! Skipping gemm!\n");
+            }
+
+            using XElementwiseOperation = ck_tile::element_wise::UnaryConvert;
+            using BlockTile             = ck_tile::sequence<2048>;
+            using BlockWarps            = ck_tile::sequence<8>;
+            using WarpTile              = ck_tile::sequence<64>;
+
+            using ElementwiseShape =
+                ck_tile::ElementWiseShape<BlockWarps, BlockTile, WarpTile, WorkspaceType>;
+            using Problem = ck_tile::ElementWisePipelineProblem<WorkspaceType,
+                                                                WorkspaceType,
+                                                                CDataType,
+                                                                ElementwiseShape,
+                                                                XElementwiseOperation>;
+            using ElementwiseKernel =
+                ck_tile::ElementWiseKernel<Problem, ck_tile::ElementWiseDefaultPolicy>;
+
+            ck_tile::index_t total_elements     = 1;
+            std::vector<ck_tile::index_t> shape = {args.M, args.N};
+
+            for(auto d : shape)
+                total_elements *= d;
+
+            const ck_tile::index_t kBlockSize      = ElementwiseKernel::BlockSize();
+            constexpr ck_tile::index_t kBlockPerCu = 1;
+
+            constexpr ck_tile::index_t elements_per_block = BlockTile::at(ck_tile::number<0>{});
+            ck_tile::index_t kGridSize =
+                (total_elements + elements_per_block - 1) / elements_per_block;
+
+            auto input_tensors = ck_tile::make_tuple(static_cast<WorkspaceType*>(ws_args.c_ptr));
+            auto input_size    = ck_tile::make_tuple(args.M, args.N);
+
+            // Check if the kernel configuration is supported
+            if(!ElementwiseKernel::IsSupportedArgument(input_size))
             {
                 throw std::runtime_error(
-                    "Wrong! Arguments not supported for persistent async GEMM!\n");
+                    "Wrong! Elementwise arguments not supported! Skipping gemm!\n");
             }
 
             if(s.log_level_ > 0)
@@ -156,91 +198,67 @@ struct PersistentAsyncInvoker
                           << (async_args.chunk_signals ? "enabled" : "disabled") << std::endl;
             }
 
-            // Validation: tiles_per_chunk_m must divide tiles_m evenly
-            ck_tile::index_t tiles_m = (args.M + GemmConfig::M_Tile - 1) / GemmConfig::M_Tile;
-            if(async_args.tiles_per_chunk_m > 0 && tiles_m % async_args.tiles_per_chunk_m != 0)
-            {
-                throw std::runtime_error("tiles_per_chunk_m must divide total M tiles evenly!");
-            }
+            // Declare rotating_mem_ptr here so it stays in scope until it is needed
+            std::unique_ptr<ck_tile::RotatingMemWrapper<ADataType, BDataType>> rotating_mem_ptr;
+            std::function<void()> preprocess;
 
             auto clear_gemm_output = [&]() {
                 if(args.k_batch > 1)
                     hipGetErrorString(hipMemsetAsync(
-                        args.e_ptr, 0, args.M * args.N * sizeof(CDataType), s.stream_id_));
+                        ws_args.c_ptr, 0, args.M * args.N * sizeof(WorkspaceType), s.stream_id_));
             };
 
-            // Prepare preprocessing
-            std::function<void()> preprocess = clear_gemm_output;
+            if(s.flush_cache_)
+            {
+                std::cout << "Flushing cache..." << std::endl;
 
-            /*
-            // Custom kernel wrapper that includes async scheduler
+                ck_tile::HostTensor<ADataType> a_m(ck_tile::host_tensor_descriptor(
+                    args.M, args.K, args.stride_A, is_row_major(ALayout{})));
+                ck_tile::HostTensor<BDataType> b_n(ck_tile::host_tensor_descriptor(
+                    args.K, args.N, args.stride_B, is_row_major(BLayout{})));
 
-            ck_tile::index_t tiles_n;
+                auto size_a_buffer = a_m.get_element_space_size_in_bytes();
+                auto size_b_buffer = b_n.get_element_space_size_in_bytes();
 
-            ck_tile::index_t grid_size;
-            auto persistent_async_kernel = [&](auto... kernel_args) {
-                // Get tiles info
-                tiles_m =
-                    (args.M + GemmConfig::M_Tile - 1) / GemmConfig::M_Tile;
-                tiles_n =
-                    (args.N + GemmConfig::N_Tile - 1) / GemmConfig::N_Tile;
-                grid_size = grids.x * grids.y;
+                rotating_mem_ptr =
+                    std::make_unique<ck_tile::RotatingMemWrapper<ADataType, BDataType>>(
+                        gemm_kargs.as_ptr[0],
+                        gemm_kargs.bs_ptr[0],
+                        s.rotating_count_,
+                        size_a_buffer,
+                        size_b_buffer);
+                rotating_mem_ptr->Print();
 
-                // Create persistent async scheduler
-                ck_tile::PersistentAsyncScheduler<TilePartitioner> persistent_scheduler(
-                    async_args, tiles_m, tiles_n, grid_size);
-
-                // Persistent tile loop
-                while(true)
-                {
-                    auto work_tile = persistent_scheduler.GetNextWorkTile();
-                    if(!work_tile.IsValid())
-                        break;
-
-                    // Execute GEMM for this tile
-                    // This would call the actual kernel implementation
-                    Kernel{}(kernel_args...);
-
-                    // Fence before next iteration
-                    scheduler.IterationBoundaryFence();
-
-                    // Advance to next tile
-                    scheduler.AdvanceToNextTile();
-                }
-            };
-            */
-
-            // Note: The PersistentAsyncScheduler is integrated into the kernel itself
-            // (device-side), not managed from the host. For full async support, a custom kernel
-            // implementation would be needed that integrates PersistentAsyncScheduler in its tile
-            // loop.
-            //
-            // TODO: Integrate async_args into kernel arguments and modify the kernel implementation
-            // to use PersistentAsyncScheduler for work distribution with async signaling.
-            // For now, this launches the standard persistent kernel without async signaling.
-
-            // TODO: Integrate async scheduler into the kernel
-            // The async_args parameter is currently not used by the kernel launch.
-            // To fully implement async input scheduling, we need to:
-            // 1. Create a custom kernel that extends GemmKernel
-            // 2. Pass async_args through kernel arguments (KernelArgs)
-            // 3. Integrate PersistentAsyncScheduler::GetNextWorkTile() into the
-            //    persistent tile loop inside the kernel's operator()
-            // 4. Call wait_signal() for chunk readiness before processing tiles
-            //
-            // For now, suppress unused variable warning
-
-            (void)async_args;
+                preprocess = [&]() {
+                    ck_tile::flush_icache();
+                    rotating_mem_ptr->Next();
+                    clear_gemm_output();
+                };
+            }
+            else
+            {
+                preprocess = clear_gemm_output;
+            }
 
             ave_time = ck_tile::launch_kernel_time_mask(
                 s,
                 preprocess,
-                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(Kernel{}, grids, blocks, 0, kargs));
+                ck_tile::make_kernel<GemmConfig::kBlockPerCu>(
+                    GemmKernel{}, grids, blocks, 0, gemm_kargs),
+                ck_tile::make_kernel<kBlockPerCu>(ElementwiseKernel{},
+                                                  kGridSize,
+                                                  kBlockSize,
+                                                  0,
+                                                  input_size,
+                                                  ck_tile::make_tuple(args.N, 1), // Input Stride
+                                                  ck_tile::make_tuple(args.N, 1), // Output Stride
+                                                  input_tensors,
+                                                  static_cast<CDataType*>(c_ptr)));
 
             return ave_time;
         };
 
-        const auto RunSplitk = [&](const auto has_hot_loop_, const auto tail_number_) {
+        const auto RunSplitK = [&](const auto has_hot_loop_, const auto tail_number_) {
             if(args.k_batch == 1)
             {
                 return Run(has_hot_loop_, tail_number_, MemoryOpSet{});
@@ -251,6 +269,6 @@ struct PersistentAsyncInvoker
             }
         };
 
-        return ave_time = BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
+        return ave_time = BaseGemmPipeline::TailHandler(RunSplitK, has_hot_loop, tail_num);
     }
 };
