@@ -66,7 +66,11 @@ void permute_tensor_b(Tensor& tensor)
                                                                        AccDataType,
                                                                        GemmShape,
                                                                        GemmUniversalTraits,
-                                                                       GemmConfig::Scheduler>;
+                                                                       GemmConfig::Scheduler,
+                                                                       ck_tile::element_wise::PassThrough,
+                                                                       ck_tile::element_wise::PassThrough,
+                                                                       ADataType,
+                                                                       true>;
 
     using GemmPipeline = typename PipelineTypeTraits<GemmConfig::Pipeline>::template GemmPipeline<
         UniversalGemmProblem>;
