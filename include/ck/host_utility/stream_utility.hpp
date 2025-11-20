@@ -8,6 +8,8 @@
 #include "ck/stream_config.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
 
+namespace ck {
+
 static inline int getAvailableComputeUnitCount(const StreamConfig& stream_config)
 {
     constexpr int MAX_MASK_DWORDS = 64;
@@ -41,3 +43,5 @@ static inline int getAvailableComputeUnitCount(const StreamConfig& stream_config
 
     return (ret);
 };
+
+} // namespace ck

@@ -19,6 +19,10 @@
 #include "ck/tensor_operation/gpu/device/impl/device_normalization_bwd_gamma_beta_impl.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_layernorm_bwd.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 using DYDataType         = float;
 using XDataType          = float;
 using GammaDataType      = float;

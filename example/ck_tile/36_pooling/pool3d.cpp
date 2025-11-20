@@ -31,8 +31,8 @@ auto create_args(int argc, char* argv[])
         .insert("RightPy", "1", "right padding h")
         .insert("RightPx", "1", "right padding w")
         .insert("v", "1", "cpu validation or not")
-        .insert("warmup", "0", "cold iter")
-        .insert("repeat", "1", "hot iter");
+        .insert("warmup", "20", "cold iter")
+        .insert("repeat", "100", "hot iter");
 
     bool result = arg_parser.parse(argc, argv);
     return std::make_tuple(result, arg_parser);
@@ -120,10 +120,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     in_buf.ToDevice(in.data());
 
     using ReduceOp   = ck_tile::ReduceOp::Max;
-    using BlockWarps = ck_tile::sequence<4, 1>;
-    using BlockTile  = ck_tile::sequence<128, 128>;
-    using WarpTile   = ck_tile::sequence<32, 128>;
-    using ThreadTile = ck_tile::sequence<8, 8>;
+    using BlockWarps = ck_tile::sequence<1, 1>;
+    using BlockTile  = ck_tile::sequence<128, 1>;
+    using WarpTile   = ck_tile::sequence<128, 1>;
+    using ThreadTile = ck_tile::sequence<2, 1>;
 
     using Shape   = ck_tile::PoolShape<BlockWarps, BlockTile, WarpTile, ThreadTile>;
     using Problem = ck_tile::PoolProblem<InDataType,

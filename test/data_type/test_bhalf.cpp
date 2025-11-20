@@ -9,6 +9,8 @@
 #include "ck/utility/type_convert.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
 
+using ::ck::hip_check_error;
+
 using ck::bhalf_t;
 using ck::type_convert;
 

@@ -10,6 +10,8 @@
 
 #include "ck/tensor_description/tensor_descriptor.hpp"
 
+namespace ck {
+
 template <typename T>
 std::ostream& operator<<(std::ostream& os, const std::vector<T>& v)
 {
@@ -25,17 +27,19 @@ std::ostream& operator<<(std::ostream& os, const std::array<T, N>& v)
 }
 
 template <typename... Ts>
-std::ostream& operator<<(std::ostream& os, const ck::TensorDescriptor<Ts...>& desc)
+std::ostream& operator<<(std::ostream& os, const TensorDescriptor<Ts...>& desc)
 {
-    constexpr ck::index_t nDim = ck::remove_cvref_t<decltype(desc)>::GetNumOfDimension();
+    constexpr index_t nDim = remove_cvref_t<decltype(desc)>::GetNumOfDimension();
 
     os << "{";
 
-    ck::static_for<0, nDim - 1, 1>{}([&](auto i) { os << desc.GetLength(i) << ", "; });
+    static_for<0, nDim - 1, 1>{}([&](auto i) { os << desc.GetLength(i) << ", "; });
 
-    os << desc.GetLength(ck::Number<nDim - 1>{});
+    os << desc.GetLength(Number<nDim - 1>{});
 
     os << "}";
 
     return os;
 }
+
+} // namespace ck
