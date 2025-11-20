@@ -63,7 +63,7 @@ template <typename ADataType,
           typename ALayout,
           typename BLayout,
           typename CLayout>
-void profile_gemm_bias_add_reduce_impl(int do_verification,
+bool profile_gemm_bias_add_reduce_impl(int do_verification,
                                        int init_method,
                                        bool do_log,
                                        bool time_kernel,
@@ -75,6 +75,8 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
                                        int StrideC,
                                        int StrideD0)
 {
+    bool pass = true;
+
     auto f_host_tensor_descriptor1d = [](std::size_t len, std::size_t stride) {
         return HostTensorDescriptor({len}, {stride});
     };
@@ -343,9 +345,13 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
                 reduce0_device_buf.FromDevice(reduce0_m_device_result.mData.data());
                 reduce1_device_buf.FromDevice(reduce1_m_device_result.mData.data());
 
-                ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
-                ck::utils::check_err(reduce0_m_device_result, reduce0_m_host_result);
-                ck::utils::check_err(reduce1_m_device_result, reduce1_m_host_result);
+                pass = pass & ck::utils::check_err(c_m_n_device_result, c_m_n_host_result);
+                pass = pass & ck::utils::check_err(reduce0_m_device_result, reduce0_m_host_result);
+                pass = pass & ck::utils::check_err(reduce1_m_device_result, reduce1_m_host_result);
+                if(!pass)
+                {
+                    std::cout << gemm_ptr->GetTypeString() << " failed" << std::endl;
+                }
 
                 if(do_log)
                 {
@@ -372,12 +378,14 @@ void profile_gemm_bias_add_reduce_impl(int do_verification,
         }
         else
         {
-            std::cout << "does not support this GEMM problem" << std::endl;
+            std::cout << gemm_ptr->GetTypeString() << " does not support this GEMM problem"
+                      << std::endl;
         }
     }
 
     std::cout << "Best Perf: " << best_ave_time << " ms, " << best_tflops << " TFlops, "
               << best_gb_per_sec << " GB/s, " << best_gemm_name << std::endl;
+    return pass;
 }
 
 } // namespace profiler
