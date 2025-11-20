@@ -132,12 +132,12 @@ struct GemmPersistentAsyncInvoker
             ck_tile::GemmHostArgs ws_args = ck_tile::GemmHostArgs(args);
             auto c_ptr                    = ws_args.c_ptr;
             ws_args.c_ptr                 = ws_m_n_dev_buf.GetDeviceBuffer();
-            
+
             // Add persistent async arguments to ws_args
-            ws_args.chunk_signals = async_args.chunk_signals;
+            ws_args.chunk_signals     = async_args.chunk_signals;
             ws_args.tiles_per_chunk_m = async_args.tiles_per_chunk_m;
-            
-            auto gemm_kargs               = GemmKernel::MakeKernelArgs(ws_args);
+
+            auto gemm_kargs = GemmKernel::MakeKernelArgs(ws_args);
 
             const dim3 grids  = Persistent ? GemmKernel::MaxOccupancyGridSize(s)
                                            : GemmKernel::GridSize(args.M, args.N, args.k_batch);

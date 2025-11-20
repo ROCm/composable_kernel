@@ -38,7 +38,7 @@ struct GemmHostArgs
                               index_t stride_A_,
                               index_t stride_B_,
                               index_t stride_E_,
-                              uint32_t* chunk_signals_ = nullptr,
+                              uint32_t* chunk_signals_   = nullptr,
                               index_t tiles_per_chunk_m_ = 0)
         : a_ptr(a_ptr_),
           b_ptr(b_ptr_),
@@ -76,7 +76,7 @@ struct GemmHostArgs
     };
 
     index_t k_batch;
-    
+
     // Persistent async arguments
     uint32_t* chunk_signals;
     index_t tiles_per_chunk_m;
