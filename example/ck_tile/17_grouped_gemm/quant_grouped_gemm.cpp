@@ -50,7 +50,7 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                                                              GemmConfig::kPadN,
                                                              GemmConfig::kPadK,
                                                              false, // PreshuffleQuant
-                                                             GemmConfig::PreshuffleB, // PreshuffleB
+                                                             GemmConfig::PreshuffleB,
                                                              ALayout,
                                                              BLayout,
                                                              CLayout,
@@ -76,7 +76,7 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                                                AccDataType,
                                                GemmShape,
                                                GemmUniversalTraits,
-                                               QuantGroupSize>, // QuantGroupSize
+                                               QuantGroupSize>,
             ck_tile::GemmRowColTensorQuantPipelineProblem<ADataType,
                                                           BDataType,
                                                           AccDataType,

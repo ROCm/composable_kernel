@@ -467,10 +467,9 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                    const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
-                                   index_t n,
                                    index_t num_loop,
                                    void* p_smem,
-                                   std::true_type) const
+                                   index_t n = 0) const
     {
         return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
             a_dram_block_window_tmp,
@@ -483,28 +482,6 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
             p_smem);
     }
 
-    // Overload for PreshuffleQuant = false (no 'n' parameter needed)
-    template <typename ADramBlockWindowTmp,
-              typename BDramBlockWindowTmp,
-              typename BQDramBlockWindowTmp>
-    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
-                                   const BDramBlockWindowTmp& b_dram_block_window_tmp,
-                                   const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
-                                   index_t num_loop,
-                                   void* p_smem,
-                                   std::false_type) const
-    {
-        // Implementation that doesn't use 'n'
-        return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
-            a_dram_block_window_tmp,
-            [](const ADataType& a) { return a; },
-            b_dram_block_window_tmp,
-            [](const BDataType& b) { return b; },
-            bq_dram_block_window_tmp,
-            0, // dummy value, won't be used
-            num_loop,
-            p_smem);
-    }
     /// @brief Runtime pipeline dispatch operator for grouped GEMM kernels.
     ///
     /// This operator is used by grouped GEMM kernels where pipeline parameters
@@ -532,7 +509,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                                    bool has_hot_loop,
                                    TailNumber tail_number,
                                    void* p_smem,
-                                   std::false_type) const
+                                   index_t n = 0) const
     {
         const auto RunPipeline = [&](auto has_hot_loop_, auto tail_number_) {
             constexpr bool hot_loop = has_hot_loop_.value;
@@ -543,7 +520,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                 b_dram_block_window_tmp,
                 [](const BDataType& b) { return b; },
                 bq_dram_block_window_tmp,
-                0, // dummy value, won't be used
+                n, // dummy value, won't be used
                 num_loop,
                 p_smem);
         };

@@ -1096,51 +1096,32 @@ struct QuantGemmKernel
             if constexpr(kQuantType == QuantType::AQuantGrouped)
             {
                 const auto& aq_block_window = gemm_tile_windows.at(I1);
+                index_t m = 0;
                 if constexpr(PreshuffleQuant)
                 {
-                    return GemmPipeline{}.template operator()(a_block_window,
-                                                              b_block_window,
-                                                              aq_block_window,
-                                                              kargs.M,
-                                                              num_loop,
-                                                              smem_ptr_0,
-                                                              std::true_type{});
+                    m = kargs.M;
                 }
-                else
-                {
-                    return GemmPipeline{}.template operator()(a_block_window,
+                return GemmPipeline{}.template operator()(a_block_window,
                                                               b_block_window,
                                                               aq_block_window,
                                                               num_loop,
                                                               smem_ptr_0,
-                                                              std::false_type{});
-                }
-                // return GemmPipeline{}.template operator()(
-                //     a_block_window, b_block_window, aq_block_window, kargs.M, num_loop,
-                //     smem_ptr_0);
+                                                              m);
             }
             else if constexpr(kQuantType == QuantType::BQuantGrouped)
             {
                 const auto& bq_block_window = gemm_tile_windows.at(I3);
+                index_t n = 0;
                 if constexpr(PreshuffleQuant)
                 {
-                    return GemmPipeline{}.template operator()(a_block_window,
-                                                              b_block_window,
-                                                              bq_block_window,
-                                                              kargs.N,
-                                                              num_loop,
-                                                              smem_ptr_0,
-                                                              std::true_type{});
+                    n = kargs.N;
                 }
-                else
-                {
-                    return GemmPipeline{}.template operator()(a_block_window,
-                                                              b_block_window,
-                                                              bq_block_window,
-                                                              num_loop,
-                                                              smem_ptr_0,
-                                                              std::false_type{});
-                }
+                return GemmPipeline{}.template operator()(a_block_window,
+                                                          b_block_window,
+                                                          bq_block_window,
+                                                          num_loop,
+                                                          smem_ptr_0,
+                                                          n);
             }
             else if constexpr(kQuantType == QuantType::RowColQuant ||
                               kQuantType == QuantType::TensorQuant)
@@ -1228,27 +1209,18 @@ struct QuantGemmKernel
             if constexpr(kQuantType == QuantType::BQuantGrouped)
             {
                 const auto& bq_block_window = gemm_tile_windows.at(I3);
+                index_t n = 0;
                 if constexpr(PreshuffleQuant)
                 {
-                    return GemmPipeline{}.template operator()(a_block_window,
-                                                              b_block_window,
-                                                              bq_block_window,
-                                                              kargs.N,
-                                                              num_loop,
-                                                              smem_ptr_0,
-                                                              smem_ptr_1,
-                                                              std::true_type{});
+                    n = kargs.N;
                 }
-                else
-                {
-                    return GemmPipeline{}.template operator()(a_block_window,
-                                                              b_block_window,
-                                                              bq_block_window,
-                                                              num_loop,
-                                                              smem_ptr_0,
-                                                              smem_ptr_1,
-                                                              std::false_type{});
-                }
+                return GemmPipeline{}.template operator()(a_block_window,
+                                                          b_block_window,
+                                                          bq_block_window,
+                                                          num_loop,
+                                                          smem_ptr_0,
+                                                          smem_ptr_1,
+                                                          n);
             }
             else
             {

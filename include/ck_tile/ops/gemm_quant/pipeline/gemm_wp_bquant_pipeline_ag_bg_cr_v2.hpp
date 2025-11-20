@@ -479,17 +479,17 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
         return c_block_tile;
     }
 
+    // Replace lines 485-526 with a single optimized operator:
     template <typename ADramBlockWindowTmp,
               typename BFlatBlockWindowTmp,
               typename BQDramBlockWindowTmp>
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
-                                   const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
-                                   const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
-                                   index_t n,
-                                   index_t num_loop,
-                                   void* p_smem_ping,
-                                   void* p_smem_pong,
-                                   std::true_type) const
+                        const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
+                        const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
+                        index_t num_loop,
+                        void* p_smem_ping,
+                        void* p_smem_pong,
+                        index_t n = 0) const  // Default value for non-preshuffle case
     {
         return operator()<TailNum>(
             a_dram_block_window_tmp,
@@ -509,33 +509,10 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                                    const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
                                    const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
                                    index_t num_loop,
-                                   void* p_smem_ping,
-                                   void* p_smem_pong,
-                                   std::false_type) const
-    {
-
-        return operator()<TailNum>(
-            a_dram_block_window_tmp,
-            [](const ADataType& a) { return a; },
-            b_flat_dram_block_window_tmp,
-            bq_dram_block_window_tmp,
-            0, // dummy value, won't be used
-            num_loop,
-            p_smem_ping,
-            p_smem_pong);
-    }
-
-    template <typename ADramBlockWindowTmp,
-              typename BFlatBlockWindowTmp,
-              typename BQDramBlockWindowTmp>
-    CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
-                                   const BFlatBlockWindowTmp& b_flat_dram_block_window_tmp,
-                                   const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
-                                   index_t num_loop,
                                    TailNumber tail_number,
                                    void* p_smem_ping,
                                    void* p_smem_pong,
-                                   std::false_type) const
+                                   index_t n = 0) const
     {
         const auto RunPipeline = [&](auto bool_val, auto tail_num_) {
             (void)bool_val; // Suppress unused parameter warning
@@ -545,7 +522,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                 [](const ADataType& a) { return a; },
                 b_flat_dram_block_window_tmp,
                 bq_dram_block_window_tmp,
-                0, // dummy value, won't be used
+                n, // dummy value, won't be used
                 num_loop,
                 p_smem_ping,
                 p_smem_pong);
