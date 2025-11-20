@@ -70,17 +70,30 @@ def generateAndArchiveBuildTraceVisualization() {
             # Convert build trace to base64
             BUILD_TRACE_BASE64=$(base64 -w 0 ''' + buildTraceFileName + ''')
             
+            # Create JSON payload in a temporary file to avoid "Argument list too long" error
+            cat > webhook_payload.json << 'EOL'
+            {
+                "jobName": "''' + env.JOB_NAME + '''",
+                "buildNumber": "''' + env.BUILD_NUMBER + '''",
+                "jobUrl": "''' + env.RUN_DISPLAY_URL + '''",
+                "imageName": "''' + imageName + '''",
+                "imageData": "IMAGE_PLACEHOLDER",
+                "buildTraceName": "BUILD_TRACE_NAME_PLACEHOLDER",
+                "buildTraceData": "BUILD_TRACE_PLACEHOLDER"
+            }
+            EOL
+            
+            # Replace placeholders with actual data using sed
+            sed -i "s/IMAGE_PLACEHOLDER/$IMAGE_BASE64/g" webhook_payload.json
+            sed -i "s/BUILD_TRACE_NAME_PLACEHOLDER/$BUILD_TRACE_WITH_NUMBER/g" webhook_payload.json
+            sed -i "s/BUILD_TRACE_PLACEHOLDER/$BUILD_TRACE_BASE64/g" webhook_payload.json
+            
             curl -X POST "${WEBHOOK_URL}" \
-            -H 'Content-Type: application/json' \
-            -d "{
-                \\"jobName\\": \\"''' + env.JOB_NAME + '''\\",
-                \\"buildNumber\\": \\"''' + env.BUILD_NUMBER + '''\\",
-                \\"jobUrl\\": \\"''' + env.RUN_DISPLAY_URL + '''\\",
-                \\"imageName\\": \\"''' + imageName + '''\\",
-                \\"imageData\\": \\"$IMAGE_BASE64\\",
-                \\"buildTraceName\\": \\"$BUILD_TRACE_WITH_NUMBER\\",
-                \\"buildTraceData\\": \\"$BUILD_TRACE_BASE64\\"
-            }"
+            -H "Content-Type: application/json" \
+            -d @webhook_payload.json
+            
+            # Clean up temporary file
+            rm -f webhook_payload.json
         '''
         }
     } catch (Exception e) {
