@@ -26,8 +26,21 @@ struct GemmPipelineAgBgCrImplBase
     static constexpr index_t NPerBlock = BlockGemmShape::kN;
     static constexpr index_t KPerBlock = BlockGemmShape::kK;
 #if defined(__gfx950__)
-    static constexpr bool is_a_load_tr = std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
-    static constexpr bool is_b_load_tr = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
+    // The combination of pk_int4_t and transposed loading causes numerical errors.
+    // Therefore do not use transposed loading in this case.
+    static constexpr bool is_a_load_tr = []() {
+        if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            return false;
+        else
+            return std::is_same_v<ALayout, tensor_layout::gemm::ColumnMajor>;
+    }();
+
+    static constexpr bool is_b_load_tr = []() {
+        if constexpr(std::is_same_v<BDataType, pk_int4_t>)
+            return false;
+        else
+            return std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
+    }();
 #else
     static constexpr bool is_a_load_tr = false;
     static constexpr bool is_b_load_tr = false;

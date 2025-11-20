@@ -1145,6 +1145,22 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
     __device__ static bool constexpr IsValidCompilationParameter()
     {
+        enum struct Arch : bool
+        {
+#if defined(__gfx950__)
+            is_gfx950_build = true,
+#else
+            is_gfx950_build = false,
+#endif
+        };
+
+        // skip building the instances with K1>=32 on pre-gfx950
+        if constexpr((static_cast<bool>(Arch::is_gfx950_build) == false) &&
+                     (AK1Number >= 32 || BK1Number >= 32))
+        {
+            return false;
+        }
+
         constexpr bool valid = ck::tensor_operation::device::IsValidGemmCompilationParameter<
             BlockSize,
             MPerBlock,

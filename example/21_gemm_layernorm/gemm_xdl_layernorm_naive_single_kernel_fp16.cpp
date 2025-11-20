@@ -18,6 +18,10 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm_layernorm.hpp"
 #include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 // This example demonstrate a single kernel that runs GEMM layer and laynorm in one fused kernel
 //
 // The GEMM + Layernorm implementation is a specialized kernel which allows fusing both layers

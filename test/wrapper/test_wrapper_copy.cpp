@@ -16,6 +16,8 @@
 #include "ck/wrapper/tensor.hpp"
 #include "ck/wrapper/operations/copy.hpp"
 
+using ::ck::DeviceMem;
+
 // Test copy from Global to Global through LDS and VGPR
 template <typename InputTensor,
           typename OutputTensor,

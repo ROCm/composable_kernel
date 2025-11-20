@@ -16,6 +16,10 @@
 #include "ck_tile/ops/grouped_convolution/utils/transform_conv_fwd_to_gemm.hpp"
 #include "ck_tile/ops/grouped_convolution/utils/grouped_convolution_utils.hpp"
 
+#ifdef CK_EXPERIMENTAL_BUILDER
+#include "ck_tile/builder/reflect/instance_traits_tile_grouped_convolution_forward.hpp"
+#endif
+
 namespace ck_tile {
 
 /// @brief The Grouped Convolution kernel device arguments.
@@ -568,6 +572,19 @@ struct GroupedConvolutionForwardKernel
         // clang-format on
     }
 
+#ifdef CK_EXPERIMENTAL_BUILDER
+    CK_TILE_HOST std::string GetInstanceString() const
+    {
+        static_assert(ck_tile::reflect::HasInstanceTraits<GroupedConvolutionForwardKernel>,
+                      "Specialization of instance_traits not found. Please check that a "
+                      "specialization exists in file "
+                      "ck_tile/builder/reflect/"
+                      "instance_traits_tile_grouped_convolution_forward.hpp "
+                      "for the given template parameters.");
+        return ck_tile::reflect::instance_string<GroupedConvolutionForwardKernel>();
+    }
+#endif
+
     CK_TILE_HOST static auto GridSize(const GroupedConvFwdKernelArgsSpecialized& kargs)
     {
         return dim3(
@@ -728,8 +745,8 @@ struct GroupedConvolutionForwardKernel
                         const BDescType& b_desc,
                         const CDescType& c_desc)
     {
-        static_assert(!TilePartitioner::BlockGemmShape::PermuteA, "Not implemented!");
-        static_assert(!TilePartitioner::BlockGemmShape::PermuteB, "Not implemented!");
+        static_assert(!GemmPipeline::BlockGemmShape::PermuteA, "Not implemented!");
+        static_assert(!GemmPipeline::BlockGemmShape::PermuteB, "Not implemented!");
         const auto& a_tensor_view = [&]() {
             return make_tensor_view<address_space_enum::global>(a_ptr, a_desc);
         }();

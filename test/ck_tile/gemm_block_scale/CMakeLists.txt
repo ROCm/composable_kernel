@@ -5,7 +5,7 @@ endif()
 
 list(APPEND TEST_GEMM_COMPILE_OPTIONS -mllvm -enable-noalias-to-md-conversion=0)
 
-if(GPU_TARGETS MATCHES "gfx94" OR GPU_TARGETS MATCHES "gfx95")
+if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     # Typed Test Suite for GEMM Quantization
     add_gtest_executable(test_tile_gemm_quant_typed 
         test_gemm_quant_typed.cpp
