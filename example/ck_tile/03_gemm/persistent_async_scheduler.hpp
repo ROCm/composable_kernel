@@ -10,7 +10,7 @@ namespace ck_tile {
 
 /**
  * @brief Arguments for Persistent Async GEMM scheduling
- * 
+ *
  * This structure contains parameters for producer-consumer synchronization
  * in persistent GEMM kernels with asynchronous input readiness.
  */
