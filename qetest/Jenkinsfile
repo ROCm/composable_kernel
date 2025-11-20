@@ -37,12 +37,6 @@ def generateAndArchiveBuildTraceVisualization() {
         // Create a temporary workspace
         sh """#!/bin/bash
             mkdir -p workspace
-            echo "Current directory:"
-            pwd
-            echo "Contents of current directory:"
-            ls -la
-            echo "Contents of script directory:"
-            ls -la ./script/infra_helper/ || echo "Script directory not found"
             cp ./script/infra_helper/capture_build_trace.js ./workspace
             cp ck_build_trace.json ./workspace/ck_build_trace.json
             chmod 777 ./workspace
@@ -58,22 +52,24 @@ def generateAndArchiveBuildTraceVisualization() {
         """
         
         // Archive the snapshot
-        archiveArtifacts "workspace/${imageName}"
+        sh """
+            mv ./workspace/${imageName} ${imageName}
+        """
+        archiveArtifacts "${imageName}"
 
         // Notify the channel
-        // Send notification
         withCredentials([string(credentialsId: 'ck_ci_build_perf_webhook_url', variable: 'WEBHOOK_URL')]) {
         sh '''
             # Convert image to base64
-            IMAGE_BASE64=$(base64 -w 0 ./workspace/''' + imageName + ''')
+            IMAGE_BASE64=$(base64 -w 0 ''' + imageName + ''')
             
             curl -X POST "${WEBHOOK_URL}" \
             -H 'Content-Type: application/json' \
             -d "{
-                \\"jobName": \\"''' + env.JOB_NAME + '''\\",
-                \\"buildNumber": \\"''' + env.BUILD_NUMBER + '''\\",
-                \\"jobUrl": \\"''' + env.RUN_DISPLAY_URL + '''\\",
-                \\"imageName": \\"''' + imageName + '''\\",
+                \\"jobName\\": \\"''' + env.JOB_NAME + '''\\",
+                \\"buildNumber\\": \\"''' + env.BUILD_NUMBER + '''\\",
+                \\"jobUrl\\": \\"''' + env.RUN_DISPLAY_URL + '''\\",
+                \\"imageName\\": \\"''' + imageName + '''\\",
                 \\"imageData\\": \\"$IMAGE_BASE64\\"
             }"
         '''
