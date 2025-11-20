@@ -423,20 +423,6 @@ struct SelectedKernel {{
     
     // Tile partitioner
     using TilePartitioner = ck_tile::GemmSpatiallyLocalTilePartitioner<TileShape, 8, 4>;
-    
-    // Traits
-    using Traits = ck_tile::TileGemmTraits<kPadM, kPadN, kPadK, ALayout, BLayout, CLayout, NumWaveGroups>;
-    
-    // Pipeline problem
-    using GemmPipelineProblem = ck_tile::GemmPipelineProblem<
-        ADataType,
-        BDataType,
-        AccDataType,
-        TileShape,
-        Traits>;
-    
-    // Base pipeline for hot loop detection
-    using BaseGemmPipeline = {base_pipeline_map.get(pipeline)}<GemmPipelineProblem>;
 
     static float launch(const ck_tile::GemmHostArgs& args, const ck_tile::stream_config& stream) {{
         
