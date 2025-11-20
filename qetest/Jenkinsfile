@@ -66,22 +66,30 @@ def generateAndArchiveBuildTraceVisualization() {
             BUILD_TRACE_WITH_NUMBER=$(echo "''' + buildTraceFileName + '''" | sed 's/.json/_''' + env.BUILD_NUMBER + '''.json/')
             
             # Convert image to base64
+            echo "Converting image to base64..."
             IMAGE_BASE64=$(base64 -w 0 ''' + imageName + ''')
-            # Convert build trace to base64
-            BUILD_TRACE_BASE64=$(base64 -w 0 ''' + buildTraceFileName + ''')
+            echo "Image base64 length: ${#IMAGE_BASE64}"
             
-            # Create JSON payload using printf to avoid sed issues with base64 special characters
-            cat > webhook_payload.json << EOF
+            # Convert build trace to base64
+            echo "Converting build trace to base64..."
+            BUILD_TRACE_BASE64=$(base64 -w 0 ''' + buildTraceFileName + ''')
+            echo "Build trace base64 length: ${#BUILD_TRACE_BASE64}"
+            
+            # Create JSON payload safely using printf to avoid heredoc issues with base64 data
+            echo "Creating JSON payload..."
             {
-                "jobName": "''' + env.JOB_NAME + '''",
-                "buildNumber": "''' + env.BUILD_NUMBER + '''",
-                "jobUrl": "''' + env.RUN_DISPLAY_URL + '''",
-                "imageName": "''' + imageName + '''",
-                "imageData": "${IMAGE_BASE64}",
-                "buildTraceName": "${BUILD_TRACE_WITH_NUMBER}",
-                "buildTraceData": "${BUILD_TRACE_BASE64}"
-            }
-            EOF
+                printf '{\n'
+                printf '    "jobName": "%s",\n' "''' + env.JOB_NAME + '''"
+                printf '    "buildNumber": "%s",\n' "''' + env.BUILD_NUMBER + '''"
+                printf '    "jobUrl": "%s",\n' "''' + env.RUN_DISPLAY_URL + '''"
+                printf '    "imageName": "%s",\n' "''' + imageName + '''"
+                printf '    "imageData": "%s",\n' "$IMAGE_BASE64"
+                printf '    "buildTraceName": "%s",\n' "$BUILD_TRACE_WITH_NUMBER"
+                printf '    "buildTraceData": "%s"\n' "$BUILD_TRACE_BASE64"
+                printf '}\n'
+            } > webhook_payload.json
+            
+            echo "JSON payload created, size: $(wc -c < webhook_payload.json) bytes"
             
             curl -X POST "${WEBHOOK_URL}" \
             -H "Content-Type: application/json" \
