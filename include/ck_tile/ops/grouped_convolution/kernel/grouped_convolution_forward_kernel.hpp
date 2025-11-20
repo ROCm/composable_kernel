@@ -1006,7 +1006,7 @@ struct GroupedConvolutionForwardKernel
         std::array<const void*, NumDTensor> ds_ptr_with_offsets;
         for(index_t d = 0; d < NumDTensor; d++)
         {
-            ds_ptr_with_offsets[d] = static_cast<const OutDataType*>(kargs.ds_ptr[d]) +
+            ds_ptr_with_offsets[d] = static_cast<const DsDataType*>(kargs.ds_ptr[d]) +
                                      group_offset_c + output_batch_offset;
         }
 
