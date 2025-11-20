@@ -118,7 +118,7 @@ class TestCkTileMultiReduceMultiblock : public ::testing::Test
             make_elementwise_ops_tuple(total_reduce_elements, AccumulatorOpsType{});
 
         Kernel::CalculateBlockGroupParams(
-            total_reduce_elements, kBlockSize, num_block_tile_iterations, block_group_size);
+            total_reduce_elements, num_block_tile_iterations, block_group_size);
 
         std::cout << "Block group size: " << block_group_size
                   << ", Num block tile iterations: " << num_block_tile_iterations

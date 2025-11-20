@@ -10,6 +10,7 @@ class MultiReduceBase:
         self.working_path = Path(working_path)
         self.gpu_target = gpu_target
         self.datatype = datatype
+        self.output_type = self.datatype
         self.config = ReduceConfig(config_json) if config_json else None
         self.name = "multiops_base"
 
@@ -76,7 +77,7 @@ using Shape_ThreadTile = ck_tile::sequence<{params.thread_tile_m}, {params.threa
 using TestConfig =
     std::tuple<{TYPE_MAP[self.datatype]},
                float,
-               {TYPE_MAP[self.datatype]},
+               {TYPE_MAP[self.output_type]},
                ck_tile::tuple<ck_tile::ReduceOp::Add, ck_tile::ReduceOp::Add>, // Intra block reductions
                ck_tile::tuple<ck_tile::element_wise::PassThrough, ck_tile::element_wise::UnarySquare>, // Elementwise ops
                ck_tile::tuple<ck_tile::element_wise::PassThrough, ck_tile::element_wise::UnaryDivide>, // Accumulator Elementiwise ops, intra block
@@ -114,6 +115,10 @@ class MultiReduceMultiBlockKernelBuilder(MultiReduceBase):
         super().__init__(working_path, gpu_target, datatype, config_json)
 
         self.name = "multiops_multiblock"
+
+        self.output_type = (
+            "float"  # Force float to be used as the output is also used as accumulator
+        )
 
         self.header = "test_multi_reduce2d_multiblock_impl.hpp"
         self.test_type = "TestCkTileMultiReduceMultiblock"

@@ -25,7 +25,8 @@ using Shape1_ThreadTile = ck_tile::sequence<8, 8>;
 // Test configurations for different data types and operations
 using TestConfig_F16_Add = std::tuple<ck_tile::half_t,
                                       float,
-                                      ck_tile::half_t,
+                                      float, // Output and multiblock reducing buffer. Using float
+                                             // to avoid too many accumulation errors
                                       ck_tile::tuple<ck_tile::ReduceOp::Add>,
                                       ck_tile::tuple<ck_tile::element_wise::PassThrough>,
                                       ck_tile::tuple<ck_tile::element_wise::PassThrough>,
@@ -38,7 +39,8 @@ using TestConfig_F16_Add = std::tuple<ck_tile::half_t,
 using TestConfig_F16_Add_MeanSquare = std::tuple<
     ck_tile::half_t,
     float,
-    ck_tile::half_t,
+    float, // Output and multiblock reducing buffer. Using float to avoid too many accumulation
+           // errors
     ck_tile::tuple<ck_tile::ReduceOp::Add, ck_tile::ReduceOp::Add>, // Intra block reductions
     ck_tile::tuple<ck_tile::element_wise::PassThrough,
                    ck_tile::element_wise::UnarySquare>, // Elementwise
