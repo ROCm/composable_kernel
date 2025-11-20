@@ -23,15 +23,15 @@ def generateAndArchiveBuildTraceVisualization() {
         ls -la ./workspace
     """
     def dockerOpts = "--cap-add=SYS_ADMIN -v \"\$(pwd)/workspace:/workspace\" -e NODE_PATH=/home/pptruser/node_modules"
-    
+    def imageName = "perfetto_snapshot_build_${env.BUILD_NUMBER}.png"
     // Run docker container directly
     sh """
         docker run --rm ${dockerOpts} ${image} node /workspace/capture_build_trace.js
-        mv ./workspace/perfetto_snapshot.png ./workspace/perfetto_snapshot_build_${env.BUILD_NUMBER}.png
+        mv ./workspace/perfetto_snapshot_build.png ./workspace/${imageName}
     """
     
     // Archive the snapshot
-    archiveArtifacts "workspace/perfetto_snapshot_build_*.png"
+    archiveArtifacts "./workspace/${imageName}"
     } catch (Exception e) {
         echo "Throwing error exception while generating build trace visualization"
         echo 'Exception occurred: ' + e.toString()
@@ -41,7 +41,7 @@ def generateAndArchiveBuildTraceVisualization() {
     withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
     sh '''
         # Convert image to base64
-        IMAGE_BASE64=$(base64 -w 0 ./workspace/perfetto_snapshot_build_''' + env.BUILD_NUMBER + '''.png)
+        IMAGE_BASE64=$(base64 -w 0 ''' + imageName + ''')
         
         curl -X POST "${WEBHOOK_URL}" \
         -H 'Content-Type: application/json' \

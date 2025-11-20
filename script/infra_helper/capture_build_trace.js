@@ -43,7 +43,7 @@ const puppeteer = require('puppeteer');
 			return !document.body.textContent.includes('Loading...');
 		}, { timeout: 30000 });
 		console.log('Capturing screenshot...');
-		await page.screenshot({path: '/workspace/perfetto_snapshot_build_.png'});
+		await page.screenshot({path: '/workspace/perfetto_snapshot_build.png'});
 		console.log('Done capturing screenshot...');
 		await browser.close();
 	} catch (err) {
