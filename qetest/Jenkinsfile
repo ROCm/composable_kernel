@@ -39,7 +39,7 @@ def generateAndArchiveBuildTraceVisualization() {
             echo "Contents of current directory:"
             ls -la
             cp ./script/infra_helper/capture_build_trace.js ./workspace
-            cp ./qetest/ck_build_trace_dummy_test.json ./workspace/ck_build_trace.json
+            cp .ck_build_trace.json ./workspace/ck_build_trace.json
             chmod +w -R ./workspace
             ls -la ./workspace
         """
@@ -82,7 +82,7 @@ def generateAndArchiveBuildTraceVisualization() {
 def archiveTestFile() {
     // Archive file for testing
     sh '''
-        cp ck_build_trace_dummy_test.json ck_build_trace.json
+        cp ./qetest/ck_build_trace_dummy_test.json ck_build_trace.json
     '''
     archiveArtifacts "ck_build_trace.json"
 }
