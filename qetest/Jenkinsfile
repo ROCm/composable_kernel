@@ -4,22 +4,26 @@ def rocmnode(name) {
 
 def generateAndArchiveBuildTraceVisualization() {
     try {
-        // Check if the build trace file exists
-        def artifacts = currentBuild.rawBuild.getArtifacts()
-        def hasTraceFile = artifacts.any { it.fileName == 'ck_build_trace.json' }
-        if (hasTraceFile) {
+        // Try to download the build trace file to check if it exists
+        def traceFileExists = false
+        try {
+            copyArtifacts(
+                projectName: env.JOB_NAME,
+                selector: specific(env.BUILD_NUMBER),
+                filter: 'ck_build_trace.json'
+            )
+            traceFileExists = fileExists('ck_build_trace.json')
+        } catch (Exception e) {
+            echo "Could not copy artifacts: ${e.getMessage()}"
+            traceFileExists = false
+        }
+        
+        if (traceFileExists) {
             echo "Build trace archive found"
         } else {
             echo "Build trace archive not found"
             return
         }
-
-        // Download build trace archive
-        copyArtifacts(
-            projectName: env.JOB_NAME,
-            selector: specific(env.BUILD_NUMBER),
-            filter: 'ck_build_trace.json'
-        )
 
         // Pull image
         def image = "ghcr.io/puppeteer/puppeteer:24.30.0"
