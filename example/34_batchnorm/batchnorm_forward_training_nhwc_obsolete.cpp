@@ -20,6 +20,10 @@
 #include "ck/library/utility/host_common_util.hpp"
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 static struct option long_options[] = {{"inOutLengths", required_argument, nullptr, 'D'},
                                        {"verify", required_argument, nullptr, 'v'},
                                        {"help", no_argument, nullptr, '?'},

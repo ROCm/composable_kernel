@@ -21,6 +21,10 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 constexpr ck::index_t NDimSpatial = 3;
 using InDataType                  = ck::half_t;
 using WeiDataType                 = ck::half_t;
@@ -262,5 +266,9 @@ bool run_grouped_conv(bool do_verification,
 } // namespace
 
 #include "../run_convnd_activ_example.inc"
+
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
 
 int main(int argc, char* argv[]) { return !run_convnd_example(argc, argv); }

@@ -19,6 +19,10 @@
 #include "ck/library/utility/check_err.hpp"
 #include "ck/host_utility/device_prop.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 struct AlphaBetaAdd
 {
     AlphaBetaAdd(float alpha, float beta) : alpha_(alpha), beta_(beta){};

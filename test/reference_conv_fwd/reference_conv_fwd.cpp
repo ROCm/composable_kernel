@@ -22,6 +22,8 @@
 
 namespace {
 
+using ::ck::Tensor;
+
 using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;
 using OutElementOp = ck::tensor_operation::element_wise::PassThrough;
