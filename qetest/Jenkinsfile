@@ -4,15 +4,17 @@ def rocmnode(name) {
 
 def generateAndArchiveBuildTraceVisualization() {
     try {
+        def buildTraceFileName = "ck_build_trace.json";
+
         // Try to download the build trace file to check if it exists
         def traceFileExists = false
         try {
             copyArtifacts(
                 projectName: env.JOB_NAME,
                 selector: specific(env.BUILD_NUMBER),
-                filter: 'ck_build_trace.json'
+                filter: buildTraceFileName
             )
-            traceFileExists = fileExists('ck_build_trace.json')
+            traceFileExists = fileExists(buildTraceFileName)
         } catch (Exception e) {
             echo "Could not copy artifacts: ${e.getMessage()}"
             traceFileExists = false
@@ -38,7 +40,7 @@ def generateAndArchiveBuildTraceVisualization() {
         sh """#!/bin/bash
             mkdir -p workspace
             cp ./script/infra_helper/capture_build_trace.js ./workspace
-            cp ck_build_trace.json ./workspace/ck_build_trace.json
+            cp ${buildTraceFileName} ./workspace/${buildTraceFileName}
             chmod 777 ./workspace
             ls -la ./workspace
         """
@@ -60,10 +62,13 @@ def generateAndArchiveBuildTraceVisualization() {
         // Notify the channel
         withCredentials([string(credentialsId: 'ck_ci_build_perf_webhook_url', variable: 'WEBHOOK_URL')]) {
         sh '''
+            # Create build trace filename with build number based on the original filename
+            BUILD_TRACE_WITH_NUMBER=$(echo "''' + buildTraceFileName + '''" | sed 's/.json/_''' + env.BUILD_NUMBER + '''.json/')
+            
             # Convert image to base64
             IMAGE_BASE64=$(base64 -w 0 ''' + imageName + ''')
             # Convert build trace to base64
-            BUILD_TRACE_BASE64=$(base64 -w 0 ''' + ck_build_trace.json + ''')
+            BUILD_TRACE_BASE64=$(base64 -w 0 ''' + buildTraceName + ''')
             
             curl -X POST "${WEBHOOK_URL}" \
             -H 'Content-Type: application/json' \
@@ -73,7 +78,7 @@ def generateAndArchiveBuildTraceVisualization() {
                 \\"jobUrl\\": \\"''' + env.RUN_DISPLAY_URL + '''\\",
                 \\"imageName\\": \\"''' + imageName + '''\\",
                 \\"imageData\\": \\"$IMAGE_BASE64\\",
-                \\"buildTraceName\\": \\"ck_build_trace_''' + env.BUILD_NUMBER + '''.json\\"
+                \\"buildTraceName\\": \\"''' BUILD_TRACE_WITH_NUMBER + '''.json\\"
                 \\"buildTraceData\\": \\"$BUILD_TRACE_BASE64\\"
             }"
         '''
