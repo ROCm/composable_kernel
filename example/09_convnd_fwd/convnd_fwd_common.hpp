@@ -20,6 +20,10 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 #include "ck/library/reference_tensor_operation/gpu/naive_conv_fwd.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 void print_helper_msg()
 {
     std::cout << "arg1: verification (0=no, 1=CPU, 2=GPU)\n"

@@ -69,6 +69,7 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
     static constexpr auto BiasEnum          = Problem::BiasEnum;
     static constexpr bool kStoreLSE         = Problem::kStoreLSE;
     static constexpr bool kHasUnevenSplits  = true;
+    static constexpr bool kHasSink          = Problem::kHasSink;
 
     static_assert((CK_TILE_FMHA_FWD_FAST_EXP2 &&
                    (kHasLogitsSoftCap && Problem::BiasEnum == BlockAttentionBiasEnum::NO_BIAS ||
@@ -90,6 +91,8 @@ struct BlockFmhaPipelineQRKSVSAsyncTrload
 
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
+    static constexpr index_t kAlignmentRandVal =
+        kPadSeqLenK ? 1 : Policy::template GetAlignmentRandVal<Problem>();
 
     static constexpr index_t kBlockPerCu = []() {
         if constexpr(Problem::kBlockPerCu != -1)

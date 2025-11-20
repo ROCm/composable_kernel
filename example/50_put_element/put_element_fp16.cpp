@@ -13,6 +13,10 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 using XDataType     = ck::half_t;
 using YDataType     = ck::half_t;
 using IndexDataType = int32_t;
