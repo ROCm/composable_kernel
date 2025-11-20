@@ -675,14 +675,19 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                                    TailNumber tail_number,
                                    void* p_smem) const
     {
-        return operator()(a_dram_block_window_tmp,
-                          element_wise::PassThrough{},
-                          b_dram_block_window_tmp,
-                          element_wise::PassThrough{},
-                          num_loop,
-                          has_hot_loop,
-                          tail_number,
-                          p_smem);
+        const auto RunPipeline = [&](auto hot_loop_, auto tail_num_) {
+            constexpr bool hot_loop    = hot_loop_.value;
+            constexpr auto tail_num    = tail_num_.value;
+            constexpr auto PassThrough = [](auto& e, const auto& x) { e = x; };
+            return PipelineImpl<Scheduler>{}.template operator()<hot_loop, tail_num>(
+                a_dram_block_window_tmp,
+                PassThrough,
+                b_dram_block_window_tmp,
+                PassThrough,
+                num_loop,
+                p_smem);
+        };
+        return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
     }
 
     /**
