@@ -59,33 +59,41 @@ struct BaseGemmPipelineAgBgCrCompV3
         // Handle all the valid cases.
         if(has_hot_loop)
         {
-            if(tail_number == TailNumber::Full)
+            if(tail_number == ck_tile::TailNumber::Odd)
             {
-                return run_func(bool_constant<true>{},
-                                integral_constant<TailNumber, TailNumber::Full>{});
+                return run_func(
+                    ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
             }
-            else if(tail_number == TailNumber::Odd)
+            else if(tail_number == ck_tile::TailNumber::Even)
             {
-                return run_func(bool_constant<true>{},
-                                integral_constant<TailNumber, TailNumber::Odd>{});
+                return run_func(
+                    ck_tile::bool_constant<true>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
             }
-            else if(tail_number == TailNumber::Even)
+            else
             {
-                return run_func(bool_constant<false>{},
-                                integral_constant<TailNumber, TailNumber::Even>{});
+                throw std::runtime_error("Unsupported tail number for this operation !!!");
             }
         }
         else
         {
-            if(tail_number == TailNumber::Odd)
+
+            if(tail_number == ck_tile::TailNumber::Odd)
             {
-                return run_func(bool_constant<false>{},
-                                integral_constant<TailNumber, TailNumber::Odd>{});
+                return run_func(
+                    ck_tile::bool_constant<false>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Odd>{});
             }
-            else if(tail_number == TailNumber::Even)
+            else if(tail_number == ck_tile::TailNumber::Even)
             {
-                return run_func(bool_constant<false>{},
-                                integral_constant<TailNumber, TailNumber::Even>{});
+                return run_func(
+                    ck_tile::bool_constant<false>{},
+                    ck_tile::integral_constant<ck_tile::TailNumber, ck_tile::TailNumber::Even>{});
+            }
+            else
+            {
+                throw std::runtime_error("Unsupported tail number for this operation !!!");
             }
         }
 #if defined(__HIP_DEVICE_COMPILE__)
