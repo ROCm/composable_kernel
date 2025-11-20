@@ -377,9 +377,9 @@ using device_grouped_conv_bwd_data_xdl_f32_optimized_loads_instances =
         >;
 
 #if defined(__gfx950__)
-        constexpr auto _k_per_block = 32;
+constexpr auto _k_per_block = 32;
 #else
-        constexpr auto _k_per_block = 16;
+constexpr auto _k_per_block = 16;
 #endif
 template <index_t NDimSpatial,
           typename ALayout,
