@@ -1,3 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
 #include "test_gemm_streamk_util.hpp"
 
 ck_tile::index_t get_cu_count()
