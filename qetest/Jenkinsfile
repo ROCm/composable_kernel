@@ -78,7 +78,7 @@ def generateAndArchiveBuildTraceVisualization() {
                 \\"jobUrl\\": \\"''' + env.RUN_DISPLAY_URL + '''\\",
                 \\"imageName\\": \\"''' + imageName + '''\\",
                 \\"imageData\\": \\"$IMAGE_BASE64\\",
-                \\"buildTraceName\\": \\"''' BUILD_TRACE_WITH_NUMBER + '''.json\\"
+                \\"buildTraceName\\": \\"$BUILD_TRACE_WITH_NUMBER\\",
                 \\"buildTraceData\\": \\"$BUILD_TRACE_BASE64\\"
             }"
         '''
