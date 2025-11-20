@@ -68,7 +68,7 @@ def generateAndArchiveBuildTraceVisualization() {
             # Convert image to base64
             IMAGE_BASE64=$(base64 -w 0 ''' + imageName + ''')
             # Convert build trace to base64
-            BUILD_TRACE_BASE64=$(base64 -w 0 ''' + buildTraceName + ''')
+            BUILD_TRACE_BASE64=$(base64 -w 0 ''' + buildTraceFileName + ''')
             
             curl -X POST "${WEBHOOK_URL}" \
             -H 'Content-Type: application/json' \
