@@ -103,7 +103,8 @@ pipeline {
     }
     post {
         always {
-            node(rocmnode("nogpu")) {
+            agent { label rocmnode("nogpu") }
+            steps {
                 script {
                     // Simulate capture
                     generateAndArchiveBuildTraceVisualization()
