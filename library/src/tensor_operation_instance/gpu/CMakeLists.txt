@@ -94,8 +94,8 @@ function(add_instance_library INSTANCE_NAME)
             message(DEBUG "removing gemm_universal_preshuffle_f8 instance ${source} ")
             list(REMOVE_ITEM ARGN "${source}")
         endif()
-        # Only build tf32 instances for gfx942
-        if(NOT INST_TARGETS MATCHES "gfx942" AND source_name MATCHES "_tf32_")
+        # Only build tf32 instances for gfx942 & gfx950
+        if(NOT (INST_TARGETS MATCHES "gfx942" OR INST_TARGETS MATCHES "gfx950") AND source_name MATCHES "_tf32_")
             message(DEBUG "removing tf32 instance ${source} ")
             list(REMOVE_ITEM ARGN "${source}")
         endif()
