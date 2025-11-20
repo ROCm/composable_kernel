@@ -3,6 +3,10 @@
 
 #include "common.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 using XDataType              = ck::half_t;
 using GammaDataType          = ck::half_t;
 using BetaDataType           = ck::half_t;

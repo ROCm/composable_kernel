@@ -114,7 +114,7 @@ int run_moe_gemm_example_with_layouts(int argc,
     ck_tile::FillUniformDistribution<ADataType>{0.0f, 1.0f}(a_m_k_tensor);
     ck_tile::FillUniformDistribution<BDataType>{-.5f, .5f}(b_k_n_tensor);
 
-    auto b_shuffle_host = shuffle_b<FlatmmConfig>(b_k_n_tensor);
+    auto b_shuffle_host = flatmm_shuffle_b<FlatmmConfig>(b_k_n_tensor);
 
     std::cout << "moe_flatmm:" //
               << "\n  num_experts: " << experts << "\n  num_tokens: " << num_tokens

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -50,8 +50,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
         const CGridDesc_M0_M10_M11_N0_N10_N11 e_grid_desc_m0_m10_m11_n0_n10_n11,
         const Block2CTileMap block_2_ctile_map)
 {
-#if(defined(__gfx906__) || defined(__gfx9__) || defined(__gfx103__) || defined(__gfx11__) || \
-    defined(__gfx12__))
+#if(defined(__gfx906__) || defined(__gfx9__) || defined(__gfx101__) || defined(__gfx103__) || \
+    defined(__gfx11__) || defined(__gfx12__))
 
     constexpr index_t shared_block_size =
         GridwiseGemm::GetSharedMemoryNumberOfByte() / sizeof(ABDataType);

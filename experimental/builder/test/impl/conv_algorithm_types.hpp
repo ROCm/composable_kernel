@@ -103,116 +103,26 @@ struct AccessOrder
 };
 static_assert(AccessOrderDescriptor<AccessOrder>);
 
-struct BlockTransferABC
+struct TransferAB
 {
-    BlockTransfer block_transfer_a;
-    BlockTransfer block_transfer_b;
-    ThreadCluster thread_cluster_dims_c;
-    LdsTransfer lds_transfer_a;
-    LdsTransfer lds_transfer_b;
-    Epilogue epilogue_c;
-    AccessOrder block_transfer_access_order_a;
-    AccessOrder block_transfer_access_order_b;
-    AccessOrder src_access_order_a;
-    AccessOrder src_access_order_b;
+    BlockTransfer block_transfer;
+    LdsTransfer lds_transfer;
+    AccessOrder block_transfer_access_order;
+    AccessOrder src_access_order;
 };
 
-struct ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3
+struct TransferC
 {
-    ThreadBlock thread_block;
-    GridwiseXdlGemm gridwise_gemm;
-    BlockTransferABC block_transfer;
-    ConvFwdSpecialization fwd_specialization;
-    GemmSpecialization gemm_specialization;
-    BlockGemm block_gemm;
+    ThreadCluster thread_cluster_dims;
+    Epilogue epilogue;
 };
-static_assert(
-    ckb::ConvAlgorithmDescriptor<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
-static_assert(
-    ckb::SpecifiesThreadBlock<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
-static_assert(
-    ckb::SpecifiesGridwiseXdlGemm<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
-static_assert(
-    ckb::SpecifiesBlockTransfer<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
-static_assert(
-    ckb::SpecifiesLdsTransfer<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
-static_assert(ckb::SpecifiesThreadClusterAccessOrder<
-              ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
-static_assert(
-    ckb::SpecifiesSourceAccessOrder<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
-static_assert(ckb::SpecifiesFwdConcSpecialization<
-              ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
-static_assert(
-    ckb::SpecifiesBlockGemm<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
-static_assert(ckb::SpecifiesGemmSpecialization<
-              ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3>);
 
-struct ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle
+struct TransferABC
 {
-    ThreadBlock thread_block;
-    GridwiseXdlGemm gridwise_gemm;
-    BlockTransferABC block_transfer;
-    ConvFwdSpecialization fwd_specialization;
-    GemmSpecialization gemm_specialization;
-    size_t num_gemm_k_prefetch_stages;
-    size_t num_groups_to_merge;
-    PipelineScheduler loop_scheduler;
+    TransferAB a;
+    TransferAB b;
+    TransferC c;
 };
-static_assert(
-    ckb::ConvAlgorithmDescriptor<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
-static_assert(
-    ckb::SpecifiesThreadBlock<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
-static_assert(
-    ckb::SpecifiesGridwiseXdlGemm<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
-static_assert(
-    ckb::SpecifiesBlockTransfer<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
-static_assert(
-    ckb::SpecifiesLdsTransfer<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
-static_assert(ckb::SpecifiesThreadClusterAccessOrder<
-              ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
-static_assert(
-    ckb::SpecifiesSourceAccessOrder<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
-static_assert(ckb::SpecifiesFwdConcSpecialization<
-              ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
-static_assert(
-    ckb::SpecifiesNumPrefetchStages<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
-static_assert(
-    ckb::SpecifiesGemmSpecialization<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
-static_assert(
-    ckb::SpecifiesLoopScheduler<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
-static_assert(
-    ckb::SpecifiesNumGroupsToMerge<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>);
-
-struct ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle
-{
-    ThreadBlock thread_block;
-    GridwiseWmmaGemm gridwise_gemm;
-    BlockTransferABC block_transfer;
-    ConvFwdSpecialization fwd_specialization;
-    GemmSpecialization gemm_specialization;
-    size_t num_gemm_k_prefetch_stages;
-    PipelineScheduler loop_scheduler;
-};
-static_assert(
-    ckb::ConvAlgorithmDescriptor<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle>);
-static_assert(ckb::SpecifiesThreadBlock<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle>);
-static_assert(
-    ckb::SpecifiesGridwiseWmmaGemm<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle>);
-static_assert(
-    ckb::SpecifiesBlockTransfer<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle>);
-static_assert(ckb::SpecifiesLdsTransfer<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle>);
-static_assert(ckb::SpecifiesThreadClusterAccessOrder<
-              ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle>);
-static_assert(
-    ckb::SpecifiesSourceAccessOrder<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle>);
-static_assert(
-    ckb::SpecifiesFwdConcSpecialization<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle>);
-static_assert(
-    ckb::SpecifiesNumPrefetchStages<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle>);
-static_assert(
-    ckb::SpecifiesGemmSpecialization<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle>);
-static_assert(
-    ckb::SpecifiesLoopScheduler<ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle>);
 
 // DL-specific descriptors
 struct DlThreadConfig
@@ -227,12 +137,12 @@ static_assert(ckb::DlThreadConfigDescriptor<DlThreadConfig>);
 
 struct DlThreadCluster
 {
-    std::array<size_t, 2> m1_xs; // e.g., {8, 2}
-    std::array<size_t, 2> n1_xs; // e.g., {8, 2}
+    std::array<size_t, 2> m1_xs;
+    std::array<size_t, 2> n1_xs;
 };
 static_assert(ckb::DlThreadClusterDescriptor<DlThreadCluster>);
 
-struct DlBlockTransferK0M0M1K1
+struct DlBlockTransfer
 {
     std::array<size_t, 4> thread_slice_lengths;
     std::array<size_t, 4> thread_cluster_lengths;
@@ -242,56 +152,213 @@ struct DlBlockTransferK0M0M1K1
     std::array<size_t, 4> src_vector_tensor_contiguous_dim_order;
     std::array<size_t, 4> dst_vector_tensor_lengths;
 };
-static_assert(ckb::DlBlockTransferK0M0M1K1Descriptor<DlBlockTransferK0M0M1K1>);
+static_assert(ckb::DlBlockTransferDescriptor<DlBlockTransfer>);
 
-struct DlBlockTransferK0N0N1K1
-{
-    std::array<size_t, 4> thread_slice_lengths;
-    std::array<size_t, 4> thread_cluster_lengths;
-    std::array<size_t, 4> thread_cluster_arrange_order;
-    std::array<size_t, 4> src_access_order;
-    std::array<size_t, 4> src_vector_tensor_lengths;
-    std::array<size_t, 4> src_vector_tensor_contiguous_dim_order;
-    std::array<size_t, 4> dst_vector_tensor_lengths;
-};
-static_assert(ckb::DlBlockTransferK0N0N1K1Descriptor<DlBlockTransferK0N0N1K1>);
-
-struct DlCThreadTransfer
+struct DlEpilogue
 {
     std::array<size_t, 6> src_dst_access_order;
     size_t src_dst_vector_dim;
     size_t dst_scalar_per_vector;
 };
-static_assert(ckb::DlCThreadTransferDescriptor<DlCThreadTransfer>);
+static_assert(ckb::DlEpilogueDescriptor<DlEpilogue>);
 
-struct ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK
+// Factory types
+
+struct ThreadBlock_
 {
     ThreadBlock thread_block;
+};
+
+struct XdlGemm_
+{
+    GridwiseXdlGemm gridwise_gemm;
+};
+
+struct WmmaGemm_
+{
+    GridwiseWmmaGemm gridwise_gemm;
+};
+
+struct Transfer_
+{
+    TransferABC transfer;
+};
+
+struct ConvSpecialization_
+{
     ConvFwdSpecialization fwd_specialization;
     GemmSpecialization gemm_specialization;
-    DlThreadConfig dl_thread_config;
-    DlThreadCluster dl_thread_cluster;
-    DlBlockTransferK0M0M1K1 dl_block_transfer_a;
-    DlBlockTransferK0N0N1K1 dl_block_transfer_b;
-    DlCThreadTransfer dl_c_thread_transfer;
 };
-static_assert(
-    ckb::ConvAlgorithmDescriptor<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
-static_assert(
-    ckb::SpecifiesThreadBlock<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
-static_assert(ckb::SpecifiesFwdConcSpecialization<
-              ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
-static_assert(
-    ckb::SpecifiesGemmSpecialization<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
-static_assert(
-    ckb::SpecifiesDlThreadConfig<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
-static_assert(
-    ckb::SpecifiesDlThreadCluster<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
-static_assert(
-    ckb::SpecifiesDlBlockTransferA<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
-static_assert(
-    ckb::SpecifiesDlBlockTransferB<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
-static_assert(
-    ckb::SpecifiesDlCThreadTransfer<ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK>);
+
+struct Prefetch_
+{
+    size_t num_gemm_k_prefetch_stages;
+    size_t num_groups_to_merge;
+    PipelineScheduler loop_scheduler;
+};
+
+struct BlockGemm_
+{
+    BlockGemm block_gemm;
+};
+
+struct DlThreadConfig_
+{
+    DlThreadConfig thread_config;
+};
+
+struct DlThreadCluster_
+{
+    DlThreadCluster thread_cluster;
+};
+
+struct DlBlockTransferAB
+{
+    DlBlockTransfer block_transfer;
+};
+
+struct DlBlockTransferC
+{
+    DlEpilogue epilogue;
+};
+
+struct DlTransferABC
+{
+    DlBlockTransferAB a;
+    DlBlockTransferAB b;
+    DlBlockTransferC c;
+};
+
+struct DlTransfer_
+{
+    DlTransferABC transfer;
+};
+
+// Specialization wrapper for large tensor support
+template <typename BaseAlgorithm>
+struct LargeTensorWrapper
+{
+    BaseAlgorithm base_algorithm;
+    static constexpr ConvAlgorithmSpecialization specialization =
+        ConvAlgorithmSpecialization::LARGE_TENSOR;
+};
+
+// Factory
+
+template <typename... Components>
+struct ConvAlgorithmTemplate : Components...
+{
+
+    template <typename TB>
+    constexpr auto with_thread_block(const TB& tb) const
+    {
+        static_assert(std::is_base_of_v<ThreadBlock_, ConvAlgorithmTemplate>);
+        auto result         = *this;
+        result.thread_block = tb;
+        return result;
+    }
+
+    template <typename GemmConfig>
+    constexpr auto with_gemm_config(const GemmConfig& gemm) const
+    {
+        auto result = *this;
+        if constexpr(std::is_base_of_v<XdlGemm_, ConvAlgorithmTemplate>)
+        {
+            result.gridwise_gemm = gemm;
+        }
+        else if constexpr(std::is_base_of_v<WmmaGemm_, ConvAlgorithmTemplate>)
+        {
+            result.gridwise_gemm = gemm;
+        }
+        return result;
+    }
+
+    template <typename T>
+    constexpr auto with_transfer(const T& t) const
+    {
+        static_assert(std::is_base_of_v<Transfer_, ConvAlgorithmTemplate>);
+        auto result     = *this;
+        result.transfer = t;
+        return result;
+    }
+
+    constexpr auto with_specializations(ConvFwdSpecialization fwd_spec,
+                                        GemmSpecialization gemm_spec) const
+    {
+        static_assert(std::is_base_of_v<ConvSpecialization_, ConvAlgorithmTemplate>);
+        auto result                = *this;
+        result.fwd_specialization  = fwd_spec;
+        result.gemm_specialization = gemm_spec;
+        return result;
+    }
+
+    constexpr auto with_prefetch_config(size_t k_prefetch_stages,
+                                        size_t groups_to_merge,
+                                        PipelineScheduler scheduler) const
+    {
+        static_assert(std::is_base_of_v<Prefetch_, ConvAlgorithmTemplate>);
+        auto result                       = *this;
+        result.num_gemm_k_prefetch_stages = k_prefetch_stages;
+        result.num_groups_to_merge        = groups_to_merge;
+        result.loop_scheduler             = scheduler;
+        return result;
+    }
+
+    template <typename BG>
+    constexpr auto with_block_gemm(const BG& bg) const
+    {
+        static_assert(std::is_base_of_v<BlockGemm_, ConvAlgorithmTemplate>);
+        auto result       = *this;
+        result.block_gemm = bg;
+        return result;
+    }
+
+    template <typename TC>
+    constexpr auto with_dl_thread_config(const TC& tc) const
+    {
+        static_assert(std::is_base_of_v<DlThreadConfig_, ConvAlgorithmTemplate>);
+        auto result          = *this;
+        result.thread_config = tc;
+        return result;
+    }
+
+    template <typename TCl>
+    constexpr auto with_dl_thread_cluster(const TCl& tcl) const
+    {
+        static_assert(std::is_base_of_v<DlThreadCluster_, ConvAlgorithmTemplate>);
+        auto result           = *this;
+        result.thread_cluster = tcl;
+        return result;
+    }
+
+    template <typename T>
+    constexpr auto with_dl_transfer(const T& t) const
+    {
+        static_assert(std::is_base_of_v<DlTransfer_, ConvAlgorithmTemplate>);
+        auto result     = *this;
+        result.transfer = t;
+        return result;
+    }
+};
+
+// Algorithm types
+
+using ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle =
+    ConvAlgorithmTemplate<ThreadBlock_, XdlGemm_, Transfer_, ConvSpecialization_, Prefetch_>;
+
+using ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 =
+    ConvAlgorithmTemplate<ThreadBlock_, XdlGemm_, Transfer_, ConvSpecialization_, BlockGemm_>;
+
+using ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Wmma_CShuffle =
+    ConvAlgorithmTemplate<ThreadBlock_, WmmaGemm_, Transfer_, ConvSpecialization_, Prefetch_>;
+using ConvAlgorithm_DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK =
+    ConvAlgorithmTemplate<ThreadBlock_,
+                          ConvSpecialization_,
+                          DlThreadConfig_,
+                          DlThreadCluster_,
+                          DlTransfer_>;
+
+using ConvAlgorithm_DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor =
+    LargeTensorWrapper<ConvAlgorithm_DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle>;
 
 } // namespace ck_tile::builder::test

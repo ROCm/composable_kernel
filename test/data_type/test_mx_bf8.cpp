@@ -5,6 +5,8 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/utility/scaled_type_convert.hpp"
 
+using ::ck::DeviceMem;
+
 using ck::bf8_ocp_t;
 using ck::bf8x16_ocp_t;
 using ck::bf8x2_ocp_t;

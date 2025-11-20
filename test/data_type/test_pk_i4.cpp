@@ -16,6 +16,8 @@
 
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 
+using ::ck::DeviceMem;
+
 using ck::bhalf2_t;
 using ck::bhalf_t;
 using ck::float2_t;
