@@ -470,14 +470,14 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                                    index_t m = 0) const
     {
         return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
-                a_dram_block_window_tmp,
-                [](const ADataType& a) { return a; },
-                b_dram_block_window_tmp,
-                [](const BDataType& b) { return b; },
-                aq_dram_block_window_tmp,
-                m,
-                num_loop,
-                p_smem);
+            a_dram_block_window_tmp,
+            [](const ADataType& a) { return a; },
+            b_dram_block_window_tmp,
+            [](const BDataType& b) { return b; },
+            aq_dram_block_window_tmp,
+            m,
+            num_loop,
+            p_smem);
     }
 };
 
