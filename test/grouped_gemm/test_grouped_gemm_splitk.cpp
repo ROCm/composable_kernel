@@ -47,13 +47,13 @@ using KernelTypes = ::testing::Types<
     std::tuple<     Col, Col, Row, BF16, BF16, BF16>,
 #endif
     
-#if defined(CK_USE_XDL)
+#if defined(CK_USE_XDL) && defined(__gfx9__)
     // XDL only at the moment, instances for WMMA not defined
     std::tuple<     Row, Row, Row, BF16, I8, BF16>,
     std::tuple<     Row, Col, Row, BF16, I8, BF16>,
 #endif
 
-#if defined(CK_USE_XDL) || (defined(CK_USE_WMMA) && defined(__gfx12__))
+#if (defined(CK_USE_XDL) && (defined(__gfx9__) || defined(__gfx12__))) || (defined(CK_USE_WMMA) && defined(__gfx12__))
     std::tuple<     Row, Row, Row, F8, F16, F16>,
     std::tuple<     Row, Row, Row, F16, F8, F16>,
 #endif
