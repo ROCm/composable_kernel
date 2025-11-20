@@ -127,8 +127,6 @@ class TestCkTileGemmQuantBase : public ::testing::Test
                              const ck_tile::index_t kbatch,
                              const float max_accumulated_value)
     {
-        // using ComputeType =
-        //     std::conditional_t<sizeof(ADataType_) < sizeof(BDataType_), ADataType_, BDataType_>;
         using ComputeType = 
             std::conditional_t<std::is_same_v<BDataType_, ck_tile::pk_fp4_raw_t>, ADataType_, 
             std::conditional_t<sizeof(ADataType_) < sizeof(BDataType_), ADataType_, BDataType_>>;
