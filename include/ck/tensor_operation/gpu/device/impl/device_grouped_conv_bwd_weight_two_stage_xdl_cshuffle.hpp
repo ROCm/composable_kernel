@@ -732,7 +732,10 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                         conv_filter_dilations,
                         input_left_pads,
                         input_right_pads,
-                        k_batch_);
+                        k_batch_,
+                        false, // Don't modify KBatch dimension
+                        false, // Don't modify KBatch dimension
+                        true); // use_full_batch_kindex: keep full KBatch*K0 dimension
 
             a_grid_desc_k0_m_k1_ = descs[I0];
             b_grid_desc_k0_n_k1_ = descs[I1];
