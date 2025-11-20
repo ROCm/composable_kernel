@@ -8,26 +8,12 @@
 
 namespace ck_tile {
 
-__device__ wait_signal(uint32_t* signal_addr)
-{
-    uint32_t ready = __atomic_load_n(signal_addr, __ATOMIC_ACQUIRE);
-    while(!ready)
-    {
-
-        // Use volatile load to prevent compiler optimization
-        asm volatile("flat_load_dword %0, %1 glc\n"
-                     "s_waitcnt vmcnt(0)"
-                     : "=v"(ready)
-                     : "v"(addr)
-                     : "memory");
-
-        // Add a small delay to reduce memory traffic
-        __builtin_amdgcn_s_sleep(1);
-
-        ready = __atomic_load_n(signal_addr, __ATOMIC_ACQUIRE);
-    }
-}
-
+/**
+ * @brief Arguments for Persistent Async GEMM scheduling
+ * 
+ * This structure contains parameters for producer-consumer synchronization
+ * in persistent GEMM kernels with asynchronous input readiness.
+ */
 struct PersistentAsyncArgs
 {
     index_t tiles_per_chunk_m = 0;

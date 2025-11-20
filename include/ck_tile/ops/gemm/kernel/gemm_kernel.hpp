@@ -37,7 +37,9 @@ struct GemmHostArgs
                               index_t K_,
                               index_t stride_A_,
                               index_t stride_B_,
-                              index_t stride_E_)
+                              index_t stride_E_,
+                              uint32_t* chunk_signals_ = nullptr,
+                              index_t tiles_per_chunk_m_ = 0)
         : a_ptr(a_ptr_),
           b_ptr(b_ptr_),
           e_ptr(e_ptr_),
@@ -47,7 +49,9 @@ struct GemmHostArgs
           stride_A(stride_A_),
           stride_B(stride_B_),
           stride_E(stride_E_),
-          k_batch(k_batch_)
+          k_batch(k_batch_),
+          chunk_signals(chunk_signals_),
+          tiles_per_chunk_m(tiles_per_chunk_m_)
     {
     }
 
@@ -72,6 +76,10 @@ struct GemmHostArgs
     };
 
     index_t k_batch;
+    
+    // Persistent async arguments
+    uint32_t* chunk_signals;
+    index_t tiles_per_chunk_m;
 };
 
 template <typename TilePartitioner_, typename GemmPipeline_, typename EpiloguePipeline_>
@@ -153,7 +161,9 @@ struct GemmKernel
                 {hostArgs.stride_A},
                 {hostArgs.stride_B},
                 {/*hostArgs.stride_Ds*/},
-                hostArgs.stride_E));
+                hostArgs.stride_E,
+                hostArgs.chunk_signals,
+                hostArgs.tiles_per_chunk_m));
     }
 
     CK_TILE_HOST static auto

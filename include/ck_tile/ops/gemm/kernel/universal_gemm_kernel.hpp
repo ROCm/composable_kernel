@@ -16,6 +16,60 @@
 
 namespace ck_tile {
 
+/**
+ * @brief Wait for a signal to become ready with acquire semantics
+ * 
+ * Producer-only wait: One lane polls chunk_signals[chunk_idx] with acquire semantics,
+ * then a workgroup barrier releases everyone.
+ * 
+ * @param signal_addr Pointer to the signal location in device memory
+ */
+CK_TILE_DEVICE static inline void wait_signal(uint32_t* signal_addr)
+{
+    // Only one thread in the workgroup polls the signal
+    if(threadIdx.x == 0)
+    {
+        uint32_t ready = 0;
+        while(!ready)
+        {
+            // Load with acquire semantics using AMD intrinsics
+            // glc (globally coherent) ensures visibility across the system
+            asm volatile("flat_load_dword %0, %1 glc\n\t"
+                         "s_waitcnt vmcnt(0)"
+                         : "=v"(ready)
+                         : "v"(signal_addr)
+                         : "memory");
+
+            // Add a small delay to reduce memory traffic
+            if(!ready)
+            {
+                __builtin_amdgcn_s_sleep(1);
+            }
+        }
+    }
+    
+    // Workgroup barrier to release all threads after signal is ready
+    __builtin_amdgcn_s_barrier();
+}
+
+/**
+ * @brief Fence for safe iteration boundaries in persistent loops
+ * 
+ * Ensures all memory operations are complete before reusing LDS or moving to next tile.
+ * Uses s_waitcnt vmcnt=0, lgkmcnt=0 + s_barrier.
+ */
+CK_TILE_DEVICE static inline void iteration_boundary_fence()
+{
+    // Wait for all vector memory operations (global memory loads/stores)
+    __builtin_amdgcn_s_waitcnt_vmcnt(0);
+    
+    // Wait for all LDS operations
+    __builtin_amdgcn_s_waitcnt_lgkmcnt(0);
+    
+    // Synchronize all threads in the workgroup
+    __builtin_amdgcn_s_barrier();
+}
+
 /// @brief The Universal GEMM kernel host arguments.
 ///
 /// @par Overview
@@ -41,7 +95,9 @@ struct UniversalGemmHostArgs
                                        const std::array<index_t, NumATensor>& stride_As_,
                                        const std::array<index_t, NumBTensor>& stride_Bs_,
                                        const std::array<index_t, NumDTensor>& stride_Ds_,
-                                       index_t stride_E_)
+                                       index_t stride_E_,
+                                       uint32_t* chunk_signals_ = nullptr,
+                                       index_t tiles_per_chunk_m_ = 0)
         : as_ptr(as_ptr_),
           bs_ptr(bs_ptr_),
           ds_ptr(ds_ptr_),
@@ -53,7 +109,9 @@ struct UniversalGemmHostArgs
           stride_Bs(stride_Bs_),
           stride_Ds(stride_Ds_),
           stride_E(stride_E_),
-          k_batch(k_batch_)
+          k_batch(k_batch_),
+          chunk_signals(chunk_signals_),
+          tiles_per_chunk_m(tiles_per_chunk_m_)
     {
     }
 
@@ -78,6 +136,10 @@ struct UniversalGemmHostArgs
     };
 
     index_t k_batch;
+    
+    // Persistent async arguments
+    uint32_t* chunk_signals;
+    index_t tiles_per_chunk_m;
 };
 
 /// @brief The GEMM kernel device arguments.
@@ -111,6 +173,12 @@ struct UniversalGemmKernelArgs
     ///        (in memory) of E tensor.
     index_t stride_E;
     index_t k_batch;
+    
+    /// @brief Pointer to chunk signals for async producer-consumer synchronization.
+    ///        chunk_signals[i] == 1 indicates that chunk i is ready.
+    uint32_t* chunk_signals;
+    /// @brief Number of M tiles per chunk for async input signaling.
+    index_t tiles_per_chunk_m;
 };
 
 /// @brief The Universal GEMM kernel template.
@@ -313,7 +381,9 @@ struct UniversalGemmKernel
                           hostArgs.stride_Bs,
                           hostArgs.stride_Ds,
                           hostArgs.stride_E,
-                          hostArgs.k_batch};
+                          hostArgs.k_batch,
+                          hostArgs.chunk_signals,
+                          hostArgs.tiles_per_chunk_m};
     }
 
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
@@ -1140,6 +1210,13 @@ struct UniversalGemmKernel
             const auto [iM, iN] = TilePartitioner{kargs.M, kargs.N}.GetOutputTileIndex(tile_idx);
             const index_t i_m   = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
             const index_t i_n   = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
+            
+            // Producer-consumer synchronization: wait for chunk to be ready
+            if(kargs.chunk_signals != nullptr && kargs.tiles_per_chunk_m > 0)
+            {
+                const index_t chunk_idx = iM / kargs.tiles_per_chunk_m;
+                wait_signal(kargs.chunk_signals + chunk_idx);
+            }
 
             // Get the SplitK offset for this block
             const auto k_batch = amd_wave_read_first_lane(block_id / num_tiles);
@@ -1206,6 +1283,11 @@ struct UniversalGemmKernel
                             i_n);
                 }
             }
+            
+            // Safe iteration boundary: ensure all memory operations complete
+            // before reusing LDS or moving to next tile
+            iteration_boundary_fence();
+            
             // Advance to the next work item
             block_id += grid_size;
             if(block_id >= num_work)

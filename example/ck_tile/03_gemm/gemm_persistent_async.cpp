@@ -1,21 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
-/**
- * @file gemm_persistent_async.cpp
- * @brief Example demonstrating persistent GEMM with async input readiness
- *
- * This example shows how to use the PersistentAsyncScheduler for GEMM operations
- * where input data becomes ready asynchronously in chunks. This is particularly
- * useful in distributed computing scenarios where data arrives incrementally.
- *
- * Features demonstrated:
- * - Chunk-based async input signaling
- * - Producer-consumer synchronization
- * - Pivot-based tile traversal for hotspot spreading
- * - Persistent kernel execution
- */
-
 #include "gemm_utils.hpp"
 #include "run_gemm_example.inc"
 #include "run_gemm_example_common.hpp"
@@ -71,6 +56,8 @@ int main(int argc, char* argv[])
     arg_parser.insert("enable_async", "1", "Enable async input signaling (0=disabled, 1=enabled)");
 
     auto result = arg_parser.parse(argc, argv);
+
+    // TO-DO Add example
 
     if(!result)
         return -1;
