@@ -21,7 +21,9 @@ if(has_supported_gpu)
     add_executable(tile_example_mx_flatmm EXCLUDE_FROM_ALL mxgemm/mx_flatmm.cpp ${EXAMPLE_MX_FLATMM_FILES})
     target_include_directories(tile_example_mx_flatmm PRIVATE mxgemm)
 
-    set(EXAMPLE_FLATMM_COMPILE_OPTIONS)
+    # NOTE: we turn off undefined-func-template to let source compile without explicit declare function specializations
+    #       ... because they are auto-generated
+    set(EXAMPLE_FLATMM_COMPILE_OPTIONS -Wno-undefined-func-template)
     set(EXAMPLE_MOE_FLATMM_COMPILE_OPTIONS)
 
     if(CK_USE_OCP_FP8)
