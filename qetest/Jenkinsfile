@@ -70,23 +70,18 @@ def generateAndArchiveBuildTraceVisualization() {
             # Convert build trace to base64
             BUILD_TRACE_BASE64=$(base64 -w 0 ''' + buildTraceFileName + ''')
             
-            # Create JSON payload in a temporary file to avoid "Argument list too long" error
-            cat > webhook_payload.json << 'EOL'
+            # Create JSON payload using printf to avoid sed issues with base64 special characters
+            cat > webhook_payload.json << EOF
             {
                 "jobName": "''' + env.JOB_NAME + '''",
                 "buildNumber": "''' + env.BUILD_NUMBER + '''",
                 "jobUrl": "''' + env.RUN_DISPLAY_URL + '''",
                 "imageName": "''' + imageName + '''",
-                "imageData": "IMAGE_PLACEHOLDER",
-                "buildTraceName": "BUILD_TRACE_NAME_PLACEHOLDER",
-                "buildTraceData": "BUILD_TRACE_PLACEHOLDER"
+                "imageData": "${IMAGE_BASE64}",
+                "buildTraceName": "${BUILD_TRACE_WITH_NUMBER}",
+                "buildTraceData": "${BUILD_TRACE_BASE64}"
             }
-            EOL
-            
-            # Replace placeholders with actual data using sed
-            sed -i "s/IMAGE_PLACEHOLDER/$IMAGE_BASE64/g" webhook_payload.json
-            sed -i "s/BUILD_TRACE_NAME_PLACEHOLDER/$BUILD_TRACE_WITH_NUMBER/g" webhook_payload.json
-            sed -i "s/BUILD_TRACE_PLACEHOLDER/$BUILD_TRACE_BASE64/g" webhook_payload.json
+            EOF
             
             curl -X POST "${WEBHOOK_URL}" \
             -H "Content-Type: application/json" \
