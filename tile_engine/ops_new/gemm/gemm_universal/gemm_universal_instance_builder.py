@@ -95,65 +95,53 @@ def main():
         args.working_path, args.gpu_target, args.datatype, args.layout, args.config_json
     )
 
+    kernel_name_prefix = "gemm_universal"
     if args.list_kernels:
-        builder.list_kernels("gemm_universal")
+        builder._list_kernels(kernel_name_prefix)
     elif args.gen_single:
-        # # Generate a single kernel file
-        # if not args.kernel_name or not args.tile_config or not args.trait_combo:
-        #     parser.error(
-        #         "--gen_single requires --kernel_name, --tile_config, and --trait_combo"
-        #     )
+        # Generate a single kernel file input validation
+        if not args.kernel_name or not args.tile_config or not args.trait_combo:
+            parser.error(
+                "--gen_single requires --kernel_name, --tile_config, and --trait_combo"
+            )
 
-        # # Parse tile config
-        # tile_parts = args.tile_config.split("_")
-        # tile_dims = tile_parts[0].split("x")
-        # warp_dims = tile_parts[1].split("x")
-        # warp_tile_dims = tile_parts[2].split("x")
+        # Parse tile config
+        tile_parts = args.tile_config.split("_")
+        tile_dims = tile_parts[0].split("x")
+        warp_dims = tile_parts[1].split("x")
+        warp_tile_dims = tile_parts[2].split("x")
 
-        # tile_config = {
-        #     "tile_m": int(tile_dims[0]),
-        #     "tile_n": int(tile_dims[1]),
-        #     "tile_k": int(tile_dims[2]),
-        #     "warp_m": int(warp_dims[0]),
-        #     "warp_n": int(warp_dims[1]),
-        #     "warp_k": int(warp_dims[2]),
-        #     "warp_tile_m": int(warp_tile_dims[0]),
-        #     "warp_tile_n": int(warp_tile_dims[1]),
-        #     "warp_tile_k": int(warp_tile_dims[2]),
-        # }
+        tile_config = {
+            "tile_m": int(tile_dims[0]),
+            "tile_n": int(tile_dims[1]),
+            "tile_k": int(tile_dims[2]),
+            "warp_m": int(warp_dims[0]),
+            "warp_n": int(warp_dims[1]),
+            "warp_k": int(warp_dims[2]),
+            "warp_tile_m": int(warp_tile_dims[0]),
+            "warp_tile_n": int(warp_tile_dims[1]),
+            "warp_tile_k": int(warp_tile_dims[2]),
+        }
 
-        # # Parse trait combo
-        # trait_parts = args.trait_combo.split("_")
-        # trait_combo = (
-        #     trait_parts[0],  # pipeline
-        #     trait_parts[1],  # epilogue
-        #     trait_parts[2],  # scheduler
-        #     trait_parts[3] == "True",  # pad_m
-        #     trait_parts[4] == "True",  # pad_n
-        #     trait_parts[5] == "True",  # pad_k
-        #     trait_parts[6] == "True",  # persistent
-        # )
+        # Parse trait combo
+        trait_parts = args.trait_combo.split("_")
+        trait_combo = (
+            trait_parts[0],  # pipeline
+            trait_parts[1],  # epilogue
+            trait_parts[2],  # scheduler
+            trait_parts[3] == "True",  # pad_m
+            trait_parts[4] == "True",  # pad_n
+            trait_parts[5] == "True",  # pad_k
+            trait_parts[6] == "True",  # persistent
+        )
 
-        # k_block_per_cu = builder.config.get("k_block_per_cu")
-        # if k_block_per_cu is None:
-        #     k_block_per_cu = 1
+        # Generate the kernel
+        builder._generate_kernel_instance(
+            kernel_name_prefix,
+            tile_config,
+            trait_combo,
+        )
 
-        # # Generate the kernel
-        # kernel_name, instance_code = builder._generate_kernel_instance(
-        #     tile_config, trait_combo, k_block_per_cu
-        # )
-
-        # # Write the file
-        # simplified_name = kernel_name
-        # if simplified_name.startswith("gemm_"):
-        #     simplified_name = simplified_name[5:]
-
-        # header_file = builder.working_path / f"gemm_single_{simplified_name}.hpp"
-        # with open(header_file, "w") as f:
-        #     f.write(instance_code)
-
-        # print(f"Generated {header_file}")
-        pass
     elif args.gen_all_individual:
         # Generate all individual kernel files
         # builder.run(args.num_workers)
