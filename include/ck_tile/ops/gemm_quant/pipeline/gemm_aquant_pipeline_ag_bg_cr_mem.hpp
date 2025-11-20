@@ -467,32 +467,16 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrMem<Prob
                                    void* p_smem,
                                    index_t m = 0) const
     {
-        if constexpr(PreshuffleQuant)
-        {
-            return PipelineImpl<GemmPipelineScheduler::Interwave>{}
-                .template operator()<HasHotLoop, TailNum>(
-                    a_dram_block_window_tmp,
-                    [](const ADataType& a) { return a; },
-                    b_dram_block_window_tmp,
-                    [](const BDataType& b) { return b; },
-                    aq_dram_block_window_tmp,
-                    m,
-                    num_loop,
-                    p_smem);
-        }
-        else
-        {
-            return PipelineImpl<GemmPipelineScheduler::Interwave>{}
-                .template operator()<HasHotLoop, TailNum>(
-                    a_dram_block_window_tmp,
-                    [](const ADataType& a) { return a; },
-                    b_dram_block_window_tmp,
-                    [](const BDataType& b) { return b; },
-                    aq_dram_block_window_tmp,
-                    0,
-                    num_loop,
-                    p_smem);
-        }
+        return PipelineImpl<GemmPipelineScheduler::Interwave>{}
+            .template operator()<HasHotLoop, TailNum>(
+                a_dram_block_window_tmp,
+                [](const ADataType& a) { return a; },
+                b_dram_block_window_tmp,
+                [](const BDataType& b) { return b; },
+                aq_dram_block_window_tmp,
+                m,
+                num_loop,
+                p_smem);
     }
 };
 

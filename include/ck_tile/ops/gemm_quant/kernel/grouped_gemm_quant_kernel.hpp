@@ -393,8 +393,7 @@ struct QuantGroupedGemmKernel
                                                                       num_loop,
                                                                       tail_num,
                                                                       smem_ptr_0,
-                                                                      smem_ptr_1,
-                                                                      std::false_type{});
+                                                                      smem_ptr_1);
 
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(Base::I4);
@@ -461,8 +460,7 @@ struct QuantGroupedGemmKernel
                                                                           num_loop,
                                                                           has_hot_loop,
                                                                           tail_num,
-                                                                          smem_ptr_0,
-                                                                          std::false_type{});
+                                                                          smem_ptr_0);
 
             auto& c_block_window = gemm_tile_windows.at(Base::I4);
 

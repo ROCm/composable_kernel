@@ -469,9 +469,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                                    void* p_smem,
                                    index_t m = 0) const
     {
-        if constexpr(PreshuffleQuant)
-        {
-            return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
+        return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
                 a_dram_block_window_tmp,
                 [](const ADataType& a) { return a; },
                 b_dram_block_window_tmp,
@@ -480,19 +478,6 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
                 m,
                 num_loop,
                 p_smem);
-        }
-        else
-        {
-            return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
-                a_dram_block_window_tmp,
-                [](const ADataType& a) { return a; },
-                b_dram_block_window_tmp,
-                [](const BDataType& b) { return b; },
-                aq_dram_block_window_tmp,
-                0,
-                num_loop,
-                p_smem);
-        }
     }
 };
 
