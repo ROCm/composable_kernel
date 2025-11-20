@@ -76,7 +76,7 @@ def generateAndArchiveBuildTraceVisualization() {
     try {
         def buildTraceFileName = "ck_build_trace.json";
 
-        // Try to download the build trace file to check if it exists
+        // Attempt to download the build trace file to check if it exists
         def traceFileExists = false
         try {
             copyArtifacts(
@@ -145,7 +145,7 @@ def generateAndArchiveBuildTraceVisualization() {
             BUILD_TRACE_BASE64=$(base64 -w 0 ''' + buildTraceFileName + ''')
             echo "Build trace base64 length: ${#BUILD_TRACE_BASE64}"
             
-            # Create JSON payload safely using printf to avoid heredoc issues with base64 data
+            # Create JSON payload with base64 data
             echo "Creating JSON payload..."
             {
                 printf '{\n'
