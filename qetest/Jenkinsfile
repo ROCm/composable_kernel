@@ -4,6 +4,23 @@ def rocmnode(name) {
 
 def generateAndArchiveBuildTraceVisualization() {
     try {
+        // Check if the build trace file exists
+        def artifacts = currentBuild.rawBuild.getArtifacts()
+        def hasTraceFile = artifacts.any { it.fileName == 'ck_build_trace.json' }
+        if (hasTraceFile) {
+            echo "Build trace archive found"
+        } else {
+            echo "Build trace archive not found"
+            return
+        }
+
+        // Download build trace archive
+        copyArtifacts(
+            projectName: env.JOB_NAME,
+            selector: specific(env.BUILD_NUMBER),
+            filter: 'ck_build_trace.json'
+        )
+
         // Pull image
         def image = "ghcr.io/puppeteer/puppeteer:24.30.0"
         echo "Pulling image: ${image}"
@@ -35,6 +52,7 @@ def generateAndArchiveBuildTraceVisualization() {
         archiveArtifacts "workspace/${imageName}"
 
         // Notify the channel
+        // Send notification
         withCredentials([string(credentialsId: 'ck_ci_build_perf_webhook_url', variable: 'WEBHOOK_URL')]) {
         sh '''
             # Convert image to base64
@@ -57,6 +75,14 @@ def generateAndArchiveBuildTraceVisualization() {
     }
 }
 
+def archiveTestFile() {
+    // Archive file for testing
+    sh '''
+        cp ck_build_trace_dummy_test.json ck_build_trace.json
+    '''
+    archiveArtifacts "ck_build_trace.json"
+}
+
 pipeline {
     agent none
     stages{
@@ -64,8 +90,17 @@ pipeline {
             agent{ label rocmnode("nogpu") }
             steps {
                 script {
-                    generateAndArchiveBuildTraceVisualization();
+                    // Simulate archive
+                    archiveTestFile();
                 }
+            }
+        }
+    }
+    post {
+        always {
+            script {
+                // Simulate capture
+                generateAndArchiveBuildTraceVisualization()
             }
         }
     }
