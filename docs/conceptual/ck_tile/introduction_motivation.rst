@@ -3,7 +3,9 @@
 Introduction and Motivation - Why Tile Distribution Matters
 ===========================================================
 
-Overview
+[TO DO: Most of this can be removed but kept somewhere in case we want to use it somewhere else.]
+
+Overview [TO DO: can be removed]
 --------
 
 The evolution of GPU computing has brought increasing computational power to modern applications, yet harnessing this power efficiently remains one of the most challenging aspects of high-performance computing. This challenge arises from a mismatch between how developers conceptualize algorithms and how GPU hardware processes them. While developers think in terms of mathematical operations on multi-dimensional data structures, GPUs operate through thousands of threads accessing memory in complex patterns that must satisfy stringent hardware constraints.
@@ -87,12 +89,17 @@ The GPU Memory Problem
       style T2_TD fill:#d1fae5,stroke:#10b981,stroke-width:2px
       style T3_TD fill:#d1fae5,stroke:#10b981,stroke-width:2px
    
-   
+
+[TO DO: the images need to be looked at because they look off in svg format]
 
 .. image:: diagrams/introduction_motivation_1.svg
    :alt: Diagram
    :align: center
-Why Random Memory Access is Slow
+
+Why Random Memory Access is Slow [TO DO: keep -- and rewrite]
+
+[TO DO: can have something where we say "memory access is slow but CK Tile can help with that" with examples]
+
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The architecture of GPUs represents a study in trade-offs. While these devices can execute thousands of threads simultaneously and perform trillions of floating-point operations per second, they remain constrained by the physics of memory access. Understanding this constraint helps explain why tile distribution is not merely an optimization technique but an important component of high-performance GPU computing.
@@ -103,10 +110,14 @@ The impact extends beyond raw bandwidth. GPUs employ cache hierarchies to reduce
 
 Furthermore, the GPU's SIMT (Single Instruction, Multiple Thread) model means that all threads in a warp must process the same instruction at the same time. When threads access memory in unpredictable patterns, the memory controller cannot optimize the requests, leading to serialization of what should be parallel operations. This serialization effect compounds with each level of the memory hierarchy, from L1 cache through L2 cache to global memory, multiplying the performance impact.
 
-The Thread Cooperation Challenge
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The Thread Cooperation Challenge 
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The challenge of efficient thread cooperation becomes particularly evident when examining an operation like matrix multiplication. Consider a scenario where 256 threads must cooperate to multiply two matrices. The naive approach, where each thread computes one element of the output matrix, illustrates precisely why GPU programming requires compile-time abstractions.
+[TO DO: keep also -- rewrite]
+
+
+
+The challenge of efficient thread cooperation becomes particularly evident when examining an operation like matrix multiplication. Consider a scenario where 256 threads must cooperate to multiply two matrices. The naive approach, where each thread computes one element of the output matrix, illustrates precisely why GPU programming requires compile-time abstractions. [can be removed]
 
 .. code-block:: cpp
 
@@ -142,6 +153,8 @@ The challenge of efficient thread cooperation becomes particularly evident when 
        global_memory_C[row * MATRIX_WIDTH + col] = result;
    }
 
+[TO DO: add more information about the code block in the text in addition to inline comments]
+
 This seemingly straightforward implementation suffers from inefficiencies that stem from the mismatch between the algorithm's logical structure and the hardware's physical constraints. The memory access pattern is essentially random from the hardware's perspective, as adjacent threads access memory locations separated by large strides. This pattern prevents the memory controller from coalescing accesses, forcing it to issue separate transactions for each thread.
 
 The lack of coordination between threads exacerbates the problem. While all threads in a warp execute the same instructions, they operate on completely different data with no sharing or reuse. This independence, which might seem desirable in traditional parallel programming, actually works against GPU architecture. The hardware cannot exploit any commonality in the access patterns, leading to severe underutilization of memory bandwidth.
@@ -149,6 +162,8 @@ The lack of coordination between threads exacerbates the problem. While all thre
 Cache utilization suffers dramatically under this access pattern. Each thread traces a unique path through memory, with no overlap between threads' working sets. The L1 and L2 caches, designed to capture and exploit locality, instead thrash continuously as each thread's accesses evict data needed by others. The effective cache capacity approaches zero, exposing every memory access to the full latency of global memory.
 
 This approach also fails to utilize the available memory bandwidth efficiently. GPUs can achieve memory bandwidths exceeding 1 TB/s, but only when accesses are properly structured. The random access pattern of the naive implementation might achieve less than 10% of this theoretical maximum, effectively reducing a high-performance GPU to the performance level of a much simpler processor.
+
+[TO DO: Explain that the goal is to show why you wouldn't want to do what's in that code] 
 
 The Tile Distribution Solution
 ------------------------------
@@ -198,6 +213,8 @@ The essence of tile distribution is the recognition that efficient GPU computati
        });
    }
 
+[TO DO: add additional explanation to this since it introduces a lot of concepts; also link to any example that is relevant.]
+
 The transformation from inefficient to efficient memory access is notable. Where the naive implementation scattered memory requests across the address space, tile distribution ensures that adjacent threads access adjacent memory locations. This transformation happens through an encoding system that captures the hierarchical nature of both the computation and the hardware.
 
 The encoding shown above demonstrates the multi-level hierarchy that tile distribution employs. The sequence<4, 2, 8, 4> represents a four-level decomposition: four repetitions per thread, two warps per block, eight threads per warp, and four elements per vector operation. This hierarchical structure maps directly to the GPU's hardware organization, ensuring that each level of the hierarchy operates at maximum efficiency.
@@ -210,7 +227,7 @@ Cache utilization improves dramatically as well. The structured access patterns 
 
 The scalability of tile distribution across different GPU architectures represents one of its important features. The same high-level code can achieve near-optimal performance on GPUs with different numbers of compute units, different cache sizes, and different memory bandwidths. The compile-time nature of the encoding allows the compiler to generate architecture-specific optimizations while maintaining portable source code.
 
-The Coordinate Mapping Insight
+The Coordinate Mapping Insight [TO DO: to be removed; more advanced]
 ------------------------------
 
 Tile distribution uses a mathematical insight: efficient GPU computation requires a systematic framework for mapping between different coordinate spaces. This framework transforms the complex problem of thread-to-data assignment into a series of well-defined mathematical transformations, each serving a specific purpose in the journey from abstract algorithm to concrete hardware implementation.
@@ -277,7 +294,7 @@ The transformative power of tile distribution emerges from the composition of th
 
 The mathematical rigor of this framework enables optimizations. Because each transformation is well-defined and composable, the compiler can analyze the complete transformation chain and generate optimal code. The framework can automatically ensure memory coalescing by structuring the P + Y → X transformation appropriately. It can minimize bank conflicts in shared memory by carefully designing the X → D mapping. Most importantly, it can adapt these optimizations to different hardware architectures by adjusting the transformation parameters while keeping the high-level algorithm description unchanged.
 
-What's Coming Next
+What's Coming Next [TO DO: remove]
 ------------------
 
 Having established the motivation for tile distribution and its coordinate mapping framework, the following sections provide a systematic overview of the complete CK Tile system. The documentation is carefully structured to build understanding layer by layer, starting from the most basic abstractions and progressing to advanced optimization techniques.

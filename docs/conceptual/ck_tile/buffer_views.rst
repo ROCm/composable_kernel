@@ -6,6 +6,8 @@ Buffer Views - Raw Memory Access
 Overview
 --------
 
+[TO DO: update with the terminology. "Buffers views, as exposed in ``buffer_view``, is a compile-time abstraction"]
+
 BufferView is a compile-time abstraction that provides structured access to raw memory regions within GPU kernels. This building block serves as the bridge between the hardware's physical memory model and the higher-level abstractions that enable efficient GPU programming. BufferView encapsulates the complexity of GPU memory hierarchies while exposing a unified interface that works seamlessly across different memory address spaces—whether accessing global memory shared across the entire device, local data share (LDS) memory shared within a workgroup, or the ultra-fast register files private to each thread.
 
 BufferView serves as the foundation for :ref:`ck_tile_tensor_views`, which add multi-dimensional structure on top of raw memory access. Understanding BufferView is necessary before moving on to more complex abstractions like :ref:`ck_tile_distribution` and :ref:`ck_tile_window`.
@@ -77,6 +79,8 @@ C++ Implementation
 Basic Creation
 ~~~~~~~~~~~~~~
 
+[TO DO: remove "modern C++ template metaprogramming" and "zero-overhead abstraction"]
+
 The implementation of BufferView uses modern C++ template metaprogramming applied to GPU kernel development. By encoding properties such as buffer size and address space as template parameters, BufferView transforms what would traditionally be runtime decisions into compile-time constants. This design philosophy enables the compiler to perform aggressive optimizations, including constant propagation, loop unrolling, and instruction selection, that would be impossible with runtime parameters.
 
 The use of compile-time constants extends beyond mere optimization. When the buffer size is encoded in the type system using constructs like ``number<8>{}``, the compiler can statically verify that array accesses are within bounds, eliminate unnecessary bounds checks, and even restructure algorithms to better match the known data dimensions. This compile-time knowledge propagates through the entire computation, enabling optimizations at every level of the abstraction hierarchy.
@@ -102,6 +106,7 @@ The address space template parameter represents another design decision. By maki
        buffer_size  // number of elements
    );
    
+   
    // Implementation detail: The actual C++ template is:
    // template <address_space_enum BufferAddressSpace,
    //           typename T,
@@ -125,6 +130,8 @@ The address space template parameter represents another design decision. By maki
        static_assert(size == 8, "Buffer size should be 8");
        static_assert(space == address_space_enum::global, "Should be global memory");
    }
+
+[TO DO: add details and remove unnecessary comments; the "implementation detail" comment can be moved out and either placed outside and explained further, or just removed, depending on what we want to do]
 
 Out-of-Bounds Handling
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -185,7 +192,9 @@ The significance of vector operations extends beyond simple bandwidth improvemen
 
 The implementation of vector access maintains the same parameter structure as scalar operations, providing consistency across the API while automatically handling the complexities of multi-element transfers. The system manages alignment requirements, ensures that vector loads and stores use the optimal hardware instructions, and gracefully handles cases where vector operations extend beyond buffer boundaries. This transparent handling of edge cases allows developers to use vector operations confidently without manual boundary checks or special-case code for partial vectors.
 
-Scalar vs Vectorized Memory Access
+[TO DO: code chunks need to have detail and explanation so that the reader can see what they're trying to demonstrate.]
+
+Scalar vs Vectorized Memory Access 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. 

@@ -3,6 +3,8 @@
 Tensor Views - Multi-Dimensional Structure
 ==========================================
 
+[TO DO: add information about how tensor view and buffer view differ/are similar, when each should be used, etc]
+
 Overview
 --------
 

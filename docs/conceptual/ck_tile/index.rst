@@ -3,6 +3,9 @@
 CK Tile Conceptual Documentation
 ================================
 
+[TO DO: Describe what CK Tile is and why it's more advantageous than old CK, less overhead, etc. We can put this also in the old CK doc somewhere. Maybe on the landing page. And then it gets removed once Old CK is removed.]
+
+
 Welcome to the conceptual documentation for CK Tile, the core abstraction layer of Composable Kernel that enables efficient GPU programming through compile-time coordinate transformations and tile-based data distribution.
 
 Overview

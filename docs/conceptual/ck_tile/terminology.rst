@@ -3,6 +3,8 @@
 Terminology Reference - Concepts and Definitions
 ====================================================
 
+[TODO: add buffer_view/tensor_view]
+
 Overview
 --------
 
