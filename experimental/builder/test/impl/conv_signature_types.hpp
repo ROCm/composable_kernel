@@ -17,7 +17,6 @@ struct ConvSignature
     GroupConvLayout layout;
     DataType data_type;
     ElementwiseOperation elementwise_operation;
-    GroupConvDeviceOp device_operation;
 };
 static_assert(ConvSignatureDescriptor<ConvSignature>);
 

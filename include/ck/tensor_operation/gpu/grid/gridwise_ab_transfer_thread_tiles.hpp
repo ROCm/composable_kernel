@@ -17,6 +17,9 @@ template <typename ABLayout,
           index_t KPerBlock,
           index_t MNPerWmma,
           index_t ABK1Value,
+          index_t KPack,
+          index_t KInner,
+          index_t KPerWmmaBlk,
           bool UseBlockPaddingAB,
           bool PermuteAB,
           typename ABBlockTransferThreadClusterLengths_ABK0_MN_ABK1,
@@ -374,14 +377,93 @@ struct ABTransferThreadTiles
 #else
         constexpr auto KRow = I1;
 #endif
-        return transform_tensor_descriptor(
-            BlockDesc{},
-            make_tuple(make_unmerge_transform(make_tuple(Number<ABK0 / KRow>{}, KRow)),
-                       make_unmerge_transform(
-                           make_tuple(Number<MNRepeat>{}, Number<MNWaves>{}, Number<MNPerWmma>{})),
-                       make_pass_through_transform(Number<ABK1>{})),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
-            make_tuple(Sequence<0, 3>{}, Sequence<1, 2, 4>{}, Sequence<5>{}));
+        if constexpr(KInner > 1)
+        {
+            // KPack = KInner * KPerWmma
+            // K1 = KInner * KPerWmmaBlk
+            // Each thread loads multiple tiles with one instruction
+            // 1 - MNRepeat - K0 / KRow - MNWaves - KRow - MNPerWmma - K1
+            return transform_tensor_descriptor(
+                BlockDesc{},
+                make_tuple(
+                    make_unmerge_transform(make_tuple(Number<ABK0 / KRow>{}, KRow, Number<1>{})),
+                    make_unmerge_transform(
+                        make_tuple(Number<MNRepeat>{}, Number<MNWaves>{}, Number<MNPerWmma>{})),
+                    make_pass_through_transform(Number<ABK1>{})),
+                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                make_tuple(Sequence<2, 4, 0>{}, Sequence<1, 3, 5>{}, Sequence<6>{}));
+        }
+        else
+        {
+            // KPack = KPerWmma (KInner == 1)
+            if constexpr(ABK1 <= KPerWmmaBlk)
+            {
+                // K1 <= single tile (KPerWmmaBlk)
+                // Each thread will load KPerWmmaBlk for the WMMA instruction
+                // Since K1 <= single tile, K0 is unmerged first over KPack / KRow / K1
+                // (rest of the single WMMA tile for single thread) and then over KRow
+                // (rest of the single WMMA tile for single wave)
+                // KPack / KRow / K1 - MNRepeat - K0 / KRow - MNWaves - KRow - MNPerWmma - K1
+                return transform_tensor_descriptor(
+                    BlockDesc{},
+                    make_tuple(
+                        make_unmerge_transform(make_tuple(
+                            Number<ABK0 / (KPack / ABK1)>{}, KRow, Number<KPack / KRow / ABK1>{})),
+                        make_unmerge_transform(
+                            make_tuple(Number<MNRepeat>{}, Number<MNWaves>{}, Number<MNPerWmma>{})),
+                        make_pass_through_transform(Number<ABK1>{})),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                    make_tuple(Sequence<2, 4, 0>{}, Sequence<1, 3, 5>{}, Sequence<6>{}));
+            }
+            else
+            {
+                // K1 > single tile (KPerWmmaBlk)
+                // Each thread will load KPerWmmaBlk for the WMMA instruction
+                // Since K1 > single tile, each thread loads KPerWmmaBlk and the next
+                // KPerWmmaBlk chunk is loaded by a different thread in the same wave (WMMA layout).
+                // This layout is needed to support for example AK1 > single tile and
+                // BK1 <= single tile in the same gemm
+                // KPack / KPerWmmaBlk / KRow - MNRepeat - K0 / KRow - MNWaves - KRow - MNPerWmma -
+                // K1
+                constexpr auto desc1 = transform_tensor_descriptor(
+                    BlockDesc{},
+                    make_tuple(
+                        make_pass_through_transform(Number<ABK0>{}),
+                        make_unmerge_transform(
+                            make_tuple(Number<MNRepeat>{}, Number<MNWaves>{}, Number<MNPerWmma>{})),
+                        make_unmerge_transform(make_tuple(Number<ABK1 / KPack>{},
+                                                          Number<KPack / KPerWmmaBlk / KRow>{},
+                                                          Number<KRow>{},
+                                                          Number<KPerWmmaBlk>{}))),
+                    make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}),
+                    make_tuple(Sequence<2>{}, Sequence<1, 4, 6>{}, Sequence<3, 0, 5, 7>{}));
+
+                return transform_tensor_descriptor(
+                    desc1,
+                    make_tuple(
+                        make_pass_through_transform(Number<KPack / KPerWmmaBlk / KRow>{}),
+                        make_pass_through_transform(Number<MNRepeat>{}),
+                        make_merge_transform(make_tuple(Number<ABK0>{}, Number<ABK1 / KPack>{})),
+                        make_pass_through_transform(Number<MNWaves>{}),
+                        make_pass_through_transform(Number<KRow>{}),
+                        make_pass_through_transform(Number<MNPerWmma>{}),
+                        make_pass_through_transform(Number<KPerWmmaBlk>{})),
+                    make_tuple(Sequence<0>{},
+                               Sequence<1>{},
+                               Sequence<2, 3>{},
+                               Sequence<4>{},
+                               Sequence<5>{},
+                               Sequence<6>{},
+                               Sequence<7>{}),
+                    make_tuple(Sequence<0>{},
+                               Sequence<1>{},
+                               Sequence<2>{},
+                               Sequence<3>{},
+                               Sequence<4>{},
+                               Sequence<5>{},
+                               Sequence<6>{}));
+            }
+        }
     }
 
     __device__ static constexpr auto GetBlockStep()

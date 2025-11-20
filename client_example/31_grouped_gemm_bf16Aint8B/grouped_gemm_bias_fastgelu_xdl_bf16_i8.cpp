@@ -15,6 +15,8 @@
 
 #include "ck/library/tensor_operation_instance/gpu/grouped_gemm_multi_abd_fixed_nk.hpp"
 
+using ::ck::hip_check_error;
+
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 

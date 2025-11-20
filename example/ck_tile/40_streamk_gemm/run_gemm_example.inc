@@ -71,16 +71,16 @@ invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
             bool flush_cache,
             ck_tile::StreamKReductionStrategy reduction_strategy)
 {
-    ck_tile::reboot::StreamKHostArgs args{a_m_k_dev_buf.GetDeviceBuffer(),
-                                          b_k_n_dev_buf.GetDeviceBuffer(),
-                                          c_m_n_dev_buf.GetDeviceBuffer(),
-                                          M,
-                                          N,
-                                          K,
-                                          stride_A,
-                                          stride_B,
-                                          stride_C,
-                                          reduction_strategy};
+    ck_tile::StreamKHostArgs args{a_m_k_dev_buf.GetDeviceBuffer(),
+                                  b_k_n_dev_buf.GetDeviceBuffer(),
+                                  c_m_n_dev_buf.GetDeviceBuffer(),
+                                  M,
+                                  N,
+                                  K,
+                                  stride_A,
+                                  stride_B,
+                                  stride_C,
+                                  reduction_strategy};
 
     std::tuple<float, ck_tile::index_t> ave_time_and_batch;
 

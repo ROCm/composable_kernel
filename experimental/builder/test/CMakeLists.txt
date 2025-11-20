@@ -39,7 +39,8 @@ add_ck_builder_test(test_ckb_get_instance_string
 add_ck_builder_test(test_ckb_build_fwd_instances
     conv/test_ckb_conv_fwd_1d_fp16.cpp
     conv/test_ckb_conv_fwd_1d_bf16.cpp
-    conv/test_ckb_conv_fwd_1d_i8.cpp    
+    conv/test_ckb_conv_fwd_1d_i8.cpp
+    conv/test_ckb_conv_fwd_2d_fp8.cpp
     conv/test_ckb_conv_fwd_2d_bf16.cpp
     conv/test_ckb_conv_fwd_2d_fp16.cpp
     conv/test_ckb_conv_fwd_2d_fp32.cpp
@@ -47,7 +48,8 @@ add_ck_builder_test(test_ckb_build_fwd_instances
     conv/test_ckb_conv_fwd_2d_large_tensor_fp16.cpp
     conv/test_ckb_conv_fwd_3d_bf16.cpp
     conv/test_ckb_conv_fwd_3d_fp16.cpp
-    conv/test_ckb_conv_fwd_3d_fp32.cpp)
+    conv/test_ckb_conv_fwd_3d_fp32.cpp
+    )
 
 function(add_ck_factory_test test_name)
     add_ck_builder_test(${test_name} ${ARGN})
@@ -66,17 +68,17 @@ add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_bias_bnorm_clam
 add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scaleadd_scaleadd_relu test_ck_factory_grouped_convolution_forward_scaleadd_scaleadd_relu.cpp)
 add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_dynamic_op test_ck_factory_grouped_convolution_forward_dynamic_op.cpp)
 
-add_ck_builder_test(test_conv_traits
+add_ck_builder_test(test_ckb_conv_traits
     conv/test_conv_traits.cpp)
 
-add_ck_builder_test(test_conv_description
+add_ck_builder_test(test_ckb_conv_description
     test_conv_description.cpp)
 
 # Function to add all test_ckb targets to a list
 function(collect_test_ckb_targets result_var)
     # Get all targets in current directory
     get_directory_property(all_targets BUILDSYSTEM_TARGETS)
-    
+
     set(test_ckb_targets)
     foreach(target ${all_targets})
         # Check if target name starts with "test_ckb"
@@ -85,7 +87,7 @@ function(collect_test_ckb_targets result_var)
             list(APPEND test_ckb_targets ${target})
         endif()
     endforeach()
-    
+
     set(${result_var} ${test_ckb_targets} PARENT_SCOPE)
 endfunction()
 
