@@ -96,7 +96,7 @@ def main():
     )
 
     if args.list_kernels:
-        builder.write_kernel_list("gemm_universal")
+        builder.write_kernel_list("gemm_universal")  # Rename this method name
         # pass
     elif args.gen_single:
         # # Generate a single kernel file
