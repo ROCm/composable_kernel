@@ -120,7 +120,7 @@ int main(int argc, char* argv[])
 #if CK_TILE_USE_WMMA
         return !run_gemm_example<GemmConfigComputeV3_WMMA>(arg_parser);
 #else
-        return !run_gemm_example<GemmConfigComputeV3>(arg_parser);
+        return !run_gemm_example<GemmConfigComputeV3_2>(arg_parser);
 #endif
     }
     catch(const std::runtime_error& e)
