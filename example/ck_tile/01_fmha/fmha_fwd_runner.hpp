@@ -595,11 +595,11 @@ fwd_result fmha_fwd_run(mode_enum mode,
             : std::array<ck_tile::index_t, 3>{1, 1, 1});
     ck_tile::HostTensor<float> k_descale_host(
         qscale.type == quant_scale_enum::blockscale
-            ? std::array<ck_tile::index_t, 3>{shape_batch, nhead, num_block_scale_n}
+            ? std::array<ck_tile::index_t, 3>{shape_batch, nhead_k, num_block_scale_n}
             : std::array<ck_tile::index_t, 3>{1, 1, 1});
     ck_tile::HostTensor<float> v_descale_host(
         qscale.type == quant_scale_enum::blockscale
-            ? std::array<ck_tile::index_t, 3>{shape_batch, nhead, num_block_scale_n}
+            ? std::array<ck_tile::index_t, 3>{shape_batch, nhead_k, num_block_scale_n}
             : std::array<ck_tile::index_t, 3>{1, 1, 1});
 
     // batch mode of lse data layout is [batch, nhead, seqlen_q]
@@ -717,9 +717,9 @@ fwd_result fmha_fwd_run(mode_enum mode,
     }
     else if(qscale.type == quant_scale_enum::blockscale)
     {
-        ck_tile::FillUniformDistribution<float>{0.012f, 0.016f, next_seed()}(q_descale_host);
-        ck_tile::FillUniformDistribution<float>{0.012f, 0.016f, next_seed()}(k_descale_host);
-        ck_tile::FillUniformDistribution<float>{0.012f, 0.016f, next_seed()}(v_descale_host);
+        ck_tile::FillUniformDistribution<float>{0.012f, 0.015f, next_seed()}(q_descale_host);
+        ck_tile::FillUniformDistribution<float>{0.012f, 0.015f, next_seed()}(k_descale_host);
+        ck_tile::FillUniformDistribution<float>{0.012f, 0.015f, next_seed()}(v_descale_host);
     }
 
     iota_shuffle(block_table_host.begin(), block_table_host.end(), 0, random_engine);
