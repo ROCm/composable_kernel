@@ -102,9 +102,11 @@ pipeline {
     }
     post {
         always {
-            script {
-                // Simulate capture
-                generateAndArchiveBuildTraceVisualization()
+            node(rocmnode("nogpu")) {
+                script {
+                    // Simulate capture
+                    generateAndArchiveBuildTraceVisualization()
+                }
             }
         }
     }
