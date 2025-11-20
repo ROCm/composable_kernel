@@ -72,6 +72,78 @@ def sendFailureNotifications() {
     }
 }
 
+def generateAndArchiveBuildTraceVisualization() {
+    try {
+        // Check if the build trace file exists
+        def artifacts = currentBuild.rawBuild.getArtifacts()
+        def hasTraceFile = artifacts.any { it.fileName == 'ck_build_trace.json' }
+        if (hasTraceFile) {
+            echo "Build trace was successfully archived"
+        } else {
+            echo "Build trace was not archived"
+            return
+        }
+
+        // Download build trace archive
+        copyArtifacts(
+            projectName: env.JOB_NAME,
+            selector: specific(env.BUILD_NUMBER),
+            filter: 'ck_build_trace.json'
+        )
+
+        // Pull image
+        def image = "ghcr.io/puppeteer/puppeteer:24.30.0"
+        echo "Pulling image: ${image}"
+        def retimage = docker.image("${image}")
+        retimage.pull()
+
+        // Create a temporary workspace
+        sh """#!/bin/bash
+            mkdir -p workspace
+            echo "Current directory:"
+            pwd
+            echo "Contents of current directory:"
+            ls -la
+            cp ./script/infra_helper/capture_build_trace.js ./workspace
+            cp ck_build_trace.json ./workspace/ck_build_trace.json
+            chmod +w -R ./workspace
+            ls -la ./workspace
+        """
+
+        // Run container to get snapshot
+        def dockerOpts = "--cap-add=SYS_ADMIN -v \"\$(pwd)/workspace:/workspace\" -e NODE_PATH=/home/pptruser/node_modules"
+        def imageName = "perfetto_snapshot_build_${env.BUILD_NUMBER}.png"
+        sh """
+            docker run --rm ${dockerOpts} ${image} node /workspace/capture_build_trace.js
+            mv ./workspace/perfetto_snapshot_build.png ./workspace/${imageName}
+        """
+
+        // Archive the snapshot
+        archiveArtifacts "workspace/${imageName}"
+
+        // Send notification
+        withCredentials([string(credentialsId: 'ck_ci_build_perf_webhook_url', variable: 'WEBHOOK_URL')]) {
+        sh '''
+            # Convert image to base64
+            IMAGE_BASE64=$(base64 -w 0 ./workspace/''' + imageName + ''')
+            
+            curl -X POST "${WEBHOOK_URL}" \
+            -H 'Content-Type: application/json' \
+            -d "{
+                \\"jobName": \\"''' + env.JOB_NAME + '''\\",
+                \\"buildNumber": \\"''' + env.BUILD_NUMBER + '''\\",
+                \\"jobUrl": \\"''' + env.RUN_DISPLAY_URL + '''\\",
+                \\"imageName": \\"''' + imageName + '''\\",
+                \\"imageData\\": \\"$IMAGE_BASE64\\"
+            }"
+        '''
+        }
+    } catch (Exception e) {
+        echo "Throwing error exception while generating build trace visualization"
+        echo 'Exception occurred: ' + e.toString()
+    }
+}
+
 class Version {
     int major, minor, patch
     @Override
@@ -1711,6 +1783,11 @@ pipeline {
                 }
             }
             post {
+                always {
+                    script {
+                        generateAndArchiveBuildTraceVisualization()
+                    }
+                }
                 success {
                     script {
                         // Report the parent stage build ck and run tests status

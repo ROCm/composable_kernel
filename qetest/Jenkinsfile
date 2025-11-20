@@ -5,7 +5,7 @@ def rocmnode(name) {
 def generateAndArchiveBuildTraceVisualization() {
     try {
         // Pull image
-        def image = "ghcr.io/puppeteer/puppeteer:latest"
+        def image = "ghcr.io/puppeteer/puppeteer:24.30.0"
         echo "Pulling image: ${image}"
         def retimage = docker.image("${image}")
         retimage.pull()
@@ -43,7 +43,11 @@ def generateAndArchiveBuildTraceVisualization() {
             curl -X POST "${WEBHOOK_URL}" \
             -H 'Content-Type: application/json' \
             -d "{
-                \\"image\\": \\"$IMAGE_BASE64\\"
+                \\"jobName": \\"''' + env.JOB_NAME + '''\\",
+                \\"buildNumber": \\"''' + env.BUILD_NUMBER + '''\\",
+                \\"jobUrl": \\"''' + env.RUN_DISPLAY_URL + '''\\",
+                \\"imageName": \\"''' + imageName + '''\\",
+                \\"imageData\\": \\"$IMAGE_BASE64\\"
             }"
         '''
         }
