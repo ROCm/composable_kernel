@@ -46,7 +46,7 @@ set(REGRESSION_TESTS
     test_ck_tile_fmha_fwd_bf16
     test_ck_tile_fmha_fwd_fp16
     test_ck_tile_fmha_fwd_fp8
-    test_ck_tile_streamk_reboot_extended
+    test_ck_tile_streamk_extended
 )
 
 function(add_test_executable TEST_NAME)
@@ -295,6 +295,9 @@ endif()
 if(SUPPORTED_GPU_TARGETS MATCHES "gfx950") 
     add_subdirectory(mx_mfma_op)
     add_subdirectory(gemm_mx)
+endif()
+if(SUPPORTED_GPU_TARGETS MATCHES "gfx12")
+    add_subdirectory(s_prefetch_op)
 endif()
 add_subdirectory(position_embedding)
 add_subdirectory(scatter_gather)

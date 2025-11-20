@@ -23,6 +23,10 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm_multiple_d.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 struct ProblemSizeSplitK final
 {
     ck::index_t M = 256;

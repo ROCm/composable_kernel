@@ -15,6 +15,10 @@
 #include "ck/library/utility/numeric.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_contraction.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 using Row = ck::tensor_layout::gemm::RowMajor;
 
 int run_contraction_scale_example(int argc, char* argv[])

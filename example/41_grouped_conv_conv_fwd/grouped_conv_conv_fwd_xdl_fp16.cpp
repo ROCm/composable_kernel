@@ -20,6 +20,10 @@
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 using In0DataType       = ck::half_t;
 using Wei0DataType      = ck::half_t;
 using Acc0DataType      = float;
