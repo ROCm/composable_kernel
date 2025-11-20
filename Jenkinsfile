@@ -74,23 +74,32 @@ def sendFailureNotifications() {
 
 def generateAndArchiveBuildTraceVisualization() {
     try {
-        // Check if the build trace file exists
-        def artifacts = currentBuild.rawBuild.getArtifacts()
-        def hasTraceFile = artifacts.any { it.fileName == 'ck_build_trace.json' }
-        if (hasTraceFile) {
-            echo "Build trace was successfully archived"
+        def buildTraceFileName = "ck_build_trace.json";
+
+        // Try to download the build trace file to check if it exists
+        def traceFileExists = false
+        try {
+            copyArtifacts(
+                projectName: env.JOB_NAME,
+                selector: specific(env.BUILD_NUMBER),
+                filter: buildTraceFileName
+            )
+            traceFileExists = fileExists(buildTraceFileName)
+        } catch (Exception e) {
+            echo "Could not copy artifacts: ${e.getMessage()}"
+            traceFileExists = false
+        }
+        
+        if (traceFileExists) {
+            echo "Build trace archive found"
         } else {
-            echo "Build trace was not archived"
+            echo "Build trace archive not found"
             return
         }
 
-        // Download build trace archive
-        copyArtifacts(
-            projectName: env.JOB_NAME,
-            selector: specific(env.BUILD_NUMBER),
-            filter: 'ck_build_trace.json'
-        )
-
+        // Checkout source code to get required files
+        checkout scm
+        
         // Pull image
         def image = "ghcr.io/puppeteer/puppeteer:24.30.0"
         echo "Pulling image: ${image}"
@@ -100,13 +109,9 @@ def generateAndArchiveBuildTraceVisualization() {
         // Create a temporary workspace
         sh """#!/bin/bash
             mkdir -p workspace
-            echo "Current directory:"
-            pwd
-            echo "Contents of current directory:"
-            ls -la
             cp ./script/infra_helper/capture_build_trace.js ./workspace
-            cp ck_build_trace.json ./workspace/ck_build_trace.json
-            chmod +w -R ./workspace
+            cp ${buildTraceFileName} ./workspace/${buildTraceFileName}
+            chmod 777 ./workspace
             ls -la ./workspace
         """
 
@@ -117,25 +122,51 @@ def generateAndArchiveBuildTraceVisualization() {
             docker run --rm ${dockerOpts} ${image} node /workspace/capture_build_trace.js
             mv ./workspace/perfetto_snapshot_build.png ./workspace/${imageName}
         """
-
+        
         // Archive the snapshot
-        archiveArtifacts "workspace/${imageName}"
+        sh """
+            mv ./workspace/${imageName} ${imageName}
+        """
+        archiveArtifacts "${imageName}"
 
-        // Send notification
+        // Notify the channel
         withCredentials([string(credentialsId: 'ck_ci_build_perf_webhook_url', variable: 'WEBHOOK_URL')]) {
         sh '''
+            # Create build trace filename with build number based on the original filename
+            BUILD_TRACE_WITH_NUMBER=$(echo "''' + buildTraceFileName + '''" | sed 's/.json/_''' + env.BUILD_NUMBER + '''.json/')
+            
             # Convert image to base64
-            IMAGE_BASE64=$(base64 -w 0 ./workspace/''' + imageName + ''')
+            echo "Converting image to base64..."
+            IMAGE_BASE64=$(base64 -w 0 ''' + imageName + ''')
+            echo "Image base64 length: ${#IMAGE_BASE64}"
+            
+            # Convert build trace to base64
+            echo "Converting build trace to base64..."
+            BUILD_TRACE_BASE64=$(base64 -w 0 ''' + buildTraceFileName + ''')
+            echo "Build trace base64 length: ${#BUILD_TRACE_BASE64}"
+            
+            # Create JSON payload safely using printf to avoid heredoc issues with base64 data
+            echo "Creating JSON payload..."
+            {
+                printf '{\n'
+                printf '    "jobName": "%s",\n' "''' + env.JOB_NAME + '''"
+                printf '    "buildNumber": "%s",\n' "''' + env.BUILD_NUMBER + '''"
+                printf '    "jobUrl": "%s",\n' "''' + env.RUN_DISPLAY_URL + '''"
+                printf '    "imageName": "%s",\n' "''' + imageName + '''"
+                printf '    "imageData": "%s",\n' "$IMAGE_BASE64"
+                printf '    "buildTraceName": "%s",\n' "$BUILD_TRACE_WITH_NUMBER"
+                printf '    "buildTraceData": "%s"\n' "$BUILD_TRACE_BASE64"
+                printf '}\n'
+            } > webhook_payload.json
+            
+            echo "JSON payload created, size: $(wc -c < webhook_payload.json) bytes"
             
             curl -X POST "${WEBHOOK_URL}" \
-            -H 'Content-Type: application/json' \
-            -d "{
-                \\"jobName": \\"''' + env.JOB_NAME + '''\\",
-                \\"buildNumber": \\"''' + env.BUILD_NUMBER + '''\\",
-                \\"jobUrl": \\"''' + env.RUN_DISPLAY_URL + '''\\",
-                \\"imageName": \\"''' + imageName + '''\\",
-                \\"imageData\\": \\"$IMAGE_BASE64\\"
-            }"
+            -H "Content-Type: application/json" \
+            -d @webhook_payload.json
+            
+            # Clean up temporary file
+            rm -f webhook_payload.json
         '''
         }
     } catch (Exception e) {
@@ -1784,9 +1815,13 @@ pipeline {
             }
             post {
                 always {
-                    script {
-                        generateAndArchiveBuildTraceVisualization()
+                    node(rocmnode("nogpu")) {
+                        script {
+                            // Simulate capture
+                            generateAndArchiveBuildTraceVisualization()
+                        }
                     }
+                    cleanWs()
                 }
                 success {
                     script {

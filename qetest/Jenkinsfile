@@ -134,6 +134,7 @@ pipeline {
                     generateAndArchiveBuildTraceVisualization()
                 }
             }
+            cleanWs()
         }
     }
 }
