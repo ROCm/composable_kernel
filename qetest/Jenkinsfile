@@ -25,6 +25,9 @@ def generateAndArchiveBuildTraceVisualization() {
             return
         }
 
+        // Checkout source code to get required files
+        checkout scm
+        
         // Pull image
         def image = "ghcr.io/puppeteer/puppeteer:24.30.0"
         echo "Pulling image: ${image}"
@@ -38,7 +41,8 @@ def generateAndArchiveBuildTraceVisualization() {
             pwd
             echo "Contents of current directory:"
             ls -la
-            ls -la workspace
+            echo "Contents of script directory:"
+            ls -la ./script/infra_helper/ || echo "Script directory not found"
             cp ./script/infra_helper/capture_build_trace.js ./workspace
             cp ck_build_trace.json ./workspace/ck_build_trace.json
             chmod +w -R ./workspace
