@@ -34,14 +34,11 @@ def generateAndArchiveBuildTraceVisualization() {
         // Archive the snapshot
         archiveArtifacts "workspace/${imageName}"
 
-        // Notify the channel with compressed image
+        // Notify the channel
         withCredentials([string(credentialsId: 'ck_ci_build_perf_webhook_url', variable: 'WEBHOOK_URL')]) {
         sh '''
-            # Compress image to reduce size (adjust quality as needed: 1-100)
-            convert ./workspace/''' + imageName + ''' -quality 50 -resize 800x600 ./workspace/compressed_''' + imageName + '''
-            
-            # Convert compressed image to base64
-            IMAGE_BASE64=$(base64 -w 0 ./workspace/compressed_''' + imageName + ''')
+            # Convert image to base64
+            IMAGE_BASE64=$(base64 -w 0 ./workspace/''' + imageName + ''')
             
             curl -X POST "${WEBHOOK_URL}" \
             -H 'Content-Type: application/json' \
