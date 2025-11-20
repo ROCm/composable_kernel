@@ -431,5 +431,6 @@ __device__ void amd_assembly_outer_product_1x4(int8x16_t a,
                                    c3);
 }
 #endif
+
 } // namespace ck
 #endif
