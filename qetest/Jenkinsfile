@@ -22,9 +22,10 @@ def generateAndArchiveBuildTraceVisualization() {
         chmod +w -R ./workspace
         ls -la ./workspace
     """
+
+    // Run container to get snapshot
     def dockerOpts = "--cap-add=SYS_ADMIN -v \"\$(pwd)/workspace:/workspace\" -e NODE_PATH=/home/pptruser/node_modules"
     def imageName = "perfetto_snapshot_build_${env.BUILD_NUMBER}.png"
-    // Run docker container directly
     sh """
         docker run --rm ${dockerOpts} ${image} node /workspace/capture_build_trace.js
         mv ./workspace/perfetto_snapshot_build.png ./workspace/${imageName}
@@ -41,7 +42,7 @@ def generateAndArchiveBuildTraceVisualization() {
     withCredentials([string(credentialsId: 'ck_ci_errors_webhook_url', variable: 'WEBHOOK_URL')]) {
     sh '''
         # Convert image to base64
-        IMAGE_BASE64=$(base64 -w 0 ''' + imageName + ''')
+        IMAGE_BASE64=$(base64 -w 0 ''' + ${imageName} + ''')
         
         curl -X POST "${WEBHOOK_URL}" \
         -H 'Content-Type: application/json' \
