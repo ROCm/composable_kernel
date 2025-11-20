@@ -25,7 +25,6 @@ struct mask_info
     ck_tile::index_t seqlen_k;
     ck_tile::index_t y, x;
     ck_tile::index_t left, right; // FA style SWA left/right
-    ck_tile::index_t sink;
 
     void serialize(std::ostream& os) const
     {
@@ -59,14 +58,13 @@ struct mask_info
                 ck_tile::index_t window_size = std::stoi(v);
                 ck_tile::index_t left_size   = -1;
                 ck_tile::index_t right_size  = 0;
-                ck_tile::index_t sink_size   = 0;
                 if(window_size > 0)
                 {
                     left_size  = window_size / 2;
                     right_size = window_size - 1 - left_size;
                 }
                 auto r = ck_tile::make_generic_attention_mask_coordinates_from_lr_window(
-                    left_size, right_size, sink_size, y_total, x_total, t == "xt");
+                    left_size, right_size, y_total, x_total, t == "xt");
 
                 tmp.type  = t == "xt" ? mask_enum::mask_top_left : mask_enum::mask_bottom_right;
                 tmp.y     = r.at(ck_tile::number<0>{});
@@ -81,54 +79,27 @@ struct mask_info
                 {
                     throw std::invalid_argument("invalid mask value: " + str);
                 }
-                tmp.type              = mask_enum::window_generic;
-                ck_tile::index_t v0   = atoi(v.substr(0, found_1).c_str());
-                auto found_2          = v.find(',', found_1 + 1);
-                ck_tile::index_t v1   = 0;
-                ck_tile::index_t sink = 0;
-                // ck_tile::index_t v1 = atoi(v.substr(found_1 + 1).c_str());
-                // TODO: some validation
+                ck_tile::index_t v0 = std::stoi(v.substr(0, found_1));
+                ck_tile::index_t v1 = std::stoi(v.substr(found_1 + 1));
                 if(t == "t")
                 {
-                    if(found_2 != std::string::npos)
-                    {
-                        v1   = atoi(v.substr(found_1 + 1, found_2 - found_1 - 1).c_str());
-                        sink = atoi(v.substr(found_2 + 1).c_str());
-                    }
-                    else
-                    {
-                        v1   = atoi(v.substr(found_1 + 1).c_str());
-                        sink = 0;
-                    }
                     tmp.type = mask_enum::mask_top_left;
                     auto r   = ck_tile::make_generic_attention_mask_coordinates_from_lr_window(
-                        v0, v1, sink, y_total, x_total, true);
+                        v0, v1, y_total, x_total, true);
                     tmp.y     = r.at(ck_tile::number<0>{});
                     tmp.x     = r.at(ck_tile::number<1>{});
                     tmp.left  = v0;
                     tmp.right = v1;
-                    tmp.sink  = sink;
                 }
                 else if(t == "b")
                 {
-                    if(found_2 != std::string::npos)
-                    {
-                        v1   = atoi(v.substr(found_1 + 1, found_2 - found_1 - 1).c_str());
-                        sink = atoi(v.substr(found_2 + 1).c_str());
-                    }
-                    else
-                    {
-                        v1   = atoi(v.substr(found_1 + 1).c_str());
-                        sink = 0;
-                    }
                     tmp.type = mask_enum::mask_bottom_right;
                     auto r   = ck_tile::make_generic_attention_mask_coordinates_from_lr_window(
-                        v0, v1, sink, y_total, x_total, false);
+                        v0, v1, y_total, x_total, false);
                     tmp.y     = r.at(ck_tile::number<0>{});
                     tmp.x     = r.at(ck_tile::number<1>{});
                     tmp.left  = v0;
                     tmp.right = v1;
-                    tmp.sink  = sink;
                 }
                 else if(t == "g")
                 {
@@ -137,7 +108,6 @@ struct mask_info
                     tmp.x     = v1;
                     tmp.left  = v0; // TODO: don't use this?
                     tmp.right = v1;
-                    tmp.sink  = 0;
                 }
             }
             else
@@ -156,7 +126,6 @@ struct mask_info
             tmp.x     = 1;
             tmp.left  = -1;
             tmp.right = 0;
-            tmp.sink  = 0;
         }
         else if(str == "2" || str == "b")
         {
@@ -165,7 +134,6 @@ struct mask_info
             tmp.x     = seqlen_k - seqlen_q + 1;
             tmp.left  = -1;
             tmp.right = 0;
-            tmp.sink  = 0;
         }
         else
         {
