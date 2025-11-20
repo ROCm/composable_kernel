@@ -135,7 +135,6 @@ class TestCkTileBatchedGemm : public ::testing::Test
             {
                 std::cout << "Launching kernel with args: " << Kernel::GetName() << '\n'
                           << "shape: " << GemmShape::GetName() << '\n'
-                          << "problem: " << GemmPipelineProblem::GetName() << '\n'
                           << "pipeline: " << GemmPipeline::GetName() << '\n'
                           << "grid: {" << grids.x << ", " << grids.y << ", " << grids.z << "}"
                           << ", blocks: {" << blocks.x << ", " << blocks.y << ", " << blocks.z
