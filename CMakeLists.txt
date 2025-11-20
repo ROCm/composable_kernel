@@ -122,7 +122,7 @@ add_compile_options(
 # Recent change in compiler makes this warning ON by default, which led to compile errors.
 add_compile_options(-Wno-nrvo)
 
-if(NOT DISABLE_DL_KERNELS)
+if(NOT DISABLE_DL_KERNELS AND GPU_TARGETS MATCHES "gfx101|gfx103|gfx10-1|gfx10-3")
     add_definitions(-DDL_KERNELS)
     set(DL_KERNELS "ON")
     set(CK_ENABLE_DL_KERNELS "ON")

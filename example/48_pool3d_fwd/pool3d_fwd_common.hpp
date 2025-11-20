@@ -18,6 +18,11 @@
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_pool_fwd.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::hip_check_error;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 template <typename TensorLayout>
 std::vector<ck::index_t> f_tensor_strides_ncdhw(ck::index_t N_,
                                                 ck::index_t C_,
