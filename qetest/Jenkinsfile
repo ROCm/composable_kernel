@@ -38,8 +38,9 @@ def generateAndArchiveBuildTraceVisualization() {
             pwd
             echo "Contents of current directory:"
             ls -la
+            ls -la workspace
             cp ./script/infra_helper/capture_build_trace.js ./workspace
-            cp .ck_build_trace.json ./workspace/ck_build_trace.json
+            cp ck_build_trace.json ./workspace/ck_build_trace.json
             chmod +w -R ./workspace
             ls -la ./workspace
         """
