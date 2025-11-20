@@ -96,8 +96,7 @@ def main():
     )
 
     if args.list_kernels:
-        builder.write_kernel_list("gemm_universal")  # Rename this method name
-        # pass
+        builder.list_kernels("gemm_universal")
     elif args.gen_single:
         # # Generate a single kernel file
         # if not args.kernel_name or not args.tile_config or not args.trait_combo:

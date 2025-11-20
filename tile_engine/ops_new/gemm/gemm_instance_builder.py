@@ -44,7 +44,7 @@ class GemmKernelBuilder:
             with open(config_json, "r") as f:
                 self.config = json.load(f)
 
-    def write_kernel_list(self, kernel_name_prefix):
+    def list_kernels(self, kernel_name_prefix):
         """Write kernel list to file for CMake to read (with comprehensive validation)"""
         # Get configurations using comprehensive validation
         tile_configs = self._get_tile_configs(kernel_name_prefix)
