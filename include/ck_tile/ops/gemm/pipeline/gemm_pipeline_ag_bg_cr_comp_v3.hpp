@@ -642,13 +642,10 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                                    void* p_smem) const
     {
         const bool has_hot_loop = Base::BlockHasHotloop(num_loop);
-        const auto tail_number = Base::GetBlockLoopTailNum(num_loop);
+        const auto tail_number  = Base::GetBlockLoopTailNum(num_loop);
 
         const auto RunPipeline = [&](auto hot_loop_, auto tail_num_) {
-            constexpr auto HasHotLoop = hot_loop_.value;
-            constexpr auto TailNum = tail_num_.value;
-            
-            return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
+            return PipelineImpl<Scheduler>{}.template operator()<hot_loop_.value, tail_num_.value>(
                 a_dram_block_window_tmp,
                 a_element_func,
                 b_dram_block_window_tmp,
@@ -678,19 +675,14 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                                    TailNumber tail_number,
                                    void* p_smem) const
     {
-        const auto RunPipeline = [&](auto hot_loop_, auto tail_num_) {
-            constexpr bool hot_loop    = hot_loop_.value;
-            constexpr auto tail_num    = tail_num_.value;
-            constexpr auto PassThrough = [](auto& e, const auto& x) { e = x; };
-            return PipelineImpl<Scheduler>{}.template operator()<hot_loop, tail_num>(
-                a_dram_block_window_tmp,
-                PassThrough,
-                b_dram_block_window_tmp,
-                PassThrough,
-                num_loop,
-                p_smem);
-        };
-        return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
+        return operator()(a_dram_block_window_tmp,
+                          element_wise::PassThrough{},
+                          b_dram_block_window_tmp,
+                          element_wise::PassThrough{},
+                          num_loop,
+                          has_hot_loop,
+                          tail_number,
+                          p_smem);
     }
 
     /**
@@ -711,22 +703,14 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                                    void* p_smem) const
     {
         const bool has_hot_loop = Base::BlockHasHotloop(num_loop);
-        const auto tail_number = Base::GetBlockLoopTailNum(num_loop);
+        const auto tail_number  = Base::GetBlockLoopTailNum(num_loop);
 
-        const auto RunPipeline = [&](auto hot_loop_, auto tail_num_) {
-            constexpr auto HasHotLoop = hot_loop_.value;
-            constexpr auto TailNum = tail_num_.value;
-            
-            return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
-                a_dram_block_window_tmp,
-                [](auto& e, const ADataType& a) { e = a; },
-                b_dram_block_window_tmp,
-                [](auto& e, const BDataType& b) { e = b; },
-                num_loop,
-                p_smem);
-        };
-
-        return Base::TailHandler(RunPipeline, has_hot_loop, tail_number);
+        return operator()(a_dram_block_window_tmp,
+                          b_dram_block_window_tmp,
+                          num_loop,
+                          has_hot_loop,
+                          tail_number,
+                          p_smem);
     }
 
     template <typename AsDramBlockWindowTmp,
