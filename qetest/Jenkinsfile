@@ -45,7 +45,7 @@ def generateAndArchiveBuildTraceVisualization() {
             ls -la ./script/infra_helper/ || echo "Script directory not found"
             cp ./script/infra_helper/capture_build_trace.js ./workspace
             cp ck_build_trace.json ./workspace/ck_build_trace.json
-            chmod +w -R ./workspace
+            chmod 777 ./workspace
             ls -la ./workspace
         """
 
