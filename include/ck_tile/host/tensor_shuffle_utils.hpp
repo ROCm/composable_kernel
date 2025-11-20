@@ -107,18 +107,22 @@ auto shuffle_b(const ck_tile::HostTensor<T>& t)
 }
 
 template <typename GemmConfig, typename T>
-auto bq_permuteN(const ck_tile::HostTensor<T>& t)
+auto bq_permuteN(const ck_tile::HostTensor<T>& t, index_t group_n)
 {
     assert(t.get_lengths().size() == 2);
 
-    int n_                = t.get_lengths()[1];
-    int bqk_              = t.get_lengths()[0];
-    constexpr int NRepeat = GemmConfig::N_Tile / GemmConfig::N_Warp_Tile / GemmConfig::N_Warp;
+    int n_   = t.get_lengths()[1]; // 8
+    int bqk_ = t.get_lengths()[0]; // 1
+    constexpr int NRepeat =
+        GemmConfig::N_Tile / GemmConfig::N_Warp_Tile / GemmConfig::N_Warp; // 128/16/4 = 2
 
-    ck_tile::HostTensor<T> t_view(
-        {n_ / GemmConfig::N_Tile, GemmConfig::N_Warp, GemmConfig::N_Warp_Tile, NRepeat, bqk_});
+    ck_tile::HostTensor<T> t_view({n_ / (GemmConfig::N_Tile / group_n),
+                                   GemmConfig::N_Warp,
+                                   GemmConfig::N_Warp_Tile / group_n,
+                                   NRepeat,
+                                   bqk_}); //{1, 4, 16, 2, 1}
     std::copy(t.begin(), t.end(), t_view.begin());
-    return ck_tile::reference_permute(t_view, {0, 3, 1, 2, 4});
+    return ck_tile::reference_permute(t_view, {0, 3, 1, 2, 4}); //{1, 2, 4, 16, 1}
 }
 
 template <typename GemmConfig, typename T>

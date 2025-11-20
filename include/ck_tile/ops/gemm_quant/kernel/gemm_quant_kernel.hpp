@@ -1003,8 +1003,9 @@ struct QuantGemmKernel
                     }
                     return make_tile_window(
                         bq_pad_view,
-                        make_tuple(number<TilePartitioner::KPerBlock / QuantGroupSize::kK>{},  // 1
-                                   number<TilePartitioner::NPerBlock / QuantGroupSize::kN>{}), // 16
+                        make_tuple(number<TilePartitioner::KPerBlock / QuantGroupSize::kK>{}, // 1
+                                   number<TilePartitioner::NPerBlock /
+                                          QuantGroupSize::kN>{}), // 128/16 = 8
                         {0, i_n / QuantGroupSize::kN});
                 }
             }
@@ -1167,7 +1168,7 @@ struct QuantGemmKernel
                 if(get_block_id() == 0 && get_thread_id() == 0)
                 {
                     bq_block_window.template print_tile_window_range<BQDataType>(
-                        0, 1, 0, 32, "bq block window");
+                        0, 1, 0, 16, "bq block window");
                 }
                 return GemmPipeline{}.template operator()(a_block_window,
                                                           b_block_window,
