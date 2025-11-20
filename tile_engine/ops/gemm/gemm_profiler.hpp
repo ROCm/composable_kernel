@@ -227,7 +227,7 @@ class GemmProfiler
         {
             *output_stream_ << "**********************************" << std::endl;
             *output_stream_ << "According to given metrics: " << get_metric_name(metric) << "\n"
-                      << "Current kernel performance is: " << kernel_instance << std::endl;
+                            << "Current kernel performance is: " << kernel_instance << std::endl;
             *output_stream_ << "**********************************" << std::endl;
         }
 
@@ -281,8 +281,10 @@ class GemmProfiler
 
     private:
     ~GemmProfiler() { kernel_instances_.clear(); }
-    GemmProfiler(Setting setting, std::ostream* output_stream = &std::cout) 
-        : setting_(setting), output_stream_(output_stream) {}
+    GemmProfiler(Setting setting, std::ostream* output_stream = &std::cout)
+        : setting_(setting), output_stream_(output_stream)
+    {
+    }
 
     Setting setting_;
     std::ostream* output_stream_;

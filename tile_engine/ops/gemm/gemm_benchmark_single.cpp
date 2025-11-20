@@ -125,7 +125,7 @@ void benchmark_single(const ck_tile::ArgParser& arg_parser)
     std::string json_filename = arg_parser.get_str("json_file");
     std::ofstream json_file_stream;
     std::ostream* output_stream = &std::cout;
-    
+
     if(!json_filename.empty())
     {
         json_file_stream.open(json_filename);
@@ -135,7 +135,7 @@ void benchmark_single(const ck_tile::ArgParser& arg_parser)
         }
         else
         {
-            std::cerr << "Warning: Failed to open JSON file " << json_filename 
+            std::cerr << "Warning: Failed to open JSON file " << json_filename
                       << ", using stdout instead." << std::endl;
         }
     }
