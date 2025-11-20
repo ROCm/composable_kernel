@@ -14,6 +14,10 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_batchnorm_backward.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_batchnorm_backward_impl.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 static struct option long_options[] = {{"inOutLengths", required_argument, nullptr, 'D'},
                                        {"verify", required_argument, nullptr, 'v'},
                                        {"help", no_argument, nullptr, '?'},

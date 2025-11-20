@@ -17,6 +17,8 @@
 
 #include "ck/host_utility/hip_check_error.hpp"
 
+using ::ck::hip_check_error;
+
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
