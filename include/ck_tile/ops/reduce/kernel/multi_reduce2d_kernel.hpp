@@ -95,15 +95,18 @@ struct MultiReduce2d
             (reduce_total_length + (Problem::BlockShape::Block_N * max_block_group_size) - 1) /
             (Problem::BlockShape::Block_N * max_block_group_size);
 
+        // This should only happen if reduce_total_length is 0 (empty tensor)
         if(num_block_tile_iterations == 0)
         {
-// This should only happen if reduce_total_length is 0 (empty tensor)
 #ifndef __HIP_DEVICE_COMPILE__
+            // Warning only on host side
             if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
             {
                 printf("Warning: reduce_total_length is 0, there is no data to process\n");
             }
 #endif
+            block_group_size = 1;
+            return;
         }
 
         block_group_size =
@@ -227,6 +230,13 @@ struct MultiReduce2d
         static_for<0, reduce_lens.size(), 1>{}(
             [&](auto i) { total_reduce_len *= reduce_lens.at(i); });
 
+        // Early exit for empty tensors (reduce_total_length == 0)
+        // This can happen when any dimension in reduce_lens is 0
+        if(total_reduce_len == 0)
+        {
+            return;
+        }
+
         // Determine strategy: single-block or multi-block
         int block_group_size     = 1;
         int num_n_tile_iteration = 0;
@@ -240,12 +250,6 @@ struct MultiReduce2d
             // Single-block strategy: one block handles entire reduction
             block_group_size     = 1;
             num_n_tile_iteration = (total_reduce_len + S::Block_N - 1) / S::Block_N;
-        }
-
-        // If there is no work to be done, exit early
-        if(num_n_tile_iteration == 0)
-        {
-            return;
         }
 
         constexpr index_t output_vector_size = CalculateOutputVectorSize();

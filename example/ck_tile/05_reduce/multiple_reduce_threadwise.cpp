@@ -54,6 +54,27 @@ bool run(const ck_tile::ArgParser& arg_parser)
     int warmup         = arg_parser.get_int("warmup");
     int repeat         = arg_parser.get_int("repeat");
 
+    // Validate input dimensions
+    const ck_tile::index_t kept_dim_len_prod   = N * C;
+    const ck_tile::index_t reduce_total_length = H * W;
+
+    if(kept_dim_len_prod == 0)
+    {
+        std::cerr << "Warning: Product of kept dimensions is zero (N=" << N << ", C=" << C
+                  << ", product=" << kept_dim_len_prod << ")." << std::endl;
+        std::cerr << "This will result in an empty output tensor." << std::endl;
+        return false;
+    }
+
+    if(reduce_total_length == 0)
+    {
+        std::cerr << "Warning: Product of reduce dimensions is zero (H=" << H << ", W=" << W
+                  << ", product=" << reduce_total_length << ")." << std::endl;
+        std::cerr << "This will result in an empty reduction with no data to process." << std::endl;
+        std::cerr << "The kernel will exit early without performing any computation." << std::endl;
+        return false;
+    }
+
     std::vector<ck_tile::index_t> problem_shape = {N, H, W, C};
     std::vector<ck_tile::index_t> strides(4);
     strides[0] = H * W * C;
@@ -75,8 +96,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     auto y_host_dev_tuple = ck_tile::make_tuple(y_host_add_dev, y_host_max_dev);
 
     const auto number_operations = y_host_dev_tuple.size();
-
-    const ck_tile::index_t reduce_total_length = H * W;
 
     // Two operations: one do a sum reduction, the other computing the mean square
     auto reduce_ops =
@@ -107,7 +126,6 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using ThreadTile = ck_tile::sequence<8, 8>;
 
     constexpr ck_tile::index_t kBlockPerCu = 1;
-    ck_tile::index_t kept_dim_len_prod     = N * C;
     ck_tile::index_t kGridSize = (kept_dim_len_prod + BlockTile::at(ck_tile::number<0>{}) - 1) /
                                  BlockTile::at(ck_tile::number<0>{});
     std::cout << "grid size " << kGridSize << std::endl;
