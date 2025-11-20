@@ -341,7 +341,7 @@ struct MultiReduce2d
             // Determine if this thread should perform the output operation
             // We want threads that handle the first elements in the N (reduction) dimension
             const auto tile_dist = y_compute.get_tile_distribution();
-            const auto ps_idx    = detail::get_partition_index(tile_dist);
+            const auto ps_idx    = get_partition_index(tile_dist);
             const auto rs_idx    = tile_dist.calculate_rs_index_from_ps_index(ps_idx);
 
             // Check if this thread is responsible for the first N-dimension element

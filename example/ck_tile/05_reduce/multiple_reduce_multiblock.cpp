@@ -114,12 +114,12 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using BlockWarps = ck_tile::sequence<4, 1>;
     using BlockTile  = ck_tile::sequence<128, 128>;
     using WarpTile   = ck_tile::sequence<32, 128>;
-    using Vector     = ck_tile::sequence<8, 8>;
+    using ThreadTile = ck_tile::sequence<8, 8>;
 
     constexpr ck_tile::index_t kBlockPerCu = 1;
     ck_tile::index_t kept_dim_len_prod     = N * C;
 
-    using Shape   = ck_tile::Reduce2dShape<BlockWarps, BlockTile, WarpTile, Vector>;
+    using Shape   = ck_tile::Reduce2dShape<BlockWarps, BlockTile, WarpTile, ThreadTile>;
     using Problem = ck_tile::
         Reduce2dProblem<XDataType, ComputeDataType, YDataType, Shape, decltype(reduce_ops)>;
 
