@@ -1820,8 +1820,8 @@ pipeline {
                             // Simulate capture
                             generateAndArchiveBuildTraceVisualization()
                         }
+                        cleanWs()
                     }
-                    cleanWs()
                 }
                 success {
                     script {
