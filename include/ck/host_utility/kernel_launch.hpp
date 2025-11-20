@@ -10,6 +10,8 @@
 #include "ck/stream_config.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
 
+namespace ck {
+
 template <typename... Args, typename F>
 float launch_and_time_kernel(const StreamConfig& stream_config,
                              F kernel,
@@ -167,4 +169,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
     return 0;
 #endif
 }
+
+} // namespace ck
+
 #endif

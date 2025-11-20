@@ -295,10 +295,10 @@ class TestCkTilePooling : public ::testing::Test
     }
 };
 
-using Shape1_BlockWarps = ck_tile::sequence<4, 1>;
-using Shape1_BlockTile  = ck_tile::sequence<128, 128>;
-using Shape1_WarpTile   = ck_tile::sequence<32, 128>;
-using Shape1_ThreadTile = ck_tile::sequence<8, 8>;
+using Shape1_BlockWarps = ck_tile::sequence<1, 1>;
+using Shape1_BlockTile  = ck_tile::sequence<128, 1>;
+using Shape1_WarpTile   = ck_tile::sequence<128, 1>;
+using Shape1_ThreadTile = ck_tile::sequence<2, 1>;
 
 // Cross-warp configuration
 using Shape2_BlockWarps = ck_tile::sequence<2, 2>;

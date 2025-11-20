@@ -4,6 +4,11 @@
 #include "common.hpp"
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::hip_check_error;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 using InDataType           = int8_t;
 using WeiDataType          = int8_t;
 using RequantScaleDataType = float;

@@ -8,6 +8,8 @@
 #include "ck/utility/scaled_type_convert.hpp"
 #include "ck/library/utility/device_memory.hpp"
 
+using ::ck::DeviceMem;
+
 using ck::e8m0_bexp_t;
 using ck::f6_convert_rne;
 using ck::f6_convert_sr;
