@@ -16,6 +16,9 @@
 #include "ck/wrapper/layout.hpp"
 #include "ck/wrapper/tensor.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::launch_and_time_kernel;
+
 // Compare data in tensor with offset from layout.
 // Data and offset should match if physical memory has been initialized with
 // sequentially increasing values from 0.

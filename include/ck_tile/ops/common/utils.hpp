@@ -19,6 +19,7 @@ template <> struct typeToStr<fp8_t> { static constexpr const char * name = "fp8"
 template <> struct typeToStr<bf8_t> { static constexpr const char * name = "bf8"; };
 template <> struct typeToStr<int8_t> { static constexpr const char * name = "int8"; };
 template <> struct typeToStr<pk_int4_t> { static constexpr const char * name = "pk_int4"; };
+template <> struct typeToStr<pk_fp4_t> { static constexpr const char * name = "pk_fp4"; };
 
 template <memory_operation_enum MemOp> struct memOpToStr;
 template <> struct memOpToStr<memory_operation_enum::set> { static constexpr const char * name = "set"; };

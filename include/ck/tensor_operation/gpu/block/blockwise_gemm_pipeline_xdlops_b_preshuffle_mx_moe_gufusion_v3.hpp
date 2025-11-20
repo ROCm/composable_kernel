@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -727,7 +727,8 @@ struct BlockwiseGemmXdlops_pipeline_bpreshuffle_mx_moe_gufusion_v3<
                         });
                     });
 
-                    HotLoopScheduler();
+                    if constexpr(MPerBlock >= 64)
+                        HotLoopScheduler();
                     __builtin_amdgcn_sched_barrier(0);
                 };
 

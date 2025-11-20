@@ -1,6 +1,5 @@
-#pragma once
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -134,7 +133,8 @@ template <typename ALayout,
           index_t CShuffleNXdlPerWavePerShuffle,
           typename CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock,
           index_t CDEBlockTransferScalarPerVector_NPerBlock,
-          LoopScheduler LoopSched = make_default_loop_scheduler()>
+          LoopScheduler LoopSched  = make_default_loop_scheduler(),
+          typename ComputeDataType = ADataType>
 struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                                                         BLayout,
                                                         DsLayout,
@@ -145,7 +145,8 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
                                                         EDataType,
                                                         AElementwiseOperation,
                                                         BElementwiseOperation,
-                                                        CDEElementwiseOperation>
+                                                        CDEElementwiseOperation,
+                                                        ComputeDataType>
 {
     using DeviceOp = DeviceGroupedGemm_Xdl;
     GET_NXDL_PER_WAVE_IMPL
@@ -232,8 +233,6 @@ struct DeviceGroupedGemm_Xdl : public DeviceGroupedGemm<ALayout,
     using BGridDesc_N_K  = decltype(MakeBGridDescriptor_N_K(1, 1, 1));
     using DsGridDesc_M_N = remove_cvref_t<decltype(MakeDsGridDescriptor_M_N({}, {}, {}))>;
     using EGridDesc_M_N  = decltype(MakeEGridDescriptor_M_N<ELayout>(1, 1, 1));
-
-    using ComputeDataType = ADataType;
 
     // GridwiseGemm
     template <index_t NXdlPerWave_>

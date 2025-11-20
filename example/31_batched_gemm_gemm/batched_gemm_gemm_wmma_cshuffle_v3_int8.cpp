@@ -19,6 +19,10 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_batched_gemm.hpp"
 #include "ck/host_utility/device_prop.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 
 using ADataType        = int8_t;

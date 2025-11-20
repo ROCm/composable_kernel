@@ -14,6 +14,8 @@
 #include "ck/utility/get_id.hpp"
 #include "ck/library/utility/device_memory.hpp"
 
+using ::ck::DeviceMem;
+
 using ck::int4_t;
 
 TEST(Int4, BaseArithmetic)

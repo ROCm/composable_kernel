@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -8,6 +8,7 @@
 
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/host_utility/kernel_launch.hpp"
 
 namespace ck {
 
@@ -82,9 +83,27 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
             // multiply and accumulate
             if constexpr(is_same_v<ComputeTypeA, ComputeTypeB> &&
                          is_same_v<ComputeTypeA, ck::tf32_t>)
-            { // only for tf32 now
-                v_acc += ck::type_convert<AccDataType>(ck::type_convert<ComputeTypeA>(v_a)) *
-                         ck::type_convert<AccDataType>(ck::type_convert<ComputeTypeB>(v_b));
+            {
+#if defined(__gfx942__)
+                v_acc += ck::type_convert<AccDataType>(ck::type_convert<ck::tf32_t>(v_a)) *
+                         ck::type_convert<AccDataType>(ck::type_convert<ck::tf32_t>(v_b));
+#elif defined(__gfx950__)
+                ck::bhalf_t v_a_bf16_big = ck::type_convert<ck::bhalf_t>(v_a);
+                ck::bhalf_t v_a_bf16_small =
+                    ck::type_convert<ck::bhalf_t>(v_a - type_convert<float>(v_a_bf16_big));
+                ck::bhalf_t v_b_bf16_big = ck::type_convert<ck::bhalf_t>(v_b);
+                ck::bhalf_t v_b_bf16_small =
+                    ck::type_convert<ck::bhalf_t>(v_b - type_convert<float>(v_b_bf16_big));
+
+                v_acc += ck::type_convert<AccDataType>(v_a_bf16_big) *
+                             ck::type_convert<AccDataType>(v_b_bf16_small) +
+                         ck::type_convert<AccDataType>(v_a_bf16_small) *
+                             ck::type_convert<AccDataType>(v_b_bf16_big) +
+                         ck::type_convert<AccDataType>(v_a_bf16_big) *
+                             ck::type_convert<AccDataType>(v_b_bf16_big);
+#else
+                v_acc += type_convert<AccDataType>(v_a) * type_convert<AccDataType>(v_b);
+#endif
             }
             else
             {
@@ -191,20 +210,20 @@ struct ReferenceGemm : public device::BaseOperator
                                                       ComputeTypeA,
                                                       ComputeTypeB>;
 
-                return launch_and_time_kernel(stream_config,
-                                              kernel,
-                                              grid_dim,
-                                              block_dim,
-                                              0,
-                                              arg.p_a_grid_,
-                                              arg.p_b_grid_,
-                                              arg.p_c_grid_,
-                                              arg.m_,
-                                              arg.n_,
-                                              arg.k_,
-                                              arg.a_element_op_,
-                                              arg.b_element_op_,
-                                              arg.c_element_op_);
+                return ck::launch_and_time_kernel(stream_config,
+                                                  kernel,
+                                                  grid_dim,
+                                                  block_dim,
+                                                  0,
+                                                  arg.p_a_grid_,
+                                                  arg.p_b_grid_,
+                                                  arg.p_c_grid_,
+                                                  arg.m_,
+                                                  arg.n_,
+                                                  arg.k_,
+                                                  arg.a_element_op_,
+                                                  arg.b_element_op_,
+                                                  arg.c_element_op_);
             };
 
             return launch_kernel();

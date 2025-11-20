@@ -166,8 +166,8 @@ struct tensor_view
     {
         return buf_.template async_get<X>(
             smem,
-            coord.get_offset() / PackedSize,
-            linear_offset / PackedSize,
+            coord.get_offset() / PackedSize + linear_offset / PackedSize,
+            0, // linear_offset need to be imm and is not supported currently
             coordinate_has_valid_offset_assuming_top_index_is_valid(desc_, coord),
             bool_constant<oob_conditional_check>{});
     }
@@ -443,6 +443,21 @@ struct tensor_view
 struct null_tensor_view
 {
 };
+
+template <typename T>
+struct is_tensor_view : std::false_type
+{
+};
+template <typename BufferView, typename TensorDesc, memory_operation_enum DstInMemOp>
+struct is_tensor_view<tensor_view<BufferView, TensorDesc, DstInMemOp>> : std::true_type
+{
+};
+template <>
+struct is_tensor_view<null_tensor_view> : std::true_type
+{
+};
+template <typename T>
+inline constexpr bool is_tensor_view_v = is_tensor_view<T>::value;
 
 template <address_space_enum BufferAddressSpace = address_space_enum::generic,
           memory_operation_enum DstInMemOp      = memory_operation_enum::set,

@@ -66,7 +66,8 @@ using fmha_trait_{F_idx} = ck_tile::TileFmhaFwdPagedKVTraits<{F_spad},
                                                              {F_pagedkv},  //pagedkv
                                                              {F_squant},
                                                              {F_occupancy},
-                                                             {F_skip}>;
+                                                             {F_skip},
+                                                             {F_sink}>;
 
 using fmha_variant_{F_idx} = ck_tile::ComposedAttention<{F_logits} * ck_tile::LOGITS_SOFT_CAP, CK_TILE_FMHA_FWD_FAST_EXP2>;
 
@@ -101,7 +102,7 @@ using fmha_kernel_{F_idx} =
     ck_tile::FmhaFwdPagedKVKernel<fmha_pipeline_{F_idx}, fmha_epilogue_{F_idx}>;
 
 using trait_{F_idx} = fmha_fwd_pagedkv_traits_<{F_hdim}, {F_dtype}, {F_mode},{F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout},
-                        {F_pipeline_enum}, {F_logits}, fmha_mask_{F_idx}, {F_bias}, {F_lse}, {F_pagedkv}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_skip}>;
+                        {F_pipeline_enum}, {F_logits}, fmha_mask_{F_idx}, {F_bias}, {F_lse}, {F_pagedkv}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_skip}, {F_sink}>;
 
 template<>
 float fmha_fwd_pagedkv_<trait_{F_idx}, {F_arch.tag}>(const ck_tile::stream_config& s, fmha_fwd_pagedkv_args a)
@@ -130,9 +131,9 @@ float fmha_fwd_pagedkv(fmha_fwd_pagedkv_traits& t, fmha_fwd_pagedkv_args& a, con
 }}
 """
 
-FMHA_FWD_API_INNER_DISPATCH = """{F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && (t.has_logits_soft_cap == {F_logits}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse})  && (t.use_pagedkv == {F_pagedkv}) && (t.do_fp8_static_quant == {F_squant}) && (t.skip_min_seqlen_q == {F_skip}) &&
+FMHA_FWD_API_INNER_DISPATCH = """{F_if}((t.is_group_mode == {F_mode}) && (t.is_v_rowmajor == {F_vlayout}) && (t.has_logits_soft_cap == {F_logits}) && ({F_mask_check}) && (t.bias_type == {F_bias_check}) && (t.has_lse == {F_lse})  && (t.use_pagedkv == {F_pagedkv}) && (t.do_fp8_static_quant == {F_squant}) && (t.skip_min_seqlen_q == {F_skip}) && (t.has_sink == {F_sink}) &&
         ({F_scheck}) && ({F_skcheck}) && ({F_dcheck}) && ({F_dvcheck})) {{
-    using trait_ = fmha_fwd_pagedkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, {F_lse}, {F_pagedkv}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_skip}>;
+    using trait_ = fmha_fwd_pagedkv_traits_<{F_hdim}, {F_dtype}, {F_mode}, {F_bm0}, {F_bn0}, {F_bk0}, {F_bn1}, {F_bk1}, {F_bk0max}, {F_vlayout}, {F_pipeline_enum}, {F_logits}, {F_mask}, {F_bias}, {F_lse}, {F_pagedkv}, {F_squant}, {F_spad}, {F_skpad}, {F_dpad}, {F_dvpad}, {F_skip},{F_sink}>;
     return fmha_fwd_pagedkv_<trait_, {F_arch.tag}>(s, a);
 }}
 """
@@ -164,12 +165,13 @@ class FmhaFwdApiTrait:
     dpad: str
     dvpad: str
     skip: str
+    sink: str
 
     @property
     def name(self) -> str:
         return (
             f"{self.hdim}-{self.dtype}-{self.mode}-{self.bm0}-{self.bn0}-{self.bk0}-{self.bn0}-{self.bk1}-{self.bk0max}-"
-            + f"{self.vlayout}-{self.logits}-{self.mask}-{self.bias}-{self.lse}-{self.pagedkv}-{self.squant}-{self.spad}-{self.skpad}-{self.dpad}-{self.dvpad}-{self.skip}"
+            + f"{self.vlayout}-{self.logits}-{self.mask}-{self.bias}-{self.lse}-{self.pagedkv}-{self.squant}-{self.spad}-{self.skpad}-{self.dpad}-{self.dvpad}-{self.skip}-{self.sink}"
         )
 
     @property
@@ -257,6 +259,7 @@ class FmhaFwdPipeline:
     F_squant: str  #
     F_mask: str  # value from MASK_MAP
     F_skip: str  # true/false
+    F_sink: str  # true/false
 
     @property
     def name(self) -> str:
@@ -321,6 +324,10 @@ class FmhaFwdPipeline:
             n += "_pagedkv"
         else:
             n += "_npagedkv"
+        if self.F_sink == "t":
+            n += "_sink"
+        else:
+            n += "_nsink"
 
         return n
 
@@ -364,6 +371,7 @@ class FmhaFwdApiPool:
                             F_lse=BOOL_MAP[trait.lse],
                             F_pagedkv=BOOL_MAP[trait.pagedkv],
                             F_skip=BOOL_MAP[trait.skip],
+                            F_sink=BOOL_MAP[trait.sink],
                             F_squant=BOOL_MAP[trait.squant],
                             F_scheck=trait.scheck,
                             F_skcheck=trait.skcheck,
@@ -481,6 +489,7 @@ class FmhaFwdKernel:
             F_pagedkv=BOOL_MAP[self.F_pipeline.F_pagedkv],
             F_squant=BOOL_MAP[self.F_pipeline.F_squant],
             F_skip=BOOL_MAP[self.F_pipeline.F_skip],
+            F_sink=BOOL_MAP[self.F_pipeline.F_sink],
             F_occupancy=self.F_tile.F_occupancy,
             F_pipeline_enum=PIPELINE_ENUM_MAP[self.F_pipeline.tag],
             F_mask=get_mask_map(self.mask_impl)[self.F_pipeline.F_mask],
@@ -527,6 +536,7 @@ class FmhaFwdKernel:
             dpad=self.F_pipeline.F_dpad,
             dvpad=self.F_pipeline.F_dvpad,
             skip=self.F_pipeline.F_skip,
+            sink=self.F_pipeline.F_sink,
         )
 
 
@@ -540,22 +550,23 @@ class KernelComponentFactoryBase:
         squant = "t" if dtype == "fp8" else "f"
         pipelines = []
         if dtype in ["fp16", "bf16"]:
-            for logits, mask, bias, pagedkv, skip in itertools.product(
+            for logits, mask, bias, pagedkv, skip, sink in itertools.product(
                 ["t", "f"],
                 get_mask_map(mask_impl).keys(),
                 BIAS_MAP.keys(),
                 ["t"],
                 ["f"],
+                ["t", "f"],
             ):
-                pipelines.append(FmhaFwdPipeline("qr_pagedkv", "row", "t", "f", "f", "f", logits, bias, "f", pagedkv, squant, mask, skip))  # fmt: skip
-                pipelines.append(FmhaFwdPipeline("qr_pagedkv", "row", "t", "t", "f", "f", logits, bias, "f", pagedkv, squant, mask, skip))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr_pagedkv", "row", "t", "f", "f", "f", logits, bias, "f", pagedkv, squant, mask, skip, sink))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr_pagedkv", "row", "t", "t", "f", "f", logits, bias, "f", pagedkv, squant, mask, skip, sink))  # fmt: skip
         elif dtype in ["fp8", "bf8"]:
             # no need lse/dropout kernels
             for logits, mask, bias in itertools.product(
                 ["t", "f"], get_mask_map(mask_impl).keys(), BIAS_MAP.keys()
             ):
-                pipelines.append(FmhaFwdPipeline("qr_pagedkv", "row", "f", "f", "f", "f", logits, bias, "f", "t", squant, mask, "f"))  # fmt: skip
-                pipelines.append(FmhaFwdPipeline("qr_pagedkv", "row", "t", "t", "f", "f", logits, bias, "f", "t", squant, mask, "f"))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr_pagedkv", "row", "f", "f", "f", "f", logits, bias, "f", "t", squant, mask, "f", "f"))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr_pagedkv", "row", "t", "t", "f", "f", logits, bias, "f", "t", squant, mask, "f", "f"))  # fmt: skip
         elif dtype in ["fp8fp16", "fp8bf16"]:
             pass  # TODO
         else:
@@ -679,6 +690,7 @@ def get_fwd_blobs(
                     cond &= pipeline.F_bias in ["no", "alibi"]
                     cond &= pipeline.F_squant == "f"
                     cond &= pipeline.F_skip == "f"
+                    cond &= pipeline.F_sink == "f"
                     if not cond:
                         continue
                 # PyTorch integration
@@ -688,6 +700,7 @@ def get_fwd_blobs(
                     cond &= pipeline.F_bias in ["no", "bias"]
                     cond &= pipeline.F_squant == "f"
                     cond &= pipeline.F_skip == "f"
+                    cond &= pipeline.F_sink == "f"
                     if not cond:
                         continue
                 # Aiter(mha_fwd) integration

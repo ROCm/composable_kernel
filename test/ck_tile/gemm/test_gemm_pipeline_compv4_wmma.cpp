@@ -1,4 +1,4 @@
-// Copyright © Advanced Micro Devices, Inc. or its affiliates.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
 #include "test_gemm_pipeline_kernel_types.hpp"
@@ -13,7 +13,7 @@ class TestCkTileGemmPipelineCompV4Wmma
 
 #define TEST_SUITE_NAME TestCkTileGemmPipelineCompV4Wmma
 
-TYPED_TEST_SUITE(TestCkTileGemmPipelineCompV4Wmma, KernelTypesCompV4Wmma);
+TYPED_TEST_SUITE(TEST_SUITE_NAME, KernelTypesCompV4Wmma);
 
 #include "test_gemm_pipeline_ut_cases.inc"
 
