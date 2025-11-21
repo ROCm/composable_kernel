@@ -1,7 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
-
 #include <sstream>
 #include <gtest/gtest.h>
 
@@ -72,6 +71,17 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
         static const ck_tile::index_t K_Warp_Tile =
             TestCkTileGroupedGemmQuant::template get_k_from_preshuffled_warp_tile<BDataType,
                                                                                   M_Warp_Tile>();
+    };
+
+    struct GroupedGemKernelParam_Wmma : public GroupedGemKernelParam_Mfma
+    {
+        static const ck_tile::index_t M_Tile = 128;
+        static const ck_tile::index_t N_Tile = 128;
+        static const ck_tile::index_t K_Tile = 128;
+
+        static const ck_tile::index_t M_Warp_Tile = 16;
+        static const ck_tile::index_t N_Warp_Tile = 16;
+        static const ck_tile::index_t K_Warp_Tile = 16;
     };
 
     using grouped_gemm_kargs = ck_tile::QuantGroupedGemmHostArgs;
@@ -373,8 +383,13 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
 
             if constexpr(PreshuffleB && QuantType == ck_tile::QuantType::BQuantGrouped)
             {
+#if CK_TILE_USE_WMMA
+                auto b_shuffle_host =
+                    ck_tile::shuffle_b<GroupedGemKernelParam_Wmma>(b_k_n_tensors[i]);
+#else
                 auto b_shuffle_host =
                     ck_tile::shuffle_b<GroupedGemKernelParam_Mfma>(b_k_n_tensors[i]);
+#endif
                 b_k_n_dev_buf[i]->ToDevice(b_shuffle_host.data());
             }
             else
@@ -446,8 +461,13 @@ class TestCkTileGroupedGemmQuant : public ::testing::Test
                                     kargs.size() * sizeof(ck_tile::QuantGemmTransKernelArg),
                                     hipMemcpyHostToDevice,
                                     stream.stream_id_));
+#if CK_TILE_USE_WMMA
+            invoke_grouped_gemm_persistent<GroupedGemKernelParam_Wmma, ALayout, BLayout, CLayout>(
+                stream, group_count, kargs_ptr);
+#else
             invoke_grouped_gemm_persistent<GroupedGemKernelParam_Mfma, ALayout, BLayout, CLayout>(
                 stream, group_count, kargs_ptr);
+#endif
         }
         else
         {
