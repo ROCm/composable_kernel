@@ -13,6 +13,8 @@
 #include "ck/library/utility/host_tensor.hpp"
 #include "ck/library/utility/host_tensor_generator.hpp"
 
+using ::ck::DeviceMem;
+
 __global__ void gpu_magic_number_division(uint32_t magic_multiplier,
                                           uint32_t magic_shift,
                                           const int32_t* p_dividend,

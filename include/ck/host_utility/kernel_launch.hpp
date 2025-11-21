@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 #ifndef __HIPCC_RTC__
@@ -9,6 +9,8 @@
 #include "ck/utility/env.hpp"
 #include "ck/stream_config.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
+
+namespace ck {
 
 template <typename... Args, typename F>
 float launch_and_time_kernel(const StreamConfig& stream_config,
@@ -167,4 +169,7 @@ float launch_and_time_kernel_with_preprocess(const StreamConfig& stream_config,
     return 0;
 #endif
 }
+
+} // namespace ck
+
 #endif

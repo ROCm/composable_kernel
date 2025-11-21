@@ -69,8 +69,7 @@ invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
             int n_warmup,
             int n_repeat,
             bool flush_cache,
-            ck_tile::StreamKReductionStrategy reduction_strategy,
-            uint32_t num_sk_blocks)
+            ck_tile::StreamKReductionStrategy reduction_strategy)
 {
     ck_tile::StreamKHostArgs args{a_m_k_dev_buf.GetDeviceBuffer(),
                                   b_k_n_dev_buf.GetDeviceBuffer(),
@@ -81,8 +80,7 @@ invoke_gemm(ck_tile::DeviceMem& a_m_k_dev_buf,
                                   stride_A,
                                   stride_B,
                                   stride_C,
-                                  reduction_strategy,
-                                  num_sk_blocks};
+                                  reduction_strategy};
 
     std::tuple<float, ck_tile::index_t> ave_time_and_batch;
 
@@ -197,7 +195,6 @@ int run_gemm_example_with_layouts(int argc,
 
     ck_tile::StreamKReductionStrategy reduction_strategy =
         get_reduction_strategy_value(arg_parser.get_str("reduction_strategy"));
-    uint32_t num_sk_blocks = static_cast<uint32_t>(arg_parser.get_int("num_sk_blocks"));
 
     stride_A = ck_tile::get_default_stride(M, K, stride_A, is_row_major(a_layout));
     stride_B = ck_tile::get_default_stride(K, N, stride_B, is_row_major(b_layout));
@@ -261,8 +258,7 @@ int run_gemm_example_with_layouts(int argc,
                                                              n_warmup,
                                                              n_repeat,
                                                              flush_cache,
-                                                             reduction_strategy,
-                                                             num_sk_blocks);
+                                                             reduction_strategy);
 
     c_m_n_dev_buf.FromDevice(c_m_n_dev_result.data());
 
@@ -279,10 +275,10 @@ int run_gemm_example_with_layouts(int argc,
               << " B_Type=" << DataTypeTraits<BDataType>::name
               << " C_Type=" << DataTypeTraits<CDataType>::name
               << " reduction_strategy=" << arg_parser.get_str("reduction_strategy") << " "
-              << ave_time << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, "
-              << std::endl;
+              << " persistent_dp=" << arg_parser.get_str("persistent_dp") << " " << ave_time
+              << " ms, " << tflops << " TFlops, " << gb_per_sec << " GB/s, " << std::endl;
 
-    bool pass = true;
+    bool pass = false;
 
     // Memory on host to store gpu reference result
     ck_tile::HostTensor<CDataType> c_m_n_ref(

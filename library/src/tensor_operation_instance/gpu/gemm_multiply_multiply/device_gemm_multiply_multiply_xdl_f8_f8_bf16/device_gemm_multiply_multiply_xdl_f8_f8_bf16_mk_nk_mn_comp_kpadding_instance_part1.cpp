@@ -24,6 +24,14 @@ void add_device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_comp_kpadding_ins
     add_device_operation_instances(
         instances,
         device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_comp_instances_part1<GemmKPadding>{});
+
+    if(ck::get_device_name() == "gfx950")
+    {
+        add_device_operation_instances(
+            instances,
+            device_gemm_multiply_multiply_xdl_f8_f8_bf16_mk_nk_mn_comp_instances_dr<
+                GemmKPadding>{});
+    }
 }
 
 } // namespace instance

@@ -102,11 +102,14 @@ struct static_counter_uniq_;
 }
 
 #define MAKE_SC() \
-    ck_tile::static_counter<ck_tile::impl::static_counter_uniq_<__COUNTER__>> {}
-#define MAKE_SC_WITH(start_, step_) \
-    ck_tile::static_counter<ck_tile::impl::static_counter_uniq_<__COUNTER__>, start_, step_> {}
-#define NEXT_SC(c_) c_.next<__COUNTER__>()
-#define NEXT_SCI(c_, static_i_) c_.next<__COUNTER__ + static_i_>()
+    __extension__ ck_tile::static_counter<ck_tile::impl::static_counter_uniq_<__COUNTER__>> {}
+#define MAKE_SC_WITH(start_, step_)                                                     \
+    __extension__ ck_tile::                                                             \
+        static_counter<ck_tile::impl::static_counter_uniq_<__COUNTER__>, start_, step_> \
+    {                                                                                   \
+    }
+#define NEXT_SC(c_) __extension__ c_.next<__COUNTER__>()
+#define NEXT_SCI(c_, static_i_) __extension__ c_.next<__COUNTER__ + static_i_>()
 
 // Usage:
 // constexpr auto c = MAKE_SC()

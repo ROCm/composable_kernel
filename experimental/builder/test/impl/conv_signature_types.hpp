@@ -1,5 +1,5 @@
+// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -17,7 +17,6 @@ struct ConvSignature
     GroupConvLayout layout;
     DataType data_type;
     ElementwiseOperation elementwise_operation;
-    GroupConvDeviceOp device_operation;
 };
 static_assert(ConvSignatureDescriptor<ConvSignature>);
 

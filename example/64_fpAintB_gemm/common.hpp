@@ -22,6 +22,11 @@
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_fpAintB_gemm.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::make_ParallelTensorFunctor;
+using ::ck::Tensor;
+
 struct ProblemSize final
 {
     ck::index_t M = 3840;

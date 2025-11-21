@@ -18,6 +18,10 @@
 #include "ck/library/utility/host_common_util.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 using namespace ck::tensor_operation::device;
 
 using InDataType  = ck::half_t;

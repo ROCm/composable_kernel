@@ -3,6 +3,11 @@
 
 #pragma once
 
+// use macro to minimize code change
+#ifndef EXAMPLE_WITH_COMPUTE_DATATYPE
+using ComputeDataType = AccDataType;
+#endif
+
 struct ProblemSize final
 {
     std::vector<ck::index_t> Ms;
@@ -231,7 +236,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
                                                                                 AccDataType,
                                                                                 AElementOp,
                                                                                 BElementOp,
-                                                                                CDEElementOp>;
+                                                                                CDEElementOp,
+                                                                                ComputeDataType>;
 
         for(std::size_t i = 0; i < gemm_descs.size(); i++)
         {
@@ -253,7 +259,9 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
             pass &= ck::utils::check_err(c_device_result_converted, c_host_tensors[i]);
 
 #else
-            pass &= ck::utils::check_err(c_device_tensors[i], c_host_tensors[i]);
+            pass &= ck::utils::check_err<decltype(c_device_tensors[i]),
+                                         decltype(c_host_tensors[i]),
+                                         ComputeDataType>(c_device_tensors[i], c_host_tensors[i]);
 #endif
         }
     }

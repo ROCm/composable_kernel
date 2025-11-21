@@ -20,6 +20,11 @@
 #include "ck/library/utility/literals.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_gemm.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::hip_check_error;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
@@ -221,8 +226,8 @@ bool run_grouped_gemm(const ProblemSize& problem_size, const ExecutionConfig& co
         b0_tensors_device.emplace_back(std::make_unique<DeviceMem>(
             sizeof(B0DataType) * problem_size.Ns[i] * problem_size.Ks[i]));
 
-        b1_tensors_device.emplace_back(
-            std::make_unique<DeviceMem>(sizeof(B1DataType) * problem_size.Ns[i]));
+        b1_tensors_device.emplace_back(std::make_unique<DeviceMem>(
+            sizeof(B1DataType) * problem_size.Ns[i] * problem_size.Ks[i]));
 
         d0_tensors_device.emplace_back(
             std::make_unique<DeviceMem>(sizeof(D0DataType) * problem_size.Ns[i]));

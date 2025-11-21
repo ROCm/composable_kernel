@@ -432,6 +432,12 @@ CK_TILE_HOST void reference_mx_gemm(const HostTensor<ADataType>& a_m_k,
                 a_m_k_scaled(m, k)     = a_f4_lo * a_scale;
                 a_m_k_scaled(m, k + 1) = a_f4_hi * a_scale;
             }
+            else
+            {
+                a_m_k_scaled(m, k) =
+                    ck_tile::type_convert<AccDataType>((a_m_k(m, k))) *
+                    ck_tile::type_convert<AccDataType>(scale_a(m, k / ScaleBlockSize));
+            }
         }
     }
 
