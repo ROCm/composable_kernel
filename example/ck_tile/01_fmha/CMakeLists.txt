@@ -109,14 +109,14 @@ set(FMHA_FWD_INSTANCES "tile_fmha_fwd_instances")
 set(FMHA_BWD_INSTANCES "tile_fmha_bwd_instances")
 
 message(DEBUG "adding instances ${FMHA_FWD_INSTANCES}")
-add_library(${FMHA_FWD_INSTANCES} OBJECT)
+add_library(${FMHA_FWD_INSTANCES} OBJECT EXCLUDE_FROM_ALL)
 target_include_directories(${FMHA_FWD_INSTANCES} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${FMHA_FWD_INSTANCES} PRIVATE ${FMHA_FWD_GEN_BLOBS})
 set_source_files_properties(${FMHA_FWD_GEN_BLOBS} PROPERTIES LANGUAGE HIP)
 set_property(TARGET ${FMHA_FWD_INSTANCES} PROPERTY HIP_ARCHITECTURES ${INST_TARGETS})
 
 message(DEBUG "adding instances ${FMHA_BWD_INSTANCES}")
-add_library(${FMHA_BWD_INSTANCES} OBJECT)
+add_library(${FMHA_BWD_INSTANCES} OBJECT EXCLUDE_FROM_ALL)
 target_include_directories(${FMHA_BWD_INSTANCES} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${FMHA_BWD_INSTANCES} PRIVATE ${FMHA_BWD_GEN_BLOBS})
 set_source_files_properties(${FMHA_BWD_GEN_BLOBS} PROPERTIES LANGUAGE HIP)
@@ -193,14 +193,14 @@ set(EXAMPLE_FMHA_BWD "tile_example_fmha_bwd")
 message(DEBUG "adding example ${EXAMPLE_FMHA_FWD}")
 # not using add_example_executable() to add this target, since we don't want this to be included in
 # "make all/install/check"
-add_executable(${EXAMPLE_FMHA_FWD} example_fmha_fwd.cpp)
+add_executable(${EXAMPLE_FMHA_FWD} EXCLUDE_FROM_ALL example_fmha_fwd.cpp)
 target_link_libraries(${EXAMPLE_FMHA_FWD} ${FMHA_FWD_INSTANCES})
 target_include_directories(${EXAMPLE_FMHA_FWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 
 message(DEBUG "adding example ${EXAMPLE_FMHA_BWD}")
 # not using add_example_executable() to add this target, since we don't want this to be included in
 # "make all/install/check"
-add_executable(${EXAMPLE_FMHA_BWD} example_fmha_bwd.cpp)
+add_executable(${EXAMPLE_FMHA_BWD} EXCLUDE_FROM_ALL example_fmha_bwd.cpp)
 target_link_libraries(${EXAMPLE_FMHA_BWD} ${FMHA_BWD_INSTANCES})
 target_include_directories(${EXAMPLE_FMHA_BWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 
@@ -208,7 +208,7 @@ target_include_directories(${EXAMPLE_FMHA_BWD} PRIVATE ${CMAKE_CURRENT_LIST_DIR}
 set(EXAMPLE_FMHA_FWD_V3 "tile_example_fmha_fwd_v3")
 message(DEBUG "adding example ${EXAMPLE_FMHA_FWD_V3}")
 
-add_executable(${EXAMPLE_FMHA_FWD_V3} example_fmha_fwd_v3.cpp)
+add_executable(${EXAMPLE_FMHA_FWD_V3} EXCLUDE_FROM_ALL example_fmha_fwd_v3.cpp)
 target_include_directories(${EXAMPLE_FMHA_FWD_V3} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 file(GLOB FMHA_FWD_V3_INSTANCES CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_LIST_DIR}/instances/*.cpp"
