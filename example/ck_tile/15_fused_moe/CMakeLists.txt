@@ -3,7 +3,7 @@ set(TILE_EXAPMLE_FUSED_MOE "tile_example_fused_moe")
 # to be included in "make all/install/check"
 message(DEBUG "adding ${TILE_EXAPMLE_FUSED_MOE}")
 file(GLOB INSTANCE_SRCS instances/*.cpp)
-add_executable(${TILE_EXAPMLE_FUSED_MOE} EXCLUDE_FROM_ALL main.cpp)
+add_executable(${TILE_EXAPMLE_FUSED_MOE} main.cpp)
 target_include_directories(${TILE_EXAPMLE_FUSED_MOE} PRIVATE ${CMAKE_CURRENT_LIST_DIR})
 target_sources(${TILE_EXAPMLE_FUSED_MOE} PRIVATE ${INSTANCE_SRCS})
 
