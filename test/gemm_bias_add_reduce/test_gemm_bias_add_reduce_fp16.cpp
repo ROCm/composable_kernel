@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <tuple>
 
@@ -33,18 +33,72 @@ class TestGemmBiasAddReduce_FP16_MK_NK
 {
 };
 
+template <typename Tuple>
+class TestGemmBiasAddReduce_FP16_MK_KN
+    : public ck::test::TestGemmBiasAddReduceCommon<
+          typename tuple_concat<std::tuple<Row, Row>, Tuple>::type>
+{
+};
+
+template <typename Tuple>
+class TestGemmBiasAddReduce_FP16_KM_KN
+    : public ck::test::TestGemmBiasAddReduceCommon<
+          typename tuple_concat<std::tuple<Col, Row>, Tuple>::type>
+{
+};
+
+template <typename Tuple>
+class TestGemmBiasAddReduce_FP16_KM_NK
+    : public ck::test::TestGemmBiasAddReduceCommon<
+          typename tuple_concat<std::tuple<Col, Col>, Tuple>::type>
+{
+};
+
 // clang-format off
-using KernelTypes_MK_NK = ::testing::Types<
+using KernelTypes = ::testing::Types<
     std::tuple< F16, F16, F16, F16, F16, F32>
    >;
 // clang-format on
 
-TYPED_TEST_SUITE(TestGemmBiasAddReduce_FP16_MK_NK, KernelTypes_MK_NK);
+TYPED_TEST_SUITE(TestGemmBiasAddReduce_FP16_MK_NK, KernelTypes);
+TYPED_TEST_SUITE(TestGemmBiasAddReduce_FP16_MK_KN, KernelTypes);
+TYPED_TEST_SUITE(TestGemmBiasAddReduce_FP16_KM_KN, KernelTypes);
+TYPED_TEST_SUITE(TestGemmBiasAddReduce_FP16_KM_NK, KernelTypes);
 
 TYPED_TEST(TestGemmBiasAddReduce_FP16_MK_NK, Regular)
 {
     std::vector<int> Ms{512};
     constexpr int N = 512;
+    constexpr int K = 1024;
+
+    for(int M : Ms)
+        this->Run(M, N, K);
+}
+
+TYPED_TEST(TestGemmBiasAddReduce_FP16_MK_KN, Regular)
+{
+    std::vector<int> Ms{512};
+    constexpr int N = 1024;
+    constexpr int K = 1024;
+
+    for(int M : Ms)
+        this->Run(M, N, K);
+}
+
+TYPED_TEST(TestGemmBiasAddReduce_FP16_KM_KN, Regular)
+{
+    std::vector<int> Ms{256};
+    constexpr int N = 512;
+    constexpr int K = 1024;
+
+    for(int M : Ms)
+        this->Run(M, N, K);
+}
+
+TYPED_TEST(TestGemmBiasAddReduce_FP16_KM_NK, Regular)
+{
+    std::vector<int> Ms{256};
+    constexpr int N = 1024;
     constexpr int K = 1024;
 
     for(int M : Ms)
