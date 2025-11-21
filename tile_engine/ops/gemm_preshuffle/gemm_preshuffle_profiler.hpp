@@ -10,9 +10,9 @@
 class GemmProfiler
 {
     public:
-    static GemmProfiler& instance(Setting setting)
+    static GemmProfiler& instance(Setting setting, std::ostream* output_stream = &std::cout)
     {
-        static GemmProfiler instance{setting};
+        static GemmProfiler instance{setting, output_stream};
         return instance;
     }
 
@@ -182,7 +182,7 @@ class GemmProfiler
 
         if(setting_.log_ > 0 && !setting_.json_output_)
         {
-            std::cout << kernel_instance << std::endl;
+            *output_stream_ << kernel_instance << std::endl;
         }
 
         // verify result
@@ -198,7 +198,7 @@ class GemmProfiler
         }
         else
         {
-            std::cout << "Verification failed, skip kernel: " << name << std::endl;
+            *output_stream_ << "Verification failed, skip kernel: " << name << std::endl;
         }
 
         // clear tensor
@@ -221,14 +221,14 @@ class GemmProfiler
         if(setting_.json_output_)
         {
             // Output clean JSON only
-            std::cout << kernel_instance << std::endl;
+            *output_stream_ << kernel_instance << std::endl;
         }
         else
         {
-            std::cout << "**********************************" << std::endl;
-            std::cout << "According to given metrics: " << get_metric_name(metric) << "\n"
-                      << "Current kernel performance is: " << kernel_instance << std::endl;
-            std::cout << "**********************************" << std::endl;
+            *output_stream_ << "**********************************" << std::endl;
+            *output_stream_ << "According to given metrics: " << get_metric_name(metric) << "\n"
+                            << "Current kernel performance is: " << kernel_instance << std::endl;
+            *output_stream_ << "**********************************" << std::endl;
         }
 
         if(!setting_.csv_filename_.empty())
@@ -281,9 +281,13 @@ class GemmProfiler
 
     private:
     ~GemmProfiler() { kernel_instances_.clear(); }
-    GemmProfiler(Setting setting) : setting_(setting) {}
+    GemmProfiler(Setting setting, std::ostream* output_stream = &std::cout)
+        : setting_(setting), output_stream_(output_stream)
+    {
+    }
 
     Setting setting_;
+    std::ostream* output_stream_;
 
     std::vector<KernelInstance> kernel_instances_;
 };

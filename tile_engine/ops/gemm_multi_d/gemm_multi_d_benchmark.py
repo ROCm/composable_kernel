@@ -214,27 +214,23 @@ class GemmMultiDBenchmark:
 
         # Add JSON output flag for clean JSON output
         cmd.append("-json_output=true")
+        cmd.append(f"-json_file={json_file}")
 
         if self.verbose:
             print(f"Running: {' '.join(cmd)}")
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+            result = subprocess.run(cmd, timeout=60)
 
             if result.returncode != 0:
-                print(f"Error running {kernel_path.name}: {result.stderr}")
+                print(f"Error running {kernel_path.name}")
                 return None
 
-            # Save raw output to individual JSON file
-            output = result.stdout.strip()
-            if output:
-                with open(json_file, "w") as f:
-                    f.write(output)
-
-                # Parse the JSON file
+            # Parse the JSON file that was written by the C++ program
+            if json_file.exists():
                 return self.parse_json_file(json_file)
             else:
-                print(f"No output from {kernel_path.name}")
+                print(f"No output file created by {kernel_path.name}")
                 return None
 
         except subprocess.TimeoutExpired:
