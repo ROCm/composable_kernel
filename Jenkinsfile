@@ -90,8 +90,18 @@ def generateAndArchiveBuildTraceVisualization() {
             traceFileExists = false
         }
         
+        sh """
+            echo "post download:"
+            ls -la
+        """
+
         if (traceFileExists) {
-            echo "Build trace archive found"
+            // Move the build trace file to a temporary location to preserve it during checkout
+            sh """
+                mkdir -p /tmp/jenkins_artifacts
+                cp ${buildTraceFileName} /tmp/jenkins_artifacts/${buildTraceFileName}
+                ls -la /tmp/jenkins_artifacts/
+            """
         } else {
             echo "Build trace archive not found"
             return
@@ -99,6 +109,13 @@ def generateAndArchiveBuildTraceVisualization() {
 
         // Checkout source code to get required files
         checkout scm
+        
+        // Restore the build trace file after checkout
+        sh """
+            ls -la
+            cp /tmp/jenkins_artifacts/${buildTraceFileName} ${buildTraceFileName}
+            ls -la ${buildTraceFileName}
+        """
         
         // Pull image
         def image = "ghcr.io/puppeteer/puppeteer:24.30.0"
@@ -108,6 +125,7 @@ def generateAndArchiveBuildTraceVisualization() {
 
         // Create a temporary workspace
         sh """#!/bin/bash
+            ls -la
             mkdir -p workspace
             cp ./script/infra_helper/capture_build_trace.js ./workspace
             cp ${buildTraceFileName} ./workspace/${buildTraceFileName}
