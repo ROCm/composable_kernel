@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
