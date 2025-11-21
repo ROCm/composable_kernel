@@ -366,9 +366,9 @@ struct BlockUniversalGemmAsBsCr
         static constexpr index_t KInnerLoopIter = KPerInnerLoop / WarpGemm::kKPerThread;
 
         static constexpr auto ALdsTileDistr =
-            make_static_tile_distribution(MakeABlockDistributionEncode());
+            decltype(make_static_tile_distribution(MakeABlockDistributionEncode())){};
         static constexpr auto BLdsTileDistr =
-            make_static_tile_distribution(MakeBBlockDistributionEncode());
+            decltype(make_static_tile_distribution(MakeBBlockDistributionEncode())){};
 
         using ALdsTile = decltype(make_static_distributed_tensor<ATypeToUse>(ALdsTileDistr));
         using BLdsTile = decltype(make_static_distributed_tensor<BTypeToUse>(BLdsTileDistr));
