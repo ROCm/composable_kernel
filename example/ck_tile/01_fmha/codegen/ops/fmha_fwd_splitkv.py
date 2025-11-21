@@ -788,7 +788,7 @@ class KernelComponentFactoryBase:
                 "64": FmhaFwdSplitKVCombineTileSize(32, -1),
                 "96": FmhaFwdSplitKVCombineTileSize(32, -1),
                 "128": FmhaFwdSplitKVCombineTileSize(32, -1),
-                "160" : FmhaFwdSplitKVCombineTileSize(32, -1),
+                "160": FmhaFwdSplitKVCombineTileSize(32, -1),
                 "256": FmhaFwdSplitKVCombineTileSize(32, -1),
             }
         elif dtype in ["fp8", "bf8"]:

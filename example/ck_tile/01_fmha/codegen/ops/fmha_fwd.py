@@ -30,7 +30,16 @@ from codegen.utils import check_duplicates_and_paddings, if_, indent, update_fil
 
 DTYPE_BITS = {"fp32": 32, "fp16": 16, "bf16": 16, "fp8": 8, "bf8": 8}
 
-K0_MAX_SUBMAX_MAP = {32: 32, 48: 48, 64: 64, 96: 128, 128: 128, 160: 160, 192: 192, 256: 256}
+K0_MAX_SUBMAX_MAP = {
+    32: 32,
+    48: 48,
+    64: 64,
+    96: 128,
+    128: 128,
+    160: 160,
+    192: 192,
+    256: 256,
+}
 
 FMHA_FWD_KERNEL_HEADER = """// SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.\n
