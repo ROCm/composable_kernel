@@ -28,9 +28,9 @@ struct PracticeGemmHostPipeline
     {
 
         // Size of the entire problem
-        const auto M = a_dram.get_tensor_descriptor().get_length(number<0>{}); // M x K
+        const auto M = a_dram.get_tensor_descriptor().get_length(number<0>{});     // M x K
         const auto N = c_dram_ref.get_tensor_descriptor().get_length(number<1>{}); // M x N
-        const auto K = a_dram.get_tensor_descriptor().get_length(number<1>{}); // M x K
+        const auto K = a_dram.get_tensor_descriptor().get_length(number<1>{});     // M x K
 
         // Size of the block tile
         const auto MPerBlock = BlockTile::at(number<0>{});
