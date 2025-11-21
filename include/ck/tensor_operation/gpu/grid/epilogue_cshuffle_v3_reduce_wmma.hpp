@@ -161,334 +161,11 @@ struct EpilogueReduceCShuffle
     {
     }
 
-    template <typename CShuffleBlockDesc>
-    static auto GetReduceBlockDescriptor(const CShuffleBlockDesc& c_shuffle_block_desc)
-    {
-        return transform_tensor_descriptor(
-            c_shuffle_block_desc,
-            make_tuple(make_freeze_transform(I0),
-                       make_pass_through_transform(c_shuffle_block_desc.GetLength(I1)),
-                       make_freeze_transform(I0),
-                       make_pass_through_transform(c_shuffle_block_desc.GetLength(I3))),
-            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-            make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<>{}, Sequence<1>{}));
-    }
-
-    // Specialization of CShuffle + Reduce epilogue without D matrices
     template <InMemoryDataOperationEnum EGlobalMemoryDataOperation,
               typename CThreadBuf,
               typename DsGridPointer,
               typename DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-              typename EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-              typename enable_if<DsGridPointer::Size() == 0, bool>::type = false>
-    __device__ void Run(CThreadBuf& c_thread_buf,
-                        DsGridPointer p_ds_grid,
-                        EDataType* p_e_grid,
-                        void* p_shared,
-                        const DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock&
-                            ds_grid_desc_mblock_mperblock_nblock_nperblock,
-                        const EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock&
-                            e_grid_desc_mblock_mperblock_nblock_nperblock,
-                        CDEElementwiseOperation& cde_element_op,
-                        const index_t& block_m_id,
-                        const index_t& block_n_id)
-    {
-        auto reduce_grid_desc_mblock_mperblock =
-            MakeReduceGridDescriptor_MBlock_MPerBlock(reduce_grid_desc_m);
-
-        const auto ds_grid_buf = generate_tuple(
-            [&](auto i) {
-                return make_dynamic_buffer<AddressSpaceEnum::Global>(
-                    p_ds_grid[i],
-                    ds_grid_desc_mblock_mperblock_nblock_nperblock[i].GetElementSpaceSize());
-            },
-            Number<NumDTensor>{});
-
-        auto e_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-            p_e_grid, e_grid_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
-
-        // C mapping in single thread.
-        constexpr auto c_thread_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs =
-            BlockwiseGemmPipe::
-                GetCThreadDescriptor_MRepeat_MWave_MSubGroup_NRepeat_NWave_NThreadPerSubGroup_MAccVgprs();
-
-        // LDS buffer
-        constexpr auto c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat =
-            GetCShuffleBlockDescriptor_MShRepeat_MPerShRepeat_NShRepeat_NPerShRepeat();
-
-        auto c_shuffle_block_buf = make_dynamic_buffer<AddressSpaceEnum::Lds>(
-            static_cast<CShuffleDataType*>(p_shared),
-            c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat
-                .GetElementSpaceSize());
-
-        // Thread transfer Vgpr to LDS
-        auto c_thread_copy_vgpr_to_lds = GetVgprToLDSEpilogueDescriptor();
-
-        // Space Filling Curve Vgpr
-        constexpr auto sfc_c_vgpr = typename Base::SpaceFillingCurveVgpr{};
-
-        // Space Filling Curve Vmem
-        constexpr auto sfc_cde_global = typename Base::SpaceFillingCurveVmem{};
-
-        // Block descriptor
-        constexpr auto
-            c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs =
-                GetCShuffleLDSDescriptor();
-
-        // tuple of reference to C/Ds tensor descriptors
-        const auto c_ds_desc_refs = concat_tuple_of_reference(
-            tie(c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat),
-            generate_tie([&](auto i) -> const auto& // return type should be reference
-                         { return ds_grid_desc_mblock_mperblock_nblock_nperblock[i]; },
-                         Number<NumDTensor>{}));
-
-        // Thread transfer LDS to Vmem
-        auto cde_shuffle_block_copy_lds_and_global =
-            Base::template GetLDSToVmemEpilogueDescriptor<EGlobalMemoryDataOperation, EDataType>(
-                c_ds_desc_refs,
-                e_grid_desc_mblock_mperblock_nblock_nperblock,
-                cde_element_op,
-                block_m_id,
-                block_n_id);
-
-        // tuple of reference to C/Ds tensor buffers
-        const auto c_ds_buf_refs = concat_tuple_of_reference(
-            tie(c_shuffle_block_buf),
-            generate_tie([&](auto i) -> const auto& // return type should be reference
-                         { return ds_grid_buf[i]; },
-                         Number<NumDTensor>{}));
-
-        // LDS c_reduce_block_desc_mperblock_nperblock
-        constexpr auto c_reduce_block_desc_mperblock_nperblock = GetReduceBlockDescriptor(
-            c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat);
-        // transform_tensor_descriptor(
-        //     c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat,
-        //     make_tuple(
-        //         make_freeze_transform(I0),
-        //         make_pass_through_transform(
-        //             c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat.GetLength(
-        //                 I1)),
-        //         make_freeze_transform(I0),
-        //         make_pass_through_transform(
-        //             c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat.GetLength(
-        //                 I3))),
-        //     make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-        //     make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<>{}, Sequence<1>{}));
-
-        static_assert(
-            ReduceTrait::CReduceThreadClusterLengths_MPerBlock_NPerBlock_::At(I0) *
-                    ReduceTrait::CReduceThreadClusterLengths_MPerBlock_NPerBlock_::At(I1) ==
-                BlockSize,
-            "wrong!");
-
-        static_assert(
-            (CShuffleMRepeatPerShuffle * BlockwiseGemmPipe::MWaves * MPerWmma) %
-                        ReduceTrait::CReduceThreadClusterLengths_MPerBlock_NPerBlock_::At(I0) ==
-                    0 &&
-                (CShuffleNRepeatPerShuffle * BlockwiseGemmPipe::NWaves * NPerWmma) %
-                        ReduceTrait::CReduceThreadClusterLengths_MPerBlock_NPerBlock_::At(I1) ==
-                    0,
-            "wrong!");
-
-        constexpr index_t mreduce_per_thread =
-            (CShuffleMRepeatPerShuffle * BlockwiseGemmPipe::MWaves * MPerWmma) /
-            ReduceTrait::CReduceThreadClusterLengths_MPerBlock_NPerBlock_::At(I0);
-
-        constexpr index_t nreduce_per_thread =
-            (CShuffleNRepeatPerShuffle * BlockwiseGemmPipe::NWaves * NPerWmma) /
-            ReduceTrait::CReduceThreadClusterLengths_MPerBlock_NPerBlock_::At(I1);
-
-        static constexpr index_t NumReduce = ReduceTrait::ReducePtrsGlobal_::Size();
-
-        constexpr auto c_reduce_thread_lengths_mperblock_nperblock =
-            Sequence<mreduce_per_thread, nreduce_per_thread>{};
-
-        // VGPR c_reduce_thread_desc_mperblock_nperblock
-        constexpr auto c_reduce_thread_desc_mperblock_nperblock =
-            make_naive_tensor_descriptor_packed(
-                make_tuple(Number<mreduce_per_thread>{}, Number<nreduce_per_thread>{}));
-
-        // VGPR reduce_thread_desc_mperblock
-        constexpr auto reduce_thread_desc_mperblock =
-            make_naive_tensor_descriptor_packed(make_tuple(Number<mreduce_per_thread>{}));
-
-        // VGPR reduce_thread_desc_mblock_mperblock
-        constexpr auto reduce_thread_desc_mblock_mperblock =
-            make_naive_tensor_descriptor_packed(make_tuple(I1, Number<mreduce_per_thread>{}));
-
-        auto c_reduce_thread_buf =
-            make_static_buffer<AddressSpaceEnum::Vgpr, typename ReduceTrait::ReduceAccDataType_>(
-                c_reduce_thread_desc_mperblock_nperblock.GetElementSpaceSize());
-
-        // reduce: threadwise copy from LDS to VGPR
-        constexpr auto c_reduce_thread_cluster_desc = make_cluster_descriptor(
-            typename ReduceTrait::CReduceThreadClusterLengths_MPerBlock_NPerBlock_{},
-            Sequence<1, 0>{});
-
-        const auto c_reduce_thread_cluster_idx = c_reduce_thread_cluster_desc.CalculateBottomIndex(
-            make_multi_index(get_thread_local_1d_id()));
-
-        const auto c_reduce_thread_data_idx_begin =
-            c_reduce_thread_cluster_idx * c_reduce_thread_lengths_mperblock_nperblock;
-
-        auto c_reduce_thread_copy_lds_to_vgpr = ThreadwiseTensorSliceTransfer_v2<
-            CShuffleDataType,
-            typename ReduceTrait::ReduceAccDataType_,
-            decltype(c_reduce_block_desc_mperblock_nperblock),
-            decltype(c_reduce_thread_desc_mperblock_nperblock),
-            decltype(c_reduce_thread_lengths_mperblock_nperblock),
-            Sequence<0, 1>,
-            1,
-            ReduceTrait::CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock_,
-            1,
-            true>{c_reduce_block_desc_mperblock_nperblock, c_reduce_thread_data_idx_begin};
-
-        auto reduce_tuple_thread_copy_vgpr_to_global = generate_tuple(
-            [&](auto I) {
-                auto p_reduce_grid         = p_reduces_grid[I];
-                auto reduce_acc_element_op = reduce_out_element_ops[I];
-
-                return ThreadwiseTensorSliceTransfer_v1r3<
-                    typename ReduceTrait::ReduceAccDataType_,
-                    remove_pointer_t<decltype(p_reduce_grid)>,
-                    decltype(reduce_thread_desc_mblock_mperblock),
-                    decltype(reduce_grid_desc_mblock_mperblock),
-                    decltype(reduce_acc_element_op),
-                    Sequence<1, mreduce_per_thread>,
-                    Sequence<0, 1>,
-                    1,
-                    ReduceTrait::CReduceThreadVgpr2GlobalCopySrcDstScalarPerVector_MPerBlock_,
-                    ReduceTrait::ReduceGlobalMemoryDataOperation_::At(I),
-                    1,
-                    false>{reduce_grid_desc_mblock_mperblock,
-                           make_multi_index(block_m_id,                          // mblock
-                                            c_reduce_thread_data_idx_begin[I0]), // mperblock
-                           reduce_acc_element_op};
-            },
-            Number<NumReduce>{});
-
-        constexpr index_t num_access = sfc_c_vgpr.GetNumOfAccess();
-
-        static_assert(num_access == sfc_cde_global.GetNumOfAccess(), "wrong!");
-
-        // CShuffle and Store
-        static_for<0, num_access, 1>{}([&](auto access_id) {
-            // make sure it's safe to write to LDS
-            block_sync_lds();
-
-            // each thread write its data from VGPR to LDS
-            c_thread_copy_vgpr_to_lds.Run(
-                c_thread_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs,
-                sfc_c_vgpr.GetIndexTupleOfNumber(access_id),
-                c_thread_buf,
-                c_block_desc_mrepeat_mwave_msubgroup_nrepeat_nwave_nthreadpersubgroup_maccvgprs,
-                c_shuffle_block_buf);
-
-            // make sure it's safe to read from LDS
-            block_sync_lds();
-
-            // each block loads its C data from LDS, D from global, applies elementwise
-            // operation and stores result E to global
-            cde_shuffle_block_copy_lds_and_global.Run(
-                c_ds_desc_refs,
-                c_ds_buf_refs,
-                tie(e_grid_desc_mblock_mperblock_nblock_nperblock),
-                tie(e_grid_buf));
-
-            {
-                c_reduce_thread_copy_lds_to_vgpr.Run(c_reduce_block_desc_mperblock_nperblock,
-                                                     c_shuffle_block_buf,
-                                                     c_reduce_thread_desc_mperblock_nperblock,
-                                                     make_tuple(I0, I0),
-                                                     c_reduce_thread_buf);
-
-                static_for<0, NumReduce, 1>{}([&](auto In) {
-                    auto& p_reduce_grid = p_reduces_grid[In];
-
-                    auto reduce_grid_buf = make_dynamic_buffer<AddressSpaceEnum::Global>(
-                        p_reduce_grid, reduce_grid_desc_mblock_mperblock.GetElementSpaceSize());
-
-                    auto reduce_thread_buf =
-                        make_static_buffer<AddressSpaceEnum::Vgpr,
-                                           typename ReduceTrait::ReduceAccDataType_>(
-                            reduce_thread_desc_mperblock.GetElementSpaceSize());
-
-                    auto& reduce_in_element_op = reduce_in_element_ops[In];
-
-                    auto& reduce_thread_copy_vgpr_to_global =
-                        reduce_tuple_thread_copy_vgpr_to_global(In);
-
-                    using ReduceOperation =
-                        remove_cvref_t<decltype(typename ReduceTrait::ReduceOperations_{}[In])>;
-                    using ThreadwiseReduce =
-                        ThreadwiseReduction<typename ReduceTrait::ReduceAccDataType_,
-                                            decltype(c_reduce_thread_desc_mperblock_nperblock),
-                                            decltype(reduce_thread_desc_mperblock),
-                                            ReduceOperation,
-                                            false>;
-
-                    // Global write Gemm shuffle + reduction
-                    const auto reduce_identityVal = ReduceOperation::template GetIdentityValue<
-                        typename ReduceTrait::ReduceAccDataType_>();
-
-                    static_for<0, mreduce_per_thread, 1>{}(
-                        [&](auto I) { reduce_thread_buf(I) = reduce_identityVal; });
-
-                    // reduce in VGPR
-                    static_for<0, mreduce_per_thread, 1>{}([&](auto im) {
-                        static_for<0, nreduce_per_thread, 1>{}([&](auto in) {
-                            constexpr auto offset =
-                                Number<c_reduce_thread_desc_mperblock_nperblock.CalculateOffset(
-                                    make_tuple(im, in))>{};
-
-                            reduce_in_element_op(c_reduce_thread_buf(offset),
-                                                 c_reduce_thread_buf(offset));
-                        });
-                    });
-
-                    ThreadwiseReduce::Reduce(c_reduce_thread_buf, reduce_thread_buf);
-
-                    // copy from VGPR to Global
-                    reduce_thread_copy_vgpr_to_global.Run(reduce_thread_desc_mblock_mperblock,
-                                                          make_tuple(I0, I0),
-                                                          reduce_thread_buf,
-                                                          reduce_grid_desc_mblock_mperblock,
-                                                          reduce_grid_buf);
-
-                    if constexpr(access_id < num_access - 1)
-                    {
-                        constexpr auto c_global_step = sfc_cde_global.GetForwardStep(access_id);
-                        reduce_thread_copy_vgpr_to_global.MoveDstSliceWindow(
-                            reduce_grid_desc_mblock_mperblock,
-                            make_tuple(c_global_step[I0], c_global_step[I1]));
-                    }
-                });
-            }
-
-            if constexpr(access_id < num_access - 1)
-            {
-                constexpr auto cde_global_step = sfc_cde_global.GetForwardStep(access_id);
-                // move on Ds
-                static_for<0, NumDTensor, 1>{}([&](auto i) {
-                    cde_shuffle_block_copy_lds_and_global.MoveSrcSliceWindow(
-                        c_ds_desc_refs, i + I1, cde_global_step);
-                });
-
-                // move on E
-                cde_shuffle_block_copy_lds_and_global.MoveDstSliceWindow(
-                    tie(e_grid_desc_mblock_mperblock_nblock_nperblock), cde_global_step);
-            }
-        });
-    }
-
-    // Specialization of CShuffle + Bias + Add + Reduce epilogue
-    // The Bias and Add are applied on the Ds matrices
-    template <InMemoryDataOperationEnum EGlobalMemoryDataOperation,
-              typename CThreadBuf,
-              typename DsGridPointer,
-              typename DsGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-              typename EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock,
-              typename enable_if<DsGridPointer::Size() == 2, bool>::type = false>
+              typename EGridDesc_MBlock_MPerBlock_NBlock_NPerBlock>
     __device__ void Run(CThreadBuf& c_thread_buf,
                         DsGridPointer p_ds_grid,
                         EDataType* p_e_grid,
@@ -551,20 +228,20 @@ struct EpilogueReduceCShuffle
                 GetCShuffleLDSDescriptor();
 
         // LDS c_reduce_block_desc_mperblock_nperblock
-        constexpr auto c_reduce_block_desc_mperblock_nperblock =
-            // GetReduceBlockDescriptor(c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat);
-            transform_tensor_descriptor(
-                c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat,
-                make_tuple(make_freeze_transform(I0),
-                           make_pass_through_transform(
-                               c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat
-                                   .GetLength(I1)),
-                           make_freeze_transform(I0),
-                           make_pass_through_transform(
-                               c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat
-                                   .GetLength(I3))),
-                make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
-                make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<>{}, Sequence<1>{}));
+        constexpr auto c_reduce_block_desc_mperblock_nperblock = transform_tensor_descriptor(
+            c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat,
+            make_tuple(
+                make_freeze_transform(I0),
+                make_pass_through_transform(
+                    c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat.GetLength(
+                        I1)),
+                make_freeze_transform(I0),
+                make_pass_through_transform(
+                    c_shuffle_block_desc_mshrepeat_mpershrepeat_nshrepeat_npershrepeat.GetLength(
+                        I3))),
+            make_tuple(Sequence<0>{}, Sequence<1>{}, Sequence<2>{}, Sequence<3>{}),
+            make_tuple(Sequence<>{}, Sequence<0>{}, Sequence<>{}, Sequence<1>{}));
+
         static_assert(
             ReduceTrait::CReduceThreadClusterLengths_MPerBlock_NPerBlock_::At(I0) *
                     ReduceTrait::CReduceThreadClusterLengths_MPerBlock_NPerBlock_::At(I1) ==
@@ -657,54 +334,49 @@ struct EpilogueReduceCShuffle
             },
             Number<NumReduce>{});
 
-        // c0 and c1
-        constexpr auto c0_reduce_thread_desc_mblock_mperblock_nblock_nperblock =
+        // multiple Ds
+        constexpr auto d_reduce_thread_desc_mblock_mperblock_nblock_nperblock =
             make_naive_tensor_descriptor_packed(
                 make_tuple(I1, Number<mreduce_per_thread>{}, I1, Number<nreduce_per_thread>{}));
 
-        constexpr auto c1_reduce_thread_desc_mblock_mperblock_nblock_nperblock =
-            c0_reduce_thread_desc_mblock_mperblock_nblock_nperblock;
+        constexpr auto ds_reduce_thread_desc_mblock_mperblock_nblock_nperblock = generate_tuple(
+            [&](auto) { return d_reduce_thread_desc_mblock_mperblock_nblock_nperblock; },
+            Number<NumDTensor>{});
+
+        constexpr auto ds_thread_buf_size =
+            d_reduce_thread_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize();
 
         auto c01_thread_buf =
             make_static_buffer<AddressSpaceEnum::Vgpr, typename ReduceTrait::ReduceAccDataType_>(
-                c0_reduce_thread_desc_mblock_mperblock_nblock_nperblock.GetElementSpaceSize());
+                Number<ds_thread_buf_size>{});
 
-        auto c0_thread_copy_global_to_vgpr = ThreadwiseTensorSliceTransfer_v2<
-            remove_cvref_t<tuple_element_t<0, DsDataType>>,
-            typename ReduceTrait::ReduceAccDataType_,
-            decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock[I0]),
-            decltype(c0_reduce_thread_desc_mblock_mperblock_nblock_nperblock),
-            Sequence<I1, mreduce_per_thread, I1, nreduce_per_thread>,
-            Sequence<0, 1, 2, 3>,
-            3,
-            ReduceTrait::CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock_,
-            1,
-            true>(ds_grid_desc_mblock_mperblock_nblock_nperblock[I0],
-                  make_multi_index(I0,
-                                   m_block_data_idx_on_grid + c_reduce_thread_data_idx_begin[I0],
-                                   I0,
-                                   n_block_data_idx_on_grid + c_reduce_thread_data_idx_begin[I1]));
-
-        auto c1_thread_copy_global_to_vgpr = ThreadwiseTensorSliceTransfer_v2<
-            remove_cvref_t<tuple_element_t<1, DsDataType>>,
-            typename ReduceTrait::ReduceAccDataType_,
-            decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock[I1]),
-            decltype(c1_reduce_thread_desc_mblock_mperblock_nblock_nperblock),
-            Sequence<I1, mreduce_per_thread, I1, nreduce_per_thread>,
-            Sequence<0, 1, 2, 3>,
-            3,
-            ReduceTrait::CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock_,
-            1,
-            true>(ds_grid_desc_mblock_mperblock_nblock_nperblock[I1],
-                  make_multi_index(I0,
-                                   m_block_data_idx_on_grid + c_reduce_thread_data_idx_begin[I0],
-                                   I0,
-                                   n_block_data_idx_on_grid + c_reduce_thread_data_idx_begin[I1]));
+        auto ds_thread_copy_global_to_vgpr = generate_tuple(
+            [&](auto I) {
+                return ThreadwiseTensorSliceTransfer_v2<
+                    remove_cvref_t<tuple_element_t<I.value, DsDataType>>,
+                    typename ReduceTrait::ReduceAccDataType_,
+                    decltype(ds_grid_desc_mblock_mperblock_nblock_nperblock[I]),
+                    remove_cvref_t<
+                        decltype(ds_reduce_thread_desc_mblock_mperblock_nblock_nperblock[I])>,
+                    Sequence<I1, mreduce_per_thread, I1, nreduce_per_thread>,
+                    Sequence<0, 1, 2, 3>,
+                    3,
+                    ReduceTrait::CReduceThreadLds2VGprCopySrcDstScalarPerVector_NPerBlock_,
+                    1,
+                    true>(ds_grid_desc_mblock_mperblock_nblock_nperblock[I],
+                          make_multi_index(
+                              I0,
+                              m_block_data_idx_on_grid + c_reduce_thread_data_idx_begin[I0],
+                              I0,
+                              n_block_data_idx_on_grid + c_reduce_thread_data_idx_begin[I1]));
+            },
+            Number<NumDTensor>{});
 
         constexpr auto c_reduce_thread_desc_mblock_mperblock_nblock_nperblock =
             make_naive_tensor_descriptor_packed(
                 make_tuple(I1, Number<mreduce_per_thread>{}, I1, Number<nreduce_per_thread>{}));
 
+        // Write E from Vgpr to Vmem
         auto c_reduce_thread_copy_vgpr_to_global = ThreadwiseTensorSliceTransfer_v1r3<
             typename ReduceTrait::ReduceAccDataType_,
             EDataType,
@@ -722,7 +394,7 @@ struct EpilogueReduceCShuffle
                                    m_block_data_idx_on_grid + c_reduce_thread_data_idx_begin[I0],
                                    I0,
                                    n_block_data_idx_on_grid + c_reduce_thread_data_idx_begin[I1]),
-                  tensor_operation::element_wise::PassThrough{}};
+                  NumDTensor > 0 ? tensor_operation::element_wise::PassThrough{} : cde_element_op};
 
         constexpr index_t num_access = sfc_c_vgpr.GetNumOfAccess();
 
@@ -750,36 +422,45 @@ struct EpilogueReduceCShuffle
                                                      make_tuple(I0, I0),
                                                      c_reduce_thread_buf);
 
-                // d0 / d1 operations
-                c0_thread_copy_global_to_vgpr.Run(
-                    ds_grid_desc_mblock_mperblock_nblock_nperblock[I0],
-                    ds_grid_buf[I0],
-                    c0_reduce_thread_desc_mblock_mperblock_nblock_nperblock,
-                    make_tuple(I0, I0, I0, I0),
-                    c01_thread_buf);
+                // Note: currently multiple Ds supports only Bias + Add.
+                // It needs to be generalized for other operations (currently not needed)
+                if constexpr(NumDTensor > 0)
+                {
+                    auto& d0_thread_copy_global_to_vgpr = ds_thread_copy_global_to_vgpr(I0);
+                    // d0 / d1 operations
+                    d0_thread_copy_global_to_vgpr.Run(
+                        ds_grid_desc_mblock_mperblock_nblock_nperblock[I0],
+                        ds_grid_buf[I0],
+                        ds_reduce_thread_desc_mblock_mperblock_nblock_nperblock[I0],
+                        make_tuple(I0, I0, I0, I0),
+                        c01_thread_buf);
 
-                // c = activation(c + bias)
-                static_for<0, c_reduce_thread_desc_mperblock_nperblock.GetElementSize(), 1>{}(
-                    [&](auto i) {
-                        typename ReduceTrait::ReduceAccDataType_ out;
-                        cde_element_op(out, c_reduce_thread_buf(i) + c01_thread_buf(i));
-                        c_reduce_thread_buf(i) = out;
-                    });
+                    // c = activation(c + bias)
+                    static_for<0, c_reduce_thread_desc_mperblock_nperblock.GetElementSize(), 1>{}(
+                        [&](auto i) {
+                            typename ReduceTrait::ReduceAccDataType_ out;
+                            cde_element_op(out, c_reduce_thread_buf(i) + c01_thread_buf(i));
+                            c_reduce_thread_buf(i) = out;
+                        });
 
-                c1_thread_copy_global_to_vgpr.Run(
-                    ds_grid_desc_mblock_mperblock_nblock_nperblock[I1],
-                    ds_grid_buf[I1],
-                    c1_reduce_thread_desc_mblock_mperblock_nblock_nperblock,
-                    make_tuple(I0, I0, I0, I0),
-                    c01_thread_buf);
+                    auto& d1_thread_copy_global_to_vgpr = ds_thread_copy_global_to_vgpr(I1);
 
-                // c = c + c1_functior(c1)
-                static_for<0, c_reduce_thread_desc_mperblock_nperblock.GetElementSize(), 1>{}(
-                    [&](auto i) {
-                        d0_element_op(c01_thread_buf(i), c01_thread_buf(i));
-                        c_reduce_thread_buf(i) += c01_thread_buf(i);
-                    });
+                    d1_thread_copy_global_to_vgpr.Run(
+                        ds_grid_desc_mblock_mperblock_nblock_nperblock[I1],
+                        ds_grid_buf[I1],
+                        ds_reduce_thread_desc_mblock_mperblock_nblock_nperblock[I1],
+                        make_tuple(I0, I0, I0, I0),
+                        c01_thread_buf);
 
+                    // c = c + c1_functior(c1)
+                    static_for<0, c_reduce_thread_desc_mperblock_nperblock.GetElementSize(), 1>{}(
+                        [&](auto i) {
+                            d0_element_op(c01_thread_buf(i), c01_thread_buf(i));
+                            c_reduce_thread_buf(i) += c01_thread_buf(i);
+                        });
+                }
+
+                // Write E
                 c_reduce_thread_copy_vgpr_to_global.Run(
                     c_reduce_thread_desc_mblock_mperblock_nblock_nperblock,
                     make_tuple(I0, I0, I0, I0),
@@ -787,6 +468,7 @@ struct EpilogueReduceCShuffle
                     e_grid_desc_mblock_mperblock_nblock_nperblock,
                     e_grid_buf);
 
+                // Reduction
                 static_for<0, NumReduce, 1>{}([&](auto In) {
                     auto& p_reduce_grid = p_reduces_grid[In];
 
@@ -854,11 +536,11 @@ struct EpilogueReduceCShuffle
             {
                 constexpr auto cde_global_step = sfc_cde_global.GetForwardStep(access_id);
                 // move on Ds
-                c0_thread_copy_global_to_vgpr.MoveSrcSliceWindow(
-                    ds_grid_desc_mblock_mperblock_nblock_nperblock[Number<0>{}], cde_global_step);
-
-                c1_thread_copy_global_to_vgpr.MoveSrcSliceWindow(
-                    ds_grid_desc_mblock_mperblock_nblock_nperblock[Number<1>{}], cde_global_step);
+                static_for<0, NumDTensor, 1>{}([&](auto I) {
+                    auto& d_thread_copy_global_to_vgpr = ds_thread_copy_global_to_vgpr(I);
+                    d_thread_copy_global_to_vgpr.MoveSrcSliceWindow(
+                        ds_grid_desc_mblock_mperblock_nblock_nperblock[I], cde_global_step);
+                });
 
                 // move on E
                 c_reduce_thread_copy_vgpr_to_global.MoveDstSliceWindow(
