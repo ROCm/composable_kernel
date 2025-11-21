@@ -5,9 +5,7 @@
 
 #include <iostream>
 #include <string>
-#include <tuple>
 
-#include "ck/utility/tuple.hpp"
 #include "ck_tile/core.hpp"
 #include "ck_tile/core/tensor/tile_elementwise.hpp"
 #include "ck_tile/ops/common.hpp"
@@ -974,22 +972,6 @@ struct GroupedConvolutionForwardKernel
                 c_block_window, c_block_tile, d_block_window, smem_ptr_0);
     }
 
-    // Helper to apply offsets to D tensors with compile-time type extraction
-    template <std::size_t... Is>
-    CK_TILE_DEVICE static std::array<const void*, NumDTensor>
-    ApplyDTensorOffsetsImpl(const std::array<const void*, NumDTensor>& ds_ptr,
-                            long_index_t offset,
-                            std::index_sequence<Is...>)
-    {
-        return {(static_cast<const std::tuple_element_t<Is, DsDataType>*>(ds_ptr[Is]) + offset)...};
-    }
-
-    CK_TILE_DEVICE static std::array<const void*, NumDTensor>
-    ApplyDTensorOffsets(const std::array<const void*, NumDTensor>& ds_ptr, long_index_t offset)
-    {
-        return ApplyDTensorOffsetsImpl(ds_ptr, offset, std::make_index_sequence<NumDTensor>{});
-    }
-
     CK_TILE_DEVICE void operator()(GroupedConvFwdKernelArgsSpecialized kargs) const
     {
         const auto blockIdX = amd_wave_read_first_lane(blockIdx.x);
@@ -1020,9 +1002,13 @@ struct GroupedConvolutionForwardKernel
         OutDataType* base_c_ptr =
             static_cast<OutDataType*>(kargs.out_ptr) + group_offset_c + output_batch_offset;
 
-        // Apply group offsets to D tensors using compile-time type extraction
-        std::array<const void*, NumDTensor> ds_ptr_with_offsets =
-            ApplyDTensorOffsets(kargs.ds_ptr, group_offset_c + output_batch_offset);
+        // Apply group offsets to D tensors
+        std::array<const void*, NumDTensor> ds_ptr_with_offsets;
+        for(index_t d = 0; d < NumDTensor; d++)
+        {
+            ds_ptr_with_offsets[d] = static_cast<const DsDataType*>(kargs.ds_ptr[d]) +
+                                     group_offset_c + output_batch_offset;
+        }
 
         // =====================================================================
         // Split-image: Map local block to global tile index (if enabled)
