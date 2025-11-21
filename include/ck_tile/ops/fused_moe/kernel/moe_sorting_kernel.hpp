@@ -72,7 +72,7 @@ namespace ck_tile {
 //
 // * Note on token_id_per_expert/sorted_token_ids_ptr data:
 // currently we do not have topk information from the data of token_id_per_expert/sorted_token_ids_ptr.
-// In some cases(like smooth-quant), we need topk information to indexing into tokens quant from 
+// In some cases(like smooth-quant), we need topk information to indexing into tokens quant from
 // different expert smooth quant. So we modify the number stored inside token_id_per_expert/sorted_token_ids_ptr
 //
 //       32bit    0........23 24.....31 bit
@@ -96,11 +96,11 @@ namespace ck_tile {
 // sorted_token_ids_ptr   : [0, 6, 6, 6, 2, 3, 4, 6, 1, 3, 6, 6, 0, 1, 2, 3, 4, 6, 6, 6, 6, 6, 6, 6, 0, 1, 2, 5]
 //                          |-  exp-0  -|-  exp-1  -|-  exp-2  -|-      exp-3          -|-  exp-4 -|-  exp-5  -|
 // sorted_weight_ptr      : [a, *, *, *, g, j, m, *, d, k, *, *, b, e, h, l, n, *, *, *, *, *, *, *, c, f, i, o]
-//                          
+//
 //
 // sorted_expert_ids_ptr  : [0, 1, 2, 3, 3, 5]
 // num_tokens_post_padded_ptr : [24]
-// 
+//
 // * local_expert_mask : indicate local expert mask used on current GPU (used for EP case)
 //   and modify the output expert-ID, because we will only have enbaled expert on specific GPU.
 //   we call expert input to this kernel as "global expert id", output as "local expert id"
@@ -185,6 +185,13 @@ CK_TILE_HOST index_t moe_sorting_get_sub_token(int tokens_, int num_experts_)
     return sub_token_;
 }
 
+// Handle Python-like negative indexing
+CK_TILE_HOST_DEVICE constexpr index_t normalize_index(index_t index, index_t size)
+{
+    const auto mask = index >> (sizeof(index_t) * 8 - 1);
+    return index + (mask & size);
+}
+
 struct MoeSortingHostArgs
 {
     const void* p_topk_ids;     // [token, topk]
@@ -218,7 +225,7 @@ struct MoeSortingHostArgs
 #else
     long_index_t moe_buf_bytes;  // byte size of p_moe_buf
 #endif
-    
+
 };
 
 template <typename Problem_>
@@ -391,7 +398,7 @@ struct MoeSortingKernel
                                                                         bound_ctrl))); // row_shr:4
         }
         if constexpr(wave_size == 8) {
-            
+
             // wave-size=8 need one extra shift
             thread_data =
                 reduce_op(thread_data,
@@ -401,13 +408,13 @@ struct MoeSortingKernel
                                                                         bank_mask,
                                                                         bound_ctrl))); // row_shr:8
 #if CK_TILE_HAS_ROW_NEWBCAST
-            data_t xxx =__builtin_bit_cast(data_t, 
+            data_t xxx =__builtin_bit_cast(data_t,
                             __builtin_amdgcn_mov_dpp(__builtin_bit_cast(int, thread_data),
                                                         0x157,
                                                         row_mask,
                                                         bank_mask,
                                                         bound_ctrl)); // row_newbcast:7
-            
+
             data_t yyy = (__lane_id() / 8) % 2 == 0 ? 0 : xxx;
             thread_data = thread_data - yyy;
 #else
@@ -416,13 +423,13 @@ struct MoeSortingKernel
             int broadcast_src_lane = (__lane_id() & ~15) + 7;  // Lane 7 of the 16-lane group
             int broadcast_addr = broadcast_src_lane << 2;      // Convert to byte address
             int bcast7 = __builtin_amdgcn_ds_bpermute(broadcast_addr, __builtin_bit_cast(int, thread_data));
-            
+
             // Apply subtraction only to odd 8-lane groups (lanes 8-15 of each 16-lane unit)
             if ((__lane_id() / 8) % 2 != 0) {  // Note: != 0, not == 0
                 thread_data = thread_data - __builtin_bit_cast(data_t, bcast7);
             }
 #endif
-            
+
         }
         if constexpr(wave_size > 8)
         {
@@ -543,7 +550,7 @@ struct MoeSortingKernel
 #pragma unroll Problem_::InternalLoadUnroll
         for(int i = start_idx; i < numel && i < start_idx + tokens_per_thread; ++i)
         {
-            ++tokens_cnts[calc_index(num_experts + 1, tid + 1, topk_id[i])];
+            ++tokens_cnts[calc_index(num_experts + 1, tid + 1, normalize_index(topk_id[i], numel))];
         }
         __syncthreads();
 
@@ -669,7 +676,7 @@ struct MoeSortingKernel
 #pragma unroll Problem_::InternalLoadUnroll
         for(int i = start_idx; i < numel && i < start_idx + tokens_per_thread; ++i)
         {
-            index_t expert_id     = topk_id[i];
+            index_t expert_id     = normalize_index(topk_id[i], numel);
             index_t local_cnt     = tokens_cnts[calc_index(num_experts + 1, tid, expert_id)];
             index_t rank_post_pad = local_cnt + cumsum[expert_id];
 #if CK_TILE_REFERENCE_MOE_SORTING_MOCK_ID
@@ -810,7 +817,7 @@ struct MoeSortingKernel
 
                 if(i_t < tokens)
                 {
-                    int eid = topk_id[i_t * topk + curr_topk_id];
+                    int eid = normalize_index(topk_id[i_t * topk + curr_topk_id], tokens);
 
                     if constexpr(Problem::SubTokenOneShot)
                         smem_tokens(curr_token_id, eid) = curr_topk_id + 1;
@@ -1012,7 +1019,7 @@ struct MoeSortingKernel
                     int i_t           = i_token + curr_token_id;
                     if(i_t < tokens)
                     {
-                        int eid                         = topk_id[i_t * topk + curr_topk_id];
+                        int eid = normalize_index(topk_id[i_t * topk + curr_topk_id], tokens);
                         smem_tokens(curr_token_id, eid) = curr_topk_id + 1; // at least 1
                     }
                 }
@@ -1676,7 +1683,8 @@ struct MoeSortingMultiPhaseKernel_P0_v1
         {
             auto x = p_topk_ids[i];
             static_for<0, Problem::SubTokenTile, 1>{}([&](auto j) {
-                IndexType eid = x[j.value]; // ext_vector_type must use int to []
+                IndexType eid =
+                    normalize_index(x[j.value], total_elem); // ext_vector_type must use int to []
                 uint32_t curr_token_id, curr_topk_id;
                 kargs.topk_mdiv.divmod(i * Problem::SubTokenTile + j, curr_token_id, curr_topk_id);
                 if(eid < kargs.num_experts)
@@ -1826,7 +1834,8 @@ struct MoeSortingMultiPhaseKernel_P0_v2
         {
             auto x = p_topk_ids[i];
             static_for<0, index_pack, 1>{}([&](auto j) {
-                IndexType eid_x = x[j.value]; // ext_vector_type must use int to []
+                IndexType eid_x =
+                    normalize_index(x[j.value], total_elem); // ext_vector_type must use int to []
                 if(eid_x == eid)
                 {
                     uint32_t curr_token_id, curr_topk_id;
@@ -2164,7 +2173,8 @@ struct MoeSortingMultiPhaseKernel_P01
             {
                 auto x = p_topk_ids[i];
                 static_for<0, Problem::SubTokenTile, 1>{}([&](auto j) {
-                    IndexType eid = x[j.value]; // ext_vector_type must use int to []
+                    IndexType eid = normalize_index(
+                        x[j.value], total_elem); // ext_vector_type must use int to []
                     uint32_t curr_token_id, curr_topk_id;
                     kargs.topk_mdiv.divmod(
                         i * Problem::SubTokenTile + j, curr_token_id, curr_topk_id);
