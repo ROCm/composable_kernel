@@ -20,6 +20,11 @@ def generateAndArchiveBuildTraceVisualization() {
             traceFileExists = false
         }
         
+        sh """
+            echo "post download:"
+            ls -la
+        """
+
         if (traceFileExists) {
             echo "Build trace archive found"
         } else {
