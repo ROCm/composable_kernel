@@ -809,9 +809,6 @@ struct MoeFlatmmKernel
             return gather_token_id;
         };
 
-        if(coord_m >= max_token_id)
-            return;
-
         static_for<0, DramMRepeat, 1>{}([&](auto m0) {
             const auto row_idx =
                 coord_m + m0 * (TilePartitioner::MPerBlock / DramMRepeat) + a_coord[I0];
