@@ -5,9 +5,11 @@
 
 #include <iostream>
 #include <string>
+#include <tuple>
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/core/tensor/tile_elementwise.hpp"
+#include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/host/concat.hpp"
 #include "ck_tile/core/utility/env.hpp"
@@ -1004,11 +1006,11 @@ struct GroupedConvolutionForwardKernel
 
         // Apply group offsets to D tensors
         std::array<const void*, NumDTensor> ds_ptr_with_offsets;
-        for(index_t d = 0; d < NumDTensor; d++)
-        {
-            ds_ptr_with_offsets[d] = static_cast<const DsDataType*>(kargs.ds_ptr[d]) +
-                                     group_offset_c + output_batch_offset;
-        }
+        static_for<0, NumDTensor, 1>{}([&](auto d) {
+            using DType = std::tuple_element_t<d, DsDataType>;
+            ds_ptr_with_offsets[d] =
+                static_cast<const DType*>(kargs.ds_ptr[d]) + group_offset_c + output_batch_offset;
+        });
 
         // =====================================================================
         // Split-image: Map local block to global tile index (if enabled)
