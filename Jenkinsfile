@@ -135,7 +135,9 @@ def generateAndArchiveBuildTraceVisualization() {
 
         // Run container to get snapshot
         def dockerOpts = "--cap-add=SYS_ADMIN -v \"\$(pwd)/workspace:/workspace\" -e NODE_PATH=/home/pptruser/node_modules"
-        def imageName = "perfetto_snapshot_build_${env.BUILD_NUMBER}.png"
+        // Create unique image name by sanitizing job name
+        def sanitizedJobName = env.JOB_NAME.replaceAll(/[\/\\:*?"<>| ]/, '_')
+        def imageName = "perfetto_snapshot_${sanitizedJobName}_build_${env.BUILD_NUMBER}.png"
         sh """
             docker run --rm ${dockerOpts} ${image} node /workspace/capture_build_trace.js
             mv ./workspace/perfetto_snapshot_build.png ./workspace/${imageName}
@@ -151,7 +153,7 @@ def generateAndArchiveBuildTraceVisualization() {
         withCredentials([string(credentialsId: 'ck_ci_build_perf_webhook_url', variable: 'WEBHOOK_URL')]) {
         sh '''
             # Create build trace filename with build number based on the original filename
-            BUILD_TRACE_WITH_NUMBER=$(echo "''' + buildTraceFileName + '''" | sed 's/.json/_''' + env.BUILD_NUMBER + '''.json/')
+            BUILD_TRACE_WITH_NUMBER=$(echo "''' + buildTraceFileName + '''" | sed 's/.json/_''' + sanitizedJobName + '''_''' + env.BUILD_NUMBER + '''.json/')
             
             # Convert image to base64
             echo "Converting image to base64..."
