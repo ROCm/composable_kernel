@@ -436,8 +436,9 @@ struct PoolKernel
             // Main reduction loop - with index tracking
             for(int k_tile = amd_wave_read_first_lane(0); k_tile < num_k_tiles; ++k_tile)
             {
-                const auto x_tile     = load_tile(x_window);
-                const auto &in_tensor_padded_ref = in_tensor_padded; // structured bindings cannot be captured prior to cpp20
+                const auto x_tile = load_tile(x_window);
+                const auto& in_tensor_padded_ref =
+                    in_tensor_padded; // structured bindings cannot be captured prior to cpp20
                 auto index_calculator = [&](const auto& x_indices) {
                     // Get global coordinates in the 2D matrix space (M, N)
                     const auto global_M = x_indices.at(number<0>{}) + iM;
