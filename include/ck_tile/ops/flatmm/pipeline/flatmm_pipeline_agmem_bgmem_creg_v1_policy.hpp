@@ -230,7 +230,7 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemPackA()
     {
         using A         = remove_cvref_t<typename Problem::ADataType>;
-        using BlockGemm = remove_cvref_t<decltype(Derived::template GetBlockGemm<Problem>())>;
+        using BlockGemm = remove_cvref_t<decltype(GetBlockGemm<Problem>())>;
 
         constexpr index_t KPack    = static_cast<index_t>(BlockGemm::Traits::KPack);
         constexpr index_t VecElems = static_cast<index_t>(Problem::VectorLoadSize / sizeof(A));
