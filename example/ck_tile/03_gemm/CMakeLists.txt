@@ -1,4 +1,4 @@
-if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a|gfx11|gfx12")
+if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a)
   add_executable(tile_example_gemm_basic gemm_basic.cpp)
   add_executable(tile_example_gemm_universal universal_gemm.cpp)
   add_executable(tile_example_gemm_weight_preshuffle gemm_weight_preshuffle.cpp)
