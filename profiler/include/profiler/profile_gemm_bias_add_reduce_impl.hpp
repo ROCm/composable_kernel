@@ -34,6 +34,7 @@ using ReduceOutElementOps = ck::Tuple<Div, Div>;
 using DeviceGemmBiasAddReduceNoOpPtr =
     ck::tensor_operation::device::DeviceGemmReducePtr<1, ReducePtrsGlobal::Size()>;
 
+#if defined(CK_USE_XDL)
 void add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_kn_mn_instances(
     std::vector<DeviceGemmBiasAddReduceNoOpPtr>&);
 
@@ -45,6 +46,21 @@ void add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f
 
 void add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_nk_mn_instances(
     std::vector<DeviceGemmBiasAddReduceNoOpPtr>&);
+#endif
+
+#if defined(CK_USE_WMMA)
+void add_device_gemm_bias_add_mean_squaremean_wmma_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_kn_mn_instances(
+    std::vector<DeviceGemmBiasAddReduceNoOpPtr>&);
+
+void add_device_gemm_bias_add_mean_squaremean_wmma_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_nk_mn_instances(
+    std::vector<DeviceGemmBiasAddReduceNoOpPtr>&);
+
+void add_device_gemm_bias_add_mean_squaremean_wmma_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_kn_mn_instances(
+    std::vector<DeviceGemmBiasAddReduceNoOpPtr>&);
+
+void add_device_gemm_bias_add_mean_squaremean_wmma_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_nk_mn_instances(
+    std::vector<DeviceGemmBiasAddReduceNoOpPtr>&);
+#endif
 
 } // namespace instance
 } // namespace device
@@ -243,33 +259,61 @@ bool profile_gemm_bias_add_reduce_impl(int do_verification,
                      is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                      is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
+#if defined(CK_USE_XDL)
             ck::tensor_operation::device::instance::
                 add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_kn_mn_instances(
                     gemm_ptrs);
+#endif
+#if defined(CK_USE_WMMA)
+            ck::tensor_operation::device::instance::
+                add_device_gemm_bias_add_mean_squaremean_wmma_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_kn_mn_instances(
+                    gemm_ptrs);
+#endif
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
+#if defined(CK_USE_XDL)
             ck::tensor_operation::device::instance::
                 add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_nk_mn_instances(
                     gemm_ptrs);
+#endif
+#if defined(CK_USE_WMMA)
+            ck::tensor_operation::device::instance::
+                add_device_gemm_bias_add_mean_squaremean_wmma_cshuffle_f16_f16_f16_f16_f16_f32_f32_mk_nk_mn_instances(
+                    gemm_ptrs);
+#endif
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::RowMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
+#if defined(CK_USE_XDL)
             ck::tensor_operation::device::instance::
                 add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_kn_mn_instances(
                     gemm_ptrs);
+#endif
+#if defined(CK_USE_WMMA)
+            ck::tensor_operation::device::instance::
+                add_device_gemm_bias_add_mean_squaremean_wmma_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_kn_mn_instances(
+                    gemm_ptrs);
+#endif
         }
         else if constexpr(is_same<ALayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<BLayout, tensor_layout::gemm::ColumnMajor>::value &&
                           is_same<CLayout, tensor_layout::gemm::RowMajor>::value)
         {
+#if defined(CK_USE_XDL)
             ck::tensor_operation::device::instance::
                 add_device_gemm_bias_add_mean_squaremean_xdl_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_nk_mn_instances(
                     gemm_ptrs);
+#endif
+#if defined(CK_USE_WMMA)
+            ck::tensor_operation::device::instance::
+                add_device_gemm_bias_add_mean_squaremean_wmma_cshuffle_f16_f16_f16_f16_f16_f32_f32_km_nk_mn_instances(
+                    gemm_ptrs);
+#endif
         }
     }
 
