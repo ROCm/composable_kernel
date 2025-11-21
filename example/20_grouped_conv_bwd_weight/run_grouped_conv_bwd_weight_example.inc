@@ -229,8 +229,12 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
         wei_device_ref_buf.FromDevice(wei_host_result.mData.data());
         wei_device_buf.FromDevice(wei_device_result.mData.data());
 
-        bool pass = ck::utils::check_err(wei_device_result.mData, wei_host_result.mData);
-        std::cout << "GPU verification result: " << (pass ? "PASS ✅" : "FAIL ❌") << std::endl;
+        bool pass = ck::utils::check_err(wei_device_result.mData,
+                                         wei_host_result.mData,
+                                         "Error: Incorrect results!",
+                                         get_rtol<WeiDataType, float>(),
+                                         get_atol<WeiDataType, float>());
+        std::cout << "GPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
 
         return pass;
     }

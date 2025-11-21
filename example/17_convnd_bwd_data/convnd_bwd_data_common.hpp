@@ -23,6 +23,48 @@ using ::ck::DeviceMem;
 using ::ck::HostTensorDescriptor;
 using ::ck::Tensor;
 
+template <typename DataType, typename GemmType = DataType>
+inline __host__ __device__ constexpr double get_rtol()
+{
+    if constexpr(std::is_same_v<DataType, float> && std::is_same_v<GemmType, ck::tf32_t>)
+        return 5e-3;
+    else if constexpr(std::is_same_v<DataType, float>)
+        return 1e-3;
+    else if constexpr(std::is_same_v<DataType, double>)
+        return 1e-6;
+    else if constexpr(std::is_same_v<DataType, ck::half_t>)
+        return 1e-3;
+    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
+        return 5e-2;
+    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
+        return 1e-1;
+    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
+        return 1.5e-1;
+    else
+        return 1e-3;
+}
+
+template <typename DataType, typename GemmType = DataType>
+inline __host__ __device__ constexpr double get_atol()
+{
+    if constexpr(std::is_same_v<DataType, float> && std::is_same_v<GemmType, ck::tf32_t>)
+        return 1e-3;
+    else if constexpr(std::is_same_v<DataType, float>)
+        return 1e-3;
+    else if constexpr(std::is_same_v<DataType, double>)
+        return 1e-6;
+    else if constexpr(std::is_same_v<DataType, ck::half_t>)
+        return 1e-3;
+    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
+        return 5e-2;
+    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
+        return 16.1;
+    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
+        return 16.1;
+    else
+        return 1e-3;
+}
+
 void print_helper_msg()
 {
     std::cout << "arg1: verification (0=no, 1=CPU, 2=GPU)\n"
@@ -271,8 +313,12 @@ int run_conv_bwd_data(int do_verification,
         in_device_buf.FromDevice(in_device.mData.data());
 
         // Compare: Optimized kernel result vs GPU reference result
-        bool pass = ck::utils::check_err(in_device, in_gpu_ref);
-        std::cout << "GPU verification result: " << (pass ? "PASS ✅" : "FAIL ❌") << std::endl;
+        bool pass = ck::utils::check_err(in_device,
+                                         in_gpu_ref,
+                                         "Error: Incorrect results!",
+                                         get_rtol<InDataType, float>(),
+                                         get_atol<InDataType, float>());
+        std::cout << "GPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
 
         return pass ? 0 : 1;
     }

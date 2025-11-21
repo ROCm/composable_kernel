@@ -39,6 +39,48 @@ using PassThrough = ck::tensor_operation::element_wise::PassThrough;
 static constexpr auto ConvBwdWeightDefault =
     ck::tensor_operation::device::ConvolutionBackwardWeightSpecialization::Default;
 
+template <typename DataType, typename GemmType = DataType>
+inline __host__ __device__ constexpr double get_rtol()
+{
+    if constexpr(std::is_same_v<DataType, float> && std::is_same_v<GemmType, ck::tf32_t>)
+        return 5e-3;
+    else if constexpr(std::is_same_v<DataType, float>)
+        return 1e-3;
+    else if constexpr(std::is_same_v<DataType, double>)
+        return 1e-6;
+    else if constexpr(std::is_same_v<DataType, ck::half_t>)
+        return 1e-3;
+    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
+        return 5e-2;
+    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
+        return 1e-1;
+    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
+        return 1.5e-1;
+    else
+        return 1e-3;
+}
+
+template <typename DataType, typename GemmType = DataType>
+inline __host__ __device__ constexpr double get_atol()
+{
+    if constexpr(std::is_same_v<DataType, float> && std::is_same_v<GemmType, ck::tf32_t>)
+        return 1e-3;
+    else if constexpr(std::is_same_v<DataType, float>)
+        return 1e-3;
+    else if constexpr(std::is_same_v<DataType, double>)
+        return 1e-6;
+    else if constexpr(std::is_same_v<DataType, ck::half_t>)
+        return 1e-3;
+    else if constexpr(std::is_same_v<DataType, ck::bhalf_t>)
+        return 5e-2;
+    else if constexpr(std::is_same_v<DataType, ck::f8_t>)
+        return 16.1;
+    else if constexpr(std::is_same_v<DataType, ck::bf8_t>)
+        return 16.1;
+    else
+        return 1e-3;
+}
+
 template <typename InputLay, typename WeightLay, typename OutputLay>
 struct CommonLayoutSetting
 {
