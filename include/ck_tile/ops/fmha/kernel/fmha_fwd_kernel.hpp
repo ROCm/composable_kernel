@@ -1294,6 +1294,12 @@ struct FmhaFwdKernel
                 {
                     batch_offset_randval = query_start * kargs.stride_randval;
                 }
+                if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
+                {
+                    batch_offset_q_descale = query_start/128;
+                    batch_offset_k_descale = key_start/128;
+                    batch_offset_v_descale = key_start/128;
+                }
                 batch_offset_o = query_start * kargs.stride_o;
 
                 // real logical lengths (exclude PAD)
