@@ -66,9 +66,9 @@ __global__ void naive_conv_fwd_ndhwc_kzyxc_ndhwk(const TIn* __restrict__ p_in,
     constexpr auto wei_op = WeiElementwiseOperation{};
     constexpr auto out_op = OutElementwiseOperation{};
 
-    TIn in_val   = static_cast<TIn>(0);
-    TWei wei_val = static_cast<TWei>(0);
-    TOut out_val = static_cast<TOut>(0);
+    TIn in_val   = TIn{0};
+    TWei wei_val = TWei{0};
+    TOut out_val = TOut{0};
 
     for(long_index_t ii = tid; ii < output_length; ii += num_threads)
     {
