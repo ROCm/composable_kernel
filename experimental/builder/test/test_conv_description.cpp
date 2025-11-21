@@ -23,8 +23,8 @@ struct ConvSignature
     int spatial_dim             = 2;
     ckb::GroupConvLayout layout = ckb::GroupConvLayout2D::GNHWC_GKYXC_GNHWK;
     ckb::DataType data_type     = ckb::DataType::FP16;
-    ckb::GroupConvDeviceOp device_operation =
-        ckb::FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3;
+    // ckb::GroupConvDeviceOp device_operation =
+    //     ckb::FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3;
 };
 static_assert(ckb::ConvSignatureDescriptor<ConvSignature>);
 
@@ -46,8 +46,8 @@ struct ConvSignatureWithInvalidOptionalParams
     ckb::GroupConvLayout layout  = ckb::GroupConvLayout2D::GNHWC_GKYXC_GNHWK;
     ckb::DataType data_type      = ckb::DataType::FP16;
     int elementwise_operation    = 7; // this should fail
-    ckb::GroupConvDeviceOp device_operation =
-        ckb::FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3;
+    // ckb::GroupConvDeviceOp device_operation =
+    //     ckb::FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3;
 };
 
 static_assert(!ckb::ConvSignatureDescriptor<ConvSignatureWithInvalidOptionalParams>);
