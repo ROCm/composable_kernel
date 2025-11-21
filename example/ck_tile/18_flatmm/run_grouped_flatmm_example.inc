@@ -215,7 +215,7 @@ int run_contiguous_grouped_flatmm_example_with_layouts(
     assert(N % N_Warp_Tile == 0 &&
            "N must be divisible by N_Warp_Tile for contiguous grouped gemm");
     ck_tile::HostTensor<BDataType> b_shuffle_host =
-        shuffle_b<FlatmmConfig, BDataType>(b_k_n_tensor);
+        ck_tile::shuffle_b<FlatmmConfig, BDataType>(b_k_n_tensor);
 
     std::unique_ptr<ck_tile::DeviceMem> a_m_k_dev_buf(
         std::make_unique<ck_tile::DeviceMem>(a_m_k_tensor.get_element_space_size_in_bytes()));
@@ -431,7 +431,7 @@ int run_masked_grouped_flatmm_example_with_layouts(
     assert(N % N_Warp_Tile == 0 &&
            "N must be divisible by N_Warp_Tile for contiguous grouped gemm");
     ck_tile::HostTensor<BDataType> b_shuffle_host =
-        shuffle_b<FlatmmConfig, BDataType>(b_k_n_tensor);
+        ck_tile::shuffle_b<FlatmmConfig, BDataType>(b_k_n_tensor);
 
     std::unique_ptr<ck_tile::DeviceMem> a_m_k_dev_buf(
         std::make_unique<ck_tile::DeviceMem>(a_m_k_tensor.get_element_space_size_in_bytes()));
