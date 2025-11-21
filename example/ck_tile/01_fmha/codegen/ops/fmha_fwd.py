@@ -30,7 +30,7 @@ from codegen.utils import check_duplicates_and_paddings, if_, indent, update_fil
 
 DTYPE_BITS = {"fp32": 32, "fp16": 16, "bf16": 16, "fp8": 8, "bf8": 8}
 
-K0_MAX_SUBMAX_MAP = {32: 32, 48: 48, 64: 64, 96: 128, 128: 128, 192: 192, 256: 256}
+K0_MAX_SUBMAX_MAP = {32: 32, 48: 48, 64: 64, 96: 128, 128: 128, 160: 160, 192: 192, 256: 256}
 
 FMHA_FWD_KERNEL_HEADER = """// SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.\n
@@ -667,7 +667,7 @@ class KernelComponentFactoryGfx9:
                               FmhaFwdTileSize( 32,  32, 128, 128,  32, 128,  1, 1, 1,  1, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
                               FmhaFwdTileSize(128,  64,  32, 128,  16, 128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1),
                               FmhaFwdTileSize(128, 128,  32, 128,  32, 128,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
-              # (160, 160) : [FmhaFwdTileSize(128, 128 , 32, 160,  32, 160,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,   1)],
+                (160, 160) : [FmhaFwdTileSize(128, 128 , 32, 160,  32, 160,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,   1)],
                 (192, 128) : [FmhaFwdTileSize(128, 128,  32, 128,  32, 192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],
                 (192, 192) : [FmhaFwdTileSize(128, 128,  32, 192,  32, 192,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,   1)],
                 (256, 256) : [FmhaFwdTileSize(128, 128,  32, 256,  32, 256,  4, 1, 1,  4, 1, 1,  32, 32, 16,  32, 32, 16,  -1)],

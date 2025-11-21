@@ -65,7 +65,7 @@ run_fp16_bf16_tests() {
     for prec in "fp16" "bf16" ; do
     for mode in 1 0 ; do
     for perm in 0 1 ; do
-    for hdim in 32 64 128 256 ; do
+    for hdim in 32 64 128 160 256 ; do
     for lse in 0 1 ; do
     for bias in "n" "e" "a" ; do
     for p_drop in 0.0 0.2 ; do
@@ -92,7 +92,7 @@ run_fp8_tests() {
     for perm in 0 1 ; do
     for bias in "n" "e" "a" ; do
     for b in 1 2 ; do
-    for hdim in 64 128 256 ; do
+    for hdim in 64 128 160 256 ; do
     
     $EXE -prec=fp8 -init=0 -b=$b -h=1 -d=$hdim -s=128 -bias=$bias -iperm=$perm -operm=$perm -vlayout=r -squant=1 -kname=$KNAME $COMMON_ARGS
 
@@ -103,7 +103,7 @@ run_fp8bf16_tests() {
     for perm in 0 1 ; do
     for bias in "n" "e" "a" ; do
     for b in 1 2 ; do
-    for hdim in 64 128 256 ; do
+    for hdim in 64 128 160 256 ; do
 
     $EXE -prec=fp8bf16 -init=0 -b=$b -h=1 -d=$hdim -s=128 -bias=$bias -iperm=$perm -operm=$perm -vlayout=r -squant=1 -kname=$KNAME $COMMON_ARGS
 
@@ -114,7 +114,7 @@ run_fp8fp32_tests() {
     for perm in 0 1 ; do
     for bias in "n" "e" "a" ; do
     for b in 1 2 ; do
-    for hdim in 128 ; do
+    for hdim in 128 160; do
 
     $EXE -prec=fp8fp32 -init=0 -b=$b -h=1 -d=$hdim -s=128 -bias=$bias -iperm=$perm -operm=$perm -vlayout=r -squant=1 -kname=$KNAME $COMMON_ARGS
 
@@ -125,7 +125,7 @@ run_fp16_appendkv_tests() {
     for s in $(seq 63 1 65) ; do
     for s_k in 65 129 ; do
     for s_knew in 0 64 $s_k ; do
-    for hdim in 32 64 128 256 ; do
+    for hdim in 32 64 128 160 256 ; do
     for ri in 0 1 ; do
     for rdim in 0 16 32 $hdim ; do
     for page_block_size in 0 128 ; do
