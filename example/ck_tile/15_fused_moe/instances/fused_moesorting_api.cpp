@@ -402,22 +402,6 @@ float fused_moesorting_mp(fused_moesorting_trait t,
         using ms_index_t     = ck_tile::index_t;
         using ms_weight_type = float;
 
-        auto maybe_clear_workspace = [=](const ck_tile::stream_config& s_) {
-            if(t.clear_workspace_inside_api)
-            {
-                if(is_local_token)
-                {
-                    auto k = MOR_SORTING_CLEAR_WS_DISPATCH_(true, 1024, 1);
-                    k(s_);
-                }
-                else
-                {
-                    auto k = MOR_SORTING_CLEAR_WS_DISPATCH_(false, 1024, 1);
-                    k(s_);
-                }
-            }
-        };
-
         if(a.tokens < 2048)
         {
             if(ck_tile::impl::moe_sorting_get_smem_size_p23(a.num_experts) >

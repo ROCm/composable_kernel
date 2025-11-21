@@ -17,6 +17,20 @@
 #include "ck_tile/host.hpp"
 #include "quant_grouped_gemm.hpp"
 
+struct QuantGroupSize
+{
+    static constexpr auto kM = 128;
+    static constexpr auto kN = 1;
+    static constexpr auto kK = 1;
+};
+
+struct BQuantGroupSize
+{
+    static constexpr auto kM = 1;
+    static constexpr auto kN = 1;
+    static constexpr auto kK = 128;
+};
+
 template <typename GemmConfig,
           typename ALayout,
           typename AQLayout,
@@ -75,7 +89,7 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
                                                AccDataType,
                                                GemmShape,
                                                GemmUniversalTraits,
-                                               128>, // QuantGroupSize
+                                               BQuantGroupSize>,
             ck_tile::GemmRowColTensorQuantPipelineProblem<ADataType,
                                                           BDataType,
                                                           AccDataType,
