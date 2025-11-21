@@ -30,14 +30,7 @@ struct BaseGemmPipelineAgBgCrCompV3
     {
         if(BlockHasHotloop(num_loop))
         {
-            if(num_loop % PrefetchStages == 0)
-            {
-                return TailNumber::Even;
-            }
-            else
-            {
-                return TailNumber::Odd;
-            }
+            return TailNumber::Odd;
         }
         else
         {
@@ -93,16 +86,8 @@ struct BaseGemmPipelineAgBgCrCompV3
         __builtin_unreachable();
 #else
         // If execution reaches here, it's an invalid combination of arguments.
-        if(has_hot_loop)
-        {
-            throw std::logic_error("Invalid TailNumber: If has_hot_loop is true, tail_number must "
-                                   "be TailNumber::Full.");
-        }
-        else
-        {
-            throw std::logic_error("Invalid TailNumber: If has_hot_loop is false, tail_number must "
-                                   "be TailNumber::Odd or TailNumber::Even.");
-        }
+        throw std::logic_error("Invalid TailNumber value: must be "
+                               "TailNumber::Odd or TailNumber::Even");
 #endif
     }
 };
@@ -605,7 +590,7 @@ struct GemmPipelineAgBgCrCompV3 : public BaseGemmPipelineAgBgCrCompV3<Problem>
                 } while(i < (num_loop - 1));
             }
             // tail
-            if constexpr((TailNum == TailNumber::Full) || (TailNum == TailNumber::Odd))
+            if constexpr(TailNum == TailNumber::Odd)
             {
                 // Leak last MFMA block to epilogue region, cover the potential lds-shuffle
                 // latency

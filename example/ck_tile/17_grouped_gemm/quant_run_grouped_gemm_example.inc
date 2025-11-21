@@ -159,13 +159,13 @@ int run_grouped_gemm_example_with_layouts(int argc,
         return group_count != 0 && ((args.size() == static_cast<size_t>(group_count)) && ...);
     };
 
-    const int group_count                 = arg_parser.get_int("group_count");
-    const int repeat                      = arg_parser.get_int("repeat");
-    const int warmup                      = arg_parser.get_int("warmup");
-    const int kbatch                      = arg_parser.get_int("kbatch");
-    const int init_method                 = arg_parser.get_int("init");
-    bool validate                         = arg_parser.get_bool("validate");
-    const ck_tile::index_t QuantGroupSize = 128;
+    const int group_count = arg_parser.get_int("group_count");
+    const int repeat      = arg_parser.get_int("repeat");
+    const int warmup      = arg_parser.get_int("warmup");
+    const int kbatch      = arg_parser.get_int("kbatch");
+    const int init_method = arg_parser.get_int("init");
+    bool validate         = arg_parser.get_bool("validate");
+    using QuantGroupSize  = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
 
     if(kbatch > 1 && validate && warmup + repeat > 1)
     {
@@ -259,9 +259,9 @@ int run_grouped_gemm_example_with_layouts(int argc,
         }
         else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
-            AQK = 0;                  // No A quantization
-            BQK = K / QuantGroupSize; // Group quantization: BQK = K / GroupSize
-            if(K % QuantGroupSize != 0)
+            AQK = 0;                      // No A quantization
+            BQK = K / QuantGroupSize::kK; // Group quantization: BQK = K / GroupSize
+            if(K % QuantGroupSize::kK != 0)
             {
                 throw std::runtime_error("K must be divisible by 128 for BQuantGrouped mode");
             }
