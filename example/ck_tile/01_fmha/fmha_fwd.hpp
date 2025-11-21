@@ -230,6 +230,8 @@ struct fmha_fwd_args
                                            // array [batch + 1]. (Used with padding)
     const void* cu_seqlen_k_ptr = nullptr; // Cumulative logical (excluding padding) sequence length
                                            // array [batch + 1]. (Used with padding)
+    const void* bseqstart_q_ptr;
+    const void* bseqstart_k_ptr;
 
     ck_tile::index_t seqlen_q;
     ck_tile::index_t seqlen_k;
@@ -601,6 +603,8 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.seqstart_k_ptr,
                                              args.seqlen_q_ptr,
                                              args.seqlen_k_ptr,
+                                             args.bseqstart_q_ptr,
+                                             args.bseqstart_k_ptr,
                                              args.hdim_q,
                                              args.hdim_v,
                                              args.nhead_q,
@@ -613,9 +617,6 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.stride_bias,
                                              args.stride_randval,
                                              args.stride_o,
-                                             args.nhead_stride_q_descale,
-                                             args.nhead_stride_k_descale,
-                                             args.nhead_stride_v_descale,
                                              args.nhead_stride_q,
                                              args.nhead_stride_k,
                                              args.nhead_stride_v,
@@ -623,6 +624,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.nhead_stride_randval,
                                              args.nhead_stride_lse,
                                              args.nhead_stride_o,
+                                             args.nhead_stride_q_descale,
+                                             args.nhead_stride_k_descale,
+                                             args.nhead_stride_v_descale,
                                              args.window_size_left,
                                              args.window_size_right,
                                              args.mask_type,

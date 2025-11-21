@@ -231,6 +231,12 @@ struct FmhaFwdKernel
         ck_tile::index_t batch_stride_v_descale;
     };
 
+    struct FmhaFwdGroupBlockScaleKargs : public FmhaFwdCommonBlockScaleKargs
+    {
+        const int32_t* bseqstart_q_ptr;
+        const int32_t* bseqstart_k_ptr;
+    };
+
     struct FmhaFwdCommonLSEKargs
     {
         void* lse_ptr                     = nullptr;
@@ -339,7 +345,7 @@ struct FmhaFwdKernel
               QScaleEnum == BlockAttentionQuantScaleEnum::PERTENSOR,
               FmhaFwdCommonQScaleKargs,
               std::conditional_t<QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE,
-                                 FmhaFwdCommonBlockScaleKargs,
+                                 FmhaFwdGroupBlockScaleKargs,
                                  FmhaFwdEmptyKargs<3>>>,
           std::conditional_t<kHasDropout, FmhaFwdCommonDropoutKargs, FmhaFwdEmptyKargs<4>>,
           std::conditional_t<kHasLogitsSoftCap, FmhaFwdLogitsSoftCapKargs, FmhaFwdEmptyKargs<5>>,
@@ -780,6 +786,8 @@ struct FmhaFwdKernel
                   const void* seqstart_k_ptr,
                   const void* seqlen_q_ptr,
                   const void* seqlen_k_ptr,
+                  const void* bseqstart_q_ptr,
+                  const void* bseqstart_k_ptr,
                   ck_tile::index_t hdim_q,
                   ck_tile::index_t hdim_v,
                   ck_tile::index_t num_head_q,
@@ -890,6 +898,9 @@ struct FmhaFwdKernel
 
             kargs.block_scale_m = block_scale_m;
             kargs.block_scale_n = block_scale_n;
+
+            kargs.bseqstart_q_ptr = reinterpret_cast<const int32_t*>(bseqstart_q_ptr);
+            kargs.bseqstart_k_ptr = reinterpret_cast<const int32_t*>(bseqstart_k_ptr);
         }
         if constexpr(kHasDropout)
         {
@@ -942,6 +953,8 @@ struct FmhaFwdKernel
               const void* seqstart_k_ptr,
               const void* seqlen_q_ptr,
               const void* seqlen_k_ptr,
+              const void* bseqstart_q_ptr,
+              const void* bseqstart_k_ptr,
               ck_tile::index_t hdim_q,
               ck_tile::index_t hdim_v,
               ck_tile::index_t num_head_q,
@@ -991,6 +1004,8 @@ struct FmhaFwdKernel
             seqstart_k_ptr,
             seqlen_q_ptr,
             seqlen_k_ptr,
+            bseqstart_q_ptr,
+            bseqstart_k_ptr,
             hdim_q,
             hdim_v,
             num_head_q,
@@ -1043,6 +1058,8 @@ struct FmhaFwdKernel
               const void* seqstart_k_ptr,
               const void* seqlen_q_ptr,
               const void* seqlen_k_ptr,
+              const void* bseqstart_q_ptr,
+              const void* bseqstart_k_ptr,
               ck_tile::index_t hdim_q,
               ck_tile::index_t hdim_v,
               ck_tile::index_t num_head_q,
@@ -1092,6 +1109,8 @@ struct FmhaFwdKernel
             seqstart_k_ptr,
             seqlen_q_ptr,
             seqlen_k_ptr,
+            bseqstart_q_ptr,
+            bseqstart_k_ptr,
             hdim_q,
             hdim_v,
             num_head_q,
@@ -1296,9 +1315,11 @@ struct FmhaFwdKernel
                 }
                 if constexpr(QScaleEnum == BlockAttentionQuantScaleEnum::BLOCKSCALE)
                 {
-                    batch_offset_q_descale = query_start/128;
-                    batch_offset_k_descale = key_start/128;
-                    batch_offset_v_descale = key_start/128;
+                    const long_index_t bquery_start = kargs.bseqstart_q_ptr[i_batch];
+                    const long_index_t bkey_start   = kargs.bseqstart_k_ptr[i_batch];
+                    batch_offset_q_descale          = bquery_start;
+                    batch_offset_k_descale          = bkey_start;
+                    batch_offset_v_descale          = bkey_start;
                 }
                 batch_offset_o = query_start * kargs.stride_o;
 

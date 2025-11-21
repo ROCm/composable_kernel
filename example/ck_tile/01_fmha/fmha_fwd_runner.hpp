@@ -741,6 +741,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
     ck_tile::DeviceMem q_descale_buf(q_descale_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem k_descale_buf(k_descale_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem v_descale_buf(v_descale_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem bseqstart_q_buf(bseqstart_q_host.size() * sizeof(int32_t));
+    ck_tile::DeviceMem bseqstart_k_buf(bseqstart_k_host.size() * sizeof(int32_t));
     ck_tile::DeviceMem lse_acc_buf(lse_acc_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem o_acc_buf(o_acc_host.get_element_space_size_in_bytes());
     ck_tile::DeviceMem lse_buf(lse_host.get_element_space_size_in_bytes());
@@ -785,6 +787,8 @@ fwd_result fmha_fwd_run(mode_enum mode,
     q_descale_buf.ToDevice(q_descale_host.data());
     k_descale_buf.ToDevice(k_descale_host.data());
     v_descale_buf.ToDevice(v_descale_host.data());
+    bseqstart_q_buf.ToDevice(bseqstart_q_host.data());
+    bseqstart_k_buf.ToDevice(bseqstart_k_host.data());
     seqstart_q.ToDevice(seqstart_q_host.data());
     // Keep logical starts in seqstart_k; pass padded K via separate pointer
     seqstart_k.ToDevice(seqstart_k_host.data());
@@ -1096,6 +1100,11 @@ fwd_result fmha_fwd_run(mode_enum mode,
                         reinterpret_cast<const float*>(k_descale_buf.GetDeviceBuffer());
                     args.v_descale_ptr =
                         reinterpret_cast<const float*>(v_descale_buf.GetDeviceBuffer());
+
+                    args.bseqstart_q_ptr =
+                        (mode == mode_enum::group ? bseqstart_q_buf.GetDeviceBuffer() : nullptr);
+                    args.bseqstart_k_ptr =
+                        (mode == mode_enum::group ? bseqstart_k_buf.GetDeviceBuffer() : nullptr);
 
                     args.nhead_stride_q_descale = nhead_stride_q_descale;
                     args.nhead_stride_k_descale = nhead_stride_k_descale;
@@ -1844,7 +1853,6 @@ fwd_result fmha_fwd_run(mode_enum mode,
             if(o_perm) o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b_idx, idx[0], idx[1] + query_offset, idx[2]); });
             else       o_host_result.ForEach([&](auto& self, auto idx) { self(idx) = o_host(b_idx, idx[1] + query_offset, idx[0], idx[2]); });
             // clang-format on
-
             auto [rtol, atol] = get_elimit<DataTypeConfig>(init_method);
             bool cur_pass     = ck_tile::check_err(o_host_result,
                                                o_host_ref,
