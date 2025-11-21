@@ -614,14 +614,14 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         A_BLOCK_TRANSFER.src_vector_dim,
         A_BLOCK_TRANSFER.src_scalar_per_vector,
         A_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
-        A_BLOCK_TRANSFER.lds_padding,
+        static_cast<ck::index_t>(A_BLOCK_TRANSFER.lds_padding),
         to_sequence_v<B_BLOCK_TRANSFER.thread_cluster_dims>,
         to_sequence_v<B_BLOCK_TRANSFER.thread_cluster_order>,
         to_sequence_v<B_BLOCK_TRANSFER.src_access_order>,
         B_BLOCK_TRANSFER.src_vector_dim,
         B_BLOCK_TRANSFER.src_scalar_per_vector,
         B_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
-        B_BLOCK_TRANSFER.lds_padding,
+        static_cast<ck::index_t>(B_BLOCK_TRANSFER.lds_padding),
         C_BLOCK_TRANSFER.m_per_wave_per_shuffle,
         C_BLOCK_TRANSFER.n_per_wave_per_shuffle,
         to_sequence_v<C_BLOCK_TRANSFER.thread_cluster_dims>,
@@ -639,7 +639,7 @@ template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
     requires ConvDirectionIsForward<SIGNATURE> &&
-             DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<decltype(ALGORITHM)>
+             DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<std::remove_const_t<decltype(ALGORITHM)>>
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
@@ -712,14 +712,14 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         A_BLOCK_TRANSFER.src_vector_dim,
         A_BLOCK_TRANSFER.src_scalar_per_vector,
         A_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
-        A_BLOCK_TRANSFER.lds_padding,
+        static_cast<ck::index_t>(A_BLOCK_TRANSFER.lds_padding),
         to_sequence_v<B_BLOCK_TRANSFER.thread_cluster_dims>,
         to_sequence_v<B_BLOCK_TRANSFER.thread_cluster_order>,
         to_sequence_v<B_BLOCK_TRANSFER.src_access_order>,
         B_BLOCK_TRANSFER.src_vector_dim,
         B_BLOCK_TRANSFER.src_scalar_per_vector,
         B_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
-        B_BLOCK_TRANSFER.lds_padding,
+        static_cast<ck::index_t>(B_BLOCK_TRANSFER.lds_padding),
         C_BLOCK_TRANSFER.m_per_wave_per_shuffle,
         C_BLOCK_TRANSFER.n_per_wave_per_shuffle,
         to_sequence_v<C_BLOCK_TRANSFER.thread_cluster_dims>,
@@ -736,7 +736,7 @@ template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
     requires ConvDirectionIsForward<SIGNATURE> &&
-             DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle<decltype(ALGORITHM)>
+             DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle<std::remove_const_t<decltype(ALGORITHM)>>
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
@@ -810,14 +810,14 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         A_BLOCK_TRANSFER.src_vector_dim,
         A_BLOCK_TRANSFER.src_scalar_per_vector,
         A_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
-        A_BLOCK_TRANSFER.lds_padding,
+        static_cast<ck::index_t>(A_BLOCK_TRANSFER.lds_padding),
         to_sequence_v<B_BLOCK_TRANSFER.thread_cluster_dims>,
         to_sequence_v<B_BLOCK_TRANSFER.thread_cluster_order>,
         to_sequence_v<B_BLOCK_TRANSFER.src_access_order>,
         B_BLOCK_TRANSFER.src_vector_dim,
         B_BLOCK_TRANSFER.src_scalar_per_vector,
         B_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
-        B_BLOCK_TRANSFER.lds_padding,
+        static_cast<ck::index_t>(B_BLOCK_TRANSFER.lds_padding),
         C_BLOCK_TRANSFER.m_per_wave_per_shuffle,
         C_BLOCK_TRANSFER.n_per_wave_per_shuffle,
         to_sequence_v<C_BLOCK_TRANSFER.thread_cluster_dims>,
@@ -831,8 +831,8 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
-    requires ConvDirectionIsForward<SIGNATURE> &&
-             DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK<decltype(ALGORITHM)>
+    requires ConvDirectionIsForward<SIGNATURE> && DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK<
+                                                      std::remove_const_t<decltype(ALGORITHM)>>
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
@@ -954,7 +954,8 @@ template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
     requires ConvDirectionIsForward<SIGNATURE> &&
-             DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor<decltype(ALGORITHM)>
+             DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor<
+                 std::remove_const_t<decltype(ALGORITHM)>>
 struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
@@ -1029,14 +1030,14 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
             A_BLOCK_TRANSFER.src_vector_dim,
             A_BLOCK_TRANSFER.src_scalar_per_vector,
             A_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
-            A_BLOCK_TRANSFER.lds_padding,
+            static_cast<ck::index_t>(A_BLOCK_TRANSFER.lds_padding),
             to_sequence_v<B_BLOCK_TRANSFER.thread_cluster_dims>,
             to_sequence_v<B_BLOCK_TRANSFER.thread_cluster_order>,
             to_sequence_v<B_BLOCK_TRANSFER.src_access_order>,
             B_BLOCK_TRANSFER.src_vector_dim,
             B_BLOCK_TRANSFER.src_scalar_per_vector,
             B_BLOCK_TRANSFER.lds_dst_scalar_per_vector,
-            B_BLOCK_TRANSFER.lds_padding,
+            static_cast<ck::index_t>(B_BLOCK_TRANSFER.lds_padding),
             C_BLOCK_TRANSFER.m_per_wave_per_shuffle,
             C_BLOCK_TRANSFER.n_per_wave_per_shuffle,
             to_sequence_v<C_BLOCK_TRANSFER.thread_cluster_dims>,
