@@ -16,7 +16,7 @@
 #include "ck_tile/builder/factory/helpers/conv_block_transfer.hpp"
 #include "ck_tile/builder/factory/helpers/conv_thread_block.hpp"
 
-namespace ck_tile::builder {
+namespace ck_tile::builder::factory {
 
 // Factory for DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle instance
 // of a grouped forward convolution kernel.
@@ -28,31 +28,28 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFwdWmmaFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE.layout,
-                                                                     SPATIAL_DIM,
-                                                                     ConvDirection::FORWARD>());
-    using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
-    using Ops           = factory_internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
+    using Layouts                       = decltype(internal::GetTensorLayout<SIGNATURE.layout,
+                                                                             SPATIAL_DIM,
+                                                                             ConvDirection::FORWARD>());
+    using Types                         = internal::ConvTensorTypes<SIGNATURE.data_type>;
+    using Ops           = internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
     using AlgorithmType = decltype(ALGORITHM);
 
-    static constexpr auto FWD_CONV_SPECIALIZATION =
-        factory_internal::SetFwdConvSpecialization<ALGORITHM>();
-    static constexpr auto GEMM_SPECIALIZATION =
-        factory_internal::SetGemmSpecialization<ALGORITHM>();
-    static constexpr factory_internal::ConvSpec SPECIALIZATION{.conv_spec = FWD_CONV_SPECIALIZATION,
-                                                               .gemm_spec = GEMM_SPECIALIZATION};
+    static constexpr auto FWD_CONV_SPECIALIZATION = internal::SetFwdConvSpecialization<ALGORITHM>();
+    static constexpr auto GEMM_SPECIALIZATION     = internal::SetGemmSpecialization<ALGORITHM>();
+    static constexpr internal::ConvSpec SPECIALIZATION{.conv_spec = FWD_CONV_SPECIALIZATION,
+                                                       .gemm_spec = GEMM_SPECIALIZATION};
 
-    static constexpr auto LOOP_SCHEDULER = factory_internal::SetLoopScheduler<ALGORITHM>();
-    static constexpr auto BLOCK          = factory_internal::SetThreadBlockInfo<ALGORITHM>();
+    static constexpr auto LOOP_SCHEDULER = internal::SetLoopScheduler<ALGORITHM>();
+    static constexpr auto BLOCK          = internal::SetThreadBlockInfo<ALGORITHM>();
     static constexpr auto GRIDWISE_GEMM  = ALGORITHM.gridwise_gemm;
     static constexpr auto GRIDWISE_GEMM_PIPELINE_VERSION =
-        factory_internal::SetGridwiseGemmPipelineVersion<ALGORITHM>();
+        internal::SetGridwiseGemmPipelineVersion<ALGORITHM>();
     static constexpr auto A_BLOCK_TRANSFER =
-        factory_internal::SetFwdConvBlockTransfer<ALGORITHM.transfer.a>();
+        internal::SetFwdConvBlockTransfer<ALGORITHM.transfer.a>();
     static constexpr auto B_BLOCK_TRANSFER =
-        factory_internal::SetFwdConvBlockTransfer<ALGORITHM.transfer.b>();
-    static constexpr auto C_BLOCK_TRANSFER =
-        factory_internal::SetCBlockTransfer<SIGNATURE, ALGORITHM>();
+        internal::SetFwdConvBlockTransfer<ALGORITHM.transfer.b>();
+    static constexpr auto C_BLOCK_TRANSFER = internal::SetCBlockTransfer<SIGNATURE, ALGORITHM>();
 
     // Check limits for the algorithm parameters.
     // TODO: Add more limits checks as needed.
@@ -114,4 +111,4 @@ struct ConvFwdWmmaFactory
         GRIDWISE_GEMM_PIPELINE_VERSION>;
 };
 
-} // namespace ck_tile::builder
+} // namespace ck_tile::builder::factory

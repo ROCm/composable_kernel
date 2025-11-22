@@ -8,7 +8,7 @@
 #include "ck_tile/builder/conv_algorithm_concepts.hpp"
 #include "ck_tile/builder/types.hpp"
 
-namespace ck_tile::builder::factory_internal {
+namespace ck_tile::builder::factory::internal {
 
 // The algorithm specializations for the convolution and GEMM.
 template <typename CONV_ENUM>
@@ -151,4 +151,4 @@ consteval ck::tensor_operation::device::ConvolutionForwardSpecialization SetFwdC
     }
 }
 
-} // namespace ck_tile::builder::factory_internal
+} // namespace ck_tile::builder::factory::internal

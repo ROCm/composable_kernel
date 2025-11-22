@@ -6,7 +6,7 @@
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 
-namespace ck_tile::builder::factory_internal {
+namespace ck_tile::builder::factory::internal {
 
 // Type mappings from the builder FwdGroupConvLayout enum classes to the CK tensor data types.
 template <auto LayoutValue, size_t SPATIAL_DIM, ConvDirection DIR>
@@ -126,15 +126,15 @@ consteval auto GetTensorLayout()
 
     if constexpr(SPATIAL_DIM == 1)
     {
-        return factory_internal::ConvTensorLayouts<Layout._1d, 1, DIR>{};
+        return internal::ConvTensorLayouts<Layout._1d, 1, DIR>{};
     }
     else if constexpr(SPATIAL_DIM == 2)
     {
-        return factory_internal::ConvTensorLayouts<Layout._2d, 2, DIR>{};
+        return internal::ConvTensorLayouts<Layout._2d, 2, DIR>{};
     }
     else if constexpr(SPATIAL_DIM == 3)
     {
-        return factory_internal::ConvTensorLayouts<Layout._3d, 3, DIR>{};
+        return internal::ConvTensorLayouts<Layout._3d, 3, DIR>{};
     }
     else
     {
@@ -142,4 +142,4 @@ consteval auto GetTensorLayout()
     }
 }
 
-} // namespace ck_tile::builder::factory_internal
+} // namespace ck_tile::builder::factory::internal

@@ -6,7 +6,7 @@
 #include "ck/utility/data_type.hpp"
 #include "ck_tile/builder/types.hpp"
 
-namespace ck_tile::builder::factory_internal {
+namespace ck_tile::builder::factory::internal {
 
 // Type mappings from builder convolution data type to CK tensor types.
 template <DataType T>
@@ -83,4 +83,4 @@ struct ConvTensorTypes<DataType::FP8>
     using EDataType        = ck::f8_t;
 };
 
-} // namespace ck_tile::builder::factory_internal
+} // namespace ck_tile::builder::factory::internal
