@@ -18,14 +18,14 @@
 
 namespace ck_tile::builder {
 
-// Factory specialization for DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle instance
+// Factory for DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle instance
 // of a grouped forward convolution kernel.
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
     requires ConvDirectionIsForward<SIGNATURE> &&
              DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<std::remove_const_t<decltype(ALGORITHM)>>
-struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
+struct ConvFwdXdlFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
     using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE.layout,

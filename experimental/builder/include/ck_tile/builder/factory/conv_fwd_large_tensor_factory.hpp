@@ -29,15 +29,15 @@
 
 namespace ck_tile::builder {
 
-// Factory specialization for DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor instance
-// of a grouped forward convolution kernel with large tensor support (N-splitting).
+// Factory for DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor instance
+// of a grouped forward convolution kernel.
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
     requires ConvDirectionIsForward<SIGNATURE> &&
              DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor<
                  std::remove_const_t<decltype(ALGORITHM)>>
-struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
+struct ConvFwdLargeTensorFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
     using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE.layout,
