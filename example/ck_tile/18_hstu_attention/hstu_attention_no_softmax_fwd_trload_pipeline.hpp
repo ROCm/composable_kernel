@@ -205,6 +205,9 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
 
         __builtin_amdgcn_sched_barrier(0);
 
+        // provide partition_index for LDS tile window so that warp_id is in vgpr
+        array<index_t, 2> partition_index{get_warp_id<false>(), get_lane_id()};
+
         // Q tile in LDS
         QKVDataType* q_lds_ptr = static_cast<QKVDataType*>(smem_ptr);
         auto q_lds             = make_tensor_view<address_space_enum::lds>(
@@ -216,7 +219,8 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
             make_tile_window(q_lds,
                              make_tuple(number<kM0>{}, number<kQKHeaddim>{}),
                              {0, 0},
-                             Policy::template MakeQRegTileDistribution<Problem>());
+                             Policy::template MakeQRegTileDistribution<Problem>(),
+                             partition_index);
 
         // K tile in LDS
         QKVDataType* k_lds_ptr = static_cast<QKVDataType*>(smem_ptr);
@@ -315,7 +319,7 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
                 return make_null_tile_window(make_tuple(number<1>{}, number<1>{}));
         }();
 
-        store_tile(q_lds_write_window, q_dram_tile);
+        store_tile(q_lds_write_window, q_dram_tile, partition_index);
 
         clear_tile(o_acc);
 
@@ -344,7 +348,9 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
         {
             // STAGE 1, Gemm_0 ( S = Q@K )
             static_for<0, k1_loops, 1>{}([&](auto i_k1) {
-                store_tile(k_lds_write_windows[number<i_k1 % NumKVLdsBuffers>{}], k_tiles[i_k1]);
+                store_tile(k_lds_write_windows[number<i_k1 % NumKVLdsBuffers>{}],
+                           k_tiles[i_k1],
+                           partition_index);
 
                 __builtin_amdgcn_sched_barrier(0x00000001);
 
@@ -439,7 +445,8 @@ struct HstuAttentionNoSoftmaxFwdPipelineQRKSVSTrLoad
             // STAGE 3, Gemm_1 ( O = P@V )
             static_for<0, k1_loops, 1>{}([&](auto i_k1) {
                 store_tile(v_lds_windows[number<(i_k1 + 2) % NumKVLdsBuffers>{}],
-                           v_tiles[number<i_k1>{}]);
+                           v_tiles[number<i_k1>{}],
+                           partition_index);
 
                 __builtin_amdgcn_sched_barrier(0x00000001);
 

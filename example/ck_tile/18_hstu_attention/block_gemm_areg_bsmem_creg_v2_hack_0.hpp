@@ -57,7 +57,7 @@ struct BlockGemmARegBSmemCRegV2Hack_0
         constexpr index_t NPerBlockPerIter = NPerBlock / NIterPerWarp;
         constexpr index_t KPerBlockPerIter = KPerBlock / KIterPerWarp;
 
-        const index_t iNWarp = get_warp_id() % NWarp;
+        const index_t iNWarp = get_warp_id<false>() % NWarp;
 
         static_assert(NWarp == 1, "Check failed!");
 
