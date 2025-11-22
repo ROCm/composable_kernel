@@ -2,6 +2,9 @@ set(EXAMPLE_GEMM_COMPILE_OPTIONS)
 if(CK_USE_OCP_FP8)
     list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -DCK_TILE_USE_OCP_FP8)
 endif()
+# Use standard asm for rtn bf16 conversion instead of turncate
+list(APPEND EXAMPLE_GEMM_COMPILE_OPTIONS -DCK_TILE_FLOAT_TO_BFLOAT16_DEFAULT=3)
+
 set(EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS)
 if(CK_USE_OCP_FP8)
     list(APPEND EXAMPLE_GEMM_COMPILE_COMPUTE_V4_OPTIONS -DCK_TILE_USE_OCP_FP8)
@@ -16,7 +19,7 @@ set(EXAMPLE_GEMM_COMPILE_COMPUTE_ASYNC_OPTIONS ${EXAMPLE_GEMM_COMPILE_COMPUTE_V4
 if(GPU_TARGETS MATCHES "gfx9")
 
     include_directories(BEFORE ${CMAKE_CURRENT_SOURCE_DIR})
- 
+
     #TODO: support all arches
     #TODO: current c-shuffle only supports C layout as R
     add_gtest_executable(test_ck_tile_streamk_tile_partitioner test_streamk_tile_partitioner.cpp)
