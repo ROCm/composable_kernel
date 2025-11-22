@@ -34,9 +34,7 @@ namespace ck_tile::builder::factory {
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
-    requires ConvDirectionIsForward<SIGNATURE> &&
-             DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor<
-                 std::remove_const_t<decltype(ALGORITHM)>>
+    requires ConvDirectionIsForward<SIGNATURE>
 struct ConvFwdLargeTensorFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;

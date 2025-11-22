@@ -21,8 +21,7 @@ namespace ck_tile::builder::factory {
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
-    requires ConvDirectionIsForward<SIGNATURE> && DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK<
-                                                      std::remove_const_t<decltype(ALGORITHM)>>
+    requires ConvDirectionIsForward<SIGNATURE>
 struct ConvFwdDlFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;

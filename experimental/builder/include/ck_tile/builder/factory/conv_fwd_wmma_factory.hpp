@@ -23,8 +23,7 @@ namespace ck_tile::builder::factory {
 template <ConvSignatureDescriptor auto SIGNATURE,
           ConvAlgorithmDescriptor auto ALGORITHM,
           StringLiteral VERSION>
-    requires ConvDirectionIsForward<SIGNATURE> &&
-             DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle<std::remove_const_t<decltype(ALGORITHM)>>
+    requires ConvDirectionIsForward<SIGNATURE>
 struct ConvFwdWmmaFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
