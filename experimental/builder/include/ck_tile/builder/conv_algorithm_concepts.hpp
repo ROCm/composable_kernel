@@ -256,41 +256,4 @@ concept SpecifiesDlEpilogue = requires {
     { T::transfer.c.epilogue } -> DlEpilogueDescriptor;
 };
 
-/******************************************** */
-/* Concepts for the different device ops */
-/******************************************** */
-
-template <typename T>
-concept DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseXdlGemm<T> &&
-    SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
-    SpecifiesSourceAccessOrder<T> && SpecifiesFwdConcSpecialization<T> &&
-    SpecifiesGemmSpecialization<T> && SpecifiesBlockGemm<T>;
-
-template <typename T>
-concept DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseXdlGemm<T> &&
-    SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
-    SpecifiesSourceAccessOrder<T> && SpecifiesFwdConcSpecialization<T> &&
-    SpecifiesGemmSpecialization<T> && SpecifiesNumPrefetchStages<T> &&
-    SpecifiesNumGroupsToMerge<T> && SpecifiesLoopScheduler<T>;
-
-template <typename T>
-concept DeviceGroupedConvFwdMultipleABD_Wmma_CShuffle =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesGridwiseWmmaGemm<T> &&
-    SpecifiesBlockTransfer<T> && SpecifiesLdsTransfer<T> && SpecifiesThreadClusterAccessOrder<T> &&
-    SpecifiesSourceAccessOrder<T> && SpecifiesFwdConcSpecialization<T> &&
-    SpecifiesGemmSpecialization<T> && SpecifiesNumPrefetchStages<T> && SpecifiesLoopScheduler<T>;
-
-template <typename T>
-concept DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK =
-    ConvAlgorithmDescriptor<T> && SpecifiesThreadBlock<T> && SpecifiesFwdConcSpecialization<T> &&
-    SpecifiesGemmSpecialization<T> && SpecifiesDlThreadConfig<T> && SpecifiesDlThreadCluster<T> &&
-    SpecifiesDlBlockTransfer<T> && SpecifiesDlEpilogue<T>;
-
-template <typename T>
-concept DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor =
-    DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<decltype(T::base_algorithm)> &&
-    SpecifiesLargeTensorSupport<T>;
-
 } // namespace ck_tile::builder
