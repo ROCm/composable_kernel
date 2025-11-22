@@ -222,6 +222,9 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
 
         __builtin_amdgcn_sched_barrier(0);
 
+        // provide partition_index for LDS tile window so that warp_id is in vgpr
+        array<index_t, 2> partition_index{get_warp_id<false>(), get_lane_id()};
+
         // Q tile in LDS
         QKVDataType* q_lds_ptr = static_cast<QKVDataType*>(smem_ptr);
         auto q_lds             = make_tensor_view<address_space_enum::lds>(
@@ -329,7 +332,7 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
                 return make_null_tile_window(make_tuple(number<1>{}, number<1>{}));
         }();
 
-        store_tile(q_lds_write_window, q_dram_tile);
+        store_tile(q_lds_write_window, q_dram_tile, partition_index);
 
         clear_tile(o_acc);
 
@@ -362,7 +365,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
             // STAGE 1, Gemm_0 ( S = Q@K )
             static_for<0, k1_loops, 1>{}([&](auto i_k1) {
                 store_tile(k_lds_write_windows[number<i_k1 % NumKVLdsBuffers>{}],
-                           k_tiles[number<i_k1 % NumPrefetchK>{}]);
+                           k_tiles[number<i_k1 % NumPrefetchK>{}],
+                           partition_index);
 
                 __builtin_amdgcn_sched_barrier(0x00000001);
 
@@ -464,7 +468,9 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
                 __builtin_amdgcn_s_barrier();
             };
 
-            store_tile(v_lds_windows[number<2 % NumKVLdsBuffers>{}], v_tiles[number<0>{}]);
+            store_tile(v_lds_windows[number<2 % NumKVLdsBuffers>{}],
+                       v_tiles[number<0>{}],
+                       partition_index);
 
             __builtin_amdgcn_sched_barrier(0x00000001);
 
@@ -550,7 +556,9 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
                 __builtin_amdgcn_s_barrier();
             };
 
-            store_tile(v_lds_windows[number<3 % NumKVLdsBuffers>{}], v_tiles[number<1>{}]);
+            store_tile(v_lds_windows[number<3 % NumKVLdsBuffers>{}],
+                       v_tiles[number<1>{}],
+                       partition_index);
 
             __builtin_amdgcn_sched_barrier(0x00000001);
 
@@ -577,7 +585,8 @@ struct HstuAttentionWithSoftmaxFwdPipelineQRKSVSTrLoad
                     __builtin_amdgcn_sched_barrier(0x00000001);
 
                     store_tile(v_lds_windows[number<(i_k1 + 4) % NumKVLdsBuffers>{}],
-                               v_tiles[number<i_k1 + 2>{}]);
+                               v_tiles[number<i_k1 + 2>{}],
+                               partition_index);
 
                     __builtin_amdgcn_sched_barrier(0x00000001);
                 };
