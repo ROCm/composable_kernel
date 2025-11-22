@@ -31,7 +31,7 @@ struct ConvBuilder
 {
     static constexpr auto kVersion = VERSION;
     // Output: The kernel class instance created via the dispatcher.
-    using Instance = decltype(make_conv_instance<SIGNATURE, ALGORITHM, VERSION>());
+    using Instance = decltype(factory::make_conv_instance<SIGNATURE, ALGORITHM, VERSION>());
 };
 
 } // namespace ck_tile::builder

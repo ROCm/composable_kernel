@@ -5,7 +5,7 @@
 
 #include "ck_tile/builder/conv_algorithm_concepts.hpp"
 
-namespace ck_tile::builder::factory_internal {
+namespace ck_tile::builder::factory::internal {
 
 // Block info for a convolution.
 struct MNK
@@ -29,4 +29,4 @@ constexpr ConvBlock SetThreadBlockInfo()
                      .per_block  = {.m = TB.tile_size.m, .n = TB.tile_size.n, .k = TB.tile_size.k}};
 }
 
-} // namespace ck_tile::builder::factory_internal
+} // namespace ck_tile::builder::factory::internal

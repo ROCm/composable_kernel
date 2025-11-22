@@ -7,7 +7,7 @@
 #include "ck_tile/builder/conv_algorithm_concepts.hpp"
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 
-namespace ck_tile::builder::factory_internal {
+namespace ck_tile::builder::factory::internal {
 
 // Block transfer parameters for A or B tensor.
 struct BlockTransfer
@@ -68,4 +68,4 @@ constexpr CBlockTransfer SetCBlockTransfer()
     return block_transfer;
 }
 
-} // namespace ck_tile::builder::factory_internal
+} // namespace ck_tile::builder::factory::internal

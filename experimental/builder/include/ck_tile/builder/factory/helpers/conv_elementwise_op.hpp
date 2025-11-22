@@ -6,7 +6,7 @@
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
 #include "ck_tile/builder/types.hpp"
 
-namespace ck_tile::builder::factory_internal {
+namespace ck_tile::builder::factory::internal {
 
 template <ElementwiseOperation T>
 struct ElementwiseOps
@@ -33,4 +33,4 @@ struct ElementwiseOps<ElementwiseOperation::SCALE>
     using CDEElementwiseOp = ck::tensor_operation::element_wise::Scale;
 };
 
-} // namespace ck_tile::builder::factory_internal
+} // namespace ck_tile::builder::factory::internal

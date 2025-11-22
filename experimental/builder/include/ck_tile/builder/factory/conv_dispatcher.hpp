@@ -14,7 +14,7 @@
 #include "ck_tile/builder/factory/conv_fwd_dl_factory.hpp"
 #include "ck_tile/builder/factory/conv_fwd_large_tensor_factory.hpp"
 
-namespace ck_tile::builder {
+namespace ck_tile::builder::factory {
 
 // Forward declaration of the dispatcher function
 template <ConvSignatureDescriptor auto SIGNATURE,
@@ -91,4 +91,4 @@ constexpr auto make_conv_instance()
     }
 }
 
-} // namespace ck_tile::builder
+} // namespace ck_tile::builder::factory

@@ -14,7 +14,7 @@
 #include "ck_tile/builder/factory/helpers/conv_tuning_params.hpp"
 #include "ck_tile/builder/factory/helpers/conv_thread_block.hpp"
 
-namespace ck_tile::builder {
+namespace ck_tile::builder::factory {
 
 // Factory for DeviceGroupedConvFwdDlMultipleD_NHWC_KYXC_NHWK instance
 // of a grouped forward convolution kernel.
@@ -26,19 +26,17 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFwdDlFactory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE.layout,
-                                                                     SPATIAL_DIM,
-                                                                     ConvDirection::FORWARD>());
-    using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
-    using Ops           = factory_internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
+    using Layouts                       = decltype(internal::GetTensorLayout<SIGNATURE.layout,
+                                                                             SPATIAL_DIM,
+                                                                             ConvDirection::FORWARD>());
+    using Types                         = internal::ConvTensorTypes<SIGNATURE.data_type>;
+    using Ops           = internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
     using AlgorithmType = decltype(ALGORITHM);
 
-    static constexpr auto FWD_CONV_SPECIALIZATION =
-        factory_internal::SetFwdConvSpecialization<ALGORITHM>();
-    static constexpr auto GEMM_SPECIALIZATION =
-        factory_internal::SetGemmSpecialization<ALGORITHM>();
+    static constexpr auto FWD_CONV_SPECIALIZATION = internal::SetFwdConvSpecialization<ALGORITHM>();
+    static constexpr auto GEMM_SPECIALIZATION     = internal::SetGemmSpecialization<ALGORITHM>();
 
-    static constexpr auto BLOCK = factory_internal::SetThreadBlockInfo<ALGORITHM>();
+    static constexpr auto BLOCK = internal::SetThreadBlockInfo<ALGORITHM>();
 
     // DL-specific parameters from algorithm descriptor
     static constexpr auto DL_THREAD_CFG      = ALGORITHM.thread_config;
@@ -138,4 +136,4 @@ struct ConvFwdDlFactory
         CThreadTransferDstScalarPerVector>;
 };
 
-} // namespace ck_tile::builder
+} // namespace ck_tile::builder::factory

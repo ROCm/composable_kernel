@@ -16,7 +16,7 @@
 #include "ck_tile/builder/factory/helpers/conv_block_transfer.hpp"
 #include "ck_tile/builder/factory/helpers/conv_thread_block.hpp"
 
-namespace ck_tile::builder {
+namespace ck_tile::builder::factory {
 
 // Factory for DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3 instance
 // of a grouped forward convolution kernel.
@@ -28,11 +28,11 @@ template <ConvSignatureDescriptor auto SIGNATURE,
 struct ConvFwdXdlV3Factory
 {
     static constexpr size_t SPATIAL_DIM = SIGNATURE.spatial_dim;
-    using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE.layout,
-                                                                     SPATIAL_DIM,
-                                                                     ConvDirection::FORWARD>());
-    using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
-    using Ops           = factory_internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
+    using Layouts                       = decltype(internal::GetTensorLayout<SIGNATURE.layout,
+                                                                             SPATIAL_DIM,
+                                                                             ConvDirection::FORWARD>());
+    using Types                         = internal::ConvTensorTypes<SIGNATURE.data_type>;
+    using Ops           = internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
     using AlgorithmType = decltype(ALGORITHM);
 
     static_assert(ALGORITHM.transfer.a.lds_transfer.is_direct_load ==
@@ -40,22 +40,19 @@ struct ConvFwdXdlV3Factory
                   "A and B block transfers must both be direct load or not.");
 
     static constexpr bool IS_DIRECT_LOAD = ALGORITHM.transfer.a.lds_transfer.is_direct_load;
-    static constexpr auto FWD_CONV_SPECIALIZATION =
-        factory_internal::SetFwdConvSpecialization<ALGORITHM>();
-    static constexpr auto GEMM_SPECIALIZATION =
-        factory_internal::SetGemmSpecialization<ALGORITHM>();
-    static constexpr factory_internal::ConvSpec SPECIALIZATION{.conv_spec = FWD_CONV_SPECIALIZATION,
-                                                               .gemm_spec = GEMM_SPECIALIZATION};
+    static constexpr auto FWD_CONV_SPECIALIZATION = internal::SetFwdConvSpecialization<ALGORITHM>();
+    static constexpr auto GEMM_SPECIALIZATION     = internal::SetGemmSpecialization<ALGORITHM>();
+    static constexpr internal::ConvSpec SPECIALIZATION{.conv_spec = FWD_CONV_SPECIALIZATION,
+                                                       .gemm_spec = GEMM_SPECIALIZATION};
 
-    static constexpr auto BLOCK         = factory_internal::SetThreadBlockInfo<ALGORITHM>();
+    static constexpr auto BLOCK         = internal::SetThreadBlockInfo<ALGORITHM>();
     static constexpr auto GRIDWISE_GEMM = ALGORITHM.gridwise_gemm;
     static constexpr auto A_BLOCK_TRANSFER =
-        factory_internal::SetFwdConvBlockTransfer<ALGORITHM.transfer.a>();
+        internal::SetFwdConvBlockTransfer<ALGORITHM.transfer.a>();
     static constexpr auto B_BLOCK_TRANSFER =
-        factory_internal::SetFwdConvBlockTransfer<ALGORITHM.transfer.b>();
-    static constexpr auto C_BLOCK_TRANSFER =
-        factory_internal::SetCBlockTransfer<SIGNATURE, ALGORITHM>();
-    static constexpr auto BLOCK_GEMM = factory_internal::SetBlockGemm<ALGORITHM>();
+        internal::SetFwdConvBlockTransfer<ALGORITHM.transfer.b>();
+    static constexpr auto C_BLOCK_TRANSFER = internal::SetCBlockTransfer<SIGNATURE, ALGORITHM>();
+    static constexpr auto BLOCK_GEMM       = internal::SetBlockGemm<ALGORITHM>();
 
     // Check limits for the algorithm parameters.
     // TODO: Add more limits checks as needed.
@@ -120,4 +117,4 @@ struct ConvFwdXdlV3Factory
         IS_DIRECT_LOAD>;
 };
 
-} // namespace ck_tile::builder
+} // namespace ck_tile::builder::factory
