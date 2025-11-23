@@ -5,6 +5,7 @@
 
 #include "ck/utility/data_type.hpp"
 #include "ck_tile/builder/types.hpp"
+#include "ck_tile/builder/builder_utils.hpp"
 
 namespace ck_tile::builder::factory::internal {
 

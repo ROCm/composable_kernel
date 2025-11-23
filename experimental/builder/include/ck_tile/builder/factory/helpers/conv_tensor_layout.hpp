@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
+#include "ck/utility/tuple.hpp"
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 
 namespace ck_tile::builder::factory::internal {
