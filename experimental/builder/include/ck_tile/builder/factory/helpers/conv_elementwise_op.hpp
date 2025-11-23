@@ -4,6 +4,7 @@
 #pragma once
 
 #include "ck/tensor_operation/gpu/element/element_wise_operation.hpp"
+#include "ck_tile/builder/builder_utils.hpp"
 #include "ck_tile/builder/types.hpp"
 
 namespace ck_tile::builder::factory::internal {

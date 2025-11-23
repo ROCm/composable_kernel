@@ -3,7 +3,11 @@
 
 #pragma once
 
+#include "ck/tensor_operation/gpu/device/convolution_forward_specialization.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
+#include "ck/tensor_operation/gpu/device/gemm_specialization.hpp"
+#include "ck/tensor_operation/gpu/grid/gridwise_gemm_pipeline_selector.hpp"
+#include "ck/utility/blkgemmpipe_scheduler.hpp"
 #include "ck/utility/loop_scheduler.hpp"
 #include "ck_tile/builder/conv_algorithm_concepts.hpp"
 #include "ck_tile/builder/types.hpp"
@@ -132,6 +136,8 @@ consteval ck::BlockGemmPipelineVersion SetBlockGemmPipelineVersion()
     case PipelineVersion::V3: return ck_pipeline::v3;
     case PipelineVersion::V4: return ck_pipeline::v4;
     case PipelineVersion::V5: return ck_pipeline::v5;
+    case PipelineVersion::WEIGHT_ONLY:
+        throw "PipelineVersion::WEIGHT_ONLY is not supported for block GEMM pipeline version.";
     default: throw "Unknown block GEMM PipelineVersion";
     }
 }
