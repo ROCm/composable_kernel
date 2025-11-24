@@ -219,7 +219,6 @@ float batched_contraction(const ck_tile::BatchedContractionHostArgs<DsDataType::
     HANDLE_CASE(2, 1, 1, 1);
     HANDLE_CASE(2, 2, 2, 1);
     HANDLE_CASE(1, 2, 1, 1);
-    HANDLE_CASE(2, 1, 1, 1);
     HANDLE_CASE(2, 2, 2, 2);
 
     throw std::runtime_error(

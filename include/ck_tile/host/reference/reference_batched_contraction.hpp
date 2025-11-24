@@ -106,7 +106,7 @@ void compute_reference_batched_contraction(
 
         // Decode G dimensions
         ck_tile::index_t temp = g_flat;
-        for(ck_tile::index_t i = num_g_dims - 1; i >= 0; --i)
+        for(int i = num_g_dims - 1; i >= 0; --i)
         {
             offset += (temp % G_dims[i]) * a_strides[i];
             temp /= G_dims[i];
@@ -114,7 +114,7 @@ void compute_reference_batched_contraction(
 
         // Decode M dimensions
         temp = m_flat;
-        for(ck_tile::index_t i = num_m_dims - 1; i >= 0; --i)
+        for(int i = num_m_dims - 1; i >= 0; --i)
         {
             offset += (temp % M_dims[i]) * a_strides[num_g_dims + i];
             temp /= M_dims[i];
@@ -122,7 +122,7 @@ void compute_reference_batched_contraction(
 
         // Decode K dimensions
         temp = k_flat;
-        for(ck_tile::index_t i = num_k_dims - 1; i >= 0; --i)
+        for(int i = num_k_dims - 1; i >= 0; --i)
         {
             offset += (temp % K_dims[i]) * a_strides[num_g_dims + num_m_dims + i];
             temp /= K_dims[i];
@@ -138,7 +138,7 @@ void compute_reference_batched_contraction(
 
         // Decode G dimensions
         ck_tile::index_t temp = g_flat;
-        for(ck_tile::index_t i = num_g_dims - 1; i >= 0; --i)
+        for(int i = num_g_dims - 1; i >= 0; --i)
         {
             offset += (temp % G_dims[i]) * b_strides[i];
             temp /= G_dims[i];
@@ -146,7 +146,7 @@ void compute_reference_batched_contraction(
 
         // Decode N dimensions
         temp = n_flat;
-        for(ck_tile::index_t i = num_n_dims - 1; i >= 0; --i)
+        for(int i = num_n_dims - 1; i >= 0; --i)
         {
             offset += (temp % N_dims[i]) * b_strides[num_g_dims + i];
             temp /= N_dims[i];
@@ -154,7 +154,7 @@ void compute_reference_batched_contraction(
 
         // Decode K dimensions
         temp = k_flat;
-        for(ck_tile::index_t i = num_k_dims - 1; i >= 0; --i)
+        for(int i = num_k_dims - 1; i >= 0; --i)
         {
             offset += (temp % K_dims[i]) * b_strides[num_g_dims + num_n_dims + i];
             temp /= K_dims[i];
@@ -170,7 +170,7 @@ void compute_reference_batched_contraction(
 
         // Decode G dimensions
         ck_tile::index_t temp = g_flat;
-        for(ck_tile::index_t i = num_g_dims - 1; i >= 0; --i)
+        for(int i = num_g_dims - 1; i >= 0; --i)
         {
             offset += (temp % G_dims[i]) * e_strides[i];
             temp /= G_dims[i];
@@ -178,7 +178,7 @@ void compute_reference_batched_contraction(
 
         // Decode M dimensions
         temp = m_flat;
-        for(ck_tile::index_t i = num_m_dims - 1; i >= 0; --i)
+        for(int i = num_m_dims - 1; i >= 0; --i)
         {
             offset += (temp % M_dims[i]) * e_strides[num_g_dims + i];
             temp /= M_dims[i];
@@ -186,7 +186,7 @@ void compute_reference_batched_contraction(
 
         // Decode N dimensions
         temp = n_flat;
-        for(ck_tile::index_t i = num_n_dims - 1; i >= 0; --i)
+        for(int i = num_n_dims - 1; i >= 0; --i)
         {
             offset += (temp % N_dims[i]) * e_strides[num_g_dims + num_m_dims + i];
             temp /= N_dims[i];
@@ -205,7 +205,7 @@ void compute_reference_batched_contraction(
 
         // Decode G dimensions
         ck_tile::index_t temp = g_flat;
-        for(ck_tile::index_t i = num_g_dims - 1; i >= 0; --i)
+        for(int i = num_g_dims - 1; i >= 0; --i)
         {
             offset += (temp % G_dims[i]) * d_strides[i];
             temp /= G_dims[i];
@@ -213,7 +213,7 @@ void compute_reference_batched_contraction(
 
         // Decode M dimensions
         temp = m_flat;
-        for(ck_tile::index_t i = num_m_dims - 1; i >= 0; --i)
+        for(int i = num_m_dims - 1; i >= 0; --i)
         {
             offset += (temp % M_dims[i]) * d_strides[num_g_dims + i];
             temp /= M_dims[i];
@@ -221,7 +221,7 @@ void compute_reference_batched_contraction(
 
         // Decode N dimensions
         temp = n_flat;
-        for(ck_tile::index_t i = num_n_dims - 1; i >= 0; --i)
+        for(int i = num_n_dims - 1; i >= 0; --i)
         {
             offset += (temp % N_dims[i]) * d_strides[num_g_dims + num_m_dims + i];
             temp /= N_dims[i];
