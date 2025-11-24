@@ -87,9 +87,10 @@ concept ValidConvSignature = requires {
     requires ConvDataType<Sig.data_type>;
 };
 
-// Predicate for forward convolution.
+// Predicate for forward convolution (default if direction is not included).
 template <auto Sig>
-concept ConvDirectionIsForward = (Sig.direction == ConvDirection::FORWARD);
+concept ConvDirectionIsForward =
+    !requires { Sig.direction; } || (Sig.direction == ConvDirection::FORWARD);
 
 // Predicate for backward data convolution.
 template <auto Sig>

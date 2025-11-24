@@ -222,8 +222,11 @@ def check_arch_name(){
     else if ( runShell('grep -n "gfx942" rocminfo.log') ) {
         arch_name = "gfx942"
     }
-    else if ( runShell('grep -n "gfx10" rocminfo.log') ) {
-        arch_name = "gfx10"
+    else if ( runShell('grep -n "gfx101" rocminfo.log') ) {
+        arch_name = "gfx101"
+    }
+    else if ( runShell('grep -n "gfx103" rocminfo.log') ) {
+        arch_name = "gfx103"
     }
     else if ( runShell('grep -n "gfx11" rocminfo.log') ) {
         arch_name = "gfx11"
@@ -402,8 +405,11 @@ def cmake_build(Map conf=[:]){
     if (setup_args.contains("gfx11")){
         invocation_tag="gfx11"
     }
-    if (setup_args.contains("gfx10")){
-        invocation_tag="gfx10"
+    if (setup_args.contains("gfx101")){
+        invocation_tag="gfx101"
+    }
+    if (setup_args.contains("gfx103")){
+        invocation_tag="gfx103"
     }
     if (setup_args.contains("gfx908")){
         invocation_tag="gfx908"
@@ -957,12 +963,12 @@ def run_pytorch_tests(Map conf=[:]){
 //launch develop branch daily jobs
 CRON_SETTINGS = BRANCH_NAME == "develop" ? '''0 23 * * * % RUN_FULL_QA=true;RUN_CK_TILE_FMHA_TESTS=true;RUN_PERFORMANCE_TESTS=true;FORCE_CI=true
                                               0 22 * * * % RUN_FULL_QA=true;DISABLE_DL_KERNELS=true;RUN_TILE_ENGINE_GEMM_TESTS=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
-                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX908=true;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true;BUILD_PACKAGES=true
+                                              0 21 * * * % RUN_GROUPED_CONV_LARGE_CASES_TESTS=true;hipTensor_test=true;BUILD_GFX101=true;BUILD_GFX908=true;BUILD_GFX942=true;BUILD_GFX950=true;RUN_PERFORMANCE_TESTS=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true;BUILD_PACKAGES=true
                                               0 19 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-staging;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 17 * * * % BUILD_DOCKER=true;COMPILER_VERSION=amd-mainline;BUILD_COMPILER=/llvm-project/build/bin/clang++;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;RUN_ALL_UNIT_TESTS=true;FORCE_CI=true
                                               0 15 * * * % BUILD_INSTANCES_ONLY=true;USE_SCCACHE=false;NINJA_BUILD_TRACE=true;FORCE_CI=true
                                               0 13 * * * % RUN_AITER_TESTS=true;BUILD_LEGACY_OS=true;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;FORCE_CI=true
-                                              0 11 * * * % RUN_PYTORCH_TESTS=true;RUN_CODEGEN_TESTS=false;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;BUILD_GFX10=false;BUILD_GFX11=false;BUILD_GFX12=false;BUILD_GFX90A=false;FORCE_CI=true''' : ""
+                                              0 11 * * * % RUN_PYTORCH_TESTS=true;RUN_CODEGEN_TESTS=false;USE_SCCACHE=false;RUN_PERFORMANCE_TESTS=false;BUILD_GFX101=false;BUILD_GFX103=false;BUILD_GFX11=false;BUILD_GFX12=false;BUILD_GFX90A=false;FORCE_CI=true''' : ""
 
 pipeline {
     agent none
@@ -1070,9 +1076,13 @@ pipeline {
             defaultValue: true,
             description: "Build CK and run tests on gfx950 (default: ON)")
         booleanParam(
-            name: "BUILD_GFX10",
+            name: "BUILD_GFX101",
+            defaultValue: false,
+            description: "Build CK and run tests on gfx101 (default: OFF)")
+        booleanParam(
+            name: "BUILD_GFX103",
             defaultValue: true,
-            description: "Build CK and run tests on gfx10 (default: ON)")
+            description: "Build CK and run tests on gfx103 (default: ON)")
         booleanParam(
             name: "BUILD_GFX11",
             defaultValue: true,
@@ -1661,11 +1671,27 @@ pipeline {
                         cleanWs()
                     }
                 }
+                stage("Build CK and run Tests on gfx1010")
+                {
+                    when {
+                        beforeAgent true
+                        expression { params.BUILD_GFX101.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                    }
+                    agent{ label rocmnode("gfx1010") }
+                    environment{
+                        setup_args = """ -DCMAKE_INSTALL_PREFIX=../install -DGPU_TARGETS="gfx10-1-generic" """
+                        execute_args = build_client_examples("gfx10-1-generic")
+                    }
+                    steps{
+                        Build_CK_and_Reboot(setup_args: setup_args, config_targets: "install", build_type: 'Release', execute_cmd: execute_args, prefixpath: '/usr/local')
+                        cleanWs()
+                    }
+                }
                 stage("Build CK and run Tests on gfx1030")
                 {
                     when {
                         beforeAgent true
-                        expression { params.BUILD_GFX10.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
+                        expression { params.BUILD_GFX103.toBoolean() && !params.RUN_FULL_QA.toBoolean() && !params.BUILD_INSTANCES_ONLY.toBoolean() && !params.BUILD_LEGACY_OS.toBoolean() }
                     }
                     agent{ label rocmnode("gfx1030") }
                     environment{
