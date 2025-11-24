@@ -85,11 +85,12 @@ struct UniversalGemmBasePolicy
             return DefaultBTileAccessPattern;
     }
 
-    template <typename Problem>
+    template <typename Problem,
+              typename OverrideADataType = remove_cvref_t<typename Problem::ADataType>>
     CK_TILE_DEVICE static constexpr auto MakeALdsBlockDescriptor()
     {
 
-        using ADataType             = remove_cvref_t<typename Problem::ADataType>;
+        using ADataType             = OverrideADataType;
         constexpr index_t MPerBlock = Problem::BlockGemmShape::kM;
         constexpr index_t KPerBlock = Problem::BlockGemmShape::kK;
 
