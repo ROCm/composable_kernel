@@ -463,11 +463,10 @@ struct AQuantGemmPipelineAgBgCrMem : public BaseAQuantGemmPipelineAgBgCrMem<Prob
     CK_TILE_DEVICE auto operator()(const ADramBlockWindowTmp& a_dram_block_window_tmp,
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                    const AQDramBlockWindowTmp& aq_dram_block_window_tmp,
-                                   index_t m,
                                    index_t num_loop,
-                                   void* p_smem) const
+                                   void* p_smem,
+                                   index_t m = 0) const
     {
-
         return PipelineImpl<GemmPipelineScheduler::Interwave>{}
             .template operator()<HasHotLoop, TailNum>(
                 a_dram_block_window_tmp,
