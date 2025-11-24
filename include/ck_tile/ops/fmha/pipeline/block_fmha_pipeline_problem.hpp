@@ -60,7 +60,7 @@ struct BlockFmhaPipelineProblem
     static constexpr auto BiasEnum          = Traits::BiasEnum;
     static constexpr bool kStoreLSE         = Traits::kStoreLSE;
     static constexpr bool kHasDropout       = Traits::kHasDropout;
-    static constexpr bool kDoFp8StaticQuant = Traits::kDoFp8StaticQuant;
+    static constexpr auto QScaleEnum        = Traits::QScaleEnum;
     static constexpr index_t kBlockPerCu    = Traits::kBlockPerCu;
 };
 

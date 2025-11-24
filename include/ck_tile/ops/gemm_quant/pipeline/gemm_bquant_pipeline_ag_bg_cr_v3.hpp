@@ -137,6 +137,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
     static constexpr bool kPadK = Problem::kPadK;
 
     static constexpr bool DoubleSmemBuffer = Problem::DoubleSmemBuffer;
+    static constexpr bool PreshuffleQuant  = Problem::Traits::PreshuffleQuant;
 
     static constexpr bool HasHotLoop = Problem::HasHotLoop;
     static constexpr auto TailNum    = Problem::TailNum;
@@ -238,6 +239,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                                        const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                        const BElementFunction& b_element_func,
                                        const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
+                                       index_t n,
                                        index_t num_loop,
                                        void* p_smem) const
         {
@@ -257,9 +259,6 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
             constexpr bool is_b_row_major = std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>;
 
             static_assert(is_bq_col_major, "Bq must be col major (row major not supported yet)");
-            static_assert(KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
-                              NPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}],
-                          "Bq block window has incorrect lengths for defined BqLayout!");
 
             static_assert(is_a_col_major
                               ? (KPerBlock == ADramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
@@ -315,8 +314,12 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                 is_a_col_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
             constexpr BDramTileWindowStep b_dram_tile_window_step =
                 is_b_row_major ? make_array(KPerBlock, 0) : make_array(0, KPerBlock);
-            constexpr BQDramTileWindowStep bq_dram_tile_window_step =
-                is_bq_col_major ? make_array(KPerBlockBQ, 0) : make_array(0, KPerBlockBQ);
+            const BQDramTileWindowStep bq_dram_tile_window_step =
+                (PreshuffleQuant) ? make_array(ck_tile::integer_least_multiple(n, NPerBlock) /
+                                                   BlockGemmShape::WarpTile::at(number<1>{}),
+                                               0)
+                : is_bq_col_major ? make_array(KPerBlockBQ, 0)
+                                  : make_array(0, KPerBlockBQ);
 
             // DRAM prefetch (global read 0)
             Base::GlobalPrefetch(a_block_tile, a_copy_dram_window, a_dram_tile_window_step);
@@ -457,6 +460,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
             return c_block_tile;
         }
     };
+    // Overload for PreshuffleQuant = true
     template <typename ADramBlockWindowTmp,
               typename BDramBlockWindowTmp,
               typename BQDramBlockWindowTmp>
@@ -464,7 +468,8 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                                    const BDramBlockWindowTmp& b_dram_block_window_tmp,
                                    const BQDramBlockWindowTmp& bq_dram_block_window_tmp,
                                    index_t num_loop,
-                                   void* p_smem) const
+                                   void* p_smem,
+                                   index_t n = 0) const
     {
         return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
             a_dram_block_window_tmp,
@@ -472,6 +477,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
             b_dram_block_window_tmp,
             [](const BDataType& b) { return b; },
             bq_dram_block_window_tmp,
+            n,
             num_loop,
             p_smem);
     }
@@ -502,7 +508,8 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                                    index_t num_loop,
                                    bool has_hot_loop,
                                    TailNumber tail_number,
-                                   void* p_smem) const
+                                   void* p_smem,
+                                   index_t n = 0) const
     {
         const auto RunPipeline = [&](auto has_hot_loop_, auto tail_number_) {
             constexpr bool hot_loop = has_hot_loop_.value;
@@ -513,6 +520,7 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                 b_dram_block_window_tmp,
                 [](const BDataType& b) { return b; },
                 bq_dram_block_window_tmp,
+                n, // dummy value, won't be used
                 num_loop,
                 p_smem);
         };
