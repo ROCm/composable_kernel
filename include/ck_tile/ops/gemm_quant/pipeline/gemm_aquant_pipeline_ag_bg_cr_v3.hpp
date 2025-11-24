@@ -525,7 +525,7 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
     {
         return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
             a_dram_block_window_tmp,
-            [](const ADataType& a) { return a; },
+            [](const BDataType& a) { return a; },
             b_dram_block_window_tmp,
             [](const BDataType& b) { return b; },
             aq_dram_block_window_tmp,
