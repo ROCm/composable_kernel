@@ -113,6 +113,11 @@ struct GemmConfigPreshuffleBPrefillTiledPermuteN : public GemmConfigPreshuffleBP
     static constexpr bool TiledMMAPermuteN = N_Repeat % 2 == 0;
 };
 
+struct GemmConfigPreshuffleBPreshuffleQuantDecode : public GemmConfigPreshuffleBDecode
+{
+    static constexpr bool PreshuffleQuant = true;
+};
+
 template <typename Tuple>
 class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGemmAQuant<Tuple>>
 {
@@ -436,7 +441,13 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         {
             printf("Preshuffle BQ with TiledMMAPermuteN \n");
             ck_tile::HostTensor<QDataType> bq_shuffle_host =
-                ck_tile::shuffle_bq_permuteN<GemmConfig>(bq_bqk_bqn);
+                ck_tile::bq_permuteN<GemmConfig>(bq_bqk_bqn);
+            bq_bqk_bqn_dev_buf.ToDevice(bq_shuffle_host.data());
+        }
+        else if constexpr(GemmConfig::PreshuffleQuant)
+        {
+            ck_tile::HostTensor<QDataType> bq_shuffle_host =
+                ck_tile::shuffle_bq(&bq_bqk_bqn, GemmConfig::K_Tile / QuantGroupSize::kK);
             bq_bqk_bqn_dev_buf.ToDevice(bq_shuffle_host.data());
         }
         else
