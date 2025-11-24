@@ -1077,7 +1077,7 @@ pipeline {
             description: "Build CK and run tests on gfx950 (default: ON)")
         booleanParam(
             name: "BUILD_GFX101",
-            defaultValue: true,
+            defaultValue: false,
             description: "Build CK and run tests on gfx101 (default: OFF)")
         booleanParam(
             name: "BUILD_GFX103",
