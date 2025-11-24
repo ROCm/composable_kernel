@@ -48,8 +48,7 @@ template <typename AType,
 struct WarpGemmKernel
 {
     static constexpr int kBlockSize = 64;
-    __device__ void operator()(
-        void* A, void* B, void* C, const ck_tile::e8m0_t ScaleA, const ck_tile::e8m0_t ScaleB) const
+    __device__ void operator()(void* A, void* B, void* C, void* ScaleA, void* ScaleB) const
     {
         using WarpGemm = ck_tile::WarpGemmDispatcher<AType,
                                                      BType,
@@ -103,8 +102,8 @@ struct WarpGemmKernel
         ck_tile::load_tile(a_tile, a_win);
         ck_tile::load_tile(b_tile, b_win);
 
-        auto scale_a = static_cast<int32_t>(ScaleA.get() << 24); // left shift to the first 8-bit
-        auto scale_b = static_cast<int32_t>(ScaleB.get() << 24);
+        auto scale_a = static_cast<int32_t>(static_cast<ck_tile::e8m0_t*>(ScaleA)[0].get());
+        auto scale_b = static_cast<int32_t>(static_cast<ck_tile::e8m0_t*>(ScaleB)[0].get());
 
         auto c_tile = WarpGemm{}.template operator()<0, 0>(a_tile, b_tile, scale_a, scale_b);
 
@@ -115,11 +114,11 @@ struct WarpGemmKernel
 template <typename Case>
 static void RunWarpGemmCase(const ck_tile::HostTensor<typename Case::AType>& A,
                             const ck_tile::HostTensor<typename Case::BType>& B,
-                            const ck_tile::e8m0_t ScaleA,
-                            const ck_tile::e8m0_t ScaleB,
+                            const ck_tile::HostTensor<e8m0_t>& ScaleA,
+                            const ck_tile::HostTensor<e8m0_t>& ScaleB,
                             ck_tile::HostTensor<typename Case::AccType>& C)
 {
-    ck_tile::DeviceMem Ad(A), Bd(B), Cd(C);
+    ck_tile::DeviceMem Ad(A), Bd(B), Cd(C), SAd(ScaleA), SBd(ScaleB);
     dim3 grid(1), block{64};
 
     using Kernel = WarpGemmKernel<typename Case::AType,
@@ -141,8 +140,8 @@ static void RunWarpGemmCase(const ck_tile::HostTensor<typename Case::AType>& A,
                                                       Ad.GetDeviceBuffer(),
                                                       Bd.GetDeviceBuffer(),
                                                       Cd.GetDeviceBuffer(),
-                                                      ScaleA,
-                                                      ScaleB));
+                                                      SAd.GetDeviceBuffer(),
+                                                      SBd.GetDeviceBuffer()));
 
     Cd.FromDevice(C.mData.data());
 }
@@ -167,27 +166,25 @@ TYPED_TEST(WGRuntimeTest, Compare_Dispatcher_MakeWG)
     constexpr index_t N = Case::NPerWave;
     constexpr index_t K = Case::KPerWave;
 
+    auto ScaleA = e8m0_t{2.f};
+    auto ScaleB = e8m0_t{4.f};
+
     ck_tile::HostTensor<AType> A({M, K});
     ck_tile::HostTensor<BType> B({N, K});
     ck_tile::HostTensor<CType> C({M, N});
-
-    auto ScaleA = e8m0_t{1.f};
-    auto ScaleB = e8m0_t{1.f};
-
-    ck_tile::FillConstant<AType>{AType(1.f)}(A);
-    ck_tile::FillConstant<BType>{BType(1.f)}(B);
-    C.SetZero();
-
-    RunWarpGemmCase<Case>(A, B, ScaleA, ScaleB, C);
-
     ck_tile::HostTensor<e8m0_t> sA({M, 1});
     ck_tile::HostTensor<e8m0_t> sB({N, 1});
+
+    ck_tile::FillUniformDistribution<AType>{-5.f, 5.f}(A);
+    ck_tile::FillUniformDistribution<BType>{-5.f, 5.f}(B);
+    C.SetZero();
+    ck_tile::FillConstant<e8m0_t>{ScaleA}(sA);
+    ck_tile::FillConstant<e8m0_t>{ScaleB}(sB);
+
+    RunWarpGemmCase<Case>(A, B, sA, sB, C);
+
     ck_tile::HostTensor<CType> C_ref({M, N});
     C_ref.SetZero();
-
-    ck_tile::FillConstant<e8m0_t>{e8m0_t(1.f)}(sA);
-    ck_tile::FillConstant<e8m0_t>{e8m0_t(1.f)}(sB);
-
     ck_tile::reference_mx_gemm<AType, BType, e8m0_t, CType, CType>(
         A, B.transpose(), C_ref, sA, sB.transpose());
 
