@@ -453,7 +453,7 @@ struct SelectedKernel {{
         ck_tile::sequence<WarpTileM, WarpTileN, WarpTileK>>;
     
     // Tile partitioner
-    using TilePartitioner = ck_tile::StreamKTilePartitioner_v2<TileShape, reduction_strategy, UsePersistentKernel>;
+    using TilePartitioner = ck_tile::StreamKTilePartitioner<TileShape, reduction_strategy, UsePersistentKernel>;
     
     // Traits
     using GemmUniversalTraits = ck_tile::TileGemmUniversalTraits<kPadM,
@@ -477,7 +477,7 @@ struct SelectedKernel {{
         TileShape,
         GemmUniversalTraits>;
     
-    static float launch(const ck_tile::reboot::StreamKHostArgs& args, const ck_tile::stream_config& stream) {{
+    static float launch(const ck_tile::StreamKHostArgs& args, const ck_tile::stream_config& stream) {{
         const auto Run = [&](const auto memory_operation_) {{
             constexpr auto memory_operation = memory_operation_.value;
             constexpr auto scheduler        = ck_tile::GemmPipelineScheduler::Intrawave;
@@ -515,7 +515,7 @@ struct SelectedKernel {{
             using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;
 
             // Kernel type
-            using GemmKernel = ck_tile::reboot::StreamKKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
+            using GemmKernel = ck_tile::StreamKKernel<TilePartitioner, GemmPipeline, GemmEpilogue>;
             
             // Make kernel arguments
             auto kargs = GemmKernel::MakeKernelArgs(args);

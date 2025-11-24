@@ -130,7 +130,7 @@ void benchmark_gemm_single(const ck_tile::ArgParser& arg_parser)
     try
     {
         // Create a lambda that wraps the kernel launch
-        auto kernel_func = [](const ck_tile::reboot::StreamKHostArgs& args,
+        auto kernel_func = [](const ck_tile::StreamKHostArgs& args,
                               const ck_tile::stream_config& stream) {
             return SelectedKernel::launch(args, stream);
         };
