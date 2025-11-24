@@ -3,18 +3,7 @@
 
 #pragma once
 
-// WORKAROUND: Macro namespace collision in upstream CK device operation headers.
-// device_grouped_conv_fwd_multiple_abd_xdl_cshuffle.hpp (line 41) and
-// device_grouped_conv_fwd_multiple_d_xdl_large_tensor_cshuffle.hpp (line 51) both define
-// GridwiseGemmTemplateParameters macro without #undef, causing redefinition errors.
-// Use pragma push/pop to isolate the Large_Tensor header's macro scope.
-#pragma push_macro("GridwiseGemmTemplateParameters")
-#ifdef GridwiseGemmTemplateParameters
-#undef GridwiseGemmTemplateParameters
-#endif
 #include "ck/tensor_operation/gpu/device/impl/device_grouped_conv_fwd_multiple_d_xdl_large_tensor_cshuffle.hpp"
-#pragma pop_macro("GridwiseGemmTemplateParameters")
-
 #include "ck_tile/builder/conv_signature_concepts.hpp"
 #include "ck_tile/builder/conv_algorithm_concepts.hpp"
 #include "ck_tile/builder/conv_algorithm_limits.hpp"
