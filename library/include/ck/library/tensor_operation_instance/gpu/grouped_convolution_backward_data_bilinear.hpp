@@ -255,7 +255,7 @@ struct DeviceOperationInstanceFactory<
                         op_ptrs);
                 }
 #endif
-#endif
+
 #ifdef CK_ENABLE_BF16
                 else if constexpr(is_same_v<InDataType, BF16> && is_same_v<WeiDataType, BF16> &&
                                   is_same_v<OutDataType, BF16> && is_same_v<ComputeTypeA, BF16> &&
