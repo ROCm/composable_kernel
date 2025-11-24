@@ -759,7 +759,6 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
                         input_right_pads,
                         k_batch_)[I2];
 
-            // Extract complex conditions to named boolean variables for clarity
             const index_t output_spatial_acum = ck::accumulate_n<index_t>(
                 output_spatial_lengths_.begin(), NDimSpatial, 1, std::multiplies<>());
 
@@ -774,8 +773,6 @@ struct DeviceGroupedConvBwdWeightTwoStage_Xdl_CShuffle
             const bool is_correct_layout =
                 is_NSpatialGC_GKSpatial_NSpatialGK<InLayout, WeiLayout, OutLayout>();
 
-            // NEW: Check if descriptor element space sizes are divisible by k_batch_
-            // This prevents integer division truncation when calculating strides
             const bool is_a_stride_divisible =
                 a_grid_desc_k0_m_k1_.GetElementSpaceSize() % k_batch_ == 0;
 
