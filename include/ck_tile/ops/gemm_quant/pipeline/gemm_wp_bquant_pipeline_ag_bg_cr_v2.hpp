@@ -181,6 +181,8 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
         static_assert(!is_b_row_major, "B must be col major (row major not supported yet)");
 
         const index_t iMWarp = get_warp_id() / NWarp;
+        // Double-Buffering (loop_count=2) for full load/compute overlap.
+        const index_t loop_count = 2;
 
         __builtin_amdgcn_sched_barrier(0);
 
@@ -364,7 +366,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
         __builtin_amdgcn_sched_barrier(0);
 
         // MAIN LOOP
-        index_t iCounter = (num_loop - 1) / 2;
+        index_t iCounter = (num_loop - 1) / loop_count;
 
         while(iCounter > 0)
         {
@@ -468,7 +470,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                     load_tile(a_warp_windows_ping(number<mIter>{})(number<kIter>{}));
             });
             iCounter--;
-            HotLoopScheduler<2>();
+            HotLoopScheduler<loop_count>();
         }
 
         // tail
@@ -512,7 +514,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
                                     b_warp_tensor_pong,
                                     bq_block_tile_2,
                                     a_warp_windows_pong);
-            HotLoopScheduler<2>();
+            HotLoopScheduler<loop_count>();
         }
         else if constexpr(TailNum == TailNumber::Odd)
         {
