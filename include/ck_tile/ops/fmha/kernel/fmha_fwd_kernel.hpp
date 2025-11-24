@@ -1797,7 +1797,7 @@ struct FmhaFwdKernel
                                           o_acc_element_func, // o_acc_element_func
                                           mask,
                                           position_encoding,
-                                          scale_s,
+                                          kargs.scale_s,
                                           variant,
                                           variant_params,
                                           block_indices,
