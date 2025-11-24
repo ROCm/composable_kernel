@@ -35,11 +35,6 @@ auto parse_cmd_args(int argc, char* argv[]) -> std::pair<bool, ck_tile::ArgParse
         .insert("prec", "bf16", "data type. fp16/bf16")
         // .insert("b", "3", "batch size")
         .insert("h_k", "8", "num head for k/v. num head for q is " + std::to_string(num_queries_per_kv) + " times this")
-        // .insert("h_k",
-        //         "-1",
-        //         "num of head, for k/v, -1 means equal to h\n"
-        //         "if not equal to h, then this is GQA/MQA case")
-
         .insert("nb", "1024", "num_blks")
         .insert("d", "128", "head dim for q & k")
         .insert("scale_s", "0", "scale factor of S. 0 means equal to 1/sqrt(hdim)")
@@ -109,7 +104,7 @@ struct Problem
         scale   = args.get_float("scale");
         scale_k = args.get_float("scale_k");
         scale_v = args.get_float("scale_v");
-
+        num_tokens = 0;
         for(const auto& len : query_lens)
         {
             num_tokens += len;
@@ -277,6 +272,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
 
     ck_tile::unified_attention_args args{};
 
+    args.scale_s            = problem.scale_s;
     args.data_type          = problem.data_type;
     args.num_seqs           = problem.batch;
     args.num_head_q         = problem.nhead_q;
@@ -402,7 +398,7 @@ bool run_impl(const Problem& problem, const RunConfig& run_config)
 
     if(!result)
     {
-        std::cerr << "faild to run fmha_fwd_v3()" << std::endl;
+        std::cerr << "faild to run unified_attention()" << std::endl;
         return false;
     }
 

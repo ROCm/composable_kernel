@@ -321,7 +321,8 @@ struct UnifiedAttentionKernel
         //     _max_seq_prefix_len = seq_len;
         // }
 
-        const auto max_seq_prefix_len = seq_len; // _max_seq_prefix_len;
+        // const auto max_seq_prefix_len = _max_seq_prefix_len;
+        const auto max_seq_prefix_len = seq_len;
         const index_t num_blocks      =  amd_wave_read_first_lane((max_seq_prefix_len + BLOCK_SIZE - 1) / BLOCK_SIZE);
 
         // TODO sliding window
@@ -394,26 +395,17 @@ struct UnifiedAttentionKernel
             // HEAD dim is skipped as defined in the ptrs
             const auto k_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 k_ptr,
-                make_tuple(kargs.num_blks, BLOCK_SIZE, HEAD_SIZE),
-                make_tuple(kargs.stride_k_cache_0, kargs.stride_k_cache_1, kargs.stride_k_cache_3),
+                make_tuple(kargs.num_blks * BLOCK_SIZE, HEAD_SIZE),
+                make_tuple(kargs.stride_k_cache_1, kargs.stride_k_cache_3),
                 number<UnifiedAttentionPipeline::kAlignmentK>{},
                 number<1>{});
 
             const auto k_dram_pad = pad_tensor_view(k_dram_naive,
                                                     // TODO can the BLOCK_SIZE_RAW needs padding?
-                                                    make_tuple(1, BLOCK_SIZE, HEAD_SIZE_PADDED),
-                                                    sequence<false, false, kPadHeadDimQ>{});
+                                                    make_tuple(BLOCK_SIZE, HEAD_SIZE_PADDED),
+                                                    sequence<false, kPadHeadDimQ>{});
 
-            const auto k_dram_merged = transform_tensor_view(
-                k_dram_pad,
-                make_tuple(make_merge_transform(make_tuple(kargs.num_blks, BLOCK_SIZE)),
-                           make_pass_through_transform(HEAD_SIZE_PADDED)),
-                make_tuple(sequence<0, 1>{}, sequence<2>{}),
-                make_tuple(sequence<0>{},
-                           sequence<1>{})); // flattens the first two dims, head idx is the fastest
-                                            // changing dim in the merged dim
-
-            return k_dram_merged;
+            return k_dram_pad;
         }();
 
         auto k_dram_window = make_tile_window(
@@ -422,25 +414,16 @@ struct UnifiedAttentionKernel
         const auto v_dram = [&]() {
             const auto v_dram_naive = make_naive_tensor_view<address_space_enum::global>(
                 v_ptr,
-                make_tuple(kargs.num_blks, BLOCK_SIZE, HEAD_SIZE),
-                make_tuple(kargs.stride_v_cache_0, kargs.stride_v_cache_1, kargs.stride_v_cache_3),
+                make_tuple(kargs.num_blks * BLOCK_SIZE, HEAD_SIZE),
+                make_tuple(kargs.stride_v_cache_1, kargs.stride_v_cache_3),
                 number<UnifiedAttentionPipeline::kAlignmentV>{},
                 number<1>{});
 
             const auto v_dram_pad = pad_tensor_view(v_dram_naive,
-                                                    make_tuple(1, BLOCK_SIZE, HEAD_SIZE_PADDED),
-                                                    sequence<false, false, kPadHeadDimQ>{});
+                                                    make_tuple(BLOCK_SIZE, HEAD_SIZE_PADDED),
+                                                    sequence<false, kPadHeadDimQ>{});
 
-            const auto v_dram_merged = transform_tensor_view(
-                v_dram_pad,
-                make_tuple(make_merge_transform(make_tuple(kargs.num_blks, BLOCK_SIZE)),
-                           make_pass_through_transform(HEAD_SIZE_PADDED)),
-                make_tuple(sequence<0, 1>{}, sequence<2>{}),
-                make_tuple(sequence<0>{},
-                           sequence<1>{})); // flattens the first two dims, head idx is the fastest
-                                            // changing dim in the merged dim
-
-            return v_dram_merged;
+            return v_dram_pad;
         }();
 
         auto v_dram_window = make_tile_window(

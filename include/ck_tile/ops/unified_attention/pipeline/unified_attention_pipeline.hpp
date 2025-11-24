@@ -544,6 +544,8 @@ struct UnifiedAttentionPipeline
         const auto q_origin = q_dram_window.get_window_origin();
 
         const auto num_total_loop = num_blocks;
+        index_t k_block_table_off = num_blocks_start;
+        index_t v_block_table_off = num_blocks_start;
 
         // check early exit if no work to do
         if constexpr(FmhaMask::IsMasking)
@@ -557,10 +559,11 @@ struct UnifiedAttentionPipeline
             }
         }
 
+        // TODO check correctness of this
         index_t i_total_loops = num_blocks_start;
         const ck_tile::index_t* block_tables_ptr_ =
             reinterpret_cast<const ck_tile::index_t*>(block_tables_ptr);
-        index_t kv_blk_idx_intial      = block_tables_ptr_[block_table_offset + i_total_loops];
+        index_t kv_blk_idx_intial      = block_tables_ptr_[block_table_offset + k_block_table_off];
 
         auto k_dram_window =
             make_tile_window(k_dram_block_window_tmp.get_bottom_tensor_view(),
@@ -668,7 +671,9 @@ struct UnifiedAttentionPipeline
             async_load_tile_raw(k_lds_window_store(k_lds_write_idx), k_dram_window);
             // TODO maybe needs i_total_loops as argument. Or maybe needs to use the k_lds_write_idx
             // as the index
-            index_t kv_blk_idx = block_tables_ptr_[block_table_offset + i_total_loops];
+
+            k_block_table_off++;
+            index_t kv_blk_idx = block_tables_ptr_[block_table_offset + k_block_table_off];
             /// FIXME: use the future-predicting method to move the window
             k_dram_window.set_window_origin({kv_blk_idx * BLOCK_SIZE, 0});
         };
@@ -679,7 +684,9 @@ struct UnifiedAttentionPipeline
 
         auto V_mem_load = [&](auto v_lds_write_idx) {
             async_load_tile_raw(v_lds_window_store(v_lds_write_idx), v_dram_window);
-            index_t kv_blk_idx = block_tables_ptr_[block_table_offset + i_total_loops];
+            v_block_table_off++;
+
+            index_t kv_blk_idx = block_tables_ptr_[block_table_offset + v_block_table_off];
             /// FIXME: use the future-predicting method to move the window
             v_dram_window.set_window_origin({kv_blk_idx * BLOCK_SIZE, 0});
         };
@@ -1006,7 +1013,6 @@ struct UnifiedAttentionPipeline
                     cl_load(memV, V_w0_lds_wr_idx, K_w0_lds_rd_idx);
 
                     Scheduler::schedule(cl_p, number<3>{});
-                    // kv_token_start += BLOCK_SIZE;
                     if(num_total_loop <= ++i_total_loops)
                     {
                         result = false;
@@ -1053,7 +1059,6 @@ struct UnifiedAttentionPipeline
                     Scheduler::schedule(cl_p, number<2>{});
                     fmha_mask(xdl_SP_p01_reg_idx);
 
-                    // kv_token_start += BLOCK_SIZE;
                     if(num_total_loop <= ++i_total_loops)
                     {
                         result = false;
@@ -1131,7 +1136,6 @@ struct UnifiedAttentionPipeline
             fmha_alu0(number<0>{});
             fmha_alu_D_upd();
 
-            // kv_token_start += BLOCK_SIZE;
             ++i_total_loops;
             if(num_total_loop <= i_total_loops)
             {
