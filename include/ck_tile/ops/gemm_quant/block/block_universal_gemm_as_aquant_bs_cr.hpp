@@ -448,7 +448,10 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                                           bool_constant<ALoadTranspose> = {},
                                           bool_constant<BLoadTranspose> = {})
         {
-            load_int4_tile<ADataType, ComputeDataType, UnaryOpSize_, ALoadTranspose>(
+            // while ADatatype might not be the same as BDataType at the time of problem
+            // initialization, we can safely use BDataType here because when A would be int4 we will
+            // ensure A is converted to BDataType prior to loading
+            load_int4_tile<BDataType, ComputeDataType, UnaryOpSize_, ALoadTranspose>(
                 a_warp_tile_, a_block_window);
             load_int4_tile<BDataType, ComputeDataType, UnaryOpSize_, BLoadTranspose>(
                 b_warp_tile_, b_block_window);
