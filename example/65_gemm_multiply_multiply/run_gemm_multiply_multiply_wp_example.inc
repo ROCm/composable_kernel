@@ -64,22 +64,22 @@ int run_gemm_example(int argc, char* argv[])
 
             if(std::is_same<decltype(layout), ck::tensor_layout::gemm::RowMajor>::value)
             {
-                return HostTensorDescriptor({row, col}, {stride, 1_uz});
+                return ck::HostTensorDescriptor({row, col}, {stride, 1_uz});
             }
             else
             {
-                return HostTensorDescriptor({row, col}, {1_uz, stride});
+                return ck::HostTensorDescriptor({row, col}, {1_uz, stride});
             }
         };
 
-    Tensor<A0DataType> a0_m_k(f_host_tensor_descriptor(M, K, StrideA, A0Layout{}));
-    Tensor<B0DataType> b0_k_n(f_host_tensor_descriptor(K, N, StrideB, B0Layout{}));
-    Tensor<B0DataType> b0_preshuffled(
+    ck::Tensor<A0DataType> a0_m_k(f_host_tensor_descriptor(M, K, StrideA, A0Layout{}));
+    ck::Tensor<B0DataType> b0_k_n(f_host_tensor_descriptor(K, N, StrideB, B0Layout{}));
+    ck::Tensor<B0DataType> b0_preshuffled(
         f_host_tensor_descriptor(K, N, StrideB, B0Layout{})); // use laout only for size
-    Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor(M, N, StrideD, D0Layout{}));
-    Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor(M, N, StrideD, D1Layout{}));
-    Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
-    Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
+    ck::Tensor<D0DataType> d0_m_n(f_host_tensor_descriptor(M, N, StrideD, D0Layout{}));
+    ck::Tensor<D1DataType> d1_m_n(f_host_tensor_descriptor(M, N, StrideD, D1Layout{}));
+    ck::Tensor<EDataType> e_m_n_host_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
+    ck::Tensor<EDataType> e_m_n_device_result(f_host_tensor_descriptor(M, N, StrideE, ELayout{}));
 
     // Update strides based on tensor properties if they are <= 0
     auto get_stride = [](auto& tensor, auto layout, ck::index_t current_stride) -> ck::index_t {
@@ -130,11 +130,11 @@ int run_gemm_example(int argc, char* argv[])
         d0_m_n.GenerateTensorValue(GeneratorTensor_3<D0DataType>{0.0, 1.0});
         d1_m_n.GenerateTensorValue(GeneratorTensor_3<D1DataType>{0.0, 1.0});
     }
-    DeviceMem a0_device_buf(sizeof(A0DataType) * a0_m_k.mDesc.GetElementSpaceSize());
-    DeviceMem b0_device_buf(sizeof(B0DataType) * b0_k_n.mDesc.GetElementSpaceSize());
-    DeviceMem d0_device_buf(sizeof(D0DataType) * d0_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem d1_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpaceSize());
-    DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
+    ck::DeviceMem a0_device_buf(sizeof(A0DataType) * a0_m_k.mDesc.GetElementSpaceSize());
+    ck::DeviceMem b0_device_buf(sizeof(B0DataType) * b0_k_n.mDesc.GetElementSpaceSize());
+    ck::DeviceMem d0_device_buf(sizeof(D0DataType) * d0_m_n.mDesc.GetElementSpaceSize());
+    ck::DeviceMem d1_device_buf(sizeof(D1DataType) * d1_m_n.mDesc.GetElementSpaceSize());
+    ck::DeviceMem e_device_buf(sizeof(EDataType) * e_m_n_device_result.mDesc.GetElementSpaceSize());
 
     a0_device_buf.ToDevice(a0_m_k.mData.data());
     d0_device_buf.ToDevice(d0_m_n.mData.data());
@@ -202,7 +202,7 @@ int run_gemm_example(int argc, char* argv[])
 
         e_device_buf.FromDevice(e_m_n_device_result.mData.data());
 
-        Tensor<CShuffleDataType> c_m_n({M, N});
+        ck::Tensor<CShuffleDataType> c_m_n({M, N});
 
         using ReferenceGemmInstance = ck::tensor_operation::host::ReferenceGemm<A0DataType,
                                                                                 B0DataType,
