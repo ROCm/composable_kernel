@@ -744,7 +744,7 @@ class KernelComponentFactoryGfx9:
                 ["no"],
             ):
                 pipelines.append(FmhaFwdPipeline("qr", "row", "f", "f", "f", "f", logits, bias, "f", "f", qscale, mask, "f", "f"))  # fmt: skip
-                pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "f", "f", logits, bias, "f", "f", qscale, mask, "f", "f"))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f"))  # fmt: skip
         elif dtype in ["fp8", "fp8fp16", "bf8"]:
             # TODO
             None
@@ -833,7 +833,7 @@ class KernelComponentFactoryGfx12:
                 ["f"], ["no", "pertensor", "blockscale"], get_mask_map(mask_impl).keys(), ["no"]
             ):
                 pipelines.append(FmhaFwdPipeline("qr", "row", "f", "f", "f", "f", logits, bias, "f", "f", qscale, mask, "f", "f"))  # fmt: skip
-                pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "f", "f", logits, bias, "f", "f", qscale, mask, "f", "f"))  # fmt: skip
+                pipelines.append(FmhaFwdPipeline("qr", "row", "t", "t", "t", "t", logits, bias, "f", "f", qscale, mask, "f", "f"))  # fmt: skip
         else:
             assert False
         return pipelines
@@ -959,7 +959,7 @@ def get_fwd_blobs(
                     cond &= mode == "batch"
                     cond &= pipeline.F_vlayout == "row"
                     if dtype == "fp8bf16":
-                        cond &= hdim == 128
+                        cond &= hdim == 128 or hdim == 256
                     if not cond:
                         continue
                 # Aiter(mha_varlen_fwd) integration
@@ -968,7 +968,7 @@ def get_fwd_blobs(
                     cond &= mode == "group"
                     cond &= pipeline.F_vlayout == "row"
                     if dtype == "fp8bf16":
-                        cond &= hdim == 128
+                        cond &= hdim == 128 or hdim == 256
                     if not cond:
                         continue
                 # aiter::mha_fwd C++ api integration
@@ -976,13 +976,13 @@ def get_fwd_blobs(
                     cond = dtype in ["fp16", "bf16", "fp8bf16"]
                     cond &= pipeline.F_vlayout == "row"
                     if dtype == "fp8bf16":
-                        cond &= hdim == 128
+                        cond &= hdim == 128 or hdim == 256
                     if not cond:
                         continue
                 elif receipt == 888:
-                    cond = dtype in ["fp8", "fp8bf16", "fp8fp32"]
+                    cond = dtype in ["fp8bf16", "fp8fp32"]
                     cond &= pipeline.F_vlayout == "row"
-                    cond &= hdim == 128
+                    cond &= hdim == 128 or hdim == 256
                     if not cond:
                         continue
 

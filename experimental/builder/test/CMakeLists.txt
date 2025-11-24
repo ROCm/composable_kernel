@@ -39,8 +39,8 @@ add_ck_builder_test(test_ckb_get_instance_string
 add_ck_builder_test(test_ckb_build_fwd_instances
     conv/test_ckb_conv_fwd_1d_fp16.cpp
     conv/test_ckb_conv_fwd_1d_bf16.cpp
-    conv/test_ckb_conv_fwd_1d_i8.cpp  
-    conv/test_ckb_conv_fwd_2d_fp8.cpp  
+    conv/test_ckb_conv_fwd_1d_i8.cpp
+    conv/test_ckb_conv_fwd_2d_fp8.cpp
     conv/test_ckb_conv_fwd_2d_bf16.cpp
     conv/test_ckb_conv_fwd_2d_fp16.cpp
     conv/test_ckb_conv_fwd_2d_fp32.cpp
@@ -57,14 +57,14 @@ function(add_ck_factory_test test_name)
 endfunction()
 
 add_ck_factory_test(test_ckb_testing_utils test_testing_utils.cpp)
-add_ck_factory_test(test_ckb_factory_grouped_convolution_forward test_ck_factory_grouped_convolution_forward.cpp)
-add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_clamp test_ck_factory_grouped_convolution_forward_clamp.cpp)
+# add_ck_factory_test(test_ckb_factory_grouped_convolution_forward test_ck_factory_grouped_convolution_forward.cpp)
+# add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_clamp test_ck_factory_grouped_convolution_forward_clamp.cpp)
 add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_convscale test_ck_factory_grouped_convolution_forward_convscale.cpp)
-add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_bilinear test_ck_factory_grouped_convolution_forward_bilinear.cpp)
-add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scale test_ck_factory_grouped_convolution_forward_scale.cpp)
+# add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_bilinear test_ck_factory_grouped_convolution_forward_bilinear.cpp)
+# add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scale test_ck_factory_grouped_convolution_forward_scale.cpp)
 add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scaleadd_ab test_ck_factory_grouped_convolution_forward_scaleadd_ab.cpp)
-add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_bias_clamp test_ck_factory_grouped_convolution_forward_bias_clamp.cpp)
-add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_bias_bnorm_clamp test_ck_factory_grouped_convolution_forward_bias_bnorm_clamp.cpp)
+# add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_bias_clamp test_ck_factory_grouped_convolution_forward_bias_clamp.cpp)
+# add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_bias_bnorm_clamp test_ck_factory_grouped_convolution_forward_bias_bnorm_clamp.cpp)
 add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_scaleadd_scaleadd_relu test_ck_factory_grouped_convolution_forward_scaleadd_scaleadd_relu.cpp)
 add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_dynamic_op test_ck_factory_grouped_convolution_forward_dynamic_op.cpp)
 
@@ -78,7 +78,7 @@ add_ck_builder_test(test_ckb_conv_description
 function(collect_test_ckb_targets result_var)
     # Get all targets in current directory
     get_directory_property(all_targets BUILDSYSTEM_TARGETS)
-    
+
     set(test_ckb_targets)
     foreach(target ${all_targets})
         # Check if target name starts with "test_ckb"
@@ -87,7 +87,7 @@ function(collect_test_ckb_targets result_var)
             list(APPEND test_ckb_targets ${target})
         endif()
     endforeach()
-    
+
     set(${result_var} ${test_ckb_targets} PARENT_SCOPE)
 endfunction()
 

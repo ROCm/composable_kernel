@@ -3,6 +3,10 @@
 
 #include "common.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 using InDataType  = FP32; // ck::bhalf_t;//FP32;
 using OutDataType = FP32; // ck::bhalf_t;//FP32;
 

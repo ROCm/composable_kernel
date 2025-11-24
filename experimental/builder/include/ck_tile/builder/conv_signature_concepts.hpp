@@ -1,4 +1,4 @@
-// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
 // This file defines the compile-time "signature" for grouped convolution operations.
@@ -43,14 +43,41 @@ concept ConvDataType = (T == DataType::FP32) || (T == DataType::FP16) || (T == D
 template <typename T>
 concept ConvLayout = std::same_as<std::remove_cvref_t<T>, GroupConvLayout>;
 
+template <typename T>
+concept HasElementwiseOp = requires(T t) {
+    { t.elementwise_operation };
+};
+
+template <typename T>
+concept HasConvolutionDirection = requires(T t) {
+    { t.direction };
+};
+
+// Note: it is not required to provide an ElementwiseOp, but if one is provided, check if well
+// defined
+template <typename T>
+concept ElementwiseOpWellDefinedIfProvided = requires(T t) {
+    requires !HasElementwiseOp<T> || requires {
+        { t.elementwise_operation } -> std::convertible_to<ElementwiseOperation>;
+    };
+};
+
+// Note: it is not required to provide a convolution, but if one is provided, check if well defined
+template <typename T>
+concept ConvolutionDirectionWellDefinedIfProvided = requires(T t) {
+    requires !HasConvolutionDirection<T> || requires {
+        { t.direction } -> std::convertible_to<ConvDirection>;
+    };
+};
+
 // Concept for a type that defines a convolution's operational signature.
 template <typename T>
 concept ConvSignatureDescriptor = requires(T t) {
     { t.spatial_dim } -> std::convertible_to<unsigned int>;
-    { t.direction } -> std::convertible_to<ConvDirection>;
     { t.layout } -> ConvLayout;
     { t.data_type } -> std::convertible_to<DataType>;
-    { t.elementwise_operation } -> std::convertible_to<ElementwiseOperation>;
+    requires ElementwiseOpWellDefinedIfProvided<T>;
+    requires ConvolutionDirectionWellDefinedIfProvided<T>;
 };
 
 // Concept to validate a convolution signature's values.
@@ -60,9 +87,10 @@ concept ValidConvSignature = requires {
     requires ConvDataType<Sig.data_type>;
 };
 
-// Predicate for forward convolution.
+// Predicate for forward convolution (default if direction is not included).
 template <auto Sig>
-concept ConvDirectionIsForward = (Sig.direction == ConvDirection::FORWARD);
+concept ConvDirectionIsForward =
+    !requires { Sig.direction; } || (Sig.direction == ConvDirection::FORWARD);
 
 // Predicate for backward data convolution.
 template <auto Sig>

@@ -22,6 +22,10 @@
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 using In0DataType        = ck::int4_t;
 using Wei0DataType       = ck::int4_t;
 using KernelIn0DataType  = int8_t;
