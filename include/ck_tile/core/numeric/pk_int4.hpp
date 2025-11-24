@@ -155,7 +155,7 @@ CK_TILE_HOST_DEVICE fp16x2_t pk_int4_t_to_halfx2_t(const pk_int4_t& x)
 
 CK_TILE_HOST_DEVICE fp16x2_t pk_int4_t_to_halfx2_t(const pk_int4_t& x, float scale)
 {
-    TODO(yadai): confirm quanzation algorithm
+    // TODO(yadai): confirm quanzation algorithm
     // auto float_vec2 = pk_int4_t_to_fp32x2_t(x);
     auto float_vec2 = pk_int4_t_to_fp32x2_t_signed_conversion(x);
     float_vec2.x = float_vec2.x * scale;
