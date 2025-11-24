@@ -19,6 +19,11 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/library/utility/host_common_util.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::joinable_thread;
+using ::ck::Tensor;
+
 static struct option long_options[] = {{"inLengths", required_argument, nullptr, 'D'},
                                        {"verify", required_argument, nullptr, 'v'},
                                        {"help", no_argument, nullptr, '?'},

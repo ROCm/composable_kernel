@@ -15,6 +15,10 @@
 #include "ck/library/utility/numeric.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_contraction.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 int run_complex_contraction_bilinear_example(int argc, char* argv[])
 {
     bool do_verification = true;

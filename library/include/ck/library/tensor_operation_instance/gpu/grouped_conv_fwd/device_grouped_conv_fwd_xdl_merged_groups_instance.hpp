@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "ck/ck.hpp"
 #include "ck/tensor_operation/gpu/device/tensor_layout.hpp"
@@ -143,6 +143,12 @@ using device_grouped_conv_fwd_xdl_merged_groups_f32_instances = std::tuple<
     // clang-format on
     >;
 
+#if defined(__gfx950__)
+constexpr auto _k_per_block = 32;
+#else
+constexpr auto _k_per_block = 16;
+#endif
+
 template <index_t NDimSpatial,
           typename ALayout,
           typename BLayout,
@@ -158,9 +164,9 @@ using device_grouped_conv_fwd_xdl_merged_groups_f32_tf32_instances = std::tuple<
         //########################################|           |       |       |            |       |      |      |        |         |            |      |   Operation|   Operation|   Operation|               |               |    Stage|      |      |      |      |    |    |     |     | Wave| Wave| Lengths_K0_M_K1|   ArrangeOrder|               |               |      PerVector|   PerVector_K1|          | Lengths_K0_N_K1|   ArrangeOrder|               |              |      PerVector|   PerVector_K1|          |  PerShuffle|  PerShuffle|         _NBlock_NWaveNPerXdl|   _NWaveNPerXdl|
         //########################################|           |       |       |            |       |      |      |        |         |            |      |            |            |            |               |               |         |      |      |      |      |    |    |     |     |     |     |                |               |               |               |               |               |          |                |               |               |              |               |               |          |            |            |                             |                |
         // Instances with NumGroupsPerBatch > 1
-        DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,    F32,     F32,     F32,     F32, DsDataTypes,   F32,  PassThrough, PassThrough, OutElementOp,                  ConvSpec, GemmMNKPadding,  1,  64,    64,    16,     16,   4, 4,  16,   16,    4,    1,  S< 4, 16,  1>, S<0, 2, 1>,     S<0, 2, 1>,                   1,              4,              4,      1,  S< 4, 16,  1>,   S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              4,      1,           1,           1,   S<1, 16, 1, 4>,                  1, TF32, TF32, LoopScheduler::Default, 8>,
-        DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,    F32,     F32,     F32,     F32, DsDataTypes,   F32,  PassThrough, PassThrough, OutElementOp,                  ConvSpec, GemmMNKPadding,  1,  64,    64,    16,     16,   4, 4,  16,   16,    4,    1,  S< 4, 16,  1>, S<0, 2, 1>,     S<0, 2, 1>,                   1,              4,              4,      1,  S< 4, 16,  1>,   S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              4,      1,           1,           1,   S<1, 16, 1, 4>,                  1, TF32, TF32, LoopScheduler::Default, 16>,
-        DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,    F32,     F32,     F32,     F32, DsDataTypes,   F32,  PassThrough, PassThrough, OutElementOp,                  ConvSpec, GemmMNKPadding,  1,  64,    64,    16,     16,   4, 4,  16,   16,    4,    1,  S< 4, 16,  1>, S<0, 2, 1>,     S<0, 2, 1>,                   1,              4,              4,      1,  S< 4, 16,  1>,   S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              4,      1,           1,           1,   S<1, 16, 1, 4>,                  1, TF32, TF32, LoopScheduler::Default, 32>
+        DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,    F32,     F32,     F32,     F32, DsDataTypes,   F32,  PassThrough, PassThrough, OutElementOp,                  ConvSpec, GemmMNKPadding,  1,  64,    64,    16,_k_per_block,4, 4,  16,   16,    4,    1,  S< 4, 16,  1>, S<0, 2, 1>,     S<0, 2, 1>,                   1,              4,              4,      1,  S< 4, 16,  1>,   S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              4,      1,           1,           1,   S<1, 16, 1, 4>,                  1, TF32, TF32, LoopScheduler::Default, 8>,
+        DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,    F32,     F32,     F32,     F32, DsDataTypes,   F32,  PassThrough, PassThrough, OutElementOp,                  ConvSpec, GemmMNKPadding,  1,  64,    64,    16,_k_per_block,4, 4,  16,   16,    4,    1,  S< 4, 16,  1>, S<0, 2, 1>,     S<0, 2, 1>,                   1,              4,              4,      1,  S< 4, 16,  1>,   S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              4,      1,           1,           1,   S<1, 16, 1, 4>,                  1, TF32, TF32, LoopScheduler::Default, 16>,
+        DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle<NDimSpatial,ALayout,BLayout,    DsLayout,ELayout,    F32,     F32,     F32,     F32, DsDataTypes,   F32,  PassThrough, PassThrough, OutElementOp,                  ConvSpec, GemmMNKPadding,  1,  64,    64,    16,_k_per_block,4, 4,  16,   16,    4,    1,  S< 4, 16,  1>, S<0, 2, 1>,     S<0, 2, 1>,                   1,              4,              4,      1,  S< 4, 16,  1>,   S<1, 0, 2>,     S<1, 0, 2>,             2,              1,              4,      1,           1,           1,   S<1, 16, 1, 4>,                  1, TF32, TF32, LoopScheduler::Default, 32>
     // clang-format on
     >;
 

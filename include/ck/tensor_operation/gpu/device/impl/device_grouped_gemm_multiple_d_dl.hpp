@@ -1,6 +1,5 @@
-#pragma once
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -40,8 +39,8 @@ __launch_bounds__(CK_MAX_THREAD_PER_BLOCK, CK_MIN_BLOCK_PER_CU)
                                       const BElementwiseOperation b_element_op,
                                       const CDEElementwiseOperation cde_element_op)
 {
-#if(defined(__gfx906__) || defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx103__) || \
-    defined(__gfx11__) || defined(__gfx94__) || defined(__gfx12__))
+#if(defined(__gfx906__) || defined(__gfx908__) || defined(__gfx90a__) || defined(__gfx101__) || \
+    defined(__gfx103__) || defined(__gfx11__) || defined(__gfx94__) || defined(__gfx12__))
     __shared__ char p_shared[GridwiseGemm::GetSharedMemoryNumberOfByte()];
 
     const index_t block_id = get_block_1d_id();

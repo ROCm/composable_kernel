@@ -19,6 +19,10 @@
 #include "ck/library/utility/check_err.hpp"
 #include "ck/library/utility/numeric.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 using Row    = ck::tensor_layout::gemm::RowMajor;
 using Bypass = ck::tensor_layout::BypassLayoutVerification;
 

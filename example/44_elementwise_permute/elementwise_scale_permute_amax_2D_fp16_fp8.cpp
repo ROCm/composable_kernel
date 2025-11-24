@@ -19,6 +19,10 @@
 #include "ck/library/utility/host_tensor_generator.hpp"
 #include "ck/utility/reduction_enums.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 using F16 = ck::half_t;
 using F32 = float;
 using F8  = ck::f8_t;
