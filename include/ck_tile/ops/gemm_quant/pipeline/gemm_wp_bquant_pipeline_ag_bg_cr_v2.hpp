@@ -68,7 +68,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
 
     using Base::m_preload;
 
-    static constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
+    static constexpr bool PreshuffleQuant   = Problem::Traits::PreshuffleQuant;
     static constexpr index_t VectorLoadSize = Problem::VectorLoadSize;
     static constexpr index_t KPerBlockBQ =
         integer_divide_ceil(BlockGemmShape::kK, QuantGroupSize::kK);
@@ -106,30 +106,32 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
             ck_tile::integer_divide_ceil(kKPerBlock * kNPerBlock * sizeof(BQDataType),
                                          QuantGroupSize::kK * QuantGroupSize::kK),
             VectorLoadSize);
-        constexpr index_t kLdsVec = 8;
-        constexpr index_t buffer_load_inst = Aload_inst + Bload_inst + BQload_inst + 4;
+        constexpr index_t kLdsVec          = 8;
+        constexpr index_t buffer_load_inst = Aload_inst + Bload_inst + BQload_inst;
         constexpr index_t ds_read_inst     = kMPerBlock / kLdsVec;
         constexpr index_t ds_write_inst    = Aload_inst;
         constexpr index_t mfma_inst        = (kMPerBlock / WG::kM) * (kNPerBlock / WG::kN);
-        constexpr index_t ds_rep          = mfma_inst / (ds_read_inst + ds_write_inst);
-        constexpr index_t buffer_load_rep = mfma_inst / buffer_load_inst;
+        constexpr index_t ds_rep           = mfma_inst / (ds_read_inst + ds_write_inst);
+        constexpr index_t buffer_load_rep =
+            min(mfma_inst / buffer_load_inst, 4); // 1 buffer_load cover 4 mfma
+
         static_for<0, nloop, 1>{}([&](auto j_inst) {
             ignore = j_inst;
             static_for<0, mfma_inst, 1>{}([&](auto i_inst) {
                 __builtin_amdgcn_sched_group_barrier(LLVMSchedGroupMask::MFMA, 1, 0); // MFMA
 
-                if constexpr(i_inst % ds_rep == 0)
+                if constexpr(ds_rep > 0 && i_inst % ds_rep == 0)
                 {
                     __builtin_amdgcn_sched_group_barrier(
                         LLVMSchedGroupMask::DS_READ, 1, 0); // DS read
                 }
-                if constexpr(i_inst % ds_rep == 1)
+                if constexpr(ds_rep > 0 && i_inst % ds_rep == 1)
                 {
                     __builtin_amdgcn_sched_group_barrier(
                         LLVMSchedGroupMask::DS_WRITE, 1, 0); // DS write
                 }
 
-                if constexpr(i_inst % buffer_load_rep == 0)
+                if constexpr(buffer_load_rep > 0 && i_inst % buffer_load_rep == 0)
                 {
                     if constexpr(ds_write_inst > 0)
                     {
