@@ -11,6 +11,7 @@
 
 #include "bias.hpp"
 #include "mask.hpp"
+#include "quant.hpp"
 #include "rotary.hpp"
 
 #include <type_traits>
@@ -178,6 +179,9 @@ struct fmha_fwd_args
     const void* k_ptr;
     const void* v_ptr;
     const void* bias_ptr; // bias or alibi_slope pointer
+    const void* q_descale_ptr;
+    const void* k_descale_ptr;
+    const void* v_descale_ptr;
     void* rand_val_ptr;
     void* lse_ptr;
     void* o_ptr;
@@ -237,9 +241,6 @@ struct fmha_fwd_args
     ck_tile::index_t nhead_k;
 
     float scale_s;
-    float scale_p;
-    float scale_o;
-
     float logits_soft_cap;
 
     ck_tile::index_t stride_q;
@@ -581,6 +582,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.k_ptr,
                                              args.v_ptr,
                                              args.bias_ptr,
+                                             args.q_descale_ptr,
+                                             args.k_descale_ptr,
+                                             args.v_descale_ptr,
                                              args.rand_val_ptr,
                                              args.lse_ptr,
                                              args.o_ptr,
@@ -593,8 +597,6 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.nhead_q,
                                              args.nhead_q / args.nhead_k,
                                              args.scale_s,
-                                             args.scale_p,
-                                             args.scale_o,
                                              args.logits_soft_cap,
                                              args.stride_q,
                                              args.stride_k,
@@ -625,6 +627,9 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.k_ptr,
                                              args.v_ptr,
                                              args.bias_ptr,
+                                             args.q_descale_ptr,
+                                             args.k_descale_ptr,
+                                             args.v_descale_ptr,
                                              args.rand_val_ptr,
                                              args.lse_ptr,
                                              args.o_ptr,
@@ -635,8 +640,6 @@ auto fmha_fwd_create_kargs_and_grids(fmha_fwd_args args)
                                              args.nhead_q,
                                              args.nhead_q / args.nhead_k,
                                              args.scale_s,
-                                             args.scale_p,
-                                             args.scale_o,
                                              args.logits_soft_cap,
                                              args.stride_q,
                                              args.stride_k,
@@ -1125,7 +1128,7 @@ template <ck_tile::index_t HDim_,
           ck_tile::BlockAttentionBiasEnum BiasEnum_,
           bool kStoreLse_,
           bool kHasDropout_,
-          bool kDoFp8StaticQuant_,
+          ck_tile::BlockAttentionQuantScaleEnum QScaleEnum_,
           bool kPadS_,
           bool kPadSK_,
           bool kPadD_,
@@ -1150,7 +1153,7 @@ struct fmha_fwd_traits_
     static constexpr auto BiasEnum                   = BiasEnum_;
     static constexpr bool kStoreLse                  = kStoreLse_;
     static constexpr bool kHasDropout                = kHasDropout_;
-    static constexpr bool kDoFp8StaticQuant          = kDoFp8StaticQuant_;
+    static constexpr auto QScaleEnum                 = QScaleEnum_;
     static constexpr bool kPadS                      = kPadS_;
     static constexpr bool kPadSK                     = kPadSK_;
     static constexpr bool kPadD                      = kPadD_;
@@ -1341,7 +1344,7 @@ struct fmha_fwd_traits
     bias_enum bias_type; // 0:no bias, 1:elementwise bias, 2:alibi. sync with BlockAttentionBiasEnum
     bool has_lse;
     bool has_dropout;
-    bool do_fp8_static_quant;
+    quant_scale_enum qscale_type;
     bool skip_min_seqlen_q = false;
     // TODO: padding check is inside this api
 };
