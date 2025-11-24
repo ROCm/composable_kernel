@@ -1,4 +1,4 @@
-if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx90a")
+if(GPU_TARGETS MATCHES "gfx94|gfx95")
   set(TILE_EXAMPLE_FUSED_MOE "tile_example_fused_moe")
   message(DEBUG "adding ${TILE_EXAMPLE_FUSED_MOE}")
   file(GLOB INSTANCE_SRCS instances/*.cpp)
