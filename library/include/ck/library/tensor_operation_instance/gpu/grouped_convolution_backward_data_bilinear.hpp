@@ -16,6 +16,7 @@ namespace tensor_operation {
 namespace device {
 namespace instance {
 
+#ifdef CK_USE_XDL
 #ifdef CK_ENABLE_FP16
 void add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgk_gkzyxc_ndhwgc_f16_instances(
     std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
@@ -79,6 +80,42 @@ void add_device_grouped_conv3d_bwd_data_xdl_bilinear_ndhwgk_gkzyxc_ndhwgc_bf16_i
                                                                   PassThrough,
                                                                   Bilinear>>>& instances);
 #endif
+#endif
+
+#ifdef CK_USE_WMMA
+#ifdef CK_ENABLE_FP16
+void add_device_grouped_conv3d_bwd_data_wmma_v3_bilinear_ndhwgk_gkzyxc_ndhwgc_f16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NDHWGK,
+                                                                  GKZYXC,
+                                                                  Tuple<NDHWGC>,
+                                                                  NDHWGC,
+                                                                  F16,
+                                                                  F16,
+                                                                  Tuple<F16>,
+                                                                  F16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  Bilinear>>>& instances);
+#endif
+
+#ifdef CK_ENABLE_BF16
+void add_device_grouped_conv3d_bwd_data_wmma_v3_bilinear_ndhwgk_gkzyxc_ndhwgc_bf16_instances(
+    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
+                                                                  NDHWGK,
+                                                                  GKZYXC,
+                                                                  Tuple<NDHWGC>,
+                                                                  NDHWGC,
+                                                                  BF16,
+                                                                  BF16,
+                                                                  Tuple<BF16>,
+                                                                  BF16,
+                                                                  PassThrough,
+                                                                  PassThrough,
+                                                                  Bilinear>>>& instances);
+#endif
+#endif
+
 template <ck::index_t NumDimSpatial,
           typename OutLayout,
           typename WeiLayout,
@@ -124,6 +161,8 @@ struct DeviceOperationInstanceFactory<
     static auto GetInstances()
     {
         std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
+
+#ifdef CK_USE_XDL
         if constexpr(NumDimSpatial == 3)
         {
             if constexpr(is_same_v<InLayout, NDHWGC> && is_same_v<WeiLayout, GKZYXC> &&
@@ -170,78 +209,11 @@ struct DeviceOperationInstanceFactory<
             }
         }
 
-        return op_ptrs;
-    }
-};
-
-// If CK_USE_WMMA
-#ifdef CK_ENABLE_FP16
-void add_device_grouped_conv3d_bwd_data_wmma_v3_bilinear_ndhwgk_gkzyxc_ndhwgc_f16_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
-                                                                  NDHWGK,
-                                                                  GKZYXC,
-                                                                  Tuple<NDHWGC>,
-                                                                  NDHWGC,
-                                                                  F16,
-                                                                  F16,
-                                                                  Tuple<F16>,
-                                                                  F16,
-                                                                  PassThrough,
-                                                                  PassThrough,
-                                                                  Bilinear>>>& instances);
 #endif
 
-#ifdef CK_ENABLE_BF16
-void add_device_grouped_conv3d_bwd_data_wmma_v3_bilinear_ndhwgk_gkzyxc_ndhwgc_bf16_instances(
-    std::vector<std::unique_ptr<DeviceGroupedConvBwdDataMultipleD<3,
-                                                                  NDHWGK,
-                                                                  GKZYXC,
-                                                                  Tuple<NDHWGC>,
-                                                                  NDHWGC,
-                                                                  BF16,
-                                                                  BF16,
-                                                                  Tuple<BF16>,
-                                                                  BF16,
-                                                                  PassThrough,
-                                                                  PassThrough,
-                                                                  Bilinear>>>& instances);
-#endif
-template <ck::index_t NumDimSpatial,
-          typename OutLayout,
-          typename WeiLayout,
-          typename InLayout,
-          typename OutDataType,
-          typename WeiDataType,
-          typename InDataType,
-          typename ComputeTypeA,
-          typename ComputeTypeB>
-struct DeviceOperationInstanceFactory<
-    ck::tensor_operation::device::DeviceGroupedConvBwdDataMultipleD<
-        NumDimSpatial,
-        OutLayout,
-        WeiLayout,
-        Tuple<InLayout>,
-        InLayout,
-        OutDataType,
-        WeiDataType,
-        Tuple<InDataType>,
-        InDataType,
-        ck::tensor_operation::element_wise::PassThrough,
-        ck::tensor_operation::element_wise::PassThrough,
-        ck::tensor_operation::element_wise::Bilinear,
-        ComputeTypeA,
-        ComputeTypeB>>
-{
-    using DeviceOp = NumDimSpatial, OutLayout, WeiLayout, Empty_Tuple, InLayout, OutDataType,
-          WeiDataType, Tuple<InDataType>, InDataType,
-          ck::tensor_operation::element_wise::PassThrough,
-          ck::tensor_operation::element_wise::PassThrough,
-          ck::tensor_operation::element_wise::Bilinear, ComputeTypeA, ComputeTypeB > ;
+#ifdef CK_USE_WMMA
 
-    static auto GetInstances()
-    {
-        std::vector<std::unique_ptr<DeviceOp>> op_ptrs;
-        if constexpr(NumDimSpatial == 3)
+  if constexpr(NumDimSpatial == 3)
         {
             if constexpr(is_same_v<InLayout, NDHWGC> && is_same_v<WeiLayout, GKZYXC> &&
                          is_same_v<OutLayout, NDHWGK>)
@@ -267,10 +239,13 @@ struct DeviceOperationInstanceFactory<
 #endif
             }
         }
+#endif
 
         return op_ptrs;
     }
 };
+
+
 
 } // namespace instance
 } // namespace device
