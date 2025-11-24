@@ -13,7 +13,8 @@ void aquant_quantgrouped_instance_factory(
     // lut[hash_multiple_strings({"fp8", "aquant", "1x1x128"})] = [](const ck_tile::ArgParser&
     //                                                                   arg_parser) {
     //     using TypeConfig =
-    //         decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t, float>{});
+    //         decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t,
+    //         float>{});
     //     return run_gemm_example_prec_type<GemmConfig<ck_tile::fp8_t>,
     //                                       TypeConfig,
     //                                       QuantGroupSize,
@@ -22,7 +23,8 @@ void aquant_quantgrouped_instance_factory(
     // lut[hash_multiple_strings({"bf8", "aquant", "1x1x128"})] = [](const ck_tile::ArgParser&
     //                                                                   arg_parser) {
     //     using TypeConfig =
-    //         decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t, float>{});
+    //         decltype(GemmQuantTypeConfig<ck_tile::bf8_t, ck_tile::bf8_t, ck_tile::half_t,
+    //         float>{});
     //     return run_gemm_example_prec_type<GemmConfig<ck_tile::bf8_t>,
     //                                       TypeConfig,
     //                                       QuantGroupSize,
@@ -56,48 +58,48 @@ void aquant_quantgrouped_instance_factory(
 void bquant_quantgrouped_fp8_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut)
 {
-    (void) lut;
+    (void)lut;
     // Empty stub - no instances registered
 }
 
 void bquant_quantgrouped_bf8_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut)
 {
-    (void) lut;
+    (void)lut;
     // Empty stub - no instances registered
 }
 
 void bquant_quantgrouped_fp8i4_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut)
 {
-    (void) lut;
+    (void)lut;
     // Empty stub - no instances registered
 }
 
 void bquant_quantgrouped_bf8i4_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut)
 {
-    (void) lut;
+    (void)lut;
     // Empty stub - no instances registered
 }
 
 void bquant_quantgrouped_preshuffleb_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut)
 {
-    (void) lut;
+    (void)lut;
     // Empty stub - no instances registered
 }
 
 void quant_rowcol_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut)
 {
-    (void) lut;
+    (void)lut;
     // Empty stub - no instances registered
 }
 
 void quant_tensor_instance_factory(
     std::unordered_map<size_t, std::function<int(const ck_tile::ArgParser&)>>& lut)
 {
-    (void) lut;
+    (void)lut;
     // Empty stub - no instances registered
 }
