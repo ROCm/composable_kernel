@@ -1,4 +1,4 @@
-// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
 // This file defines the compile-time "signature" for grouped convolution operations.
@@ -87,9 +87,10 @@ concept ValidConvSignature = requires {
     requires ConvDataType<Sig.data_type>;
 };
 
-// Predicate for forward convolution.
+// Predicate for forward convolution (default if direction is not included).
 template <auto Sig>
-concept ConvDirectionIsForward = (Sig.direction == ConvDirection::FORWARD);
+concept ConvDirectionIsForward =
+    !requires { Sig.direction; } || (Sig.direction == ConvDirection::FORWARD);
 
 // Predicate for backward data convolution.
 template <auto Sig>

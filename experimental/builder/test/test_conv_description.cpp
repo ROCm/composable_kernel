@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
@@ -23,8 +23,8 @@ struct ConvSignature
     int spatial_dim             = 2;
     ckb::GroupConvLayout layout = ckb::GroupConvLayout2D::GNHWC_GKYXC_GNHWK;
     ckb::DataType data_type     = ckb::DataType::FP16;
-    ckb::GroupConvDeviceOp device_operation =
-        ckb::FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3;
+    // ckb::GroupConvDeviceOp device_operation =
+    //     ckb::FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3;
 };
 static_assert(ckb::ConvSignatureDescriptor<ConvSignature>);
 
@@ -46,8 +46,8 @@ struct ConvSignatureWithInvalidOptionalParams
     ckb::GroupConvLayout layout  = ckb::GroupConvLayout2D::GNHWC_GKYXC_GNHWK;
     ckb::DataType data_type      = ckb::DataType::FP16;
     int elementwise_operation    = 7; // this should fail
-    ckb::GroupConvDeviceOp device_operation =
-        ckb::FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3;
+    // ckb::GroupConvDeviceOp device_operation =
+    //     ckb::FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3;
 };
 
 static_assert(!ckb::ConvSignatureDescriptor<ConvSignatureWithInvalidOptionalParams>);
@@ -64,30 +64,39 @@ struct DefaultAlgorithm
                                              .m_xdl_per_wave = 4,
                                              .n_xdl_per_wave = 4};
 
-    ckb::test::BlockTransferABC block_transfer{
-        .block_transfer_a              = {.k0 = 4, .m_n = 256, .k1 = 8},
-        .block_transfer_b              = {.k0 = 4, .m_n = 256, .k1 = 8},
-        .thread_cluster_dims_c         = {.m_block        = 1,
-                                          .m_wave_per_xdl = 32,
-                                          .n_block        = 1,
-                                          .n_wave_per_xdl = 8},
-        .lds_transfer_a                = {.src_vector_dim            = 2,
-                                          .src_scalar_per_vector     = 8,
-                                          .lds_dst_scalar_per_vector = 8,
-                                          .is_direct_load            = true,
-                                          .lds_padding               = false},
-        .lds_transfer_b                = {.src_vector_dim            = 2,
-                                          .src_scalar_per_vector     = 8,
-                                          .lds_dst_scalar_per_vector = 8,
-                                          .is_direct_load            = true,
-                                          .lds_padding               = false},
-        .epilogue_c                    = {.m_per_wave_per_shuffle = 1,
-                                          .n_per_wave_per_shuffle = 1,
-                                          .scalar_per_vector      = 8},
-        .block_transfer_access_order_a = {.order = {0, 1, 2}},
-        .block_transfer_access_order_b = {.order = {0, 1, 2}},
-        .src_access_order_a            = {.order = {0, 1, 2}},
-        .src_access_order_b            = {.order = {0, 1, 2}}};
+    ckb::test::TransferABC transfer{
+        .a =
+            {
+                .block_transfer              = {.k0 = 4, .m_n = 256, .k1 = 8},
+                .lds_transfer                = {.src_vector_dim            = 2,
+                                                .src_scalar_per_vector     = 8,
+                                                .lds_dst_scalar_per_vector = 8,
+                                                .is_direct_load            = true,
+                                                .lds_padding               = false},
+                .block_transfer_access_order = {.order = {0, 1, 2}},
+                .src_access_order            = {.order = {0, 1, 2}},
+
+            },
+        .b =
+            {
+                .block_transfer              = {.k0 = 4, .m_n = 256, .k1 = 8},
+                .lds_transfer                = {.src_vector_dim            = 2,
+                                                .src_scalar_per_vector     = 8,
+                                                .lds_dst_scalar_per_vector = 8,
+                                                .is_direct_load            = true,
+                                                .lds_padding               = false},
+                .block_transfer_access_order = {.order = {0, 1, 2}},
+                .src_access_order            = {.order = {0, 1, 2}},
+            },
+        .c =
+            {
+                .thread_cluster_dims =
+                    {.m_block = 1, .m_wave_per_xdl = 32, .n_block = 1, .n_wave_per_xdl = 8},
+                .epilogue = {.m_per_wave_per_shuffle = 1,
+                             .n_per_wave_per_shuffle = 1,
+                             .scalar_per_vector      = 8},
+            },
+    };
 
     ckb::ConvFwdSpecialization fwd_specialization = ckb::ConvFwdSpecialization::DEFAULT;
     ckb::GemmSpecialization gemm_specialization   = ckb::GemmSpecialization::Default;
