@@ -10,11 +10,14 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
     add_executable(${EXE_NAME} EXCLUDE_FROM_ALL 
         gemm_quant.cpp
         gemm_aquant_quantgrouped.cpp
-        gemm_bquant_quantgrouped_prefill_bf8i4.cpp
-        gemm_bquant_quantgrouped_prefill_fp8i4.cpp
-        gemm_bquant_quantgrouped_prefill_bf8.cpp
-        gemm_bquant_quantgrouped_prefill_fp8.cpp
-        gemm_bquant_quantgrouped_preshuffleb_prefill.cpp
+        gemm_aquant_quantgrouped_preshufflequant.cpp
+        gemm_bquant_quantgrouped_bf8i4.cpp
+        gemm_bquant_quantgrouped_fp8i4.cpp
+        gemm_bquant_quantgrouped_bf8.cpp
+        gemm_bquant_quantgrouped_fp8.cpp
+        gemm_bquant_quantgrouped_preshuffleb.cpp
+        gemm_bquant_quantgrouped_preshufflequant.cpp
+        gemm_bquant_quantgrouped_preshuffleb_preshufflequant.cpp
         gemm_quant_rowcol.cpp
         gemm_quant_tensor.cpp
         )
