@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -127,6 +127,25 @@ struct is_any_of<CompareTo, FirstType, Rest...>
                                  is_any_of<CompareTo, Rest...>::value>
 {
 };
+
+/**
+ * @brief Helper to check if a value is in a list of values
+ * @tparam T The type of the search value
+ * @tparam Ts The types of the search list values
+ * @param search The value to search for
+ * @param searchList The list of values to search in
+ * @return true if the search value is in the search list, false otherwise
+ */
+template <typename T, typename... Ts>
+// TODO: c++20    requires((std::is_convertible<Ts, T>::value && ...) && (sizeof...(Ts) >= 1))
+CK_TILE_HOST_DEVICE static constexpr bool is_any_value_of(T search, Ts... searchList)
+{
+    static_assert((std::is_convertible<Ts, T>::value && ...),
+                  "All searchList values must be convertible to the type of search");
+    static_assert(sizeof...(Ts) >= 1, "searchList must contain at least one value");
+
+    return ((search == static_cast<T>(searchList)) || ...);
+}
 
 // Helper to check if a type is a specialization of a given template
 template <typename Test, template <typename...> class RefTemplate>
