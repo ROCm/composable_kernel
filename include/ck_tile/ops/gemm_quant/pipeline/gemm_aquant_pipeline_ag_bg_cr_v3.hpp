@@ -514,6 +514,9 @@ struct AQuantGemmPipelineAgBgCrCompV3 : public BaseAQuantGemmPipelineAgBgCrCompV
     {
         return PipelineImpl<Scheduler>{}.template operator()<HasHotLoop, TailNum>(
             a_dram_block_window_tmp,
+            // Note: a_element_func takes BDataType (not ADataType) because A tiles are
+            // converted from ADataType (e.g., pk_int4_t) to BDataType (e.g., fp8) in
+            // LoadAndConvertATile before the element function is applied.
             [](const BDataType& a) { return a; },
             b_dram_block_window_tmp,
             [](const BDataType& b) { return b; },
