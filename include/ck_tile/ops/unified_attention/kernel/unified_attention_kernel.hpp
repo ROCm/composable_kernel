@@ -310,18 +310,18 @@ struct UnifiedAttentionKernel
         const index_t query_pos = amd_wave_read_first_lane(q_block_local_idx * BLOCK_Q);
         const index_t seq_len   = kargs.seq_lens_ptr[seq_idx];
 
-        const index_t context_len =  amd_wave_read_first_lane(seq_len - cur_batch_query_len);
+        // const index_t context_len =  amd_wave_read_first_lane(seq_len - cur_batch_query_len);
 
-        index_t _max_seq_prefix_len =
-             amd_wave_read_first_lane((context_len + q_block_local_idx * BLOCK_Q + (BLOCK_M - 1)
-             + 1));
+        // index_t _max_seq_prefix_len =
+        //      amd_wave_read_first_lane((context_len + q_block_local_idx * BLOCK_Q + (BLOCK_M - 1)
+        //      + 1));
 
-        if(seq_len < _max_seq_prefix_len)
-        {
-            _max_seq_prefix_len = seq_len;
-        }
+        // if(seq_len < _max_seq_prefix_len)
+        // {
+        //     _max_seq_prefix_len = seq_len;
+        // }
 
-        const auto max_seq_prefix_len = _max_seq_prefix_len;
+        const auto max_seq_prefix_len = seq_len; // _max_seq_prefix_len;
         const index_t num_blocks      =  amd_wave_read_first_lane((max_seq_prefix_len + BLOCK_SIZE - 1) / BLOCK_SIZE);
 
         // TODO sliding window
