@@ -18,6 +18,7 @@
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_data.hpp"
 #include "ck/library/reference_tensor_operation/gpu/naive_conv_bwd_data.hpp"
+#include "ck_tile/host/hip_check_error.hpp"
 
 using ::ck::DeviceMem;
 using ::ck::HostTensorDescriptor;
@@ -67,7 +68,7 @@ inline __host__ __device__ constexpr double get_atol()
 
 void print_helper_msg()
 {
-    std::cout << "arg1: verification (0=no, 1=CPU, 2=GPU)\n"
+    std::cout << "arg1: verification (0=no, 1=CPU, 2=GPU, 3=GPU vs CPU)\n"
               << "arg2: initialization (0=no init, 1=integer value, 2=decimal value)\n"
               << "arg3: time kernel (0=no, 1=yes)\n"
               << ck::utils::conv::get_conv_param_parser_helper_msg() << std::endl;
@@ -297,7 +298,7 @@ int run_conv_bwd_data(int do_verification,
             pad_y_val,
             pad_x_val);
 
-        (void)hipDeviceSynchronize();
+        HIP_CHECK_ERROR(hipDeviceSynchronize());
 
         std::cout << "GPU reference kernel completed, copying results..." << std::endl;
 
@@ -317,6 +318,122 @@ int run_conv_bwd_data(int do_verification,
         std::cout << "GPU verification result is:" << (pass ? "correct" : "fail") << std::endl;
 
         return pass ? 0 : 1;
+    }
+    else if(do_verification == 3)
+    {
+        // v=3: Compare GPU reference vs CPU reference directly (bypasses optimized kernel)
+        std::cout << "Comparing GPU reference vs CPU reference (no optimized kernel)..."
+                  << std::endl;
+
+        // Run CPU reference first to get expected result
+        auto ref_conv = ck::tensor_operation::host::ReferenceConvBwdData<NDimSpatial,
+                                                                         InDataType,
+                                                                         WeiDataType,
+                                                                         OutDataType,
+                                                                         InElementOp,
+                                                                         WeiElementOp,
+                                                                         OutElementOp>();
+
+        auto ref_invoker  = ref_conv.MakeInvoker();
+        auto ref_argument = ref_conv.MakeArgument(in_host,
+                                                  wei,
+                                                  out,
+                                                  conv_param.conv_filter_strides_,
+                                                  conv_param.conv_filter_dilations_,
+                                                  conv_param.input_left_pads_,
+                                                  conv_param.input_right_pads_,
+                                                  in_element_op,
+                                                  wei_element_op,
+                                                  out_element_op);
+
+        ref_invoker.Run(ref_argument);
+
+        // Run GPU reference (same code as v=2)
+        DeviceMem in_device_ref_buf(sizeof(InDataType) * in_device.mDesc.GetElementSpaceSize());
+        in_device_ref_buf.SetZero();
+
+        ck::index_t N_val  = conv_param.N_;
+        ck::index_t K_val  = conv_param.K_;
+        ck::index_t C_val  = conv_param.C_ * conv_param.G_;
+        ck::index_t Di_val = (NDimSpatial >= 3) ? conv_param.input_spatial_lengths_[0] : 1;
+        ck::index_t Hi_val =
+            (NDimSpatial >= 2) ? conv_param.input_spatial_lengths_[NDimSpatial >= 3 ? 1 : 0] : 1;
+        ck::index_t Wi_val = conv_param.input_spatial_lengths_[NDimSpatial - 1];
+        ck::index_t Z_val  = (NDimSpatial >= 3) ? conv_param.filter_spatial_lengths_[0] : 1;
+        ck::index_t Y_val =
+            (NDimSpatial >= 2) ? conv_param.filter_spatial_lengths_[NDimSpatial >= 3 ? 1 : 0] : 1;
+        ck::index_t X_val  = conv_param.filter_spatial_lengths_[NDimSpatial - 1];
+        ck::index_t Do_val = (NDimSpatial >= 3) ? conv_param.output_spatial_lengths_[0] : 1;
+        ck::index_t Ho_val =
+            (NDimSpatial >= 2) ? conv_param.output_spatial_lengths_[NDimSpatial >= 3 ? 1 : 0] : 1;
+        ck::index_t Wo_val       = conv_param.output_spatial_lengths_[NDimSpatial - 1];
+        ck::index_t stride_z_val = (NDimSpatial >= 3) ? conv_param.conv_filter_strides_[0] : 1;
+        ck::index_t stride_y_val =
+            (NDimSpatial >= 2) ? conv_param.conv_filter_strides_[NDimSpatial >= 3 ? 1 : 0] : 1;
+        ck::index_t stride_x_val   = conv_param.conv_filter_strides_[NDimSpatial - 1];
+        ck::index_t dilation_z_val = (NDimSpatial >= 3) ? conv_param.conv_filter_dilations_[0] : 1;
+        ck::index_t dilation_y_val =
+            (NDimSpatial >= 2) ? conv_param.conv_filter_dilations_[NDimSpatial >= 3 ? 1 : 0] : 1;
+        ck::index_t dilation_x_val = conv_param.conv_filter_dilations_[NDimSpatial - 1];
+        ck::index_t pad_z_val      = (NDimSpatial >= 3) ? conv_param.input_left_pads_[0] : 0;
+        ck::index_t pad_y_val =
+            (NDimSpatial >= 2) ? conv_param.input_left_pads_[NDimSpatial >= 3 ? 1 : 0] : 0;
+        ck::index_t pad_x_val = conv_param.input_left_pads_[NDimSpatial - 1];
+
+        constexpr ck::index_t block_size    = 256;
+        const ck::long_index_t input_length = N_val * Di_val * Hi_val * Wi_val * C_val;
+        const ck::index_t grid_size         = (input_length + block_size - 1) / block_size;
+
+        auto gpu_ref_kernel = ck::ref::naive_conv_bwd_data_ndhwc_kzyxc_ndhwk<InDataType,
+                                                                             WeiDataType,
+                                                                             OutDataType,
+                                                                             float,
+                                                                             InElementOp,
+                                                                             WeiElementOp,
+                                                                             OutElementOp>;
+
+        gpu_ref_kernel<<<dim3(grid_size), dim3(block_size), 0, nullptr>>>(
+            reinterpret_cast<InDataType*>(in_device_ref_buf.GetDeviceBuffer()),
+            reinterpret_cast<const WeiDataType*>(wei_device_buf.GetDeviceBuffer()),
+            reinterpret_cast<const OutDataType*>(out_device_buf.GetDeviceBuffer()),
+            N_val,
+            K_val,
+            C_val,
+            Di_val,
+            Hi_val,
+            Wi_val,
+            Z_val,
+            Y_val,
+            X_val,
+            Do_val,
+            Ho_val,
+            Wo_val,
+            stride_z_val,
+            stride_y_val,
+            stride_x_val,
+            dilation_z_val,
+            dilation_y_val,
+            dilation_x_val,
+            pad_z_val,
+            pad_y_val,
+            pad_x_val);
+
+        HIP_CHECK_ERROR(hipDeviceSynchronize());
+
+        // Copy GPU reference result
+        Tensor<InDataType> in_gpu(in_host.mDesc);
+        in_device_ref_buf.FromDevice(in_gpu.mData.data());
+
+        // Compare GPU ref vs CPU ref
+        bool pass_v3 = ck::utils::check_err(in_gpu,
+                                            in_host,
+                                            "Error: GPU ref != CPU ref",
+                                            get_rtol<InDataType, float>(),
+                                            get_atol<InDataType, float>());
+
+        std::cout << "GPU vs CPU result is:" << (pass_v3 ? "correct" : "fail") << std::endl;
+
+        return pass_v3 ? 0 : 1;
     }
 
     return 0;
