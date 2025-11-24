@@ -71,8 +71,8 @@ struct GemmBQuantPipelineAgBgCrDefaultPolicy : public UniversalGemmPipelineAgBgC
                 tile_distribution_encoding_pattern_bq<BlockGemmShape,
                                                       WarpGemm,
                                                       BlockSize,
-                                                      KPerBlockBQ,
-                                                      NPerBlockBQ,
+                                                      KPerBlockBQ, // 128/128 = 1
+                                                      NPerBlockBQ, // 128/16 = 8
                                                       Problem::QuantGroupSize::kN>;
 
             return TileEncodingPattern::make_2d_static_tile_distribution();

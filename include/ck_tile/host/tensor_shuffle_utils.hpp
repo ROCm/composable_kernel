@@ -111,8 +111,8 @@ auto bq_permuteN(const ck_tile::HostTensor<T>& t, index_t group_n)
 {
     assert(t.get_lengths().size() == 2);
 
-    int n_   = t.get_lengths()[1]; // 8
-    int bqk_ = t.get_lengths()[0]; // 1
+    int n_   = t.get_lengths()[1]; // 128
+    int bqk_ = t.get_lengths()[0]; // 1 x 128
     constexpr int NRepeat =
         GemmConfig::N_Tile / GemmConfig::N_Warp_Tile / GemmConfig::N_Warp; // 128/16/4 = 2
 
@@ -120,9 +120,40 @@ auto bq_permuteN(const ck_tile::HostTensor<T>& t, index_t group_n)
                                    GemmConfig::N_Warp,
                                    GemmConfig::N_Warp_Tile / group_n,
                                    NRepeat,
-                                   bqk_}); //{1, 4, 16, 2, 1}
+                                   bqk_}); //{1, 4, 16, 2, 1},   group_n:16 {1, 4, 1, 2, 1}
     std::copy(t.begin(), t.end(), t_view.begin());
-    return ck_tile::reference_permute(t_view, {0, 3, 1, 2, 4}); //{1, 2, 4, 16, 1}
+    printf("I am inside bq_permuteN\n");
+    printf("t.get_lengths(): %lu, %lu, %lu, %lu, %lu\n",
+           t_view.get_lengths()[0],
+           t_view.get_lengths()[1],
+           t_view.get_lengths()[2],
+           t_view.get_lengths()[3],
+           t_view.get_lengths()[4]);
+    for(int i = 0; i < static_cast<int>(t.get_lengths()[0]); i++)
+    {
+        for(int j = 0; j < static_cast<int>(t_view.get_lengths()[1]); j++)
+        {
+            for(int k = 0; k < static_cast<int>(t_view.get_lengths()[2]); k++)
+            {
+                for(int l = 0; l < static_cast<int>(t_view.get_lengths()[3]); l++)
+                {
+                    for(int m = 0; m < static_cast<int>(t_view.get_lengths()[4]); m++)
+                    {
+                        printf("t_view[%d][%d][%d][%d][%d]: %f\n",
+                               i,
+                               j,
+                               k,
+                               l,
+                               m,
+                               t_view(i, j, k, l, m));
+                    }
+                }
+            }
+        }
+    }
+    printf("I am inside bq_permuteN\n");
+    return ck_tile::reference_permute(
+        t_view, {0, 3, 1, 2, 4}); // {1, 2, 4, 16, 1}, group_n 16 {1, 2, 4, 1, 1}
 }
 
 template <typename GemmConfig, typename T>

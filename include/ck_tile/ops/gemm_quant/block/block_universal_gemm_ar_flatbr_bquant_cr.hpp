@@ -220,20 +220,21 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
                         float scale_reg_f = cvt_scale_to_fp32(scale_reg);
                         // if(get_block_id() == 0 && get_thread_id() == 1)
                         //{
-                        printf("get_block_id(): %d, get_warp_id(): %d, get_thread_id(): %d, nIter: "
-                               "%d, NWarp: %d, WG::kN: %d, QuantGroupSize::kN: %d, "
-                               "KPerBlockBQ: %d, kQScale: %d, scale_reg_f: %f, reg_offset: %d\n",
-                               get_block_id(),
-                               get_warp_id(),
-                               get_thread_id(),
-                               static_cast<int>(nIter),
-                               NWarp,
-                               WG::kN,
-                               static_cast<int>(QuantGroupSize::kN),
-                               static_cast<int>(KPerBlockBQ),
-                               static_cast<int>(kQScale),
-                               scale_reg_f,
-                               reg_offset);
+                        // printf("get_block_id(): %d, get_warp_id(): %d, get_thread_id(): %d,
+                        // nIter: "
+                        //        "%d, NWarp: %d, WG::kN: %d, QuantGroupSize::kN: %d, "
+                        //        "KPerBlockBQ: %d, kQScale: %d, scale_reg_f: %f, reg_offset: %d\n",
+                        //        get_block_id(),
+                        //        get_warp_id(),
+                        //        get_thread_id(),
+                        //        static_cast<int>(nIter),
+                        //        NWarp,
+                        //        WG::kN,
+                        //        static_cast<int>(QuantGroupSize::kN),
+                        //        static_cast<int>(KPerBlockBQ),
+                        //        static_cast<int>(kQScale),
+                        //        scale_reg_f,
+                        //        reg_offset);
                         //}
 
                         static_for<0, WG::kM * WG::kN / warp_size, 1>{}([&](auto c_row) {

@@ -523,8 +523,31 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
             ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x38)}(a_m_k);
-            ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x22)}(b_k_n);
-            ck_tile::FillConstant<BQDataType>{static_cast<BQDataType>(0.5f)}(*bq_tensor_ptr);
+            ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x38)}(b_k_n);
+            // ck_tile::FillConstant<BQDataType>{static_cast<BQDataType>(0.5f)}(*bq_tensor_ptr);
+            if(bq_tensor_ptr)
+            {
+                BQDataType value = 1.0f;
+                for(int i = 0; i < BQK; i++)
+                {
+                    for(int j = 0; j < N / QuantGroupSize::kN; j += (16 / QuantGroupSize::kN))
+                    {
+                        for(int k = 0; k < 16 / QuantGroupSize::kN; k++)
+                        {
+                            (*bq_tensor_ptr)(i, j + k) = value;
+                        }
+                        value += static_cast<BQDataType>(1.0f);
+                    }
+                }
+            }
+            // for(int i = 0; i < BQK; i++)
+            // {
+            //     for(int j = 0; j <  N / QuantGroupSize::kN; j++)
+            //     {
+            //         printf("%.2f ", (*bq_tensor_ptr)(i, j));
+            //     }
+            //     printf("\n");
+            // }
         }
         else
         {

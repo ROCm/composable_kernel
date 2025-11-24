@@ -1167,7 +1167,7 @@ struct QuantGemmKernel
                 if(get_block_id() == 0 && get_thread_id() == 0)
                 {
                     bq_block_window.template print_tile_window_range<BQDataType>(
-                        0, 1, 0, 16, "bq block window");
+                        0, 1, 0, 128, "bq block window");
                 }
                 return GemmPipeline{}.template operator()(a_block_window,
                                                           b_block_window,
