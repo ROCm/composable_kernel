@@ -189,10 +189,10 @@ TEST(InstanceTraits, TileInstanceStringReturnsCorrectFormat)
                                          GroupedConvTraitsType::VectorSizeC>>;
 
     using GroupedConvBwdWeiKernel =
-        ck_tile::device::GroupedConvolutionBackwardWeightKernel<GroupedConvTraitsType,
-                                                                TilePartitioner,
-                                                                GemmPipeline,
-                                                                ConvEpilogue>;
+        ck_tile::GroupedConvolutionBackwardWeightKernel<GroupedConvTraitsType,
+                                                        TilePartitioner,
+                                                        GemmPipeline,
+                                                        ConvEpilogue>;
 
     std::string instance_str = ck_tile::reflect::instance_string<GroupedConvBwdWeiKernel>();
 
