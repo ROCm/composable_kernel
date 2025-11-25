@@ -915,15 +915,8 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                         const auto MBlock = GridwiseGemmCTranspose::CalculateMBlock(GemmM);
                         const auto NBlock = GridwiseGemmCTranspose::CalculateNBlock(GemmN);
 
-                        std::cout << "GemmM: " << GemmM << std::endl;
-                        std::cout << "GemmN: " << GemmN << std::endl;
-                        std::cout << "GemmK: " << GemmK << std::endl;
-                        std::cout << "MBlock: " << MBlock << std::endl;
-
                         index_t k_grain = split_k * KPerBlock;
                         index_t K_split = (GemmK + k_grain - 1) / k_grain * KPerBlock;
-
-                        std::cout << "K_split: " << K_split << std::endl;
 
                         const bool HasMainKBlockLoop =
                             GridwiseGemmCTranspose::CalculateHasMainKBlockLoop(K_split);
@@ -952,8 +945,7 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                     }
                 }
             }
-            std::cout << "gemms_count_ = " << gemms_count_ << std::endl;
-            gemm_kernel_args_.resize(
+                      gemm_kernel_args_.resize(
                 math::integer_divide_ceil(gemms_count_, MaxGroupedGemmGroupsNum));
             gemms_grid_size_.push_back(grid_size);
 
@@ -1149,11 +1141,6 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             const index_t gdy = arg.num_group_;
             const index_t gdz = arg.num_workgroups_per_Conv_N_ * arg.k_batch_;
 
-            std::cout << "arg.num_group_ " << arg.num_group_ << std::endl;
-            std::cout << "arg.num_workgroups_per_Conv_N_ " << arg.num_workgroups_per_Conv_N_
-                      << std::endl;
-            std::cout << "arg.k_batch_ " << arg.k_batch_ << std::endl;
-
             // static_assert(!NeedTransposeKernel);
 
             const ADataType* p_a_grid = arg.p_a_grid_;
@@ -1186,18 +1173,13 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             std::array<const void*, NumDTensor> p_ds;
             static_for<0, NumDTensor, 1>{}(
                 [&](auto i) { p_ds[i] = static_cast<const void*>(arg.p_ds_grid_[i]); });
-            std::cout << "Loop count = " << arg.gemm_kernel_args_.size() << std::endl;
+
             for(std::size_t gemm_set_id = 0; gemm_set_id < arg.gemm_kernel_args_.size();
                 gemm_set_id++)
             {
                 const index_t GemmM = arg.a_grid_desc_m_k_container_[gemm_set_id].GetLength(I0);
                 const index_t GemmN = arg.b_grid_desc_n_k_container_[gemm_set_id].GetLength(I0);
                 const index_t GemmK = arg.a_grid_desc_m_k_container_[gemm_set_id].GetLength(I1);
-
-                std::cout << gemm_set_id << ": GemmM = " << GemmM << std::endl;
-                std::cout << gemm_set_id << ": GemmN = " << GemmN << std::endl;
-                std::cout << gemm_set_id << ": GemmK = " << GemmK << std::endl;
-
                 typename GridwiseGemmCTranspose::Argument gemm_arg{
                     CTranspose ? std::array<const void*, 1>{p_b_grid}
                                : std::array<const void*, 1>{p_a_grid},
@@ -1221,13 +1203,12 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                     throw std::runtime_error("wrong! device_op has invalid setting");
                 }
                 const index_t gdx = arg.gemms_grid_size_[gemm_set_id];
-                std::cout << "gdx = " << gdx << std::endl;
+
                 const index_t gemms_count_for_set =
                     gemm_set_id == arg.gemm_kernel_args_.size() - 1
                         ? arg.gemms_count_ - MaxGroupedGemmGroupsNum * gemm_set_id
                         : MaxGroupedGemmGroupsNum;
-                std::cout << "gemms_count_for_set = " << gemms_count_for_set << std::endl;
-                std::cout << "arg.gemms_count_ = " << arg.gemms_count_ << std::endl;
+
                 const std::array<GemmArgs, MaxGroupedGemmGroupsNum>& gemm_kernel_args =
                     arg.gemm_kernel_args_[gemm_set_id];
 
@@ -1457,7 +1438,11 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
     {
         if(!ck::is_gfx11_supported() && !ck::is_gfx12_supported())
         {
-            std::cerr << "This configuration is not suported!" << std::endl;
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+            std::cout << "This configuration is not suported!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+            }
             return false;
         }
 
@@ -1465,10 +1450,27 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         {
             if(arg.k_batch_ > 1)
             {
-                std::cerr << "SplitK is not supported!" << std::endl;
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "SplitK tests are not suported!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+            }
+
                 return false;
             }
         }
+
+           if(ck::is_gfx11_supported() && arg.k_batch_ > 1)
+        {
+             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "SplitK tests are not suported!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+            }
+            
+            return false;
+        }
+
 
         const index_t ConvG               = arg.b_g_k_c_xs_lengths_[0];
         const index_t ConvK               = arg.b_g_k_c_xs_lengths_[1];
@@ -1488,6 +1490,12 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                 if(!(arg.b_g_k_c_xs_lengths_[3 + i] == 1 && arg.conv_filter_strides_[i] == 1 &&
                      arg.input_left_pads_[i] == 0 && arg.input_right_pads_[i] == 0))
                 {
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                         std::cout << "ConvBwdDataSpecialization is unsupported!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+                    }
+
                     return false;
                 }
             }
@@ -1501,7 +1509,12 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         {
             if(!(ABlockTransferSrcVectorDim == 2 && ConvK % ABlockTransferSrcScalarPerVector == 0))
             {
-                std::cerr << "VectorDim is wrong!" << std::endl;
+                if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                       std::cout << "VectorDim is wrong!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+                    }
+
                 return false;
             }
         }
@@ -1514,12 +1527,23 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             {
                 if(ABlockTransferSrcVectorDim != 1)
                 {
-                    std::cerr << "CTranspose is not supported!" << std::endl;
+                      if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                       std::cout << "CTranspose is not supported!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+                    }
+
                     return false;
                 }
                 if(output_spatial_acum % ABlockTransferSrcScalarPerVector != 0)
                 {
-                    std::cerr << "CTranspose is not supported!" << std::endl;
+                    
+                     if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                       std::cout << "CTranspose is not supported!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+                    }
+
                     return false;
                 }
             }
@@ -1527,6 +1551,12 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
 
         else
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                std::cout << "Unsupported A Layout!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+                    }
+
             return false;
         }
 
@@ -1539,12 +1569,23 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
 
             if(!(BBlockTransferSrcVectorDim == 1 && ConvC % BBlockTransferSrcScalarPerVector == 0))
             {
-                std::cerr << "VectorDim is wrong!" << std::endl;
+               if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                       std::cout << "VectorDim is wrong!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+                    }
+
                 return false;
             }
         }
         else
         {
+            if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                std::cout << "Unsupported B Layout!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+                    }
+
             return false;
         }
 
@@ -1567,7 +1608,13 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                     // vector load D matrix from global memory
                     if(!(ConvC % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
                     {
-                        std::cerr << "VectorDim is wrong!" << std::endl;
+                        
+                         if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                       std::cout << "VectorDim is wrong!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+                    }
+
                         ds_valid = false;
                     }
                 }
@@ -1575,18 +1622,37 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                 {
                     if(input_spatial_acum % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
                     {
+                          if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                       {
+                       std::cout << "nput_spatial_acum / CShuffleBlockTransferScalarPerVector_NPerBlock is wrong!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+                       }
+
                         ds_valid = false;
                     }
                 }
             }
             else
             {
+
+                    if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                        {
+                      std::cout << "ds_valid is false!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+                        }
+
                 ds_valid = false;
             }
         });
 
         if(!ds_valid)
         {
+             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                       std::cout << "ds_valid is false!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+                    }
+
             return false;
         }
 
@@ -1603,7 +1669,13 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
                 // vector store C matrix into global memory
                 if(!(ConvC % CShuffleBlockTransferScalarPerVector_NPerBlock == 0))
                 {
-                    std::cerr << "VectorDim is wrong!" << std::endl;
+                     if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                   
+                      std::cout << "VectorDim is wrong!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+                    }
+
                     return false;
                 }
             }
@@ -1611,12 +1683,24 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
             {
                 if(input_spatial_acum % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
                 {
+                       if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                    {
+                       std::cout << "input_spatial_acum / ChuffleBlockTransferScalarPerVector_NPerBlock is wrong!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+                    }
+
                     return false;
                 }
             }
         }
         else
         {
+             if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+            {
+                std::cout << "Unsupported E Layout!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+            }
+
             return false;
         }
 
@@ -1624,11 +1708,23 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
         {
             if((ConvG * ConvC) % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
             {
+                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                  {
+                     std::cout << "VectorDim is wrong!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+                  }
+
                 return false;
             }
 
             if((ConvG * ConvK) % CShuffleBlockTransferScalarPerVector_NPerBlock != 0)
             {
+                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                  {
+                     std::cout << "VectorDim is wrong!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+                  }
+
                 return false;
             }
 
@@ -1639,11 +1735,23 @@ struct DeviceGroupedConvBwdDataMultipleD_Wmma_CShuffleV3
 
             if(a_spatial_acum % TransposeTransferInScalarPerVectorAligned != 0)
             {
+                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                  {
+                     std::cout << "a_spatial_acum % TransposeTransferInScalarPerVectorAligned is wrong!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+                  }
+
                 return false;
             }
 
             if(e_spatial_acum % TransposeTransferOutScalarPerVectorAligned != 0)
             {
+                 if(ck::EnvIsEnabled(CK_ENV(CK_LOGGING)))
+                  {
+                     std::cout << "e_spatial_acum % TransposeTransferOutScalarPerVectorAligned is wrong!" << " In " << __FILE__ << ":" << __LINE__
+                          << ", in function: " << __func__ << std::endl;
+                  }
+
                 return false;
             }
 
