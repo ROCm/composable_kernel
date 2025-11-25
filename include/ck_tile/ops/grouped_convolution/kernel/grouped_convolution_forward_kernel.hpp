@@ -985,7 +985,7 @@ struct GroupedConvolutionForwardKernel
                 c_block_window, c_block_tile, d_block_window, smem_ptr_0);
     }
 
-    CK_TILE_DEVICE void CallExplitGemm(GroupedConvFwdKernelArgsSpecialized kargs) const
+    CK_TILE_DEVICE void CallExplicitGemm(GroupedConvFwdKernelArgsSpecialized& kargs) const
     {
         static_assert(NumDTensor == 0, "Not supported!");
         using ExplicitBatchedGemmKernel =
@@ -1010,11 +1010,11 @@ struct GroupedConvolutionForwardKernel
         ExplicitBatchedGemmKernel{}(batched_gemm_kargs);
     }
 
-    CK_TILE_DEVICE void operator()(GroupedConvFwdKernelArgsSpecialized kargs) const
+    CK_TILE_DEVICE void operator()(GroupedConvFwdKernelArgsSpecialized& kargs) const
     {
         if constexpr(GroupedConvTraitsType_::ExplicitGemm)
         {
-            CallExplitGemm(kargs);
+            CallExplicitGemm(kargs);
         }
         else
         {
