@@ -36,7 +36,7 @@ struct GemmAQuantPipelineAgBgCrImplBase : public GemmPipelineAgBgCrImplBase<Prob
     CK_TILE_DEVICE constexpr auto
     GetAQDramLoadWindow(const AQDramBlockWindowTmp& aq_dram_block_window_tmp) const
     {
-        static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
+        // static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
 
         auto aq_copy_dram_window =
             make_tile_window(aq_dram_block_window_tmp.get_bottom_tensor_view(),

@@ -293,7 +293,7 @@ int run_gemm_example_with_layouts(int argc,
                 for(ck_tile::index_t k = 0; k < AQK; ++k)
                 {
                     (*aq_tensor_ptr)(m, k) = static_cast<AQDataType>(value);
-                    value += 0.1f;
+                    value += 1.0f;
                 }
             }
             ck_tile::FillUniformDistribution<BDataType>{-5.0f, 5.0f, fill_seed(gen)}(b_k_n);

@@ -258,9 +258,20 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
         }
         else if(a_layout == "C" && b_layout == "C")
         {
-            std::cout << __func__ << " A: Col, B: Col, C: Row (C-C-R layout)" << std::endl;
-            return run_gemm_example_with_layouts<GemmConfig, TypeConfig, QuantGroupSize, QuantMode>(
-                argc, argv, Col{}, Col{}, Col{}, Col{}, Row{});
+            if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped &&
+                         !std::is_same_v<typename TypeConfig::ADataType, ck_tile::pk_int4_t>)
+            {
+                std::cout << __func__ << " A: Col, B: Col, C: Row (C-C-R layout)" << std::endl;
+                return run_gemm_example_with_layouts<GemmConfig,
+                                                     TypeConfig,
+                                                     QuantGroupSize,
+                                                     QuantMode>(
+                    argc, argv, Col{}, Col{}, Col{}, Col{}, Row{});
+            }
+            else
+            {
+                throw std::runtime_error("Unsupported quantization mode for C-C-R layout");
+            }
         }
         else
         {

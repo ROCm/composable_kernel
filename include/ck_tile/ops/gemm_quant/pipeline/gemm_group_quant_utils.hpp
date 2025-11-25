@@ -111,6 +111,22 @@ struct tile_distribution_encoding_pattern_aq : public tile_distribution_encoding
                                            sequence<1, 0>>{});
         }
     }
+    CK_TILE_HOST_DEVICE static constexpr auto make_2d_static_tile_distribution_transposed()
+    {
+        constexpr index_t Y0 = YPerTile;
+
+        constexpr index_t X0 = 1;
+        constexpr index_t X1 = MIterPerWarp ? MIterPerWarp : 1;
+        constexpr index_t X2 = MWarps;
+        constexpr index_t X3 = WarpGemm::kM;
+        return make_static_tile_distribution(
+            tile_distribution_encoding<sequence<NWarps>,
+                                       tuple<sequence<X0, X1, X2, X3>, sequence<Y0>>,
+                                       tuple<sequence<0, 1>, sequence<1, 1>>,
+                                       tuple<sequence<0, 2>, sequence<3, 0>>,
+                                       sequence<1, 2>,
+                                       sequence<1, 0>>{});
+    }
 };
 
 template <typename BlockGemmShape,

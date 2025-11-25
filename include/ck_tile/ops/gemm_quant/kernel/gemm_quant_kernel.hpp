@@ -324,6 +324,7 @@ struct QuantGemmKernel
         if constexpr(kQuantType == QuantType::AQuantGrouped)
         {
             // Remove static_assert to allow column-major AQ layout
+            // static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
             if(kargs.QK_A % GemmPipeline::GetVectorSizeAQ() != 0)
             {
                 if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
@@ -857,6 +858,7 @@ struct QuantGemmKernel
             }
             else if constexpr(kQuantType == QuantType::AQuantGrouped && !PreshuffleQuant)
             {
+                // static_assert(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>);
                 constexpr auto block_m = TilePartitioner::MPerBlock;
                 constexpr auto block_k = TilePartitioner::KPerBlock;
                 if constexpr(std::is_same_v<AQLayout, tensor_layout::gemm::RowMajor>)
@@ -997,33 +999,33 @@ struct QuantGemmKernel
         (void)num_loop;
         (void)smem_ptr_0;
 
-        // const auto& c_block_tile = [&]() {
-        //     if constexpr(kQuantType == QuantType::AQuantGrouped)
-        //     {
-        //         if(get_thread_id() == 0 && get_block_id() == 0)
-        //         {
-        //             printf("Successfully entered AQuantGrouped\n");
-        //             return nullptr;
-        //         }
-        //         // const auto& aq_block_window = gemm_tile_windows.at(I1);
-        //         // return GemmPipeline{}.template operator()(
-        //         //     a_block_window, b_block_window, aq_block_window, kargs.M, num_loop,
-        //         smem_ptr_0);
-        //     }
-        // else if constexpr(kQuantType == QuantType::BQuantGrouped)
-        // {
-        //     const auto& bq_block_window = gemm_tile_windows.at(I3);
-        //     return GemmPipeline{}.template operator()(
-        //         a_block_window, b_block_window, bq_block_window, num_loop, smem_ptr_0);
-        // }
-        // else if constexpr(kQuantType == QuantType::RowColQuant ||
-        //                   kQuantType == QuantType::TensorQuant)
-        // {
-        //     return GemmPipeline{}.template operator()(
-        //         a_block_window, b_block_window, num_loop, smem_ptr_0);
-        // }
-        // }();
+        const auto& c_block_tile = [&]() {
+            if constexpr(kQuantType == QuantType::AQuantGrouped)
+            {
+                if(get_thread_id() == 0 && get_block_id() == 0)
+                {
+                    printf("Successfully entered AQuantGrouped\n");
+                    // return nullptr;
+                }
+                const auto& aq_block_window = gemm_tile_windows.at(I1);
+                return GemmPipeline{}.template operator()(
+                    a_block_window, b_block_window, aq_block_window, kargs.M, num_loop, smem_ptr_0);
+            }
+            else if constexpr(kQuantType == QuantType::BQuantGrouped)
+            {
+                const auto& bq_block_window = gemm_tile_windows.at(I3);
+                return GemmPipeline{}.template operator()(
+                    a_block_window, b_block_window, bq_block_window, num_loop, smem_ptr_0);
+            }
+            else if constexpr(kQuantType == QuantType::RowColQuant ||
+                              kQuantType == QuantType::TensorQuant)
+            {
+                return GemmPipeline{}.template operator()(
+                    a_block_window, b_block_window, num_loop, smem_ptr_0);
+            }
+        }();
 
+        (void)c_block_tile;
         // Run Epilogue Pipeline
         // auto& c_block_window = gemm_tile_windows.at(I4);
 
