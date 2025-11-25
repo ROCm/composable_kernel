@@ -185,8 +185,7 @@ struct WarpGemmAttributeMfmaIterateK
             // each M/N blocks share the same data
             return tile_distribution_encoding<
                 sequence<kNMBlock>,
-                tuple<sequence<Impl::kAMLane>,
-                      sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
+                tuple<sequence<kMNLane>, sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
                 tuple<sequence<0, 2, 1>>,
                 tuple<sequence<0, 0, 0>>,
                 sequence<2>,
@@ -199,7 +198,7 @@ struct WarpGemmAttributeMfmaIterateK
             // single block to multi-block thread mapping
             return tile_distribution_encoding<
                 sequence<>,
-                tuple<sequence<kMNBlock, Impl::kAMLane>,
+                tuple<sequence<kMNBlock, kMNLane>,
                       sequence<Impl::kABKLane, Impl::kABKPerLane * kKIter>>,
                 tuple<sequence<1, 2, 1>>,
                 tuple<sequence<0, 0, 1>>,
