@@ -22,17 +22,16 @@ template <typename TilePartitioner_,
           typename FusedActivation = moe::MoeSilu>
 struct MXMoeFlatmmKernel
 {
-    using TilePartitioner = remove_cvref_t<TilePartitioner_>;
-    using FlatmmPipeline  = remove_cvref_t<MXFlatmmPipeline_>;
-    using BlockGemmShape =
-        remove_cvref_t<typename MXFlatmmPipeline_::BlockGemmShape>;
-    using EpiloguePipeline              = remove_cvref_t<EpiloguePipeline_>;
-    using ALayout                       = remove_cvref_t<typename FlatmmPipeline::ALayout>;
-    using BLayout                       = remove_cvref_t<typename FlatmmPipeline::BLayout>;
-    using ELayout                       = remove_cvref_t<typename FlatmmPipeline::CLayout>;
-    using DsLayout                      = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
-    using DsDataType                    = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
-    static constexpr index_t kBlockSize = FlatmmPipeline::BlockSize;
+    using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
+    using FlatmmPipeline   = remove_cvref_t<MXFlatmmPipeline_>;
+    using BlockGemmShape   = remove_cvref_t<typename MXFlatmmPipeline_::BlockGemmShape>;
+    using EpiloguePipeline = remove_cvref_t<EpiloguePipeline_>;
+    using ALayout          = remove_cvref_t<typename FlatmmPipeline::ALayout>;
+    using BLayout          = remove_cvref_t<typename FlatmmPipeline::BLayout>;
+    using ELayout          = remove_cvref_t<typename FlatmmPipeline::CLayout>;
+    using DsLayout         = remove_cvref_t<typename EpiloguePipeline::DsLayout>;
+    using DsDataType       = remove_cvref_t<typename EpiloguePipeline::DsDataType>;
+    static constexpr index_t kBlockSize       = FlatmmPipeline::BlockSize;
     static constexpr bool UsePersistentKernel = FlatmmPipeline::UsePersistentKernel;
 
     using ADataType = remove_cvref_t<typename FlatmmPipeline::ADataType>;
@@ -127,28 +126,27 @@ struct MXMoeFlatmmKernel
     CK_TILE_HOST static constexpr auto
     MakeKernelArgs(const MoeFlatmmHostArgs<ScaleM, ScaleN, ExpertBias>& hostArgs)
     {
-        return MXMoeFlatmmKernelArgs<ScaleM, ScaleN, ExpertBias>{
-            hostArgs.p_sorted_token_ids,
-            hostArgs.p_sorted_expert_ids,
-            hostArgs.p_max_token_id,
-            hostArgs.p_sorted_expert_weights,
-            hostArgs.a_ptr,
-            hostArgs.b_ptr,
-            hostArgs.e_ptr,
-            hostArgs.NumTokens,
-            hostArgs.TopK,
-            hostArgs.M,
-            hostArgs.N,
-            hostArgs.K,
-            hostArgs.stride_A,
-            hostArgs.stride_B,
-            hostArgs.stride_C,
-            hostArgs.k_batch,
-            hostArgs.n_padded_zeros,
-            hostArgs.k_padded_zeros,
-            hostArgs.scale_m,
-            hostArgs.scale_n,
-            hostArgs.exp_bias};
+        return MXMoeFlatmmKernelArgs<ScaleM, ScaleN, ExpertBias>{hostArgs.p_sorted_token_ids,
+                                                                 hostArgs.p_sorted_expert_ids,
+                                                                 hostArgs.p_max_token_id,
+                                                                 hostArgs.p_sorted_expert_weights,
+                                                                 hostArgs.a_ptr,
+                                                                 hostArgs.b_ptr,
+                                                                 hostArgs.e_ptr,
+                                                                 hostArgs.NumTokens,
+                                                                 hostArgs.TopK,
+                                                                 hostArgs.M,
+                                                                 hostArgs.N,
+                                                                 hostArgs.K,
+                                                                 hostArgs.stride_A,
+                                                                 hostArgs.stride_B,
+                                                                 hostArgs.stride_C,
+                                                                 hostArgs.k_batch,
+                                                                 hostArgs.n_padded_zeros,
+                                                                 hostArgs.k_padded_zeros,
+                                                                 hostArgs.scale_m,
+                                                                 hostArgs.scale_n,
+                                                                 hostArgs.exp_bias};
     }
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
@@ -180,8 +178,7 @@ struct MXMoeFlatmmKernel
 
             e = hipOccupancyMaxActiveBlocksPerMultiprocessor(
                 &maxActiveBlocksPerCU,
-                reinterpret_cast<void*>(
-                    kentry<1, MXMoeFlatmmKernel, MXMoeFlatmmKernelArgs>),
+                reinterpret_cast<void*>(kentry<1, MXMoeFlatmmKernel, MXMoeFlatmmKernelArgs>),
                 block_size,
                 dync_smem_size);
 
@@ -201,7 +198,7 @@ struct MXMoeFlatmmKernel
     {
         return max(FlatmmPipeline::GetSmemSize(), EpiloguePipeline::GetSmemSize());
     }
-    
+
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemPongSize()
     {
         return FlatmmPipeline::GetSmemSize();
@@ -227,72 +224,7 @@ struct MXMoeFlatmmKernel
         index_t splitted_k;
     };
 
-    // template <typename KernelArgs>
-    // CK_TILE_HOST static bool IsSupportedArgument(const KernelArgs& kargs)
-    // {
-    //     if constexpr(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
-    //                  is_any_of<EDataType, fp16_t, bf16_t>::value)
-    //     {
-    //         return false;
-    //     }
-
-    //     if constexpr(UsePersistentKernel)
-    //     {
-    //         if(kargs.k_batch != 1)
-    //         {
-    //             return false;
-    //         }
-    //     }
-
-    //     if constexpr(std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>)
-    //     {
-    //         if(kargs.stride_A < kargs.K || kargs.K % FlatmmPipeline::GetVectorSizeA() != 0)
-    //         {
-    //             return false;
-    //         }
-    //     }
-    //     else
-    //     {
-    //         if(kargs.stride_A < kargs.M || kargs.M % FlatmmPipeline::GetVectorSizeA() != 0)
-    //         {
-    //             return false;
-    //         }
-    //     }
-
-    //     if constexpr(std::is_same_v<BLayout, tensor_layout::gemm::RowMajor>)
-    //     {
-    //         if(kargs.stride_B < kargs.N)
-    //         {
-    //             return false;
-    //         }
-    //     }
-    //     else
-    //     {
-    //         if(kargs.stride_B < kargs.K)
-    //         {
-    //             return false;
-    //         }
-    //     }
-
-    //     bool DTensorIsValid = true;
-
-    //     if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
-    //     {
-    //         if(kargs.stride_C < kargs.N)
-    //         {
-    //             return false;
-    //         }
-    //     }
-    //     else
-    //     {
-    //         if(kargs.stride_C < kargs.M)
-    //         {
-    //             return false;
-    //         }
-    //     }
-    //     return DTensorIsValid;
-    // }
- template <typename KernelArgs>
+    template <typename KernelArgs>
     CK_TILE_HOST static bool IsSupportedArgument(const KernelArgs& kargs)
     {
         if constexpr(EpiloguePipeline::GetVectorSizeC() % 2 != 0 &&
@@ -487,7 +419,7 @@ struct MXMoeFlatmmKernel
 
         const auto& b_flat_tensor_view = [&]() {
             return make_naive_tensor_view<address_space_enum::global>(
-                b_flat_ptr + expert_id * kFlatN * kFlatK,
+                b_flat_ptr,
                 make_tuple(kFlatN - kargs.n_padded_zeros / NPerXdl, kFlatK),
                 make_tuple(kFlatK, 1),
                 number<FlatmmPipeline::GetVectorSizeB()>{},
@@ -557,8 +489,11 @@ struct MXMoeFlatmmKernel
                 scale_b_desc);
         }();
 
-        return make_tuple(
-            a_tensor_view, b_flat_tensor_view, c_tensor_view, scale_a_tensor_view, scale_b_tensor_view);
+        return make_tuple(a_tensor_view,
+                          b_flat_tensor_view,
+                          c_tensor_view,
+                          scale_a_tensor_view,
+                          scale_b_tensor_view);
     }
 
     template <typename TensorView>
@@ -586,17 +521,17 @@ struct MXMoeFlatmmKernel
             const auto& c_tensor_view = views.at(I2);
             if constexpr(std::is_same_v<ELayout, tensor_layout::gemm::RowMajor>)
             {
-                return pad_tensor_view(c_tensor_view,
-                                       make_tuple(number<TilePartitioner::MPerBlock>{},
-                                                  number<OutputNPerBlock>{}),
-                                       sequence<false, FlatmmPipeline::kPadN>{});
+                return pad_tensor_view(
+                    c_tensor_view,
+                    make_tuple(number<TilePartitioner::MPerBlock>{}, number<OutputNPerBlock>{}),
+                    sequence<false, FlatmmPipeline::kPadN>{});
             }
             else
             {
-                return pad_tensor_view(c_tensor_view,
-                                       make_tuple(number<OutputNPerBlock>{},
-                                                  number<TilePartitioner::MPerBlock>{}),
-                                       sequence<FlatmmPipeline::kPadN, false>{});
+                return pad_tensor_view(
+                    c_tensor_view,
+                    make_tuple(number<OutputNPerBlock>{}, number<TilePartitioner::MPerBlock>{}),
+                    sequence<FlatmmPipeline::kPadN, false>{});
             }
         }();
 
@@ -670,39 +605,119 @@ struct MXMoeFlatmmKernel
     template <class MXMoeFlatmmKernelArgs>
     CK_TILE_DEVICE void operator()(MXMoeFlatmmKernelArgs kargs) const
     {
-        auto tilePartitioner = TilePartitioner{kargs.M, kargs.N};
-        const auto [iM, iN] = tilePartitioner.GetOutputTileIndex(blockIdx.x);
-        const index_t coord_m      = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
-        const index_t coord_n      = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
+        auto tilePartitioner  = TilePartitioner{kargs.M, kargs.N};
+        const auto [iM, iN]   = tilePartitioner.GetOutputTileIndex(blockIdx.x);
+        const index_t coord_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
+        const index_t coord_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
 
-        this->operator()(kargs, coord_m, coord_n);
+        this->operator()(kargs, iM, iN);
     }
 
     template <class MXMoeFlatmmKernelArgs>
-    CK_TILE_DEVICE void operator()(MXMoeFlatmmKernelArgs kargs, index_t coord_m, index_t coord_n) const
+    CK_TILE_DEVICE void operator()(MXMoeFlatmmKernelArgs kargs, index_t iM, index_t iN) const
     {
-        // Similar structure to MoeFlatmmKernel::operator() but with MX pipeline
-        const SplitKBatchOffset splitk_batch_offset(kargs);
-        const ADataType* a_ptr = static_cast<const ADataType*>(kargs.a_ptr) +
-                                 splitk_batch_offset.a_k_split_offset / APackedSize;
-        const BDataType* b_flat_ptr = static_cast<const BDataType*>(kargs.b_ptr) +
-                                      splitk_batch_offset.b_k_split_offset / BPackedSize;
-        EDataType* e_ptr = static_cast<EDataType*>(kargs.e_ptr);
+        const index_t coord_m = __builtin_amdgcn_readfirstlane(iM * TilePartitioner::MPerBlock);
+        const index_t coord_n = __builtin_amdgcn_readfirstlane(iN * TilePartitioner::NPerBlock);
+        const index_t max_token_id = kargs.p_max_token_id[0];
 
+        // Early exit if beyond valid range - CHECK THIS FIRST before any array access!
+        if(coord_m >= max_token_id)
+            return;
+
+        // Allocate LDS
         __shared__ char smem_ptr_ping[GetSmemPingSize()];
         __shared__ char smem_ptr_pong[GetSmemPongSize()];
 
+        // MOE routing: Get expert ID for this tile (safe now after boundary check)
+        const index_t expert_id = kargs.p_sorted_expert_ids[iM];
+
+        // Setup A tensor gather offsets using sorted token IDs
+        constexpr auto a_dram_dist = FlatmmPipeline::GetADramTileDistribution();
+        const auto a_coord = a_dram_dist.calculate_index(); // 2d thread offset, [i_row, i_col]
+
+        constexpr ck_tile::index_t DramMRepeat =
+            decltype(a_dram_dist)::DstrEncode::hs_lengthss_[number<0>{}][number<0>{}];
+        statically_indexed_array<ck_tile::index_t, DramMRepeat> a_offsets;
+
+        constexpr index_t token_id_offset = 24;
+        constexpr index_t token_id_mask   = (1 << token_id_offset) - 1;
+
+        auto row_to_token_idx = [&](auto row_idx) {
+            const index_t fused_token =
+                kargs.p_sorted_token_ids[row_idx]; // topk-idx[31:24] + token_idx[23:0]
+            index_t gather_token_id = fused_token & token_id_mask;
+            if constexpr(!IsInputGemm)
+            {
+                gather_token_id = gather_token_id * kargs.TopK + (fused_token >> token_id_offset);
+            }
+            return gather_token_id;
+        };
+
+        // Calculate gather offsets for each row in the tile
+        static_for<0, DramMRepeat, 1>{}([&](auto m0) {
+            const auto row_idx =
+                coord_m + m0 * (TilePartitioner::MPerBlock / DramMRepeat) + a_coord[I0];
+            index_t gather_token_id = row_to_token_idx(row_idx);
+            a_offsets[m0]           = std::is_same_v<ALayout, tensor_layout::gemm::RowMajor>
+                                          ? gather_token_id * kargs.stride_A
+                                          : gather_token_id;
+        });
+
+        // Prepare pointers with split-K offset and expert routing
+        const SplitKBatchOffset splitk_batch_offset(kargs);
+        const long_index_t expert_stride =
+            __builtin_amdgcn_readfirstlane(long_index_t(kargs.N) * kargs.K);
+
+        const ADataType* a_ptr =
+            static_cast<const ADataType*>(kargs.a_ptr) + splitk_batch_offset.a_k_split_offset;
+        const BDataType* b_flat_ptr =
+            static_cast<const BDataType*>(kargs.b_ptr) +
+            (splitk_batch_offset.b_k_split_offset + expert_stride * expert_id) / BPackedSize;
+        EDataType* e_ptr = static_cast<EDataType*>(kargs.e_ptr);
+
+        // Create MX tensor views with expert routing
+        const AccDataType* exp_weight_ptr =
+            static_cast<const AccDataType*>(kargs.p_sorted_expert_weights);
+        const auto& gemm_tensor_views = MakeGemmTensorViews<EpiloguePipeline::MemoryOperation>(
+            a_ptr, b_flat_ptr, e_ptr, exp_weight_ptr, expert_id, kargs, splitk_batch_offset);
+
+        // Create padded views
+        const auto& gemm_pad_views = MakeGemmPadViews(gemm_tensor_views);
+
+        // Create tile windows
+        auto gemm_tile_windows = MakeGemmTileWindows(gemm_pad_views, coord_m, coord_n);
+
+        // Extract windows for GEMM
+        const auto& a_block_window       = gemm_tile_windows.at(I0);
+        const auto& b_flat_block_window  = gemm_tile_windows.at(I1);
+        auto& c_block_window             = gemm_tile_windows.at(I2);
+        const auto& scale_a_block_window = gemm_tile_windows.at(I3);
+        const auto& scale_b_block_window = gemm_tile_windows.at(I4);
+
+        // Calculate number of loops
         const index_t num_loop = TilePartitioner::GetLoopNum(splitk_batch_offset.splitted_k);
 
-        // MOE routing metadata
-        const auto* sorted_token_ids   = kargs.p_sorted_token_ids;
-        const auto* sorted_expert_ids  = kargs.p_sorted_expert_ids;
-        const auto* max_token_id       = kargs.p_max_token_id;
-        const auto* sorted_exp_weights = static_cast<const AccDataType*>(kargs.p_sorted_expert_weights);
+        // Create scatter-gather tile for A tensor (MOE token routing)
+        auto a_gather_block_tile =
+            ck_tile::make_tile_scatter_gather(a_block_window.get_bottom_tensor_view(),
+                                              a_block_window.get_window_lengths(),
+                                              a_block_window.get_window_origin(),
+                                              a_dram_dist,
+                                              a_offsets);
 
-        // Full MOE routing and GEMM logic would go here
-        // Following the pattern from moe_flatmm_kernel.hpp but using MX tensor views
-        // This is a placeholder for the complete implementation
+        // Execute GEMM with MX scales via Pipeline
+        const auto& c_block_tile = FlatmmPipeline{}(a_gather_block_tile,
+                                                    b_flat_block_window,
+                                                    scale_a_block_window,
+                                                    scale_b_block_window,
+                                                    num_loop,
+                                                    smem_ptr_ping,
+                                                    smem_ptr_pong);
+
+        // Write output using epilogue
+        // For MX MOE, we pass empty ds (no bias), and the epilogue handles the shuffle
+        constexpr auto empty_ds_dram_windows = make_tuple();
+        EpiloguePipeline{}(c_block_window, c_block_tile, empty_ds_dram_windows, smem_ptr_ping);
     }
 };
 
