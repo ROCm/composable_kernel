@@ -487,7 +487,7 @@ int run_a16w4_moe_flatmm_example(int argc, char* argv[])
             else if(mixed_prec == "fp16xint4")
             {
                 return run_a16w4_moe_gemm_example_with_layouts<ck_tile::half_t,
-                                                               ck_tile::pk_fp4_t,
+                                                               ck_tile::pk_int4_t,
                                                                FlatmmConfig,
                                                                ck_tile::MoeFlatmmKind::kFFN_gemm2>(
                     argc, argv, Row{}, Col{}, Row{});
@@ -495,7 +495,7 @@ int run_a16w4_moe_flatmm_example(int argc, char* argv[])
             else if(mixed_prec == "bf16xint4")
             {
                 return run_a16w4_moe_gemm_example_with_layouts<ck_tile::bfloat16_t,
-                                                               ck_tile::pk_fp4_t,
+                                                               ck_tile::pk_int4_t,
                                                                FlatmmConfig,
                                                                ck_tile::MoeFlatmmKind::kFFN_gemm2>(
                     argc, argv, Row{}, Col{}, Row{});
