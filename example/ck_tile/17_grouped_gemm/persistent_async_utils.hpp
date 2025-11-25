@@ -43,19 +43,20 @@ CK_TILE_DEVICE static void wait_chunk_signal(const uint32_t* chunk_signals, inde
     if(threadIdx.x == 0 && threadIdx.y == 0 && threadIdx.z == 0)
     {
         volatile const uint32_t* signal_ptr = chunk_signals + chunk_idx;
-        
+
         // Poll until chunk is ready (signal == 1)
         // Use acquire semantics for proper memory ordering
         uint32_t signal_value;
-        do {
+        do
+        {
             signal_value = __builtin_nontemporal_load(signal_ptr);
             __builtin_amdgcn_s_sleep(1); // Brief sleep to reduce contention
         } while(signal_value == 0);
-        
+
         // Memory fence with acquire semantics
         __builtin_amdgcn_fence(__ATOMIC_ACQUIRE, "agent");
     }
-    
+
     // Barrier to release all threads in the workgroup
     __builtin_amdgcn_s_barrier();
 }

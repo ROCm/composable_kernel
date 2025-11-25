@@ -36,7 +36,8 @@
  * @param chunk_idx Index of chunk to signal
  * @param stream HIP stream for async operations
  */
-[[maybe_unused]] static void signal_chunk_ready(uint32_t* signals, int chunk_idx, hipStream_t stream)
+[[maybe_unused]] static void
+signal_chunk_ready(uint32_t* signals, int chunk_idx, hipStream_t stream)
 {
     uint32_t ready = 1;
     ck_tile::hip_check_error(hipMemcpyAsync(
@@ -67,7 +68,7 @@ int main(int argc, char* argv[])
     const std::string a_layout  = arg_parser.get_str("a_layout");
     const std::string b_layout  = arg_parser.get_str("b_layout");
     const std::string data_type = arg_parser.get_str("prec");
-    
+
    auto res = invoke_grouped_gemm_persistent_async<ck_tile::half_t>(
         a_layout, b_layout, data_type, arg_parser,
         , tiles_per_chunk_m, tile_idx_pivot_m);
@@ -75,7 +76,6 @@ int main(int argc, char* argv[])
 
 
     */
-
 
     return 0;
 }
