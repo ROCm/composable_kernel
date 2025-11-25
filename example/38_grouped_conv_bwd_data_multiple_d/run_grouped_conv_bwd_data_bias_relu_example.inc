@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 bool run_conv_bwd_data_bias_relu(const ExecutionConfig& config,
                                  const ck::utils::conv::ConvParam& conv_params,
