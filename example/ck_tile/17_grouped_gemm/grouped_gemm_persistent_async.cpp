@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "gemm_utils.hpp"
-#include "run_gemm_example.inc"
-#include "run_gemm_example_common.hpp"
-#include "gemm_persistent_async_invoker.hpp"
+#include "run_grouped_gemm_example.inc"
 #include "persistent_async_scheduler.hpp"
 #include "ck_tile/core/utility/gemm_validation.hpp"
 #include <hip/hip_runtime.h>
