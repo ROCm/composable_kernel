@@ -28,10 +28,6 @@ struct GroupedConvolutionForwardInvoker
     static float grouped_conv_fwd(const ck_tile::GroupedConvFwdHostArgs<CDElementWise>& args,
                                   const ck_tile::stream_config& s)
     {
-        if(s.log_level_ > 0)
-        {
-            std::cout << "[INVOKER] grouped_conv_fwd called, NDimSpatial=" << NDimSpatial << "\n";
-        }
         // Implicit GEMM Traits
         using GemmShape = ck_tile::TileGemmShape<
             ck_tile::sequence<ConvConfig::M_Tile, ConvConfig::N_Tile, ConvConfig::K_Tile>,

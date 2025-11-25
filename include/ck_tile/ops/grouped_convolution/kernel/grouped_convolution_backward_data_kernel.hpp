@@ -507,7 +507,7 @@ template <typename GroupedConvTraitsType_,
           typename EpiloguePipeline_>
 struct GroupedConvolutionBackwardDataKernel
 {
-    static constexpr index_t NDimSpatial = GroupedConvTraitsType_::NDimSpatial_;
+    static constexpr index_t NDimSpatial = GroupedConvTraitsType_::NDimSpatial;
     static constexpr ConvolutionSpecialization ConvSpecialization =
         GroupedConvTraitsType_::ConvSpecialization;
     using TilePartitioner  = remove_cvref_t<TilePartitioner_>;
@@ -552,6 +552,7 @@ struct GroupedConvolutionBackwardDataKernel
     static_assert(std::is_same_v<GemmBLayout, tensor_layout::gemm::RowMajor>, "Not supported!");
     static_assert(std::is_same_v<GemmCLayout, tensor_layout::gemm::RowMajor>,
                   "Not supported C GEMM layout!");
+    static_assert(GroupedConvTraitsType_::ExplicitGemm == false, "Not supported yet!");
 
     [[nodiscard]] CK_TILE_HOST static const std::string GetName()
     {
