@@ -1,10 +1,10 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// InstanceTraits specialization for GroupedConvolutionForwardKernel
+// InstanceTraits specialization for GroupedConvolutionBackwardDataKernel
 //
 // CRITICAL MAINTENANCE NOTE:
 // This InstanceTraits file MUST be kept strictly in sync with the device implementation header:
-//   ck_tile/ops/grouped_convolution/kernel/grouped_convolution_forward_kernel.hpp
+//   ck_tile/ops/grouped_convolution/kernel/grouped_convolution_backward_data_kernel.hpp
 // "In sync" means that the template parameter order, names, and types in the declaration below
 // MUST EXACTLY MATCH those in the device implementation. If these diverge, you may encounter
 // compilation errors, subtle template instantiation mismatches, or silent runtime bugs that are
@@ -15,29 +15,29 @@
 #include "instance_traits.hpp"
 #include "instance_traits_util.hpp"
 
-// Forward declaration to avoid circular dependency.
+// Backward Data declaration to avoid circular dependency.
 namespace ck_tile {
 
 template <typename GroupedConvTraitsType_,
           typename TilePartitioner_,
           typename GemmPipeline_,
           typename EpiloguePipeline_>
-struct GroupedConvolutionForwardKernel;
+struct GroupedConvolutionBackwardDataKernel;
 
 } // namespace ck_tile
 
 namespace ck_tile {
 namespace reflect {
 
-// Specialization for GroupedConvolutionForwardKernel
+// Specialization for GroupedConvolutionBackwardDataKernel
 template <typename GroupedConvTraitsType_,
           typename TilePartitioner_,
           typename GemmPipeline_,
           typename EpiloguePipeline_>
-struct InstanceTraits<ck_tile::GroupedConvolutionForwardKernel<GroupedConvTraitsType_,
-                                                               TilePartitioner_,
-                                                               GemmPipeline_,
-                                                               EpiloguePipeline_>>
+struct InstanceTraits<ck_tile::GroupedConvolutionBackwardDataKernel<GroupedConvTraitsType_,
+                                                                    TilePartitioner_,
+                                                                    GemmPipeline_,
+                                                                    EpiloguePipeline_>>
 {
     // CK Tile Conv Traits
     // Spatial dimension
@@ -94,7 +94,7 @@ struct InstanceTraits<ck_tile::GroupedConvolutionForwardKernel<GroupedConvTraits
         std::ostringstream oss;
 
         // Kernel type name
-        oss << "GroupedConvolutionForwardKernel";
+        oss << "GroupedConvolutionBackwardDataKernel";
 
         // Template parameters in exact order matching InstanceTraits member order
         oss << "<" << kSpatialDim; // 1. NDimSpatial
