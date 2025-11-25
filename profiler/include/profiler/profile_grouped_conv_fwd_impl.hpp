@@ -13,6 +13,8 @@
 
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward.hpp"
 #include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_clamp.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_dynamic_op.hpp"
+#include "ck/library/tensor_operation_instance/gpu/grouped_convolution_forward_convinvscale.hpp"
 
 #include "ck/library/utility/algorithm.hpp"
 #include "ck/library/utility/check_err.hpp"
