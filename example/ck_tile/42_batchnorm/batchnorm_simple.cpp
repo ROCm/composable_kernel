@@ -1,235 +1,210 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
-#include "ck_tile/core.hpp"
 #include "ck_tile/host.hpp"
-#include "ck_tile/ops/batchnorm2d/kernel/batchnorm2d_simple.hpp"
+#include "ck_tile/ops/batchnorm.hpp"
+#include <cstring>
 
-#include <cmath>
-#include <cstdlib>
-#include <iostream>
-#include <vector>
+// Simple POC for batchnorm forward pass
+// Tests basic functionality with a small tensor
+
+auto create_args(int argc, char* argv[])
+{
+    ck_tile::ArgParser arg_parser;
+    arg_parser.insert("n", "2", "batch size")
+        .insert("c", "4", "number of channels")
+        .insert("h", "8", "height")
+        .insert("w", "8", "width")
+        .insert("e", "1e-5", "epsilon")
+        .insert("v", "1", "cpu validation or not")
+        .insert("prec", "fp16", "precision")
+        .insert("warmup", "5", "cold iter")
+        .insert("repeat", "20", "hot iter");
+
+    bool result = arg_parser.parse(argc, argv);
+    return std::make_tuple(result, arg_parser);
+}
 
 // CPU reference implementation
-void batchnorm_cpu_reference(const std::vector<float>& x,
-                             std::vector<float>& y,
-                             const std::vector<float>& scale,
-                             const std::vector<float>& bias,
-                             int m,
-                             int k,
-                             float epsilon)
+template <typename XDataType, typename YDataType, typename ComputeDataType>
+void reference_batchnorm_fwd(const ck_tile::HostTensor<XDataType>& x,
+                             ck_tile::HostTensor<YDataType>& y,
+                             ck_tile::index_t N,
+                             ck_tile::index_t C,
+                             ck_tile::index_t H,
+                             ck_tile::index_t W,
+                             ComputeDataType epsilon)
 {
-    for(int ch = 0; ch < m; ch++)
-    {
-        // Compute mean
-        float sum = 0.0f;
-        for(int i = 0; i < k; i++)
-        {
-            sum += x[ch * k + i];
-        }
-        float mean = sum / k;
-        
-        // Compute variance
-        float var_sum = 0.0f;
-        for(int i = 0; i < k; i++)
-        {
-            float diff = x[ch * k + i] - mean;
-            var_sum += diff * diff;
-        }
-        float variance = var_sum / k;
-        
-        // Normalize
-        float inv_std = 1.0f / std::sqrt(variance + epsilon);
-        for(int i = 0; i < k; i++)
-        {
-            float normalized = (x[ch * k + i] - mean) * inv_std;
-            y[ch * k + i] = scale[ch] * normalized + bias[ch];
-        }
-    }
-}
-
-// Initialize data with random values
-void init_data(std::vector<float>& data, int seed = 42)
-{
-    std::srand(seed);
-    for(auto& val : data)
-    {
-        val = static_cast<float>(std::rand()) / RAND_MAX * 2.0f - 1.0f;  // [-1, 1]
-    }
-}
-
-// Compare results
-bool compare_results(const std::vector<float>& y_gpu,
-                    const std::vector<float>& y_cpu,
-                    float rtol = 1e-4f,
-                    float atol = 1e-5f)
-{
-    float max_diff = 0.0f;
-    float max_rel_diff = 0.0f;
-    int error_count = 0;
+    const ck_tile::index_t spatial_size = H * W;
     
-    for(size_t i = 0; i < y_gpu.size(); i++)
+    // Process each (N, C) combination
+    for(ck_tile::index_t n = 0; n < N; ++n)
     {
-        float diff = std::abs(y_gpu[i] - y_cpu[i]);
-        float rel_diff = diff / (std::abs(y_cpu[i]) + 1e-10f);
-        
-        max_diff = std::max(max_diff, diff);
-        max_rel_diff = std::max(max_rel_diff, rel_diff);
-        
-        if(diff > atol && rel_diff > rtol)
+        for(ck_tile::index_t c = 0; c < C; ++c)
         {
-            if(error_count < 10)  // Print first 10 errors
+            // Compute mean
+            ComputeDataType sum = 0;
+            for(ck_tile::index_t h = 0; h < H; ++h)
             {
-                std::cout << "Mismatch at index " << i 
-                         << ": GPU=" << y_gpu[i]
-                         << ", CPU=" << y_cpu[i]
-                         << ", diff=" << diff << std::endl;
+                for(ck_tile::index_t w = 0; w < W; ++w)
+                {
+                    ck_tile::index_t idx = n * C * H * W + c * H * W + h * W + w;
+                    sum += ck_tile::type_convert<ComputeDataType>(x.mData[idx]);
+                }
             }
-            error_count++;
+            ComputeDataType mean = sum / static_cast<ComputeDataType>(spatial_size);
+            
+            // Compute variance
+            ComputeDataType var_sum = 0;
+            for(ck_tile::index_t h = 0; h < H; ++h)
+            {
+                for(ck_tile::index_t w = 0; w < W; ++w)
+                {
+                    ck_tile::index_t idx = n * C * H * W + c * H * W + h * W + w;
+                    ComputeDataType val = ck_tile::type_convert<ComputeDataType>(x.mData[idx]);
+                    ComputeDataType diff = val - mean;
+                    var_sum += diff * diff;
+                }
+            }
+            ComputeDataType variance = var_sum / static_cast<ComputeDataType>(spatial_size);
+            
+            // Normalize
+            ComputeDataType inv_std = static_cast<ComputeDataType>(1.0) / 
+                ck_tile::sqrt(variance + epsilon);
+            
+            for(ck_tile::index_t h = 0; h < H; ++h)
+            {
+                for(ck_tile::index_t w = 0; w < W; ++w)
+                {
+                    ck_tile::index_t idx = n * C * H * W + c * H * W + h * W + w;
+                    ComputeDataType val = ck_tile::type_convert<ComputeDataType>(x.mData[idx]);
+                    ComputeDataType normalized = (val - mean) * inv_std;
+                    y.mData[idx] = ck_tile::type_convert<YDataType>(normalized);
+                }
+            }
         }
     }
-    
-    std::cout << "Max absolute difference: " << max_diff << std::endl;
-    std::cout << "Max relative difference: " << max_rel_diff << std::endl;
-    std::cout << "Errors: " << error_count << " / " << y_gpu.size() << std::endl;
-    
-    return error_count == 0;
 }
 
-int main()
+template <typename DataType>
+bool run(const ck_tile::ArgParser& arg_parser)
 {
-    std::cout << "=== BatchNorm2D Simple POC ===" << std::endl;
-    
-    // Problem size
-    constexpr int M = 4;    // Channels
-    constexpr int K = 256;  // Elements per channel
-    constexpr float epsilon = 1e-5f;
-    
-    std::cout << "M (channels): " << M << std::endl;
-    std::cout << "K (elements per channel): " << K << std::endl;
-    std::cout << "Total elements: " << M * K << std::endl;
-    std::cout << "Epsilon: " << epsilon << std::endl;
-    
-    // Allocate host memory
-    std::vector<float> x_host(M * K);
-    std::vector<float> y_host(M * K);
-    std::vector<float> y_ref(M * K);
-    std::vector<float> scale_host(M);
-    std::vector<float> bias_host(M);
-    
-    // Initialize data
-    init_data(x_host, 42);
-    init_data(scale_host, 43);
-    init_data(bias_host, 44);
-    
-    // Set scale and bias to simple values for easier debugging
-    for(int i = 0; i < M; i++)
-    {
-        scale_host[i] = 1.0f;  // No scaling
-        bias_host[i] = 0.0f;   // No bias
-    }
-    
-    std::cout << "\n=== CPU Reference ===" << std::endl;
-    batchnorm_cpu_reference(x_host, y_ref, scale_host, bias_host, M, K, epsilon);
-    
-    std::cout << "Sample input (channel 0, first 5 elements):" << std::endl;
-    for(int i = 0; i < 5; i++)
-    {
-        std::cout << "  x[" << i << "] = " << x_host[i] << std::endl;
-    }
-    
-    std::cout << "Sample output (channel 0, first 5 elements):" << std::endl;
-    for(int i = 0; i < 5; i++)
-    {
-        std::cout << "  y_ref[" << i << "] = " << y_ref[i] << std::endl;
-    }
-    
+    using XDataType       = DataType;
+    using ComputeDataType = float;
+    using YDataType       = DataType;
+
+    ck_tile::index_t N = arg_parser.get_int("n");
+    ck_tile::index_t C = arg_parser.get_int("c");
+    ck_tile::index_t H = arg_parser.get_int("h");
+    ck_tile::index_t W = arg_parser.get_int("w");
+    float epsilon      = arg_parser.get_float("e");
+    int do_validation  = arg_parser.get_int("v");
+    int warmup         = arg_parser.get_int("warmup");
+    int repeat         = arg_parser.get_int("repeat");
+
+    std::cout << "Batchnorm POC: N=" << N << ", C=" << C << ", H=" << H << ", W=" << W 
+              << ", epsilon=" << epsilon << std::endl;
+
+    // Allocate host tensors
+    ck_tile::index_t total_size = N * C * H * W;
+    ck_tile::HostTensor<XDataType> x_host({N, C, H, W});
+    ck_tile::HostTensor<YDataType> y_host_ref({N, C, H, W});
+    ck_tile::HostTensor<YDataType> y_host_dev({N, C, H, W});
+
+    // Fill input with random data
+    ck_tile::FillUniformDistribution<XDataType>{-5.f, 5.f}(x_host);
+
     // Allocate device memory
-    float* x_dev;
-    float* y_dev;
-    float* scale_dev;
-    float* bias_dev;
-    
-    hipMalloc(&x_dev, M * K * sizeof(float));
-    hipMalloc(&y_dev, M * K * sizeof(float));
-    hipMalloc(&scale_dev, M * sizeof(float));
-    hipMalloc(&bias_dev, M * sizeof(float));
-    
-    // Copy to device
-    hipMemcpy(x_dev, x_host.data(), M * K * sizeof(float), hipMemcpyHostToDevice);
-    hipMemcpy(scale_dev, scale_host.data(), M * sizeof(float), hipMemcpyHostToDevice);
-    hipMemcpy(bias_dev, bias_host.data(), M * sizeof(float), hipMemcpyHostToDevice);
-    
-    std::cout << "\n=== GPU Kernel ===" << std::endl;
-    
-    // Prepare kernel arguments
-    using Kernel = ck_tile::BatchNorm2dSimple<256>;
-    
-    typename Kernel::HostArgs hargs;
-    hargs.p_x = x_dev;
-    hargs.p_y = y_dev;
-    hargs.p_scale = scale_dev;
-    hargs.p_bias = bias_dev;
-    hargs.epsilon = epsilon;
-    hargs.m = M;
-    hargs.k = K;
-    
-    auto kargs = Kernel::MakeKargs(hargs);
-    auto grid_size = Kernel::GridSize(hargs);
-    auto block_size = Kernel::BlockSize();
-    
-    std::cout << "Grid size: " << grid_size.x << std::endl;
-    std::cout << "Block size: " << block_size << std::endl;
-    std::cout << "Kernel name: " << Kernel::GetName() << std::endl;
-    
+    ck_tile::DeviceMem x_buf(x_host.get_element_space_size_in_bytes());
+    ck_tile::DeviceMem y_buf(y_host_dev.get_element_space_size_in_bytes());
+
+    x_buf.ToDevice(x_host.data());
+
+    // Define kernel configuration
+    using BlockWarps = ck_tile::sequence<4, 1>;
+    using BlockTile  = ck_tile::sequence<1, 256>;  // Simplified for POC
+    using WarpTile   = ck_tile::sequence<1, 256>;
+    using Vector     = ck_tile::sequence<1, 1>;
+
+    using Shape = ck_tile::BatchnormShape<BlockWarps, BlockTile, WarpTile, Vector>;
+    using Problem = ck_tile::BatchnormProblem<XDataType, ComputeDataType, YDataType, Shape>;
+    using Kernel = ck_tile::BatchnormFwd<Problem>;
+
+    const ck_tile::index_t kBlockSize = Kernel::BlockSize();
+    const ck_tile::index_t kGridSize = N * C;  // One block per (N, C) pair
+
+    std::cout << "Kernel config: BlockSize=" << kBlockSize << ", GridSize=" << kGridSize << std::endl;
+
+    if(!Kernel::IsSupportedArgument(N, C, H, W))
+    {
+        std::cout << "Arguments not supported!" << std::endl;
+        return false;
+    }
+
     // Launch kernel
-    ck_tile::kernel_batchnorm2d_simple<256><<<grid_size, block_size>>>(kargs);
-    
-    // Check for launch errors
-    hipError_t launch_err = hipGetLastError();
-    if(launch_err != hipSuccess)
+    float ave_time = ck_tile::launch_kernel(
+        ck_tile::stream_config{nullptr, true, 0, warmup, repeat},
+        ck_tile::make_kernel<1>(
+            Kernel{},
+            kGridSize,
+            kBlockSize,
+            0,
+            static_cast<const XDataType*>(x_buf.GetDeviceBuffer()),
+            static_cast<YDataType*>(y_buf.GetDeviceBuffer()),
+            N,
+            C,
+            H,
+            W,
+            static_cast<ComputeDataType>(epsilon)));
+
+    std::size_t num_bytes = sizeof(XDataType) * total_size + sizeof(YDataType) * total_size;
+    float gb_per_sec = num_bytes / 1.E6 / ave_time;
+
+    std::cout << "Perf: " << ave_time << " ms, " << gb_per_sec << " GB/s" << std::endl;
+
+    bool pass = true;
+
+    if(do_validation)
     {
-        std::cerr << "Kernel launch failed: " << hipGetErrorString(launch_err) << std::endl;
+        // Compute reference
+        reference_batchnorm_fwd<XDataType, YDataType, ComputeDataType>(
+            x_host, y_host_ref, N, C, H, W, epsilon);
+        
+        // Get device result
+        y_buf.FromDevice(y_host_dev.mData.data());
+        
+        // Check error
+        pass = ck_tile::check_err(y_host_dev, y_host_ref, "Error: Incorrect results!", 1e-2, 1e-2);
+        
+        std::cout << "Validation: " << (pass ? "PASSED" : "FAILED") << std::endl;
+    }
+
+    return pass;
+}
+
+int main(int argc, char* argv[])
+{
+    auto [result, arg_parser] = create_args(argc, argv);
+    if(!result)
         return -1;
-    }
-    
-    // Wait for kernel to complete
-    hipError_t sync_err = hipDeviceSynchronize();
-    if(sync_err != hipSuccess)
+
+    const std::string data_type = arg_parser.get_str("prec");
+
+    if(data_type == "fp16")
     {
-        std::cerr << "Kernel execution failed: " << hipGetErrorString(sync_err) << std::endl;
-        return -1;
+        return run<ck_tile::half_t>(arg_parser) ? 0 : -2;
     }
-    
-    std::cout << "Kernel executed successfully!" << std::endl;
-    
-    // Copy result back
-    hipMemcpy(y_host.data(), y_dev, M * K * sizeof(float), hipMemcpyDeviceToHost);
-    
-    std::cout << "\nSample GPU output (channel 0, first 5 elements):" << std::endl;
-    for(int i = 0; i < 5; i++)
+    else if(data_type == "bf16")
     {
-        std::cout << "  y_gpu[" << i << "] = " << y_host[i] << std::endl;
+        return run<ck_tile::bf16_t>(arg_parser) ? 0 : -2;
     }
-    
-    // Compare results
-    std::cout << "\n=== Verification ===" << std::endl;
-    bool passed = compare_results(y_host, y_ref);
-    
-    // Cleanup
-    hipFree(x_dev);
-    hipFree(y_dev);
-    hipFree(scale_dev);
-    hipFree(bias_dev);
-    
-    if(passed)
+    else if(data_type == "fp32")
     {
-        std::cout << "\n✓ TEST PASSED!" << std::endl;
-        return 0;
+        return run<float>(arg_parser) ? 0 : -2;
     }
     else
     {
-        std::cout << "\n✗ TEST FAILED!" << std::endl;
-        return -1;
+        std::cout << "Unsupported data type: " << data_type << std::endl;
+        return -3;
     }
 }
