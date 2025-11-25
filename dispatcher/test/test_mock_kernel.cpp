@@ -4,4 +4,3 @@
 #include "test_mock_kernel.hpp"
 
 // Empty file - implementation is in header
-

@@ -27,45 +27,47 @@ except ImportError:
 def example_query_registry():
     """Example: Query the kernel registry"""
     print("=== Query Registry Example ===")
-    
+
     registry = Registry.instance()
     print(f"Total registered kernels: {len(registry)}")
-    
+
     # Get all kernels
     all_kernels = registry.get_all()
     for kernel in all_kernels:
         print(f"  - {kernel.get_name()}")
         key = kernel.get_key()
         print(f"    Identifier: {key.encode_identifier()}")
-        print(f"    Tile: {key.algorithm.tile_shape.m}x{key.algorithm.tile_shape.n}x{key.algorithm.tile_shape.k}")
+        print(
+            f"    Tile: {key.algorithm.tile_shape.m}x{key.algorithm.tile_shape.n}x{key.algorithm.tile_shape.k}"
+        )
         print(f"    Persistent: {key.algorithm.persistent}")
 
 
 def example_create_problem():
     """Example: Create and configure a Problem"""
     print("\n=== Create Problem Example ===")
-    
+
     # Create problem with dimensions
     problem = Problem(M=1024, N=1024, K=1024)
     print(f"Problem: {problem}")
     print(f"  Valid: {problem.is_valid()}")
     print(f"  Operations: {problem.num_ops()}")
-    
+
     # Configure preferences
     problem.prefer_persistent = True
     problem.enable_validation = False
     problem.k_batch = 1
-    
+
     print(f"  Prefer persistent: {problem.prefer_persistent}")
 
 
 def example_kernel_selection():
     """Example: Select kernels based on problem"""
     print("\n=== Kernel Selection Example ===")
-    
+
     dispatcher = Dispatcher()
     problem = Problem(M=2048, N=2048, K=1024)
-    
+
     # Select kernel automatically
     kernel = dispatcher.select_kernel(problem)
     if kernel:
@@ -78,15 +80,13 @@ def example_kernel_selection():
 def example_filter_kernels():
     """Example: Filter kernels by criteria"""
     print("\n=== Filter Kernels Example ===")
-    
+
     registry = Registry.instance()
-    
+
     # Filter for persistent kernels
-    persistent_kernels = registry.filter(
-        lambda k: k.get_key().algorithm.persistent
-    )
+    persistent_kernels = registry.filter(lambda k: k.get_key().algorithm.persistent)
     print(f"Persistent kernels: {len(persistent_kernels)}")
-    
+
     # Filter for large tile sizes
     large_tile_kernels = registry.filter(
         lambda k: k.get_key().algorithm.tile_shape.m >= 256
@@ -97,10 +97,10 @@ def example_filter_kernels():
 def example_kernel_key():
     """Example: Work with KernelKey"""
     print("\n=== KernelKey Example ===")
-    
+
     # Create a KernelKey
     key = KernelKey()
-    
+
     # Configure signature
     key.signature.dtype_a = DataType.FP16
     key.signature.dtype_b = DataType.FP16
@@ -111,7 +111,7 @@ def example_kernel_key():
     key.signature.layout_c = LayoutTag.RowMajor
     key.signature.elementwise_op = "PassThrough"
     key.signature.num_d_tensors = 0
-    
+
     # Configure algorithm
     key.algorithm.tile_shape.m = 256
     key.algorithm.tile_shape.n = 256
@@ -127,12 +127,12 @@ def example_kernel_key():
     key.algorithm.epilogue = Epilogue.CShuffle
     key.algorithm.block_size = 256
     key.algorithm.persistent = True
-    
+
     key.gfx_arch = "gfx942"
-    
+
     print(f"KernelKey: {key}")
     print(f"  Identifier: {key.encode_identifier()}")
-    
+
     # Lookup kernel by key
     registry = Registry.instance()
     kernel = registry.lookup(key)
@@ -145,11 +145,11 @@ def example_kernel_key():
 def example_heuristics():
     """Example: Use heuristics for kernel selection"""
     print("\n=== Heuristics Example ===")
-    
+
     def my_heuristic(problem):
         """Simple heuristic: prefer larger tiles for larger problems"""
         candidates = []
-        
+
         if problem.M >= 2048 and problem.N >= 2048:
             # Large problem
             candidates.append("256x256x32_2x2x1_32x32x16_persist")
@@ -158,12 +158,12 @@ def example_heuristics():
             # Smaller problem
             candidates.append("128x128x32_2x2x1_32x32x16_persist")
             candidates.append("128x128x64_2x2x1_32x32x16_persist")
-        
+
         return candidates
-    
+
     dispatcher = Dispatcher()
     dispatcher.set_heuristic(my_heuristic)
-    
+
     # Test with different problem sizes
     for M, N, K in [(1024, 1024, 1024), (4096, 4096, 2048)]:
         problem = Problem(M, N, K)
@@ -177,20 +177,19 @@ def example_heuristics():
 def main():
     """Run all examples"""
     print("CK Tile Dispatcher Python API Examples\n")
-    
+
     # Note: These examples assume kernels are registered
     # In practice, you would register kernels first
-    
+
     example_create_problem()
     example_kernel_key()
     example_query_registry()
     example_filter_kernels()
     example_kernel_selection()
     example_heuristics()
-    
+
     print("\n=== Examples Complete ===")
 
 
 if __name__ == "__main__":
     main()
-

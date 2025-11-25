@@ -17,300 +17,308 @@ This provides comprehensive kernel metadata including:
 - Statistics by kernel type
 
 Usage:
-    python3 export_registry_json_example.py [--output kernels.json] [--no-stats]
+    python3 export_registry_json_example.py [--output kernels.json]
 """
 
 import sys
 import json
 import argparse
+import ctypes
 from pathlib import Path
-
-# Add dispatcher Python module to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "python"))
-
-try:
-    from _dispatcher_native import Registry
-    from json_export import (
-        export_registry_json,
-        print_registry_summary,
-        get_registry_statistics,
-        list_kernel_identifiers,
-        filter_kernels_by_property
-    )
-except ImportError as e:
-    print(f"Error: {e}")
-    print("\nTo run this example:")
-    print("  1. Build dispatcher with Python support:")
-    print("     cmake -DBUILD_DISPATCHER_PYTHON=ON")
-    print("  2. Ensure PYTHONPATH includes dispatcher/python")
-    print("  3. Generate and register some kernels first")
-    sys.exit(1)
+from datetime import datetime
 
 
-def demo_export_to_string():
+def find_dispatcher_lib():
+    """Find the dispatcher dynamic library"""
+    script_dir = Path(__file__).parent
+
+    # Possible locations
+    search_paths = [
+        script_dir.parent.parent / "build" / "examples" / "libdispatcher_gemm.so",
+        script_dir.parent.parent / "build" / "lib" / "libdispatcher_gemm.so",
+        script_dir / "libdispatcher_gemm.so",
+        Path(
+            "/workspace/workspace/composable_kernel/dispatcher/build/examples/libdispatcher_gemm.so"
+        ),
+    ]
+
+    for path in search_paths:
+        if path.exists():
+            return path
+
+    return None
+
+
+def load_dispatcher_lib():
+    """Load the dispatcher library"""
+    lib_path = find_dispatcher_lib()
+    if lib_path is None:
+        raise RuntimeError(
+            "Could not find libdispatcher_gemm.so\n"
+            "Please build the dispatcher first:\n"
+            "  cd dispatcher/build && cmake --build ."
+        )
+
+    lib = ctypes.CDLL(str(lib_path))
+
+    # Setup function signatures
+    lib.dispatcher_init.argtypes = []
+    lib.dispatcher_init.restype = ctypes.c_int
+
+    lib.dispatcher_get_kernel_count.argtypes = []
+    lib.dispatcher_get_kernel_count.restype = ctypes.c_int
+
+    # Export registry to JSON - returns pointer to static buffer
+    lib.dispatcher_export_registry_json.argtypes = []
+    lib.dispatcher_export_registry_json.restype = ctypes.c_char_p
+
+    return lib
+
+
+def export_registry_json(lib):
+    """Export registry to JSON string"""
+    json_ptr = lib.dispatcher_export_registry_json()
+    if json_ptr:
+        return json_ptr.decode("utf-8")
+    return None
+
+
+def create_mock_registry_json():
+    """Create a mock registry JSON for demonstration when library not available"""
+    return {
+        "metadata": {
+            "timestamp": datetime.now().isoformat(),
+            "total_kernels": 0,
+            "export_version": "1.0",
+            "dispatcher_version": "1.0.0",
+            "note": "Mock data - library not loaded",
+        },
+        "statistics": {
+            "by_datatype": {},
+            "by_pipeline": {},
+            "by_scheduler": {},
+            "by_layout": {},
+        },
+        "kernels": [],
+    }
+
+
+def demo_export_to_string(lib):
     """Demo: Export to JSON string"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Demo 1: Export to JSON String")
-    print("="*60)
-    
-    registry = Registry.instance()
-    
-    # Get JSON string
-    json_str = export_registry_json()
-    
-    print(f"✓ Generated JSON string ({len(json_str)} bytes)")
-    
-    # Parse and show preview
-    data = json.loads(json_str)
-    print(f"\nMetadata:")
-    print(f"  Timestamp: {data['metadata']['timestamp']}")
-    print(f"  Total Kernels: {data['metadata']['total_kernels']}")
-    print(f"  Export Version: {data['metadata']['export_version']}")
-    
-    if 'statistics' in data:
-        print(f"\nStatistics available:")
-        print(f"  - By data type: {len(data['statistics']['by_datatype'])} types")
-        print(f"  - By pipeline: {len(data['statistics']['by_pipeline'])} pipelines")
-        print(f"  - By scheduler: {len(data['statistics']['by_scheduler'])} schedulers")
+    print("=" * 60)
+
+    json_str = export_registry_json(lib)
+
+    if json_str:
+        print(f"✓ Generated JSON string ({len(json_str)} bytes)")
+
+        # Parse and show preview
+        data = json.loads(json_str)
+        print("\nMetadata:")
+        for key, value in data.get("metadata", {}).items():
+            print(f"  {key}: {value}")
+    else:
+        print("✗ Failed to export registry")
+        data = create_mock_registry_json()
+        print("\nUsing mock data for demonstration")
+
+    return data
 
 
-def demo_export_to_file(filename):
+def demo_export_to_file(lib, filename):
     """Demo: Export to JSON file"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Demo 2: Export to JSON File")
-    print("="*60)
-    
-    # Export with statistics
-    export_registry_json(filename=filename, include_statistics=True)
-    
+    print("=" * 60)
+
+    json_str = export_registry_json(lib)
+
+    if json_str:
+        data = json.loads(json_str)
+    else:
+        data = create_mock_registry_json()
+
+    # Write to file
+    with open(filename, "w") as f:
+        json.dump(data, f, indent=2)
+
     # Verify file was created
     file_path = Path(filename)
     if file_path.exists():
         size_kb = file_path.stat().st_size / 1024
         print(f"✓ File created: {filename} ({size_kb:.1f} KB)")
-        
-        # Read and show structure
-        with open(filename) as f:
-            data = json.load(f)
-        
-        print(f"\nFile structure:")
-        print(f"  - metadata: {len(data['metadata'])} fields")
-        if 'statistics' in data:
+
+        print("\nFile structure:")
+        print(f"  - metadata: {len(data.get('metadata', {}))} fields")
+        if "statistics" in data:
             print(f"  - statistics: {len(data['statistics'])} categories")
-        print(f"  - kernels: {len(data['kernels'])} kernels")
+        print(f"  - kernels: {len(data.get('kernels', []))} kernels")
     else:
         print(f"✗ Failed to create file: {filename}")
 
 
-def demo_print_summary():
+def demo_print_summary(lib):
     """Demo: Print human-readable summary"""
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Demo 3: Print Registry Summary")
-    print("="*60)
-    
-    print_registry_summary()
+    print("=" * 60)
+
+    json_str = export_registry_json(lib)
+
+    if json_str:
+        data = json.loads(json_str)
+    else:
+        data = create_mock_registry_json()
+
+    total = data.get("metadata", {}).get("total_kernels", 0)
+    print(f"\nTotal kernels: {total}")
+
+    if "statistics" in data and total > 0:
+        stats = data["statistics"]
+
+        if "by_datatype" in stats:
+            print("\nBy Data Type:")
+            for dtype, count in sorted(stats["by_datatype"].items()):
+                print(f"  {dtype:20s}: {count:3d}")
+
+        if "by_pipeline" in stats:
+            print("\nBy Pipeline:")
+            for pipeline, count in sorted(stats["by_pipeline"].items()):
+                print(f"  {pipeline:20s}: {count:3d}")
+
+        if "by_scheduler" in stats:
+            print("\nBy Scheduler:")
+            for scheduler, count in sorted(stats["by_scheduler"].items()):
+                print(f"  {scheduler:20s}: {count:3d}")
 
 
-def demo_get_statistics():
-    """Demo: Get statistics as dictionary"""
-    print("\n" + "="*60)
-    print("Demo 4: Get Statistics Dictionary")
-    print("="*60)
-    
-    stats = get_registry_statistics()
-    
-    print(f"\nTotal kernels: {stats['metadata']['total_kernels']}")
-    
-    if 'statistics' in stats:
-        print("\nData type distribution:")
-        for dtype, count in sorted(stats['statistics']['by_datatype'].items()):
-            print(f"  {dtype:30s}: {count:3d} kernels")
-        
-        print("\nPipeline distribution:")
-        for pipeline, count in sorted(stats['statistics']['by_pipeline'].items()):
-            print(f"  {pipeline:30s}: {count:3d} kernels")
-
-
-def demo_list_identifiers():
+def demo_list_identifiers(lib):
     """Demo: List all kernel identifiers"""
-    print("\n" + "="*60)
-    print("Demo 5: List Kernel Identifiers")
-    print("="*60)
-    
-    identifiers = list_kernel_identifiers()
-    
-    print(f"\nFound {len(identifiers)} kernel identifiers:")
-    
+    print("\n" + "=" * 60)
+    print("Demo 4: List Kernel Identifiers")
+    print("=" * 60)
+
+    json_str = export_registry_json(lib)
+
+    if json_str:
+        data = json.loads(json_str)
+    else:
+        data = create_mock_registry_json()
+
+    kernels = data.get("kernels", [])
+    print(f"\nFound {len(kernels)} kernel identifiers:")
+
     # Show first 10
-    for i, identifier in enumerate(identifiers[:10]):
-        print(f"  {i+1:2d}. {identifier}")
-    
-    if len(identifiers) > 10:
-        print(f"  ... and {len(identifiers) - 10} more")
+    for i, kernel in enumerate(kernels[:10]):
+        identifier = kernel.get("identifier", "unknown")
+        print(f"  {i + 1:2d}. {identifier}")
+
+    if len(kernels) > 10:
+        print(f"  ... and {len(kernels) - 10} more")
 
 
-def demo_filter_kernels():
-    """Demo: Filter kernels by properties"""
-    print("\n" + "="*60)
-    print("Demo 6: Filter Kernels by Properties")
-    print("="*60)
-    
-    # Get all kernels first to see what's available
-    registry = Registry.instance()
-    if registry.size() == 0:
-        print("\nNo kernels registered - skipping filter demo")
-        return
-    
-    # Filter by persistent
-    persistent_kernels = filter_kernels_by_property(persistent=True)
-    print(f"\nPersistent kernels: {len(persistent_kernels)}")
-    for kernel in persistent_kernels[:3]:
-        print(f"  - {kernel['identifier']}")
-    
-    # Filter by pipeline
-    mem_kernels = filter_kernels_by_property(pipeline="mem")
-    print(f"\nMem pipeline kernels: {len(mem_kernels)}")
-    for kernel in mem_kernels[:3]:
-        print(f"  - {kernel['identifier']}")
-    
-    # Multiple filters
-    try:
-        compv4_intra = filter_kernels_by_property(
-            pipeline="compv4",
-            scheduler="intrawave"
-        )
-        print(f"\nCompV4 + Intrawave kernels: {len(compv4_intra)}")
-        for kernel in compv4_intra[:3]:
-            print(f"  - {kernel['identifier']}")
-    except:
-        pass
-
-
-def demo_analyze_json():
+def demo_analyze_json(lib):
     """Demo: Analyze JSON data"""
-    print("\n" + "="*60)
-    print("Demo 7: Analyze JSON Data")
-    print("="*60)
-    
-    # Get full data
-    json_str = export_registry_json()
-    data = json.loads(json_str)
-    
-    if len(data['kernels']) == 0:
+    print("\n" + "=" * 60)
+    print("Demo 5: Analyze JSON Data")
+    print("=" * 60)
+
+    json_str = export_registry_json(lib)
+
+    if json_str:
+        data = json.loads(json_str)
+    else:
+        data = create_mock_registry_json()
+
+    kernels = data.get("kernels", [])
+    if len(kernels) == 0:
         print("\nNo kernels to analyze")
         return
-    
+
     print("\nAnalyzing kernel configurations...")
-    
+
     # Find tile size distribution
     tile_sizes = {}
-    for kernel in data['kernels']:
-        tile = kernel['algorithm']['tile_shape']
-        tile_str = f"{tile['m']}x{tile['n']}x{tile['k']}"
+    for kernel in kernels:
+        algo = kernel.get("algorithm", {})
+        tile = algo.get("tile_shape", {})
+        tile_str = f"{tile.get('m', 0)}x{tile.get('n', 0)}x{tile.get('k', 0)}"
         tile_sizes[tile_str] = tile_sizes.get(tile_str, 0) + 1
-    
+
     print("\nTile size distribution:")
-    for tile_size, count in sorted(tile_sizes.items(), key=lambda x: x[1], reverse=True):
+    for tile_size, count in sorted(
+        tile_sizes.items(), key=lambda x: x[1], reverse=True
+    ):
         print(f"  {tile_size:20s}: {count:3d} kernels")
-    
+
     # Find block size distribution
     block_sizes = {}
-    for kernel in data['kernels']:
-        block_size = kernel['algorithm']['block_size']
+    for kernel in kernels:
+        algo = kernel.get("algorithm", {})
+        block_size = algo.get("block_size", 0)
         block_sizes[block_size] = block_sizes.get(block_size, 0) + 1
-    
+
     print("\nBlock size distribution:")
     for block_size, count in sorted(block_sizes.items()):
         print(f"  {block_size:4d}: {count:3d} kernels")
-    
-    # Find feature usage
-    print("\nFeature usage:")
-    features = {
-        'persistent': 0,
-        'double_buffer': 0,
-        'preshuffle': 0,
-        'transpose_c': 0,
-    }
-    
-    for kernel in data['kernels']:
-        algo = kernel['algorithm']
-        for feature in features:
-            if algo[feature]:
-                features[feature] += 1
-    
-    total = len(data['kernels'])
-    for feature, count in features.items():
-        pct = 100.0 * count / total if total > 0 else 0
-        print(f"  {feature:20s}: {count:3d} kernels ({pct:5.1f}%)")
 
 
 def main():
     parser = argparse.ArgumentParser(
         description="Export dispatcher registry to JSON",
-        formatter_class=argparse.RawDescriptionHelpFormatter
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument(
-        "--output", "-o",
-        help="Output JSON filename"
-    )
-    parser.add_argument(
-        "--no-stats",
-        action="store_true",
-        help="Exclude statistics from export"
-    )
-    parser.add_argument(
-        "--demo-all",
-        action="store_true",
-        help="Run all demos"
-    )
-    
+    parser.add_argument("--output", "-o", help="Output JSON filename")
+    parser.add_argument("--demo-all", action="store_true", help="Run all demos")
+
     args = parser.parse_args()
-    
-    # Check if registry has kernels
-    registry = Registry.instance()
-    num_kernels = registry.size()
-    
-    print("="*60)
+
+    print("=" * 60)
     print("Dispatcher Registry JSON Export Example")
-    print("="*60)
-    print(f"\nRegistered kernels: {num_kernels}")
-    
-    if num_kernels == 0:
+    print("=" * 60)
+
+    # Try to load library
+    try:
+        lib = load_dispatcher_lib()
+        lib.dispatcher_init()
+        num_kernels = lib.dispatcher_get_kernel_count()
+        print("\n✓ Loaded dispatcher library")
+        print(f"  Registered kernels: {num_kernels}")
+    except Exception as e:
+        print(f"\n⚠ Could not load dispatcher library: {e}")
+        print("  Running with mock data for demonstration")
+        lib = None
+        num_kernels = 0
+
+    if num_kernels == 0 and lib is not None:
         print("\n[INFO] No kernels registered yet.")
         print("\nTo register kernels:")
         print("  1. Generate kernels:")
         print("     cd codegen && python3 unified_gemm_codegen.py")
         print("  2. Build and link kernels")
         print("  3. Run this example again")
-        print("\nShowing empty registry JSON structure:")
-        
-        # Show structure with empty registry
-        json_str = export_registry_json()
-        print(json.dumps(json.loads(json_str), indent=2))
-        return 0
-    
+
     # Run demos
     if args.demo_all or not args.output:
-        demo_export_to_string()
-        demo_print_summary()
-        demo_get_statistics()
-        demo_list_identifiers()
-        demo_filter_kernels()
-        demo_analyze_json()
-    
+        demo_export_to_string(lib)
+        demo_print_summary(lib)
+        demo_list_identifiers(lib)
+        demo_analyze_json(lib)
+
     # Export to file if requested
     if args.output:
-        demo_export_to_file(args.output)
+        demo_export_to_file(lib, args.output)
     else:
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("[TIP] Use --output to save JSON to file:")
         print(f"  python3 {sys.argv[0]} --output kernels.json")
-        print("="*60)
-    
+        print("=" * 60)
+
     print("\n✓ Example complete!")
     return 0
 
 
 if __name__ == "__main__":
     sys.exit(main())
-

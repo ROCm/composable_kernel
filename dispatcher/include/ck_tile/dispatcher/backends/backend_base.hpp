@@ -16,16 +16,16 @@ namespace backends {
 /// Backend type enumeration
 enum class BackendType
 {
-    Tile,     ///< CK Tile generated kernels
-    Library,  ///< CK Library pre-compiled kernels
-    JIT,      ///< JIT compiled kernels (future)
+    Tile,    ///< CK Tile generated kernels
+    Library, ///< CK Library pre-compiled kernels
+    JIT,     ///< JIT compiled kernels (future)
     Unknown
 };
 
 /// Abstract base class for kernel instances
 class KernelInstance
 {
-public:
+    public:
     virtual ~KernelInstance() = default;
 
     /// Get kernel key
@@ -45,10 +45,10 @@ public:
     /// @param stream HIP stream
     /// @return Execution time in milliseconds
     virtual float run(const void* a_ptr,
-                     const void* b_ptr,
-                     void* c_ptr,
-                     const Problem& problem,
-                     hipStream_t stream = nullptr) = 0;
+                      const void* b_ptr,
+                      void* c_ptr,
+                      const Problem& problem,
+                      hipStream_t stream = nullptr) = 0;
 
     /// Validate kernel output (optional)
     /// @param a_ptr Input tensor A device pointer
@@ -59,11 +59,11 @@ public:
     /// @param atol Absolute tolerance
     /// @return True if validation passes
     virtual bool validate(const void* a_ptr,
-                         const void* b_ptr,
-                         const void* c_ptr,
-                         const Problem& problem,
-                         float rtol = 1e-3f,
-                         float atol = 1e-5f) const
+                          const void* b_ptr,
+                          const void* c_ptr,
+                          const Problem& problem,
+                          float rtol = 1e-3f,
+                          float atol = 1e-5f) const
     {
         (void)a_ptr;
         (void)b_ptr;
@@ -80,8 +80,7 @@ public:
     /// Get kernel metadata
     virtual std::string get_metadata() const
     {
-        return "backend=" + backend_type_to_string(get_backend_type()) +
-               ",name=" + get_name();
+        return "backend=" + backend_type_to_string(get_backend_type()) + ",name=" + get_name();
     }
 
     /// Convert backend type to string
@@ -100,7 +99,7 @@ public:
 /// Abstract base class for backend implementations
 class BackendBase
 {
-public:
+    public:
     virtual ~BackendBase() = default;
 
     /// Discover available kernels
@@ -112,8 +111,7 @@ public:
     /// Create kernel instance from configuration
     /// @param kernel_config Kernel configuration
     /// @return Kernel instance
-    virtual std::shared_ptr<KernelInstance>
-    create_kernel_instance(const KernelKey& kernel_key) = 0;
+    virtual std::shared_ptr<KernelInstance> create_kernel_instance(const KernelKey& kernel_key) = 0;
 
     /// Get backend type
     virtual BackendType get_backend_type() const = 0;
@@ -128,4 +126,3 @@ public:
 } // namespace backends
 } // namespace dispatcher
 } // namespace ck_tile
-

@@ -3,12 +3,12 @@
 
 /**
  * CK Library GEMM Specializations (Phase 2 - Future)
- * 
+ *
  * Type-safe wrappers for CK Library pre-compiled GEMM kernels.
  * Currently not used - reserved for Phase 2 implementation.
- * 
+ *
  * Status: Placeholder for future CK Library integration
- * 
+ *
  * Will provide:
  * - DeviceGemm_Xdl_CShuffle integration
  * - DeviceGemm_Xdl_SplitK integration
@@ -38,59 +38,57 @@ template <typename ADataType,
           typename BElementwiseOp,
           typename CElementwiseOp>
 class LibraryGemmInstance
-    : public LibraryKernelInstance<ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle<
-          ADataType,
-          BDataType,
-          CDataType,
-          AccDataType,
-          ALayout,
-          BLayout,
-          CLayout,
-          AElementwiseOp,
-          BElementwiseOp,
-          CElementwiseOp>>
+    : public LibraryKernelInstance<
+          ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle<ADataType,
+                                                                BDataType,
+                                                                CDataType,
+                                                                AccDataType,
+                                                                ALayout,
+                                                                BLayout,
+                                                                CLayout,
+                                                                AElementwiseOp,
+                                                                BElementwiseOp,
+                                                                CElementwiseOp>>
 {
-public:
-    using DeviceOp = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle<
-        ADataType,
-        BDataType,
-        CDataType,
-        AccDataType,
-        ALayout,
-        BLayout,
-        CLayout,
-        AElementwiseOp,
-        BElementwiseOp,
-        CElementwiseOp>;
-    
-    using Base = LibraryKernelInstance<DeviceOp>;
+    public:
+    using DeviceOp = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle<ADataType,
+                                                                           BDataType,
+                                                                           CDataType,
+                                                                           AccDataType,
+                                                                           ALayout,
+                                                                           BLayout,
+                                                                           CLayout,
+                                                                           AElementwiseOp,
+                                                                           BElementwiseOp,
+                                                                           CElementwiseOp>;
+
+    using Base         = LibraryKernelInstance<DeviceOp>;
     using ArgumentType = typename DeviceOp::Argument;
-    
+
     LibraryGemmInstance(std::unique_ptr<DeviceOp> device_op,
-                       const KernelKey& key,
-                       const std::string& name)
+                        const KernelKey& key,
+                        const std::string& name)
         : Base(std::move(device_op), key, name)
     {
     }
-    
+
     ArgumentType make_argument_impl(const Problem& problem,
-                                   const void* a_ptr = nullptr,
-                                   const void* b_ptr = nullptr,
-                                   void* c_ptr       = nullptr) const
+                                    const void* a_ptr = nullptr,
+                                    const void* b_ptr = nullptr,
+                                    void* c_ptr       = nullptr) const
     {
-        return ArgumentType{
-            static_cast<const ADataType*>(a_ptr),
-            static_cast<const BDataType*>(b_ptr),
-            static_cast<CDataType*>(c_ptr),
-            problem.M,
-            problem.N,
-            problem.K,
-            problem.stride_a,
-            problem.stride_b,
-            problem.stride_c,
-            AElementwiseOp{},
-            BElementwiseOp{},
-            CElementwiseOp{}};
+        return ArgumentType{static_cast<const ADataType*>(a_ptr),
+                            static_cast<const BDataType*>(b_ptr),
+                            static_cast<CDataType*>(c_ptr),
+                            problem.M,
+                            problem.N,
+                            problem.K,
+                            problem.stride_a,
+                            problem.stride_b,
+                            problem.stride_c,
+                            AElementwiseOp{},
+                            BElementwiseOp{},
+                            CElementwiseOp{}};
     }
 };
 
@@ -106,60 +104,58 @@ template <typename ADataType,
           typename BElementwiseOp,
           typename CElementwiseOp>
 class LibrarySplitKGemmInstance
-    : public LibraryKernelInstance<ck::tensor_operation::device::DeviceGemm_Xdl_SplitK_CShuffle<
-          ADataType,
-          BDataType,
-          CDataType,
-          AccDataType,
-          ALayout,
-          BLayout,
-          CLayout,
-          AElementwiseOp,
-          BElementwiseOp,
-          CElementwiseOp>>
+    : public LibraryKernelInstance<
+          ck::tensor_operation::device::DeviceGemm_Xdl_SplitK_CShuffle<ADataType,
+                                                                       BDataType,
+                                                                       CDataType,
+                                                                       AccDataType,
+                                                                       ALayout,
+                                                                       BLayout,
+                                                                       CLayout,
+                                                                       AElementwiseOp,
+                                                                       BElementwiseOp,
+                                                                       CElementwiseOp>>
 {
-public:
-    using DeviceOp = ck::tensor_operation::device::DeviceGemm_Xdl_SplitK_CShuffle<
-        ADataType,
-        BDataType,
-        CDataType,
-        AccDataType,
-        ALayout,
-        BLayout,
-        CLayout,
-        AElementwiseOp,
-        BElementwiseOp,
-        CElementwiseOp>;
-    
-    using Base = LibraryKernelInstance<DeviceOp>;
+    public:
+    using DeviceOp = ck::tensor_operation::device::DeviceGemm_Xdl_SplitK_CShuffle<ADataType,
+                                                                                  BDataType,
+                                                                                  CDataType,
+                                                                                  AccDataType,
+                                                                                  ALayout,
+                                                                                  BLayout,
+                                                                                  CLayout,
+                                                                                  AElementwiseOp,
+                                                                                  BElementwiseOp,
+                                                                                  CElementwiseOp>;
+
+    using Base         = LibraryKernelInstance<DeviceOp>;
     using ArgumentType = typename DeviceOp::Argument;
-    
+
     LibrarySplitKGemmInstance(std::unique_ptr<DeviceOp> device_op,
-                             const KernelKey& key,
-                             const std::string& name)
+                              const KernelKey& key,
+                              const std::string& name)
         : Base(std::move(device_op), key, name)
     {
     }
-    
+
     ArgumentType make_argument_impl(const Problem& problem,
-                                   const void* a_ptr = nullptr,
-                                   const void* b_ptr = nullptr,
-                                   void* c_ptr       = nullptr) const
+                                    const void* a_ptr = nullptr,
+                                    const void* b_ptr = nullptr,
+                                    void* c_ptr       = nullptr) const
     {
-        return ArgumentType{
-            static_cast<const ADataType*>(a_ptr),
-            static_cast<const BDataType*>(b_ptr),
-            static_cast<CDataType*>(c_ptr),
-            problem.M,
-            problem.N,
-            problem.K,
-            problem.stride_a,
-            problem.stride_b,
-            problem.stride_c,
-            AElementwiseOp{},
-            BElementwiseOp{},
-            CElementwiseOp{},
-            problem.k_batch};  // Split-K factor
+        return ArgumentType{static_cast<const ADataType*>(a_ptr),
+                            static_cast<const BDataType*>(b_ptr),
+                            static_cast<CDataType*>(c_ptr),
+                            problem.M,
+                            problem.N,
+                            problem.K,
+                            problem.stride_a,
+                            problem.stride_b,
+                            problem.stride_c,
+                            AElementwiseOp{},
+                            BElementwiseOp{},
+                            CElementwiseOp{},
+                            problem.k_batch}; // Split-K factor
     }
 };
 
@@ -175,63 +171,61 @@ template <typename ADataType,
           typename BElementwiseOp,
           typename CElementwiseOp>
 class LibraryBatchedGemmInstance
-    : public LibraryKernelInstance<ck::tensor_operation::device::DeviceBatchedGemm_Xdl_CShuffle<
-          ADataType,
-          BDataType,
-          CDataType,
-          AccDataType,
-          ALayout,
-          BLayout,
-          CLayout,
-          AElementwiseOp,
-          BElementwiseOp,
-          CElementwiseOp>>
+    : public LibraryKernelInstance<
+          ck::tensor_operation::device::DeviceBatchedGemm_Xdl_CShuffle<ADataType,
+                                                                       BDataType,
+                                                                       CDataType,
+                                                                       AccDataType,
+                                                                       ALayout,
+                                                                       BLayout,
+                                                                       CLayout,
+                                                                       AElementwiseOp,
+                                                                       BElementwiseOp,
+                                                                       CElementwiseOp>>
 {
-public:
-    using DeviceOp = ck::tensor_operation::device::DeviceBatchedGemm_Xdl_CShuffle<
-        ADataType,
-        BDataType,
-        CDataType,
-        AccDataType,
-        ALayout,
-        BLayout,
-        CLayout,
-        AElementwiseOp,
-        BElementwiseOp,
-        CElementwiseOp>;
-    
-    using Base = LibraryKernelInstance<DeviceOp>;
+    public:
+    using DeviceOp = ck::tensor_operation::device::DeviceBatchedGemm_Xdl_CShuffle<ADataType,
+                                                                                  BDataType,
+                                                                                  CDataType,
+                                                                                  AccDataType,
+                                                                                  ALayout,
+                                                                                  BLayout,
+                                                                                  CLayout,
+                                                                                  AElementwiseOp,
+                                                                                  BElementwiseOp,
+                                                                                  CElementwiseOp>;
+
+    using Base         = LibraryKernelInstance<DeviceOp>;
     using ArgumentType = typename DeviceOp::Argument;
-    
+
     LibraryBatchedGemmInstance(std::unique_ptr<DeviceOp> device_op,
-                              const KernelKey& key,
-                              const std::string& name)
+                               const KernelKey& key,
+                               const std::string& name)
         : Base(std::move(device_op), key, name)
     {
     }
-    
+
     ArgumentType make_argument_impl(const Problem& problem,
-                                   const void* a_ptr = nullptr,
-                                   const void* b_ptr = nullptr,
-                                   void* c_ptr       = nullptr) const
+                                    const void* a_ptr = nullptr,
+                                    const void* b_ptr = nullptr,
+                                    void* c_ptr       = nullptr) const
     {
-        return ArgumentType{
-            static_cast<const ADataType*>(a_ptr),
-            static_cast<const BDataType*>(b_ptr),
-            static_cast<CDataType*>(c_ptr),
-            problem.M,
-            problem.N,
-            problem.K,
-            problem.stride_a,
-            problem.stride_b,
-            problem.stride_c,
-            problem.batch_stride_a,
-            problem.batch_stride_b,
-            problem.batch_stride_c,
-            problem.batch_count,
-            AElementwiseOp{},
-            BElementwiseOp{},
-            CElementwiseOp{}};
+        return ArgumentType{static_cast<const ADataType*>(a_ptr),
+                            static_cast<const BDataType*>(b_ptr),
+                            static_cast<CDataType*>(c_ptr),
+                            problem.M,
+                            problem.N,
+                            problem.K,
+                            problem.stride_a,
+                            problem.stride_b,
+                            problem.stride_c,
+                            problem.batch_stride_a,
+                            problem.batch_stride_b,
+                            problem.batch_stride_c,
+                            problem.batch_count,
+                            AElementwiseOp{},
+                            BElementwiseOp{},
+                            CElementwiseOp{}};
     }
 };
 
@@ -246,96 +240,93 @@ template <typename ADataType,
           typename AElementwiseOp,
           typename BElementwiseOp,
           typename CElementwiseOp>
-std::shared_ptr<KernelInstance> make_library_gemm_instance(
-    const KernelKey& key,
-    const std::string& name,
-    bool is_batched = false,
-    bool is_splitk  = false)
+std::shared_ptr<KernelInstance> make_library_gemm_instance(const KernelKey& key,
+                                                           const std::string& name,
+                                                           bool is_batched = false,
+                                                           bool is_splitk  = false)
 {
     if(is_batched)
     {
-        using DeviceOp = ck::tensor_operation::device::DeviceBatchedGemm_Xdl_CShuffle<
-            ADataType,
-            BDataType,
-            CDataType,
-            AccDataType,
-            ALayout,
-            BLayout,
-            CLayout,
-            AElementwiseOp,
-            BElementwiseOp,
-            CElementwiseOp>;
-        
+        using DeviceOp =
+            ck::tensor_operation::device::DeviceBatchedGemm_Xdl_CShuffle<ADataType,
+                                                                         BDataType,
+                                                                         CDataType,
+                                                                         AccDataType,
+                                                                         ALayout,
+                                                                         BLayout,
+                                                                         CLayout,
+                                                                         AElementwiseOp,
+                                                                         BElementwiseOp,
+                                                                         CElementwiseOp>;
+
         auto device_op = std::make_unique<DeviceOp>();
-        return std::make_shared<LibraryBatchedGemmInstance<
-            ADataType,
-            BDataType,
-            CDataType,
-            AccDataType,
-            ALayout,
-            BLayout,
-            CLayout,
-            AElementwiseOp,
-            BElementwiseOp,
-            CElementwiseOp>>(std::move(device_op), key, name);
+        return std::make_shared<LibraryBatchedGemmInstance<ADataType,
+                                                           BDataType,
+                                                           CDataType,
+                                                           AccDataType,
+                                                           ALayout,
+                                                           BLayout,
+                                                           CLayout,
+                                                           AElementwiseOp,
+                                                           BElementwiseOp,
+                                                           CElementwiseOp>>(
+            std::move(device_op), key, name);
     }
     else if(is_splitk)
     {
-        using DeviceOp = ck::tensor_operation::device::DeviceGemm_Xdl_SplitK_CShuffle<
-            ADataType,
-            BDataType,
-            CDataType,
-            AccDataType,
-            ALayout,
-            BLayout,
-            CLayout,
-            AElementwiseOp,
-            BElementwiseOp,
-            CElementwiseOp>;
-        
+        using DeviceOp =
+            ck::tensor_operation::device::DeviceGemm_Xdl_SplitK_CShuffle<ADataType,
+                                                                         BDataType,
+                                                                         CDataType,
+                                                                         AccDataType,
+                                                                         ALayout,
+                                                                         BLayout,
+                                                                         CLayout,
+                                                                         AElementwiseOp,
+                                                                         BElementwiseOp,
+                                                                         CElementwiseOp>;
+
         auto device_op = std::make_unique<DeviceOp>();
-        return std::make_shared<LibrarySplitKGemmInstance<
-            ADataType,
-            BDataType,
-            CDataType,
-            AccDataType,
-            ALayout,
-            BLayout,
-            CLayout,
-            AElementwiseOp,
-            BElementwiseOp,
-            CElementwiseOp>>(std::move(device_op), key, name);
+        return std::make_shared<LibrarySplitKGemmInstance<ADataType,
+                                                          BDataType,
+                                                          CDataType,
+                                                          AccDataType,
+                                                          ALayout,
+                                                          BLayout,
+                                                          CLayout,
+                                                          AElementwiseOp,
+                                                          BElementwiseOp,
+                                                          CElementwiseOp>>(
+            std::move(device_op), key, name);
     }
     else
     {
-        using DeviceOp = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle<
-            ADataType,
-            BDataType,
-            CDataType,
-            AccDataType,
-            ALayout,
-            BLayout,
-            CLayout,
-            AElementwiseOp,
-            BElementwiseOp,
-            CElementwiseOp>;
-        
+        using DeviceOp = ck::tensor_operation::device::DeviceGemm_Xdl_CShuffle<ADataType,
+                                                                               BDataType,
+                                                                               CDataType,
+                                                                               AccDataType,
+                                                                               ALayout,
+                                                                               BLayout,
+                                                                               CLayout,
+                                                                               AElementwiseOp,
+                                                                               BElementwiseOp,
+                                                                               CElementwiseOp>;
+
         auto device_op = std::make_unique<DeviceOp>();
-        return std::make_shared<LibraryGemmInstance<
-            ADataType,
-            BDataType,
-            CDataType,
-            AccDataType,
-            ALayout,
-            BLayout,
-            CLayout,
-            AElementwiseOp,
-            BElementwiseOp,
-            CElementwiseOp>>(std::move(device_op), key, name);
+        return std::make_shared<LibraryGemmInstance<ADataType,
+                                                    BDataType,
+                                                    CDataType,
+                                                    AccDataType,
+                                                    ALayout,
+                                                    BLayout,
+                                                    CLayout,
+                                                    AElementwiseOp,
+                                                    BElementwiseOp,
+                                                    CElementwiseOp>>(
+            std::move(device_op), key, name);
     }
 }
 
 } // namespace backends
 } // namespace dispatcher
 } // namespace ck_tile
-

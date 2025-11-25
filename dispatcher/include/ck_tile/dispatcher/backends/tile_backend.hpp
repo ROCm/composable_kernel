@@ -22,11 +22,8 @@ namespace backends {
 template <typename SelectedKernel>
 class TileKernelInstance : public KernelInstance
 {
-public:
-    TileKernelInstance(const KernelKey& key, const std::string& name)
-        : key_(key), name_(name)
-    {
-    }
+    public:
+    TileKernelInstance(const KernelKey& key, const std::string& name) : key_(key), name_(name) {}
 
     const KernelKey& get_key() const override { return key_; }
 
@@ -69,31 +66,30 @@ public:
     std::string get_name() const override { return name_; }
 
     float run(const void* a_ptr,
-             const void* b_ptr,
-             void* c_ptr,
-             const void** d_ptrs,
-             const Problem& problem,
-             void* stream) const override
+              const void* b_ptr,
+              void* c_ptr,
+              const void** d_ptrs,
+              const Problem& problem,
+              void* stream) const override
     {
         // Convert void* stream to hipStream_t
         hipStream_t hip_stream = reinterpret_cast<hipStream_t>(stream);
-        
+
         // Construct kernel arguments
         using ADataType = typename SelectedKernel::ADataType;
         using BDataType = typename SelectedKernel::BDataType;
         using CDataType = typename SelectedKernel::CDataType;
 
         // Note: d_ptrs not yet supported in basic CK Tile kernels
-        (void)d_ptrs;  // Suppress unused parameter warning
+        (void)d_ptrs; // Suppress unused parameter warning
 
-        auto kargs = SelectedKernel::MakeKernelArgs(
-            static_cast<const ADataType*>(a_ptr),
-            static_cast<const BDataType*>(b_ptr),
-            static_cast<CDataType*>(c_ptr),
-            problem.M,
-            problem.N,
-            problem.K,
-            problem.k_batch);
+        auto kargs = SelectedKernel::MakeKernelArgs(static_cast<const ADataType*>(a_ptr),
+                                                    static_cast<const BDataType*>(b_ptr),
+                                                    static_cast<CDataType*>(c_ptr),
+                                                    problem.M,
+                                                    problem.N,
+                                                    problem.K,
+                                                    problem.k_batch);
 
         // Validate arguments
         if(!SelectedKernel::IsSupportedArgument(kargs))
@@ -102,8 +98,8 @@ public:
         }
 
         // Calculate grid and block dimensions
-        dim3 grids     = SelectedKernel::GridSize(problem.M, problem.N, problem.K);
-        dim3 blocks    = SelectedKernel::BlockSize();
+        dim3 grids       = SelectedKernel::GridSize(problem.M, problem.N, problem.K);
+        dim3 blocks      = SelectedKernel::BlockSize();
         size_t lds_bytes = SelectedKernel::GetSmemSize();
 
         // Time kernel execution
@@ -114,8 +110,7 @@ public:
         hipEventRecord(start, hip_stream);
 
         // Launch kernel
-        ck_tile::launch_kernel(
-            SelectedKernel::Kernel, grids, blocks, lds_bytes, hip_stream, kargs);
+        ck_tile::launch_kernel(SelectedKernel::Kernel, grids, blocks, lds_bytes, hip_stream, kargs);
 
         hipEventRecord(stop, hip_stream);
         hipEventSynchronize(stop);
@@ -130,30 +125,30 @@ public:
     }
 
     bool validate(const void* a_ptr,
-                 const void* b_ptr,
-                 const void* c_ptr,
-                 const void** d_ptrs,
-                 const Problem& problem,
-                 float tolerance) const override
+                  const void* b_ptr,
+                  const void* c_ptr,
+                  const void** d_ptrs,
+                  const Problem& problem,
+                  float tolerance) const override
     {
         // Use validation helper
-        using ADataType = typename SelectedKernel::ADataType;
-        using BDataType = typename SelectedKernel::BDataType;
-        using CDataType = typename SelectedKernel::CDataType;
+        using ADataType   = typename SelectedKernel::ADataType;
+        using BDataType   = typename SelectedKernel::BDataType;
+        using CDataType   = typename SelectedKernel::CDataType;
         using AccDataType = typename SelectedKernel::AccDataType;
-        
+
         // d_ptrs not yet supported
         (void)d_ptrs;
-        
+
         // Convert tolerance to rtol and atol
         float rtol = tolerance;
-        float atol = tolerance * 1e-2f;  // atol is typically smaller
-        
+        float atol = tolerance * 1e-2f; // atol is typically smaller
+
         return validation::validate_gemm_kernel<ADataType, BDataType, CDataType, AccDataType>(
             a_ptr, b_ptr, c_ptr, problem, rtol, atol);
     }
 
-private:
+    private:
     int64_t estimate_smem_usage() const
     {
         // Use kernel's reported shared memory size
@@ -167,9 +162,8 @@ private:
 /// Helper function to create a tile kernel instance wrapper
 /// This should be called from generated code that knows the SelectedKernel type
 template <typename SelectedKernel>
-std::shared_ptr<KernelInstance> create_tile_kernel_instance(
-    const KernelKey& key,
-    const std::string& name)
+std::shared_ptr<KernelInstance> create_tile_kernel_instance(const KernelKey& key,
+                                                            const std::string& name)
 {
     return std::make_shared<TileKernelInstance<SelectedKernel>>(key, name);
 }

@@ -3,10 +3,10 @@
 
 /**
  * AUTO-GENERATED FILE - DO NOT EDIT DIRECTLY!
- * 
+ *
  * Generated from: arch_specs.json
  * Generated at: 2025-11-25T23:24:22.598169
- * 
+ *
  * To update this file:
  * 1. Edit arch_specs.json
  * 2. Run: python generate_arch_specs.py
@@ -28,11 +28,12 @@ namespace arch_specs {
 // GPU Architecture Enum (Generated)
 // =============================================================================
 
-enum class GpuArch : std::uint8_t {
+enum class GpuArch : std::uint8_t
+{
     GFX_90A,  // AMD Instinct MI200 series
     GFX_942,  // AMD Instinct MI300 series
     GFX_950,  // AMD Instinct MI350 series
-    GFX_1201,  // AMD Radeon RX 9000 series (RDNA4)
+    GFX_1201, // AMD Radeon RX 9000 series (RDNA4)
     UNKNOWN
 };
 
@@ -40,21 +41,28 @@ enum class GpuArch : std::uint8_t {
 // String Conversion Functions (Generated)
 // =============================================================================
 
-inline std::string arch_to_string(GpuArch arch) {
-    switch (arch) {
-        case GpuArch::GFX_90A: return "gfx90a";
-        case GpuArch::GFX_942: return "gfx942";
-        case GpuArch::GFX_950: return "gfx950";
-        case GpuArch::GFX_1201: return "gfx1201";
-        default: return "unknown";
+inline std::string arch_to_string(GpuArch arch)
+{
+    switch(arch)
+    {
+    case GpuArch::GFX_90A: return "gfx90a";
+    case GpuArch::GFX_942: return "gfx942";
+    case GpuArch::GFX_950: return "gfx950";
+    case GpuArch::GFX_1201: return "gfx1201";
+    default: return "unknown";
     }
 }
 
-inline GpuArch string_to_arch(const std::string& arch_str) {
-    if (arch_str == "gfx90a") return GpuArch::GFX_90A;
-    if (arch_str == "gfx942") return GpuArch::GFX_942;
-    if (arch_str == "gfx950") return GpuArch::GFX_950;
-    if (arch_str == "gfx1201") return GpuArch::GFX_1201;
+inline GpuArch string_to_arch(const std::string& arch_str)
+{
+    if(arch_str == "gfx90a")
+        return GpuArch::GFX_90A;
+    if(arch_str == "gfx942")
+        return GpuArch::GFX_942;
+    if(arch_str == "gfx950")
+        return GpuArch::GFX_950;
+    if(arch_str == "gfx1201")
+        return GpuArch::GFX_1201;
     return GpuArch::UNKNOWN;
 }
 
@@ -62,18 +70,20 @@ inline GpuArch string_to_arch(const std::string& arch_str) {
 // Element Size (Generated)
 // =============================================================================
 
-inline float element_size(DataType dtype) {
-    switch (dtype) {
-        case DataType::FP16: return 2.0f;
-        case DataType::BF16: return 2.0f;
-        case DataType::FP32: return 4.0f;
-        case DataType::FP64: return 8.0f;
-        case DataType::FP8: return 1.0f;
-        case DataType::BF8: return 1.0f;
-        case DataType::INT8: return 1.0f;
-        case DataType::INT4: return 0.5f;
-        case DataType::INT32: return 4.0f;
-        default: return 2.0f;
+inline float element_size(DataType dtype)
+{
+    switch(dtype)
+    {
+    case DataType::FP16: return 2.0f;
+    case DataType::BF16: return 2.0f;
+    case DataType::FP32: return 4.0f;
+    case DataType::FP64: return 8.0f;
+    case DataType::FP8: return 1.0f;
+    case DataType::BF8: return 1.0f;
+    case DataType::INT8: return 1.0f;
+    case DataType::INT4: return 0.5f;
+    case DataType::INT32: return 4.0f;
+    default: return 2.0f;
     }
 }
 
@@ -83,13 +93,15 @@ inline float element_size(DataType dtype) {
 
 using WarpConfig = std::array<int, 3>;
 
-inline std::vector<WarpConfig> get_supported_warp_configs(GpuArch arch) {
-    switch (arch) {
-        case GpuArch::GFX_90A: return {{1, 4, 1}, {2, 2, 1}, {4, 1, 1}};
-        case GpuArch::GFX_942: return {{1, 4, 1}, {2, 2, 1}, {4, 1, 1}};
-        case GpuArch::GFX_950: return {{1, 4, 1}, {2, 2, 1}, {4, 1, 1}};
-        case GpuArch::GFX_1201: return {{2, 4, 1}, {1, 8, 1}, {8, 1, 1}, {4, 2, 1}};
-        default: return {};
+inline std::vector<WarpConfig> get_supported_warp_configs(GpuArch arch)
+{
+    switch(arch)
+    {
+    case GpuArch::GFX_90A: return {{1, 4, 1}, {2, 2, 1}, {4, 1, 1}};
+    case GpuArch::GFX_942: return {{1, 4, 1}, {2, 2, 1}, {4, 1, 1}};
+    case GpuArch::GFX_950: return {{1, 4, 1}, {2, 2, 1}, {4, 1, 1}};
+    case GpuArch::GFX_1201: return {{2, 4, 1}, {1, 8, 1}, {8, 1, 1}, {4, 2, 1}};
+    default: return {};
     }
 }
 
@@ -97,26 +109,39 @@ inline std::vector<WarpConfig> get_supported_warp_configs(GpuArch arch) {
 // LDS Capacity Limits (Generated)
 // =============================================================================
 
-inline std::size_t get_lds_capacity(Pipeline pipeline) {
-    if (pipeline == Pipeline::Mem) return 65536;
-    if (pipeline == Pipeline::CompV1) return 65536;
-    if (pipeline == Pipeline::CompV2) return 65536;
-    if (pipeline == Pipeline::CompV3) return 65536;
-    if (pipeline == Pipeline::CompV4) return 32768;
-    if (pipeline == Pipeline::CompV5) return 65536;
-    if (pipeline == Pipeline::PreShuffleV1) return 32768;
-    if (pipeline == Pipeline::PreShuffleV2) return 32768;
-    return 65536;  // Default
+inline std::size_t get_lds_capacity(Pipeline pipeline)
+{
+    if(pipeline == Pipeline::Mem)
+        return 65536;
+    if(pipeline == Pipeline::CompV1)
+        return 65536;
+    if(pipeline == Pipeline::CompV2)
+        return 65536;
+    if(pipeline == Pipeline::CompV3)
+        return 65536;
+    if(pipeline == Pipeline::CompV4)
+        return 32768;
+    if(pipeline == Pipeline::CompV5)
+        return 65536;
+    if(pipeline == Pipeline::PreShuffleV1)
+        return 32768;
+    if(pipeline == Pipeline::PreShuffleV2)
+        return 32768;
+    return 65536; // Default
 }
 
 // =============================================================================
 // Unsupported Trait Combinations (Generated)
 // =============================================================================
 
-inline bool is_trait_unsupported(Pipeline pipeline, [[maybe_unused]] Epilogue epilogue, Scheduler scheduler) {
+inline bool
+is_trait_unsupported(Pipeline pipeline, [[maybe_unused]] Epilogue epilogue, Scheduler scheduler)
+{
     // Generated from unsupported_trait_combos in arch_specs.json
-    if (scheduler == Scheduler::Interwave) {
-        if (pipeline == Pipeline::CompV3 || pipeline == Pipeline::CompV4) {
+    if(scheduler == Scheduler::Interwave)
+    {
+        if(pipeline == Pipeline::CompV3 || pipeline == Pipeline::CompV4)
+        {
             return true;
         }
     }

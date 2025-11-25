@@ -16,12 +16,12 @@ namespace backends {
 
 /**
  * Kernel instance wrapper for unified_gemm_codegen.py generated kernels
- * 
+ *
  * These kernels have structure:
  * - Types defined outside: using ADataType = ...; using BDataType = ...;
  * - struct SelectedKernel with static constexpr config and launch() method
  * - constexpr const char* KERNEL_NAME = "...";
- * 
+ *
  * This is different from tile_engine style where everything is in SelectedKernel.
  */
 template <typename SelectedKernelType,
@@ -31,13 +31,13 @@ template <typename SelectedKernelType,
           typename AccDataType_>
 class GeneratedTileKernelInstance : public KernelInstance
 {
-public:
-    using ADataType = ADataType_;
-    using BDataType = BDataType_;
-    using CDataType = CDataType_;
-    using AccDataType = AccDataType_;
+    public:
+    using ADataType      = ADataType_;
+    using BDataType      = BDataType_;
+    using CDataType      = CDataType_;
+    using AccDataType    = AccDataType_;
     using SelectedKernel = SelectedKernelType;
-    
+
     GeneratedTileKernelInstance(const KernelKey& key, const std::string& name)
         : key_(key), name_(name)
     {
@@ -54,7 +54,7 @@ public:
 
         if(pad_m && pad_n && pad_k)
         {
-            return true;  // Padding enabled - supports any size
+            return true; // Padding enabled - supports any size
         }
 
         // Check divisibility
@@ -75,58 +75,62 @@ public:
     std::string get_name() const override { return name_; }
 
     float run(const void* a_ptr,
-             const void* b_ptr,
-             void* c_ptr,
-             const void** d_ptrs,
-             const Problem& problem,
-             void* stream) const override
+              const void* b_ptr,
+              void* c_ptr,
+              const void** d_ptrs,
+              const Problem& problem,
+              void* stream) const override
     {
-        (void)d_ptrs;  // Not used in basic GEMM
-        
+        (void)d_ptrs; // Not used in basic GEMM
+
         // Create arguments using constructor (correct order!)
-        // Order from GemmHostArgs constructor: a_ptr, b_ptr, e_ptr, k_batch, M, N, K, stride_A, stride_B, stride_E
-        ck_tile::GemmHostArgs args(
-            a_ptr,              // a_ptr
-            b_ptr,              // b_ptr
-            c_ptr,              // e_ptr/c_ptr
-            problem.k_batch,    // k_batch (4th argument!)
-            problem.M,          // M
-            problem.N,          // N
-            problem.K,          // K
-            problem.K,          // stride_A (row-major A: stride = K)
-            problem.K,          // stride_B (column-major B: stride = K)
-            problem.N           // stride_E/C (row-major C: stride = N)
+        // Order from GemmHostArgs constructor: a_ptr, b_ptr, e_ptr, k_batch, M, N, K, stride_A,
+        // stride_B, stride_E
+        ck_tile::GemmHostArgs args(a_ptr,           // a_ptr
+                                   b_ptr,           // b_ptr
+                                   c_ptr,           // e_ptr/c_ptr
+                                   problem.k_batch, // k_batch (4th argument!)
+                                   problem.M,       // M
+                                   problem.N,       // N
+                                   problem.K,       // K
+                                   problem.K,       // stride_A (row-major A: stride = K)
+                                   problem.K,       // stride_B (column-major B: stride = K)
+                                   problem.N        // stride_E/C (row-major C: stride = N)
         );
-        
+
         // Create stream config for timing
         ck_tile::stream_config stream_cfg;
-        stream_cfg.stream_id_ = reinterpret_cast<hipStream_t>(stream);
-        stream_cfg.time_kernel_ = true;
-        stream_cfg.log_level_ = 0;  // No logging for performance
-        stream_cfg.cold_niters_ = 5;  // Warmup iterations
-        stream_cfg.nrepeat_ = 10;     // Measurement iterations
-        stream_cfg.is_gpu_timer_ = true;
-        stream_cfg.flush_cache_ = false;
+        stream_cfg.stream_id_      = reinterpret_cast<hipStream_t>(stream);
+        stream_cfg.time_kernel_    = true;
+        stream_cfg.log_level_      = 0;  // No logging for performance
+        stream_cfg.cold_niters_    = 5;  // Warmup iterations
+        stream_cfg.nrepeat_        = 10; // Measurement iterations
+        stream_cfg.is_gpu_timer_   = true;
+        stream_cfg.flush_cache_    = false;
         stream_cfg.rotating_count_ = 1;
-        
+
         // Call the generated kernel's launch method
         return SelectedKernel::launch(args, stream_cfg);
     }
 
     bool validate(const void* a_ptr,
-                 const void* b_ptr,
-                 const void* c_ptr,
-                 const void** d_ptrs,
-                 const Problem& problem,
-                 float tolerance) const override
+                  const void* b_ptr,
+                  const void* c_ptr,
+                  const void** d_ptrs,
+                  const Problem& problem,
+                  float tolerance) const override
     {
-        (void)a_ptr; (void)b_ptr; (void)c_ptr; (void)d_ptrs;
-        (void)problem; (void)tolerance;
+        (void)a_ptr;
+        (void)b_ptr;
+        (void)c_ptr;
+        (void)d_ptrs;
+        (void)problem;
+        (void)tolerance;
         // Validation would require reference implementation
         return true;
     }
 
-private:
+    private:
     KernelKey key_;
     std::string name_;
 };
@@ -137,15 +141,14 @@ template <typename SelectedKernel,
           typename BDataType,
           typename CDataType,
           typename AccDataType>
-std::shared_ptr<KernelInstance> create_generated_tile_kernel(
-    const KernelKey& key,
-    const std::string& name)
+std::shared_ptr<KernelInstance> create_generated_tile_kernel(const KernelKey& key,
+                                                             const std::string& name)
 {
-    return std::make_shared<GeneratedTileKernelInstance<
-        SelectedKernel, ADataType, BDataType, CDataType, AccDataType>>(key, name);
+    return std::make_shared<
+        GeneratedTileKernelInstance<SelectedKernel, ADataType, BDataType, CDataType, AccDataType>>(
+        key, name);
 }
 
 } // namespace backends
 } // namespace dispatcher
 } // namespace ck_tile
-

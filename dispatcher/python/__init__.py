@@ -5,13 +5,13 @@ High-level Python bindings for the CK Tile GEMM dispatcher.
 
 Example:
     >>> import ck_tile_dispatcher as ckd
-    >>> 
+    >>>
     >>> # Simple API - everything automated
     >>> from ck_tile_dispatcher import SimpleGemmAPI
     >>> gemm = SimpleGemmAPI()
     >>> gemm.ensure_kernels_ready()
     >>> result = gemm.execute(M=1024, N=1024, K=1024)
-    >>> 
+    >>>
     >>> # Or use one-liner
     >>> from ck_tile_dispatcher import quick_gemm
     >>> result = quick_gemm(M=2048, N=2048, K=2048)
@@ -19,6 +19,41 @@ Example:
 
 __version__ = "1.0.0"
 __author__ = "AMD CK Tile Team"
+
+# Public API - all these are intentionally re-exported
+__all__ = [
+    # High-level API
+    "Dispatcher",
+    "SimpleGemmAPI",
+    "generate_kernels",
+    "quick_gemm",
+    "list_available_presets",
+    # Core types
+    "LegacyDispatcher",
+    "Problem",
+    "KernelKey",
+    "DataType",
+    "LayoutTag",
+    "DispatchResult",
+    # Utilities
+    "get_available_kernels",
+    "benchmark_kernel",
+    "profile_dispatch",
+    # JSON export
+    "export_registry_json",
+    "print_registry_summary",
+    "get_registry_statistics",
+    "list_kernel_identifiers",
+    "filter_kernels_by_property",
+    "enable_auto_export",
+    "disable_auto_export",
+    "is_auto_export_enabled",
+    # PyTorch integration (optional)
+    "CKTileGEMM",
+    "ck_gemm",
+    "register_ck_ops",
+    "HAS_TORCH",
+]
 
 # Import high-level API (primary interface)
 from .dispatcher_api import (
@@ -53,6 +88,7 @@ try:
         ck_gemm,
         register_ck_ops,
     )
+
     HAS_TORCH = True
 except ImportError:
     HAS_TORCH = False
@@ -137,23 +173,19 @@ __all__ = [
     "generate_kernels",
     "quick_gemm",
     "list_available_presets",
-    
     # Core
     "Problem",
     "KernelKey",
     "DataType",
     "LayoutTag",
     "DispatchResult",
-    
     # Utils
     "get_available_kernels",
     "benchmark_kernel",
     "profile_dispatch",
-    
     # Profiler
     "Profiler",
     "ProfileReport",
-    
     # Configuration
     "get_config",
     "set_config",
@@ -163,7 +195,6 @@ __all__ = [
     "use_preset",
     "print_config",
     "DispatcherConfig",
-    
     # Logging
     "set_log_level",
     "enable_file_logging",
@@ -171,19 +202,16 @@ __all__ = [
     "get_perf_logger",
     "get_dispatch_logger",
     "log_system_info",
-    
     # Cache
     "get_kernel_cache",
     "get_perf_cache",
     "clear_all_caches",
     "print_cache_stats",
-    
     # Registry
     "Registry",
     "Priority",
     "get_global_registry",
     "reset_global_registry",
-    
     # Selection
     "SelectionEngine",
     "SelectionStrategy",
@@ -191,7 +219,6 @@ __all__ = [
     "size_based_heuristic",
     "datatype_aware_heuristic",
     "ml_based_heuristic",
-    
     # Backends
     "KernelInstance",
     "BackendType",
@@ -199,12 +226,10 @@ __all__ = [
     "TileBackend",
     "LibraryKernelInstance",
     "LibraryBackend",
-    
     # PyTorch (if available)
     "CKTileGEMM" if HAS_TORCH else None,
     "ck_gemm" if HAS_TORCH else None,
     "register_ck_ops" if HAS_TORCH else None,
-    
     # Metadata
     "__version__",
 ]
@@ -217,11 +242,12 @@ def info():
     """Print dispatcher information"""
     print(f"CK Tile Dispatcher v{__version__}")
     print(f"PyTorch support: {'Yes' if HAS_TORCH else 'No'}")
-    
+
     # Try to get C++ extension info
     try:
-        from . import _ck_dispatcher_cpp
-        print(f"C++ extension: Loaded")
+        from . import _ck_dispatcher_cpp  # noqa: F401
+
+        print("C++ extension: Loaded")
         print(f"Available kernels: {len(get_available_kernels())}")
     except ImportError:
-        print(f"C++ extension: Not loaded")
+        print("C++ extension: Not loaded")

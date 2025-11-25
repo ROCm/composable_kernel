@@ -3,10 +3,10 @@
 
 /**
  * CK Library Backend (Phase 2 - Future)
- * 
+ *
  * This backend integrates pre-compiled kernels from CK Library.
  * Currently not used - reserved for Phase 2 implementation.
- * 
+ *
  * Status: Placeholder for future CK Library integration
  */
 
@@ -26,13 +26,13 @@ namespace backends {
 template <typename DeviceOp>
 class LibraryKernelInstance : public KernelInstance
 {
-public:
+    public:
     using ArgumentType = typename DeviceOp::Argument;
     using InvokerType  = typename DeviceOp::Invoker;
 
     LibraryKernelInstance(std::unique_ptr<DeviceOp> device_op,
-                         const KernelKey& key,
-                         const std::string& name)
+                          const KernelKey& key,
+                          const std::string& name)
         : device_op_(std::move(device_op)), key_(key), name_(name)
     {
     }
@@ -56,10 +56,10 @@ public:
     std::string get_name() const override { return name_; }
 
     float run(const void* a_ptr,
-             const void* b_ptr,
-             void* c_ptr,
-             const Problem& problem,
-             hipStream_t stream = nullptr) override
+              const void* b_ptr,
+              void* c_ptr,
+              const Problem& problem,
+              hipStream_t stream = nullptr) override
     {
         // Create argument
         auto arg = make_argument(problem, a_ptr, b_ptr, c_ptr);
@@ -104,15 +104,15 @@ public:
         return oss.str();
     }
 
-private:
+    private:
     ArgumentType make_argument(const Problem& problem,
-                              const void* a_ptr = nullptr,
-                              const void* b_ptr = nullptr,
-                              void* c_ptr       = nullptr) const
+                               const void* a_ptr = nullptr,
+                               const void* b_ptr = nullptr,
+                               void* c_ptr       = nullptr) const
     {
         // This is a simplified version - actual implementation depends on DeviceOp type
         // For GEMM operations, construct appropriate argument structure
-        
+
         // Note: This would need to be specialized for different operation types
         // For now, this is a placeholder that would be specialized per operation
         throw std::runtime_error("make_argument must be specialized for each DeviceOp type");
@@ -126,7 +126,7 @@ private:
 /// Backend for CK Library pre-compiled kernels
 class LibraryBackend : public BackendBase
 {
-public:
+    public:
     LibraryBackend() = default;
 
     std::vector<std::shared_ptr<KernelInstance>>
@@ -149,14 +149,12 @@ public:
         return kernels;
     }
 
-    std::shared_ptr<KernelInstance>
-    create_kernel_instance(const KernelKey& kernel_key) override
+    std::shared_ptr<KernelInstance> create_kernel_instance(const KernelKey& kernel_key) override
     {
         (void)kernel_key;
         // This would create a library kernel instance from a KernelKey
         // Requires mapping KernelKey to library template parameters
-        throw std::runtime_error(
-            "create_kernel_instance not yet implemented for LibraryBackend");
+        throw std::runtime_error("create_kernel_instance not yet implemented for LibraryBackend");
     }
 
     BackendType get_backend_type() const override { return BackendType::Library; }
@@ -176,7 +174,7 @@ public:
         };
     }
 
-private:
+    private:
     // Helper methods to enumerate specific operation types
     // These would use DeviceOperationInstanceFactory
 
@@ -203,4 +201,3 @@ private:
 } // namespace backends
 } // namespace dispatcher
 } // namespace ck_tile
-

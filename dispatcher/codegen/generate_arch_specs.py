@@ -10,10 +10,10 @@ This ensures consistency between Python codegen and C++ runtime filtering.
 
 Usage:
     python generate_arch_specs.py [--json arch_specs.json] [--output-dir .]
-    
+
     # Regenerate after editing arch_specs.json:
     python generate_arch_specs.py
-    
+
 Output:
     - arch_specs_generated.py  (Python module with arch data)
     - arch_specs_generated.hpp (C++ header with arch data)
@@ -36,21 +36,21 @@ def load_arch_specs(json_path: Path) -> Dict[str, Any]:
 
 def generate_python_module(specs: Dict[str, Any], output_path: Path):
     """Generate Python module from arch specs."""
-    
+
     timestamp = datetime.now().isoformat()
-    
+
     # Extract data
     archs = specs["architectures"]
     element_sizes = specs["element_sizes"]
     pipeline_limits = specs["pipeline_lds_limits"]
     unsupported = specs["unsupported_trait_combos"]["combinations"]
-    
+
     # Build warp configs dict
     warp_configs_str = "{\n"
     for arch, data in archs.items():
         warp_configs_str += f'    "{arch}": {data["warp_configs"]},\n'
     warp_configs_str += "}"
-    
+
     # Build warp tile combos dict
     warp_tile_str = "{\n"
     for arch, data in archs.items():
@@ -59,22 +59,24 @@ def generate_python_module(specs: Dict[str, Any], output_path: Path):
             warp_tile_str += f'        "{dtype}": {combos},\n'
         warp_tile_str += "    },\n"
     warp_tile_str += "}"
-    
+
     # Build arch family map
     arch_family_str = "{\n"
     for arch, data in archs.items():
         arch_family_str += f'    "{arch}": "{data["family"]}",\n'
     arch_family_str += "}"
-    
+
     # Build unsupported combos set
     unsupported_str = "{\n"
     for combo in unsupported:
         unsupported_str += f'    ("{combo[0]}", "{combo[1]}", "{combo[2]}"),\n'
     unsupported_str += "}"
-    
+
     # Pipeline LDS limits
-    pipeline_limits_clean = {k: v for k, v in pipeline_limits.items() if not k.startswith("_")}
-    
+    pipeline_limits_clean = {
+        k: v for k, v in pipeline_limits.items() if not k.startswith("_")
+    }
+
     content = f'''# SPDX-License-Identifier: MIT
 # Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
@@ -154,65 +156,88 @@ def is_trait_combo_unsupported(pipeline: str, epilogue: str, scheduler: str) -> 
     """Check if a trait combination is unsupported."""
     return (pipeline.lower(), epilogue.lower(), scheduler.lower()) in TRAIT_UNSUPPORTED_COMBINATIONS
 '''
-    
+
     output_path.write_text(content)
     print(f"Generated: {output_path}")
 
 
 def generate_cpp_header(specs: Dict[str, Any], output_path: Path):
     """Generate C++ header from arch specs."""
-    
+
     timestamp = datetime.now().isoformat()
-    
+
     # Extract data
     archs = specs["architectures"]
     element_sizes = specs["element_sizes"]
     pipeline_limits = specs["pipeline_lds_limits"]
-    unsupported = specs["unsupported_trait_combos"]["combinations"]
-    
+    specs["unsupported_trait_combos"]["combinations"]
+
     # Build arch enum and string functions
     arch_enums = []
     arch_to_string_cases = []
     string_to_arch_cases = []
-    
+
     for arch, data in archs.items():
         enum_name = arch.upper().replace("GFX", "GFX_")
         arch_enums.append(f"    {enum_name},  // {data['description']}")
-        arch_to_string_cases.append(f'        case GpuArch::{enum_name}: return "{arch}";')
-        string_to_arch_cases.append(f'    if (arch_str == "{arch}") return GpuArch::{enum_name};')
-    
+        arch_to_string_cases.append(
+            f'        case GpuArch::{enum_name}: return "{arch}";'
+        )
+        string_to_arch_cases.append(
+            f'    if (arch_str == "{arch}") return GpuArch::{enum_name};'
+        )
+
     # Build warp configs switch
     warp_config_cases = []
     for arch, data in archs.items():
         enum_name = arch.upper().replace("GFX", "GFX_")
-        configs = ", ".join([f"{{{c[0]}, {c[1]}, {c[2]}}}" for c in data["warp_configs"]])
-        warp_config_cases.append(f"        case GpuArch::{enum_name}: return {{{configs}}};")
-    
+        configs = ", ".join(
+            [f"{{{c[0]}, {c[1]}, {c[2]}}}" for c in data["warp_configs"]]
+        )
+        warp_config_cases.append(
+            f"        case GpuArch::{enum_name}: return {{{configs}}};"
+        )
+
     # Build element size switch
     # Include all data types defined in kernel_key.hpp DataType enum
     elem_size_cases = []
     dtype_enum_map = {
-        "fp16": "FP16", "bf16": "BF16", "fp32": "FP32", "fp64": "FP64",
-        "fp8": "FP8", "bf8": "BF8", "int8": "INT8", "int4": "INT4", "int32": "INT32"
+        "fp16": "FP16",
+        "bf16": "BF16",
+        "fp32": "FP32",
+        "fp64": "FP64",
+        "fp8": "FP8",
+        "bf8": "BF8",
+        "int8": "INT8",
+        "int4": "INT4",
+        "int32": "INT32",
     }
     for dtype, size in element_sizes.items():
         if dtype in dtype_enum_map:
-            elem_size_cases.append(f"        case DataType::{dtype_enum_map[dtype]}: return {float(size)}f;")
-    
+            elem_size_cases.append(
+                f"        case DataType::{dtype_enum_map[dtype]}: return {float(size)}f;"
+            )
+
     # Build LDS limits
     lds_limit_cases = []
     pipeline_enum_map = {
         "mem": "Mem",
-        "compv1": "CompV1", "compv2": "CompV2", "compv3": "CompV3", 
-        "compv4": "CompV4", "compv5": "CompV5",
-        "preshufflev1": "PreShuffleV1", "preshufflev2": "PreShuffleV2"
+        "compv1": "CompV1",
+        "compv2": "CompV2",
+        "compv3": "CompV3",
+        "compv4": "CompV4",
+        "compv5": "CompV5",
+        "preshufflev1": "PreShuffleV1",
+        "preshufflev2": "PreShuffleV2",
     }
     default_lds = pipeline_limits.get("default", 65536)
     for pipeline, limit in pipeline_limits.items():
         if pipeline in pipeline_enum_map:
-            lds_limit_cases.append(f"    if (pipeline == Pipeline::{pipeline_enum_map[pipeline]}) return {limit};")
-    
-    content = f'''// SPDX-License-Identifier: MIT
+            lds_limit_cases.append(
+                f"    if (pipeline == Pipeline::{pipeline_enum_map[pipeline]}) return {limit};"
+            )
+
+    content = f"""// SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 /**
@@ -313,46 +338,64 @@ inline bool is_trait_unsupported(Pipeline pipeline, [[maybe_unused]] Epilogue ep
 }} // namespace arch_specs
 }} // namespace dispatcher
 }} // namespace ck_tile
-'''
-    
+"""
+
     output_path.write_text(content)
     print(f"Generated: {output_path}")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Generate Python and C++ code from arch_specs.json")
-    parser.add_argument("--json", type=Path, default=SCRIPT_DIR / "arch_specs.json",
-                       help="Path to arch_specs.json")
-    parser.add_argument("--output-dir", type=Path, default=SCRIPT_DIR,
-                       help="Output directory for generated files")
-    parser.add_argument("--cpp-output-dir", type=Path, default=None,
-                       help="Output directory for C++ header (defaults to dispatcher/include/...)")
-    
+        description="Generate Python and C++ code from arch_specs.json"
+    )
+    parser.add_argument(
+        "--json",
+        type=Path,
+        default=SCRIPT_DIR / "arch_specs.json",
+        help="Path to arch_specs.json",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=SCRIPT_DIR,
+        help="Output directory for generated files",
+    )
+    parser.add_argument(
+        "--cpp-output-dir",
+        type=Path,
+        default=None,
+        help="Output directory for C++ header (defaults to dispatcher/include/...)",
+    )
+
     args = parser.parse_args()
-    
+
     # Load specs
     print(f"Loading: {args.json}")
     specs = load_arch_specs(args.json)
-    
+
     # Generate Python module
     py_output = args.output_dir / "arch_specs_generated.py"
     generate_python_module(specs, py_output)
-    
+
     # Generate C++ header
     if args.cpp_output_dir:
         cpp_output = args.cpp_output_dir / "arch_specs_generated.hpp"
     else:
-        cpp_output = SCRIPT_DIR.parent / "include" / "ck_tile" / "dispatcher" / "arch_specs_generated.hpp"
-    
+        cpp_output = (
+            SCRIPT_DIR.parent
+            / "include"
+            / "ck_tile"
+            / "dispatcher"
+            / "arch_specs_generated.hpp"
+        )
+
     cpp_output.parent.mkdir(parents=True, exist_ok=True)
     generate_cpp_header(specs, cpp_output)
-    
-    print(f"\nDone! To apply changes:")
-    print(f"  1. Python code will automatically use arch_specs_generated.py")
-    print(f"  2. C++ code includes arch_specs_generated.hpp")
+
+    print("\nDone! To apply changes:")
+    print("  1. Python code will automatically use arch_specs_generated.py")
+    print("  2. C++ code includes arch_specs_generated.hpp")
 
 
 if __name__ == "__main__":
     main()
-

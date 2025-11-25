@@ -34,8 +34,8 @@ void register_tile_kernel(Registry& registry, const std::string& kernel_name)
     key.signature.grouped     = false;
     key.signature.split_k     = 1;
 
-    key.signature.elementwise_op = "PassThrough"; // Extract if available
-    key.signature.num_d_tensors  = 0;
+    key.signature.elementwise_op      = "PassThrough"; // Extract if available
+    key.signature.num_d_tensors       = 0;
     key.signature.structured_sparsity = SelectedKernel::UseStructuredSparsity;
 
     // Algorithm
@@ -66,8 +66,7 @@ void register_tile_kernel(Registry& registry, const std::string& kernel_name)
     key.gfx_arch = 942; // Extract from build configuration
 
     // Create kernel instance
-    auto kernel_instance =
-        std::make_shared<TileKernelInstance<SelectedKernel>>(key, kernel_name);
+    auto kernel_instance = std::make_shared<TileKernelInstance<SelectedKernel>>(key, kernel_name);
 
     // Register with high priority (Tile kernels preferred)
     registry.register_kernel(kernel_instance, Registry::Priority::High);
@@ -101,11 +100,10 @@ struct AutoRegister
 };
 
 /// Macro for auto-registration
-#define CK_TILE_AUTO_REGISTER(SelectedKernel, KernelName)                      \
-    static ::ck_tile::dispatcher::backends::AutoRegister<SelectedKernel>       \
+#define CK_TILE_AUTO_REGISTER(SelectedKernel, KernelName)                \
+    static ::ck_tile::dispatcher::backends::AutoRegister<SelectedKernel> \
         auto_register_##SelectedKernel{KernelName};
 
 } // namespace backends
 } // namespace dispatcher
 } // namespace ck_tile
-
