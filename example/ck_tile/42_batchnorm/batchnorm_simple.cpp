@@ -36,14 +36,15 @@ void reference_batchnorm_fwd(const ck_tile::HostTensor<XDataType>& x,
                              ComputeDataType epsilon)
 {
     const ck_tile::index_t spatial_size = H * W;
+    const ck_tile::index_t per_channel_size = N * spatial_size;
     
-    // Process each (N, C) combination
-    for(ck_tile::index_t n = 0; n < N; ++n)
+    // Process each channel (compute statistics across ALL samples and spatial positions)
+    for(ck_tile::index_t c = 0; c < C; ++c)
     {
-        for(ck_tile::index_t c = 0; c < C; ++c)
+        // Compute mean across all N samples and H×W positions for this channel
+        ComputeDataType sum = 0;
+        for(ck_tile::index_t n = 0; n < N; ++n)
         {
-            // Compute mean
-            ComputeDataType sum = 0;
             for(ck_tile::index_t h = 0; h < H; ++h)
             {
                 for(ck_tile::index_t w = 0; w < W; ++w)
@@ -52,10 +53,13 @@ void reference_batchnorm_fwd(const ck_tile::HostTensor<XDataType>& x,
                     sum += ck_tile::type_convert<ComputeDataType>(x.mData[idx]);
                 }
             }
-            ComputeDataType mean = sum / static_cast<ComputeDataType>(spatial_size);
-            
-            // Compute variance
-            ComputeDataType var_sum = 0;
+        }
+        ComputeDataType mean = sum / static_cast<ComputeDataType>(per_channel_size);
+        
+        // Compute variance across all N samples and H×W positions for this channel
+        ComputeDataType var_sum = 0;
+        for(ck_tile::index_t n = 0; n < N; ++n)
+        {
             for(ck_tile::index_t h = 0; h < H; ++h)
             {
                 for(ck_tile::index_t w = 0; w < W; ++w)
@@ -66,12 +70,15 @@ void reference_batchnorm_fwd(const ck_tile::HostTensor<XDataType>& x,
                     var_sum += diff * diff;
                 }
             }
-            ComputeDataType variance = var_sum / static_cast<ComputeDataType>(spatial_size);
-            
-            // Normalize
-            ComputeDataType inv_std = static_cast<ComputeDataType>(1.0) / 
-                ck_tile::sqrt(variance + epsilon);
-            
+        }
+        ComputeDataType variance = var_sum / static_cast<ComputeDataType>(per_channel_size);
+        
+        // Normalize all values in this channel
+        ComputeDataType inv_std = static_cast<ComputeDataType>(1.0) / 
+            ck_tile::sqrt(variance + epsilon);
+        
+        for(ck_tile::index_t n = 0; n < N; ++n)
+        {
             for(ck_tile::index_t h = 0; h < H; ++h)
             {
                 for(ck_tile::index_t w = 0; w < W; ++w)
@@ -131,9 +138,10 @@ bool run(const ck_tile::ArgParser& arg_parser)
     using Kernel = ck_tile::BatchnormFwd<Problem>;
 
     const ck_tile::index_t kBlockSize = Kernel::BlockSize();
-    const ck_tile::index_t kGridSize = N * C;  // One block per (N, C) pair
+    const ck_tile::index_t kGridSize = C;  // One block per channel
 
-    std::cout << "Kernel config: BlockSize=" << kBlockSize << ", GridSize=" << kGridSize << std::endl;
+    std::cout << "Kernel config: BlockSize=" << kBlockSize << ", GridSize=" << kGridSize 
+              << " (one block per channel, reducing over N×H×W=" << N*H*W << " elements)" << std::endl;
 
     if(!Kernel::IsSupportedArgument(N, C, H, W))
     {

@@ -38,39 +38,36 @@ struct BatchnormFwd
                                    ComputeDataType epsilon) const
     {
         // For batchnorm: input shape is [N, C, H, W]
-        // We reduce over H*W (spatial dimensions) for each N*C combination
-        // Each block handles one or more (N,C) combinations
+        // We reduce over N*H*W (batch and spatial) for EACH channel
+        // Each block handles ONE channel
 
         const index_t spatial_size = H * W;
-        const index_t nc_size = N * C;
+        const index_t per_channel_size = N * spatial_size;  // Reduce over N×H×W
         
         const index_t thread_id = get_thread_id();
         const index_t block_id = get_block_id();
         
-        // For POC: simple mapping - each block handles one (N,C) pair
-        // More sophisticated tiling will come later
-        const index_t nc_idx = block_id;
+        // Each block handles one channel
+        const index_t c = block_id;
         
-        if(nc_idx >= nc_size)
+        if(c >= C)
             return;
-        
-        // Calculate n and c from linear index
-        const index_t n = nc_idx / C;
-        const index_t c = nc_idx % C;
-        
-        // Calculate base offset for this (N,C) pair
-        const index_t base_offset = n * C * H * W + c * H * W;
         
         // Thread-local Welford statistics
         ComputeDataType thread_mean = type_convert<ComputeDataType>(0);
         ComputeDataType thread_m2 = type_convert<ComputeDataType>(0);
         index_t thread_count = 0;
         
-        // Each thread processes a portion of the spatial dimension
-        // Simple strided access pattern
-        for(index_t idx = thread_id; idx < spatial_size; idx += kBlockSize)
+        // Each thread processes elements across ALL samples (N) and spatial positions (H×W)
+        // for this channel
+        for(index_t idx = thread_id; idx < per_channel_size; idx += kBlockSize)
         {
-            const index_t offset = base_offset + idx;
+            // Calculate which sample (n) and spatial position (hw) this is
+            const index_t n = idx / spatial_size;
+            const index_t hw = idx % spatial_size;
+            
+            // Memory layout: [N, C, H, W] with C-major for H×W
+            const index_t offset = n * C * H * W + c * H * W + hw;
             ComputeDataType val = type_convert<ComputeDataType>(p_x[offset]);
             
             // Online Welford update
@@ -92,14 +89,17 @@ struct BatchnormFwd
         BlockWelford<ComputeDataType>::template Run<index_t, kBlockSize>(
             block_mean, block_var, block_count, smem);
         
-        // Now all threads have the same mean and variance
-        // Normalize and write output
+        // Now all threads have the same mean and variance for this channel
+        // Normalize and write output for ALL samples
         ComputeDataType inv_std = type_convert<ComputeDataType>(1) / 
             ck_tile::sqrt(block_var + epsilon);
         
-        for(index_t idx = thread_id; idx < spatial_size; idx += kBlockSize)
+        for(index_t idx = thread_id; idx < per_channel_size; idx += kBlockSize)
         {
-            const index_t offset = base_offset + idx;
+            const index_t n = idx / spatial_size;
+            const index_t hw = idx % spatial_size;
+            
+            const index_t offset = n * C * H * W + c * H * W + hw;
             ComputeDataType val = type_convert<ComputeDataType>(p_x[offset]);
             ComputeDataType normalized = (val - block_mean) * inv_std;
             p_y[offset] = type_convert<YDataType>(normalized);
