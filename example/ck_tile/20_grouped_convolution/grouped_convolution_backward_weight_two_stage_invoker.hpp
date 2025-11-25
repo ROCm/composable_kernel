@@ -1,7 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 #pragma once
-
 #include "grouped_convolution_utils.hpp"
 
 struct GroupedConvolutionBackwardWeightTwoStageInvoker
@@ -134,7 +133,7 @@ struct GroupedConvolutionBackwardWeightTwoStageInvoker
                 ConvConfig::M_Warp_Tile,
                 ConvConfig::N_Warp_Tile,
                 ConvConfig::K_Warp_Tile,
-                GemmPipelineProblem::TransposeC,
+                GroupedConvTraitsType::FixedGemmParams::TransposeC,
                 memory_operation,
                 ConvConfig::NumWaveGroups,
                 GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,

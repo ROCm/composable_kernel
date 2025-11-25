@@ -274,7 +274,6 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
 
             int gathered_scale_reg = __builtin_amdgcn_ds_bpermute(
                 pull_from_lane << 2, __builtin_bit_cast(int, scale_reg_dword));
-
             return Base::cvt_scale_to_fp32(gathered_scale_reg);
         }
 
@@ -368,7 +367,6 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                             static_assert(false, "WarpGemm::kM is not 16 nor 32.");
                         }
                         auto& scale_reg = aq_block_tensor.get_thread_buffer()[mIter];
-
                         return exchange_quant_value_across_lanes(scale_reg, pull_from_lane);
                     }
                     else
@@ -511,6 +509,7 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                         static_for<0, WarpGemm::kM * WarpGemm::kN / warp_size, 1>{}(
                             [&](auto c_row) {
                                 float scale_reg_f = aq_picker.template pick<c_row>();
+
                                 c_block_tensor.get_thread_buffer()[tbuf_offset + c_row] +=
                                     (c_warp_tensor.get_thread_buffer()[c_row] * scale_reg_f);
                             });
