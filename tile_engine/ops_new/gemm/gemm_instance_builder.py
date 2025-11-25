@@ -89,12 +89,14 @@ class GemmKernelBuilder:
 
         # Write kernel count
         with open(
-            self.working_path / "{kernel_name_prefix}_kernel_count.txt", "w"
+            self.working_path / f"{kernel_name_prefix}_kernel_count.txt", "w"
         ) as f:
             f.write(str(len(kernel_list)))
 
         # Write kernel list
-        with open(self.working_path / "{kernel_name_prefix}_kernel_list.txt", "w") as f:
+        with open(
+            self.working_path / f"{kernel_name_prefix}_kernel_list.txt", "w"
+        ) as f:
             for kernel in kernel_list:
                 # Format: kernel_name|tile_config|trait_combo
                 tile_config = kernel["tile_config"]
@@ -780,7 +782,8 @@ struct SelectedKernel {{
         BaseGemmPipeline::TailHandler(RunSplitk, has_hot_loop, tail_num);
         return ave_time;
     }
-};"""
+};
+"""
         return instance_code
 
     def populate_epilogue(self, kernel_name_prefix, epilogue):
