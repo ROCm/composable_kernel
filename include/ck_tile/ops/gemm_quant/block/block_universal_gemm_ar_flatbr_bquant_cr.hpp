@@ -28,7 +28,6 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
     using QuantGroupSize  = remove_cvref_t<typename Problem::QuantGroupSize>;
 
     static_assert(QuantGroupSize::kM == 1, "only N/K blocks for BQuant preshuffle kernel!");
-    // static_assert(QuantGroupSize::kN == 1, "no block for N supported yet!");
 
     static constexpr auto I0   = number<0>();
     static constexpr auto I1   = number<1>();
@@ -215,35 +214,13 @@ struct BlockGemmWeightPreshuffleBQuantARegBRegCReg
                                 return nIter * KPerBlockBQ + kQScale;
                             }
                         }();
-                        // constexpr index_t reg_offset = nIter * KPerBlockBQ + kQScale;
                         auto& scale_reg   = bq_block_tensor.get_thread_buffer()[reg_offset];
                         float scale_reg_f = cvt_scale_to_fp32(scale_reg);
-                        // if(get_block_id() == 0 && get_thread_id() == 1)
-                        //{
-                        // printf("get_block_id(): %d, get_warp_id(): %d, get_thread_id(): %d,
-                        // nIter: "
-                        //        "%d, NWarp: %d, WG::kN: %d, QuantGroupSize::kN: %d, "
-                        //        "KPerBlockBQ: %d, kQScale: %d, scale_reg_f: %f, reg_offset: %d\n",
-                        //        get_block_id(),
-                        //        get_warp_id(),
-                        //        get_thread_id(),
-                        //        static_cast<int>(nIter),
-                        //        NWarp,
-                        //        WG::kN,
-                        //        static_cast<int>(QuantGroupSize::kN),
-                        //        static_cast<int>(KPerBlockBQ),
-                        //        static_cast<int>(kQScale),
-                        //        scale_reg_f,
-                        //        reg_offset);
-                        //}
 
                         static_for<0, WG::kM * WG::kN / warp_size, 1>{}([&](auto c_row) {
                             auto& c_ref = c_block_tensor.get_thread_buffer()[tbuf_offset + c_row];
                             const auto acc_val = c_acc(mIter)(nIter).get_thread_buffer()[c_row];
-                            // if(get_block_id() == 0 && get_thread_id() == 0) {
-                            //     printf("acc_val: %f, scale_reg_f: %f\n", acc_val, scale_reg_f);
-                            // }
-                            c_ref = c_ref + acc_val * scale_reg_f;
+                            c_ref              = c_ref + acc_val * scale_reg_f;
                         });
                     }
                 });

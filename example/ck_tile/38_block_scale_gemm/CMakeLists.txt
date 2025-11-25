@@ -11,9 +11,9 @@ if(GPU_TARGETS MATCHES "gfx94|gfx95|gfx12")
         gemm_quant.cpp
         gemm_aquant_quantgrouped.cpp
         gemm_aquant_quantgrouped_preshufflequant.cpp
-        # gemm_bquant_quantgrouped_bf8i4.cpp
-        # gemm_bquant_quantgrouped_fp8i4.cpp
-        # gemm_bquant_quantgrouped_bf8.cpp
+        gemm_bquant_quantgrouped_bf8i4.cpp
+        gemm_bquant_quantgrouped_fp8i4.cpp
+        gemm_bquant_quantgrouped_bf8.cpp
         gemm_bquant_quantgrouped_fp8.cpp
         gemm_bquant_quantgrouped_preshuffleb.cpp
         gemm_bquant_quantgrouped_preshufflequant.cpp

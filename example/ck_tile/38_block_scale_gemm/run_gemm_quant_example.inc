@@ -457,9 +457,8 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped ||
                  QuantMode == ck_tile::QuantType::RowColQuant)
     {
-        bq_tensor_ptr =
-            std::make_unique<ck_tile::HostTensor<BQDataType>>(ck_tile::host_tensor_descriptor(
-                BQK, N / QuantGroupSize::kN, stride_BQ, is_row_major(bq_layout))); // 1x8
+        bq_tensor_ptr = std::make_unique<ck_tile::HostTensor<BQDataType>>(
+            ck_tile::host_tensor_descriptor(BQK, N, stride_BQ, is_row_major(bq_layout)));
     }
     else if constexpr(QuantMode == ck_tile::QuantType::TensorQuant)
     {
@@ -482,12 +481,11 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
             }
             else
             {
-                ck_tile::FillUniformDistribution<BDataType>{-2.0f,
-                                                            3.0f /*, fill_seed(gen)*/}(b_k_n);
+                ck_tile::FillUniformDistribution<BDataType>{-2.0f, 3.0f, fill_seed(gen)}(b_k_n);
             }
-            ck_tile::FillUniformDistribution<BQDataType>{-2.0f,
-                                                         2.0f /*, fill_seed(gen)*/}(*bq_tensor_ptr);
-            ck_tile::FillUniformDistribution<ADataType>{-5.0f, 5.0f /*, fill_seed(gen)*/}(a_m_k);
+            ck_tile::FillUniformDistribution<BQDataType>{-2.0f, 2.0f, fill_seed(gen)}(
+                *bq_tensor_ptr);
+            ck_tile::FillUniformDistribution<ADataType>{-5.0f, 5.0f, fill_seed(gen)}(a_m_k);
         }
         else if constexpr(QuantMode == ck_tile::QuantType::AQuantGrouped)
         {
@@ -524,30 +522,7 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         {
             ck_tile::FillConstant<ADataType>{static_cast<ADataType>(0x38)}(a_m_k);
             ck_tile::FillConstant<BDataType>{static_cast<BDataType>(0x38)}(b_k_n);
-            // ck_tile::FillConstant<BQDataType>{static_cast<BQDataType>(0.5f)}(*bq_tensor_ptr);
-            if(bq_tensor_ptr)
-            {
-                BQDataType value = 1.0f;
-                for(int i = 0; i < BQK; i++)
-                {
-                    for(int j = 0; j < N / QuantGroupSize::kN; j += (16 / QuantGroupSize::kN))
-                    {
-                        for(int k = 0; k < 16 / QuantGroupSize::kN; k++)
-                        {
-                            (*bq_tensor_ptr)(i, j + k) = value;
-                        }
-                        value += static_cast<BQDataType>(1.0f);
-                    }
-                }
-            }
-            // for(int i = 0; i < BQK; i++)
-            // {
-            //     for(int j = 0; j <  N / QuantGroupSize::kN; j++)
-            //     {
-            //         printf("%.2f ", (*bq_tensor_ptr)(i, j));
-            //     }
-            //     printf("\n");
-            // }
+            ck_tile::FillConstant<BQDataType>{static_cast<BQDataType>(0.5f)}(*bq_tensor_ptr);
         }
         else
         {
@@ -620,18 +595,11 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
     ck_tile::HostTensor<BDataType> b_k_n_dev = b_k_n;
     if constexpr(GemmConfig::PreshuffleB)
     {
-        if constexpr(GemmConfig::TiledMMAPermuteN)
+        if constexpr(GemmConfig::TiledMMAPermuteN &&
+                     QuantGroupSize::kN == 1) // temporarily only for non-grouped quant
         {
             printf("PreshuffleB with TiledMMAPermuteN\n");
             b_k_n_dev = ck_tile::shuffle_b_permuteN<GemmConfig>(b_k_n);
-            printf("b_k_n_dev.get_lengths(): %lu, %lu, %lu, %lu, %lu, %lu, %lu\n",
-                   b_k_n_dev.get_lengths()[0],
-                   b_k_n_dev.get_lengths()[1],
-                   b_k_n_dev.get_lengths()[2],
-                   b_k_n_dev.get_lengths()[3],
-                   b_k_n_dev.get_lengths()[4],
-                   b_k_n_dev.get_lengths()[5],
-                   b_k_n_dev.get_lengths()[6]);
         }
         else
         {
@@ -653,47 +621,12 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
                  QuantMode == ck_tile::QuantType::RowColQuant ||
                  QuantMode == ck_tile::QuantType::TensorQuant)
     {
-        if constexpr(GemmConfig::PreshuffleB && GemmConfig::TiledMMAPermuteN)
+        if constexpr(GemmConfig::PreshuffleB && GemmConfig::TiledMMAPermuteN &&
+                     QuantGroupSize::kN == 1) // temporarily only for non-grouped quant
         {
-            printf("Preshuffle BQ with TiledMMAPermuteN \n");
-            for(int i = 0; i < static_cast<int>((*bq_tensor_ptr).get_lengths()[0]); i++)
-            {
-                for(int j = 0; j < static_cast<int>((*bq_tensor_ptr).get_lengths()[1]); j++)
-                {
-                    printf("(*bq_tensor_ptr)[%d][%d]: %f\n", i, j, (*bq_tensor_ptr)(i, j));
-                }
-            }
+            printf("PreshuffleBQuant with TiledMMAPermuteN\n");
             ck_tile::HostTensor<BQDataType> bq_permuted_host =
                 ck_tile::bq_permuteN<GemmConfig>(*bq_tensor_ptr, QuantGroupSize::kN);
-            printf("bq_permuted_host.get_lengths(): %lu, %lu, %lu, %lu, %lu\n",
-                   bq_permuted_host.get_lengths()[0],
-                   bq_permuted_host.get_lengths()[1],
-                   bq_permuted_host.get_lengths()[2],
-                   bq_permuted_host.get_lengths()[3],
-                   bq_permuted_host.get_lengths()[4]);
-            for(int i = 0; i < static_cast<int>(bq_permuted_host.get_lengths()[0]); i++)
-            {
-                for(int j = 0; j < static_cast<int>(bq_permuted_host.get_lengths()[1]); j++)
-                {
-                    for(int k = 0; k < static_cast<int>(bq_permuted_host.get_lengths()[2]); k++)
-                    {
-                        for(int l = 0; l < static_cast<int>(bq_permuted_host.get_lengths()[3]); l++)
-                        {
-                            for(int m = 0; m < static_cast<int>(bq_permuted_host.get_lengths()[4]);
-                                m++)
-                            {
-                                printf("bq_permuted_host[%d][%d][%d][%d][%d]: %f\n",
-                                       i,
-                                       j,
-                                       k,
-                                       l,
-                                       m,
-                                       bq_permuted_host(i, j, k, l, m));
-                            }
-                        }
-                    }
-                }
-            }
 
             if constexpr(GemmConfig::PreshuffleQuant)
             {
@@ -708,12 +641,16 @@ int run_gemm_example_with_layouts(const ck_tile::ArgParser& arg_parser,
         }
         else if constexpr(GemmConfig::PreshuffleQuant)
         {
+            printf("PreshuffleBQuant without TiledMMAPermuteN\n");
             ck_tile::HostTensor<BQDataType> bq_shuffle_host =
                 ck_tile::shuffle_bq(bq_tensor_ptr.get(), GemmConfig::K_Tile / QuantGroupSize::kK);
             bq_dev_buf_ptr->ToDevice(bq_shuffle_host.data());
         }
         else
+        {
+            printf("No PreshuffleBQuant\n");
             bq_dev_buf_ptr->ToDevice(bq_tensor_ptr->data());
+        }
     }
 
     invoke_gemm<GemmConfig,
