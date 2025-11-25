@@ -190,9 +190,9 @@ class TestKernelKey:
         key.algorithm.persistent = True
         
         # Set arch
-        key.gfx_arch = 942
+        key.gfx_arch = "gfx942"
         
-        assert key.gfx_arch == 942
+        assert key.gfx_arch == "gfx942"
         assert key.signature.dtype_a == cpp.DataType.FP16
     
     def test_kernel_key_encode_identifier(self):
@@ -228,13 +228,13 @@ class TestKernelKey:
         key1.algorithm.tile_shape.m = 256
         key1.algorithm.tile_shape.n = 256
         key1.algorithm.tile_shape.k = 32
-        key1.gfx_arch = 942
+        key1.gfx_arch = "gfx942"
         
         key2 = cpp.KernelKey()
         key2.algorithm.tile_shape.m = 256
         key2.algorithm.tile_shape.n = 256
         key2.algorithm.tile_shape.k = 32
-        key2.gfx_arch = 942
+        key2.gfx_arch = "gfx942"
         
         # Note: Full equality requires all fields to match
         # This is a basic check
@@ -371,7 +371,7 @@ class TestIntegration:
         key.algorithm.transpose_c = False
         key.algorithm.num_wave_groups = 1
         
-        key.gfx_arch = 942
+        key.gfx_arch = "gfx942"
         
         # Encode identifier
         identifier = key.encode_identifier()

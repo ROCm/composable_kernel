@@ -25,6 +25,15 @@ from enum import Enum
 from functools import lru_cache
 import concurrent.futures
 
+# Import architecture filter for GPU-specific validation
+try:
+    from arch_filter import ArchFilter, KernelConfig as ArchKernelConfig
+    HAS_ARCH_FILTER = True
+except ImportError:
+    HAS_ARCH_FILTER = False
+    ArchFilter = None
+    ArchKernelConfig = None
+
 logging.basicConfig(
     level=logging.INFO,
     format='%(levelname)s: %(message)s'
@@ -512,7 +521,7 @@ using ::ck_tile::dispatcher::Epilogue;
 using Priority = ::ck_tile::dispatcher::Registry::Priority;
 namespace backends = ::ck_tile::dispatcher::backends;
 
-inline KernelInstancePtr make_{kernel_name}(std::uint16_t gfx_arch = 942) {{
+inline KernelInstancePtr make_{kernel_name}(const std::string& gfx_arch = "gfx942") {{
     // Use the unique kernel struct name
     using KernelStruct = Kernel_{kernel_name};
     
@@ -572,7 +581,8 @@ class UnifiedGemmCodegen:
         gpu_target: str = "gfx942",
         config_file: Optional[Path] = None,
         variants: List[GemmVariant] = None,
-        use_preselected: Optional[str] = None
+        use_preselected: Optional[str] = None,
+        enable_arch_filter: bool = True
     ):
         self.output_dir = Path(output_dir)
         self.datatype = datatype
@@ -588,6 +598,15 @@ class UnifiedGemmCodegen:
         
         # Load configuration
         self.config = self._load_config(config_file)
+        
+        # Initialize architecture filter for GPU-specific validation
+        self.arch_filter = None
+        if enable_arch_filter and HAS_ARCH_FILTER:
+            try:
+                self.arch_filter = ArchFilter(gpu_target, strict_mode=False)
+                log.info(f"Architecture filter enabled for {gpu_target}")
+            except ValueError as e:
+                log.warning(f"Could not create arch filter: {e}")
         
         # Initialize generators
         self.ck_gen = CKTileKernelGenerator(datatype, layout)
@@ -743,9 +762,10 @@ class UnifiedGemmCodegen:
         return configs
     
     def _get_tile_configs(self) -> List[TileConfig]:
-        """Get valid tile configurations"""
+        """Get valid tile configurations, filtered by architecture constraints"""
         tc = self.config['tile_config']
         configs = []
+        rejected_count = 0
         
         for params in itertools.product(
             tc['tile_m'], tc['tile_n'], tc['tile_k'],
@@ -753,23 +773,77 @@ class UnifiedGemmCodegen:
             tc['warp_tile_m'], tc['warp_tile_n'], tc['warp_tile_k']
         ):
             tile = TileConfig(*params)
-            if tile.is_valid():
-                configs.append(tile)
+            
+            # Basic validation
+            if not tile.is_valid():
+                rejected_count += 1
+                continue
+            
+            # Architecture-specific validation
+            if self.arch_filter and HAS_ARCH_FILTER:
+                if not self._is_tile_arch_valid(tile):
+                    rejected_count += 1
+                    continue
+            
+            configs.append(tile)
+        
+        if rejected_count > 0:
+            log.debug(f"Rejected {rejected_count} tile configs for {self.gpu_target}")
         
         return configs
     
+    def _is_tile_arch_valid(self, tile: TileConfig) -> bool:
+        """Check if tile configuration is valid for target architecture"""
+        if not self.arch_filter or not HAS_ARCH_FILTER:
+            return True
+        
+        # Determine data types based on self.datatype
+        dtype_map = {
+            "fp16": ("fp16", "fp16", "fp16"),
+            "bf16": ("bf16", "bf16", "bf16"),
+            "fp8": ("fp8", "fp8", "fp16"),
+            "bf8": ("bf8", "bf8", "fp16"),
+            "int8": ("int8", "int8", "int32"),
+        }
+        dtype_a, dtype_b, dtype_c = dtype_map.get(self.datatype, ("fp16", "fp16", "fp16"))
+        
+        return self.arch_filter.is_kernel_valid(
+            datatype_a=dtype_a,
+            datatype_b=dtype_b,
+            datatype_c=dtype_c,
+            tile_m=tile.tile_m,
+            tile_n=tile.tile_n,
+            tile_k=tile.tile_k,
+            warp_m=tile.warp_m,
+            warp_n=tile.warp_n,
+            warp_k=tile.warp_k,
+            warp_tile_m=tile.warp_tile_m,
+            warp_tile_n=tile.warp_tile_n,
+            warp_tile_k=tile.warp_tile_k,
+            layout=self.layout,
+        )
+    
     def _get_trait_configs(self) -> List[TraitConfig]:
-        """Get valid trait configurations"""
+        """Get valid trait configurations, filtered by architecture constraints"""
         tc = self.config['trait_config']
         configs = []
+        rejected_count = 0
         
         for params in itertools.product(
             tc['pipeline'], tc['epilogue'], tc['scheduler'],
             tc['pad_m'], tc['pad_n'], tc['pad_k'], tc['persistent']
         ):
             trait = TraitConfig(*params)
-            if trait.is_valid():
-                configs.append(trait)
+            
+            # Basic trait validation (unsupported combinations)
+            if not trait.is_valid():
+                rejected_count += 1
+                continue
+            
+            configs.append(trait)
+        
+        if rejected_count > 0:
+            log.debug(f"Rejected {rejected_count} trait configs")
         
         return configs
     
@@ -813,7 +887,7 @@ using ::ck_tile::dispatcher::Registry;
 using Priority = ::ck_tile::dispatcher::Registry::Priority;
 
 inline void register_all_tile_gemm_kernels(
-    std::uint16_t gfx_arch = 942,
+    const std::string& gfx_arch = "gfx942",
     Priority priority = Priority::Normal)
 {{
     auto& registry = Registry::instance();
@@ -834,6 +908,69 @@ inline std::size_t get_tile_gemm_kernel_count() {{ return {len(kernel_names)}; }
 # CLI
 # ============================================================================
 
+def _show_arch_info(gpu_target: str, datatype: str):
+    """Display supported configurations for a GPU architecture"""
+    if not HAS_ARCH_FILTER:
+        print("Architecture filter module not available")
+        return
+    
+    try:
+        from arch_filter import (
+            get_supported_archs,
+            WARP_SUPPORTED_COMBINATIONS,
+            WARP_TILE_SUPPORTED_COMBINATIONS,
+            LDS_CAPACITY_LIMITS,
+            TRAIT_UNSUPPORTED_COMBINATIONS,
+        )
+        
+        print(f"\n=== Architecture Info for {gpu_target} ===\n")
+        
+        # Supported architectures
+        print(f"Supported GPUs: {get_supported_archs()}")
+        
+        # Warp configurations
+        warp_cfgs = WARP_SUPPORTED_COMBINATIONS.get(gpu_target, [])
+        print(f"\nWarp configurations [warp_m, warp_n, warp_k]:")
+        for cfg in warp_cfgs:
+            print(f"  {cfg}")
+        
+        # Warp tile configurations for data type
+        dtype_map = {
+            "fp16": "fp16_fp16_fp16",
+            "bf16": "bf16_bf16_bf16",
+            "fp8": "fp8_fp8_fp16",
+            "bf8": "bf8_bf8_fp16",
+            "int8": "int8_int8_int32",
+        }
+        dtype_key = dtype_map.get(datatype, "fp16_fp16_fp16")
+        
+        gpu_combos = WARP_TILE_SUPPORTED_COMBINATIONS.get(gpu_target, {})
+        warp_tiles = gpu_combos.get(dtype_key, [])
+        print(f"\nWarp tile configurations for {dtype_key} [warp_tile_m, warp_tile_n, warp_tile_k]:")
+        for cfg in warp_tiles:
+            print(f"  {cfg}")
+        
+        # All supported data types
+        print(f"\nAll supported data types on {gpu_target}:")
+        for dtype in gpu_combos.keys():
+            print(f"  {dtype}")
+        
+        # LDS limits
+        print(f"\nLDS capacity limits:")
+        for pipeline, limit in LDS_CAPACITY_LIMITS.items():
+            print(f"  {pipeline}: {limit // 1024}KB")
+        
+        # Unsupported trait combinations
+        print(f"\nUnsupported trait combinations (pipeline, epilogue, scheduler):")
+        for combo in TRAIT_UNSUPPORTED_COMBINATIONS:
+            print(f"  {combo}")
+        
+        print()
+        
+    except Exception as e:
+        print(f"Error showing arch info: {e}")
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Unified GEMM Code Generator - Single Source of Truth')
@@ -845,7 +982,7 @@ def main():
     parser.add_argument('--layout', type=str, default='rcr',
                        help='Layout (e.g., rcr for row-col-row)')
     parser.add_argument('--gpu-target', type=str, default='gfx942',
-                       help='Target GPU')
+                       help='Target GPU (gfx90a, gfx942, gfx950, gfx1201)')
     parser.add_argument('--config', type=Path,
                        help='Configuration JSON file')
     parser.add_argument('--variants', nargs='+',
@@ -858,8 +995,17 @@ def main():
                        help='Disable parallel generation')
     parser.add_argument('--register', action='store_true',
                        help='Generate dispatcher registration code')
+    parser.add_argument('--no-arch-filter', action='store_true',
+                       help='Disable architecture-specific kernel filtering')
+    parser.add_argument('--show-arch-info', action='store_true',
+                       help='Show supported configurations for target GPU and exit')
     
     args = parser.parse_args()
+    
+    # Show architecture info if requested
+    if args.show_arch_info:
+        _show_arch_info(args.gpu_target, args.datatype)
+        return 0
     
     variants = [GemmVariant(v) for v in args.variants] if not args.preselected else None
     
@@ -870,7 +1016,8 @@ def main():
         gpu_target=args.gpu_target,
         config_file=args.config,
         variants=variants,
-        use_preselected=args.preselected
+        use_preselected=args.preselected,
+        enable_arch_filter=not args.no_arch_filter
     )
     
     results = codegen.generate_all(parallel=not args.no_parallel)

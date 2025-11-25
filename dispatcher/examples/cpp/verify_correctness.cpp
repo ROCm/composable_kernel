@@ -93,7 +93,7 @@ int main(int argc, char** argv)
     key.algorithm.block_size = 256;
     key.algorithm.double_buffer = true;
     key.algorithm.persistent = false;
-    key.gfx_arch = 942;
+    key.gfx_arch = "gfx942";
     
     // Register kernel
     auto kernel = create_generated_tile_kernel<

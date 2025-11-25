@@ -79,7 +79,7 @@ int dispatcher_initialize() {
     key.algorithm.preshuffle = false;
     key.algorithm.transpose_c = false;
     key.algorithm.num_wave_groups = 1;
-    key.gfx_arch = 942;
+    key.gfx_arch = "gfx942";
     
     // Register kernel
     auto kernel = create_generated_tile_kernel<
@@ -128,6 +128,24 @@ int dispatcher_select_kernel(
 }
 
 /**
+ * Check if a problem size is supported by available kernels
+ * 
+ * Args:
+ *   M, N, K: Problem dimensions
+ * 
+ * Returns: 1 if supported, 0 if not supported
+ */
+int dispatcher_is_supported(int64_t M, int64_t N, int64_t K) {
+    if (!g_initialized) {
+        return 0;
+    }
+    
+    Problem problem(M, N, K);
+    auto kernel = g_dispatcher->select_kernel(problem);
+    return kernel != nullptr ? 1 : 0;
+}
+
+/**
  * Run GEMM on GPU via dispatcher
  * 
  * Args:
@@ -137,7 +155,7 @@ int dispatcher_select_kernel(
  *   M, N, K: Problem dimensions
  *   time_ms: Output pointer for execution time
  * 
- * Returns: 0 on success, -1 on error
+ * Returns: 0 on success, -1 on error, -2 if no kernel supports this size
  * 
  * Note: This function:
  * 1. Allocates GPU memory
@@ -159,6 +177,17 @@ int dispatcher_run_gemm(
         return -1;
     }
     
+    // First check if any kernel supports this problem
+    Problem problem(M, N, K);
+    auto kernel = g_dispatcher->select_kernel(problem);
+    if (!kernel) {
+        // No kernel supports this problem size - return error code
+        if (time_ms) {
+            *time_ms = -1.0f;
+        }
+        return -2;  // Special code for "no suitable kernel"
+    }
+    
     // Cast to correct types
     const ADataType* A_host = static_cast<const ADataType*>(A);
     const BDataType* B_host = static_cast<const BDataType*>(B);
@@ -178,9 +207,17 @@ int dispatcher_run_gemm(
     HIP_CHECK(hipMemcpy(B_dev, B_host, K * N * sizeof(BDataType), hipMemcpyHostToDevice));
     HIP_CHECK(hipMemset(C_dev, 0, M * N * sizeof(CDataType)));
     
-    // Run GEMM via dispatcher
-    Problem problem(M, N, K);
-    float exec_time = g_dispatcher->run(A_dev, B_dev, C_dev, problem);
+    // Run GEMM via dispatcher (kernel already selected, shouldn't throw)
+    float exec_time;
+    try {
+        exec_time = g_dispatcher->run(A_dev, B_dev, C_dev, problem);
+    } catch (const std::exception& e) {
+        // Unexpected error during execution
+        hipFree(A_dev);
+        hipFree(B_dev);
+        hipFree(C_dev);
+        return -1;
+    }
     
     // Copy result back to host
     HIP_CHECK(hipMemcpy(C_host, C_dev, M * N * sizeof(CDataType), hipMemcpyDeviceToHost));

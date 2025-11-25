@@ -98,6 +98,18 @@ from .registry import (
     reset_global_registry,
 )
 
+# Import JSON export
+from .json_export import (
+    export_registry_json,
+    print_registry_summary,
+    get_registry_statistics,
+    list_kernel_identifiers,
+    filter_kernels_by_property,
+    enable_auto_export,
+    disable_auto_export,
+    is_auto_export_enabled,
+)
+
 # Import selection
 from .selection import (
     SelectionEngine,

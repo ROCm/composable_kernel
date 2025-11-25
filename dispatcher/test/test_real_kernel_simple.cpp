@@ -88,7 +88,7 @@ int main() {
     key.algorithm.preshuffle = false;
     key.algorithm.transpose_c = false;
     key.algorithm.num_wave_groups = 1;
-    key.gfx_arch = 942;
+    key.gfx_arch = "gfx942";
     
     // Create and register kernel
     auto kernel = create_generated_tile_kernel<

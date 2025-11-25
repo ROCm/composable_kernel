@@ -128,7 +128,7 @@ def example_kernel_key():
     key.algorithm.block_size = 256
     key.algorithm.persistent = True
     
-    key.gfx_arch = 942
+    key.gfx_arch = "gfx942"
     
     print(f"KernelKey: {key}")
     print(f"  Identifier: {key.encode_identifier()}")

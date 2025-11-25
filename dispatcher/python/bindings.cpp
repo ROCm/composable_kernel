@@ -181,6 +181,21 @@ PYBIND11_MODULE(_dispatcher_native, m) {
         .def("filter", &Registry::filter)
         .def("size", &Registry::size)
         .def("clear", &Registry::clear)
+        .def("export_json", &Registry::export_json,
+             py::arg("include_statistics") = true,
+             "Export registry kernels to JSON string")
+        .def("export_json_to_file", &Registry::export_json_to_file,
+             py::arg("filename"), py::arg("include_statistics") = true,
+             "Export registry kernels to JSON file")
+        .def("enable_auto_export", &Registry::enable_auto_export,
+             py::arg("filename"),
+             py::arg("include_statistics") = true,
+             py::arg("export_on_every_registration") = true,
+             "Enable automatic JSON export on kernel registration")
+        .def("disable_auto_export", &Registry::disable_auto_export,
+             "Disable automatic JSON export")
+        .def("is_auto_export_enabled", &Registry::is_auto_export_enabled,
+             "Check if auto-export is enabled")
         .def("__len__", &Registry::size)
         .def("__repr__", [](const Registry& r) {
             return "<Registry size=" + std::to_string(r.size()) + ">";

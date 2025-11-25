@@ -58,6 +58,7 @@ KernelKey create_kernel_key()
     key.signature.layout_c = LayoutTag::RowMajor;
     key.signature.transpose_a = false;
     key.signature.transpose_b = false;
+    key.signature.grouped = false;
     key.signature.split_k = 1;
     key.signature.elementwise_op = "PassThrough";
     key.signature.num_d_tensors = 0;
@@ -82,7 +83,7 @@ KernelKey create_kernel_key()
     key.algorithm.preshuffle = SelectedKernel::Preshuffle;
     key.algorithm.transpose_c = SelectedKernel::TransposeC;
     key.algorithm.num_wave_groups = SelectedKernel::NumWaveGroups;
-    key.gfx_arch = 942;
+    key.gfx_arch = "gfx942";
     
     return key;
 }
@@ -122,6 +123,10 @@ int main(int argc, char** argv)
     
     Registry::instance().clear();
     Registry::instance().register_kernel(kernel, Registry::Priority::High);
+    
+    // Enable auto-export to JSON - exports on program exit
+    Registry::instance().enable_auto_export("dispatcher_kernels.json", true, false);
+    std::cout << "Auto-export enabled: dispatcher_kernels.json\n\n";
     
     // Create dispatcher
     Dispatcher dispatcher;

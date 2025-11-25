@@ -23,23 +23,23 @@ TEST(KernelKeyTest, Construction) {
     key.algorithm.tile_shape.n = 256;
     key.algorithm.tile_shape.k = 32;
     
-    key.gfx_arch = 942;
+    key.gfx_arch = "gfx942";
     
     EXPECT_EQ(key.signature.dtype_a, DataType::FP16);
     EXPECT_EQ(key.algorithm.tile_shape.m, 256);
-    EXPECT_EQ(key.gfx_arch, 942);
+    EXPECT_EQ(key.gfx_arch, "gfx942");
 }
 
 TEST(KernelKeyTest, Equality) {
     // Use helper function to ensure all fields are initialized
-    KernelKey key1 = make_test_key(256, 256, 32, 942);
-    KernelKey key2 = make_test_key(256, 256, 32, 942);
+    KernelKey key1 = make_test_key(256, 256, 32, "gfx942");
+    KernelKey key2 = make_test_key(256, 256, 32, "gfx942");
     
     EXPECT_EQ(key1, key2);
     EXPECT_FALSE(key1 != key2);
     
     // Change one value
-    KernelKey key3 = make_test_key(128, 256, 32, 942);
+    KernelKey key3 = make_test_key(128, 256, 32, "gfx942");
     EXPECT_NE(key1, key3);
     EXPECT_FALSE(key1 == key3);
 }

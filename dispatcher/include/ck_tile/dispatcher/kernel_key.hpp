@@ -13,14 +13,17 @@ namespace ck_tile {
 namespace dispatcher {
 
 /// Data types supported by CK Tile GEMM kernels
+/// Matches tile_engine DATA_TYPE_MAP for full compatibility
 enum class DataType : std::uint8_t {
-    FP16,
-    BF16,
-    FP32,
-    FP8,
-    BF8,
-    INT8,
-    INT32,
+    FP16,     // ck_tile::half_t
+    BF16,     // ck_tile::bf16_t
+    FP32,     // float
+    FP64,     // double
+    FP8,      // ck_tile::fp8_t (E4M3)
+    BF8,      // ck_tile::bf8_t (E5M2)
+    INT8,     // ck_tile::int8_t
+    INT4,     // ck_tile::pk_int4_t (packed int4)
+    INT32,    // ck_tile::int32_t
     UNKNOWN
 };
 
@@ -32,22 +35,27 @@ enum class LayoutTag : std::uint8_t {
 };
 
 /// Pipeline variants for memory/compute optimization
+/// Matches tile_engine PIPELINE_MAP for full compatibility
 enum class Pipeline : std::uint8_t {
-    Mem,      // Memory-bound pipeline
-    CompV1,   // Compute pipeline v1
-    CompV2,   // Compute pipeline v2
-    CompV3,   // Compute pipeline v3
-    CompV4,   // Compute pipeline v4 (double buffering)
-    CompV5    // Compute pipeline v5
+    Mem,           // Memory-bound pipeline
+    CompV1,        // Compute pipeline v1
+    CompV2,        // Compute pipeline v2
+    CompV3,        // Compute pipeline v3
+    CompV4,        // Compute pipeline v4 (double buffering)
+    CompV5,        // Compute pipeline v5
+    PreShuffleV1,  // Weight preshuffle pipeline v1
+    PreShuffleV2   // Weight preshuffle pipeline v2 (optimized)
 };
 
 /// Epilogue strategies for output processing
+/// Matches tile_engine epilogue options for full compatibility
 enum class Epilogue : std::uint8_t {
     None,
-    Bias,
-    Activation,
-    CShuffle,   // Cross-shuffle epilogue
-    Default
+    Default,     // DefaultGemm2DEpilogue
+    CShuffle,    // CShuffleEpilogue (cross-shuffle)
+    Bias,        // Bias addition
+    Activation,  // Fused activation
+    BiasActivation  // Fused bias + activation
 };
 
 /// Scheduler types for wave coordination
@@ -122,7 +130,7 @@ struct KernelKey {
         std::uint8_t num_wave_groups;  // NumWaveGroups
     } algorithm;
 
-    std::uint16_t gfx_arch;   // e.g. 942 for gfx942
+    std::string gfx_arch;   // e.g. "gfx942", "gfx90a", "gfx908"
 
     /// Generate a unique string identifier for this kernel configuration
     /// Format matches tile_engine naming convention for registry lookup
@@ -153,7 +161,7 @@ struct KernelKey {
     }
 
     /// Create a tuple of all fields for comparison operators
-    constexpr auto tie() const
+    auto tie() const
     {
         return std::tie(signature.dtype_a,
                         signature.dtype_b,
@@ -203,6 +211,145 @@ struct KernelKey {
         return !(lhs == rhs);
     }
 };
+
+// =============================================================================
+// String Conversion Helpers (for serialization and debugging)
+// =============================================================================
+
+/// Convert DataType to string
+inline std::string to_string(DataType dtype) {
+    switch (dtype) {
+        case DataType::FP16: return "fp16";
+        case DataType::BF16: return "bf16";
+        case DataType::FP32: return "fp32";
+        case DataType::FP64: return "fp64";
+        case DataType::FP8: return "fp8";
+        case DataType::BF8: return "bf8";
+        case DataType::INT8: return "int8";
+        case DataType::INT4: return "int4";
+        case DataType::INT32: return "int32";
+        default: return "unknown";
+    }
+}
+
+/// Convert string to DataType
+inline DataType string_to_dtype(const std::string& str) {
+    if (str == "fp16") return DataType::FP16;
+    if (str == "bf16") return DataType::BF16;
+    if (str == "fp32") return DataType::FP32;
+    if (str == "fp64") return DataType::FP64;
+    if (str == "fp8") return DataType::FP8;
+    if (str == "bf8") return DataType::BF8;
+    if (str == "int8") return DataType::INT8;
+    if (str == "int4") return DataType::INT4;
+    if (str == "int32") return DataType::INT32;
+    return DataType::UNKNOWN;
+}
+
+/// Convert LayoutTag to string
+inline std::string to_string(LayoutTag layout) {
+    switch (layout) {
+        case LayoutTag::RowMajor: return "r";
+        case LayoutTag::ColMajor: return "c";
+        case LayoutTag::PackedExternal: return "p";
+        default: return "?";
+    }
+}
+
+/// Convert string to LayoutTag
+inline LayoutTag string_to_layout(const std::string& str) {
+    if (str == "r" || str == "row" || str == "RowMajor") return LayoutTag::RowMajor;
+    if (str == "c" || str == "col" || str == "ColMajor") return LayoutTag::ColMajor;
+    if (str == "p" || str == "packed") return LayoutTag::PackedExternal;
+    return LayoutTag::RowMajor;  // Default
+}
+
+/// Convert Pipeline to string
+inline std::string to_string(Pipeline pipeline) {
+    switch (pipeline) {
+        case Pipeline::Mem: return "mem";
+        case Pipeline::CompV1: return "compv1";
+        case Pipeline::CompV2: return "compv2";
+        case Pipeline::CompV3: return "compv3";
+        case Pipeline::CompV4: return "compv4";
+        case Pipeline::CompV5: return "compv5";
+        case Pipeline::PreShuffleV1: return "preshufflev1";
+        case Pipeline::PreShuffleV2: return "preshufflev2";
+        default: return "unknown";
+    }
+}
+
+/// Convert string to Pipeline
+inline Pipeline string_to_pipeline(const std::string& str) {
+    if (str == "mem") return Pipeline::Mem;
+    if (str == "compv1") return Pipeline::CompV1;
+    if (str == "compv2") return Pipeline::CompV2;
+    if (str == "compv3") return Pipeline::CompV3;
+    if (str == "compv4") return Pipeline::CompV4;
+    if (str == "compv5") return Pipeline::CompV5;
+    if (str == "preshufflev1") return Pipeline::PreShuffleV1;
+    if (str == "preshufflev2") return Pipeline::PreShuffleV2;
+    return Pipeline::Mem;  // Default
+}
+
+/// Convert Epilogue to string
+inline std::string to_string(Epilogue epilogue) {
+    switch (epilogue) {
+        case Epilogue::None: return "none";
+        case Epilogue::Default: return "default";
+        case Epilogue::CShuffle: return "cshuffle";
+        case Epilogue::Bias: return "bias";
+        case Epilogue::Activation: return "activation";
+        case Epilogue::BiasActivation: return "bias_activation";
+        default: return "unknown";
+    }
+}
+
+/// Convert string to Epilogue
+inline Epilogue string_to_epilogue(const std::string& str) {
+    if (str == "none") return Epilogue::None;
+    if (str == "default") return Epilogue::Default;
+    if (str == "cshuffle") return Epilogue::CShuffle;
+    if (str == "bias") return Epilogue::Bias;
+    if (str == "activation") return Epilogue::Activation;
+    if (str == "bias_activation") return Epilogue::BiasActivation;
+    return Epilogue::Default;  // Default
+}
+
+/// Convert Scheduler to string
+inline std::string to_string(Scheduler scheduler) {
+    switch (scheduler) {
+        case Scheduler::Auto: return "auto";
+        case Scheduler::Intrawave: return "intrawave";
+        case Scheduler::Interwave: return "interwave";
+        default: return "unknown";
+    }
+}
+
+/// Convert string to Scheduler
+inline Scheduler string_to_scheduler(const std::string& str) {
+    if (str == "auto") return Scheduler::Auto;
+    if (str == "intrawave") return Scheduler::Intrawave;
+    if (str == "interwave") return Scheduler::Interwave;
+    return Scheduler::Intrawave;  // Default
+}
+
+/// Common elementwise operations (for reference in elementwise_op field)
+/// These match CK Tile's ck_tile::element_wise namespace
+namespace ElementwiseOps {
+    constexpr const char* PassThrough = "PassThrough";
+    constexpr const char* Add = "Add";
+    constexpr const char* Multiply = "Multiply";
+    constexpr const char* MultiDAdd = "MultiDAdd";
+    constexpr const char* MultiDMultiply = "MultiDMultiply";
+    constexpr const char* Relu = "Relu";
+    constexpr const char* Gelu = "Gelu";
+    constexpr const char* Clamp = "Clamp";
+    constexpr const char* Sigmoid = "Sigmoid";
+    constexpr const char* Tanh = "Tanh";
+    constexpr const char* Swish = "Swish";
+    constexpr const char* HardSwish = "HardSwish";
+}
 
 } // namespace dispatcher
 } // namespace ck_tile

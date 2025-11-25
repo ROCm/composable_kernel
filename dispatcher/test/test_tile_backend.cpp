@@ -26,12 +26,12 @@ namespace {
 
 TEST(TileBackendTest, KernelKeyCreation) {
     // Test creating a kernel key for tile backend
-    KernelKey key = make_test_key(256, 256, 32, 942);
+    KernelKey key = make_test_key(256, 256, 32, "gfx942");
     
     EXPECT_EQ(key.algorithm.tile_shape.m, 256);
     EXPECT_EQ(key.algorithm.tile_shape.n, 256);
     EXPECT_EQ(key.algorithm.tile_shape.k, 32);
-    EXPECT_EQ(key.gfx_arch, 942);
+    EXPECT_EQ(key.gfx_arch, "gfx942");
     EXPECT_EQ(key.signature.dtype_a, DataType::FP16);
 }
 
@@ -39,7 +39,7 @@ TEST(TileBackendTest, MockKernelRegistration) {
     // Clear registry for clean test
     Registry::instance().clear();
     
-    KernelKey key = make_test_key(256, 256, 32, 942);
+    KernelKey key = make_test_key(256, 256, 32, "gfx942");
     auto kernel = std::make_shared<MockKernelInstance>(
         key, "mock_tile_kernel", false);  // strict divisibility
     
@@ -61,7 +61,7 @@ TEST(TileBackendTest, DispatcherWithMockTileKernel) {
     Registry::instance().clear();
     
     // Create and register mock tile kernel
-    KernelKey key = make_test_key(256, 256, 32, 942);
+    KernelKey key = make_test_key(256, 256, 32, "gfx942");
     auto kernel = std::make_shared<MockKernelInstance>(
         key, "mock_tile_kernel", false);  // strict divisibility
     Registry::instance().register_kernel(kernel);
@@ -84,7 +84,7 @@ TEST(TileBackendTest, DispatcherWithMockTileKernel) {
 }
 
 TEST(TileBackendTest, TileKernelIdentifierEncoding) {
-    KernelKey key = make_test_key(256, 256, 32, 942);
+    KernelKey key = make_test_key(256, 256, 32, "gfx942");
     
     std::string id = key.encode_identifier();
     
@@ -102,11 +102,11 @@ TEST(TileBackendTest, MultipleKernelRegistration) {
     Registry::instance().clear();
     
     // Register multiple kernels with different tile sizes
-    KernelKey key1 = make_test_key(256, 256, 32, 942);
+    KernelKey key1 = make_test_key(256, 256, 32, "gfx942");
     auto kernel1 = std::make_shared<MockKernelInstance>(
         key1, "kernel_256x256x32", false);
     
-    KernelKey key2 = make_test_key(128, 128, 64, 942);
+    KernelKey key2 = make_test_key(128, 128, 64, "gfx942");
     auto kernel2 = std::make_shared<MockKernelInstance>(
         key2, "kernel_128x128x64", false);
     
@@ -131,7 +131,7 @@ TEST(TileBackendTest, TileSizeSupport) {
     Registry::instance().clear();
     
     // Create kernel with 256x256x32 tiles (no padding)
-    KernelKey key = make_test_key(256, 256, 32, 942);
+    KernelKey key = make_test_key(256, 256, 32, "gfx942");
     auto kernel = std::make_shared<MockKernelInstance>(
         key, "test_kernel", false);  // strict divisibility
     

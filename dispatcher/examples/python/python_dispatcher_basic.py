@@ -88,7 +88,7 @@ def demo_kernel_key_api():
     key.algorithm.epilogue = cpp.Epilogue.CShuffle
     key.algorithm.block_size = 256
     
-    key.gfx_arch = 942
+    key.gfx_arch = "gfx942"
     
     print(f"Created KernelKey: {key}")
     print(f"  Identifier: {key.encode_identifier()}")
@@ -97,7 +97,7 @@ def demo_kernel_key_api():
     # Create another key and compare
     key2 = cpp.KernelKey()
     key2.signature.dtype_a = cpp.DataType.FP16
-    key2.gfx_arch = 942
+    key2.gfx_arch = "gfx942"
     
     print(f"Key equality:")
     print(f"  key == key: {key == key}")

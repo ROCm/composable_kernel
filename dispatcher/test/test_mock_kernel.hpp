@@ -89,7 +89,7 @@ inline KernelKey make_test_key(
     std::uint16_t tile_m = 256,
     std::uint16_t tile_n = 256,
     std::uint16_t tile_k = 32,
-    std::uint16_t gfx_arch = 942)
+    const std::string& gfx_arch = "gfx942")
 {
     KernelKey key;
     key.signature.dtype_a = DataType::FP16;

@@ -1,0 +1,133 @@
+{
+  "_comment": "Single source of truth for GPU architecture specifications. Edit this file to add new GPU support.",
+  "_version": "1.0.0",
+  "_instructions": "See ADDING_NEW_GPU.md for instructions on adding new GPU support.",
+  
+  "architectures": {
+    "gfx90a": {
+      "family": "cdna2",
+      "description": "AMD Instinct MI200 series",
+      "warp_size": 64,
+      "lds_capacity_kb": 64,
+      "warp_configs": [
+        [1, 4, 1],
+        [2, 2, 1],
+        [4, 1, 1]
+      ],
+      "warp_tile_combos": {
+        "fp16_fp16_fp16": [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
+        "bf16_bf16_bf16": [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
+        "fp8_fp8_fp16": [[32, 32, 16], [32, 32, 32]],
+        "bf8_bf8_fp16": [[32, 32, 16], [32, 32, 32]]
+      }
+    },
+    
+    "gfx942": {
+      "family": "cdna3",
+      "description": "AMD Instinct MI300 series",
+      "warp_size": 64,
+      "lds_capacity_kb": 64,
+      "warp_configs": [
+        [1, 4, 1],
+        [2, 2, 1],
+        [4, 1, 1]
+      ],
+      "warp_tile_combos": {
+        "fp16_fp16_fp16": [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
+        "bf16_bf16_bf16": [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
+        "fp8_fp8_fp16": [[32, 32, 16], [32, 32, 32], [16, 16, 32], [16, 16, 64]],
+        "bf8_bf8_fp16": [[32, 32, 16], [32, 32, 32], [16, 16, 64], [16, 16, 32]],
+        "int8_int8_int32": [[16, 16, 32], [32, 32, 16]]
+      }
+    },
+    
+    "gfx950": {
+      "family": "cdna4",
+      "description": "AMD Instinct MI350 series",
+      "warp_size": 64,
+      "lds_capacity_kb": 64,
+      "warp_configs": [
+        [1, 4, 1],
+        [2, 2, 1],
+        [4, 1, 1]
+      ],
+      "warp_tile_combos": {
+        "fp16_fp16_fp16": [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
+        "bf16_bf16_bf16": [[32, 32, 8], [16, 16, 16], [32, 32, 16], [16, 16, 32], [4, 64, 16], [64, 4, 16]],
+        "fp8_fp8_fp16": [[32, 32, 16], [32, 32, 32], [16, 16, 32], [16, 16, 64], [16, 16, 128], [32, 32, 64]],
+        "bf8_bf8_fp16": [[32, 32, 16], [32, 32, 32], [16, 16, 64], [16, 16, 32], [16, 16, 128], [32, 32, 64]]
+      }
+    },
+    
+    "gfx1201": {
+      "family": "rdna4",
+      "description": "AMD Radeon RX 9000 series (RDNA4)",
+      "warp_size": 32,
+      "lds_capacity_kb": 64,
+      "warp_configs": [
+        [2, 4, 1],
+        [1, 8, 1],
+        [8, 1, 1],
+        [4, 2, 1]
+      ],
+      "warp_tile_combos": {
+        "fp16_fp16_fp16": [[16, 16, 16]]
+      }
+    }
+  },
+  
+  "element_sizes": {
+    "fp16": 2,
+    "bf16": 2,
+    "fp32": 4,
+    "fp64": 8,
+    "fp8": 1,
+    "bf8": 1,
+    "int8": 1,
+    "int4": 0.5,
+    "int32": 4
+  },
+  
+  "datatype_cpp_map": {
+    "_comment": "Maps dtype string to CK Tile C++ type for code generation",
+    "fp16": "ck_tile::half_t",
+    "bf16": "ck_tile::bf16_t",
+    "fp32": "float",
+    "fp64": "double",
+    "fp8": "ck_tile::fp8_t",
+    "bf8": "ck_tile::bf8_t",
+    "int8": "ck_tile::int8_t",
+    "int4": "ck_tile::pk_int4_t",
+    "int32": "ck_tile::int32_t"
+  },
+  
+  "layout_cpp_map": {
+    "_comment": "Maps layout character to CK Tile C++ type",
+    "r": "ck_tile::tensor_layout::gemm::RowMajor",
+    "c": "ck_tile::tensor_layout::gemm::ColumnMajor"
+  },
+  
+  "pipeline_lds_limits": {
+    "_comment": "LDS capacity limits in bytes for different pipeline types",
+    "mem": 65536,
+    "compv1": 65536,
+    "compv2": 65536,
+    "compv3": 65536,
+    "compv4": 32768,
+    "compv5": 65536,
+    "preshufflev1": 32768,
+    "preshufflev2": 32768,
+    "default": 65536
+  },
+  
+  "unsupported_trait_combos": {
+    "_comment": "List of [pipeline, epilogue, scheduler] combinations that don't work",
+    "combinations": [
+      ["compv3", "cshuffle", "interwave"],
+      ["compv3", "default", "interwave"],
+      ["compv4", "cshuffle", "interwave"],
+      ["compv4", "default", "interwave"]
+    ]
+  }
+}
+

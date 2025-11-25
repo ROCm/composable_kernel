@@ -142,9 +142,103 @@ if(EXISTS "${KERNEL_HEADER}")
         target_link_libraries(verify_data_flow PRIVATE hip::device hip::host)
     endif()
     
-    message(STATUS "Built 5 examples: python_gpu_helper, single_tile_kernel_example, verify_correctness, test_known_matrices, verify_data_flow")
+    # Multiple registries example
+    add_executable(multiple_registries_example
+        cpp/multiple_registries_example.cpp
+    )
+    
+    target_link_libraries(multiple_registries_example PRIVATE
+        ck_tile_dispatcher
+    )
+    
+    target_include_directories(multiple_registries_example PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../build/generated_kernels
+    )
+    
+    target_compile_options(multiple_registries_example PRIVATE
+        -include ${KERNEL_HEADER}
+        -mllvm -enable-noalias-to-md-conversion=0
+        -Wno-undefined-func-template
+        -Wno-float-equal
+        --offload-compress
+    )
+    
+    if(hip_FOUND)
+        target_link_libraries(multiple_registries_example PRIVATE hip::device hip::host)
+    endif()
+    
+    # Benchmark example
+    add_executable(benchmark_example
+        cpp/benchmark_example.cpp
+    )
+    
+    target_link_libraries(benchmark_example PRIVATE
+        ck_tile_dispatcher
+    )
+    
+    target_include_directories(benchmark_example PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../build/generated_kernels
+    )
+    
+    target_compile_options(benchmark_example PRIVATE
+        -include ${KERNEL_HEADER}
+        -mllvm -enable-noalias-to-md-conversion=0
+        -Wno-undefined-func-template
+        -Wno-float-equal
+        --offload-compress
+    )
+    
+    if(hip_FOUND)
+        target_link_libraries(benchmark_example PRIVATE hip::device hip::host)
+    endif()
+    
+    # Heuristic selection example
+    add_executable(heuristic_example
+        cpp/heuristic_example.cpp
+    )
+    
+    target_link_libraries(heuristic_example PRIVATE
+        ck_tile_dispatcher
+    )
+    
+    target_include_directories(heuristic_example PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+        ${CMAKE_CURRENT_SOURCE_DIR}/../build/generated_kernels
+    )
+    
+    target_compile_options(heuristic_example PRIVATE
+        -include ${KERNEL_HEADER}
+        -mllvm -enable-noalias-to-md-conversion=0
+        -Wno-undefined-func-template
+        -Wno-float-equal
+        --offload-compress
+    )
+    
+    if(hip_FOUND)
+        target_link_libraries(heuristic_example PRIVATE hip::device hip::host)
+    endif()
+    
+    message(STATUS "Built 8 examples with GPU kernels: python_gpu_helper, single_tile_kernel_example, verify_correctness, test_known_matrices, verify_data_flow, multiple_registries_example, benchmark_example, heuristic_example")
 else()
-    message(STATUS "Generated kernels not found - skipping examples")
+    message(STATUS "Generated kernels not found - skipping GPU examples")
     message(STATUS "  Generate with: cd codegen && python3 unified_gemm_codegen.py --preselected fp16_rcr_essential --output-dir ../build/generated_kernels")
 endif()
+
+# Registry JSON export example (doesn't require GPU kernels)
+add_executable(export_registry_json_example
+    cpp/export_registry_json_example.cpp
+)
+
+target_link_libraries(export_registry_json_example PRIVATE
+    ck_tile_dispatcher
+)
+
+target_include_directories(export_registry_json_example PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../include
+)
+
+message(STATUS "Built registry example: export_registry_json_example")
 

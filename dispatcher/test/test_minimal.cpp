@@ -13,7 +13,7 @@ int main() {
     std::cout << "=======================\n\n";
     
     // Create a mock kernel for testing
-    KernelKey key = make_test_key(128, 128, 64, 942);
+    KernelKey key = make_test_key(128, 128, 64, "gfx942");
     auto kernel = std::make_shared<MockKernelInstance>(
         key, "test_kernel_128x128x64", true);
     

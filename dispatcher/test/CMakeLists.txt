@@ -28,12 +28,24 @@ target_link_libraries(dispatcher_test_utils PRIVATE
 
 # Test executables using Google Test
 set(TEST_SOURCES
+    # Core unit tests
     test_kernel_key.cpp
     test_problem.cpp
     test_registry.cpp
     test_dispatcher.cpp
     test_tile_backend.cpp
-    test_integration_e2e.cpp
+    
+    # Extended unit tests (more comprehensive coverage)
+    test_kernel_key_extended.cpp
+    test_problem_extended.cpp
+    test_registry_extended.cpp
+    test_dispatcher_extended.cpp
+    
+    # Regression tests (known issues and edge cases)
+    test_regression.cpp
+    
+    # JSON export tests
+    test_json_export.cpp
 )
 
 foreach(test_source ${TEST_SOURCES})
@@ -130,6 +142,7 @@ if(BUILD_DISPATCHER_REAL_KERNEL_TESTS AND EXISTS "${CODEGEN_SCRIPT}")
         test_real_kernel_multi_size
         test_real_kernel_performance
         test_real_kernel_correctness
+        test_sanity_ck_tile
     )
     
     if(EXISTS "${SINGLE_KERNEL_HEADER}")
@@ -181,10 +194,6 @@ else()
     endif()
     message(STATUS "To enable: -DBUILD_DISPATCHER_REAL_KERNEL_TESTS=ON")
 endif()
-
-# Debug/utility executables (not tests)
-add_executable(debug_args debug_args.cpp)
-target_link_libraries(debug_args PRIVATE ck_tile_dispatcher)
 
 # Summary message
 message(STATUS "Configured ${CMAKE_CURRENT_LIST_DIR} with ${CMAKE_CXX_COMPILER_ID} compiler")

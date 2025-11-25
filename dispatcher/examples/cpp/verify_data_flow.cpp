@@ -143,7 +143,7 @@ int main()
     key.algorithm.epilogue = Epilogue::CShuffle;
     key.algorithm.block_size = 256;
     key.algorithm.double_buffer = true;
-    key.gfx_arch = 942;
+    key.gfx_arch = "gfx942";
     
     auto kernel = create_generated_tile_kernel<
         SelectedKernel, ADataType, BDataType, CDataType, AccDataType>(
