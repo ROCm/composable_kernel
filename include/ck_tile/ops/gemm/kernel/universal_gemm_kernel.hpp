@@ -16,60 +16,6 @@
 
 namespace ck_tile {
 
-// /**
-//  * @brief Wait for a signal to become ready with acquire semantics
-//  *
-//  * Producer-only wait: One lane polls chunk_signals[chunk_idx] with acquire semantics,
-//  * then a workgroup barrier releases everyone.
-//  *
-//  * @param signal_addr Pointer to the signal location in device memory
-//  */
-// CK_TILE_DEVICE static void wait_signal(uint32_t* signal_addr)
-// {
-//     // Only one thread in the workgroup polls the signal
-//     if(threadIdx.x == 0)
-//     {
-//         uint32_t ready = 0;
-//         while(!ready)
-//         {
-//             // Load with acquire semantics using AMD intrinsics
-//             // glc (globally coherent) ensures visibility across the system
-//             asm volatile("flat_load_dword %0, %1 glc\n\t"
-//                          "s_waitcnt vmcnt(0)"
-//                          : "=v"(ready)
-//                          : "v"(signal_addr)
-//                          : "memory");
-
-//             // Add a small delay to reduce memory traffic
-//             if(!ready)
-//             {
-//                 __builtin_amdgcn_s_sleep(1);
-//             }
-//         }
-//     }
-
-//     // Workgroup barrier to release all threads after signal is ready
-//     __builtin_amdgcn_s_barrier();
-// }
-
-// /**
-//  * @brief Fence for safe iteration boundaries in persistent loops
-//  *
-//  * Ensures all memory operations are complete before reusing LDS or moving to next tile.
-//  * Uses s_waitcnt vmcnt=0, lgkmcnt=0 + s_barrier.
-//  */
-// CK_TILE_DEVICE static void iteration_boundary_fence()
-// {
-//     // Wait for all vector memory operations (global memory loads/stores)
-//     __builtin_amdgcn_s_waitcnt(0);
-
-//     // Wait for all LDS operations
-//     __builtin_amdgcn_s_waitcnt(0);
-
-//     // Synchronize all threads in the workgroup
-//     __builtin_amdgcn_s_barrier();
-// }
-
 /// @brief The Universal GEMM kernel host arguments.
 ///
 /// @par Overview
@@ -165,7 +111,6 @@ struct UniversalGemmKernelArgs
     ///        (in memory) of E tensor.
     index_t stride_E;
     index_t k_batch;
-
 };
 
 /// @brief The Universal GEMM kernel template.
@@ -1261,7 +1206,6 @@ struct UniversalGemmKernel
                             i_n);
                 }
             }
-
             // Advance to the next work item
             block_id += grid_size;
             if(block_id >= num_work)
