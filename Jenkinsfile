@@ -525,7 +525,7 @@ def cmake_build(Map conf=[:]){
                         sh "ninja check"
                     }
                     if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
-                        sh './test_ckb_*'
+                        sh './bin/test_ckb_*'
                     }
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
@@ -553,7 +553,7 @@ def cmake_build(Map conf=[:]){
                         sh "ninja check"
                     }
                     if (params.RUN_BUILDER_TESTS && !setup_args.contains("-DCK_CXX_STANDARD=") && !setup_args.contains("gfx10") && !setup_args.contains("gfx11")) {
-                        sh './test_ckb_*'
+                        sh './bin/test_ckb_*'
                     }
                     if(params.BUILD_PACKAGES){
                         echo "Build ckProfiler packages"
