@@ -267,7 +267,7 @@ struct WarpGemmAttributeMfmaIterateK
     CK_TILE_DEVICE void operator()(CVecType& c_vec,
                                    const AVecType& a_vec,
                                    const BVecType& b_vec,
-                                   number<iKIter>           = {},
+                                   number<iKIter>,
                                    bool_constant<post_nop_> = {}) const
     {
         using buf_a = thread_buffer<typename Impl::AVecType, kKIter>;
@@ -296,7 +296,8 @@ struct WarpGemmAttributeMfmaIterateK
             reinterpret_cast<const buf_b&>(b_vec).template get_as<typename Impl::BVecType>()[I0]);
 
         // c += a * b
-        static_for<1, kKIter, 1>{}([&](auto iKIter) { operator()<iKIter>(c_vec, a_vec, b_vec); });
+        static_for<1, kKIter, 1>{}(
+            [&](auto iKIter) { operator()(c_vec, a_vec, b_vec, number<iKIter>{}); });
 
         return c_vec;
     }
@@ -545,7 +546,7 @@ struct WarpGemmAttributeMfmaIterateKAndTransposedCDistribution
     CK_TILE_DEVICE void operator()(CVecType& c_vec,
                                    const AVecType& a_vec,
                                    const BVecType& b_vec,
-                                   number<iKIter>           = {},
+                                   number<iKIter>,
                                    bool_constant<post_nop_> = {}) const
     {
         using buf_a = thread_buffer<typename Impl::AVecType, kKIter>;
@@ -573,7 +574,8 @@ struct WarpGemmAttributeMfmaIterateKAndTransposedCDistribution
             reinterpret_cast<const buf_b&>(b_vec).template get_as<typename Impl::BVecType>()[I0],
             reinterpret_cast<const buf_a&>(a_vec).template get_as<typename Impl::AVecType>()[I0]);
 
-        static_for<1, kKIter, 1>{}([&](auto iKIter) { operator()<iKIter>(c_vec, a_vec, b_vec); });
+        static_for<1, kKIter, 1>{}(
+            [&](auto iKIter) { operator()(c_vec, a_vec, b_vec, number<iKIter>{}); });
 
         return c_vec;
     }
@@ -673,7 +675,7 @@ struct WarpGemmAttributeMfmaIterateKAndTransposedCDistribution_SwizzleB
     CK_TILE_DEVICE void operator()(CVecType& c_vec,
                                    const AVecType& a_vec,
                                    const BVecType& b_vec,
-                                   number<iKIter>           = {},
+                                   number<iKIter>,
                                    bool_constant<post_nop_> = {}) const
     {
         using buf_a = thread_buffer<typename Impl::AVecType, kKIter>;
@@ -701,7 +703,8 @@ struct WarpGemmAttributeMfmaIterateKAndTransposedCDistribution_SwizzleB
             reinterpret_cast<const buf_b&>(b_vec).template get_as<typename Impl::BVecType>()[I0],
             reinterpret_cast<const buf_a&>(a_vec).template get_as<typename Impl::AVecType>()[I0]);
 
-        static_for<1, kKIter, 1>{}([&](auto iKIter) { operator()<iKIter>(c_vec, a_vec, b_vec); });
+        static_for<1, kKIter, 1>{}(
+            [&](auto iKIter) { operator()(c_vec, a_vec, b_vec, number<iKIter>{}); });
 
         return c_vec;
     }
@@ -777,7 +780,7 @@ struct WarpGemmAttributeMfmaIterateK_SwizzleA
     CK_TILE_DEVICE void operator()(CVecType& c_vec,
                                    const AVecType& a_vec,
                                    const BVecType& b_vec,
-                                   number<iKIter>           = {},
+                                   number<iKIter>,
                                    bool_constant<post_nop_> = {}) const
     {
         using buf_a = thread_buffer<typename Impl::AVecType, kKIter>;
@@ -804,7 +807,8 @@ struct WarpGemmAttributeMfmaIterateK_SwizzleA
             reinterpret_cast<const buf_a&>(a_vec).template get_as<typename Impl::AVecType>()[I0],
             reinterpret_cast<const buf_b&>(b_vec).template get_as<typename Impl::BVecType>()[I0]);
 
-        static_for<1, kKIter, 1>{}([&](auto iKIter) { operator()<iKIter>(c_vec, a_vec, b_vec); });
+        static_for<1, kKIter, 1>{}(
+            [&](auto iKIter) { operator()(c_vec, a_vec, b_vec, number<iKIter>{}); });
 
         return c_vec;
     }
