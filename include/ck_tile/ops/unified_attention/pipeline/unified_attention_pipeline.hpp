@@ -897,11 +897,10 @@ struct UnifiedAttentionPipeline
         auto fmha_mask = [&](auto sp_reg_idx) {
             if constexpr(FmhaMask::IsMasking)
             {
-                bool need_perpixel_check = false;
-                // mask.IsEdgeTile(q_origin.at(number<0>{}),
-                //                                            i_total_loops * BLOCK_SIZE,
-                //                                            number<BLOCK_M>{},
-                //                                            number<BLOCK_SIZE>{});
+                bool need_perpixel_check = mask.IsEdgeTile(q_origin.at(number<0>{}),
+                                                           i_total_loops * BLOCK_SIZE,
+                                                           number<BLOCK_M>{},
+                                                           number<BLOCK_SIZE>{});
                 if(need_perpixel_check)
                 {
                     set_tile_if(sp(sp_reg_idx).sp_compute,
