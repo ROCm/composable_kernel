@@ -1,4 +1,4 @@
-// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
 #include <gtest/gtest.h>
@@ -799,11 +799,10 @@ TEST(InstanceTraits, TileInstanceStringReturnsCorrectFormat)
                                          GroupedConvTraitsType::FixedGemmParams::FixedVectorSize,
                                          GroupedConvTraitsType::VectorSizeC>>;
 
-    using GroupedConvFwdKernel =
-        ck_tile::device::GroupedConvolutionForwardKernel<GroupedConvTraitsType,
-                                                         TilePartitioner,
-                                                         GemmPipeline,
-                                                         ConvEpilogue>;
+    using GroupedConvFwdKernel = ck_tile::GroupedConvolutionForwardKernel<GroupedConvTraitsType,
+                                                                          TilePartitioner,
+                                                                          GemmPipeline,
+                                                                          ConvEpilogue>;
 
     std::string instance_str = ck_tile::reflect::instance_string<GroupedConvFwdKernel>();
 

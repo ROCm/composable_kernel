@@ -84,7 +84,7 @@ TEST(StreamKTilePartitionerBaseEstimateNumWgsPerTile, EstimateNumWgsPerTileLower
     ck_tile::StreamKTilePartitionerBase<Config::GemmShape> tile_partitioner{
         Config::M, Config::N, Config::K, Config::GRID};
 
-    EXPECT_EQ(tile_partitioner.estimate_num_wgs_per_tile(), 1);
+    EXPECT_EQ(tile_partitioner.estimate_num_wgs_per_tile(), 2);
 }
 
 TEST(StreamKTilePartitionerBaseEstimateNumWgsPerTile, EstimateNumWgsPerTileEqualValue)

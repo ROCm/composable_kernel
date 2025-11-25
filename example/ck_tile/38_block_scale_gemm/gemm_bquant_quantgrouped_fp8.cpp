@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) , Advanced Micro Devices, Inc. All rights reserved.
 
 #include "run_gemm_quant_example.inc"
 
@@ -18,28 +18,33 @@ void bquant_quantgrouped_fp8_instance_factory(
     using TypeConfig =
         decltype(GemmQuantTypeConfig<ck_tile::fp8_t, ck_tile::fp8_t, ck_tile::half_t, float>{});
 #ifndef CK_GFX950_SUPPORT
-    lut[hash_multiple_strings({"fp8", "bquant", "non-preshuffleb", "1x1x64"})] =
+    lut[hash_multiple_strings(
+        {"fp8", "bquant", "non-preshuffleb", "non-preshufflequant", "1x1x64"})] =
         [](const ck_tile::ArgParser& arg_parser) {
             using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 64>>;
             return RUN_GEMM_EXAMPLE_PREC_TYPE;
         };
 #endif
-    lut[hash_multiple_strings({"fp8", "bquant", "non-preshuffleb", "1x1x128"})] =
+    lut[hash_multiple_strings(
+        {"fp8", "bquant", "non-preshuffleb", "non-preshufflequant", "1x1x128"})] =
         [](const ck_tile::ArgParser& arg_parser) {
             using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
             return RUN_GEMM_EXAMPLE_PREC_TYPE;
         };
-    lut[hash_multiple_strings({"fp8", "bquant", "non-preshuffleb", "1x8x128"})] =
+    lut[hash_multiple_strings(
+        {"fp8", "bquant", "non-preshuffleb", "non-preshufflequant", "1x8x128"})] =
         [](const ck_tile::ArgParser& arg_parser) {
             using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 8, 128>>;
             return RUN_GEMM_EXAMPLE_PREC_TYPE;
         };
-    lut[hash_multiple_strings({"fp8", "bquant", "non-preshuffleb", "1x32x128"})] =
+    lut[hash_multiple_strings(
+        {"fp8", "bquant", "non-preshuffleb", "non-preshufflequant", "1x32x128"})] =
         [](const ck_tile::ArgParser& arg_parser) {
             using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 32, 128>>;
             return RUN_GEMM_EXAMPLE_PREC_TYPE;
         };
-    lut[hash_multiple_strings({"fp8", "bquant", "non-preshuffleb", "1x64x128"})] =
+    lut[hash_multiple_strings(
+        {"fp8", "bquant", "non-preshuffleb", "non-preshufflequant", "1x64x128"})] =
         [](const ck_tile::ArgParser& arg_parser) {
             using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 64, 128>>;
             return RUN_GEMM_EXAMPLE_PREC_TYPE;

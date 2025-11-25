@@ -1,4 +1,4 @@
-// Copyright (C) Advanced Micro Devices, Inc., or its affiliates.
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 // InstanceTraits specialization for GroupedConvolutionForwardKernel
 //
@@ -16,7 +16,7 @@
 #include "instance_traits_util.hpp"
 
 // Forward declaration to avoid circular dependency.
-namespace ck_tile::device {
+namespace ck_tile {
 
 template <typename GroupedConvTraitsType_,
           typename TilePartitioner_,
@@ -24,7 +24,7 @@ template <typename GroupedConvTraitsType_,
           typename EpiloguePipeline_>
 struct GroupedConvolutionForwardKernel;
 
-} // namespace ck_tile::device
+} // namespace ck_tile
 
 namespace ck_tile {
 namespace reflect {
@@ -34,10 +34,10 @@ template <typename GroupedConvTraitsType_,
           typename TilePartitioner_,
           typename GemmPipeline_,
           typename EpiloguePipeline_>
-struct InstanceTraits<ck_tile::device::GroupedConvolutionForwardKernel<GroupedConvTraitsType_,
-                                                                       TilePartitioner_,
-                                                                       GemmPipeline_,
-                                                                       EpiloguePipeline_>>
+struct InstanceTraits<ck_tile::GroupedConvolutionForwardKernel<GroupedConvTraitsType_,
+                                                               TilePartitioner_,
+                                                               GemmPipeline_,
+                                                               EpiloguePipeline_>>
 {
     // CK Tile Conv Traits
     // Spatial dimension
@@ -122,7 +122,7 @@ struct InstanceTraits<ck_tile::device::GroupedConvolutionForwardKernel<GroupedCo
         oss << "," << detail::type_name<BDataType>();                      // 22. BDataType
         oss << "," << GemmPipeline::GetPipelineName();                     // 23. BlkGemmPipelineVer
         oss << "," << detail::pipeline_scheduler_name(kPipelineScheduler); // 24. BlkGemmPipeSched
-        oss << "," << kDoubleSmemBuffer;                                   // 25. NumWaveGroups
+        oss << "," << kDoubleSmemBuffer;                                   // 25. DoubleSmemBuffer
         oss << "," << kNumWaveGroups;                                      // 26. NumWaveGroups
         oss << "," << detail::type_name<AccDataType>();                    // 27. AccDataType
         oss << "," << detail::type_name<EDataType>();                      // 28. EDataType
