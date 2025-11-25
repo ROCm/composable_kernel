@@ -11,7 +11,6 @@ set(GROUPED_CONV3D_FWD_SCALEADD_AB
    # WMMA CSHUFFLE V3
    wmma/device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_bf16_instance.cpp
    wmma/device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_f16_instance.cpp
-   wmma/device_grouped_conv3d_fwd_wmma_cshufflev3_scaleadd_ab_ndhwgc_gkzyxc_ndhwgk_int8_instance.cpp
    )
 
 add_instance_library(device_grouped_conv3d_fwd_scaleadd_ab_instance ${GROUPED_CONV3D_FWD_SCALEADD_AB})
