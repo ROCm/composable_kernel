@@ -90,8 +90,8 @@ struct GroupedConvTraits
         using ELayout = ck_tile::tensor_layout::gemm::RowMajor;
     };
     // Compile time parameters
-    static constexpr bool EnableSplitImage                        = EnableSplitImage_;
     static constexpr index_t NumGroupsToMerge                     = NumGroupsToMerge_;
+    static constexpr bool EnableSplitImage                        = EnableSplitImage_;
     static constexpr bool ExplicitGemm                            = ExplicitGemm_;
     static constexpr index_t NDimSpatial                          = NDimSpatial_;
     static constexpr ConvolutionSpecialization ConvSpecialization = ConvSpecialization_;
