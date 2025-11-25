@@ -38,9 +38,6 @@ class GemmUniversalKernelBuilder(GemmKernelBuilder):
 
         tile_configs = self._get_tile_configs(kernel_name_prefix)
         trait_combos = self._generate_trait_combinations()
-        # k_block_per_cu = self.config.get("k_block_per_cu")
-        # if k_block_per_cu is None:
-        #     k_block_per_cu = 1
 
         # Prepare work items for parallel processing
         work_items = []
@@ -50,7 +47,6 @@ class GemmUniversalKernelBuilder(GemmKernelBuilder):
                     (
                         tile_config,
                         trait_combo,
-                        # k_block_per_cu,
                         self.working_path,
                         self.gpu_target,
                         self.datatype,
@@ -115,7 +111,7 @@ class GemmUniversalKernelBuilder(GemmKernelBuilder):
 
     def _generate_cmake_individual_targets(self, kernel_list):
         """Generate CMake include file that creates individual targets"""
-        cmake_code = f"""# Generated CMake file for individual GEMM targets
+        cmake_code = f"""# Generated CMake file for individual GEMM Universal targets
 # Datatype: {self.datatype}, Layout: {self.layout}
 
 """
@@ -132,10 +128,12 @@ class GemmUniversalKernelBuilder(GemmKernelBuilder):
                 str(x) for x in trait_combo[3:]
             )
 
-            cmake_code += f'create_individual_gemm_target("{self.datatype}" "{self.layout}" "{trait_str}" "{tile_str}")\n'
+            cmake_code += f'create_individual_gemm_universal_target("{self.datatype}" "{self.layout}" "{trait_str}" "{tile_str}")\n'
 
         # Write CMake include file
-        with open(self.working_path / "gemm_individual_targets.cmake", "w") as f:
+        with open(
+            self.working_path / "gemm_universal_individual_targets.cmake", "w"
+        ) as f:
             f.write(cmake_code)
 
 
@@ -144,7 +142,6 @@ def _generate_single_kernel_individual(work_item):
     (
         tile_config,
         trait_combo,
-        # k_block_per_cu,
         working_path,
         gpu_target,
         datatype,
@@ -154,7 +151,9 @@ def _generate_single_kernel_individual(work_item):
     ) = work_item
 
     # Create a temporary builder instance for this worker
-    builder = GemmKernelBuilder(working_path, gpu_target, datatype, layout, config_json)
+    builder = GemmUniversalKernelBuilder(
+        working_path, gpu_target, datatype, layout, config_json
+    )
 
     try:
         kernel_name, instance_code = builder._generate_kernel_instance(

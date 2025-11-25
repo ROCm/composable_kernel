@@ -409,6 +409,8 @@ class GemmKernelBuilder:
 
         print(f"Generated {header_file}")
 
+        return kernel_name, instance_code
+
     def populate_kernel_header(self, kernel_name):
         instance_code = f"""// Generated kernel instance for {kernel_name}
 #pragma once
