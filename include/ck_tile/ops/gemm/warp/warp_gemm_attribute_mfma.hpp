@@ -258,8 +258,7 @@ struct WarpGemmAttributeMfmaIterateK
                                    const BVecType& b_vec,
                                    bool_constant<post_nop_> = {}) const
     {
-        static_for<0, kKIter, 1>{}(
-            [&](auto iKIter) { operator()<iKIter, post_nop_>(c_vec, a_vec, b_vec); });
+        static_for<0, kKIter, 1>{}([&](auto iKIter) { operator()(c_vec, a_vec, b_vec, iKIter); });
     }
 
     template <index_t iKIter, bool post_nop_ = false>
@@ -295,8 +294,7 @@ struct WarpGemmAttributeMfmaIterateK
             reinterpret_cast<const buf_b&>(b_vec).template get_as<typename Impl::BVecType>()[I0]);
 
         // c += a * b
-        static_for<1, kKIter, 1>{}(
-            [&](auto iKIter) { operator()(c_vec, a_vec, b_vec, number<iKIter>{}); });
+        static_for<1, kKIter, 1>{}([&](auto iKIter) { operator()(c_vec, a_vec, b_vec, iKIter); });
 
         return c_vec;
     }
@@ -536,8 +534,7 @@ struct WarpGemmAttributeMfmaIterateKAndTransposedCDistribution
                                    const BVecType& b_vec,
                                    bool_constant<post_nop_> = {}) const
     {
-        static_for<0, kKIter, 1>{}(
-            [&](auto iKIter) { operator()<iKIter, post_nop_>(c_vec, a_vec, b_vec); });
+        static_for<0, kKIter, 1>{}([&](auto iKIter) { operator()(c_vec, a_vec, b_vec, iKIter); });
     }
 
     template <index_t iKIter, bool post_nop_ = false>
@@ -573,8 +570,7 @@ struct WarpGemmAttributeMfmaIterateKAndTransposedCDistribution
             reinterpret_cast<const buf_b&>(b_vec).template get_as<typename Impl::BVecType>()[I0],
             reinterpret_cast<const buf_a&>(a_vec).template get_as<typename Impl::AVecType>()[I0]);
 
-        static_for<1, kKIter, 1>{}(
-            [&](auto iKIter) { operator()(c_vec, a_vec, b_vec, number<iKIter>{}); });
+        static_for<1, kKIter, 1>{}([&](auto iKIter) { operator()(c_vec, a_vec, b_vec, iKIter); });
 
         return c_vec;
     }
@@ -666,8 +662,7 @@ struct WarpGemmAttributeMfmaIterateKAndTransposedCDistribution_SwizzleB
                                    bool_constant<post_nop_> = {}) const
     {
         // swap A and B, value and type
-        static_for<0, kKIter, 1>{}(
-            [&](auto iKIter) { operator()<iKIter, post_nop_>(c_vec, a_vec, b_vec); });
+        static_for<0, kKIter, 1>{}([&](auto iKIter) { operator()(c_vec, a_vec, b_vec, iKIter); });
     }
 
     template <index_t iKIter, bool post_nop_ = false>
@@ -702,8 +697,7 @@ struct WarpGemmAttributeMfmaIterateKAndTransposedCDistribution_SwizzleB
             reinterpret_cast<const buf_b&>(b_vec).template get_as<typename Impl::BVecType>()[I0],
             reinterpret_cast<const buf_a&>(a_vec).template get_as<typename Impl::AVecType>()[I0]);
 
-        static_for<1, kKIter, 1>{}(
-            [&](auto iKIter) { operator()(c_vec, a_vec, b_vec, number<iKIter>{}); });
+        static_for<1, kKIter, 1>{}([&](auto iKIter) { operator()(c_vec, a_vec, b_vec, iKIter); });
 
         return c_vec;
     }
@@ -771,8 +765,7 @@ struct WarpGemmAttributeMfmaIterateK_SwizzleA
                                    const BVecType& b_vec,
                                    bool_constant<post_nop_> = {}) const
     {
-        static_for<0, kKIter, 1>{}(
-            [&](auto iKIter) { operator()<iKIter, post_nop_>(c_vec, a_vec, b_vec); });
+        static_for<0, kKIter, 1>{}([&](auto iKIter) { operator()(c_vec, a_vec, b_vec, iKIter); });
     }
 
     template <index_t iKIter, bool post_nop_ = false>
@@ -806,8 +799,7 @@ struct WarpGemmAttributeMfmaIterateK_SwizzleA
             reinterpret_cast<const buf_a&>(a_vec).template get_as<typename Impl::AVecType>()[I0],
             reinterpret_cast<const buf_b&>(b_vec).template get_as<typename Impl::BVecType>()[I0]);
 
-        static_for<1, kKIter, 1>{}(
-            [&](auto iKIter) { operator()(c_vec, a_vec, b_vec, number<iKIter>{}); });
+        static_for<1, kKIter, 1>{}([&](auto iKIter) { operator()(c_vec, a_vec, b_vec, iKIter); });
 
         return c_vec;
     }
