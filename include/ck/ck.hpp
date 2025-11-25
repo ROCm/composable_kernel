@@ -105,7 +105,7 @@
 // MFMA instruction
 #ifndef __HIP_DEVICE_COMPILE__ // for host code
 #define CK_USE_AMD_MFMA
-#elif defined(__gfx9__) // for GPU code
+#elif defined(__gfx9__) || defined(__gfx11__) // for GPU code
 #define CK_USE_AMD_MFMA
 #endif
 
