@@ -24,6 +24,11 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::hip_check_error;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 using BF16 = ck::bhalf_t;
 using FP16 = ck::half_t;
 using FP32 = float;

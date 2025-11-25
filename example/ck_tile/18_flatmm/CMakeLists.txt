@@ -14,7 +14,12 @@ if(has_supported_gpu)
     add_executable(tile_example_moe_flatmm EXCLUDE_FROM_ALL moe_flatmm.cpp)
     add_executable(tile_example_a16w4_moe_flatmm EXCLUDE_FROM_ALL mixed_prec/a16w4_moe_flatmm.cpp)
     add_executable(tile_example_grouped_flatmm EXCLUDE_FROM_ALL grouped_flatmm.cpp)
-    add_executable(tile_example_mx_flatmm EXCLUDE_FROM_ALL mxgemm/mx_flatmm.cpp) # TODO: 950 only
+
+    include(mxgemm/mx_flatmm_instance.cmake)
+    mx_flatmm_instance_generate(EXAMPLE_MX_FLATMM_FILES)
+    message(STATUS "Generated MX FlatMM kernel files: ${EXAMPLE_MX_FLATMM_FILES}")
+    add_executable(tile_example_mx_flatmm EXCLUDE_FROM_ALL mxgemm/mx_flatmm.cpp ${EXAMPLE_MX_FLATMM_FILES})
+    target_include_directories(tile_example_mx_flatmm PRIVATE mxgemm)
 
     set(EXAMPLE_FLATMM_COMPILE_OPTIONS)
     set(EXAMPLE_MOE_FLATMM_COMPILE_OPTIONS)

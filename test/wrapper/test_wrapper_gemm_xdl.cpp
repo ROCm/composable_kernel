@@ -25,6 +25,10 @@
 #include "ck/wrapper/operations/gemm.hpp"
 #include "ck/wrapper/utils/kernel_utils.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 template <typename DataType>
 void CheckResult(const std::vector<DataType>& a_data,
                  const std::vector<DataType>& b_data,

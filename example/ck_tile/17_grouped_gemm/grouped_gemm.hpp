@@ -66,6 +66,15 @@ struct GemmTypeConfig<ck_tile::fp8_t>
     using CDataType   = ck_tile::half_t;
 };
 
+template <>
+struct GemmTypeConfig<ck_tile::bf16_t>
+{
+    using ADataType   = ck_tile::bf16_t;
+    using BDataType   = ck_tile::bf16_t;
+    using AccDataType = float;
+    using CDataType   = ck_tile::bf16_t;
+};
+
 struct GemmConfigBase
 {
     static constexpr bool kPadM = false;

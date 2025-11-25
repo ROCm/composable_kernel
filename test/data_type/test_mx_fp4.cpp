@@ -5,6 +5,8 @@
 #include "ck/library/utility/device_memory.hpp"
 #include "ck/utility/scaled_type_convert.hpp"
 
+using ::ck::DeviceMem;
+
 using ck::e8m0_bexp_t;
 using ck::float16_t;
 using ck::float2_t;

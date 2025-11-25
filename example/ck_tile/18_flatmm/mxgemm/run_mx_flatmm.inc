@@ -163,5 +163,5 @@ int run_mx_flatmm_with_layouts(int argc,
         std::cout << "The GPU veification result is: " << (pass ? "correct" : "fail") << std::endl;
     }
 
-    return pass;
+    return pass ? 0 : -1;
 }

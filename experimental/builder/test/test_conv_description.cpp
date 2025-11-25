@@ -20,13 +20,36 @@ namespace ckt = ck_tile::test;
 // This includes dimensionality, direction, data layout, and data type.
 struct ConvSignature
 {
+    int spatial_dim             = 2;
+    ckb::GroupConvLayout layout = ckb::GroupConvLayout2D::GNHWC_GKYXC_GNHWK;
+    ckb::DataType data_type     = ckb::DataType::FP16;
+    ckb::GroupConvDeviceOp device_operation =
+        ckb::FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3;
+};
+static_assert(ckb::ConvSignatureDescriptor<ConvSignature>);
+
+// Compile time tests for concepts
+struct ConvSignatureWithOptionalParams
+{
     int spatial_dim                                 = 2;
     ckb::ConvDirection direction                    = ckb::ConvDirection::FORWARD;
     ckb::GroupConvLayout layout                     = ckb::GroupConvLayout2D::GNHWC_GKYXC_GNHWK;
     ckb::DataType data_type                         = ckb::DataType::FP16;
     ckb::ElementwiseOperation elementwise_operation = ckb::ElementwiseOperation::PASS_THROUGH;
 };
-static_assert(ckb::ConvSignatureDescriptor<ConvSignature>);
+static_assert(ckb::ConvSignatureDescriptor<ConvSignatureWithOptionalParams>);
+
+struct ConvSignatureWithInvalidOptionalParams
+{
+    int spatial_dim              = 2;
+    ckb::ConvDirection direction = ckb::ConvDirection::FORWARD;
+    ckb::GroupConvLayout layout  = ckb::GroupConvLayout2D::GNHWC_GKYXC_GNHWK;
+    ckb::DataType data_type      = ckb::DataType::FP16;
+    int elementwise_operation    = 7; // this should fail
+    ckb::GroupConvDeviceOp device_operation =
+        ckb::FwdGroupConvDeviceOperation::DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle_V3;
+};
+static_assert(!ckb::ConvSignatureDescriptor<ConvSignatureWithInvalidOptionalParams>);
 
 struct DefaultAlgorithm
 {

@@ -216,17 +216,14 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSizeA()
     {
-        constexpr index_t smem_size_a = sizeof(typename Problem::ADataType) *
-                                        MakeALdsBlockDescriptor<Problem>().get_element_space_size();
-        return smem_size_a;
+        return sizeof(typename Problem::ADataType) *
+               MakeALdsBlockDescriptor<Problem>().get_element_space_size();
     }
 
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr index_t GetSmemSize()
     {
-        constexpr index_t smem_size_a = GetSmemSizeA<Problem>();
-
-        return smem_size_a;
+        return GetSmemSizeA<Problem>();
     }
 
     template <typename Problem>

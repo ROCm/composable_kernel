@@ -28,6 +28,10 @@ Shazeer, Noam. “Fast Transformer Decoding: One Write-Head Is All You Need.” 
 #include "ck/library/reference_tensor_operation/cpu/reference_softmax.hpp"
 #include "ck/host_utility/device_prop.hpp"
 
+using ::ck::DeviceMem;
+using ::ck::HostTensorDescriptor;
+using ::ck::Tensor;
+
 template <ck::index_t... Is>
 using S = ck::Sequence<Is...>;
 
