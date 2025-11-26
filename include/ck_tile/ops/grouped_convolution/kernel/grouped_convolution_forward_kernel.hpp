@@ -28,7 +28,6 @@ namespace ck_tile {
 template <typename GroupedConvTraitsType_, typename CDElementwise_>
 struct GroupedConvFwdKernelArgs
 {
-
     using ConvToGemmFwdTransformer =
         TransformConvFwdToGemm<GroupedConvTraitsType_::NDimSpatial,
                                GroupedConvTraitsType_::ConvSpecialization,
@@ -39,6 +38,9 @@ struct GroupedConvFwdKernelArgs
                                true>; // Split N enabled
     using CDElementwise                 = CDElementwise_;
     static constexpr index_t NumDTensor = GroupedConvTraitsType_::NumDTensor;
+
+    static_assert(!GroupedConvTraitsType_::ExplicitGemm || GroupedConvTraitsType_::NumGroupsToMerge == 1,
+                  "Explicit GEMM does not support merging convolution groups!");
 
     template <
         typename InLay                      = typename GroupedConvTraitsType_::InLayout,
@@ -95,14 +97,14 @@ struct GroupedConvFwdKernelArgs
         c_grid_desc_m_n =
             transformer_.template MakeCDescriptor_M_N<typename GroupedConvTraitsType_::OutLayout>();
 
-        NumGroupsPerBatch = GroupedConvTraitsType_::NumGroupsToMerge;
-        group_stride_a    = args.C_ * NumGroupsPerBatch;
-        group_stride_b    = args.K_ * args.C_ * NumGroupsPerBatch *
+        NumGroupsToMerge = GroupedConvTraitsType_::NumGroupsToMerge;
+        group_stride_a    = args.C_ * NumGroupsToMerge;
+        group_stride_b    = args.K_ * args.C_ * NumGroupsToMerge *
                          std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
                                          std::multiplies<index_t>());
-        group_stride_c = args.K_ * NumGroupsPerBatch;
+        group_stride_c = args.K_ * NumGroupsToMerge;
 
         // Initialize Split-N support fields for 1D convolution (NWGC layout)
         // Get the actual split N from transformer
@@ -120,7 +122,7 @@ struct GroupedConvFwdKernelArgs
         GemmM     = a_grid_desc_m_k.get_length(number<0>{});
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
-        GemmBatch = integer_divide_ceil(args.G_, NumGroupsPerBatch);
+        GemmBatch = integer_divide_ceil(args.G_, NumGroupsToMerge);
 
         if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
         {
@@ -129,7 +131,7 @@ struct GroupedConvFwdKernelArgs
                       << ", number of N splits: " << n_splits
                       << ", input_batch_stride: " << input_batch_stride
                       << ", output_batch_stride: " << output_batch_stride
-                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch << std::endl;
+                      << ", NumGroupsToMerge: " << NumGroupsToMerge << std::endl;
         }
     }
 
@@ -195,14 +197,14 @@ struct GroupedConvFwdKernelArgs
         c_grid_desc_m_n =
             transformer_.template MakeCDescriptor_M_N<typename GroupedConvTraitsType_::OutLayout>();
 
-        NumGroupsPerBatch = GroupedConvTraitsType_::NumGroupsToMerge;
-        group_stride_a    = args.C_ * NumGroupsPerBatch;
-        group_stride_b    = args.K_ * args.C_ * NumGroupsPerBatch *
+        NumGroupsToMerge = GroupedConvTraitsType_::NumGroupsToMerge;
+        group_stride_a    = args.C_ * NumGroupsToMerge;
+        group_stride_b    = args.K_ * args.C_ * NumGroupsToMerge *
                          std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
                                          std::multiplies<index_t>());
-        group_stride_c = args.K_ * NumGroupsPerBatch;
+        group_stride_c = args.K_ * NumGroupsToMerge;
 
         // Initialize Split-N support fields for 2D convolution (NHWGC layout)
         // Get the actual split N from transformer
@@ -220,7 +222,7 @@ struct GroupedConvFwdKernelArgs
         GemmM     = a_grid_desc_m_k.get_length(number<0>{});
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
-        GemmBatch = integer_divide_ceil(args.G_, NumGroupsPerBatch);
+        GemmBatch = integer_divide_ceil(args.G_, NumGroupsToMerge);
 
         if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
         {
@@ -229,7 +231,7 @@ struct GroupedConvFwdKernelArgs
                       << ", number of N splits: " << n_splits
                       << ", input_batch_stride: " << input_batch_stride
                       << ", output_batch_stride: " << output_batch_stride
-                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch << std::endl;
+                      << ", NumGroupsToMerge: " << NumGroupsToMerge << std::endl;
         }
     }
 
@@ -302,14 +304,14 @@ struct GroupedConvFwdKernelArgs
         c_grid_desc_m_n =
             transformer_.template MakeCDescriptor_M_N<typename GroupedConvTraitsType_::OutLayout>();
 
-        NumGroupsPerBatch = GroupedConvTraitsType_::NumGroupsToMerge;
-        group_stride_a    = args.C_ * NumGroupsPerBatch;
-        group_stride_b    = args.K_ * args.C_ * NumGroupsPerBatch *
+        NumGroupsToMerge = GroupedConvTraitsType_::NumGroupsToMerge;
+        group_stride_a    = args.C_ * NumGroupsToMerge;
+        group_stride_b    = args.K_ * args.C_ * NumGroupsToMerge *
                          std::accumulate(args.filter_spatial_lengths_.begin(),
                                          args.filter_spatial_lengths_.end(),
                                          1,
                                          std::multiplies<index_t>());
-        group_stride_c = args.K_ * NumGroupsPerBatch;
+        group_stride_c = args.K_ * NumGroupsToMerge;
 
         // Initialize Split-N support fields for 3D convolution (NDHWGC layout)
         // Get the actual split N from transformer
@@ -327,7 +329,7 @@ struct GroupedConvFwdKernelArgs
         GemmM     = a_grid_desc_m_k.get_length(number<0>{});
         GemmN     = b_grid_desc_n_k.get_length(number<0>{});
         GemmK     = a_grid_desc_m_k.get_length(number<1>{});
-        GemmBatch = integer_divide_ceil(args.G_, NumGroupsPerBatch);
+        GemmBatch = integer_divide_ceil(args.G_, NumGroupsToMerge);
 
         if(ck_tile::EnvIsEnabled(CK_TILE_ENV(CK_TILE_LOGGING)))
         {
@@ -336,7 +338,7 @@ struct GroupedConvFwdKernelArgs
                       << ", number of N splits: " << n_splits
                       << ", input_batch_stride: " << input_batch_stride
                       << ", output_batch_stride: " << output_batch_stride
-                      << ", NumGroupsPerBatch: " << NumGroupsPerBatch << std::endl;
+                      << ", NumGroupsToMerge: " << NumGroupsToMerge << std::endl;
         }
     }
     using AGridDescMK = remove_cvref_t<
@@ -364,7 +366,7 @@ struct GroupedConvFwdKernelArgs
     index_t GemmN;
     index_t GemmK;
     index_t GemmBatch;
-    index_t NumGroupsPerBatch;
+    index_t NumGroupsToMerge;
 
     const void* in_ptr;
     const void* wei_ptr;
