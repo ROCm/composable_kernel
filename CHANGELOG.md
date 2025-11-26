@@ -5,6 +5,7 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 ## Composable Kernel 1.2.0 for ROCm 7.2.0
 
 ### Added
+* Added support for bf16 data type to grouped_gemm and grouped_gemm_preshuffle.
 * Added support for mixed precision fp8 x bf8 universal GEMM and weight preshuffle GEMM
 * Added a compute async pipeline in the CK TILE universal GEMM on gfx950
 * Added support for B Tensor type pk_int4_t in the CK TILE weight preshuffle GEMM.
@@ -32,7 +33,13 @@ Documentation for Composable Kernel available at [https://rocm.docs.amd.com/proj
 
 ### Upcoming changes
 
-* To enhance capabilities and user experience, Composable Kernel will adopt C++20 features in ROCm 8.0, updating the minimum compiler requirement to C++20. Please ensure your development environment meets this requirement for a seamless transition.
+* Composable Kernel will be adopting C++20 features in an upcoming ROCm release, updating the minimum compiler requirement to C++20. Ensure that your development environment complies with this requirement to facilitate a seamless transition.
+
+## Composable Kernel 1.1.0 for ROCm 7.1.1
+
+### Upcoming changes
+
+* Composable Kernel will be adopting C++20 features in an upcoming ROCm release, updating the minimum compiler requirement to C++20. Ensure that your development environment complies with this requirement to facilitate a seamless transition.
 
 ## Composable Kernel 1.1.0 for ROCm 7.1.0
 

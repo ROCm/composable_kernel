@@ -1,13 +1,15 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include <iostream>
 #include <string>
+#include <tuple>
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/core/tensor/tile_elementwise.hpp"
+#include "ck_tile/core/utility/functional.hpp"
 #include "ck_tile/ops/common.hpp"
 #include "ck_tile/host/concat.hpp"
 #include "ck_tile/core/utility/env.hpp"
@@ -488,6 +490,9 @@ struct GroupedConvolutionForwardKernel
     static_assert(std::is_same_v<GemmALayout, tensor_layout::gemm::RowMajor>, "Not supported!");
     static_assert(std::is_same_v<GemmBLayout, tensor_layout::gemm::ColumnMajor>, "Not supported!");
     static_assert(std::is_same_v<GemmCLayout, tensor_layout::gemm::RowMajor>, "Not supported!");
+    static_assert(GroupedConvTraitsType_::ExplicitGemm == false ||
+                      GroupedConvTraitsType_::NumGroupsToMerge == 1,
+                  "Not supported!");
 
     // Helper struct for spatial coordinates
     struct SpatialCoords
@@ -676,6 +681,14 @@ struct GroupedConvolutionForwardKernel
             }
         }
 
+        if constexpr(GroupedConvTraitsType_::ExplicitGemm &&
+                     ConvSpecialization != ConvolutionSpecialization::Filter1x1Stride1Pad0)
+        {
+            CK_TILE_ERROR(
+                "Explicit Gemm is supported only for Filter1x1Stride1Pad0 specialization!");
+            return false;
+        }
+
         namespace ctc = tensor_layout::convolution;
 
         if constexpr(std::is_same_v<InLayout, ctc::NWGC> || std::is_same_v<InLayout, ctc::NHWGC> ||
@@ -745,8 +758,8 @@ struct GroupedConvolutionForwardKernel
                         const BDescType& b_desc,
                         const CDescType& c_desc)
     {
-        static_assert(!TilePartitioner::BlockGemmShape::PermuteA, "Not implemented!");
-        static_assert(!TilePartitioner::BlockGemmShape::PermuteB, "Not implemented!");
+        static_assert(!GemmPipeline::BlockGemmShape::PermuteA, "Not implemented!");
+        static_assert(!GemmPipeline::BlockGemmShape::PermuteB, "Not implemented!");
         const auto& a_tensor_view = [&]() {
             return make_tensor_view<address_space_enum::global>(a_ptr, a_desc);
         }();
@@ -884,7 +897,8 @@ struct GroupedConvolutionForwardKernel
                                        const CDescType& c_desc,
                                        const index_t gemm_k,
                                        const index_t block_idx_m,
-                                       const index_t block_idx_n)
+                                       const index_t block_idx_n,
+                                       const CDElementwise& elfunc)
     {
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
@@ -907,8 +921,9 @@ struct GroupedConvolutionForwardKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I3);
 
-        EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-            c_block_window, c_block_tile, d_block_window, smem_ptr_0);
+        EpiloguePipeline{elfunc}
+            .template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+                c_block_window, c_block_tile, d_block_window, smem_ptr_0);
     }
 
     /**
@@ -942,7 +957,8 @@ struct GroupedConvolutionForwardKernel
                                            const CDescType& c_desc,
                                            const index_t gemm_k,
                                            const index_t block_idx_m,
-                                           const index_t block_idx_n)
+                                           const index_t block_idx_n,
+                                           const CDElementwise& elfunc)
     {
         // Create Gemm tensor views, pad views and tile windows
         const auto& gemm_tensor_views_tuple =
@@ -964,156 +980,202 @@ struct GroupedConvolutionForwardKernel
         // Run Epilogue Pipeline
         auto& c_block_window = gemm_tile_windows.at(I3);
 
-        EpiloguePipeline{}.template operator()<decltype(c_block_window), decltype(c_block_tile)>(
-            c_block_window, c_block_tile, d_block_window, smem_ptr_0);
+        EpiloguePipeline{elfunc}
+            .template operator()<decltype(c_block_window), decltype(c_block_tile)>(
+                c_block_window, c_block_tile, d_block_window, smem_ptr_0);
     }
 
-    CK_TILE_DEVICE void operator()(GroupedConvFwdKernelArgsSpecialized kargs) const
+    CK_TILE_DEVICE void CallExplicitGemm(GroupedConvFwdKernelArgsSpecialized& kargs) const
     {
-        const auto blockIdX = amd_wave_read_first_lane(blockIdx.x);
-        const auto blockIdY = amd_wave_read_first_lane(blockIdx.y);
+        static_assert(NumDTensor == 0, "Not supported!");
+        using ExplicitBatchedGemmKernel =
+            BatchedGemmKernel<TilePartitioner, GemmPipeline, EpiloguePipeline>;
+        const auto batched_gemm_kargs = typename ExplicitBatchedGemmKernel::BatchedGemmKernelArgs{
+            {{kargs.in_ptr},
+             {kargs.wei_ptr},
+             {},
+             kargs.out_ptr,
+             kargs.GemmM,
+             kargs.GemmN,
+             kargs.GemmK,
+             {kargs.GemmK * kargs.GemmBatch},
+             {kargs.GemmK},
+             {},
+             kargs.GemmBatch * kargs.GemmN,
+             kargs.k_batch},
+            kargs.GemmK,
+            kargs.GemmN * kargs.GemmK,
+            kargs.GemmN,
+            kargs.GemmBatch};
+        ExplicitBatchedGemmKernel{}(batched_gemm_kargs);
+    }
 
-        const auto group_offset_a = amd_wave_read_first_lane(kargs.group_stride_a * blockIdY);
-        const auto group_offset_b = amd_wave_read_first_lane(kargs.group_stride_b * blockIdY);
-        const auto group_offset_c = amd_wave_read_first_lane(kargs.group_stride_c * blockIdY);
-
-        // Split-N handling: Get which split this workgroup handles
-        const auto blockIdZ = amd_wave_read_first_lane(blockIdx.z);
-
-        // Calculate batch offset for this split
-        const index_t batch_offset = amd_wave_read_first_lane(blockIdZ * kargs.n_per_split);
-
-        // Calculate memory offsets for this split
-        const long_index_t input_batch_offset = static_cast<long_index_t>(batch_offset) *
-                                                static_cast<long_index_t>(kargs.input_batch_stride);
-        const long_index_t output_batch_offset =
-            static_cast<long_index_t>(batch_offset) *
-            static_cast<long_index_t>(kargs.output_batch_stride);
-
-        // Calculate base pointers with group and batch offsets
-        const InDataType* base_a_ptr =
-            static_cast<const InDataType*>(kargs.in_ptr) + group_offset_a + input_batch_offset;
-        const WeiDataType* b_ptr = static_cast<const WeiDataType*>(kargs.wei_ptr) +
-                                   group_offset_b; // No batch offset for weights!
-        OutDataType* base_c_ptr =
-            static_cast<OutDataType*>(kargs.out_ptr) + group_offset_c + output_batch_offset;
-
-        // =====================================================================
-        // Split-image: Map local block to global tile index (if enabled)
-        // =====================================================================
-        const InDataType* a_ptr;
-        OutDataType* c_ptr;
-        index_t i_m = 0;
-        index_t i_n = 0;
-
-        // Pre-calculate block_id (used in both split-image and non-split paths)
-        const index_t block_id = static_cast<index_t>(blockIdX);
-
-        if constexpr(EnableSplitImage)
+    CK_TILE_DEVICE void operator()(GroupedConvFwdKernelArgsSpecialized& kargs) const
+    {
+        if constexpr(GroupedConvTraitsType_::ExplicitGemm)
         {
-            // Add spatial offsets for split-image (constexpr optimization)
-            a_ptr = base_a_ptr + kargs.spatial_offset_in;
-            c_ptr = base_c_ptr + kargs.spatial_offset_out;
-
-            // Find which piece owns this block using binary search
-            // Reference: device_grouped_conv_fwd_multiple_d_xdl_large_tensor_cshuffle.hpp
-            const index_t piece_id =
-                FindPieceId(block_id, kargs.split_image, kargs.num_spatial_pieces);
-            const auto& piece      = kargs.split_image.pieces[piece_id];
-            const auto& split_info = kargs.split_image;
-
-            // Calculate local block ID and tile indices
-            const index_t local_block_id = block_id - piece.block_start;
-            const index_t local_gemm_m =
-                kargs.n_per_split * piece.d_size * piece.h_size * piece.w_size;
-            const auto [local_tile_m, local_tile_n] =
-                TilePartitioner{local_gemm_m, kargs.GemmN}.GetOutputTileIndex(local_block_id);
-
-            // Extract batch and spatial coordinates from local tile
-            const index_t local_m_start      = local_tile_m * TilePartitioner::MPerBlock;
-            const index_t spatial_per_batch  = piece.d_size * piece.h_size * piece.w_size;
-            const index_t local_n            = local_m_start / spatial_per_batch;
-            const index_t local_spatial_flat = local_m_start % spatial_per_batch;
-
-            // Convert to local spatial coordinates
-            const auto local_coords =
-                UnflattenSpatial(local_spatial_flat, piece.h_size, piece.w_size);
-
-            // Convert to global spatial coordinates
-            const index_t global_n = local_n;
-            const index_t global_d = piece.d_start + local_coords.d;
-            const index_t global_h = piece.h_start + local_coords.h;
-            const index_t global_w = piece.w_start + local_coords.w;
-
-            // Convert to global M index
-            const index_t global_spatial_per_batch = split_info.total_spatial; // Pre-calculated
-            const index_t global_spatial_flat      = FlattenSpatial(
-                global_d, global_h, global_w, split_info.total_h, split_info.total_w);
-            const index_t global_m = global_n * global_spatial_per_batch + global_spatial_flat;
-
-            // Set tile indices for GEMM operation
-            i_m = amd_wave_read_first_lane(global_m);
-            i_n = amd_wave_read_first_lane(local_tile_n * TilePartitioner::NPerBlock);
+            CallExplicitGemm(kargs);
         }
         else
         {
-            // No spatial offsets needed for regular path
-            a_ptr = base_a_ptr;
-            c_ptr = base_c_ptr;
+            const auto blockIdX = amd_wave_read_first_lane(blockIdx.x);
+            const auto blockIdY = amd_wave_read_first_lane(blockIdx.y);
 
-            // No split-image: use standard tile partitioning
-            const auto [iM, iN] =
-                TilePartitioner{kargs.GemmM, kargs.GemmN}.GetOutputTileIndex(block_id);
-            i_m = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
-            i_n = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
-        }
+            const auto group_offset_a = amd_wave_read_first_lane(kargs.group_stride_a * blockIdY);
+            const auto group_offset_b = amd_wave_read_first_lane(kargs.group_stride_b * blockIdY);
+            const auto group_offset_c = amd_wave_read_first_lane(kargs.group_stride_c * blockIdY);
 
-        // Use global descriptors for all cases
-        const auto& a_desc = kargs.a_grid_desc_m_k;
-        const auto& b_desc = kargs.b_grid_desc_n_k;
-        const auto& c_desc = kargs.c_grid_desc_m_n;
+            // Split-N handling: Get which split this workgroup handles
+            const auto blockIdZ = amd_wave_read_first_lane(blockIdx.z);
 
-        // allocate LDS
-        __shared__ char smem_ptr_0[GetSmemSize()];
+            // Calculate batch offset for this split
+            const index_t batch_offset = amd_wave_read_first_lane(blockIdZ * kargs.n_per_split);
 
-        if constexpr(GemmPipeline::DoubleSmemBuffer == true)
-        {
-            __shared__ char smem_ptr_1[GetSmemSize()];
-            if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
-                           GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
-                           is_any_of<OutDataType, fp16_t, bf16_t>::value))
+            // Calculate memory offsets for this split
+            const long_index_t input_batch_offset =
+                static_cast<long_index_t>(batch_offset) *
+                static_cast<long_index_t>(kargs.input_batch_stride);
+            const long_index_t output_batch_offset =
+                static_cast<long_index_t>(batch_offset) *
+                static_cast<long_index_t>(kargs.output_batch_stride);
+
+            // Calculate base pointers with group and batch offsets
+            const InDataType* base_a_ptr =
+                static_cast<const InDataType*>(kargs.in_ptr) + group_offset_a + input_batch_offset;
+            const WeiDataType* b_ptr = static_cast<const WeiDataType*>(kargs.wei_ptr) +
+                                       group_offset_b; // No batch offset for weights!
+            OutDataType* base_c_ptr =
+                static_cast<OutDataType*>(kargs.out_ptr) + group_offset_c + output_batch_offset;
+
+            // Apply group offsets to D tensors
+            std::array<const void*, NumDTensor> ds_ptr_with_offsets;
+            static_for<0, NumDTensor, 1>{}([&](auto d) {
+                using DType            = std::tuple_element_t<d, DsDataType>;
+                ds_ptr_with_offsets[d] = static_cast<const DType*>(kargs.ds_ptr[d]) +
+                                         group_offset_c + output_batch_offset;
+            });
+
+            // =====================================================================
+            // Split-image: Map local block to global tile index (if enabled)
+            // =====================================================================
+            const InDataType* a_ptr;
+            OutDataType* c_ptr;
+            index_t i_m = 0;
+            index_t i_n = 0;
+
+            // Pre-calculate block_id (used in both split-image and non-split paths)
+            const index_t block_id = static_cast<index_t>(blockIdX);
+
+            if constexpr(EnableSplitImage)
             {
-                RunGemm2LDS(a_ptr,
+                // Add spatial offsets for split-image (constexpr optimization)
+                a_ptr = base_a_ptr + kargs.spatial_offset_in;
+                c_ptr = base_c_ptr + kargs.spatial_offset_out;
+
+                // Find which piece owns this block using binary search
+                // Reference: device_grouped_conv_fwd_multiple_d_xdl_large_tensor_cshuffle.hpp
+                const index_t piece_id =
+                    FindPieceId(block_id, kargs.split_image, kargs.num_spatial_pieces);
+                const auto& piece      = kargs.split_image.pieces[piece_id];
+                const auto& split_info = kargs.split_image;
+
+                // Calculate local block ID and tile indices
+                const index_t local_block_id = block_id - piece.block_start;
+                const index_t local_gemm_m =
+                    kargs.n_per_split * piece.d_size * piece.h_size * piece.w_size;
+                const auto [local_tile_m, local_tile_n] =
+                    TilePartitioner{local_gemm_m, kargs.GemmN}.GetOutputTileIndex(local_block_id);
+
+                // Extract batch and spatial coordinates from local tile
+                const index_t local_m_start      = local_tile_m * TilePartitioner::MPerBlock;
+                const index_t spatial_per_batch  = piece.d_size * piece.h_size * piece.w_size;
+                const index_t local_n            = local_m_start / spatial_per_batch;
+                const index_t local_spatial_flat = local_m_start % spatial_per_batch;
+
+                // Convert to local spatial coordinates
+                const auto local_coords =
+                    UnflattenSpatial(local_spatial_flat, piece.h_size, piece.w_size);
+
+                // Convert to global spatial coordinates
+                const index_t global_n = local_n;
+                const index_t global_d = piece.d_start + local_coords.d;
+                const index_t global_h = piece.h_start + local_coords.h;
+                const index_t global_w = piece.w_start + local_coords.w;
+
+                // Convert to global M index
+                const index_t global_spatial_per_batch = split_info.total_spatial; // Pre-calculated
+                const index_t global_spatial_flat      = FlattenSpatial(
+                    global_d, global_h, global_w, split_info.total_h, split_info.total_w);
+                const index_t global_m = global_n * global_spatial_per_batch + global_spatial_flat;
+
+                // Set tile indices for GEMM operation
+                i_m = amd_wave_read_first_lane(global_m);
+                i_n = amd_wave_read_first_lane(local_tile_n * TilePartitioner::NPerBlock);
+            }
+            else
+            {
+                // No spatial offsets needed for regular path
+                a_ptr = base_a_ptr;
+                c_ptr = base_c_ptr;
+
+                // No split-image: use standard tile partitioning
+                const auto [iM, iN] =
+                    TilePartitioner{kargs.GemmM, kargs.GemmN}.GetOutputTileIndex(block_id);
+                i_m = amd_wave_read_first_lane(iM * TilePartitioner::MPerBlock);
+                i_n = amd_wave_read_first_lane(iN * TilePartitioner::NPerBlock);
+            }
+
+            // Use global descriptors for all cases
+            const auto& a_desc = kargs.a_grid_desc_m_k;
+            const auto& b_desc = kargs.b_grid_desc_n_k;
+            const auto& c_desc = kargs.c_grid_desc_m_n;
+
+            // allocate LDS
+            __shared__ char smem_ptr_0[GetSmemSize()];
+
+            if constexpr(GemmPipeline::DoubleSmemBuffer == true)
+            {
+                __shared__ char smem_ptr_1[GetSmemSize()];
+                if constexpr(!(EpiloguePipeline::MemoryOperation ==
+                                   memory_operation_enum::atomic_add &&
+                               GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
+                               is_any_of<OutDataType, fp16_t, bf16_t>::value))
+                {
+                    RunGemm2LDS(a_ptr,
+                                b_ptr,
+                                ds_ptr_with_offsets,
+                                c_ptr,
+                                smem_ptr_0,
+                                smem_ptr_1,
+                                a_desc,
+                                b_desc,
+                                c_desc,
+                                kargs.GemmK,
+                                i_m,
+                                i_n,
+                                kargs.elfunc);
+                }
+            }
+            else
+            {
+                if constexpr(!(EpiloguePipeline::MemoryOperation ==
+                                   memory_operation_enum::atomic_add &&
+                               GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
+                               is_any_of<OutDataType, fp16_t, bf16_t>::value))
+                {
+                    RunGemm(a_ptr,
                             b_ptr,
-                            kargs.ds_ptr,
+                            ds_ptr_with_offsets,
                             c_ptr,
                             smem_ptr_0,
-                            smem_ptr_1,
                             a_desc,
                             b_desc,
                             c_desc,
                             kargs.GemmK,
                             i_m,
-                            i_n);
-            }
-        }
-        else
-        {
-            if constexpr(!(EpiloguePipeline::MemoryOperation == memory_operation_enum::atomic_add &&
-                           GroupedConvTraitsType_::VectorSizeC % 2 != 0 &&
-                           is_any_of<OutDataType, fp16_t, bf16_t>::value))
-            {
-                RunGemm(a_ptr,
-                        b_ptr,
-                        kargs.ds_ptr,
-                        c_ptr,
-                        smem_ptr_0,
-                        a_desc,
-                        b_desc,
-                        c_desc,
-                        kargs.GemmK,
-                        i_m,
-                        i_n);
+                            i_n,
+                            kargs.elfunc);
+                }
             }
         }
     }

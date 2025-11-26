@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <cmath>
 #include <cstdlib>
@@ -21,6 +21,8 @@
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_fwd.hpp"
 
 namespace {
+
+using ::ck::Tensor;
 
 using InElementOp  = ck::tensor_operation::element_wise::PassThrough;
 using WeiElementOp = ck::tensor_operation::element_wise::PassThrough;

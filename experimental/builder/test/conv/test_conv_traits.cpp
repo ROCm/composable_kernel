@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <gtest/gtest.h>
 #include <gmock/gmock.h>
@@ -74,7 +74,7 @@ TEST_F(ConvTraitsTest, ConvFwdTraitsExtraction)
                          8>, // CDEBlockTransferClusterLengths_MBlock_MPerBlock_NBlock_NPerBlock
             8,               // CDEBlockTransferScalarPerVector_NPerBlock
             ck::BlockGemmPipelineScheduler::Intrawave, // BlkGemmPipeSched
-            ck::PipelineVersion::v1,                   // BlkGemmPipelineVer
+            ck::BlockGemmPipelineVersion::v1,          // BlkGemmPipelineVer
             ck::half_t,                                // AComputeDataType
             ck::half_t,                                // BComputeDataType
             false>;                                    // DirectLoad

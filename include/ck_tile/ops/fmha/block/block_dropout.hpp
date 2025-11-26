@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -333,23 +333,15 @@ struct BlockDropout
             return randval;
         };
 
-        if(is_store_randval)
-        {
-            static_for<0, kMPerBlock / kMPerStep, 1>{}([&](auto i_m0) {
-                static_for<0, kNPerBlock / kNPerStep, 1>{}([&](auto i_n0) {
-                    const auto randval = generate_randval(i_m0, i_n0);
-                    // save to Global
-                    const auto randval_store = cast_tile<RandValOutputDataType>(randval);
-                    store_tile(randval_dram_window, randval_store);
-                    move_tile_window(randval_dram_window, {0, kNPerStep});
-                });
-                move_tile_window(randval_dram_window, {kMPerStep, -kNPerBlock});
-            });
-            move_tile_window(randval_dram_window, {-kMPerBlock, kNPerBlock});
-        }
         static_for<0, kMPerBlock / kMPerStep, 1>{}([&](auto i_m0) {
             static_for<0, kNPerBlock / kNPerStep, 1>{}([&](auto i_n0) {
                 const auto randval = generate_randval(i_m0, i_n0);
+                if(is_store_randval)
+                {
+                    const auto randval_store = cast_tile<RandValOutputDataType>(randval);
+                    store_tile(randval_dram_window, randval_store);
+                }
+                move_tile_window(randval_dram_window, {0, kNPerStep});
                 // Drop values of P based on the generated probabilities
                 constexpr auto randval_spans = decltype(randval)::get_distributed_spans();
                 sweep_tile_span(randval_spans[number<0>{}], [&](auto idx0) {
@@ -369,7 +361,9 @@ struct BlockDropout
                     });
                 });
             });
+            move_tile_window(randval_dram_window, {kMPerStep, -kNPerBlock});
         });
+        move_tile_window(randval_dram_window, {-kMPerBlock, kNPerBlock});
     }
 
     const unsigned long long ph_seed;
