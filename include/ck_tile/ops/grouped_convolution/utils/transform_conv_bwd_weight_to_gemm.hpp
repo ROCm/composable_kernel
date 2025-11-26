@@ -9,7 +9,7 @@
 namespace ck_tile {
 
 template <index_t NDimSpatial,
-          ConvolutionSpecialization ConvolutionSpecialization,
+          ConvolutionSpecialization ConvSpec,
           index_t VectorSizeA,
           index_t VectorSizeB,
           index_t VectorSizeC,
@@ -436,10 +436,17 @@ struct TransformConvBwdWeightToGemm
         constexpr auto CStride = I1;
 
         // TODO Add support for NumGroupsToMerge > 1
-        return make_naive_tensor_descriptor(make_tuple(N_, Wi_, C_),
-                                            make_tuple(NStride, WiStride, CStride),
-                                            number<VectorSizeB>{},
-                                            I1);
+        if constexpr(ConvSpec == ConvolutionSpecialization::Filter1x1Stride1Pad0) {
+            return make_naive_tensor_descriptor(make_tuple(N_ * Wi_, C_),
+                                                make_tuple(WiStride, CStride),
+                                                number<VectorSizeB>{},
+                                                I1);
+        } else {
+            return make_naive_tensor_descriptor(make_tuple(N_, Wi_, C_),
+                                                make_tuple(NStride, WiStride, CStride),
+                                                number<VectorSizeB>{},
+                                                I1);
+        }
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 1, bool>::type = false>
@@ -478,10 +485,17 @@ struct TransformConvBwdWeightToGemm
         constexpr auto CStride = I1;
 
         // TODO Add support for NumGroupsToMerge > 1
-        return make_naive_tensor_descriptor(make_tuple(N_, Hi_, Wi_, C_), // K_N
-                                            make_tuple(NStride, HiStride, WiStride, CStride),
-                                            number<VectorSizeB>{},
-                                            I1);
+        if constexpr(ConvSpec == ConvolutionSpecialization::Filter1x1Stride1Pad0) {
+            return make_naive_tensor_descriptor(make_tuple(N_ * Hi_ * Wi_, C_), // K_N
+                                                make_tuple(WiStride, CStride),
+                                                number<VectorSizeB>{},
+                                                I1);
+        } else {
+            return make_naive_tensor_descriptor(make_tuple(N_, Hi_, Wi_, C_), // K_N
+                                                make_tuple(NStride, HiStride, WiStride, CStride),
+                                                number<VectorSizeB>{},
+                                                I1);     
+        }
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 2, bool>::type = false>
@@ -520,11 +534,19 @@ struct TransformConvBwdWeightToGemm
         constexpr auto CStride = I1;
 
         // TODO Add support for NumGroupsToMerge > 1
-        return make_naive_tensor_descriptor(
-            make_tuple(N_, Di_, Hi_, Wi_, C_),
-            make_tuple(NStride, DiStride, HiStride, WiStride, CStride),
-            number<VectorSizeB>{},
-            I1);
+        if constexpr(ConvSpec == ConvolutionSpecialization::Filter1x1Stride1Pad0) {
+            return make_naive_tensor_descriptor(
+                make_tuple(N_ * Di_ * Hi_ * Wi_, C_),
+                make_tuple(WiStride, CStride),
+                number<VectorSizeB>{},
+                I1);
+        } else {
+            return make_naive_tensor_descriptor(
+                make_tuple(N_, Di_, Hi_, Wi_, C_),
+                make_tuple(NStride, DiStride, HiStride, WiStride, CStride),
+                number<VectorSizeB>{},
+                I1);    
+        }
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 3, bool>::type = false>
@@ -551,32 +573,36 @@ struct TransformConvBwdWeightToGemm
         const auto in_grid_desc  = make_in_grid_desc<NDimSpatial>();
         const auto wei_grid_desc = make_wei_grid_desc<NDimSpatial>();
 
-        // B: input tensor comes in K_N
-        const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
-            in_grid_desc,
-            make_tuple(make_pass_through_transform(N_),
-                       make_pad_transform(Wi_, InLeftPadW_, InRightPadW_),
-                       make_pass_through_transform(C_)),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
+        if constexpr(ConvSpec == ConvolutionSpecialization::Filter1x1Stride1Pad0) {
+            return make_tuple(out_grid_desc, in_grid_desc, wei_grid_desc);
+        } else {
+            // B: input tensor comes in K_N
+            const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
+                in_grid_desc,
+                make_tuple(make_pass_through_transform(N_),
+                        make_pad_transform(Wi_, InLeftPadW_, InRightPadW_),
+                        make_pass_through_transform(C_)),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}));
 
-        const auto in_n_y_ho_x_wo_c_grid_desc = transform_tensor_descriptor(
-            in_n_hip_wip_c_grid_desc,
-            make_tuple(
-                make_pass_through_transform(N_),
-                make_embed_transform(make_tuple(X_, Wo_), make_tuple(ConvDilationW_, ConvStrideW_)),
-                make_pass_through_transform(C_)),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
-            make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
+            const auto in_n_y_ho_x_wo_c_grid_desc = transform_tensor_descriptor(
+                in_n_hip_wip_c_grid_desc,
+                make_tuple(
+                    make_pass_through_transform(N_),
+                    make_embed_transform(make_tuple(X_, Wo_), make_tuple(ConvDilationW_, ConvStrideW_)),
+                    make_pass_through_transform(C_)),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}),
+                make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3>{}));
 
-        const auto in_gemmn_gemmktotal_grid_desc =
-            transform_tensor_descriptor(in_n_y_ho_x_wo_c_grid_desc,
-                                        make_tuple(make_merge_transform(make_tuple(X_, C_)),
-                                                   make_merge_transform(make_tuple(N_, Wo_))),
-                                        make_tuple(sequence<1, 3>{}, sequence<0, 2>{}),
-                                        make_tuple(sequence<1>{}, sequence<0>{}));
+            const auto in_gemmn_gemmktotal_grid_desc =
+                transform_tensor_descriptor(in_n_y_ho_x_wo_c_grid_desc,
+                                            make_tuple(make_merge_transform(make_tuple(X_, C_)),
+                                                    make_merge_transform(make_tuple(N_, Wo_))),
+                                            make_tuple(sequence<1, 3>{}, sequence<0, 2>{}),
+                                            make_tuple(sequence<1>{}, sequence<0>{}));
 
-        return make_tuple(out_grid_desc, in_gemmn_gemmktotal_grid_desc, wei_grid_desc);
+            return make_tuple(out_grid_desc, in_gemmn_gemmktotal_grid_desc, wei_grid_desc);
+        }
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 2, bool>::type = false>
@@ -586,34 +612,38 @@ struct TransformConvBwdWeightToGemm
         const auto in_grid_desc  = make_in_grid_desc<NDimSpatial>();
         const auto wei_grid_desc = make_wei_grid_desc<NDimSpatial>();
 
-        // B: input tensor comes in K_N
-        const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
-            in_grid_desc,
-            make_tuple(make_pass_through_transform(N_),
-                       make_pad_transform(Hi_, InLeftPadH_, InRightPadH_),
-                       make_pad_transform(Wi_, InLeftPadW_, InRightPadW_),
-                       make_pass_through_transform(C_)),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}));
+        if constexpr(ConvSpec == ConvolutionSpecialization::Filter1x1Stride1Pad0) {
+            return make_tuple(out_grid_desc, in_grid_desc, wei_grid_desc);
+        } else {
+            // B: input tensor comes in K_N
+            const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
+                in_grid_desc,
+                make_tuple(make_pass_through_transform(N_),
+                        make_pad_transform(Hi_, InLeftPadH_, InRightPadH_),
+                        make_pad_transform(Wi_, InLeftPadW_, InRightPadW_),
+                        make_pass_through_transform(C_)),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}));
 
-        const auto in_n_y_ho_x_wo_c_grid_desc = transform_tensor_descriptor(
-            in_n_hip_wip_c_grid_desc,
-            make_tuple(
-                make_pass_through_transform(N_),
-                make_embed_transform(make_tuple(Y_, Ho_), make_tuple(ConvDilationH_, ConvStrideH_)),
-                make_embed_transform(make_tuple(X_, Wo_), make_tuple(ConvDilationW_, ConvStrideW_)),
-                make_pass_through_transform(C_)),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
-            make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3, 4>{}, sequence<5>{}));
+            const auto in_n_y_ho_x_wo_c_grid_desc = transform_tensor_descriptor(
+                in_n_hip_wip_c_grid_desc,
+                make_tuple(
+                    make_pass_through_transform(N_),
+                    make_embed_transform(make_tuple(Y_, Ho_), make_tuple(ConvDilationH_, ConvStrideH_)),
+                    make_embed_transform(make_tuple(X_, Wo_), make_tuple(ConvDilationW_, ConvStrideW_)),
+                    make_pass_through_transform(C_)),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}),
+                make_tuple(sequence<0>{}, sequence<1, 2>{}, sequence<3, 4>{}, sequence<5>{}));
 
-        const auto in_gemmn_gemmktotal_grid_desc =
-            transform_tensor_descriptor(in_n_y_ho_x_wo_c_grid_desc,
-                                        make_tuple(make_merge_transform(make_tuple(Y_, X_, C_)),
-                                                   make_merge_transform(make_tuple(N_, Ho_, Wo_))),
-                                        make_tuple(sequence<1, 3, 5>{}, sequence<0, 2, 4>{}),
-                                        make_tuple(sequence<1>{}, sequence<0>{}));
+            const auto in_gemmn_gemmktotal_grid_desc =
+                transform_tensor_descriptor(in_n_y_ho_x_wo_c_grid_desc,
+                                            make_tuple(make_merge_transform(make_tuple(Y_, X_, C_)),
+                                                    make_merge_transform(make_tuple(N_, Ho_, Wo_))),
+                                            make_tuple(sequence<1, 3, 5>{}, sequence<0, 2, 4>{}),
+                                            make_tuple(sequence<1>{}, sequence<0>{}));
 
-        return make_tuple(out_grid_desc, in_gemmn_gemmktotal_grid_desc, wei_grid_desc);
+            return make_tuple(out_grid_desc, in_gemmn_gemmktotal_grid_desc, wei_grid_desc);
+        }
     }
 
     template <index_t NDim = NDimSpatial, typename std::enable_if<NDim == 3, bool>::type = false>
@@ -623,40 +653,44 @@ struct TransformConvBwdWeightToGemm
         const auto in_grid_desc  = make_in_grid_desc<NDimSpatial>();
         const auto wei_grid_desc = make_wei_grid_desc<NDimSpatial>();
 
-        // B: input tensor comes in K_N
-        const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
-            in_grid_desc,
-            make_tuple(make_pass_through_transform(N_),
-                       make_pad_transform(Di_, InLeftPadD_, InRightPadD_),
-                       make_pad_transform(Hi_, InLeftPadH_, InRightPadH_),
-                       make_pad_transform(Wi_, InLeftPadW_, InRightPadW_),
-                       make_pass_through_transform(C_)),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}, sequence<4>{}),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}, sequence<4>{}));
+        if constexpr(ConvSpec == ConvolutionSpecialization::Filter1x1Stride1Pad0) {
+            return make_tuple(out_grid_desc, in_grid_desc, wei_grid_desc);
+        } else {
+            // B: input tensor comes in K_N
+            const auto in_n_hip_wip_c_grid_desc = transform_tensor_descriptor(
+                in_grid_desc,
+                make_tuple(make_pass_through_transform(N_),
+                        make_pad_transform(Di_, InLeftPadD_, InRightPadD_),
+                        make_pad_transform(Hi_, InLeftPadH_, InRightPadH_),
+                        make_pad_transform(Wi_, InLeftPadW_, InRightPadW_),
+                        make_pass_through_transform(C_)),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}, sequence<4>{}),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}, sequence<4>{}));
 
-        const auto in_n_y_ho_x_wo_c_grid_desc = transform_tensor_descriptor(
-            in_n_hip_wip_c_grid_desc,
-            make_tuple(
-                make_pass_through_transform(N_),
-                make_embed_transform(make_tuple(Z_, Do_), make_tuple(ConvDilationD_, ConvStrideD_)),
-                make_embed_transform(make_tuple(Y_, Ho_), make_tuple(ConvDilationH_, ConvStrideH_)),
-                make_embed_transform(make_tuple(X_, Wo_), make_tuple(ConvDilationW_, ConvStrideW_)),
-                make_pass_through_transform(C_)),
-            make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}, sequence<4>{}),
-            make_tuple(sequence<0>{},
-                       sequence<1, 2>{},
-                       sequence<3, 4>{},
-                       sequence<5, 6>{},
-                       sequence<7>{}));
+            const auto in_n_y_ho_x_wo_c_grid_desc = transform_tensor_descriptor(
+                in_n_hip_wip_c_grid_desc,
+                make_tuple(
+                    make_pass_through_transform(N_),
+                    make_embed_transform(make_tuple(Z_, Do_), make_tuple(ConvDilationD_, ConvStrideD_)),
+                    make_embed_transform(make_tuple(Y_, Ho_), make_tuple(ConvDilationH_, ConvStrideH_)),
+                    make_embed_transform(make_tuple(X_, Wo_), make_tuple(ConvDilationW_, ConvStrideW_)),
+                    make_pass_through_transform(C_)),
+                make_tuple(sequence<0>{}, sequence<1>{}, sequence<2>{}, sequence<3>{}, sequence<4>{}),
+                make_tuple(sequence<0>{},
+                        sequence<1, 2>{},
+                        sequence<3, 4>{},
+                        sequence<5, 6>{},
+                        sequence<7>{}));
 
-        const auto in_gemmn_gemmktotal_grid_desc = transform_tensor_descriptor(
-            in_n_y_ho_x_wo_c_grid_desc,
-            make_tuple(make_merge_transform(make_tuple(Z_, Y_, X_, C_)),
-                       make_merge_transform(make_tuple(N_, Do_, Ho_, Wo_))),
-            make_tuple(sequence<1, 3, 5, 7>{}, sequence<0, 2, 4, 6>{}),
-            make_tuple(sequence<1>{}, sequence<0>{}));
+            const auto in_gemmn_gemmktotal_grid_desc = transform_tensor_descriptor(
+                in_n_y_ho_x_wo_c_grid_desc,
+                make_tuple(make_merge_transform(make_tuple(Z_, Y_, X_, C_)),
+                        make_merge_transform(make_tuple(N_, Do_, Ho_, Wo_))),
+                make_tuple(sequence<1, 3, 5, 7>{}, sequence<0, 2, 4, 6>{}),
+                make_tuple(sequence<1>{}, sequence<0>{}));
 
-        return make_tuple(out_grid_desc, in_gemmn_gemmktotal_grid_desc, wei_grid_desc);
+            return make_tuple(out_grid_desc, in_gemmn_gemmktotal_grid_desc, wei_grid_desc);
+        }
     }
 
     IndexType G_, N_;

@@ -53,6 +53,7 @@ template <
     typename InElementwiseOperation,
     typename WeiElementwiseOperation,
     typename OutElementwiseOperation,
+    ck_tile::ConvolutionSpecialization ConvSpec,
     int kBlockPerCu,
     ck_tile::index_t M_Tile,
     ck_tile::index_t N_Tile,
@@ -86,8 +87,6 @@ struct GroupedConvolutionBackwardWeightInvoker :
             ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>,
             GemmConfigBase::PermuteA,
             GemmConfigBase::PermuteB>;
-
-    static constexpr auto ConvSpec = ck_tile::ConvolutionSpecialization::Default;
 
     using TilePartitioner =
             ck_tile::GemmSpatiallyLocalTilePartitioner<GemmShape,

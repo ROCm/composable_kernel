@@ -123,7 +123,7 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     float best_gb_per_sec = 0;
     std::string best_split_k("1");
 
-    std::vector<ck_tile::index_t> split_k_list = {1, 2, 4, 8, 16, 32, 64, 128};
+    std::vector<ck_tile::index_t> split_k_list = {1, 2, 4, 6, 8, 10, 12, 16, 19, 32, 38, 64, 76, 128, 152, 256, 304};
     if(split_k != "all")
     {
         try
@@ -143,7 +143,6 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
     weight_host_ref.SetZero();
     if (do_verification)
     {
-        printf("before ref\n");
         ck_tile::reference_grouped_conv_bwd_weight<NDimSpatial, InDataType, WeiDataType, OutDataType>(
                             input,
                             weight_host_ref,
@@ -152,7 +151,6 @@ bool profile_grouped_conv_bwd_weight_impl(int do_verification,
                             conv_param.conv_filter_dilations_,
                             conv_param.input_left_pads_,
                             conv_param.input_right_pads_);
-        printf("after ref\n");
     }
 
 

@@ -54,7 +54,7 @@ using DeviceOp2DF32 = GroupedConvolutionBackwardWeightBaseInvoker<2,
                                                 float>;
 
 // Forward declarations for instance factory functions
-void add_grouped_conv2d_bwd_weight_f16_instances(std::vector<std::unique_ptr<DeviceOp2DF16>>& instances);
+// void add_grouped_conv2d_bwd_weight_f16_instances(std::vector<std::unique_ptr<DeviceOp2DF16>>& instances);
 void add_grouped_conv2d_bwd_weight_bf16_instances(std::vector<std::unique_ptr<DeviceOp2DBF16>>& instances);
 void add_grouped_conv2d_bwd_weight_bf16_instances_opt(std::vector<std::unique_ptr<DeviceOp2DBF16>>& instances);
 
@@ -109,7 +109,7 @@ struct DeviceOperationInstanceFactory<GroupedConvolutionBackwardWeightBaseInvoke
                              std::is_same_v<ComputeTypeA, ck_tile::half_t> &&
                              std::is_same_v<ComputeTypeB, ck_tile::half_t>)
                 {
-                    add_grouped_conv2d_bwd_weight_f16_instances(op_ptrs);
+                    // add_grouped_conv2d_bwd_weight_f16_instances(op_ptrs);
                 }
                 if constexpr(std::is_same_v<InDataType, ck_tile::bfloat16_t> &&
                              std::is_same_v<WeiDataType, ck_tile::bfloat16_t> &&
