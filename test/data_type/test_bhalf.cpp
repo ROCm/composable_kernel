@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "gtest/gtest.h"
 
@@ -8,6 +8,8 @@
 #include "ck/utility/data_type.hpp"
 #include "ck/utility/type_convert.hpp"
 #include "ck/host_utility/hip_check_error.hpp"
+
+using ::ck::hip_check_error;
 
 using ck::bhalf_t;
 using ck::type_convert;

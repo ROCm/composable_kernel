@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -43,6 +43,7 @@ template <typename GemmConfig,
           typename BLayout,
           typename BQLayout,
           typename CLayout,
+          typename QuantGroupSize,
           ck_tile::QuantType QuantMode = ck_tile::QuantType::BQuantGrouped,
           typename CDEElementWise      = ck_tile::element_wise::PassThrough>
 float invoke_gemm(int n_warmup,
@@ -104,6 +105,7 @@ float invoke_gemm(int n_warmup,
                                      BQDataType,
                                      AccDataType,
                                      CDataType,
+                                     QuantGroupSize,
                                      QuantMode>(stream, group_count, kargs_ptr);
 
     std::string op_name = "Quant Grouped Gemm (" + ck_tile::quant_type_to_string(QuantMode) + ")";
@@ -134,6 +136,7 @@ template <typename GemmConfig,
           typename BQDataType,
           typename CDataType,
           typename AccDataType,
+          typename QuantGroupSize,
           ck_tile::QuantType QuantMode,
           typename ALayout,
           typename AQLayout,
@@ -159,12 +162,12 @@ int run_grouped_gemm_example_with_layouts(int argc,
         return group_count != 0 && ((args.size() == static_cast<size_t>(group_count)) && ...);
     };
 
-    const int group_count                 = arg_parser.get_int("group_count");
-    const int repeat                      = arg_parser.get_int("repeat");
-    const int warmup                      = arg_parser.get_int("warmup");
-    const int kbatch                      = arg_parser.get_int("kbatch");
-    bool validate                         = arg_parser.get_bool("validate");
-    const ck_tile::index_t QuantGroupSize = 128;
+    const int group_count = arg_parser.get_int("group_count");
+    const int repeat      = arg_parser.get_int("repeat");
+    const int warmup      = arg_parser.get_int("warmup");
+    const int kbatch      = arg_parser.get_int("kbatch");
+    const int init_method = arg_parser.get_int("init");
+    bool validate         = arg_parser.get_bool("validate");
 
     if(kbatch > 1 && validate && warmup + repeat > 1)
     {
@@ -203,6 +206,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
 
         for(int i = 0; i < group_count; i++)
         {
+
             Ms.push_back(256 + 256 * i);
             Ns.push_back(256 + 512 * i);
             Ks.push_back(512 + 128 * i);
@@ -257,9 +261,9 @@ int run_grouped_gemm_example_with_layouts(int argc,
         }
         else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
         {
-            AQK = 0;                  // No A quantization
-            BQK = K / QuantGroupSize; // Group quantization: BQK = K / GroupSize
-            if(K % QuantGroupSize != 0)
+            AQK = 0;                      // No A quantization
+            BQK = K / QuantGroupSize::kK; // Group quantization: BQK = K / GroupSize
+            if(K % QuantGroupSize::kK != 0)
             {
                 throw std::runtime_error("K must be divisible by 128 for BQuantGrouped mode");
             }
@@ -279,6 +283,12 @@ int run_grouped_gemm_example_with_layouts(int argc,
         {
             stride_AQs[i] = 1; // Tensor quantization: tensor shape [1]
             stride_BQs[i] = 1; // Tensor quantization: tensor shape [1]
+        }
+        else if constexpr(QuantMode == ck_tile::QuantType::BQuantGrouped)
+        {
+            stride_AQs[i] = 0; // No A quantization
+            stride_BQs[i] =
+                ck_tile::get_default_stride(BQK, N, stride_BQs[i], is_row_major(bq_layout));
         }
 
         a_m_k_tensors.push_back(ck_tile::HostTensor<ADataType>(
@@ -313,10 +323,20 @@ int run_grouped_gemm_example_with_layouts(int argc,
                   << " b_k_n: " << b_k_n_tensors[i].mDesc << " c_m_n: " << c_m_n_tensors[i].mDesc
                   << " aq: " << aq_tensors[i].mDesc << " bq: " << bq_tensors[i].mDesc << std::endl;
 
-        ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensors[i]);
-        ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
-        ck_tile::FillUniformDistribution<AQDataType>{-1.f, 1.f}(aq_tensors[i]);
-        ck_tile::FillUniformDistribution<BQDataType>{-1.f, 1.f}(bq_tensors[i]);
+        if(init_method == 2)
+        {
+            ck_tile::FillUniformDistribution<ADataType>{1.f, 1.f}(a_m_k_tensors[i]);
+            ck_tile::FillUniformDistribution<BDataType>{1.f, 1.f}(b_k_n_tensors[i]);
+            ck_tile::FillUniformDistribution<AQDataType>{1.f, 1.f}(aq_tensors[i]);
+            ck_tile::FillUniformDistribution<BQDataType>{1.f, 1.f}(bq_tensors[i]);
+        }
+        else
+        {
+            ck_tile::FillUniformDistribution<ADataType>{-1.f, 1.f}(a_m_k_tensors[i]);
+            ck_tile::FillUniformDistribution<BDataType>{-1.f, 1.f}(b_k_n_tensors[i]);
+            ck_tile::FillUniformDistribution<AQDataType>{-1.f, 1.f}(aq_tensors[i]);
+            ck_tile::FillUniformDistribution<BQDataType>{-1.f, 1.f}(bq_tensors[i]);
+        }
 
         a_m_k_dev_buf.push_back(std::make_unique<ck_tile::DeviceMem>(
             a_m_k_tensors[i].get_element_space_size_in_bytes()));
@@ -329,8 +349,18 @@ int run_grouped_gemm_example_with_layouts(int argc,
         bq_dev_buf.push_back(
             std::make_unique<ck_tile::DeviceMem>(bq_tensors[i].get_element_space_size_in_bytes()));
 
+        if constexpr(GemmConfig::PreshuffleB && QuantMode == ck_tile::QuantType::BQuantGrouped)
+        {
+            ck_tile::HostTensor<BDataType> b_shuffle_host =
+                ck_tile::shuffle_b<GemmConfig>(b_k_n_tensors[i]);
+            b_k_n_dev_buf[i]->ToDevice(b_shuffle_host.data());
+        }
+        else
+        {
+            b_k_n_dev_buf[i]->ToDevice(b_k_n_tensors[i].data());
+        }
+
         a_m_k_dev_buf[i]->ToDevice(a_m_k_tensors[i].data());
-        b_k_n_dev_buf[i]->ToDevice(b_k_n_tensors[i].data());
         aq_dev_buf[i]->ToDevice(aq_tensors[i].data());
         bq_dev_buf[i]->ToDevice(bq_tensors[i].data());
         c_m_n_dev_buf[i]->SetZero();
@@ -372,6 +402,7 @@ int run_grouped_gemm_example_with_layouts(int argc,
                 BLayout,
                 BQLayout,
                 CLayout,
+                QuantGroupSize,
                 QuantMode>(warmup, repeat, group_count, gemm_descs);
 
     for(int i = 0; i < group_count; i++)
@@ -453,12 +484,14 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
     using Col   = ck_tile::tensor_layout::gemm::ColumnMajor;
     using Types = GemmTypeConfig<PrecType>;
     // Specific type aliases for easy access
-    using ADataType   = typename Types::ADataType;
-    using BDataType   = typename Types::BDataType;
-    using AccDataType = typename Types::AccDataType;
-    using CDataType   = typename Types::CDataType;
-    using AQDataType  = typename Types::AccDataType;
-    using BQDataType  = typename Types::AccDataType;
+    using ADataType      = typename Types::ADataType;
+    using BDataType      = typename Types::BDataType;
+    using AccDataType    = typename Types::AccDataType;
+    using CDataType      = typename Types::CDataType;
+    using AQDataType     = typename Types::AccDataType;
+    using BQDataType     = typename Types::AccDataType;
+    using QuantGroupSize = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
+
     if(a_layout == "R" && b_layout == "C")
     {
         return run_grouped_gemm_example_with_layouts<GemmConfig,
@@ -468,6 +501,7 @@ int run_gemm_example_prec_type(std::string a_layout, std::string b_layout, int a
                                                      BQDataType,
                                                      CDataType,
                                                      AccDataType,
+                                                     QuantGroupSize,
                                                      QuantMode>(
             argc, argv, Row{}, Row{}, Col{}, Col{}, Row{});
     }

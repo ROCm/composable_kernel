@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 
 import os
 import json
@@ -8,12 +11,31 @@ import multiprocessing
 import concurrent.futures
 from pathlib import Path
 import logging
-from commons.validation_utils import (
-    is_tile_config_valid,
-    is_trait_combination_valid,
-    get_dtype_string,
-    get_abc_layouts,
-)
+import importlib.util
+
+
+def _import_validation_utils():
+    """Import validation utilities from commons directory."""
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    parent_dir = os.path.dirname(current_dir)
+
+    # Load the module dynamically
+    spec = importlib.util.spec_from_file_location(
+        "validation_utils",
+        os.path.join(parent_dir, "commons", "gemm_validation_utils.py"),
+    )
+    validation_utils = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(validation_utils)
+
+    return validation_utils
+
+
+# Import validation functions
+_validation_utils = _import_validation_utils()
+is_tile_config_valid = _validation_utils.is_tile_config_valid
+is_trait_combination_valid = _validation_utils.is_trait_combination_valid
+get_dtype_string = _validation_utils.get_dtype_string
+get_abc_layouts = _validation_utils.get_abc_layouts
 
 logging.basicConfig(level=logging.INFO)
 
@@ -563,6 +585,8 @@ struct SelectedKernel {{
         tile_configs = self._get_tile_configs()
         trait_combos = self._generate_trait_combinations()
         k_block_per_cu = self.config.get("k_block_per_cu")
+        if k_block_per_cu is None:
+            k_block_per_cu = 1
 
         # Prepare work items for parallel processing
         work_items = []
@@ -574,11 +598,12 @@ struct SelectedKernel {{
                         trait_combo,
                         k_block_per_cu,
                         self.working_path,
+                        self.gpu_target,
                         self.datatype,
                         self.layout,
+                        self.config_json,
                     )
                 )
-
         print(
             f"Generating {len(work_items)} individual kernel files using {num_workers} workers..."
         )
@@ -615,7 +640,6 @@ struct SelectedKernel {{
                     print(
                         f"  Progress: {completed}/{len(work_items)} kernels generated"
                     )
-
                 try:
                     result = future.result()
                     if result:
@@ -662,10 +686,19 @@ struct SelectedKernel {{
 
 def _generate_single_kernel_individual(work_item):
     """Worker function to generate a single individual kernel file"""
-    tile_config, trait_combo, k_block_per_cu, working_path, datatype, layout = work_item
+    (
+        tile_config,
+        trait_combo,
+        k_block_per_cu,
+        working_path,
+        gpu_target,
+        datatype,
+        layout,
+        config_json,
+    ) = work_item
 
     # Create a temporary builder instance for this worker
-    builder = GemmKernelBuilder(working_path, datatype, layout)
+    builder = GemmKernelBuilder(working_path, gpu_target, datatype, layout, config_json)
 
     try:
         kernel_name, instance_code = builder._generate_kernel_instance(
@@ -798,6 +831,8 @@ def main():
         )
 
         k_block_per_cu = builder.config.get("k_block_per_cu")
+        if k_block_per_cu is None:
+            k_block_per_cu = 1
 
         # Generate the kernel
         kernel_name, instance_code = builder._generate_kernel_instance(

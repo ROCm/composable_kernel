@@ -83,6 +83,8 @@ struct BlockFmhaPipelineQRKSVS
         kPadHeadDimV ? 1 : Policy::template GetAlignmentO<Problem>();
     static constexpr index_t kAlignmentBias =
         kPadSeqLenK ? 1 : Policy::template GetAlignmentBias<Problem>();
+    static constexpr index_t kAlignmentRandVal =
+        kPadSeqLenK ? 1 : Policy::template GetAlignmentRandVal<Problem>();
 
     static constexpr index_t kBlockPerCu = []() {
         if constexpr(Problem::kBlockPerCu != -1)
@@ -578,6 +580,9 @@ struct BlockFmhaPipelineQRKSVS
 
             if constexpr(kHasDropout)
             {
+                // K and dropout use the same address in LDS, finish loading from k_lds_window by
+                // gemm_0 to reuse LDS.
+                block_sync_lds();
                 dropout.template Run<decltype(gemm_0), SMPLComputeDataType, RandValOutputDataType>(
                     smem_ptr, seqlen_k_start + i_total_loops * kN0, p_compute, randval_dram_window);
             }

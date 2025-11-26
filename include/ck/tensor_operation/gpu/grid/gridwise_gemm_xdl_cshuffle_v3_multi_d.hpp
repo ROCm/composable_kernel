@@ -1145,6 +1145,22 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
         InMemoryDataOperationEnum CGlobalMemoryDataOperation_ = InMemoryDataOperationEnum::Set>
     __device__ static bool constexpr IsValidCompilationParameter()
     {
+        enum struct Arch : bool
+        {
+#if defined(__gfx950__)
+            is_gfx950_build = true,
+#else
+            is_gfx950_build = false,
+#endif
+        };
+
+        // skip building the instances with K1>=32 on pre-gfx950
+        if constexpr((static_cast<bool>(Arch::is_gfx950_build) == false) &&
+                     (AK1Number >= 32 || BK1Number >= 32))
+        {
+            return false;
+        }
+
         constexpr bool valid = ck::tensor_operation::device::IsValidGemmCompilationParameter<
             BlockSize,
             MPerBlock,
@@ -1357,6 +1373,14 @@ struct GridwiseGemmMultiD_xdl_cshuffle_v3
             {
                 return false;
             }
+        }
+
+        constexpr long_index_t TwoGB = (long_index_t{1} << 31);
+        if(!(karg.M * karg.K * sizeof(ADataType) <= TwoGB &&
+             karg.N * karg.K * sizeof(BDataType) <= TwoGB &&
+             karg.M * karg.N * sizeof(CDataType) <= TwoGB))
+        {
+            return false;
         }
 
         // TODO: also check validity of all components (blockwise-copy, threadwise-copy, etc)

@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -18,8 +18,8 @@ concept InputVectorTransferLimits = requires {
 // Limits for output vector transfer.
 template <auto Value>
 concept OutputVectorTransferLimits = requires {
-    requires Value.scalar_per_vector > 0 && Value.m_xdl_per_wave_per_shuffle > 0 &&
-                     Value.n_xdl_per_wave_per_shuffle > 0;
+    requires Value.scalar_per_vector > 0 && Value.m_per_wave_per_shuffle > 0 &&
+                     Value.n_per_wave_per_shuffle > 0;
 };
 
 // Limits for access order. Must be a permutation of {0, 1, 2}.

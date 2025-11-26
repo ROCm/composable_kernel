@@ -1,9 +1,11 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2023, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include <hip/hip_runtime.h>
+
+namespace ck {
 
 template <typename T>
 __global__ void set_buffer_value(T* p, T x, uint64_t buffer_element_size)
@@ -48,3 +50,5 @@ void DeviceMem::SetValue(T x) const
 
     set_buffer_value<T><<<1, 1024>>>(static_cast<T*>(mpDeviceBuf), x, mMemSize / sizeof(T));
 }
+
+} // namespace ck

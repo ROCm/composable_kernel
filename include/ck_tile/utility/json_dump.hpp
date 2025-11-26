@@ -1,3 +1,6 @@
+// Copyright © Advanced Micro Devices, Inc. or its affiliates.
+// SPDX-License-Identifier: MIT
+
 #ifdef CK_ENABLE_JSON_DUMP
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wzero-as-null-pointer-constant"
@@ -622,7 +625,7 @@ void dump_fmha_fwd_json_results(const std::string& json_filename,
                                 float scale_s,
                                 float p_drop,
                                 bool lse,
-                                bool squant,
+                                const std::string& qscale,
                                 const std::string& bias,
                                 const std::string& vlayout,
                                 bool pass,
@@ -647,7 +650,7 @@ void dump_fmha_fwd_json_results(const std::string& json_filename,
     ADD_KEY_VALUE("scale_s", scale_s);
     ADD_KEY_VALUE("p_drop", p_drop);
     ADD_KEY_VALUE("lse", lse);
-    ADD_KEY_VALUE("squant", squant);
+    ADD_KEY_VALUE("qscale", qscale);
     ADD_KEY_VALUE("bias", bias);
     ADD_KEY_VALUE("vlayout", vlayout);
     ADD_KEY_VALUE("verification", pass ? "pass" : "fail");

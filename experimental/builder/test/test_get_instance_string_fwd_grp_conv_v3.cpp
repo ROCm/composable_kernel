@@ -1,9 +1,9 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <gtest/gtest.h>
 #include <ck_tile/builder/reflect/instance_traits.hpp>
-#include <ck/tensor_operation/gpu/device/device_grouped_conv_fwd_multiple_abd.hpp>
+#include <ck/tensor_operation/gpu/device/device_base.hpp>
 #include <ck/library/tensor_operation_instance/gpu/grouped_conv_fwd/device_grouped_conv_fwd_xdl_comp_instance.hpp>
 
 // Test GetInstanceString through base class pointer for V3 variant
@@ -22,22 +22,8 @@ TEST(GetInstanceString, ReturnsStringForFwdGrpConvV3Instance)
     // Get the first instance from the tuple
     using DeviceInstance = typename std::tuple_element<0, InstanceTuple>::type;
 
-    // Define the base class type using DeviceGroupedConvFwdMultipleABD
-    using BaseClass = ck::tensor_operation::device::DeviceGroupedConvFwdMultipleABD<
-        2,                                                   // NDimSpatial
-        ck::tensor_operation::device::instance::GNHWC,       // ALayout
-        ck::tensor_operation::device::instance::GKYXC,       // BLayout
-        ck::tensor_operation::device::instance::Empty_Tuple, // DsLayout
-        ck::tensor_operation::device::instance::GNHWK,       // ELayout
-        ck::half_t,                                          // ADataType
-        ck::half_t,                                          // BDataType
-        ck::Tuple<>,                                         // DsDataType
-        ck::half_t,                                          // EDataType
-        ck::tensor_operation::element_wise::PassThrough,     // AElementwiseOperation
-        ck::tensor_operation::element_wise::PassThrough,     // BElementwiseOperation
-        ck::tensor_operation::element_wise::PassThrough,     // CDEElementwiseOperation
-        ck::half_t,                                          // AComputeType
-        ck::half_t>;                                         // BComputeType
+    // Define the base class type using the most general operator base
+    using BaseClass = ck::tensor_operation::device::BaseOperator;
 
     // Create an instance of the derived class
     DeviceInstance device_instance;
@@ -99,6 +85,7 @@ TEST(GetInstanceString, ReturnsStringForFwdGrpConvV3Instance)
                                ",Intrawave"     // BlkGemmPipeSched
                                ",v4"            // BlkGemmPipelineVer
                                ",fp16"          // AComputeDataType
-                               ",fp16>";        // BComputeDataType
+                               ",fp16"          // BComputeDataType
+                               ",false>";       // DirectLoad
     EXPECT_EQ(instance_str, expected_str);
 }

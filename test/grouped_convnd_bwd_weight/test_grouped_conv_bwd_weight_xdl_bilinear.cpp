@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <algorithm>
 #include <iomanip>
@@ -22,6 +22,9 @@
 #include "ck/library/utility/convolution_parameter.hpp"
 #include "ck/library/utility/convolution_host_tensor_descriptor_helper.hpp"
 #include "ck/library/reference_tensor_operation/cpu/reference_conv_bwd_weight.hpp"
+
+using ::ck::DeviceMem;
+using ::ck::Tensor;
 
 static ck::index_t param_mask     = 0xffff;
 static ck::index_t instance_index = -1;

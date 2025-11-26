@@ -1,4 +1,7 @@
 #!/bin/bash
+# Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+# SPDX-License-Identifier: MIT
+
 DRIVER="../build/bin/ckProfiler"
 VERIFY="-v $1"
 INIT=$2

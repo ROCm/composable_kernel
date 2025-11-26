@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include "device_gemm_wmma_universal_bf16_i4_bf16_mk_nk_mn.hpp"
 #include "ck/host_utility/device_prop.hpp"

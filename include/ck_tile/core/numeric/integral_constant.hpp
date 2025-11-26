@@ -41,6 +41,8 @@ using long_number = constant<v>;
 
 template <bool b>
 using bool_constant = constant<b>;
+using true_type     = bool_constant<true>;
+using false_type    = bool_constant<false>;
 
 #define CK_TILE_LEFT_UNARY_OP(OP)                               \
     template <auto x>                                           \

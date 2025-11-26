@@ -1,11 +1,21 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include "test_gemm_quant_base.hpp"
 #include "ck_tile/host/permute_pk_int4.hpp"
 #include "ck_tile/host/tensor_shuffle_utils.hpp"
+
+template <bool is_8bit>
+constexpr ck_tile::index_t get_k_warp_tile()
+{
+#if CK_TILE_USE_WMMA
+    return 16;
+#else
+    return is_8bit ? 64 : 32;
+#endif
+}
 
 struct GemmConfigBase
 {
@@ -31,7 +41,7 @@ struct GemmConfigBase
 
     // Default GEMM tile sizes for tests
     static constexpr ck_tile::index_t M_Tile = 16;
-    static constexpr ck_tile::index_t N_Tile = 64;
+    static constexpr ck_tile::index_t N_Tile = 128;
     static constexpr ck_tile::index_t K_Tile = 256;
 
     static constexpr ck_tile::index_t M_Warp = 1;
@@ -40,7 +50,7 @@ struct GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = 32;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<false>();
 };
 
 struct GemmConfigPreshuffleQuant : public GemmConfigBase
@@ -75,7 +85,7 @@ struct GemmConfigPreshuffleBDecode : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = 64;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<true>();
 };
 
 struct GemmConfigPreshuffleBPrefill : public GemmConfigBase
@@ -94,13 +104,18 @@ struct GemmConfigPreshuffleBPrefill : public GemmConfigBase
 
     static constexpr ck_tile::index_t M_Warp_Tile = 16;
     static constexpr ck_tile::index_t N_Warp_Tile = 16;
-    static constexpr ck_tile::index_t K_Warp_Tile = 64;
+    static constexpr ck_tile::index_t K_Warp_Tile = get_k_warp_tile<true>();
 };
 
 struct GemmConfigPreshuffleBPrefillTiledPermuteN : public GemmConfigPreshuffleBPrefill
 {
     static constexpr int N_Repeat          = N_Tile / N_Warp_Tile / N_Warp;
     static constexpr bool TiledMMAPermuteN = N_Repeat % 2 == 0;
+};
+
+struct GemmConfigPreshuffleBPreshuffleQuantDecode : public GemmConfigPreshuffleBDecode
+{
+    static constexpr bool PreshuffleQuant = true;
 };
 
 template <typename Tuple>
@@ -119,9 +134,9 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     using typename Base::CLayout;
     using typename Base::ComputeDataType;
     using typename Base::QDataType;
+    using typename Base::QuantGroupSize;
 
-    static constexpr auto QuantType          = Base::QuantType;
-    static constexpr uint32_t QuantGroupSize = Base::QuantGroupSize;
+    static constexpr auto QuantType = Base::QuantType;
 
     protected:
     void SetUpQuantTypeSpecific() {}
@@ -132,10 +147,10 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     {
         const ck_tile::index_t stride_A = K;
         const ck_tile::index_t stride_B = K;
-        const ck_tile::index_t stride_C = M;
+        const ck_tile::index_t stride_C = N;
 
         // AQuant uses grouped quantization for A matrix
-        const ck_tile::index_t AQK = ck_tile::integer_divide_ceil(K, QuantGroupSize);
+        const ck_tile::index_t AQK = ck_tile::integer_divide_ceil(K, QuantGroupSize::kK);
         const ck_tile::index_t stride_AQ =
             ck_tile::get_default_stride(M, AQK, 0, this->is_row_major(ALayout{}));
 
@@ -181,7 +196,7 @@ class TestCkTileGemmAQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         if constexpr(Base::GemmConfig::PreshuffleQuant)
         {
             ck_tile::HostTensor<QDataType> aq_shuffle_host =
-                ck_tile::shuffle_aq(&aq_m_aqk, Base::GemmConfig::K_Tile / QuantGroupSize);
+                ck_tile::shuffle_aq(&aq_m_aqk, Base::GemmConfig::K_Tile / QuantGroupSize::kK);
             aq_m_aqk_dev_buf.ToDevice(aq_shuffle_host.data());
         }
         else
@@ -359,11 +374,11 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     using typename Base::ComputeDataType;
     using typename Base::GemmConfig;
     using typename Base::QDataType;
+    using typename Base::QuantGroupSize;
 
-    static constexpr auto QuantType          = Base::QuantType;
-    static constexpr uint32_t QuantGroupSize = Base::QuantGroupSize;
-    static constexpr auto PreshuffleB        = Base::PreshuffleB;
-    static constexpr auto TiledMMAPermuteN   = Base::TiledMMAPermuteN;
+    static constexpr auto QuantType        = Base::QuantType;
+    static constexpr auto PreshuffleB      = Base::PreshuffleB;
+    static constexpr auto TiledMMAPermuteN = Base::TiledMMAPermuteN;
 
     protected:
     void SetUpQuantTypeSpecific() {}
@@ -373,10 +388,11 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
     {
         const ck_tile::index_t stride_A = K;
         const ck_tile::index_t stride_B = K;
-        const ck_tile::index_t stride_C = M;
+        const ck_tile::index_t stride_C = N;
 
-        // BQuant uses grouped quantization for B matrix
-        const ck_tile::index_t BQK       = ck_tile::integer_divide_ceil(K, QuantGroupSize);
+        // BQuant uses block/grouped quantization for B matrix
+        const ck_tile::index_t BQN       = ck_tile::integer_divide_ceil(N, QuantGroupSize::kN);
+        const ck_tile::index_t BQK       = ck_tile::integer_divide_ceil(K, QuantGroupSize::kK);
         const ck_tile::index_t stride_BQ = BQK;
 
         // Generate test data
@@ -384,18 +400,18 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
             ck_tile::host_tensor_descriptor(M, K, stride_A, this->is_row_major(ALayout{})));
         ck_tile::HostTensor<BDataType> b_k_n(
             ck_tile::host_tensor_descriptor(K, N, stride_B, this->is_row_major(BLayout{})));
-        ck_tile::HostTensor<QDataType> bq_bqk_n(
-            ck_tile::host_tensor_descriptor(BQK, N, stride_BQ, this->is_row_major(BLayout{})));
+        ck_tile::HostTensor<QDataType> bq_bqk_bqn(
+            ck_tile::host_tensor_descriptor(BQK, BQN, stride_BQ, this->is_row_major(BLayout{})));
 
         // Initialize data with random values
         ck_tile::FillUniformDistribution<ADataType>{-0.5f, 0.5f}(a_m_k);
         ck_tile::FillUniformDistribution<BDataType>{0.f, 1.f}(b_k_n);
-        ck_tile::FillUniformDistribution<QDataType>{0.001f, 0.01f}(bq_bqk_n);
-
+        ck_tile::FillUniformDistribution<QDataType>{-1.0f, 1.0f}(bq_bqk_bqn);
         // Allocate device memory
         ck_tile::DeviceMem a_m_k_dev_buf(a_m_k.get_element_space_size() * sizeof(ADataType));
         ck_tile::DeviceMem b_k_n_dev_buf(b_k_n.get_element_space_size() * sizeof(BDataType));
-        ck_tile::DeviceMem bq_bqk_n_dev_buf(bq_bqk_n.get_element_space_size() * sizeof(QDataType));
+        ck_tile::DeviceMem bq_bqk_bqn_dev_buf(bq_bqk_bqn.get_element_space_size() *
+                                              sizeof(QDataType));
         ck_tile::DeviceMem c_m_n_dev_buf(M * N * sizeof(CDataType));
 
         // Copy to device
@@ -425,25 +441,33 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
         {
             printf("Preshuffle BQ with TiledMMAPermuteN \n");
             ck_tile::HostTensor<QDataType> bq_shuffle_host =
-                ck_tile::shuffle_bq_permuteN<GemmConfig>(bq_bqk_n);
-            bq_bqk_n_dev_buf.ToDevice(bq_shuffle_host.data());
+                ck_tile::bq_permuteN<GemmConfig>(bq_bqk_bqn);
+            bq_bqk_bqn_dev_buf.ToDevice(bq_shuffle_host.data());
+        }
+        else if constexpr(GemmConfig::PreshuffleQuant)
+        {
+            ck_tile::HostTensor<QDataType> bq_shuffle_host =
+                ck_tile::shuffle_bq(&bq_bqk_bqn, GemmConfig::K_Tile / QuantGroupSize::kK);
+            bq_bqk_bqn_dev_buf.ToDevice(bq_shuffle_host.data());
         }
         else
-            bq_bqk_n_dev_buf.ToDevice(bq_bqk_n.data());
+        {
+            bq_bqk_bqn_dev_buf.ToDevice(bq_bqk_bqn.data());
+        }
 
         // Create args for kernel execution
         ck_tile::QuantGemmHostArgs args{
-            a_m_k_dev_buf.GetDeviceBuffer(),    // a_ptr
-            b_k_n_dev_buf.GetDeviceBuffer(),    // b_ptr
-            c_m_n_dev_buf.GetDeviceBuffer(),    // c_ptr
-            nullptr,                            // aq_ptr (not used for BQuant)
-            bq_bqk_n_dev_buf.GetDeviceBuffer(), // bq_ptr (scales)
-            1,                                  // k_batch
+            a_m_k_dev_buf.GetDeviceBuffer(),      // a_ptr
+            b_k_n_dev_buf.GetDeviceBuffer(),      // b_ptr
+            c_m_n_dev_buf.GetDeviceBuffer(),      // c_ptr
+            nullptr,                              // aq_ptr (not used for BQuant)
+            bq_bqk_bqn_dev_buf.GetDeviceBuffer(), // bq_ptr (scales)
+            1,                                    // k_batch
             M,
             N,
             K,   // M, N, K
             0,   // QK_A (not used for BQuant)
-            BQK, // QK_B
+            BQK, // QK_B - TODO: we can remove BQK and BQN from args later?
             stride_A,
             stride_B,
             stride_C,
@@ -467,7 +491,7 @@ class TestCkTileGemmBQuant : public TestCkTileGemmQuantBase<Tuple, TestCkTileGem
                                       AccDataType,
                                       CDataType,
                                       QuantGroupSize,
-                                      false>(a_m_k, bq_bqk_n, b_k_n, c_m_n_host_ref);
+                                      false>(a_m_k, bq_bqk_bqn, b_k_n, c_m_n_host_ref);
 
         // Get device result
         ck_tile::HostTensor<CDataType> c_m_n_dev_result(
@@ -614,9 +638,9 @@ class TestCkTileGemmRowColQuant
     using typename Base::CLayout;
     using typename Base::ComputeDataType;
     using typename Base::QDataType;
+    using typename Base::QuantGroupSize;
 
-    static constexpr auto QuantType          = Base::QuantType;
-    static constexpr uint32_t QuantGroupSize = Base::QuantGroupSize;
+    static constexpr auto QuantType = Base::QuantType;
 
     protected:
     void SetUpQuantTypeSpecific() {}
@@ -626,7 +650,7 @@ class TestCkTileGemmRowColQuant
     {
         const ck_tile::index_t stride_A = K;
         const ck_tile::index_t stride_B = K;
-        const ck_tile::index_t stride_C = M;
+        const ck_tile::index_t stride_C = N;
 
         // RowColQuant uses per-row and per-column scales
         const ck_tile::index_t stride_row_scales = 1;
@@ -831,9 +855,9 @@ class TestCkTileGemmTensorQuant
     using typename Base::CLayout;
     using typename Base::ComputeDataType;
     using typename Base::QDataType;
+    using typename Base::QuantGroupSize;
 
-    static constexpr auto QuantType          = Base::QuantType;
-    static constexpr uint32_t QuantGroupSize = Base::QuantGroupSize;
+    static constexpr auto QuantType = Base::QuantType;
 
     protected:
     void SetUpQuantTypeSpecific() {}
@@ -843,7 +867,7 @@ class TestCkTileGemmTensorQuant
     {
         const ck_tile::index_t stride_A = K;
         const ck_tile::index_t stride_B = K;
-        const ck_tile::index_t stride_C = M;
+        const ck_tile::index_t stride_C = N;
 
         // TensorQuant uses single scalar scale for each tensor
         const ck_tile::index_t stride_scale_a = 1;

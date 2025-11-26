@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #include <iostream>
 #include <numeric>
@@ -126,19 +126,19 @@ int profile_gemm_blockscale_weighpreshuffle(int argc, char* argv[])
         const int DefaultStrideB = ck::is_same_v<BLayout, Row> ? N : K;
         const int DefaultStrideE = ck::is_same_v<ELayout, Row> ? N : M;
 
-        bool pass = ck::profiler::profile_gemm_blockscale_weighpreshuffle_impl<A0DataType,
-                                                                               A1DataType,
-                                                                               B0DataType,
-                                                                               B1DataType,
-                                                                               ComputeDataType,
-                                                                               AccDataType,
-                                                                               EDataType,
-                                                                               scale_block_m,
-                                                                               scale_block_n,
-                                                                               scale_block_k,
-                                                                               ALayout,
-                                                                               BLayout,
-                                                                               ELayout>(
+        bool pass = ck::profiler::profile_gemm_blockscale_weightpreshuffle_impl<A0DataType,
+                                                                                A1DataType,
+                                                                                B0DataType,
+                                                                                B1DataType,
+                                                                                ComputeDataType,
+                                                                                AccDataType,
+                                                                                EDataType,
+                                                                                scale_block_m,
+                                                                                scale_block_n,
+                                                                                scale_block_k,
+                                                                                ALayout,
+                                                                                BLayout,
+                                                                                ELayout>(
             do_verification,
             init_method,
             do_log,

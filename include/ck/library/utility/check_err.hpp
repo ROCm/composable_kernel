@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2024, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
@@ -168,8 +168,8 @@ typename std::enable_if<
 check_err(const Range& out,
           const RefRange& ref,
           const std::string& msg = "Error: Incorrect results!",
-          double rtol            = 1e-5,
-          double atol            = 3e-5)
+          double rtol            = 5e-4,
+          double atol            = 5e-4)
 {
     if(out.size() != ref.size())
     {

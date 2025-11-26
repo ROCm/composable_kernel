@@ -429,8 +429,8 @@ struct GridwiseGemmMX_xdl_cshuffle_v3_bpreshuffle
         constexpr index_t MWave           = MPerBlock / (MXdlPerWave * MPerXdl);
         constexpr index_t WaveSize        = BlockSize / (MWave * NWave);
         constexpr index_t NkSwizzleNumber = Number<WaveSize * KPack>{};
-        return make_naive_tensor_descriptor_packed(
-            make_tuple(N0 / NWave / NXdlPack, NWave, NXdlPack, K0, NkSwizzleNumber));
+        return make_naive_tensor_descriptor_packed(make_tuple(
+            math::integer_divide_ceil(N0, NWave * NXdlPack), NWave, NXdlPack, K0, NkSwizzleNumber));
     }
 
     __host__ __device__ static auto MakeBGridDescriptor_BK0_N_BK1(

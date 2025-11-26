@@ -423,6 +423,19 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     }
 
     template <typename Problem>
+    CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentRandVal()
+    {
+        using BlockGemm = remove_cvref_t<decltype(QXPolicy::template GetQKBlockGemm<Problem>())>;
+        constexpr auto config = BlockGemm::Policy::template GetWarpGemmMWarpNWarp<Problem>();
+        using WG              = remove_cvref_t<decltype(config.template at<0>())>;
+        using CWarpDstr       = typename WG::CWarpDstr;
+
+        constexpr auto c_warp_y_lengths = CWarpDstr{}.get_ys_to_d_descriptor().get_lengths();
+        constexpr index_t MaxVectorSize = 16 / sizeof(typename Problem::RandValOutputDataType);
+        return min(MaxVectorSize, c_warp_y_lengths.get(number<CWarpDstr::NDimY - 1>{}));
+    }
+
+    template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetAlignmentO()
     {
         using BlockGemm       = remove_cvref_t<decltype(GetKVBlockGemm<Problem>())>;
@@ -465,7 +478,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
 
         constexpr index_t SingleVSize = [&]() {
             using VDataType                = remove_cvref_t<typename Problem::VDataType>;
-            constexpr index_t Banks        = 32; // TODO: need change based on arch
+            constexpr index_t Banks        = get_n_lds_banks();
             constexpr index_t PixelsPerRow = Banks * 4 / sizeof(VDataType);
             constexpr index_t kKPack       = GetSmemKPackK<Problem>();
             static_assert(PixelsPerRow % kKPack == 0);
@@ -620,7 +633,7 @@ struct BlockFmhaPipelineQXKSVSCustomPolicy : BlockFmhaPipelineQXCustomPolicy<QLo
     CK_TILE_HOST_DEVICE static constexpr auto MakeVLdsBlockDescriptor()
     {
         using VDataType                = remove_cvref_t<typename Problem::VDataType>;
-        constexpr index_t Banks        = 32; // TODO: need change based on arch
+        constexpr index_t Banks        = get_n_lds_banks();
         constexpr index_t PixelsPerRow = Banks * 4 / sizeof(VDataType);
         constexpr index_t kKPack       = GetSmemKPackV<Problem>();
         static_assert(PixelsPerRow % kKPack == 0);

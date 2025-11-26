@@ -140,7 +140,7 @@ struct BlockFmhaPipelineQRKSVSWholeKPrefetchDefaultPolicy
 
         constexpr index_t NumVLdsBuffers = GetNumVLdsBuffers<Problem>();
 
-        constexpr index_t Banks        = 32; // TODO: need change based on arch
+        constexpr index_t Banks        = get_n_lds_banks();
         constexpr index_t PixelsPerRow = Banks * 4 / sizeof(VDataType);
         constexpr index_t kKPack       = GetSmemKPackV<Problem>();
         static_assert(PixelsPerRow % kKPack == 0);

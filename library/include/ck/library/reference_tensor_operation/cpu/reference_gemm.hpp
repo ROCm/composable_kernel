@@ -1,11 +1,12 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2018-2025, Advanced Micro Devices, Inc. All rights reserved.
 
 #pragma once
 
 #include <iostream>
 #include <sstream>
 
+#include "ck/host_utility/device_prop.hpp"
 #include "ck/tensor_operation/gpu/element/unary_element_wise_operation.hpp"
 #include "ck/tensor_operation/gpu/device/device_base.hpp"
 #include "ck/library/utility/host_tensor.hpp"
@@ -45,7 +46,8 @@ struct ReferenceGemm : public device::BaseOperator
               c_m_n_{c_m_n},
               a_element_op_{a_element_op},
               b_element_op_{b_element_op},
-              c_element_op_{c_element_op}
+              c_element_op_{c_element_op},
+              device_name_{ck::get_device_name()}
         {
         }
 
@@ -56,6 +58,7 @@ struct ReferenceGemm : public device::BaseOperator
         AElementwiseOperation a_element_op_;
         BElementwiseOperation b_element_op_;
         CElementwiseOperation c_element_op_;
+        ::std::string device_name_; // the device which this gemm is compared with
     };
 
     // Invoker
@@ -142,12 +145,37 @@ struct ReferenceGemm : public device::BaseOperator
                         arg.b_element_op_(v_b, arg.b_k_n_(k, n));
                     }
 
-                    if constexpr(is_same_v<ComputeTypeA, ComputeTypeB> &&
-                                 is_same_v<ComputeTypeA, ck::tf32_t>)
-                    { // only for tf32 now
-                        v_acc +=
-                            ck::type_convert<AccDataType>(ck::type_convert<ComputeTypeA>(v_a)) *
-                            ck::type_convert<AccDataType>(ck::type_convert<ComputeTypeB>(v_b));
+                    if constexpr(is_same_v<ADataType, float> && is_same_v<BDataType, float> &&
+                                 is_same_v<CDataType, float> && is_same_v<AccDataType, float> &&
+                                 is_same_v<ComputeTypeA, ck::tf32_t> &&
+                                 is_same_v<ComputeTypeB, ck::tf32_t>)
+                    {
+                        if(arg.device_name_ == "gfx942")
+                        {
+                            v_acc +=
+                                ck::type_convert<AccDataType>(ck::type_convert<ck::tf32_t>(v_a)) *
+                                ck::type_convert<AccDataType>(ck::type_convert<ck::tf32_t>(v_b));
+                        }
+                        else if(arg.device_name_ == "gfx950")
+                        {
+                            ck::bhalf_t v_a_bf16_big   = ck::type_convert<ck::bhalf_t>(v_a);
+                            ck::bhalf_t v_a_bf16_small = ck::type_convert<ck::bhalf_t>(
+                                v_a - type_convert<float>(v_a_bf16_big));
+                            ck::bhalf_t v_b_bf16_big   = ck::type_convert<ck::bhalf_t>(v_b);
+                            ck::bhalf_t v_b_bf16_small = ck::type_convert<ck::bhalf_t>(
+                                v_b - type_convert<float>(v_b_bf16_big));
+
+                            v_acc += ck::type_convert<AccDataType>(v_a_bf16_big) *
+                                         ck::type_convert<AccDataType>(v_b_bf16_small) +
+                                     ck::type_convert<AccDataType>(v_a_bf16_small) *
+                                         ck::type_convert<AccDataType>(v_b_bf16_big) +
+                                     ck::type_convert<AccDataType>(v_a_bf16_big) *
+                                         ck::type_convert<AccDataType>(v_b_bf16_big);
+                        }
+                        else
+                        {
+                            throw std::runtime_error("Unsupported device: " + arg.device_name_);
+                        }
                     }
                     else
                     {

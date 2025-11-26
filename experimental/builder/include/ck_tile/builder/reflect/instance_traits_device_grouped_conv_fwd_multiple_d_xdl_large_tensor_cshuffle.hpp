@@ -1,5 +1,5 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
-// Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
 // InstanceTraits specialization for DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor
 //
@@ -14,6 +14,7 @@
 #pragma once
 
 #include "instance_traits.hpp"
+#include "instance_traits_util.hpp"
 
 // Forward declaration to avoid circular dependency.
 namespace ck::tensor_operation::device {
@@ -32,8 +33,8 @@ template <ck::index_t NDimSpatial,
           typename AElementwiseOperation,
           typename BElementwiseOperation,
           typename CDEElementwiseOperation,
-          ConvolutionForwardSpecialization ConvForwardSpecialization,
-          GemmSpecialization GemmSpec,
+          ck::tensor_operation::device::ConvolutionForwardSpecialization ConvForwardSpecialization,
+          ck::tensor_operation::device::GemmSpecialization GemmSpec,
           ck::index_t NumGemmKPrefetchStage,
           ck::index_t BlockSize,
           ck::index_t MPerBlock,
@@ -65,7 +66,7 @@ template <ck::index_t NDimSpatial,
           ck::index_t CDEBlockTransferScalarPerVector_NPerBlock,
           typename AComputeDataType,
           typename BComputeDataType,
-          LoopScheduler LoopSched>
+          ck::LoopScheduler LoopSched>
 struct DeviceGroupedConvFwdMultipleD_Xdl_CShuffle_Large_Tensor;
 
 } // namespace ck::tensor_operation::device

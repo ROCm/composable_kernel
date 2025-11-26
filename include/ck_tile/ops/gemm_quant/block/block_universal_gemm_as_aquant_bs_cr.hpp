@@ -5,10 +5,10 @@
 
 #include "ck_tile/core.hpp"
 #include "ck_tile/core/arch/arch.hpp"
-#include "ck_tile/ops/common/load_interleaved_pk_type.hpp"
 #include "ck_tile/ops/gemm/block/block_gemm_asmem_bsmem_creg_v1_default_policy.hpp"
 #include "ck_tile/ops/gemm/pipeline/gemm_pipeline_ag_bg_cr_scheduler.hpp"
 #include "ck_tile/ops/elementwise.hpp"
+#include "ck_tile/ops/gemm_quant/block/block_gemm_quant_common.hpp"
 
 namespace ck_tile {
 
@@ -24,13 +24,11 @@ struct BlockGemmAQuantBase
         float scale_reg_f = 0.f;
         if constexpr(std::is_same_v<AQDataType, ck_tile::fp8_t>)
         {
-            scale_reg_f =
-                ck_tile::element_wise::amd_assembly_fp8_to_fp32(static_cast<uint32_t>(scale));
+            scale_reg_f = __builtin_amdgcn_cvt_f32_fp8(static_cast<uint32_t>(scale), 0);
         }
         else if constexpr(std::is_same_v<AQDataType, ck_tile::bf8_t>)
         {
-            scale_reg_f =
-                ck_tile::element_wise::amd_assembly_bf8_to_fp32(static_cast<uint32_t>(scale));
+            scale_reg_f = __builtin_amdgcn_cvt_f32_bf8(static_cast<uint32_t>(scale), 0);
         }
         else if constexpr(std::is_same_v<AQDataType, float>)
         {
@@ -46,7 +44,7 @@ struct BlockGemmAQuantBase
 
 // A is block window on shared memory
 // AQ (scale tensor) is block distributed tensor.
-// Consecutive kQuantGroupSize elements of A are quantized with a separate scale.
+// Consecutive QuantGroupSize elements of A are quantized with a separate scale.
 // B is block window on shared memory
 // C is block distributed tensor
 template <typename Problem_,
@@ -66,16 +64,16 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
         using ComputeDataType = remove_cvref_t<typename Problem::ComputeDataType>;
         using CDataType       = remove_cvref_t<typename Problem::CDataType>;
         using BlockGemmShape  = remove_cvref_t<typename Problem::BlockGemmShape>;
+        using QuantGroupSize  = remove_cvref_t<typename Problem::QuantGroupSize>;
 
-        static constexpr index_t kQuantGroupSize = Problem::kQuantGroupSize;
-        static constexpr index_t kBlockSize      = Problem::kBlockSize;
-        static constexpr auto Scheduler          = Problem::Scheduler;
+        static constexpr index_t kBlockSize = Problem::kBlockSize;
+        static constexpr auto Scheduler     = Problem::Scheduler;
 
         // Threadblock GEMM tile size
         static constexpr index_t MPerBlock  = BlockGemmShape::kM;
         static constexpr index_t NPerBlock  = BlockGemmShape::kN;
         static constexpr index_t KPerBlock  = BlockGemmShape::kK;
-        static constexpr index_t AQPerBlock = KPerBlock / kQuantGroupSize;
+        static constexpr index_t AQPerBlock = KPerBlock / QuantGroupSize::kK;
 
         static constexpr auto config = Policy::template GetWarpGemmMWarpNWarp<Problem>();
         using WarpGemm               = remove_cvref_t<decltype(config.template at<0>())>;
@@ -101,20 +99,20 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
         static constexpr index_t KIterPerWarp = KPerBlock / WarpGemm::kK;
 
         static constexpr index_t QScalesPerBlockRow =
-            (KPerBlock + kQuantGroupSize - 1) / kQuantGroupSize;
+            integer_divide_ceil(KPerBlock, QuantGroupSize::kK);
         static constexpr index_t QScalesPerWarpGemmRow =
-            (WarpGemm::kK + kQuantGroupSize - 1) / kQuantGroupSize;
+            integer_divide_ceil(WarpGemm::kK, QuantGroupSize::kK);
 
         static constexpr index_t KIterPerQScale = KIterPerWarp / QScalesPerBlockRow;
 
-        static_assert(kQuantGroupSize % WarpGemm::kK == 0,
-                      "Error! WarpGemm::kK should be a multiple of kQuantGroupSize");
+        static_assert(QuantGroupSize::kK % WarpGemm::kK == 0,
+                      "Error! WarpGemm::kK should be a multiple of QuantGroupSize");
         static_assert(QScalesPerWarpGemmRow == 1,
-                      "Error! kQuantGroupSize shouldn't be smaller than WarpGemm::kK");
+                      "Error! QuantGroupSize shouldn't be smaller than WarpGemm::kK");
         static_assert(KIterPerWarp % QScalesPerBlockRow == 0,
                       "Error! KItersPerWarp should be a multiple of QscalesPerBlockRow");
 
-        static_assert(KPerBlock / kQuantGroupSize > 0,
+        static_assert(KPerBlock / QuantGroupSize::kK > 0,
                       "Error! Each row of blockgemm should have a separate scale");
 
         static_assert(MIterPerWarp * MWarp * WarpGemm::kM == MPerBlock,
@@ -157,7 +155,6 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
 
     using Base = BlockGemmAQuantBase<Problem_>;
 
-    using Loader   = remove_cvref_t<InterleavedPKTypeLoader<ComputeDataType, UnaryOpSize_>>;
     using WarpGemm = remove_cvref_t<typename Traits::WarpGemm>;
 
     static constexpr index_t KIterPerWarp = Traits::KIterPerWarp;
@@ -277,7 +274,6 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
 
             int gathered_scale_reg = __builtin_amdgcn_ds_bpermute(
                 pull_from_lane << 2, __builtin_bit_cast(int, scale_reg_dword));
-
             return Base::cvt_scale_to_fp32(gathered_scale_reg);
         }
 
@@ -348,7 +344,7 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                         // Thread 0 can read AQ_tile[0, 0] from itself, AQ_tile[1,
                         // 0] from thread 1, ..., and AQ_tile[3, 0] from thread 3.
 
-                        constexpr uint32_t kTileRowsOfCPerThread = 4;
+                        constexpr uint32_t kTileRowsOfCPerThread = (get_warp_size() == 64) ? 4 : 8;
                         decltype(threadIdx.x) pull_from_lane     = 0;
                         if constexpr(WarpGemm::kM == 16)
                         {
@@ -371,7 +367,6 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                             static_assert(false, "WarpGemm::kM is not 16 nor 32.");
                         }
                         auto& scale_reg = aq_block_tensor.get_thread_buffer()[mIter];
-
                         return exchange_quant_value_across_lanes(scale_reg, pull_from_lane);
                     }
                     else
@@ -409,7 +404,8 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                         // desired row coefficient
                         auto& scale_reg = aq_block_tensor.get_thread_buffer()[src_reg_offset];
 
-                        constexpr uint32_t kTileRows               = 4;
+                        constexpr uint32_t kTileRows = (get_warp_size() == 64) ? 4 : 8;
+                        ;
                         constexpr uint32_t kTiledCMsPerWarp        = WarpGemm::kCMLane * kTileRows;
                         constexpr uint32_t reg_offset_for_row_data = c_row * WarpGemm::kCMLane;
                         // Multiply by 4 because output is stored in tiles of 4
@@ -447,26 +443,8 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
         CK_TILE_DEVICE void LocalPrefetch(const ASmemBlockWindow& a_block_window,
                                           const BSmemBlockWindow& b_block_window)
         {
-            if constexpr(std::is_same_v<ADataType, pk_int4_t>)
-            {
-                static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
-                              std::is_same_v<ComputeDataType, bf8_t>);
-                Loader::load_interleaved_pk_type(a_warp_tile_, a_block_window);
-            }
-            else
-            {
-                load_tile(a_warp_tile_, a_block_window);
-            }
-            if constexpr(std::is_same_v<BDataType, pk_int4_t>)
-            {
-                static_assert(std::is_same_v<ComputeDataType, fp8_t> ||
-                              std::is_same_v<ComputeDataType, bf8_t>);
-                Loader::load_interleaved_pk_type(b_warp_tile_, b_block_window);
-            }
-            else
-            {
-                load_tile(b_warp_tile_, b_block_window);
-            }
+            load_int4_tile<ADataType, ComputeDataType, UnaryOpSize_>(a_warp_tile_, a_block_window);
+            load_int4_tile<BDataType, ComputeDataType, UnaryOpSize_>(b_warp_tile_, b_block_window);
         }
 
         // C += A * B
@@ -531,6 +509,7 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
                         static_for<0, WarpGemm::kM * WarpGemm::kN / warp_size, 1>{}(
                             [&](auto c_row) {
                                 float scale_reg_f = aq_picker.template pick<c_row>();
+
                                 c_block_tensor.get_thread_buffer()[tbuf_offset + c_row] +=
                                     (c_warp_tensor.get_thread_buffer()[c_row] * scale_reg_f);
                             });
@@ -543,20 +522,8 @@ struct AQuantBlockUniversalGemmAsBsCr : public BlockGemmAQuantBase<Problem_>
     public:
     CK_TILE_DEVICE static constexpr auto MakeCBlockTile()
     {
-        constexpr auto c_block_outer_dstr_encoding = tile_distribution_encoding<
-            sequence<>,
-            tuple<sequence<MIterPerWarp, MWarp>, sequence<NIterPerWarp, NWarp>>,
-            tuple<sequence<1, 2>>,
-            tuple<sequence<1, 1>>,
-            sequence<1, 2>,
-            sequence<0, 0>>{};
-
-        constexpr auto c_block_dstr_encode = detail::make_embed_tile_distribution_encoding(
-            c_block_outer_dstr_encoding, typename WarpGemm::CWarpDstrEncoding{});
-        constexpr auto c_block_dstr = make_static_tile_distribution(c_block_dstr_encode);
-        auto c_block_tensor         = make_static_distributed_tensor<CDataType>(c_block_dstr);
-
-        return c_block_tensor;
+        return BlockGemmQuantCommon<CDataType, WarpGemm, MIterPerWarp, MWarp, NIterPerWarp, NWarp>::
+            MakeCBlockTile();
     }
 
     template <typename ASmemBlockWindow, typename BSmemBlockWindow>
