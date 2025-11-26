@@ -70,7 +70,7 @@ struct WPQuantBPipelineAgBgCrV2 : public WeightPreshufflePipelineAGmemBGmemCRegV
 
     static constexpr bool PreshuffleQuant = Problem::Traits::PreshuffleQuant;
     static constexpr index_t KPerBlockBQ =
-        integer_divide_ceil(BlockGemmShape::kK, QuantGroupSize::kK); // 256/128
+        integer_divide_ceil(BlockGemmShape::kK, QuantGroupSize::kK);
     static constexpr index_t QScalesPerBlockRow =
         integer_divide_ceil(kKPerBlock, QuantGroupSize::kK);
 
