@@ -268,11 +268,11 @@ struct BQuantGemmPipelineAgBgCrCompV3 : public BaseBQuantGemmPipelineAgBgCrCompV
                               : (NPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
                                  KPerBlock == BDramBlockWindowTmp{}.get_window_lengths()[I1{}]),
                           "B block window has incorrect lengths for defined BLayout!");
-            static_assert(is_bq_row_major
+            static_assert(PreshuffleQuant || (is_bq_row_major
                               ? (KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
                                  NPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}])
                               : (NPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I0{}] &&
-                                 KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}]),
+                                 KPerBlockBQ == BQDramBlockWindowTmp{}.get_window_lengths()[I1{}])),
                           "Bq block window has incorrect lengths for defined BqLayout!");
 
             using ADramTileWindowStep  = typename ADramBlockWindowTmp::BottomTensorIndex;

@@ -415,17 +415,7 @@ struct BQuantBlockUniversalGemmAsBsCr : public BlockGemmBQuantBase<Problem_>
                                    const ASmemBlockWindow& a_block_window,
                                    const BSmemBlockWindow& b_block_window)
     {
-        if constexpr(std::is_same_v<BQLayout, tensor_layout::gemm::RowMajor>)
-        {
-            auto bq_shuffle_tmp = make_static_distributed_tensor<BQDataType>(
-                Policy::template MakeShuffledBQDramTileDistribution<Problem>());
-            transpose_tile2d(bq_shuffle_tmp, bq_block_tensor);
-            block_gemm_impl_(c_block_tensor, bq_shuffle_tmp, a_block_window, b_block_window);
-        }
-        else
-        {
-            block_gemm_impl_(c_block_tensor, bq_block_tensor, a_block_window, b_block_window);
-        }
+        block_gemm_impl_(c_block_tensor, bq_block_tensor, a_block_window, b_block_window);
     }
 
     private:

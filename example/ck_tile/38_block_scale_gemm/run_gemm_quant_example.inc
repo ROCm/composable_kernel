@@ -50,7 +50,7 @@ float gemm_calc_quant(const ck_tile::QuantGemmHostArgs& args, const ck_tile::str
                                                     CLayout,
                                                     QuantMode,
                                                     ALayout, // for AQLayout
-                                                    BLayout, // for BQLayout
+                                                    ck_tile::tensor_layout::gemm::ColumnMajor, // for BQLayout - always ColumnMajor for backward compat
                                                     false,
                                                     GemmConfig::DoubleSmemBuffer>;
 
