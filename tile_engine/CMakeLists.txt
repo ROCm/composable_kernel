@@ -2,4 +2,4 @@ include_directories(BEFORE
         ${CMAKE_CURRENT_LIST_DIR}/include
     )
 
-add_subdirectory(ops_new/gemm)
+add_subdirectory(ops/gemm)
