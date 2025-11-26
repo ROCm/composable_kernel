@@ -660,7 +660,6 @@ def validate_whole_wg_cover_configuration(
         )
 
         if not wg_cover_core_valid:
-            print("I am here 3")
             logging.debug(
                 f"whole workgroup cover failed for Matrix B distribution: {wg_cover_core_error}"
             )

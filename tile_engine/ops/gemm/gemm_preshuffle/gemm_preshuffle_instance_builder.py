@@ -165,7 +165,9 @@ def _generate_single_kernel_individual(work_item):
         # Remove "gemm_preshuffle_" from the beginning of kernel_name for the filename
         simplified_name = kernel_name
         if simplified_name.startswith("gemm_preshuffle_"):
-            simplified_name = simplified_name[16:]  # Remove "gemm_preshuffle_" prefix
+            simplified_name = simplified_name[
+                len(kernel_name_prefix) + 1 :
+            ]  # Remove "gemm_preshuffle_" prefix
 
         # Write individual header file
         header_file = working_path / f"gemm_preshuffle_single_{simplified_name}.hpp"

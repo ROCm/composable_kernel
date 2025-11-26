@@ -53,9 +53,6 @@ class GemmKernelBuilder:
         tile_configs = self._get_tile_configs(kernel_name_prefix)
         trait_combos = self._generate_trait_combinations()
 
-        print(f"[NEW] Generated {len(tile_configs)} tile configurations")
-        print(f"[NEW] Generated {len(trait_combos)} trait combinations")
-
         kernel_list = []
         for tile_config in tile_configs:
             for trait_combo in trait_combos:
@@ -883,7 +880,7 @@ struct SelectedKernel {{
                 1,                           // VectorSizeC_
                 PermuteN>;                   // isPermuteN_
             
-            using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>"""
+            using GemmEpilogue = ck_tile::CShuffleEpilogue<EpilogueProblem>;"""
         return instance_code
 
     def populate_default_gemm_universal(self):

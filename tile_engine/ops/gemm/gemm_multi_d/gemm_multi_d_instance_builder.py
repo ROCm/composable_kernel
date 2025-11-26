@@ -47,9 +47,6 @@ class GemmMultiDKernelBuilder(GemmKernelBuilder):
         tile_configs = self._get_tile_configs(kernel_name_prefix)
         trait_combos = self._generate_trait_combinations()
 
-        print(f"[DELETE] In gen_all Generated {len(tile_configs)} tile configurations")
-        print(f"[DELETE] In gen_all Generated {len(trait_combos)} trait combinations")
-
         # Prepare work items for parallel processing
         work_items = []
         for tile_config in tile_configs:
@@ -183,7 +180,9 @@ def _generate_single_kernel_individual(work_item):
         # Remove "gemm_multi_d_" from the beginning of kernel_name for the filename
         simplified_name = kernel_name
         if simplified_name.startswith("gemm_multi_d_"):
-            simplified_name = simplified_name[13:]  # Remove "gemm_multi_d_" prefix
+            simplified_name = simplified_name[
+                len(kernel_name_prefix) + 1 :
+            ]  # Remove "gemm_multi_d_" prefix
 
         # Write individual header file
         header_file = working_path / f"gemm_multi_d_single_{simplified_name}.hpp"
@@ -258,7 +257,7 @@ def main():
         f"Invalid matrix_a layout : {layout_parts[0]} or matrix_b layout: {layout_parts[1]} (matrix_a and matrix_b must be either 'r' for row major or 'c' for column major)"
     )
     assert layout_parts[2] == "r" and layout_parts[3] == "r", (
-        f"Invalid matrix_c or d dimension in layout: {layout_parts[2]} andf {layout_parts[3]} (must be 'r' only as currently we are supporting only row major)"
+        f"Invalid matrix_c or d dimension in layout: {layout_parts[2]} and {layout_parts[3]} (must be 'r' only as currently we are supporting only row major)"
     )
 
     # Elementwise function name validation

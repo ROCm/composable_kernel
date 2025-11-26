@@ -163,7 +163,9 @@ def _generate_single_kernel_individual(work_item):
         # Remove "gemm_universal_" from the beginning of kernel_name for the filename
         simplified_name = kernel_name
         if simplified_name.startswith("gemm_universal_"):
-            simplified_name = simplified_name[15:]  # Remove "gemm_universal" prefix
+            simplified_name = simplified_name[
+                len(kernel_name_prefix) + 1 :
+            ]  # Remove "gemm_universal" prefix
 
         # Write individual header file
         header_file = working_path / f"gemm_universal_single_{simplified_name}.hpp"
