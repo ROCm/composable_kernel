@@ -135,7 +135,7 @@ auto bq_permuteN(const ck_tile::HostTensor<T>& t, index_t group_n)
 }
 
 template <typename GemmConfig, typename T>
-auto shuffle_b_permuteN(const ck_tile::HostTensor<T>&, const GemmConfig& gemmConfig)
+auto shuffle_b_permuteN(const ck_tile::HostTensor<T>& t, const GemmConfig& gemmConfig)
 {
     assert(t.get_lengths().size() == 2);
     int n_      = t.get_lengths()[1];
