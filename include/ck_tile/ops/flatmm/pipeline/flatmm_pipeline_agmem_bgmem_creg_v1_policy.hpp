@@ -227,9 +227,15 @@ struct UniversalFlatmmPipelineAgBgCrPolicy
     }
 
     template <typename Problem>
-    CK_TILE_HOST_DEVICE static constexpr auto GetSmemPackA()
+    CK_TILE_HOST_DEVICE static constexpr index_t GetSmemPackA()
     {
-        return Problem::VectorLoadSize / sizeof(typename Problem::ADataType);
+        using A           = remove_cvref_t<typename Problem::ADataType>;
+        using BlockFlatmm = remove_cvref_t<decltype(GetBlockFlatmm<Problem>())>;
+
+        constexpr index_t KPack    = BlockFlatmm::BlockPolicy::WarpGemm::kKPerThread;
+        constexpr index_t VecElems = Problem::VectorLoadSize / sizeof(A);
+
+        return min(KPack, VecElems);
     }
 
     template <typename Problem>
