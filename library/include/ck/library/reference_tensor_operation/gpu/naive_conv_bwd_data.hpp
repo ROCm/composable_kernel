@@ -51,9 +51,9 @@ __global__ void naive_conv_bwd_data_ndhwc_kzyxc_ndhwk(TIn* __restrict__ p_in_gra
     constexpr auto wei_op = WeiElementwiseOperation{};
     constexpr auto out_op = OutElementwiseOperation{};
 
-    TIn in_val;
-    TWei wei_val;
-    TOut out_val;
+    TIn in_val   = TIn{};
+    TWei wei_val = TWei{};
+    TOut out_val = TOut{};
 
     for(long_index_t ii = tid; ii < input_length; ii += num_threads)
     {
