@@ -1,3 +1,6 @@
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
+
 #include "ck_tile/host.hpp"
 #include "layernorm2d_fwd.hpp"
 #include "ck_tile/utility/json_dump.hpp"

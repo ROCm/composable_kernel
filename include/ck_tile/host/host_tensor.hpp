@@ -598,6 +598,8 @@ struct HostTensor
 
     typename Data::size_type size() const { return mData.size(); }
 
+    T max() const { return *std::max_element(mData.begin(), mData.end()); }
+
     // return a slice of this tensor
     // for simplicity we just copy the data and return a new tensor
     auto slice(std::vector<size_t> s_begin, std::vector<size_t> s_end) const

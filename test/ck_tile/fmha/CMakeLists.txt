@@ -9,10 +9,10 @@ set(FMHA_FWD_INSTANCES "tile_fmha_fwd_instances")
 set(TEST_NAME "test_ck_tile_fmha")
 
 function(add_gtest_fwd test_group)
-    set(V_TYPES "fp16" "bf16" "fp8" "fp32")
+    set(V_TYPES "fp16" "bf16" "fp8bf16" "fp32")
     set(CPP_TYPE_fp16 "FmhaFwdFp16")
     set(CPP_TYPE_bf16 "FmhaFwdBf16")
-    set(CPP_TYPE_fp8 "FmhaFwdFp8")
+    set(CPP_TYPE_fp8bf16 "FmhaFwdFp8Bf16")
     set(CPP_TYPE_fp32 "FmhaFwdFp32")
 
     set(all_tests)

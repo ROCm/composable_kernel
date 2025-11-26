@@ -1,7 +1,7 @@
-// Copyright © Advanced Micro Devices, Inc., or its affiliates.
-// SPDX-License-Identifier:  MIT
-#pragma once
+// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
 
+#pragma once
 template <typename Layout>
 static constexpr inline auto is_row_major(Layout)
 {

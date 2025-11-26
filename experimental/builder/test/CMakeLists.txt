@@ -21,6 +21,7 @@ add_ck_builder_test(test_ckb_conv_builder
     test_conv_builder.cpp
     test_fwd_instance_traits.cpp
     test_bwd_weight_instance_traits.cpp
+    test_bwd_data_instance_traits.cpp
     test_instance_traits_util.cpp)
 
 add_ck_builder_test(test_ckb_inline_diff test_inline_diff.cpp)
@@ -51,11 +52,14 @@ add_ck_builder_test(test_ckb_build_fwd_instances
     conv/test_ckb_conv_fwd_3d_fp32.cpp
     )
 
+# Factory tests attempt to build all the kernels need by MIOpen.
+# This is only for regression testing and development, the builds are too expensive for regular use in CI.
 function(add_ck_factory_test test_name)
     add_ck_builder_test(${test_name} ${ARGN})
     target_link_libraries(${test_name} PRIVATE composablekernels::device_conv_operations)
 endfunction()
 
+# TODO: add these tests back in once we have CI working across all GPU architectures.
 add_ck_factory_test(test_ckb_testing_utils test_testing_utils.cpp)
 # add_ck_factory_test(test_ckb_factory_grouped_convolution_forward test_ck_factory_grouped_convolution_forward.cpp)
 # add_ck_factory_test(test_ckb_factory_grouped_convolution_forward_clamp test_ck_factory_grouped_convolution_forward_clamp.cpp)
@@ -74,27 +78,60 @@ add_ck_builder_test(test_ckb_conv_traits
 add_ck_builder_test(test_ckb_conv_description
     test_conv_description.cpp)
 
-# Function to add all test_ckb targets to a list
-function(collect_test_ckb_targets result_var)
-    # Get all targets in current directory
-    get_directory_property(all_targets BUILDSYSTEM_TARGETS)
+# Register tests with CTest and assign labels
+include(CTest)
 
-    set(test_ckb_targets)
-    foreach(target ${all_targets})
-        # Check if target name starts with "test_ckb"
-        string(REGEX MATCH "^test_ckb" match_result ${target})
-        if(match_result)
-            list(APPEND test_ckb_targets ${target})
-        endif()
-    endforeach()
+# Smoke test: fast-compiling unit test
+add_test(NAME test_ckb_conv_builder COMMAND test_ckb_conv_builder)
+set_tests_properties(test_ckb_conv_builder PROPERTIES LABELS "BUILDER_SMOKE")
 
-    set(${result_var} ${test_ckb_targets} PARENT_SCOPE)
-endfunction()
+# Regression tests: all other tests that require kernel compilation
+set(CKB_REGRESSION_TESTS
+    test_ckb_inline_diff
+    test_ckb_get_instance_string
+    test_ckb_build_fwd_instances
+    test_ckb_testing_utils
+    test_ckb_factory_grouped_convolution_forward_convscale
+    test_ckb_factory_grouped_convolution_forward_scaleadd_ab
+    test_ckb_factory_grouped_convolution_forward_scaleadd_scaleadd_relu
+    test_ckb_factory_grouped_convolution_forward_dynamic_op
+    test_ckb_conv_traits
+    test_ckb_conv_description
+)
 
-# Create the custom target
-collect_test_ckb_targets(TEST_CKB_TARGETS)
-add_custom_target(test_ckb_all)
-add_dependencies(test_ckb_all ${TEST_CKB_TARGETS})
+foreach(test_target ${CKB_REGRESSION_TESTS})
+    add_test(NAME ${test_target} COMMAND ${test_target})
+    set_tests_properties(${test_target} PROPERTIES LABELS "BUILDER_REGRESSION")
+endforeach()
 
-# Optional: Print the collected targets for verification
-message(STATUS "Found following CK Builder test targets: ${TEST_CKB_TARGETS}")
+# Helper target to build all regression tests
+add_custom_target(build-regression-builder DEPENDS ${CKB_REGRESSION_TESTS})
+
+# Target to run only smoke tests (builds only test_ckb_conv_builder)
+add_custom_target(smoke-builder
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "BUILDER_SMOKE"
+    DEPENDS test_ckb_conv_builder
+    USES_TERMINAL
+    COMMENT "Running experimental builder smoke tests..."
+)
+
+# Target to run only regression tests (builds all regression test executables)
+add_custom_target(regression-builder
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -L "BUILDER_REGRESSION"
+    DEPENDS build-regression-builder
+    USES_TERMINAL
+    COMMENT "Running experimental builder regression tests..."
+)
+
+# Target to run all builder tests (builds all test executables)
+add_custom_target(check-builder
+    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure -C ${CMAKE_CFG_INTDIR} -R "^test_ckb"
+    DEPENDS test_ckb_conv_builder build-regression-builder
+    USES_TERMINAL
+    COMMENT "Running all experimental builder tests..."
+)
+
+# Print summary of test organization
+message(STATUS "CK Builder test organization:")
+message(STATUS "  Smoke test: test_ckb_conv_builder")
+message(STATUS "  Regression tests: ${CKB_REGRESSION_TESTS}")
