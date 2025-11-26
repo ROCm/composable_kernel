@@ -68,7 +68,6 @@ float grouped_gemm_tileloop(const ck_tile::stream_config& s,
         constexpr auto memory_operation = memory_operation_.value;
         constexpr bool transpose_c      = false;
 
-        using QuantGroupSize   = ck_tile::QuantGroupShape<ck_tile::sequence<1, 1, 128>>;
         using QuantGemmProblem = typename std::conditional<
             QuantMode == ck_tile::QuantType::BQuantGrouped,
             ck_tile::GemmBQuantPipelineProblem<ADataType,
