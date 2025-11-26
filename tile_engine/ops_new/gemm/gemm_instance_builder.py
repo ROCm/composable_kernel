@@ -532,7 +532,7 @@ struct SelectedKernel {{
             else:
                 instance_code += """
     static constexpr bool Preshuffle = false;"""
-            return instance_code
+        return instance_code
 
     def populate_initialization(self, kernel_name_prefix, base_pipeline_map, pipeline):
         # Tile Shape
