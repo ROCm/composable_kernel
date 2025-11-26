@@ -121,8 +121,8 @@ __global__ void naive_conv_fwd_ndhwc_kzyxc_ndhwk(const TIn* __restrict__ p_in,
         // Apply output element-wise operation (if any)
         out_op(out_val, result);
 
-        // Write result (use direct conversion, not element-wise result)
-        p_out[ii] = result;
+        // Write transformed result
+        p_out[ii] = out_val;
     }
 }
 } // namespace ref

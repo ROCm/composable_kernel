@@ -141,8 +141,8 @@ __global__ void naive_conv_bwd_data_ndhwc_kzyxc_ndhwk(TIn* __restrict__ p_in_gra
         // Apply input element-wise operation (if any)
         in_op(in_val, result);
 
-        // Write result (use direct conversion, not element-wise result)
-        p_in_grad[ii] = result;
+        // Write transformed result
+        p_in_grad[ii] = in_val;
     }
 }
 } // namespace ref

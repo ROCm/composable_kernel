@@ -131,8 +131,8 @@ __global__ void naive_conv_bwd_weight_ndhwc_kzyxc_ndhwk(const TIn* __restrict__ 
         // Apply weight element-wise operation (if any)
         wei_op(wei_val, result);
 
-        // Write result (use direct conversion, not element-wise result)
-        p_wei_grad[ii] = result;
+        // Write transformed result
+        p_wei_grad[ii] = wei_val;
     }
 }
 } // namespace ref
