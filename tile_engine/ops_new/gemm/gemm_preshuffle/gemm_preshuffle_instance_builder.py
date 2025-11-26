@@ -24,7 +24,7 @@ def _import_gemm_kernel_builder():
 GemmKernelBuilder = _import_gemm_kernel_builder()
 
 
-class GemmUniversalKernelBuilder(GemmKernelBuilder):
+class GemmPreshuffleKernelBuilder(GemmKernelBuilder):
     def __init__(self, working_path, gpu_target, datatype, layout, config_json=None):
         super().__init__(working_path, gpu_target, datatype, layout, config_json)
 
@@ -54,6 +54,7 @@ class GemmUniversalKernelBuilder(GemmKernelBuilder):
                         kernel_name_prefix,
                     )
                 )
+
         print(
             f"Generating {len(work_items)} individual kernel files using {num_workers} workers..."
         )
@@ -90,6 +91,7 @@ class GemmUniversalKernelBuilder(GemmKernelBuilder):
                     print(
                         f"  Progress: {completed}/{len(work_items)} kernels generated"
                     )
+
                 try:
                     result = future.result()
                     if result:
@@ -110,7 +112,7 @@ class GemmUniversalKernelBuilder(GemmKernelBuilder):
 
     def _generate_cmake_individual_targets(self, kernel_list):
         """Generate CMake include file that creates individual targets"""
-        cmake_code = f"""# Generated CMake file for individual GEMM Universal targets
+        cmake_code = f"""# Generated CMake file for individual GEMM Preshuffle targets
 # Datatype: {self.datatype}, Layout: {self.layout}
 
 """
@@ -127,11 +129,11 @@ class GemmUniversalKernelBuilder(GemmKernelBuilder):
                 str(x) for x in trait_combo[3:]
             )
 
-            cmake_code += f'create_individual_gemm_universal_target("{self.datatype}" "{self.layout}" "{trait_str}" "{tile_str}")\n'
+            cmake_code += f'create_individual_gemm_preshuffle_target("{self.datatype}" "{self.layout}" "{trait_str}" "{tile_str}")\n'
 
         # Write CMake include file
         with open(
-            self.working_path / "gemm_universal_individual_targets.cmake", "w"
+            self.working_path / "gemm_preshuffle_individual_targets.cmake", "w"
         ) as f:
             f.write(cmake_code)
 
@@ -150,7 +152,7 @@ def _generate_single_kernel_individual(work_item):
     ) = work_item
 
     # Create a temporary builder instance for this worker
-    builder = GemmUniversalKernelBuilder(
+    builder = GemmPreshuffleKernelBuilder(
         working_path, gpu_target, datatype, layout, config_json
     )
 
@@ -159,14 +161,14 @@ def _generate_single_kernel_individual(work_item):
             kernel_name_prefix, tile_config, trait_combo
         )
 
-        # Create simplified filename without the "gemm_universal_" prefix
-        # Remove "gemm_universal_" from the beginning of kernel_name for the filename
+        # Create simplified filename without the "gemm_preshuffle_" prefix
+        # Remove "gemm_preshuffle_" from the beginning of kernel_name for the filename
         simplified_name = kernel_name
-        if simplified_name.startswith("gemm_universal_"):
-            simplified_name = simplified_name[15:]  # Remove "gemm_universal" prefix
+        if simplified_name.startswith("gemm_preshuffle_"):
+            simplified_name = simplified_name[16:]  # Remove "gemm_preshuffle_" prefix
 
         # Write individual header file
-        header_file = working_path / f"gemm_universal_single_{simplified_name}.hpp"
+        header_file = working_path / f"gemm_preshuffle_single_{simplified_name}.hpp"
         with open(header_file, "w") as f:
             f.write(instance_code)
 
@@ -178,7 +180,7 @@ def _generate_single_kernel_individual(work_item):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="GEMM Universal kernel instance builder with parallel support"
+        description="GEMM kernel instance builder with parallel support"
     )
     parser.add_argument("--working_path", required=True, help="Working directory path")
     parser.add_argument(
@@ -195,10 +197,10 @@ def main():
     parser.add_argument(
         "--layout",
         required=True,
-        choices=["rcr", "rrr", "ccr", "crr"],
+        choices=["rcr"],
         help="Matrix layout",
     )
-    parser.add_argument("--config_json", help="Configuration JSON file")
+    parser.add_argument("--config_json", required=True, help="Configuration JSON file")
     parser.add_argument(
         "--num_workers", type=int, help="Number of parallel workers (default: auto)"
     )
@@ -233,27 +235,28 @@ def main():
     assert len(layout_parts) == 3, (
         f"Invalid layout string: {args.layout} (must be 3 characters like 'rcr' where r stands for row major and c stands for column major)"
     )
-    assert layout_parts[0] in ["r", "c"] and layout_parts[1] in ["r", "c"], (
-        f"Invalid matrix_a layout : {layout_parts[0]} or matrix_b layout: {layout_parts[1]} (matrix_a and matrix_b must be either 'r' for row major or 'c' for column major)"
+    assert layout_parts[0] in ["r"] and layout_parts[1] in ["c"], (
+        f"Invalid matrix_a layout : {layout_parts[0]} or matrix_b layout: {layout_parts[1]} (matrix_a must be 'r' for row major and matrix_b must be 'c' for column major as it is the only supported layout for preshuffle)"
     )
     assert layout_parts[2] == "r", (
         f"Invalid matrix_c layout: {layout_parts[2]} (must be 'r' only as currently we are supporting only row major)"
     )
 
-    builder = GemmUniversalKernelBuilder(
+    # Create builder
+    builder = GemmPreshuffleKernelBuilder(
         args.working_path, args.gpu_target, args.datatype, args.layout, args.config_json
     )
 
-    kernel_name_prefix = "gemm_universal"
+    kernel_name_prefix = "gemm_preshuffle"
     if args.list_kernels:
+        # Fast listing mode - just write kernel list without generating files
         builder._list_kernels(kernel_name_prefix)
     elif args.gen_single:
-        # Generate a single kernel file input validation
+        # Generate a single kernel file
         if not args.kernel_name or not args.tile_config or not args.trait_combo:
             parser.error(
                 "--gen_single requires --kernel_name, --tile_config, and --trait_combo"
             )
-
         # Parse tile config
         tile_parts = args.tile_config.split("_")
         tile_dims = tile_parts[0].split("x")
@@ -290,9 +293,11 @@ def main():
             tile_config,
             trait_combo,
         )
+
     elif args.gen_all_individual:
         # Generate all individual kernel files
         builder._generate_all_individual(kernel_name_prefix, args.num_workers)
+        pass
     else:
         parser.error(
             "Must specify one of: --list_kernels, --gen_all_individual, or --gen_single"
