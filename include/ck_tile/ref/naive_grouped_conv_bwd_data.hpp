@@ -4,6 +4,8 @@
 #pragma once
 
 #include "ck_tile/core.hpp"
+#include "ck_tile/ref/conv_common.hpp"
+#include <array>
 #include "ck_tile/host/device_memory.hpp"
 #include "ck_tile/host/kernel_launch.hpp"
 #include <hip/hip_runtime.h>
@@ -26,24 +28,25 @@ struct naive_grouped_conv_bwd_data_kernel
 {
     static constexpr ck_tile::index_t kBlockSize = 256;
 
-    __device__ void operator()(InDataType* __restrict__ p_in_grad,
-                               const WeiDataType* __restrict__ p_wei,
-                               const OutDataType* __restrict__ p_out_grad,
-                               // Tensor dimensions
-                               ck_tile::index_t G, // number of groups
-                               ck_tile::index_t N, // batch size
-                               ck_tile::index_t K, // output channels per group
-                               ck_tile::index_t C, // input channels per group
-                               // Input spatial dimensions
-                               const ck_tile::long_index_t* in_spatial_lengths,
-                               // Weight spatial dimensions
-                               const ck_tile::long_index_t* wei_spatial_lengths,
-                               // Output spatial dimensions
-                               const ck_tile::long_index_t* out_spatial_lengths,
-                               // Convolution parameters
-                               const ck_tile::long_index_t* conv_strides,
-                               const ck_tile::long_index_t* conv_dilations,
-                               const ck_tile::long_index_t* in_left_pads) const
+    __device__ void
+    operator()(InDataType* __restrict__ p_in_grad,
+               const WeiDataType* __restrict__ p_wei,
+               const OutDataType* __restrict__ p_out_grad,
+               // Tensor dimensions
+               ck_tile::index_t G, // number of groups
+               ck_tile::index_t N, // batch size
+               ck_tile::index_t K, // output channels per group
+               ck_tile::index_t C, // input channels per group
+               // Input spatial dimensions
+               const std::array<ck_tile::long_index_t, NDimSpatial>& in_spatial_lengths,
+               // Weight spatial dimensions
+               const std::array<ck_tile::long_index_t, NDimSpatial>& wei_spatial_lengths,
+               // Output spatial dimensions
+               const std::array<ck_tile::long_index_t, NDimSpatial>& out_spatial_lengths,
+               // Convolution parameters
+               const std::array<ck_tile::long_index_t, NDimSpatial>& conv_strides,
+               const std::array<ck_tile::long_index_t, NDimSpatial>& conv_dilations,
+               const std::array<ck_tile::long_index_t, NDimSpatial>& in_left_pads) const
     {
         const ck_tile::long_index_t tid         = get_block_id() * blockDim.x + get_thread_id();
         const ck_tile::long_index_t num_threads = blockDim.x * gridDim.x;
@@ -306,20 +309,13 @@ naive_grouped_conv_bwd_data(InDataType* p_in_grad_dev,
                             std::vector<ck_tile::long_index_t> in_left_pads,
                             ck_tile::stream_config stream_config = {})
 {
-    // Copy spatial parameters to device
-    DeviceMem in_spatial_dev(in_spatial_lengths.size() * sizeof(ck_tile::long_index_t));
-    DeviceMem wei_spatial_dev(wei_spatial_lengths.size() * sizeof(ck_tile::long_index_t));
-    DeviceMem out_spatial_dev(out_spatial_lengths.size() * sizeof(ck_tile::long_index_t));
-    DeviceMem strides_dev(conv_strides.size() * sizeof(ck_tile::long_index_t));
-    DeviceMem dilations_dev(conv_dilations.size() * sizeof(ck_tile::long_index_t));
-    DeviceMem pads_dev(in_left_pads.size() * sizeof(ck_tile::long_index_t));
-
-    in_spatial_dev.ToDevice(in_spatial_lengths.data());
-    wei_spatial_dev.ToDevice(wei_spatial_lengths.data());
-    out_spatial_dev.ToDevice(out_spatial_lengths.data());
-    strides_dev.ToDevice(conv_strides.data());
-    dilations_dev.ToDevice(conv_dilations.data());
-    pads_dev.ToDevice(in_left_pads.data());
+    // Convert vectors to arrays
+    auto in_spatial_arr     = to_array_with_default<NDimSpatial>(in_spatial_lengths);
+    auto wei_spatial_arr    = to_array_with_default<NDimSpatial>(wei_spatial_lengths);
+    auto out_spatial_arr    = to_array_with_default<NDimSpatial>(out_spatial_lengths);
+    auto conv_strides_arr   = to_array_with_default<NDimSpatial>(conv_strides);
+    auto conv_dilations_arr = to_array_with_default<NDimSpatial>(conv_dilations);
+    auto in_left_pads_arr   = to_array_with_default<NDimSpatial>(in_left_pads, 0);
 
     // Calculate grid size
     ck_tile::long_index_t input_length = G * N * C;
@@ -335,26 +331,24 @@ naive_grouped_conv_bwd_data(InDataType* p_in_grad_dev,
     const ck_tile::index_t grid_size      = (input_length + block_size - 1) / block_size;
 
     // Launch kernel
-    float elapsed_ms = launch_kernel(
-        stream_config,
-        make_kernel(
-            KernelType{},
-            dim3(grid_size),
-            dim3(block_size),
-            0, // dynamic shared memory size
-            p_in_grad_dev,
-            p_wei_dev,
-            p_out_grad_dev,
-            G,
-            N,
-            K,
-            C,
-            reinterpret_cast<const ck_tile::long_index_t*>(in_spatial_dev.GetDeviceBuffer()),
-            reinterpret_cast<const ck_tile::long_index_t*>(wei_spatial_dev.GetDeviceBuffer()),
-            reinterpret_cast<const ck_tile::long_index_t*>(out_spatial_dev.GetDeviceBuffer()),
-            reinterpret_cast<const ck_tile::long_index_t*>(strides_dev.GetDeviceBuffer()),
-            reinterpret_cast<const ck_tile::long_index_t*>(dilations_dev.GetDeviceBuffer()),
-            reinterpret_cast<const ck_tile::long_index_t*>(pads_dev.GetDeviceBuffer())));
+    float elapsed_ms = launch_kernel(stream_config,
+                                     make_kernel(KernelType{},
+                                                 dim3(grid_size),
+                                                 dim3(block_size),
+                                                 0, // dynamic shared memory size
+                                                 p_in_grad_dev,
+                                                 p_wei_dev,
+                                                 p_out_grad_dev,
+                                                 G,
+                                                 N,
+                                                 K,
+                                                 C,
+                                                 in_spatial_arr,
+                                                 wei_spatial_arr,
+                                                 out_spatial_arr,
+                                                 conv_strides_arr,
+                                                 conv_dilations_arr,
+                                                 in_left_pads_arr));
 
     return elapsed_ms;
 }
