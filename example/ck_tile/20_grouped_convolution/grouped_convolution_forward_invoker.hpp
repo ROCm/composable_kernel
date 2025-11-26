@@ -15,7 +15,6 @@ struct GroupedConvolutionForwardInvoker
 {
     template <ck_tile::index_t NDimSpatial,
               typename ConvConfig,
-              typename ConvConfig,
               typename InDataType,
               typename WeiDataType,
               typename AccDataType,
