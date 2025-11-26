@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2025, Advanced Micro Devices, Inc. All rights reserved.
 
-#ifndef NAIVE_CONV_BWD_WEIGHT_HPP
-#define NAIVE_CONV_BWD_WEIGHT_HPP
+#pragma once
 
 #include "ck/utility/type_convert.hpp"
 #include "ck/library/reference_tensor_operation/gpu/conv_common.hpp"
@@ -138,5 +137,3 @@ __global__ void naive_conv_bwd_weight_ndhwc_kzyxc_ndhwk(const TIn* __restrict__ 
 }
 } // namespace ref
 } // namespace ck
-
-#endif

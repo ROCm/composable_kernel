@@ -1,8 +1,7 @@
 // Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
-#ifndef NAIVE_CONV_FWD_HPP
-#define NAIVE_CONV_FWD_HPP
+#pragma once
 
 #include "ck/utility/type_convert.hpp"
 #include "ck/library/reference_tensor_operation/gpu/conv_common.hpp"
@@ -128,5 +127,3 @@ __global__ void naive_conv_fwd_ndhwc_kzyxc_ndhwk(const TIn* __restrict__ p_in,
 }
 } // namespace ref
 } // namespace ck
-
-#endif
