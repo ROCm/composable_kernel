@@ -1,487 +1,196 @@
 # CK Tile Dispatcher - Python Interface
 
-High-level Python bindings for the CK Tile GEMM dispatcher with PyTorch integration.
+Python utilities for the CK Tile GEMM dispatcher.
 
-## Table of Contents
+> **See also:** [Main Dispatcher README](../README.md) for installation and core concepts.
 
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Core API](#core-api)
-- [PyTorch Integration](#pytorch-integration)
-- [Advanced Features](#advanced-features)
-- [Examples](#examples)
-- [API Reference](#api-reference)
-
-## Installation
-
-### From Source
+## Setup
 
 ```bash
-cd dispatcher
-mkdir build && cd build
-cmake .. -DBUILD_PYTHON=ON
-make -j
-pip install -e ../python
+# Set Python path (from dispatcher directory)
+export PYTHONPATH=$PWD/python:$PYTHONPATH
+
+# Install NumPy
+pip install numpy
 ```
-
-### Requirements
-
-- Python >= 3.8
-- NumPy >= 1.19
-- PyTorch >= 2.0 (optional, for PyTorch integration)
-- ROCm >= 5.7 (for GPU support)
 
 ## Quick Start
 
-### Basic GEMM
-
 ```python
+from ctypes_utils import (
+    KernelConfig, CodegenRunner, DispatcherLib, Registry, Dispatcher
+)
 import numpy as np
-import ck_tile_dispatcher as ckd
 
-# Create matrices
+# 1. Define kernel config
+config = KernelConfig(tile_m=128, tile_n=128, tile_k=32)
+
+# 2. Generate kernel
+codegen = CodegenRunner()
+codegen.generate_from_config(config)
+
+# 3. Load library and create registry
+lib = DispatcherLib.auto()
+registry = Registry(name="demo", lib=lib)
+registry.register_kernel(config)
+
+# 4. Create dispatcher and run
+dispatcher = Dispatcher(registry=registry, lib=lib)
 A = np.random.randn(1024, 1024).astype(np.float16)
 B = np.random.randn(1024, 1024).astype(np.float16)
+result = dispatcher.run(A, B, 1024, 1024, 1024)
 
-# Compute C = A @ B
-C = ckd.gemm(A, B)
+print(f"Time: {result.time_ms:.4f} ms, TFLOPS: {result.tflops:.2f}")
 ```
 
-### With PyTorch
+## Core Classes (`ctypes_utils.py`)
+
+### KernelConfig
+
+Complete kernel configuration:
 
 ```python
-import torch
-from ck_tile_dispatcher import ck_gemm
-
-# Create tensors
-A = torch.randn(1024, 1024, device='cuda', dtype=torch.float16)
-B = torch.randn(1024, 1024, device='cuda', dtype=torch.float16)
-
-# Compute C = A @ B
-C = ck_gemm(A, B)
-```
-
-## Core API
-
-### Dispatcher Class
-
-The main dispatcher class for kernel selection and execution.
-
-```python
-from ck_tile_dispatcher import Dispatcher
-
-# Create dispatcher
-dispatcher = Dispatcher(gpu_arch="gfx942")
-
-# Register kernels
-dispatcher.register_kernels("fp16_rcr_essential")
-
-# Perform GEMM
-C = dispatcher.gemm(A, B)
-```
-
-### Problem Specification
-
-```python
-from ck_tile_dispatcher import Problem, DataType, LayoutTag
-
-problem = Problem(
-    M=1024, N=1024, K=1024,
-    A=A, B=B, C=C,
-    dtype_a=DataType.FP16,
-    dtype_b=DataType.FP16,
-    dtype_c=DataType.FP16,
-    layout_a=LayoutTag.ROW_MAJOR,
-    layout_b=LayoutTag.COL_MAJOR,
-    layout_c=LayoutTag.ROW_MAJOR,
-    alpha=1.0,
-    beta=0.0
+config = KernelConfig(
+    # Data types
+    dtype_a="fp16", dtype_b="fp16", dtype_c="fp16", dtype_acc="fp32",
+    
+    # Layouts
+    layout_a="row", layout_b="col", layout_c="row",
+    
+    # Tile shape
+    tile_m=128, tile_n=128, tile_k=32,
+    
+    # Wave/warp configuration
+    wave_m=2, wave_n=2, wave_k=1,
+    warp_m=32, warp_n=32, warp_k=16,
+    
+    # Pipeline
+    pipeline="compv4", scheduler="intrawave", epilogue="cshuffle",
+    
+    # Padding
+    pad_m=True, pad_n=True, pad_k=True,
+    
+    # Target
+    gfx_arch="gfx942",
 )
 
-result = dispatcher.dispatch(problem)
+config.print_config()  # Pretty print
+print(config.tile_str)  # "128x128x32"
 ```
 
-### Kernel Selection
+### CodegenRunner
+
+Generate kernels:
 
 ```python
-# Available kernel sets
-kernels = ckd.get_available_kernels()
-print(kernels)
-# ['fp16_rcr_essential', 'fp16_rcr_compute', 'bf16_rcr_essential', ...]
-
-# Register specific kernel set
-dispatcher.register_kernels("fp16_rcr_compute")
-```
-
-## PyTorch Integration
-
-### CKLinear Layer
-
-Drop-in replacement for `torch.nn.Linear`:
-
-```python
-from ck_tile_dispatcher import CKLinear
-
-# Create layer
-layer = CKLinear(1024, 2048).cuda().half()
-
-# Forward pass
-output = layer(input)
-```
-
-### CK MLP
-
-Multi-layer perceptron using CK Tile:
-
-```python
-from ck_tile_dispatcher import CKMLP
-
-# Create MLP
-mlp = CKMLP([1024, 2048, 4096, 2048], activation='gelu').cuda().half()
-
-# Forward pass
-output = mlp(input)
-```
-
-### Model Conversion
-
-Convert existing models to use CK Tile:
-
-```python
-from ck_tile_dispatcher import convert_linear_to_ck
-import torch.nn as nn
-
-# Original model
-model = nn.Sequential(
-    nn.Linear(1024, 2048),
-    nn.ReLU(),
-    nn.Linear(2048, 1024)
+codegen = CodegenRunner(
+    datatype="fp16",
+    layout="rcr",
+    gpu_target="gfx942",
 )
 
-# Convert to CK Tile
-model_ck = convert_linear_to_ck(model)
+# Generate from config
+result = codegen.generate_from_config(config)
+
+# Generate variant
+result = codegen.generate("standard")
+result = codegen.generate("preshuffle")
+result = codegen.generate("multi_d")
+
+# Generate all
+results = codegen.generate_all()
+
+# Categorize kernels
+categories = codegen.categorize_kernels()
+print(f"Total: {categories['total']}")
+print(f"Compute: {len(categories['compute'])}")
 ```
 
-### Autograd Support
+### Registry
 
-Full support for automatic differentiation:
+Store kernel configurations:
 
 ```python
-from ck_tile_dispatcher import ck_gemm
+registry = Registry(name="my_registry")
+registry.register_kernel(config)
+registry.bind_library(lib)
 
-A = torch.randn(512, 512, device='cuda', requires_grad=True)
-B = torch.randn(512, 512, device='cuda', requires_grad=True)
-
-# Forward
-C = ck_gemm(A, B)
-loss = C.sum()
-
-# Backward
-loss.backward()
-print(A.grad.shape)  # (512, 512)
+print(registry.kernel_count)
+print(registry.get_kernels())
 ```
 
-## Advanced Features
+### Dispatcher
 
-### Benchmarking
+Select and run kernels:
 
 ```python
-from ck_tile_dispatcher import benchmark_kernel, benchmark_suite
+dispatcher = Dispatcher(registry=registry, lib=lib)
 
-# Single benchmark
-result = benchmark_kernel(
-    dispatcher,
-    M=1024, N=1024, K=1024,
-    num_iterations=100
-)
-print(f"Performance: {result.gflops:.2f} GFLOPS")
-
-# Benchmark suite
-results = benchmark_suite(
-    dispatcher,
-    problem_sizes=[(256, 256, 256), (512, 512, 512), (1024, 1024, 1024)],
-    output_file="benchmark_results.json"
-)
+# Check support
+if dispatcher.is_supported(M, N, K):
+    result = dispatcher.run(A, B, M, N, K)
+    
+# Select kernel
+kernel_name = dispatcher.select_kernel(M, N, K)
 ```
 
-### Profiling
+### DispatcherLib
+
+Load compiled library:
 
 ```python
-from ck_tile_dispatcher import Profiler
+# Auto-find or compile
+lib = DispatcherLib.auto()
 
-# Profile execution
-profiler = Profiler()
-with profiler:
-    C = dispatcher.gemm(A, B)
+# Load specific path
+lib = DispatcherLib.load("/path/to/libdispatcher_gemm.so")
 
-# Print summary
-profiler.print_summary()
-
-# Save report
-profiler.save("profile_report.json")
+# Library operations
+lib.get_kernel_name()
+lib.get_kernel_count()
+lib.is_supported(M, N, K)
+lib.export_json()
 ```
 
-### Validation
+### GemmRunner / Validator
+
+High-level utilities:
 
 ```python
-from ck_tile_dispatcher import validate_dispatcher, validate_gemm
+# Run GEMM
+runner = GemmRunner(lib)
+result = runner.run(A, B)
+print(f"TFLOPS: {result.tflops}")
 
-# Validate dispatcher
-results = validate_dispatcher(dispatcher, num_tests=10)
-print(f"Passed: {results['passed']}/{results['num_tests']}")
-
-# Validate single GEMM
-is_correct, max_err, mean_err = validate_gemm(A, B, C)
-print(f"Correct: {is_correct}, Max error: {max_err:.2e}")
-```
-
-### Comparative Profiling
-
-```python
-from ck_tile_dispatcher import ComparativeProfiler
-import torch
-
-cp = ComparativeProfiler()
-cp.add_implementation("ck_tile", lambda: ck_gemm(A, B))
-cp.add_implementation("pytorch", lambda: torch.matmul(A, B))
-
-results = cp.run(num_iterations=100)
-cp.print_comparison()
-cp.plot_comparison("comparison.png")
-```
-
-### Benchmark vs PyTorch
-
-```python
-from ck_tile_dispatcher import benchmark_vs_pytorch
-
-results = benchmark_vs_pytorch(
-    M=2048, N=2048, K=2048,
-    num_iterations=100
-)
-
-print(f"CK Tile: {results['ck_tile_gflops']:.2f} GFLOPS")
-print(f"PyTorch: {results['pytorch_gflops']:.2f} GFLOPS")
-print(f"Speedup: {results['speedup']:.2f}x")
+# Validate
+validator = Validator(rtol=1e-3, atol=1e-2)
+is_correct, max_err, mean_err = validator.check(result.output, reference)
 ```
 
 ## Examples
 
-See the `examples/` directory for complete examples:
+See [examples/python/](../examples/python/):
 
-- `basic_usage.py` - Core API examples
-- `pytorch_examples.py` - PyTorch integration examples
-
-Run examples:
-
-```bash
-python examples/basic_usage.py
-python examples/pytorch_examples.py
-```
-
-## API Reference
-
-### Core Classes
-
-#### `Dispatcher`
-
-Main dispatcher class.
-
-**Constructor:**
-```python
-Dispatcher(gpu_arch: str = "gfx942")
-```
-
-**Methods:**
-- `register_kernels(kernel_set: str)` - Register a kernel set
-- `dispatch(problem: Problem) -> DispatchResult` - Dispatch a problem
-- `gemm(A, B, C=None, alpha=1.0, beta=0.0, transpose_a=False, transpose_b=False) -> ndarray` - High-level GEMM
-- `get_registered_kernels() -> List[str]` - Get registered kernel sets
-- `clear_cache()` - Clear kernel cache
-
-#### `Problem`
-
-GEMM problem specification.
-
-**Fields:**
-- `M, N, K: int` - Problem dimensions
-- `A, B, C: ndarray | int` - Input/output matrices or device pointers
-- `dtype_a, dtype_b, dtype_c: DataType` - Data types
-- `layout_a, layout_b, layout_c: LayoutTag` - Memory layouts
-- `batch_size: int` - Batch size (default: 1)
-- `alpha, beta: float` - Scaling factors
-
-**Methods:**
-- `validate() -> Tuple[bool, str]` - Validate problem
-
-#### `DispatchResult`
-
-Result of kernel dispatch.
-
-**Fields:**
-- `success: bool` - Whether dispatch succeeded
-- `kernel_name: str` - Name of selected kernel
-- `execution_time_ms: float` - Execution time
-- `gflops: float` - Performance in GFLOPS
-- `error_message: str` - Error message (if failed)
-
-### PyTorch Classes
-
-#### `CKLinear`
-
-Linear layer using CK Tile.
-
-**Constructor:**
-```python
-CKLinear(in_features: int, out_features: int, bias: bool = True)
-```
-
-**Methods:**
-- `forward(input: Tensor) -> Tensor` - Forward pass
-
-#### `CKMLP`
-
-Multi-layer perceptron using CK Tile.
-
-**Constructor:**
-```python
-CKMLP(layer_sizes: List[int], activation: str = 'relu', dropout: float = 0.0)
-```
-
-**Methods:**
-- `forward(x: Tensor) -> Tensor` - Forward pass
-
-### Utility Functions
-
-#### `get_available_kernels() -> List[str]`
-
-Get list of available kernel sets.
-
-#### `benchmark_kernel(dispatcher, M, N, K, dtype, num_iterations) -> BenchmarkResult`
-
-Benchmark a single kernel configuration.
-
-#### `benchmark_suite(dispatcher, problem_sizes, dtype, output_file) -> List[BenchmarkResult]`
-
-Run a suite of benchmarks.
-
-#### `validate_dispatcher(dispatcher, num_tests) -> Dict`
-
-Validate dispatcher with random tests.
-
-#### `validate_gemm(A, B, C_actual, alpha, beta, rtol, atol) -> Tuple[bool, float, float]`
-
-Validate GEMM result against reference.
-
-### Profiling Classes
-
-#### `Profiler`
-
-Advanced profiler for dispatcher.
-
-**Constructor:**
-```python
-Profiler(enabled: bool = True)
-```
-
-**Methods:**
-- `start()` - Start profiling
-- `stop()` - Stop profiling
-- `record(kernel_name, problem_size, execution_time_ms, gflops, bandwidth_gb_s)` - Record execution
-- `reset()` - Reset profiler
-- `print_summary()` - Print summary
-- `save(filename)` - Save report
-
-#### `ComparativeProfiler`
-
-Compare performance of different implementations.
-
-**Methods:**
-- `add_implementation(name, func)` - Add implementation
-- `run(num_warmup, num_iterations) -> Dict` - Run benchmarks
-- `print_comparison()` - Print comparison table
-- `plot_comparison(output_file)` - Plot comparison
-
-### Enums
-
-#### `DataType`
-
-- `FP32` - 32-bit floating point
-- `FP16` - 16-bit floating point
-- `BF16` - BFloat16
-- `FP8_E4M3` - FP8 E4M3
-- `FP8_E5M2` - FP8 E5M2
-- `BF8` - BFloat8
-- `INT8` - 8-bit integer
-- `INT32` - 32-bit integer
-
-#### `LayoutTag`
-
-- `ROW_MAJOR` - Row-major layout
-- `COL_MAJOR` - Column-major layout
-
-## Performance Tips
-
-1. **Use FP16 for best performance** on modern AMD GPUs
-2. **Register only needed kernel sets** to reduce overhead
-3. **Reuse dispatcher instances** to benefit from caching
-4. **Use batched operations** when possible
-5. **Profile your workload** to identify bottlenecks
+| Example | Description |
+|---------|-------------|
+| `01_basic_gemm.py` | Complete explicit workflow |
+| `02_batch_gemm.py` | Multiple sizes |
+| `03_benchmark.py` | Performance testing |
+| `04_validation.py` | Correctness testing |
+| `05_numpy_integration.py` | GPUMatmul class |
+| `06_json_export.py` | JSON export |
+| `07_preshuffle.py` | PreShuffle kernels |
+| `08_multi_d.py` | Multi-D GEMM |
+| `09_multi_registry.py` | Multiple registries |
 
 ## Troubleshooting
 
-### Import Error
+| Issue | Solution |
+|-------|----------|
+| `ModuleNotFoundError` | Set `PYTHONPATH` to `dispatcher/python` |
+| Library not found | Run `make dispatcher_gemm` in build |
+| NumPy not found | `pip install numpy` |
 
-If you get an import error:
+---
 
-```python
-ImportError: cannot import name '_ck_dispatcher_cpp'
-```
-
-Make sure the C++ extension is built:
-
-```bash
-cd dispatcher/build
-cmake .. -DBUILD_PYTHON=ON
-make -j
-```
-
-### CUDA/ROCm Not Available
-
-If CUDA/ROCm is not available, the dispatcher will fall back to NumPy:
-
-```python
-import ck_tile_dispatcher as ckd
-ckd.info()  # Check if C++ extension is loaded
-```
-
-### Performance Issues
-
-If performance is lower than expected:
-
-1. Check that you're using the right kernel set (e.g., `fp16_rcr_compute` for compute-bound)
-2. Verify problem size is large enough to saturate GPU
-3. Use profiler to identify bottlenecks
-4. Check for memory layout mismatches
-
-## Contributing
-
-Contributions are welcome! Please see the main CK repository for contribution guidelines.
-
-## License
-
-MIT License. See LICENSE file for details.
-
-## Citation
-
-If you use CK Tile Dispatcher in your research, please cite:
-
-```bibtex
-@software{ck_tile_dispatcher,
-  title = {CK Tile Dispatcher},
-  author = {AMD CK Tile Team},
-  year = {2025},
-  url = {https://github.com/ROCm/composable_kernel}
-}
-```
-
+> **More info:** See [../README.md](../README.md) for full documentation.

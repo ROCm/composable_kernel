@@ -11,22 +11,22 @@ A unified kernel dispatch system for AMD GPUs with C++ and Python frontends.
 1. [Quick Start](#quick-start)
 2. [Installation](#installation)
 3. [Build Options](#build-options)
-4. [Python Usage](#python-usage)
-5. [C++ Usage](#c-usage)
-6. [Testing](#testing)
-7. [Kernel Generation](#kernel-generation)
-8. [JSON Export](#json-export)
-9. [Multiple Registries](#multiple-registries)
-10. [Troubleshooting](#troubleshooting)
-11. [File Structure](#file-structure)
+4. [Core Concepts](#core-concepts)
+5. [Python Usage](#python-usage)
+6. [C++ Usage](#c-usage)
+7. [Examples](#examples)
+8. [Kernel Generation](#kernel-generation)
+9. [Testing](#testing)
+10. [Adding New GPU Support](#adding-new-gpu-support)
+11. [Troubleshooting](#troubleshooting)
+12. [File Structure](#file-structure)
+13. [Performance Reference](#performance-reference)
 
 ---
 
 ## Quick Start
 
 ### Fastest Path to Running GEMM on GPU
-
-**From the repository root:**
 
 ```bash
 # 1. Navigate to dispatcher
@@ -44,13 +44,13 @@ cmake .. \
 # 3. Build
 make -j$(nproc)
 
-# 4. Run performance example
-./examples/single_tile_kernel_example
+# 4. Run example
+./examples/example_01_basic_gemm
 ```
 
 **Expected output:**
 ```
-Problem 1024x1024x1024: 0.0186 ms, 115.5 TFLOPS
+Problem 1024x1024x1024: 0.028 ms, 76 TFLOPS
 ```
 
 ---
@@ -69,15 +69,15 @@ Problem 1024x1024x1024: 0.0186 ms, 115.5 TFLOPS
 ### Check Your GPU Architecture
 
 ```bash
-# Find your GPU's GFX architecture
 rocminfo | grep "Name:" | head -1
-# Example output: "Name: gfx942" → use GPU_TARGETS="gfx942"
+# Example: "Name: gfx942" → use GPU_TARGETS="gfx942"
 ```
 
-Common architectures:
+**Supported architectures:**
 - **gfx942** - MI300X, MI300A (Instinct MI300 series)
+- **gfx950** - MI350 series
 - **gfx90a** - MI200 series (MI250, MI250X)
-- **gfx908** - MI100
+- **gfx1201** - RDNA4 series
 
 ---
 
@@ -85,15 +85,8 @@ Common architectures:
 
 ### Option 1: Basic Build (Library Only)
 
-Use this when you only need the dispatcher library for integration into your own project.
-
-**What it builds:** `libck_tile_dispatcher.a` static library
-
-**When to use:** Integrating dispatcher into an existing application
-
 ```bash
-cd dispatcher
-mkdir -p build && cd build
+cd dispatcher && mkdir -p build && cd build
 
 cmake .. \
   -DCMAKE_PREFIX_PATH=/opt/rocm \
@@ -106,67 +99,93 @@ make -j$(nproc)
 
 **Output:** `build/libck_tile_dispatcher.a`
 
----
-
-### Option 2: Full Build (Tests + Examples + Python)
-
-Use this for development, testing, or to run the included examples.
-
-**What it builds:**
-- Static library
-- 11 unit/integration tests
-- 7 C++ example executables
-- Python bindings (optional)
-
-**When to use:** Development, learning the API, running benchmarks
+### Option 2: Full Build (Tests + Examples)
 
 ```bash
-cd dispatcher
-mkdir -p build && cd build
-
 cmake .. \
   -DCMAKE_PREFIX_PATH=/opt/rocm \
   -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc \
   -DCMAKE_BUILD_TYPE=Release \
   -DGPU_TARGETS="gfx942" \
   -DBUILD_DISPATCHER_TESTS=ON \
-  -DBUILD_DISPATCHER_EXAMPLES=ON \
-  -DBUILD_DISPATCHER_PYTHON=ON
+  -DBUILD_DISPATCHER_EXAMPLES=ON
 
 make -j$(nproc)
 ```
-
-**Output:**
-```
-build/
-├── libck_tile_dispatcher.a          # Library
-├── test/
-│   ├── test_kernel_key              # Unit tests
-│   ├── test_registry
-│   ├── test_dispatcher
-│   ├── test_real_kernel_simple      # GPU tests
-│   └── ...
-├── examples/
-│   ├── single_tile_kernel_example   # Performance demo
-│   ├── verify_correctness           # Validation
-│   └── ...
-└── python/
-    └── _dispatcher_native.so        # Python extension
-```
-
----
 
 ### Build Flags Reference
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `CMAKE_BUILD_TYPE` | Debug | **Must be `Release` for performance** |
-| `GPU_TARGETS` | None | GPU architecture(s): `"gfx942"`, `"gfx90a;gfx942"` |
+| `GPU_TARGETS` | None | GPU architecture: `"gfx942"`, `"gfx90a"` |
 | `BUILD_DISPATCHER_TESTS` | OFF | Build unit and GPU tests |
 | `BUILD_DISPATCHER_EXAMPLES` | OFF | Build example executables |
-| `BUILD_DISPATCHER_PYTHON` | OFF | Build Python bindings |
 
-**Important:** Always use `-DCMAKE_BUILD_TYPE=Release`. Debug builds are ~45,000x slower!
+⚠️ **Always use `-DCMAKE_BUILD_TYPE=Release`**. Debug builds are ~45,000x slower!
+
+---
+
+## Core Concepts
+
+The dispatcher uses an explicit data flow pattern:
+
+```
+KernelConfig → Registry → Dispatcher → run()
+```
+
+### KernelConfig
+
+Defines all kernel parameters:
+
+```python
+from ctypes_utils import KernelConfig
+
+config = KernelConfig(
+    # Data types
+    dtype_a="fp16", dtype_b="fp16", dtype_c="fp16", dtype_acc="fp32",
+    
+    # Layouts (row/col)
+    layout_a="row", layout_b="col", layout_c="row",
+    
+    # Tile shape (work per thread block)
+    tile_m=128, tile_n=128, tile_k=32,
+    
+    # Wave shape (warps per block)
+    wave_m=2, wave_n=2, wave_k=1,
+    
+    # Pipeline
+    pipeline="compv4", scheduler="intrawave",
+    
+    # Padding (enables arbitrary sizes)
+    pad_m=True, pad_n=True, pad_k=True,
+    
+    # Target GPU
+    gfx_arch="gfx942",
+)
+```
+
+### Registry
+
+Stores and manages kernel instances:
+
+```python
+from ctypes_utils import Registry
+
+registry = Registry(name="my_registry")
+registry.register_kernel(config)
+```
+
+### Dispatcher
+
+Selects and runs kernels:
+
+```python
+from ctypes_utils import Dispatcher
+
+dispatcher = Dispatcher(registry=registry, lib=lib)
+result = dispatcher.run(A, B, M, N, K)
+```
 
 ---
 
@@ -174,76 +193,63 @@ build/
 
 ### Setup
 
-**Step 1: Set Python path**
-
 ```bash
-# From the dispatcher directory
+# Set Python path (from dispatcher directory)
 export PYTHONPATH=$PWD/python:$PYTHONPATH
 
-# Or add to ~/.bashrc for persistence
-echo 'export PYTHONPATH=/path/to/composable_kernel/dispatcher/python:$PYTHONPATH' >> ~/.bashrc
-```
-
-**Step 2: Install NumPy**
-
-```bash
+# Install NumPy
 pip install numpy
 ```
 
-**Step 3: Make scripts executable (optional)**
-
-```bash
-chmod +x examples/python/*.py
-```
-
-### Run Python Examples
-
-**From the `dispatcher` directory:**
-
-```bash
-# Basic NumPy → GPU workflow
-python3 examples/python/numpy_to_gpu_complete.py
-
-# Advanced benchmarks (multiple sizes)
-python3 examples/python/numpy_dispatcher_advanced.py
-```
-
-### Python API Example
+### Complete Example
 
 ```python
 import numpy as np
+from ctypes_utils import (
+    KernelConfig, CodegenRunner, DispatcherLib, Registry, Dispatcher
+)
 
-# Create matrices
+# 1. Define kernel configuration
+config = KernelConfig(
+    tile_m=128, tile_n=128, tile_k=32,
+    pad_m=True, pad_n=True, pad_k=True,
+)
+
+# 2. Generate kernel code
+codegen = CodegenRunner()
+codegen.generate_from_config(config)
+
+# 3. Load library
+lib = DispatcherLib.auto()
+
+# 4. Create registry and register kernel
+registry = Registry(name="example", lib=lib)
+registry.register_kernel(config)
+
+# 5. Create dispatcher
+dispatcher = Dispatcher(registry=registry, lib=lib)
+
+# 6. Run GEMM
 A = np.random.randn(1024, 1024).astype(np.float16)
 B = np.random.randn(1024, 1024).astype(np.float16)
+result = dispatcher.run(A, B, 1024, 1024, 1024)
 
-# Load dispatcher and run GEMM on GPU
-from dispatcher_api import Dispatcher
-
-dispatcher = Dispatcher(gpu_arch='gfx942')
-C = dispatcher.gemm(A, B)
-
-# Results: ~110 TFLOPS, 100% accuracy vs NumPy
+print(f"Time: {result.time_ms:.4f} ms, TFLOPS: {result.tflops:.2f}")
 ```
 
-### Automatic Dimension Inference
+### Python Utilities (`python/ctypes_utils.py`)
 
-The dispatcher can automatically infer M, N, K from tensor shapes:
+| Class | Purpose |
+|-------|---------|
+| `KernelConfig` | Define kernel parameters |
+| `CodegenRunner` | Generate kernel code |
+| `DispatcherLib` | Load compiled library |
+| `Registry` | Store kernel configurations |
+| `Dispatcher` | Select and run kernels |
+| `GemmRunner` | High-level GEMM runner |
+| `Validator` | Validate results |
 
-```python
-from core import Problem
-
-# Automatic inference from NumPy arrays
-problem = Problem.from_arrays(A, B, C)
-
-# Or from dimensions
-problem = Problem.from_ab(
-    a_rows=1024, a_cols=512,
-    b_rows=512, b_cols=2048,
-    transpose_a=False, transpose_b=False
-)
-# Infers: M=1024, N=2048, K=512
-```
+See [python/README.md](python/README.md) for full API reference.
 
 ---
 
@@ -252,141 +258,147 @@ problem = Problem.from_ab(
 ### Include Headers
 
 ```cpp
-#include "ck_tile/dispatcher.hpp"  // Main header (includes all components)
+#include "ck_tile/dispatcher.hpp"  // All-in-one include
 
-// Or include individual components:
-#include "ck_tile/dispatcher/dispatcher.hpp"
-#include "ck_tile/dispatcher/registry.hpp"
-#include "ck_tile/dispatcher/problem.hpp"
+using namespace ck_tile::dispatcher;
+using namespace ck_tile::dispatcher::utils;
 ```
 
-### Basic Example
+### Complete Example
 
 ```cpp
 #include "ck_tile/dispatcher.hpp"
 
 using namespace ck_tile::dispatcher;
+using namespace ck_tile::dispatcher::backends;
 
 int main() {
-    // 1. Register a kernel (usually done at startup)
-    auto kernel = std::make_shared<TileKernelInstance>(/* ... */);
+    // 1. Build kernel key
+    KernelKeyBuilder builder = KernelKeyBuilder::fp16_rcr();
+    builder.tile_m = 128;
+    builder.tile_n = 128;
+    builder.tile_k = 32;
+    KernelKey key = builder.build();
+
+    // 2. Create kernel instance
+    auto kernel = create_generated_tile_kernel<
+        SelectedKernel, ADataType, BDataType, CDataType, AccDataType
+    >(key, "my_kernel");
+
+    // 3. Register to registry
     Registry::instance().register_kernel(kernel, Priority::High);
 
-    // 2. Create problem specification
-    Problem problem(1024, 1024, 1024);  // M, N, K
-
-    // 3. Create dispatcher and run
+    // 4. Create dispatcher and problem
     Dispatcher dispatcher;
-    float time_ms = dispatcher.run(a_ptr, b_ptr, c_ptr, problem);
+    Problem problem(1024, 1024, 1024);
 
+    // 5. Run GEMM
+    float time_ms = dispatcher.run(a_ptr, b_ptr, c_ptr, problem, nullptr);
+    
     std::cout << "Time: " << time_ms << " ms\n";
     return 0;
 }
 ```
 
-### Automatic Dimension Inference (C++)
+### C++ Utilities (`include/ck_tile/dispatcher/utils.hpp`)
 
-```cpp
-#include "ck_tile/dispatcher/problem.hpp"
+| Utility | Description |
+|---------|-------------|
+| `GpuBuffer<T>` | GPU memory management |
+| `GpuTimer` | Kernel timing |
+| `create_fp16_rcr_key()` | Quick key creation |
+| `calculate_tflops()` | Performance calculation |
+| `validate_result()` | Result validation |
 
-// From matrix dimensions
-auto problem = Problem::from_ab(
-    1024, 512,   // A: 1024 rows, 512 cols
-    512, 2048,   // B: 512 rows, 2048 cols
-    false, false // transpose_a, transpose_b
-);
-// Infers: M=1024, N=2048, K=512
-
-// From shapes
-auto problem2 = Problem::from_shapes(
-    TensorShape{1024, 512, false},   // A
-    TensorShape{512, 2048, false},   // B
-    TensorShape{1024, 2048, false}   // C (optional)
-);
-```
-
-### Selection Strategies
-
-```cpp
-Dispatcher dispatcher;
-
-// Strategy 1: First matching kernel (fastest selection)
-dispatcher.set_strategy(SelectionStrategy::FirstFit);
-
-// Strategy 2: Use heuristic function
-dispatcher.set_heuristic([](const Problem& p) -> std::vector<std::string> {
-    if (p.M >= 2048) return {"256x256x32_4x4x1_32x32x16"};
-    return {"128x128x64_2x2x1_32x32x16"};
-});
-dispatcher.set_strategy(SelectionStrategy::Heuristic);
-
-// Strategy 3: Explicit kernel selection
-float time = dispatcher.run_explicit("my_kernel_id", a, b, c, nullptr, problem);
-```
+See [include/ck_tile/dispatcher/README.md](include/ck_tile/dispatcher/README.md) for header documentation.
 
 ---
 
-## Testing
+## Examples
 
-### Run All Tests
+### C++ Examples (`examples/cpp/`)
 
-**From the `dispatcher/build` directory:**
-
-```bash
-# Run all tests
-ctest --output-on-failure
-
-# Expected: 11/11 tests passed
-```
-
-### Test Categories
-
-| Test | Description | Runtime |
-|------|-------------|---------|
-| `test_kernel_key` | KernelKey serialization | < 1s |
-| `test_problem` | Problem specification | < 1s |
-| `test_registry` | Kernel registry operations | < 1s |
-| `test_dispatcher` | Dispatcher logic | < 1s |
-| `test_tile_backend` | Backend interface | < 1s |
-| `test_integration_e2e` | End-to-end integration | < 1s |
-| `test_minimal` | Smoke test | < 1s |
-| `test_real_kernel_simple` | Basic GPU execution | ~18s |
-| `test_real_kernel_multi_size` | Multiple problem sizes | ~15s |
-| `test_real_kernel_performance` | Performance metrics | ~17s |
-| `test_real_kernel_correctness` | GPU vs CPU validation | ~16s |
-
-### Run Specific Tests
+| Example | Description | Complexity |
+|---------|-------------|------------|
+| `01_basic_gemm.cpp` | Complete explicit workflow | ★☆☆☆☆ |
+| `02_multi_size.cpp` | Multiple problem sizes | ★★☆☆☆ |
+| `03_benchmark.cpp` | Performance testing | ★★★☆☆ |
+| `04_validation.cpp` | Correctness vs CPU | ★★★☆☆ |
+| `05_heuristics.cpp` | Kernel selection strategies | ★★★★☆ |
+| `06_json_export.cpp` | Export registry to JSON | ★★☆☆☆ |
+| `07_preshuffle.cpp` | PreShuffle pipeline | ★★★★☆ |
+| `08_multi_d.cpp` | Multi-D GEMM with fusion | ★★★★★ |
+| `09_multi_registry.cpp` | Multiple registries | ★★★★★ |
 
 ```bash
-# Run only unit tests (fast, no GPU)
-ctest -R "test_kernel|test_problem|test_registry|test_dispatcher"
-
-# Run only GPU tests
-ctest -R "test_real"
-
-# Verbose output for debugging
-ctest -V -R test_real_kernel_simple
+# Run C++ examples
+cd build/examples
+./example_01_basic_gemm
+./example_03_benchmark 2048 2048 2048
 ```
+
+### Python Examples (`examples/python/`)
+
+| Example | Description | Complexity |
+|---------|-------------|------------|
+| `01_basic_gemm.py` | Complete explicit workflow | ★☆☆☆☆ |
+| `02_batch_gemm.py` | Multiple sizes | ★★☆☆☆ |
+| `03_benchmark.py` | Performance testing | ★★★☆☆ |
+| `04_validation.py` | Correctness vs NumPy | ★★★☆☆ |
+| `05_numpy_integration.py` | NumPy workflow | ★★☆☆☆ |
+| `06_json_export.py` | Export registry to JSON | ★★☆☆☆ |
+| `07_preshuffle.py` | PreShuffle kernels | ★★★★☆ |
+| `08_multi_d.py` | Multi-D GEMM | ★★★★★ |
+| `09_multi_registry.py` | Multiple registries | ★★★★★ |
+
+```bash
+# Run Python examples
+cd examples/python
+python3 01_basic_gemm.py
+python3 09_multi_registry.py
+```
+
+See [examples/README.md](examples/README.md) for detailed example documentation.
 
 ---
 
 ## Kernel Generation
 
-The dispatcher uses kernels generated by `unified_gemm_codegen.py`. Kernels are auto-generated when building tests/examples, but you can generate them manually.
+### Using CodegenRunner (Python)
 
-### Generate Kernels Manually
+```python
+from ctypes_utils import CodegenRunner, KernelConfig
 
-**From the `dispatcher/codegen` directory:**
+# Generate from config
+config = KernelConfig(tile_m=256, tile_n=256, tile_k=64)
+codegen = CodegenRunner()
+result = codegen.generate_from_config(config)
+
+# Generate variant
+result = codegen.generate("preshuffle")
+result = codegen.generate("multi_d")
+
+# Generate all variants
+results = codegen.generate_all()
+```
+
+### Using Command Line
 
 ```bash
 cd codegen
 
+# Generate standard kernels
 python3 unified_gemm_codegen.py \
   --output-dir ../build/generated_kernels \
   --datatype fp16 \
   --layout rcr \
   --gpu-target gfx942 \
-  --preselected fp16_rcr_essential
+  --variants standard
+
+# Generate all variants
+python3 unified_gemm_codegen.py \
+  --output-dir ../build/generated_kernels \
+  --variants standard preshuffle multi_d
 ```
 
 ### Generation Options
@@ -394,103 +406,79 @@ python3 unified_gemm_codegen.py \
 | Option | Values | Description |
 |--------|--------|-------------|
 | `--datatype` | `fp16`, `bf16`, `fp32`, `int8` | Data type |
-| `--layout` | `rcr`, `rrr`, `crr`, `ccr` | Matrix layouts (A, B, C) |
-| `--gpu-target` | `gfx942`, `gfx90a`, `gfx908` | Target GPU |
-| `--preselected` | `fp16_rcr_essential`, etc. | Predefined kernel set |
+| `--layout` | `rcr`, `rrr`, `crr`, `ccr` | Matrix layouts |
+| `--gpu-target` | `gfx942`, `gfx90a`, `gfx950` | Target GPU |
+| `--variants` | `standard`, `preshuffle`, `multi_d` | Kernel variants |
 
-### Layout Notation
-
-- `R` = Row-major
-- `C` = Column-major
-- Order: A, B, C (e.g., `rcr` = A row-major, B column-major, C row-major)
+See [codegen/README.md](codegen/README.md) for full codegen documentation.
 
 ---
 
-## JSON Export
+## Testing
 
-### Enable Auto-Export
+### Run All Tests
 
-The registry can automatically export kernel metadata to JSON:
-
-**C++:**
-```cpp
-auto& registry = Registry::instance();
-registry.enable_auto_export("kernels.json");
-
-// Every kernel registration now auto-exports
-registry.register_kernel(kernel, Priority::High);  // → writes to kernels.json
+```bash
+cd build
+ctest --output-on-failure
 ```
 
-**Python:**
-```python
-from json_export import enable_auto_export
+### Test Categories
 
-enable_auto_export("kernels.json")
+| Test | Description | GPU Required |
+|------|-------------|--------------|
+| `test_kernel_key*` | KernelKey serialization | No |
+| `test_problem*` | Problem specification | No |
+| `test_registry*` | Registry operations | No |
+| `test_dispatcher*` | Dispatcher logic | No |
+| `test_sanity_ck_tile` | GPU sanity check | Yes |
+| `test_regression` | Regression tests | No |
+
+### Run Specific Tests
+
+```bash
+# Unit tests only (fast, no GPU)
+ctest -R "test_kernel|test_problem|test_registry"
+
+# GPU tests only
+ctest -R "test_sanity"
+
+# Verbose output
+ctest -V -R test_kernel_key
 ```
 
-### Manual Export
+---
 
-```cpp
-// Export to string
-std::string json = registry.export_json(true);  // true = include statistics
+## Adding New GPU Support
 
-// Export to file
-registry.export_json_to_file("kernels.json", true);
-```
+The dispatcher uses `arch_specs.json` as the single source of truth for GPU specifications.
 
-### JSON Format
+### Quick Steps
+
+1. Edit `codegen/arch_specs.json`
+2. Run `python codegen/generate_arch_specs.py`
+3. Rebuild
+
+### Example: Adding gfx1100
 
 ```json
 {
-  "metadata": {
-    "timestamp": "2025-11-25T10:30:45",
-    "registry_name": "global_singleton",
-    "total_kernels": 6
-  },
-  "statistics": {
-    "by_datatype": {"fp16_fp16_fp16": 6},
-    "by_pipeline": {"compv4": 2, "compv3": 2, "mem": 2}
-  },
-  "kernels": [
-    {
-      "name": "gemm_fp16_rcr_...",
-      "identifier": "256x256x32_4x4x1_32x32x16_nopers",
-      "signature": { /* data types, layouts */ },
-      "algorithm": { /* tile shapes, pipeline */ }
+  "architectures": {
+    "gfx1100": {
+      "family": "rdna3",
+      "description": "AMD Radeon RX 7000 series",
+      "warp_size": 32,
+      "lds_capacity_kb": 64,
+      "warp_configs": [[2, 4, 1], [4, 2, 1]],
+      "warp_tile_combos": {
+        "fp16_fp16_fp16": [[16, 16, 16], [32, 32, 16]]
+      }
     }
-  ]
+  }
 }
 ```
 
----
-
-## Multiple Registries
-
-Create separate registries for different kernel sets:
-
-```cpp
-// Create separate registries
-Registry fp16_registry;
-fp16_registry.set_name("fp16_kernels");
-
-Registry production_registry;
-production_registry.set_name("production_kernels");
-
-// Register to specific registries
-fp16_registry.register_kernel(fp16_kernel, Priority::High);
-production_registry.register_kernel(prod_kernel, Priority::High);
-
-// Create dispatchers with specific registries
-Dispatcher fp16_dispatcher(&fp16_registry);
-Dispatcher prod_dispatcher(&production_registry);
-
-// Merge registries
-Registry combined;
-combined.merge_from(fp16_registry, Priority::High);
-combined.merge_from(production_registry, Priority::Normal);
-```
-
-The global singleton `Registry::instance()` remains available for simple use cases.
+See [codegen/ADDING_NEW_GPU.md](codegen/ADDING_NEW_GPU.md) for complete guide.
 
 ---
 
@@ -500,45 +488,40 @@ The global singleton `Registry::instance()` remains available for simple use cas
 
 | Problem | Solution |
 |---------|----------|
-| Performance is slow (>100ms) | Use `-DCMAKE_BUILD_TYPE=Release` |
+| Performance is slow | Use `-DCMAKE_BUILD_TYPE=Release` |
 | CMake can't find HIP | Set `-DCMAKE_PREFIX_PATH=/opt/rocm` |
-| Wrong GPU targeted | Set `-DGPU_TARGETS` to your GPU (check with `rocminfo`) |
-| Tests not building | Add `-DBUILD_DISPATCHER_TESTS=ON` |
+| Wrong GPU targeted | Set `-DGPU_TARGETS` to your GPU |
 
 ### Python Issues
 
 | Problem | Solution |
 |---------|----------|
 | `ModuleNotFoundError` | Set `PYTHONPATH` to include `dispatcher/python` |
-| `ImportError: _dispatcher_native` | Build with `-DBUILD_DISPATCHER_PYTHON=ON` |
+| Library not found | Build examples first: `make dispatcher_gemm` |
 | NumPy not found | Run `pip install numpy` |
-| Permission denied | Run `chmod +x examples/python/*.py` |
 
 ### Runtime Issues
 
 | Problem | Solution |
 |---------|----------|
 | No kernels found | Generate kernels first (see [Kernel Generation](#kernel-generation)) |
-| GPU not detected | Check ROCm installation with `rocminfo` |
-| Out of memory | Reduce problem size or batch size |
+| GPU not detected | Check ROCm: `rocminfo` |
+| Wrong results | Check layout (RCR = A row-major, B column-major) |
 
 ### Debug Commands
 
 ```bash
-# Check ROCm installation
+# Check ROCm
 rocminfo | head -20
 
 # Check GPU architecture
 rocminfo | grep "Name:"
 
-# Verify Python extension
-python3 -c "import sys; sys.path.insert(0, 'python'); import _dispatcher_native; print('OK')"
-
-# Verbose test output
-cd build && ctest -V --output-on-failure
-
 # Check generated kernels
 ls build/generated_kernels/
+
+# Verbose test
+ctest -V --output-on-failure
 ```
 
 ---
@@ -547,55 +530,61 @@ ls build/generated_kernels/
 
 ```
 dispatcher/
-├── include/ck_tile/dispatcher/     # C++ headers
-│   ├── dispatcher.hpp              # Main dispatcher class
-│   ├── registry.hpp                # Kernel registry
-│   ├── kernel_key.hpp              # Kernel configuration
-│   ├── problem.hpp                 # Problem specification
-│   ├── kernel_instance.hpp         # Kernel interface
-│   ├── arch_filter.hpp             # GPU architecture filtering
-│   └── backends/
-│       └── tile_backend.hpp        # CK Tile backend
+├── README.md                           # This file
 │
-├── src/                            # C++ implementation
+├── include/ck_tile/dispatcher/         # C++ headers
+│   ├── dispatcher.hpp                  # Main dispatcher
+│   ├── registry.hpp                    # Kernel registry
+│   ├── kernel_key.hpp                  # Kernel configuration
+│   ├── problem.hpp                     # Problem specification
+│   ├── utils.hpp                       # Utilities
+│   └── backends/                       # Backend implementations
+│
+├── src/                                # C++ implementation
 │   ├── dispatcher.cpp
 │   └── registry.cpp
 │
-├── python/                         # Python API
-│   ├── __init__.py
-│   ├── core.py                     # Core types (Problem, KernelKey)
-│   ├── dispatcher_api.py           # High-level API
-│   └── bindings.cpp                # pybind11 bindings
+├── python/                             # Python API
+│   ├── README.md                       # Python documentation
+│   ├── ctypes_utils.py                 # Core utilities
+│   └── core.py                         # Core types
 │
-├── codegen/                        # Kernel generation
-│   ├── unified_gemm_codegen.py     # Main generator
-│   ├── arch_specs.json             # GPU specifications
-│   └── ADDING_NEW_GPU.md           # Guide for new GPU support
+├── codegen/                            # Kernel generation
+│   ├── README.md                       # Codegen documentation
+│   ├── ADDING_NEW_GPU.md              # GPU addition guide
+│   ├── unified_gemm_codegen.py        # Main generator
+│   └── arch_specs.json                # GPU specifications
 │
-├── test/                           # Tests (11 total)
-│   ├── test_*.cpp                  # Unit tests
-│   └── test_real_kernel_*.cpp      # GPU tests
+├── examples/                           # Examples
+│   ├── README.md                       # Examples documentation
+│   ├── cpp/                            # C++ examples (01-09)
+│   └── python/                         # Python examples (01-09)
 │
-├── examples/
-│   ├── cpp/                        # C++ examples
-│   │   ├── single_tile_kernel_example.cpp
-│   │   └── ...
-│   └── python/                     # Python examples
-│       ├── numpy_to_gpu_complete.py
-│       └── ...
+├── test/                               # Tests
 │
-└── CMakeLists.txt                  # Build configuration
+└── CMakeLists.txt                      # Build configuration
 ```
 
 ---
 
 ## Performance Reference
 
-| Problem Size | Time | TFLOPS | Environment |
-|--------------|------|--------|-------------|
-| 512³ | 0.011 ms | 23.5 | MI300X |
-| 1024³ | 0.019 ms | 115.5 | MI300X |
-| 2048³ | 0.054 ms | 319.0 | MI300X |
+| Problem Size | Time | TFLOPS | GPU |
+|--------------|------|--------|-----|
+| 512³ | 0.016 ms | 17 | MI300X |
+| 1024³ | 0.028 ms | 76 | MI300X |
+| 2048³ | 0.075 ms | 230 | MI300X |
+| 4096³ | 0.45 ms | 305 | MI300X |
+
+---
+
+## Related Documentation
+
+- [examples/README.md](examples/README.md) - Detailed example documentation
+- [codegen/README.md](codegen/README.md) - Kernel generation guide
+- [codegen/ADDING_NEW_GPU.md](codegen/ADDING_NEW_GPU.md) - GPU support guide
+- [python/README.md](python/README.md) - Python API reference
+- [include/ck_tile/dispatcher/README.md](include/ck_tile/dispatcher/README.md) - C++ header documentation
 
 ---
 

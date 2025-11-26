@@ -298,7 +298,7 @@ const char* dispatcher_export_registry_json()
     json << "  },\n";
     json << "  \"kernels\": [\n";
 
-    auto kernels = registry.enumerate_all();
+    auto kernels = registry.get_all();
     for(size_t i = 0; i < kernels.size(); ++i)
     {
         auto& kernel     = kernels[i];
@@ -312,11 +312,12 @@ const char* dispatcher_export_registry_json()
         json << "      \"algorithm\": {\n";
         json << "        \"tile_shape\": {\"m\": " << algo.tile_shape.m
              << ", \"n\": " << algo.tile_shape.n << ", \"k\": " << algo.tile_shape.k << "},\n";
-        json << "        \"wave_shape\": {\"m\": " << algo.wave_shape.m
-             << ", \"n\": " << algo.wave_shape.n << ", \"k\": " << algo.wave_shape.k << "},\n";
-        json << "        \"warp_tile_shape\": {\"m\": " << algo.warp_tile_shape.m
-             << ", \"n\": " << algo.warp_tile_shape.n << ", \"k\": " << algo.warp_tile_shape.k
-             << "},\n";
+        json << "        \"wave_shape\": {\"m\": " << unsigned(algo.wave_shape.m)
+             << ", \"n\": " << unsigned(algo.wave_shape.n)
+             << ", \"k\": " << unsigned(algo.wave_shape.k) << "},\n";
+        json << "        \"warp_tile_shape\": {\"m\": " << unsigned(algo.warp_tile_shape.m)
+             << ", \"n\": " << unsigned(algo.warp_tile_shape.n)
+             << ", \"k\": " << unsigned(algo.warp_tile_shape.k) << "},\n";
         json << "        \"block_size\": " << algo.block_size << ",\n";
         json << "        \"persistent\": " << (algo.persistent ? "true" : "false") << ",\n";
         json << "        \"double_buffer\": " << (algo.double_buffer ? "true" : "false") << ",\n";

@@ -1,0 +1,29 @@
+{
+  "metadata": {
+    "timestamp": "Nov 26 2025 03:43:01",
+    "total_kernels": 1,
+    "export_version": "1.0",
+    "dispatcher_version": "1.0.0"
+  },
+  "statistics": {
+    "by_datatype": {},
+    "by_pipeline": {},
+    "by_scheduler": {}
+  },
+  "kernels": [
+    {
+      "identifier": "128x128x32_2x2x1_32x32x16_nopers",
+      "name": "gemm_fp16_rcr_compv4_cshuffle_intrawave_True_True_True_False_128x128x32_2x2x1_32x32x16",
+      "algorithm": {
+        "tile_shape": {"m": 128, "n": 128, "k": 32},
+        "wave_shape": {"m": 2, "n": 2, "k": 1},
+        "warp_tile_shape": {"m": 32, "n": 32, "k": 16},
+        "block_size": 256,
+        "persistent": false,
+        "double_buffer": true,
+        "preshuffle": false,
+        "transpose_c": false
+      }
+    }
+  ]
+}

@@ -13,6 +13,8 @@
 #include "ck_tile/dispatcher/dispatcher.hpp"
 #include "ck_tile/dispatcher/arch_filter.hpp"
 #include "ck_tile/dispatcher/backends/tile_backend.hpp"
+#include "ck_tile/dispatcher/backends/generated_tile_backend.hpp"
+#include "ck_tile/dispatcher/utils.hpp"
 
 // Optional: Kernel caching (include explicitly if needed)
 // #include "ck_tile/dispatcher/kernel_cache.hpp"
