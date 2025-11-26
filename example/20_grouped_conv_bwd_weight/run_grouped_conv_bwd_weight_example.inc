@@ -191,6 +191,8 @@ bool run_grouped_conv_bwd_weight(const ExecutionConfig& config,
     else if(config.do_verification == 3)
     {
         // v=3: Compare GPU reference vs CPU reference directly (bypasses optimized kernel)
+        // NOTE: This is temporary verification code to ensure GPU reference correctness.
+        //       Will be removed once GPU reference implementation is fully validated.
         // Only supports G=1
         if(conv_param.G_ != 1)
         {

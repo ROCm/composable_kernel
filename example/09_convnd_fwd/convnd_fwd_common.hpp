@@ -331,6 +331,8 @@ bool run_grouped_conv_fwd(int do_verification,
     else if(do_verification == 3)
     {
         // v=3: Compare GPU reference vs CPU reference directly (bypasses optimized kernel)
+        // NOTE: This is temporary verification code to ensure GPU reference correctness.
+        //       Will be removed once GPU reference implementation is fully validated.
         std::cout << "Comparing GPU reference vs CPU reference (no optimized kernel)..."
                   << std::endl;
 

@@ -45,7 +45,7 @@ struct naive_grouped_conv_bwd_data_kernel
                                const ck_tile::long_index_t* conv_dilations,
                                const ck_tile::long_index_t* in_left_pads) const
     {
-        const ck_tile::long_index_t tid         = blockIdx.x * blockDim.x + threadIdx.x;
+        const ck_tile::long_index_t tid         = get_block_id() * blockDim.x + get_thread_id();
         const ck_tile::long_index_t num_threads = blockDim.x * gridDim.x;
 
         // Calculate total input elements
