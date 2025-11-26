@@ -1,7 +1,6 @@
 # Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
 # SPDX-License-Identifier: MIT
 
-from datetime import datetime
 import pathlib
 from pathlib import Path
 import subprocess
@@ -13,8 +12,8 @@ OPS = "ops"
 OPS_COMMON = "common"  # common header will be duplicated into ops/* other module
 
 IGNORED_DIRS = ["utility", "ref"]
-HEADER_COMMON = f"""// SPDX-License-Identifier: MIT
-// Copyright (c) 2018-{datetime.now().year}, Advanced Micro Devices, Inc. All rights reserved.\n
+HEADER_COMMON = """// Copyright (c) Advanced Micro Devices, Inc., or its affiliates.
+// SPDX-License-Identifier: MIT
 """
 
 
