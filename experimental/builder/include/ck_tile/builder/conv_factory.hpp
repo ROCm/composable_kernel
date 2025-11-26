@@ -85,7 +85,51 @@ consteval auto get_output_layout_value(ConvOutputLayout layout) {
     else static_assert(false, "Unsupported spatial dimension");
 }
 
-// Type mappings from the builder FwdGroupConvLayout enum classes to the CK tensor data types.
+struct EmptyOutputBiasLayout 
+{
+    using DsLayout = ck::Tuple<>;
+    using DsDataTypes = ck::Tuple<>;
+};
+
+// Type mappings from the builder ConvOutputBiasLayout enum classes to the CK tensor data types.
+template <auto OutputBiasLayoutValue, size_t SPATIAL_DIM, ConvDirection DIR>
+    requires(ConvSpatialDim<SPATIAL_DIM>)
+struct ConvOutputBiasTensorLayouts
+{
+    // This will trigger if a specialization for the given layout is not found.
+    // We should always catch this in an earlier validation check.
+    using OutputBiasLayout = decltype(OutputBiasLayoutValue);
+    static_assert(sizeof(OutputBiasLayout) == 0,
+                  "Internal error. Unsupported layout for convolution factory.");
+};
+
+constexpr std::array<ConvOutputBiasLayout, 2> NHWGK_G_K_STRIDED_LAYOUT = {
+    ConvOutputBiasLayout{ConvOutputLayout2D::NHWGK}, 
+    ConvOutputBiasLayout{OutputBiasLayout::G_K_strided}
+};
+
+template<>
+struct ConvOutputBiasTensorLayouts<NHWGK_G_K_STRIDED_LAYOUT, 2, ConvDirection::FORWARD>
+{
+    using DsLayout = ck::Tuple<ck::tensor_layout::convolution::NHWGK, ck::tensor_layout::convolution::G_K>;
+    using DsDataTypes = ck::Tuple<ck::bhalf_t, ck::bhalf_t>;
+};
+
+template <auto Layout, size_t SPATIAL_DIM, ConvDirection DIR>
+requires (HasOutputBiasLayout<decltype(Layout)>)
+consteval auto GetOutputBiasTensorLayout()
+{
+    return factory_internal::ConvOutputBiasTensorLayouts<Layout.output_bias_layout, SPATIAL_DIM, DIR>{};
+}
+
+template <auto Layout, size_t SPATIAL_DIM, ConvDirection DIR>
+requires (!HasOutputBiasLayout<decltype(Layout)>)
+consteval auto GetOutputBiasTensorLayout()
+{
+    return EmptyOutputBiasLayout{};
+}
+
+// Type mappings from the builder ConvLayout enum classes to the CK tensor data types.
 template <auto InputLayoutValue, auto WeightLayoutValue, auto OutputLayoutValue, size_t SPATIAL_DIM, ConvDirection DIR>
     requires(ConvSpatialDim<SPATIAL_DIM> 
         && ValidConvInputLayoutForSpatialDim<InputLayoutValue, SPATIAL_DIM>
@@ -111,7 +155,6 @@ struct ConvTensorLayouts<ConvInputLayout{ConvInputLayout1D::NWGC},
 {
     using ALayout  = ck::tensor_layout::convolution::NWGC;
     using BLayout  = ck::tensor_layout::convolution::GKXC;
-    using DsLayout = ck::Tuple<>;
     using ELayout  = ck::tensor_layout::convolution::NWGK;
 };
 
@@ -123,7 +166,6 @@ struct ConvTensorLayouts<ConvInputLayout{ConvInputLayout1D::NGCW},
 {
     using ALayout  = ck::tensor_layout::convolution::NGCW;
     using BLayout  = ck::tensor_layout::convolution::GKXC;
-    using DsLayout = ck::Tuple<>;
     using ELayout  = ck::tensor_layout::convolution::NGKW;
 };
 
@@ -135,7 +177,6 @@ struct ConvTensorLayouts<ConvInputLayout{ConvInputLayout1D::GNWC},
 {
     using ALayout  = ck::tensor_layout::convolution::GNWC;
     using BLayout  = ck::tensor_layout::convolution::GKXC;
-    using DsLayout = ck::Tuple<>;
     using ELayout  = ck::tensor_layout::convolution::GNWK;
 };
 
@@ -147,7 +188,6 @@ struct ConvTensorLayouts<ConvInputLayout{ConvInputLayout1D::NGCW},
 {
     using ALayout  = ck::tensor_layout::convolution::NGCW;
     using BLayout  = ck::tensor_layout::convolution::GKCX;
-    using DsLayout = ck::Tuple<>;
     using ELayout  = ck::tensor_layout::convolution::NGKW;
 };
 
@@ -160,7 +200,6 @@ struct ConvTensorLayouts<ConvInputLayout{ConvInputLayout2D::NGCHW},
 {
     using ALayout  = ck::tensor_layout::convolution::NGCHW;
     using BLayout  = ck::tensor_layout::convolution::GKYXC;
-    using DsLayout = ck::Tuple<>;
     using ELayout  = ck::tensor_layout::convolution::NGKHW;
 };
 
@@ -172,7 +211,6 @@ struct ConvTensorLayouts<ConvInputLayout{ConvInputLayout2D::NHWGC},
 {
     using ALayout  = ck::tensor_layout::convolution::NHWGC;
     using BLayout  = ck::tensor_layout::convolution::GKYXC;
-    using DsLayout = ck::Tuple<>;
     using ELayout  = ck::tensor_layout::convolution::NHWGK;
 };
 
@@ -184,7 +222,6 @@ struct ConvTensorLayouts<ConvInputLayout{ConvInputLayout2D::GNHWC},
 {
     using ALayout  = ck::tensor_layout::convolution::GNHWC;
     using BLayout  = ck::tensor_layout::convolution::GKYXC;
-    using DsLayout = ck::Tuple<>;
     using ELayout  = ck::tensor_layout::convolution::GNHWK;
 };
 
@@ -196,7 +233,6 @@ struct ConvTensorLayouts<ConvInputLayout{ConvInputLayout2D::NGCHW},
 {
     using ALayout  = ck::tensor_layout::convolution::NGCHW;
     using BLayout  = ck::tensor_layout::convolution::GKCYX;
-    using DsLayout = ck::Tuple<>;
     using ELayout  = ck::tensor_layout::convolution::NGKHW;
 };
 
@@ -209,7 +245,6 @@ struct ConvTensorLayouts<ConvInputLayout{ConvInputLayout3D::NGCDHW},
 {
     using ALayout  = ck::tensor_layout::convolution::NGCDHW;
     using BLayout  = ck::tensor_layout::convolution::GKCZYX;
-    using DsLayout = ck::Tuple<>;
     using ELayout  = ck::tensor_layout::convolution::NGKDHW;
 };
 
@@ -221,7 +256,6 @@ struct ConvTensorLayouts<ConvInputLayout{ConvInputLayout3D::NDHWGC},
 {
     using ALayout  = ck::tensor_layout::convolution::NDHWGC;
     using BLayout  = ck::tensor_layout::convolution::GKZYXC;
-    using DsLayout = ck::Tuple<>;
     using ELayout  = ck::tensor_layout::convolution::NDHWGK;
 };
 
@@ -233,7 +267,6 @@ struct ConvTensorLayouts<ConvInputLayout{ConvInputLayout3D::GNDHWC},
 {
     using ALayout  = ck::tensor_layout::convolution::GNDHWC;
     using BLayout  = ck::tensor_layout::convolution::GKZYXC;
-    using DsLayout = ck::Tuple<>;
     using ELayout  = ck::tensor_layout::convolution::GNDHWK;
 };
 
@@ -275,7 +308,6 @@ struct ConvTensorTypes<DataType::FP16>
     using BDataType        = ck::half_t;
     using BComputeType     = ck::half_t;
     using CShuffleDataType = ck::half_t;
-    using DsDataTypes      = ck::Tuple<>;
     using AccDataType      = float;
     using EDataType        = ck::half_t;
 };
@@ -288,7 +320,6 @@ struct ConvTensorTypes<DataType::BF16>
     using BDataType        = ck::bhalf_t;
     using BComputeType     = ck::bhalf_t;
     using CShuffleDataType = ck::bhalf_t;
-    using DsDataTypes      = ck::Tuple<>;
     using AccDataType      = float;
     using EDataType        = ck::bhalf_t;
 };
@@ -301,7 +332,6 @@ struct ConvTensorTypes<DataType::FP32>
     using BDataType        = float;
     using BComputeType     = float;
     using CShuffleDataType = float;
-    using DsDataTypes      = ck::Tuple<>;
     using AccDataType      = float;
     using EDataType        = float;
 };
@@ -314,7 +344,6 @@ struct ConvTensorTypes<DataType::I8>
     using BDataType        = int8_t;
     using BComputeType     = int8_t;
     using CShuffleDataType = int8_t;
-    using DsDataTypes      = ck::Tuple<>;
     using AccDataType      = int32_t;
     using EDataType        = int8_t;
 };
@@ -327,7 +356,6 @@ struct ConvTensorTypes<DataType::FP8>
     using BDataType        = ck::f8_t;
     using BComputeType     = ck::f8_t;
     using CShuffleDataType = ck::f8_t;
-    using DsDataTypes      = ck::Tuple<>;
     using AccDataType      = float;
     using EDataType        = ck::f8_t;
 };
@@ -606,6 +634,10 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
     using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE.layout,
                                                                      SPATIAL_DIM,
                                                                      ConvDirection::FORWARD>());
+    using OutputBiasLayouts = decltype(factory_internal::GetOutputBiasTensorLayout<SIGNATURE.layout,
+                                                                                 SPATIAL_DIM,
+                                                                                 ConvDirection::FORWARD>());
+                                                                
     using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
     using Ops           = factory_internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
     using AlgorithmType = decltype(ALGORITHM);
@@ -647,13 +679,13 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         SPATIAL_DIM,
         typename Layouts::ALayout,
         typename Layouts::BLayout,
-        typename Layouts::DsLayout,
+        typename OutputBiasLayouts::DsLayout,
         typename Layouts::ELayout,
         typename Types::ADataType,
         typename Types::BDataType,
         typename Types::AccDataType,
         typename Types::CShuffleDataType,
-        typename Types::DsDataTypes,
+        typename OutputBiasLayouts::DsDataTypes,
         typename Types::EDataType,
         typename Ops::AElementwiseOp,
         typename Ops::BElementwiseOp,
@@ -708,6 +740,10 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
     using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE.layout,
                                                                      SPATIAL_DIM,
                                                                      ConvDirection::FORWARD>());
+    using OutputBiasLayouts = decltype(factory_internal::GetOutputBiasTensorLayout<SIGNATURE.layout,
+                                                                             SPATIAL_DIM,
+                                                                             ConvDirection::FORWARD>());
+
     using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
     using Ops           = factory_internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
     using AlgorithmType = decltype(ALGORITHM);
@@ -744,13 +780,13 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         SPATIAL_DIM,
         typename Layouts::ALayout,
         typename Layouts::BLayout,
-        typename Layouts::DsLayout,
+        typename OutputBiasLayouts::DsLayout,
         typename Layouts::ELayout,
         typename Types::ADataType,
         typename Types::BDataType,
         typename Types::AccDataType,
         typename Types::CShuffleDataType,
-        typename Types::DsDataTypes,
+        typename OutputBiasLayouts::DsDataTypes,
         typename Types::EDataType,
         typename Ops::AElementwiseOp,
         typename Ops::BElementwiseOp,
@@ -805,6 +841,10 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
     using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE.layout,
                                                                      SPATIAL_DIM,
                                                                      ConvDirection::FORWARD>());
+    using OutputBiasLayouts = decltype(factory_internal::GetOutputBiasTensorLayout<SIGNATURE.layout,
+                                                                             SPATIAL_DIM,
+                                                                             ConvDirection::FORWARD>());
+
     using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
     using Ops           = factory_internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
     using AlgorithmType = decltype(ALGORITHM);
@@ -843,13 +883,13 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         SPATIAL_DIM,
         typename Layouts::ALayout,
         typename Layouts::BLayout,
-        typename Layouts::DsLayout,
+        typename OutputBiasLayouts::DsLayout,
         typename Layouts::ELayout,
         typename Types::ADataType,
         typename Types::BDataType,
         typename Types::AccDataType,
         typename Types::CShuffleDataType,
-        typename Types::DsDataTypes,
+        typename OutputBiasLayouts::DsDataTypes,
         typename Types::EDataType,
         typename Ops::AElementwiseOp,
         typename Ops::BElementwiseOp,
@@ -901,6 +941,10 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
     using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE.layout,
                                                                      SPATIAL_DIM,
                                                                      ConvDirection::FORWARD>());
+    using OutputBiasLayouts = decltype(factory_internal::GetOutputBiasTensorLayout<SIGNATURE.layout,
+                                                                             SPATIAL_DIM,
+                                                                             ConvDirection::FORWARD>());
+
     using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
     using Ops           = factory_internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
     using AlgorithmType = decltype(ALGORITHM);
@@ -969,12 +1013,12 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
         SPATIAL_DIM,
         typename Types::ADataType,
         typename Types::BDataType,
-        typename Types::DsDataTypes,
+        typename OutputBiasLayouts::DsDataTypes,
         typename Types::EDataType,
         typename Types::AccDataType,
         typename Layouts::ALayout,
         typename Layouts::BLayout,
-        typename Layouts::DsLayout,
+        typename OutputBiasLayouts::DsLayout,
         typename Layouts::ELayout,
         typename Ops::AElementwiseOp,
         typename Ops::BElementwiseOp,
@@ -1024,6 +1068,10 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
     using Layouts       = decltype(factory_internal::GetTensorLayout<SIGNATURE.layout,
                                                                      SPATIAL_DIM,
                                                                      ConvDirection::FORWARD>());
+    using OutputBiasLayouts = decltype(factory_internal::GetOutputBiasTensorLayout<SIGNATURE.layout,
+                                                                             SPATIAL_DIM,
+                                                                             ConvDirection::FORWARD>());
+
     using Types         = factory_internal::ConvTensorTypes<SIGNATURE.data_type>;
     using Ops           = factory_internal::ElementwiseOps<get_elementwise_operation<SIGNATURE>()>;
     using AlgorithmType = decltype(ALGORITHM);
@@ -1062,13 +1110,13 @@ struct ConvFactory<SIGNATURE, ALGORITHM, VERSION>
             SPATIAL_DIM,
             typename Layouts::ALayout,
             typename Layouts::BLayout,
-            typename Layouts::DsLayout,
+            typename OutputBiasLayouts::DsLayout,
             typename Layouts::ELayout,
             typename Types::ADataType,
             typename Types::BDataType,
             typename Types::AccDataType,
             typename Types::CShuffleDataType,
-            typename Types::DsDataTypes,
+            typename OutputBiasLayouts::DsDataTypes,
             typename Types::EDataType,
             typename Ops::AElementwiseOp,
             typename Ops::BElementwiseOp,
