@@ -7,10 +7,10 @@
 ## The Problem
 
 Given a block tile of size `MPerBlock × KPerBlock` (e.g., 256×32), we need to determine:
-- Which thread loads which elements?
-- How are threads organized into warps?
-- How many times does each warp repeat its pattern?
-- How many elements can each thread load in a single vector instruction?
+- Which threads load which elements.
+- How the threads are organized into warps.
+- The number of times each warp repeats its pattern.
+- The number of elements each thread can load in a single vector instruction.
 
 ---
 
